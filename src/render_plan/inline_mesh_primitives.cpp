@@ -4,6 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <string>
+#include <numeric>
 
 namespace chronon3d::render_plan {
 namespace {
@@ -153,6 +154,131 @@ InlineMeshPlan torus(const InlineMeshPrimitivePlan& p) {
     return mesh;
 }
 
+float cross2(const std::array<float, 2>& a, const std::array<float, 2>& b,
+             const std::array<float, 2>& c) {
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+}
+
+InlineMeshPlan extrude(const InlineMeshPrimitivePlan& p) {
+    requirePositive(p.depth, "depth");
+    if (p.profile.size() < 3 || p.profile.size() > 4096)
+        throw std::invalid_argument("inline mesh extrusion profile must contain 3..4096 points");
+    if (!std::isfinite(p.bevel) || p.bevel < 0.0f || p.bevel > 1000000.0f)
+        throw std::invalid_argument("inline mesh extrusion bevel must be finite and non-negative");
+    if (p.bevel != 0.0f)
+        throw std::invalid_argument("inline mesh extrusion bevel is not supported yet; use zero");
+    for (const auto& point : p.profile)
+        if (!std::isfinite(point[0]) || !std::isfinite(point[1]) ||
+            std::abs(point[0]) > 1000000.0f || std::abs(point[1]) > 1000000.0f)
+            throw std::invalid_argument("inline mesh extrusion profile points must be finite and bounded");
+
+    const std::size_t count = p.profile.size();
+    double area = 0.0;
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& a = p.profile[i];
+        const auto& b = p.profile[(i + 1) % count];
+        area += static_cast<double>(a[0]) * b[1] - static_cast<double>(b[0]) * a[1];
+        if (a == b) throw std::invalid_argument("inline mesh extrusion profile has a zero-length edge");
+    }
+    if (!std::isfinite(area) || std::abs(area) <= 1e-8)
+        throw std::invalid_argument("inline mesh extrusion profile must have non-zero area");
+
+    std::vector<std::size_t> polygon(count);
+    std::iota(polygon.begin(), polygon.end(), 0);
+    if (area < 0.0) std::reverse(polygon.begin(), polygon.end());
+    const auto& points = p.profile;
+    const auto segments_intersect = [&](std::size_t ai, std::size_t bi) {
+        const auto& a = points[ai];
+        const auto& b = points[(ai + 1) % count];
+        const auto& c = points[bi];
+        const auto& d = points[(bi + 1) % count];
+        const float ab_c = cross2(a, b, c), ab_d = cross2(a, b, d);
+        const float cd_a = cross2(c, d, a), cd_b = cross2(c, d, b);
+        constexpr float epsilon = 1e-7f;
+        return ((ab_c > epsilon && ab_d < -epsilon) || (ab_c < -epsilon && ab_d > epsilon)) &&
+               ((cd_a > epsilon && cd_b < -epsilon) || (cd_a < -epsilon && cd_b > epsilon));
+    };
+    for (std::size_t i = 0; i < count; ++i) {
+        for (std::size_t j = i + 1; j < count; ++j) {
+            if ((i + 1) % count == j || (j + 1) % count == i) continue;
+            if (segments_intersect(i, j))
+                throw std::invalid_argument("inline mesh extrusion profile must not self-intersect");
+        }
+    }
+    std::vector<std::array<float, 2>> oriented_points;
+    oriented_points.reserve(count);
+    for (const auto index : polygon) oriented_points.push_back(points[index]);
+    const auto inside_triangle = [](const auto& q, const auto& a, const auto& b, const auto& c) {
+        constexpr float epsilon = 1e-7f;
+        return cross2(a, b, q) >= -epsilon && cross2(b, c, q) >= -epsilon &&
+               cross2(c, a, q) >= -epsilon;
+    };
+    std::vector<std::array<std::size_t, 3>> cap_triangles;
+    cap_triangles.reserve(count - 2);
+    while (polygon.size() > 3) {
+        bool clipped = false;
+        for (std::size_t i = 0; i < polygon.size(); ++i) {
+            const auto prev = polygon[(i + polygon.size() - 1) % polygon.size()];
+            const auto curr = polygon[i];
+            const auto next = polygon[(i + 1) % polygon.size()];
+            if (cross2(points[prev], points[curr], points[next]) <= 1e-7f) continue;
+            bool contains_vertex = false;
+            for (const auto candidate : polygon) {
+                if (candidate == prev || candidate == curr || candidate == next) continue;
+                if (inside_triangle(points[candidate], points[prev], points[curr], points[next])) {
+                    contains_vertex = true;
+                    break;
+                }
+            }
+            if (contains_vertex) continue;
+            cap_triangles.push_back({prev, curr, next});
+            polygon.erase(polygon.begin() + static_cast<std::ptrdiff_t>(i));
+            clipped = true;
+            break;
+        }
+        if (!clipped)
+            throw std::invalid_argument("inline mesh extrusion profile must be a simple non-degenerate polygon");
+    }
+    cap_triangles.push_back({polygon[0], polygon[1], polygon[2]});
+
+    const std::uint64_t vertex_count = 6ULL * (count - 2) + 6ULL * count;
+    auto mesh = allocate(vertex_count, vertex_count);
+    const float z_top = p.depth * 0.5f, z_bottom = -z_top;
+    for (const auto& triangle_indices : cap_triangles) {
+        const auto vertex = [&](std::size_t index, float z) {
+            return V{{points[index][0], points[index][1], z}, {0.0f, 0.0f, z > 0 ? 1.0f : -1.0f},
+                     {points[index][0], points[index][1]}};
+        };
+        triangle(mesh, vertex(triangle_indices[0], z_top), vertex(triangle_indices[1], z_top),
+                 vertex(triangle_indices[2], z_top));
+        triangle(mesh, vertex(triangle_indices[2], z_bottom), vertex(triangle_indices[1], z_bottom),
+                 vertex(triangle_indices[0], z_bottom));
+    }
+
+    std::vector<float> cumulative(count + 1, 0.0f);
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& a = oriented_points[i];
+        const auto& b = oriented_points[(i + 1) % count];
+        cumulative[i + 1] = cumulative[i] + std::hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    const float perimeter = cumulative.back();
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& a = oriented_points[i];
+        const auto& b = oriented_points[(i + 1) % count];
+        const float dx = b[0] - a[0], dy = b[1] - a[1];
+        const float edge_length = std::hypot(dx, dy);
+        const std::array<float, 3> normal{dy / edge_length, -dx / edge_length, 0.0f};
+        const float u0 = cumulative[i] / perimeter, u1 = cumulative[i + 1] / perimeter;
+        const V bottom_a{{a[0], a[1], z_bottom}, normal, {u0, 0.0f}};
+        const V bottom_b{{b[0], b[1], z_bottom}, normal, {u1, 0.0f}};
+        const V top_b{{b[0], b[1], z_top}, normal, {u1, 1.0f}};
+        const V top_a{{a[0], a[1], z_top}, normal, {u0, 1.0f}};
+        triangle(mesh, bottom_a, bottom_b, top_b);
+        triangle(mesh, bottom_a, top_b, top_a);
+    }
+    return mesh;
+}
+
 } // namespace
 
 InlineMeshPlan expand_inline_mesh_primitive(const InlineMeshPrimitivePlan& p) {
@@ -162,6 +288,7 @@ InlineMeshPlan expand_inline_mesh_primitive(const InlineMeshPrimitivePlan& p) {
     if (p.kind=="cylinder") return cylinder(p,false);
     if (p.kind=="cone") return cylinder(p,true);
     if (p.kind=="torus") return torus(p);
+    if (p.kind=="extrude") return extrude(p);
     throw std::invalid_argument("inline mesh primitive kind is unsupported: " + p.kind);
 }
 

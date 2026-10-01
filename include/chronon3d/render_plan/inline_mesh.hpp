@@ -46,6 +46,8 @@ struct InlineMeshPrimitivePlan {
     float radius{1.0f}, radius_top{1.0f}, radius_bottom{1.0f}, tube{0.25f};
     std::uint32_t width_segments{1}, height_segments{1};
     std::uint32_t radial_segments{16}, tubular_segments{32};
+    std::vector<std::array<float, 2>> profile;
+    float bevel{0.0f};
 };
 
 /// Expand a supported primitive into triangle positions, normals, UVs, and
