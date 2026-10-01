@@ -147,6 +147,51 @@ TEST_CASE("render_plan V3 shape fill is accepted as an extension and checked by 
     CHECK(plan["layers"][0]["shape"].contains("fill"));
 }
 
+TEST_CASE("render_plan V3 text solid stroke remains valid through the shared V2 projection") {
+    auto plan = json{
+        {"schema", "chronon.render-plan.v3"}, {"version", 3},
+        {"canvas", {{"width", 1280}, {"height", 720}, {"fps_num", 24},
+                     {"fps_den", 1}, {"duration_frames", 48}}},
+        {"layers", json::array({
+            {{"id", "caption"}, {"type", "text"}, {"text", "ROME"},
+             {"size", {480, 88}}, {"style", {
+                 {"font", "Poppins-Bold"}, {"font_size", 24}, {"fill", "#FFFFFF"},
+                 {"stroke", {{"color", "#111827"}, {"width", 3.5}}}
+             }}}
+        })},
+        {"output", {{"path", "out.png"}}}
+    };
+    const auto result = validate_render_plan(plan);
+    INFO(result.format());
+    CHECK(result.ok());
+}
+
+TEST_CASE("render_plan V3 rejects unsupported WorldMap, Chart, and shape.counter contracts") {
+    const auto valid_shape_plan = [](json shape) {
+        return json{
+            {"schema", "chronon.render-plan.v3"}, {"version", 3},
+            {"canvas", {{"width", 40}, {"height", 30}, {"fps_num", 30},
+                         {"fps_den", 1}, {"duration_frames", 12}}},
+            {"layers", json::array({{{"id", "shape"}, {"type", "shape"},
+                {"size", {20, 10}}, {"shape", std::move(shape)}}})},
+            {"output", {{"path", "out.png"}}}
+        };
+    };
+    const std::vector<json> unsupported_shapes = json::parse(R"JSON([
+      {"type":"world_map","world_map":{"projection":"mercator","center":[12,41],
+        "zoom":3,"route":[[-74,40],[12,41]]}},
+      {"type":"chart","chart":{"type":"pie","data":[2,3],"donut":true,
+        "donut_inner_ratio":0.5,"value_format":"currency"}},
+      {"type":"rect","counter":{"from":0,"to":100}},
+      {"type":"rect","world_map":{"route":[[0,0],[1,1]]}},
+      {"type":"rect","chart":{"type":"bar","data":[1,2]}}
+    ])JSON");
+    for (const auto& shape : unsupported_shapes) {
+        INFO(shape.dump());
+        check_schema_violation(validate_render_plan(valid_shape_plan(shape)));
+    }
+}
+
 TEST_CASE("render_plan V3 accepts the per-frame paint track family") {
     // Regression: the V3 extension schema documents stroke_width, stroke_color
     // and shadow_<n>_* as animatable, but the frozen V2 projection only erased

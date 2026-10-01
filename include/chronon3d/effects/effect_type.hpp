@@ -62,6 +62,10 @@ enum class EffectType : uint8_t {
     DisplacementMap = 39,
     ChromaticAberration = 40,
     Halftone = 41,
+    LensDistortion = 42,
+    LuminanceResponse = 43,
+    FoldWarp = 44,
+    CreaseShading = 45,
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────

@@ -78,7 +78,16 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
                 ? GpuGlyphAtlasError::Code::NotAttached
                 : GpuGlyphAtlasError::Code::AllocationFailed;
         ++m_stats.failures;
-        spdlog::warn("GpuGlyphAtlas::page_for_glyph: page allocation failed ({}): {}", static_cast<int>(code), result.error);
+        if (result.error.find("native surfaces are not supported") !=
+            std::string::npos) {
+            spdlog::debug(
+                "GpuGlyphAtlas::page_for_glyph unavailable on this backend: {}",
+                result.error);
+        } else {
+            spdlog::warn(
+                "GpuGlyphAtlas::page_for_glyph: page allocation failed ({}): {}",
+                static_cast<int>(code), result.error);
+        }
         return atlas_error(code, "glyph atlas page allocation failed: " + result.error);
     }
 

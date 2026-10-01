@@ -56,6 +56,21 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
                     slot = OwnedFB(new Framebuffer(w, h, clear), PoolFbDeleter(DeleteFramebuffer{}));
                 }
             }
+        } else if (w > slot->allocated_width() || h > slot->allocated_height()) {
+            // Interval coloring can reuse one transient slot for resources of
+            // different sizes. A physical slot starts at the first resource's
+            // dimensions, so grow it on demand before exposing it to a later,
+            // larger resource in the same execution plan.
+            slot.reset();
+            if (policy.require_native_gpu) {
+                slot = OwnedFB(new Framebuffer(w, h, static_cast<Color*>(nullptr)),
+                               PoolFbDeleter(DeleteFramebuffer{}));
+            } else if (auto* pool = framebuffer_pool.get()) {
+                slot = pool->acquire_owned(w, h, clear);
+            } else {
+                slot = OwnedFB(new Framebuffer(w, h, clear),
+                               PoolFbDeleter(DeleteFramebuffer{}));
+            }
         } else {
             slot->resize_logical(w, h);
         }

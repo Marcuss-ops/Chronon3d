@@ -255,6 +255,13 @@ public:
     [[nodiscard]] std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
     processor_snapshot() const noexcept override;
     [[nodiscard]] bool requires_processor_snapshot() const noexcept override;
+    std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override;
+    void attach_fallback_backend(std::shared_ptr<graph::RenderBackend> fallback) noexcept {
+        m_fallback_backend = std::move(fallback);
+    }
+    [[nodiscard]] const std::shared_ptr<graph::RenderBackend>& fallback_backend() const noexcept {
+        return m_fallback_backend;
+    }
     [[nodiscard]] VulkanBackendStats stats() const noexcept;
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
 
@@ -563,6 +570,7 @@ private:
     double m_init_device_ms{0.0};
     double m_init_pipelines_ms{0.0};
 #endif
+    std::shared_ptr<graph::RenderBackend> m_fallback_backend{};
 };
 
 [[nodiscard]] std::unique_ptr<graph::RenderBackend> make_vulkan_backend(

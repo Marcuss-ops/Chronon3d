@@ -153,6 +153,11 @@ LayerBuilder& LayerBuilder::enable_3d(bool value) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::screen_space(bool value) {
+    m_layer.screen_space = value;
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::transform(Transform t) {
     m_layer.transform = t;
     return *this;

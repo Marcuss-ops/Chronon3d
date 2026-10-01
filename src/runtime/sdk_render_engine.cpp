@@ -62,19 +62,18 @@ void framebuffer_to_rgba8(const Framebuffer& fb,
     const usize count = static_cast<usize>(w) * h * 4;
     out.resize(count);
 
-    const Color* src = fb.data();
-    std::uint8_t* dst = out.data();
-
-    for (usize i = 0; i < static_cast<usize>(w) * h; ++i) {
-        const Color& c = src[i];
-        dst[i * 4 + 0] = static_cast<std::uint8_t>(
-            std::clamp(c.r * 255.0f, 0.0f, 255.0f));
-        dst[i * 4 + 1] = static_cast<std::uint8_t>(
-            std::clamp(c.g * 255.0f, 0.0f, 255.0f));
-        dst[i * 4 + 2] = static_cast<std::uint8_t>(
-            std::clamp(c.b * 255.0f, 0.0f, 255.0f));
-        dst[i * 4 + 3] = static_cast<std::uint8_t>(
-            std::clamp(c.a * 255.0f, 0.0f, 255.0f));
+    for (i32 y = 0; y < h; ++y) {
+        const Color* src_row = fb.pixels_row(y);
+        std::uint8_t* dst_row = out.data() + static_cast<usize>(y) * w * 4;
+        for (i32 x = 0; x < w; ++x) {
+            const Color rgba = src_row[x].unpremultiplied();
+            const usize offset = static_cast<usize>(x) * 4;
+            dst_row[offset + 0] = Color::linear_to_srgb8(rgba.r);
+            dst_row[offset + 1] = Color::linear_to_srgb8(rgba.g);
+            dst_row[offset + 2] = Color::linear_to_srgb8(rgba.b);
+            dst_row[offset + 3] = static_cast<std::uint8_t>(
+                std::clamp(rgba.a, 0.0f, 1.0f) * 255.0f + 0.5f);
+        }
     }
 }
 

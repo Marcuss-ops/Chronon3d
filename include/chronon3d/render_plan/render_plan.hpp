@@ -12,6 +12,7 @@
 #include <chronon3d/render_plan/inline_mesh.hpp>
 #include <chronon3d/scene/model/shape/particles.hpp>
 #include <chronon3d/text/text_span_override.hpp>
+#include <chronon3d/effects/backdrop_filter.hpp>
 
 #include <array>
 #include <cstddef>
@@ -35,7 +36,7 @@ inline constexpr const char* kRenderPlanSchemaV3 = "chronon.render-plan.v3";
 enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment, Mesh };
 enum class ShapeContentTypePlan : std::uint8_t {
     Rect, RoundedRect, Ellipse, Line, Path,
-    Star, Polygon, Arrow, Arc, Grid, DotGrid, DeviceFrame, WorldMap, Chart
+    Star, Polygon, Arrow, Arc, Grid, DotGrid, DeviceFrame
 };
 enum class DeviceFrameKindPlan : std::uint8_t { Phone, Browser };
 enum class ShapeFillRulePlan : std::uint8_t { EvenOdd, NonZero };
@@ -177,28 +178,6 @@ struct ImportedSubpathPlan {
     std::optional<StrokeStyle> stroke;
 };
 
-struct WorldMapPlan {
-    std::string projection{"mercator"}; // mercator | equirectangular
-    std::array<float, 2> center{0.0f, 0.0f}; // lon, lat degrees
-    float zoom{1.0f}; // 1 = world, 8 = country
-    std::vector<std::string> highlight; // ISO codes
-    std::string highlight_color{"#FF3B30"};
-    std::vector<std::array<float, 2>> route; // lon/lat pairs
-    bool dots{false};
-};
-
-struct ChartPlan {
-    std::string chart_type{"bar"}; // bar | line | pie
-    std::vector<float> data; // normalized values
-    std::vector<std::array<float, 4>> colors; // RGBA per segment
-    std::string value_format{"plain"}; // alias for Counter-friendly naming
-
-    float bar_gap{0.15f}; // fraction of bar width [0,0.5]
-    float line_width{3.0f}; // px
-    bool donut{false};
-    float donut_inner_ratio{0.5f}; // [0.1,0.9]
-};
-
 struct DeviceFramePlan {
     std::string frame_type{"browser"}; // browser | phone | window
     float radius{12.0f}; // corner radius px
@@ -261,13 +240,10 @@ struct ShapeContentPlan {
     float arc_start_deg{0.0f}; // degrees [0,360)
     float arc_sweep_deg{270.0f}; // degrees (1..359.9)
     float arc_thickness{8.0f}; // px, 0 = stroked arc
-    // ── WorldMap / Chart / DeviceFrame / Counter (additive payloads) ─
+    // ── DeviceFrame (additive payload) ─
     DeviceFrameKindPlan device_frame_kind{DeviceFrameKindPlan::Phone};
     bool device_frame_chrome{true};
-    std::optional<WorldMapPlan> world_map;
-    std::optional<ChartPlan> chart;
     std::optional<DeviceFramePlan> device_frame;
-    std::optional<CounterPlan> counter;
 };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
 enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM, PngSequence, Gif };
@@ -534,7 +510,7 @@ struct LayerPlan {
     };
     std::optional<PathMaskPlan> path_mask;
     std::vector<PathMaskPlan> masks;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -561,6 +537,8 @@ struct LayerPlan {
         std::uint32_t block_size{8};
         float chromatic_red_offset{2.0f};
         float chromatic_blue_offset{-2.0f};
+        std::uint8_t chromatic_offset_mode{0}; // 0 = Constant, 1 = Radial, 2 = Velocity
+        std::array<float, 2> chromatic_velocity{0.0f, 0.0f};
         std::uint32_t halftone_size{8};
         float halftone_angle{0.0f};
         float halftone_amount{1.0f};
@@ -619,6 +597,33 @@ struct LayerPlan {
         float mesh_smoothness{0.0f};
         std::vector<float> mesh_offsets{}; // cols*rows x,y pairs
 
+        // Lens distortion
+        float lens_curvature{0.15f};
+        std::array<float, 2> lens_center{0.5f, 0.5f};
+        float lens_scale{1.0f};
+
+        // Fold warp & Crease shading
+        std::uint8_t fold_axis{0};
+        float fold_position{0.5f};
+        float fold_amount{0.25f};
+        float fold_radius{0.20f};
+        float fold_falloff{1.0f};
+        float fold_perspective{0.05f};
+
+        std::uint8_t crease_axis{0};
+        float crease_position{0.5f};
+        float crease_width{24.0f};
+        float crease_dark_side{0.35f};
+        float crease_light_side{0.20f};
+        float crease_softness{0.50f};
+
+        // Luminance response
+        float response_threshold{0.70f};
+        float response_softness{0.20f};
+        float response_radius{18.0f};
+        std::array<float, 4> response_tint{1.0f, 0.35f, 0.15f, 1.0f};
+        float response_intensity{1.0f};
+        std::uint8_t response_blend{0}; // 0 = Screen, 1 = Add, 2 = Over
     };
     struct EffectParamTrackPlan {
         std::string effect_id;
@@ -627,6 +632,7 @@ struct LayerPlan {
     };
     std::vector<EffectParamTrackPlan> effect_param_tracks;
     std::vector<EffectPlan> effects;
+    std::optional<BackdropFilterPlan> backdrop_filter;
 
     std::array<float, 2> size{0.0f, 0.0f};
     std::size_t size_dimensions{0};

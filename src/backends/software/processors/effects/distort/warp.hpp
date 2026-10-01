@@ -52,4 +52,19 @@ void apply_displacement_field(Framebuffer& fb, const DisplacementMapParams& para
                               ::chronon3d::EffectScratchResources& scratch,
                               const std::optional<raster::BBox>& clip = std::nullopt);
 
+void apply_lens_distortion(Framebuffer& fb, const LensDistortionParams& params,
+                          ::chronon3d::EffectScratchResources& scratch,
+                          const std::optional<raster::BBox>& clip = std::nullopt);
+
+void apply_fold_warp(Framebuffer& fb, const FoldWarpParams& params,
+                     ::chronon3d::EffectScratchResources& scratch,
+                     const std::optional<raster::BBox>& clip = std::nullopt);
+
+void apply_crease_shading(Framebuffer& fb, const CreaseShadingParams& params,
+                          const std::optional<raster::BBox>& clip = std::nullopt);
+
+void apply_luminance_response(Framebuffer& fb, const LuminanceResponseParams& params,
+                              ::chronon3d::EffectScratchResources& scratch,
+                              const std::optional<raster::BBox>& clip = std::nullopt);
+
 } // namespace chronon3d::renderer

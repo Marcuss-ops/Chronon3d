@@ -210,6 +210,17 @@ bool execute_direct_mux_gop_plan(
         reason = "source_contract_unavailable";
         return false;
     }
+    // The borrowed mux lane must preserve the source bitstream profile for
+    // copied GOPs. Velox assembly-ready assets have a stricter canonical
+    // H.264 High contract, so a Main-profile source cannot enter this lane:
+    // encoding only changed GOPs would keep the container at Main. Decline
+    // the optimization and let the normal encoder produce one High stream
+    // for the complete clip (audio can still be copied from gop_source).
+    if (declared->codec == AV_CODEC_ID_H264 &&
+        declared->profile != FF_PROFILE_H264_HIGH) {
+        reason = "source_profile_not_assembly_ready";
+        return false;
+    }
     const double fps = opts.output.fps_value() > 0.0
         ? opts.output.fps_value() : 30.0;
     const double start_sec = static_cast<double>(start.integral()) / fps;

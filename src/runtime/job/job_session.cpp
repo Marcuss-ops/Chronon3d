@@ -9,11 +9,15 @@ namespace chronon3d::runtime {
 void RenderErrorSlot::clear() {
     std::lock_guard lock(mutex_);
     error_.reset();
+    has_error_.store(false, std::memory_order_release);
 }
 
 void RenderErrorSlot::publish_first(const graph::NodeExecutionError& error) {
     std::lock_guard lock(mutex_);
-    if (!error_) error_ = std::make_shared<const graph::NodeExecutionError>(error);
+    if (!error_) {
+        error_ = std::make_shared<const graph::NodeExecutionError>(error);
+        has_error_.store(true, std::memory_order_release);
+    }
 }
 
 std::shared_ptr<const graph::NodeExecutionError> RenderErrorSlot::load() const {

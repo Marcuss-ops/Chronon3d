@@ -2,10 +2,12 @@
 
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 
 #include <spdlog/spdlog.h>
 
 #include <atomic>
+#include <string>
 
 namespace chronon3d::graph {
 
@@ -18,7 +20,15 @@ bool execute_compiled_program(
     (void)state;
     auto* backend = ctx.execution_backend();
     if (!backend) {
-        spdlog::error("[compiled-executor] fully_recorded program has no render backend");
+        constexpr char message[] =
+            "fully_recorded program has no render backend";
+        spdlog::error("[compiled-executor] {}", message);
+        if (ctx.frame_error) {
+            ctx.frame_error->publish_first(NodeExecutionError{
+                RenderBackendErrorCode::InvalidInput,
+                "compiled-executor",
+                message});
+        }
         return false;
     }
 
@@ -26,10 +36,19 @@ bool execute_compiled_program(
         for (GraphNodeId node_id : level) {
             const CompiledOperation* op = program.operation_for(node_id);
             if (!op || !op->has_compiled_execute()) {
+                constexpr char message[] =
+                    "fully_recorded program node has no compiled_execute";
                 spdlog::error(
                     "[compiled-executor] node {} has no compiled_execute in "
                     "a fully_recorded program",
                     static_cast<int>(node_id));
+                if (ctx.frame_error) {
+                    ctx.frame_error->publish_first(NodeExecutionError{
+                        RenderBackendErrorCode::InvalidInput,
+                        std::string("compiled-executor-node-") +
+                            std::to_string(node_id),
+                        message});
+                }
                 return false;
             }
 
@@ -41,6 +60,13 @@ bool execute_compiled_program(
                 spdlog::error(
                     "[compiled-executor] compiled_execute failed for node {}",
                     static_cast<int>(node_id));
+                if (ctx.frame_error) {
+                    ctx.frame_error->publish_first(NodeExecutionError{
+                        RenderBackendErrorCode::ExecutionFailure,
+                        std::string("compiled-executor-node-") +
+                            std::to_string(node_id),
+                        "compiled_execute returned false"});
+                }
                 return false;
             }
         }

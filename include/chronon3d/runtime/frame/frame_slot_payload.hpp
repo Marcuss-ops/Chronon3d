@@ -10,6 +10,7 @@
 #include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
 #include <chronon3d/render_graph/executor/execution_workspace.hpp>
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 
 #include <memory>
 #include <optional>
@@ -28,13 +29,13 @@ struct FrameSlotPayload final {
     // JobSession-owned workspace/tracker.
     graph::ExecutionWorkspaceRing execution_workspaces{};
     graph::NodeMemoryTracker memory_tracker{};
-    std::optional<graph::NodeExecutionError> frame_error{};
+    RenderErrorSlot frame_error{};
 
     void reset() noexcept {
         parameters.layers.clear();
         rendered.reset();
         memory_tracker.reset();
-        frame_error.reset();
+        frame_error.clear();
         arena.reset();
     }
 };

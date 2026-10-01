@@ -1632,6 +1632,17 @@ make_camera_descriptor(const RenderPlan& plan) {
     descriptor.base.rotation = {source_plan.rotation_deg[0], source_plan.rotation_deg[1], source_plan.rotation_deg[2]};
     descriptor.base.projection = chronon3d::camera_v1::FovProjection{
         chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
+    descriptor.base.dof.enabled = source_plan.dof_enabled;
+    descriptor.base.dof.focus_distance = source_plan.dof_focus_distance;
+    descriptor.base.dof.aperture = source_plan.dof_aperture;
+    descriptor.base.dof.max_blur = source_plan.dof_max_blur;
+    if (source_plan.dof_enabled) {
+        // RenderPlan V2's focus_distance uses the same world-space Z origin as
+        // Camera2_5D's legacy blur-per-unit model. Preserve focus_z when the
+        // optional newer focus-distance value is left at its default.
+        descriptor.base.dof.focus_z = source_plan.dof_focus_distance;
+        descriptor.base.dof.use_physical_model = false;
+    }
     if (source_plan.type == "orthographic") {
         // Camera2_5D has no second projection implementation: use its existing
         // zoom optics surface rather than introducing a parallel camera model.
@@ -1647,6 +1658,9 @@ make_camera_descriptor(const RenderPlan& plan) {
     tracks.rotation = chronon3d::AnimatedValue<chronon3d::Vec3>{descriptor.base.rotation};
     tracks.fov_deg = chronon3d::AnimatedValue<float>{source_plan.fov_deg};
     tracks.zoom = chronon3d::AnimatedValue<float>{1000.0f * source_plan.zoom};
+    tracks.focus_distance = chronon3d::AnimatedValue<float>{source_plan.dof_focus_distance};
+    tracks.aperture = chronon3d::AnimatedValue<float>{source_plan.dof_aperture};
+    tracks.max_blur = chronon3d::AnimatedValue<float>{source_plan.dof_max_blur};
     for (const auto& track : *plan.camera_animation) {
         AnimationTrackPlan easing_track;
         easing_track.property = "camera";
@@ -1802,6 +1816,7 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
         }
     }
     if (layer.enable_3d) builder.enable_3d();
+    if (layer.screen_space) builder.screen_space();
     if (layer.depth_role) {
         builder.depth_role(depth_role_value(*layer.depth_role));
         builder.depth_offset(layer.depth_offset);

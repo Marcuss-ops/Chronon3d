@@ -185,6 +185,7 @@ inline void box_downsample_into(const Framebuffer& src, Framebuffer& dst) {
             .retain_native_surface_for_video = settings.retain_native_surface_for_video,
             .disable_pixel_readback = settings.disable_pixel_readback,
             .require_native_gpu = settings.require_native_gpu,
+            .gpu_hot_path_mode = settings.require_native_gpu ? GpuHotPathMode::RequireGpuNative : GpuHotPathMode::Auto,
             .native_video_encode_surface = settings.native_video_encode_surface,
             .native_video_source_surface = settings.native_video_source_surface,
             .native_video_previous_surface = settings.native_video_previous_surface,

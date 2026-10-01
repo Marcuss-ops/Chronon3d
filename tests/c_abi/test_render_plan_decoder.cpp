@@ -1674,7 +1674,7 @@ TEST_CASE("render plan V3 decodes the remaining animated text style properties")
         {"id":"style","selectors":[{"unit":"glyph"}],"properties":[
           {"property":"skew","keyframes":[{"frame":0,"value":0},{"frame":10,"value":20}]},
           {"property":"skew_axis","keyframes":[{"frame":0,"value":10}]},
-          {"property":"anchor","keyframes":[{"frame":0,"value":[0,0,0]},{"frame":10,"value":[1,2,3]}]},
+          {"property":"anchor","keyframes":[{"frame":0,"value":[1,2,3]}]},
           {"property":"baseline_shift","keyframes":[{"frame":0,"value":0},{"frame":10,"value":8}]},
           {"property":"background_color","keyframes":[{"frame":0,"value":[0,0,0,0]},{"frame":10,"value":[1,0,0,1]}]},
           {"property":"background_padding_em","keyframes":[{"frame":0,"value":0.5},{"frame":10,"value":1}]},
@@ -1685,7 +1685,7 @@ TEST_CASE("render plan V3 decodes the remaining animated text style properties")
     ])JSON");
 
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
-    if (!decoded) INFO(decoded.error().message);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
     REQUIRE(decoded.has_value());
     const auto& properties = decoded->layers[0].text_animators[0].properties;
     REQUIRE(properties.size() == 9);
@@ -2028,10 +2028,10 @@ TEST_CASE("render plan decodes bounded ordered mask stacks and fingerprints ever
         {"id", "masked"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
         {"masks", nlohmann::json::array({
             {{"type", "rect"}, {"mode", "add"}, {"size", {80, 60}}, {"position", {2, 3}},
-             {"feather", 2.0}, {"feather_track", {{"property", "mask_feather"},
+             {"feather", 2.0}, {"feather_track", {
                  {"keyframes", {{{"frame", 0}, {"value", 2.0}},
                                  {{"frame", 10}, {"value", 6.0}}}}}},
-             {"opacity", 1.0}, {"opacity_track", {{"property", "mask_opacity"},
+             {"opacity", 1.0}, {"opacity_track", {
                  {"keyframes", {{{"frame", 0}, {"value", 0.0}},
                                  {{"frame", 10}, {"value", 1.0}}}}}}},
             {{"type", "ellipse"}, {"mode", "intersect"}, {"size", {48, 32}}, {"inverted", true}},
@@ -2044,7 +2044,9 @@ TEST_CASE("render plan decodes bounded ordered mask stacks and fingerprints ever
         })}
     }}));
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
-    REQUIRE(decoded.has_value());
+    const std::string decode_error = decoded.has_value() ? std::string{} :
+        decoded.error().path + ": " + decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
     REQUIRE(decoded->layers.size() == 1);
     REQUIRE(decoded->layers[0].masks.size() == 4);
     CHECK(decoded->layers[0].masks[0].type == "rect");
@@ -2122,16 +2124,43 @@ TEST_CASE("render plan V3 decodes a bounded spring segment and its config") {
               std::string::npos);
 }
 
-TEST_CASE("render plan V3 rejects unimplemented primitive and counter payloads") {
-    for (const auto* type : {"world_map", "chart", "counter"}) {
+TEST_CASE("render plan V3 rejects unsupported world maps, charts, and shape counters") {
+    const auto check_rejected = [](nlohmann::json shape) {
         auto source = render_plan_test::base_plan({
-            render_plan_test::shape_layer({{"type", type}})});
-        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
-    }
-    auto counter_payload = render_plan_test::base_plan({
-        render_plan_test::shape_layer({{"type", "rect"},
-            {"counter", {{"from", 0}, {"to", 100}}}})});
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(counter_payload));
+            render_plan_test::shape_layer(std::move(shape))});
+        const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+        CHECK_FALSE(decoded);
+    };
+
+    // These are structurally meaningful payloads, not just missing-data cases:
+    // the contract must reject them at schema/decode time rather than accept a
+    // shape that one compiler path renders as a blank base rectangle.
+    check_rejected({{"type", "world_map"}, {"world_map", {
+        {"projection", "mercator"}, {"center", {12.0, 41.0}}, {"zoom", 3.0},
+        {"route", {{-74.0, 40.7}, {12.5, 41.9}}}, {"highlight", {"IT"}}}}});
+    check_rejected({{"type", "chart"}, {"chart", {
+        {"type", "pie"}, {"data", {2.0, 3.0}}, {"donut", true},
+        {"donut_inner_ratio", 0.5}, {"value_format", "currency"}}}});
+    check_rejected({{"type", "rect"}, {"counter", {{"from", 0}, {"to", 100}}}});
+    check_rejected({{"type", "rect"}, {"world_map", {{"route", {{0, 0}, {1, 1}}}}}});
+    check_rejected({{"type", "rect"}, {"chart", {{"type", "bar"}, {"data", {1, 2}}}}});
+}
+
+TEST_CASE("render plan V3 retains the implemented text_counter contract") {
+    nlohmann::json counter_layer = nlohmann::json::parse(R"JSON({
+      "id":"counter","type":"text","text":"Revenue: {{value}}",
+      "style":{"font":"fonts/roboto.ttf","font_size":24,"fill":"#FFFFFF"},
+      "text_counter":{"token":"{{value}}","counter":{"from":0,"to":100,
+        "duration_frames":12,"format":"currency"}}
+    })JSON");
+    auto source = render_plan_test::base_plan({std::move(counter_layer)});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = decoded.has_value() ? std::string{} :
+        decoded.error().path + ": " + decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
+    REQUIRE(decoded->layers[0].text_counter);
+    CHECK(decoded->layers[0].text_counter->counter.to == doctest::Approx(100.0f));
+    CHECK(decoded->layers[0].text_counter->counter.format == "currency");
 }
 
 TEST_CASE("render plan V3 decodes animated path morphs and fingerprints their full semantics") {

@@ -71,6 +71,10 @@ std::unique_ptr<EffectProcessor> create_turbulent_displace_effect_processor();
 std::unique_ptr<EffectProcessor> create_wave_warp_effect_processor();
 std::unique_ptr<EffectProcessor> create_ripple_effect_processor();
 std::unique_ptr<EffectProcessor> create_displacement_map_effect_processor();
+std::unique_ptr<EffectProcessor> create_lens_distortion_effect_processor();
+std::unique_ptr<EffectProcessor> create_luminance_response_effect_processor();
+std::unique_ptr<EffectProcessor> create_fold_warp_effect_processor();
+std::unique_ptr<EffectProcessor> create_crease_shading_effect_processor();
 
 void register_builtin_processors(SoftwareRegistry& registry) {
     // Shapes
@@ -134,6 +138,10 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<TwirlParams>(create_twirl_effect_processor());
     registry.register_effect_processor<BulgeParams>(create_bulge_effect_processor());
     registry.register_effect_processor<MeshWarpParams>(create_mesh_warp_effect_processor());
+    registry.register_effect_processor<LensDistortionParams>(create_lens_distortion_effect_processor());
+    registry.register_effect_processor<LuminanceResponseParams>(create_luminance_response_effect_processor());
+    registry.register_effect_processor<FoldWarpParams>(create_fold_warp_effect_processor());
+    registry.register_effect_processor<CreaseShadingParams>(create_crease_shading_effect_processor());
 }
 
 } // namespace chronon3d::renderer
