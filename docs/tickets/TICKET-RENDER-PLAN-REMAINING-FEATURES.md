@@ -195,13 +195,25 @@ status below is updated only from commands actually executed in this workspace.
 - [x] Pin generated counts and deterministic identity, verify primitive input
   and equivalent raw triangle input have equal content fingerprints, and verify
   dimension changes affect fingerprints in the C ABI test.
-- [ ] Add CPU frame-hash canary and strict Vulkan capability certification for
-  generated meshes; geometry-level extrusion tests do not certify rendering.
+- [x] Add a software frame-hash canary for a concave extruded mesh; the
+  renderer core suite passes and checks stable hash plus visible pixel coverage.
+- [ ] Add strict Vulkan capability certification for generated meshes; a CPU
+  oracle does not certify Vulkan rendering.
 - [x] Reconcile the V3 extension schema and run the full C ABI test target; it
   passes after preserving the V32 legacy hash for layers without a backdrop
   filter. Focused primitive, decoder, and legacy fingerprint tests pass
   (17, 12, and 2 assertions respectively). `chronon3d_sdk_tests` also passed
   before the kind-specific parameter restrictions were tightened.
+
+## 12. Mesh post effects (bounded V3 tranche)
+
+- [x] Allow only the currently certified mesh post effects: `color.tint`,
+  `light.glow`, `light.bloom`, and `generate.noise`. Other effects continue to
+  fail closed for mesh layers.
+- [x] Add decoder coverage for accepted/rejected effect IDs and include mesh
+  effects in typed budget validation.
+- [ ] Certify the four effects through strict Vulkan using mesh-source pixel
+  oracles before expanding the mesh effect allow-list.
 - [x] Keep newly added optional backdrop-filter inputs additive in the
   fingerprint stream: absence emits no bytes, while present values are hashed;
   pin both the V32 no-filter golden and the new filter sensitivity.
