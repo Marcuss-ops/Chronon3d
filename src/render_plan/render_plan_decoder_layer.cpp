@@ -1133,7 +1133,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     layer.asset = value.value("asset", std::string{});
     layer.source = value.value("source", std::string{});
     if (layer.type == LayerType::Mesh) {
-        for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "effects", "background_look", "mask", "masks", "text_animators", "spans", "fill_gradient_animation"})
+        for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "background_look", "mask", "masks", "text_animators", "spans", "fill_gradient_animation"})
             if (value.contains(key))
                 throw std::runtime_error(std::string("mesh layers cannot contain '") + key + "'");
         if (value.contains("animation") && value.at("animation").is_object() &&
@@ -1476,6 +1476,16 @@ LayerPlan decode_layer(const nlohmann::json& value) {
 
     decode_layer_masks(layer, value);
     decode_layer_effects(layer, value);
+    if (layer.type == LayerType::Mesh) {
+        for (const auto& effect : layer.effects) {
+            const auto& id = effect.canonical_effect_id;
+            if (id != chronon3d::effects::ids::ColorTint &&
+                id != chronon3d::effects::ids::LightGlow &&
+                id != chronon3d::effects::ids::LightBloom &&
+                id != chronon3d::effects::ids::GenerateNoise)
+                throw std::runtime_error("mesh layers support only color.tint, light.glow, light.bloom, and generate.noise effects");
+        }
+    }
     decode_background_look(layer, value);
     if (value.contains("backdrop_filter")) {
         const auto& raw_bf = value.at("backdrop_filter");

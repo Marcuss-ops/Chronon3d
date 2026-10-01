@@ -144,7 +144,7 @@ std::optional<PlanDecodeError> validate_render_budget(
             if ((layer.type != LayerType::Mesh && layer.inline_mesh) ||
                 (layer.type == LayerType::Mesh &&
                  (layer.shape || layer.particle_emitter || layer.light || !layer.text.empty() ||
-                  layer.style || !layer.effects.empty() || layer.path_mask || !layer.masks.empty() ||
+                  layer.style || layer.path_mask || !layer.masks.empty() ||
                   (layer.animation && !layer.animation->tracks.empty()))))
                 return fail(prefix + ".inline_mesh", "inline meshes are mesh-only payloads; mesh layers cannot carry another content payload or per-vertex animation");
             constexpr std::uint64_t kBytesPerVertex = sizeof(InlineMeshVertex);

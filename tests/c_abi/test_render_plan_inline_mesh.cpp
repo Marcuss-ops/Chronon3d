@@ -404,3 +404,19 @@ TEST_CASE("V3 decoder accepts a primitive descriptor and rejects mixed geometry"
     REQUIRE(extruded);
     CHECK(extruded->layers[0].inline_mesh->indices.size() == 48);
 }
+
+TEST_CASE("mesh layers accept the certified bounded post effects") {
+    auto supported = base_mesh_plan();
+    supported["layers"][0]["effects"] = Json::array({Json{
+        {"type", "catalog"}, {"effect_id", "color.tint"},
+        {"params", Json::array({Json{{"param", "amount"}, {"value", 0.25}}})}
+    }});
+    const auto decoded = decode_render_plan(supported);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    CHECK(decoded->layers[0].effects[0].canonical_effect_id == "color.tint");
+
+    auto unsupported = supported;
+    unsupported["layers"][0]["effects"][0]["effect_id"] = "blur.gaussian";
+    CHECK_FALSE(decode_render_plan(unsupported));
+}
