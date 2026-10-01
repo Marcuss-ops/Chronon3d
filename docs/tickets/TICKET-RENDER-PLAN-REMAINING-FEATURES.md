@@ -214,6 +214,12 @@ status below is updated only from commands actually executed in this workspace.
   effects in typed budget validation.
 - [ ] Certify the four effects through strict Vulkan using mesh-source pixel
   oracles before expanding the mesh effect allow-list.
+- [x] Expose optional `casts_shadows` and `accepts_shadows` on V3 mesh layers,
+  apply them in scene compilation, and include them in the content fingerprint.
+  The frozen V2 projection removes these extension-only fields after V3
+  validation. Default-absent plans keep their prior fingerprint.
+- [ ] Add CPU and Vulkan shadow oracle scenes that prove a mesh casts onto a
+  receiver and can independently opt out of receiving shadows.
 - [x] Keep newly added optional backdrop-filter inputs additive in the
   fingerprint stream: absence emits no bytes, while present values are hashed;
   pin both the V32 no-filter golden and the new filter sensitivity.

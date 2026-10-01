@@ -1168,6 +1168,13 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_float(layer.skew_angle_deg);
     out.add_float(layer.skew_axis_deg);
     out.add_bool(layer.enable_3d);
+    if (layer.casts_shadows || layer.accepts_shadows) {
+        out.add_bool(true);
+        add_optional(out, layer.casts_shadows,
+                     [](auto& writer, bool value) { writer.add_bool(value); });
+        add_optional(out, layer.accepts_shadows,
+                     [](auto& writer, bool value) { writer.add_bool(value); });
+    }
     out.add_bool(layer.screen_space);
     // Preserve byte-for-byte fingerprints for plans authored before safe
     // insets existed; the presence marker is only emitted for this extension.

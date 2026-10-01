@@ -4305,6 +4305,8 @@
               }
             }
           },
+          "casts_shadows": {"type": "boolean"},
+          "accepts_shadows": {"type": "boolean"},
           "safe_insets": {
             "type": "object",
             "additionalProperties": false,
