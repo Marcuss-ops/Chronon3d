@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace chronon3d::render_plan::detail {
 namespace {
@@ -1146,46 +1147,82 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             throw std::runtime_error("inline_mesh is only valid for mesh layers");
         const auto& raw_mesh = value.at("inline_mesh");
         InlineMeshPlan mesh;
-        const auto& vertices = raw_mesh.at("vertices");
-        if (!vertices.is_array() || vertices.size() < 3 || vertices.size() > kInlineMeshMaxVertices)
-            throw std::runtime_error("inline_mesh.vertices count must be in [3, 250000]");
-        mesh.vertices.reserve(vertices.size());
-        for (const auto& raw_vertex : vertices) {
-            InlineMeshVertex vertex;
-            const auto read_components = [](const nlohmann::json& raw, auto& destination,
-                                            const char* field, float limit) {
-                if (!raw.is_array() || raw.size() != destination.size())
-                    throw std::runtime_error(std::string("inline_mesh vertex ") + field +
-                                             " has an invalid component count");
-                for (std::size_t i = 0; i < destination.size(); ++i) {
-                    destination[i] = raw.at(i).get<float>();
-                    if (!std::isfinite(destination[i]) || std::abs(destination[i]) > limit)
+        if (raw_mesh.contains("primitive")) {
+            if (raw_mesh.contains("vertices") || raw_mesh.contains("indices"))
+                throw std::runtime_error("inline_mesh primitive and raw vertices/indices are mutually exclusive");
+            const auto& raw = raw_mesh.at("primitive");
+            if (!raw.is_object()) throw std::runtime_error("inline_mesh.primitive must be an object");
+            static const std::unordered_set<std::string> primitive_fields{
+                "kind", "width", "height", "depth", "radius", "radius_top", "radius_bottom", "tube",
+                "width_segments", "height_segments", "radial_segments", "tubular_segments"};
+            InlineMeshPrimitivePlan primitive;
+            primitive.kind = raw.value("kind", primitive.kind);
+            const auto allowed_for_kind = [&]() -> std::unordered_set<std::string> {
+                if (primitive.kind == "box") return {"kind", "width", "height", "depth"};
+                if (primitive.kind == "plane") return {"kind", "width", "height", "width_segments", "height_segments"};
+                if (primitive.kind == "sphere") return {"kind", "radius", "width_segments", "height_segments"};
+                if (primitive.kind == "cylinder") return {"kind", "height", "radius_top", "radius_bottom", "radial_segments", "height_segments"};
+                if (primitive.kind == "cone") return {"kind", "height", "radius_bottom", "radial_segments", "height_segments"};
+                if (primitive.kind == "torus") return {"kind", "radius", "tube", "radial_segments", "tubular_segments"};
+                return {"kind"};
+            }();
+            for (auto it = raw.begin(); it != raw.end(); ++it)
+                if (!primitive_fields.contains(it.key()) || !allowed_for_kind.contains(it.key()))
+                    throw std::runtime_error("inline_mesh.primitive has unknown or inapplicable field '" + it.key() + "'");
+            primitive.width = raw.value("width", primitive.width);
+            primitive.height = raw.value("height", primitive.height);
+            primitive.depth = raw.value("depth", primitive.depth);
+            primitive.radius = raw.value("radius", primitive.radius);
+            primitive.radius_top = raw.value("radius_top", primitive.radius_top);
+            primitive.radius_bottom = raw.value("radius_bottom", primitive.radius_bottom);
+            primitive.tube = raw.value("tube", primitive.tube);
+            primitive.width_segments = raw.value("width_segments", primitive.width_segments);
+            primitive.height_segments = raw.value("height_segments", primitive.height_segments);
+            primitive.radial_segments = raw.value("radial_segments", primitive.radial_segments);
+            primitive.tubular_segments = raw.value("tubular_segments", primitive.tubular_segments);
+            mesh = expand_inline_mesh_primitive(primitive);
+        } else {
+            const auto& vertices = raw_mesh.at("vertices");
+            if (!vertices.is_array() || vertices.size() < 3 || vertices.size() > kInlineMeshMaxVertices)
+                throw std::runtime_error("inline_mesh.vertices count must be in [3, 250000]");
+            mesh.vertices.reserve(vertices.size());
+            for (const auto& raw_vertex : vertices) {
+                InlineMeshVertex vertex;
+                const auto read_components = [](const nlohmann::json& raw, auto& destination,
+                                                const char* field, float limit) {
+                    if (!raw.is_array() || raw.size() != destination.size())
                         throw std::runtime_error(std::string("inline_mesh vertex ") + field +
-                                                 " components are outside the finite contract range");
-                }
-            };
-            read_components(raw_vertex.at("position"), vertex.position, "position", 1'000'000.0f);
-            if (raw_vertex.contains("normal"))
-                read_components(raw_vertex.at("normal"), vertex.normal, "normal", 1.0f);
-            if (raw_vertex.contains("uv"))
-                read_components(raw_vertex.at("uv"), vertex.uv, "uv", 1'000'000.0f);
-            mesh.vertices.push_back(vertex);
-        }
-        const auto& indices = raw_mesh.at("indices");
-        if (!indices.is_array() || indices.size() < 3 ||
-            indices.size() > kInlineMeshMaxIndices || indices.size() % 3 != 0)
-            throw std::runtime_error("inline_mesh.indices count must be divisible by three and in [3, 750000]");
-        mesh.indices.reserve(indices.size());
-        for (const auto& raw_index : indices) {
-            if (!raw_index.is_number_unsigned() &&
-                (!raw_index.is_number_integer() || raw_index.get<std::int64_t>() < 0))
-                throw std::runtime_error("inline_mesh indices must be non-negative integers");
-            const auto index = raw_index.get<std::uint64_t>();
-            if (index > std::numeric_limits<std::uint32_t>::max())
-                throw std::runtime_error("inline_mesh index exceeds uint32 range");
-            if (index >= mesh.vertices.size())
-                throw std::runtime_error("inline_mesh index is outside the vertex array");
-            mesh.indices.push_back(static_cast<std::uint32_t>(index));
+                                                 " has an invalid component count");
+                    for (std::size_t i = 0; i < destination.size(); ++i) {
+                        destination[i] = raw.at(i).get<float>();
+                        if (!std::isfinite(destination[i]) || std::abs(destination[i]) > limit)
+                            throw std::runtime_error(std::string("inline_mesh vertex ") + field +
+                                                     " components are outside the finite contract range");
+                    }
+                };
+                read_components(raw_vertex.at("position"), vertex.position, "position", 1'000'000.0f);
+                if (raw_vertex.contains("normal"))
+                    read_components(raw_vertex.at("normal"), vertex.normal, "normal", 1.0f);
+                if (raw_vertex.contains("uv"))
+                    read_components(raw_vertex.at("uv"), vertex.uv, "uv", 1'000'000.0f);
+                mesh.vertices.push_back(vertex);
+            }
+            const auto& indices = raw_mesh.at("indices");
+            if (!indices.is_array() || indices.size() < 3 ||
+                indices.size() > kInlineMeshMaxIndices || indices.size() % 3 != 0)
+                throw std::runtime_error("inline_mesh.indices count must be divisible by three and in [3, 750000]");
+            mesh.indices.reserve(indices.size());
+            for (const auto& raw_index : indices) {
+                if (!raw_index.is_number_unsigned() &&
+                    (!raw_index.is_number_integer() || raw_index.get<std::int64_t>() < 0))
+                    throw std::runtime_error("inline_mesh indices must be non-negative integers");
+                const auto index = raw_index.get<std::uint64_t>();
+                if (index > std::numeric_limits<std::uint32_t>::max())
+                    throw std::runtime_error("inline_mesh index exceeds uint32 range");
+                if (index >= mesh.vertices.size())
+                    throw std::runtime_error("inline_mesh index is outside the vertex array");
+                mesh.indices.push_back(static_cast<std::uint32_t>(index));
+            }
         }
         if (raw_mesh.contains("material")) {
             const auto& raw_material = raw_mesh.at("material");
