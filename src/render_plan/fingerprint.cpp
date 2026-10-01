@@ -718,6 +718,18 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 for (const auto value : command.control1) out.add_float(value);
                 for (const auto value : command.control2) out.add_float(value);
             }
+            if (!subpath.morph_target.empty() || subpath.morph_animation) {
+                out.add_bool(true);
+                out.add_size(subpath.morph_target.size());
+                for (const auto& command : subpath.morph_target) {
+                    out.add_enum(command.type);
+                    for (const auto value : command.point) out.add_float(value);
+                    for (const auto value : command.control1) out.add_float(value);
+                    for (const auto value : command.control2) out.add_float(value);
+                }
+                add_optional(out, subpath.morph_animation,
+                    [](auto& writer, const AnimationTrackPlan& track) { add_track(writer, track); });
+            }
         }
         // ── Additive web-cool fields (v12): only emitted when present, so legacy v11 plans stay byte-identical.
         if (shape.points || shape.device_frame ||

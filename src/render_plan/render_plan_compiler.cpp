@@ -1443,6 +1443,30 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                                         break;
                                                 }
                                             }
+                                            if (source.morph_animation &&
+                                                source.morph_animation->keyframes.size() >= 2 &&
+                                                source.morph_target.size() == imported_path.commands.size()) {
+                                                AnimatedValue<float> progress{0.0f};
+                                                for (const auto& key : source.morph_animation->keyframes) {
+                                                    if (key.value.size() != 1)
+                                                        throw std::runtime_error("imported morph animation requires scalar progress");
+                                                    progress.add_keyframe(key.frame, key.value.front(),
+                                                        detail::animation_keyframe_easing(*source.morph_animation, key));
+                                                }
+                                                const float amount = std::clamp(
+                                                    progress.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
+                                                for (std::size_t command_index = 0;
+                                                     command_index < imported_path.commands.size(); ++command_index) {
+                                                    const auto& target = source.morph_target[command_index];
+                                                    auto& command = imported_path.commands[command_index];
+                                                    const Vec2 target_point{target.point[0], target.point[1]};
+                                                    const Vec2 target_c1{target.control1[0], target.control1[1]};
+                                                    const Vec2 target_c2{target.control2[0], target.control2[1]};
+                                                    command.p0 = glm::mix(command.p0, target_point, amount);
+                                                    command.p1 = glm::mix(command.p1, target_c1, amount);
+                                                    command.p2 = glm::mix(command.p2, target_c2, amount);
+                                                }
+                                            }
                                             if (source.fill_color) {
                                                 const auto& rgba = *source.fill_color;
                                                 imported_path.fill = Fill::solid_color(

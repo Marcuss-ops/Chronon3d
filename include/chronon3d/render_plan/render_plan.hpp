@@ -176,6 +176,8 @@ struct ImportedSubpathPlan {
     std::optional<std::array<float, 4>> fill_color;
     std::optional<graphics::GradientDefinition> fill_gradient;
     std::optional<StrokeStyle> stroke;
+    std::vector<ShapePathCommandPlan> morph_target;
+    std::optional<AnimationTrackPlan> morph_animation;
 };
 
 struct DeviceFramePlan {
