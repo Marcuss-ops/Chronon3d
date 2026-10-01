@@ -82,7 +82,7 @@ TEST_CASE("Live skipped test" * doctest::skip(
     CHECK(true);
 }
 CPP
-write_registry '| SKIP-001 | `tests/fixture.cpp` :: "Unrelated test" | video host | owner | 2026-09-30 | host available |'
+write_registry "| SKIP-001 | \`tests/fixture.cpp\` :: \"Unrelated test\" | video host | owner | ${future_deadline} | host available |"
 if bash "$FIXTURE/tools/check_test_hygiene.sh" >"$TMP_ROOT/wrong-test.log" 2>&1; then
     echo "HYGIENE_SELFTEST_FAIL: mismatched registry TEST_CASE was accepted"
     exit 1
