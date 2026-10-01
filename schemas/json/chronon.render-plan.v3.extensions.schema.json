@@ -4183,11 +4183,38 @@
           "inline_mesh": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "vertices",
-              "indices"
+            "oneOf": [
+              { "required": ["vertices", "indices"], "not": { "required": ["primitive"] } },
+              { "required": ["primitive"], "not": { "anyOf": [{ "required": ["vertices"] }, { "required": ["indices"] }] } }
             ],
             "properties": {
+              "primitive": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind"],
+                "properties": {
+                  "kind": { "enum": ["box", "plane", "sphere", "cylinder", "cone", "torus"] },
+                  "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "depth": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "radius": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "radius_top": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "radius_bottom": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "tube": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "width_segments": { "type": "integer", "minimum": 1, "maximum": 512 },
+                  "height_segments": { "type": "integer", "minimum": 1, "maximum": 512 },
+                  "radial_segments": { "type": "integer", "minimum": 3, "maximum": 512 },
+                  "tubular_segments": { "type": "integer", "minimum": 3, "maximum": 512 }
+                },
+                "oneOf": [
+                  { "properties": { "kind": { "const": "box" } }, "not": { "anyOf": [{"required":["radius"]},{"required":["radius_top"]},{"required":["radius_bottom"]},{"required":["tube"]},{"required":["width_segments"]},{"required":["height_segments"]},{"required":["radial_segments"]},{"required":["tubular_segments"]}] } },
+                  { "properties": { "kind": { "const": "plane" } }, "not": { "anyOf": [{"required":["depth"]},{"required":["radius"]},{"required":["radius_top"]},{"required":["radius_bottom"]},{"required":["tube"]},{"required":["radial_segments"]},{"required":["tubular_segments"]}] } },
+                  { "properties": { "kind": { "const": "sphere" } }, "not": { "anyOf": [{"required":["width"]},{"required":["height"]},{"required":["depth"]},{"required":["radius_top"]},{"required":["radius_bottom"]},{"required":["tube"]},{"required":["radial_segments"]},{"required":["tubular_segments"]}] } },
+                  { "properties": { "kind": { "const": "cylinder" } }, "not": { "anyOf": [{"required":["width"]},{"required":["depth"]},{"required":["radius"]},{"required":["tube"]},{"required":["width_segments"]},{"required":["tubular_segments"]}] } },
+                  { "properties": { "kind": { "const": "cone" } }, "not": { "anyOf": [{"required":["width"]},{"required":["depth"]},{"required":["radius"]},{"required":["radius_top"]},{"required":["tube"]},{"required":["width_segments"]},{"required":["tubular_segments"]}] } },
+                  { "properties": { "kind": { "const": "torus" } }, "not": { "anyOf": [{"required":["width"]},{"required":["height"]},{"required":["depth"]},{"required":["radius_top"]},{"required":["radius_bottom"]},{"required":["width_segments"]},{"required":["height_segments"]}] } }
+                ]
+              },
               "vertices": {
                 "type": "array",
                 "minItems": 3,

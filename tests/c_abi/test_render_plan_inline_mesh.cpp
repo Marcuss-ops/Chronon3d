@@ -271,3 +271,104 @@ TEST_CASE("inline mesh bytes affect stable plan fingerprint and typed compiler I
     CHECK(scene.light_context().enabled);
     CHECK(scene.rim_light().enabled == plan.lighting_rig->rim_enabled);
 }
+
+TEST_CASE("V3 parametric mesh primitives expand deterministically within the raw mesh contract") {
+    InlineMeshPrimitivePlan boxPrimitive;
+    boxPrimitive.kind = "box";
+    const auto boxA = expand_inline_mesh_primitive(boxPrimitive);
+    const auto boxB = expand_inline_mesh_primitive(boxPrimitive);
+    CHECK(boxA.vertices.size() == 36);
+    CHECK(boxA.indices.size() == 36);
+    CHECK(boxA.vertices[0].normal == std::array<float, 3>{0.f, 0.f, 1.f});
+    CHECK(boxA.indices == boxB.indices);
+    CHECK(boxA.vertices[0].position == boxB.vertices[0].position);
+
+    InlineMeshPrimitivePlan planePrimitive;
+    planePrimitive.kind = "plane";
+    planePrimitive.width_segments = 2;
+    planePrimitive.height_segments = 3;
+    const auto plane = expand_inline_mesh_primitive(planePrimitive);
+    CHECK(plane.vertices.size() == 12);
+    CHECK(plane.indices.size() == 36);
+
+    InlineMeshPrimitivePlan spherePrimitive;
+    spherePrimitive.kind = "sphere";
+    spherePrimitive.width_segments = 8;
+    spherePrimitive.height_segments = 4;
+    const auto sphere = expand_inline_mesh_primitive(spherePrimitive);
+    CHECK(sphere.vertices.size() == 45);
+    CHECK(sphere.indices.size() == 144);
+
+    InlineMeshPrimitivePlan cylinderPrimitive;
+    cylinderPrimitive.kind = "cylinder";
+    cylinderPrimitive.radial_segments = 8;
+    cylinderPrimitive.height_segments = 1;
+    const auto cylinder = expand_inline_mesh_primitive(cylinderPrimitive);
+    CHECK(cylinder.vertices.size() == 38);
+    CHECK(cylinder.indices.size() == 96);
+
+    InlineMeshPrimitivePlan conePrimitive = cylinderPrimitive;
+    conePrimitive.kind = "cone";
+    const auto cone = expand_inline_mesh_primitive(conePrimitive);
+    CHECK(cone.vertices.size() == 28);
+    CHECK(cone.indices.size() == 72);
+
+    InlineMeshPrimitivePlan torusPrimitive;
+    torusPrimitive.kind = "torus";
+    torusPrimitive.radial_segments = 8;
+    torusPrimitive.tubular_segments = 6;
+    const auto torus = expand_inline_mesh_primitive(torusPrimitive);
+    CHECK(torus.vertices.size() == 63);
+    CHECK(torus.indices.size() == 288);
+
+    InlineMeshPrimitivePlan overBudget;
+    overBudget.kind = "plane";
+    overBudget.width_segments = 512;
+    overBudget.height_segments = 512;
+    CHECK_THROWS_AS(([&] { (void)expand_inline_mesh_primitive(overBudget); }()), std::invalid_argument);
+    InlineMeshPrimitivePlan invalid = boxPrimitive;
+    invalid.width = 0.f;
+    CHECK_THROWS_AS(([&] { (void)expand_inline_mesh_primitive(invalid); }()), std::invalid_argument);
+}
+
+TEST_CASE("V3 decoder accepts a primitive descriptor and rejects mixed geometry") {
+    auto json = base_mesh_plan();
+    json["layers"][0]["inline_mesh"] = {{"primitive", {{"kind", "box"}, {"width", 2.0}}}};
+    const auto decoded = decode_render_plan(json);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].inline_mesh);
+    CHECK(decoded->layers[0].inline_mesh->vertices.size() == 36);
+    CHECK(decoded->layers[0].inline_mesh->indices.size() == 36);
+    CHECK(decoded->content_fingerprint == compute_render_plan_content_fingerprint(*decoded));
+
+    auto rawEquivalent = base_mesh_plan();
+    Json rawMesh;
+    rawMesh["vertices"] = Json::array();
+    rawMesh["indices"] = Json::array();
+    for (const auto& vertex : decoded->layers[0].inline_mesh->vertices) {
+        rawMesh["vertices"].push_back({{"position", vertex.position}, {"normal", vertex.normal}, {"uv", vertex.uv}});
+    }
+    rawMesh["indices"] = decoded->layers[0].inline_mesh->indices;
+    rawEquivalent["layers"][0]["inline_mesh"] = std::move(rawMesh);
+    const auto rawDecoded = decode_render_plan(rawEquivalent);
+    REQUIRE(rawDecoded);
+    CHECK(rawDecoded->content_fingerprint == decoded->content_fingerprint);
+
+    auto changedPrimitive = base_mesh_plan();
+    changedPrimitive["layers"][0]["inline_mesh"] = {{"primitive", {{"kind", "box"}, {"width", 3.0}}}};
+    const auto changed = decode_render_plan(changedPrimitive);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != decoded->content_fingerprint);
+
+    json["layers"][0]["inline_mesh"]["vertices"] = Json::array({{{"position", {0,0,0}}}});
+    CHECK_FALSE(decode_render_plan(json));
+
+    auto v2 = base_mesh_plan(kRenderPlanSchemaV2);
+    v2["layers"][0]["inline_mesh"] = {{"primitive", {{"kind", "box"}}}};
+    CHECK_FALSE(decode_render_plan(v2));
+
+    auto inapplicable = base_mesh_plan();
+    inapplicable["layers"][0]["inline_mesh"] = {
+        {"primitive", {{"kind", "box"}, {"radius", 2.0}}}};
+    CHECK_FALSE(decode_render_plan(inapplicable));
+}

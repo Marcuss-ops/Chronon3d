@@ -6,6 +6,7 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_decoder.cpp
     render_plan_decoder_support.cpp
     render_plan_decoder_layer.cpp
+    inline_mesh_primitives.cpp
     render_plan_decoder_animation.cpp
     render_plan_decoder_shape.cpp
     render_plan_decoder_mask.cpp

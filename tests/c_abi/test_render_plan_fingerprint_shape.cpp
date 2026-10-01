@@ -480,6 +480,20 @@ TEST_CASE("Fingerprint v32 domain golden is pinned") {
     // v32 adds Field2D and selector noise/index semantics to the canonical plan stream.
     CHECK(legacy_fingerprint() == 8376433703207902085ULL);
 }
+
+TEST_CASE("Backdrop filter parameters affect the fingerprint while absence preserves the legacy stream") {
+    auto json = render_plan_test::base_plan({
+        {{"id", "backdrop"}, {"type", "color"}, {"color", {0.1, 0.2, 0.3, 1.0}},
+         {"backdrop_filter", {{"blur", 4.0}, {"brightness", 1.1}}}}
+    });
+    const auto first = render_plan::decode_render_plan(json);
+    REQUIRE(first);
+    json["layers"][0]["backdrop_filter"]["blur"] = 8.0;
+    const auto changed = render_plan::decode_render_plan(json);
+    REQUIRE(changed);
+    CHECK(first->content_fingerprint != changed->content_fingerprint);
+}
+
 TEST_CASE("LightRays controls affect render-plan fingerprints") {
     auto plan = render_plan_test::base_plan(nlohmann::json::array({
         {{"id", "rays"}, {"type", "color"}, {"color", {0, 0, 0, 1}},
