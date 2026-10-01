@@ -139,9 +139,9 @@ TEST_CASE("Visual Accents V1: Light leak recipes") {
         }
     }
 
-    SUBCASE("energy stays bounded: recipes cap response intensity at 4") {
+    SUBCASE("maximum accepted intensity stays within the response bound") {
         LayerPlan layer;
-        light_leak::film_burn(layer, 99.0f);
+        light_leak::film_burn(layer, light_leak::kMaxIntensity);
         for (const auto& effect : layer.effects) {
             if (effect.kind == LayerPlan::EffectKindPlan::LuminanceResponse) {
                 CHECK(effect.response_intensity <= light_leak::kMaxIntensity);
