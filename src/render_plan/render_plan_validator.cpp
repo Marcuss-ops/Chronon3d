@@ -229,6 +229,16 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         layer.erase("mask");
         layer.erase("masks");
         layer.erase("effects");
+        // V3 particle emitters add path/sprite sampling and rotation fields.
+        // Their complete shape has already passed the extension schema; keep
+        // the shared V2 emitter fields in this projection, but remove only
+        // those V3 additions before applying V2's additionalProperties:false.
+        if (layer.contains("particle_emitter") && layer["particle_emitter"].is_object()) {
+            auto& emitter = layer["particle_emitter"];
+            for (const auto* key : {"shape", "path_id", "path_points", "sprite_asset",
+                                    "sprite_scale", "rotation", "angular_velocity"})
+                emitter.erase(key);
+        }
         if (layer.contains("style") && layer["style"].is_object()) {
             layer["style"].erase("gradient");
             if (layer["style"].contains("stroke") &&

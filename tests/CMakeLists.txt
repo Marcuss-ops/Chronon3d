@@ -100,14 +100,18 @@ endif()
 
 # Runtime extraction, tour scheduling and phase-aware motion gate: stdlib-only,
 # deterministic, and safe to run on hosts without map assets or network access.
-if(EXISTS "${CMAKE_SOURCE_DIR}/tools/geo_runtime.py")
+# The runtime lives in the sibling ChrononTemplate tree (it imports the canary
+# overlay stack), so the registration follows the file there.
+set(CHRONON_GEO_RUNTIME_TOOL "${CMAKE_SOURCE_DIR}/../ChrononTemplate/tools/geo_runtime.py")
+if(EXISTS "${CHRONON_GEO_RUNTIME_TOOL}")
     add_test(
         NAME chronon_geo_runtime_self_test
-        COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/geo_runtime.py" --self-test
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMAND ${Python3_EXECUTABLE} "${CHRONON_GEO_RUNTIME_TOOL}" --self-test
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/.."
     )
     set_tests_properties(chronon_geo_runtime_self_test PROPERTIES
         LABELS "geo_camera;runtime;gate;offline"
         TIMEOUT 120
     )
 endif()
+unset(CHRONON_GEO_RUNTIME_TOOL)

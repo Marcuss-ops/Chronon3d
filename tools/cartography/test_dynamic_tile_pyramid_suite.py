@@ -9,32 +9,18 @@ Runs 5 automated verification scenarios:
 5. Benchmark Throughput & Memory Stability
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 import time
 import math
 import statistics
 from pathlib import Path
-import numpy as np
 
 BASE_DIR = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(BASE_DIR / "Chronon3d/tools/cartography"))
-
-try:
-    import cv2 as _cv2_probe
-    _HAS_REAL_CV2 = True
-except ImportError:
-    _HAS_REAL_CV2 = False
-
-from dynamic_tile_pyramid import (  # noqa: E402 - sys.path is set above
-    DynamicTilePyramid,
-    latlon_to_global_px,
-    global_px_to_latlon,
-    compute_altitude_km,
-    MERCATOR_EQUATOR_METRES_PER_PIXEL,
-    CACHE_DIR,
-    cv2,
-)
+_HAS_REAL_CV2 = False
 
 
 class OfflineCacheMiss(RuntimeError):
@@ -241,8 +227,33 @@ def test_5_benchmark_throughput(pyramid: DynamicTilePyramid) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--offline", action="store_true",
-                        help="read cached imagery only; exit 77 if any tile is missing")
+                        help="read cached imagery only; exit 77 if dependencies/tiles are missing")
     args = parser.parse_args()
+
+    global np, cv2, DynamicTilePyramid, latlon_to_global_px
+    global global_px_to_latlon, compute_altitude_km
+    global MERCATOR_EQUATOR_METRES_PER_PIXEL, CACHE_DIR, _HAS_REAL_CV2
+    try:
+        import numpy as np
+        try:
+            import cv2 as _cv2_probe
+            _HAS_REAL_CV2 = True
+        except ImportError:
+            _HAS_REAL_CV2 = False
+        from dynamic_tile_pyramid import (
+            DynamicTilePyramid,
+            latlon_to_global_px,
+            global_px_to_latlon,
+            compute_altitude_km,
+            MERCATOR_EQUATOR_METRES_PER_PIXEL,
+            CACHE_DIR,
+            cv2,
+        )
+    except ImportError as exc:
+        if args.offline:
+            print(f"SKIP: offline pyramid suite requires Python raster dependencies ({exc})")
+            return 77
+        raise
 
     print("=================================================================")
     print("=== DYNAMIC TILE PYRAMID: RIGOROUS MATHEMATICAL TEST SUITE ===")
