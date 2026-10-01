@@ -1154,7 +1154,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             if (!raw.is_object()) throw std::runtime_error("inline_mesh.primitive must be an object");
             static const std::unordered_set<std::string> primitive_fields{
                 "kind", "width", "height", "depth", "radius", "radius_top", "radius_bottom", "tube",
-                "width_segments", "height_segments", "radial_segments", "tubular_segments"};
+                "width_segments", "height_segments", "radial_segments", "tubular_segments", "profile", "bevel"};
             InlineMeshPrimitivePlan primitive;
             primitive.kind = raw.value("kind", primitive.kind);
             const auto allowed_for_kind = [&]() -> std::unordered_set<std::string> {
@@ -1164,6 +1164,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 if (primitive.kind == "cylinder") return {"kind", "height", "radius_top", "radius_bottom", "radial_segments", "height_segments"};
                 if (primitive.kind == "cone") return {"kind", "height", "radius_bottom", "radial_segments", "height_segments"};
                 if (primitive.kind == "torus") return {"kind", "radius", "tube", "radial_segments", "tubular_segments"};
+                if (primitive.kind == "extrude") return {"kind", "depth", "profile", "bevel"};
                 return {"kind"};
             }();
             for (auto it = raw.begin(); it != raw.end(); ++it)
@@ -1180,6 +1181,19 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             primitive.height_segments = raw.value("height_segments", primitive.height_segments);
             primitive.radial_segments = raw.value("radial_segments", primitive.radial_segments);
             primitive.tubular_segments = raw.value("tubular_segments", primitive.tubular_segments);
+            primitive.bevel = raw.value("bevel", primitive.bevel);
+            if (primitive.kind == "extrude") {
+                if (!raw.contains("profile") || !raw["profile"].is_array() ||
+                    raw["profile"].size() < 3 || raw["profile"].size() > 4096)
+                    throw std::runtime_error("inline_mesh extrusion profile must contain 3..4096 points");
+                primitive.profile.reserve(raw["profile"].size());
+                for (const auto& point : raw["profile"]) {
+                    if (!point.is_array() || point.size() != 2 ||
+                        !point[0].is_number() || !point[1].is_number())
+                        throw std::runtime_error("inline_mesh extrusion profile points must be numeric pairs");
+                    primitive.profile.push_back({point[0].get<float>(), point[1].get<float>()});
+                }
+            }
             mesh = expand_inline_mesh_primitive(primitive);
         } else {
             const auto& vertices = raw_mesh.at("vertices");

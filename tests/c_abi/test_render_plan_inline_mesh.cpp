@@ -321,6 +321,22 @@ TEST_CASE("V3 parametric mesh primitives expand deterministically within the raw
     CHECK(torus.vertices.size() == 63);
     CHECK(torus.indices.size() == 288);
 
+    InlineMeshPrimitivePlan extrusion;
+    extrusion.kind = "extrude";
+    extrusion.depth = 4.0f;
+    extrusion.profile = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    const auto extruded = expand_inline_mesh_primitive(extrusion);
+    CHECK(extruded.vertices.size() == 36);
+    CHECK(extruded.indices.size() == 36);
+    CHECK(extruded.vertices[0].position[2] == doctest::Approx(2.0f));
+    CHECK(extruded.vertices[0].normal == std::array<float, 3>{0.f, 0.f, 1.f});
+    CHECK(extruded.vertices[3].normal == std::array<float, 3>{0.f, 0.f, -1.f});
+    CHECK(extruded.vertices.back().position[2] == doctest::Approx(2.0f));
+
+    InlineMeshPrimitivePlan concave = extrusion;
+    concave.profile = {{0.0f, 0.0f}, {2.0f, 0.0f}, {1.0f, 0.5f}, {2.0f, 2.0f}, {0.0f, 2.0f}};
+    CHECK(expand_inline_mesh_primitive(concave).indices.size() == 48);
+
     InlineMeshPrimitivePlan overBudget;
     overBudget.kind = "plane";
     overBudget.width_segments = 512;
@@ -329,6 +345,9 @@ TEST_CASE("V3 parametric mesh primitives expand deterministically within the raw
     InlineMeshPrimitivePlan invalid = boxPrimitive;
     invalid.width = 0.f;
     CHECK_THROWS_AS(([&] { (void)expand_inline_mesh_primitive(invalid); }()), std::invalid_argument);
+    InlineMeshPrimitivePlan invalidExtrusion = extrusion;
+    invalidExtrusion.bevel = 0.5f;
+    CHECK_THROWS_AS(([&] { (void)expand_inline_mesh_primitive(invalidExtrusion); }()), std::invalid_argument);
 }
 
 TEST_CASE("V3 decoder accepts a primitive descriptor and rejects mixed geometry") {
@@ -371,4 +390,17 @@ TEST_CASE("V3 decoder accepts a primitive descriptor and rejects mixed geometry"
     inapplicable["layers"][0]["inline_mesh"] = {
         {"primitive", {{"kind", "box"}, {"radius", 2.0}}}};
     CHECK_FALSE(decode_render_plan(inapplicable));
+
+    auto inapplicableProfile = base_mesh_plan();
+    inapplicableProfile["layers"][0]["inline_mesh"] = {
+        {"primitive", {{"kind", "box"}, {"profile", {{0, 0}, {1, 0}, {0, 1}}}}}};
+    CHECK_FALSE(decode_render_plan(inapplicableProfile));
+
+    auto extrusion = base_mesh_plan();
+    extrusion["layers"][0]["inline_mesh"] = {{"primitive", {
+        {"kind", "extrude"}, {"depth", 2.0},
+        {"profile", {{0, 0}, {2, 0}, {1, 1}, {2, 2}, {0, 2}}}}}};
+    const auto extruded = decode_render_plan(extrusion);
+    REQUIRE(extruded);
+    CHECK(extruded->layers[0].inline_mesh->indices.size() == 48);
 }
