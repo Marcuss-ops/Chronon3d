@@ -55,7 +55,9 @@ TARGETS=(
 # clean CI checkout configures the preset here.
 if [[ ! -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
     echo "verify_vulkan_gated_unit_tests: configuring preset ${PRESET}"
-    cmake --preset "${PRESET}" -DCHRONON3D_ENABLE_VULKAN=ON
+    cmake --preset "${PRESET}" \
+        -DCHRONON3D_ENABLE_VULKAN=ON \
+        -DCHRONON3D_ENABLE_CUDA_INTEROP=OFF
 fi
 
 if ! grep -q "CHRONON3D_ENABLE_VULKAN:BOOL=ON" "${BUILD_DIR}/CMakeCache.txt"; then
