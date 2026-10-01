@@ -181,6 +181,29 @@ status below is updated only from commands actually executed in this workspace.
   aggregates; this ticket-specific bounded acceptance does not claim the full
   repository acceptance gate is complete.
 
+## 11. Parametric inline mesh primitives (active)
+
+- [x] Add V3 `inline_mesh.primitive` input for box, plane, sphere, cylinder,
+  cone, and torus; reject mixed primitive/raw geometry at schema and decoder
+  boundaries.
+- [x] Expand descriptors deterministically into the existing raw indexed
+  triangle representation before typed budget validation, compilation, and
+  fingerprinting. Normal, UV, per-mesh count, and aggregate byte limits remain
+  owned by the existing inline-mesh contract.
+- [x] Pin generated counts and deterministic identity, verify primitive input
+  and equivalent raw triangle input have equal content fingerprints, and verify
+  dimension changes affect fingerprints in the C ABI test.
+- [ ] Add path extrusion, CPU frame-hash canary, and strict Vulkan capability
+  certification. These are not implemented by the current primitive set.
+- [x] Reconcile the V3 extension schema and run the full C ABI test target; it
+  passes after preserving the V32 legacy hash for layers without a backdrop
+  filter. Focused primitive, decoder, and legacy fingerprint tests pass
+  (17, 12, and 2 assertions respectively). `chronon3d_sdk_tests` also passed
+  before the kind-specific parameter restrictions were tightened.
+- [x] Keep newly added optional backdrop-filter inputs additive in the
+  fingerprint stream: absence emits no bytes, while present values are hashed;
+  pin both the V32 no-filter golden and the new filter sensitivity.
+
 ## Progress log
 
 - **v12 — 2026-09-30:** continued the Chronon3D fast aggregate at `-j 8`.

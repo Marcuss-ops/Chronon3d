@@ -1136,8 +1136,6 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_float(layer.backdrop_filter->chromatic_dispersion);
         out.add_float(layer.backdrop_filter->grain);
         out.add_float(layer.backdrop_filter->opacity);
-    } else {
-        out.add_bool(false);
     }
     out.add_size(layer.effect_param_tracks.size());
     for (const auto& track : layer.effect_param_tracks) {
