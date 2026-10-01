@@ -60,6 +60,28 @@ except ImportError as _exc:  # pragma: no cover - depends on the host
     Image = ImageEnhance = ImageFilter = ImageDraw = None  # type: ignore[assignment]
     _RASTER_IMPORT_ERROR = str(_exc)
 
+try:
+    from dynamic_tile_pyramid import (
+        DynamicTilePyramid,
+        compute_altitude_km,
+        draw_hud_overlay,
+        latlon_to_global_px,
+        TILE_URLS as PYRAMID_TILE_URLS,
+    )
+except ImportError:
+    try:
+        from .dynamic_tile_pyramid import (
+            DynamicTilePyramid,
+            compute_altitude_km,
+            draw_hud_overlay,
+            latlon_to_global_px,
+            TILE_URLS as PYRAMID_TILE_URLS,
+        )
+    except Exception:
+        DynamicTilePyramid = compute_altitude_km = draw_hud_overlay = None
+        latlon_to_global_px = PYRAMID_TILE_URLS = None
+
+
 # `assets/` is a bootstrap-only directory (see .gitignore), so this file
 # resolves the maps its own build produces from its own location rather than
 # from the working directory: `tools/cartography/` -> Chronon3d root.
@@ -501,6 +523,34 @@ def self_test() -> int:
     check_near(screen[0], 960.0, 0.01, "the window centre is the middle raster column")
     check_near(screen[1], 540.0, 0.01, "the window centre is the middle raster row")
 
+    # 5. The dynamic multi-resolution tile pyramid is the authoritative map
+    #    engine. Its geodesy must match this file's to the last bit, or a
+    #    flyover and a basemap plate would disagree about where the ground is.
+    if DynamicTilePyramid is None:
+        print("SKIP: the dynamic tile pyramid engine could not be imported")
+    else:
+        for lat, lon, zoom, expected_x, expected_y in MERCATOR_REFERENCE:
+            px_x, px_y = latlon_to_global_px(lat, lon, zoom)
+            check_near(px_x, expected_x, 1e-6,
+                       f"pyramid global pixel X for ({lat}, {lon}) at zoom {zoom}")
+            check_near(px_y, expected_y, 1e-6,
+                       f"pyramid global pixel Y for ({lat}, {lon}) at zoom {zoom}")
+
+        # The optical-altitude model round-trips at the Colosseum's latitude:
+        # this is the continuity contract the flyover's LOD selection rides on.
+        anchor_lat = 41.890210
+        alt_km = compute_altitude_km(12.0, anchor_lat)
+        anchor_rad = math.radians(anchor_lat)
+        zoom_back = math.log2(MERCATOR_EQUATOR_METRES_PER_PIXEL * math.cos(anchor_rad)
+                              / (alt_km * 1000.0 / (1080.0 * 0.95)))
+        check_near(zoom_back, 12.0, 1e-9,
+                   "compute_altitude_km inverts to the zoom that produced it")
+
+        # Every provider the engine can serve is one this file advertises too,
+        # so the pyramid CLI never silently falls back to esri_sat.
+        check(set(PYRAMID_TILE_URLS) <= set(TILE_URLS),
+               "the pyramid engine only serves providers this file advertises")
+
     if _RASTER_IMPORT_ERROR is not None:
         # The check count and the disclosure both go to stdout, so a gate run
         # that silently lost the raster half is visible in its own log.
@@ -618,14 +668,33 @@ def main(argv: list[str] | None = None) -> int:
                         help="shading gain around the neutral 0.5 of a soft-light blend")
     relief.add_argument("--strength", type=float, default=0.9, help="drape style only")
 
+    # Authoritative Dynamic Multi-Resolution Pyramid Engine
+    pyr = subparsers.add_parser("pyramid", help="fetch and render authoritative dynamic multi-resolution tile pyramid")
+    pyr.add_argument("lat", type=float, help="target latitude (WGS84)")
+    pyr.add_argument("lon", type=float, help="target longitude (WGS84)")
+    pyr.add_argument("--min-zoom", type=int, default=5)
+    pyr.add_argument("--max-zoom", type=int, default=18)
+    pyr.add_argument("--provider", default="esri_sat",
+                     choices=sorted(PYRAMID_TILE_URLS),
+                     help="imagery providers the pyramid engine actually serves")
+
     args = parser.parse_args(argv)
     if args.self_test:
         return self_test()
     if args.command is None:
-        parser.error("a command is required (basemap, relief) unless --self-test is given")
+        parser.error("a command is required (basemap, relief, pyramid) unless --self-test is given")
     if _RASTER_IMPORT_ERROR is not None:
         parser.error(f"the {args.command} command stitches and grades rasters: "
                      f"{_RASTER_IMPORT_ERROR} (pip install numpy pillow)")
+
+    if args.command == "pyramid":
+        if DynamicTilePyramid is None:
+            parser.error("DynamicTilePyramid module could not be imported.")
+        pyramid = DynamicTilePyramid(provider=args.provider)
+        pyramid.prefetch_pyramid(args.lat, args.lon, min_zoom=args.min_zoom, max_zoom=args.max_zoom)
+        print(f"[DynamicTilePyramid] Successfully cached multi-resolution pyramid for ({args.lat}, {args.lon}) z={args.min_zoom}..{args.max_zoom}")
+        return 0
+
     if args.command == "basemap":
         plate = build_georeferenced_basemap(args.lat, args.lon, args.zoom, args.width,
                                             args.height, provider=args.provider,
