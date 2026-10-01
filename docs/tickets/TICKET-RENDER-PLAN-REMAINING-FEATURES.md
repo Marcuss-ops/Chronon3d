@@ -184,8 +184,10 @@ status below is updated only from commands actually executed in this workspace.
 ## 11. Parametric inline mesh primitives (active)
 
 - [x] Add V3 `inline_mesh.primitive` input for box, plane, sphere, cylinder,
-  cone, and torus; reject mixed primitive/raw geometry at schema and decoder
-  boundaries.
+  cone, torus, and bounded polygon extrusion; reject mixed primitive/raw
+  geometry at schema and decoder boundaries. Extrusion ear-clips simple
+  polygons deterministically and emits flat-normal caps and perimeter-UV sides;
+  non-zero bevel, holes, and self-intersecting profiles fail closed.
 - [x] Expand descriptors deterministically into the existing raw indexed
   triangle representation before typed budget validation, compilation, and
   fingerprinting. Normal, UV, per-mesh count, and aggregate byte limits remain
@@ -193,8 +195,8 @@ status below is updated only from commands actually executed in this workspace.
 - [x] Pin generated counts and deterministic identity, verify primitive input
   and equivalent raw triangle input have equal content fingerprints, and verify
   dimension changes affect fingerprints in the C ABI test.
-- [ ] Add path extrusion, CPU frame-hash canary, and strict Vulkan capability
-  certification. These are not implemented by the current primitive set.
+- [ ] Add CPU frame-hash canary and strict Vulkan capability certification for
+  generated meshes; geometry-level extrusion tests do not certify rendering.
 - [x] Reconcile the V3 extension schema and run the full C ABI test target; it
   passes after preserving the V32 legacy hash for layers without a backdrop
   filter. Focused primitive, decoder, and legacy fingerprint tests pass
