@@ -329,4 +329,247 @@ void apply_displacement_field(Framebuffer& fb, const DisplacementMapParams& p,
     }
 }
 
+void apply_lens_distortion(Framebuffer& fb, const LensDistortionParams& params,
+                          ::chronon3d::EffectScratchResources& scratch,
+                          const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(params.curvature) || params.curvature < -1.0f || params.curvature > 1.0f ||
+        !std::isfinite(params.scale) || params.scale < 0.1f || params.scale > 4.0f ||
+        fb.width() <= 0 || fb.height() <= 0)
+        throw std::invalid_argument("lens distortion parameters or target surface are invalid");
+
+    auto c = make_warp_context(fb, params.edge_mode, scratch, clip);
+    const float w = static_cast<float>(fb.width());
+    const float h = static_cast<float>(fb.height());
+    const Vec2 center_px{params.center.x * w, params.center.y * h};
+    const float diag = std::hypot(w, h) * 0.5f;
+    const float inv_diag = diag > 1.0e-5f ? 1.0f / diag : 1.0f;
+    const float k = params.curvature;
+    const float s = std::clamp(params.scale, 0.1f, 4.0f);
+
+    for (int y = c.y0; y < c.y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (int x = c.x0; x < c.x1; ++x) {
+            const Vec2 d = (Vec2{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f} - center_px) * inv_diag;
+            const float r2 = glm::dot(d, d);
+            const float factor = (1.0f + k * r2) / s;
+            const Vec2 src_pos = center_px + d * (factor * diag);
+            row[x] = c.sampler.bilinear(src_pos.x, src_pos.y);
+        }
+    }
+}
+
+void apply_fold_warp(Framebuffer& fb, const FoldWarpParams& params,
+                     ::chronon3d::EffectScratchResources& scratch,
+                     const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(params.position) || params.position < 0.0f || params.position > 1.0f ||
+        !std::isfinite(params.amount) || params.amount < -1.0f || params.amount > 1.0f ||
+        !std::isfinite(params.radius) || params.radius < 0.01f || params.radius > 1.0f ||
+        !std::isfinite(params.falloff) || params.falloff < 0.1f || params.falloff > 4.0f ||
+        !std::isfinite(params.perspective) || params.perspective < 0.0f || params.perspective > 0.5f ||
+        fb.width() <= 0 || fb.height() <= 0)
+        throw std::invalid_argument("fold warp parameters or target surface are invalid");
+
+    auto c = make_warp_context(fb, params.edge_mode, scratch, clip);
+    const bool is_horiz = params.axis == FoldAxis::Horizontal;
+    const float crease_px = is_horiz ? params.position * static_cast<float>(fb.height())
+                                     : params.position * static_cast<float>(fb.width());
+    const float radius_px = std::max(is_horiz ? params.radius * static_cast<float>(fb.height())
+                                             : params.radius * static_cast<float>(fb.width()), 1.0f);
+    const float fold_amt = params.amount;
+    const float persp = params.perspective;
+
+    for (int y = c.y0; y < c.y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (int x = c.x0; x < c.x1; ++x) {
+            float coord = is_horiz ? (static_cast<float>(y) + 0.5f) : (static_cast<float>(x) + 0.5f);
+            float cross = is_horiz ? (static_cast<float>(x) + 0.5f) : (static_cast<float>(y) + 0.5f);
+            const float dist = coord - crease_px;
+            const float abs_dist = std::abs(dist);
+
+            if (abs_dist < radius_px) {
+                const float t = abs_dist / radius_px;
+                const float weight = std::pow(1.0f - t, params.falloff);
+                const float sign = dist >= 0.0f ? 1.0f : -1.0f;
+                coord += sign * (weight * fold_amt * radius_px * 0.5f);
+
+                const float cross_center = is_horiz ? static_cast<float>(fb.width()) * 0.5f
+                                                   : static_cast<float>(fb.height()) * 0.5f;
+                const float cross_offset = cross - cross_center;
+                cross = cross_center + cross_offset * (1.0f - weight * persp * std::abs(fold_amt));
+            }
+
+            const float src_x = is_horiz ? cross : coord;
+            const float src_y = is_horiz ? coord : cross;
+            row[x] = c.sampler.bilinear(src_x, src_y);
+        }
+    }
+}
+
+void apply_crease_shading(Framebuffer& fb, const CreaseShadingParams& params,
+                          const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(params.position) || params.position < 0.0f || params.position > 1.0f ||
+        !std::isfinite(params.width) || params.width < 1.0f || params.width > 256.0f ||
+        !std::isfinite(params.dark_side) || params.dark_side < 0.0f || params.dark_side > 1.0f ||
+        !std::isfinite(params.light_side) || params.light_side < 0.0f || params.light_side > 1.0f ||
+        !std::isfinite(params.softness) || params.softness < 0.0f || params.softness > 1.0f ||
+        fb.width() <= 0 || fb.height() <= 0)
+        throw std::invalid_argument("crease shading parameters or target surface are invalid");
+
+    const int w = fb.width(), h = fb.height();
+    int x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+    const bool is_horiz = params.axis == FoldAxis::Horizontal;
+    const float crease_px = is_horiz ? params.position * static_cast<float>(h)
+                                     : params.position * static_cast<float>(w);
+    const float width_px = std::max(params.width, 1.0f);
+
+    for (int y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (int x = x0; x < x1; ++x) {
+            const float coord = is_horiz ? (static_cast<float>(y) + 0.5f) : (static_cast<float>(x) + 0.5f);
+            const float dist = coord - crease_px;
+            const float abs_dist = std::abs(dist);
+
+            if (abs_dist < width_px) {
+                const float t = abs_dist / width_px;
+                const float s = std::clamp(params.softness, 0.01f, 1.0f);
+                const float falloff = std::clamp((1.0f - t) / s, 0.0f, 1.0f);
+                const float smooth_factor = falloff * falloff * (3.0f - 2.0f * falloff);
+
+                Color& c = row[x];
+                if (dist < 0.0f) {
+                    const float factor = 1.0f - params.dark_side * smooth_factor;
+                    c.r *= factor;
+                    c.g *= factor;
+                    c.b *= factor;
+                } else {
+                    const float factor = params.light_side * smooth_factor * c.a;
+                    c.r = std::clamp(c.r + factor, 0.0f, 1.0f);
+                    c.g = std::clamp(c.g + factor, 0.0f, 1.0f);
+                    c.b = std::clamp(c.b + factor, 0.0f, 1.0f);
+                }
+            }
+        }
+    }
+}
+
+void apply_luminance_response(Framebuffer& fb, const LuminanceResponseParams& params,
+                              ::chronon3d::EffectScratchResources& scratch,
+                              const std::optional<raster::BBox>& clip) {
+    params.validate();
+    const int w = fb.width(), h = fb.height();
+    if (w <= 0 || h <= 0) return;
+    scratch.ensure_size(w, h);
+    Framebuffer& luma_fb = *scratch.framebuffer;
+    luma_fb.clear({0.0f, 0.0f, 0.0f, 0.0f});
+
+    int x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+
+    const float thresh = params.threshold;
+    const float soft = std::max(params.softness, 1.0e-4f);
+    for (int y = y0; y < y1; ++y) {
+        const Color* src_row = fb.pixels_row(y);
+        Color* luma_row = luma_fb.pixels_row(y);
+        for (int x = x0; x < x1; ++x) {
+            const Color c = src_row[x];
+            if (c.a <= 1.0e-5f) continue;
+            const float inv_a = 1.0f / c.a;
+            const float r = c.r * inv_a;
+            const float g = c.g * inv_a;
+            const float b = c.b * inv_a;
+            const float luma = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+
+            if (luma > (thresh - soft)) {
+                const float t = std::clamp((luma - (thresh - soft)) / (soft * 2.0f), 0.0f, 1.0f);
+                const float ramp = t * t * (3.0f - 2.0f * t);
+                const float gain = ramp * params.intensity;
+                luma_row[x] = Color{
+                    params.tint.r * gain * c.a,
+                    params.tint.g * gain * c.a,
+                    params.tint.b * gain * c.a,
+                    c.a * ramp
+                };
+            }
+        }
+    }
+
+    if (params.radius > 0.5f) {
+        const int rad = static_cast<int>(std::clamp(std::lround(params.radius), 1l, 64l));
+        Framebuffer temp_blur(w, h);
+        for (int y = y0; y < y1; ++y) {
+            const Color* in_row = luma_fb.pixels_row(y);
+            Color* out_row = temp_blur.pixels_row(y);
+            float acc_r = 0.0f, acc_g = 0.0f, acc_b = 0.0f, acc_a = 0.0f;
+            int count = 0;
+            for (int k = -rad; k <= rad; ++k) {
+                const int px = std::clamp(x0 + k, 0, w - 1);
+                acc_r += in_row[px].r; acc_g += in_row[px].g;
+                acc_b += in_row[px].b; acc_a += in_row[px].a;
+                ++count;
+            }
+            for (int x = x0; x < x1; ++x) {
+                out_row[x] = Color{acc_r / count, acc_g / count, acc_b / count, acc_a / count};
+                const int remove_x = std::clamp(x - rad, 0, w - 1);
+                const int add_x = std::clamp(x + rad + 1, 0, w - 1);
+                acc_r += in_row[add_x].r - in_row[remove_x].r;
+                acc_g += in_row[add_x].g - in_row[remove_x].g;
+                acc_b += in_row[add_x].b - in_row[remove_x].b;
+                acc_a += in_row[add_x].a - in_row[remove_x].a;
+            }
+        }
+        for (int x = x0; x < x1; ++x) {
+            float acc_r = 0.0f, acc_g = 0.0f, acc_b = 0.0f, acc_a = 0.0f;
+            int count = 0;
+            for (int k = -rad; k <= rad; ++k) {
+                const int py = std::clamp(y0 + k, 0, h - 1);
+                const Color c = temp_blur.get_pixel(x, py);
+                acc_r += c.r; acc_g += c.g; acc_b += c.b; acc_a += c.a;
+                ++count;
+            }
+            for (int y = y0; y < y1; ++y) {
+                luma_fb.pixels_row(y)[x] = Color{acc_r / count, acc_g / count, acc_b / count, acc_a / count};
+                const int remove_y = std::clamp(y - rad, 0, h - 1);
+                const int add_y = std::clamp(y + rad + 1, 0, h - 1);
+                const Color c_add = temp_blur.get_pixel(x, add_y);
+                const Color c_rem = temp_blur.get_pixel(x, remove_y);
+                acc_r += c_add.r - c_rem.r;
+                acc_g += c_add.g - c_rem.g;
+                acc_b += c_add.b - c_rem.b;
+                acc_a += c_add.a - c_rem.a;
+            }
+        }
+    }
+
+    for (int y = y0; y < y1; ++y) {
+        Color* dst_row = fb.pixels_row(y);
+        const Color* bloom_row = luma_fb.pixels_row(y);
+        for (int x = x0; x < x1; ++x) {
+            const Color b = bloom_row[x];
+            Color& d = dst_row[x];
+            if (params.blend == LuminanceBlendMode::Add) {
+                d.r = std::clamp(d.r + b.r, 0.0f, 1.0f);
+                d.g = std::clamp(d.g + b.g, 0.0f, 1.0f);
+                d.b = std::clamp(d.b + b.b, 0.0f, 1.0f);
+            } else if (params.blend == LuminanceBlendMode::Screen) {
+                d.r = std::clamp(d.r + b.r - d.r * b.r, 0.0f, 1.0f);
+                d.g = std::clamp(d.g + b.g - d.g * b.g, 0.0f, 1.0f);
+                d.b = std::clamp(d.b + b.b - d.b * b.b, 0.0f, 1.0f);
+            } else {
+                const float inv_a = 1.0f - b.a;
+                d.r = b.r + d.r * inv_a;
+                d.g = b.g + d.g * inv_a;
+                d.b = b.b + d.b * inv_a;
+                d.a = b.a + d.a * inv_a;
+            }
+        }
+    }
+}
+
 } // namespace chronon3d::renderer

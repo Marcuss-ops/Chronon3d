@@ -10,6 +10,7 @@
 #include "node_executor.hpp"
 
 #include <chronon3d/render_graph/render_graph_context.hpp>     // RenderGraphContext fields (services, frame_error, node_exec)
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>  // RenderGraphNode::execute() + kind()
 #include <chronon3d/render_graph/core/node_identity.hpp>       // StableNodeId (trace annotation)
 #include <chronon3d/core/memory/framebuffer_handle.hpp>        // Full def of PoolFbDeleter + OwnedFB
@@ -68,7 +69,7 @@ double run_node(
             // frame_error slot so the executor can propagate it to
             // frame-level failure (GraphExecutor returns nullptr).
             if (ctx.frame_error) {
-                *ctx.frame_error = exec_result.error();
+                ctx.frame_error->publish_first(exec_result.error());
             }
             record_node_executed();
             const auto exec_t1 = timing_enabled

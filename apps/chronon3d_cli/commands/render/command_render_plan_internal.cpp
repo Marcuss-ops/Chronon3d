@@ -284,6 +284,9 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             renderer_config.set_gpu_hot_path_mode(
                 parse_gpu_hot_path_mode(normalized_job.output.gpu_hot_path_mode));
         }
+        if (renderer_config.gpu_hot_path_mode() == GpuHotPathMode::RequireGpuNative) {
+            request.settings.require_native_gpu = true;
+        }
         request.execution.config = std::move(renderer_config);
         request.execution.report = normalized_job.report;
         request.execution.trace_output = normalized_job.trace.output;

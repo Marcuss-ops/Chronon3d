@@ -109,7 +109,9 @@ enum class PreparedAssetKind : std::uint8_t {
     };
     switch (kind) {
         case PreparedAssetKind::Font:
-            return accepts({"ttf", "otf", "woff", "woff2"});
+            // "ttc"/"otc" are TrueType/OpenType collections — Noto CJK ships
+            // as a .ttc and FreeType opens them like any other face.
+            return accepts({"ttf", "otf", "ttc", "otc", "woff", "woff2"});
         case PreparedAssetKind::Image:
             return accepts({"png", "jpg", "jpeg", "webp", "bmp", "gif",
                             "tif", "tiff", "exr"});

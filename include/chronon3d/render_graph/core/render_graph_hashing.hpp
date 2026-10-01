@@ -433,6 +433,9 @@ private:
             if (auto* p = std::get_if<ChromaticAberrationParams>(&e.params)) {
                 seed = hash_combine(seed, hash_value(p->red_offset));
                 seed = hash_combine(seed, hash_value(p->blue_offset));
+                seed = hash_combine(seed, hash_value(static_cast<int>(p->offset_mode)));
+                seed = hash_combine(seed, hash_vec2(p->velocity));
+                seed = hash_combine(seed, hash_vec2(p->center));
             }
             break;
         }
@@ -441,6 +444,49 @@ private:
                 seed = hash_combine(seed, hash_value(p->size));
                 seed = hash_combine(seed, hash_value(p->angle_degrees));
                 seed = hash_combine(seed, hash_value(p->amount));
+            }
+            break;
+        }
+        case LensDistortion: {
+            if (auto* p = std::get_if<LensDistortionParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->curvature));
+                seed = hash_combine(seed, hash_vec2(p->center));
+                seed = hash_combine(seed, hash_value(p->scale));
+                seed = hash_combine(seed, hash_value(static_cast<int>(p->edge_mode)));
+            }
+            break;
+        }
+        case LuminanceResponse: {
+            if (auto* p = std::get_if<LuminanceResponseParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->threshold));
+                seed = hash_combine(seed, hash_value(p->softness));
+                seed = hash_combine(seed, hash_value(p->radius));
+                seed = hash_combine(seed, hash_color(p->tint));
+                seed = hash_combine(seed, hash_value(p->intensity));
+                seed = hash_combine(seed, hash_value(static_cast<int>(p->blend)));
+            }
+            break;
+        }
+        case FoldWarp: {
+            if (auto* p = std::get_if<FoldWarpParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(static_cast<int>(p->axis)));
+                seed = hash_combine(seed, hash_value(p->position));
+                seed = hash_combine(seed, hash_value(p->amount));
+                seed = hash_combine(seed, hash_value(p->radius));
+                seed = hash_combine(seed, hash_value(p->falloff));
+                seed = hash_combine(seed, hash_value(p->perspective));
+                seed = hash_combine(seed, hash_value(static_cast<int>(p->edge_mode)));
+            }
+            break;
+        }
+        case CreaseShading: {
+            if (auto* p = std::get_if<CreaseShadingParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(static_cast<int>(p->axis)));
+                seed = hash_combine(seed, hash_value(p->position));
+                seed = hash_combine(seed, hash_value(p->width));
+                seed = hash_combine(seed, hash_value(p->dark_side));
+                seed = hash_combine(seed, hash_value(p->light_side));
+                seed = hash_combine(seed, hash_value(p->softness));
             }
             break;
         }

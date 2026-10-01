@@ -163,6 +163,13 @@ void attach_software_backend(
                 throw std::runtime_error(
                     "attach_software_backend: Vulkan factory returned an unexpected backend");
             }
+            const bool strict_gpu =
+                (renderer && (renderer->config().gpu_hot_path_mode() == chronon3d::GpuHotPathMode::RequireGpuNative ||
+                              renderer->render_settings().require_native_gpu)) ||
+                (runtime.config().gpu_hot_path_mode() == chronon3d::GpuHotPathMode::RequireGpuNative);
+            if (!strict_gpu) {
+                vulkan->attach_fallback_backend(make_software_backend_instance(renderer, runtime));
+            }
             return backend;
         });
 #endif

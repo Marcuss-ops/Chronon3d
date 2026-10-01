@@ -181,4 +181,60 @@ std::unique_ptr<EffectProcessor> create_directional_blur_effect_processor() {
     return std::make_unique<SoftwareDirectionalBlurEffectProcessor>();
 }
 
+class SoftwareLensDistortionEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LensDistortionParams>(&params);
+        if (!p) throw std::runtime_error("LensDistortion processor received invalid parameters");
+        apply_lens_distortion(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareFoldWarpEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<FoldWarpParams>(&params);
+        if (!p) throw std::runtime_error("FoldWarp processor received invalid parameters");
+        apply_fold_warp(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareCreaseShadingEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<CreaseShadingParams>(&params);
+        if (!p) throw std::runtime_error("CreaseShading processor received invalid parameters");
+        apply_crease_shading(fb, *p, context.clip);
+    }
+};
+
+class SoftwareLuminanceResponseEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LuminanceResponseParams>(&params);
+        if (!p) throw std::runtime_error("LuminanceResponse processor received invalid parameters");
+        apply_luminance_response(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
+std::unique_ptr<EffectProcessor> create_lens_distortion_effect_processor() {
+    return std::make_unique<SoftwareLensDistortionEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_fold_warp_effect_processor() {
+    return std::make_unique<SoftwareFoldWarpEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_crease_shading_effect_processor() {
+    return std::make_unique<SoftwareCreaseShadingEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_luminance_response_effect_processor() {
+    return std::make_unique<SoftwareLuminanceResponseEffectProcessor>();
+}
+
 } // namespace chronon3d::renderer

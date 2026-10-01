@@ -298,55 +298,6 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         if (shape.stroke && shape.stroke->solid_color) pp.stroke.color = Color{(*shape.stroke->solid_color)[0],(*shape.stroke->solid_color)[1],(*shape.stroke->solid_color)[2],(*shape.stroke->solid_color)[3]};
                         emit_procedural(std::move(pp));
                     };
-                    auto make_worldmap = [&]() {
-                        // Minimal deterministic world-map: filled rect + route polyline + highlight dots
-                        RectParams bg; bg.size=size; bg.color=layer_color; bg.fill=fill_style; bg.stroke=stroke; builder.rect("worldmap_bg", std::move(bg));
-                        if (shape.world_map && !shape.world_map->route.empty()) {
-                            const auto& route = shape.world_map->route;
-                            // Mercator projection of lon/lat into [0,size]
-                            auto project = [&](float lon, float lat) -> Vec2 {
-                                float x = (lon + 180.0f)/360.0f * size.x;
-                                float lat_rad = lat * 3.14159265358979f/180.0f;
-                                float merc_y = std::log(std::tan(3.14159265358979f/4.0f + lat_rad/2.0f));
-                                float y = (1.0f - (merc_y / 3.14159265358979f + 1.0f)*0.5f) * size.y; // simplified
-                                // center/zoom ignored for now (deterministic placeholder)
-                                return {x,y};
-                            };
-                            std::vector<render_plan::ShapePathCommandPlan> cmds;
-                            for (size_t i=0;i<route.size();++i) { Vec2 pt = project(route[i][0], route[i][1]); render_plan::ShapePathCommandPlan c; c.point={pt.x, pt.y}; c.type=(i==0)?render_plan::ShapePathCommandTypePlan::MoveTo:render_plan::ShapePathCommandTypePlan::LineTo; cmds.push_back(c); }
-                            graphics::FillStyle no_fill;
-                            auto pp = build_path_from_shape_plan(cmds, no_fill);
-                            pp.stroke.enabled = true; pp.stroke.width = 2.0f; pp.stroke.color = Color{1,0.23f,0.19f,1};
-                            emit_procedural(std::move(pp));
-                        }
-                    };
-                    auto make_chart = [&]() {
-                        if (!shape.chart || shape.chart->data.empty()) return;
-                        const auto& data = shape.chart->data;
-                        const std::string& ctype = shape.chart->chart_type;
-                        graphics::FillStyle fs = fill_for_procedural();
-                        if (ctype=="bar") {
-                            float gap = std::clamp(shape.chart->bar_gap, 0.0f, 0.5f);
-                            float n = static_cast<float>(data.size());
-                            float bar_w = size.x / n * (1.0f - gap);
-                            float step = size.x / n;
-                            float max_v = 0.0f; for(float v: data) max_v = std::max(max_v, std::abs(v)); if(max_v==0) max_v=1;
-                            for (size_t i=0;i<data.size();++i) { float h = std::abs(data[i])/max_v * size.y; RectParams rp; rp.size={bar_w, h}; rp.color=layer_color; rp.fill=fs; if(i<shape.chart->colors.size()){ auto& c=shape.chart->colors[i]; rp.color={c[0],c[1],c[2],c[3]}; rp.fill=graphics::FillStyle::solid(rp.color);} rp.pos={step*float(i)+(step-bar_w)*0.5f, size.y - h, 0}; builder.rect("chart_bar_"+std::to_string(i), std::move(rp)); }
-                        } else if (ctype=="line") {
-                            float max_v=0; for(float v:data) max_v=std::max(max_v,std::abs(v)); if(max_v==0) max_v=1;
-                            std::vector<render_plan::ShapePathCommandPlan> cmds;
-                            for(size_t i=0;i<data.size();++i){ float x = (data.size()==1? size.x*0.5f : float(i)/float(data.size()-1)*size.x); float y = size.y - std::abs(data[i])/max_v*size.y; render_plan::ShapePathCommandPlan c; c.point={x,y}; c.type=(i==0)?render_plan::ShapePathCommandTypePlan::MoveTo:render_plan::ShapePathCommandTypePlan::LineTo; cmds.push_back(c); }
-                            graphics::FillStyle no_fill;
-                            auto pp = build_path_from_shape_plan(cmds, no_fill);
-                            pp.stroke.enabled=true; pp.stroke.width=shape.chart->line_width; pp.stroke.color=layer_color;
-                            emit_procedural(std::move(pp));
-                        } else if (ctype=="pie") {
-                            float total=0; for(float v:data) total+=std::abs(v); if(total==0) total=1;
-                            float cx=size.x*0.5f, cy=size.y*0.5f, r=std::min(size.x,size.y)*0.5f;
-                            float start=0;
-                            for(size_t i=0;i<data.size();++i){ float sweep = std::abs(data[i])/total*360.0f; if(sweep<1) { start+=sweep; continue; } float mid = (start+sweep*0.5f)*3.14159265f/180.0f; Vec2 p0{cx,cy}; Vec2 p1{cx+std::cos(start*3.14159265f/180.0f)*r, cy+std::sin(start*3.14159265f/180.0f)*r}; Vec2 p2{cx+std::cos((start+sweep)*3.14159265f/180.0f)*r, cy+std::sin((start+sweep)*3.14159265f/180.0f)*r}; (void)mid; std::vector<render_plan::ShapePathCommandPlan> cmds; render_plan::ShapePathCommandPlan m; m.type=render_plan::ShapePathCommandTypePlan::MoveTo; m.point={p0.x,p0.y}; cmds.push_back(m); render_plan::ShapePathCommandPlan l1; l1.type=render_plan::ShapePathCommandTypePlan::LineTo; l1.point={p1.x,p1.y}; cmds.push_back(l1); render_plan::ShapePathCommandPlan l2; l2.type=render_plan::ShapePathCommandTypePlan::LineTo; l2.point={p2.x,p2.y}; cmds.push_back(l2); cmds.push_back({render_plan::ShapePathCommandTypePlan::Close}); graphics::FillStyle sfs=fs; if(i<shape.chart->colors.size()){ auto& c=shape.chart->colors[i]; Color col{c[0],c[1],c[2],c[3]}; sfs=graphics::FillStyle::solid(col); } auto pp=build_path_from_shape_plan(cmds, sfs); builder.path("chart_pie_"+std::to_string(i), std::move(pp)); start+=sweep; }
-                        }
-                    };
                     // Dispatch new shape types before falling through to legacy rect handling
                     if (shape.type == render_plan::ShapeContentTypePlan::Star) { make_star_polygon(true); break; }
                     if (shape.type == render_plan::ShapeContentTypePlan::Polygon) { make_star_polygon(false); break; }
@@ -354,8 +305,6 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     if (shape.type == render_plan::ShapeContentTypePlan::Grid) { make_grid(false); break; }
                     if (shape.type == render_plan::ShapeContentTypePlan::DotGrid) { make_grid(true); break; }
                     if (shape.type == render_plan::ShapeContentTypePlan::Arc) { make_arc(); break; }
-                    if (shape.type == render_plan::ShapeContentTypePlan::WorldMap) { make_worldmap(); break; }
-                    if (shape.type == render_plan::ShapeContentTypePlan::Chart) { make_chart(); break; }
                     // additive device_frame/counter: emit chrome rect + keep primary shape
                     if (shape.device_frame) {
                         RoundedRectParams chrome_rr; chrome_rr.size=size; chrome_rr.radius=shape.device_frame->radius; chrome_rr.color=layer_color; chrome_rr.fill=fill_style; chrome_rr.stroke=stroke;

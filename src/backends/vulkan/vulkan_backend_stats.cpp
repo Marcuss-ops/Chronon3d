@@ -32,11 +32,24 @@ graph::RenderCapabilities VulkanBackend::capabilities() const noexcept {
 
 std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
 VulkanBackend::processor_snapshot() const noexcept {
+    if (m_fallback_backend) {
+        return m_fallback_backend->processor_snapshot();
+    }
     return nullptr;
 }
 
 bool VulkanBackend::requires_processor_snapshot() const noexcept {
+    if (m_fallback_backend) {
+        return m_fallback_backend->requires_processor_snapshot();
+    }
     return false;
+}
+
+std::shared_ptr<cache::FramebufferPool> VulkanBackend::framebuffer_pool() {
+    if (m_fallback_backend) {
+        return m_fallback_backend->framebuffer_pool();
+    }
+    return nullptr;
 }
 
 VulkanBackendStats VulkanBackend::stats() const noexcept {

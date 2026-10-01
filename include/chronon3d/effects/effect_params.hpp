@@ -12,6 +12,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/backends/software/sampling/edge_mode.hpp>
+#include <chronon3d/effects/luminance_response.hpp>
 #include <variant>
 #include <vector>
 #include <array>
@@ -212,9 +213,18 @@ struct MosaicParams {
     std::uint32_t block_size{8};
 };
 
+enum class ChromaticOffsetMode : std::uint8_t {
+    Constant,
+    Radial,
+    Velocity
+};
+
 struct ChromaticAberrationParams {
     float red_offset{2.0f};
     float blue_offset{-2.0f};
+    ChromaticOffsetMode offset_mode{ChromaticOffsetMode::Constant};
+    Vec2 velocity{0.0f, 0.0f};
+    Vec2 center{0.5f, 0.5f};
 };
 
 struct HalftoneParams {
@@ -336,6 +346,37 @@ struct DisplacementMapParams {
     std::optional<graphics::Field2D> field;
     sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
 };
+enum class FoldAxis : std::uint8_t {
+    Vertical,
+    Horizontal
+};
+
+struct LensDistortionParams {
+    float curvature{0.15f};     // > 0 barrel, < 0 pincushion [-1, 1]
+    Vec2 center{0.5f, 0.5f};     // normalized optical center [0, 1]
+    float scale{1.0f};          // zoom scale compensation [0.1, 4]
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+
+struct FoldWarpParams {
+    FoldAxis axis{FoldAxis::Vertical};
+    float position{0.5f};       // crease position [0, 1]
+    float amount{0.25f};        // fold displacement [-1, 1]
+    float radius{0.20f};        // influence radius [0.01, 1]
+    float falloff{1.0f};        // falloff exponent [0.1, 4]
+    float perspective{0.05f};   // 3D perspective foreshortening [0, 0.5]
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+};
+
+struct CreaseShadingParams {
+    FoldAxis axis{FoldAxis::Vertical};
+    float position{0.5f};       // crease position [0, 1]
+    float width{24.0f};         // shading extent in pixels [1, 256]
+    float dark_side{0.35f};     // shadow intensity [0, 1]
+    float light_side{0.20f};    // highlight intensity [0, 1]
+    float softness{0.50f};      // feather softness [0, 1]
+};
+
 // Vignette is the only WIP-local parameter type kept here; the Chromatic
 // Aberration and Halftone structs above are the canonical (upstream) ones.
 struct VignetteEffectParams { float amount{0.5f}; float radius{0.5f}; float softness{0.5f}; Color color{0,0,0,1}; };
@@ -380,7 +421,8 @@ using EffectParams = std::variant<
     BulgeParams,
     MeshWarpParams,
     SharpenParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
-    ChromaticAberrationParams, VignetteEffectParams, HalftoneParams
+    ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
+    LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams
 >;
 
 } // namespace chronon3d

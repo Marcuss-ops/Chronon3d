@@ -324,12 +324,9 @@ bool parameter_sets_are_config_record(BitstreamCodecId codec,
 #endif
 }
 
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 bool convert_annex_b_to_length_prefixed(AVPacket& packet,
                                         BitstreamCodecId codec) noexcept {
-#ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    (void)packet; (void)codec;
-    return false;
-#else
     if (codec != AV_CODEC_ID_H264 && codec != AV_CODEC_ID_HEVC) return false;
     if (!packet.data || packet.size <= 0) return false;
     const std::uint8_t* data = packet.data;
@@ -390,8 +387,8 @@ bool convert_annex_b_to_length_prefixed(AVPacket& packet,
     av_packet_copy_props(&converted, &packet);
     av_packet_move_ref(&packet, &converted);
     return true;
-#endif
 }
+#endif // CHRONON3D_ENABLE_NATIVE_FFMPEG
 
 std::vector<std::vector<std::uint8_t>> parameter_set_nals(
     BitstreamCodecId codec, const std::uint8_t* data, std::size_t size) {

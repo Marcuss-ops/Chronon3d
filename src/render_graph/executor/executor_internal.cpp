@@ -9,6 +9,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -166,16 +167,23 @@ std::shared_ptr<Framebuffer> execute_internal(
             std::memory_order_relaxed);
     }
 
-    // P0-1 / TICKET-HOTPATH-ZERO-ALLOC-P1-D2 — the frame error slot is
-    // frame-scoped stack storage instead of a per-frame make_shared control
-    // block.  Clones share the non-owning pointer, so error writes from node
-    // executions remain visible to this executor, and the storage dies with
-    // this call — node executions never outlive execute_internal.
-    std::optional<NodeExecutionError> frame_error_storage;
-    ctx.frame_error = payload ? &payload->frame_error : &frame_error_storage;
+    // The frame-scoped error channel synchronizes first-error publication
+    // across parallel graph workers. Clones share this slot; its lifetime is
+    // bounded by the payload lease or this synchronous executor call.
+    runtime::RenderErrorSlot frame_error_storage;
+    auto* frame_error = payload ? &payload->frame_error : &frame_error_storage;
+    frame_error->clear();
+    ctx.frame_error = frame_error;
 
     if (compiled.program.fully_recorded) {
-        execute_compiled_program(compiled.program, ctx, state, parent_counters);
+        if (!execute_compiled_program(
+                compiled.program, ctx, state, parent_counters) &&
+            !frame_error->has_error()) {
+            frame_error->publish_first(NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "compiled-executor",
+                "compiled program execution failed"});
+        }
     } else {
         execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining,
                        parent_counters, parent_pool, res, compiled);
@@ -201,16 +209,17 @@ std::shared_ptr<Framebuffer> execute_internal(
         session.memory_aggregate().merge_report(state.node_memory_tracker->snapshot());
     }
 
-    if (ctx.frame_error && ctx.frame_error->has_value()) {
-        const auto& err = ctx.frame_error->value();
-        session.publish_last_frame_error(err);
-        spdlog::error(
-            "[executor] frame {} failed: node '{}' error [{}] {}",
-            static_cast<int>(ctx.frame_input.frame),
-            err.node_name,
-            render_backend_error_code_name(err.backend_code),
-            err.message);
-        return nullptr;
+    if (ctx.frame_error) {
+        if (const auto err = ctx.frame_error->load()) {
+            session.publish_last_frame_error(*err);
+            spdlog::error(
+                "[executor] frame {} failed: node '{}' error [{}] {}",
+                static_cast<int>(ctx.frame_input.frame),
+                err->node_name,
+                render_backend_error_code_name(err->backend_code),
+                err->message);
+            return nullptr;
+        }
     }
 
     CachedFB result = state.temp[output];

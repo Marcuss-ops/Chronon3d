@@ -167,6 +167,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         // Typed background looks are expanded by the V3 decoder and are not
         // representable in the frozen V2 projection.
         layer.erase("background_look");
+        layer.erase("backdrop_filter");
         layer.erase("transition_in");
         layer.erase("transition_out");
         if (layer.contains("animation") && layer["animation"].is_object() &&
@@ -219,6 +220,9 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         // the whole text_animators block with the V2-level strictness, so the
         // projection must not re-validate it against the frozen V2 enum.
         layer.erase("text_animators");
+        // V3 text counters have their own strict extension contract; keep them
+        // out of the frozen V2 projection after the extension pass validates.
+        layer.erase("text_counter");
         // V3 path masks are validated by the extension schema above. The V2
         // projection exists only to retain validation of fields shared with
         // the legacy schema, which correctly rejects this V3-only field.

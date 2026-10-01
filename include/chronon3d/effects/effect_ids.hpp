@@ -61,5 +61,9 @@ inline constexpr std::string_view DistortRipple = "distort.ripple";
 inline constexpr std::string_view DistortDisplacementMap = "distort.displacement_map";
 inline constexpr std::string_view StylizeChromaticAberration = "stylize.chromatic_aberration";
 inline constexpr std::string_view StylizeHalftone = "stylize.halftone";
+inline constexpr std::string_view DistortLensDistortion = "distort.lens_distortion";
+inline constexpr std::string_view LightLuminanceResponse = "light.luminance_response";
+inline constexpr std::string_view DistortFoldWarp = "distort.fold_warp";
+inline constexpr std::string_view LightCreaseShading = "light.crease_shading";
 
 } // namespace chronon3d::effects::ids

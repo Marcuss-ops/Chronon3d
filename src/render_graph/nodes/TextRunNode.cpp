@@ -21,6 +21,9 @@
 
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+// The node dereferences ctx.frame_error (runtime::RenderErrorSlot); the
+// context header only forward-declares the class.
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/text/text_run_geometry.hpp>
@@ -148,12 +151,14 @@ NodeExecResult TextRunNode::execute(
     // A direct caller may execute the same node again with the frame error
     // already latched.  Preserve the first diagnostic and avoid emitting a
     // duplicate log (the executor treats the frame as failed already).
-    if (ctx.frame_error && ctx.frame_error->has_value()) {
-        return NodeExecResult{ctx.frame_error->value()};
+    if (ctx.frame_error && ctx.frame_error->has_error()) {
+        if (auto error = ctx.frame_error->load()) {
+            return NodeExecResult{std::move(*error)};
+        }
     }
     if (auto err = text_run::validate_execution(backend, m_name)) {
-        if (ctx.frame_error && !ctx.frame_error->has_value()) {
-            *ctx.frame_error = *err;
+        if (ctx.frame_error) {
+            ctx.frame_error->publish_first(*err);
         }
         return NodeExecResult{std::move(*err)};
     }
@@ -183,8 +188,8 @@ NodeExecResult TextRunNode::execute(
                 m_name,
                 std::string(dispatch.error().message)
             };
-            if (ctx.frame_error && !ctx.frame_error->has_value()) {
-                *ctx.frame_error = error;
+            if (ctx.frame_error) {
+                ctx.frame_error->publish_first(error);
             }
             return NodeExecResult{std::move(error)};
         }
@@ -199,8 +204,8 @@ NodeExecResult TextRunNode::execute(
             m_name,
             "text rendering is disabled in this build"
         };
-        if (ctx.frame_error && !ctx.frame_error->has_value()) {
-            *ctx.frame_error = error;
+        if (ctx.frame_error) {
+            ctx.frame_error->publish_first(error);
         }
         return NodeExecResult{std::move(error)};
 #endif

@@ -367,3 +367,16 @@ CHRONON_EFFECT(40, ChromaticAberration, ChromaticAberrationParams, ids::StylizeC
 CHRONON_EFFECT(41, Halftone, HalftoneParams, ids::StylizeHalftone, "Halftone",
     EffectCategory::Stylize, EffectStage::Adjustment, EffectDomain::Spatial,
     AlphaPolicy::Preserve, DirtyPolicy::Preserve, BoundsPolicy::Preserve, false, false)
+CHRONON_EFFECT(42, LensDistortion, LensDistortionParams, ids::DistortLensDistortion, "Lens Distortion",
+    EffectCategory::Distort, EffectStage::LayerPostTransform, EffectDomain::Spatial,
+    AlphaPolicy::MayModify, DirtyPolicy::Preserve, BoundsPolicy::Preserve, false, false)
+CHRONON_EFFECT(43, LuminanceResponse, LuminanceResponseParams, ids::LightLuminanceResponse, "Luminance Response",
+    EffectCategory::Light, EffectStage::LayerPostTransform, EffectDomain::Spatial,
+    AlphaPolicy::MayModify, DirtyPolicy::Expand, BoundsPolicy::Expand, false, false)
+CHRONON_EFFECT(44, FoldWarp, FoldWarpParams, ids::DistortFoldWarp, "Fold Warp",
+    EffectCategory::Distort, EffectStage::LayerPostTransform, EffectDomain::Spatial,
+    AlphaPolicy::MayModify, DirtyPolicy::Preserve, BoundsPolicy::Preserve, false, false)
+CHRONON_EFFECT(45, CreaseShading, CreaseShadingParams, ids::LightCreaseShading, "Crease Shading",
+    EffectCategory::Light, EffectStage::Adjustment, EffectDomain::Spatial,
+    AlphaPolicy::Preserve, DirtyPolicy::Preserve, BoundsPolicy::Preserve, false, false)
+

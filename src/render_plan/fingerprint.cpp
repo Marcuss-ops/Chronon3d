@@ -720,12 +720,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             }
         }
         // ── Additive web-cool fields (v12): only emitted when present, so legacy v11 plans stay byte-identical.
-        if (shape.points || shape.world_map || shape.chart || shape.device_frame || shape.counter ||
+        if (shape.points || shape.device_frame ||
             shape.arrow_head_length || shape.arrow_head_width ||
             shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
             shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Grid ||
-            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::Arc ||
-            shape.type == ShapeContentTypePlan::WorldMap || shape.type == ShapeContentTypePlan::Chart) {
+            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::Arc) {
             out.add_bool(true);
             add_optional(out, shape.points, [](auto& writer, int value) { writer.add_i64(value); });
             out.add_float(shape.inner_radius_ratio);
@@ -740,44 +739,12 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             out.add_float(shape.arc_start_deg);
             out.add_float(shape.arc_sweep_deg);
             out.add_float(shape.arc_thickness);
-            add_optional(out, shape.world_map, [](auto& writer, const WorldMapPlan& wm) {
-                writer.add_string(wm.projection);
-                for (auto v : wm.center) writer.add_float(v);
-                writer.add_float(wm.zoom);
-                writer.add_size(wm.highlight.size());
-                for (const auto& code : wm.highlight) writer.add_string(code);
-                writer.add_string(wm.highlight_color);
-                writer.add_size(wm.route.size());
-                for (const auto& pt : wm.route) { writer.add_float(pt[0]); writer.add_float(pt[1]); }
-                writer.add_bool(wm.dots);
-            });
-            add_optional(out, shape.chart, [](auto& writer, const ChartPlan& chart) {
-                writer.add_string(chart.chart_type);
-                writer.add_size(chart.data.size());
-                for (auto v : chart.data) writer.add_float(v);
-                writer.add_size(chart.colors.size());
-                for (const auto& c : chart.colors) for (auto v : c) writer.add_float(v);
-                writer.add_string(chart.value_format);
-                writer.add_float(chart.bar_gap);
-                writer.add_float(chart.line_width);
-                writer.add_bool(chart.donut);
-                writer.add_float(chart.donut_inner_ratio);
-            });
             add_optional(out, shape.device_frame, [](auto& writer, const DeviceFramePlan& df) {
                 writer.add_string(df.frame_type);
                 writer.add_float(df.radius);
                 writer.add_float(df.border_width);
                 writer.add_string(df.border_color);
                 writer.add_bool(df.show_chrome);
-            });
-            add_optional(out, shape.counter, [](auto& writer, const CounterPlan& cp) {
-                writer.add_float(cp.from);
-                writer.add_float(cp.to);
-                writer.add_string(cp.format);
-                writer.add_string(cp.currency);
-                writer.add_i64(cp.decimals);
-                writer.add_string(cp.prefix);
-                writer.add_string(cp.suffix);
             });
         }
         out.add_size(shape.operators.size());
@@ -1099,6 +1066,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             case LayerPlan::EffectKindPlan::ChromaticAberration: {
                 out.add_float(effect.chromatic_red_offset);
                 out.add_float(effect.chromatic_blue_offset);
+                out.add_size(static_cast<std::size_t>(effect.chromatic_offset_mode));
+                out.add_float(effect.chromatic_velocity[0]);
+                out.add_float(effect.chromatic_velocity[1]);
             } break;
             case LayerPlan::EffectKindPlan::Halftone: {
                 out.add_size(effect.halftone_size);
@@ -1120,10 +1090,54 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             case LayerPlan::EffectKindPlan::Mosaic: {
                 out.add_size(effect.block_size);
             } break;
+            case LayerPlan::EffectKindPlan::LensDistortion: {
+                out.add_float(effect.lens_curvature);
+                out.add_float(effect.lens_center[0]);
+                out.add_float(effect.lens_center[1]);
+                out.add_float(effect.lens_scale);
+            } break;
+            case LayerPlan::EffectKindPlan::LuminanceResponse: {
+                out.add_float(effect.response_threshold);
+                out.add_float(effect.response_softness);
+                out.add_float(effect.response_radius);
+                for (std::size_t c = 0; c < 4; ++c) out.add_float(effect.response_tint[c]);
+                out.add_float(effect.response_intensity);
+                out.add_size(static_cast<std::size_t>(effect.response_blend));
+            } break;
+            case LayerPlan::EffectKindPlan::FoldWarp: {
+                out.add_size(static_cast<std::size_t>(effect.fold_axis));
+                out.add_float(effect.fold_position);
+                out.add_float(effect.fold_amount);
+                out.add_float(effect.fold_radius);
+                out.add_float(effect.fold_falloff);
+                out.add_float(effect.fold_perspective);
+            } break;
+            case LayerPlan::EffectKindPlan::CreaseShading: {
+                out.add_size(static_cast<std::size_t>(effect.crease_axis));
+                out.add_float(effect.crease_position);
+                out.add_float(effect.crease_width);
+                out.add_float(effect.crease_dark_side);
+                out.add_float(effect.crease_light_side);
+                out.add_float(effect.crease_softness);
+            } break;
             }
             add_optional(out,effect.posterize_fps,[](auto& w,float v){w.add_float(v);});
             add_optional(out,effect.time_curve,[](auto& w,const AnimationTrackPlan& track){add_track(w,track);});
         }
+    }
+    if (layer.backdrop_filter) {
+        out.add_bool(true);
+        out.add_float(layer.backdrop_filter->blur);
+        out.add_float(layer.backdrop_filter->brightness);
+        out.add_float(layer.backdrop_filter->saturation);
+        out.add_float(layer.backdrop_filter->refraction_strength);
+        out.add_float(layer.backdrop_filter->rim_strength);
+        out.add_float(layer.backdrop_filter->rim_width);
+        out.add_float(layer.backdrop_filter->chromatic_dispersion);
+        out.add_float(layer.backdrop_filter->grain);
+        out.add_float(layer.backdrop_filter->opacity);
+    } else {
+        out.add_bool(false);
     }
     out.add_size(layer.effect_param_tracks.size());
     for (const auto& track : layer.effect_param_tracks) {

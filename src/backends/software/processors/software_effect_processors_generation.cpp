@@ -314,14 +314,52 @@ public:
             x1 = std::clamp(context.clip->x1, 0, x1);
             y1 = std::clamp(context.clip->y1, 0, y1);
         }
-        const int red = static_cast<int>(std::lround(p->red_offset));
-        const int blue = static_cast<int>(std::lround(p->blue_offset));
+        const int w = fb.width();
+        const int h = fb.height();
+        const Vec2 center_px{p->center.x * static_cast<float>(w), p->center.y * static_cast<float>(h)};
+
+        Vec2 vel_dir{1.0f, 0.0f};
+        float vel_len = glm::length(p->velocity);
+        if (vel_len > 1.0e-5f) {
+            vel_dir = p->velocity / vel_len;
+        }
+
         for (int y = y0; y < y1; ++y) {
             Color* dst = fb.pixels_row(y);
             for (int x = x0; x < x1; ++x) {
                 const Color center = source.get_pixel(x, y);
-                const Color r = source.get_pixel(std::clamp(x + red, 0, fb.width() - 1), y);
-                const Color b = source.get_pixel(std::clamp(x + blue, 0, fb.width() - 1), y);
+                int rx = x, ry = y, bx = x, by = y;
+
+                if (p->offset_mode == ChromaticOffsetMode::Constant) {
+                    const int red = static_cast<int>(std::lround(p->red_offset));
+                    const int blue = static_cast<int>(std::lround(p->blue_offset));
+                    rx = std::clamp(x + red, 0, w - 1);
+                    bx = std::clamp(x + blue, 0, w - 1);
+                } else if (p->offset_mode == ChromaticOffsetMode::Velocity) {
+                    const int r_dx = static_cast<int>(std::lround(vel_dir.x * p->red_offset));
+                    const int r_dy = static_cast<int>(std::lround(vel_dir.y * p->red_offset));
+                    const int b_dx = static_cast<int>(std::lround(vel_dir.x * p->blue_offset));
+                    const int b_dy = static_cast<int>(std::lround(vel_dir.y * p->blue_offset));
+                    rx = std::clamp(x + r_dx, 0, w - 1);
+                    ry = std::clamp(y + r_dy, 0, h - 1);
+                    bx = std::clamp(x + b_dx, 0, w - 1);
+                    by = std::clamp(y + b_dy, 0, h - 1);
+                } else if (p->offset_mode == ChromaticOffsetMode::Radial) {
+                    const Vec2 diff = Vec2{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f} - center_px;
+                    const float dist = glm::length(diff);
+                    const Vec2 r_dir = dist > 1.0e-5f ? (diff / dist) : Vec2{0.0f, 0.0f};
+                    const int r_dx = static_cast<int>(std::lround(r_dir.x * p->red_offset));
+                    const int r_dy = static_cast<int>(std::lround(r_dir.y * p->red_offset));
+                    const int b_dx = static_cast<int>(std::lround(r_dir.x * p->blue_offset));
+                    const int b_dy = static_cast<int>(std::lround(r_dir.y * p->blue_offset));
+                    rx = std::clamp(x + r_dx, 0, w - 1);
+                    ry = std::clamp(y + r_dy, 0, h - 1);
+                    bx = std::clamp(x + b_dx, 0, w - 1);
+                    by = std::clamp(y + b_dy, 0, h - 1);
+                }
+
+                const Color r = source.get_pixel(rx, ry);
+                const Color b = source.get_pixel(bx, by);
                 const float red_channel = center.a > 1.0e-8f && r.a > 1.0e-8f
                     ? (r.r / r.a) * center.a : 0.0f;
                 const float blue_channel = center.a > 1.0e-8f && b.a > 1.0e-8f

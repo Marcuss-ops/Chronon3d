@@ -20,6 +20,24 @@
 namespace chronon3d::render_plan::detail {
 namespace {
 
+std::optional<Color> decode_text_span_color(const std::string& encoded) {
+    if (encoded.size() != 7 && encoded.size() != 9) return std::nullopt;
+    const auto rgb = parse_hex_color(std::string_view(encoded).substr(0, 7));
+    if (!rgb) return std::nullopt;
+    if (encoded.size() == 7) return rgb;
+    const auto nibble = [](char value) -> int {
+        if (value >= '0' && value <= '9') return value - '0';
+        if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+        if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+        return -1;
+    };
+    const int high = nibble(encoded[7]);
+    const int low = nibble(encoded[8]);
+    if (high < 0 || low < 0) return std::nullopt;
+    return Color{rgb->r, rgb->g, rgb->b,
+        static_cast<float>(high * 16 + low) / 255.0f};
+}
+
 std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind) {
     using K = LayerPlan::EffectKindPlan;
     using namespace chronon3d::effects::ids;
@@ -51,6 +69,10 @@ std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind) {
         case K::RadialBlur: return DistortRadialBlur;
         case K::Vignette: return ColorVignette;
         case K::Catalog: return {};
+        case K::LensDistortion: return DistortLensDistortion;
+        case K::LuminanceResponse: return LightLuminanceResponse;
+        case K::FoldWarp: return DistortFoldWarp;
+        case K::CreaseShading: return LightCreaseShading;
     }
     return {};
 }
@@ -71,6 +93,10 @@ LayerPlan::EffectKindPlan decode_effect_kind(std::string_view name) {
         {"halftone", K::Halftone}, {"directional_blur", K::DirectionalBlur},
         {"radial_blur", K::RadialBlur}, {"vignette", K::Vignette},
         {"catalog", K::Catalog},
+        {"lens_distortion", K::LensDistortion},
+        {"luminance_response", K::LuminanceResponse},
+        {"fold_warp", K::FoldWarp},
+        {"crease_shading", K::CreaseShading},
     };
     const auto found = kinds.find(name);
     if (found == kinds.end()) throw std::runtime_error("unsupported layer effect type");
@@ -630,6 +656,74 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                 }
 
             } break;
+            case LayerPlan::EffectKindPlan::LensDistortion: {
+                effect.kind = LayerPlan::EffectKindPlan::LensDistortion;
+                effect.lens_curvature = raw_effect.value("curvature", 0.15f);
+                effect.lens_scale = raw_effect.value("scale", 1.0f);
+                if (raw_effect.contains("center")) {
+                    const auto& center = raw_effect.at("center");
+                    if (center.is_array() && center.size() == 2) {
+                        effect.lens_center[0] = center[0].get<float>();
+                        effect.lens_center[1] = center[1].get<float>();
+                    }
+                }
+                if (!std::isfinite(effect.lens_curvature) || effect.lens_curvature < -1.0f || effect.lens_curvature > 1.0f ||
+                    !std::isfinite(effect.lens_scale) || effect.lens_scale < 0.1f || effect.lens_scale > 4.0f ||
+                    !std::isfinite(effect.lens_center[0]) || !std::isfinite(effect.lens_center[1]))
+                    throw std::runtime_error("Lens distortion parameters are non-finite or outside supported range");
+            } break;
+            case LayerPlan::EffectKindPlan::LuminanceResponse: {
+                effect.kind = LayerPlan::EffectKindPlan::LuminanceResponse;
+                effect.response_threshold = raw_effect.value("threshold", 0.70f);
+                effect.response_softness = raw_effect.value("softness", 0.20f);
+                effect.response_radius = raw_effect.value("radius", 18.0f);
+                effect.response_intensity = raw_effect.value("intensity", 1.0f);
+                if (raw_effect.contains("tint")) {
+                    const auto& tint = raw_effect.at("tint");
+                    if (tint.is_array() && tint.size() == 4) {
+                        for (std::size_t c = 0; c < 4; ++c) effect.response_tint[c] = tint[c].get<float>();
+                    }
+                }
+                const auto blend_str = raw_effect.value("blend", "screen");
+                effect.response_blend = (blend_str == "add") ? 1 : ((blend_str == "over") ? 2 : 0);
+                if (!std::isfinite(effect.response_threshold) || effect.response_threshold < 0.0f || effect.response_threshold > 1.0f ||
+                    !std::isfinite(effect.response_softness) || effect.response_softness < 0.0f || effect.response_softness > 1.0f ||
+                    !std::isfinite(effect.response_radius) || effect.response_radius < 0.0f || effect.response_radius > 256.0f ||
+                    !std::isfinite(effect.response_intensity) || effect.response_intensity < 0.0f || effect.response_intensity > 8.0f)
+                    throw std::runtime_error("Luminance response parameters are non-finite or outside supported range");
+            } break;
+            case LayerPlan::EffectKindPlan::FoldWarp: {
+                effect.kind = LayerPlan::EffectKindPlan::FoldWarp;
+                const auto axis_str = raw_effect.value("axis", "vertical");
+                effect.fold_axis = (axis_str == "horizontal") ? 1 : 0;
+                effect.fold_position = raw_effect.value("position", 0.5f);
+                effect.fold_amount = raw_effect.value("amount", 0.25f);
+                effect.fold_radius = raw_effect.value("radius", 0.20f);
+                effect.fold_falloff = raw_effect.value("falloff", 1.0f);
+                effect.fold_perspective = raw_effect.value("perspective", 0.05f);
+                if (!std::isfinite(effect.fold_position) || effect.fold_position < 0.0f || effect.fold_position > 1.0f ||
+                    !std::isfinite(effect.fold_amount) || effect.fold_amount < -1.0f || effect.fold_amount > 1.0f ||
+                    !std::isfinite(effect.fold_radius) || effect.fold_radius < 0.01f || effect.fold_radius > 1.0f ||
+                    !std::isfinite(effect.fold_falloff) || effect.fold_falloff < 0.1f || effect.fold_falloff > 4.0f ||
+                    !std::isfinite(effect.fold_perspective) || effect.fold_perspective < 0.0f || effect.fold_perspective > 0.5f)
+                    throw std::runtime_error("Fold warp parameters are non-finite or outside supported range");
+            } break;
+            case LayerPlan::EffectKindPlan::CreaseShading: {
+                effect.kind = LayerPlan::EffectKindPlan::CreaseShading;
+                const auto axis_str = raw_effect.value("axis", "vertical");
+                effect.crease_axis = (axis_str == "horizontal") ? 1 : 0;
+                effect.crease_position = raw_effect.value("position", 0.5f);
+                effect.crease_width = raw_effect.value("width", 24.0f);
+                effect.crease_dark_side = raw_effect.value("dark_side", 0.35f);
+                effect.crease_light_side = raw_effect.value("light_side", 0.20f);
+                effect.crease_softness = raw_effect.value("softness", 0.50f);
+                if (!std::isfinite(effect.crease_position) || effect.crease_position < 0.0f || effect.crease_position > 1.0f ||
+                    !std::isfinite(effect.crease_width) || effect.crease_width < 1.0f || effect.crease_width > 256.0f ||
+                    !std::isfinite(effect.crease_dark_side) || effect.crease_dark_side < 0.0f || effect.crease_dark_side > 1.0f ||
+                    !std::isfinite(effect.crease_light_side) || effect.crease_light_side < 0.0f || effect.crease_light_side > 1.0f ||
+                    !std::isfinite(effect.crease_softness) || effect.crease_softness < 0.0f || effect.crease_softness > 1.0f)
+                    throw std::runtime_error("Crease shading parameters are non-finite or outside supported range");
+            } break;
             }
             layer.effects.push_back(std::move(effect));
         }
@@ -1171,12 +1265,31 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     if (value.contains("spans")) {
         if (layer.type != LayerType::Text)
             throw std::runtime_error("layer.spans is only valid for text layers");
+        if (!value.at("spans").is_array() || value.at("spans").size() > 65536)
+            throw std::runtime_error("layer.spans must be an array of at most 65536 entries");
         std::size_t previous_end = 0;
+        std::vector<std::string> semantic_ids;
         const auto boundary = [&](std::size_t offset) {
             return offset == 0 || offset == layer.text.size() ||
                 (static_cast<unsigned char>(layer.text[offset]) & 0xc0U) != 0x80U;
         };
         for (const auto& raw_span : value.at("spans")) {
+            if (!raw_span.is_object())
+                throw std::runtime_error("each text span must be an object");
+            for (auto field = raw_span.begin(); field != raw_span.end(); ++field)
+                if (field.key() != "start" && field.key() != "end" &&
+                    field.key() != "semantic_id" && field.key() != "style")
+                    throw std::runtime_error("text span contains unsupported field '" + field.key() + "'");
+            const auto validOffset = [&](const nlohmann::json& offset) {
+                if (!offset.is_number_integer()) return false;
+                if (offset.is_number_unsigned())
+                    return offset.get<std::uint64_t>() <= layer.text.size();
+                const auto signed_offset = offset.get<std::int64_t>();
+                return signed_offset >= 0 && static_cast<std::uint64_t>(signed_offset) <= layer.text.size();
+            };
+            if (!raw_span.contains("start") || !validOffset(raw_span.at("start")) ||
+                !raw_span.contains("end") || !validOffset(raw_span.at("end")))
+                throw std::runtime_error("text span start/end must be non-negative byte offsets within text");
             TextSpanOverride span;
             span.byte_start = raw_span.at("start").get<std::size_t>();
             span.byte_end = raw_span.at("end").get<std::size_t>();
@@ -1184,49 +1297,106 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 span.byte_end > layer.text.size() || !boundary(span.byte_start) || !boundary(span.byte_end))
                 throw std::runtime_error("text spans must be sorted, non-overlapping UTF-8 byte ranges within text");
             previous_end = span.byte_end;
-            const auto& style = raw_span.at("style");
-            if (style.contains("color")) {
-                const auto color = parse_hex_color(style.at("color").get<std::string>());
-                if (!color) throw std::runtime_error("text span has invalid color");
-                span.color = *color;
+            if (raw_span.contains("semantic_id")) {
+                if (!raw_span.at("semantic_id").is_string())
+                    throw std::runtime_error("text span semantic_id must be a string");
+                span.semantic_id = raw_span.at("semantic_id").get<std::string>();
+                if (span.semantic_id->empty() || span.semantic_id->size() > 256)
+                    throw std::runtime_error("text span semantic_id must contain 1..256 bytes");
+                if (std::find(semantic_ids.begin(), semantic_ids.end(), *span.semantic_id) != semantic_ids.end())
+                    throw std::runtime_error("text span semantic_id values must be unique per layer");
+                semantic_ids.push_back(*span.semantic_id);
             }
-            if (style.contains("font_size_mult")) {
-                const float mult = style.at("font_size_mult").get<float>();
-                if (!std::isfinite(mult) || mult <= 0.0f || mult > 100.0f)
-                    throw std::runtime_error("text span font_size_mult must be finite and in (0, 100]");
-                span.font_size_multiplier = mult;
-            }
-            if (style.contains("tracking")) span.tracking = style.at("tracking").get<float>();
-            if (style.contains("stroke")) {
-                const auto& raw_stroke = style.at("stroke");
-                TextStrokeStyle stroke;
-                if (raw_stroke.contains("color")) {
-                    const auto color = parse_hex_color(raw_stroke.at("color").get<std::string>());
-                    if (!color) throw std::runtime_error("text span has invalid stroke color");
-                    stroke.color = *color;
+            const auto styleIt = raw_span.find("style");
+            if (styleIt != raw_span.end()) {
+                const auto& style = *styleIt;
+                if (!style.is_object() || style.empty())
+                    throw std::runtime_error("text span style must be a non-empty object when present");
+                for (auto field = style.begin(); field != style.end(); ++field)
+                    if (field.key() != "color" && field.key() != "font_size_mult" &&
+                        field.key() != "tracking" && field.key() != "stroke" && field.key() != "highlight")
+                        throw std::runtime_error("text span style contains unsupported field '" + field.key() + "'");
+                if (style.contains("color")) {
+                    if (!style.at("color").is_string())
+                        throw std::runtime_error("text span color must be a hex string");
+                    const auto color = decode_text_span_color(style.at("color").get<std::string>());
+                    if (!color) throw std::runtime_error("text span has invalid color");
+                    span.color = *color;
                 }
-                if (raw_stroke.contains("width_em"))
-                    stroke.width_em = raw_stroke.at("width_em").get<float>();
-                if (!std::isfinite(stroke.width_em) || stroke.width_em < 0.0f || stroke.width_em > 100.0f)
-                    throw std::runtime_error("text span stroke width_em must be finite and in [0, 100]");
-                span.stroke = stroke;
-            }
-            if (style.contains("highlight")) {
-                const auto& raw_highlight = style.at("highlight");
-                TextHighlightStyle highlight;
-                if (raw_highlight.contains("background")) {
-                    const auto color = parse_hex_color(
-                        raw_highlight.at("background").get<std::string>());
-                    if (!color) throw std::runtime_error("text span has invalid highlight background color");
-                    highlight.background = *color;
+                if (style.contains("font_size_mult")) {
+                    if (!style.at("font_size_mult").is_number())
+                        throw std::runtime_error("text span font_size_mult must be a number");
+                    const float mult = style.at("font_size_mult").get<float>();
+                    if (!std::isfinite(mult) || mult <= 0.0f || mult > 100.0f)
+                        throw std::runtime_error("text span font_size_mult must be finite and in (0, 100]");
+                    span.font_size_multiplier = mult;
                 }
-                if (raw_highlight.contains("padding_em"))
-                    highlight.padding_em = raw_highlight.at("padding_em").get<float>();
-                if (raw_highlight.contains("radius_em"))
-                    highlight.radius_em = raw_highlight.at("radius_em").get<float>();
-                span.highlight = highlight;
+                if (style.contains("tracking")) {
+                    if (!style.at("tracking").is_number())
+                        throw std::runtime_error("text span tracking must be a number");
+                    const float tracking = style.at("tracking").get<float>();
+                    if (!std::isfinite(tracking) || tracking < -1000.0f || tracking > 1000.0f)
+                        throw std::runtime_error("text span tracking must be finite in [-1000, 1000]");
+                    span.tracking = tracking;
+                }
+                if (style.contains("stroke")) {
+                    const auto& raw_stroke = style.at("stroke");
+                    if (!raw_stroke.is_object() || raw_stroke.empty())
+                        throw std::runtime_error("text span stroke must be a non-empty object");
+                    for (auto field = raw_stroke.begin(); field != raw_stroke.end(); ++field)
+                        if (field.key() != "color" && field.key() != "width_em")
+                            throw std::runtime_error("text span stroke contains unsupported field '" + field.key() + "'");
+                    TextStrokeStyle stroke;
+                    if (raw_stroke.contains("color")) {
+                        if (!raw_stroke.at("color").is_string())
+                            throw std::runtime_error("text span stroke color must be a hex string");
+                        const auto color = decode_text_span_color(raw_stroke.at("color").get<std::string>());
+                        if (!color) throw std::runtime_error("text span has invalid stroke color");
+                        stroke.color = *color;
+                    }
+                    if (raw_stroke.contains("width_em")) {
+                        if (!raw_stroke.at("width_em").is_number())
+                            throw std::runtime_error("text span stroke width_em must be a number");
+                        stroke.width_em = raw_stroke.at("width_em").get<float>();
+                    }
+                    if (!std::isfinite(stroke.width_em) || stroke.width_em < 0.0f || stroke.width_em > 100.0f)
+                        throw std::runtime_error("text span stroke width_em must be finite and in [0, 100]");
+                    span.stroke = stroke;
+                }
+                if (style.contains("highlight")) {
+                    const auto& raw_highlight = style.at("highlight");
+                    if (!raw_highlight.is_object() || raw_highlight.empty())
+                        throw std::runtime_error("text span highlight must be a non-empty object");
+                    for (auto field = raw_highlight.begin(); field != raw_highlight.end(); ++field)
+                        if (field.key() != "background" && field.key() != "padding_em" && field.key() != "radius_em")
+                            throw std::runtime_error("text span highlight contains unsupported field '" + field.key() + "'");
+                    TextHighlightStyle highlight;
+                    if (raw_highlight.contains("background")) {
+                        if (!raw_highlight.at("background").is_string())
+                            throw std::runtime_error("text span highlight background must be a hex string");
+                        const auto color = decode_text_span_color(
+                            raw_highlight.at("background").get<std::string>());
+                        if (!color) throw std::runtime_error("text span has invalid highlight background color");
+                        highlight.background = *color;
+                    }
+                    if (raw_highlight.contains("padding_em")) {
+                        if (!raw_highlight.at("padding_em").is_number())
+                            throw std::runtime_error("text highlight padding_em must be a number");
+                        highlight.padding_em = raw_highlight.at("padding_em").get<float>();
+                    }
+                    if (raw_highlight.contains("radius_em")) {
+                        if (!raw_highlight.at("radius_em").is_number())
+                            throw std::runtime_error("text highlight radius_em must be a number");
+                        highlight.radius_em = raw_highlight.at("radius_em").get<float>();
+                    }
+                    if ((highlight.padding_em && (!std::isfinite(*highlight.padding_em) ||
+                            *highlight.padding_em < 0.0f || *highlight.padding_em > 100.0f)) ||
+                        (highlight.radius_em && (!std::isfinite(*highlight.radius_em) ||
+                            *highlight.radius_em < 0.0f || *highlight.radius_em > 100.0f)))
+                        throw std::runtime_error("text highlight padding_em and radius_em must be finite in [0, 100]");
+                    span.highlight = highlight;
+                }
             }
-            if (raw_span.contains("semantic_id")) span.semantic_id = raw_span.at("semantic_id").get<std::string>();
             layer.text_spans.push_back(std::move(span));
         }
     }
@@ -1256,6 +1426,21 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     decode_layer_masks(layer, value);
     decode_layer_effects(layer, value);
     decode_background_look(layer, value);
+    if (value.contains("backdrop_filter")) {
+        const auto& raw_bf = value.at("backdrop_filter");
+        BackdropFilterPlan filter;
+        filter.blur = raw_bf.value("blur", filter.blur);
+        filter.brightness = raw_bf.value("brightness", filter.brightness);
+        filter.saturation = raw_bf.value("saturation", filter.saturation);
+        filter.refraction_strength = raw_bf.value("refraction_strength", filter.refraction_strength);
+        filter.rim_strength = raw_bf.value("rim_strength", filter.rim_strength);
+        filter.rim_width = raw_bf.value("rim_width", filter.rim_width);
+        filter.chromatic_dispersion = raw_bf.value("chromatic_dispersion", filter.chromatic_dispersion);
+        filter.grain = raw_bf.value("grain", filter.grain);
+        filter.opacity = raw_bf.value("opacity", filter.opacity);
+        filter.validate();
+        layer.backdrop_filter = filter;
+    }
     decode_effect_parameter_tracks(layer, value);
     if (layer.type == LayerType::Adjustment) {
         if (layer.effects.empty())

@@ -21,6 +21,9 @@
 #include <limits>
 
 #include "native_surface.hpp"
+// ctx.frame_error (runtime::RenderErrorSlot) is dereferenced below; the
+// context header only forward-declares the class.
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 
 namespace chronon3d::graph {
 
@@ -352,6 +355,37 @@ bool seed_native_destination(
         return ensure_native_surface(ctx, destination,
                                      "CompositeNode.seed.source-fallback");
     }
+    // A seed is only a 1:1 copy when both framebuffers have the same extent.
+    // Composite intermediates can be cropped to a layer's local bounds while
+    // their source still covers the full canvas; in that case the destination's
+    // CPU pixels are the correct authority to promote to a native surface.
+    if (destination.width() != source.width() ||
+        destination.height() != source.height()) {
+        return ensure_native_surface(ctx, destination,
+                                     "CompositeNode.seed.extent-fallback");
+    }
+    // A pooled framebuffer can retain a logical handle whose registered
+    // surface still has the previous crop's physical extent. Do not ask the
+    // backend to seed that stale surface and then recover from a rejected
+    // copy: materialize the current CPU pixels into a correctly-sized surface
+    // before issuing any GPU operation.
+    if (original_destination != runtime::kInvalidRenderSurfaceHandle &&
+        original_destination != ctx.policy.native_video_encode_surface) {
+        const auto record = ctx.surface_registry->lookup(original_destination);
+        if (record &&
+            (record->desc.width != static_cast<std::uint32_t>(destination.width()) ||
+             record->desc.height != static_cast<std::uint32_t>(destination.height()))) {
+            spdlog::debug(
+                "[native-seed] replacing stale surface handle={} extent={}x{} "
+                "framebuffer={}x{}",
+                original_destination, record->desc.width, record->desc.height,
+                destination.width(), destination.height());
+            destination.clear_surface_handle();
+            destination.mark_cpu_authoritative();
+            return ensure_native_surface(ctx, destination,
+                                        "CompositeNode.seed.stale-extent");
+        }
+    }
     if (!ensure_empty_native_surface(ctx, destination)) {
         // The CPU framebuffer is still authoritative at this point. Promote
         // it directly so native NVENC can proceed even when a backend cannot
@@ -368,9 +402,6 @@ bool seed_native_destination(
     const auto seeded = ctx.backend->copy_surface(
         destination.surface_handle(), source.surface_handle(), std::nullopt);
     if (!seeded.ok()) {
-        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, destination);
-        }
         // A rejected seed is a hard error at the only call site (see below):
         // on a native backend, composite of a canvas-sized SourceOver chain is
         // fail-closed and CPU fallback is forbidden by policy, so a per-frame
@@ -380,18 +411,37 @@ bool seed_native_destination(
         const std::uint64_t nth =
             g_seed_failures.fetch_add(1, std::memory_order_relaxed) + 1;
         if (nth <= 3 || nth % 1000 == 0) {
+            const auto destination_record = ctx.surface_registry
+                ? ctx.surface_registry->lookup(destination.surface_handle())
+                : std::nullopt;
+            const auto source_record = ctx.surface_registry
+                ? ctx.surface_registry->lookup(source.surface_handle())
+                : std::nullopt;
             spdlog::warn(
-                "[native-seed] transform_surface_affine rejected by backend "
-                "(failure #{}): {}",
-                nth, seeded.error().message);
+                "[native-seed] copy_surface rejected by backend (failure #{}): "
+                "{}; destination_fb={}x{} handle={} registry={}x{}; "
+                "source_fb={}x{} handle={} registry={}x{}",
+                nth, seeded.error().message,
+                destination.width(), destination.height(),
+                destination.surface_handle(),
+                destination_record ? destination_record->desc.width : 0,
+                destination_record ? destination_record->desc.height : 0,
+                source.width(), source.height(), source.surface_handle(),
+                source_record ? source_record->desc.width : 0,
+                source_record ? source_record->desc.height : 0);
         }
         // Some Vulkan drivers reject a replace-copy while the destination is
         // being imported into the CUDA/NVENC chain. The CPU pixels in
         // `destination` are valid (acquire_owned_fb copied them above), so
         // promote those pixels as a correctness-preserving native fallback.
-        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, destination);
-        }
+        // `ensure_native_surface` accepts a still-valid attached handle. A
+        // failed copy can mean that the handle is bound to a stale extent, so
+        // detach it before promoting the authoritative CPU copy. The old
+        // frame-transient resource remains owned by the frame registry and is
+        // reclaimed with the rest of this frame; other framebuffer aliases of
+        // the handle remain valid.
+        destination.clear_surface_handle();
+        destination.mark_cpu_authoritative();
         return ensure_native_surface(ctx, destination,
                                      "CompositeNode.seed.copy-fallback");
     }
@@ -488,8 +538,10 @@ NodeExecResult CompositeNode::execute(
     // observed consistently; never dereference a missing input while doing
     // so.  Returning the latched upstream error preserves the original
     // failure at the frame boundary instead of turning it into SIGSEGV.
-    if (ctx.frame_error && ctx.frame_error->has_value()) {
-        return NodeExecResult{ctx.frame_error->value()};
+    if (ctx.frame_error && ctx.frame_error->has_error()) {
+        if (auto error = ctx.frame_error->load()) {
+            return NodeExecResult{std::move(*error)};
+        }
     }
 
     const FramebufferRef empty_fb{};

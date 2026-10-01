@@ -9,7 +9,7 @@
 // to `NodeExecResult = Result<OwnedFB, NodeExecutionError>`.
 //
 // The existing test `test_text_run_node_execute_error.cpp` locks the
-// diagnostic sidecar (`ctx.frame_error->value()`), so a regression
+// diagnostic sidecar (`ctx.frame_error->load()`), so a regression
 // would be caught.  THIS test locks the canonical return channel
 // itself: `execute()` must return a NodeExecResult carrying a typed
 // `NodeExecutionError` (NOT a valid OwnedFB) for every failure mode.
@@ -35,6 +35,7 @@
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>

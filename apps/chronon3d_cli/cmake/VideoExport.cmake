@@ -3,6 +3,7 @@ if(NOT (CHRONON3D_ENABLE_VIDEO AND TARGET chronon3d_cli_render))
 endif()
 
 add_library(chronon3d_cli_video_export STATIC
+    commands/video/common/video_export_common.cpp
     commands/video/common/pipe_export_helpers.cpp
     commands/video/exporters/pipe_export_pipeline_support.cpp
     commands/video/exporters/pipe_export_pipeline_setup.cpp
@@ -129,7 +130,6 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP AND CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 
 target_sources(chronon3d_cli_render PRIVATE
-    commands/video/common/video_export_common.cpp
     commands/video/exporters/video_export_native.cpp
     utils/video/video_job_validate.cpp
     utils/video/video_job_dry_run.cpp

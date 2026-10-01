@@ -7,7 +7,16 @@
 
 #include <doctest/doctest.h>
 
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
+
 #include "src/render_graph/executor/executor_levels.hpp"
+#include "src/render_graph/executor/executor_compiled_program.hpp"
+
+#include <atomic>
+#include <string>
+#include <thread>
+#include <vector>
 
 using chronon3d::graph::should_execute_level_in_parallel;
 
@@ -40,4 +49,94 @@ TEST_CASE("should_execute_level_in_parallel: boundary values") {
     CHECK(should_execute_level_in_parallel(2, 2) == true);
     CHECK(should_execute_level_in_parallel(2, 1) == false);
     CHECK(should_execute_level_in_parallel(1, 2) == false);
+}
+
+TEST_CASE("fully recorded compiled-program failure is published to the frame error channel") {
+    using chronon3d::graph::CompiledFrameProgram;
+    using chronon3d::graph::ExecutionState;
+    using chronon3d::graph::RenderGraphContext;
+    using chronon3d::runtime::RenderErrorSlot;
+
+    CompiledFrameProgram program;
+    program.fully_recorded = true;
+    program.levels = {{0}};
+    program.rebuild_operation_index(1);
+
+    RenderGraphContext ctx;
+    RenderErrorSlot error;
+    ctx.frame_error = &error;
+    ExecutionState state;
+
+    CHECK_FALSE(chronon3d::graph::execute_compiled_program(
+        program, ctx, state, nullptr));
+    const auto published = error.load();
+    REQUIRE(published);
+    CHECK(published->backend_code ==
+          chronon3d::graph::RenderBackendErrorCode::InvalidInput);
+    CHECK(published->node_name == "compiled-executor");
+    CHECK(published->message == "fully_recorded program has no render backend");
+}
+
+TEST_CASE("compiled-program missing operation is published as a frame error") {
+    using chronon3d::graph::CompiledFrameProgram;
+    using chronon3d::graph::ExecutionState;
+    using chronon3d::graph::RenderGraphContext;
+    using chronon3d::runtime::RenderErrorSlot;
+
+    CompiledFrameProgram program;
+    program.fully_recorded = true;
+    program.levels = {{0}};
+    program.rebuild_operation_index(1);
+
+    RenderGraphContext ctx;
+    RenderErrorSlot error;
+    ctx.frame_error = &error;
+    ExecutionState state;
+
+    CHECK_FALSE(chronon3d::graph::execute_compiled_program(
+        program, ctx, state, nullptr));
+    const auto published = error.load();
+    REQUIRE(published);
+    CHECK(published->backend_code ==
+          chronon3d::graph::RenderBackendErrorCode::InvalidInput);
+    CHECK(published->node_name == "compiled-executor-node-0");
+    CHECK(published->message ==
+          "fully_recorded program node has no compiled_execute");
+}
+
+TEST_CASE("RenderErrorSlot publishes one complete first error under concurrent writers") {
+    using chronon3d::graph::NodeExecutionError;
+    using chronon3d::graph::RenderBackendErrorCode;
+    using chronon3d::runtime::RenderErrorSlot;
+
+    RenderErrorSlot slot;
+    constexpr std::size_t writer_count = 16;
+    std::atomic<bool> start{false};
+    std::vector<std::thread> writers;
+    writers.reserve(writer_count);
+    for (std::size_t i = 0; i < writer_count; ++i) {
+        writers.emplace_back([&, i] {
+            while (!start.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            slot.publish_first(NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "worker-" + std::to_string(i),
+                "failure-" + std::to_string(i)});
+        });
+    }
+    start.store(true, std::memory_order_release);
+    for (auto& writer : writers) writer.join();
+
+    CHECK(slot.has_error());
+    const auto first = slot.load();
+    REQUIRE(first);
+    CHECK(first->backend_code == RenderBackendErrorCode::ExecutionFailure);
+    REQUIRE(first->node_name.starts_with("worker-"));
+    REQUIRE(first->message.starts_with("failure-"));
+    CHECK(first->node_name.substr(7) == first->message.substr(8));
+
+    slot.clear();
+    CHECK_FALSE(slot.has_error());
+    CHECK_FALSE(slot.load());
 }

@@ -88,6 +88,10 @@ public:
     LayerBuilder& anchor(Vec3 anchor);
     LayerBuilder& opacity(f32 value);
     LayerBuilder& enable_3d(bool value = true);
+    // Screen-space layers bypass the scene camera entirely — the model-side
+    // contract behind SceneBuilder::screen_layer(), exposed here so the
+    // render-plan compiler can honour a plan's `screen_space` flag.
+    LayerBuilder& screen_space(bool value = true);
     LayerBuilder& transform(Transform transform);
     LayerBuilder& transform(const Mat4& matrix);
     AnimatedValue<Vec3>& position_anim();

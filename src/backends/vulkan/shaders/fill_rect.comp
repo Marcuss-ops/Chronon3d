@@ -80,13 +80,13 @@ void main() {
     // dispatcher currently fails closed before recording this branch until a
     // CPU/Vulkan pixel-parity oracle certifies the complete stroke contract.
     // ────────────────────────────────────────────────────────────────────────
-    // params.shape.w == 1.0 signals a stroked primitive. Original geometry
+    // params.vertices[7].y == 1.0 signals a stroked primitive. Original geometry
     // limits are in vertices[0].xy (min) / vertices[1].xy (max), stroke color
     // in params.line, stroke width (dst pixels, full) in vertices[2].x and
     // alignment code (0 Inside / 1 Center / 2 Outside) in vertices[2].y.
     // rect still carries the clipped dispatch rectangle. Geometry is separate
     // so a clip never deforms the corner radius.
-    if (params.shape.x <= 2.5 && params.shape.w > 0.5) {
+    if (params.shape.x <= 2.5 && params.vertices[7].y > 0.5) {
         vec2 geomMin = params.vertices[0];
         vec2 geomMax = params.vertices[1];
         vec4 strokePm = params.line; // premultiplied RGBA

@@ -104,6 +104,7 @@ namespace chronon3d {
 }
 
 namespace chronon3d::runtime {
+    class RenderErrorSlot;
     class GpuAssetCache;
     class GpuGlyphAtlas;
     class GpuStyledGlyphCache;
@@ -579,17 +580,11 @@ struct RenderGraphContext {
         return node_cache;
     }
 
-    /// P0-1 — shared mutable error slot.  Owned by execute_internal() as a
-    /// frame-scoped optional (stack storage, zero per-frame heap churn) and
-    /// exposed to every node via a non-owning pointer; clones copy the
-    /// pointer so error writes from a node's cloned context remain visible
-    /// to the parent executor.  When non-null and has_value() after
-    /// execute_levels() returns, the executor treats the frame as failed
-    /// and returns nullptr to the caller (the documented "engine error"
-    /// path).  The storage lifetime is the enclosing execute_internal()
-    /// call: node executions never outlive it, and value copies (never
-    /// pointer retention) cross the error boundary.
-    std::optional<NodeExecutionError>* frame_error{nullptr};
+    /// Frame-scoped, thread-safe first-error channel. Owned by the active
+    /// frame payload (or stack storage for standalone execution) and shared
+    /// by node-context clones. Nodes publish/read through RenderErrorSlot's
+    /// synchronization; execution remains synchronous within this lifetime.
+    runtime::RenderErrorSlot* frame_error{nullptr};
     std::vector<float> fallback_download_scratch_{};
 
     /// Acquire a framebuffer as an OwnedFB (unique_ptr with pool deleter).

@@ -250,6 +250,28 @@ bool NativeAvEncoder::configure_codec_and_surface() {
             ? options_.borrowed_declared_stream->profile
             : -1;
         codec_->profile = declared_profile >= 0 ? declared_profile : FF_PROFILE_H264_HIGH;
+        // FFmpeg's NVENC wrapper can leave its private profile at Main even
+        // when AVCodecContext::profile is set before avcodec_open2(). Pass the
+        // profile through the encoder option as well so the emitted SPS and
+        // packet facts match the assembly contract (and any borrowed stream).
+        const char* profile_option = nullptr;
+        switch (codec_->profile) {
+            case FF_PROFILE_H264_BASELINE:
+                profile_option = "baseline";
+                break;
+            case FF_PROFILE_H264_MAIN:
+                profile_option = "main";
+                break;
+            case FF_PROFILE_H264_HIGH:
+                profile_option = "high";
+                break;
+            default:
+                break;
+        }
+        if (profile_option &&
+            !set_codec_option_checked(codec_, "profile", profile_option)) {
+            return false;
+        }
     }
     codec_->time_base = AVRational{options_.fps_den, options_.fps_num};
     codec_->framerate = AVRational{options_.fps_num, options_.fps_den};

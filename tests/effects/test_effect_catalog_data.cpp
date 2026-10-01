@@ -56,6 +56,10 @@ TEST_CASE("EffectCatalog: EffectType numeric values are stable") {
     static_assert(static_cast<uint8_t>(EffectType::Mosaic)            == 30);
     static_assert(static_cast<uint8_t>(EffectType::ChromaticAberration) == 40);
     static_assert(static_cast<uint8_t>(EffectType::Halftone) == 41);
+    static_assert(static_cast<uint8_t>(EffectType::LensDistortion) == 42);
+    static_assert(static_cast<uint8_t>(EffectType::LuminanceResponse) == 43);
+    static_assert(static_cast<uint8_t>(EffectType::FoldWarp) == 44);
+    static_assert(static_cast<uint8_t>(EffectType::CreaseShading) == 45);
 
     // Verify that the enum values we use in code match the expected numeric range
     CHECK(static_cast<uint8_t>(EffectType::Unknown) == 0);
@@ -65,6 +69,10 @@ TEST_CASE("EffectCatalog: EffectType numeric values are stable") {
     CHECK(static_cast<uint8_t>(EffectType::Keying) == 28);
     CHECK(static_cast<uint8_t>(EffectType::Threshold) == 29);
     CHECK(static_cast<uint8_t>(EffectType::Mosaic) == 30);
+    CHECK(static_cast<uint8_t>(EffectType::LensDistortion) == 42);
+    CHECK(static_cast<uint8_t>(EffectType::LuminanceResponse) == 43);
+    CHECK(static_cast<uint8_t>(EffectType::FoldWarp) == 44);
+    CHECK(static_cast<uint8_t>(EffectType::CreaseShading) == 45);
 }
 
 // =============================================================================
@@ -96,6 +104,10 @@ TEST_CASE("EffectCatalog: effect_type_for maps param type to EffectType") {
     CHECK(effect_type_for<MosaicParams>::value           == EffectType::Mosaic);
     CHECK(effect_type_for<ChromaticAberrationParams>::value == EffectType::ChromaticAberration);
     CHECK(effect_type_for<HalftoneParams>::value == EffectType::Halftone);
+    CHECK(effect_type_for<LensDistortionParams>::value == EffectType::LensDistortion);
+    CHECK(effect_type_for<LuminanceResponseParams>::value == EffectType::LuminanceResponse);
+    CHECK(effect_type_for<FoldWarpParams>::value == EffectType::FoldWarp);
+    CHECK(effect_type_for<CreaseShadingParams>::value == EffectType::CreaseShading);
 }
 
 // =============================================================================
@@ -117,6 +129,14 @@ TEST_CASE("EffectCatalog: effect_params_for maps EffectType back to param type")
           NoiseParams>));
     CHECK((std::is_same_v<effect_params_for<EffectType::Offset>::type,
           OffsetParams>));
+    CHECK((std::is_same_v<effect_params_for<EffectType::LensDistortion>::type,
+          LensDistortionParams>));
+    CHECK((std::is_same_v<effect_params_for<EffectType::LuminanceResponse>::type,
+          LuminanceResponseParams>));
+    CHECK((std::is_same_v<effect_params_for<EffectType::FoldWarp>::type,
+          FoldWarpParams>));
+    CHECK((std::is_same_v<effect_params_for<EffectType::CreaseShading>::type,
+          CreaseShadingParams>));
 }
 
 // =============================================================================
@@ -149,6 +169,10 @@ TEST_CASE("EffectCatalog: roundtrip Type->Params->Type is identity") {
     test_roundtrip.operator()<EffectType::Offset>();
     test_roundtrip.operator()<EffectType::ChromaticAberration>();
     test_roundtrip.operator()<EffectType::Halftone>();
+    test_roundtrip.operator()<EffectType::LensDistortion>();
+    test_roundtrip.operator()<EffectType::LuminanceResponse>();
+    test_roundtrip.operator()<EffectType::FoldWarp>();
+    test_roundtrip.operator()<EffectType::CreaseShading>();
 }
 
 // =============================================================================

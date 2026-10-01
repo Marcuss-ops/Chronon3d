@@ -1,5 +1,7 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
+#include <chronon3d/cache/framebuffer_copy.hpp>
 #include <chronon3d/math/path_utils.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include "../../render_graph/nodes/detail/native_promotion.hpp"
 
@@ -519,6 +521,70 @@ bool try_native_solid_rect(
         shape_params, line_params, fill_premul).ok();
 }
 
+void sync_gpu_to_cpu(VulkanBackend& backend, Framebuffer& fb) {
+    const auto handle = fb.surface_handle();
+    if (handle == runtime::kInvalidRenderSurfaceHandle || !fb.is_gpu_authoritative()) {
+        return;
+    }
+    const auto w = fb.width();
+    const auto h = fb.height();
+    if (w <= 0 || h <= 0) return;
+
+    if (fb.stride() == w) {
+        std::span<float> dst(reinterpret_cast<float*>(fb.data()), static_cast<std::size_t>(w) * h * 4);
+        const auto result = backend.download_surface(handle, dst);
+        if (!result.ok()) {
+            throw std::runtime_error("Vulkan CPU fallback readback failed: " + result.error().message);
+        }
+    } else {
+        std::vector<float> packed(static_cast<std::size_t>(w) * h * 4);
+        const auto result = backend.download_surface(handle, packed);
+        if (!result.ok()) {
+            throw std::runtime_error("Vulkan CPU fallback readback failed: " + result.error().message);
+        }
+        FramebufferCopyAuthority::copy_rows(
+            fb.pixels_row(0), fb.stride(),
+            reinterpret_cast<const Color*>(packed.data()), w, w, h);
+    }
+    fb.mark_cpu_gpu_synchronized();
+}
+
+void sync_cpu_to_gpu(VulkanBackend& backend, Framebuffer& fb) {
+    const auto handle = fb.surface_handle();
+    if (handle == runtime::kInvalidRenderSurfaceHandle) {
+        return;
+    }
+    const auto w = fb.width();
+    const auto h = fb.height();
+    if (w <= 0 || h <= 0) return;
+
+    const auto desc = runtime::SurfaceDesc::make(
+        static_cast<std::uint32_t>(w),
+        static_cast<std::uint32_t>(h),
+        runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient);
+
+    if (fb.stride() == w) {
+        std::span<const float> src(reinterpret_cast<const float*>(fb.data()), static_cast<std::size_t>(w) * h * 4);
+        const auto result = backend.upload_surface(handle, desc, src);
+        if (!result.ok()) {
+            throw std::runtime_error("Vulkan CPU fallback upload failed: " + result.error().message);
+        }
+    } else {
+        std::vector<float> packed(static_cast<std::size_t>(w) * h * 4);
+        for (std::size_t y = 0; y < static_cast<std::size_t>(h); ++y) {
+            const Color* row = fb.data() + y * static_cast<std::size_t>(fb.stride());
+            std::memcpy(packed.data() + y * static_cast<std::size_t>(w) * 4, row, static_cast<std::size_t>(w) * sizeof(Color));
+        }
+        const auto result = backend.upload_surface(handle, desc, packed);
+        if (!result.ok()) {
+            throw std::runtime_error("Vulkan CPU fallback upload failed: " + result.error().message);
+        }
+    }
+    fb.mark_gpu_authoritative();
+}
+
 } // namespace
 
 void VulkanBackend::unsupported(const char* operation) {
@@ -530,6 +596,12 @@ void VulkanBackend::apply_per_pixel_dof(
     Framebuffer& framebuffer, std::span<const float> depth,
     const DepthOfFieldSettings& dof, const LensModel& lens,
     const std::optional<raster::BBox>& clip) {
+    if (m_fallback_backend) {
+        sync_gpu_to_cpu(*this, framebuffer);
+        m_fallback_backend->apply_per_pixel_dof(framebuffer, depth, dof, lens, clip);
+        sync_cpu_to_gpu(*this, framebuffer);
+        return;
+    }
     (void)framebuffer; (void)depth; (void)dof; (void)lens; (void)clip;
     unsupported("apply_per_pixel_dof");
 }
@@ -537,10 +609,23 @@ void VulkanBackend::apply_per_pixel_dof(
 graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
                                                const RenderState& state, const Camera& camera,
                                                int width, int height) {
-    if (try_native_grid(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
-    if (try_native_path_fill(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
-    if (try_native_path_stroke(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
-    if (try_native_solid_rect(*this, framebuffer, node, state)) return graph::RenderOpResult(graph::RenderOpOutcome{1});
+    const auto completed_native_draw = [&framebuffer] {
+        framebuffer.mark_gpu_authoritative();
+        return graph::RenderOpResult(graph::RenderOpOutcome{1});
+    };
+    if (try_native_grid(*this, framebuffer, node, state)) return completed_native_draw();
+    if (try_native_path_fill(*this, framebuffer, node, state)) return completed_native_draw();
+    if (try_native_path_stroke(*this, framebuffer, node, state)) return completed_native_draw();
+    if (try_native_solid_rect(*this, framebuffer, node, state)) return completed_native_draw();
+
+    if (m_fallback_backend) {
+        sync_gpu_to_cpu(*this, framebuffer);
+        auto result = m_fallback_backend->draw_node(framebuffer, node, state, camera, width, height);
+        if (!result.ok()) return result;
+        sync_cpu_to_gpu(*this, framebuffer);
+        return result;
+    }
+
     (void)camera; (void)width; (void)height;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
@@ -552,6 +637,12 @@ graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const R
 void VulkanBackend::apply_effect_stack(
     Framebuffer& framebuffer, const EffectStack& stack,
     const effects::EffectExecutionContext& context) {
+    if (m_fallback_backend) {
+        sync_gpu_to_cpu(*this, framebuffer);
+        m_fallback_backend->apply_effect_stack(framebuffer, stack, context);
+        sync_cpu_to_gpu(*this, framebuffer);
+        return;
+    }
     (void)framebuffer; (void)stack; (void)context;
     unsupported("apply_effect_stack");
 }
@@ -559,24 +650,31 @@ void VulkanBackend::apply_effect_stack(
 void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer& source,
                                     BlendMode mode, const std::optional<raster::BBox>& clip,
                                     CompositeOperator op) {
-    // Fail closed: a GPU backend never blends pixels on the CPU. CPU-origin
-    // assets must be materialized into native surfaces (ensure_native_surface
-    // / upload_surface) before reaching this authority; a missing handle is a
-    // contract violation by the caller, never a silent CPU fallback.
     if (destination.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
-        source.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
-        throw std::invalid_argument(
-            "VulkanBackend::composite_layer: missing native surface handle "
-            "(CPU blit fallback was demolished; materialize surfaces first)");
-    }
-    if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver) {
-        throw std::runtime_error("VulkanBackend::composite_layer: only Normal/SourceOver is implemented");
-    }
-    if (destination.width() != source.width() || destination.height() != source.height()) {
+        source.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
+        mode != BlendMode::Normal || op != CompositeOperator::SourceOver ||
+        destination.width() != source.width() || destination.height() != source.height()) {
+        if (m_fallback_backend) {
+            sync_gpu_to_cpu(*this, destination);
+            sync_gpu_to_cpu(*this, const_cast<Framebuffer&>(source));
+            m_fallback_backend->composite_layer(destination, source, mode, clip, op);
+            sync_cpu_to_gpu(*this, destination);
+            return;
+        }
+        if (destination.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
+            source.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
+            throw std::invalid_argument(
+                "VulkanBackend::composite_layer: missing native surface handle "
+                "(CPU blit fallback was demolished; materialize surfaces first)");
+        }
+        if (mode != BlendMode::Normal || op != CompositeOperator::SourceOver) {
+            throw std::runtime_error("VulkanBackend::composite_layer: only Normal/SourceOver is implemented");
+        }
         throw std::runtime_error("VulkanBackend::composite_layer: surface dimensions differ");
     }
 #ifdef CHRONON3D_ENABLE_VULKAN
     composite_legacy_surface(destination, source, mode, clip);
+    destination.mark_gpu_authoritative();
 #else
     unsupported("composite_layer");
 #endif
@@ -585,6 +683,13 @@ void VulkanBackend::composite_layer(Framebuffer& destination, const Framebuffer&
 graph::RenderOpResult VulkanBackend::draw_text_run(
     Framebuffer& framebuffer, const TextRunShape& shape,
     const glm::mat4& model_matrix, float opacity) {
+    if (m_fallback_backend) {
+        sync_gpu_to_cpu(*this, framebuffer);
+        auto result = m_fallback_backend->draw_text_run(framebuffer, shape, model_matrix, opacity);
+        if (!result.ok()) return result;
+        sync_cpu_to_gpu(*this, framebuffer);
+        return result;
+    }
     (void)framebuffer; (void)shape; (void)model_matrix; (void)opacity;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
@@ -594,6 +699,12 @@ graph::RenderOpResult VulkanBackend::draw_text_run(
 void VulkanBackend::apply_blur(
     Framebuffer& framebuffer, float radius,
     const std::optional<raster::BBox>& clip) {
+    if (m_fallback_backend) {
+        sync_gpu_to_cpu(*this, framebuffer);
+        m_fallback_backend->apply_blur(framebuffer, radius, clip);
+        sync_cpu_to_gpu(*this, framebuffer);
+        return;
+    }
     (void)framebuffer; (void)radius; (void)clip;
     unsupported("apply_blur");
 }
