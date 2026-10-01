@@ -29,7 +29,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_common_performance_gate.py")
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_common_performance_gate.py"
     )
 endif()
-
 if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_gpu_corpus_manifest.py")
     add_test(
         NAME chronon3d_gpu_corpus_manifest_tests
@@ -79,5 +78,36 @@ if(EXISTS "${CHRONON3D_CARTOGRAPHY_TOOL}")
     )
     set_tests_properties(chronon3d_cartography_geodesy_tests PROPERTIES
         LABELS "cartography;geodesy;tool;gate"
+    )
+endif()
+
+# The dynamic tile pyramid suite runs in strict offline mode. It first checks
+# every cached tile the assertions need, then either loads only those tiles or
+# returns CTest's explicit skip code (77); a cache miss can never hit the net.
+set(CHRONON3D_PYRAMID_SUITE "${CMAKE_SOURCE_DIR}/tools/cartography/test_dynamic_tile_pyramid_suite.py")
+if(EXISTS "${CHRONON3D_PYRAMID_SUITE}")
+    add_test(
+        NAME chronon3d_dynamic_pyramid_suite
+        COMMAND ${Python3_EXECUTABLE} "${CHRONON3D_PYRAMID_SUITE}" --offline
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(chronon3d_dynamic_pyramid_suite PROPERTIES
+        LABELS "cartography;pyramid;gate;offline"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 300
+    )
+endif()
+
+# Runtime extraction, tour scheduling and phase-aware motion gate: stdlib-only,
+# deterministic, and safe to run on hosts without map assets or network access.
+if(EXISTS "${CMAKE_SOURCE_DIR}/tools/geo_runtime.py")
+    add_test(
+        NAME chronon_geo_runtime_self_test
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/geo_runtime.py" --self-test
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(chronon_geo_runtime_self_test PROPERTIES
+        LABELS "geo_camera;runtime;gate;offline"
+        TIMEOUT 120
     )
 endif()

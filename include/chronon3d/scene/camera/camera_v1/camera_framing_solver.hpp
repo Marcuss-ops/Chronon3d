@@ -43,6 +43,22 @@ struct FramingSafeArea {
     float right{0.12f};
     float top{0.12f};
     float bottom{0.12f};
+
+    /// The TikTok/Reels/Shorts UI zones on a 9:16 vertical delivery: the
+    /// like/comment/share rail reserves the right edge and the caption zone
+    /// reserves the bottom. Asymmetric on purpose — the left and top edges
+    /// stay fully usable for composition.
+    [[nodiscard]] static FramingSafeArea tiktokVertical() {
+        FramingSafeArea area;
+        area.left = 0.04f;
+        area.right = 0.18f;
+        area.top = 0.06f;
+        area.bottom = 0.20f;
+        return area;
+    }
+
+    /// No reserved UI zones: the full frame is usable.
+    [[nodiscard]] static FramingSafeArea full() { return FramingSafeArea{}; }
 };
 
 // =========================================================================
