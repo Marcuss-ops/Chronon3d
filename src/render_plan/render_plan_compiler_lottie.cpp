@@ -438,6 +438,7 @@ std::optional<std::string> expand_static_lottie(
             return true;
         };
         std::size_t total_vertices = 0;
+        std::optional<PathOperatorPlan> imported_morph;
         std::vector<std::size_t> geometry_command_starts;
         geometry_command_starts.reserve(geometry_shapes.size());
         const auto apply_geometry_transform = [&](std::size_t start, const Affine2D& transform) {
@@ -532,7 +533,54 @@ std::optional<std::string> expand_static_lottie(
           }
           if (!path_shape->contains("ks") || !(*path_shape)["ks"].contains("k"))
               return std::string("Lottie path geometry is missing");
-          const auto& geometry_data = (*path_shape)["ks"]["k"];
+          // L4 bounded morph: a single authored interval lowers to the native
+          // Morph operator. More complex keyframing remains fail-closed until
+          // the plan contract can represent piecewise morph targets.
+          json animated_source;
+          json animated_target;
+          AnimationTrackPlan morph_progress;
+          bool has_animated_morph = false;
+          const json* geometry_data_ptr = &(*path_shape)["ks"]["k"];
+          const auto& raw_geometry = *geometry_data_ptr;
+          if ((*path_shape)["ks"].value("a", 0) == 1) {
+              const auto& keys = raw_geometry;
+              if (!keys.is_array() || keys.size() != 2 || !keys[0].is_object() ||
+                  !keys[1].is_object() || !keys[0].contains("t") || !keys[1].contains("t") ||
+                  !keys[0]["t"].is_number() || !keys[1]["t"].is_number() ||
+                  !keys[0].contains("s") || !keys[1].contains("s"))
+                  return std::string("Lottie L4 supports exactly two bounded path keyframes");
+              const auto shape_value = [](const json& value) -> const json* {
+                  if (!value.is_array() || value.size() != 1 || !value[0].is_object()) return nullptr;
+                  return &value[0];
+              };
+              const auto* from = shape_value(keys[0]["s"]);
+              const auto* to = keys[0].contains("e") ? shape_value(keys[0]["e"]) : shape_value(keys[1]["s"]);
+              if (!from || !to || !from->contains("v") || !from->contains("i") || !from->contains("o") ||
+                  !to->contains("v") || !to->contains("i") || !to->contains("o"))
+                  return std::string("Lottie L4 path keyframe payload is malformed");
+              animated_source = *from;
+              animated_target = *to;
+              geometry_data_ptr = &animated_source;
+              const double first_time = keys[0]["t"].get<double>();
+              const double last_time = keys[1]["t"].get<double>();
+              if (!std::isfinite(first_time) || !std::isfinite(last_time) || first_time < 0.0 ||
+                  last_time <= first_time || last_time > 1000000.0 ||
+                  std::floor(first_time) != first_time || std::floor(last_time) != last_time)
+                  return std::string("Lottie L4 path keyframe times must be increasing integral frames");
+              if (keys[0].contains("o") || keys[1].contains("i"))
+                  return std::string("Lottie L4 currently accepts linear or hold morph interpolation only");
+              morph_progress.property = "morph_progress";
+              AnimationKeyframePlan from_key;
+              from_key.frame = Frame{static_cast<std::int64_t>(first_time)};
+              from_key.value = {0.0f};
+              from_key.interpolation = keys[0].value("h", 0) == 1 ? "hold" : "linear";
+              AnimationKeyframePlan to_key;
+              to_key.frame = Frame{static_cast<std::int64_t>(last_time)};
+              to_key.value = {1.0f};
+              morph_progress.keyframes = {from_key, to_key};
+              has_animated_morph = true;
+          }
+          const auto& geometry_data = *geometry_data_ptr;
           if (!geometry_data.is_object() || !geometry_data.contains("v") || !geometry_data.contains("i") ||
               !geometry_data.contains("o") || !geometry_data["v"].is_array() ||
               geometry_data["v"].size() < 2 || geometry_data["v"].size() > 65536 ||
@@ -570,6 +618,49 @@ std::optional<std::string> expand_static_lottie(
                   return std::string("Lottie total path command limit exceeded");
               shape.path.push_back({ShapePathCommandTypePlan::Close});
           }
+          if (has_animated_morph) {
+              if (geometry_shapes.size() != 1 || !path_operators.empty())
+                  return std::string("Lottie L4 morph requires exactly one geometry path");
+              if (!animated_target["v"].is_array() || animated_target["v"].size() != geometry_data["v"].size() ||
+                  !animated_target["i"].is_array() || !animated_target["o"].is_array() ||
+                  animated_target["i"].size() != animated_target["v"].size() ||
+                  animated_target["o"].size() != animated_target["v"].size())
+                  return std::string("Lottie L4 morph endpoints must have matching bounded topology");
+              PathOperatorPlan morph;
+              morph.kind = PathOperatorKindPlan::Morph;
+              morph.morph_animation = std::move(morph_progress);
+              for (std::size_t i = 0; i < animated_target["v"].size(); ++i) {
+                  std::array<float, 2> vertex{}, incoming{}, outgoing{};
+                  if (!point(animated_target["v"][i], vertex) || !point(animated_target["i"][i], incoming) ||
+                      !point(animated_target["o"][i], outgoing))
+                      return std::string("Lottie L4 morph endpoint has invalid coordinates");
+                  if (i == 0) {
+                      morph.morph_target.push_back({ShapePathCommandTypePlan::MoveTo, vertex});
+                      continue;
+                  }
+                  std::array<float, 2> prior{}, prior_out{};
+                  if (!point(animated_target["v"][i - 1], prior) || !point(animated_target["o"][i - 1], prior_out))
+                      return std::string("Lottie L4 morph endpoint has invalid tangent");
+                  morph.morph_target.push_back({ShapePathCommandTypePlan::CubicTo, vertex,
+                      {std::round((prior[0] + prior_out[0]) * 10000.0f) / 10000.0f,
+                       std::round((prior[1] + prior_out[1]) * 10000.0f) / 10000.0f},
+                      {std::round((vertex[0] + incoming[0]) * 10000.0f) / 10000.0f,
+                       std::round((vertex[1] + incoming[1]) * 10000.0f) / 10000.0f}});
+              }
+              if (animated_target.value("c", false))
+                  morph.morph_target.push_back({ShapePathCommandTypePlan::Close});
+              for (auto& command : morph.morph_target) {
+                  const auto transform_point = [&](std::array<float, 2>& p) {
+                      const float x = p[0], y = p[1];
+                      p = {geometry_entry.transform.a*x + geometry_entry.transform.c*y + geometry_entry.transform.x,
+                           geometry_entry.transform.b*x + geometry_entry.transform.d*y + geometry_entry.transform.y};
+                  };
+                  if (command.type != ShapePathCommandTypePlan::Close) transform_point(command.point);
+                  if (command.type == ShapePathCommandTypePlan::CubicTo || command.type == ShapePathCommandTypePlan::QuadraticTo) transform_point(command.control1);
+                  if (command.type == ShapePathCommandTypePlan::CubicTo) transform_point(command.control2);
+              }
+              imported_morph = std::move(morph);
+          }
           apply_geometry_transform(geometry_command_starts.back(), geometry_entry.transform);
         }
         if (anchor_x != 0.0f || anchor_y != 0.0f) {
@@ -579,6 +670,14 @@ std::optional<std::string> expand_static_lottie(
                 command.point[0] -= anchor_x; command.point[1] -= anchor_y;
                 command.control1[0] -= anchor_x; command.control1[1] -= anchor_y;
                 command.control2[0] -= anchor_x; command.control2[1] -= anchor_y;
+            }
+            if (imported_morph) {
+                for (auto& command : imported_morph->morph_target) {
+                    if (command.type == ShapePathCommandTypePlan::Close) continue;
+                    command.point[0] -= anchor_x; command.point[1] -= anchor_y;
+                    command.control1[0] -= anchor_x; command.control1[1] -= anchor_y;
+                    command.control2[0] -= anchor_x; command.control2[1] -= anchor_y;
+                }
             }
         }
         if (fills.size() != 1 && fills.size() != geometry_shapes.size())
@@ -772,6 +871,10 @@ std::optional<std::string> expand_static_lottie(
                 imported.stroke->dash_offset *= x_scale;
                 if (imported.stroke->solid_color)
                     (*imported.stroke->solid_color)[3] *= geometry_shapes[index].opacity;
+            }
+            if (imported_morph && index == 0) {
+                imported.morph_target = imported_morph->morph_target;
+                imported.morph_animation = imported_morph->morph_animation;
             }
             shape.imported_subpaths.push_back(std::move(imported));
         }

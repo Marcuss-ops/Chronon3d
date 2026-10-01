@@ -430,6 +430,45 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
     }
 }
 
+TEST_CASE("render plan lowers bounded two-keyframe Lottie L4 path morphs") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "shapes");
+    {
+        std::ofstream file(directory.path / "shapes/morph.json");
+        file << R"JSON({"v":"5.7.4","ip":0,"op":11,"fr":30,"layers":[{"ty":4,"ddd":0,
+          "ks":{"a":{"a":0,"k":[0,0,0]},"p":{"a":0,"k":[0,0,0]},
+            "s":{"a":0,"k":[100,100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
+          "shapes":[{"ty":"sh","ks":{"a":1,"k":[
+            {"t":0,"s":[{"c":true,"v":[[0,0],[10,0],[10,10]],"i":[[0,0],[0,0],[0,0]],"o":[[0,0],[0,0],[0,0]]}],
+              "e":[{"c":true,"v":[[0,0],[20,0],[20,20]],"i":[[0,0],[0,0],[0,0]],"o":[[0,0],[0,0],[0,0]]}]},
+            {"t":10,"s":[{"c":true,"v":[[0,0],[20,0],[20,20]],"i":[[0,0],[0,0],[0,0]],"o":[[0,0],[0,0],[0,0]]}]}]}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}}]}]})JSON";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":11},
+      "layers":[{"id":"morph","type":"shape","size":[64,64],
+        "shape":{"type":"path","lottie":"shapes/morph.json"}}],"output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    const auto prepare_error = prepared.has_value() ? std::string{} :
+        prepared.error().path + ": " + prepared.error().message;
+    REQUIRE_MESSAGE(prepared.has_value(), prepare_error);
+    const auto first = evaluate(prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    const auto last = evaluate(prepared->compiled_composition, CompositionEvaluateContext{}, Frame{10});
+    REQUIRE(first);
+    REQUIRE(last);
+    const auto& first_path = first->scene.layers()[0].nodes[0].shape.path().commands;
+    const auto& last_path = last->scene.layers()[0].nodes[0].shape.path().commands;
+    REQUIRE(first_path.size() == last_path.size());
+    CHECK(first_path[1].p0.x == doctest::Approx(10.0f));
+    CHECK(last_path[1].p0.x == doctest::Approx(20.0f));
+}
+
 TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;

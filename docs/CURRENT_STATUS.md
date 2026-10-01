@@ -55,7 +55,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Area | Stato |
 |---|---|
 | Render-plan V3 coherence | PASS on 264b3c3d — v3 extensions dedup + per-key timing + flash hex + fingerprint v10 golden pinned (c_abi 138/138) — see git log 264b3c3dc |
-| Lottie Bodymovin lowering | PARTIAL — L1 transforms, L2 nested groups and L3 static gradients/dashes plus baked static shape operators lower in software; CLI MP4 frame-hash and L4 morph gates remain — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
+| Lottie Bodymovin lowering | PARTIAL — L1 transforms, L2 nested groups, L3 static features, and bounded two-keyframe L4 morphs lower in software; CLI MP4 frame-hash and broader morph gates remain — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
 | Vulkan effect parity | OPEN — software catalog has 41 effect types; strict Vulkan certifies Blur, Glow, Bloom and Tint, explicitly rejects DropShadow, and has no native route for the rest — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera V1 | PARTIAL — same-SHA certification outstanding |
@@ -65,7 +65,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Executor ownership | DONE structurally |
 | Video pipeline | PASS (focused); same-SHA GPU certification at `5e49b7e4a` covers FullGraph zero-copy, DirectYUV conversion-zero on H.264/H.265 video-source fixtures, visual MTSDF text overlay, and Vulkan native-image video. Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar landed (ZERO-COPY-ZWAVES) — plus 264b3c3d local same-SHA for render-plan layer of pipeline |
 | CI infrastructure | LOCAL green on 264b3c3d (c_abi/cli/arch + 6 fast gates); GitHub CI same-SHA still pending (prev `0674ac27` blocked pre-runner) |
-| Determinism | PASS on existing focused contracts; formal BitExact contract is a later stage |
+| Determinism | PARTIAL — `BitExact` / `DeterministicWithinPlatform` / `Approximate` types and focused fusion certification tests exist; broad cross-backend scene certification remains open |
 | Packaging | PASS (historical/local evidence) |
 
 ## Closed checkpoints (chronicle index)
