@@ -116,6 +116,33 @@ TEST_CASE("effect parameter setters round animated integer parameters determinis
     CHECK(mosaic.block_size == 4);
 }
 
+TEST_CASE("premium effect catalog entries expose working scalar animation parameters") {
+    using namespace chronon3d::effects;
+    constexpr std::array<std::string_view, 4> effect_ids{
+        ids::DistortLensDistortion, ids::LightLuminanceResponse,
+        ids::DistortFoldWarp, ids::LightCreaseShading};
+    for (const auto effect_id : effect_ids) {
+        auto params = make_default_animatable_effect_params(effect_id);
+        REQUIRE(params);
+        std::size_t rows_for_effect = 0;
+        for (const auto& definition : kAnimatableEffectParams) {
+            if (definition.effect_id != effect_id) continue;
+            ++rows_for_effect;
+            const auto initial = get_animatable_effect_param(
+                *params, definition.effect_id, definition.param);
+            REQUIRE(initial);
+            const float sample = (definition.minimum + definition.maximum) * 0.5f;
+            CHECK(set_animatable_effect_param(
+                *params, definition.effect_id, definition.param, sample));
+            const auto updated = get_animatable_effect_param(
+                *params, definition.effect_id, definition.param);
+            REQUIRE(updated);
+            CHECK(*updated == doctest::Approx(sample));
+        }
+        CHECK(rows_for_effect > 0);
+    }
+}
+
 TEST_CASE("V3 inline data feeds validate scalar samples and affect plan identity") {
     auto source = render_plan_test::base_plan({nlohmann::json{
         {"id", "fed"}, {"type", "color"}, {"color", {1, 1, 1, 1}},
