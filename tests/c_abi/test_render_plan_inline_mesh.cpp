@@ -420,3 +420,19 @@ TEST_CASE("mesh layers accept the certified bounded post effects") {
     unsupported["layers"][0]["effects"][0]["effect_id"] = "blur.gaussian";
     CHECK_FALSE(decode_render_plan(unsupported));
 }
+
+TEST_CASE("mesh shadow participation is explicit and fingerprinted") {
+    auto source = base_mesh_plan();
+    source["layers"][0]["casts_shadows"] = true;
+    source["layers"][0]["accepts_shadows"] = false;
+    const auto decoded = decode_render_plan(source);
+    INFO(decoded.error().message);
+    REQUIRE(decoded);
+    CHECK(decoded->layers[0].casts_shadows == true);
+    CHECK(decoded->layers[0].accepts_shadows == false);
+
+    source["layers"][0]["accepts_shadows"] = true;
+    const auto changed = decode_render_plan(source);
+    REQUIRE(changed);
+    CHECK(decoded->content_fingerprint != changed->content_fingerprint);
+}

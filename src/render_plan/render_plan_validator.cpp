@@ -108,6 +108,10 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
 
     for (auto& layer : projected["layers"]) {
         if (!layer.is_object()) continue;
+        // These V3-only mesh material switches are validated by the extension
+        // schema above; remove them from the frozen V2 compatibility view.
+        layer.erase("casts_shadows");
+        layer.erase("accepts_shadows");
         if (layer.contains("animation"))
             strip_per_key_timing_for_v2_projection(layer["animation"]);
         if (layer.value("type", std::string{}) == "mesh") {
