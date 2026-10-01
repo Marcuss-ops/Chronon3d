@@ -34,6 +34,7 @@ RUN --mount=type=cache,id=chronon-vcpkg-archives,target=/root/.cache/vcpkg/archi
     --mount=type=cache,id=chronon-vcpkg-downloads,target=/opt/vcpkg/downloads \
     /opt/vcpkg/vcpkg install \
         --triplet x64-linux \
+        --x-feature=vulkan \
         --x-manifest-root=/src/chronon3d \
         --x-install-root=/opt/vcpkg_installed
 
