@@ -84,7 +84,7 @@ TEST_CASE("Halftone is deterministic, keeps alpha, and leaves white cells uninke
     register_builtin_processors(registry);
     Framebuffer fb(16, 8);
     for (int y = 0; y < 8; ++y) for (int x = 0; x < 16; ++x) {
-        const float value = x < 8 ? 0.0f : 0.75f;
+        const float value = x < 8 ? 0.0f : 1.0f;
         fb.set_pixel(x, y, Color{value * 0.75f, value * 0.75f, value * 0.75f, 0.75f});
     }
     EffectStack stack;
@@ -97,7 +97,7 @@ TEST_CASE("Halftone is deterministic, keeps alpha, and leaves white cells uninke
     const Color first = fb.get_pixel(1, 1);
     Framebuffer repeat(16, 8);
     for (int y = 0; y < 8; ++y) for (int x = 0; x < 16; ++x) {
-        const float value = x < 8 ? 0.0f : 0.75f;
+        const float value = x < 8 ? 0.0f : 1.0f;
         repeat.set_pixel(x, y, Color{value * 0.75f, value * 0.75f, value * 0.75f, 0.75f});
     }
     apply_effect_stack(repeat, stack, context, registry);

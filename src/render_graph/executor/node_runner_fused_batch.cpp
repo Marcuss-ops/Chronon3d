@@ -135,9 +135,9 @@ void report_fused_batch_error(
     RenderGraphContext& ctx,
     RenderBackendErrorCode code,
     std::string message) {
-    if (ctx.frame_error && !ctx.frame_error->has_value()) {
-        *ctx.frame_error = NodeExecutionError{
-            code, "fused-layer-batch", std::move(message)};
+    if (ctx.frame_error) {
+        ctx.frame_error->publish_first(NodeExecutionError{
+            code, "fused-layer-batch", std::move(message)});
     }
 }
 

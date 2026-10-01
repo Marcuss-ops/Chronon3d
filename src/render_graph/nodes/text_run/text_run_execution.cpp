@@ -326,9 +326,16 @@ graph::RenderOpResult render_text_run_item(
         profiling::g_current_counters->gpu_text_fallback_count.fetch_add(
             1, std::memory_order_relaxed);
     }
-    spdlog::warn(
-        "[text-run] native surface path fell back: {}",
-        native.error().message);
+    if (native.error().message.find("native_surfaces_unavailable") !=
+        std::string::npos) {
+        spdlog::debug(
+            "[text-run] native surface path unavailable; using software text: {}",
+            native.error().message);
+    } else {
+        spdlog::warn(
+            "[text-run] native surface path fell back: {}",
+            native.error().message);
+    }
     if (text_debug) {
         spdlog::debug(
             "[text-run] native surface path fell back: {}",

@@ -140,8 +140,6 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
         else if (shape_type == "grid") shape.type = ShapeContentTypePlan::Grid;
         else if (shape_type == "dot_grid" || shape_type == "dotgrid") shape.type = ShapeContentTypePlan::DotGrid;
         else if (shape_type == "device_frame") shape.type = ShapeContentTypePlan::DeviceFrame;
-        else if (shape_type == "world_map" || shape_type == "worldmap") shape.type = ShapeContentTypePlan::WorldMap;
-        else if (shape_type == "chart") shape.type = ShapeContentTypePlan::Chart;
         else throw std::runtime_error("unsupported shape.type: " + shape_type);
         if (raw_shape.contains("asset")) {
             if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path"))
@@ -177,8 +175,6 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 shape.type == ShapeContentTypePlan::Grid ||
                 shape.type == ShapeContentTypePlan::DotGrid ||
                 shape.type == ShapeContentTypePlan::DeviceFrame ||
-                shape.type == ShapeContentTypePlan::WorldMap ||
-                shape.type == ShapeContentTypePlan::Chart ||
                 raw_shape.contains("asset") || raw_shape.contains("lottie"))
                 throw std::runtime_error("shape.field requires a closed procedural shape or authored path");
             shape.field = decode_field2d_plan(raw_shape.at("field"));
@@ -446,102 +442,6 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
                 throw std::runtime_error("arc shapes cannot carry path/asset/lottie");
         }
-        // ── WorldMap ──────────────────────────────────────────────────────
-        if (raw_shape.contains("world_map") || shape.type == ShapeContentTypePlan::WorldMap) {
-            WorldMapPlan wm;
-            const auto& src = raw_shape.contains("world_map") ? raw_shape.at("world_map") : raw_shape;
-            if (src.contains("projection")) wm.projection = src.at("projection").get<std::string>();
-            if (wm.projection != "mercator" && wm.projection != "equirectangular" && wm.projection != "equirect")
-                throw std::runtime_error("world_map projection must be mercator or equirectangular");
-            if (wm.projection == "equirect") wm.projection = "equirectangular";
-            if (src.contains("center")) {
-                const auto& c = src.at("center");
-                if (!c.is_array() || c.size() != 2) throw std::runtime_error("world_map center must be [lon, lat]");
-                wm.center = {c[0].get<float>(), c[1].get<float>()};
-            }
-            if (!std::isfinite(wm.center[0]) || !std::isfinite(wm.center[1]) ||
-                wm.center[0] < -180.0f || wm.center[0] > 180.0f ||
-                wm.center[1] < -90.0f || wm.center[1] > 90.0f)
-                throw std::runtime_error("world_map center lon in [-180,180] lat in [-90,90]");
-            if (src.contains("zoom")) wm.zoom = src.at("zoom").get<float>();
-            if (!std::isfinite(wm.zoom) || wm.zoom < 1.0f || wm.zoom > 8.0f)
-                throw std::runtime_error("world_map zoom must be finite in [1, 8]");
-            if (src.contains("highlight")) {
-                const auto& hl = src.at("highlight");
-                if (!hl.is_array() || hl.size() > 64) throw std::runtime_error("world_map highlight must be array of at most 64 ISO codes");
-                for (const auto& code : hl) wm.highlight.push_back(code.get<std::string>());
-            }
-            if (src.contains("highlight_color")) wm.highlight_color = src.at("highlight_color").get<std::string>();
-            if (src.contains("highlightColor")) wm.highlight_color = src.at("highlightColor").get<std::string>();
-            if (src.contains("route")) {
-                const auto& route = src.at("route");
-                if (!route.is_array() || route.size() > 256) throw std::runtime_error("world_map route must be array of at most 256 lon/lat pairs");
-                for (const auto& pt : route) {
-                    if (!pt.is_array() || pt.size() != 2) throw std::runtime_error("world_map route entries must be [lon, lat]");
-                    float lon = pt[0].get<float>(); float lat = pt[1].get<float>();
-                    if (!std::isfinite(lon) || !std::isfinite(lat) || lon < -180.0f || lon > 180.0f || lat < -90.0f || lat > 90.0f)
-                        throw std::runtime_error("world_map route lon/lat out of range");
-                    wm.route.push_back({lon, lat});
-                }
-            }
-            if (src.contains("dots")) wm.dots = src.at("dots").get<bool>();
-            // WorldMap is either primary type or additive payload; merge
-            shape.world_map = std::move(wm);
-            if (shape.type == ShapeContentTypePlan::WorldMap) {
-                // primary — forbid path/asset/lottie handled via world_map object
-                if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                    throw std::runtime_error("world_map shape cannot carry path/asset/lottie");
-            }
-        }
-        // ── Chart ─────────────────────────────────────────────────────────
-        if (raw_shape.contains("chart") || shape.type == ShapeContentTypePlan::Chart) {
-            ChartPlan chart;
-            const auto& src = raw_shape.contains("chart") ? raw_shape.at("chart") : raw_shape;
-            if (src.contains("chart_type")) chart.chart_type = src.at("chart_type").get<std::string>();
-            if (src.contains("type")) chart.chart_type = src.at("type").get<std::string>();
-            if (chart.chart_type != "bar" && chart.chart_type != "line" && chart.chart_type != "pie")
-                throw std::runtime_error("chart type must be bar, line, or pie");
-            if (src.contains("data")) {
-                const auto& data = src.at("data");
-                if (!data.is_array() || data.size() == 0 || data.size() > 256) throw std::runtime_error("chart data must be array of 1..256 values");
-                for (const auto& v : data) {
-                    float fv = v.get<float>();
-                    if (!std::isfinite(fv)) throw std::runtime_error("chart data values must be finite");
-                    chart.data.push_back(fv);
-                }
-            } else if (shape.type == ShapeContentTypePlan::Chart) {
-                throw std::runtime_error("chart shape requires data array");
-            }
-            if (src.contains("colors")) {
-                const auto& colors = src.at("colors");
-                if (!colors.is_array() || colors.size() > 256) throw std::runtime_error("chart colors must be array of at most 256 RGBA entries");
-                for (const auto& c : colors) {
-                    if (!c.is_array() || c.size() != 4) throw std::runtime_error("chart color must be RGBA array");
-                    std::array<float,4> rgba{};
-                    for (size_t i=0;i<4;++i) {
-                        rgba[i]=c[i].get<float>();
-                        if (!std::isfinite(rgba[i])||rgba[i]<0.0f||rgba[i]>1.0f) throw std::runtime_error("chart color components must be in [0,1]");
-                    }
-                    chart.colors.push_back(rgba);
-                }
-            }
-            if (src.contains("value_format")) chart.value_format = src.at("value_format").get<std::string>();
-            if (src.contains("bar_gap")) chart.bar_gap = src.at("bar_gap").get<float>();
-            if (!std::isfinite(chart.bar_gap) || chart.bar_gap < 0.0f || chart.bar_gap > 0.5f)
-                throw std::runtime_error("chart bar_gap must be in [0, 0.5]");
-            if (src.contains("line_width")) chart.line_width = src.at("line_width").get<float>();
-            if (!std::isfinite(chart.line_width) || chart.line_width <= 0.0f || chart.line_width > 64.0f)
-                throw std::runtime_error("chart line_width must be in (0, 64]");
-            if (src.contains("donut")) chart.donut = src.at("donut").get<bool>();
-            if (src.contains("donut_inner_ratio")) chart.donut_inner_ratio = src.at("donut_inner_ratio").get<float>();
-            if (!std::isfinite(chart.donut_inner_ratio) || chart.donut_inner_ratio < 0.1f || chart.donut_inner_ratio > 0.9f)
-                throw std::runtime_error("chart donut_inner_ratio must be in [0.1, 0.9]");
-            shape.chart = std::move(chart);
-            if (shape.type == ShapeContentTypePlan::Chart) {
-                if (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                    throw std::runtime_error("chart shape cannot carry path/asset/lottie");
-            }
-        }
         // ── DeviceFrame (additive, not primary shape type) ───────────────
         if (raw_shape.contains("device_frame")) {
             const auto& src = raw_shape.at("device_frame");
@@ -558,25 +458,6 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             if (src.contains("border_color")) df.border_color = src.at("border_color").get<std::string>();
             if (src.contains("show_chrome")) df.show_chrome = src.at("show_chrome").get<bool>();
             shape.device_frame = std::move(df);
-        }
-        // ── Counter (additive) ────────────────────────────────────────────
-        if (raw_shape.contains("counter")) {
-            const auto& src = raw_shape.at("counter");
-            if (!src.is_object()) throw std::runtime_error("counter must be an object");
-            CounterPlan cp;
-            if (src.contains("from")) cp.from = src.at("from").get<float>();
-            if (src.contains("to")) cp.to = src.at("to").get<float>();
-            if (!std::isfinite(cp.from) || !std::isfinite(cp.to)) throw std::runtime_error("counter from/to must be finite");
-            if (src.contains("format")) cp.format = src.at("format").get<std::string>();
-            if (cp.format != "plain" && cp.format != "currency" && cp.format != "percent" && cp.format != "compact")
-                throw std::runtime_error("counter format must be plain, currency, percent, or compact");
-            if (src.contains("currency")) cp.currency = src.at("currency").get<std::string>();
-            if (src.contains("decimals")) cp.decimals = src.at("decimals").get<int>();
-            if (cp.decimals < 0 || cp.decimals > 6) throw std::runtime_error("counter decimals must be in [0, 6]");
-            if (src.contains("prefix")) cp.prefix = src.at("prefix").get<std::string>();
-            if (src.contains("suffix")) cp.suffix = src.at("suffix").get<std::string>();
-            if (cp.prefix.size() > 32 || cp.suffix.size() > 32) throw std::runtime_error("counter prefix/suffix max 32 chars");
-            shape.counter = std::move(cp);
         }
         if (raw_shape.contains("operators")) {
             const auto& raw_ops = raw_shape.at("operators");

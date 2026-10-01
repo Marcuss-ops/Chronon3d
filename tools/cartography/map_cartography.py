@@ -407,7 +407,7 @@ def shade_plate_with_relief(plate: GeoreferencedMap, relief: GeoreferencedMap,
     shade = np.asarray(relief.image.convert("L"), dtype=np.float32) / 255.0
     gain = 1.0 + (shade - 0.5) * 2.0 * factor          # 0.5 = neutral, mean gain 1.0
     shaded = np.clip(base * gain[..., None], 0.0, 1.0)
-    image = Image.fromarray(np.rint(shaded * 255.0).astype(np.uint8), "RGB")
+    image = Image.fromarray(np.rint(shaded * 255.0).astype(np.uint8))
     print(f"[Map] Relief baked into the plate at strength {factor:.2f} "
           f"(gain {1.0 - factor:.2f}..{1.0 + factor:.2f}, mean "
           f"{float(gain.mean()):.3f})")

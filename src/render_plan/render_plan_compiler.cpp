@@ -259,7 +259,10 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
         case LayerPlan::EffectKindPlan::ChromaticAberration: {
             prepared_effects[index].emplace_back(ChromaticAberrationParams{
             .red_offset = effect.chromatic_red_offset,
-            .blue_offset = effect.chromatic_blue_offset});
+            .blue_offset = effect.chromatic_blue_offset,
+            .offset_mode = static_cast<ChromaticOffsetMode>(effect.chromatic_offset_mode),
+            .velocity = Vec2{effect.chromatic_velocity[0], effect.chromatic_velocity[1]},
+            .center = Vec2{effect.radial_center[0], effect.radial_center[1]}});
         } break;
         case LayerPlan::EffectKindPlan::Halftone: {
             prepared_effects[index].emplace_back(HalftoneParams{
@@ -417,6 +420,39 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
         case LayerPlan::EffectKindPlan::Mosaic: {
             prepared_effects[index].emplace_back(MosaicParams{
             .block_size = effect.block_size});
+        } break;
+        case LayerPlan::EffectKindPlan::LensDistortion: {
+            prepared_effects[index].emplace_back(LensDistortionParams{
+            .curvature = effect.lens_curvature,
+            .center = Vec2{effect.lens_center[0], effect.lens_center[1]},
+            .scale = effect.lens_scale});
+        } break;
+        case LayerPlan::EffectKindPlan::LuminanceResponse: {
+            prepared_effects[index].emplace_back(LuminanceResponseParams{
+            .threshold = effect.response_threshold,
+            .softness = effect.response_softness,
+            .radius = effect.response_radius,
+            .tint = Color{effect.response_tint[0], effect.response_tint[1], effect.response_tint[2], effect.response_tint[3]},
+            .intensity = effect.response_intensity,
+            .blend = static_cast<LuminanceBlendMode>(effect.response_blend)});
+        } break;
+        case LayerPlan::EffectKindPlan::FoldWarp: {
+            prepared_effects[index].emplace_back(FoldWarpParams{
+            .axis = static_cast<FoldAxis>(effect.fold_axis),
+            .position = effect.fold_position,
+            .amount = effect.fold_amount,
+            .radius = effect.fold_radius,
+            .falloff = effect.fold_falloff,
+            .perspective = effect.fold_perspective});
+        } break;
+        case LayerPlan::EffectKindPlan::CreaseShading: {
+            prepared_effects[index].emplace_back(CreaseShadingParams{
+            .axis = static_cast<FoldAxis>(effect.crease_axis),
+            .position = effect.crease_position,
+            .width = effect.crease_width,
+            .dark_side = effect.crease_dark_side,
+            .light_side = effect.crease_light_side,
+            .softness = effect.crease_softness});
         } break;
         }
         }
@@ -1659,10 +1695,6 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     }
                                     break;
                                 }
-                                case ShapeContentTypePlan::WorldMap:
-                                case ShapeContentTypePlan::Chart:
-                                    throw std::runtime_error(
-                                        "shape content type is not supported by this compiler backend");
                             }
                             if (layer.style && layer.style->backdrop) {
                                 const auto& backdrop = *layer.style->backdrop;

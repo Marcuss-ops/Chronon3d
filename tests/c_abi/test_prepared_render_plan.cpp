@@ -30,6 +30,7 @@
 #include <fstream>
 #include <iterator>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -70,6 +71,18 @@ void write_asset(const std::filesystem::path& root, std::string contents) {
     std::filesystem::create_directories(root / "images");
     std::ofstream output(root / "images/source.png", std::ios::binary);
     output << contents;
+}
+
+std::filesystem::path repo_image_fixture() {
+    auto root = std::filesystem::current_path();
+    for (int depth = 0; depth < 8 && !root.empty(); ++depth) {
+        const auto candidate = root / "tests/install_consumer/assets/test_image.png";
+        if (std::filesystem::is_regular_file(candidate)) return candidate;
+        const auto parent = root.parent_path();
+        if (parent == root) break;
+        root = parent;
+    }
+    throw std::runtime_error("cannot locate tests/install_consumer/assets/test_image.png");
 }
 
 } // namespace
@@ -173,6 +186,52 @@ TEST_CASE("media background card and video radius lower into plate plus corner m
     CHECK(clip.transform.position.x == doctest::Approx(0.0f));
     CHECK(clip.transform.position.y == doctest::Approx(0.0f));
     CHECK(clip.effects().empty());
+}
+
+TEST_CASE("media background card and rounded stroke frame an image") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::ifstream fixture(repo_image_fixture(), std::ios::binary);
+    REQUIRE(fixture.good());
+    const std::string image_bytes{std::istreambuf_iterator<char>(fixture),
+                                  std::istreambuf_iterator<char>()};
+    write_asset(directory.path, image_bytes);
+
+    auto plan = image_plan();
+    plan.layers.front().size = {32.0f, 32.0f};
+    plan.layers.front().size_dimensions = 2;
+    plan.layers.front().radius = 4.0f;
+    LayerStylePlan style;
+    style.background = BackgroundStyle{
+        "#FFFFFF", 1.0f, 6.0f, {4.0f, 4.0f}, 2};
+    plan.layers.front().style = style;
+
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(plan, resolver);
+    if (!prepared) INFO(prepared.error().message);
+    REQUIRE(prepared);
+
+    FrameContextParams params;
+    params.global_time = SampleTime::from_frame(0.0, plan.canvas.fps);
+    params.duration = plan.canvas.duration;
+    params.width = plan.canvas.width;
+    params.height = plan.canvas.height;
+    const auto scene = prepared->composition->evaluate(make_frame_context(params));
+    REQUIRE(scene.layers().size() == 2);
+    CHECK(scene.layers()[0].name == "image__frame");
+    CHECK(scene.layers()[1].name == "image");
+    REQUIRE(!scene.layers()[0].nodes.empty());
+    const auto& frame_node = scene.layers()[0].nodes.front();
+    REQUIRE(frame_node.shape.type() == ShapeType::RoundedRect);
+    CHECK(frame_node.shape.rounded_rect().size.x == doctest::Approx(40.0f));
+    CHECK(frame_node.shape.rounded_rect().size.y == doctest::Approx(40.0f));
+    CHECK(frame_node.shape.rounded_rect().radius == doctest::Approx(6.0f));
+    CHECK(frame_node.corner_radius == doctest::Approx(6.0f));
+    REQUIRE(scene.layers()[1].nodes.size() == 1);
+    CHECK(scene.layers()[1].nodes.front().shape.type() == ShapeType::Image);
+    CHECK(scene.layers()[1].nodes.front().shape.image().radius == doctest::Approx(4.0f));
 }
 
 // A shadow without a plate is the clip's own shadow (the widened style.shadow

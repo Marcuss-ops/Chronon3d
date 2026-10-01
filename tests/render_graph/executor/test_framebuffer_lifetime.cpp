@@ -540,6 +540,28 @@ TEST_CASE("RenderGraphContext::acquire_owned_fb resets aliased slot metadata") {
     CHECK(ctx.node_exec.planned_physical_slot == nullptr);
 }
 
+TEST_CASE("RenderGraphContext::acquire_owned_fb grows a reused physical slot for larger resources") {
+    auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
+
+    RenderGraphContext ctx;
+    ctx.framebuffer_pool = pool;
+
+    OwnedFB slot = pool->acquire_owned(64, 64, true);
+    ctx.node_exec.planned_physical_slot = &slot;
+    auto first = ctx.acquire_owned_fb(64, 64, false);
+    REQUIRE(first != nullptr);
+    CHECK(first->width() == 64);
+    CHECK(first->height() == 64);
+
+    ctx.node_exec.planned_physical_slot = &slot;
+    auto larger = ctx.acquire_owned_fb(1280, 720, false);
+    REQUIRE(larger != nullptr);
+    CHECK(larger->width() == 1280);
+    CHECK(larger->height() == 720);
+    CHECK(larger->allocated_width() >= 1280);
+    CHECK(larger->allocated_height() >= 720);
+}
+
 TEST_CASE("RenderGraphContext::acquire_framebuffer(const Framebuffer&) reuses reusable_bottom without copy") {
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
 

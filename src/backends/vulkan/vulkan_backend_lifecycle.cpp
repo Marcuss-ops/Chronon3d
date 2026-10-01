@@ -297,6 +297,7 @@ VulkanBackend& VulkanBackend::operator=(VulkanBackend&& other) noexcept {
 #else
     (void)other;
 #endif
+    std::swap(m_fallback_backend, other.m_fallback_backend);
     return *this;
 }
 

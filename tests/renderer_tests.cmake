@@ -147,6 +147,8 @@ chronon3d_add_test_suite(
         effects/test_keying.cpp
         effects/test_warp.cpp
         effects/test_stylize.cpp
+        effects/test_premium_effects_v1.cpp
+        effects/test_visual_accents_v1.cpp
         effects/test_curves.cpp
         effects/test_directional_blur.cpp
         effects/test_effect_catalog.cpp
@@ -166,6 +168,9 @@ chronon3d_add_test_suite(
         renderer/effects/test_invariants.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_effects_tests)
+if(TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_effects_tests PRIVATE chronon3d_backend_text)
+endif()
 
 chronon3d_add_test_suite(
     NAME chronon3d_camera_tests

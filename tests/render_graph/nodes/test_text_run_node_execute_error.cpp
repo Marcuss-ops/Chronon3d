@@ -43,6 +43,7 @@
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/runtime/frame/frame_error_slot.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
@@ -316,7 +317,7 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
     // P0-1 / TICKET-HOTPATH-ZERO-ALLOC-P1-D2 — frame_error is now a
     // non-owning pointer to frame-scoped storage (the executor owns the
     // optional); mirror that contract here.
-    std::optional<NodeExecutionError> frame_error_storage;
+    runtime::RenderErrorSlot frame_error_storage;
     ctx.frame_error = &frame_error_storage;
     REQUIRE_NOTHROW(auto _fb = node.execute(ctx, empty_inputs, empty_bboxes));
 
@@ -345,9 +346,10 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
     // failure through the frame_error slot so the executor can
     // propagate it to frame-level failure.
     REQUIRE(ctx.frame_error);
-    REQUIRE(ctx.frame_error->has_value());
-    CHECK(ctx.frame_error->value().node_name == "P03_execfail_node");
-    CHECK(ctx.frame_error->value().backend_code == RenderBackendErrorCode::ExecutionFailure);
+    const auto frame_error = ctx.frame_error->load();
+    REQUIRE(frame_error);
+    CHECK(frame_error->node_name == "P03_execfail_node");
+    CHECK(frame_error->backend_code == RenderBackendErrorCode::ExecutionFailure);
 }
 
 
@@ -376,7 +378,7 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
     // P0-1 / TICKET-HOTPATH-ZERO-ALLOC-P1-D2 — frame_error is now a
     // non-owning pointer to frame-scoped storage (the executor owns the
     // optional); mirror that contract here.
-    std::optional<NodeExecutionError> frame_error_storage;
+    runtime::RenderErrorSlot frame_error_storage;
     ctx.frame_error = &frame_error_storage;
 
     // First call → diagnostic fires.
@@ -412,9 +414,10 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
     // P0-1 — locked invariant: the node MUST surface the capability
     // failure through frame_error.
     REQUIRE(ctx.frame_error);
-    REQUIRE(ctx.frame_error->has_value());
-    CHECK(ctx.frame_error->value().node_name == "P03_no_capability_node");
-    CHECK(ctx.frame_error->value().backend_code == RenderBackendErrorCode::UnsupportedCapability);
+    const auto frame_error = ctx.frame_error->load();
+    REQUIRE(frame_error);
+    CHECK(frame_error->node_name == "P03_no_capability_node");
+    CHECK(frame_error->backend_code == RenderBackendErrorCode::UnsupportedCapability);
 }
 
 
@@ -441,7 +444,7 @@ TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {
     // P0-1 / TICKET-HOTPATH-ZERO-ALLOC-P1-D2 — frame_error is now a
     // non-owning pointer to frame-scoped storage (the executor owns the
     // optional); mirror that contract here.
-    std::optional<NodeExecutionError> frame_error_storage;
+    runtime::RenderErrorSlot frame_error_storage;
     ctx.frame_error = &frame_error_storage;
 
     {
@@ -467,9 +470,10 @@ TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {
     // P0-1 — locked invariant: null backend MUST be surfaced through
     // frame_error.
     REQUIRE(ctx.frame_error);
-    REQUIRE(ctx.frame_error->has_value());
-    CHECK(ctx.frame_error->value().node_name == "P03_null_backend_node");
-    CHECK(ctx.frame_error->value().backend_code == RenderBackendErrorCode::InvalidInput);
+    const auto frame_error = ctx.frame_error->load();
+    REQUIRE(frame_error);
+    CHECK(frame_error->node_name == "P03_null_backend_node");
+    CHECK(frame_error->backend_code == RenderBackendErrorCode::InvalidInput);
 }
 
 #endif // CHRONON3D_ENABLE_TEXT

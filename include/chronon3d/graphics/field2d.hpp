@@ -17,7 +17,9 @@ enum class Field2DGenerator : std::uint8_t {
 };
 
 enum class Field2DOperatorKind : std::uint8_t {
-    Remap, Threshold, Smoothstep, Invert, Warp
+    Remap, Threshold, Smoothstep, Invert, Warp,
+    Add, Subtract, Multiply, Min, Max, Abs, Power, Clamp,
+    Translate, Scale, Rotate, Repeat, DomainWarp
 };
 
 struct Field2DOperator {
@@ -27,6 +29,36 @@ struct Field2DOperator {
     float edge{0.5f};
     float softness{0.1f};
     float amount{0.05f};
+    float scalar{0.0f};
+    float scalar_b{1.0f};
+    Vec2 vec{0.0f, 0.0f};
+    float angle{0.0f};
+};
+
+/// 2D coordinate transformation basis for fields (translate, scale, rotate, shear).
+struct FieldTransform2D {
+    Vec2 translation{0.0f, 0.0f};
+    Vec2 scale{1.0f, 1.0f};
+    float rotation_radians{0.0f};
+    Vec2 shear{0.0f, 0.0f};
+    Vec2 pivot{0.5f, 0.5f};
+
+    [[nodiscard]] Vec2 apply(Vec2 p) const noexcept {
+        Vec2 pt = p - pivot;
+        const float sx = (std::abs(scale.x) > 1.0e-7f) ? scale.x : 1.0f;
+        const float sy = (std::abs(scale.y) > 1.0e-7f) ? scale.y : 1.0f;
+        pt.x *= sx;
+        pt.y *= sy;
+        const float x_orig = pt.x;
+        pt.x += pt.y * shear.x;
+        pt.y += x_orig * shear.y;
+        if (rotation_radians != 0.0f) {
+            const float c = std::cos(rotation_radians);
+            const float s = std::sin(rotation_radians);
+            pt = Vec2{pt.x * c - pt.y * s, pt.x * s + pt.y * c};
+        }
+        return pt + pivot + translation;
+    }
 };
 
 /// Deterministic, allocation-free scalar field in normalized coordinates.
@@ -39,6 +71,7 @@ struct Field2D {
     float persistence{0.5f};
     float lacunarity{2.0f};
     std::vector<Field2DOperator> operators;
+    FieldTransform2D transform{};
 
     [[nodiscard]] float sample(Vec2 point) const noexcept {
         if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
@@ -52,6 +85,9 @@ struct Field2D {
              persistence < 0.0f || persistence > 1.0f ||
              !std::isfinite(lacunarity) || lacunarity <= 0.0f || lacunarity > 8.0f))
             return 0.0f;
+
+        point = transform.apply(point);
+
         const auto base = [&](Vec2 p) {
             return sample_generator(p);
         };
@@ -78,7 +114,65 @@ struct Field2D {
                 case Field2DOperatorKind::Invert:
                     value = 1.0f - value;
                     break;
-                case Field2DOperatorKind::Warp: {
+                case Field2DOperatorKind::Add:
+                    value += op.scalar;
+                    break;
+                case Field2DOperatorKind::Subtract:
+                    value -= op.scalar;
+                    break;
+                case Field2DOperatorKind::Multiply:
+                    value *= op.scalar;
+                    break;
+                case Field2DOperatorKind::Min:
+                    value = std::min(value, op.scalar);
+                    break;
+                case Field2DOperatorKind::Max:
+                    value = std::max(value, op.scalar);
+                    break;
+                case Field2DOperatorKind::Abs:
+                    value = std::abs(value);
+                    break;
+                case Field2DOperatorKind::Power:
+                    value = (value > 0.0f && op.scalar > 0.0f) ? std::pow(value, op.scalar) : (value <= 0.0f ? 0.0f : 1.0f);
+                    break;
+                case Field2DOperatorKind::Clamp:
+                    value = std::clamp(value, op.scalar, op.scalar_b);
+                    break;
+                case Field2DOperatorKind::Translate: {
+                    point += op.vec;
+                    value = base(point);
+                    for (std::size_t prior = 0; prior < i; ++prior)
+                        value = apply_scalar_operator(value, operators[prior]);
+                    break;
+                }
+                case Field2DOperatorKind::Scale: {
+                    if (std::abs(op.vec.x) > 1.0e-7f) point.x *= op.vec.x;
+                    if (std::abs(op.vec.y) > 1.0e-7f) point.y *= op.vec.y;
+                    value = base(point);
+                    for (std::size_t prior = 0; prior < i; ++prior)
+                        value = apply_scalar_operator(value, operators[prior]);
+                    break;
+                }
+                case Field2DOperatorKind::Rotate: {
+                    const float c = std::cos(op.angle);
+                    const float s = std::sin(op.angle);
+                    const Vec2 p = point - Vec2{0.5f, 0.5f};
+                    point = Vec2{p.x * c - p.y * s, p.x * s + p.y * c} + Vec2{0.5f, 0.5f};
+                    value = base(point);
+                    for (std::size_t prior = 0; prior < i; ++prior)
+                        value = apply_scalar_operator(value, operators[prior]);
+                    break;
+                }
+                case Field2DOperatorKind::Repeat: {
+                    if (op.vec.x > 1.0e-7f) point.x = std::fmod(std::abs(point.x), op.vec.x);
+                    if (op.vec.y > 1.0e-7f) point.y = std::fmod(std::abs(point.y), op.vec.y);
+                    value = base(point);
+                    for (std::size_t prior = 0; prior < i; ++prior)
+                        value = apply_scalar_operator(value, operators[prior]);
+                    break;
+                }
+                case Field2DOperatorKind::Warp:
+                case Field2DOperatorKind::DomainWarp: {
                     const float x = lattice_noise(point * frequency + Vec2{17.13f, 3.71f}, seed ^ 0x68bc21ebU);
                     const float y = lattice_noise(point * frequency + Vec2{5.37f, 29.41f}, seed ^ 0x02e5be93U);
                     point += Vec2{x - 0.5f, y - 0.5f} * (2.0f * op.amount);
@@ -192,7 +286,21 @@ private:
                 return t * t * (3.0f - 2.0f * t);
             }
             case Field2DOperatorKind::Invert: return 1.0f - value;
-            case Field2DOperatorKind::Warp: return value;
+            case Field2DOperatorKind::Add: return value + op.scalar;
+            case Field2DOperatorKind::Subtract: return value - op.scalar;
+            case Field2DOperatorKind::Multiply: return value * op.scalar;
+            case Field2DOperatorKind::Min: return std::min(value, op.scalar);
+            case Field2DOperatorKind::Max: return std::max(value, op.scalar);
+            case Field2DOperatorKind::Abs: return std::abs(value);
+            case Field2DOperatorKind::Power: return (value > 0.0f && op.scalar > 0.0f) ? std::pow(value, op.scalar) : (value <= 0.0f ? 0.0f : 1.0f);
+            case Field2DOperatorKind::Clamp: return std::clamp(value, op.scalar, op.scalar_b);
+            case Field2DOperatorKind::Warp:
+            case Field2DOperatorKind::Translate:
+            case Field2DOperatorKind::Scale:
+            case Field2DOperatorKind::Rotate:
+            case Field2DOperatorKind::Repeat:
+            case Field2DOperatorKind::DomainWarp:
+                return value;
         }
         return value;
     }
@@ -236,7 +344,7 @@ private:
                         static_cast<std::int32_t>(std::floor(p.y))) & 1 ? 1.0f : 0.0f;
             case Field2DGenerator::Dots: {
                 const Vec2 cell{p.x - std::floor(p.x) - 0.5f,
-                                p.y - std::floor(p.y) - 0.5f};
+                                 p.y - std::floor(p.y) - 0.5f};
                 return glm::length(cell) < 0.28f ? 1.0f : 0.0f;
             }
             case Field2DGenerator::Stripes:
@@ -271,6 +379,13 @@ private:
     mix(field.octaves);
     mix(std::bit_cast<std::uint32_t>(field.persistence));
     mix(std::bit_cast<std::uint32_t>(field.lacunarity));
+    mix(std::bit_cast<std::uint32_t>(field.transform.translation.x));
+    mix(std::bit_cast<std::uint32_t>(field.transform.translation.y));
+    mix(std::bit_cast<std::uint32_t>(field.transform.scale.x));
+    mix(std::bit_cast<std::uint32_t>(field.transform.scale.y));
+    mix(std::bit_cast<std::uint32_t>(field.transform.rotation_radians));
+    mix(std::bit_cast<std::uint32_t>(field.transform.shear.x));
+    mix(std::bit_cast<std::uint32_t>(field.transform.shear.y));
     for (const auto& op : field.operators) {
         mix(static_cast<std::uint8_t>(op.kind));
         mix(std::bit_cast<std::uint32_t>(op.from));
@@ -278,6 +393,11 @@ private:
         mix(std::bit_cast<std::uint32_t>(op.edge));
         mix(std::bit_cast<std::uint32_t>(op.softness));
         mix(std::bit_cast<std::uint32_t>(op.amount));
+        mix(std::bit_cast<std::uint32_t>(op.scalar));
+        mix(std::bit_cast<std::uint32_t>(op.scalar_b));
+        mix(std::bit_cast<std::uint32_t>(op.vec.x));
+        mix(std::bit_cast<std::uint32_t>(op.vec.y));
+        mix(std::bit_cast<std::uint32_t>(op.angle));
     }
     mix(field.operators.size());
     return hash;
