@@ -81,6 +81,16 @@ except ImportError:
         DynamicTilePyramid = compute_altitude_km = draw_hud_overlay = None
         latlon_to_global_px = PYRAMID_TILE_URLS = None
 
+# The mathematical self-test does not need the raster engine. Keep CLI parser
+# choices available when optional NumPy/OpenCV imports prevent loading it.
+if PYRAMID_TILE_URLS is None:
+    PYRAMID_TILE_URLS = {
+        "esri_dark": "",
+        "esri_sat": "",
+        "osm": "",
+        "carto_dark": "",
+    }
+
 
 # `assets/` is a bootstrap-only directory (see .gitignore), so this file
 # resolves the maps its own build produces from its own location rather than

@@ -346,7 +346,7 @@ def _gain085_lut() -> np.ndarray:
 
 def draw_hud_overlay(frame: np.ndarray, lat: float, lon: float, current_zoom: float,
                      progress: float, target_title: str = "COLOSSEUM (ROMA)"):
-    """Draws a cinematic, high-precision documentary cartography HUD."""
+    """Draw cinematic documentary telemetry over the current geographic target."""
     h, w = frame.shape[:2]
     alt_km = compute_altitude_km(current_zoom, lat)
 
@@ -416,7 +416,10 @@ def draw_hud_overlay(frame: np.ndarray, lat: float, lon: float, current_zoom: fl
 
     cv2.putText(frame, "CHRONON DYNAMIC TILE PYRAMID", (60, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 240, 255), 1, cv2.LINE_AA)
     cv2.putText(frame, f"TARGET: {target_title}", (60, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(frame, f"WGS84: {lat:.6f} N, {lon:.6f} E", (60, 125), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (160, 175, 200), 1, cv2.LINE_AA)
+    lat_hemi = "N" if lat >= 0 else "S"
+    lon_hemi = "E" if lon >= 0 else "W"
+    cv2.putText(frame, f"WGS84: {abs(lat):.6f} {lat_hemi}, {abs(lon):.6f} {lon_hemi}",
+                (60, 125), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (160, 175, 200), 1, cv2.LINE_AA)
 
     # Right Telemetry: Altitude & Zoom Level
     cv2.rectangle(frame, (w - 380, 40), (w - 40, 150), (15, 20, 30), -1)

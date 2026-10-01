@@ -240,6 +240,30 @@ TEST_CASE("render_plan V3 accepts the per-frame paint track family") {
     check_schema_violation(validate_render_plan(plan));
 }
 
+TEST_CASE("render_plan V3 particle emitter extensions survive frozen V2 projection") {
+    auto plan = json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":36,"fps_num":30,"fps_den":1,"duration_frames":12},
+      "layers":[
+        {"id":"chalk-path","type":"shape","size":[64,36],
+         "shape":{"type":"path","path":[
+           {"type":"move_to","point":[4,18]},
+           {"type":"line_to","point":[60,18]}]}},
+        {"id":"chalk-dust","type":"particles","size":[64,36],
+         "particle_emitter":{"count":24,"seed":319,"emitter_size":[4,2],
+           "velocity_min":[-1,-8],"velocity_max":[1,-2],"lifetime":[0.2,0.8],
+           "size":[0.5,2.0],"shape":"path","path_id":"chalk-path",
+           "path_points":[[4,18],[60,18]],"sprite_asset":"",
+           "sprite_scale":[0.8,1.2],"rotation":[-0.5,0.5],
+           "angular_velocity":[-1,1]}}
+      ],
+      "output":{"path":"out.png"}
+    })JSON");
+    const auto result = validate_render_plan(plan);
+    INFO(result.format());
+    CHECK(result.ok());
+}
+
 TEST_CASE("render_plan V3 exposes typed transition parameters and excludes them from frozen V2") {
     auto plan = json{
         {"schema", "chronon.render-plan.v3"}, {"version", 3},
