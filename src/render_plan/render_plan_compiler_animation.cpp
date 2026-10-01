@@ -1672,36 +1672,54 @@ make_camera_descriptor(const RenderPlan& plan) {
             const auto value = key.value.front();
             switch (track.property) {
                 case CameraPropertyPlan::PositionX: {
+                    if (!tracks.position_components[0])
+                        tracks.position_components[0].emplace(descriptor.base.position.x);
+                    add_animation_keyframe(*tracks.position_components[0], easing_track, key, value);
                     auto current = descriptor.base.position;
                     current.x = value;
                     add_animation_keyframe(tracks.position, easing_track, key, current);
                     break;
                 }
                 case CameraPropertyPlan::PositionY: {
+                    if (!tracks.position_components[1])
+                        tracks.position_components[1].emplace(descriptor.base.position.y);
+                    add_animation_keyframe(*tracks.position_components[1], easing_track, key, value);
                     auto current = descriptor.base.position;
                     current.y = value;
                     add_animation_keyframe(tracks.position, easing_track, key, current);
                     break;
                 }
                 case CameraPropertyPlan::PositionZ: {
+                    if (!tracks.position_components[2])
+                        tracks.position_components[2].emplace(descriptor.base.position.z);
+                    add_animation_keyframe(*tracks.position_components[2], easing_track, key, value);
                     auto current = descriptor.base.position;
                     current.z = value;
                     add_animation_keyframe(tracks.position, easing_track, key, current);
                     break;
                 }
                 case CameraPropertyPlan::RotationX: {
+                    if (!tracks.rotation_components[0])
+                        tracks.rotation_components[0].emplace(descriptor.base.rotation.x);
+                    add_animation_keyframe(*tracks.rotation_components[0], easing_track, key, value);
                     auto current = descriptor.base.rotation;
                     current.x = value;
                     add_animation_keyframe(tracks.rotation, easing_track, key, current);
                     break;
                 }
                 case CameraPropertyPlan::RotationY: {
+                    if (!tracks.rotation_components[1])
+                        tracks.rotation_components[1].emplace(descriptor.base.rotation.y);
+                    add_animation_keyframe(*tracks.rotation_components[1], easing_track, key, value);
                     auto current = descriptor.base.rotation;
                     current.y = value;
                     add_animation_keyframe(tracks.rotation, easing_track, key, current);
                     break;
                 }
                 case CameraPropertyPlan::RotationZ: {
+                    if (!tracks.rotation_components[2])
+                        tracks.rotation_components[2].emplace(descriptor.base.rotation.z);
+                    add_animation_keyframe(*tracks.rotation_components[2], easing_track, key, value);
                     auto current = descriptor.base.rotation;
                     current.z = value;
                     add_animation_keyframe(tracks.rotation, easing_track, key, current);

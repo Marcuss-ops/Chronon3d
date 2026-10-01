@@ -34,8 +34,10 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>             // Camera2_5D, DepthOfFieldSettings, MotionBlurSettings, LensModel
 #include <chronon3d/core/types/error.hpp>
 
+#include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -176,6 +178,11 @@ struct StaticCameraSource {};
 struct PoseTracksSource {
     AnimatedValue<Vec3> position{Vec3{0.0f, 0.0f, -1000.0f}};
     AnimatedValue<Vec3> rotation{Vec3{0.0f, 0.0f, 0.0f}};
+    // Render-plan scalar channels must stay independent. Appending X, Y and Z
+    // keyframes to one Vec3 AnimatedValue creates duplicate-frame keys whose
+    // untouched components overwrite each other and can snap on the final frame.
+    std::array<std::optional<AnimatedValue<float>>, 3> position_components{};
+    std::array<std::optional<AnimatedValue<float>>, 3> rotation_components{};
     AnimatedValue<Vec3> target{Vec3{0.0f, 0.0f, 0.0f}};
 
     AnimatedValue<float> zoom{AnimatedValue<float>{1000.0f}};
