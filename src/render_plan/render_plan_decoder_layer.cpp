@@ -1543,6 +1543,10 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         !std::isfinite(layer.skew_axis_deg) || std::abs(layer.skew_axis_deg) > 1000000.0f)
         throw std::runtime_error("layer skew and skew_axis are outside supported bounds");
     layer.enable_3d = value.value("enable_3d", false);
+    if (value.contains("casts_shadows"))
+        layer.casts_shadows = value.at("casts_shadows").get<bool>();
+    if (value.contains("accepts_shadows"))
+        layer.accepts_shadows = value.at("accepts_shadows").get<bool>();
     layer.screen_space = value.value("screen_space", false);
     if (value.contains("safe_insets")) {
         const auto& insets = value.at("safe_insets");

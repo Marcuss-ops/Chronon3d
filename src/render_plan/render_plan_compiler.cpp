@@ -1286,6 +1286,12 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             params.indices = layer.inline_mesh->indices;
                             builder.accepts_lights(false).accepts_shadows(false);
                             builder.inline_mesh(std::move(params));
+                            if (layer.casts_shadows || layer.accepts_shadows) {
+                                if (layer.casts_shadows)
+                                    builder.casts_shadows(*layer.casts_shadows);
+                                if (layer.accepts_shadows)
+                                    builder.accepts_shadows(*layer.accepts_shadows);
+                            }
                             auto& node = builder.last_node_handle().node();
                             node.color = Color{layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
                             if (layer.inline_mesh->material) {
