@@ -1846,7 +1846,14 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
         // with a top-left box origin, while LayerBuilder transforms are centred
         // on the canvas. Convert the box origin once; motion tracks remain
         // additive offsets from this resolved placement.
-        if (layer.type == LayerType::Text || layer.type == LayerType::Shape) {
+        if (layer.id.ends_with("__stroke")) {
+            const float sw = layer.size_dimensions >= 2 ? layer.size[0] : 0.0f;
+            const float sh = layer.size_dimensions >= 2 ? layer.size[1] : 0.0f;
+            builder.position({
+                layer.position[0] + static_cast<float>(canvas_width) - sw * 0.5f,
+                layer.position[1] + static_cast<float>(canvas_height) - sh * 0.5f,
+                layer.position[2]});
+        } else if (layer.type == LayerType::Text || layer.type == LayerType::Shape) {
             builder.position({
                 layer.position[0] - static_cast<float>(canvas_width) * 0.5f,
                 layer.position[1] - static_cast<float>(canvas_height) * 0.5f,

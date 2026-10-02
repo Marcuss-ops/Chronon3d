@@ -88,7 +88,7 @@ Composition make_focused_dof_scene() {
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
             s.camera().enable(true)
-                .position({0.0f, 0.0f, -1000.0f})
+                .position({0.0f, 0.0f, -500.0f})
                 .zoom(1000.0f)
                 .look_at({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
@@ -242,8 +242,8 @@ TEST_CASE("PR2-RG-DoF: untouched pixels are not classified as blur sources") {
         std::memory_order_relaxed);
 
     // Regression for the depth-provenance bug where OutputPass initialized
-    // every untouched pixel to z=0.  Zero is a valid world depth, so the DOF
-    // analyzer classified essentially the complete canvas as defocused.  A
+    // every untouched pixel with a valid surface depth, so the DOF analyzer
+    // classified essentially the complete canvas as defocused.  A
     // sparse scene must leave the vast majority of the depth plane unset.
     CHECK(blur_sources > 0);
     CHECK(blur_sources < kPixels / 4);
@@ -254,6 +254,14 @@ TEST_CASE("PR2-RG-DoF: untouched pixels are not classified as blur sources") {
     CHECK(roi_pixels < (kPixels * 3) / 4);
     CHECK(scratch_bytes > 0);
     CHECK(scratch_bytes < kPixels * sizeof(Color) * 2);
+}
+
+TEST_CASE("PR2-RG-DoF: translated camera keeps focused world plane sharp") {
+    auto r = ctt::make_renderer();
+    r.reset_counters();
+    auto fb = r.render(make_focused_dof_scene(), 0);
+    REQUIRE(fb != nullptr);
+    CHECK(r.counters()->dof_blur_source_pixels.load(std::memory_order_relaxed) == 0);
 }
 
 TEST_CASE("PR2-RG-DoF: fully focused scene skips blur and scratch") {

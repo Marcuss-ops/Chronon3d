@@ -192,7 +192,10 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread, f32 corner_radius) {
 
 void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
                              f32 spread, const RenderState* state, const Fill* fill, f32 corner_radius) {
-    if (color.a <= 0.0f) return;
+    const bool has_stroke = stroke_width_for_shape(shape) > 0.0f;
+    const bool has_visible_stroke = has_stroke && (stroke_color_for_shape(shape).a > 0.0f || stroke_has_gradient(shape));
+    const bool has_visible_fill = color.a > 0.0f;
+    if (!has_visible_fill && !has_visible_stroke) return;
 
     if (shape.type() == ShapeType::Path) {
 #ifdef CHRONON3D_USE_BLEND2D
@@ -234,7 +237,6 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     glm::mat3 invH = glm::inverse(H);
 
     const bool use_gradient = fill && fill->type != FillType::Solid;
-    const bool has_stroke = stroke_width_for_shape(shape) > 0.0f;
     const bool use_stroke_gradient = has_stroke && stroke_has_gradient(shape);
     const Vec2 sz = (use_gradient || use_stroke_gradient)
         ? safe_shape_size_for_fill(shape)
@@ -276,12 +278,26 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
                 const f32 inv_z = 1.0f / lp_h.z;
                 Vec2 lp(lp_h.x * inv_z, lp_h.y * inv_z);
 
-                const bool fill_hit = hit_test_shape_fill(shape, lp, spread, corner_radius);
-                const bool stroke_hit = has_stroke && hit_test_shape_stroke(shape, lp, spread, corner_radius);
-                if (fill_hit || stroke_hit) {
-                    const Color pixel_color = fill_hit
-                        ? (use_gradient ? resolve_gradient_color(*fill, lp, sz, color.a) : color)
-                        : (use_stroke_gradient ? resolve_stroke_gradient_color(shape, lp, sz) : stroke_color_for_shape(shape));
+                const bool stroke_hit = has_visible_stroke && hit_test_shape_stroke(shape, lp, spread, corner_radius);
+                const bool fill_hit = has_visible_fill && hit_test_shape_fill(shape, lp, spread, corner_radius);
+                if (stroke_hit || fill_hit) {
+                    Color pixel_color;
+                    if (stroke_hit) {
+                        const Color stroke_color = use_stroke_gradient
+                            ? resolve_stroke_gradient_color(shape, lp, sz)
+                            : stroke_color_for_shape(shape);
+                        pixel_color = stroke_color;
+                        if (stroke_color.a < 1.0f && fill_hit) {
+                            const Color fill_color = use_gradient
+                                ? resolve_gradient_color(*fill, lp, sz, color.a)
+                                : color;
+                            pixel_color = compositor::blend(stroke_color, fill_color, BlendMode::Normal);
+                        }
+                    } else {
+                        pixel_color = use_gradient
+                            ? resolve_gradient_color(*fill, lp, sz, color.a)
+                            : color;
+                    }
 
                     // Guard: skip NaN/Inf pixels to prevent framebuffer contamination.
                     if (!std::isnan(pixel_color.r) && !std::isnan(pixel_color.g) &&

@@ -449,13 +449,13 @@ bool seed_native_destination(
 }
 
 // publish_dof_provenance() — single authority for DOF depth/coverage
-// publication.  Previously this loop existed twice verbatim (pass-through
+// publication. Previously this loop existed twice verbatim (pass-through
 // branch and post-blend branch); the two copies had to be kept in sync by
-// discipline.  Writes world-z into the depth buffer for every covered pixel
-// and expands the DOF source bbox/radius coverage.
+// discipline. Writes positive camera-space depth for covered pixels and
+// expands the DOF source bbox/radius coverage.
 void publish_dof_provenance(
     RenderGraphContext& ctx, const Framebuffer& surface,
-    float world_z, float source_radius,
+    float camera_depth, float source_radius,
     const std::optional<raster::BBox>& clip,
     i32 framebuffer_width, i32 framebuffer_height) {
     auto& dof_depth = ctx.node_exec.dof_depth_buffer();
@@ -472,7 +472,7 @@ void publish_dof_provenance(
         for (i32 x = bx0; x < bx1; ++x) {
             const i32 sx = x - surface.origin_x();
             if (sx < 0 || sx >= surface.width() || row[sx].a <= 0.01f) continue;
-            dof_depth[static_cast<size_t>(y) * w + x] = world_z;
+            dof_depth[static_cast<size_t>(y) * w + x] = camera_depth;
             if (std::isfinite(source_radius) && source_radius >= 0.5f) {
                 auto& coverage = ctx.node_exec.dof_sources();
                 if (!coverage.source_bbox) {
@@ -491,11 +491,12 @@ void publish_dof_provenance(
 }
 
 // dof_source_radius() — shared radius derivation for both DOF publish sites.
-float dof_source_radius(RenderGraphContext& ctx, float world_z) {
+float dof_source_radius(RenderGraphContext& ctx, float camera_depth) {
     const auto& camera_2_5d = ctx.frame_input.camera_2_5d;
+    const auto dof = camera_space_dof_settings(camera_2_5d.dof, camera_2_5d);
     return camera_2_5d.dof.enabled
-        ? compute_dof_blur_radius(camera_2_5d.dof, camera_2_5d.lens,
-                                  world_z,
+        ? compute_dof_blur_radius(dof, camera_2_5d.lens,
+                                  camera_depth,
                                   static_cast<float>(ctx.frame_input.width))
         : 0.0f;
 }
@@ -771,9 +772,13 @@ NodeExecResult CompositeNode::execute(
     // double-counting bottom composite time (already in compositenode_blend_wall_ms).
     if (!top) {
         if (ctx.policy.track_dof_depth) {
+            const float depth = m_has_world_position
+                ? camera_space_depth(ctx.frame_input.camera_2_5d, m_world_position)
+                : camera_space_depth(ctx.frame_input.camera_2_5d,
+                                     Vec3{0.0f, 0.0f, m_world_z});
             publish_dof_provenance(
-                ctx, *result, m_world_z,
-                dof_source_radius(ctx, m_world_z),
+                ctx, *result, depth,
+                dof_source_radius(ctx, depth),
                 ctx.node_exec.clip_rect,
                 ctx.frame_input.width, ctx.frame_input.height);
         }
@@ -889,8 +894,12 @@ NodeExecResult CompositeNode::execute(
 
         auto& dof_depth = ctx.node_exec.dof_depth_buffer();
         if (ctx.policy.track_dof_depth && !dof_depth.empty()) {
+            const float depth = m_has_world_position
+                ? camera_space_depth(ctx.frame_input.camera_2_5d, m_world_position)
+                : camera_space_depth(ctx.frame_input.camera_2_5d,
+                                     Vec3{0.0f, 0.0f, m_world_z});
             publish_dof_provenance(
-                ctx, *top, m_world_z, dof_source_radius(ctx, m_world_z),
+                ctx, *top, depth, dof_source_radius(ctx, depth),
                 clip, ctx.frame_input.width, ctx.frame_input.height);
         }
 
