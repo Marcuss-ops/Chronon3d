@@ -65,10 +65,10 @@ struct TextDepthProfile {
     float max_blur{14.0f};        // clamp on resolved blur radius (px)
 
     [[nodiscard]] bool valid() const noexcept {
-        return std::isfinite(depth_step) && depth_step >= 0.0f &&
-               std::isfinite(max_depth) && max_depth >= 0.0f &&
-               std::isfinite(blur_per_depth) && blur_per_depth >= 0.0f &&
-               std::isfinite(max_blur) && max_blur >= 0.0f;
+        return std::isfinite(depth_step) && depth_step >= 0.0f && depth_step <= 1000000.0f &&
+               std::isfinite(max_depth) && max_depth >= 0.0f && max_depth <= 1000000.0f &&
+               std::isfinite(blur_per_depth) && blur_per_depth >= 0.0f && blur_per_depth <= 256.0f &&
+               std::isfinite(max_blur) && max_blur >= 0.0f && max_blur <= 256.0f;
     }
 };
 
@@ -99,12 +99,12 @@ struct TextFocusOptions {
 
     [[nodiscard]] bool valid() const noexcept {
         return profile.valid() &&
-               std::isfinite(blur_scale) && blur_scale >= 0.0f &&
+               std::isfinite(blur_scale) && blur_scale >= 0.0f && blur_scale <= 256.0f &&
                std::isfinite(unfocused_opacity) &&
                unfocused_opacity >= 0.0f && unfocused_opacity <= 1.0f &&
                std::isfinite(unfocused_scale) && unfocused_scale > 0.0f &&
                unfocused_scale <= 1.0f &&
-               std::isfinite(focused_scale) && focused_scale > 0.0f;
+               std::isfinite(focused_scale) && focused_scale > 0.0f && focused_scale <= 4.0f;
     }
 };
 
@@ -115,6 +115,24 @@ namespace detail {
 }
 
 } // namespace detail
+
+// Resolve one word from its non-negative distance to the focus plane; shared
+// by single-focus travel and the dual-plane edges-in preset.
+[[nodiscard]] inline TextWordFocusSample resolve_word_focus_distance(
+    float distance, const TextFocusOptions& options = {}) {
+    if (!options.valid() || !std::isfinite(distance) || distance < 0.0f)
+        throw std::invalid_argument("text focus distance or options are outside supported bounds");
+    TextWordFocusSample sample;
+    sample.blur_radius = detail::clamp_blur(distance * options.blur_scale, options.profile);
+    const float blur_share = options.profile.max_blur > 0.0f
+        ? std::clamp(sample.blur_radius / options.profile.max_blur, 0.0f, 1.0f)
+        : 0.0f;
+    sample.opacity = 1.0f + (options.unfocused_opacity - 1.0f) * blur_share;
+    const float t = options.blur_scale > 0.0f ? blur_share : 0.0f;
+    sample.scale = options.focused_scale +
+                   (options.unfocused_scale - options.focused_scale) * t;
+    return sample;
+}
 
 // ── Editorial focus resolver ──────────────────────────────────────────────
 //
@@ -130,24 +148,17 @@ namespace detail {
     const TextFocusOptions& options = {}) {
     if (!options.valid())
         throw std::invalid_argument("text focus options are outside supported bounds");
-    if (!std::isfinite(state.focus_position) || !std::isfinite(state.focus_progress))
-        throw std::invalid_argument("text focus state must be finite");
+    if (!std::isfinite(state.focus_position) || !std::isfinite(state.focus_progress) ||
+        state.focus_progress < 0.0f || state.focus_progress > 1.0f)
+        throw std::invalid_argument("text focus state must be finite with progress in [0, 1]");
+    if (word_count > 0 &&
+        (state.focus_position < 0.0f ||
+         state.focus_position > static_cast<float>(word_count - 1)))
+        throw std::invalid_argument("text focus position must fall within the word-index range");
     std::vector<TextWordFocusSample> samples(word_count);
     for (std::size_t i = 0; i < word_count; ++i) {
         const float distance = std::fabs(static_cast<float>(i) - state.focus_position);
-        auto& sample = samples[i];
-        sample.z = 0.0f;
-        sample.blur_radius = detail::clamp_blur(distance * options.blur_scale, options.profile);
-        // Subtle companion easing: opacity/scale dip as the word leaves the
-        // focus plane, proportional to its (clamped) blur share. Zero-blur
-        // profiles keep every word fully opaque and scaled.
-        const float blur_share = options.profile.max_blur > 0.0f
-            ? std::clamp(sample.blur_radius / options.profile.max_blur, 0.0f, 1.0f)
-            : 0.0f;
-        sample.opacity = 1.0f + (options.unfocused_opacity - 1.0f) * blur_share;
-        const float t = options.blur_scale > 0.0f ? blur_share : 0.0f;
-        sample.scale = options.focused_scale +
-                       (options.unfocused_scale - options.focused_scale) * t;
+        samples[i] = resolve_word_focus_distance(distance, options);
     }
     return samples;
 }
@@ -189,14 +200,15 @@ namespace detail {
     const TextDepthProfile& profile = {}) {
     if (!profile.valid())
         throw std::invalid_argument("text depth profile is outside supported bounds");
-    if (!std::isfinite(camera_world_z) || !std::isfinite(focus_distance) ||
-        focus_distance < 0.0f || !std::isfinite(aperture_scale) || aperture_scale < 0.0f)
+    if (!std::isfinite(camera_world_z) || std::abs(camera_world_z) > 1000000.0f ||
+        !std::isfinite(focus_distance) || focus_distance < 0.0f || focus_distance > 1000000.0f ||
+        !std::isfinite(aperture_scale) || aperture_scale < 0.0f || aperture_scale > 256.0f)
         throw std::invalid_argument("depth focus camera parameters are outside supported bounds");
     std::vector<TextWordFocusSample> samples(word_depths.size());
     for (std::size_t i = 0; i < word_depths.size(); ++i) {
         const float depth = word_depths[i];
-        if (!std::isfinite(depth))
-            throw std::invalid_argument("word depth must be finite");
+        if (!std::isfinite(depth) || std::abs(depth) > 1000000.0f)
+            throw std::invalid_argument("word depth must be finite and within supported bounds");
         const float camera_depth = std::fabs(depth - camera_world_z);
         const float depth_error = std::fabs(camera_depth - focus_distance);
         const float raw_blur = depth_error * aperture_scale;
@@ -246,6 +258,7 @@ enum class FocusTravelKind {
 struct FocusPresetOptions {
     Frame start{0};
     Frame duration{48};
+    float camera_world_z{0.0f};    // true-depth focus reference plane
     std::size_t focused_word{0};   // WordStatic anchor
     std::size_t rack_a{0};         // RackDuo endpoints
     std::size_t rack_b{1};
@@ -267,6 +280,7 @@ namespace detail {
     const std::size_t anchor = std::min(options.focused_word, word_count - 1);
     const std::size_t a = std::min(options.rack_a, word_count - 1);
     const std::size_t b = std::min(options.rack_b, word_count - 1);
+    const float edges_in_a = last * t * 0.5f;
     switch (kind) {
         case FocusTravelKind::WordStatic:   return static_cast<float>(anchor);
         case FocusTravelKind::WordTravel:   return last * t;
@@ -277,8 +291,8 @@ namespace detail {
             // the blur basin widens symmetrically around the mid word.
             return mid;
         case FocusTravelKind::EdgesIn:
-            // The two edge words start sharp; the basin closes toward center.
-            return mid;
+            // Two focus planes start at the outer words and converge on center.
+            return edges_in_a;
         case FocusTravelKind::RackDuo: {
             const float fa = static_cast<float>(a);
             const float fb = static_cast<float>(b);
@@ -298,7 +312,6 @@ namespace detail {
     const float last = static_cast<float>(word_count - 1);
     switch (kind) {
         case FocusTravelKind::CenterOut: return last * t;
-        case FocusTravelKind::EdgesIn:   return last * (1.0f - t);
         default:                         return 0.0f;
     }
 }
@@ -317,8 +330,10 @@ namespace detail {
     if (!options.focus.valid())
         throw std::invalid_argument("text focus preset options are outside supported bounds");
     if (options.duration.integral() < 1 || options.duration.integral() > 65535 ||
-        options.start.integral() < 0)
-        throw std::invalid_argument("text focus preset timing is outside supported bounds");
+        options.start.integral() < 0 || options.start.integral() > 1000000 ||
+        options.start.integral() + options.duration.integral() > 1000000 ||
+        !std::isfinite(options.camera_world_z) || std::abs(options.camera_world_z) > 1000000.0f)
+        throw std::invalid_argument("text focus preset timing or camera position is outside supported bounds");
 
     std::vector<TextAnimatorSpec> result;
     if (word_count == 0) return result;
@@ -326,7 +341,9 @@ namespace detail {
     // Canonical V1 budget: at most five keyframes per property. The engine
     // interpolates between stops, so five focus positions already produce a
     // continuous plane-of-focus travel.
-    const std::size_t stop_count = std::clamp<std::size_t>(options.stops, 2, 5);
+    const std::size_t available_frames = static_cast<std::size_t>(options.duration.integral()) + 1;
+    const std::size_t stop_count = std::min({std::clamp<std::size_t>(options.stops, 2, 5),
+                                             available_frames});
     std::vector<std::pair<Frame, TextFocusState>> schedule;
     schedule.reserve(stop_count);
     for (std::size_t s = 0; s < stop_count; ++s) {
@@ -345,44 +362,39 @@ namespace detail {
     schedule.back().second.focus_position =
         detail::travel_position(kind, 1.0f, word_count, options);
 
-    // Optional depth cascade: bake per-word Z offsets as a position_z layer
-    // track on the first band (world-Z shift is a layer-level concern; bands
-    // stay visual-only). Carried on the spec list via a dedicated animator id
-    // so callers can detect and project it.
+    // Depth is emitted as one selected 2.5D position per word, not a single
+    // whole-line transform that silently leaves every word at z=0. A real
+    // camera DOF buffer remains layer/pixel scoped in Chronon; these offsets
+    // are the glyph-state inputs used by depth-aware downstream consumers.
     const bool cascade = options.depth_cascade ||
                          kind == FocusTravelKind::DepthCascade ||
                          kind == FocusTravelKind::NearToFar ||
                          kind == FocusTravelKind::FarToNear;
-    if (cascade) {
-        const auto depths = resolve_word_depths(word_count, options.focus.profile);
-        TextAnimatorSpec depth_spec;
-        depth_spec.id = std::string{focus_travel_id(kind)} + "_depth";
-        depth_spec.enabled = true;
-        // One band selector spanning all words; the depth offset is constant
-        // per word, so it is baked through per-word position_z value tracks.
-        const auto* depths_ptr = depths.data();
-        const std::size_t count = depths.size();
-        GlyphSelectorSpec all;
-        all.id = depth_spec.id + "_selector";
-        all.unit = TextSelectorUnit::Word;
-        all.shape = TextSelectorShape::Square;
-        all.exclude_spaces = true;
-        all.start = AnimatedValue<f32>{0.0f};
-        all.end = AnimatedValue<f32>{100.0f};
-        all.amount = AnimatedValue<f32>{100.0f};
-        depth_spec.selectors.push_back(std::move(all));
-        // Per-word depths are resolved by resolve_word_depths; the animator
-        // carries the first-word depth as the static offset and callers
-        // combine resolve_word_depths() for per-word placement (the selector
-        // model is visual-only and does not move glyphs in Z).
-        PositionProperty z_offset;
-        z_offset.value = AnimatedValue<Vec3>{Vec3{0.0f, 0.0f, depths_ptr != nullptr && count > 0 ? depths_ptr[0] : 0.0f}};
-        depth_spec.properties.push_back(std::move(z_offset));
-        depth_spec.compile();
-        result.push_back(std::move(depth_spec));
-    }
-
+    const auto depths = cascade
+        ? resolve_word_depths(word_count, options.focus.profile)
+        : std::vector<float>{};
     const f32 width = 100.0f / static_cast<f32>(word_count);
+    if (cascade) {
+        for (std::size_t i = 0; i < word_count; ++i) {
+            TextAnimatorSpec depth_spec;
+            depth_spec.id = std::string{focus_travel_id(kind)} + "_depth_word_" + std::to_string(i);
+            GlyphSelectorSpec selector;
+            selector.id = depth_spec.id + "_selector";
+            selector.unit = TextSelectorUnit::Word;
+            selector.shape = TextSelectorShape::Square;
+            selector.order = TextSelectorOrder::Index;
+            selector.exclude_spaces = true;
+            selector.start = AnimatedValue<f32>{static_cast<f32>(i) * width};
+            selector.end = AnimatedValue<f32>{static_cast<f32>(i + 1) * width};
+            selector.amount = AnimatedValue<f32>{100.0f};
+            depth_spec.selectors.push_back(std::move(selector));
+            PositionProperty z_offset;
+            z_offset.value = AnimatedValue<Vec3>{Vec3{0.0f, 0.0f, depths[i]}};
+            depth_spec.properties.push_back(std::move(z_offset));
+            (void)depth_spec.compile();
+            result.push_back(std::move(depth_spec));
+        }
+    }
     for (std::size_t i = 0; i < word_count; ++i) {
         TextAnimatorSpec band;
         band.id = std::string{focus_travel_id(kind)} + "_band_" + std::to_string(i);
@@ -403,24 +415,43 @@ namespace detail {
         std::vector<StopValues> values;
         values.reserve(schedule.size());
         for (const auto& [frame, state] : schedule) {
-            float effective_position = state.focus_position;
-            if (kind == FocusTravelKind::CenterOut ||
-                kind == FocusTravelKind::EdgesIn) {
-                // Symmetric presets: resolve against the nearest edge of the
-                // widening/narrowing basin so blur is symmetric around the
-                // middle word.
-                const float mid = static_cast<float>(word_count / 2);
-                const float half = detail::basin_half_width(kind, state.focus_progress, word_count);
-                const float inside = std::fabs(static_cast<float>(i) - mid) <= half + 1e-6f
-                    ? 0.0f
-                    : std::fabs(static_cast<float>(i) - mid) - half;
-                effective_position = mid + (static_cast<float>(i) >= mid ? inside : -inside);
+            TextWordFocusSample sample;
+            if (kind == FocusTravelKind::EdgesIn) {
+                const float last = static_cast<float>(word_count - 1);
+                const float position_a = last * state.focus_progress * 0.5f;
+                const float position_b = last - position_a;
+                const float distance = std::min(
+                    std::fabs(static_cast<float>(i) - position_a),
+                    std::fabs(static_cast<float>(i) - position_b));
+                sample = resolve_word_focus_distance(distance, options.focus);
+            } else if (kind == FocusTravelKind::CenterOut) {
+                const float middle = static_cast<float>(word_count / 2);
+                const float half_width = detail::basin_half_width(
+                    kind, state.focus_progress, word_count);
+                const float distance = std::max(
+                    std::fabs(static_cast<float>(i) - middle) - half_width, 0.0f);
+                sample = resolve_word_focus_distance(distance, options.focus);
+            } else if (cascade) {
+                const auto& focus_depths = depths;
+                const float focus_index = std::clamp(
+                    state.focus_position, 0.0f, static_cast<float>(word_count - 1));
+                const auto lower = static_cast<std::size_t>(std::floor(focus_index));
+                const auto upper = std::min(lower + 1, word_count - 1);
+                const float fraction = focus_index - static_cast<float>(lower);
+                const float focus_z = focus_depths[lower] +
+                    (focus_depths[upper] - focus_depths[lower]) * fraction;
+                const float focus_distance = std::fabs(focus_z - options.camera_world_z);
+                const auto depth_samples = resolve_word_depth_focus(
+                    focus_depths, options.camera_world_z, focus_distance,
+                    options.focus.profile.blur_per_depth, options.focus.profile);
+                sample = depth_samples[i];
+            } else {
+                const auto samples = resolve_word_focus(
+                    word_count, TextFocusState{state.focus_position, state.focus_progress},
+                    options.focus);
+                sample = samples[i];
             }
-            const auto samples = resolve_word_focus(
-                word_count, TextFocusState{effective_position, state.focus_progress},
-                options.focus);
-            values.push_back({samples[i].blur_radius, samples[i].opacity,
-                              samples[i].scale});
+            values.push_back({sample.blur_radius, sample.opacity, sample.scale});
         }
         // set() pins the pre-start hold to the first stop AND suppresses the
         // phantom frame-0 baseline that aggregate-init would otherwise emit
@@ -441,7 +472,7 @@ namespace detail {
         band.properties.push_back(std::move(blur));
         band.properties.push_back(std::move(opacity));
         band.properties.push_back(std::move(scale));
-        band.compile();
+        (void)band.compile();
         result.push_back(std::move(band));
     }
     return result;

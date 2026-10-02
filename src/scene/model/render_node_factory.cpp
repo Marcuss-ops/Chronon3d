@@ -5,6 +5,7 @@
 
 #include <utility>
 #include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/vector/path_factories.hpp>
 
 namespace chronon3d {
 

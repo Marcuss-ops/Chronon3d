@@ -15,7 +15,8 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            GraphNodeId layer_output, const chronon3d::Layer& layer,
                            bool is_static, const RenderGraphContext& ctx,
                            float world_z = 0.0f,
-                           const BuilderContext& node_ctx = {});
+                           const BuilderContext& node_ctx = {},
+                           Vec3 world_position = Vec3{0.0f});
 
 /// Append effect stack nodes for layer effects and optionally DOF blur.
 void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,

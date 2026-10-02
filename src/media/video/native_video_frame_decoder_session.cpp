@@ -222,8 +222,23 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path,
     const bool uses_nvdec = codec->name && std::string_view(codec->name).ends_with("_cuvid");
     AVBufferRef* device = nullptr;
     if (uses_nvdec && m_video_runtime) device = m_video_runtime->ref_cuda_hwdevice();
-    if (!uses_nvdec) {
-        spdlog::debug("[native-decoder] using software decoder {} without CUDA hwdevice", codec->name ? codec->name : "unknown");
+    if (uses_nvdec && !device) {
+        spdlog::debug("[native-decoder] CUDA hwdevice unavailable for {}; falling back to software decoder", codec->name ? codec->name : "");
+        avcodec_free_context(&cc);
+        codec = avcodec_find_decoder(codec_id);
+        if (!codec) {
+            set_decode_diagnostic(diagnostic, DecodeFailureReason::DecoderUnavailable, 0,
+                kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+                "no software fallback decoder is available");
+            return nullptr;
+        }
+        cc = avcodec_alloc_context3(codec);
+        if (!cc || avcodec_parameters_to_context(cc, fmt->streams[index]->codecpar) < 0) {
+            if (cc) avcodec_free_context(&cc);
+            return nullptr;
+        }
+        cc->pkt_timebase = fmt->streams[index]->time_base;
+        cc->time_base = fmt->streams[index]->time_base;
     } else if (device) {
         auto* av_device = reinterpret_cast<AVHWDeviceContext*>(device->data);
         auto* av_cuda = av_device ? reinterpret_cast<AVCUDADeviceContext*>(av_device->hwctx) : nullptr;
@@ -238,12 +253,6 @@ NativeVideoFrameDecoder::open_session_locked(const std::string& path,
         cc->get_format = select_cuda_format;
         cc->extra_hw_frames = 8;
         session->hw_device_ctx = device;
-    } else {
-        set_decode_diagnostic(diagnostic, DecodeFailureReason::NativeSurfaceUnavailable, 0,
-            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
-            "registry-owned CUDA decoder device is unavailable");
-        spdlog::error("[native-decoder] FAIL_CLOSED: no registry-owned CUDA hwdevice for decoder");
-        avcodec_free_context(&cc); return nullptr;
     }
 #endif
     cc->thread_count = 0;

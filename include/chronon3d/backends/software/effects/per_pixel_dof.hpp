@@ -58,7 +58,7 @@ struct DofScratchBuffers {
 /// Apply per-pixel depth-of-field blur to @p fb using @p depth buffer.
 ///
 /// @param fb        Framebuffer to blur in-place.
-/// @param depth     Per-pixel world_z buffer (width × height, row-major),
+/// @param depth     Per-pixel positive camera-space depth (width × height, row-major),
 ///                  passed by non-owning span.  The kernel only reads from it,
 ///                  so a span is semantically equivalent to a const-ref vector
 ///                  and avoids the 8 MiB alloc+memcpy that the previous
@@ -123,7 +123,8 @@ inline void apply_per_pixel_dof(
         for (i32 x = x0; x < x1; ++x) {
             const size_t idx = static_cast<size_t>(y - y0) * roi_w + (x - x0);
             const float z = depth[static_cast<size_t>(y) * w + x];
-            if (z < kUnsetDofDepth * 0.5f) {
+            if (std::isfinite(z) && z > 0.0f &&
+                z < kUnsetDofDepth * 0.5f) {
                 blur_radii[idx] = compute_dof_blur_radius(dof, lens, z);
             }
             max_r = std::max(max_r, blur_radii[idx]);

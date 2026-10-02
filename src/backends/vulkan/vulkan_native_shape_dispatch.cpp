@@ -596,14 +596,10 @@ void VulkanBackend::apply_per_pixel_dof(
     Framebuffer& framebuffer, std::span<const float> depth,
     const DepthOfFieldSettings& dof, const LensModel& lens,
     const std::optional<raster::BBox>& clip) {
-    if (m_fallback_backend) {
-        sync_gpu_to_cpu(*this, framebuffer);
-        m_fallback_backend->apply_per_pixel_dof(framebuffer, depth, dof, lens, clip);
-        sync_cpu_to_gpu(*this, framebuffer);
-        return;
-    }
+    // A CPU depth vector cannot be consumed by a device-local image kernel.
+    // Never hide that contract violation behind an implicit GPU→CPU readback.
     (void)framebuffer; (void)depth; (void)dof; (void)lens; (void)clip;
-    unsupported("apply_per_pixel_dof");
+    unsupported("apply_per_pixel_dof (native depth surface required)");
 }
 
 graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,

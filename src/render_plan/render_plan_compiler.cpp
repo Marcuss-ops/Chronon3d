@@ -753,10 +753,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                     ? std::abs(layer.scale[0]) : 1.0f;
                                 const float scale_y = std::abs(layer.scale[1]) > 1e-6f
                                     ? std::abs(layer.scale[1]) : 1.0f;
-                                const float box_w = source.size.x > 0.0f
-                                    ? source.size.x : static_cast<float>(plan.canvas.width);
-                                const float box_h = source.size.y > 0.0f
-                                    ? source.size.y : static_cast<float>(plan.canvas.height);
+                                const float box_w = layer.size_dimensions == 2
+                                    ? layer.size[0] : static_cast<float>(plan.canvas.width);
+                                const float box_h = layer.size_dimensions == 2
+                                    ? layer.size[1] : static_cast<float>(plan.canvas.height);
                                 const float scaled_radius = std::min(
                                     *authored_radius / std::min(scale_x, scale_y),
                                     std::min(box_w, box_h) * 0.5f);

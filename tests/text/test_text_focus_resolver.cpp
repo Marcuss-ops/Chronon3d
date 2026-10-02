@@ -17,7 +17,9 @@
 
 #include <chronon3d/presets/text/text_focus_resolver.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -28,9 +30,9 @@ using namespace chronon3d::presets::text;
 
 namespace {
 
-constexpr float kEps = 1e-5f;
+constexpr float kEps = 1e-5f;}
 
-} // namespace
+ // namespace
 
 TEST_CASE("TestFocusedWordHasZeroBlur — editorial mode") {
     TextFocusOptions options;
@@ -74,44 +76,126 @@ TEST_CASE("TestNoBlurPopAtWordBoundary — travel is continuous in focus_positio
     CHECK(before[1].blur_radius == doctest::Approx(before[2].blur_radius).epsilon(kEps));
 }
 
-TEST_CASE("TestFinalFocusExact — every travel preset lands sharp on the terminal word") {
+TEST_CASE("TestFinalFocusExact — every travel preset lands sharp on its terminal word") {
     FocusPresetOptions preset;
     preset.duration = Frame{48};
     preset.stops = 13;
     const std::size_t words = 4;
-    for (        const auto kind : {FocusTravelKind::WordTravel, FocusTravelKind::NearToFar,
+    for (const auto kind : {FocusTravelKind::WordTravel, FocusTravelKind::NearToFar,
                             FocusTravelKind::FarToNear, FocusTravelKind::DepthCascade}) {
         INFO("preset ", focus_travel_id(kind));
         const auto animators = make_focus_animators(kind, words, preset);
-        // Depth sweep presets additionally carry one depth animator in front.
         const bool cascade = kind != FocusTravelKind::WordTravel;
-        REQUIRE(animators.size() == words + (cascade ? 1u : 0u));
-        // The terminal band is the last one for forward travel and the first
-        // one for FarToNear (which ends focused on word 0).
-        const auto& terminal_band = kind == FocusTravelKind::FarToNear
-            ? animators[cascade ? 1u : 0u]
-            : animators.back();
+        const std::size_t depth_animators = cascade ? words : 0u;
+        REQUIRE(animators.size() == words + depth_animators);
+        // Depth sweeps carry one depth-offset animator per word, followed by
+        // the word-focus blur bands. Far-to-near terminates on word 0.
+        const std::size_t band_start = depth_animators;
+        const std::size_t terminal_word = kind == FocusTravelKind::FarToNear ? 0u : words - 1;
+        const auto& terminal_band = animators[band_start + terminal_word];
         std::size_t blur_property = 0;
         for (std::size_t p = 0; p < terminal_band.properties.size(); ++p) {
             if (std::holds_alternative<BlurProperty>(terminal_band.properties[p]))
                 blur_property = p;
         }
         const auto& blur = std::get<BlurProperty>(terminal_band.properties[blur_property]);
-        // The baker clamps to the canonical V1 budget of five keyframes.
         REQUIRE(blur.radius.keyframes().size() == std::min(preset.stops, std::size_t{5}));
         CHECK(blur.radius.keyframes().back().value == doctest::Approx(0.0f).epsilon(kEps));
-        // The opposite end of the phrase ends fully blurred instead.
-        const auto& opposite_band = kind == FocusTravelKind::FarToNear
-            ? animators.back()
-            : animators[cascade ? 1u : 0u];
-        for (std::size_t p = 0; p < opposite_band.properties.size(); ++p) {
-            if (std::holds_alternative<BlurProperty>(opposite_band.properties[p])) {
-                const auto& opposite_blur =
-                    std::get<BlurProperty>(opposite_band.properties[p]);
-                CHECK(opposite_blur.radius.keyframes().back().value > 0.0f);
+        const std::size_t opposite_word = terminal_word == 0 ? words - 1 : 0;
+        const auto& opposite_band = animators[band_start + opposite_word];
+        const auto& opposite_blur = std::get<BlurProperty>(opposite_band.properties.front());
+        CHECK(opposite_blur.radius.keyframes().back().value > 0.0f);
+    }
+}
+
+TEST_CASE("focus position and progress reject values outside their normalized domains") {
+    CHECK_THROWS(resolve_word_focus(3, TextFocusState{-0.1f, 0.5f}));
+    CHECK_THROWS(resolve_word_focus(3, TextFocusState{2.1f, 0.5f}));
+    CHECK_THROWS(resolve_word_focus(3, TextFocusState{1.0f, -0.1f}));
+    CHECK_THROWS(resolve_word_focus(3, TextFocusState{1.0f, 1.1f}));
+}
+
+TEST_CASE("short focus travel keeps every baked keyframe frame unique") {
+    FocusPresetOptions preset;
+    preset.duration = Frame{2};
+    preset.stops = 5;
+    const auto animators = make_focus_animators(FocusTravelKind::WordTravel, 3, preset);
+    REQUIRE(animators.size() == 3);
+    for (const auto& animator : animators) {
+        const auto& blur = std::get<BlurProperty>(animator.properties.front());
+        REQUIRE(blur.radius.keyframes().size() == 3);
+        CHECK(blur.radius.keyframes()[0].frame == Frame{0});
+        CHECK(blur.radius.keyframes()[1].frame == Frame{1});
+        CHECK(blur.radius.keyframes()[2].frame == Frame{2});
+    }
+}
+
+TEST_CASE("true-depth preset focus minimizes blur at every baked focus-plane stop") {
+    FocusPresetOptions preset;
+    preset.stops = 5;
+    const std::size_t words = 4;
+    constexpr float depth_spacing = 80.0f;
+    for (const auto kind : {FocusTravelKind::NearToFar, FocusTravelKind::FarToNear,
+                            FocusTravelKind::DepthCascade}) {
+        INFO("preset ", focus_travel_id(kind));
+        const auto animators = make_focus_animators(kind, words, preset);
+        REQUIRE(animators.size() == words * 2);
+        const std::size_t band_start = words;
+        for (std::size_t stop = 0; stop < 5; ++stop) {
+            const float progress = static_cast<float>(stop) / 4.0f;
+            const float focus_index = kind == FocusTravelKind::FarToNear
+                ? static_cast<float>(words - 1) * (1.0f - progress)
+                : static_cast<float>(words - 1) * progress;
+            float minimum_blur = std::numeric_limits<float>::infinity();
+            for (std::size_t word = 0; word < words; ++word) {
+                const auto& band = animators[band_start + word];
+                const auto& blur = std::get<BlurProperty>(band.properties.front());
+                minimum_blur = std::min(minimum_blur, blur.radius.keyframes()[stop].value);
             }
+            const float nearest_word_distance = std::min(
+                focus_index - std::floor(focus_index),
+                std::ceil(focus_index) - focus_index);
+            const float expected_minimum_blur = nearest_word_distance * depth_spacing *
+                preset.focus.profile.blur_per_depth;
+            CHECK(minimum_blur == doctest::Approx(expected_minimum_blur).epsilon(kEps));
+            // The sweep endpoints land exactly on words; intermediate focus
+            // planes can sit between words, so neither word is fully sharp.
+            if (stop == 0 || stop == 4)
+                CHECK(minimum_blur == doctest::Approx(0.0f).epsilon(kEps));
         }
     }
+}
+
+TEST_CASE("depth focus cascade lowers a distinct selected Z offset per word") {
+    FocusPresetOptions preset;
+    preset.depth_cascade = true;
+    preset.focus.profile.depth_step = 60.0f;
+    preset.focus.profile.max_depth = 180.0f;
+    const auto animators = make_focus_animators(FocusTravelKind::DepthCascade, 4, preset);
+    REQUIRE(animators.size() == 8);
+    for (std::size_t i = 0; i < 4; ++i) {
+        INFO("depth animator ", i);
+        const auto& depth = animators[i];
+        CHECK(depth.id.find("_depth_word_" + std::to_string(i)) != std::string::npos);
+        REQUIRE(depth.selectors.size() == 1);
+        CHECK(depth.selectors.front().unit == TextSelectorUnit::Word);
+        REQUIRE(depth.properties.size() == 1);
+        REQUIRE(std::holds_alternative<PositionProperty>(depth.properties.front()));
+        const auto& position = std::get<PositionProperty>(depth.properties.front());
+        CHECK(position.value.default_value().z == doctest::Approx(-60.0f * static_cast<float>(i)));
+        CHECK(depth.is_valid());
+    }
+    for (std::size_t i = 4; i < animators.size(); ++i)
+        CHECK(animators[i].id.find("_band_") != std::string::npos);
+}
+
+TEST_CASE("camera and blur parameters fail closed when non-finite or unbounded") {
+    FocusPresetOptions preset;
+    preset.camera_world_z = std::numeric_limits<float>::infinity();
+    CHECK_THROWS(make_focus_animators(FocusTravelKind::DepthCascade, 3, preset));
+    preset.camera_world_z = 0.0f;
+    preset.focus.profile.max_blur = 257.0f;
+    CHECK_THROWS(make_focus_animators(FocusTravelKind::WordTravel, 3, preset));
 }
 
 TEST_CASE("TestRandomAccessDeterministic — same inputs, same samples, any order") {
@@ -284,27 +368,43 @@ TEST_CASE("rack duo alternates focus between the two anchor words") {
     CHECK(band3.keyframes().back().value > 0.0f);
 }
 
-TEST_CASE("center-out and edges-in keep blur symmetric around the middle word") {
+TEST_CASE("center-out and edges-in animate their symmetric focus basins") {
     FocusPresetOptions preset;
     preset.duration = Frame{24};
     preset.stops = 5;
-    const auto animators = make_focus_animators(FocusTravelKind::CenterOut, 5, preset);
-    REQUIRE(animators.size() == 5);
+    const auto center = make_focus_animators(FocusTravelKind::CenterOut, 5, preset);
+    REQUIRE(center.size() == 5);
     auto blur_curve = [](const TextAnimatorSpec& band) -> const AnimatedValue<f32>& {
         for (const auto& property : band.properties)
             if (std::holds_alternative<BlurProperty>(property))
                 return std::get<BlurProperty>(property).radius;
         throw std::logic_error("band has no blur property");
     };
-    // The middle word never blurs in either symmetric preset.
-    CHECK(blur_curve(animators[2]).keyframes().front().value == doctest::Approx(0.0f));
-    CHECK(blur_curve(animators[2]).keyframes().back().value == doctest::Approx(0.0f));
-    // Edges-in ends with the edge words sharp.
+    // The middle word is sharp at every center-out stop; symmetric neighbors
+    // become progressively sharp as the focus basin expands.
+    const auto center_curve = blur_curve(center[2]).keyframes();
+    REQUIRE(center_curve.size() == 5);
+    for (const auto& keyframe : center_curve)
+        CHECK(keyframe.value == doctest::Approx(0.0f).epsilon(kEps));
+    CHECK(blur_curve(center[1]).keyframes().front().value > 0.0f);
+    CHECK(blur_curve(center[1]).keyframes().back().value == doctest::Approx(0.0f).epsilon(kEps));
+    CHECK(blur_curve(center[0]).keyframes().back().value == doctest::Approx(0.0f).epsilon(kEps));
+    CHECK(blur_curve(center[0]).keyframes().front().value ==
+          doctest::Approx(blur_curve(center[4]).keyframes().front().value).epsilon(kEps));
+
+    // Two edge focus planes start sharp at both ends and converge to the
+    // center. The center starts blurred and is the only sharp word at finish.
     const auto edges = make_focus_animators(FocusTravelKind::EdgesIn, 5, preset);
-    CHECK(blur_curve(edges[0]).keyframes().back().value == doctest::Approx(0.0f).epsilon(kEps));
-    CHECK(blur_curve(edges[4]).keyframes().back().value == doctest::Approx(0.0f).epsilon(kEps));
-    // Edges-in starts with the middle word sharp.
-    CHECK(blur_curve(edges[2]).keyframes().front().value == doctest::Approx(0.0f).epsilon(kEps));
+    REQUIRE(edges.size() == 5);
+    CHECK(blur_curve(edges[0]).keyframes().front().value == doctest::Approx(0.0f).epsilon(kEps));
+    CHECK(blur_curve(edges[4]).keyframes().front().value == doctest::Approx(0.0f).epsilon(kEps));
+    CHECK(blur_curve(edges[0]).keyframes().back().value > 0.0f);
+    CHECK(blur_curve(edges[4]).keyframes().back().value > 0.0f);
+    CHECK(blur_curve(edges[2]).keyframes().front().value > 0.0f);
+    CHECK(blur_curve(edges[2]).keyframes().back().value == doctest::Approx(0.0f).epsilon(kEps));
+    for (std::size_t i = 0; i < 5; ++i)
+        CHECK(blur_curve(edges[i]).keyframes().front().value ==
+              doctest::Approx(blur_curve(edges[4 - i]).keyframes().front().value).epsilon(kEps));
 }
 
 TEST_CASE("invalid options fail closed") {
@@ -317,17 +417,4 @@ TEST_CASE("invalid options fail closed") {
     bad_timing.duration = Frame{0};
     CHECK_THROWS(make_focus_animators(FocusTravelKind::WordTravel, 3, bad_timing));
     CHECK(make_focus_animators(FocusTravelKind::WordTravel, 0).empty());
-}
-
-TEST_CASE("depth cascade preset carries per-word depth offsets") {
-    FocusPresetOptions preset;
-    preset.depth_cascade = true;
-    const auto animators = make_focus_animators(FocusTravelKind::DepthCascade, 4, preset);
-    // Bands + one depth animator.
-    REQUIRE(animators.size() == 5);
-    CHECK(animators.front().id.find("_depth") != std::string::npos);
-    CHECK(animators.front().is_valid());
-    // Travel bands follow.
-    for (std::size_t i = 1; i < animators.size(); ++i)
-        CHECK(animators[i].id.find("_band_") != std::string::npos);
 }

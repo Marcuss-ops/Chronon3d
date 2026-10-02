@@ -183,6 +183,15 @@ DaemonService::DaemonService(const CompositionRegistry& registry,
 #ifdef CHRONON3D_ENABLE_VULKAN
     const auto register_device = [this](const backends::vulkan::VulkanDeviceInfo& device) {
         const auto probed = probe_video_capabilities(device);
+        spdlog::info(
+            "[daemon] admission device probe index={} name='{}' uuid_match={} "
+            "vram={}MiB cuda={} interop={} nvdec={} nvenc={} nv12={} h264={} hevc={} av1={}",
+            device.index, device.name, probed.cuda,
+            device.device_memory_bytes / (1024ULL * 1024ULL), probed.cuda,
+            device.has_device_uuid && probed.cuda,
+            probed.nvdec && probed.cuda, probed.nvenc && probed.cuda,
+            probed.nv12, probed.h264 && probed.cuda,
+            probed.hevc && probed.cuda, probed.av1 && probed.cuda);
         runtime::DeviceCapabilities capabilities;
         capabilities.physical_device_index = device.index;
         capabilities.name = device.name;

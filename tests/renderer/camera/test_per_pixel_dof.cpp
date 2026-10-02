@@ -96,7 +96,7 @@ TEST_CASE("PerPixelDOF: disabled DOF is no-op") {
     Framebuffer fb(w, h);
     fb.clear(Color{1.0f, 0.0f, 0.0f, 1.0f});
 
-    auto depth = make_depth_buffer(w, h, -500.0f);
+    auto depth = make_depth_buffer(w, h, 500.0f);
     DepthOfFieldSettings dof{.enabled = false, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
@@ -112,7 +112,7 @@ TEST_CASE("PerPixelDOF: mismatched depth buffer size is no-op") {
     Framebuffer fb(w, h);
     fb.clear(Color{0.0f, 1.0f, 0.0f, 1.0f});
 
-    std::vector<float> depth(10, -500.0f); // wrong size
+    std::vector<float> depth(10, 500.0f); // wrong size
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
@@ -126,9 +126,9 @@ TEST_CASE("PerPixelDOF: zero blur radius (at focus) is no-op") {
     Framebuffer fb(w, h);
     fb.clear(Color{0.0f, 0.0f, 1.0f, 1.0f});
 
-    // All pixels at focus_z → blur radius = 0
-    auto depth = make_depth_buffer(w, h, 0.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
+    // All pixels at the authored focus depth → blur radius = 0
+    auto depth = make_depth_buffer(w, h, 1000.0f);
+    DepthOfFieldSettings dof{.enabled = true, .focus_z = 1000.0f, .aperture = 0.02f, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -141,7 +141,7 @@ TEST_CASE("PerPixelDOF: empty framebuffer (all transparent) survives blur") {
     Framebuffer fb(w, h);
     fb.clear(Color::transparent());
 
-    auto depth = make_depth_buffer(w, h, -1000.0f);
+    auto depth = make_depth_buffer(w, h, 2000.0f);
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 20.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
@@ -193,7 +193,7 @@ TEST_CASE("PerPixelDOF: gather is safe and deterministic at all framebuffer corn
 
         std::vector<float> depth(static_cast<std::size_t>(w) * h,
                                  kUnsetDofDepth);
-        depth[static_cast<std::size_t>(sy) * w + sx] = -1000.0f;
+        depth[static_cast<std::size_t>(sy) * w + sx] = 1000.0f;
         const raster::BBox clip{
             std::max(0, sx - radius), std::max(0, sy - radius),
             std::min(w, sx + radius + 1), std::min(h, sy + radius + 1)};
@@ -227,7 +227,7 @@ TEST_CASE("PerPixelDOF: non-zero ROI origin indexes the full depth plane") {
     fb.set_pixel(source_x, source_y, Color::white());
 
     std::vector<float> depth(static_cast<std::size_t>(w) * h, kUnsetDofDepth);
-    depth[static_cast<std::size_t>(source_y) * w + source_x] = -1000.0f;
+    depth[static_cast<std::size_t>(source_y) * w + source_x] = 1000.0f;
     const raster::BBox clip{source_x - 8, source_y - 8,
                             source_x + 9, source_y + 9};
     const DepthOfFieldSettings dof{
@@ -254,7 +254,7 @@ TEST_CASE("PerPixelDOF: narrow vertical and horizontal ROIs keep local scratch d
         fb.set_pixel(c.sx, c.sy, Color::white());
         std::vector<float> depth(static_cast<std::size_t>(w) * h,
                                  kUnsetDofDepth);
-        depth[static_cast<std::size_t>(c.sy) * w + c.sx] = -1000.0f;
+        depth[static_cast<std::size_t>(c.sy) * w + c.sx] = 1000.0f;
         renderer::DofScratchBuffers scratch;
         const raster::BBox clip{c.x0, c.y0, c.x0 + c.width, c.y0 + c.height};
         const DepthOfFieldSettings dof{
@@ -283,7 +283,7 @@ TEST_CASE("PerPixelDOF: one-pixel source uses a 49x49 maximum ROI") {
     fb.set_pixel(sx, sy, Color::white());
     std::vector<float> depth(static_cast<std::size_t>(w) * h,
                              kUnsetDofDepth);
-    depth[static_cast<std::size_t>(sy) * w + sx] = -1000.0f;
+    depth[static_cast<std::size_t>(sy) * w + sx] = 1000.0f;
     renderer::DofScratchBuffers scratch;
     const raster::BBox clip{sx - 24, sy - 24, sx + 25, sy + 25};
     const DepthOfFieldSettings dof{
@@ -304,7 +304,7 @@ TEST_CASE("PerPixelDOF: full-frame source retains full-frame scratch") {
     constexpr i32 h = 128;
     Framebuffer fb(w, h);
     fb.clear(Color{0.2f, 0.2f, 0.2f, 1.0f});
-    std::vector<float> depth(static_cast<std::size_t>(w) * h, -1000.0f);
+    std::vector<float> depth(static_cast<std::size_t>(w) * h, 1000.0f);
     renderer::DofScratchBuffers scratch;
     const DepthOfFieldSettings dof{
         .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
@@ -338,8 +338,8 @@ TEST_CASE("PerPixelDOF: far pixels blur more than near pixels") {
         }
     }
 
-    // Near layer at z=-300 (blur≈6), far layer at z=-1500 (blur≈24)
-    auto depth = make_two_zone_depth(w, h, -300.0f, -1500.0f);
+    // Near and far positive camera-space depths at different distances from focus.
+    auto depth = make_two_zone_depth(w, h, 300.0f, 1500.0f);
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 24.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
@@ -372,9 +372,9 @@ TEST_CASE("PerPixelDOF: far pixels blur more than near pixels") {
 TEST_CASE("PerPixelDOF: blur radius increases with depth distance from focus") {
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.01f, .max_blur = 50.0f};
 
-    float blur_near   = compute_dof_blur_radius(dof, kDefaultLens, -200.0f);
-    float blur_mid    = compute_dof_blur_radius(dof, kDefaultLens, -500.0f);
-    float blur_far    = compute_dof_blur_radius(dof, kDefaultLens, -1000.0f);
+    float blur_near   = compute_dof_blur_radius(dof, kDefaultLens, 200.0f);
+    float blur_mid    = compute_dof_blur_radius(dof, kDefaultLens, 500.0f);
+    float blur_far    = compute_dof_blur_radius(dof, kDefaultLens, 1000.0f);
 
     CHECK(blur_near < blur_mid);
     CHECK(blur_mid  < blur_far);
@@ -383,13 +383,15 @@ TEST_CASE("PerPixelDOF: blur radius increases with depth distance from focus") {
     CHECK(blur_far  == doctest::Approx(10.0f));  // 1000 * 0.01
 }
 
-TEST_CASE("PerPixelDOF: symmetric depth produces equal blur") {
+TEST_CASE("PerPixelDOF: camera-space samples remain positive and ordered") {
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 20.0f};
 
-    float blur_neg = compute_dof_blur_radius(dof, kDefaultLens, -500.0f);
-    float blur_pos = compute_dof_blur_radius(dof, kDefaultLens, 500.0f);
+    const float nearer = compute_dof_blur_radius(dof, kDefaultLens, 500.0f);
+    const float farther = compute_dof_blur_radius(dof, kDefaultLens, 1000.0f);
 
-    CHECK(blur_neg == doctest::Approx(blur_pos));
+    CHECK(nearer == doctest::Approx(10.0f));
+    CHECK(farther == doctest::Approx(20.0f));
+    CHECK(nearer < farther);
 }
 
 TEST_CASE("PerPixelDOF: large blur spreads color beyond original bounds") {
@@ -401,7 +403,7 @@ TEST_CASE("PerPixelDOF: large blur spreads color beyond original bounds") {
     fb.set_pixel(16, 16, Color{1.0f, 1.0f, 1.0f, 1.0f});
 
     // Large blur radius
-    auto depth = make_depth_buffer(w, h, -2000.0f);
+    auto depth = make_depth_buffer(w, h, 2000.0f);
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 8.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
@@ -422,16 +424,16 @@ TEST_CASE("PerPixelDOF: defocused foreground spills into focused background") {
         }
     }
 
-    // The opaque background is in focus; only the small foreground object is
-    // defocused. A gather-only implementation leaves the outside pixels
-    // unchanged, producing a bbox-shaped edge rather than optical spill.
-    auto depth = make_depth_buffer(w, h, 0.0f);
+    // The background is focused at depth 2000; the foreground square is
+    // nearer at depth 1000 and must spread into the surrounding background.
+    // A gather-only implementation leaves outside pixels unchanged.
+    auto depth = make_depth_buffer(w, h, 2000.0f);
     for (i32 y = 12; y < 20; ++y) {
         for (i32 x = 20; x < 28; ++x) {
-            depth[static_cast<size_t>(y) * w + x] = -1000.0f;
+            depth[static_cast<size_t>(y) * w + x] = 1000.0f;
         }
     }
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f,
+    DepthOfFieldSettings dof{.enabled = true, .focus_z = 2000.0f,
                              .aperture = 0.02f, .max_blur = 8.0f};
 
     renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens);
@@ -445,8 +447,8 @@ TEST_CASE("PerPixelDOF: focus plane pixels remain sharp while defocused blur") {
     Framebuffer fb(w, h);
     fb.clear(Color::transparent());
 
-    // Left half: white square at focus (z=0)
-    // Right half: white square defocused (z=-1000)
+    // Left half: white square at focus depth (z=1000)
+    // Right half: white square defocused (z=2000)
     for (i32 y = 8; y < 24; ++y) {
         for (i32 x = 8; x < 24; ++x) {
             fb.set_pixel(x, y, Color{1.0f, 1.0f, 1.0f, 1.0f});
@@ -456,8 +458,8 @@ TEST_CASE("PerPixelDOF: focus plane pixels remain sharp while defocused blur") {
         }
     }
 
-    auto depth = make_two_zone_depth(w, h, 0.0f, -1000.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 20.0f};
+    auto depth = make_two_zone_depth(w, h, 1000.0f, 2000.0f);
+    DepthOfFieldSettings dof{.enabled = true, .focus_z = 1000.0f, .aperture = 0.02f, .max_blur = 20.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -483,7 +485,7 @@ TEST_CASE("PerPixelDOF: 1x1 framebuffer does not crash") {
     Framebuffer fb(1, 1);
     fb.clear(Color{0.5f, 0.5f, 0.5f, 1.0f});
 
-    std::vector<float> depth{1, -500.0f};
+    std::vector<float> depth{1, 500.0f};
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
@@ -497,7 +499,7 @@ TEST_CASE("PerPixelDOF: clip rectangle limits blur region") {
     Framebuffer fb(w, h);
     fb.clear(Color{1.0f, 0.0f, 0.0f, 1.0f});
 
-    auto depth = make_depth_buffer(w, h, -1000.0f);
+    auto depth = make_depth_buffer(w, h, 2000.0f);
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
 
     // Only blur the left half
@@ -513,7 +515,7 @@ TEST_CASE("PerPixelDOF: clip rectangle limits blur region") {
 TEST_CASE("PerPixelDOF: max_blur clamps the blur radius") {
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 1.0f, .max_blur = 5.0f};
 
-    float blur = compute_dof_blur_radius(dof, kDefaultLens, -1000.0f);
+    float blur = compute_dof_blur_radius(dof, kDefaultLens, 1000.0f);
     CHECK(blur == doctest::Approx(5.0f)); // clamped, not 1000
 }
 
@@ -523,7 +525,7 @@ TEST_CASE("PerPixelDOF: max_r < 0.5 returns early (no visible blur)") {
     fb.clear(Color{0.0f, 1.0f, 0.0f, 1.0f});
 
     // Very small aperture → blur radius < 0.5
-    auto depth = make_depth_buffer(w, h, -10.0f);
+    auto depth = make_depth_buffer(w, h, 10.0f);
     DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.001f, .max_blur = 20.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
@@ -620,7 +622,7 @@ TEST_CASE("PerPixelDOF: 1920x1080 micro-benchmark - drop depth copy (delta repor
         }
     }
 
-    std::vector<float> depth(static_cast<size_t>(w) * h, -1500.0f);
+    std::vector<float> depth(static_cast<size_t>(w) * h, 1500.0f);
     DepthOfFieldSettings dof{
         .enabled  = true,
         .focus_z  = 0.0f,
