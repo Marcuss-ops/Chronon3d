@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include "audio_react_contract.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
 
 #include <nlohmann/json.hpp>
@@ -217,8 +218,8 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
             const float low = band[0].get<float>();
             const float high = band[1].get<float>();
             if (!std::isfinite(low) || !std::isfinite(high) || low < 1.0f ||
-                high <= low || high > 96000.0f)
-                throw std::runtime_error("audio_react band_hz must satisfy 1 <= low < high <= 96000");
+                high <= low || high > static_cast<float>(kAudioReactNyquistHz))
+                throw std::runtime_error("audio_react band_hz must satisfy 1 <= low < high <= 24000");
             driver.band_hz = std::array<float, 2>{low, high};
         }
         if (track.property.empty() || !scalar_driver_property(track.property))

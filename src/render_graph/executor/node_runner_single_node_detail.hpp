@@ -291,9 +291,8 @@ void execute_single_node(
         sample_key = ctx.frame_input.temporal_key;
     }
     // HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1) — canonical allocation-free
-    // id: memory_node_id() formats "g<n>:n<m>" into a stack buffer and returns
-    // an SSO string; ScopedNodeMemory stores its own copy (see
-    // node_memory_tracker.hpp), so the temporary does not dangle.
+    // id: memory_node_id() formats "g<n>:n<m>" directly into NodeMemoryId;
+    // ScopedNodeMemory owns that fixed-size value through the tracker callbacks.
     std::optional<ScopedNodeMemory> node_memory_scope;
     if (state.node_memory_tracker) {
         node_memory_scope.emplace(

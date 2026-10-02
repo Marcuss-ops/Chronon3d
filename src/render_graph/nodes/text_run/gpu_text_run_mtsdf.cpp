@@ -128,8 +128,14 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         const auto& state = shape.glyphs[i];
         const auto& placed = layout.placed.glyphs[i];
         if (state.glyph_id == 0 || placed.bbox_x1 <= placed.bbox_x0) continue;
+        const auto& span = layout.font_spans[span_index];
+        const std::uint64_t variation_hash = span.variation_axes.empty()
+            ? 0ULL
+            : core::hash::HashBuilder{}
+                .add(std::string_view(span.variation_axes))
+                .finish();
         const auto key = runtime::GpuGlyphKey::make(
-            layout.font_spans[span_index].font.font_path, state.glyph_id, 0,
+            span.font.font_path, state.glyph_id, variation_hash,
             runtime::GlyphRepresentation::Mtsdf, kProfileId, 0);
         keys.push_back(key);
         drawable_layout.push_back(i);
@@ -154,8 +160,8 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
             profiling::g_current_counters->glyph_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
         const auto generated = text::prepare_mtsdf_glyph(
-            *resolver, layout.font_spans[span_index].font.font_path,
-            state.glyph_id, profile_spec);
+            *resolver, span.font.font_path,
+            state.glyph_id, profile_spec, span.variation_axes);
         if (!generated || generated->rgba8.empty()) {
             // A drawable glyph cannot be silently omitted: a partial batch is
             // visually non-deterministic and must not be marked GPU-ready.

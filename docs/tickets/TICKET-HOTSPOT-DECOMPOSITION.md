@@ -5,6 +5,31 @@ Owner: CLI/render maintainers
 Scope: orchestration boundaries, high-churn render paths, and compile-time text
 headers identified by the 2026-09 audit.
 
+## Progress snapshot — 2026-10-02 — shared-lock contention
+
+- `NodeMemoryTracker` now partitions node records into 16 mutex shards selected
+  by node ID. Node live/peak byte aggregates are atomic; temporal sample and
+  metadata state retain separate locks. Snapshot/reset acquire node shards in
+  ascending order before sample and metadata locks, preserving a consistent
+  lock order and lexically sorted report output.
+- `FramebufferPool` now has 64 worker-local exact slots. Warm exact reuse and
+  return operate on a slot lock, while global retained-byte budget, per-class
+  capacity, best-fit eligibility, and LRU eviction still include both local
+  slots and central buckets. Cold misses and maintenance retain the central
+  authority. Contended slot locks are timed; the uncontended slot route avoids
+  clock reads.
+- The 8-worker/1,024-acquire probe measured `wait_us=35247`, `hold_us=399`
+  before the change. Updated runs ranged from `wait_us=0..34`,
+  `hold_us=3..8`; system noise is visible, but lock wait/hold remains far
+  below baseline. Hold time covers only contended slot locks; the uncontended
+  local route does not read the clock.
+- Validation: framebuffer-pool focused suite 21/21 cases and 33,046/33,046
+  assertions; full cache suite 146/146 cases and 997,574/997,574 assertions;
+  memory tracker suite 12/12 cases and 111/111 assertions; architecture gate
+  206/206. The shared-worker probe varied from `0/3` through `34/8` µs across
+  focused and full-suite runs, still far below its pre-change `35247/399` µs
+  baseline. `git diff --check` is clean.
+
 ## Obiettivo
 
 Ridurre le funzioni procedurali e i translation unit ad alta densità senza
@@ -287,3 +312,38 @@ invariato.
   bridge temporanei introdotti solo per la migrazione.
 - **Status:** `ACTIVE`; il primo seam di Wave A è stato estratto e compilato,
   mentre il test diretto e le successive estrazioni restano aperti.
+
+## Progress snapshot — 2026-10-02
+
+- L'analisi/bake di `audio_react` è stata estratta da `render_plan_compiler.cpp`
+  in `audio_react_plan_baker.{hpp,cpp}`; `compile_render_plan()` mantiene il
+  coordinamento e la compilazione del target `chronon3d_render_plan` passa.
+- Il limite runtime della banda audio ora coincide con il Nyquist effettivo
+  dell'analisi mono 48 kHz (`24000 Hz`), anche nel decoder e nello schema v3;
+  richieste prima accettate all'ingresso fallivano solo durante il bake.
+- Il dispatch per livello emette timing/log per nodo solo con
+  `CHRONON3D_DIAG_EXEC_LOG` abilitato; nel percorso normale non legge il clock
+  né formatta la riga diagnostica.
+- La materializzazione `EffectKindPlan → EffectParams` è stata isolata in
+  `render_plan_effect_preparation.{hpp,cpp}` con switch esaustivo coperto da
+  `-Werror=switch`; il compiler TU mantiene solo il coordinamento.
+
+- Il decoder effetti è stato separato da `render_plan_decoder_layer.cpp` in
+  `render_plan_decoder_effects.cpp`; mapping del tipo effetto e parsing sono
+  un solo modulo, con il mapping condiviso esposto dal detail header esistente.
+- L'ID memoria nodo ora resta inline in `ScopedNodeMemory`; il tracker evita
+  heap per gli ID canonici anche quando non rientrano in SSO.
+
+## Progress snapshot — 2026-10-02 (tracker/pool contention)
+
+- `ScopedNodeMemory` effettua ora una presa del lock del tracker all'ingresso
+  e una all'uscita: `begin_scope()` fonde registrazione/acquire;
+  `finish_scope()` fonde fold delle metriche/release. `set_live_bytes()` usa
+  una singola transizione atomica rispetto agli snapshot.
+- I test mirati del tracker passano. Il probe preesistente del pool a 8 worker
+  (1024 acquire esatti, classe 64×64) misura `lock_wait_us=35247` e
+  `lock_hold_wall_us=399`: il rapporto mostra contesa reale e invalida la
+  precedente decisione G48 di non sharding. La mappa best-fit, il budget LRU
+  globale e i limiti per classe sono ancora sotto un solo mutex; richiedono una
+  wave di sharding dedicata con misure prima/dopo e preservazione di tali
+  invarianti. Nessuno sharding del pool è stato applicato in questa tranche.

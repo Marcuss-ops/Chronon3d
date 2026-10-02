@@ -193,6 +193,16 @@ struct ShapedTextTree {
     const std::string& features = {}
 );
 
+/// Same canonical shaping path with per-layout variation coordinates.
+/// The four-argument overload remains for source and binary compatibility.
+[[nodiscard]] PlacedGlyphRun shape_resolved_run(
+    const ResolvedTextRun& run,
+    FontEngine& engine,
+    float tracking,
+    const std::string& features,
+    const std::string& variation_axes
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // resolve_and_shape
 // ═══════════════════════════════════════════════════════════════════════════

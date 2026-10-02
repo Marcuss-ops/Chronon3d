@@ -743,7 +743,7 @@ TEST_CASE("FramebufferPool wave-2 contention counters advance") {
     CHECK(after.arena_set_wait_us >= before.arena_set_wait_us);
 }
 
-TEST_CASE("FramebufferPool narrow-before-shard measurement") {
+TEST_CASE("FramebufferPool shared-worker contention measurement") {
     auto pool = FramebufferPool::create_shared(256ULL * 1024ULL * 1024ULL);
     pool->reset_counters();
     constexpr int kThreads = 8;
@@ -765,7 +765,7 @@ TEST_CASE("FramebufferPool narrow-before-shard measurement") {
     CHECK(acquired.load(std::memory_order_relaxed));
     CHECK(measured.acquire_count == static_cast<std::uint64_t>(kThreads * kIterations));
     CHECK(measured.release_count == static_cast<std::uint64_t>(kThreads * kIterations));
-    std::printf("[INFO] framebuffer-pool-narrow-before-shard: acquire=%llu wait_us=%llu hold_us=%llu\n",
+    std::printf("[INFO] framebuffer-pool-shared-worker: acquire=%llu wait_us=%llu hold_us=%llu\n",
                 static_cast<unsigned long long>(measured.acquire_count),
                 static_cast<unsigned long long>(measured.lock_wait_us),
                 static_cast<unsigned long long>(measured.lock_hold_wall_us));

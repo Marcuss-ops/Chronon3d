@@ -52,6 +52,7 @@ u64 TextRunLayout::layout_hash() const {
     // authorities, so omitting them aliases prepared glyph caches.
     for (const auto& span : font_spans) {
         seed = hash_combine(seed, hash_string(span.font.font_path));
+        seed = hash_combine(seed, hash_string(span.variation_axes));
         seed = hash_combine(seed, hash_string(span.font.font_family));
         seed = hash_combine(seed, hash_value(span.font.font_weight));
         seed = hash_combine(seed, hash_string(span.font.font_style));
@@ -99,6 +100,9 @@ u64 TextRunLayout::shaping_hash() const {
     // compile-time cache partitioning discriminates on feature string.
     seed = hash_combine(seed, hash_string(features));
     seed = hash_combine(seed, hash_string(variation_axes));  // M1.5#5
+    for (const auto& span : font_spans) {
+        seed = hash_combine(seed, hash_string(span.variation_axes));
+    }
     return seed;
 }
 

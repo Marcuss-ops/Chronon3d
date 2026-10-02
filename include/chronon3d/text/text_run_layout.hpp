@@ -103,6 +103,7 @@ struct ShapedFontSpan {
     std::optional<TextStrokeStyle> stroke;
     std::optional<TextHighlightStyle> highlight;
     std::optional<std::string> semantic_id;
+    std::string variation_axes; // OpenType variation coordinates used to shape/rasterize this span
 };
 
 struct TextRunLayout {

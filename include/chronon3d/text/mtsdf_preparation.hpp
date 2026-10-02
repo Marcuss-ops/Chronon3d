@@ -40,4 +40,14 @@ namespace chronon3d::text {
     std::uint32_t glyph_id,
     const MtsdfProfile& profile = kCanonicalMtsdfProfile);
 
+/// Variation-aware overload; variation coordinates participate in the
+/// preparation cache identity and are applied to the FreeType face that
+/// generates the outline.
+[[nodiscard]] std::shared_ptr<const MtsdfGlyphBitmap> prepare_mtsdf_glyph(
+    const assets::AssetResolver& resolver,
+    std::string_view font_path,
+    std::uint32_t glyph_id,
+    const MtsdfProfile& profile,
+    std::string_view variation_axes);
+
 } // namespace chronon3d::text
