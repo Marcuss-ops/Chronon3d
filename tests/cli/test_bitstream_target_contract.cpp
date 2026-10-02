@@ -278,6 +278,7 @@ TEST_CASE("A7 bitstream target: an encoder that published nothing never certifie
 
 // ── the declared target: configuration facts only, never splice-certifiable ──
 
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 TEST_CASE("A7 bitstream target: a contract built from configuration alone is never materialized") {
     const auto options = software_h264_options();
     const auto resolution =
@@ -320,3 +321,4 @@ TEST_CASE("A7 bitstream target: resolving the target contract never falls back t
     impossible.rate_control_mode_explicit = true;
     CHECK_FALSE(resolve_encoder_bitstream_contract(impossible).has_value());
 }
+#endif // CHRONON3D_ENABLE_NATIVE_FFMPEG
