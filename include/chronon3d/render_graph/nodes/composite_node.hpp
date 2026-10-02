@@ -25,6 +25,10 @@ public:
           m_unique_id(instance_id) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Composite; }
+    void set_world_position(Vec3 position) noexcept {
+        m_world_position = position;
+        m_has_world_position = true;
+    }
     void set_backdrop_blur(std::optional<BackdropBlurParams> params) {
         m_backdrop_blur = std::move(params);
     }
@@ -126,6 +130,8 @@ private:
     std::optional<BackdropBlurParams> m_backdrop_blur;
     Frame                      m_cache_frame{-1};
     float                      m_world_z{0.0f};
+    Vec3                       m_world_position{0.0f};
+    bool                       m_has_world_position{false};
     u64                        m_unique_id{0};
 };
 

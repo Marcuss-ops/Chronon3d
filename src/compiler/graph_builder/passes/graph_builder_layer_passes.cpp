@@ -25,7 +25,8 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            GraphNodeId layer_output, const Layer& layer,
                            bool is_static, const RenderGraphContext& ctx,
                            float world_z,
-                           const BuilderContext& node_ctx) {
+                           const BuilderContext& node_ctx,
+                           Vec3 world_position) {
     if (layer_output == k_invalid_node || layer_output == current) {
         if (ctx.policy.diagnostics_enabled) {
             spdlog::info("[append_composite_pass] skipped layer='{}' layer_output={} current={}", layer.name.c_str(), layer_output, current);
@@ -51,16 +52,16 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         return;
     }
 
-auto composite_node = std::make_unique<CompositeNode>(
-    graph.next_composite_id(),
-    layer.blend_mode,
-    is_static ? Frame{0} : Frame{-1},
-    world_z,
-    ::chronon3d::CompositeOperator::SourceOver,
-    is_static ? static_memory_cache("composite") : frame_variant_cache("composite")
-);
-composite_node->set_backdrop_blur(layer.backdrop_blur);
-auto composite = graph.add_node(std::move(composite_node), node_ctx);
+    auto composite_node = std::make_unique<CompositeNode>(
+        graph.next_composite_id(),
+        layer.blend_mode,
+        is_static ? Frame{0} : Frame{-1},
+        world_z,
+        ::chronon3d::CompositeOperator::SourceOver,
+        is_static ? static_memory_cache("composite") : frame_variant_cache("composite"));
+    composite_node->set_world_position(world_position);
+    composite_node->set_backdrop_blur(layer.backdrop_blur);
+    auto composite = graph.add_node(std::move(composite_node), node_ctx);
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;

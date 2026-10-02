@@ -255,7 +255,9 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     }
 
     const bool is_static = layer.cache_static || item.is_static;
-    append_composite_pass(graph, current, layer_output, layer, is_static, ctx, item.world_z, node_ctx);
+    append_composite_pass(
+        graph, current, layer_output, layer, is_static, ctx, item.world_z, node_ctx,
+        Vec3(item.world_matrix[3]));
     if (ctx.policy.diagnostics_enabled) {
         spdlog::info("[append_layer_pipe] after composite current={}", current);
     }

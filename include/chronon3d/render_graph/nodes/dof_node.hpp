@@ -26,7 +26,9 @@ public:
 
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
+        const auto camera_dof = camera_space_dof_settings(m_camera.dof, m_camera);
+        const float blur = compute_dof_blur_radius(camera_dof, m_camera.lens,
+                                                  camera_space_depth(m_camera, Vec3{0.0f, 0.0f, m_layer_world_z}),
                                                   static_cast<f32>(ctx.frame_input.width));
 
         return cache::NodeCacheKey{
@@ -56,7 +58,9 @@ public:
         if (bbox.is_empty()) {
             return bbox;
         }
-        const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
+        const auto camera_dof = camera_space_dof_settings(m_camera.dof, m_camera);
+        const float blur = compute_dof_blur_radius(camera_dof, m_camera.lens,
+                                                  camera_space_depth(m_camera, Vec3{0.0f, 0.0f, m_layer_world_z}),
                                                   static_cast<f32>(ctx.frame_input.width));
         if (blur <= 0.5f) {
             return bbox;
@@ -75,7 +79,9 @@ public:
             return empty;
         }
 
-        const float blur = compute_dof_blur_radius(m_camera.dof, m_camera.lens, m_layer_world_z,
+        const auto camera_dof = camera_space_dof_settings(m_camera.dof, m_camera);
+        const float blur = compute_dof_blur_radius(camera_dof, m_camera.lens,
+                                                  camera_space_depth(m_camera, Vec3{0.0f, 0.0f, m_layer_world_z}),
                                                   static_cast<f32>(ctx.frame_input.width));
         if (blur <= 0.5f) {
             return ctx.acquire_owned_fb(*inputs[0]);

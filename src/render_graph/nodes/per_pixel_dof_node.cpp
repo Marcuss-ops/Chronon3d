@@ -150,10 +150,10 @@ DofActiveRegion analyze_dof_active_region(
                 region.depth_y1 = std::max(region.depth_y1, y + 1);
             }
 
-            // kUnsetDofDepth means the compositor did not write a surface here.
-            // NaN/Inf are also rejected defensively: they are not meaningful
-            // scene depths and must never grow the processing region.
-            if (!std::isfinite(z) || z >= kUnsetDofDepth * 0.5f) {
+            // kUnsetDofDepth means no surface contributed. A camera-space
+            // optical distance must be positive; reject background/behind-
+            // camera and non-finite samples before evaluating blur.
+            if (!std::isfinite(z) || z <= 0.0f || z >= kUnsetDofDepth * 0.5f) {
                 continue;
             }
 
@@ -232,6 +232,7 @@ NodeExecResult PerPixelDofNode::execute(
 
     const auto& camera = camera_for(ctx);
     const auto& dof_depth = ctx.node_exec.dof_depth_buffer();
+    const auto& evaluated_dof = camera_space_dof_settings(camera.dof, camera);
 
     if (ctx.policy.diagnostics_enabled) {
         spdlog::info("[PerPixelDofNode] focus_z={:.1f} enabled={} dof_depth_size={} inputs_count={}",
@@ -267,7 +268,7 @@ NodeExecResult PerPixelDofNode::execute(
         std::span<const float>{dof_depth},
         ctx.frame_input.width,
         ctx.frame_input.height,
-        camera.dof,
+        evaluated_dof,
         camera.lens,
         ctx.node_exec.dof_sources());
 
@@ -320,7 +321,7 @@ NodeExecResult PerPixelDofNode::execute(
         // against future type drift on `dof_depth`.
         ctx.backend->apply_per_pixel_dof(
             *result, std::span<const float>{dof_depth},
-            camera.dof, camera.lens, clip);
+            evaluated_dof, camera.lens, clip);
     }
 
     if (ctx.node_exec.counters) {

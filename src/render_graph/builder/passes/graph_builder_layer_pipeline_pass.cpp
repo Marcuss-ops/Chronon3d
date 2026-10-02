@@ -306,7 +306,8 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
                     const bool is_static = layer.cache_static || is_static_val;
                     detail::append_composite_pass(
                         graph, ctx.current_output, b_out, layer, is_static,
-                        rctx, resolved_layer.world_transform.position.z, node_ctx);
+                        rctx, resolved_layer.world_transform.position.z, node_ctx,
+                        Vec3(resolved_layer.world_transform.to_mat4()[3]));
                 }
                 continue;
             }
@@ -323,7 +324,8 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
                 const bool is_static = layer.cache_static || is_static_val;
                 detail::append_composite_pass(
                     graph, ctx.current_output, clip_node, layer, is_static,
-                    rctx, resolved_layer.world_transform.position.z, node_ctx);
+                    rctx, resolved_layer.world_transform.position.z, node_ctx,
+                    Vec3(resolved_layer.world_transform.to_mat4()[3]));
             }
             continue;
         }
