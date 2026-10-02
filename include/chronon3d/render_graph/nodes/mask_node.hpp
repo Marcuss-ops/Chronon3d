@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chronon3d/cache/framebuffer_copy.hpp>
 #include <span>
 #include <algorithm>
 #include <string>
@@ -49,10 +50,34 @@ public:
     }
 
     NodeExecResult execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>>) override {
-        if (inputs.empty()) return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+        if (inputs.empty() || !inputs[0]) return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
 
         auto result = ctx.acquire_owned_fb(*inputs[0]);
+        if (!result) return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
         if (!m_mask.enabled()) {
+            return result;
+        }
+
+        // If result has a native GPU surface but no CPU data, download it for CPU raster masking
+        if (!result->data() && result->surface_handle() != runtime::kInvalidRenderSurfaceHandle && ctx.backend) {
+            auto cpu_fb = ctx.acquire_owned_fb(result->width(), result->height(), false);
+            if (cpu_fb && cpu_fb->data()) {
+                const auto scratch = ctx.download_scratch(result->width(), result->height());
+                const auto dl_res = ctx.backend->download_surface(result->surface_handle(), scratch);
+                if (dl_res.ok()) {
+                    FramebufferCopyAuthority::copy_rows(
+                        cpu_fb->pixels_row(0), cpu_fb->stride(),
+                        reinterpret_cast<const Color*>(scratch.data()),
+                        result->width(),
+                        result->width(), result->height());
+                    cpu_fb->set_origin(result->origin_x(), result->origin_y());
+                    cpu_fb->set_opaque(result->is_opaque());
+                    result = std::move(cpu_fb);
+                }
+            }
+        }
+
+        if (!result->data() || result->width() <= 0 || result->height() <= 0) {
             return result;
         }
 
@@ -77,7 +102,7 @@ public:
                 if (std::abs(canvas.w) <= 1e-7f) return 0.0f;
                 const i32 x = static_cast<i32>(std::floor(canvas.x / canvas.w)) - source_fb.origin_x();
                 const i32 y = static_cast<i32>(std::floor(canvas.y / canvas.w)) - source_fb.origin_y();
-                if (x < 0 || y < 0 || x >= source_fb.width() || y >= source_fb.height())
+                if (x < 0 || y < 0 || x >= source_fb.width() || y >= source_fb.height() || !source_fb.data())
                     return 0.0f;
                 return std::clamp(source_fb.pixels_row(y)[x].a, 0.0f, 1.0f);
             };
@@ -94,16 +119,20 @@ public:
             m_alpha_cache_key = cache_key;
         }
 
-        if (!m_alpha_cache) {
+        if (!m_alpha_cache || !m_alpha_cache->data()) {
             return result;
         }
 
-        const int W = result->width();
-        const int H = result->height();
+        const int W = std::min(result->width(), m_alpha_cache->width());
+        const int H = std::min(result->height(), m_alpha_cache->height());
+        if (W <= 0 || H <= 0) {
+            return result;
+        }
 
         for (i32 y = 0; y < H; ++y) {
             Color* dst_row = result->pixels_row(y);
             const Color* mask_row = m_alpha_cache->pixels_row(y);
+            if (!dst_row || !mask_row) continue;
             for (i32 x = 0; x < W; ++x) {
                 const f32 m = mask_row[x].a;
                 dst_row[x].r *= m;
@@ -112,6 +141,9 @@ public:
                 dst_row[x].a *= m;
             }
         }
+
+        result->set_opaque(false);
+        result->mark_cpu_authoritative();
 
         return result;
     }

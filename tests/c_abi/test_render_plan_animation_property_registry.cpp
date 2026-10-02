@@ -48,7 +48,7 @@ TEST_CASE("registered scalar and articulated layer tracks still decode") {
             {{"property", "rotation_z"}, {"keyframes", nlohmann::json::array({
                 {{"frame", 0}, {"value", 0.0}},
                 {{"frame", 6}, {"value", 90.0}}})}}
-        }})
+        })}
     };
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     if (!decoded) MESSAGE("decode failed: ", decoded.error().message);
@@ -65,7 +65,7 @@ TEST_CASE("unregistered layer track property fails decode with a suggestion") {
         {"tracks", nlohmann::json::array({
             {{"property", "opacitiy"}, {"keyframes", nlohmann::json::array({
                 {{"frame", 0}, {"value", 1.0}}})}}
-        }})
+        })}
     };
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE_FALSE(decoded);
@@ -112,7 +112,7 @@ TEST_CASE("decode gate accepts the full registered family on a shape layer") {
             {{"property", "fill_color"}, {"keyframes", nlohmann::json::array({
                 {{"frame", 0}, {"value", {1.0, 0.0, 0.0, 1.0}}},
                 {{"frame", 4}, {"value", {0.0, 1.0, 0.0, 1.0}}}})}}
-        }})
+        })}
     };
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     if (!decoded) MESSAGE("decode failed: ", decoded.error().message);
