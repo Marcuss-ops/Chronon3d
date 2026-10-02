@@ -15,8 +15,10 @@
 #include FT_GLYPH_H
 #include FT_OUTLINE_H
 #include FT_BBOX_H
+#include FT_MULTIPLE_MASTERS_H
 #include <hb.h>
 #include <hb-ft.h>
+#include "font_variations_internal.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -42,6 +44,7 @@ bool is_invisible_codepoint(char32_t cp) noexcept {
     if (cp == 0x202F || cp == 0x205F || cp == 0x2060) return true;
     return cp == 0xFEFF;
 }
+
 } // namespace
 
 using FontFaceId = std::uint64_t;
@@ -59,6 +62,8 @@ struct FaceEntry {
     std::string style_name;
     bool has_kerning{false};
     FT_UInt notdef_glyph_id{0};
+    // FreeType faces are shared and mutable. Protected by ops_mutex.
+    std::string active_variation_axes;
     // FreeType face objects carry mutable size/glyph state. The lock belongs
     // to the face, not to the whole FontEngine, so unrelated faces can be
     // shaped/rasterized concurrently while preserving face safety.
@@ -76,13 +81,38 @@ struct FaceEntry {
     bool valid() const { return ft_face != nullptr && hb_font != nullptr; }
 };
 
+namespace {
+bool apply_variation_axes(FaceEntry& entry, FT_Library library,
+                          const std::string& axes) {
+    if (entry.active_variation_axes == axes) return true;
+    std::vector<text_internal::FontVariationCoordinate> requested;
+    std::vector<text_internal::FontVariationCoordinate> effective;
+    if (!text_internal::parse_font_variation_axes(axes, requested) ||
+        !text_internal::apply_font_variation_coordinates(
+            library, entry.ft_face, requested, &effective)) return false;
+
+    hb_ft_font_changed(entry.hb_font);
+    std::vector<hb_variation_t> hb_variations;
+    hb_variations.reserve(effective.size());
+    for (const auto& variation : effective) {
+        hb_variations.push_back({static_cast<hb_tag_t>(variation.tag), variation.value});
+    }
+    hb_font_set_variations(entry.hb_font, hb_variations.data(),
+                           static_cast<unsigned int>(hb_variations.size()));
+    entry.active_variation_axes = axes;
+    return true;
+}
+} // namespace
+
 struct GlyphBBoxCacheKey {
     FontFaceId face_id{0};
     u32        glyph_id{0};
     u32        pixel_size{0};
+    std::string variation_axes;
 
     bool operator==(const GlyphBBoxCacheKey& o) const noexcept {
-        return face_id == o.face_id && glyph_id == o.glyph_id && pixel_size == o.pixel_size;
+        return face_id == o.face_id && glyph_id == o.glyph_id &&
+               pixel_size == o.pixel_size && variation_axes == o.variation_axes;
     }
 };
 
@@ -144,6 +174,7 @@ template<> struct hash<chronon3d::GlyphBBoxCacheKey> {
         h ^= std::hash<chronon3d::FontFaceId>{}(k.face_id) + 0x9e3779b9 + (h << 6) + (h >> 2);
         h ^= std::hash<chronon3d::u32>{}(k.glyph_id) + 0x9e3779b9 + (h << 6) + (h >> 2);
         h ^= std::hash<chronon3d::u32>{}(k.pixel_size) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<std::string>{}(k.variation_axes) + 0x9e3779b9 + (h << 6) + (h >> 2);
         return h;
     }
 };
@@ -382,6 +413,10 @@ std::optional<GlyphRun> FontEngine::shape_text(
     if (!entry || !entry->valid()) return std::nullopt;
     std::lock_guard<std::mutex> font_lock(entry->ops_mutex);
 
+    if (!apply_variation_axes(*entry, m_impl->ft_library, shaping.variation_axes)) {
+        return std::nullopt;
+    }
+
     FT_Face face = entry->ft_face;
     const float scale = Impl::pixel_scale_26_6();
 
@@ -440,7 +475,7 @@ std::optional<GlyphRun> FontEngine::shape_text(
         gp.is_cluster_start = (i == 0) ||
                               (glyph_infos[i].cluster != glyph_infos[i - 1].cluster);
 
-        GlyphBBoxCacheKey key{entry->id, gp.glyph_id, pixel_size};
+        GlyphBBoxCacheKey key{entry->id, gp.glyph_id, pixel_size, shaping.variation_axes};
         auto cached = m_impl->glyph_bbox_cache.get(key);
         if (cached) {
             gp.bbox_x0 = cached->x0;

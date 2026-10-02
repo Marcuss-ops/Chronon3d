@@ -1,4 +1,5 @@
 #include "audio_react_baker.hpp"
+#include "audio_react_contract.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -60,7 +61,7 @@ bool decode_audio_mono_48k(const std::string& path,
 #if LIBAVUTIL_VERSION_MAJOR >= 57
     AVChannelLayout output_layout{};
     av_channel_layout_default(&output_layout, 1);
-    status = swr_alloc_set_opts2(&resampler, &output_layout, AV_SAMPLE_FMT_FLT, 48000,
+    status = swr_alloc_set_opts2(&resampler, &output_layout, AV_SAMPLE_FMT_FLT, kAudioReactSampleRateHz,
         &codec->ch_layout, codec->sample_fmt, codec->sample_rate, 0, nullptr);
     av_channel_layout_uninit(&output_layout);
 #else
@@ -68,7 +69,7 @@ bool decode_audio_mono_48k(const std::string& path,
         ? codec->channel_layout
         : av_get_default_channel_layout(codec->channels);
     resampler = swr_alloc_set_opts(nullptr,
-        AV_CH_LAYOUT_MONO, AV_SAMPLE_FMT_FLT, 48000,
+        AV_CH_LAYOUT_MONO, AV_SAMPLE_FMT_FLT, kAudioReactSampleRateHz,
         in_ch_layout, codec->sample_fmt, codec->sample_rate,
         0, nullptr);
     status = resampler ? 0 : -1;

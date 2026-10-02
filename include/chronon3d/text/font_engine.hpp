@@ -270,6 +270,11 @@ struct TextShaping {
     // include/chronon3d/text/text_run_layout.hpp (TICKET-103a lineage) and
     // refers to the same std::string bytewise layout.
     std::string features{};
+
+    // OpenType variation coordinates, e.g. "wght=650,wdth=92". Coordinates
+    // are applied to the cached FreeType face before HarfBuzz shaping; omitted
+    // axes return to the font's defaults on the next call using that face.
+    std::string variation_axes{};
 };
 
 // ── PlacedGlyph ─────────────────────────────────────────────────────────

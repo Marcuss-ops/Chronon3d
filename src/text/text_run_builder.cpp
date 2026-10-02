@@ -58,6 +58,14 @@ compile_text_layout(
     const FontSpec primary_font = request.primary_font.font_path.empty()
         ? doc.defaults.font
         : request.primary_font;
+    ParagraphStyle paragraph_style =
+        tci::effective_paragraph_style(paragraph, layout);
+    TextLayoutRequest effective_request = request;
+    for (const auto& axis : paragraph_style.variable_axes) {
+        if (axis.value == -1.0f) continue;
+        if (!effective_request.variation_axes.empty()) effective_request.variation_axes += ',';
+        effective_request.variation_axes += axis.tag + '=' + std::to_string(axis.value);
+    }
     const bool is_single_font = paragraph.runs.size() == 1;
 
     if (!tci::check_paragraph_has_font(paragraph.runs)) {
@@ -73,7 +81,7 @@ compile_text_layout(
             paragraph_text,
             primary_font,
             layout,
-            request)) {
+            effective_request)) {
         return cached;
     }
 
@@ -87,10 +95,11 @@ compile_text_layout(
         paragraph.runs,
         engine,
         layout.tracking,
-        request.features);
+        effective_request.features,
+        effective_request.variation_axes);
     auto placed_result = tci::apply_failure_policy(
         std::move(per_run_results),
-        request.shaping_failure_policy);
+        effective_request.shaping_failure_policy);
     if (!placed_result) return placed_result.error();
     std::vector<PlacedGlyphRun> placed_runs = std::move(placed_result.value());
 
@@ -100,8 +109,6 @@ compile_text_layout(
     }
 
     // 5. Compose and vertically align positioned glyphs.
-    ParagraphStyle paragraph_style =
-        tci::effective_paragraph_style(paragraph, layout);
     switch (layout.align) {
     case TextAlign::Center:
         paragraph_style.justification = TextJustification::Center;
@@ -130,13 +137,14 @@ compile_text_layout(
     text_layout->units = build_text_unit_map(text_layout->placed, paragraph_text);
 
     // 6. Preserve per-run font identities before the immutable cache store.
-    tci::populate_font_spans(*text_layout, placed_runs, paragraph.runs);
+    tci::populate_font_spans(*text_layout, placed_runs, paragraph.runs,
+                             effective_request.variation_axes);
     tci::finalize_text_run_layout(
         *text_layout,
         composed,
         layout,
         paragraph_style,
-        request);
+        effective_request);
 
     // 7. Cache single-font layouts only.
     tci::store_in_cache(
@@ -145,7 +153,7 @@ compile_text_layout(
         paragraph_text,
         primary_font,
         layout,
-        request,
+        effective_request,
         text_layout);
 
     // TICKET-TEXT-TIMING-V1 — accumulate layout wall time on the success

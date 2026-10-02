@@ -67,9 +67,9 @@ motion-blur):
 - `NodeLiveState` resta heap-indiretto via `unique_ptr` (necessario:
   `NodeMemoryMetrics` contiene `std::atomic` → non-movibile, `map::emplace`
   per valore non compila — stesso motivo del `unique_ptr` originale).
-- `ScopedNodeMemory` conserva la copia `std::string` dell'id: il sito
-  canonico (`execute_single_node`) passa il temporaneo restituito da
-  `memory_node_id()`, quindi una view presa in prestito dangle-erebbe.
+- `ScopedNodeMemory` conserva `NodeMemoryId` in linea: il sito canonico
+  (`execute_single_node`) passa un valore temporaneo, mentre i callback del
+  tracker ne usano la view durante l'intero scope senza copie heap.
 - Nota sul peak: `peak_live_bytes` per-processo e per-nodo sono
   CAS-max/`std::max` monotoni — identici alla semantica precedente.
 - **Owner**: render-graph executor maintainer.
@@ -95,11 +95,10 @@ motion-blur):
 `memory_node_id()` gira una volta per nodo × frame. Prima: due `std::to_string`
 + tre concatenazioni (SSO copriva gli id tipici, ma valori grandi
 sforavano in heap più volte per chiamata). Ora: composizione via `std::to_chars`
-in un **buffer stack di 64 byte** (worst case `"g"+20+":n"+20 = 43` char) e
-costruzione della `std::string` risultante dall'intervallo esatto scritto ⇒
-**SSO per tutti gli id che ci stanno** (≤15/≤22 char a seconda della stdlib),
-**un'allocazione al massimo** per id patologici. Formato emesso **byte-identico**
-(`"g<n>:n<m>"`), quindi chiavi dei report tracker e join SQLite invariati.
+in un `NodeMemoryId` inline da 64 byte posseduto da `ScopedNodeMemory`. Il
+caso canonico peggiore è 43 byte, quindi composizione e conservazione non
+allocano heap. Solo un nome fallback oltre 64 byte alloca. Formato emesso
+byte-identico, quindi chiavi tracker e join SQLite invariati.
 
 ### P1-A9 — `VulkanBackend::Impl::submit()` scratch riutilizzabili
 
@@ -185,3 +184,20 @@ eseguite, quindi il ticket non può essere dichiarato `DONE`.
   `test_node_memory_tracker` e `test_motion_blur_integration` sullo stesso SHA.
 - **Criterio di uscita:** tutti i test sopra devono essere `PASS`; il solo
   review statico non è sufficiente per chiudere la wave.
+
+
+## Progress snapshot — 2026-10-02
+
+- `memory_node_id()` compone direttamente un `NodeMemoryId` a capacità fissa;
+  `ScopedNodeMemory` lo possiede fino al rilascio e alla pubblicazione delle
+  metriche. Gli ID canonici (massimo 43 byte) non allocano heap nemmeno quando
+  superano l'SSO di `std::string`.
+- `MeteredLock` legge il clock solo quando `g_current_counters` è attivo; senza
+  contatori conserva il lock ma evita i due timestamp usati per il profiling.
+- `ScopedNodeMemory` fonde registrazione + acquire in `begin_scope()` e
+  osservazione + release in `finish_scope()`: il normale ciclo del nodo scende
+  da 3-4 lock acquisition a 2 (una in ingresso e una in uscita), mantenendo
+  sample domain e snapshot sotto lo stesso mutex.
+- La compilazione `-j12` dei target `chronon3d_graph_executor` e
+  `chronon3d_render_plan` è stata eseguita dopo questi cambiamenti. I test runtime
+  restano da eseguire nel workflow autorizzato.

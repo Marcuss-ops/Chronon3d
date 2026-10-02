@@ -29,6 +29,8 @@ void dispatch_level_nodes(
     cache::FramebufferPool* parent_pool,
     const CompiledFrameGraph& compiled)
 {
+    const bool log_node_diagnostics =
+        ctx.frame_input.frame <= 2 && diag_exec_logging_enabled();
     // OPT-DEAD-TIMINGS — the LevelTimings per-node accumulator surface was
     // retired with Stage 3 (per-node fine timing); the dead 7-vector heap
     // object and the 7 dead out-param pointers on execute_single_node are
@@ -58,13 +60,14 @@ void dispatch_level_nodes(
         // now gated on `parent_counters`, which is already known before the
         // dispatch; the sentinel-protected sequential path below is unchanged.
         const auto execute_one = [&](std::size_t level_index) {
-            const auto node_t0 = profiling::now();
+            const auto node_t0 = log_node_diagnostics
+                ? profiling::now() : profiling::Clock::time_point{};
             const auto node_id = level[level_index];
             execute_single_node(
                 state, graph, ctx, level_resolved, node_id, level_index,
                 parent_counters, parent_pool, consumer_remaining,
                 compiled, nullptr);
-            if (ctx.frame_input.frame <= 2) {
+            if (log_node_diagnostics) {
                 const double node_ms = profiling::duration_ms(node_t0, profiling::now());
                 spdlog::info("[exec-node-diag] frame={} (parallel) node_id={} name='{}' ms={:.3f}",
                              static_cast<int>(ctx.frame_input.frame), node_id,
@@ -143,13 +146,14 @@ void dispatch_level_nodes(
 
     const auto t_seq0 = profiling::now();
     for (size_t level_index = 0; level_index < level.size(); ++level_index) {
-        const auto node_t0 = profiling::now();
+        const auto node_t0 = log_node_diagnostics
+            ? profiling::now() : profiling::Clock::time_point{};
         const auto node_id = level[level_index];
         execute_single_node(
             state, graph, ctx, level_resolved, node_id, level_index,
             parent_counters, parent_pool, consumer_remaining,
             compiled, nullptr);
-        if (ctx.frame_input.frame <= 2) {
+        if (log_node_diagnostics) {
             const double node_ms = profiling::duration_ms(node_t0, profiling::now());
             spdlog::info("[exec-node-diag] frame={} (seq) node_id={} name='{}' ms={:.3f}",
                          static_cast<int>(ctx.frame_input.frame), node_id,

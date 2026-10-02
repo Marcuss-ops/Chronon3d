@@ -19,6 +19,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <atomic>
+#include <array>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -176,10 +177,11 @@ struct FramebufferPoolStats {
     size_t size_class_count{0};         // distinct size classes in the pool
 
     // Wave-2 contention/rotation telemetry (aggregate sums, lifetime since
-    // reset).  Every acquire/release/set_arena crosses the SAME m_mutex, so
-    // lock_wait_us isolates the mutex-contention cost from the work itself:
-    //   lock_wait_us       — sum of time threads waited to acquire m_mutex
-    //   lock_hold_wall_us  — sum of time m_mutex was held by the caller
+    // reset). Exact warm reuse/return uses worker-local slots; misses, LRU,
+    // budget changes, and arena configuration still use the pool authority.
+    // lock_wait_us aggregates wait across both local-slot and pool locks:
+    //   lock_wait_us       — sum of time threads waited on pool/slot locks
+    //   lock_hold_wall_us  — sum of measured pool/slot lock hold intervals
     //   acquire_count      — pool acquire entries (all acquire_* wrappers)
     //   release_count      — pool release() entries
     //   arena_set_count    — set_arena() calls (job-scoped arena association;
@@ -384,6 +386,35 @@ public:
     void reset_counters();
 
 private:
+    static constexpr std::size_t kLocalSlotCount = 64;
+
+    struct PoolClassState {
+        std::atomic<std::size_t> available{0};
+    };
+
+    struct LocalSlot {
+        mutable std::mutex mutex;
+        FramebufferPoolKey key{};
+        std::unique_ptr<Framebuffer> framebuffer;
+        std::shared_ptr<PoolClassState> class_state;
+        std::uint64_t generation{0};
+        std::uint64_t last_used_tick{0};
+    };
+
+    [[nodiscard]] static std::size_t local_slot_index() noexcept;
+    [[nodiscard]] std::shared_ptr<PoolClassState> class_state_for(
+        FramebufferPoolKey key, bool create);
+    [[nodiscard]] bool try_acquire_local(
+        int width, int height, std::unique_ptr<Framebuffer>& out);
+    [[nodiscard]] bool try_release_local(
+        std::unique_ptr<Framebuffer>& framebuffer);
+    [[nodiscard]] bool reserve_retained_bytes(std::size_t bytes) noexcept;
+    [[nodiscard]] bool reserve_class_slot(
+        const std::shared_ptr<PoolClassState>& state) const noexcept;
+    static void release_class_slot(
+        const std::shared_ptr<PoolClassState>& state) noexcept;
+    static void update_peak(std::atomic<std::size_t>& peak, std::size_t value) noexcept;
+
     /// Acquire a framebuffer from the pool or allocate a new one.
     /// Sets *out_fresh_alloc to true when the returned FB was freshly
     /// constructed (zero-initialized by the Framebuffer constructor)
@@ -408,14 +439,21 @@ private:
     bool evict_global_lru(
         std::vector<std::unique_ptr<Framebuffer>>& deferred_destruction);
 
-    // The pool remains the single budget/residency authority. Shared locking
-    // lets concurrent readers (telemetry/config probes) proceed together;
-    // acquire/release/eviction remain exclusive and preserve one LRU truth.
+    // The pool remains the single budget/residency authority. Warm exact
+    // returns live in bounded per-worker slots and participate in the same
+    // atomic class counts, global byte budget, and LRU clock as the central
+    // map. Misses, best-fit, and maintenance remain under this authority.
     mutable std::shared_mutex m_mutex;
     FramebufferPoolConfig m_config;
-    size_t m_current_bytes{0};
-    size_t m_peak_retained_bytes{0};
-    uint64_t m_tick{0};  // monotonic LRU tick
+    std::atomic<size_t> m_current_bytes{0};
+    std::atomic<size_t> m_peak_retained_bytes{0};
+    std::atomic<uint64_t> m_tick{0};  // monotonic LRU tick
+    std::atomic<size_t> m_budget_bytes{kDefaultBudgetBytes};
+    std::array<LocalSlot, kLocalSlotCount> m_local_slots{};
+    std::atomic<std::uint64_t> m_local_generation{0};
+    mutable std::shared_mutex m_class_states_mutex;
+    std::unordered_map<FramebufferPoolKey, std::shared_ptr<PoolClassState>,
+                       FramebufferPoolKeyHash> m_class_states;
     std::shared_ptr<chronon3d::FramebufferArena> m_arena;
     // Wave 4 — job-scoped arena provider (see attach_arena_provider).
     // Preferred over m_arena when installed; both are read under m_mutex.

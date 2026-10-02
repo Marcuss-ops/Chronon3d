@@ -116,9 +116,20 @@ PlacedGlyphRun shape_resolved_run(
     float tracking,
     const std::string& features
 ) {
+    return shape_resolved_run(run, engine, tracking, features, {});
+}
+
+PlacedGlyphRun shape_resolved_run(
+    const ResolvedTextRun& run,
+    FontEngine& engine,
+    float tracking,
+    const std::string& features,
+    const std::string& variation_axes
+) {
     TextShaping shaping;
     shaping.direction = run.direction;
     shaping.features = features;
+    shaping.variation_axes = variation_axes;
 
     // TICKET-101 follow-up — defense-in-depth: canonicalize the
     // BCP-47 language tag before forwarding to HarfBuzz.  The

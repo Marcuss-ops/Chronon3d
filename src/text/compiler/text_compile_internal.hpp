@@ -140,7 +140,8 @@ shape_paragraph_runs(
     const std::vector<ResolvedTextRun>& para_runs,
     FontEngine& engine,
     float tracking,
-    const std::string& features = {}
+    const std::string& features = {},
+    const std::string& variation_axes = {}
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -250,7 +251,8 @@ void
 populate_font_spans(
     TextRunLayout& text_layout,
     const std::vector<PlacedGlyphRun>& placed_runs,
-    const std::vector<ResolvedTextRun>& para_runs
+    const std::vector<ResolvedTextRun>& para_runs,
+    const std::string& variation_axes
 );
 
 } // namespace chronon3d::text_internal::compile

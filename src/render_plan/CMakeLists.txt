@@ -6,6 +6,7 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_decoder.cpp
     render_plan_decoder_support.cpp
     render_plan_decoder_layer.cpp
+    render_plan_decoder_effects.cpp
     inline_mesh_primitives.cpp
     render_plan_decoder_animation.cpp
     render_plan_decoder_shape.cpp
@@ -23,6 +24,8 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler_text.cpp
     render_plan_compiler_fingerprint.cpp
     audio_react_baker.cpp
+    audio_react_plan_baker.cpp
+    render_plan_effect_preparation.cpp
     audio_mix_compiler.cpp
 )
 set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)

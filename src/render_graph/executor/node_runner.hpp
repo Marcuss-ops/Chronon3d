@@ -28,6 +28,8 @@ namespace chronon3d {
 }
 
 namespace chronon3d::graph {
+
+[[nodiscard]] bool diag_exec_logging_enabled() noexcept;
 using FramebufferPool = ::chronon3d::cache::FramebufferPool;
 
 struct ExecutionState;

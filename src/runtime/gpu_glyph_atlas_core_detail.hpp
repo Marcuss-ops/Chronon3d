@@ -7,6 +7,17 @@ GpuGlyphAtlasError atlas_error(
 
 } // namespace
 
+std::size_t GpuGlyphAtlas::fast_path_hit_counter_index() noexcept {
+    // Assign each participating thread a stable counter slot. The allocator
+    // atomic is touched only once per thread; steady-state hits use a local
+    // relaxed atomic on a cache-line-padded slot.
+    static std::atomic<std::size_t> next_slot{0};
+    thread_local const std::size_t slot =
+        next_slot.fetch_add(1, std::memory_order_relaxed) %
+        kFastPathHitCounterCount;
+    return slot;
+}
+
 void GpuGlyphAtlas::attach(RenderSurfaceRegistry& registry,
                            graph::RenderBackend& backend) noexcept {
     std::unique_lock lock(m_mutex);
@@ -118,7 +129,8 @@ GpuGlyphAcquireResult GpuGlyphAtlas::acquire(
             // exactly the traffic it exists to measure. Count the fast-path
             // hit with a relaxed atomic (no shared→exclusive upgrade) and
             // fold it into stats().hits at snapshot time.
-            m_fast_path_hits.fetch_add(1, std::memory_order_relaxed);
+            m_fast_path_hits[fast_path_hit_counter_index()].hits.fetch_add(
+                1, std::memory_order_relaxed);
             return it->second;
         }
         // Also validate fast-path invariants under read lock so we can
@@ -409,7 +421,9 @@ void GpuGlyphAtlas::clear() noexcept {
     m_metrics.clear();
     m_pages.clear();
     m_stats = {};
-    m_fast_path_hits.store(0, std::memory_order_relaxed);
+    for (auto& counter : m_fast_path_hits) {
+        counter.hits.store(0, std::memory_order_relaxed);
+    }
     m_cache.clear();
 }
 
@@ -420,6 +434,8 @@ void GpuGlyphAtlas::set_budget_bytes(std::size_t budget_bytes) noexcept {
 GpuGlyphAtlasStats GpuGlyphAtlas::stats() const noexcept {
     std::shared_lock lock(m_mutex);
     auto snapshot = m_stats;
-    snapshot.hits += m_fast_path_hits.load(std::memory_order_relaxed);
+    for (const auto& counter : m_fast_path_hits) {
+        snapshot.hits += counter.hits.load(std::memory_order_relaxed);
+    }
     return snapshot;
 }
