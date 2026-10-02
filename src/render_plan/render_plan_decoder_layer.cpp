@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include <chronon3d/render_plan/animation_property_registry.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
@@ -1704,8 +1705,23 @@ LayerPlan decode_layer(const nlohmann::json& value) {
 
     if (value.contains("animation")) {
         AnimationPlan animation;
-        for (const auto& track_value : value.at("animation").at("tracks"))
-            animation.tracks.push_back(decode_animation_track(track_value));
+        for (const auto& track_value : value.at("animation").at("tracks")) {
+            auto track = decode_animation_track(track_value);
+            // Fail closed on unregistered property names: a track the decode
+            // pipeline does not know must never survive into a compiled plan
+            // where the compiler's property dispatch would silently drop it.
+            if (!render_plan::find_animation_property(track.property)) {
+                std::string message =
+                    "layers[].animation track uses an unregistered property: " +
+                    track.property;
+                if (const auto nearest =
+                        render_plan::nearest_animation_property_name(track.property);
+                    !nearest.empty())
+                    message += " (did you mean '" + std::string{nearest} + "?')";
+                throw std::runtime_error(message);
+            }
+            animation.tracks.push_back(std::move(track));
+        }
         layer.animation = std::move(animation);
     }
     layer.auto_orient = value.value("auto_orient", false);
