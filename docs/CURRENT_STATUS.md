@@ -60,6 +60,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera V1 | PARTIAL — same-SHA certification outstanding |
 | Text Core V1 | PASS (focused) |
+| Text depth focus (text_depth_focus_v1) | PASS (unit) — `TextFocusResolver` authority + 8 preset family ids landed header-only over the canonical animator primitives; suite `chronon3d_text_focus_resolver_tests` 16/16 |
 | Text Production | PARTIAL |
 | GPU Production V1 | PARTIAL |
 | Executor ownership | DONE structurally |

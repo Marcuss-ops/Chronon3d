@@ -21,6 +21,7 @@ set(_chronon3d_c_abi_links
     chronon3d_compiler
     nlohmann_json::nlohmann_json)
 set(_chronon3d_c_abi_sources
+    c_abi/test_render_plan_animation_property_registry.cpp
     c_abi/test_render_plan_decoder.cpp
     c_abi/test_render_plan_spring_bake.cpp
     c_abi/test_render_plan_shape_path_generator.cpp
