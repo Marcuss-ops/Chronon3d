@@ -22,6 +22,8 @@ namespace chronon3d::render_plan::detail {
 void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& value);
 void decode_layer_masks(LayerPlan& layer, const nlohmann::json& value);
 void decode_layer_text_animators(LayerPlan& layer, const nlohmann::json& value);
+[[nodiscard]] std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind);
+void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value);
 [[nodiscard]] LayerType layer_type(const std::string& value);
 [[nodiscard]] FitMode fit_mode(const std::string& value);
 [[nodiscard]] std::optional<chronon3d::BlendMode> blend_mode(const std::string& value);

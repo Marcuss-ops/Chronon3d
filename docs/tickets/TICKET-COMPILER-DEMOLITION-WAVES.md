@@ -160,8 +160,15 @@ deleted.
   single `std::mutex` per-bucket; non è stato misurato sotto executor parallelo. Se costoso: first option `per-entry locking`,
   second `bounded sharding` — mai nuovo cache engine. Misurare prima di toccare.
 - **G47 `DeviceScheduler` contention — NOT MEASURED (note locked):** `DeviceScheduler::reserve()` path non profilato; misurare lock hold/wait prima di refactor.
-- **G48 `FramebufferPool` sharding — FATTO (narrow-before-shard):** già ridgeo: `FramebufferPool` allocation fuori mutex + measurement gate
-  1024 acquires, aggregates registrati; sharding non giustificato senza nuova evidenza (ordine 8 del wave closeout; il log di bonifica 2026-09-09 è chiuso e vive solo nella git history).
+- **G48 `FramebufferPool` sharding — SUPERSEDED (measurement 2026-10-02):**
+  la nuova prova condivisa a 8 worker ha misurato `wait_us=35247`, `hold_us=399`
+  prima dell’intervento, quindi il precedente closeout “sharding non
+  giustificato” non descrive più il codice. Il pool ora usa 64 worker-local
+  slots per il riuso caldo, mantenendo budget byte, cap per classe e LRU
+  globali attraverso contabilità atomica e scansioni di manutenzione. La stessa
+  prova dopo il cambio misura `wait_us=0`, `hold_us=3`; vedere
+  `TICKET-HOTSPOT-DECOMPOSITION.md` per lo stato dei test. Run successivi
+  variavano tra `wait_us=0..34`, `hold_us=3..8` per rumore di sistema.
 - **G42 benchmark text-heavy — NOT RUN:** corpus B00-B11 esiste; metriche target `allocations/frame, bytes/frame, text ms/frame, FPS`
   da produrre con benchmark gate (render_graph `graph_cache_refresh_fallback_total` già counter per refresh fallback).
 

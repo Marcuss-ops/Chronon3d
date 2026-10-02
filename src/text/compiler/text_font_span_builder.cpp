@@ -33,7 +33,8 @@ void
 populate_font_spans(
     TextRunLayout& text_layout,
     const std::vector<PlacedGlyphRun>& placed_runs,
-    const std::vector<ResolvedTextRun>& para_runs
+    const std::vector<ResolvedTextRun>& para_runs,
+    const std::string& variation_axes
 ) {
     std::uint32_t glyph_cursor = 0;
     for (std::size_t ri = 0; ri < placed_runs.size(); ++ri) {
@@ -47,6 +48,7 @@ populate_font_spans(
 
         ShapedFontSpan span;
         span.font        = font_identity_of(para_runs[ri].font);
+        span.variation_axes = variation_axes;
         span.font_size   = para_runs[ri].font.font_size;
         span.glyph_begin = begin;
         span.glyph_end   = end;
@@ -66,6 +68,7 @@ populate_font_spans(
         !text_layout.placed.glyphs.empty() && para_runs.size() == 1) {
         ShapedFontSpan span;
         span.font = font_identity_of(para_runs.front().font);
+        span.variation_axes = variation_axes;
         span.font_size = para_runs.front().font.font_size;
         span.glyph_begin = 0;
         span.glyph_end = static_cast<std::uint32_t>(

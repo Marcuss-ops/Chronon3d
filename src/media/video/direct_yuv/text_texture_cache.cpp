@@ -125,7 +125,8 @@ RasterizedTextTexture rasterize_text_texture(
             if (state.glyph_id == 0) continue;
             const auto bitmap = text::prepare_mtsdf_glyph(
                 resolver, layout.font_spans[span_index].font.font_path,
-                state.glyph_id, profile);
+                state.glyph_id, profile,
+                layout.font_spans[span_index].variation_axes);
             if (!bitmap || bitmap->rgba8.empty()) {
                 // Spaces and other advance-only glyphs have no outline by
                 // design. They still participate in shaping/layout, but do

@@ -57,22 +57,58 @@ int round_up_bucket(int val) {
 bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key,
     std::vector<std::unique_ptr<Framebuffer>>& deferred_destruction) {
     auto it = m_free.find(key);
-    if (it == m_free.end() || it->second.empty()) return false;
+    std::uint64_t central_tick = std::numeric_limits<std::uint64_t>::max();
+    std::size_t central_lru_idx = 0;
+    std::vector<PoolEntry>* central_bucket = nullptr;
+    if (it != m_free.end() && !it->second.empty()) {
+        central_bucket = &it->second;
+        const auto lru_it = std::min_element(
+            central_bucket->begin(), central_bucket->end(),
+            [](const PoolEntry& a, const PoolEntry& b) noexcept {
+                return a.last_used_tick < b.last_used_tick;
+            });
+        central_tick = lru_it->last_used_tick;
+        central_lru_idx = static_cast<std::size_t>(
+            std::distance(central_bucket->begin(), lru_it));
+    }
 
-    auto& bucket = it->second;
+    std::size_t local_index = m_local_slots.size();
+    std::uint64_t local_tick = std::numeric_limits<std::uint64_t>::max();
+    for (std::size_t i = 0; i < m_local_slots.size(); ++i) {
+        const auto& slot = m_local_slots[i];
+        std::lock_guard slot_lock(slot.mutex);
+        if (slot.framebuffer && slot.key == key && slot.last_used_tick < local_tick) {
+            local_tick = slot.last_used_tick;
+            local_index = i;
+        }
+    }
+
+    if (local_index < m_local_slots.size() && local_tick < central_tick) {
+        auto& slot = m_local_slots[local_index];
+        std::lock_guard slot_lock(slot.mutex);
+        if (!slot.framebuffer || !(slot.key == key) || slot.last_used_tick != local_tick) {
+            return true;
+        }
+        const auto bytes = slot.framebuffer->size_bytes();
+        deferred_destruction.push_back(std::move(slot.framebuffer));
+        release_class_slot(slot.class_state);
+        slot.class_state.reset();
+        m_current_bytes.fetch_sub(bytes, std::memory_order_acq_rel);
+        m_evicted_count.fetch_add(1, std::memory_order_relaxed);
+        m_evicted_bytes.fetch_add(bytes, std::memory_order_relaxed);
+        m_pressure_count.fetch_add(1, std::memory_order_relaxed);
+        return true;
+    }
+
+    if (central_bucket == nullptr) return false;
+
+    auto& bucket = *central_bucket;
     // TICKET-O(n)-audit — std::min_element replaces the hand-rolled
     // linear min-tick scan. Bit-identical: the same LRU entry is
     // returned. Per-bucket size is bounded by max_buffers_per_size_class
     // (typically 8-16), so the O(n) cost is already small; the win is
     // readability + branch-friendly codegen.
-    auto lru_it = std::min_element(
-        bucket.begin(), bucket.end(),
-        [](const PoolEntry& a, const PoolEntry& b) noexcept {
-            return a.last_used_tick < b.last_used_tick;
-        });
-    if (lru_it == bucket.end()) return false;
-    const size_t lru_idx = static_cast<size_t>(
-        std::distance(bucket.begin(), lru_it));
+    const size_t lru_idx = central_lru_idx;
 
     size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
     deferred_destruction.push_back(std::move(bucket[lru_idx].fb));
@@ -81,6 +117,7 @@ bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key,
     }
     bucket.pop_back();
     m_current_bytes -= evicted_bytes;
+    release_class_slot(class_state_for(key, false));
     m_evicted_count.fetch_add(1, std::memory_order_relaxed);
     m_evicted_bytes.fetch_add(evicted_bytes, std::memory_order_relaxed);
     m_pressure_count.fetch_add(1, std::memory_order_relaxed);
@@ -109,6 +146,7 @@ bool FramebufferPool::evict_global_lru(
     // bucket is the value owned by m_free; we never mutate m_free
     // between selection and use, so the pointer remains valid.
     std::vector<PoolEntry>*             picked_bucket = nullptr;
+    std::size_t                         picked_local_slot = m_local_slots.size();
 
     for (auto& [key, bucket] : m_free) {
         if (bucket.empty()) continue;
@@ -130,6 +168,36 @@ bool FramebufferPool::evict_global_lru(
         }
     }
 
+    for (std::size_t i = 0; i < m_local_slots.size(); ++i) {
+        const auto& slot = m_local_slots[i];
+        std::lock_guard slot_lock(slot.mutex);
+        if (slot.framebuffer && slot.last_used_tick < min_tick) {
+            min_tick = slot.last_used_tick;
+            picked_local_slot = i;
+            lru_key.reset();
+            picked_bucket = nullptr;
+        }
+    }
+
+    if (picked_local_slot < m_local_slots.size()) {
+        auto& slot = m_local_slots[picked_local_slot];
+        std::lock_guard slot_lock(slot.mutex);
+        if (!slot.framebuffer || slot.last_used_tick != min_tick) {
+            // A worker consumed or replaced this entry after the scan. Let
+            // the caller retry against the current residency state.
+            return true;
+        }
+        const auto bytes = slot.framebuffer->size_bytes();
+        deferred_destruction.push_back(std::move(slot.framebuffer));
+        release_class_slot(slot.class_state);
+        slot.class_state.reset();
+        m_current_bytes.fetch_sub(bytes, std::memory_order_acq_rel);
+        m_evicted_count.fetch_add(1, std::memory_order_relaxed);
+        m_evicted_bytes.fetch_add(bytes, std::memory_order_relaxed);
+        m_pressure_count.fetch_add(1, std::memory_order_relaxed);
+        return true;
+    }
+
     if (!lru_key.has_value() || picked_bucket == nullptr) return false;
 
     auto& bucket = *picked_bucket;
@@ -142,6 +210,7 @@ bool FramebufferPool::evict_global_lru(
     }
     bucket.pop_back();
     m_current_bytes -= evicted_bytes;
+    release_class_slot(class_state_for(*lru_key, false));
     m_evicted_count.fetch_add(1, std::memory_order_relaxed);
     m_evicted_bytes.fetch_add(evicted_bytes, std::memory_order_relaxed);
     m_pressure_count.fetch_add(1, std::memory_order_relaxed);
@@ -186,7 +255,7 @@ size_t do_preallocate_into_bucket(
         std::vector<PoolEntry>,
         FramebufferPoolKeyHash
     >& free_map,
-    size_t& current_bytes,
+    std::atomic<size_t>& current_bytes,
     size_t max_bytes,
     const FramebufferPoolPreallocOptions& options,
     int rounded_w,
@@ -213,11 +282,17 @@ size_t do_preallocate_into_bucket(
         }
 
         const size_t weight = fb->size_bytes();
-        if (max_bytes > 0 && current_bytes + weight > max_bytes) {
-            break;
+        auto current = current_bytes.load(std::memory_order_relaxed);
+        bool reserved = false;
+        while (max_bytes == 0 || (current <= max_bytes && weight <= max_bytes - current)) {
+            if (current_bytes.compare_exchange_weak(
+                    current, current + weight,
+                    std::memory_order_acq_rel, std::memory_order_relaxed)) {
+                reserved = true;
+                break;
+            }
         }
-
-        current_bytes += weight;
+        if (!reserved) break;
         free_map[key].push_back(PoolEntry{std::move(fb), 0});
         ++created;
     }
@@ -243,6 +318,9 @@ size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& option
         // OPT-POOL-BESTFIT: preallocation may have created a new bucket.
         FramebufferPoolKey key{rounded_w, rounded_h};
         m_free_by_area.insert({free_bucket_area(key), key});
+        class_state_for(key, true)->available.fetch_add(created, std::memory_order_acq_rel);
+        update_peak(m_peak_retained_bytes,
+                    m_current_bytes.load(std::memory_order_relaxed));
     }
     return created;
 }
@@ -263,6 +341,8 @@ size_t FramebufferPool::ensure_preallocated(const FramebufferPoolPreallocOptions
     if (it != m_free.end()) {
         existing = it->second.size();
     }
+    const auto class_state = class_state_for(key, false);
+    if (class_state) existing = class_state->available.load(std::memory_order_acquire);
     if (existing >= options.count) {
         return 0;
     }
@@ -275,6 +355,9 @@ size_t FramebufferPool::ensure_preallocated(const FramebufferPoolPreallocOptions
         // OPT-POOL-BESTFIT: bucket may have been created by this call.
         m_free_by_area.insert({free_bucket_area(key), key});
     }
+    if (created > 0) class_state_for(key, true)->available.fetch_add(created, std::memory_order_acq_rel);
+    if (created > 0) update_peak(m_peak_retained_bytes,
+                                 m_current_bytes.load(std::memory_order_relaxed));
     return created;
 }
 

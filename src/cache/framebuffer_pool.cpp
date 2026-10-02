@@ -73,12 +73,10 @@ namespace chronon3d::cache {
 
 namespace {
 
-// Wave-2 contention meters. Every acquire/release/set_arena crosses the same
-// m_mutex, so the WAIT time (measured before the lock is acquired) isolates
-// mutex contention from the pool work itself, and the HOLD time (measured by
-// the RAII meter below) attributes the actual critical-section cost. The
-// meter's destructor runs at every return, so no locked scope needs to be
-// re-shaped to report its hold time.
+// Pool and worker-slot contention meters. The WAIT time (measured before a
+// lock is acquired) isolates contention from the work itself, and the HOLD
+// time attributes the protected interval. The meter's destructor runs at
+// every return, so locked scopes need no separate reporting path.
 std::uint64_t pool_lock_wait_us(std::chrono::steady_clock::time_point t0) noexcept {
     return static_cast<std::uint64_t>(
         std::chrono::duration_cast<std::chrono::microseconds>(
@@ -87,9 +85,13 @@ std::uint64_t pool_lock_wait_us(std::chrono::steady_clock::time_point t0) noexce
 
 class PoolLockHoldMeter {
 public:
-    explicit PoolLockHoldMeter(std::atomic<std::uint64_t>& sink) noexcept
-        : sink_(sink), t0_(std::chrono::steady_clock::now()) {}
+    explicit PoolLockHoldMeter(
+        std::atomic<std::uint64_t>& sink, bool enabled = true) noexcept
+        : sink_(sink), enabled_(enabled) {
+        if (enabled_) t0_ = std::chrono::steady_clock::now();
+    }
     ~PoolLockHoldMeter() {
+        if (!enabled_) return;
         sink_.fetch_add(static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - t0_).count()),
@@ -100,7 +102,8 @@ public:
 
 private:
     std::atomic<std::uint64_t>& sink_;
-    std::chrono::steady_clock::time_point t0_;
+    bool enabled_{true};
+    std::chrono::steady_clock::time_point t0_{};
 };
 
 } // namespace
@@ -114,12 +117,206 @@ FramebufferPool::FramebufferPool(size_t max_bytes) {
     // The caller (SoftwareRenderer) pre-resolves Config/env overrides
     // and passes the resolved value.
     m_config.max_retained_bytes = (max_bytes > 0) ? max_bytes : kDefaultBudgetBytes;
+    m_budget_bytes.store(m_config.max_retained_bytes, std::memory_order_relaxed);
 }
 
 FramebufferPool::FramebufferPool(const FramebufferPoolConfig& config)
-    : m_config(config) {}
+    : m_config(config) {
+    m_budget_bytes.store(m_config.max_retained_bytes, std::memory_order_relaxed);
+}
 
 FramebufferPool::~FramebufferPool() = default;
+
+std::size_t FramebufferPool::local_slot_index() noexcept {
+    static std::atomic<std::size_t> next_slot{0};
+    thread_local const std::size_t slot =
+        next_slot.fetch_add(1, std::memory_order_relaxed) % kLocalSlotCount;
+    return slot;
+}
+
+std::shared_ptr<FramebufferPool::PoolClassState>
+FramebufferPool::class_state_for(FramebufferPoolKey key, bool create) {
+    {
+        std::shared_lock lock(m_class_states_mutex);
+        const auto it = m_class_states.find(key);
+        if (it != m_class_states.end()) return it->second;
+        if (!create) return {};
+    }
+    std::unique_lock lock(m_class_states_mutex);
+    if (const auto it = m_class_states.find(key); it != m_class_states.end()) {
+        return it->second;
+    }
+    if (m_class_states.size() >= 256) {
+        for (auto it = m_class_states.begin(); it != m_class_states.end();) {
+            if (it->second->available.load(std::memory_order_relaxed) == 0 &&
+                it->second.use_count() == 1) {
+                it = m_class_states.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    auto state = std::make_shared<PoolClassState>();
+    m_class_states.emplace(key, state);
+    return state;
+}
+
+bool FramebufferPool::reserve_retained_bytes(std::size_t bytes) noexcept {
+    auto current = m_current_bytes.load(std::memory_order_relaxed);
+    for (;;) {
+        const auto budget = m_budget_bytes.load(std::memory_order_acquire);
+        if (budget != 0 && (current > budget || bytes > budget - current)) return false;
+        if (m_current_bytes.compare_exchange_weak(
+                current, current + bytes,
+                std::memory_order_acq_rel, std::memory_order_relaxed)) {
+            const auto confirmed_budget = m_budget_bytes.load(std::memory_order_acquire);
+            if (confirmed_budget == 0 || current + bytes <= confirmed_budget) {
+                update_peak(m_peak_retained_bytes, current + bytes);
+                return true;
+            }
+            m_current_bytes.fetch_sub(bytes, std::memory_order_acq_rel);
+            return false;
+        }
+    }
+}
+
+bool FramebufferPool::reserve_class_slot(
+    const std::shared_ptr<PoolClassState>& state) const noexcept {
+    if (!state) return false;
+    const auto limit = m_config.max_buffers_per_size_class;
+    auto current = state->available.load(std::memory_order_relaxed);
+    for (;;) {
+        if (limit > 0 && current >= limit) return false;
+        if (state->available.compare_exchange_weak(
+                current, current + 1,
+                std::memory_order_acq_rel, std::memory_order_relaxed)) {
+            return true;
+        }
+    }
+}
+
+void FramebufferPool::release_class_slot(
+    const std::shared_ptr<PoolClassState>& state) noexcept {
+    if (state) state->available.fetch_sub(1, std::memory_order_acq_rel);
+}
+
+void FramebufferPool::update_peak(
+    std::atomic<std::size_t>& peak, std::size_t value) noexcept {
+    auto current = peak.load(std::memory_order_relaxed);
+    while (current < value && !peak.compare_exchange_weak(
+        current, value, std::memory_order_relaxed, std::memory_order_relaxed)) {
+    }
+}
+
+bool FramebufferPool::try_acquire_local(
+    int width, int height, std::unique_ptr<Framebuffer>& out) {
+    const auto [rounded_w, rounded_h] = round_to_bucket(width, height);
+    const FramebufferPoolKey key{rounded_w, rounded_h};
+    const auto index = local_slot_index();
+    const auto generation = m_local_generation.load(std::memory_order_acquire);
+    auto consume_slot = [&](std::size_t slot_index, bool exact) {
+        auto& slot = m_local_slots[slot_index];
+        std::unique_lock lock(slot.mutex, std::try_to_lock);
+        const bool contended = !lock.owns_lock();
+        if (contended) {
+            const auto wait_t0 = std::chrono::steady_clock::now();
+            lock.lock();
+            m_lock_wait_us.fetch_add(pool_lock_wait_us(wait_t0), std::memory_order_relaxed);
+        }
+        PoolLockHoldMeter hold(m_lock_hold_wall_us, contended);
+        if (generation != m_local_generation.load(std::memory_order_acquire) ||
+            slot.generation != generation || !slot.framebuffer) {
+            return false;
+        }
+        const bool fits = slot.key.width >= rounded_w && slot.key.height >= rounded_h;
+        if (exact ? !(slot.key == key) : !fits) return false;
+        out = std::move(slot.framebuffer);
+        if (slot.class_state) release_class_slot(slot.class_state);
+        m_current_bytes.fetch_sub(out->size_bytes(), std::memory_order_acq_rel);
+        m_total_reuses.fetch_add(1, std::memory_order_relaxed);
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+            if (exact) {
+                profiling::g_current_counters->framebuffer_pool_exact_hit.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                profiling::g_current_counters->framebuffer_pool_best_fit_reuse.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+        return true;
+    };
+
+    if (consume_slot(index, true)) {
+        out->resize_logical(width, height);
+        return true;
+    }
+
+    std::size_t best_slot = m_local_slots.size();
+    std::uint64_t best_area = std::numeric_limits<std::uint64_t>::max();
+    for (std::size_t i = 0; i < m_local_slots.size(); ++i) {
+        if (i == index) continue;
+        auto& candidate = m_local_slots[i];
+        std::unique_lock candidate_lock(candidate.mutex, std::try_to_lock);
+        if (!candidate_lock.owns_lock() || !candidate.framebuffer ||
+            candidate.generation != generation ||
+            candidate.key.width < rounded_w || candidate.key.height < rounded_h) {
+            continue;
+        }
+        const auto area = FramebufferPool::free_bucket_area(candidate.key);
+        if (area < best_area) {
+            best_area = area;
+            best_slot = i;
+        }
+    }
+    if (best_slot < m_local_slots.size() && consume_slot(best_slot, false)) {
+        out->resize_logical(width, height);
+        return true;
+    }
+    return false;
+}
+
+bool FramebufferPool::try_release_local(
+    std::unique_ptr<Framebuffer>& framebuffer) {
+    if (!framebuffer || framebuffer->is_arena_allocated()) return false;
+    const FramebufferPoolKey key{
+        framebuffer->allocated_width(), framebuffer->allocated_height()};
+    const auto index = local_slot_index();
+    const auto generation = m_local_generation.load(std::memory_order_acquire);
+    auto& slot = m_local_slots[index];
+    std::unique_lock lock(slot.mutex, std::try_to_lock);
+    const bool contended = !lock.owns_lock();
+    if (contended) {
+        const auto wait_t0 = std::chrono::steady_clock::now();
+        lock.lock();
+        m_lock_wait_us.fetch_add(pool_lock_wait_us(wait_t0), std::memory_order_relaxed);
+    }
+    PoolLockHoldMeter hold(m_lock_hold_wall_us, contended);
+    if (generation != m_local_generation.load(std::memory_order_acquire) ||
+        slot.framebuffer) {
+        return false;
+    }
+    std::shared_ptr<PoolClassState> new_state;
+    const bool same_class = slot.class_state && slot.key == key;
+    if (!same_class) new_state = class_state_for(key, true);
+    const auto& state = same_class ? slot.class_state : new_state;
+    if (!reserve_class_slot(state)) return false;
+    const auto weight = framebuffer->size_bytes();
+    if (!reserve_retained_bytes(weight)) {
+        release_class_slot(state);
+        return false;
+    }
+    framebuffer->resize_logical(framebuffer->allocated_width(), framebuffer->allocated_height());
+    framebuffer->set_storage_transferable(true);
+    slot.key = key;
+    if (!same_class) slot.class_state = std::move(new_state);
+    slot.generation = generation;
+    slot.last_used_tick = m_tick.fetch_add(1, std::memory_order_relaxed) + 1;
+    slot.framebuffer = std::move(framebuffer);
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(
+            1, std::memory_order_relaxed);
+    }
+    return true;
+}
 
 void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
     const auto lock_t0 = std::chrono::steady_clock::now();
@@ -160,11 +357,27 @@ void FramebufferPool::set_budget_bytes(size_t max_retained_bytes) {
     {
         std::lock_guard lock(m_mutex);
         m_config.max_retained_bytes = max_retained_bytes;
+        m_budget_bytes.store(max_retained_bytes, std::memory_order_release);
         // If the new budget is tighter, evict immediately. Destroy the large
         // pixel allocations after releasing the pool mutex.
         if (max_retained_bytes > 0) {
             while (m_current_bytes > max_retained_bytes) {
-                if (!evict_global_lru(deferred_destruction)) break;
+                if (evict_global_lru(deferred_destruction)) continue;
+                bool removed_local = false;
+                for (auto& slot : m_local_slots) {
+                    std::lock_guard slot_lock(slot.mutex);
+                    if (!slot.framebuffer || m_current_bytes <= max_retained_bytes) continue;
+                    const auto bytes = slot.framebuffer->size_bytes();
+                    release_class_slot(slot.class_state);
+                    deferred_destruction.push_back(std::move(slot.framebuffer));
+                    slot.class_state.reset();
+                    m_current_bytes.fetch_sub(bytes, std::memory_order_acq_rel);
+                    m_evicted_count.fetch_add(1, std::memory_order_relaxed);
+                    m_evicted_bytes.fetch_add(bytes, std::memory_order_relaxed);
+                    m_pressure_count.fetch_add(1, std::memory_order_relaxed);
+                    removed_local = true;
+                }
+                if (!removed_local) break;
             }
         }
     }
@@ -220,6 +433,9 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     if (out_fresh_alloc) *out_fresh_alloc = false;
 
     std::unique_ptr<Framebuffer> reused;
+    m_acquire_count.fetch_add(1, std::memory_order_relaxed);
+    if (try_acquire_local(width, height, reused)) return reused;
+
     FramebufferArena* arena = nullptr;
     std::shared_ptr<FramebufferArena> arena_owner;
     const auto lock_t0 = std::chrono::steady_clock::now();
@@ -227,7 +443,6 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     {
         std::lock_guard lock(m_mutex);
         m_lock_wait_us.fetch_add(pool_lock_wait_us(lock_t0), std::memory_order_relaxed);
-        m_acquire_count.fetch_add(1, std::memory_order_relaxed);
         PoolLockHoldMeter hold(m_lock_hold_wall_us);
 
         {
@@ -239,6 +454,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
                 auto entry = std::move(bucket.front());
                 bucket.erase(bucket.begin());
                 m_current_bytes -= entry.fb->size_bytes();
+                release_class_slot(class_state_for(key, false));
                 m_total_reuses.fetch_add(1, std::memory_order_relaxed);
                 if (profiling::g_current_counters) {
                     profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
@@ -290,6 +506,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
                 auto entry = std::move(bucket.back());
                 bucket.pop_back();
                 m_current_bytes -= entry.fb->size_bytes();
+                release_class_slot(class_state_for(best_fit->first, false));
                 m_total_reuses.fetch_add(1, std::memory_order_relaxed);
                 if (profiling::g_current_counters) {
                     profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
@@ -483,6 +700,9 @@ void FramebufferPool::release(Framebuffer* fb) {
     std::unique_ptr<Framebuffer> owned(fb);
     if (owned->is_arena_allocated()) return;
 
+    owned->resize_logical(owned->allocated_width(), owned->allocated_height());
+    if (try_release_local(owned)) return;
+
     std::vector<std::unique_ptr<Framebuffer>> deferred_destruction;
     deferred_destruction.reserve(16);
     {
@@ -497,6 +717,7 @@ void FramebufferPool::release(Framebuffer* fb) {
         const size_t weight = owned->size_bytes();
         const uint64_t current_tick = ++m_tick;
         const FramebufferPoolKey key{alloc_w, alloc_h};
+        auto class_state = class_state_for(key, true);
 
         if (m_config.max_retained_bytes > 0 &&
             m_current_bytes + weight > m_config.max_retained_bytes) {
@@ -504,8 +725,9 @@ void FramebufferPool::release(Framebuffer* fb) {
         }
 
         auto it = m_free.find(key);
-        if (it != m_free.end() && m_config.max_buffers_per_size_class > 0) {
-            while (it->second.size() >= m_config.max_buffers_per_size_class) {
+        if (m_config.max_buffers_per_size_class > 0) {
+            while (class_state->available.load(std::memory_order_acquire) >=
+                   m_config.max_buffers_per_size_class) {
                 if (!evict_one_from_bucket(key, deferred_destruction)) break;
                 it = m_free.find(key);
                 if (it == m_free.end()) break;
@@ -522,8 +744,15 @@ void FramebufferPool::release(Framebuffer* fb) {
             return;
         }
 
-        m_current_bytes += weight;
-        m_peak_retained_bytes = std::max(m_peak_retained_bytes, m_current_bytes);
+        const bool class_reserved = reserve_class_slot(class_state);
+        const bool bytes_reserved = class_reserved && reserve_retained_bytes(weight);
+        if (!bytes_reserved) {
+            if (class_reserved) release_class_slot(class_state);
+            m_evicted_count.fetch_add(1, std::memory_order_relaxed);
+            m_evicted_bytes.fetch_add(weight, std::memory_order_relaxed);
+            m_pressure_count.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
         owned->set_storage_transferable(true);
         const auto bucket_it = m_free.find(key);
         const bool bucket_was_empty = bucket_it == m_free.end() || bucket_it->second.empty();
@@ -548,13 +777,26 @@ void FramebufferPool::set_native_surface_releaser(
 // ─────────────────────────────────────────────────────────────────────────────
 
 void FramebufferPool::clear() {
+    m_local_generation.fetch_add(1, std::memory_order_acq_rel);
     decltype(m_free) retired;
+    std::array<std::unique_ptr<Framebuffer>, kLocalSlotCount> retired_local{};
     {
         std::lock_guard lock(m_mutex);
         retired.swap(m_free);
         // OPT-POOL-BESTFIT — the index must mirror m_free (non-empty buckets).
         m_free_by_area.clear();
-        m_current_bytes = 0;
+        for (std::size_t i = 0; i < m_local_slots.size(); ++i) {
+            auto& slot = m_local_slots[i];
+            std::lock_guard slot_lock(slot.mutex);
+            if (slot.framebuffer) release_class_slot(slot.class_state);
+            retired_local[i] = std::move(slot.framebuffer);
+            slot.class_state.reset();
+        }
+        m_current_bytes.store(0, std::memory_order_release);
+        {
+            std::unique_lock class_lock(m_class_states_mutex);
+            m_class_states.clear();
+        }
     }
 }
 
@@ -596,7 +838,7 @@ void FramebufferPool::trim_after_job() {
 
 size_t FramebufferPool::current_bytes() const {
     std::shared_lock lock(m_mutex);
-    return m_current_bytes;
+    return m_current_bytes.load(std::memory_order_relaxed);
 }
 
 size_t FramebufferPool::available_count() const {
@@ -604,6 +846,10 @@ size_t FramebufferPool::available_count() const {
     size_t count = 0;
     for (const auto& [key, bucket] : m_free) {
         count += bucket.size();
+    }
+    for (const auto& slot : m_local_slots) {
+        std::lock_guard slot_lock(slot.mutex);
+        count += slot.framebuffer ? 1 : 0;
     }
     return count;
 }
@@ -623,13 +869,27 @@ FramebufferPoolStats FramebufferPool::stats() const {
     for (const auto& [key, bucket] : m_free) {
         count += bucket.size();
     }
+    for (const auto& slot : m_local_slots) {
+        std::lock_guard slot_lock(slot.mutex);
+        count += slot.framebuffer ? 1 : 0;
+    }
+
+    std::size_t size_class_count = 0;
+    {
+        std::shared_lock classes_lock(m_class_states_mutex);
+        for (const auto& [key, state] : m_class_states) {
+            if (state->available.load(std::memory_order_relaxed) != 0) {
+                ++size_class_count;
+            }
+        }
+    }
 
     const size_t allocs = m_total_allocations.load(std::memory_order_relaxed);
     const size_t reuses = m_total_reuses.load(std::memory_order_relaxed);
     const size_t total = allocs + reuses;
 
     return FramebufferPoolStats{
-        .current_bytes = m_current_bytes,
+        .current_bytes = m_current_bytes.load(std::memory_order_relaxed),
         .available_count = count,
         .max_bytes = m_config.max_retained_bytes,
         .total_allocations = allocs,
@@ -639,12 +899,12 @@ FramebufferPoolStats FramebufferPool::stats() const {
         .arena_bytes = m_arena ? m_arena->total_bytes() : 0,
         .hit_rate = total > 0 ? static_cast<double>(reuses) / static_cast<double>(total) : 0.0,
         .budget_bytes = m_config.max_retained_bytes,
-        .retained_bytes = m_current_bytes,
-        .peak_retained_bytes = m_peak_retained_bytes,
+        .retained_bytes = m_current_bytes.load(std::memory_order_relaxed),
+        .peak_retained_bytes = m_peak_retained_bytes.load(std::memory_order_relaxed),
         .evicted_count = m_evicted_count.load(std::memory_order_relaxed),
         .evicted_bytes = m_evicted_bytes.load(std::memory_order_relaxed),
         .pressure_count = m_pressure_count.load(std::memory_order_relaxed),
-        .size_class_count = m_free.size(),
+        .size_class_count = size_class_count,
         .lock_wait_us = m_lock_wait_us.load(std::memory_order_relaxed),
         .lock_hold_wall_us = m_lock_hold_wall_us.load(std::memory_order_relaxed),
         .acquire_count = m_acquire_count.load(std::memory_order_relaxed),
@@ -666,7 +926,8 @@ void FramebufferPool::reset_counters() {
     m_arena_set_count.store(0, std::memory_order_relaxed);
     m_arena_set_wait_us.store(0, std::memory_order_relaxed);
     std::lock_guard lock(m_mutex);
-    m_peak_retained_bytes = m_current_bytes;
+    m_peak_retained_bytes.store(
+        m_current_bytes.load(std::memory_order_relaxed), std::memory_order_relaxed);
     m_evicted_count.store(0, std::memory_order_relaxed);
     m_evicted_bytes.store(0, std::memory_order_relaxed);
     m_pressure_count.store(0, std::memory_order_relaxed);

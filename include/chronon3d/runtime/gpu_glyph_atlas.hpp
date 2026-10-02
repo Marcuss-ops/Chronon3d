@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <bit>
 #include <atomic>
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -289,6 +290,7 @@ private:
         const DistanceFieldProfile& profile,
         std::uint32_t width,
         std::uint32_t height);
+    [[nodiscard]] static std::size_t fast_path_hit_counter_index() noexcept;
 
     // FIXING.md S-01 — shared_mutex: read hits (metrics/stats + future
     // glyph find fast-path) take shared_lock; writes (page alloc/upload,
@@ -302,10 +304,14 @@ private:
     std::unordered_map<GpuGlyphKey, GlyphLocation, GpuGlyphKeyHash> m_locations;
     std::unordered_map<GpuGlyphKey, GpuGlyphMetrics, GpuGlyphKeyHash> m_metrics;
     GpuGlyphAtlasStats m_stats{};
-    // Fast-path hits (shared_lock reads) cannot bump m_stats.hits without a
-    // lock upgrade; they accumulate here with a relaxed atomic and are folded
-    // into stats().hits by the write-lock-free stats() snapshot.
-    mutable std::atomic<std::size_t> m_fast_path_hits{0};
+    // Fast-path hit statistics are striped by worker to avoid one cache line
+    // bouncing between all readers. stats() folds the slots into m_stats.hits.
+    struct alignas(64) FastPathHitCounter {
+        std::atomic<std::size_t> hits{0};
+    };
+    static constexpr std::size_t kFastPathHitCounterCount = 64;
+    mutable std::array<FastPathHitCounter, kFastPathHitCounterCount>
+        m_fast_path_hits{};
 };
 
 // ── GpuStyledGlyphCache (formerly GpuTextAtlasCache) ───────────────────────

@@ -8,15 +8,19 @@
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_MULTIPLE_MASTERS_H
+#include "font_variations_internal.hpp"
 #endif
 
 #include <cstddef>
+#include <algorithm>
 #include <filesystem>
 #include <optional>
 #include <mutex>
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 namespace chronon3d::text {
 namespace {
@@ -52,6 +56,7 @@ FT_Library shared_library() {
 struct GlyphKey {
     assets::ContentDigest font_digest{};
     std::uint32_t glyph_id{0};
+    std::string variation_axes;
     MtsdfProfile profile{};
 
     friend bool operator==(const GlyphKey&, const GlyphKey&) = default;
@@ -66,6 +71,10 @@ struct GlyphKeyHash {
         }
         value ^= static_cast<std::size_t>(key.glyph_id) +
             0x9e3779b97f4a7c15ULL + (value << 6U) + (value >> 2U);
+        for (const unsigned char c : key.variation_axes) {
+            value ^= static_cast<std::size_t>(c) +
+                0x9e3779b97f4a7c15ULL + (value << 6U) + (value >> 2U);
+        }
         value ^= static_cast<std::size_t>(key.profile.em_px) +
             (value << 6U) + (value >> 2U);
         value ^= static_cast<std::size_t>(key.profile.distance_range_px) +
@@ -77,6 +86,13 @@ struct GlyphKeyHash {
         return value;
     }
 };
+
+#ifdef CHRONON3D_ENABLE_TEXT
+bool apply_face_variations(FT_Face face, FT_Library library,
+                           std::string_view axes) {
+    return text_internal::apply_font_variation_axes(library, face, axes);
+}
+#endif
 
 // Canonical font content identity — ContentCache family
 // ────────────────────────────────────────────────────────
@@ -134,7 +150,8 @@ public:
         const assets::AssetResolver& resolver,
         std::string_view font_path,
         std::uint32_t glyph_id,
-        const MtsdfProfile& profile) {
+        const MtsdfProfile& profile,
+        std::string_view variation_axes) {
         const auto resolved = resolver.resolve_lexical(std::string(font_path));
         if (!resolved) return nullptr;
         // Content-addressed: the identity is the canonical prepared-font
@@ -142,13 +159,14 @@ public:
         // satisfy a hit with a glyph built from the previous bytes.
         const assets::ContentDigest font_digest =
             font_identity_memo().digest_for(*resolved);
-        GlyphKey key{font_digest, glyph_id, profile};
+        GlyphKey key{font_digest, glyph_id, std::string(variation_axes), profile};
         const std::string resolved_str = resolved->generic_string();
-        return glyphs_.compute_if_absent(key, [&, resolved_str, font_digest]() {
+        const std::string axes(variation_axes);
+        return glyphs_.compute_if_absent(key, [&, resolved_str, font_digest, axes]() {
 #ifdef CHRONON3D_ENABLE_TEXT
             const auto library = shared_library();
             if (!library) return std::pair<std::shared_ptr<const MtsdfGlyphBitmap>, std::size_t>{nullptr, 1};
-            auto face = get_face(font_digest, resolved_str, profile.em_px, library);
+            auto face = get_face(font_digest, resolved_str, profile.em_px, library, axes);
             if (!face) return std::pair<std::shared_ptr<const MtsdfGlyphBitmap>, std::size_t>{nullptr, 1};
             const auto generated = generate_mtsdf_glyph(
                 MtsdfFaceGuard{face->face, &face->mutex}, glyph_id,
@@ -179,13 +197,14 @@ private:
     static constexpr std::size_t kMaxFaces = 32;
     std::shared_ptr<FaceEntry> get_face(
         const assets::ContentDigest& font_digest, const std::string& path,
-        std::uint16_t em_px, FT_Library library) {
+        std::uint16_t em_px, FT_Library library, const std::string& axes) {
         const auto key = path + "\n" + font_digest.hex() + "\n" +
-            std::to_string(em_px);
+            std::to_string(em_px) + "\n" + axes;
         return faces_.compute_if_absent(key, [&]() -> std::pair<std::shared_ptr<FaceEntry>, std::size_t> {
             auto face = std::make_shared<FaceEntry>();
             if (FT_New_Face(library, path.c_str(), 0, &face->face) != 0 ||
-                !face->face || FT_Set_Pixel_Sizes(face->face, em_px, em_px) != 0) {
+                !face->face || !apply_face_variations(face->face, library, axes) ||
+                FT_Set_Pixel_Sizes(face->face, em_px, em_px) != 0) {
                 if (face->face) FT_Done_Face(face->face);
                 face->face = nullptr;
                 return {nullptr, 1};
@@ -220,8 +239,17 @@ std::shared_ptr<const MtsdfGlyphBitmap> prepare_mtsdf_glyph(
     std::string_view font_path,
     std::uint32_t glyph_id,
     const MtsdfProfile& profile) {
+    return prepare_mtsdf_glyph(resolver, font_path, glyph_id, profile, {});
+}
+
+std::shared_ptr<const MtsdfGlyphBitmap> prepare_mtsdf_glyph(
+    const assets::AssetResolver& resolver,
+    std::string_view font_path,
+    std::uint32_t glyph_id,
+    const MtsdfProfile& profile,
+    std::string_view variation_axes) {
     if (font_path.empty() || glyph_id == 0) return nullptr;
-    return cache_instance().get(resolver, font_path, glyph_id, profile);
+    return cache_instance().get(resolver, font_path, glyph_id, profile, variation_axes);
 }
 
 } // namespace chronon3d::text

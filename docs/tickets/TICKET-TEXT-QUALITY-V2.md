@@ -1,6 +1,6 @@
 # TICKET-TEXT-QUALITY-V2 — resa del testo: dove nasce davvero la perdita
 
-Stato: **OPEN — canary text-tile CHIUSO** (78/78, 2026-09-16: era un binario
+Stato: **OPEN — P1-1 e P1-2 già implementati nel codice corrente; P1-3 e P2 aperti**. Canary text-tile CHIUSO (78/78, 2026-09-16: era un binario
 stantio, vedi §3; il gate GPU è ora `tools/verify_text_tile_gpu_canary.sh`).
 Verifiche di codice: PASS; diagnostico di attribuzione P0-0: **ESEGUITO**, esito
 in §4.1. **P0-0b (verità pre-encode): SBLOCCATA 2026-09-17** — il PNG fedele è
@@ -8,8 +8,15 @@ una proiezione del raw sink (`tools/raw_frame_to_png.py`, evidenza
 [`docs/evidence/pre-encode-pixel-truth-2026-09-17.md`](../evidence/pre-encode-pixel-truth-2026-09-17.md));
 resta da eseguirla su un artifact di un job reale prima di dichiarare qualunque
 guadagno pixel-level. **P0-2 contratto colore CHIUSO 2026-09-17**; il prossimo
-passo misurabile è il framehash sui raw artifact reali, poi sampling/coverage e
-shadow canonica.
+passo misurabile è il framehash sui raw artifact reali e la shadow canonica.
+Audit del 2026-10-02: P1-1 (fill DirectYUV con rampa) e P1-2 (sampling
+bilineare limitato al rect del glifo e coverage screen-space) risultano già
+implementati; dettagli e contratti presenti sono riportati nella tabella §5.
+La certificazione su un artifact reale resta aperta. Nel follow-up del
+2026-10-02 gli assi variabili vengono ora applicati al shaping FreeType/HarfBuzz
+e alla generazione MTSDF, con identità distinta in font span e cache atlas;
+l'esposizione nel RenderPlan/JSON e la certificazione con un font variabile
+restano da fare.
 Ambito: `text_tile_raster.comp` (FullGraph), `cuda_nv12_kernels.hpp` (DirectYUV),
 `mtsdf_generator.cpp` (payload glifo), contratto colore del text run, contratto encoder.
 
@@ -124,8 +131,8 @@ Conseguenze sul piano, in ordine:
 | ~~P0-1~~ | Canary text tile verde (§3) — **CHIUSO 2026-09-16** | suite verde su GPU, **78/78**, 3 run; gate `tools/verify_text_tile_gpu_canary.sh` |
 | P0-2 | **CHIUSO 2026-09-17** — `parse_hex_color()` converte CSS/sRGB in linear una sola volta al lowering, prima dei backend | test `Color contract: CSS hex is lowered to canonical linear space`, `#808080` → ≈0.21586; evidenza [`color-contract-framehash-2026-09-17.md`](../evidence/color-contract-framehash-2026-09-17.md) |
 | P0-3 | **CONTRATTO GIÀ ATTERRATO** — resolver NVENC fail-closed per rate control/preset e `validate_for_benchmark()` rifiuta `driver-default`; doctor osserva le capability FFmpeg | `tests/cli/test_encoder_config_resolution.cpp`, `docs/RELEASE_GATE.md`; nessun nuovo resolver |
-| P1-1 | DirectYUV: fill a rampa al posto della soglia (lo stroke ha già la rampa) | equivalence test contro il bug watermark che aveva motivato la soglia |
-| P1-2 | Sampling frazionario/bilineare delle letture atlas nei due lane **+ larghezza di coverage screen-space**: il filtraggio da solo passa da nearest aliasato a bilineare un po' meno aliasato, non risolve la minificazione. Ogni sample va **clampato al rect del singolo glifo nell'atlas** con disciplina half-texel, altrimenti a bordo pagina si legge il glifo vicino | parità pixel + canary + test di bordo pagina |
+| ~~P1-1~~ | **IMPLEMENTATO** — DirectYUV usa `field_px + 0.5` come rampa di coverage (`src/media/video/compositor/cuda/cuda_nv12_kernels.hpp:439`); la matrice CUDA/Vulkan include il contratto fill e la parità per stroke (`tests/media/nv12/nv12_equivalence_test.cpp:709,730`) | Test e gate esistenti; non rieseguiti in questo audit |
+| ~~P1-2~~ | **IMPLEMENTATO** — Vulkan usa `atlas_tap_bilinear()` con clamp al rect del glifo (`src/backends/vulkan/shaders/text_tile_raster.comp:101,319`) e coverage texel→screen (`:232-253,335`); DirectYUV interpola quattro tap nel rect sorgente (`src/media/video/compositor/cuda/cuda_nv12_kernels.hpp:277-303`) | Canary include campionamento frazionario e confine del rect (`tests/backends/test_text_tile_raster_canary.cpp:780-820`); non rieseguito in questo audit |
 | P1-3 | Shadow canonica **sul run**, non sul singolo glifo: silhouettes dei glifi → **union mask del TextRun** → spread opzionale → gaussiana separabile → colore/opacità → source-over **lineare**. Risolve insieme clipping per-glifo, `alpha-max` sugli overlap e blur non fisicamente coerente. Il 3×3 attuale resta come modalità **`Fast`** (non va eliminato: è il percorso a throughput massimo) | delta frame time misurato + golden |
 | P2-1 | Generatore: `msdfgen` come **leaf**, mantenendo `MtsdfProfile`/cache/preparation authority; `generation_id` 1→2 | byte-parity della preparation + re-pin del payload |
 | P2-2 | Due semantiche di stroke **dichiarate**, non un SDF "aggiustato": `DistanceStroke` (veloce, join round/offset — l'attuale dilatazione del campo distanza) e `VectorStroke` (miter/bevel/round + miter limit + representation HQ). Non si cerca di far sembrare un miter un SDF: non lo diventerà (**ADR** obbligatorio) | ADR + parity gate |
@@ -147,7 +154,7 @@ Conseguenze sul piano, in ordine:
    CUDA e software (niente `to_linear()` separato per backend);
 4. **Contratto encoder** (P0-3): 535 kbps può mascherare qualunque progresso del
    renderer;
-5. **Sampling frazionario + coverage screen-space** (P1-2);
+5. ~~**Fill a rampa DirectYUV** (P1-1) e **sampling frazionario + coverage screen-space** (P1-2)~~ — già implementati nel codice corrente;
 6. **Shadow canonica sul run/bbox** (P1-3);
 7. **msdfgen / representation HQ / miter** (P2-1..P2-3), dopo che il percorso base
    è misurabile e stabile.
