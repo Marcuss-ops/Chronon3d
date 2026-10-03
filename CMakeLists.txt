@@ -6,12 +6,6 @@ project(Chronon3d
     LANGUAGES C CXX
 )
 
-# Keep compilation parallel while serializing memory-heavy Ninja link steps.
-if(CMAKE_GENERATOR MATCHES "Ninja")
-    set_property(GLOBAL PROPERTY JOB_POOLS chronon3d_link_pool=1)
-    set(CMAKE_JOB_POOL_LINK chronon3d_link_pool)
-endif()
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -74,6 +68,17 @@ if(NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
        NOT CMAKE_EXE_LINKER_FLAGS MATCHES "-fuse-ld=")
         add_link_options("${CHRONON3D_LINKER_FLAG}")
     endif()
+endif()
+
+# mold/lld keep peak linker memory low enough to run two links concurrently;
+# retain serial links with the system linker on memory-constrained builders.
+if(CMAKE_GENERATOR MATCHES "Ninja")
+    if(MOLD_PROGRAM OR LLD_PROGRAM)
+        set_property(GLOBAL PROPERTY JOB_POOLS chronon3d_link_pool=2)
+    else()
+        set_property(GLOBAL PROPERTY JOB_POOLS chronon3d_link_pool=1)
+    endif()
+    set(CMAKE_JOB_POOL_LINK chronon3d_link_pool)
 endif()
 
 # Project options.

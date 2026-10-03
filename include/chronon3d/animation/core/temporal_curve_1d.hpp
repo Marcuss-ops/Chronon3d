@@ -3,17 +3,7 @@
 // ============================================================================
 // temporal_curve_1d.hpp — 1D temporal curve infrastructure
 //
-// FASE 19 split: temporal_spatial_curve.hpp was monolithic (~548L) holding
-// both time-axis curves and space-axis primitives.  This header owns ONLY the
-// 1D time-axis machinery: the path-timing invocation mode = driver of the
-// sampler + the TemporalCurve1D class itself.
-//
-// Spatial primitives (CubicBezier3D, SpatialKeyframe3D, MotionSegment3D,
-// MotionPath3D, MotionPathSampler3D) live in `spatial_motion_path.hpp`.
-//
-// Both headers are re-exported by `temporal_spatial_curve.hpp` (the umbrella
-// forwarding header) for backward compatibility with existing call sites
-// (5 test files: test_temporal_spatial_curve.cpp + cinematic_motion suite).
+// This header is the canonical 1D timing curve used by render-plan lowering.
 // ============================================================================
 
 #include <chronon3d/animation/core/animated_value.hpp>

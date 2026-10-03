@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -22,7 +23,7 @@ concurrency:
 jobs:
   developer-gates:
     name: Canonical developer gate manifest (FULL)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -30,6 +31,9 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Verify same-SHA checkout
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
       - name: Install Linux build tools
         run: |
