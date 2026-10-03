@@ -464,7 +464,7 @@ TEST_CASE("Declared layer transition fields validate and affect fingerprint") {
     plan["layers"][0]["duration_frames"] = 12;
     plan["layers"][0]["transition_in"]["kind"] = "missing_kind";
     CHECK_FALSE(render_plan::decode_render_plan(plan));
-    for (const auto* kind : {"none", "crossfade", "slide", "wipe_linear", "smooth_wipe",
+    for (const auto* kind : {"none", "crossfade", "slide", "zoom", "wipe_linear", "smooth_wipe",
                              "circle_iris", "flash", "procedural_remotion", "remotion"}) {
         auto supported = render_plan_test::base_plan({render_plan_test::shape_layer({{"type", "rect"}})});
         supported["layers"][0]["transition_in"] = {{"kind", kind}, {"duration_frames", 1}};

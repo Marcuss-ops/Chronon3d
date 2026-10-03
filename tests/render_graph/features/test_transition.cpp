@@ -100,7 +100,7 @@ TEST_CASE("Transition direction and different types execute successfully") {
     auto renderer = test::make_renderer();
 
     std::vector<std::string> transition_types = {
-        "slide", "wipe_linear", "smooth_wipe", "circle_iris", "flash", "procedural_remotion", "remotion"
+        "slide", "zoom", "wipe_linear", "smooth_wipe", "circle_iris", "flash", "procedural_remotion", "remotion"
     };
 
     for (const auto& type : transition_types) {

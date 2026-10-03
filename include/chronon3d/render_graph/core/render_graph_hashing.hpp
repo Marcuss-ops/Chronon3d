@@ -814,6 +814,8 @@ private:
             return 0xcbf29ce484222326ULL;
         } else if constexpr (std::is_same_v<T, SlideParams>) {
             return hash_value(p.distance);
+        } else if constexpr (std::is_same_v<T, ZoomParams>) {
+            return hash_value(p.amount);
         } else if constexpr (std::is_same_v<T, SmoothWipeParams>) {
             return hash_value(p.feather);
         } else if constexpr (std::is_same_v<T, CircleIrisParams>) {

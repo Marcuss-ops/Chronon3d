@@ -214,6 +214,58 @@ private:
     }
 };
 
+class ZoomProgram final : public LayerTransitionProgram {
+public:
+    explicit ZoomProgram(float amount) : m_amount(amount) {}
+
+    void execute(
+        const FramebufferRef& src, Framebuffer& out, float progress,
+        TransitionDirection direction, bool is_out, const RenderGraphContext& ctx
+    ) const override {
+        (void)direction;
+        (void)ctx;
+        const i32 width = src->width();
+        const i32 height = src->height();
+        const float t = std::clamp(progress, 0.0f, 1.0f);
+        const float zoom_t = is_out ? t : 1.0f - t;
+        const float scale = 1.0f + m_amount * zoom_t;
+        const float opacity = is_out ? 1.0f - t : t;
+        const float center_x = static_cast<float>(width - 1) * 0.5f;
+        const float center_y = static_cast<float>(height - 1) * 0.5f;
+
+        for (i32 y = 0; y < height; ++y) {
+            Color* dst = out.pixels_row(y);
+            const float source_y = std::clamp((static_cast<float>(y) - center_y) / scale + center_y,
+                                              0.0f, static_cast<float>(height - 1));
+            const i32 y0 = static_cast<i32>(source_y);
+            const i32 y1 = std::min(y0 + 1, height - 1);
+            const float fy = source_y - static_cast<float>(y0);
+            const Color* row0 = src->pixels_row(y0);
+            const Color* row1 = src->pixels_row(y1);
+            for (i32 x = 0; x < width; ++x) {
+                const float source_x = std::clamp((static_cast<float>(x) - center_x) / scale + center_x,
+                                                  0.0f, static_cast<float>(width - 1));
+                const i32 x0 = static_cast<i32>(source_x);
+                const i32 x1 = std::min(x0 + 1, width - 1);
+                const float fx = source_x - static_cast<float>(x0);
+                const Color top = lerp(row0[x0], row0[x1], fx);
+                const Color bottom = lerp(row1[x0], row1[x1], fx);
+                dst[x] = lerp(top, bottom, fy) * opacity;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>&,
+        const RenderGraphContext& ctx
+    ) const override {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
+private:
+    float m_amount;
+};
+
 class MaskBasedWipeProgram final : public LayerTransitionProgram {
 public:
     MaskBasedWipeProgram(std::unique_ptr<LayerTransitionMask> mask)
@@ -486,6 +538,10 @@ void LayerTransitionCatalog::register_builtin(LayerTransitionCatalog& catalog) {
         const SlideParams* params = std::get_if<SlideParams>(&spec.parameters);
         float distance = params ? params->distance : SlideParams{}.distance;
         return std::make_unique<SlideProgram>(distance);
+    });
+    catalog.register_transition("zoom", [](const LayerTransitionSpec& spec) {
+        const ZoomParams* params = std::get_if<ZoomParams>(&spec.parameters);
+        return std::make_unique<ZoomProgram>(params ? params->amount : ZoomParams{}.amount);
     });
     catalog.register_transition("wipe_linear", [](const LayerTransitionSpec&) {
         return std::make_unique<MaskBasedWipeProgram>(std::make_unique<LinearWipeMask>());

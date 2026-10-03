@@ -53,7 +53,11 @@ struct CachedImage {
 
 class ImageCache {
 public:
-    explicit ImageCache(size_t capacity_bytes = 512ULL * 1024 * 1024);
+    // A full-resolution 1080p map LOD expands to roughly 75 MiB in the
+    // decoded framebuffer and GPU staging formats. Keep the complete 8-level
+    // pyramid resident so a camera fly-through does not decode the same LODs
+    // on every frame.
+    explicit ImageCache(size_t capacity_bytes = 1024ULL * 1024 * 1024);
     ~ImageCache() = default;
     ImageCache(const ImageCache&) = delete;
     ImageCache& operator=(const ImageCache&) = delete;

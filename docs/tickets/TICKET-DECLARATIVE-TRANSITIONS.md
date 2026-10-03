@@ -13,7 +13,7 @@ duration and delay are converted from frames to seconds with the canvas
 timebase. `kind` uses catalog ids already registered by the single
 `LayerTransitionCatalog`; unknown kinds fail decode/compile.
 
-The accepted catalog vocabulary is `none`, `crossfade`, `slide`, `wipe_linear`,
+The accepted catalog vocabulary is `none`, `crossfade`, `slide`, `zoom`, `wipe_linear`,
 `smooth_wipe`, `circle_iris`, `flash`, `procedural_remotion`, and `remotion`.
 Existing typed parameter structs remain authoritative. Unsupported or
 ill-typed parameters fail closed. Easing uses the existing enum mapping and
