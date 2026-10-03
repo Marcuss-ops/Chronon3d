@@ -41,7 +41,36 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
     std::unordered_map<std::string, GraphNodeId> text_mask_source_pipelines;
     std::unordered_map<std::string, GraphNodeId> displacement_source_pipelines;
     std::unordered_set<std::string> displacement_sources_in_progress;
+    std::unordered_map<std::string, GraphNodeId> matte_source_pipelines;
+    std::unordered_set<std::string> matte_sources_in_progress;
+    const auto attach_text_mask_sources = [&](LayerGraphItem& item) {
+        const auto add_text_mask_source = [&](MaskType type, const std::string& source_name) {
+            if (type != MaskType::Text || item.text_mask_source_nodes.contains(source_name)) return;
+            const auto source = ctx.name_to_resolved.find(source_name);
+            if (source == ctx.name_to_resolved.end() ||
+                !source->second->layer->active_at(rctx.frame_input.frame) ||
+                source->second->layer->kind != LayerKind::Text)
+                throw std::runtime_error("text mask source is missing, inactive, or not text: " + source_name);
+            auto source_node_it = text_mask_source_pipelines.find(source_name);
+            if (source_node_it == text_mask_source_pipelines.end()) {
+                auto source_item = detail::make_item_for_matte_source(
+                    *source->second, rctx, cam25d, ctx.is_static_cache);
+                const auto source_node = detail::build_matte_sub_pipeline(
+                    graph, source_item, rctx, cam25d, false, false, false);
+                source_node_it = text_mask_source_pipelines.emplace(source_name, source_node).first;
+            }
+            const auto source_node = source_node_it->second;
+            if (source_node == k_invalid_node)
+                throw std::runtime_error("text mask source produced no prepared text output: " + source_name);
+            item.text_mask_source_nodes.emplace(source_name, source_node);
+        };
+        add_text_mask_source(item.layer->mask.type, item.layer->mask.text_source);
+        for (const auto& operation : item.layer->mask.operations)
+            add_text_mask_source(operation.type, operation.text_source);
+    };
     std::function<GraphNodeId(const std::string&)> displacement_source_node;
+    std::function<void(LayerGraphItem&)> attach_displacement_map_sources;
+    std::function<GraphNodeId(const ResolvedLayer&)> build_matte_source_node;
     displacement_source_node=[&](const std::string& name) {
         if(const auto found=displacement_source_pipelines.find(name);found!=displacement_source_pipelines.end())
             return found->second;
@@ -53,6 +82,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         if(source->second->layer->kind==LayerKind::Adjustment)
             throw std::runtime_error("DisplacementMap source cannot be an adjustment layer: "+name);
         auto source_item=detail::make_item_for_matte_source(*source->second,rctx,cam25d,ctx.is_static_cache);
+        attach_text_mask_sources(source_item);
         for(const auto& effect:source->second->layer->effects()) {
             if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
             const auto* params=std::get_if<DisplacementMapParams>(&effect.params);
@@ -64,11 +94,9 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         if(source->second->layer->track_matte.active()) {
             const std::string matte_name(source->second->layer->track_matte.source_layer);
             const auto matte=ctx.name_to_resolved.find(matte_name);
-            if(matte==ctx.name_to_resolved.end()||!matte->second->layer->active_at(rctx.frame_input.frame))
+            if(matte==ctx.name_to_resolved.end())
                 throw std::runtime_error("DisplacementMap source track-matte layer is missing or inactive: "+matte_name);
-            auto matte_item=detail::make_item_for_matte_source(
-                *matte->second,rctx,cam25d,ctx.is_static_cache);
-            source_item.matte_node=detail::build_matte_sub_pipeline(graph,matte_item,rctx);
+            source_item.matte_node = build_matte_source_node(*matte->second);
         }
         BuilderContext node_ctx{
             .layer_id=name,
@@ -85,6 +113,47 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             throw std::runtime_error("DisplacementMap source layer produced no image output: "+name);
         displacement_sources_in_progress.erase(name);
         displacement_source_pipelines.emplace(name,node);
+        return node;
+    };
+    attach_displacement_map_sources = [&](LayerGraphItem& item) {
+        for (const auto& effect : item.layer->effects()) {
+            if (!effect.enabled || effect.effect_type != effects::EffectType::DisplacementMap) continue;
+            const auto* params = std::get_if<DisplacementMapParams>(&effect.params);
+            if (!params) throw std::logic_error("DisplacementMap effect has malformed params");
+            if (params->field) continue;
+            item.displacement_map_nodes.emplace(
+                params->map_layer, displacement_source_node(params->map_layer));
+        }
+    };
+    build_matte_source_node = [&](const ResolvedLayer& resolved) -> GraphNodeId {
+        const std::string name(resolved.layer->name);
+        if (const auto found = matte_source_pipelines.find(name);
+            found != matte_source_pipelines.end()) return found->second;
+        if (!resolved.layer->active_at(rctx.frame_input.frame))
+            throw std::runtime_error("track-matte source is inactive at frame " +
+                std::to_string(rctx.frame_input.frame.integral()) + ": " + name);
+        if (resolved.layer->kind == LayerKind::Adjustment)
+            throw std::runtime_error("track-matte source cannot be an adjustment layer: " + name);
+        if (!matte_sources_in_progress.insert(name).second)
+            throw std::runtime_error("track-matte layer references form a cycle at: " + name);
+
+        auto item = detail::make_item_for_matte_source(
+            resolved, rctx, cam25d, ctx.is_static_cache);
+        attach_text_mask_sources(item);
+        attach_displacement_map_sources(item);
+        if (resolved.layer->track_matte.active()) {
+            const std::string source_name(resolved.layer->track_matte.source_layer);
+            const auto source = ctx.name_to_resolved.find(source_name);
+            if (source == ctx.name_to_resolved.end())
+                throw std::runtime_error("nested track-matte source is missing: " + source_name);
+            item.matte_node = build_matte_source_node(*source->second);
+        }
+        const auto node = detail::build_matte_sub_pipeline(
+            graph, item, rctx, cam25d);
+        matte_sources_in_progress.erase(name);
+        if (node == k_invalid_node)
+            throw std::runtime_error("track-matte source produced no image output: " + name);
+        matte_source_pipelines.emplace(name, node);
         return node;
     };
 
@@ -132,13 +201,10 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         if (item.layer->track_matte.active()) {
             const std::string src_name(item.layer->track_matte.source_layer);
             auto it = ctx.name_to_resolved.find(src_name);
-            if (it != ctx.name_to_resolved.end()
-                && it->second->layer->active_at(rctx.frame_input.frame)) {
-                LayerGraphItem matte_item = detail::make_item_for_matte_source(
-                    *it->second, rctx, cam25d, ctx.is_static_cache);
-                item.matte_node = detail::build_matte_sub_pipeline(
-                    graph, matte_item, rctx);
-            }
+            if (it == ctx.name_to_resolved.end())
+                throw std::runtime_error("track-matte source is missing or inactive at frame " +
+                    std::to_string(rctx.frame_input.frame.integral()) + ": " + src_name);
+            item.matte_node = build_matte_source_node(*it->second);
         }
         for(const auto& effect:item.layer->effects()) {
             if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
@@ -148,28 +214,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             item.displacement_map_nodes.emplace(params->map_layer,
                 displacement_source_node(params->map_layer));
         }
-        const auto add_text_mask_source = [&](MaskType type, const std::string& source_name) {
-            if (type != MaskType::Text || item.text_mask_source_nodes.contains(source_name)) return;
-            const auto source = ctx.name_to_resolved.find(source_name);
-            if (source == ctx.name_to_resolved.end() ||
-                !source->second->layer->active_at(rctx.frame_input.frame) ||
-                source->second->layer->kind != LayerKind::Text)
-                throw std::runtime_error("text mask source is missing, inactive, or not text: " + source_name);
-            auto source_node_it = text_mask_source_pipelines.find(source_name);
-            if (source_node_it == text_mask_source_pipelines.end()) {
-                auto source_item = detail::make_item_for_matte_source(
-                    *source->second, rctx, cam25d, ctx.is_static_cache);
-                const auto source_node = detail::build_matte_sub_pipeline(graph, source_item, rctx);
-                source_node_it = text_mask_source_pipelines.emplace(source_name, source_node).first;
-            }
-            const auto source_node = source_node_it->second;
-            if (source_node == k_invalid_node)
-                throw std::runtime_error("text mask source produced no prepared text output: " + source_name);
-            item.text_mask_source_nodes.emplace(source_name, source_node);
-        };
-        add_text_mask_source(item.layer->mask.type, item.layer->mask.text_source);
-        for (const auto& operation : item.layer->mask.operations)
-            add_text_mask_source(operation.type, operation.text_source);
+        attach_text_mask_sources(item);
         detail::append_layer_pipeline(
             graph, item, ctx.current_output, rctx, cam25d, casters,
             ctx.scene->depth_grade());
@@ -212,6 +257,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
 
         const bool is_static_val = ctx.is_static_cache.at(name);
         LayerGraphItem item = make_layer_graph_item(rl, cam25d, rctx, is_static_val);
+        attach_text_mask_sources(item);
 
         for(const auto& effect:rl.layer->effects()) {
             if(!effect.enabled||effect.effect_type!=effects::EffectType::DisplacementMap) continue;
@@ -225,13 +271,10 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         if (rl.layer->track_matte.active()) {
             const std::string src_name(rl.layer->track_matte.source_layer);
             auto matte_it = ctx.name_to_resolved.find(src_name);
-            if (matte_it != ctx.name_to_resolved.end()
-                && matte_it->second->layer->active_at(rctx.frame_input.frame)) {
-                LayerGraphItem matte_item = detail::make_item_for_matte_source(
-                    *matte_it->second, rctx, cam25d, ctx.is_static_cache);
-                item.matte_node = detail::build_matte_sub_pipeline(
-                    graph, matte_item, rctx);
-            }
+            if (matte_it == ctx.name_to_resolved.end())
+                throw std::runtime_error("track-matte source is missing or inactive at frame " +
+                    std::to_string(rctx.frame_input.frame.integral()) + ": " + src_name);
+            item.matte_node = build_matte_source_node(*matte_it->second);
         }
 
         BuilderContext node_ctx{

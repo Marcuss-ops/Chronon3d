@@ -105,12 +105,11 @@ public:
         const float effective_fps = (m_source.source_fps > 0.0f) ? m_source.source_fps : ctx.frame_input.fps;
         const i64 source_fps = std::max<i64>(
             1, static_cast<i64>(std::llround(effective_fps)));
-        auto decoded = decoder->decode_frame_at(
-            m_source.path,
-            RationalTime{source_frame.integral(), Rational{1, source_fps}},
-            render_w,
-            render_h
-        );
+        const RationalTime source_time{source_frame.integral(), Rational{1, source_fps}};
+        auto decoded = decoder->decode_frame_at_with_color_transform(
+            m_source.path, source_time, render_w, render_h,
+            media::VideoColorTransform{m_source.ocio_config_path,
+                m_source.ocio_input_space, m_source.ocio_working_space});
         const auto* decoded_frame = media::decoded_frame_if(decoded);
         if (!decoded_frame || !decoded_frame->framebuffer) {
             if (media::decode_is_eos(decoded) && source_frame > 0) {
@@ -118,12 +117,12 @@ public:
                 const Frame retry_frame = (m_source.loop_mode == video::VideoLoopMode::Loop)
                     ? (m_source.source_start + video::detail::safe_loop_frame(source_frame - m_source.source_start, m_source.duration))
                     : (m_source.source_start + std::max<Frame>(0, m_source.duration - 1));
-                decoded = decoder->decode_frame_at(
+                decoded = decoder->decode_frame_at_with_color_transform(
                     m_source.path,
                     RationalTime{retry_frame.integral(), Rational{1, source_fps}},
-                    render_w,
-                    render_h
-                );
+                    render_w, render_h,
+                    media::VideoColorTransform{m_source.ocio_config_path,
+                        m_source.ocio_input_space, m_source.ocio_working_space});
                 decoded_frame = media::decoded_frame_if(decoded);
             }
         }

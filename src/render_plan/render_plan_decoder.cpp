@@ -513,6 +513,50 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
                     "track-matte source layer id does not exist: " + layer.track_matte->source,
                     "track_matte_source_missing", "render-plan-relations"};
             }
+            const auto source_index = by_id.at(layer.track_matte->source);
+            if (plan.layers[source_index].type == LayerType::Adjustment) {
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].track_matte.source",
+                    "track-matte source must produce pixels; adjustment layers do not",
+                    "track_matte_source_not_raster", "render-plan-relations"};
+            }
+            const auto active_window = [&](const LayerPlan& candidate) {
+                const std::int64_t canvas_end = plan.canvas.duration.integral();
+                const std::int64_t start = candidate.start_frame
+                    ? candidate.start_frame->integral() : 0;
+                const std::int64_t duration = candidate.duration_frames
+                    ? candidate.duration_frames->integral() : -1;
+                const std::int64_t begin = std::clamp<std::int64_t>(start, 0, canvas_end);
+                std::int64_t end = canvas_end;
+                if (duration >= 0) {
+                    // Compute the clipped end without overflowing for
+                    // arbitrary signed start frames or large durations.
+                    if (start >= canvas_end) {
+                        end = canvas_end;
+                    } else if (start >= 0) {
+                        end = start + std::min(duration, canvas_end - start);
+                    } else {
+                        const std::int64_t before_canvas = start == INT64_MIN
+                            ? INT64_MAX : -start;
+                        end = duration < before_canvas
+                            ? 0 : std::min(canvas_end, duration - before_canvas);
+                    }
+                }
+                return std::pair{begin, std::max(begin, end)};
+            };
+            const auto [target_begin, target_end] = active_window(layer);
+            const auto [source_begin, source_end] = active_window(plan.layers[source_index]);
+            if (target_begin < target_end &&
+                (source_begin > target_begin || source_end < target_end)) {
+                const std::int64_t first_uncovered = source_begin > target_begin
+                    ? target_begin : source_end;
+                return PlanDecodeError{
+                    "layers[" + std::to_string(index) + "].track_matte.source",
+                    "track-matte source '" + layer.track_matte->source +
+                        "' is not active for target layer '" + layer.id +
+                        "' at frame " + std::to_string(first_uncovered),
+                    "track_matte_source_duration_mismatch", "render-plan-relations"};
+            }
         }
         const auto validate_text_mask = [&](const LayerPlan::PathMaskPlan& mask,
                                              const std::string& path) -> std::optional<PlanDecodeError> {
@@ -552,6 +596,10 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
                 return PlanDecodeError{"layers["+std::to_string(index)+"].effects.map_layer",
                     "displacement map layer id does not exist: "+effect.map_layer,
                     "displacement_map_source_missing","render-plan-relations"};
+            if (plan.layers[by_id.at(effect.map_layer)].type == LayerType::Adjustment)
+                return PlanDecodeError{"layers["+std::to_string(index)+"].effects.map_layer",
+                    "displacement-map source must produce pixels; adjustment layers do not",
+                    "displacement_map_source_not_raster","render-plan-relations"};
         }
     }
 
@@ -576,10 +624,9 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
         }
     }
 
-    // Parent transforms and matte inputs are graph dependencies. Validate the
-    // combined graph here so a parent edge cannot close a cycle through a
-    // matte edge (and vice versa) that would otherwise fail much later in the
-    // render-graph builder.
+    // Parent transforms and image-producing references are graph dependencies.
+    // Validate them together so cycles that cross parent, matte, text-mask, or
+    // displacement-map edges fail during plan inspection instead of graph build.
     std::fill(state.begin(), state.end(), 0);
     const auto visit_dependencies = [&](const auto& self, std::size_t index) -> bool {
         if (state[index] == 1) return false;
@@ -592,6 +639,12 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
             !self(self, by_id.at(layer.path_mask->text_source))) return false;
         for (const auto& mask : layer.masks)
             if (mask.type == "text" && !self(self, by_id.at(mask.text_source))) return false;
+        for (const auto& effect : layer.effects) {
+            if (effect.kind != LayerPlan::EffectKindPlan::DisplacementMap ||
+                effect.map_field)
+                continue;
+            if (!self(self, by_id.at(effect.map_layer))) return false;
+        }
         state[index] = 2;
         return true;
     };
@@ -599,7 +652,7 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
         if (!visit_dependencies(visit_dependencies, index)) {
             return PlanDecodeError{
                 "layers[" + std::to_string(index) + "]",
-                "layer parent, track-matte, and mask-source dependencies must be acyclic",
+                "layer parent, track-matte, mask-source, and displacement-map dependencies must be acyclic",
                 "layer_dependency_cycle", "render-plan-relations"};
         }
     }
@@ -630,6 +683,28 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         collect_final_key_timing_warnings(resolved_root, plan.warnings);
         plan.schema = resolved_root.at("schema").get<std::string>();
         plan.job_id = resolved_root.value("job_id", std::string{"chronon_plan"});
+        if (resolved_root.contains("color_management")) {
+            const auto& raw = resolved_root.at("color_management");
+            RenderPlan::ColorManagementPlan cm;
+            cm.ocio_config = raw.at("ocio_config").get<std::string>();
+            cm.working_space = raw.at("working_space").get<std::string>();
+            cm.video_input_space = raw.value("video_input_space", std::string{});
+            cm.output_display = raw.value("output_display", std::string{});
+            cm.output_view = raw.value("output_view", std::string{});
+            if (cm.output_display.empty() != cm.output_view.empty())
+                return PlanDecodeError{"color_management",
+                    "output_display and output_view must be specified together",
+                    "incomplete_ocio_output_view", "render-plan-color"};
+            if (cm.ocio_config.empty() || cm.working_space.empty())
+                return PlanDecodeError{"color_management",
+                    "ocio_config and working_space must be non-empty",
+                    "invalid_color_management", "render-plan-color"};
+            if (detail::invalid_logical_path(cm.ocio_config))
+                return PlanDecodeError{"color_management.ocio_config",
+                    "OCIO config must be a relative path inside the mounted asset root",
+                    "invalid_ocio_config_path", "render-plan-color"};
+            plan.color_management = std::move(cm);
+        }
         const auto& canvas = resolved_root.at("canvas");
         plan.canvas = CanvasSpec{
             canvas.at("width").get<int>(),
@@ -1070,15 +1145,102 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                     "particle_path_degenerate","render-plan-relations"};
         }
 
+        for (std::size_t i = 0; i < plan.layers.size(); ++i) {
+            if (plan.layers[i].ocio_input_space.empty()) continue;
+            if (!plan.color_management)
+                return PlanDecodeError{"layers[" + std::to_string(i) + "].ocio_input_space",
+                    "ocio_input_space requires the plan color_management contract",
+                    "missing_color_management", "render-plan-color"};
+            if (!plan.layers[i].input_color_space.empty() &&
+                plan.layers[i].input_color_space != "srgb")
+                return PlanDecodeError{"layers[" + std::to_string(i) + "].input_color_space",
+                    "use either input_color_space or ocio_input_space, not both",
+                    "conflicting_input_color_spaces", "render-plan-color"};
+        }
+
         if (const auto relation_error = validate_render_plan_layer_relations(plan))
             return *relation_error;
 
         const auto& output = resolved_root.at("output");
         plan.output.path = output.at("path").get<std::string>();
+        plan.output.color_space = output.value("color_space", std::string{"srgb"});
+        plan.output.reference_white_nits = output.value(
+            "reference_white_nits", 100.0f);
+        if (plan.output.color_space != "srgb" &&
+            plan.output.color_space != "rec709" &&
+            plan.output.color_space != "linearsrgb" &&
+            plan.output.color_space != "pq" &&
+            plan.output.color_space != "hlg")
+            return PlanDecodeError{"output.color_space",
+                "must be srgb, rec709, linearsrgb, pq, or hlg",
+                "output_color_space_invalid", "render-plan-color"};
+        if (!std::isfinite(plan.output.reference_white_nits) ||
+            plan.output.reference_white_nits <= 0.0f ||
+            plan.output.reference_white_nits > 10000.0f)
+            return PlanDecodeError{"output.reference_white_nits",
+                "must be finite, greater than 0, and at most 10000 nits",
+                "reference_white_invalid", "render-plan-color"};
         if (output.contains("format"))
             plan.output.format = detail::output_format(output.at("format").get<std::string>());
         if (output.contains("codec"))
             plan.output.codec = detail::video_codec(output.at("codec").get<std::string>());
+        if (output.contains("hdr_mastering_metadata")) {
+            const auto& raw = output.at("hdr_mastering_metadata");
+            chronon3d::color::HdrMasteringMetadata metadata;
+            const auto read_xy = [&](const nlohmann::json& point)
+                -> std::optional<std::array<float, 2>> {
+                if (!point.is_array() || point.size() != 2)
+                    return std::nullopt;
+                const float x = point.at(0).get<float>();
+                const float y = point.at(1).get<float>();
+                if (!std::isfinite(x) || !std::isfinite(y) || x < 0.0f ||
+                    y < 0.0f || x > 1.0f || y > 1.0f || x + y > 1.0f)
+                    return std::nullopt;
+                return std::array<float, 2>{x, y};
+            };
+            const auto& primaries = raw.at("display_primaries");
+            bool valid_metadata = primaries.is_array() && primaries.size() == 3;
+            if (valid_metadata) {
+                for (std::size_t index = 0; index < 3; ++index) {
+                    const auto point = read_xy(primaries.at(index));
+                    if (!point) { valid_metadata = false; break; }
+                    metadata.display_primaries[index] = *point;
+                }
+            }
+            const auto white_point = read_xy(raw.at("white_point"));
+            if (white_point) metadata.white_point = *white_point;
+            else valid_metadata = false;
+            metadata.min_luminance_nits = raw.at("min_luminance_nits").get<float>();
+            metadata.max_luminance_nits = raw.at("max_luminance_nits").get<float>();
+            valid_metadata = valid_metadata &&
+                std::isfinite(metadata.min_luminance_nits) &&
+                std::isfinite(metadata.max_luminance_nits) &&
+                metadata.min_luminance_nits >= 0.0f &&
+                metadata.max_luminance_nits > metadata.min_luminance_nits &&
+                metadata.max_luminance_nits <= 10000.0f;
+            if (raw.contains("content_light")) {
+                const auto& light = raw.at("content_light");
+                chronon3d::color::ContentLightMetadata content{
+                    light.at("max_cll_nits").get<std::uint32_t>(),
+                    light.at("max_fall_nits").get<std::uint32_t>()};
+                if (content.max_fall_nits > content.max_cll_nits ||
+                    content.max_cll_nits > 10000 || content.max_fall_nits > 10000)
+                    valid_metadata = false;
+                metadata.content_light = content;
+            }
+            if (!valid_metadata)
+                return PlanDecodeError{"output.hdr_mastering_metadata",
+                    "mastering xy coordinates must be finite valid chromaticities; luminance must satisfy 0 <= min < max <= 10000 nits and MaxFALL <= MaxCLL",
+                    "hdr_mastering_metadata_invalid", "render-plan-color"};
+            if ((plan.output.color_space != "pq" && plan.output.color_space != "hlg") ||
+                (plan.output.format != OutputFormat::Mp4 &&
+                 plan.output.format != OutputFormat::Mkv &&
+                 plan.output.format != OutputFormat::WebM))
+                return PlanDecodeError{"output.hdr_mastering_metadata",
+                    "HDR mastering metadata requires PQ/HLG video output",
+                    "hdr_mastering_requires_hdr_video", "render-plan-color"};
+            plan.output.hdr_mastering_metadata = std::move(metadata);
+        }
         plan.output.bitrate = output.value("bitrate", std::int64_t{0});
         plan.output.crf = output.value("crf", 0);
         plan.output.qp = output.value("qp", -1);

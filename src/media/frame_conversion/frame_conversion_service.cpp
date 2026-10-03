@@ -21,6 +21,8 @@ size_t FrameConversionService::encoded_size(int width, int height, EncoderPixelF
             return w * h + (w / 2) * (h / 2) * 2;
         case EncoderPixelFormat::P010:
             return w * h * 3;
+        case EncoderPixelFormat::Yuv420P10:
+            return w * h * 3;
         case EncoderPixelFormat::RGB24:
             return w * h * 3;
         case EncoderPixelFormat::RGBA8:
@@ -40,6 +42,9 @@ ConvertedFrameCacheKey FrameConversionService::make_cache_key(
         .matrix             = opts.matrix,
         .range              = opts.range,
         .apply_gamma        = opts.apply_gamma,
+        .rec709_oetf        = opts.rec709_oetf,
+        .output_space       = opts.output_space,
+        .reference_white_nits = opts.reference_white_nits,
     };
 }
 
@@ -122,6 +127,13 @@ ConvertedFrame FrameConversionService::convert_into(
             dst_uv = dst_y + y_size * 2;
             break;
         }
+        case EncoderPixelFormat::Yuv420P10: {
+            const size_t y_size = static_cast<size_t>(opts.width) * opts.height * 2;
+            const size_t chroma_size = y_size / 4;
+            dst_u = dst_y + y_size;
+            dst_v = dst_u + chroma_size;
+            break;
+        }
         case EncoderPixelFormat::RGB24:
         case EncoderPixelFormat::RGBA8:
             // dst_y points to the packed output (RGB: 3B/px, RGBA: 4B/px)
@@ -136,15 +148,16 @@ ConvertedFrame FrameConversionService::convert_into(
             .u         = dst_u,
             .v         = dst_v,
             .uv        = dst_uv,
-            .stride_y  = opts.width,
-            .stride_u  = opts.width / 2,
-            .stride_v  = opts.width / 2,
+            .stride_y  = opts.format == EncoderPixelFormat::Yuv420P10 ? opts.width * 2 : opts.width,
+            .stride_u  = opts.format == EncoderPixelFormat::Yuv420P10 ? opts.width : opts.width / 2,
+            .stride_v  = opts.format == EncoderPixelFormat::Yuv420P10 ? opts.width : opts.width / 2,
             .stride_uv = opts.width,
         },
         opts.width, opts.height,
         opts.format,
         opts.matrix, opts.range,
-        opts.apply_gamma);
+        opts.apply_gamma, opts.rec709_oetf, opts.output_space,
+        opts.reference_white_nits);
 
     if (!conv_result.success) {
         return ConvertedFrame{};

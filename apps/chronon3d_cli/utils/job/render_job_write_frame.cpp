@@ -107,6 +107,8 @@ bool write_render_frame_impl(const std::string& composition_name,
                              Frame frame,
                              const FrameRange& range,
                              const std::string& output_pattern,
+                             float exr_white_luminance_nits,
+                             const VideoSettings& color_settings,
                              bool& ok,
                              std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
                              double& total_render_ms,
@@ -154,6 +156,8 @@ bool write_render_frame_impl(const std::string& composition_name,
 
     const double encode_ms = write_frame_to_disk(
         fb, frame, range, output_pattern,
+        exr_white_luminance_nits,
+        color_settings,
         composition_name, cache_hit, dirty_ratio,
         render_ms, prog_cache_cap, ok, telemetry_frames, total_encode_ms,
         frames_written);
@@ -168,6 +172,8 @@ bool write_render_frame(const CompiledComposition& compiled,
                         Frame frame,
                         const FrameRange& range,
                         const std::string& output_pattern,
+                        float exr_white_luminance_nits,
+                        const VideoSettings& color_settings,
                         bool& ok,
                         std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
                         double& total_render_ms,
@@ -176,7 +182,9 @@ bool write_render_frame(const CompiledComposition& compiled,
     return write_render_frame_impl(
         compiled.composition->name(),
         [&] { return renderer.render_compiled(compiled, frame); },
-        renderer, frame, range, output_pattern, ok, telemetry_frames,
+        renderer, frame, range, output_pattern, exr_white_luminance_nits,
+        color_settings,
+        ok, telemetry_frames,
         total_render_ms, total_encode_ms, frames_written);
 }
 
@@ -185,6 +193,8 @@ bool write_render_frame(const compiler::CompiledProgram& program,
                         Frame frame,
                         const FrameRange& range,
                         const std::string& output_pattern,
+                        float exr_white_luminance_nits,
+                        const VideoSettings& color_settings,
                         bool& ok,
                         std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames,
                         double& total_render_ms,
@@ -193,7 +203,9 @@ bool write_render_frame(const compiler::CompiledProgram& program,
     return write_render_frame_impl(
         program.metadata().job_id,
         [&] { return renderer.render_program(program, frame); },
-        renderer, frame, range, output_pattern, ok, telemetry_frames,
+        renderer, frame, range, output_pattern, exr_white_luminance_nits,
+        color_settings,
+        ok, telemetry_frames,
         total_render_ms, total_encode_ms, frames_written);
 }
 
@@ -201,6 +213,8 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
                            Frame frame,
                            const FrameRange& range,
                            const std::string& output_pattern,
+                           float exr_white_luminance_nits,
+                           const VideoSettings& color_settings,
                            const std::string& composition_id,
                            bool cache_hit,
                            double dirty_ratio,
@@ -248,6 +262,27 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
 
     ImageWriteOptions write_options;
     write_options.format = image_format_from_path(path);
+    write_options.exr_white_luminance_nits = exr_white_luminance_nits;
+    const Framebuffer* frame_to_write = fb.get();
+#ifdef CHRONON3D_ENABLE_OCIO
+    std::shared_ptr<Framebuffer> transformed_frame;
+    if (color_settings.ocio_output_transform) {
+        if (write_options.format != ImageFormat::Png) {
+            spdlog::error(
+                "OCIO display/view transforms require PNG output; EXR output must remain scene-linear");
+            ok = false;
+            return -1.0;
+        }
+        transformed_frame = std::make_shared<Framebuffer>(*fb);
+        if (!color_settings.ocio_output_transform->apply_framebuffer(*transformed_frame)) {
+            spdlog::error("OCIO display/view transform failed for output frame {}", frame);
+            ok = false;
+            return -1.0;
+        }
+        frame_to_write = transformed_frame.get();
+        write_options.convert_png_to_srgb = false;
+    }
+#endif
 
     if (write_options.format == ImageFormat::Unknown) {
         print_render_error(
@@ -263,7 +298,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
     }
 
     {
-        const auto sanity = scan_framebuffer_sanity(*fb);
+        const auto sanity = scan_framebuffer_sanity(*frame_to_write);
         if (!sanity.ok) {
             print_render_error(
                 graph::NodeExecutionError{
@@ -281,7 +316,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
 
     {
         CHRONON_TRACE_SCOPE("chronon.io", "WriteFrameToDisk");
-        if (!save_image(*fb, path, write_options)) {
+        if (!save_image(*frame_to_write, path, write_options)) {
             print_render_error(
                 graph::NodeExecutionError{
                     graph::RenderBackendErrorCode::ExecutionFailure,

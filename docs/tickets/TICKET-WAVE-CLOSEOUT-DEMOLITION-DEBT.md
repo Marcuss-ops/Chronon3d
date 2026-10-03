@@ -75,12 +75,15 @@ compiler/runtime and final video-plan contracts replace older entry points.
   scratch, image, text and settings views; `RenderPipeline` and graph/effect
   dispatch consume that bundle. It is constructed once during backend
   attachment and is rebuilt only after renderer move operations.
-- **Remaining exit work:** remove the compatibility `SoftwareRenderer::runtime()`
-  surface and migrate the non-hot legacy SDK/CLI callers to explicit runtime
-  ownership. The current context migration is therefore `PARTIAL`, not a
-  false closeout.
+- **Runtime accessor:** **REMOVED** — `SoftwareRenderer` has no `runtime()`
+  member in the public header, and a source census finds no code callers. The
+  renderer class remains the active software backend and is not a demolition
+  target.
+- **Remaining exit work:** remove the remaining runtime-header coupling from
+  the software-target public surface. Do not describe this as legacy runtime
+  callers; the outstanding debt is compile-time boundary cleanup.
 - **Acceptance:** processor construction and render-pipeline dispatch no
   longer need a runtime lookup; final exit remains zero software-backend
   `runtime()` calls and a software-target compile without runtime-header
   coupling.
-- **Status:** `PARTIAL — context landed, legacy surface retained`
+- **Status:** `PARTIAL — accessor/callers removed; header boundary remains`

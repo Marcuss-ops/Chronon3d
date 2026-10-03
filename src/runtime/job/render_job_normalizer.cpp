@@ -1,6 +1,8 @@
 #include <chronon3d/runtime/job/render_job_request.hpp>
 #include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format authority
 
+#include <bit>
+#include <cmath>
 #include <string>
 #include <utility>
 
@@ -80,6 +82,23 @@ normalize_render_job(
             RenderJobRequestErrorCode::InvalidPipePixelFormat,
             "render job pipe pixel format '" + request.output.pipe_pixfmt +
                 "' is not one of rgba, yuv420p, nv12, p010, p010le");
+    }
+    if (!request.output.color_output.empty() &&
+        request.output.color_output != "srgb" &&
+        request.output.color_output != "rec709" &&
+        request.output.color_output != "linearsrgb" &&
+        request.output.color_output != "pq" &&
+        request.output.color_output != "hlg") {
+        return make_render_job_request_error(
+            RenderJobRequestErrorCode::InvalidColorOutput,
+            "render job color output must be srgb, rec709, linearsrgb, pq, or hlg");
+    }
+    if (!std::isfinite(request.output.reference_white_nits) ||
+        request.output.reference_white_nits < 0.0f ||
+        request.output.reference_white_nits > 10000.0f) {
+        return make_render_job_request_error(
+            RenderJobRequestErrorCode::InvalidColorOutput,
+            "render job reference white must be zero (inherit) or finite in (0, 10000] nits");
     }
     for (const auto& interval : request.output.changed_intervals) {
         if (!interval.valid()) {
@@ -204,6 +223,9 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     // Pre-encode ("raw") and encoded ("ffmpeg") jobs produce different
     // artifacts from the same render, so the sink is part of the output
     // contract and belongs in the equality key.
+    append_field(fp, "out_color_output", out.color_output);
+    append_int(fp, "out_reference_white_bits",
+               std::bit_cast<std::uint32_t>(out.reference_white_nits));
     append_field(fp, "out_sink", out.sink_type);
     append_field(fp, "trace_output", job.trace.output.string());
     append_field(fp, "trace_level", job.trace.level);

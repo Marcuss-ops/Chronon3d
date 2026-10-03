@@ -85,7 +85,7 @@ GraphNodeId build_layer_output_node(
         const bool simple_opaque_full_frame_layer =
             (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Shape || layer.kind == LayerKind::Text || layer.kind == LayerKind::Video) &&
             layer.nodes.size() == 1 &&
-            layer.mask.type == MaskType::None &&
+            !layer.mask.enabled() &&
             layer.effects().empty() &&
             layer.blend_mode == BlendMode::Normal &&
             !layer.track_matte.active() &&

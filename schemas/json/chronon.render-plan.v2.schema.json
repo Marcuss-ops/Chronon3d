@@ -6,6 +6,10 @@
   "type": "object",
   "additionalProperties": false,
   "$defs": {
+    "chromaticity_xy": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
     "easing": {
       "description": "Easing functions accepted by the render-plan compiler. The compiler rejects any other value at plan-compile time, so the schema closes the same set to fail validation early.",
       "enum": [
@@ -147,6 +151,17 @@
     "schema": { "const": "chronon.render-plan.v2" },
     "version": { "const": 2 },
     "job_id": { "type": "string", "minLength": 1 },
+    "color_management": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ocio_config", "working_space"],
+      "properties": {
+        "ocio_config": { "type": "string", "minLength": 1 },
+        "working_space": { "type": "string", "minLength": 1 },
+        "video_input_space": { "type": "string", "minLength": 1 },
+        "output_display": { "type": "string", "minLength": 1 },
+        "output_view": { "type": "string", "minLength": 1 }
+      }
+    },
     "camera": { "$ref": "#/$defs/camera" },
     "camera_animation": { "$ref": "#/$defs/camera_animation" },
     "canvas": {
@@ -172,6 +187,8 @@
           "id": { "type": "string", "minLength": 1 },
           "type": { "enum": ["image", "video", "text", "color", "particles", "light", "mesh"] },
           "asset": { "type": "string", "minLength": 1 },
+          "input_color_space": { "enum": ["srgb", "linearsrgb", "rec709", "displayp3"] },
+          "ocio_input_space": { "type": "string", "minLength": 1 },
           "source": { "type": "string", "minLength": 1 },
           "text": { "type": "string", "maxLength": 1048576 },
           "size": {
@@ -452,6 +469,32 @@
       "type": "object", "additionalProperties": false, "required": ["path"],
       "properties": {
         "path": { "type": "string", "minLength": 1 },
+        "color_space": { "enum": ["srgb", "rec709", "linearsrgb", "pq", "hlg"] },
+        "reference_white_nits": {
+          "description": "Absolute luminance in nits assigned to linear RGB (1,1,1); scales PQ/HLG encoding and is written as OpenEXR whiteLuminance for EXR output.",
+          "type": "number", "exclusiveMinimum": 0, "maximum": 10000
+        },
+        "hdr_mastering_metadata": {
+          "type": "object", "additionalProperties": false,
+          "required": ["display_primaries", "white_point", "min_luminance_nits", "max_luminance_nits"],
+          "properties": {
+            "display_primaries": {
+              "type": "array", "minItems": 3, "maxItems": 3,
+              "items": { "$ref": "#/$defs/chromaticity_xy" }
+            },
+            "white_point": { "$ref": "#/$defs/chromaticity_xy" },
+            "min_luminance_nits": { "type": "number", "minimum": 0, "maximum": 10000 },
+            "max_luminance_nits": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000 },
+            "content_light": {
+              "type": "object", "additionalProperties": false,
+              "required": ["max_cll_nits", "max_fall_nits"],
+              "properties": {
+                "max_cll_nits": { "type": "integer", "minimum": 1, "maximum": 10000 },
+                "max_fall_nits": { "type": "integer", "minimum": 1, "maximum": 10000 }
+              }
+            }
+          }
+        },
         "format": { "enum": ["png", "png_sequence", "gif", "mp4", "mkv", "webm"] },
         "codec": { "enum": ["auto", "h264", "h265", "vp9", "av1"] },
         "profile_id": { "type": "string", "minLength": 1 },

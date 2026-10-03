@@ -20,6 +20,25 @@
 
 using chronon3d::graph::should_execute_level_in_parallel;
 
+class NoopTestRenderBackend final : public chronon3d::graph::RenderBackend {
+public:
+    void apply_per_pixel_dof(
+        chronon3d::Framebuffer&, std::span<const float>,
+        const chronon3d::DepthOfFieldSettings&, const chronon3d::LensModel&,
+        const std::optional<chronon3d::raster::BBox>&) override {}
+    void apply_effect_stack(
+        chronon3d::Framebuffer&, const chronon3d::EffectStack&,
+        const chronon3d::effects::EffectExecutionContext&) override {}
+    void composite_layer(
+        chronon3d::Framebuffer&, const chronon3d::Framebuffer&,
+        chronon3d::BlendMode,
+        const std::optional<chronon3d::raster::BBox>&,
+        chronon3d::CompositeOperator) override {}
+    void apply_blur(
+        chronon3d::Framebuffer&, float,
+        const std::optional<chronon3d::raster::BBox>&) override {}
+};
+
 TEST_CASE("should_execute_level_in_parallel: true with >1 nodes and >1 concurrency") {
     CHECK(should_execute_level_in_parallel(2, 2) == true);
     CHECK(should_execute_level_in_parallel(2, 4) == true);
@@ -89,6 +108,8 @@ TEST_CASE("compiled-program missing operation is published as a frame error") {
     program.rebuild_operation_index(1);
 
     RenderGraphContext ctx;
+    NoopTestRenderBackend backend;
+    ctx.backend = &backend;
     RenderErrorSlot error;
     ctx.frame_error = &error;
     ExecutionState state;

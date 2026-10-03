@@ -56,6 +56,7 @@ struct SemanticOverlay {
     SemanticKind kind{SemanticKind::ImportantPhrase};
     std::string text;   ///< phrase / word content (empty for images)
     std::string asset;  ///< image asset path (empty for text)
+    std::string input_color_space{"srgb"};
     Frame start_frame{0};
     Frame duration_frames{0};
     std::optional<std::string> preset;  ///< text preset override (e.g. title_centered)
@@ -70,6 +71,7 @@ struct SemanticOverlay {
 /// solid color; an image wins when `asset` is non-empty.
 struct SemanticBackground {
     std::string asset;
+    std::string input_color_space{"srgb"};
     std::array<float, 4> color{0.0f, 0.0f, 0.0f, 1.0f};
     render_plan::FitMode fit{render_plan::FitMode::Cover};
 };

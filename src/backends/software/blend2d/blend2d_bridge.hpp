@@ -22,6 +22,10 @@ void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x
 
 void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& src_fb, const Mat4& model, float opacity, BlendMode mode, const RenderState* state = nullptr);
 
+void composite_framebuffer_tiled(Framebuffer& dst_fb, const Framebuffer& src_fb,
+                                 const Mat4& model, float opacity, BlendMode mode,
+                                 const RenderState* state = nullptr);
+
 #ifdef CHRONON3D_USE_BLEND2D
 // ── BLImage-dependent compositing (requires Blend2D) ────────────────
 

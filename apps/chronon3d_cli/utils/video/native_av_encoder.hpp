@@ -9,6 +9,9 @@
 #include "cuda_context_guard.hpp"
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/runtime/frame_format.hpp>
+#ifdef CHRONON3D_ENABLE_OCIO
+#include <chronon3d/color/ocio_color_transform.hpp>
+#endif
 #include <cstddef>
 #include <deque>
 #include <memory>
@@ -187,6 +190,9 @@ public:
 private:
     chronon3d::RenderCounters* counters_{nullptr};
     FfmpegPipeOptions options_{};
+#ifdef CHRONON3D_ENABLE_OCIO
+    std::unique_ptr<color::OcioColorTransform> ocio_output_transform_;
+#endif
     uint64_t frames_written_{0};
     uint64_t encoder_packets_received_{0};
     uint64_t mux_packets_written_{0};

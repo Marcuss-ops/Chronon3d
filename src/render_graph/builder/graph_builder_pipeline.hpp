@@ -39,7 +39,11 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
                                 RenderGraphContext& ctx, GraphNodeId current);
 
 GraphNodeId build_matte_sub_pipeline(RenderGraph& graph, const LayerGraphItem& item,
-                                      const RenderGraphContext& ctx);
+                                      const RenderGraphContext& ctx,
+                                      const Camera2_5DRuntime& cam25d,
+                                      bool include_layer_mask = true,
+                                      bool include_layer_effects = true,
+                                      bool include_layer_track_matte = true);
 
 /// Build the render-graph nodes for a layer up to (but not including) the
 /// final composite onto the current output.  This is used both for the

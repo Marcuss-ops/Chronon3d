@@ -1,6 +1,6 @@
 # TICKET-FFMPEG-PIPE-SINK-DEMOLITION — delete subprocess encoder fallback
 
-**Stato:** OPEN (residual certification debt; silent native→pipe downgrade removed 2026-09-08)
+**Stato:** BLOCKED (explicit diagnostic pipe encoder remains; native production certification gates are not green)
 **Priorità:** P1 demolition debt  
 **Authority:** `src/media/video/video_sink_factory.cpp` + `src/media/CMakeLists.txt`
 
@@ -12,13 +12,22 @@
 | `FfmpegPipeSink` symbol in production code | **ESTINTO** | solo 2 commenti storici in `include/` (aggiornati) |
 | `ProcessRunner` | **ESTINTO** | 0 match in src/apps/include/tests |
 | `bind_unplanned` (Vulkan surface authority) | **VIVO — non eliminare ora** | `vulkan_surface_authority.hpp` (4 ref); entry point: `vulkan_surface_store_private.cpp:65 ensure()`. Richiede Wave 1 sync authority, non demolition stop-and-pop |
-| **Residuo reale: pipe ENCODER lato CLI** | **VIVO** | `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp` (interfaccia `IVideoEncoder`, legittima) + `VideoSinkEncoderAdapter(VideoSinkType::Ffmpeg)` usato quando `encoder_backend != "native"` oppure quando native è richiesto ma non compilato (**downgrade silenzioso** a `video_export_common.cpp:38-41`) |
+| **Residuo reale: pipe ENCODER lato CLI** | **VIVO, esplicito** | `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp` + adapter usato solo quando `encoder_backend=pipe`; un native richiesto ma non disponibile fallisce chiuso |
 
 ## Nuovo scope residuo (sostituisce la lista file sopra)
 
-1. **Downgrade silenzioso nativo→pipe**: **RISOLTO 2026-09-08**. `create_video_encoder()` con `CHRONON3D_ENABLE_NATIVE_FFMPEG` spento e `encoder_backend == "native"` ora restituisce `nullptr` dopo un errore esplicito; nessun output può essere prodotto dal percorso pipe.
+1. **Downgrade silenzioso nativo→pipe**: **RISOLTO 2026-09-08**. `create_video_encoder()` con `CHRONON3D_ENABLE_NATIVE_FFMPEG` spento e `encoder_backend == "native"` restituisce `nullptr` dopo un errore esplicito; nessun output può essere prodotto dal percorso pipe.
 2. **`--encoder-backend pipe` come percorso esplicito**: resta consentito come modalità diagnostic/debug dichiarata (null/adaptive), ma mai come fallback silenzioso del native.
-3. Cleanup finale di `ffmpeg-mode pipe` doc/options quando il punto 1 è chiiuso.
+3. Cleanup finale di `ffmpeg-mode pipe` doc/options dopo certificazione del percorso native, zero caller di produzione e zero fallback.
+
+## Blocco corrente — 2026-10-03
+
+- La CI GitHub per `Chronon3d@5d960421dd1b` ha chiuso tutti i job prima
+  dell'allocazione di un runner; senza CI same-SHA verde non si può certificare
+  la demolition. I run locali non sostituiscono la certificazione GitHub.
+- Il path pipe ha ancora caller espliciti e autorizzati per diagnostica. Non
+  cancellare i file o le opzioni finché le exit conditions della scheda non
+  sono passate.
 
 ## Problema (storico)
 

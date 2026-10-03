@@ -29,6 +29,8 @@
             "color.vignette",
             "color.exposure",
             "color.levels",
+            "color.temperature_tint",
+            "color.lift_gamma_gain",
             "color.curves",
             "generate.fill",
             "generate.noise",
@@ -220,6 +222,8 @@
             "color.vignette",
             "color.exposure",
             "color.levels",
+            "color.temperature_tint",
+            "color.lift_gamma_gain",
             "color.curves",
             "generate.fill",
             "generate.noise",
@@ -5306,7 +5310,7 @@
             ]
           },
           "masks": {
-            "description": "Ordered mask stack. The first entry seeds the stack and must use add; later operations compose alpha in declaration order. Difference is the symmetric difference of alpha coverage.",
+            "description": "Ordered mask stack. A leading subtract mask cuts its coverage from the implicit full layer mask; other first modes seed the stack from their own alpha coverage. Later operations compose alpha in declaration order. Difference is the symmetric difference of alpha coverage.",
             "type": "array",
             "minItems": 1,
             "maxItems": 16,

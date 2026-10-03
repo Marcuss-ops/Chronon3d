@@ -2,6 +2,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <array>
+#include <cmath>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -98,6 +100,10 @@ bool decode_background(const nlohmann::json& value, SemanticBackground& out) {
     }
     if (!value.is_object()) return false;
     out.asset = value.value("asset", std::string{});
+    out.input_color_space = value.value("input_color_space", std::string{"srgb"});
+    if (out.input_color_space != "srgb" && out.input_color_space != "linearsrgb" &&
+        out.input_color_space != "rec709" && out.input_color_space != "displayp3")
+        return false;
     if (value.contains("fit")) out.fit = parse_fit(value.at("fit").get<std::string>());
     if (value.contains("color")) {
         const auto& color = value.at("color");
@@ -162,6 +168,13 @@ Result<SemanticScript, SemanticError> decode_semantic_script(
         overlay.kind = parse_kind(kind);
         overlay.text = value.value("text", std::string{});
         overlay.asset = value.value("asset", std::string{});
+        overlay.input_color_space = value.value("input_color_space", std::string{"srgb"});
+        if (overlay.input_color_space != "srgb" && overlay.input_color_space != "linearsrgb" &&
+            overlay.input_color_space != "rec709" && overlay.input_color_space != "displayp3")
+            return make_error(path + ".input_color_space",
+                "expected srgb | linearsrgb | rec709 | displayp3");
+        if (overlay.kind != SemanticKind::ImageOverlay && value.contains("input_color_space"))
+            return make_error(path + ".input_color_space", "only valid for image_overlay events");
         if (value.contains("start_frame"))
             overlay.start_frame = Frame{value.at("start_frame").get<std::int64_t>()};
         if (value.contains("duration_frames"))
@@ -202,6 +215,37 @@ Result<SemanticScript, SemanticError> decode_semantic_script(
             script.output.format = parse_output_format(output.at("format").get<std::string>());
         if (output.contains("codec"))
             script.output.codec = parse_codec(output.at("codec").get<std::string>());
+        script.output.color_space = output.value("color_space", std::string{"srgb"});
+        script.output.reference_white_nits = output.value(
+            "reference_white_nits", 100.0f);
+        const auto& color_space = script.output.color_space;
+        if (color_space != "srgb" && color_space != "rec709" &&
+            color_space != "linearsrgb" && color_space != "pq" &&
+            color_space != "hlg")
+            return make_error("output.color_space",
+                "expected srgb | rec709 | linearsrgb | pq | hlg");
+        if (!std::isfinite(script.output.reference_white_nits) ||
+            script.output.reference_white_nits <= 0.0f ||
+            script.output.reference_white_nits > 10000.0f)
+            return make_error("output.reference_white_nits",
+                "must be finite, greater than 0 and at most 10000 nits");
+        if (output.contains("hdr_mastering_metadata")) {
+            const auto& raw = output.at("hdr_mastering_metadata");
+            chronon3d::color::HdrMasteringMetadata metadata;
+            for (std::size_t index = 0; index < 3; ++index)
+                metadata.display_primaries[index] =
+                    raw.at("display_primaries").at(index).get<std::array<float, 2>>();
+            metadata.white_point = raw.at("white_point").get<std::array<float, 2>>();
+            metadata.min_luminance_nits = raw.at("min_luminance_nits").get<float>();
+            metadata.max_luminance_nits = raw.at("max_luminance_nits").get<float>();
+            if (raw.contains("content_light")) {
+                const auto& light = raw.at("content_light");
+                metadata.content_light = chronon3d::color::ContentLightMetadata{
+                    light.at("max_cll_nits").get<std::uint32_t>(),
+                    light.at("max_fall_nits").get<std::uint32_t>()};
+            }
+            script.output.hdr_mastering_metadata = std::move(metadata);
+        }
         script.output.bitrate = output.value("bitrate", std::int64_t{0});
         script.output.crf = output.value("crf", 0);
     }
@@ -227,6 +271,7 @@ render_plan::RenderPlan compile_semantic_script(const SemanticScript& script) {
                                static_cast<float>(script.canvas.height)};
             background.size_dimensions = 2;
             background.fit = script.background->fit;
+            background.input_color_space = script.background->input_color_space;
         } else {
             background.type = render_plan::LayerType::Color;
             background.color = script.background->color;
@@ -277,6 +322,7 @@ render_plan::RenderPlan compile_semantic_script(const SemanticScript& script) {
             case SemanticKind::ImageOverlay:
                 layer.type = render_plan::LayerType::Image;
                 layer.asset = overlay.asset;
+                layer.input_color_space = overlay.input_color_space;
                 layer.fit = overlay.fit
                     ? parse_fit(*overlay.fit)
                     : render_plan::FitMode::Contain;
@@ -307,6 +353,8 @@ nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
         value["id"] = layer.id;
         value["type"] = kind_name(layer.type);
         if (!layer.asset.empty()) value["asset"] = layer.asset;
+        if (layer.type == render_plan::LayerType::Image)
+            value["input_color_space"] = layer.input_color_space;
         if (!layer.source.empty()) value["source"] = layer.source;
         if (!layer.text.empty()) value["text"] = layer.text;
         if (layer.style) {
@@ -368,7 +416,23 @@ nlohmann::json render_plan_to_json(const render_plan::RenderPlan& plan) {
         {"path", plan.output.path},
         {"format", format_name(plan.output.format)},
         {"codec", codec_name(plan.output.codec)},
+        {"color_space", plan.output.color_space},
+        {"reference_white_nits", plan.output.reference_white_nits},
     };
+    if (plan.output.hdr_mastering_metadata) {
+        const auto& metadata = *plan.output.hdr_mastering_metadata;
+        root["output"]["hdr_mastering_metadata"] = {
+            {"display_primaries", metadata.display_primaries},
+            {"white_point", metadata.white_point},
+            {"min_luminance_nits", metadata.min_luminance_nits},
+            {"max_luminance_nits", metadata.max_luminance_nits},
+        };
+        if (metadata.content_light)
+            root["output"]["hdr_mastering_metadata"]["content_light"] = {
+                {"max_cll_nits", metadata.content_light->max_cll_nits},
+                {"max_fall_nits", metadata.content_light->max_fall_nits},
+            };
+    }
     if (plan.output.bitrate != 0) root["output"]["bitrate"] = plan.output.bitrate;
     if (plan.output.crf != 0) root["output"]["crf"] = plan.output.crf;
 

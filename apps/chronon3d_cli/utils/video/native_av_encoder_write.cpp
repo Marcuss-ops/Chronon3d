@@ -3,6 +3,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
+#include <optional>
 
 namespace chronon3d::cli {
 
@@ -11,6 +12,7 @@ using Clock = std::chrono::steady_clock;
 inline double elapsed_ms(const Clock::time_point& start) {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
 }
+
 } // anonymous namespace
 
 // Map FfmpegPipeOptions to the encoder pixel format.
@@ -22,10 +24,14 @@ static video::EncoderPixelFormat resolve_encoder_pix_fmt(const FfmpegPipeOptions
 static int resolve_color_matrix(const FfmpegPipeOptions& opt) {
     switch (opt.color_transform.output) {
         case chronon3d::color::ColorSpace::Rec709:
+            return static_cast<int>(video::YuvMatrix::BT709);
+        case chronon3d::color::ColorSpace::PQ:
+        case chronon3d::color::ColorSpace::HLG:
+            return static_cast<int>(video::YuvMatrix::BT2020);
         case chronon3d::color::ColorSpace::SRGB:
         case chronon3d::color::ColorSpace::LinearSRGB:
         default:
-            return 0; // BT.709
+            return static_cast<int>(video::YuvMatrix::BT709);
     }
 }
 
@@ -49,6 +55,27 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
             "(typed encoder capability mismatch)");
         return false;
     }
+
+    std::optional<Framebuffer> ocio_frame;
+    const Framebuffer* conversion_source = &fb;
+    bool ocio_applied = false;
+#ifdef CHRONON3D_ENABLE_OCIO
+    if (ocio_output_transform_) {
+        ocio_frame.emplace(fb);
+        // Video has no alpha plane. Composite over black in scene-linear
+        // premultiplied space before a nonlinear display transform.
+        for (int y = 0; y < ocio_frame->height(); ++y) {
+            Color* row = ocio_frame->pixels_row(y);
+            for (int x = 0; x < ocio_frame->width(); ++x) row[x].a = 1.0f;
+        }
+        if (!ocio_output_transform_->apply_framebuffer(*ocio_frame)) {
+            spdlog::error("[native_av] OCIO output view failed while transforming frame");
+            return false;
+        }
+        conversion_source = &*ocio_frame;
+        ocio_applied = true;
+    }
+#endif
 
     // NVENC consumes CUDA frames, while the Chronon framebuffer converter
     // writes host YUV planes.  Trying to make the CUDA frame writable (or
@@ -90,12 +117,15 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     // ----------------------------------------------------------------------
     const int color_matrix = resolve_color_matrix(options_);
     const auto conversion_cache_key = video::make_conversion_cache_key(
-        fb,
+        *conversion_source,
         options_.width,
         options_.height,
         static_cast<int>(codec_->pix_fmt),
         options_.color_transform.apply_gamma,
-        color_matrix);
+        color_matrix,
+        options_.color_transform.output == color::ColorSpace::Rec709,
+        options_.color_transform.output,
+        options_.color_transform.reference_white_nits);
     const bool same_as_last =
         conversion_cache_key.usable() && conversion_cache_key == last_conversion_key_;
 
@@ -123,8 +153,10 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
                 1, std::memory_order_relaxed);
         }
 
+        const bool hdr_output = options_.color_transform.output == color::ColorSpace::PQ ||
+                                options_.color_transform.output == color::ColorSpace::HLG;
         video::ConvertFrameRequest req{
-            .src           = fb,
+            .src           = *conversion_source,
             .planes        = video::FramePlanes{
                 .y         = conversion_frame->data[0],
                 .u         = conversion_frame->data[1],
@@ -137,10 +169,17 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
             },
             .width         = options_.width,
             .height        = options_.height,
-            .format        = video::EncoderPixelFormat::YUV420P,
+            .format        = hdr_output ? video::EncoderPixelFormat::Yuv420P10
+                                       : video::EncoderPixelFormat::YUV420P,
             .matrix        = static_cast<video::YuvMatrix>(color_matrix),
             .range         = video::ColorRange::Limited,
-            .apply_gamma   = options_.color_transform.apply_gamma,
+            .apply_gamma   = hdr_output || (!ocio_applied &&
+                                            options_.color_transform.apply_gamma),
+            .color_transform_applied = ocio_applied,
+            .rec709_oetf   = !ocio_applied &&
+                             options_.color_transform.output == color::ColorSpace::Rec709,
+            .output_space  = options_.color_transform.output,
+            .reference_white_nits = options_.color_transform.reference_white_nits,
         };
 
         auto conv_result = video::convert_frame(req);

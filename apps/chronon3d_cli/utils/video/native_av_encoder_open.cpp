@@ -3,11 +3,14 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/keyframe_cadence.hpp>
+#include <libavutil/mastering_display_metadata.h>
+#include <libavutil/mathematics.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <optional>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -31,6 +34,13 @@ runtime::TransferFunction transfer_from_output_space(
         case color::ColorSpace::ACEScg:
             return runtime::TransferFunction::Linear;
         case color::ColorSpace::SRGB:
+            return runtime::TransferFunction::Srgb;
+        case color::ColorSpace::PQ:
+            return runtime::TransferFunction::Pq;
+        case color::ColorSpace::HLG:
+            return runtime::TransferFunction::Hlg;
+        case color::ColorSpace::LinearBT2020:
+            return runtime::TransferFunction::Linear;
         case color::ColorSpace::Rec709:
         default:
             return runtime::TransferFunction::Srgb;
@@ -50,10 +60,66 @@ bool set_codec_option_checked(AVCodecContext* codec, const char* key,
     return true;
 }
 
+bool configure_hdr_static_metadata(
+    AVCodecContext* codec, const color::HdrMasteringMetadata& metadata) {
+    auto* mastering_side_data = av_frame_side_data_new(
+        &codec->decoded_side_data, &codec->nb_decoded_side_data,
+        AV_FRAME_DATA_MASTERING_DISPLAY_METADATA,
+        sizeof(AVMasteringDisplayMetadata), AV_FRAME_SIDE_DATA_FLAG_UNIQUE);
+    if (!mastering_side_data) return false;
+    auto* mastering = reinterpret_cast<AVMasteringDisplayMetadata*>(
+        mastering_side_data->data);
+    std::memset(mastering, 0, sizeof(*mastering));
+    for (int primary = 0; primary < 3; ++primary) {
+        mastering->display_primaries[primary][0] =
+            av_d2q(metadata.display_primaries[primary][0], 1'000'000);
+        mastering->display_primaries[primary][1] =
+            av_d2q(metadata.display_primaries[primary][1], 1'000'000);
+    }
+    mastering->white_point[0] = av_d2q(metadata.white_point[0], 1'000'000);
+    mastering->white_point[1] = av_d2q(metadata.white_point[1], 1'000'000);
+    mastering->min_luminance = av_d2q(metadata.min_luminance_nits, 1'000'000);
+    mastering->max_luminance = av_d2q(metadata.max_luminance_nits, 1'000'000);
+    mastering->has_primaries = 1;
+    mastering->has_luminance = 1;
+    if (metadata.content_light) {
+        auto* light_side_data = av_frame_side_data_new(
+            &codec->decoded_side_data, &codec->nb_decoded_side_data,
+            AV_FRAME_DATA_CONTENT_LIGHT_LEVEL,
+            sizeof(AVContentLightMetadata), AV_FRAME_SIDE_DATA_FLAG_UNIQUE);
+        if (!light_side_data) return false;
+        auto* light = reinterpret_cast<AVContentLightMetadata*>(
+            light_side_data->data);
+        std::memset(light, 0, sizeof(*light));
+        light->MaxCLL = metadata.content_light->max_cll_nits;
+        light->MaxFALL = metadata.content_light->max_fall_nits;
+    }
+    return true;
+}
+
 bool validate_encoder_options(const FfmpegPipeOptions& options) {
-    return options.width > 0 && options.height > 0 &&
-           options.canonical_fps_num() > 0 && options.canonical_fps_den() > 0 &&
-           !options.output_path.empty();
+    if (options.width <= 0 || options.height <= 0 ||
+        options.canonical_fps_num() <= 0 || options.canonical_fps_den() <= 0 ||
+        options.output_path.empty()) {
+        return false;
+    }
+    if (options.hdr_mastering_metadata &&
+        ((options.color_transform.output != color::ColorSpace::PQ &&
+          options.color_transform.output != color::ColorSpace::HLG) ||
+         options.hardware_encoder != "none")) {
+        spdlog::error(
+            "[native_av] explicit HDR mastering metadata requires CPU native PQ/HLG encoding");
+        return false;
+    }
+    // LinearBT2020 needs a float media stream that this encoder does not
+    // provide. PQ and HLG are emitted as 10-bit YUV420 on the CPU lane.
+    switch (options.color_transform.output) {
+        case color::ColorSpace::ACEScg:
+        case color::ColorSpace::LinearBT2020:
+            return false;
+        default:
+            return true;
+    }
 }
 
 } // namespace
@@ -98,15 +164,46 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     open_complete_ = false;
 
     if (!validate_encoder_options(options)) {
-        spdlog::error("[native_av] Invalid encoder options (w={}, h={}, fps={}/{}, path='{}')",
-                      options.width, options.height,
-                      options.canonical_fps_num(), options.canonical_fps_den(),
-                      options.output_path);
+        const auto output_space = options.color_transform.output;
+        if (output_space == color::ColorSpace::LinearBT2020) {
+            spdlog::error(
+                "[native_av] LinearBT2020 output is not available: video output requires an explicit transfer encoding");
+        } else if (output_space == color::ColorSpace::ACEScg) {
+            spdlog::error(
+                "[native_av] ACEScg output requires an OCIO transform, unavailable in the CPU video writer");
+        } else {
+            spdlog::error("[native_av] Invalid encoder options (w={}, h={}, fps={}/{}, path='{}')",
+                          options.width, options.height,
+                          options.canonical_fps_num(), options.canonical_fps_den(),
+                          options.output_path);
+        }
         return false;
     }
 
     // Phase 1 — clear the per-open state and publish the caller's options.
     reset_open_state(options);
+#ifdef CHRONON3D_ENABLE_OCIO
+    ocio_output_transform_.reset();
+    if (!options_.ocio_display.empty()) {
+        std::string error;
+        auto transform = color::OcioColorTransform::from_display_view(
+            options_.ocio_config_path, options_.ocio_source_space,
+            options_.ocio_display, options_.ocio_view, &error);
+        if (!transform) {
+            spdlog::error("[native_av] OCIO output view setup failed: {}", error);
+            return false;
+        }
+        ocio_output_transform_ = std::make_unique<color::OcioColorTransform>(
+            std::move(*transform));
+        options_.color_transform.apply_gamma = false;
+        options_.direct_yuv_mode = false;
+    }
+#else
+    if (!options_.ocio_display.empty()) {
+        spdlog::error("[native_av] OCIO output view requested but this build has OCIO disabled");
+        return false;
+    }
+#endif
 
     // Phase 2 — resolve + validate the encoder configuration BEFORE any
     // FFmpeg/decoder/CUDA/render setup.
@@ -241,29 +338,35 @@ bool NativeAvEncoder::configure_codec_and_surface() {
 
     codec_->width = options_.width;
     codec_->height = options_.height;
-    // Newly generated H.264 assets use the assembly contract's one canonical
-    // profile (High). A borrowed splice target is the exception: it must
-    // reproduce that target's declared profile exactly or the packet splice
-    // gate will reject the mixed stream.
+    // Newly generated SDR H.264 uses High; 10-bit PQ/HLG uses High 10. A
+    // borrowed splice target is the exception: reproduce its declared profile
+    // exactly or the packet splice gate rejects the mixed stream.
     if (encoder->id == AV_CODEC_ID_H264) {
         const int declared_profile = options_.borrowed_declared_stream
             ? options_.borrowed_declared_stream->profile
             : -1;
-        codec_->profile = declared_profile >= 0 ? declared_profile : FF_PROFILE_H264_HIGH;
+        const bool hdr_output = options_.color_transform.output == color::ColorSpace::PQ ||
+                                options_.color_transform.output == color::ColorSpace::HLG;
+        codec_->profile = declared_profile >= 0
+            ? declared_profile
+            : (hdr_output ? AV_PROFILE_H264_HIGH_10 : AV_PROFILE_H264_HIGH);
         // FFmpeg's NVENC wrapper can leave its private profile at Main even
         // when AVCodecContext::profile is set before avcodec_open2(). Pass the
         // profile through the encoder option as well so the emitted SPS and
         // packet facts match the assembly contract (and any borrowed stream).
         const char* profile_option = nullptr;
         switch (codec_->profile) {
-            case FF_PROFILE_H264_BASELINE:
+            case AV_PROFILE_H264_BASELINE:
                 profile_option = "baseline";
                 break;
-            case FF_PROFILE_H264_MAIN:
+            case AV_PROFILE_H264_MAIN:
                 profile_option = "main";
                 break;
-            case FF_PROFILE_H264_HIGH:
+            case AV_PROFILE_H264_HIGH:
                 profile_option = "high";
+                break;
+            case AV_PROFILE_H264_HIGH_10:
+                profile_option = "high10";
                 break;
             default:
                 break;
@@ -294,6 +397,13 @@ bool NativeAvEncoder::configure_codec_and_surface() {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (gpu_nvenc_) {
+        if (options_.color_transform.output == color::ColorSpace::PQ ||
+            options_.color_transform.output == color::ColorSpace::HLG) {
+            spdlog::error(
+                "[native_av] PQ/HLG output requires the CPU 10-bit encoder path; "
+                "the CUDA surface path is not enabled for this export");
+            return false;
+        }
         const auto hw_t0 = Clock::now();
         if (!device_runtime_) {
             spdlog::error("[native_av] NVENC requires a video device runtime (none provided)");
@@ -372,7 +482,24 @@ bool NativeAvEncoder::configure_codec_and_surface() {
     } else
 #endif
     {
-        codec_->pix_fmt = AV_PIX_FMT_YUV420P;
+        const bool hdr_output = options_.color_transform.output == color::ColorSpace::PQ ||
+                                options_.color_transform.output == color::ColorSpace::HLG;
+        const AVPixelFormat target_format = hdr_output
+            ? AV_PIX_FMT_YUV420P10LE : AV_PIX_FMT_YUV420P;
+        bool supported = encoder->pix_fmts == nullptr;
+        if (encoder->pix_fmts) {
+            for (const AVPixelFormat* format = encoder->pix_fmts;
+                 *format != AV_PIX_FMT_NONE; ++format) {
+                if (*format == target_format) { supported = true; break; }
+            }
+        }
+        if (!supported) {
+            spdlog::error(
+                "[native_av] encoder '{}' does not support the pixel format required for {} output",
+                resolved.encoder_name(), hdr_output ? "PQ/HLG 10-bit" : "SDR");
+            return false;
+        }
+        codec_->pix_fmt = target_format;
     }
 
     // One color-boundary authority (encoder_bitstream_contract): the encoder
@@ -384,13 +511,16 @@ bool NativeAvEncoder::configure_codec_and_surface() {
         codec_->color_trc = color.color_trc;
         codec_->color_primaries = color.color_primaries;
     }
+    const bool hdr_output = options_.color_transform.output == color::ColorSpace::PQ ||
+                            options_.color_transform.output == color::ColorSpace::HLG;
     output_frame_format_ = runtime::FrameFormat{
-        options_.direct_yuv_mode && options_.input_format == PipePixelFormat::P010
-            ? runtime::PixelFormat::P010
-            : runtime::PixelFormat::Nv12,
-        runtime::ColorPrimaries::Bt709,
+        hdr_output ? runtime::PixelFormat::Yuv420P10
+            : options_.direct_yuv_mode && options_.input_format == PipePixelFormat::P010
+                ? runtime::PixelFormat::P010 : runtime::PixelFormat::Nv12,
+        hdr_output
+            ? runtime::ColorPrimaries::Bt2020 : runtime::ColorPrimaries::Bt709,
         transfer_from_output_space(options_.color_transform.output),
-        runtime::ColorMatrix::Bt709,
+        hdr_output ? runtime::ColorMatrix::Bt2020Ncl : runtime::ColorMatrix::Bt709,
         runtime::ColorRange::Limited,
         runtime::ChromaLocation::Left,
         runtime::AlphaMode::Opaque};
@@ -515,6 +645,11 @@ bool NativeAvEncoder::open_codec_and_probe_contract() {
     if (!encoder) encoder = codec_->codec;
 
     const auto nvenc_t0 = Clock::now();
+    if (options_.hdr_mastering_metadata &&
+        !configure_hdr_static_metadata(codec_, *options_.hdr_mastering_metadata)) {
+        spdlog::error("[native_av] failed to configure static HDR metadata");
+        return false;
+    }
     if (avcodec_open2(codec_, encoder, nullptr) < 0) {
         spdlog::error("[native_av] avcodec_open2 failed");
         return false;

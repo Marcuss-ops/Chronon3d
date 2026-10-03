@@ -25,7 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/font_engine.hpp>      // FontSpec, FontIdentity, PlacedGlyphRun, TextWrap, TextDirection
-#include <chronon3d/text/glyph_selector.hpp>   // TextUnitMap (PlacedGlyphRun => TextUnitMap via glyph_selector)
+#include <chronon3d/text/glyph_selector.hpp>   // GlyphSelectorUnitMap (PlacedGlyphRun => GlyphSelectorUnitMap via glyph_selector)
 #include <chronon3d/text/text_span.hpp>        // TextHighlightStyle
 #include <chronon3d/core/types/types.hpp>       // Vec2, f32, u64, u32
 
@@ -112,7 +112,7 @@ struct TextRunLayout {
     f32 font_size{72.0f};                        // requested font size in pixels
 
     PlacedGlyphRun placed;                       // shaped + positioned glyphs
-    TextUnitMap units;                           // glyph → grapheme/word/line maps
+    GlyphSelectorUnitMap units;                           // glyph → grapheme/word/line maps
 
     Vec2 bounds{0.0f, 0.0f};                     // total bounding box (width, height)
     f32 line_height{0.0f};                       // font line height in pixels

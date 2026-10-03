@@ -75,11 +75,27 @@ RenderJobFingerprint compute_render_job_fingerprint(
         if (include_output_settings) {
             hash.add_enum(request_plan.output.format)
                 .add_enum(request_plan.output.codec)
+                .add(request_plan.output.color_space)
+                .add(request_plan.output.reference_white_nits)
                 .add(static_cast<int>(request_plan.output.rate_control))
                 .add(request_plan.output.bitrate)
                 .add(request_plan.output.crf)
                 .add(request_plan.output.qp)
                 .add(request_plan.output.profile_id);
+            hash.add(static_cast<std::uint8_t>(
+                request_plan.output.hdr_mastering_metadata.has_value()));
+            if (request_plan.output.hdr_mastering_metadata) {
+                const auto& metadata = *request_plan.output.hdr_mastering_metadata;
+                for (const auto& primary : metadata.display_primaries)
+                    hash.add(primary[0]).add(primary[1]);
+                hash.add(metadata.white_point[0]).add(metadata.white_point[1])
+                    .add(metadata.min_luminance_nits)
+                    .add(metadata.max_luminance_nits)
+                    .add(static_cast<std::uint8_t>(metadata.content_light.has_value()));
+                if (metadata.content_light)
+                    hash.add(metadata.content_light->max_cll_nits)
+                        .add(metadata.content_light->max_fall_nits);
+            }
         }
         return std::to_string(hash.finish());
     };

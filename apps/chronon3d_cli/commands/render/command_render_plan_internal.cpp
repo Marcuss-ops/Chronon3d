@@ -13,6 +13,9 @@
 #include <chronon3d/render_graph/backend_selection.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
+#ifdef CHRONON3D_ENABLE_OCIO
+#include <chronon3d/color/ocio_color_transform.hpp>
+#endif
 #ifdef CHRONON3D_ENABLE_VERIFICATION
 #include <chronon3d/verification/render_receipt.hpp>
 #endif
@@ -22,6 +25,8 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <atomic>
 #include <cerrno>
@@ -65,6 +70,8 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output.audio_target_sample_rate = args.video.audio_sample_rate;
     request.output.gop_copy_only = args.video.gop_copy_only;
     request.output.pipe_pixfmt = args.video.pipe_pixfmt;
+    request.output.color_output = args.video.color_output;
+    request.output.reference_white_nits = args.video.reference_white_nits;
     request.output.fps_num = args.fps_num == 30 && args.fps_den == 1
         ? 0U : args.fps_num;
     request.output.fps_den = args.fps_den;
@@ -268,6 +275,16 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             ? normalized_job.frame_range->last
             : static_cast<std::int64_t>(meta.duration_frames) - 1;
 
+        const bool ocio_output_view = context.decoded.color_management &&
+            !context.decoded.color_management->output_display.empty();
+        if (ocio_output_view &&
+            (normalized_job.output.gpu_hot_path_mode == "require_direct_yuv" ||
+             normalized_job.output.gpu_hot_path_mode == "require_gpu_native")) {
+            spdlog::error(
+                "[color-management] OCIO display/view output requires the software full-graph path and cannot satisfy a required GPU hot path");
+            return 1;
+        }
+
         RenderRequest request;
         request.comp_id = meta.job_id;
         request.compiled_program = context.program;
@@ -278,8 +295,9 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             : std::optional<std::filesystem::path>{effective_assets_root};
         request.settings = effective_settings;
         Config renderer_config = Config::from_environment();
-        renderer_config.set_backend_preference(
-            backend_preference_from_name(normalized_job.backend));
+        renderer_config.set_backend_preference(ocio_output_view
+            ? graph::BackendPreference::Software
+            : backend_preference_from_name(normalized_job.backend));
         if (!normalized_job.output.gpu_hot_path_mode.empty()) {
             renderer_config.set_gpu_hot_path_mode(
                 parse_gpu_hot_path_mode(normalized_job.output.gpu_hot_path_mode));
@@ -306,7 +324,13 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                     ? "bitrate" : "crf");
         request.video_settings.qp = meta.output.qp;
         request.video_settings.bitrate = meta.output.bitrate;
-        if (!normalized_job.output.codec.empty()) request.video_settings.codec = normalized_job.output.codec;
+        // The normalizer fills an absent CLI override with "auto". Keep the
+        // codec declared by the RenderPlan in that case; an explicit command
+        // line codec still takes precedence.
+        if (!normalized_job.output.codec.empty() &&
+            normalized_job.output.codec != "auto") {
+            request.video_settings.codec = normalized_job.output.codec;
+        }
         if (context.decoded.output.format == render_plan::OutputFormat::Gif)
             request.video_settings.codec = "gif";
         if (!normalized_job.output.hardware_encoder.empty())
@@ -322,6 +346,51 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
         request.video_settings.changed_intervals = normalized_job.output.changed_intervals;
         request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
+        request.video_settings.color_output = !normalized_job.output.color_output.empty()
+            ? normalized_job.output.color_output : context.decoded.output.color_space;
+        if (context.decoded.color_management &&
+            !context.decoded.color_management->output_display.empty()) {
+            const auto ocio_config = context.resolver.resolve_lexical(
+                context.decoded.color_management->ocio_config);
+            if (!ocio_config) {
+                spdlog::error("[color-management] OCIO config is outside the mounted asset root");
+                return 1;
+            }
+            request.video_settings.ocio_config_path = ocio_config->string();
+            request.video_settings.ocio_source_space =
+                context.decoded.color_management->working_space;
+            request.video_settings.ocio_display =
+                context.decoded.color_management->output_display;
+            request.video_settings.ocio_view =
+                context.decoded.color_management->output_view;
+#ifdef CHRONON3D_ENABLE_OCIO
+            std::string ocio_error;
+            auto ocio_transform = color::OcioColorTransform::from_display_view(
+                request.video_settings.ocio_config_path,
+                request.video_settings.ocio_source_space,
+                request.video_settings.ocio_display,
+                request.video_settings.ocio_view,
+                &ocio_error);
+            if (!ocio_transform) {
+                spdlog::error("[color-management] cannot prepare OCIO output view: {}",
+                              ocio_error);
+                return 1;
+            }
+            request.video_settings.ocio_output_transform =
+                std::make_shared<color::OcioColorTransform>(
+                    std::move(*ocio_transform));
+#else
+            spdlog::error(
+                "[color-management] RenderPlan requests an OCIO output view, but this build has OCIO disabled");
+            return 1;
+#endif
+        }
+        request.video_settings.reference_white_nits =
+            normalized_job.output.reference_white_nits > 0.0f
+                ? normalized_job.output.reference_white_nits
+                : context.decoded.output.reference_white_nits;
+        request.video_settings.hdr_mastering_metadata =
+            context.decoded.output.hdr_mastering_metadata;
         if (!normalized_job.output.sink_type.empty()) {
             request.video_settings.sink_type = normalized_job.output.sink_type;
             request.video_settings.sink_type_explicit = true;
@@ -373,6 +442,45 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             request.first_frame = Frame{first};
             request.last_frame = Frame{last};
         }
+
+        // Still-image writers have fixed, truthful pixel contracts: PNG is
+        // straight-alpha sRGB and EXR is scene-linear BT.709. Do not let a
+        // plan/CLI declaration reach the receipt with a different transfer
+        // than the bytes written by save_image().
+        if (request.mode != RenderMode::Video) {
+            const auto extension = [&] {
+                auto value = std::filesystem::path(output).extension().string();
+                std::transform(value.begin(), value.end(), value.begin(),
+                    [](unsigned char character) {
+                        return static_cast<char>(std::tolower(character));
+                    });
+                return value;
+            }();
+            if (ocio_output_view && extension != ".png") {
+                spdlog::error(
+                    "[color-management] OCIO display/view output for stills and sequences requires PNG; EXR must preserve scene-linear values");
+                return 1;
+            }
+            const std::string required_color_space = extension == ".png"
+                ? "srgb" : (extension == ".exr" ? "linearsrgb" : "");
+            if (required_color_space.empty()) {
+                spdlog::error(
+                    "still/sequence output '{}' has no declared image color contract",
+                    output);
+                return 1;
+            }
+            const std::string requested_color_space =
+                normalized_job.output.color_output.empty()
+                    ? context.decoded.output.color_space
+                    : normalized_job.output.color_output;
+            if (requested_color_space != required_color_space) {
+                spdlog::error(
+                    "still/sequence output '{}' is written as {}, but the resolved plan declares {}; use {} or choose a matching image format",
+                    output, required_color_space, requested_color_space,
+                    required_color_space);
+                return 1;
+            }
+        }
         pixel_truth::announce_lane(request.mode);
 
         auto job = resolve_render_request(registry, std::move(request));
@@ -409,9 +517,22 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                 receipt_input.height = meta.height;
                 receipt_input.fps_num = meta.fps_numerator;
                 receipt_input.fps_den = meta.fps_denominator;
-                receipt_input.frames = meta.duration_frames;
+                receipt_input.first_frame = first;
+                receipt_input.frames = last - first + 1;
                 receipt_input.requested_codec = codec_name(
                     static_cast<render_plan::VideoCodec>(meta.output.codec));
+                receipt_input.output_color_space = !normalized_job.output.color_output.empty()
+                    ? normalized_job.output.color_output : context.decoded.output.color_space;
+                receipt_input.reference_white_nits =
+                    normalized_job.output.reference_white_nits > 0.0f
+                        ? normalized_job.output.reference_white_nits
+                        : context.decoded.output.reference_white_nits;
+                if (context.decoded.color_management) {
+                    receipt_input.ocio_output_display =
+                        context.decoded.color_management->output_display;
+                    receipt_input.ocio_output_view =
+                        context.decoded.color_management->output_view;
+                }
                 receipt_input.has_audio_tracks = false;
                 receipt_input.receipt_verify_policy = normalized_job.receipt_verification;
                 const auto receipt_build_t0 = std::chrono::steady_clock::now();

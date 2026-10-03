@@ -240,10 +240,19 @@ std::string resolve_ffmpeg_encoder_name(
         }
         return "h264_nvenc";
     }
-    // NOTE: encoder-name selection intentionally mirrors the historical
-    // native selection so this resolution does not change which codec runs
-    // for existing configurations; the C-1/C-2 policy scope is rate control,
-    // preset and tune.
+    // Keep the requested software codec at the native libavcodec boundary.
+    // The former catch-all returned libx264 for every software request, so
+    // RenderPlan H.265 output silently became H.264 (and HDR then failed when
+    // the 10-bit pixel format met H.264 High profile).
+    if (normalized_codec == "h265" || normalized_codec == "hevc" ||
+        normalized_codec == "libx265") {
+        return "libx265";
+    }
+    if (normalized_codec == "h264" || normalized_codec == "avc" ||
+        normalized_codec == "libx264") {
+        return "libx264";
+    }
+    // Keep explicit raw encoder names supported for existing callers.
     if (normalized_codec == "libx264rgb") return "libx264rgb";
     return "libx264";
 }

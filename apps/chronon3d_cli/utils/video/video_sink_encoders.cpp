@@ -39,7 +39,8 @@ size_t convert_to_selected_format(
                 video::EncoderPixelFormat::YUV420P,
                 video::YuvMatrix::BT709,
                 video::ColorRange::Limited,
-                color_transform.apply_gamma);
+                color_transform.apply_gamma,
+                color_transform.output == color::ColorSpace::Rec709);
             return res.success ? y_size + uv_size * 2 : 0;
         }
         case PipePixelFormat::NV12: {
@@ -60,7 +61,8 @@ size_t convert_to_selected_format(
                 video::EncoderPixelFormat::NV12,
                 video::YuvMatrix::BT709,
                 video::ColorRange::Limited,
-                color_transform.apply_gamma);
+                color_transform.apply_gamma,
+                color_transform.output == color::ColorSpace::Rec709);
             return res.success ? y_size + y_size / 2u : 0;
         }
         case PipePixelFormat::P010:
@@ -89,7 +91,8 @@ size_t convert_to_selected_format(
                 video::EncoderPixelFormat::RGB24,
                 video::YuvMatrix::BT709,
                 video::ColorRange::Limited,
-                color_transform.apply_gamma);
+                color_transform.apply_gamma,
+                color_transform.output == color::ColorSpace::Rec709);
             return res.success ? static_cast<size_t>(width) * height * 3u : 0;
         }
     }

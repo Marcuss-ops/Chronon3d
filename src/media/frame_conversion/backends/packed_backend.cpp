@@ -15,6 +15,7 @@
 
 #include <tbb/parallel_for.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
@@ -25,8 +26,13 @@ namespace {
 // ── Inline helpers shared by fallback paths ──────────────────────────────────
 
 // Quantize a single Channel (linear [0,1]) to uint8 honoring `apply_gamma`.
-[[nodiscard]] inline uint8_t quantize_channel(float v, bool apply_gamma) noexcept {
+[[nodiscard]] inline uint8_t quantize_channel(float v, bool apply_gamma,
+                                               bool rec709_oetf = false) noexcept {
     if (apply_gamma) {
+        if (rec709_oetf) {
+            const float encoded = color::linear_rec709_float(std::clamp(v, 0.0f, 1.0f));
+            return static_cast<uint8_t>(std::clamp(std::lround(encoded * 255.0f), 0L, 255L));
+        }
         return Color::linear_to_srgb8(v);
     }
     return static_cast<uint8_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
@@ -54,7 +60,8 @@ struct Yuv709LimitedR { uint8_t y, cb, cr; };
 void convert_fb_to_rgba8(const Framebuffer& src,
                          int width, int height,
                          bool apply_gamma,
-                         uint8_t* rgba8)
+                         uint8_t* rgba8,
+                         bool rec709_oetf)
 {
     // pixel_format_convert_wall_ms — float→uint8 quantization stage of the
     // RGBA→encoder-format conversion. This is the canonical float→RGBA8 step,
@@ -73,9 +80,9 @@ void convert_fb_to_rgba8(const Framebuffer& src,
             uint8_t* dst_row = rgba8 + static_cast<std::size_t>(y) * width * 4;
             for (int x = 0; x < width; ++x) {
                 const Color& c = src_row[x];
-                dst_row[x * 4 + 0] = quantize_channel(c.r, apply_gamma);
-                dst_row[x * 4 + 1] = quantize_channel(c.g, apply_gamma);
-                dst_row[x * 4 + 2] = quantize_channel(c.b, apply_gamma);
+                dst_row[x * 4 + 0] = quantize_channel(c.r, apply_gamma, rec709_oetf);
+                dst_row[x * 4 + 1] = quantize_channel(c.g, apply_gamma, rec709_oetf);
+                dst_row[x * 4 + 2] = quantize_channel(c.b, apply_gamma, rec709_oetf);
                 dst_row[x * 4 + 3] = static_cast<uint8_t>(std::clamp(c.a, 0.0f, 1.0f) * 255.0f + 0.5f);
             }
         }
@@ -86,6 +93,103 @@ void convert_fb_to_rgba8(const Framebuffer& src,
         profiling::g_current_counters->pixel_format_convert_wall_ms.fetch_add(
             static_cast<uint64_t>(ms), std::memory_order_relaxed);
     }
+}
+
+ConvertFrameResult convert_yuv420p10(const ConvertFrameRequest& req) {
+    if (req.output_space != color::ColorSpace::PQ &&
+        req.output_space != color::ColorSpace::HLG) {
+        return make_convert_frame_result(false, FrameConversionBackend::Packed,
+                                         ConversionError::UnsupportedFormat);
+    }
+    if (req.matrix != YuvMatrix::BT2020 || req.range != ColorRange::Limited ||
+        !req.apply_gamma) {
+        return make_convert_frame_result(false, FrameConversionBackend::Packed,
+                                         ConversionError::UnsupportedMatrix);
+    }
+    if (req.width <= 0 || req.height <= 0 || (req.width & 1) || (req.height & 1))
+        return make_convert_frame_result(false, FrameConversionBackend::Packed,
+                                         ConversionError::OddDims);
+    if (!req.src.data() || !req.planes.y || !req.planes.u || !req.planes.v)
+        return make_convert_frame_result(false, FrameConversionBackend::Packed,
+                                         ConversionError::NullPointer);
+    if (!std::isfinite(req.reference_white_nits) || req.reference_white_nits <= 0.0f)
+        return make_convert_frame_result(false, FrameConversionBackend::Packed,
+                                         ConversionError::UnsupportedRange);
+
+    const auto t0 = profiling::timestamp_ns();
+    const int width = req.width;
+    const int height = req.height;
+    const int src_stride = req.src.allocated_width();
+    const int y_stride = req.planes.stride_y ? req.planes.stride_y : width * 2;
+    const int u_stride = req.planes.stride_u ? req.planes.stride_u : width;
+    const int v_stride = req.planes.stride_v ? req.planes.stride_v : width;
+    color::OutputTransformOptions transform;
+    transform.input = color::ColorSpace::LinearSRGB;
+    transform.output = req.output_space;
+    transform.apply_gamma = true;
+    transform.clamp = true;
+    transform.reference_white_nits = req.reference_white_nits;
+
+    const auto rgb_at = [&](int x, int y) {
+        const Color& premul = req.src.data()[static_cast<std::size_t>(y) * src_stride + x];
+        // Video output has no alpha plane. Treat the engine's premultiplied
+        // RGB as composited over black before the nonlinear output transform.
+        const Color opaque{premul.r, premul.g, premul.b, 1.0f};
+        if (req.color_transform_applied)
+            return std::array<float, 3>{
+                std::clamp(opaque.r, 0.0f, 1.0f),
+                std::clamp(opaque.g, 0.0f, 1.0f),
+                std::clamp(opaque.b, 0.0f, 1.0f)};
+        return color::linear_to_output_rgb_float(opaque, transform);
+    };
+    const auto write_sample = [](uint8_t* address, int value,
+                                 int legal_min, int legal_max) {
+        const auto sample = static_cast<std::uint16_t>(
+            std::clamp(value, legal_min, legal_max));
+        address[0] = static_cast<uint8_t>(sample & 0xffu);
+        address[1] = static_cast<uint8_t>(sample >> 8u);
+    };
+
+    for (int y = 0; y < height; ++y) {
+        auto* dst_row = req.planes.y + static_cast<std::size_t>(y) * y_stride;
+        for (int x = 0; x < width; ++x) {
+            const auto rgb = rgb_at(x, y);
+            const float luma = 0.2627f * rgb[0] + 0.6780f * rgb[1] + 0.0593f * rgb[2];
+            // BT.2020 non-constant-luminance 10-bit limited range uses luma
+            // codes 64..940 and chroma codes 64..960. Keeping values inside
+            // those nominal bounds prevents HDR highlights or saturated
+            // primaries from producing superwhite/superchroma code values.
+            write_sample(dst_row + x * 2,
+                static_cast<int>(std::lround(64.0f + 876.0f * luma)), 64, 940);
+        }
+    }
+
+    for (int y = 0; y < height; y += 2) {
+        auto* dst_u_row = req.planes.u + static_cast<std::size_t>(y / 2) * u_stride;
+        auto* dst_v_row = req.planes.v + static_cast<std::size_t>(y / 2) * v_stride;
+        for (int x = 0; x < width; x += 2) {
+            float cb_sum = 0.0f;
+            float cr_sum = 0.0f;
+            for (int dy = 0; dy < 2; ++dy) {
+                for (int dx = 0; dx < 2; ++dx) {
+                    const auto rgb = rgb_at(x + dx, y + dy);
+                    const float luma = 0.2627f * rgb[0] + 0.6780f * rgb[1] +
+                                       0.0593f * rgb[2];
+                    cb_sum += (rgb[2] - luma) / (2.0f * (1.0f - 0.0593f));
+                    cr_sum += (rgb[0] - luma) / (2.0f * (1.0f - 0.2627f));
+                }
+            }
+            write_sample(dst_u_row + x,
+                static_cast<int>(std::lround(512.0f + 896.0f * cb_sum * 0.25f)),
+                64, 960);
+            write_sample(dst_v_row + x,
+                static_cast<int>(std::lround(512.0f + 896.0f * cr_sum * 0.25f)),
+                64, 960);
+        }
+    }
+
+    return make_convert_frame_result(true, FrameConversionBackend::Packed,
+        ConversionError::None, profiling::timestamp_ns() - t0);
 }
 
 // ── Native (non-FFmpeg) YUV420P / NV12 / RGB24 fallback ─────────────────────
@@ -102,6 +206,7 @@ void convert_frame_fallback(const ConvertFrameRequest& req) {
     const Color* src_data = req.src.data();
     const int alloc_w     = req.src.allocated_width();
     const bool apply_gamma = req.apply_gamma;
+    const bool rec709_oetf = req.rec709_oetf;
 
     switch (req.format) {
         case EncoderPixelFormat::RGBA8:
@@ -144,9 +249,9 @@ void convert_frame_fallback(const ConvertFrameRequest& req) {
                         + static_cast<std::size_t>(y) * sy_y;
                     for (int x = 0; x < width; ++x) {
                         const Color& c = src_row[x];
-                        const uint8_t r8 = quantize_channel(c.r, apply_gamma);
-                        const uint8_t g8 = quantize_channel(c.g, apply_gamma);
-                        const uint8_t b8 = quantize_channel(c.b, apply_gamma);
+                        const uint8_t r8 = quantize_channel(c.r, apply_gamma, rec709_oetf);
+                        const uint8_t g8 = quantize_channel(c.g, apply_gamma, rec709_oetf);
+                        const uint8_t b8 = quantize_channel(c.b, apply_gamma, rec709_oetf);
                         const Yuv709LimitedR yuv = rgb_to_yuv709_limited(
                             r8 / 255.0f, g8 / 255.0f, b8 / 255.0f);
                         dst_y[x] = yuv.y;
@@ -181,9 +286,9 @@ void convert_frame_fallback(const ConvertFrameRequest& req) {
                             const Color* row = (dy == 0) ? row0 : row1;
                             for (int dx = 0; dx < 2; ++dx) {
                                 const Color& c = row[sx + dx];
-                                r_sum += quantize_channel(c.r, apply_gamma);
-                                g_sum += quantize_channel(c.g, apply_gamma);
-                                b_sum += quantize_channel(c.b, apply_gamma);
+                                r_sum += quantize_channel(c.r, apply_gamma, rec709_oetf);
+                                g_sum += quantize_channel(c.g, apply_gamma, rec709_oetf);
+                                b_sum += quantize_channel(c.b, apply_gamma, rec709_oetf);
                             }
                         }
                         const float r = (r_sum * 0.25f) / 255.0f;
@@ -210,9 +315,9 @@ void convert_frame_fallback(const ConvertFrameRequest& req) {
                         + static_cast<std::size_t>(y) * sy_y;
                     for (int x = 0; x < width; ++x) {
                         const Color& c = src_row[x];
-                        const uint8_t r8 = quantize_channel(c.r, apply_gamma);
-                        const uint8_t g8 = quantize_channel(c.g, apply_gamma);
-                        const uint8_t b8 = quantize_channel(c.b, apply_gamma);
+                        const uint8_t r8 = quantize_channel(c.r, apply_gamma, rec709_oetf);
+                        const uint8_t g8 = quantize_channel(c.g, apply_gamma, rec709_oetf);
+                        const uint8_t b8 = quantize_channel(c.b, apply_gamma, rec709_oetf);
                         const Yuv709LimitedR yuv = rgb_to_yuv709_limited(
                             r8 / 255.0f, g8 / 255.0f, b8 / 255.0f);
                         dst_y[x] = yuv.y;
@@ -241,9 +346,9 @@ void convert_frame_fallback(const ConvertFrameRequest& req) {
                             const Color* row = (dy == 0) ? row0 : row1;
                             for (int dx = 0; dx < 2; ++dx) {
                                 const Color& c = row[sx + dx];
-                                r_sum += quantize_channel(c.r, apply_gamma);
-                                g_sum += quantize_channel(c.g, apply_gamma);
-                                b_sum += quantize_channel(c.b, apply_gamma);
+                                r_sum += quantize_channel(c.r, apply_gamma, rec709_oetf);
+                                g_sum += quantize_channel(c.g, apply_gamma, rec709_oetf);
+                                b_sum += quantize_channel(c.b, apply_gamma, rec709_oetf);
                             }
                         }
                         const float r = (r_sum * 0.25f) / 255.0f;
@@ -257,6 +362,11 @@ void convert_frame_fallback(const ConvertFrameRequest& req) {
             });
             return;
         }
+        case EncoderPixelFormat::Yuv420P10:
+            (void)convert_yuv420p10(req);
+            return;
+        case EncoderPixelFormat::P010:
+            return;
     }
 }
 

@@ -25,9 +25,9 @@ namespace chronon3d::renderer {
 class SoftwareBlurEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<BlurParams>(&params)) {
-            renderer::apply_blur(fb, p->radius);
+            renderer::apply_blur(fb, p->radius, context.clip);
         }
     }
 };
@@ -35,11 +35,11 @@ public:
 class SoftwareTintEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<TintParams>(&params)) {
             LayerEffect e;
             e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
-            apply_color_effects(fb, e);
+            apply_color_effects(fb, e, context.clip);
         }
     }
 };
@@ -145,9 +145,9 @@ public:
 class SoftwareExposureEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<ExposureParams>(&params)) {
-            apply_exposure(fb, p->stops);
+            apply_exposure(fb, p->stops, context.clip);
         }
     }
 };
@@ -155,7 +155,7 @@ public:
 class SoftwareLevelsEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<LevelsParams>(&params)) {
             apply_levels(fb,
                          p->master.input_black, p->master.input_white,
@@ -169,7 +169,75 @@ public:
                          p->green.output_black, p->green.output_white,
                          p->blue.input_black, p->blue.input_white,
                          p->blue.gamma,
-                         p->blue.output_black, p->blue.output_white);
+                         p->blue.output_black, p->blue.output_white,
+                         context.clip);
+        }
+    }
+};
+
+class SoftwareTemperatureTintEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<TemperatureTintParams>(&params);
+        if (!p) throw std::runtime_error("TemperatureTint processor received invalid parameters");
+        const float temperature = std::clamp(p->temperature, -1.0f, 1.0f);
+        const float tint = std::clamp(p->tint, -1.0f, 1.0f);
+        const float red_gain = std::exp2(0.35f * temperature + 0.15f * tint);
+        const float green_gain = std::exp2(0.05f * temperature - 0.30f * tint);
+        const float blue_gain = std::exp2(-0.35f * temperature + 0.15f * tint);
+        int x0 = 0, x1 = fb.width(), y0 = 0, y1 = fb.height();
+        if (context.clip) {
+            x0 = std::clamp(context.clip->x0, 0, fb.width());
+            x1 = std::clamp(context.clip->x1, 0, fb.width());
+            y0 = std::clamp(context.clip->y0, 0, fb.height());
+            y1 = std::clamp(context.clip->y1, 0, fb.height());
+        }
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                if (row[x].a <= 0.0f) continue;
+                Color straight = row[x].unpremultiplied();
+                straight.r *= red_gain;
+                straight.g *= green_gain;
+                straight.b *= blue_gain;
+                row[x] = straight.premultiplied();
+            }
+        }
+    }
+};
+
+class SoftwareLiftGammaGainEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LiftGammaGainParams>(&params);
+        if (!p) throw std::runtime_error("LiftGammaGain processor received invalid parameters");
+        const float lift = std::clamp(p->lift, -1.0f, 1.0f);
+        const float gamma = std::clamp(p->gamma, 0.1f, 4.0f);
+        const float gain = std::clamp(p->gain, 0.0f, 4.0f);
+        const float exponent = 1.0f / gamma;
+        const auto shape = [=](float value) {
+            const float lifted = value + lift;
+            return std::copysign(std::pow(std::abs(lifted), exponent), lifted) * gain;
+        };
+        int x0 = 0, x1 = fb.width(), y0 = 0, y1 = fb.height();
+        if (context.clip) {
+            x0 = std::clamp(context.clip->x0, 0, fb.width());
+            x1 = std::clamp(context.clip->x1, 0, fb.width());
+            y0 = std::clamp(context.clip->y0, 0, fb.height());
+            y1 = std::clamp(context.clip->y1, 0, fb.height());
+        }
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                if (row[x].a <= 0.0f) continue;
+                Color straight = row[x].unpremultiplied();
+                straight.r = shape(straight.r);
+                straight.g = shape(straight.g);
+                straight.b = shape(straight.b);
+                row[x] = straight.premultiplied();
+            }
         }
     }
 };
@@ -177,10 +245,10 @@ public:
 class SoftwareFillEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<FillParams>(&params)) {
             apply_fill(fb, p->color, p->amount,
-                       p->mode == FillMode::Replace);
+                       p->mode == FillMode::Replace, context.clip);
         }
     }
 };
@@ -226,7 +294,7 @@ public:
             if (!p->blue.empty())
                 stage.blue = context.curve_cache->get_or_compile(p->blue);
             pipeline.add_stage(stage);
-            pipeline.apply(fb);
+            pipeline.apply(fb, context.clip);
         }
     }
 };
@@ -237,7 +305,7 @@ public:
                const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<StrokeParams>(&params)) {
             apply_stroke(fb, p->color, p->width, p->softness, p->mode,
-                         *context.effect_scratch);
+                         *context.effect_scratch, context.clip);
         }
     }
 };
@@ -325,6 +393,14 @@ std::unique_ptr<EffectProcessor> create_exposure_effect_processor() {
 std::unique_ptr<EffectProcessor> create_levels_effect_processor() {
     return std::make_unique<SoftwareLevelsEffectProcessor>();
 };
+
+std::unique_ptr<EffectProcessor> create_temperature_tint_effect_processor() {
+    return std::make_unique<SoftwareTemperatureTintEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_lift_gamma_gain_effect_processor() {
+    return std::make_unique<SoftwareLiftGammaGainEffectProcessor>();
+}
 
 std::unique_ptr<EffectProcessor> create_fill_effect_processor() {
     return std::make_unique<SoftwareFillEffectProcessor>();

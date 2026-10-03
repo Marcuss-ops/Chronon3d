@@ -22,6 +22,7 @@ enum class PixelFormat : std::uint8_t {
     Rgba16Float,
     Yuv420P,
     Rgb24,
+    Yuv420P10,
 
     // Source-compatibility spellings. These are aliases in the SAME enum,
     // not a second media/encoder pixel taxonomy.
@@ -220,7 +221,7 @@ using ColorMetadata = FrameFormat;
 
 [[nodiscard]] constexpr bool is_media_color_pixel_format(PixelFormat format) noexcept {
     return format == PixelFormat::Nv12 || format == PixelFormat::P010 ||
-           format == PixelFormat::Yuv420P;
+           format == PixelFormat::Yuv420P || format == PixelFormat::Yuv420P10;
 }
 
 // ── Canonical string vocabulary for the pipe/encoder pixel formats ─────────
@@ -244,6 +245,7 @@ using ColorMetadata = FrameFormat;
         case PixelFormat::Yuv420P:    return "yuv420p";
         case PixelFormat::Nv12:       return "nv12";
         case PixelFormat::P010:       return "p010";
+        case PixelFormat::Yuv420P10:  return "yuv420p10le";
         default:                      return "unknown";
     }
 }
@@ -292,6 +294,7 @@ using ColorMetadata = FrameFormat;
     std::string_view name) noexcept {
     if (const auto pipe = try_parse_pixel_format(name)) return pipe;
     if (name == "rgb24") return PixelFormat::Rgb24;
+    if (name == "yuv420p10le") return PixelFormat::Yuv420P10;
     return std::nullopt;
 }
 
@@ -312,6 +315,11 @@ using ColorMetadata = FrameFormat;
             const std::size_t chroma_w = (w + 1) / 2;
             const std::size_t chroma_h = (h + 1) / 2;
             return w * h + 2 * chroma_w * chroma_h;
+        }
+        case PixelFormat::Yuv420P10: {
+            const std::size_t chroma_w = (w + 1) / 2;
+            const std::size_t chroma_h = (h + 1) / 2;
+            return w * h * 2 + 4 * chroma_w * chroma_h;
         }
         case PixelFormat::Nv12: {
             const std::size_t chroma_w = (w + 1) & ~static_cast<std::size_t>(1);

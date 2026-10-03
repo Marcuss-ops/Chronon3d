@@ -46,8 +46,12 @@ struct ConversionOptions {
     /// Target pixel format for the encoded output.
     EncoderPixelFormat format{EncoderPixelFormat::YUV420P};
 
-    /// Apply sRGB gamma curve.  Set false for already-gamma-encoded data.
+    /// Apply an output OETF. Set false for already-encoded data.
     bool apply_gamma{true};
+    /// Use the BT.709 OETF instead of sRGB when `apply_gamma` is true.
+    bool rec709_oetf{false};
+    color::ColorSpace output_space{color::ColorSpace::SRGB};
+    float reference_white_nits{100.0f};
 
     /// Color matrix.  Default BT.709 (modern SDR).  Use BT.601 for SD content
     /// or BT.2020 for HDR / UHDTV.

@@ -19,6 +19,26 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
     }
 
     options_ = options;
+#ifdef CHRONON3D_ENABLE_OCIO
+    if (!options_.ocio_display.empty()) {
+        std::string error;
+        auto transform = color::OcioColorTransform::from_display_view(
+            options_.ocio_config_path, options_.ocio_source_space,
+            options_.ocio_display, options_.ocio_view, &error);
+        if (!transform) {
+            spdlog::error("[video_adapter] OCIO output view setup failed: {}", error);
+            return false;
+        }
+        ocio_output_transform_ = std::make_unique<color::OcioColorTransform>(
+            std::move(*transform));
+        options_.color_transform.apply_gamma = false;
+    }
+#else
+    if (!options_.ocio_display.empty()) {
+        spdlog::error("[video_adapter] OCIO output view requested but this build has OCIO disabled");
+        return false;
+    }
+#endif
     width_ = options.width;
     height_ = options.height;
     input_format_ = options.input_format;
@@ -26,7 +46,7 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
     output_pix_fmt_ = options.output_pix_fmt;
 
     chronon3d::media::video::VideoSinkConfig config;
-    if (!build_sink_config(options, config)) return false;
+    if (!build_sink_config(options_, config)) return false;
     sink_ = chronon3d::media::video::create_video_sink(config);
     if (!sink_) {
         spdlog::error("[video_adapter] create_video_sink() returned nullptr");

@@ -147,6 +147,14 @@ Result<MediaProbeInfo, MediaProbeError> probe_media(
                 observed.kind = MediaStreamKind::Video;
                 observed.width = params->width;
                 observed.height = params->height;
+                if (const char* name = av_color_range_name(params->color_range))
+                    observed.color_range = name;
+                if (const char* name = av_color_space_name(params->color_space))
+                    observed.color_space = name;
+                if (const char* name = av_color_transfer_name(params->color_trc))
+                    observed.color_transfer = name;
+                if (const char* name = av_color_primaries_name(params->color_primaries))
+                    observed.color_primaries = name;
                 if (params->format >= 0) {
                     const char* pixel_format = av_get_pix_fmt_name(
                         static_cast<AVPixelFormat>(params->format));

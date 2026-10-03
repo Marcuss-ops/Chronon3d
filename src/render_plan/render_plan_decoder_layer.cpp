@@ -502,6 +502,17 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         layer.time_remap = std::move(remap);
     }
     layer.asset = value.value("asset", std::string{});
+    layer.input_color_space = value.value("input_color_space", std::string{"srgb"});
+    layer.ocio_input_space = value.value("ocio_input_space", std::string{});
+    if (layer.type != LayerType::Image && layer.type != LayerType::Video &&
+        value.contains("ocio_input_space"))
+        throw std::runtime_error("ocio_input_space is only valid for image or video layers");
+    if (layer.type != LayerType::Image && value.contains("input_color_space"))
+        throw std::runtime_error("input_color_space is only valid for image layers");
+    if (layer.input_color_space != "srgb" && layer.input_color_space != "linearsrgb" &&
+        layer.input_color_space != "rec709" && layer.input_color_space != "displayp3")
+        throw std::runtime_error(
+            "image input_color_space must be srgb, linearsrgb, rec709, or displayp3");
     layer.source = value.value("source", std::string{});
     if (layer.type == LayerType::Mesh) {
         for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "background_look", "mask", "masks", "text_animators", "spans", "fill_gradient_animation"})

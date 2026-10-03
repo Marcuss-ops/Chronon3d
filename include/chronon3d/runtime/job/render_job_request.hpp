@@ -56,6 +56,12 @@ struct OutputSpec {
     /// authority in <chronon3d/runtime/frame_format.hpp>; an unknown value is
     /// rejected by `normalize_render_job` with InvalidPipePixelFormat.
     std::string pipe_pixfmt;
+    /// Optional render-plan/CLI output transfer. Empty keeps the RenderPlan's
+    /// declared output color space; the normal CLI path supplies its own
+    /// VideoSettings value directly.
+    std::string color_output;
+    /// Optional transfer reference white in nits; zero preserves the plan.
+    float reference_white_nits{0.0f};
     /// Requested output sink: "ffmpeg" (render → encode → mux) or "raw"
     /// (render → pre-encode host frames, no encoder). Empty means "not
     /// requested", and normalization back-fills "ffmpeg" so a plan-file
@@ -100,6 +106,8 @@ enum class RenderJobRequestErrorCode : std::uint8_t {
     /// this boundary so a plan file or an IPC spec cannot smuggle an unknown
     /// format past the CLI validator into the encoder.
     InvalidPipePixelFormat,
+    /// The requested output transfer or PQ/HLG reference white is invalid.
+    InvalidColorOutput,
     InvalidChangedInterval,
 };
 

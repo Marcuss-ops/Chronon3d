@@ -38,7 +38,10 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <chronon3d/color/hdr_mastering_metadata.hpp>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace chronon3d::verification {
 
@@ -75,6 +78,7 @@ struct MediaContract {
     std::string color_space;
     std::string color_transfer;
     std::string color_primaries;
+    std::optional<color::HdrMasteringMetadata> hdr_mastering_metadata;
     std::string field_order;
     std::int64_t start_pts{0};
     bool first_frame_keyframe{true};
@@ -102,6 +106,9 @@ struct ReceiptVerification {
     std::string resolution{"skip"};
     std::string fps{"skip"};
     std::string audio{"skip"};
+    std::string hdr_mastering_metadata{"skip"};
+    // SHA-256 coverage of the rendered still image or image sequence.
+    std::string frame_images{"skip"};
     // Verification policy recorded on the receipt so consumers never infer
     // the executed policy from the presence/absence of decode timings.
     // requested_policy is the raw CHRONON_RECEIPT_VERIFY value ("" when
@@ -109,6 +116,14 @@ struct ReceiptVerification {
     // ("fast" | "normal" | "certify").
     std::string requested_policy;
     std::string resolved_policy;
+};
+
+/// Content identity for one rendered still frame. The frame index is the
+/// RenderPlan frame number; SHA-256 covers the encoded image file bytes.
+struct ReceiptFrameImage {
+    std::int64_t frame_index{0};
+    std::int64_t bytes{-1};
+    std::string sha256;
 };
 
 /// Wall-clock cost of the post-render verification, in milliseconds.  Values
@@ -146,6 +161,7 @@ struct RenderReceiptInput {
     int height{0};
     int fps_num{0};
     int fps_den{1};
+    std::int64_t first_frame{0};
     std::int64_t frames{0};
     // Final resolver receipt. A non-zero count is mandatory evidence for a
     // planned downgrade; an executor must never create an unrecorded fallback.
@@ -154,6 +170,11 @@ struct RenderReceiptInput {
 
     // output contract
     std::string requested_codec{"auto"};  // "auto" = any codec accepted
+    std::string output_color_space{"srgb"};
+    float reference_white_nits{100.0f};
+    std::string ocio_output_display;
+    std::string ocio_output_view;
+    std::optional<color::HdrMasteringMetadata> hdr_mastering_metadata;
     bool has_audio_tracks{false};
 
     // Explicit per-job verification policy ("fast" | "normal" | "certify")
@@ -186,6 +207,7 @@ struct RenderReceipt {
     int height{0};
     int fps_num{0};
     int fps_den{1};
+    std::int64_t first_frame{0};
     std::int64_t frames{0};
     std::string execution_downgrade_reason;
     std::uint32_t execution_downgrade_count{0};
@@ -198,6 +220,12 @@ struct RenderReceipt {
     // output
     std::int64_t bytes{0};
     std::string sha256;
+    std::vector<ReceiptFrameImage> frame_images;
+    std::string output_color_space{"srgb"};
+    float reference_white_nits{100.0f};
+    std::string ocio_output_display;
+    std::string ocio_output_view;
+    std::optional<color::HdrMasteringMetadata> hdr_mastering_metadata;
 
     bool copy_eligible{false};
 };

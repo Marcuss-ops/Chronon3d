@@ -44,6 +44,8 @@ std::unique_ptr<EffectProcessor> create_vignette_effect_processor();
 std::unique_ptr<EffectProcessor> create_fake_3d_wave_effect_processor();
 std::unique_ptr<EffectProcessor> create_exposure_effect_processor();
 std::unique_ptr<EffectProcessor> create_levels_effect_processor();
+std::unique_ptr<EffectProcessor> create_temperature_tint_effect_processor();
+std::unique_ptr<EffectProcessor> create_lift_gamma_gain_effect_processor();
 std::unique_ptr<EffectProcessor> create_fill_effect_processor();
 std::unique_ptr<EffectProcessor> create_noise_effect_processor();
 std::unique_ptr<EffectProcessor> create_fractal_noise_effect_processor();
@@ -116,6 +118,8 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<Fake3DWaveParams>(create_fake_3d_wave_effect_processor());
     registry.register_effect_processor<ExposureParams>(create_exposure_effect_processor());
     registry.register_effect_processor<LevelsParams>(create_levels_effect_processor());
+    registry.register_effect_processor<TemperatureTintParams>(create_temperature_tint_effect_processor());
+    registry.register_effect_processor<LiftGammaGainParams>(create_lift_gamma_gain_effect_processor());
     registry.register_effect_processor<FillParams>(create_fill_effect_processor());
     registry.register_effect_processor<NoiseParams>(create_noise_effect_processor());
     registry.register_effect_processor<FractalNoiseParams>(create_fractal_noise_effect_processor());

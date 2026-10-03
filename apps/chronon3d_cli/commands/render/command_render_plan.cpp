@@ -114,6 +114,12 @@ void register_render_plan_command(CLI::App& app, CliContext& ctx) {
     command->add_option("--pipe-pixfmt", state->video.pipe_pixfmt,
                         "CUDA/pipe surface format: nv12 or p010")
         ->check(CLI::IsMember(pipe_pixfmt_cuda_surface_names()));
+    command->add_option("--color-output", state->video.color_output,
+                        "Output color space override (otherwise use the RenderPlan output.color_space)")
+        ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb", "pq", "hlg"}));
+    command->add_option("--reference-white-nits", state->video.reference_white_nits,
+                        "PQ/HLG reference white override in nits (otherwise use RenderPlan output.reference_white_nits)")
+        ->check(CLI::PositiveNumber);
     command->add_option("--encode-preset", state->encode_preset, "x264 preset override (e.g. medium, veryfast)");
     command->add_option("--audio-sample-rate", state->video.audio_sample_rate,
                         "Output audio sample rate in Hz (0 = keep the source rate)")

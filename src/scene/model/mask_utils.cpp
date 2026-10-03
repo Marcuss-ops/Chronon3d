@@ -162,8 +162,13 @@ f32 mask_alpha_with_flattened(const Mask& mask, Vec2 local,
         if (flattened && index < flattened->size()) return &(*flattened)[index];
         return nullptr;
     };
-    f32 accumulated = mask_primitive_alpha(mask_view(mask), local,
+    const f32 primary = mask_primitive_alpha(mask_view(mask), local,
         get_flattened(0, mask_view(mask)), canvas_pixel, text_sampler);
+    // A leading subtract mask subtracts its coverage from the implicit full
+    // layer mask. Add, intersect and difference use the primary shape as the
+    // first authored coverage, matching the no-prior-mask identity behavior.
+    f32 accumulated = mask.initial_mode == MaskCombineMode::Subtract
+        ? 1.0f - primary : primary;
     for (std::size_t index = 0; index < mask.operations.size(); ++index) {
         const auto& operation = mask.operations[index];
         const auto view = mask_view(operation);
@@ -227,6 +232,7 @@ std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix
 
     std::uint64_t seed = 0;
     seed = mix(seed, static_cast<std::uint64_t>(mask.type));
+    seed = mix(seed, static_cast<std::uint64_t>(mask.initial_mode));
     seed = mix(seed, hv(mask.pos.x));
     seed = mix(seed, hv(mask.pos.y));
     seed = mix(seed, hv(mask.pos.z));
@@ -331,7 +337,9 @@ std::shared_ptr<Framebuffer> rasterize_mask_alpha(
     const bool has_text_source = mask.type == MaskType::Text ||
         std::any_of(mask.operations.begin(), mask.operations.end(),
             [](const MaskOperation& operation) { return operation.type == MaskType::Text; });
-    if (!mask.operations.empty() || mask.inverted || mask.type == MaskType::Path || has_text_source)
+    if (!mask.operations.empty() || mask.inverted ||
+        mask.initial_mode == MaskCombineMode::Subtract ||
+        mask.type == MaskType::Path || has_text_source)
         bbox = raster::BBox{0, 0, width, height};
     bbox.clip_to(width, height);
     if (bbox.is_empty()) {

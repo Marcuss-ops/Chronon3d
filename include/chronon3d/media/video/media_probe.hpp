@@ -36,6 +36,10 @@ struct MediaStreamProbe {
     std::string pixel_format;
     Rational frame_rate{0, 1};
     std::int64_t frame_count{0};
+    std::string color_range;
+    std::string color_space;
+    std::string color_transfer;
+    std::string color_primaries;
 
     // Audio metadata.
     int sample_rate{0};

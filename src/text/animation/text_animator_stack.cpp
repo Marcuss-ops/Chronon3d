@@ -4,7 +4,7 @@
 #include <chronon3d/text/animation/text_animator_evaluator.hpp>  // evaluate_animator
 #include <chronon3d/text/font_engine.hpp>                        // PlacedGlyphRun full type
 #include <chronon3d/text/text_run_layout.hpp>                     // ShapedFontSpan
-#include <chronon3d/text/glyph_selector.hpp>                     // build_text_unit_map, TextUnitMap
+#include <chronon3d/text/glyph_selector.hpp>                     // build_text_unit_map, GlyphSelectorUnitMap
 
 #include <algorithm>
 
@@ -52,14 +52,14 @@ std::vector<GlyphInstanceState> evaluate_animator_stack(
 // Reset `inout_states` with `reset_glyph_states_in_place(placed)`, which
 // resizes only when the glyph count changes and otherwise mutates in place.
 // Uses the caller-supplied `unit_map` (from TextRunLayout::units, built
-// once during layout) — no per-frame TextUnitMap allocation.
+// once during layout) — no per-frame GlyphSelectorUnitMap allocation.
 
 void evaluate_animator_stack_into(
     std::vector<GlyphInstanceState>& inout_states,
     const std::vector<TextAnimatorSpec>& animators,
     const PlacedGlyphRun& placed,
     std::string_view source,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     SampleTime time,
     const std::vector<ShapedFontSpan>* span_styles
 ) {

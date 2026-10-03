@@ -40,12 +40,17 @@ void write_render_job_receipt(const RenderJob& job) {
     input.height = job.metadata.height;
     input.fps_num = job.video_settings.fps_num;
     input.fps_den = job.video_settings.fps_den;
+    input.first_frame = static_cast<std::int64_t>(
+        (job.mode == RenderMode::Still ? job.still_frame : job.first_frame).integral());
     input.frames = job.mode == RenderMode::Video
         ? static_cast<std::int64_t>(job.last_frame.integral() -
                                     job.first_frame.integral() + 1)
         : static_cast<std::int64_t>(job.frame_count().integral());
     input.requested_codec = job.video_settings.codec.empty()
         ? "auto" : job.video_settings.codec;
+    input.output_color_space = job.video_settings.color_output;
+    input.reference_white_nits = job.video_settings.reference_white_nits;
+    input.hdr_mastering_metadata = job.video_settings.hdr_mastering_metadata;
     input.has_audio_tracks = false;
     const auto receipt = verification::build_render_receipt(
         input, job.output,

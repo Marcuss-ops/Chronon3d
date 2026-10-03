@@ -14,6 +14,15 @@ struct RenderCounters;
 
 namespace chronon3d::media {
 
+struct VideoColorTransform {
+    std::string config_path;
+    std::string input_space;
+    std::string working_space;
+    [[nodiscard]] bool enabled() const noexcept {
+        return !config_path.empty() && !input_space.empty() && !working_space.empty();
+    }
+};
+
 class MediaFrameProvider {
 public:
     virtual ~MediaFrameProvider() = default;
@@ -31,6 +40,21 @@ public:
         RationalTime presentation_time,
         int width,
         int height) = 0;
+
+    /// Decode and apply a declared OCIO source-to-working transform before
+    /// transfer decoding. Providers that cannot honor this contract fail
+    /// explicitly instead of silently returning a differently interpreted
+    /// frame.
+    virtual DecodeResult decode_frame_at_with_color_transform(
+        const std::string& path, RationalTime presentation_time,
+        int width, int height, const VideoColorTransform& transform) {
+        if (!transform.enabled())
+            return decode_frame_at(path, presentation_time, width, height);
+        return make_decode_failure(DecodeDiagnostic{
+            DecodeFailureReason::UnsupportedFormatChange, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "video provider does not support the declared OCIO input transform"});
+    }
 };
 
 } // namespace chronon3d::media

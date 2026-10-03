@@ -66,6 +66,8 @@ enum class EffectType : uint8_t {
     LuminanceResponse = 43,
     FoldWarp = 44,
     CreaseShading = 45,
+    TemperatureTint = 46,
+    LiftGammaGain = 47,
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────
