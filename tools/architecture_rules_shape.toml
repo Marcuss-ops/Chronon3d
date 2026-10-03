@@ -52,6 +52,7 @@ allow_list = [
   "src/backends/software/processors/software_shape_processor.cpp",
   "src/backends/vulkan/vulkan_native_shape_dispatch.cpp",
   "src/render_plan/render_plan_compiler.cpp",
+  "src/render_plan/render_plan_compiler_shape.cpp",
   "src/compiler/scene_materializer.cpp",
   "src/render_graph/nodes/source_node_execute.cpp",
   "tests/renderer/helpers/test_stroke_gradient_helpers.cpp",
