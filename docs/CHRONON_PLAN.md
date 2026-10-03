@@ -47,13 +47,22 @@ Rules:
 
 ## STAGE 3 — Kill fixed CPU overhead
 
-- Remove/scope compulsory hot-path timing in `LruCache`.
-- Make `clear()` generation-safe.
-- Lock oversized rejection counters and coalesced-waiter semantics.
-- Precompute O(1) compiled-op lookup by node id.
-- Reduce per-node timing/bookkeeping and use worker-local execution context.
+- [x] `LruCache` detailed nanosecond timing is opt-in; the default path avoids
+  clock reads and timing atomics.
+- [x] `clear()` advances the in-flight generation so an older loader cannot
+  republish a value after clear.
+- [x] Oversized-rejection counters are atomic and coalesced waiters have a
+  separate tested count.
+- [x] Compiled operations are indexed by node id in a vector for O(1) lookup.
+- [x] Fine-grained per-node timing is retired; mutable node context and memory
+  scope are worker-local.
 
-Gate: benchmark hot-path changes; correctness and architecture unchanged.
+Correctness evidence: LruCache unit/stress tests, compiled-frame-program
+contract tests, executor level tests, and the developer architecture gate.
+Benchmark evidence for the normal/rendering hotspot work remains under
+[`TICKET-HOTSPOT-DECOMPOSITION`](tickets/TICKET-HOTSPOT-DECOMPOSITION.md);
+daemon job reuse remains data-gated in
+[`TICKET-DAEMON-JOB-LIFECYCLE`](tickets/TICKET-DAEMON-JOB-LIFECYCLE.md).
 
 ## STAGE 4 — Determinism contract
 

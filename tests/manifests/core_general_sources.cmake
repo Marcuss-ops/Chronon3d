@@ -49,10 +49,7 @@ set(CORE_TEST_SOURCES
     core/test_audio_sample_clock.cpp
     core/test_frame_rate_edge_cases.cpp
     core/test_temporal_contract.cpp
-    core/animation/test_temporal_spatial_curve.cpp
-    # Split from test_temporal_spatial_curve.cpp (each part ≤ 400 LOC):
-    core/animation/test_temporal_spatial_curve_timing_paths.cpp
-    core/animation/test_temporal_spatial_curve_arclength_modes.cpp
+    core/animation/test_temporal_curve_1d.cpp
     core/animation/path/test_catmull_rom_path.cpp
     core/animation/path/test_spatial_bezier_path.cpp
     core/animation/test_quaternion_track.cpp
