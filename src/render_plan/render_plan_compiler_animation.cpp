@@ -1779,6 +1779,7 @@ chronon3d::LayerTransitionSpec compile_transition(const TransitionPlan& plan, Fr
         : chronon3d::string_to_transition_direction(plan.direction);
     if (plan.kind == "crossfade") spec.parameters = chronon3d::CrossfadeParams{};
     else if (plan.kind == "slide") spec.parameters = chronon3d::SlideParams{plan.distance};
+    else if (plan.kind == "zoom") spec.parameters = chronon3d::ZoomParams{plan.zoom_amount};
     else if (plan.kind == "wipe_linear") spec.parameters = chronon3d::WipeLinearParams{};
     else if (plan.kind == "smooth_wipe") spec.parameters = chronon3d::SmoothWipeParams{plan.feather};
     else if (plan.kind == "circle_iris")

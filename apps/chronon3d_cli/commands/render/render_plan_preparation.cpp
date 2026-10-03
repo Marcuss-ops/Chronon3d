@@ -121,6 +121,9 @@ PreparedOverlayPackageSummary read_prepared_package(
                 throw std::runtime_error(
                     "prepared overlay package media overlay references an unknown asset key: " + path);
             }
+        } else if (kind == "shape") {
+            // Shape overlays such as the map's location pins have geometry
+            // in the render plan and do not bind a separate media asset.
         } else if (kind != "color") {
             throw std::runtime_error(
                 "prepared overlay package contains unsupported overlay kind: " + path);
@@ -151,6 +154,7 @@ void validate_package_matches_plan(
             case render_plan::LayerType::Video: return std::string{"video"};
             case render_plan::LayerType::Text: return std::string{"text"};
             case render_plan::LayerType::Color: return std::string{"color"};
+            case render_plan::LayerType::Shape: return std::string{"shape"};
         }
         return std::string{"unknown"};
     };

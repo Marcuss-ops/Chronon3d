@@ -434,6 +434,7 @@ struct TransitionPlan {
     std::string easing{"linear"};
     std::string direction;
     float distance{1.0f};
+    float zoom_amount{0.2f};
     float feather{0.1f};
     std::array<float, 2> center{0.5f, 0.5f};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};

@@ -414,6 +414,7 @@ void add_transition(CanonicalPlanWriter& out, const TransitionPlan& transition) 
     out.add_string(transition.easing);
     out.add_string(transition.direction);
     out.add_float(transition.distance);
+    out.add_float(transition.zoom_amount);
     out.add_float(transition.feather);
     for (const auto value : transition.center) out.add_float(value);
     for (const auto value : transition.color) out.add_float(value);

@@ -248,7 +248,8 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
             for (const auto& key : track.keyframes) {
                 const float scalar = key.value.size() == 1 ? key.value.front() : 0.f;
                 if ((track.property == "opacity" && (scalar < 0.f || scalar > 1.f)) ||
-                    ((track.property == "blur" || track.property == "tracking") && scalar < 0.f) ||
+                    (track.property == "blur" && scalar < 0.f) ||
+                    (track.property == "tracking" && (scalar < -1000.f || scalar > 1000.f)) ||
                     (track.property == "baseline_shift" && (scalar < -1000.f || scalar > 1000.f)) ||
                     (track.property == "skew" && (scalar < -80.f || scalar > 80.f)) ||
                     (track.property == "skew_axis" && (scalar < -1000000.f || scalar > 1000000.f)) ||

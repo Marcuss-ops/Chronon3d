@@ -422,6 +422,7 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
     const auto& params = value.at("params");
     const std::vector<std::string> allowed = [&]() {
         if (plan.kind == "slide") return std::vector<std::string>{"distance"};
+        if (plan.kind == "zoom") return std::vector<std::string>{"amount"};
         if (plan.kind == "smooth_wipe") return std::vector<std::string>{"feather"};
         if (plan.kind == "circle_iris") return std::vector<std::string>{"feather", "center"};
         if (plan.kind == "flash") return std::vector<std::string>{"color"};
@@ -435,6 +436,7 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
         if (std::find(allowed.begin(), allowed.end(), it.key()) == allowed.end())
             throw std::runtime_error("parameter '" + it.key() + "' is not supported by transition '" + plan.kind + "'");
     plan.distance = params.value("distance", plan.distance);
+    plan.zoom_amount = params.value("amount", plan.zoom_amount);
     plan.feather = params.value("feather", plan.feather);
     if (params.contains("center"))
         for (std::size_t i = 0; i < 2; ++i) plan.center[i] = params.at("center").at(i).get<float>();
@@ -460,6 +462,7 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
     plan.remotion_direction = params.value("remotion_direction", plan.remotion_direction);
     plan.angle = params.value("angle", plan.angle);
     if (!std::isfinite(plan.distance) || plan.distance < 0.0f || plan.distance > 4.0f ||
+        !std::isfinite(plan.zoom_amount) || plan.zoom_amount < 0.0f || plan.zoom_amount > 1.0f ||
         !std::isfinite(plan.feather) || plan.feather < 0.0f || plan.feather > 1.0f ||
         !std::isfinite(plan.seed) || !std::isfinite(plan.speed) || plan.speed <= 0.0f ||
         !std::isfinite(plan.remotion_direction) || !std::isfinite(plan.angle))

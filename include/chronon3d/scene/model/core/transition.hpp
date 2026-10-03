@@ -70,6 +70,11 @@ struct SlideParams {
     float distance = 1.0f;
 };
 
+struct ZoomParams {
+    /// Maximum zoom above the source scale (0.2 means 120% at the peak).
+    float amount = 0.2f;
+};
+
 struct WipeLinearParams {};
 
 struct SmoothWipeParams {
@@ -112,6 +117,7 @@ using LayerTransitionParameters = std::variant<
     std::monostate,
     CrossfadeParams,
     SlideParams,
+    ZoomParams,
     WipeLinearParams,
     SmoothWipeParams,
     CircleIrisParams,
