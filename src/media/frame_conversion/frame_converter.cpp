@@ -61,6 +61,9 @@ FrameConversionBackend select_backend(const ConvertFrameRequest& req) {
     if (req.format == EncoderPixelFormat::RGBA8) {
         return FrameConversionBackend::Packed;
     }
+    if (req.format == EncoderPixelFormat::Yuv420P10) {
+        return FrameConversionBackend::Packed;
+    }
     // PR4B: All YUV420P/NV12/P010/RGB24/BT.2020 route through swscale.  When the
     // build disables CHRONON3D_ENABLE_NATIVE_FFMPEG, caps.swscale is false;
     // the dispatcher still returns Swscale here so the Swscale case can
@@ -79,7 +82,8 @@ ConversionError validate_conversion_request(const ConvertFrameRequest& req) {
     }
     const bool is_yuv = (req.format == EncoderPixelFormat::YUV420P ||
                          req.format == EncoderPixelFormat::NV12 ||
-                         req.format == EncoderPixelFormat::P010);
+                         req.format == EncoderPixelFormat::P010 ||
+                         req.format == EncoderPixelFormat::Yuv420P10);
     if (is_yuv && ((req.width % 2) != 0 || (req.height % 2) != 0)) {
         return ConversionError::OddDims;
     }
@@ -91,6 +95,8 @@ ConversionError validate_conversion_request(const ConvertFrameRequest& req) {
             !req.planes.uv)                                return ConversionError::NullPointer;
         if (req.format == EncoderPixelFormat::P010 &&
             !req.planes.uv)                                return ConversionError::NullPointer;
+        if (req.format == EncoderPixelFormat::Yuv420P10 &&
+            (!req.planes.u || !req.planes.v))              return ConversionError::NullPointer;
     }
     if (req.format == EncoderPixelFormat::RGB24 && !req.planes.y) {
         return ConversionError::NullPointer;
@@ -120,6 +126,19 @@ std::optional<FramePlanes> resolve_frame_planes(
                 .stride_y = width,
                 .stride_u = width / 2,
                 .stride_v = width / 2,
+            };
+        }
+        case EncoderPixelFormat::Yuv420P10: {
+            const std::size_t y_bytes = static_cast<std::size_t>(width) * height * 2;
+            const std::size_t chroma_bytes = y_bytes / 4;
+            if (packed_size < y_bytes + 2 * chroma_bytes) return std::nullopt;
+            return FramePlanes{
+                .y = packed_buffer,
+                .u = packed_buffer + y_bytes,
+                .v = packed_buffer + y_bytes + chroma_bytes,
+                .stride_y = width * 2,
+                .stride_u = width,
+                .stride_v = width,
             };
         }
         case EncoderPixelFormat::NV12: {
@@ -167,9 +186,12 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
 
     switch (choice) {
         case FrameConversionBackend::Packed: {
+            if (req.format == EncoderPixelFormat::Yuv420P10)
+                return packed::convert_yuv420p10(req);
             const uint64_t t0 = profiling::timestamp_ns();
             packed::convert_fb_to_rgba8(req.src, req.width, req.height,
-                                       req.apply_gamma, req.planes.y);
+                                       req.apply_gamma, req.planes.y,
+                                       req.rec709_oetf);
             return make_convert_frame_result(
                 true, FrameConversionBackend::Packed, ConversionError::None,
                 profiling::timestamp_ns() - t0);
@@ -205,7 +227,8 @@ ConvertFrameResult convert_frame_tight(
     const Framebuffer& src, FramePlanes planes,
     int width, int height, EncoderPixelFormat format,
     YuvMatrix matrix, ColorRange range,
-    bool apply_gamma)
+    bool apply_gamma, bool rec709_oetf,
+    color::ColorSpace output_space, float reference_white_nits)
 {
     ConvertFrameRequest req{
         .src = src,
@@ -216,6 +239,9 @@ ConvertFrameResult convert_frame_tight(
         .matrix = matrix,
         .range = range,
         .apply_gamma = apply_gamma,
+        .rec709_oetf = rec709_oetf,
+        .output_space = output_space,
+        .reference_white_nits = reference_white_nits,
     };
     return convert_frame(req);
 }

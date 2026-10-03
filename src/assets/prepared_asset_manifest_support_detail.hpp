@@ -75,6 +75,8 @@ struct RequestedAsset {
             if (effect.kind == render_plan::LayerPlan::EffectKindPlan::Lut3D)
                 add(effect.asset, PreparedAssetKind::Data);
     }
+    if (plan.color_management)
+        add(plan.color_management->ocio_config, PreparedAssetKind::Data);
     if (plan.audio)
         for (const auto& clip : plan.audio->clips)
             add(clip.asset, PreparedAssetKind::Audio);

@@ -27,7 +27,7 @@ public:
     void apply(Framebuffer& fb, const EffectParams& params,
                const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<Fake3DWaveParams>(&params)) {
-            apply_fake_3d_wave(fb, *p, context.time_seconds);
+            apply_fake_3d_wave(fb, *p, context.time_seconds, context.clip);
         }
     }
 };
@@ -39,7 +39,7 @@ public:
         if (auto* p = std::get_if<RadialBlurParams>(&params)) {
             apply_radial_blur(fb, p->center.x, p->center.y,
                               p->amount, p->render_samples,
-                              *context.effect_scratch);
+                              *context.effect_scratch, context.clip);
         }
     }
 };
@@ -50,7 +50,8 @@ public:
                const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<DirectionalBlurParams>(&params)) {
             apply_directional_blur(fb, p->angle, p->length,
-                                   *context.effect_scratch, p->samples);
+                                   *context.effect_scratch, p->samples,
+                                   context.clip);
         }
     }
 };

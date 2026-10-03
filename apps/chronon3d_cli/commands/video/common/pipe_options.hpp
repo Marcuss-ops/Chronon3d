@@ -11,6 +11,8 @@
 // ---------------------------------------------------------------------------
 
 #include <string>
+#include <optional>
+#include <chronon3d/color/hdr_mastering_metadata.hpp>
 
 namespace chronon3d::cli {
 
@@ -32,6 +34,15 @@ struct PipeOptions {
 
     /// Output colour space: "srgb", "rec709", "linearsrgb".
     std::string color_output{"srgb"};
+    std::string ocio_config_path;
+    std::string ocio_source_space;
+    std::string ocio_display;
+    std::string ocio_view;
+
+    /// Reference white used by PQ/HLG output transforms, in nits.
+    float reference_white_nits{100.0f};
+
+    std::optional<chronon3d::color::HdrMasteringMetadata> hdr_mastering_metadata;
 
     /// Show FFmpeg stderr logs in pipe mode.
     bool ffmpeg_verbose{false};

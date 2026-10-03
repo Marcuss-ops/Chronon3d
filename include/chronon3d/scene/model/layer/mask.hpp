@@ -42,6 +42,10 @@ struct MaskOperation {
 
 struct Mask {
     MaskType type{MaskType::None};
+    // Combination rule for the primary shape against the implicit layer mask.
+    // Subtract starts from full layer coverage; the other modes use the
+    // primary shape as their first coverage.
+    MaskCombineMode initial_mode{MaskCombineMode::Add};
 
     // Forward-protection: lock `type` as a public field (not a method).
     // Many call sites historically invoked `mask.type()` as a method;

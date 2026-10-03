@@ -53,7 +53,7 @@ namespace detail {
 
 [[nodiscard]] bool semantic_target_matches(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index
 ) noexcept {
     return !spec.semantic_id ||
@@ -114,7 +114,7 @@ f32 evaluate_selector_shape(
 
 bool should_exclude_unit(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
     const PlacedGlyphRun* placed
@@ -157,7 +157,7 @@ bool should_exclude_unit(
 
 CompiledSelector compile_selector(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     std::string_view source,
     const PlacedGlyphRun* placed
 ) {
@@ -255,7 +255,7 @@ SelectorWeightParams bind_selector_runtime(
 
 SelectorWeightParams bind_selector_runtime(
     const CompiledSelector& compiled,
-    const TextUnitMap&,
+    const GlyphSelectorUnitMap&,
     const SampleTime time
 ) {
     if (compiled.spec == nullptr) return {};
@@ -264,7 +264,7 @@ SelectorWeightParams bind_selector_runtime(
 
 SelectorWeightParams bind_selector_runtime(
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     const u32 glyph_index,
     const SampleTime time
 ) {
@@ -362,7 +362,7 @@ SelectorWeight selector_weight(
 
 std::vector<CompiledSelector> compile_selectors(
     const std::vector<GlyphSelectorSpec>& specs,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     std::string_view source,
     const PlacedGlyphRun* placed
 ) {
@@ -376,7 +376,7 @@ std::vector<CompiledSelector> compile_selectors(
 
 SelectorWeight selector_weight(
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     SampleTime time
 ) {
@@ -387,7 +387,7 @@ SelectorWeight selector_weight(
 SelectorWeight selector_weight(
     const SelectorWeightParams& params,
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     const u32 glyph_index
 ) {
     if (compiled.spec == nullptr || compiled.total_units == 0 ||
@@ -464,7 +464,7 @@ SelectorWeight selector_weight(
 
 SelectorWeight evaluate_compiled_selector(
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     const u32 glyph_index,
     const SampleTime time
 ) {
@@ -473,7 +473,7 @@ SelectorWeight evaluate_compiled_selector(
 
 SelectorWeight selector_weight(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     const u32 glyph_index,
     const std::string_view source,
     const SampleTime time,
@@ -486,7 +486,7 @@ SelectorWeight selector_weight(
 
 SelectorWeight evaluate_compiled_selectors(
     const std::vector<CompiledSelector>& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     SampleTime time
 ) {

@@ -472,7 +472,7 @@ file = "src/media/video/native_video_frame_decoder_decode.cpp"
 required_patterns = [
     'const bool native_surface = decoded->framebuffer &&',
     'decoded->framebuffer->surface_handle\(\) != runtime::kInvalidRenderSurfaceHandle',
-    'if \(!native_surface && decoded->framebuffer && session->test_options\.enable_frame_cache\) \{',
+    'if \(!native_surface && decoded->framebuffer && session->test_options\.enable_frame_cache[\s\S]{0,200}?\)\s*\{',
     'session->cache\.put\(target, decoded->framebuffer\);',
 ]
 hint = "Native decoder cache contract violation: a frame backed by a mutable GPU surface must never enter the session cache."

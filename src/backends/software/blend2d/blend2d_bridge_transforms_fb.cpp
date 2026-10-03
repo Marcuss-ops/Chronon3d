@@ -10,6 +10,7 @@
 #include <tbb/parallel_for.h>
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 // ── WP-6 PR 6.9 — Determinism-contract safety net ───────────────────────
 //
@@ -265,6 +266,104 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
         tbb::parallel_for(tbb::blocked_range<int>(y0, y1, 16), [&](const tbb::blocked_range<int>& range) {
             process_rows(range.begin(), range.end());
         });
+    } else {
+        process_rows(y0, y1);
+    }
+}
+
+void composite_framebuffer_tiled(Framebuffer& dst_fb, const Framebuffer& src_fb,
+                                 const Mat4& model, float opacity, BlendMode mode,
+                                 const RenderState* state) {
+    const int sw = src_fb.width();
+    const int sh = src_fb.height();
+    const int stride = src_fb.stride();
+    const Color* source = src_fb.data();
+    if (sw <= 0 || sh <= 0 || !source) return;
+
+    if (state && state->mask && state->mask->enabled())
+        ensure_mask_alpha_cache(*state, dst_fb.width(), dst_fb.height());
+
+    int x0 = 0, y0 = 0, x1 = dst_fb.width(), y1 = dst_fb.height();
+    if (state && state->clip_rect) {
+        x0 = std::max(0, state->clip_rect->x0);
+        y0 = std::max(0, state->clip_rect->y0);
+        x1 = std::min(dst_fb.width(), state->clip_rect->x1);
+        y1 = std::min(dst_fb.height(), state->clip_rect->y1);
+    }
+    if (x0 >= x1 || y0 >= y1) return;
+
+    const bool simple_translation = detail::is_simple_translation(model);
+    const bool scale_translation = detail::is_scale_translation(model);
+    const float sx = model[0][0], sy = model[1][1];
+    const float tx = model[3][0], ty = model[3][1];
+    const bool downscale_x = std::abs(sx) < 0.999f;
+    const bool downscale_y = std::abs(sy) < 0.999f;
+    const float sample_ox = downscale_x ? 0.25f / std::max(std::abs(sx), 1e-6f) : 0.0f;
+    const float sample_oy = downscale_y ? 0.25f / std::max(std::abs(sy), 1e-6f) : 0.0f;
+
+    std::optional<detail::TransformInfo> transform;
+    if (!simple_translation && !scale_translation) transform.emplace(model);
+
+    const auto sample = [&](float lx, float ly) {
+        if (!downscale_x && !downscale_y) {
+            Color result;
+            sample_bilinear_float(source, stride, sw, sh, lx, ly, result);
+            return result;
+        }
+        const float sx0 = downscale_x ? lx - sample_ox : lx;
+        const float sx1 = downscale_x ? lx + sample_ox : lx;
+        const float sy0 = downscale_y ? ly - sample_oy : ly;
+        const float sy1 = downscale_y ? ly + sample_oy : ly;
+        Color c0, c1, c2, c3;
+        sample_bilinear_float(source, stride, sw, sh, sx0, sy0, c0);
+        sample_bilinear_float(source, stride, sw, sh, sx1, sy0, c1);
+        sample_bilinear_float(source, stride, sw, sh, sx0, sy1, c2);
+        sample_bilinear_float(source, stride, sw, sh, sx1, sy1, c3);
+        return Color{(c0.r + c1.r + c2.r + c3.r) * 0.25f,
+                     (c0.g + c1.g + c2.g + c3.g) * 0.25f,
+                     (c0.b + c1.b + c2.b + c3.b) * 0.25f,
+                     (c0.a + c1.a + c2.a + c3.a) * 0.25f};
+    };
+
+    const auto process_rows = [&](int first, int last) {
+        for (int y = first; y < last; ++y) {
+            Color* destination = dst_fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                if (state && !pixel_passes_mask(*state, x, y)) continue;
+                float lx = 0.0f, ly = 0.0f;
+                if (simple_translation) {
+                    lx = static_cast<float>(x) + 0.5f - tx;
+                    ly = static_cast<float>(y) + 0.5f - ty;
+                } else if (scale_translation) {
+                    if (std::abs(sx) < 1.0e-8f || std::abs(sy) < 1.0e-8f) continue;
+                    lx = (static_cast<float>(x) + 0.5f - tx) / sx;
+                    ly = (static_cast<float>(y) + 0.5f - ty) / sy;
+                } else if (transform->is_affine) {
+                    const float px = static_cast<float>(x) + 0.5f;
+                    const float py = static_cast<float>(y) + 0.5f;
+                    lx = transform->a00 * px + transform->a10 * py + transform->a20;
+                    ly = transform->a01 * px + transform->a11 * py + transform->a21;
+                } else {
+                    const Vec3 local = transform->invH *
+                        Vec3(static_cast<float>(x) + 0.5f,
+                             static_cast<float>(y) + 0.5f, 1.0f);
+                    if (std::abs(local.z) < 1.0e-7f) continue;
+                    lx = local.x / local.z;
+                    ly = local.y / local.z;
+                }
+                Color source_color = sample(lx, ly);
+                source_color.r *= opacity;
+                source_color.g *= opacity;
+                source_color.b *= opacity;
+                source_color.a *= opacity;
+                if (source_color.a <= 0.001f) continue;
+                detail::blend_pixel(destination[x], source_color, mode);
+            }
+        }
+    };
+    if (y1 - y0 >= 16) {
+        tbb::parallel_for(tbb::blocked_range<int>(y0, y1, 16),
+            [&](const tbb::blocked_range<int>& rows) { process_rows(rows.begin(), rows.end()); });
     } else {
         process_rows(y0, y1);
     }

@@ -19,6 +19,11 @@ std::string layer_type_name(render_plan::LayerType type) {
         case render_plan::LayerType::Video:         return "video";
         case render_plan::LayerType::Text:          return "text";
         case render_plan::LayerType::Color:         return "color";
+        case render_plan::LayerType::Shape:          return "shape";
+        case render_plan::LayerType::Particles:      return "particles";
+        case render_plan::LayerType::Light:          return "light";
+        case render_plan::LayerType::Adjustment:     return "adjustment";
+        case render_plan::LayerType::Mesh:           return "mesh";
     }
     return "unknown";
 }
@@ -116,6 +121,15 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
     inspection.output_path = meta.output.path;
     inspection.output_format = output_format_name(static_cast<render_plan::OutputFormat>(meta.output.format));
     inspection.video_codec = video_codec_name(static_cast<render_plan::VideoCodec>(meta.output.codec));
+    inspection.color_space = decoded.output.color_space;
+    inspection.reference_white_nits = decoded.output.reference_white_nits;
+    if (decoded.color_management) {
+        inspection.ocio_config = decoded.color_management->ocio_config;
+        inspection.working_space = decoded.color_management->working_space;
+        inspection.video_input_space = decoded.color_management->video_input_space;
+        inspection.output_display = decoded.color_management->output_display;
+        inspection.output_view = decoded.color_management->output_view;
+    }
 
     inspection.layers.reserve(decoded.layers.size());
     for (const auto& layer : decoded.layers) {
@@ -123,6 +137,13 @@ build_render_plan_inspection(const PreparedRenderPlanContext& context) {
         resolved.id = layer.id;
         resolved.type = layer_type_name(layer.type);
         resolved.asset = layer.asset;
+        if (layer.type == render_plan::LayerType::Image)
+            resolved.input_color_space = layer.input_color_space;
+        if (layer.type == render_plan::LayerType::Image ||
+            layer.type == render_plan::LayerType::Video)
+            resolved.ocio_input_space = layer.ocio_input_space.empty() &&
+                    layer.type == render_plan::LayerType::Video
+                ? inspection.video_input_space : layer.ocio_input_space;
         resolved.source = layer.source;
         resolved.text = layer.text;
 

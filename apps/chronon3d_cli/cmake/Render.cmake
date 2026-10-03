@@ -16,6 +16,9 @@ add_library(chronon3d_cli_render STATIC
     commands/render/render_plan_inspection.cpp
     commands/render/command_inspect_plan.cpp
     commands/render/command_script.cpp
+    commands/render/command_scopes.cpp
+    commands/render/command_mask_propagate.cpp
+    commands/render/command_ocio_bake_lut.cpp
     utils/job/render_job.cpp
     utils/job/render_job_setup.cpp
     utils/job/render_job_finalize.cpp
@@ -43,6 +46,7 @@ target_link_libraries(chronon3d_cli_render PRIVATE
     chronon3d_compiler
     chronon3d_pipeline
     chronon3d_backend_image
+    chronon3d_media_interface
     CLI11::CLI11
     spdlog::spdlog_header_only
     fmt::fmt

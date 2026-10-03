@@ -1,9 +1,25 @@
 # TICKET-MAIN-TRUTH-STAGE-1-2 — main truth + Wave 0 closeout
 
-**Stato:** VERIFY  
+**Stato:** BLOCKED — GitHub Actions runner dispatch
 **Priorità:** P0  
 **Data:** 2026-09-04  
 **Baseline censita:** `main@eb56a6f6c59e6d5ae3eefa1f1cbd69e3ee1f58d1`
+
+## Update 2026-10-03 — same-SHA CI check
+
+- Local HEAD is now `5d960421dd1b`, matching fetched remote `main`; the prior
+  dirty worktree was restored on top after the fast-forward. Its GitHub run
+  [37102621629](https://github.com/Marcuss-ops/Chronon3d/actions/runs/37102621629)
+  reports failure on every job, but jobs completed in seconds with no runner
+  allocation and no steps. This is a runner-dispatch blocker, not source-level
+  test evidence. The restored dirty worktree is not covered by that result.
+- Follow-up observation: scheduled runs `37107348776` (Chronon Nightly) and
+  `37110073977` (libFuzzer nightly) on the same remote SHA also failed with
+  empty job steps. Local rebuilt Core and CLI suites pass, but do not replace
+  the missing GitHub execution. ChrononTemplate currently has no remote
+  workflow; its local workflow remains uncommitted with the preserved WIP.
+- Do not mark VERIFY/DONE or add product scope until Actions dispatch is
+  restored and a reviewed, identifiable SHA passes the required gates.
 
 ## Obiettivo
 

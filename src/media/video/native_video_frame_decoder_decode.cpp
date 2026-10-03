@@ -2,6 +2,9 @@
 // engine: sequential/seek decode loop, prefetch worker and frame lookup.
 
 #include "native_video_frame_decoder_detail.hpp"
+#ifdef CHRONON3D_ENABLE_OCIO
+#include <chronon3d/color/ocio_color_transform.hpp>
+#endif
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 
@@ -108,7 +111,11 @@ void NativeVideoFrameDecoder::Session::start_prefetch_worker(NativeVideoFrameDec
 }
 
 DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
-    Session& session, int64_t target) {
+    Session& session, int64_t target
+#ifdef CHRONON3D_ENABLE_OCIO
+    , const color::OcioColorTransform* ocio_transform
+#endif
+    ) {
     std::lock_guard decode_lock(session.decode_mutex);
     if (target < 0 || static_cast<std::size_t>(target) >= session.sample_table.size()) {
         return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::UnexpectedEof, 0,
@@ -155,7 +162,11 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
             }
         }
     }
-    if (window_frame) {
+    if (window_frame
+#ifdef CHRONON3D_ENABLE_OCIO
+        && ocio_transform == nullptr
+#endif
+        ) {
         av_frame_unref(session.decoded);
         DecodeDiagnostic replay_diagnostic;
         std::shared_ptr<Framebuffer> replayed;
@@ -217,7 +228,11 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
 
     auto materialize = [&](AVFrame* frame) -> bool {
         DecodeDiagnostic native_diagnostic;
-        if ((framebuffer = try_native_frame(session, frame, &native_diagnostic))) {
+        if (
+#ifdef CHRONON3D_ENABLE_OCIO
+            ocio_transform == nullptr &&
+#endif
+            (framebuffer = try_native_frame(session, frame, &native_diagnostic))) {
             retain_materialized_frame(session, target_index, frame);
             return true;
         }
@@ -262,7 +277,11 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
         }
         framebuffer = frame_to_framebuffer(render, session.sws, session.rgba_staging,
                                            m_counters,
-                                           session.test_options.enable_swscale);
+                                           session.test_options.enable_swscale
+#ifdef CHRONON3D_ENABLE_OCIO
+                                           , ocio_transform
+#endif
+                                           );
         if (!framebuffer) {
             fail(DecodeFailureReason::UnsupportedFormatChange, 0,
                 render ? render->pts : target_sample.pts,
@@ -394,7 +413,65 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_internal(
 }
 
 DecodeResult NativeVideoFrameDecoder::decode_frame_at(
-    const std::string& path, RationalTime presentation_time, int, int) {
+    const std::string& path, RationalTime presentation_time, int width, int height) {
+    return decode_frame_at_impl(path, presentation_time, width, height, nullptr);
+}
+
+DecodeResult NativeVideoFrameDecoder::decode_frame_at_with_color_transform(
+    const std::string& path, RationalTime presentation_time, int width, int height,
+    const VideoColorTransform& transform) {
+    if (!transform.enabled())
+        return decode_frame_at(path, presentation_time, width, height);
+#ifndef CHRONON3D_ENABLE_OCIO
+    return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::UnsupportedFormatChange, 0,
+        kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+        "video declares an OCIO input space, but Chronon was built without OpenColorIO"});
+#else
+    return decode_frame_at_impl(path, presentation_time, width, height, &transform);
+#endif
+}
+
+DecodeResult NativeVideoFrameDecoder::decode_frame_at_impl(
+    const std::string& path, RationalTime presentation_time, int, int,
+    const VideoColorTransform* transform_options) {
+#ifdef CHRONON3D_ENABLE_OCIO
+    std::shared_ptr<color::OcioColorTransform> ocio_transform;
+    if (transform_options != nullptr) {
+        std::error_code metadata_error;
+        const auto modified = std::filesystem::last_write_time(
+            transform_options->config_path, metadata_error);
+        const auto size = metadata_error ? 0 : std::filesystem::file_size(
+            transform_options->config_path, metadata_error);
+        if (metadata_error)
+            return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::UnsupportedFormatChange, 0,
+                kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+                "video OCIO config could not be stat'ed: " + transform_options->config_path});
+        const auto key = transform_options->config_path + "\n" +
+            transform_options->input_space + "\n" + transform_options->working_space + "\n" +
+            std::to_string(modified.time_since_epoch().count()) + ":" + std::to_string(size);
+        {
+            std::lock_guard lock(m_mutex);
+            const auto it = m_ocio_transforms.find(key);
+            if (it != m_ocio_transforms.end()) ocio_transform = it->second;
+        }
+        if (!ocio_transform) {
+            std::string error;
+            auto built = color::OcioColorTransform::from_config(
+                transform_options->config_path, transform_options->input_space,
+                transform_options->working_space, &error);
+            if (!built)
+                return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::UnsupportedFormatChange, 0,
+                    kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+                    "video OCIO input transform failed: " + error});
+            auto candidate = std::make_shared<color::OcioColorTransform>(std::move(*built));
+            std::lock_guard lock(m_mutex);
+            auto [it, inserted] = m_ocio_transforms.emplace(key, candidate);
+            ocio_transform = inserted ? std::move(candidate) : it->second;
+        }
+    }
+#else
+    (void)transform_options;
+#endif
     if (path.empty()) {
         return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::OpenInput, 0,
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
@@ -428,12 +505,26 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_at(
     const auto& sample = session->sample_table[selected];
 
     std::unique_lock lock(session->mutex);
+#ifdef CHRONON3D_ENABLE_OCIO
+    if (ocio_transform) {
+        session->prefetch_queue.clear();
+        ++session->prefetch_generation;
+        session->prefetch_next = -1;
+        session->prefetch_cv.wait(lock, [&session] {
+            return session->prefetch_inflight < 0 || session->prefetch_stop.load();
+        });
+    }
+#endif
     if (session->prefetch_inflight == target) {
         session->prefetch_cv.wait(lock, [&session, target] {
             return session->prefetch_inflight != target || session->prefetch_stop.load();
         });
     }
-    if (session->test_options.enable_frame_cache) {
+    if (session->test_options.enable_frame_cache
+#ifdef CHRONON3D_ENABLE_OCIO
+        && !ocio_transform
+#endif
+        ) {
         if (auto cached = session->cache.get(target)) {
             return decoded_frame_from_sample(*cached, sample);
         }
@@ -441,7 +532,11 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_at(
     while (!session->prefetch_queue.empty() && session->prefetch_queue.front().target < target) {
         session->prefetch_queue.pop_front();
     }
-    if (!session->prefetch_queue.empty() && session->prefetch_queue.front().target == target) {
+    if (!session->prefetch_queue.empty() && session->prefetch_queue.front().target == target
+#ifdef CHRONON3D_ENABLE_OCIO
+        && !ocio_transform
+#endif
+        ) {
         auto framebuffer = std::move(session->prefetch_queue.front().framebuffer);
         session->prefetch_queue.pop_front();
         return decoded_frame_from_sample(std::move(framebuffer), sample);
@@ -449,11 +544,18 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_at(
     session->prefetch_queue.clear();
     ++session->prefetch_generation;
     session->prefetch_next = selected + 1 < session->sample_table.size() ? target + 1 : -1;
+#ifdef CHRONON3D_ENABLE_OCIO
+    if (ocio_transform) session->prefetch_next = -1;
+#endif
     session->foreground_decode_pending.store(true, std::memory_order_release);
     lock.unlock();
 
     auto io_read = global_media_io_budget().acquire_required_read();
-    auto result = decode_frame_internal(*session, target);
+    auto result = decode_frame_internal(*session, target
+#ifdef CHRONON3D_ENABLE_OCIO
+        , ocio_transform.get()
+#endif
+        );
 
     lock.lock();
     session->foreground_decode_pending.store(false, std::memory_order_release);
@@ -461,11 +563,80 @@ DecodeResult NativeVideoFrameDecoder::decode_frame_at(
     if (auto* decoded = std::get_if<DecodedFrame>(&result)) {
         const bool native_surface = decoded->framebuffer &&
             decoded->framebuffer->surface_handle() != runtime::kInvalidRenderSurfaceHandle;
-        if (!native_surface && decoded->framebuffer && session->test_options.enable_frame_cache) {
+        if (!native_surface && decoded->framebuffer && session->test_options.enable_frame_cache
+#ifdef CHRONON3D_ENABLE_OCIO
+            && !ocio_transform
+#endif
+            ) {
             session->cache.put(target, decoded->framebuffer);
         }
     }
     return result;
+}
+
+DecodeResult NativeVideoFrameDecoder::decode_frame_index_at(
+    const std::string& path, std::int64_t sample_index, int width, int height) {
+    if (path.empty() || sample_index < 0) {
+        return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::OpenInput, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "decode source path and non-negative source sample index are required"});
+    }
+    DecodeDiagnostic open_diagnostic;
+    std::shared_ptr<Session> session;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        session = open_session_locked(path, &open_diagnostic);
+    }
+    if (!session) {
+        if (!open_diagnostic.failed()) {
+            open_diagnostic = DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
+                kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+                "decoder session could not be opened"};
+        }
+        return make_decode_failure(std::move(open_diagnostic));
+    }
+    if (static_cast<std::uint64_t>(sample_index) >= session->sample_table.size()) {
+        return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::UnexpectedEof, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp,
+            static_cast<std::uint64_t>(sample_index),
+            "source sample index is beyond the indexed video frames"});
+    }
+    const auto sample = session->sample_table[static_cast<std::size_t>(sample_index)];
+    const RationalTime presentation_time{sample.pts, session->sample_table.time_base()};
+    auto decoded = decode_frame_at(path, presentation_time, width, height);
+    if (const auto* frame = decoded_frame_if(decoded);
+        frame != nullptr && frame->source_order != sample.source_order) {
+        return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::PresentationGap, 0,
+            sample.pts, sample.dts, sample.source_order,
+            "duplicate presentation timestamps prevent exact source-order frame selection"});
+    }
+    return decoded;
+}
+
+std::uint64_t NativeVideoFrameDecoder::indexed_sample_count(const std::string& path) {
+    if (path.empty()) return 0;
+    DecodeDiagnostic open_diagnostic;
+    std::shared_ptr<Session> session;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        session = open_session_locked(path, &open_diagnostic);
+    }
+    return session ? static_cast<std::uint64_t>(session->sample_table.size()) : 0;
+}
+
+std::optional<RationalTime> NativeVideoFrameDecoder::indexed_presentation_time(
+    const std::string& path, std::uint64_t sample_index) {
+    if (path.empty()) return std::nullopt;
+    DecodeDiagnostic open_diagnostic;
+    std::shared_ptr<Session> session;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        session = open_session_locked(path, &open_diagnostic);
+    }
+    if (!session || sample_index >= session->sample_table.size())
+        return std::nullopt;
+    const auto& sample = session->sample_table[static_cast<std::size_t>(sample_index)];
+    return RationalTime{sample.pts, session->sample_table.time_base()};
 }
 
 HwFrameRef NativeVideoFrameDecoder::decode_native_frame_at(

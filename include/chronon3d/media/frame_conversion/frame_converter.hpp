@@ -73,14 +73,31 @@ struct ConvertFrameRequest {
     YuvMatrix matrix{YuvMatrix::BT709};
     ColorRange range{ColorRange::Limited};
     bool apply_gamma{true};
+    // The source RGB values already include the requested display transform;
+    // keep this marker so PQ/HLG conversion only performs YUV matrix/range work.
+    bool color_transform_applied{false};
+    // Select BT.709 OETF when apply_gamma is enabled; otherwise the default
+    // remains sRGB for existing image/web encoder call sites.
+    bool rec709_oetf{false};
+    color::ColorSpace output_space{color::ColorSpace::SRGB};
+    float reference_white_nits{100.0f};
 
     [[nodiscard]] constexpr runtime::FrameFormat target_frame_format() const noexcept {
+        const bool hdr = output_space == color::ColorSpace::PQ ||
+                         output_space == color::ColorSpace::HLG ||
+                         output_space == color::ColorSpace::LinearBT2020;
+        const auto transfer = output_space == color::ColorSpace::PQ
+            ? runtime::TransferFunction::Pq
+            : output_space == color::ColorSpace::HLG
+                ? runtime::TransferFunction::Hlg
+                : !apply_gamma ? runtime::TransferFunction::Linear
+                : rec709_oetf ? runtime::TransferFunction::Bt1886
+                              : runtime::TransferFunction::Srgb;
         return runtime::FrameFormat{
             format,
-            matrix == YuvMatrix::BT2020 ? runtime::ColorPrimaries::Bt2020
-                                        : runtime::ColorPrimaries::Bt709,
-            apply_gamma ? runtime::TransferFunction::Srgb
-                        : runtime::TransferFunction::Linear,
+            hdr || matrix == YuvMatrix::BT2020 ? runtime::ColorPrimaries::Bt2020
+                                               : runtime::ColorPrimaries::Bt709,
+            transfer,
             matrix,
             range,
             runtime::ChromaLocation::Left,
@@ -149,7 +166,10 @@ ConvertFrameResult convert_frame_tight(
     const Framebuffer& src, FramePlanes planes,
     int width, int height, EncoderPixelFormat format,
     YuvMatrix matrix, ColorRange range,
-    bool apply_gamma = true);
+    bool apply_gamma = true,
+    bool rec709_oetf = false,
+    color::ColorSpace output_space = color::ColorSpace::SRGB,
+    float reference_white_nits = 100.0f);
 
 // ── Direct NV12 Overlay Compositor ──────────────────────────────────────
 

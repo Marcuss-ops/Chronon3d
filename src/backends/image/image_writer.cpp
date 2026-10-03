@@ -9,6 +9,7 @@
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfHeader.h>
+#include <OpenEXR/ImfStandardAttributes.h>
 #include <Imath/half.h>
 #endif
 

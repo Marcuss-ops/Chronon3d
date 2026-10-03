@@ -286,7 +286,12 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
     // parse.
     video->add_option("--pipe-pixfmt", args.video_settings.pipe_pixfmt, "Pipe pixel format")
         ->check(CLI::IsMember(pipe_pixfmt_source_names()));
-    video->add_option("--color-output", args.video_settings.color_output, "Output color space")->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));
+    video->add_option("--color-output", args.video_settings.color_output,
+                      "Video output color space (HDR PQ/HLG require the native CPU encoder)")
+        ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb", "pq", "hlg"}));
+    video->add_option("--reference-white-nits", args.video_settings.reference_white_nits,
+                      "Reference white luminance for PQ/HLG output (nits)")
+        ->check(CLI::PositiveNumber);
     video->add_option("--pipe-writer", args.video_settings.pipe_writer, "Pipe writer: classic or io_uring")->check(CLI::IsMember({"classic", "io_uring"}));
     // ONE vocabulary (AUDIT F4): the accepted set is the canonical transport
     // vocabulary filtered by build capability, so this option can never
@@ -487,6 +492,11 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             request.output.changed_intervals = render_args.video_settings.changed_intervals;
             if (render_args.pipe_pixfmt_explicit)
                 request.output.pipe_pixfmt = render_args.video_settings.pipe_pixfmt;
+            if (explicit_flag("--color-output"))
+                request.output.color_output = render_args.video_settings.color_output;
+            if (explicit_flag("--reference-white-nits"))
+                request.output.reference_white_nits =
+                    render_args.video_settings.reference_white_nits;
             // Only an explicit request travels; an unmentioned sink stays empty
             // so normalization back-fills the canonical default and a plan-file
             // job fingerprints identically to a daemon/IPC job.

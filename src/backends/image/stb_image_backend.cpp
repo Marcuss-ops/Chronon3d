@@ -57,7 +57,25 @@ std::unique_ptr<ImageBuffer> StbImageBackend::load_image(const std::string& path
 
     if (resolved_path.length() >= 4 && resolved_path.substr(resolved_path.length() - 4) == ".exr") {
 #ifdef CHRONON3D_ENABLE_EXR
-        return load_exr_mmap(resolved_path);
+        const auto framebuffer = load_exr_as_framebuffer_float(resolved_path);
+        if (!framebuffer) return nullptr;
+        auto buffer = std::make_unique<ImageBuffer>();
+        buffer->width = framebuffer->width();
+        buffer->height = framebuffer->height();
+        buffer->channels = 4;
+        const auto pixel_count = static_cast<std::size_t>(buffer->width) * buffer->height;
+        buffer->linear_pixels = std::make_unique<float[]>(pixel_count * 4);
+        for (int y = 0; y < buffer->height; ++y) {
+            const Color* row = framebuffer->pixels_row(y);
+            for (int x = 0; x < buffer->width; ++x) {
+                const auto index = (static_cast<std::size_t>(y) * buffer->width + x) * 4;
+                buffer->linear_pixels[index + 0] = row[x].r;
+                buffer->linear_pixels[index + 1] = row[x].g;
+                buffer->linear_pixels[index + 2] = row[x].b;
+                buffer->linear_pixels[index + 3] = row[x].a;
+            }
+        }
+        return buffer;
 #else
         spdlog::warn("[image] EXR support not enabled (recompile with CHRONON3D_ENABLE_EXR=ON)");
         return nullptr;

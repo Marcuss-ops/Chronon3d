@@ -70,6 +70,8 @@ std::optional<PipePixelFormat> try_parse_pipe_pixfmt(std::string_view fmt) noexc
 color::ColorSpace parse_color_output(const std::string& cs) {
     if (cs == "rec709") return color::ColorSpace::Rec709;
     if (cs == "linearsrgb") return color::ColorSpace::LinearSRGB;
+    if (cs == "pq") return color::ColorSpace::PQ;
+    if (cs == "hlg") return color::ColorSpace::HLG;
     return color::ColorSpace::SRGB;
 }
 

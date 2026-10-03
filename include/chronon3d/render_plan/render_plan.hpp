@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/color/hdr_mastering_metadata.hpp>
 #include <chronon3d/animation/easing/spring.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/graphics/gradient.hpp>
@@ -476,6 +477,11 @@ struct LayerPlan {
     std::optional<TrackMattePlan> track_matte;
     std::optional<TimeRemapPlan> time_remap;
     std::string asset;
+    // Transfer encoding for byte-backed image layers; tagged EXR and video
+    // sources use their own metadata and remain handled by their decoders.
+    std::string input_color_space{"srgb"};
+    // Optional named OCIO source space. Requires the plan-level OCIO contract.
+    std::string ocio_input_space;
     std::string source;
     std::string text;
     std::vector<TextSpanOverride> text_spans;
@@ -715,6 +721,9 @@ struct PreparedOverlayPackage {
 
 struct OutputSpec {
     std::string path;
+    std::string color_space{"srgb"};
+    float reference_white_nits{100.0f};
+    std::optional<chronon3d::color::HdrMasteringMetadata> hdr_mastering_metadata;
     OutputFormat format{OutputFormat::Png};
     VideoCodec codec{VideoCodec::Auto};
     RateControlMode rate_control{RateControlMode::Crf};
@@ -768,6 +777,18 @@ struct RenderPlan {
     std::optional<CameraShakePlan> camera_shake;
     std::optional<std::vector<CameraTrackPlan>> camera_animation;
     std::optional<LightingRigPlan> lighting_rig;
+    struct ColorManagementPlan {
+        std::string ocio_config;
+        std::string working_space;
+        // Optional project default for video layers. A layer-level
+        // ocio_input_space overrides this value.
+        std::string video_input_space;
+        // Optional display-referred output transform. Both names must be
+        // present together; empty values preserve output.color_space behavior.
+        std::string output_display;
+        std::string output_view;
+    };
+    std::optional<ColorManagementPlan> color_management;
     std::vector<LayerPlan> layers;
     std::optional<AudioMixPlan> audio;
     std::shared_ptr<const PreparedOverlayPackage> prepared_overlay_package{};

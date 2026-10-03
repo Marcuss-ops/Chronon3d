@@ -2,10 +2,12 @@
 
 ## Stato
 
-OPEN — software exposes 41 effect types; strict Vulkan currently certifies four
+DEFERRED — software exposes 44 effect types; strict Vulkan currently certifies four
 native effect routes (Blur, Glow, Bloom, Tint) and explicitly rejects DropShadow.
 All remaining types are unsupported on this capability surface. No CPU fallback
-is allowed for a strict GPU request.
+is allowed for a strict GPU request. No further parity implementation is in
+scope until Chronon3D same-SHA CI is green and a concrete product requirement
+selects effects beyond the four certified routes.
 
 ## Obiettivo
 
@@ -71,4 +73,4 @@ the full software/GPU effect corpus passes on the same SHA.
   strict-native export and zero-readback evidence.
 - **Removal scope:** the temporary unsupported capability rows and any
   effect-specific CPU-only routing guards that become obsolete.
-- **Status:** ACTIVE.
+- **Status:** DEFERRED pending the core CI gate and a recorded product need.

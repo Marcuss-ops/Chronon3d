@@ -1,0 +1,2 @@
+# Optional semantic matte provider; does not enter the Chronon3D C++ build.
+rembg[cpu]==2.0.78

@@ -1,4 +1,9 @@
 bool save_png(const Framebuffer& framebuffer, const std::string& path) {
+    return save_png(framebuffer, path, ImageWriteOptions{});
+}
+
+bool save_png(const Framebuffer& framebuffer, const std::string& path,
+              const ImageWriteOptions& options) {
     CHRONON_TRACE_SCOPE("chronon.io", "write_png");
     // PNG is a CPU consumer. The render pipeline performs the explicit
     // GPU→CPU synchronization at its output boundary; reject a GPU-only
@@ -72,9 +77,15 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
             // transfer curve; otherwise translucent pixels acquire dark
             // fringes on export.
             const Color straight_linear = linear_c.unpremultiplied();
-            data[index + 0] = Color::linear_to_srgb8(straight_linear.r);
-            data[index + 1] = Color::linear_to_srgb8(straight_linear.g);
-            data[index + 2] = Color::linear_to_srgb8(straight_linear.b);
+            const auto encode_rgb = [&](float value) {
+                if (options.convert_png_to_srgb)
+                    return Color::linear_to_srgb8(value);
+                return static_cast<uint8_t>(std::clamp(
+                    std::round(value * 255.0f), 0.0f, 255.0f));
+            };
+            data[index + 0] = encode_rgb(straight_linear.r);
+            data[index + 1] = encode_rgb(straight_linear.g);
+            data[index + 2] = encode_rgb(straight_linear.b);
             // Alpha stays in linear space (no sRGB curve).
             data[index + 3] = static_cast<uint8_t>(std::clamp(std::round(linear_c.a * 255.0f), 0.0f, 255.0f));
         }

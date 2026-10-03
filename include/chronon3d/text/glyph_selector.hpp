@@ -2,7 +2,7 @@
 
 // ── TICKET-046 Phase 1a — selector enums + GlyphSelectorSpec extracted to
 // glyph_selector_spec.hpp so consumers that only need selector types can
-// include that header without pulling in the narrow struct TextUnitMap.
+// include that header without pulling in the narrow struct GlyphSelectorUnitMap.
 
 #include <chronon3d/text/glyph_selector_spec.hpp>
 
@@ -17,13 +17,13 @@
 
 namespace chronon3d {
 
-// ── TextUnitMap — immutable index map from glyph → unit ──────────────────
+// ── GlyphSelectorUnitMap — immutable index map from glyph → unit ──────────────────
 //
 // Built once per PlacedGlyphRun + source text. Maps every glyph index to
 // the 0-based index of its grapheme, word, and line.  The counts let the
 // evaluator normalise unit indices to 0..100.
 
-struct TextUnitMap {
+struct GlyphSelectorUnitMap {
     std::vector<u32> glyph_to_grapheme;   // glyph_index → grapheme_unit_index
     std::vector<u32> glyph_to_word;       // glyph_index → word_unit_index
     std::vector<u32> glyph_to_line;       // glyph_index → line_unit_index
@@ -65,7 +65,7 @@ struct TextUnitMap {
 
 // ── CompiledSelector — precomputed selector ready for per-glyph evaluation ─
 //
-// Built once per (GlyphSelectorSpec + TextUnitMap + source + placed) tuple.
+// Built once per (GlyphSelectorSpec + GlyphSelectorUnitMap + source + placed) tuple.
 // Precomputes everything the per-glyph hot path would otherwise recompute:
 //   • whitespace-exclusion bitset per unit (O(1) instead of O(G) scan)
 //   • Fisher-Yates permutation for Random order (owned, no thread_local cache)
@@ -95,7 +95,7 @@ struct CompiledSelector {
 /// window state themselves.
 [[nodiscard]] SelectorWeightParams bind_selector_runtime(
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     SampleTime time
 );
 
@@ -113,7 +113,7 @@ struct CompiledSelector {
 /// checks; selector policy remains in glyph_selector_compile.cpp.
 [[nodiscard]] SelectorWeightParams bind_selector_runtime(
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     SampleTime time
 );
@@ -128,7 +128,7 @@ struct CompiledSelector {
 /// runtime binding path.
 [[nodiscard]] SelectorWeight selector_weight(
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     SampleTime time
 );
@@ -139,7 +139,7 @@ struct CompiledSelector {
 [[nodiscard]] SelectorWeight selector_weight(
     const SelectorWeightParams& params,
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index
 );
 
@@ -147,7 +147,7 @@ struct CompiledSelector {
 /// owned by glyph_selector_compile.cpp.
 [[nodiscard]] SelectorWeight selector_weight(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
     SampleTime time,
@@ -157,7 +157,7 @@ struct CompiledSelector {
 /// Compile a single selector spec into a CompiledSelector.
 [[nodiscard]] CompiledSelector compile_selector(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     std::string_view source,
     const PlacedGlyphRun* placed = nullptr
 );
@@ -165,7 +165,7 @@ struct CompiledSelector {
 /// Compile a vector of selector specs.
 [[nodiscard]] std::vector<CompiledSelector> compile_selectors(
     const std::vector<GlyphSelectorSpec>& specs,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     std::string_view source,
     const PlacedGlyphRun* placed = nullptr
 );
@@ -173,7 +173,7 @@ struct CompiledSelector {
 /// Evaluate a pre-compiled selector for a single glyph (O(1)).
 [[nodiscard]] SelectorWeight evaluate_compiled_selector(
     const CompiledSelector& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     SampleTime time
 );
@@ -181,18 +181,18 @@ struct CompiledSelector {
 /// Evaluate a stack of pre-compiled selectors with combine modes.
 [[nodiscard]] SelectorWeight evaluate_compiled_selectors(
     const std::vector<CompiledSelector>& compiled,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     SampleTime time
 );
 
-// ── Build TextUnitMap from a PlacedGlyphRun + source text ────────────────
+// ── Build GlyphSelectorUnitMap from a PlacedGlyphRun + source text ────────────────
 
 /// Builds the glyph→grapheme, glyph→word, and glyph→line index maps.
 /// Uses cluster info and source text to identify word and line boundaries.
 /// @param placed   The fully-resolved placed glyph run (from FontEngine).
 /// @param source   The original source text (UTF-8).
-[[nodiscard]] TextUnitMap build_text_unit_map(
+[[nodiscard]] GlyphSelectorUnitMap build_text_unit_map(
     const PlacedGlyphRun& placed,
     std::string_view source
 );
@@ -209,7 +209,7 @@ struct CompiledSelector {
 /// @param time       The sample time for AnimatedValue evaluation.
 [[nodiscard]] SelectorWeight evaluate_selector(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
     SampleTime time,
@@ -221,7 +221,7 @@ struct CompiledSelector {
 /// Returns the final combined weight in [0.0, 1.0].
 [[nodiscard]] SelectorWeight evaluate_selectors(
     const std::vector<GlyphSelectorSpec>& specs,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
     SampleTime time,
@@ -359,7 +359,7 @@ namespace detail {
 /// Returns true if the unit containing `glyph_index` is whitespace-only and
 /// should be excluded when `spec.exclude_spaces` is true. Requires `placed`
 /// for cluster byte-offset lookup at the per-glyph granularity. For word /
-/// line units, walks TextUnitMap to find the first glyph belonging to that
+/// line units, walks GlyphSelectorUnitMap to find the first glyph belonging to that
 /// unit and inspects its cluster's byte range.
 ///
 /// When `placed == nullptr`, this returns false (caller must opt in by
@@ -367,7 +367,7 @@ namespace detail {
 /// for API consumers that don't pass it.
 [[nodiscard]] bool should_exclude_unit(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
     const PlacedGlyphRun* placed

@@ -2,10 +2,12 @@
 
 ## Stato
 
-IN PROGRESS — L1 animated layer transforms, L2 bounded static group transforms,
+DEFERRED — L1 animated layer transforms, L2 bounded static group transforms,
 L3 static gradients, dashed strokes, and baked static operators, plus bounded
 two-keyframe L4 morphs lower through existing plans. The CLI MP4 frame-hash gate
-and broader piecewise morph support remain open.
+and broader piecewise morph support remain open. Do not extend the importer
+until Chronon3D same-SHA CI is green and a product requirement calls for that
+support.
 
 ## Contratto
 
@@ -60,7 +62,8 @@ and broader piecewise morph support remain open.
 
 ## Demolition debt
 
-- **Status:** ACTIVE — importer is the bounded Bodymovin compatibility path.
+- **Status:** DEFERRED — retain the bounded importer; no further Lottie scope
+  until Chronon3D same-SHA CI is green and a product requirement is recorded.
 - **Owner:** Chronon3D render-plan maintainers.
 - **Reason:** Bodymovin documents must lower into Chronon's canonical plan.
 - **Exit condition:** remove only if Bodymovin import is retired or replaced by

@@ -80,6 +80,10 @@ TEST_CASE("resolve_encoder_backend: hardware_encoder and nvenc codec names") {
 
 TEST_CASE("resolve_ffmpeg_encoder_name: mirrors the native selection") {
     CHECK(resolve_ffmpeg_encoder_name("libx264", "none") == "libx264");
+    CHECK(resolve_ffmpeg_encoder_name("h264", "none") == "libx264");
+    CHECK(resolve_ffmpeg_encoder_name("h265", "none") == "libx265");
+    CHECK(resolve_ffmpeg_encoder_name("hevc", "none") == "libx265");
+    CHECK(resolve_ffmpeg_encoder_name("libx265", "none") == "libx265");
     CHECK(resolve_ffmpeg_encoder_name("libx264rgb", "none") == "libx264rgb");
     CHECK(resolve_ffmpeg_encoder_name("h264", "nvenc") == "h264_nvenc");
     CHECK(resolve_ffmpeg_encoder_name("hevc", "nvenc") == "hevc_nvenc");

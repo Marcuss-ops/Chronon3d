@@ -10,7 +10,7 @@ namespace chronon3d {
 
 // Forward declarations — full types live in other headers.
 struct PlacedGlyphRun;   // chronon3d/text/font_engine.hpp
-struct TextUnitMap;      // chronon3d/text/glyph_selector.hpp
+struct GlyphSelectorUnitMap;      // chronon3d/text/glyph_selector.hpp
 struct ShapedFontSpan;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -25,7 +25,7 @@ struct ShapedFontSpan;
 /// Hot paths (per-frame animation driver in `src/text/text_run_driver.cpp`)
 /// use `evaluate_animator_stack_into` to avoid the per-call allocation.
 ///
-/// Builds the TextUnitMap internally via `build_text_unit_map` — acceptable
+/// Builds the GlyphSelectorUnitMap internally via `build_text_unit_map` — acceptable
 /// for one-shot callers; the per-frame hot path uses `_into` with a
 /// pre-built unit map from `TextRunLayout::units`.
 [[nodiscard]] std::vector<GlyphInstanceState> evaluate_animator_stack(
@@ -51,7 +51,7 @@ struct ShapedFontSpan;
 // each element in place.  Callers must NOT preserve the previous contents
 // across calls.
 //
-// `unit_map` must be a pre-built TextUnitMap for `placed` + `source`.
+// `unit_map` must be a pre-built GlyphSelectorUnitMap for `placed` + `source`.
 // The per-frame driver passes `TextRunLayout::units` (built once during
 // layout) so the hot path avoids rebuilding it every frame.
 
@@ -60,7 +60,7 @@ void evaluate_animator_stack_into(
     const std::vector<TextAnimatorSpec>& animators,
     const PlacedGlyphRun& placed,
     std::string_view source,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     SampleTime time,
     const std::vector<ShapedFontSpan>* span_styles = nullptr
 );

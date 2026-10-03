@@ -380,3 +380,12 @@ CHRONON_EFFECT(45, CreaseShading, CreaseShadingParams, ids::LightCreaseShading, 
     EffectCategory::Light, EffectStage::Adjustment, EffectDomain::Spatial,
     AlphaPolicy::Preserve, DirtyPolicy::Preserve, BoundsPolicy::Preserve, false, false)
 
+CHRONON_EFFECT(46, TemperatureTint, TemperatureTintParams, ids::ColorTemperatureTint,
+    "Temperature and Tint", EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(47, LiftGammaGain, LiftGammaGainParams, ids::ColorLiftGammaGain,
+    "Lift Gamma Gain", EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)

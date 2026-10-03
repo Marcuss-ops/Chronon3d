@@ -217,7 +217,7 @@ bool execute_direct_mux_gop_plan(
     // the optimization and let the normal encoder produce one High stream
     // for the complete clip (audio can still be copied from gop_source).
     if (declared->codec == AV_CODEC_ID_H264 &&
-        declared->profile != FF_PROFILE_H264_HIGH) {
+        declared->profile != AV_PROFILE_H264_HIGH) {
         reason = "source_profile_not_assembly_ready";
         return false;
     }
@@ -542,7 +542,8 @@ media::ExecutionRequirements cli_execution_requirements(
         // FullGraph composition is required only for the explicit Vulkan
         // graph mode; DirectYuv composes overlays in the NV12 domain and the
         // Auto lane follows the legacy direct-candidate/default semantics.
-        .composition_required = hot == GpuHotPathMode::RequireGpuNative,
+        .composition_required = hot == GpuHotPathMode::RequireGpuNative ||
+                                !opts.pipe.ocio_display.empty(),
         .packet_copy_allowed = true,
     };
 }

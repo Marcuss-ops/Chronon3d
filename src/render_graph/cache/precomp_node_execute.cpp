@@ -52,7 +52,7 @@ namespace chronon3d::graph {
 
 PrecompNode::PrecompNode(std::string comp_name, Frame start_frame, Frame duration,
                          Frame cache_frame, PrecompCachePolicy cache_policy)
-    : RenderGraphNode(static_memory_cache("precomp"))
+    : RenderGraphNode(frame_variant_cache("precomp"))
     , m_comp_name(std::move(comp_name))
     , m_full_name("Precomp:" + m_comp_name)
     , m_start_frame(start_frame)

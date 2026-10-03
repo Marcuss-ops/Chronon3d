@@ -79,6 +79,8 @@ struct ResolvedLayerInspection {
     std::string semantic_role;
     PresetInspection preset;
     std::string asset;
+    std::string input_color_space;
+    std::string ocio_input_space;
     std::string source;
     std::string text;
     FontInspection font;
@@ -101,6 +103,13 @@ struct ResolvedRenderPlanInspection {
     std::string output_path;
     std::string output_format;
     std::string video_codec;
+    std::string color_space;
+    float reference_white_nits{100.0f};
+    std::string ocio_config;
+    std::string working_space;
+    std::string video_input_space;
+    std::string output_display;
+    std::string output_view;
     std::vector<ResolvedLayerInspection> layers;
 };
 

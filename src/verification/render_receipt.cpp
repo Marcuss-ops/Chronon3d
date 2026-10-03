@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -13,8 +14,10 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace chronon3d::verification {
 
@@ -54,6 +57,26 @@ CapturedOutput run_capture_checked(const std::string& command) {
     }
     result.exit_ok = pclose(pipe) == 0;
     return result;
+}
+
+std::filesystem::path rendered_image_path(
+    const std::filesystem::path& output_pattern,
+    std::int64_t frame_index,
+    bool is_sequence) {
+    std::string path = output_pattern.string();
+    std::string frame = std::to_string(frame_index);
+    if (frame.size() < 4) frame.insert(frame.begin(), 4 - frame.size(), '0');
+    const auto marker = path.find("####");
+    if (marker != std::string::npos) {
+        path.replace(marker, 4, frame);
+        return path;
+    }
+    if (is_sequence) {
+        const auto dot = path.find_last_of('.');
+        if (dot == std::string::npos) path += "_" + frame;
+        else path.insert(dot, "_" + frame);
+    }
+    return path;
 }
 
 void warn_ffprobe_failure(const char* stage,
@@ -137,6 +160,92 @@ std::int64_t stream_frame_count(const nlohmann::json& stream) {
         }
     }
     return -1;
+}
+
+std::optional<double> json_number(const nlohmann::json& object,
+                                  const char* key) {
+    if (!object.contains(key)) return std::nullopt;
+    const auto& value = object.at(key);
+    if (value.is_number()) return value.get<double>();
+    if (value.is_string()) {
+        try { return std::stod(value.get<std::string>()); }
+        catch (...) { return std::nullopt; }
+    }
+    return std::nullopt;
+}
+
+void read_hdr_side_data(const nlohmann::json& stream, MediaContract& media) {
+    if (!stream.contains("side_data_list") ||
+        !stream.at("side_data_list").is_array()) return;
+    color::HdrMasteringMetadata mastering;
+    bool has_mastering = false;
+    bool has_content_light = false;
+    color::ContentLightMetadata content;
+    for (const auto& side : stream.at("side_data_list")) {
+        if (!side.is_object() || !side.contains("side_data_type") ||
+            !side.at("side_data_type").is_string()) continue;
+        const auto type = side.at("side_data_type").get<std::string>();
+        if (type == "Mastering display metadata") {
+            const auto rx = json_number(side, "red_x");
+            const auto ry = json_number(side, "red_y");
+            const auto gx = json_number(side, "green_x");
+            const auto gy = json_number(side, "green_y");
+            const auto bx = json_number(side, "blue_x");
+            const auto by = json_number(side, "blue_y");
+            const auto wx = json_number(side, "white_point_x");
+            const auto wy = json_number(side, "white_point_y");
+            const auto min_lum = json_number(side, "min_luminance");
+            const auto max_lum = json_number(side, "max_luminance");
+            if (rx && ry && gx && gy && bx && by && wx && wy && min_lum && max_lum) {
+                mastering.display_primaries = {{{static_cast<float>(*rx), static_cast<float>(*ry)},
+                    {static_cast<float>(*gx), static_cast<float>(*gy)},
+                    {static_cast<float>(*bx), static_cast<float>(*by)}}};
+                mastering.white_point = {static_cast<float>(*wx), static_cast<float>(*wy)};
+                mastering.min_luminance_nits = static_cast<float>(*min_lum);
+                mastering.max_luminance_nits = static_cast<float>(*max_lum);
+                has_mastering = true;
+            }
+        } else if (type == "Content light level metadata") {
+            const auto cll = json_number(side, "max_content");
+            const auto fall = json_number(side, "max_average");
+            if (cll && fall && *cll >= 0 && *fall >= 0) {
+                content.max_cll_nits = static_cast<std::uint32_t>(*cll);
+                content.max_fall_nits = static_cast<std::uint32_t>(*fall);
+                has_content_light = true;
+            }
+        }
+    }
+    if (has_mastering) {
+        if (has_content_light) mastering.content_light = content;
+        media.hdr_mastering_metadata = mastering;
+    }
+}
+
+bool mastering_metadata_matches(
+    const color::HdrMasteringMetadata& expected,
+    const std::optional<color::HdrMasteringMetadata>& observed) {
+    if (!observed) return false;
+    // FFmpeg side data is written as AV rational values with a 1e6
+    // denominator cap; ffprobe prints six decimal places. Match at that
+    // quantization scale so values such as a 0.005 nit black floor cannot
+    // accidentally pass against a materially different mastering value.
+    constexpr double chromaticity_tolerance = 0.000001;
+    constexpr double luminance_tolerance_nits = 0.00001;
+    const auto close = [](double a, double b, double tolerance) {
+        return std::abs(a - b) <= tolerance;
+    };
+    for (std::size_t i = 0; i < 3; ++i)
+        for (std::size_t j = 0; j < 2; ++j)
+            if (!close(expected.display_primaries[i][j],
+                       observed->display_primaries[i][j], chromaticity_tolerance)) return false;
+    for (std::size_t j = 0; j < 2; ++j)
+        if (!close(expected.white_point[j], observed->white_point[j], chromaticity_tolerance)) return false;
+    if (!close(expected.min_luminance_nits, observed->min_luminance_nits, luminance_tolerance_nits) ||
+        !close(expected.max_luminance_nits, observed->max_luminance_nits, luminance_tolerance_nits)) return false;
+    if (expected.content_light.has_value() != observed->content_light.has_value()) return false;
+    return !expected.content_light ||
+        (expected.content_light->max_cll_nits == observed->content_light->max_cll_nits &&
+         expected.content_light->max_fall_nits == observed->content_light->max_fall_nits);
 }
 
 /// ffprobe the output and fill the media contract (video + audio streams).
@@ -238,6 +347,7 @@ bool probe_media(const std::filesystem::path& output, MediaContract& media,
                 media.color_space = stream.value("color_space", "");
                 media.color_transfer = stream.value("color_transfer", "");
                 media.color_primaries = stream.value("color_primaries", "");
+                read_hdr_side_data(stream, media);
                 media.field_order = stream.value("field_order", "");
                 if (stream.contains("start_pts") && stream["start_pts"].is_number_integer()) {
                     media.start_pts = stream["start_pts"].get<std::int64_t>();
@@ -312,6 +422,11 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     receipt.content_digest = input.content_digest;
     receipt.request_digest = input.request_digest;
     receipt.asset_manifest_digest = input.asset_manifest_digest;
+    receipt.output_color_space = input.output_color_space;
+    receipt.reference_white_nits = input.reference_white_nits;
+    receipt.ocio_output_display = input.ocio_output_display;
+    receipt.ocio_output_view = input.ocio_output_view;
+    receipt.hdr_mastering_metadata = input.hdr_mastering_metadata;
 
     receipt.backend = input.backend;
     receipt.render_lane = input.render_lane.empty() ? input.backend : input.render_lane;
@@ -320,6 +435,7 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     receipt.height = input.height;
     receipt.fps_num = input.fps_num;
     receipt.fps_den = input.fps_den;
+    receipt.first_frame = input.first_frame;
     receipt.frames = input.frames;
     receipt.execution_downgrade_reason = input.execution_downgrade_reason;
     receipt.execution_downgrade_count = input.execution_downgrade_count;
@@ -348,6 +464,40 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
         const auto sha_elapsed = std::chrono::steady_clock::now() - sha_start;
         receipt.timing.sha256_ms =
             std::chrono::duration<double, std::milli>(sha_elapsed).count();
+    }
+
+    if (!is_video) {
+        receipt.verification.frame_images = "pass";
+        const auto hash_start = std::chrono::steady_clock::now();
+        if (input.frames <= 0 || input.frames > 1'000'000 || input.first_frame < 0 ||
+            input.first_frame > std::numeric_limits<std::int64_t>::max() - input.frames) {
+            receipt.verification.frame_images = "fail";
+        } else {
+            const bool is_sequence = input.frames > 1;
+            receipt.frame_images.reserve(static_cast<std::size_t>(input.frames));
+            for (std::int64_t offset = 0; offset < input.frames; ++offset) {
+                const auto frame_index = input.first_frame + offset;
+                const auto image_path = rendered_image_path(
+                    output_path, frame_index, is_sequence);
+                ReceiptFrameImage frame_image;
+                frame_image.frame_index = frame_index;
+                std::error_code image_error;
+                if (std::filesystem::is_regular_file(image_path, image_error) && !image_error) {
+                    frame_image.bytes = static_cast<std::int64_t>(
+                        std::filesystem::file_size(image_path, image_error));
+                    if (image_error) frame_image.bytes = -1;
+                    if (const auto digest = chronon3d::assets::sha256_file(image_path))
+                        frame_image.sha256 = digest->hex();
+                }
+                if (frame_image.bytes <= 0 || frame_image.sha256.empty())
+                    receipt.verification.frame_images = "fail";
+                receipt.frame_images.push_back(std::move(frame_image));
+            }
+        }
+        receipt.timing.sha256_ms = std::max(0.0,
+            receipt.timing.sha256_ms) +
+            std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - hash_start).count();
     }
 
     if (is_video) {
@@ -459,6 +609,10 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
             receipt.verification.audio = input.has_audio_tracks
                 ? (receipt.media.has_audio ? "pass" : "fail")
                 : "skip";
+            receipt.verification.hdr_mastering_metadata = input.hdr_mastering_metadata
+                ? (mastering_metadata_matches(*input.hdr_mastering_metadata,
+                      receipt.media.hdr_mastering_metadata) ? "pass" : "fail")
+                : "skip";
         } else {
             // Not probed: media-dependent checks are unresolvable.
             receipt.verification.decode = "fail";
@@ -468,6 +622,8 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
             receipt.verification.resolution = "fail";
             receipt.verification.fps = "fail";
             receipt.verification.audio = "skip";
+            receipt.verification.hdr_mastering_metadata =
+                input.hdr_mastering_metadata ? "fail" : "skip";
         }
     } else {
         // Still image: media checks do not apply; eligibility is driven by
@@ -480,6 +636,8 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
         receipt.verification.resolution = "skip";
         receipt.verification.fps = "skip";
         receipt.verification.audio = "skip";
+        receipt.verification.hdr_mastering_metadata =
+            input.hdr_mastering_metadata ? "fail" : "skip";
     }
 
     const bool verification_ok =
@@ -490,7 +648,9 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
         receipt.verification.pixel_format != "fail" &&
         receipt.verification.resolution != "fail" &&
         receipt.verification.fps != "fail" &&
-        receipt.verification.audio != "fail";
+        receipt.verification.audio != "fail" &&
+        receipt.verification.hdr_mastering_metadata != "fail" &&
+        receipt.verification.frame_images != "fail";
     receipt.copy_eligible =
         exists && !receipt.sha256.empty() && receipt.bytes > 0 && verification_ok;
 
@@ -524,6 +684,7 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"height", receipt.height},
         {"fps_num", receipt.fps_num},
         {"fps_den", receipt.fps_den},
+        {"first_frame", receipt.first_frame},
         {"frames", receipt.frames},
         {"execution_downgrade_reason", receipt.execution_downgrade_reason},
         {"execution_downgrade_count", receipt.execution_downgrade_count},
@@ -555,6 +716,7 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"color_space", receipt.media.color_space},
         {"color_transfer", receipt.media.color_transfer},
         {"color_primaries", receipt.media.color_primaries},
+        {"hdr_mastering_metadata_present", receipt.media.hdr_mastering_metadata.has_value()},
         {"field_order", receipt.media.field_order},
         {"start_pts", receipt.media.start_pts},
         {"first_frame_keyframe", receipt.media.first_frame_keyframe},
@@ -578,7 +740,8 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         receipt.verification.pixel_format != "fail" &&
         receipt.verification.resolution != "fail" &&
         receipt.verification.fps != "fail" &&
-        receipt.verification.audio != "fail";
+        receipt.verification.audio != "fail" &&
+        receipt.verification.frame_images != "fail";
     js["verification"] = {
         {"requested_policy", receipt.verification.requested_policy},
         {"resolved_policy", receipt.verification.resolved_policy},
@@ -591,6 +754,8 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"resolution", receipt.verification.resolution},
         {"fps", receipt.verification.fps},
         {"audio", receipt.verification.audio},
+        {"hdr_mastering_metadata", receipt.verification.hdr_mastering_metadata},
+        {"frame_images", receipt.verification.frame_images},
     };
     js["timing_ms"] = {
         {"sha256_ms", receipt.timing.sha256_ms},
@@ -602,7 +767,34 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
     js["output"] = {
         {"bytes", receipt.bytes},
         {"sha256", receipt.sha256},
+        {"color_space", receipt.output_color_space},
+        {"reference_white_nits", receipt.reference_white_nits},
+        {"ocio_display", receipt.ocio_output_display},
+        {"ocio_view", receipt.ocio_output_view},
+        {"frame_images", nlohmann::json::array()},
     };
+    if (receipt.hdr_mastering_metadata) {
+        const auto& metadata = *receipt.hdr_mastering_metadata;
+        js["output"]["hdr_mastering_metadata"] = {
+            {"display_primaries", metadata.display_primaries},
+            {"white_point", metadata.white_point},
+            {"min_luminance_nits", metadata.min_luminance_nits},
+            {"max_luminance_nits", metadata.max_luminance_nits},
+        };
+        if (metadata.content_light) {
+            js["output"]["hdr_mastering_metadata"]["content_light"] = {
+                {"max_cll_nits", metadata.content_light->max_cll_nits},
+                {"max_fall_nits", metadata.content_light->max_fall_nits},
+            };
+        }
+    }
+    for (const auto& frame_image : receipt.frame_images) {
+        js["output"]["frame_images"].push_back({
+            {"frame_index", frame_image.frame_index},
+            {"bytes", frame_image.bytes},
+            {"sha256", frame_image.sha256},
+        });
+    }
     js["copy_eligible"] = receipt.copy_eligible;
 
     const std::filesystem::path receipt_path =

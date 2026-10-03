@@ -35,6 +35,12 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     pipe.pipe_pixfmt = job.video_settings.pipe_pixfmt;
     pipe.pipe_writer = job.video_settings.pipe_writer;
     pipe.color_output = job.video_settings.color_output;
+    pipe.ocio_config_path = job.video_settings.ocio_config_path;
+    pipe.ocio_source_space = job.video_settings.ocio_source_space;
+    pipe.ocio_display = job.video_settings.ocio_display;
+    pipe.ocio_view = job.video_settings.ocio_view;
+    pipe.reference_white_nits = job.video_settings.reference_white_nits;
+    pipe.hdr_mastering_metadata = job.video_settings.hdr_mastering_metadata;
     pipe.ffmpeg_verbose = job.video_settings.ffmpeg_verbose;
 
     RenderWarmupOptions warmup;

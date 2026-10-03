@@ -48,6 +48,9 @@ struct ConvertedFrameCacheKey {
     YuvMatrix matrix{YuvMatrix::BT709};
     ColorRange range{ColorRange::Limited};
     bool     apply_gamma{true};
+    bool     rec709_oetf{false};
+    color::ColorSpace output_space{color::ColorSpace::SRGB};
+    float    reference_white_nits{100.0f};
 
     [[nodiscard]] bool operator==(const ConvertedFrameCacheKey& o) const noexcept {
         return framebuffer_digest == o.framebuffer_digest
@@ -56,7 +59,10 @@ struct ConvertedFrameCacheKey {
             && format == o.format
             && matrix == o.matrix
             && range  == o.range
-            && apply_gamma == o.apply_gamma;
+            && apply_gamma == o.apply_gamma
+            && rec709_oetf == o.rec709_oetf
+            && output_space == o.output_space
+            && reference_white_nits == o.reference_white_nits;
     }
 };
 

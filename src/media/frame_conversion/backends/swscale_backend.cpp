@@ -81,7 +81,7 @@ static ConvertFrameResult dispatch(const ConvertFrameRequest& req,
 
     // Produce RGBA8 staging buffer (float→uint8 via packed backend).
     packed::convert_fb_to_rgba8(req.src, req.width, req.height, req.apply_gamma,
-                                scratch.data());
+                                scratch.data(), req.rec709_oetf);
 
     const SwsParams params{
         req.width, req.height, AV_PIX_FMT_RGBA,

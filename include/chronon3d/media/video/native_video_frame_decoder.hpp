@@ -23,12 +23,16 @@ extern "C" {
 #include <atomic>
 #include <condition_variable>
 #include <deque>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
+
+namespace chronon3d::color { class OcioColorTransform; }
 
 namespace chronon3d::media {
 
@@ -72,6 +76,22 @@ public:
     DecodeResult decode_frame_at(
         const std::string& path, RationalTime presentation_time,
         int width, int height) override;
+    DecodeResult decode_frame_at_with_color_transform(
+        const std::string& path, RationalTime presentation_time,
+        int width, int height, const VideoColorTransform& transform) override;
+
+    /// Decode by the source table's presentation order. This preserves VFR
+    /// sample timing and avoids synthesizing timestamps from average FPS.
+    DecodeResult decode_frame_index_at(
+        const std::string& path, std::int64_t sample_index,
+        int width, int height);
+
+    /// Exact number of indexed presentation samples in the opened source.
+    [[nodiscard]] std::uint64_t indexed_sample_count(const std::string& path);
+
+    /// Exact PTS and time base for one zero-based presentation-order sample.
+    [[nodiscard]] std::optional<RationalTime> indexed_presentation_time(
+        const std::string& path, std::uint64_t sample_index);
 
     [[nodiscard]] HwFrameRef decode_native_frame_at(
         const std::string& path, RationalTime presentation_time, int width, int height);
@@ -169,8 +189,18 @@ private:
     std::atomic<std::uint64_t> m_trace_job_id{0};
     NativeDecoderTestOptions m_test_options;
     std::map<std::string, std::shared_ptr<Session>> m_sessions;
+#ifdef CHRONON3D_ENABLE_OCIO
+    std::map<std::string, std::shared_ptr<color::OcioColorTransform>> m_ocio_transforms;
+#endif
 
-    DecodeResult decode_frame_internal(Session& session, int64_t sample_index);
+    DecodeResult decode_frame_internal(Session& session, int64_t sample_index
+#ifdef CHRONON3D_ENABLE_OCIO
+        , const color::OcioColorTransform* ocio_transform = nullptr
+#endif
+    );
+    DecodeResult decode_frame_at_impl(const std::string& path,
+        RationalTime presentation_time, int width, int height,
+        const VideoColorTransform* transform);
     static void retain_materialized_frame(Session& session, std::int64_t index, AVFrame* frame);
     std::shared_ptr<Session> open_session_locked(
         const std::string& path, DecodeDiagnostic* diagnostic);
@@ -189,6 +219,14 @@ public:
             kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
             "native FFmpeg decoder support is disabled"});
     }
+    DecodeResult decode_frame_index_at(const std::string&, std::int64_t, int, int) {
+        return make_decode_failure(DecodeDiagnostic{DecodeFailureReason::DecoderUnavailable, 0,
+            kNoDecodeTimestamp, kNoDecodeTimestamp, 0,
+            "native FFmpeg decoder support is disabled"});
+    }
+    [[nodiscard]] std::uint64_t indexed_sample_count(const std::string&) { return 0; }
+    [[nodiscard]] std::optional<RationalTime> indexed_presentation_time(
+        const std::string&, std::uint64_t) { return std::nullopt; }
     void set_video_runtime(std::shared_ptr<VideoDeviceRuntime>) noexcept {}
     void set_software_only(bool) noexcept {}
     [[nodiscard]] HwFrameRef decode_native_frame_at(const std::string&, RationalTime, int, int) { return {}; }

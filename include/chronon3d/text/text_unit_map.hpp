@@ -4,9 +4,9 @@
 // text_unit_map.hpp — TEXT-UNM-01 canonical 8-level text identity ladder
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Replaces the implicit `Character == Grapheme` conflation that lived in
-// `glyph_selector.hpp::TextUnitMap` (narrow 3-level: grapheme/word/line) with
-// an explicit 8-level ladder anchored at the byte level:
+// Complements the selector's `GlyphSelectorUnitMap` (3-level:
+// grapheme/word/line) with an explicit 8-level identity ladder anchored at
+// the byte level:
 //
 //     Byte  ⇄  CodePoint  ⇄  GraphemeCluster  ⇄  ShapedGlyph
 //          ⇄  Word  ⇄  Line  ⇄  Paragraph  ⇄  SemanticSpan
@@ -23,11 +23,9 @@
 //   • WORD→LINE / LINE→PARAGRAPH mapping composes on `PlacedParagraphLayout`
 //     supplied by the caller (the resolved text tree).
 //
-// The narrow `TextUnitMap` in `glyph_selector.hpp` is preserved unchanged
-// for back-compat with the 30+ callers that use the selector API
-// (`TextSelectorUnit::{Glyph, Grapheme, Character, Word, Line}`).
-// Migrating them to the 8-level ladder is a follow-up atom
-// (TICKET-046 / next track).
+// The selector API keeps its purpose-specific type and existing fields;
+// this canonical map has a distinct C++ type name, so both APIs can safely
+// coexist in a translation unit.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/core/types/types.hpp>
@@ -230,10 +228,10 @@ public:
     // ── Semantic span name → span_idx (O(N) linear, span sets are small) ─
     [[nodiscard]] u32 span_index_by_name(std::string_view name) const noexcept;
 
-    // ── Adapter API (TICKET-046 Phase 0) — narrow struct TextUnitMap compatibility ──
+    // ── Adapter API (TICKET-046 Phase 0) — selector map compatibility ──
     //
-    // Drop-in replacement for the narrow `struct TextUnitMap` in
-    // `glyph_selector.hpp`.  Migrating callers swap `#include
+    // Compatibility helpers for callers migrating from
+    // `GlyphSelectorUnitMap` in `glyph_selector.hpp`.  Migrating callers swap `#include
     // <glyph_selector.hpp>` for `<text_unit_map.hpp>` and use these
     // accessors instead of direct vector field access.
 

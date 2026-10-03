@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
@@ -35,6 +36,24 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     }
     const size_t expected_size = encoder_frame.storage.size();
 
+    std::optional<Framebuffer> ocio_frame;
+    const Framebuffer* conversion_source = &fb;
+    bool ocio_applied = false;
+#ifdef CHRONON3D_ENABLE_OCIO
+    if (ocio_output_transform_) {
+        ocio_frame.emplace(fb);
+        for (int y = 0; y < ocio_frame->height(); ++y) {
+            Color* row = ocio_frame->pixels_row(y);
+            for (int x = 0; x < ocio_frame->width(); ++x) row[x].a = 1.0f;
+        }
+        if (!ocio_output_transform_->apply_framebuffer(*ocio_frame)) {
+            spdlog::error("[video_adapter] OCIO output view failed while transforming frame");
+            return false;
+        }
+        conversion_source = &*ocio_frame;
+        ocio_applied = true;
+    }
+#endif
     const auto conv_t0 = profiling::now();
     const uint64_t pixel_before = counters_
         ? counters_->pixel_format_convert_wall_ms.load(std::memory_order_relaxed) : 0;
@@ -46,12 +65,14 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
         .height = height_,
         .format = enc_fmt,
         .apply_gamma = options_.color_transform.apply_gamma,
+        .rec709_oetf = !ocio_applied &&
+                       options_.color_transform.output == color::ColorSpace::Rec709,
         .matrix = video::YuvMatrix::BT709,
         .range = video::ColorRange::Limited,
         .use_cache = false,
     };
     auto converted = conv_svc_.convert_into(
-        fb, copts, encoder_frame.storage.data(), expected_size);
+        *conversion_source, copts, encoder_frame.storage.data(), expected_size);
 
     const auto conv_t1 = profiling::now();
     const uint64_t pixel_after = counters_

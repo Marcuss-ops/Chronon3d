@@ -34,7 +34,9 @@ void apply_effect_stack(
 
 void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip = std::nullopt, int passes = 2);
 void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::optional<raster::BBox>& clip = std::nullopt);
-void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float time_seconds);
+void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params,
+                        float time_seconds,
+                        const std::optional<raster::BBox>& clip = std::nullopt);
 
 // ── Individual effect implementations (extracted from effect_stack.cpp) ──
 //

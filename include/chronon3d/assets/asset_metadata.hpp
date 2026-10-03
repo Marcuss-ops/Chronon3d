@@ -18,7 +18,9 @@ enum class AssetType {
 // Color encoding of the asset as stored on disk.
 enum class ColorSpace {
     SRGB,        // gamma-encoded sRGB (most PNGs/JPEGs)
-    LinearSRGB   // linear light (EXR, HDR, internally rendered buffers)
+    LinearSRGB,  // linear light (EXR, HDR, internally rendered buffers)
+    Rec709,      // BT.709 transfer with BT.709 primaries
+    DisplayP3    // sRGB transfer with Display P3 / D65 primaries
 };
 
 // How the alpha channel relates to the RGB values.

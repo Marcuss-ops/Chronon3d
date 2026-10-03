@@ -22,6 +22,9 @@ struct VideoSource {
     f32 source_fps{30.0f};
     f32 speed{1.0f};
     VideoLoopMode loop_mode{VideoLoopMode::None};
+    std::string ocio_config_path;
+    std::string ocio_input_space;
+    std::string ocio_working_space;
 };
 
 namespace detail {
