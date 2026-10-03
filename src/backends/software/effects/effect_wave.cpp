@@ -102,7 +102,9 @@ void deform_wave(const Framebuffer& src, Framebuffer& dst,
 
 } // namespace
 
-void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float time_seconds) {
+void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params,
+                        float time_seconds,
+                        const std::optional<raster::BBox>& clip) {
     if (!params.shadow_enabled && params.amplitude_px <= 0.0f && params.depth_px <= 0.0f) {
         return;
     }
@@ -139,7 +141,20 @@ void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float t
         apply_shadow_buffer(*body_fb, *shadow_fb);
     }
 
-    fb = std::move(*body_fb);
+    if (!clip) {
+        fb = std::move(*body_fb);
+        return;
+    }
+
+    const int x0 = std::clamp(clip->x0, 0, fb.width());
+    const int y0 = std::clamp(clip->y0, 0, fb.height());
+    const int x1 = std::clamp(clip->x1, 0, fb.width());
+    const int y1 = std::clamp(clip->y1, 0, fb.height());
+    for (int y = y0; y < y1; ++y) {
+        std::copy(body_fb->pixels_row(y) + x0,
+                  body_fb->pixels_row(y) + x1,
+                  fb.pixels_row(y) + x0);
+    }
 }
 
 } // namespace renderer

@@ -16,9 +16,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <exception>
 #include <filesystem>
 #include <optional>
+#include <stdexcept>
 
 namespace chronon3d::cli {
 
@@ -58,6 +60,10 @@ void fill_execution_options(RenderExecutionOptions& execution,
 }
 
 void finalize_video_settings(RenderJob& job) {
+    if (!std::isfinite(job.video_settings.reference_white_nits) ||
+        job.video_settings.reference_white_nits <= 0.0f) {
+        throw std::invalid_argument("reference_white_nits must be finite and positive");
+    }
     if (job.video_settings.frames_dir.empty()) {
         job.video_settings.frames_dir = "chronon_" +
             std::filesystem::path(job.comp_id).filename().string();

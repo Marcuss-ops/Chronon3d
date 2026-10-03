@@ -565,6 +565,8 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         });
     });
     out.add_string(layer.asset);
+    out.add_string(layer.input_color_space);
+    out.add_string(layer.ocio_input_space);
     out.add_string(layer.source);
     out.add_string(layer.text);
     out.add_bool(layer.inline_mesh.has_value());
@@ -1232,8 +1234,15 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v32");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v35");
     out.add_string(plan.schema);
+    add_optional(out, plan.color_management, [](auto& writer, const auto& cm) {
+        writer.add_string(cm.ocio_config);
+        writer.add_string(cm.working_space);
+        writer.add_string(cm.video_input_space);
+        writer.add_string(cm.output_display);
+        writer.add_string(cm.output_view);
+    });
     out.add_i64(plan.canvas.width);
     out.add_i64(plan.canvas.height);
     out.add_i64(plan.canvas.fps.num());

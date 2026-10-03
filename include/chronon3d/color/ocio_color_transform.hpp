@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+namespace chronon3d { class Framebuffer; }
+
 namespace chronon3d::color {
 
 /// Runtime colour-space transform backed by an OpenColorIO configuration.
@@ -31,8 +33,31 @@ public:
         std::string_view output_space,
         std::string* error = nullptr);
 
+    /// Loads the OCIO display/view transform from a source color space.
+    /// The resulting processor includes the config's view and display color
+    /// encoding. The caller must not apply a second transfer function after it.
+    static std::optional<OcioColorTransform> from_display_view(
+        std::string_view config_path,
+        std::string_view source_space,
+        std::string_view display,
+        std::string_view view,
+        std::string* error = nullptr);
+
+    /// Loads an OCIO LookTransform which converts from and back to the same
+    /// working space, making it suitable for an ordered grading operation.
+    static std::optional<OcioColorTransform> from_look(
+        std::string_view config_path,
+        std::string_view working_space,
+        std::string_view look_name,
+        std::string* error = nullptr);
+
     /// Applies the transform in-place to one RGB triplet.
     [[nodiscard]] bool apply_rgb(float rgb[3]) const noexcept;
+
+    /// Applies the transform to every visible pixel in a premultiplied
+    /// Chronon framebuffer. RGB is interpreted in the transform's declared
+    /// input space; alpha is preserved and RGB is unpremultiplied around OCIO.
+    [[nodiscard]] bool apply_framebuffer(Framebuffer& framebuffer) const noexcept;
 
 private:
     struct Impl;

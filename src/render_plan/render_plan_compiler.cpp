@@ -549,6 +549,15 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             plan.layers.begin(), plan.layers.end(),
             [](const LayerPlan& layer) { return layer.enable_3d; });
         const auto plan_camera = detail::make_camera_descriptor(plan);
+        std::string resolved_ocio_config_path;
+        if (plan.color_management) {
+            const auto config_path = resolver.resolve_lexical(
+                plan.color_management->ocio_config);
+            if (!config_path)
+                throw std::runtime_error("OCIO config is outside the mounted asset root: " +
+                    plan.color_management->ocio_config);
+            resolved_ocio_config_path = config_path->string();
+        }
         std::vector<detail::FollowPathEvaluators> follow_path_evaluators(plan.layers.size());
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
@@ -566,7 +575,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 plan.canvas.width, plan.canvas.height, plan.canvas.fps);
         }
         definition.scene = [plan, resolved_video_paths, resolved_particle_sprite_paths, prepared_texts, prepared_text_counters, prepared_text_bounds, prepared_effects, font_engine,
-                            has_3d_layer, plan_camera, follow_path_evaluators](
+                            has_3d_layer, plan_camera, follow_path_evaluators, resolved_ocio_config_path](
                                const FrameContext& ctx) {
             SceneBuilder scene(ctx);
             scene.font_engine(font_engine.get());
@@ -683,6 +692,22 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         case LayerType::Image: {
                             ImageParams params;
                             params.asset_path = layer.asset;
+                            if (!layer.ocio_input_space.empty()) {
+                                if (!plan.color_management)
+                                    throw std::runtime_error("image ocio_input_space requires plan color_management");
+                                params.decode_options.ocio_config_path = resolved_ocio_config_path;
+                                params.decode_options.ocio_input_space = layer.ocio_input_space;
+                                params.decode_options.ocio_working_space =
+                                    plan.color_management->working_space;
+                            }
+                            params.decode_options.color_space =
+                                layer.input_color_space == "linearsrgb"
+                                    ? chronon3d::ColorSpace::LinearSRGB
+                                    : (layer.input_color_space == "displayp3"
+                                        ? chronon3d::ColorSpace::DisplayP3
+                                        : (layer.input_color_space == "rec709"
+                                            ? chronon3d::ColorSpace::Rec709
+                                            : chronon3d::ColorSpace::SRGB));
                             params.size = layer.size_dimensions == 2
                                 ? Vec2{layer.size[0], layer.size[1]}
                                 : Vec2{static_cast<float>(plan.canvas.width),
@@ -707,6 +732,17 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             video::VideoSource source{
                                 .path = resolved_video_paths[index],
                                 .source_fps = canvas_fps};
+                            const std::string& video_input_space =
+                                layer.ocio_input_space.empty() && plan.color_management
+                                    ? plan.color_management->video_input_space
+                                    : layer.ocio_input_space;
+                            if (!video_input_space.empty()) {
+                                if (resolved_ocio_config_path.empty() || !plan.color_management)
+                                    throw std::runtime_error("video OCIO input space requires plan color_management");
+                                source.ocio_config_path = resolved_ocio_config_path;
+                                source.ocio_input_space = video_input_space;
+                                source.ocio_working_space = plan.color_management->working_space;
+                            }
                             // Render-plan video geometry is expressed as a
                             // top-left canvas box.  The canonical scene
                             // transform, consumed by both the graph and
@@ -1680,6 +1716,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         plan_masks.insert(plan_masks.end(), layer.masks.begin(), layer.masks.end());
                         Mask composite;
                         const auto primary = build_operation(plan_masks.front());
+                        composite.initial_mode = primary.mode;
                         composite.type = primary.type;
                         composite.pos = primary.pos;
                         composite.size = primary.size;

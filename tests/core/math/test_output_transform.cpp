@@ -21,9 +21,11 @@ TEST_CASE("color::linear_srgb_float: mid-grey matches float formula") {
     CHECK(result == doctest::Approx(0.735f).epsilon(0.001f));
 }
 
-TEST_CASE("color::linear_srgb_float: clamps out-of-range") {
-    CHECK(linear_srgb_float(-0.5f) == doctest::Approx(0.0f));
-    CHECK(linear_srgb_float(2.0f) == doctest::Approx(1.0f));
+TEST_CASE("color::linear_srgb_float: extends out-of-range until output clamp") {
+    // The float transfer helper preserves extended-range values. The output
+    // transform applies bounded clamping when requested.
+    CHECK(linear_srgb_float(-0.5f) == doctest::Approx(-6.46f));
+    CHECK(linear_srgb_float(2.0f) > 1.0f);
 }
 
 TEST_CASE("color::linear_to_output_float: sRGB matches linear_srgb_float") {
@@ -31,7 +33,7 @@ TEST_CASE("color::linear_to_output_float: sRGB matches linear_srgb_float") {
         CHECK(linear_to_output_float(v, color::ColorSpace::SRGB) ==
               doctest::Approx(linear_srgb_float(v)));
         CHECK(linear_to_output_float(v, color::ColorSpace::Rec709) ==
-              doctest::Approx(linear_srgb_float(v)));
+              doctest::Approx(linear_rec709_float(v)));
     }
 }
 
@@ -110,14 +112,14 @@ TEST_CASE("color::linear_to_output_rgb8: default transform is sRGB") {
     CHECK(rgb.b == linear_to_srgb8(0.1f));
 }
 
-TEST_CASE("color::linear_to_output_rgb8: Rec709 matches sRGB for V1") {
+TEST_CASE("color::linear_to_output_rgb8: Rec709 uses the BT.709 OETF") {
     const Color linear{0.5f, 0.3f, 0.1f, 1.0f};
     OutputTransformOptions opts;
     opts.output = color::ColorSpace::Rec709;
     const auto rgb = linear_to_output_rgb8(linear, opts);
-    CHECK(rgb.r == linear_to_srgb8(0.5f));
-    CHECK(rgb.g == linear_to_srgb8(0.3f));
-    CHECK(rgb.b == linear_to_srgb8(0.1f));
+    CHECK(rgb.r == 180);
+    CHECK(rgb.g == 138);
+    CHECK(rgb.b == 74);
 }
 
 TEST_CASE("color::linear_to_output_rgb8: LinearsRGB bypasses gamma") {
@@ -165,9 +167,9 @@ TEST_CASE("color::linear_to_srgb_rgb8 convenience") {
 TEST_CASE("color::linear_to_rec709_rgb8 convenience") {
     const Color linear{0.5f, 0.3f, 0.1f, 1.0f};
     const auto rgb = linear_to_rec709_rgb8(linear);
-    CHECK(rgb.r == linear_to_srgb8(0.5f));
-    CHECK(rgb.g == linear_to_srgb8(0.3f));
-    CHECK(rgb.b == linear_to_srgb8(0.1f));
+    CHECK(rgb.r == 180);
+    CHECK(rgb.g == 138);
+    CHECK(rgb.b == 74);
 }
 
 // ---------------------------------------------------------------------------

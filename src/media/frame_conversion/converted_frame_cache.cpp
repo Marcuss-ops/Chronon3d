@@ -3,6 +3,7 @@
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
+#include <bit>
 #include <cstring>
 
 namespace chronon3d::video {
@@ -23,6 +24,9 @@ std::size_t ConvertedFrameCacheKeyHash::operator()(
             .add_enum(k.matrix)
             .add_enum(k.range)
             .add(k.apply_gamma ? 1ULL : 0ULL)
+            .add(k.rec709_oetf ? 1ULL : 0ULL)
+            .add_enum(k.output_space)
+            .add(std::bit_cast<std::uint32_t>(k.reference_white_nits))
             .finish());
 }
 

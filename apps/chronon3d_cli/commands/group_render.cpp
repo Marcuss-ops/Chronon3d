@@ -33,6 +33,9 @@ namespace chronon3d::cli {
 
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 void register_script_command(CLI::App& app, CliContext& ctx);
+void register_scope_analysis_command(CLI::App& app, CliContext& ctx);
+void register_mask_propagation_command(CLI::App& app, CliContext& ctx);
+void register_ocio_bake_lut_command(CLI::App& app, CliContext& ctx);
 namespace {
 
 struct ValidateState {
@@ -296,6 +299,11 @@ void register_commands(CLI::App& app, CliContext& ctx) {
     register_render_commands(app, ctx);
     register_render_plan_command(app, ctx);
     register_script_command(app, ctx);
+    register_scope_analysis_command(app, ctx);
+    register_mask_propagation_command(app, ctx);
+#ifdef CHRONON3D_ENABLE_OCIO
+    register_ocio_bake_lut_command(app, ctx);
+#endif
     register_validate_commands(app, ctx);
     register_bake_layer_commands(app, ctx);
     register_inspect_plan_command(app, ctx);

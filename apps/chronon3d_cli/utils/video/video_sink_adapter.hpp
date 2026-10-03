@@ -29,6 +29,9 @@
 #include <chronon3d/media/video/video_frame.hpp>
 #include <chronon3d/media/frame_conversion/frame_conversion_service.hpp>
 #include <chronon3d/media/frame_conversion/encoder_frame_pool.hpp>
+#ifdef CHRONON3D_ENABLE_OCIO
+#include <chronon3d/color/ocio_color_transform.hpp>
+#endif
 
 #include <memory>
 #include <optional>
@@ -134,6 +137,9 @@ private:
     chronon3d::RenderCounters* counters_{nullptr};
 
     FfmpegPipeOptions options_{};   // stored for color_transform, pipe_writer, etc.
+#ifdef CHRONON3D_ENABLE_OCIO
+    std::unique_ptr<color::OcioColorTransform> ocio_output_transform_;
+#endif
 
     // Session contract (cached from open() for fast access)
     int             width_{0};

@@ -15,6 +15,7 @@
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
+#include <chronon3d/effects/keying_matte.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -137,7 +138,8 @@ public:
                const effects::EffectExecutionContext& context) override {
         const auto* p = std::get_if<KeyingParams>(&params);
         if (!p) throw std::runtime_error("Keying processor received invalid parameters");
-        if (!std::isfinite(p->threshold) || !std::isfinite(p->softness) ||
+        if ((p->mode != KeyingMode::Chroma && p->mode != KeyingMode::Luma) ||
+            !std::isfinite(p->threshold) || !std::isfinite(p->softness) ||
             !std::isfinite(p->spill) || p->threshold < 0.0f || p->threshold > 1.0f ||
             p->softness < 0.0f || p->softness > 1.0f || p->spill < 0.0f || p->spill > 1.0f ||
             !std::isfinite(p->key_color.r) || !std::isfinite(p->key_color.g) ||
@@ -157,10 +159,6 @@ public:
             p->garbage_h < 0.0f || p->garbage_h > 1.0f ||
             p->garbage_feather < 0.0f || p->garbage_feather > 0.5f)
             throw std::runtime_error("Keying parameters are outside supported bounds");
-        const bool garbage_enabled = p->garbage_w > 0.0f && p->garbage_h > 0.0f;
-        const float inv_width = 1.0f / static_cast<float>(std::max(fb.width(), 1));
-        const float inv_height = 1.0f / static_cast<float>(std::max(fb.height(), 1));
-
         int x0 = 0, y0 = 0, x1 = fb.width(), y1 = fb.height();
         if (context.clip) {
             x0 = std::clamp(context.clip->x0, 0, x1);
@@ -177,42 +175,8 @@ public:
                 float r = pixel.r / source_alpha;
                 float g = pixel.g / source_alpha;
                 float b = pixel.b / source_alpha;
-                float measure = 0.0f;
-                if (p->mode == KeyingMode::Chroma) {
-                    const float dr = r - p->key_color.r;
-                    const float dg = g - p->key_color.g;
-                    const float db = b - p->key_color.b;
-                    measure = std::sqrt(dr * dr + dg * dg + db * db) * 0.57735026919f;
-                } else if (p->mode == KeyingMode::Luma) {
-                    measure = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-                } else {
-                    throw std::runtime_error("Keying mode is unsupported");
-                }
-                float keep = 0.0f;
-                if (p->softness <= 0.0f) keep = measure >= p->threshold ? 1.0f : 0.0f;
-                else {
-                    const float t = std::clamp((measure - p->threshold) / p->softness, 0.0f, 1.0f);
-                    keep = t * t * (3.0f - 2.0f * t);
-                }
-                // Screen-matte refinement: remap through [clip_black, clip_white]
-                // then erode the matte edge by `choke` before it reaches alpha.
-                keep = std::clamp(
-                    (keep - p->clip_black) / std::max(p->clip_white - p->clip_black, 1.0e-6f),
-                    0.0f, 1.0f);
-                if (p->choke > 0.0f)
-                    keep = std::clamp((keep - p->choke) / (1.0f - p->choke), 0.0f, 1.0f);
-                float garbage = 1.0f;
-                if (garbage_enabled) {
-                    const float u = (static_cast<float>(x) + 0.5f) * inv_width;
-                    const float v = (static_cast<float>(y) + 0.5f) * inv_height;
-                    const float dx = std::min(u - p->garbage_x, p->garbage_x + p->garbage_w - u);
-                    const float dy = std::min(v - p->garbage_y, p->garbage_y + p->garbage_h - v);
-                    const float d = std::min(dx, dy);
-                    if (p->garbage_feather > 0.0f)
-                        garbage = std::clamp(d / p->garbage_feather, 0.0f, 1.0f);
-                    else
-                        garbage = d >= 0.0f ? 1.0f : 0.0f;
-                }
+                const auto [keep, garbage] = effects::keying_components(
+                    Color{r, g, b, source_alpha}, x, y, fb.width(), fb.height(), *p);
                 const float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
                 const float spill = p->spill * (1.0f - keep);
                 r += (gray - r) * spill;

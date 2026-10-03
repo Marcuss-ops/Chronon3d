@@ -4,9 +4,8 @@
 //
 // Extracted from glyph_selector.hpp so that consumers who only need
 // GlyphSelectorSpec (e.g. text_span.hpp, text_animator_spec.hpp) can
-// include this lightweight header WITHOUT pulling in the narrow
-// struct TextUnitMap (which would cause an ODR conflict with the
-// canonical 8-level class TextUnitMap in text_unit_map.hpp).
+// include this lightweight header WITHOUT pulling in the selector's
+// GlyphSelectorUnitMap storage and builder API.
 //
 // glyph_selector.hpp includes this header transitively — existing
 // callers are unaffected by the extraction.

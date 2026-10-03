@@ -17,7 +17,7 @@
 | Performance baseline | v1 exists and is locked for the software/CPU corpus; GPU-side certification still requires the appropriate build host |
 | GPU-native video | same-SHA host certification at source commit `5e49b7e4a`: Vulkan↔CUDA interop and CUDA→NVENC probes PASS; FullGraph, DirectYUV H.264/H.265, prepared-MTSDF text, and native-image routes PASS with zero readback/staging; GitHub CI remains separate |
 | GPU text route | packed compatibility route CLOSED 2026-09-22; prepared MTSDF is the only native graph route, with explicit software/reject handling |
-| Current main | `264b3c3d` — local same-SHA evidence PASSED on `linux-fast-dev` (c_abi 138/138, cli 85/85, arch 202/202, 6/6 fast gates) after `fix(render-plan)` v3 coherence closeout; GitHub CI same-SHA still pending (prev SHA `0674ac27` was blocked pre-runner by payment failure) |
+| Remote main (observed 2026-10-03) | `5d960421dd1b` — latest scheduled runs [37110073977](https://github.com/Marcuss-ops/Chronon3d/actions/runs/37110073977) and [37107348776](https://github.com/Marcuss-ops/Chronon3d/actions/runs/37107348776) still fail before runner allocation (`steps: []`). Local HEAD matches main with dirty work restored; rebuilt Core and CLI suites pass 2/2 locally, but this is not GitHub same-SHA certification. |
 
 ## Area authority census
 
@@ -30,22 +30,28 @@ facades must not return); CLI V3 / `PreparedRenderPlan -> CompiledComposition` i
 canonical typed route; telemetry is events-only with `NullTelemetryStore` as default and no
 sqlite3 dependency in `src`/`include`/`apps`.
 
+Focus gate: freeze new product features until the current Chronon3D revision has
+green GitHub CI on its exact SHA. Keep uncommitted work local until it has been
+reviewed and can be certified as one identifiable revision.
+
 Open authority migration: the explicit FFmpeg CLI pipe *encoder* path
-(`VideoSinkEncoderAdapter(Ffmpeg)`) remains **demolition debt**. A native request
-without native FFmpeg now fails closed; it must never silently downgrade to pipe.
-Delete the explicit diagnostic path only after all exit conditions are certified,
-tracked in [`TICKET-FFMPEG-PIPE-SINK-DEMOLITION`](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md).
-The legacy `SoftwareRenderer` runtime compatibility surface still has callers and
-`SoftwareExecutionContext` is therefore PARTIAL, not a zero-back-pointer closeout.
+(`VideoSinkEncoderAdapter(Ffmpeg)`) remains **demolition debt**. Native requests
+without native FFmpeg fail closed. Pipe callers and native certification exit
+conditions remain, so physical deletion stays blocked in
+[`TICKET-FFMPEG-PIPE-SINK-DEMOLITION`](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md).
+`SoftwareRenderer` remains the active software renderer; its old `runtime()`
+compatibility accessor has already been removed and no code callers remain.
+The remaining `SoftwareExecutionContext` debt is runtime-header decoupling, as
+tracked in [`TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`](tickets/TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT.md).
 
 ## Active blockers
 
 | ID | Area | Stato | Scheda |
 |---|---|---|---|
-| TICKET-MAIN-TRUTH-STAGE-1-2 | main/build/docs | P0 VERIFY | [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — code/docs closeout landed; same-SHA CI remains the closing gate |
+| TICKET-MAIN-TRUTH-STAGE-1-2 | main/build/docs | BLOCKED | [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — remote Chronon3D jobs do not allocate a runner; restore runner dispatch, then certify the reviewed SHA |
 | TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | TEST-FONT-ASSET-PATH / CERT-SEQUENCE-WBH | testing/cert | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — font/asset fixture debt RESOLVED (bootstrap re-pinned 2026-09-05); WBH cert portion remains |
-| FFMPEG-PIPE-SINK-DEMOLITION | video cleanup | OPEN | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — delete only after all exit conditions are certified |
+| FFMPEG-PIPE-SINK-DEMOLITION | video cleanup | BLOCKED | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — native CI and production caller exit conditions are not certified |
 | FUSED-STORAGE-IMAGE-DEMOLITION | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; one same-SHA native-image video certificate is PASS, broader overlay corpus parity remains |
 
 Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
@@ -55,8 +61,8 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Area | Stato |
 |---|---|
 | Render-plan V3 coherence | PASS on 264b3c3d — v3 extensions dedup + per-key timing + flash hex + fingerprint v10 golden pinned (c_abi 138/138) — see git log 264b3c3dc |
-| Lottie Bodymovin lowering | PARTIAL — L1 transforms, L2 nested groups, L3 static features, and bounded two-keyframe L4 morphs lower in software; CLI MP4 frame-hash and broader morph gates remain — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
-| Vulkan effect parity | OPEN — software catalog has 41 effect types; strict Vulkan certifies Blur, Glow, Bloom and Tint, explicitly rejects DropShadow, and has no native route for the rest — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
+| Lottie Bodymovin lowering | DEFERRED — supported bounded L1-L4 subset remains; no further Lottie scope until core CI is green — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
+| Vulkan effect parity | DEFERRED — four native effect routes are certified; remaining parity work is parked until core CI is green and a product need is recorded — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera V1 | PARTIAL — same-SHA certification outstanding |
 | Text Core V1 | PASS (focused) |
@@ -64,8 +70,9 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Text Production | PARTIAL |
 | GPU Production V1 | PARTIAL |
 | Executor ownership | DONE structurally |
+| Agent visual finishing (software) | PARTIAL — RenderPlan color contract and optional mastering facts are wired through native video export; CPU scopes analyze decoded video and report PQ peak measurements. Runtime probes verified PQ H.264 High 10, PQ H.265 Main 10, and HLG H.265 Main 10 as 10-bit BT.2020-NCL limited-range outputs with correct transfer and mastering/CLL stream metadata. An OCIO display/view still probe preserved transparent and half-alpha pixels with transformed color. The local ONNX semantic matte provider passed gates on a real 640×360 clip frame; four-frame CPU temporal propagation published accepted mattes at 80×45. The focused encoder suite passes 32/32 cases (1,607 assertions). Representative project footage matte review, broader color/alpha edge coverage, and full project verification remain open — [ticket](tickets/TICKET-AGENT-VISUAL-FINISHING.md) |
 | Video pipeline | PASS (focused); same-SHA GPU certification at `5e49b7e4a` covers FullGraph zero-copy, DirectYUV conversion-zero on H.264/H.265 video-source fixtures, visual MTSDF text overlay, and Vulkan native-image video. Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar landed (ZERO-COPY-ZWAVES) — plus 264b3c3d local same-SHA for render-plan layer of pipeline |
-| CI infrastructure | LOCAL green on 264b3c3d (c_abi/cli/arch + 6 fast gates); GitHub CI same-SHA still pending (prev `0674ac27` blocked pre-runner) |
+| CI infrastructure | LOCAL Core + CLI tests pass on dirty worktree based on `5d960421dd1b`; remote scheduled runs `37110073977`/`37107348776` fail before runner allocation; Motion3D run `36912748216` has the same no-step failure; ChrononTemplate has no remote workflow. Same-SHA GitHub certification remains OPEN. |
 | Determinism | PARTIAL — `BitExact` / `DeterministicWithinPlatform` / `Approximate` types and focused fusion certification tests exist; broad cross-backend scene certification remains open |
 | Packaging | PASS (historical/local evidence) |
 

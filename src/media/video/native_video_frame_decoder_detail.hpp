@@ -30,7 +30,11 @@ enum AVPixelFormat select_cuda_format(AVCodecContext*,
 std::shared_ptr<Framebuffer> frame_to_framebuffer(
     const AVFrame* frame, SwsContext*& sws,
     std::vector<std::uint8_t>& rgba_staging,
-    RenderCounters* counters, bool enable_swscale = true);
+    RenderCounters* counters, bool enable_swscale = true
+#ifdef CHRONON3D_ENABLE_OCIO
+    , const color::OcioColorTransform* ocio_transform = nullptr
+#endif
+);
 bool build_source_sample_table(AVFormatContext* fmt, int stream_index,
                                SourceSampleTable& out);
 void set_decode_diagnostic(DecodeDiagnostic* out,

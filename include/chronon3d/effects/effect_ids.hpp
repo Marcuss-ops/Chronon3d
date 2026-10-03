@@ -16,6 +16,8 @@ inline constexpr std::string_view DistortFake3DWave = "distort.fake_3d_wave";
 // ── Color effects: Exposure + Levels (A2) ──
 inline constexpr std::string_view ColorExposure = "color.exposure";
 inline constexpr std::string_view ColorLevels   = "color.levels";
+inline constexpr std::string_view ColorTemperatureTint = "color.temperature_tint";
+inline constexpr std::string_view ColorLiftGammaGain = "color.lift_gamma_gain";
 
 // ── A4: Fill, Noise, Offset ──
 inline constexpr std::string_view GenerateFill   = "generate.fill";

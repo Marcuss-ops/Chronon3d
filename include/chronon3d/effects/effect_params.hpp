@@ -58,6 +58,21 @@ struct LevelsParams {
     LevelsChannel blue{};
 };
 
+// Relative linear-RGB white balance controls. These normalized artist controls
+// are deliberately not exposed as Kelvin because the source illuminant and
+// camera white point are not part of the current project input contract.
+struct TemperatureTintParams {
+    f32 temperature{0.0f}; // [-1,1], cool to warm
+    f32 tint{0.0f};        // [-1,1], green to magenta
+};
+
+// Global lift/gamma/gain grade in Chronon's linear RGB working space.
+struct LiftGammaGainParams {
+    f32 lift{0.0f};  // additive offset [-1,1]
+    f32 gamma{1.0f}; // signed power shaping [0.1,4]
+    f32 gain{1.0f};  // linear multiplier [0,4]
+};
+
 // ── Adjustment-layer color correction params (AE-5) ─────────────────────
 struct SaturationParams    { f32 value{1.0f}; };  // 1.0 = unchanged, 0 = greyscale
 struct HueRotateParams     { f32 degrees{0.0f}; }; // 0 = unchanged, 180 = invert hue
@@ -400,6 +415,7 @@ using EffectParams = std::variant<
     VignetteParams,
     ExposureParams,
     LevelsParams,
+    TemperatureTintParams,
     FillParams,
     NoiseParams,
     FractalNoiseParams,
@@ -422,7 +438,8 @@ using EffectParams = std::variant<
     MeshWarpParams,
     SharpenParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
-    LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams
+    LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
+    LiftGammaGainParams
 >;
 
 } // namespace chronon3d

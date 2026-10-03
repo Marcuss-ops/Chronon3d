@@ -259,8 +259,6 @@ void decode_layer_masks(LayerPlan& layer, const nlohmann::json& value) {
             if (total_mask_commands > 65536)
                 throw std::runtime_error("mask stack total path command limit is 65536");
         }
-        if (layer.masks.front().mode != "add")
-            throw std::runtime_error("the first mask stack entry must use mode add");
     }
 }
 

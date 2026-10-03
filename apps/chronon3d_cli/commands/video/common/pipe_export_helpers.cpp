@@ -81,6 +81,22 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
     const std::string& codec,
     const chronon3d::CpuBudget& cpu_budget)
 {
+    if (opts.pipe.hdr_mastering_metadata &&
+        (!is_native_encoder_transport(opts.encoder.encoder_backend) ||
+         opts.encoder.hardware_encoder != "none")) {
+        spdlog::error(
+            "[video] explicit HDR mastering metadata requires the native CPU encoder; pipe and hardware routes cannot certify this metadata");
+        return std::nullopt;
+    }
+    const bool hdr_output = opts.pipe.color_output == "pq" ||
+                            opts.pipe.color_output == "hlg";
+    if (hdr_output && !is_native_encoder_transport(opts.encoder.encoder_backend)) {
+        spdlog::error(
+            "[video] PQ/HLG output requires --encoder-backend native; "
+            "the shared VideoSink path only emits SDR metadata and samples");
+        return std::nullopt;
+    }
+
     // Fail-closed parse of the pipe surface format against the canonical
     // vocabulary. An unknown name must abort the export: mapping it onto RGBA
     // would produce a formally successful artifact in the wrong pixel format.
@@ -143,7 +159,13 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
         .verbose = opts.pipe.ffmpeg_verbose,
         .color_transform = {
             .output = parse_color_output(opts.pipe.color_output),
+            .reference_white_nits = opts.pipe.reference_white_nits,
         },
+        .ocio_config_path = opts.pipe.ocio_config_path,
+        .ocio_source_space = opts.pipe.ocio_source_space,
+        .ocio_display = opts.pipe.ocio_display,
+        .ocio_view = opts.pipe.ocio_view,
+        .hdr_mastering_metadata = opts.pipe.hdr_mastering_metadata,
         .tune = effective_tune,
         .tune_explicit = !opts.encoder.tune.empty() && opts.encoder.tune_explicit,
         .pipe_writer = opts.pipe.pipe_writer,
@@ -165,6 +187,7 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
     // must not pass through the CPU converter's legacy gamma switch, while
     // every encoded SDR target must perform exactly one OETF before YUV.
     pipe_options.color_transform.apply_gamma =
+        pipe_options.ocio_display.empty() &&
         pipe_options.color_transform.output != color::ColorSpace::LinearSRGB;
 
     // Apply the unified CPU budget so the encoder respects the encode pool.

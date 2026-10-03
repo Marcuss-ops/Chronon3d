@@ -61,7 +61,9 @@ public:
                 cache_policy(), ctx.frame_input.frame, m_cache_frame),
             .width  = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = hash_string(m_comp_name)
+            .params_hash = hash_combine(
+                hash_combine(hash_string(m_comp_name), hash_value(m_start_frame)),
+                hash_value(m_duration))
         };
     }
 

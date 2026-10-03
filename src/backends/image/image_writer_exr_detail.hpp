@@ -40,6 +40,12 @@ bool save_exr(const Framebuffer& framebuffer,
             }
 
             Imf::Header header(width, height);
+            Imf::addChromaticities(header, Imf::Chromaticities(
+                Imath::V2f(0.640f, 0.330f), Imath::V2f(0.300f, 0.600f),
+                Imath::V2f(0.150f, 0.060f), Imath::V2f(0.3127f, 0.3290f)));
+            if (std::isfinite(options.exr_white_luminance_nits) &&
+                options.exr_white_luminance_nits > 0.0f)
+                Imf::addWhiteLuminance(header, options.exr_white_luminance_nits);
             header.channels().insert("R", Imf::Channel(pixel_type));
             header.channels().insert("G", Imf::Channel(pixel_type));
             header.channels().insert("B", Imf::Channel(pixel_type));
@@ -86,6 +92,12 @@ bool save_exr(const Framebuffer& framebuffer,
             }
 
             Imf::Header header(width, height);
+            Imf::addChromaticities(header, Imf::Chromaticities(
+                Imath::V2f(0.640f, 0.330f), Imath::V2f(0.300f, 0.600f),
+                Imath::V2f(0.150f, 0.060f), Imath::V2f(0.3127f, 0.3290f)));
+            if (std::isfinite(options.exr_white_luminance_nits) &&
+                options.exr_white_luminance_nits > 0.0f)
+                Imf::addWhiteLuminance(header, options.exr_white_luminance_nits);
             header.channels().insert("R", Imf::Channel(pixel_type));
             header.channels().insert("G", Imf::Channel(pixel_type));
             header.channels().insert("B", Imf::Channel(pixel_type));

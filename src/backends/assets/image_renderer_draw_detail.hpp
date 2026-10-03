@@ -25,7 +25,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 #ifdef CHRONON3D_USE_BLEND2D
     BLImage render_img;
 
-    if (!cached || cached->bl_img.empty()) {
+    if (!cached || (!cached->fb_img && cached->bl_img.empty())) {
         int pw = static_cast<int>(std::round(image.size.x));
         int ph = static_cast<int>(std::round(image.size.y));
         pw = std::max(1, pw);
@@ -46,7 +46,12 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         img_h = ph;
         using_placeholder = true;
     }
-    else {
+    else if (cached->bl_img.empty()) {
+        // Float EXR assets do not create an 8-bit Blend2D copy. Keep their
+        // linear framebuffer as the source so highlights survive compositing.
+        img_w = cached->width;
+        img_h = cached->height;
+    } else {
         render_img = cached->bl_img;
         img_w = cached->width;
         img_h = cached->height;
@@ -296,11 +301,7 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
         );
     }
 
-    if (!cached
-#ifdef CHRONON3D_USE_BLEND2D
-        || cached->bl_img.empty()
-#endif
-    ) {
+    if (!cached || !cached->fb_img) {
         return false;
     }
 
@@ -339,7 +340,16 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     const auto composite_start = profiling::now();
 
 #ifdef CHRONON3D_USE_BLEND2D
-    blend2d_bridge::composite_bl_image_tiled(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+    if (!cached->bl_img.empty()) {
+        blend2d_bridge::composite_bl_image_tiled(
+            fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+    } else {
+        blend2d_bridge::composite_framebuffer_tiled(
+            fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+    }
+#else
+    blend2d_bridge::composite_framebuffer_tiled(
+        fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
 #endif
 
     const auto t_sample1 = profiling::now();

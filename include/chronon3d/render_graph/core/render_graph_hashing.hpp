@@ -83,6 +83,9 @@ template <typename T>
     const u64 loop = static_cast<u64>(source.loop_mode);
     seed = hash_combine(seed, hash_bytes(&loop, sizeof(loop)));
     seed = hash_combine(seed, hash_vec2(source.size));
+    seed = hash_combine(seed, hash_string(source.ocio_config_path));
+    seed = hash_combine(seed, hash_string(source.ocio_input_space));
+    seed = hash_combine(seed, hash_string(source.ocio_working_space));
     return seed;
 }
 
@@ -502,6 +505,7 @@ private:
         return 0;
     }
     u64 seed = hash_value(static_cast<int>(m.type));
+    seed = hash_combine(seed, hash_value(static_cast<int>(m.initial_mode)));
     seed = hash_combine(seed, hash_vec3(m.pos));
     seed = hash_combine(seed, hash_vec2(m.size));
     seed = hash_combine(seed, hash_value(m.radius));

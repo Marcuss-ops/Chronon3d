@@ -19,6 +19,10 @@
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
+#include <chronon3d/color/hdr_mastering_metadata.hpp>
+#ifdef CHRONON3D_ENABLE_OCIO
+#include <chronon3d/color/ocio_color_transform.hpp>
+#endif
 
 #include <cstddef>
 #include <cstdint>
@@ -87,6 +91,16 @@ struct VideoSettings {
     bool        ffmpeg_verbose{false};
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
+    // Optional OCIO display/view transform applied before encoding.
+    std::string ocio_config_path;
+    std::string ocio_source_space;
+    std::string ocio_display;
+    std::string ocio_view;
+#ifdef CHRONON3D_ENABLE_OCIO
+    std::shared_ptr<color::OcioColorTransform> ocio_output_transform;
+#endif
+    float       reference_white_nits{100.0f};
+    std::optional<color::HdrMasteringMetadata> hdr_mastering_metadata;
     std::string pipe_writer{"classic"};
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     // AUDIT F4 — the canonical selector vocabulary lives in the media execution

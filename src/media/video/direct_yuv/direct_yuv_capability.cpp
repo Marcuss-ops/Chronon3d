@@ -63,6 +63,12 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
         std::string_view text_reason;
 
         if (layer.video_source) {
+            if (!layer.video_source->ocio_input_space.empty()) {
+                report.support = DirectYuvSupport::Unsupported;
+                report.reason = "video OCIO input transform requires the software decode path (layer '" +
+                    std::string(layer.name) + "')";
+                return report;
+            }
             query.effect = video_seen
                 ? DirectYuvEffectClass::VideoOverlayNv12
                 : DirectYuvEffectClass::VideoBackground;

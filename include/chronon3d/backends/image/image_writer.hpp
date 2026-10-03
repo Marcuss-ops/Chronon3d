@@ -27,6 +27,10 @@ struct ImageWriteOptions {
 
     // DWAA compression
     bool exr_dwaa{false};
+
+    // OpenEXR whiteLuminance metadata: luminance in nits for linear RGB 1.0.
+    // Zero omits the optional attribute when the absolute scale is unknown.
+    float exr_white_luminance_nits{0.0f};
 };
 
 ImageFormat image_format_from_path(const std::string& path);
@@ -40,6 +44,8 @@ ImageFormat image_format_from_path(const std::string& path);
  * Returns true on success, false otherwise.
  */
 bool save_png(const Framebuffer& framebuffer, const std::string& path);
+bool save_png(const Framebuffer& framebuffer, const std::string& path,
+              const ImageWriteOptions& options);
 
 /**
  * Saves a Framebuffer to an OpenEXR file (linear float RGBA).

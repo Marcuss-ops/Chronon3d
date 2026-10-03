@@ -31,11 +31,7 @@ struct CachedImage {
     runtime::GpuAssetKey gpu_key;
 
     [[nodiscard]] bool valid() const {
-#ifdef CHRONON3D_USE_BLEND2D
-        return !bl_img.empty() && fb_img && width > 0 && height > 0;
-#else
         return fb_img && width > 0 && height > 0;
-#endif
     }
 };
 

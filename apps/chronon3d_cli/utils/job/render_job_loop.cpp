@@ -43,13 +43,17 @@ RenderLoopResult run_render_job_loop(
         for (const Frame frame : job.selected_frames) {
             const bool frame_ok = job.program
                 ? write_render_frame(*job.program, renderer, frame, output_range,
-                                    job.output, result.ok,
+                                    job.output, job.video_settings.reference_white_nits,
+                                    job.video_settings,
+                                    result.ok,
                                     result.telemetry_frames,
                                     result.total_render_ms,
                                     result.total_encode_ms,
                                     result.frames_written)
                 : write_render_frame(*job.compiled, renderer, frame, output_range,
-                                    job.output, result.ok,
+                                    job.output, job.video_settings.reference_white_nits,
+                                    job.video_settings,
+                                    result.ok,
                                     result.telemetry_frames,
                                     result.total_render_ms,
                                     result.total_encode_ms,
@@ -73,13 +77,17 @@ RenderLoopResult run_render_job_loop(
         for (std::int64_t f = start; f <= end; f += step) {
             const bool frame_ok = job.program
                 ? write_render_frame(*job.program, renderer, Frame{f}, range,
-                                    job.output, result.ok,
+                                    job.output, job.video_settings.reference_white_nits,
+                                    job.video_settings,
+                                    result.ok,
                                     result.telemetry_frames,
                                     result.total_render_ms,
                                     result.total_encode_ms,
                                     result.frames_written)
                 : write_render_frame(*job.compiled, renderer, Frame{f}, range,
-                                    job.output, result.ok,
+                                    job.output, job.video_settings.reference_white_nits,
+                                    job.video_settings,
+                                    result.ok,
                                     result.telemetry_frames,
                                     result.total_render_ms,
                                     result.total_encode_ms,

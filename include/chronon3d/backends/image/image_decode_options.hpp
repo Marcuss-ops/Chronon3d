@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <functional>
+#include <string>
 #include <chronon3d/assets/asset_metadata.hpp>
 
 namespace chronon3d {
@@ -21,6 +22,11 @@ struct ImageDecodeOptions {
     ColorSpace color_space{ColorSpace::SRGB};
     PremultiplyAlpha premultiply{PremultiplyAlpha::Yes};
     OrientationPolicy orientation{OrientationPolicy::ApplyExif};
+    // Optional per-image OCIO input transform. The declared output space is
+    // the project working space and must be scene-linear BT.709-compatible.
+    std::string ocio_config_path;
+    std::string ocio_input_space;
+    std::string ocio_working_space;
 
     friend constexpr bool operator==(const ImageDecodeOptions&, const ImageDecodeOptions&) = default;
 };
@@ -42,6 +48,9 @@ struct ImageAssetKeyHash {
         mix(static_cast<std::size_t>(key.options.color_space));
         mix(static_cast<std::size_t>(key.options.premultiply));
         mix(static_cast<std::size_t>(key.options.orientation));
+        mix(std::hash<std::string>{}(key.options.ocio_config_path));
+        mix(std::hash<std::string>{}(key.options.ocio_input_space));
+        mix(std::hash<std::string>{}(key.options.ocio_working_space));
         return hash;
     }
 };

@@ -24,14 +24,14 @@
 namespace chronon3d {
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextUnitMap builder
+// GlyphSelectorUnitMap builder
 // ═══════════════════════════════════════════════════════════════════════════
 
-TextUnitMap build_text_unit_map(
+GlyphSelectorUnitMap build_text_unit_map(
     const PlacedGlyphRun& placed,
     std::string_view source
 ) {
-    TextUnitMap map;
+    GlyphSelectorUnitMap map;
 
     const size_t glyph_count = placed.glyphs.size();
     if (glyph_count == 0) return map;
@@ -175,7 +175,7 @@ TextUnitMap build_text_unit_map(
 
 SelectorWeight evaluate_selector(
     const GlyphSelectorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
     SampleTime time,
@@ -186,7 +186,7 @@ SelectorWeight evaluate_selector(
 
 SelectorWeight evaluate_selectors(
     const std::vector<GlyphSelectorSpec>& specs,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     u32 glyph_index,
     std::string_view source,
     SampleTime time,

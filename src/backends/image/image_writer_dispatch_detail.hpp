@@ -16,7 +16,7 @@ bool save_image(const Framebuffer& framebuffer,
             // surface its existing "Failed to save frame N to path ..."
             // error log instead of std::terminate-ing the CLI main loop.
             try {
-                return save_png(framebuffer, path);
+                return save_png(framebuffer, path, options);
             } catch (const std::exception& e) {
                 spdlog::error(
                     "save_image: save_png threw on path '{}': {} — "

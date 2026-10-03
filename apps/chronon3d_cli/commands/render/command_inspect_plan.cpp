@@ -36,7 +36,18 @@ nlohmann::json inspection_to_json(const ResolvedRenderPlanInspection& i) {
         {"path", i.output_path},
         {"format", i.output_format},
         {"codec", i.video_codec},
+        {"color_space", i.color_space},
+        {"reference_white_nits", i.reference_white_nits},
     };
+    if (!i.ocio_config.empty()) {
+        js["color_management"] = {
+            {"ocio_config", i.ocio_config},
+            {"working_space", i.working_space},
+            {"video_input_space", i.video_input_space},
+            {"output_display", i.output_display},
+            {"output_view", i.output_view},
+        };
+    }
 
     nlohmann::json layers = nlohmann::json::array();
     for (const auto& layer : i.layers) {
@@ -50,6 +61,11 @@ nlohmann::json inspection_to_json(const ResolvedRenderPlanInspection& i) {
         if (!layer.asset.empty()) {
             jl["asset"] = layer.asset;
         }
+        if (!layer.input_color_space.empty()) {
+            jl["input_color_space"] = layer.input_color_space;
+        }
+        if (!layer.ocio_input_space.empty())
+            jl["ocio_input_space"] = layer.ocio_input_space;
         if (!layer.source.empty()) {
             jl["source"] = layer.source;
         }
@@ -166,7 +182,15 @@ std::string inspection_to_text(const ResolvedRenderPlanInspection& i) {
         << "Output\n"
         << "  path                  " << i.output_path << '\n'
         << "  format                " << i.output_format << '\n'
-        << "  codec                 " << i.video_codec << '\n';
+        << "  codec                 " << i.video_codec << '\n'
+        << "  color space           " << i.color_space << '\n'
+        << "  reference white       " << i.reference_white_nits << " nits\n";
+    if (!i.output_display.empty())
+        out << "  OCIO output view      " << i.output_display << " / " << i.output_view << '\n';
+    if (!i.ocio_config.empty())
+        out << "  OCIO config           " << i.ocio_config << '\n'
+            << "  working space         " << i.working_space << '\n'
+            << "  video input default   " << i.video_input_space << '\n';
 
     for (const auto& layer : i.layers) {
         out << "\nLayer " << layer.id << '\n'
@@ -180,6 +204,11 @@ std::string inspection_to_text(const ResolvedRenderPlanInspection& i) {
         if (!layer.asset.empty()) {
             out << "  asset                 " << layer.asset << '\n';
         }
+        if (!layer.input_color_space.empty()) {
+            out << "  input color space     " << layer.input_color_space << '\n';
+        }
+        if (!layer.ocio_input_space.empty())
+            out << "  OCIO input space      " << layer.ocio_input_space << '\n';
         if (!layer.source.empty()) {
             out << "  source                " << layer.source << '\n';
         }

@@ -14,6 +14,7 @@
 #include <chronon3d/runtime/render_surface_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/color/output_transform.hpp>
+#include <chronon3d/color/hdr_mastering_metadata.hpp>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -251,6 +252,11 @@ struct FfmpegPipeOptions {
     std::string output_pix_fmt{"yuv420p"};
     bool verbose{false};
     color::OutputTransformOptions color_transform{};
+    std::string ocio_config_path;
+    std::string ocio_source_space;
+    std::string ocio_display;
+    std::string ocio_view;
+    std::optional<color::HdrMasteringMetadata> hdr_mastering_metadata;
     std::string tune;
     bool tune_explicit{false};
     std::string pipe_writer{"classic"};

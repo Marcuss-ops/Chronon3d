@@ -32,6 +32,8 @@ struct RenderPlanVideoOverrides {
     std::string gop_source;
     bool gop_copy_only{false};
     std::string pipe_pixfmt;
+    std::string color_output;
+    float reference_white_nits{0.0f};
 };
 
 int run_render_plan_file(

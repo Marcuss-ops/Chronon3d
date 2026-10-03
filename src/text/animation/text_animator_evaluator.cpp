@@ -1,7 +1,7 @@
 #include <chronon3d/text/animation/text_animator_evaluator.hpp>
 
 #include <chronon3d/text/font_engine.hpp>        // PlacedGlyphRun full type
-#include <chronon3d/text/glyph_selector.hpp>      // evaluate_selectors, TextUnitMap
+#include <chronon3d/text/glyph_selector.hpp>      // evaluate_selectors, GlyphSelectorUnitMap
 
 #include "text_property_stage.hpp"
 #include "text_tracking_evaluator.hpp"
@@ -42,7 +42,7 @@ constexpr bool is_pre_shaping() {
 
 void evaluate_animator(
     const TextAnimatorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     std::vector<GlyphInstanceState>& glyph_states,
     std::string_view source,
     SampleTime time,

@@ -33,14 +33,36 @@ BitstreamCodecId bitstream_codec_for_encoder_name(
 
 EncoderColorContract encoder_color_contract(
     color::ColorSpace output_space) noexcept {
-    const bool linear =
-        output_space == color::ColorSpace::LinearSRGB ||
-        output_space == color::ColorSpace::ACEScg;
+    const auto transfer = [&]() {
+        switch (output_space) {
+            case color::ColorSpace::LinearSRGB:
+                return AVCOL_TRC_LINEAR;
+            case color::ColorSpace::ACEScg:
+                return AVCOL_TRC_UNSPECIFIED;
+            case color::ColorSpace::SRGB:
+                return AVCOL_TRC_IEC61966_2_1;
+            case color::ColorSpace::Rec709:
+                return AVCOL_TRC_BT709;
+            case color::ColorSpace::PQ:
+                return AVCOL_TRC_SMPTE2084;
+            case color::ColorSpace::HLG:
+                return AVCOL_TRC_ARIB_STD_B67;
+            case color::ColorSpace::LinearBT2020:
+                return AVCOL_TRC_LINEAR;
+        }
+        return AVCOL_TRC_UNSPECIFIED;
+    }();
+    const bool bt2020 = output_space == color::ColorSpace::LinearBT2020 ||
+                        output_space == color::ColorSpace::PQ ||
+                        output_space == color::ColorSpace::HLG;
+    const bool acescg = output_space == color::ColorSpace::ACEScg;
     return EncoderColorContract{
         .color_range = AVCOL_RANGE_MPEG,
-        .color_space = AVCOL_SPC_BT709,
-        .color_primaries = AVCOL_PRI_BT709,
-        .color_trc = linear ? AVCOL_TRC_LINEAR : AVCOL_TRC_BT709,
+        .color_space = acescg ? AVCOL_SPC_UNSPECIFIED
+                              : bt2020 ? AVCOL_SPC_BT2020_NCL : AVCOL_SPC_BT709,
+        .color_primaries = acescg ? AVCOL_PRI_UNSPECIFIED
+                                  : bt2020 ? AVCOL_PRI_BT2020 : AVCOL_PRI_BT709,
+        .color_trc = transfer,
     };
 }
 

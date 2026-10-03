@@ -8,6 +8,7 @@
 
 add_library(chronon3d_media_execution OBJECT
     video/video_execution_resolver.cpp
+    tracking/temporal_mask_propagator.cpp
 )
 
 add_subdirectory(video/compositor)

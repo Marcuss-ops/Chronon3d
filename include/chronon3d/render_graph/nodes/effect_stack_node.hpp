@@ -4,6 +4,9 @@
 #include <chronon3d/effects/spatial_bounds.hpp>
 #include <chronon3d/render_graph/nodes/native_effects.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <span>
 #include <string>
 
@@ -65,6 +68,20 @@ public:
         for (const auto& effect : m_effects)
             if (effect.enabled && effect.effect_type == effects::EffectType::Echo) return true;
         return false;
+    }
+
+    [[nodiscard]] TemporalRequirements temporal_requirements() const noexcept override {
+        std::uint64_t history_frames = 0;
+        for (const auto& effect : m_effects) {
+            if (!effect.enabled || effect.effect_type != effects::EffectType::Echo) continue;
+            const auto* params = std::get_if<EchoParams>(&effect.params);
+            if (!params) continue;
+            const auto required = static_cast<std::uint64_t>(params->echoes) *
+                                  params->time_offset_frames;
+            history_frames = std::max(history_frames, required);
+        }
+        return TemporalRequirements{.history_frames = static_cast<i32>(std::min<std::uint64_t>(
+            history_frames, static_cast<std::uint64_t>(std::numeric_limits<i32>::max())))};
     }
 
     /// Prepend `prefix` effects before this node's own effects.

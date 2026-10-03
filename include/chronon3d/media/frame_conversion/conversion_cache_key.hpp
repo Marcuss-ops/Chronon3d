@@ -23,7 +23,9 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/color/output_transform.hpp>
 
+#include <bit>
 #include <cstdint>
 
 namespace chronon3d::video {
@@ -36,7 +38,10 @@ struct ConversionCacheKey {
     int      height{0};
     int      pix_fmt{-1};         ///< encoder pixel format (AVPixelFormat / EncoderPixelFormat).
     bool     apply_gamma{false};
+    bool     rec709_oetf{false};
     int      color_matrix{-1};    ///< YUV matrix id (BT.709 = 0).
+    int      output_space{0};
+    std::uint32_t reference_white_bits{0};
 
     /// An unknown content identity is never eligible for reuse.
     [[nodiscard]] bool usable() const noexcept { return content_digest != 0; }
@@ -47,7 +52,10 @@ struct ConversionCacheKey {
             && height         == other.height
             && pix_fmt        == other.pix_fmt
             && apply_gamma    == other.apply_gamma
-            && color_matrix   == other.color_matrix;
+            && rec709_oetf    == other.rec709_oetf
+            && color_matrix   == other.color_matrix
+            && output_space   == other.output_space
+            && reference_white_bits == other.reference_white_bits;
     }
 
     [[nodiscard]] bool operator!=(const ConversionCacheKey& other) const noexcept {
@@ -64,14 +72,20 @@ struct ConversionCacheKey {
     int                height,
     int                pix_fmt,
     bool               apply_gamma,
-    int                color_matrix) noexcept {
+    int                color_matrix,
+    bool               rec709_oetf = false,
+    color::ColorSpace  output_space = color::ColorSpace::SRGB,
+    float              reference_white_nits = 100.0f) noexcept {
     return ConversionCacheKey{
         .content_digest = fb.content_digest(),
         .width          = width,
         .height         = height,
         .pix_fmt        = pix_fmt,
         .apply_gamma    = apply_gamma,
+        .rec709_oetf    = rec709_oetf,
         .color_matrix   = color_matrix,
+        .output_space   = static_cast<int>(output_space),
+        .reference_white_bits = std::bit_cast<std::uint32_t>(reference_white_nits),
     };
 }
 

@@ -2,7 +2,7 @@
 
 #include <chronon3d/text/animation/text_animator_spec.hpp>      // TextAnimatorSpec
 #include <chronon3d/text/animation/glyph_instance_state.hpp>    // GlyphInstanceState
-#include <chronon3d/text/glyph_selector.hpp>                    // TextUnitMap
+#include <chronon3d/text/glyph_selector.hpp>                    // GlyphSelectorUnitMap
 
 #include <string_view>
 #include <vector>
@@ -38,7 +38,7 @@ struct PlacedGlyphRun;
 
 void evaluate_animator(
     const TextAnimatorSpec& spec,
-    const TextUnitMap& unit_map,
+    const GlyphSelectorUnitMap& unit_map,
     std::vector<GlyphInstanceState>& glyph_states,
     std::string_view source,
     SampleTime time,
