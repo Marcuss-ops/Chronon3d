@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -21,15 +22,22 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { name: 'Linux (Release)', os: ubuntu-latest, preset: linux-ci-release-build, build_preset: linux-ci-release-build, test_preset: linux-ci-release-build-test, slug: linux-release }
-          - { name: 'Linux (Debug/CI)', os: ubuntu-latest, preset: linux-ci, build_preset: linux-ci, test_preset: linux-ci-test, slug: linux-debug-ci }
-          - { name: 'Linux (No Content)', os: ubuntu-latest, preset: linux-ci-nocontent, build_preset: linux-ci-nocontent, test_preset: linux-ci-nocontent-test, slug: linux-nocontent }
+          - { name: 'Linux (Release)', os: ubuntu-24.04, preset: linux-ci-release-build, build_preset: linux-ci-release-build, test_preset: linux-ci-release-build-test, slug: linux-release }
+          - { name: 'Linux (Debug/CI)', os: ubuntu-24.04, preset: linux-ci, build_preset: linux-ci, test_preset: linux-ci-test, slug: linux-debug-ci }
+          - { name: 'Linux (No Content)', os: ubuntu-24.04, preset: linux-ci-nocontent, build_preset: linux-ci-nocontent, test_preset: linux-ci-nocontent-test, slug: linux-nocontent }
           - { name: 'Windows (Release)', os: windows-latest, preset: win-release, build_preset: win, test_preset: win-test, slug: windows-release }
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           lfs: ${{ github.event_name == 'push' }}
+
+      - name: Verify same-SHA checkout
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:GITHUB_SHA) { throw "checkout SHA $actual != event SHA $env:GITHUB_SHA" }
+          Write-Host "same-SHA verified: $actual"
 
       - name: Install Linux build tools
         if: runner.os == 'Linux'
@@ -106,7 +114,7 @@ jobs:
 
   core-build:
     name: Gate 1 / core-build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -126,7 +134,7 @@ jobs:
 
   sdk-build:
     name: Gate 2 / sdk-build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -146,7 +154,7 @@ jobs:
 
   public-header-check:
     name: Gate 3 / public-header-check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -180,7 +188,7 @@ jobs:
 
   install-consumer-check:
     name: Gate 4 / install-consumer-check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -226,7 +234,7 @@ jobs:
 
   architecture-check:
     name: Gate 5 / architecture-check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -239,7 +247,7 @@ jobs:
 
   install-consumer-script:
     name: Gate 6 / install-consumer
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -258,7 +266,7 @@ jobs:
   sdk-product-certification:
     name: Gate 7 / sdk-product-certification
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -280,7 +288,7 @@ jobs:
 
   fuzz-regressions:
     name: Fuzz regressions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -301,7 +309,7 @@ jobs:
     name: Gate Status Summary
     if: ${{ !cancelled() }}
     needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, install-consumer-script, fuzz-regressions]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -346,7 +354,7 @@ jobs:
   # stays push-only; on PRs this lane is compile-only.
   full-validation:
     name: Full validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -377,7 +385,7 @@ jobs:
 
   validate:
     name: Lint & Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Bash syntax
@@ -406,7 +414,7 @@ jobs:
 
   render-contract:
     name: RenderJob / ${{ matrix.config.name }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -438,7 +446,7 @@ jobs:
 
   benchmarks:
     name: Benchmarks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

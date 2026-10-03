@@ -130,12 +130,12 @@ template <AnimatableValue T>
             return apply_cycle_offset(eval_temporal_bezier(prev, next, t));
     }
 
-    // Spatial bezier path: when handles are present, use CubicBezier3D
-    // for smooth curved interpolation through 3+ points.
+    // Spatial Bezier interpolation: when authored handles are present, use
+    // De Casteljau directly for this keyframe segment.
     if constexpr (std::is_same_v<T, Vec3> || std::is_same_v<T, glm::vec2> || std::is_same_v<T, glm::vec4>) {
         if (has_spatial_handles(prev) || has_spatial_handles(next)) {
             const f32 eased_t = prev.easing.apply(std::clamp(t, 0.0f, 1.0f));
-            // Build CubicBezier3D from the four control points
+            // Build the four control points from the endpoint handles.
             const Vec3 p0 = prev.value;
             const Vec3 p1 = prev.value + prev.out_handle;
             const Vec3 p3 = next.value;
