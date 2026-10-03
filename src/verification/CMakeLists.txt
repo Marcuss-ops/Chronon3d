@@ -11,6 +11,7 @@
 
 add_library(chronon3d_verification OBJECT
     render_receipt.cpp
+    render_receipt_json.cpp
 )
 
 target_include_directories(chronon3d_verification

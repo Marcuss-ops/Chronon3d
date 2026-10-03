@@ -6,6 +6,7 @@ add_library(chronon3d_cli_core STATIC
     commands/basic/command_info.cpp
     commands/basic/command_benchmark_machine.cpp
     commands/basic/command_benchmark_saturation.cpp
+    commands/basic/command_benchmark_saturation_metrics.cpp
     commands/daemon/command_daemon.cpp
     daemon/daemon_service.cpp
     daemon/daemon_service_commands.cpp

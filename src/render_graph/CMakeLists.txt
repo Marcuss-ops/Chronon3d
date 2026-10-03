@@ -54,6 +54,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/clear_node_execution.cpp
     nodes/clear_policy.cpp
     nodes/composite_node.cpp
+    nodes/composite_backdrop_software.cpp
     nodes/track_matte_node.cpp
     nodes/per_pixel_dof_node.cpp
     nodes/lighting_node.cpp
