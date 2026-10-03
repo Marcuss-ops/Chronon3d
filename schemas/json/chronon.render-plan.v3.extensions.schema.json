@@ -449,6 +449,7 @@
             "none",
             "crossfade",
             "slide",
+            "zoom",
             "wipe_linear",
             "smooth_wipe",
             "circle_iris",
@@ -488,6 +489,11 @@
               "type": "number",
               "minimum": 0,
               "maximum": 4
+            },
+            "amount": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
             },
             "feather": {
               "type": "number",

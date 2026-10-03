@@ -324,7 +324,7 @@ TEST_CASE("TRN-06: crossfade works in 16:9 and 9:16") {
 // ==============================================================================
 TEST_CASE("TRN-06: every built-in transition has distinct start/middle/end") {
     std::vector<std::string> ids = {
-        "crossfade", "slide", "wipe_linear", "smooth_wipe",
+        "crossfade", "slide", "zoom", "wipe_linear", "smooth_wipe",
         "circle_iris", "flash", "procedural_remotion", "remotion"
     };
 

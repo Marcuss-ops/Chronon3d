@@ -1454,7 +1454,7 @@ TEST_CASE("render plan V3 decodes typed built-in layer transitions and fingerpri
 
 TEST_CASE("render plan V3 exposes every registered built-in layer transition") {
     const std::vector<std::string> transition_ids{
-        "none", "crossfade", "slide", "wipe_linear", "smooth_wipe",
+        "none", "crossfade", "slide", "zoom", "wipe_linear", "smooth_wipe",
         "circle_iris", "flash", "procedural_remotion", "remotion"};
     for (const auto& id : transition_ids) {
         auto source = render_plan_test::base_plan(nlohmann::json::array({
@@ -1754,6 +1754,27 @@ TEST_CASE("render plan V3 decodes the remaining animated text style properties")
     CHECK(properties[0].property == "skew");
     CHECK(properties[2].keyframes.back().value == std::vector<float>{1.0f, 2.0f, 3.0f});
     CHECK(properties[4].keyframes.back().value == std::vector<float>{1.0f, 0.0f, 0.0f, 1.0f});
+}
+
+TEST_CASE("render plan V3 accepts bounded negative text tracking animation") {
+    auto source = v3_text_plan();
+    source["layers"][0]["text_animators"] = nlohmann::json::parse(R"JSON([
+        {"id":"tracking","selectors":[{"unit":"glyph"}],"properties":[
+          {"property":"tracking","keyframes":[
+            {"frame":0,"value":-10},{"frame":24,"value":8},{"frame":42,"value":2}
+          ]}
+        ]}
+    ])JSON");
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded.has_value());
+    const auto& track = decoded->layers[0].text_animators[0].properties[0];
+    CHECK(track.property == "tracking");
+    CHECK(track.keyframes.front().value == std::vector<float>{-10.0f});
+
+    source["layers"][0]["text_animators"][0]["properties"][0]["keyframes"][0]["value"] = -1001;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
 TEST_CASE("render plan V2 keeps the frozen animator property enum") {

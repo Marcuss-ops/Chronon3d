@@ -7,9 +7,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -199,10 +201,22 @@ bool try_native_path_stroke(
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle)
         return false;
     const auto& path = node.shape.path();
-    if ((path.fill.enabled && (path.stroke.dash_array.empty() ||
-                               path.fill.type != FillType::Solid)) ||
+    const bool path_diag = [] {
+        const char* value = std::getenv("CHRONON3D_PATH_DIAG");
+        return value && std::string_view(value) == "1";
+    }();
+    if (path_diag) {
+        spdlog::info("[native-path-diag] node={} fill={} fill_type={} fill_alpha={} stroke={} width={} cap={} trim={}:{} dash={} gradient={} projected={}",
+            node.name, path.fill.enabled, static_cast<int>(path.fill.type),
+            path.fill.solid.a, path.stroke.enabled, path.stroke.width, static_cast<int>(path.stroke.cap),
+            path.stroke.trim_start, path.stroke.trim_end, path.stroke.dash_array.size(),
+            path.stroke.gradient.has_value(), graph::native_promotion::is_projected(state));
+    }
+    const bool visible_solid_fill = path.fill.enabled &&
+        path.fill.type == FillType::Solid && path.fill.solid.a > 0.0f;
+    if ((visible_solid_fill && (path.stroke.dash_array.empty() ||
+                                path.fill.type != FillType::Solid)) ||
         !path.stroke.enabled || path.stroke.width <= 0.0f ||
-        path.stroke.trim_start != 0.0f || path.stroke.trim_end != 1.0f ||
         path.stroke.gradient.has_value() || path.stroke.cap != LineCap::Butt ||
         graph::native_promotion::has_active_mask(state) ||
         graph::native_promotion::is_projected(state))
@@ -221,11 +235,11 @@ bool try_native_path_stroke(
     const auto contours = math::flatten_path(path);
     if (contours.empty()) return false;
 
-    if (path.stroke.dash_array.empty()) {
-        if (path.stroke.color.a < 1.0f || state.opacity < 1.0f ||
-            path.fill.enabled || contours.size() != 1 ||
-            contours.front().size() != 2)
-            return false;
+    const bool full_trim = path.stroke.trim_start == 0.0f &&
+                           path.stroke.trim_end == 1.0f;
+    if (path.stroke.dash_array.empty() && full_trim &&
+        path.stroke.color.a >= 1.0f && state.opacity >= 1.0f &&
+        !path.fill.enabled && contours.size() == 1 && contours.front().size() == 2) {
         const Vec2 a = transform(contours.front()[0]);
         const Vec2 b = transform(contours.front()[1]);
         if (!std::isfinite(a.x) || !std::isfinite(a.y) ||
@@ -260,7 +274,7 @@ bool try_native_path_stroke(
 
     std::array<Vec2, 8> fill_vertices{};
     std::uint32_t fill_vertex_count = 0;
-    const bool has_fill = path.fill.enabled;
+    const bool has_fill = visible_solid_fill;
     if (has_fill) {
         if (pattern_length <= 1.0e-5f) return false;
         std::vector<Vec2> polygon;
@@ -293,16 +307,25 @@ bool try_native_path_stroke(
 
     std::vector<std::vector<Vec2>> runs;
     for (const auto& local_contour : contours) {
+        auto visible_contour = local_contour;
+        if (!full_trim) {
+            visible_contour = math::trim_polyline(
+                local_contour, path.stroke.trim_start, path.stroke.trim_end);
+            if (visible_contour.size() < 2) continue;
+        }
         std::vector<Vec2> screen_contour;
-        screen_contour.reserve(local_contour.size());
-        for (const Vec2 point : local_contour) {
+        screen_contour.reserve(visible_contour.size());
+        for (const Vec2 point : visible_contour) {
             const Vec2 p = transform(point);
             if (!std::isfinite(p.x) || !std::isfinite(p.y)) return false;
             screen_contour.push_back(p);
         }
-        if (!append_dash_runs(screen_contour, pattern, pattern_length,
-                              path.stroke.dash_offset, runs))
+        if (pattern.empty()) {
+            runs.push_back(std::move(screen_contour));
+        } else if (!append_dash_runs(screen_contour, pattern, pattern_length,
+                                     path.stroke.dash_offset, runs)) {
             return false;
+        }
     }
     if (runs.empty()) return true;
 
