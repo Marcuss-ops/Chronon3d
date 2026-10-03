@@ -1,4 +1,5 @@
 #include "video_export_support.hpp"
+#include "video_job_time_rescale.hpp"
 #include "gop_smart_copy.hpp"
 #include "encoder_config_resolution.hpp"
 #include "encoder_bitstream_contract.hpp"
@@ -27,6 +28,9 @@
 
 namespace chronon3d::cli {
 namespace {
+
+using video_detail::frame_to_tick;
+using video_detail::tick_to_frame;
 
 // ── Single GOP preflight (before any decision) ─────────────────────────────
 // Runs once at the top of the executor; the resulting summary is folded into
@@ -91,63 +95,6 @@ media::GopAnalysisSummary inspect_source_once(
 // gate: `build_gop_plan_from_analysis` (utils/video/gop_smart_copy.hpp). This
 // lane uses it with `splice_safe = true`, which is exactly what declaring the
 // container FROM the source certifies.
-
-// ── Exact tick ↔ frame rescale ──────────────────────────────────────────
-//
-// One integer conversion between the source's own time base and the frame
-// grid, with no double seconds in between. The schedule speaks source ticks
-// and the renderer speaks Frames; this is the single, exact place the two
-// meet, so a GOP boundary cannot drift by a rounding tick.
-std::int64_t rescale_ticks_exact(std::int64_t ticks, std::int64_t from_num,
-                                 std::int64_t from_den, std::int64_t to_num,
-                                 std::int64_t to_den,
-                                 FrameRounding rounding) noexcept {
-    if (from_num <= 0 || from_den <= 0 || to_num <= 0 || to_den <= 0) return 0;
-    const __int128 numerator =
-        static_cast<__int128>(ticks) * from_num * to_num;
-    const __int128 denominator = static_cast<__int128>(from_den) * to_den;
-    if (denominator == 0) return 0;
-    __int128 result = 0;
-    switch (rounding) {
-        case FrameRounding::Floor:
-            result = numerator >= 0
-                ? numerator / denominator
-                : -((-numerator + denominator - 1) / denominator);
-            break;
-        case FrameRounding::Ceiling:
-            result = numerator >= 0
-                ? (numerator + denominator - 1) / denominator
-                : -((-numerator) / denominator);
-            break;
-        case FrameRounding::Nearest:
-        default:
-            result = numerator >= 0
-                ? (numerator + denominator / 2) / denominator
-                : -((-numerator + denominator / 2) / denominator);
-            break;
-    }
-    if (result > std::numeric_limits<std::int64_t>::max()) {
-        return std::numeric_limits<std::int64_t>::max();
-    }
-    if (result < std::numeric_limits<std::int64_t>::min()) {
-        return std::numeric_limits<std::int64_t>::min();
-    }
-    return static_cast<std::int64_t>(result);
-}
-
-Frame tick_to_frame(std::int64_t tick, std::int64_t tb_num,
-                    std::int64_t tb_den, FrameRate rate,
-                    FrameRounding rounding) noexcept {
-    return Frame{rescale_ticks_exact(tick, tb_num, tb_den, rate.numerator,
-                                     rate.denominator, rounding)};
-}
-
-std::int64_t frame_to_tick(Frame frame, std::int64_t tb_num,
-                           std::int64_t tb_den, FrameRate rate,
-                           FrameRounding rounding) noexcept {
-    return rescale_ticks_exact(frame.integral(), rate.numerator,
-                               rate.denominator, tb_num, tb_den, rounding);
-}
 
 // ── The ONE hybrid executor: COPY + REENCODE → ONE MuxSession (P0-3/5E/5F) ──
 //
