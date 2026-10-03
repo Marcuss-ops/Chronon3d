@@ -4,23 +4,36 @@
 
 add_library(chronon3d_render_plan OBJECT
     render_plan_decoder.cpp
+    render_plan_decoder_rules.cpp
+    render_plan_relations_validator.cpp
     render_plan_decoder_support.cpp
     render_plan_decoder_layer.cpp
+    render_plan_decoder_layer_support.cpp
     render_plan_decoder_effects.cpp
     inline_mesh_primitives.cpp
     render_plan_decoder_animation.cpp
     render_plan_decoder_shape.cpp
+    render_plan_decoder_field.cpp
     render_plan_decoder_mask.cpp
     render_plan_decoder_text.cpp
     render_budget.cpp
     spring_bake.cpp
     shape_path_generator.cpp
     fingerprint.cpp
+    fingerprint_writer.cpp
+    fingerprint_values.cpp
+    fingerprint_layer.cpp
     render_plan_validator.cpp
     validation/json_schema_diagnostic_adapter.cpp
     render_plan_compiler.cpp
+    render_plan_compiler_scene.cpp
+    render_plan_compiler_scene_setup.cpp
+    render_plan_compiler_shape.cpp
     render_plan_compiler_lottie.cpp
+    render_plan_compiler_lottie_transform.cpp
     render_plan_compiler_animation.cpp
+    render_plan_compiler_animation_text.cpp
+    render_plan_compiler_animation_utils.cpp
     render_plan_compiler_text.cpp
     render_plan_compiler_fingerprint.cpp
     audio_react_baker.cpp
@@ -44,6 +57,8 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 set_source_files_properties(
     render_plan_compiler.cpp
+    render_plan_compiler_scene.cpp
+    render_plan_compiler_scene_setup.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 

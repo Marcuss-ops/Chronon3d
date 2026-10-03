@@ -102,9 +102,7 @@ struct VulkanBackend::Impl {
     // plane mutex here. Destruction still assumes the backend lifetime has
     // ended before the Impl is torn down.
 
-    void require_healthy() const {
-        runtime::require_healthy_gpu_worker();
-    }
+    void require_healthy() const;
 
     struct Image {
         VkImage image{VK_NULL_HANDLE};
@@ -225,29 +223,12 @@ struct VulkanBackend::Impl {
     // removed — plan_preallocated was initialized false and only ever written
     // false; the canvas extents were written but never read.
 
-    void destroy_surface_images() noexcept { surfaces.destroy_all(*this); }
-    void defer_surface_release(runtime::RenderSurfaceHandle handle) {
-        ++stats.deferred_surface_release_count;
-        // Deliberately conservative slot hint: next_slot is the slot the current
-        // or upcoming batch records into, so a handle whose real owner is an
-        // older slot may wait one extra slot rotation before it is released.
-        // A stale hint can only delay a release (the flush re-checks the hinted
-        // slot and re-queues while it is in flight); reusing the binding slot
-        // instead would be wrong because physical slots are aliased across
-        // frames. Do not tighten this without an aliasing audit.
-        const std::size_t slot = frame_batch.next_slot;
-        surfaces.deferred_surface_releases.push_back({handle, slot});
-    }
-    [[nodiscard]] bool surface_valid(runtime::RenderSurfaceHandle handle) const noexcept {
-        return surfaces.valid(handle);
-    }
-    [[nodiscard]] std::size_t surface_physical_count() const noexcept {
-        return surfaces.physical_count();
-    }
+    void destroy_surface_images() noexcept;
+    void defer_surface_release(runtime::RenderSurfaceHandle handle);
+    [[nodiscard]] bool surface_valid(runtime::RenderSurfaceHandle handle) const noexcept;
+    [[nodiscard]] std::size_t surface_physical_count() const noexcept;
     [[nodiscard]] bool surface_is_job_persistent(
-        runtime::RenderSurfaceHandle handle) const noexcept {
-        return surfaces.is_job_persistent(handle);
-    }
+        runtime::RenderSurfaceHandle handle) const noexcept;
     Image& bind_surface_to_slot(runtime::RenderSurfaceHandle handle,
                                 std::size_t slot,
                                 const runtime::SurfaceDesc& desc,
@@ -255,10 +236,8 @@ struct VulkanBackend::Impl {
                                     planned_occupants = {}) {
         return surfaces.bind(handle, slot, desc, planned_occupants);
     }
-    void prune_surface_slots() { surfaces.prune_unused_slots(); }
-    void reclaim_unused_transient_surface_slots() {
-        surfaces.reclaim_unused_transient_slots();
-    }
+    void prune_surface_slots();
+    void reclaim_unused_transient_surface_slots();
 
     // ── Recording leases (audit N4) ──────────────────────────────────────
     // The pin table is a leaf: it is written while the store lock is held and
@@ -268,12 +247,7 @@ struct VulkanBackend::Impl {
     using RecordingLease = decltype(surfaces)::SurfaceLease;
 
     void pin_recording_leases(
-        std::span<const runtime::RenderSurfaceHandle> handles) {
-        // Surface domain only: this is the whole point of the N4 decoupling —
-        // the recording path never takes it together with the submission ring.
-        DomainLock store_lock(*this, LockDomain::Surface);
-        pin_recording_leases_locked(handles);
-    }
+        std::span<const runtime::RenderSurfaceHandle> handles);
 
     /// Which contention domain(s) a lock site takes. `Dual` is the coupling
     /// the audit N4 measurement is about: two independent domains serialized
@@ -323,36 +297,9 @@ struct VulkanBackend::Impl {
         std::chrono::steady_clock::time_point hold_start_{};
     };
 
-    void record_lock_wait(LockDomain domain, std::uint64_t microseconds) noexcept {
-        switch (domain) {
-            case LockDomain::Surface:
-                ++stats.surface_lock_acquires;
-                stats.surface_lock_wait_us += microseconds;
-                return;
-            case LockDomain::Submission:
-                ++stats.submission_lock_acquires;
-                stats.submission_lock_wait_us += microseconds;
-                return;
-            case LockDomain::Dual:
-                ++stats.dual_lock_acquires;
-                stats.dual_lock_wait_us += microseconds;
-                return;
-        }
-    }
+    void record_lock_wait(LockDomain domain, std::uint64_t microseconds) noexcept;
 
-    void record_lock_hold(LockDomain domain, std::uint64_t microseconds) noexcept {
-        switch (domain) {
-            case LockDomain::Surface:
-                stats.surface_lock_hold_us += microseconds;
-                return;
-            case LockDomain::Submission:
-                stats.submission_lock_hold_us += microseconds;
-                return;
-            case LockDomain::Dual:
-                stats.dual_lock_hold_us += microseconds;
-                return;
-        }
-    }
+    void record_lock_hold(LockDomain domain, std::uint64_t microseconds) noexcept;
 
     /// Recording mutex MUST be held. Reverse the first `count` valid entries of
     /// `handles` — i.e. drop exactly the references a failed
@@ -363,15 +310,7 @@ struct VulkanBackend::Impl {
     /// to an enclosing plan batch and unpin a slot it still records into.
     void rollback_pins_locked(
         std::span<const runtime::RenderSurfaceHandle> handles,
-        std::size_t count) {
-        std::size_t undone = 0;
-        for (const auto handle : handles) {
-            if (undone == count) break;
-            if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
-            release_lease_entry_locked(handle);
-            ++undone;
-        }
-    }
+        std::size_t count);
 
     /// Store lock MUST be held (the batch transitions already hold it).
     ///
@@ -379,90 +318,24 @@ struct VulkanBackend::Impl {
     /// exactly one reference count, so a list that repeats a handle (e.g.
     /// composite(h, h)) is balanced by releasing the same list.
     void pin_recording_leases_locked(
-        std::span<const runtime::RenderSurfaceHandle> handles) {
-        std::lock_guard pin_lock(recording_leases_mutex);
-        std::size_t processed = 0;
-        try {
-            for (const auto handle : handles) {
-                if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
-                auto it = recording_leases.find(handle);
-                if (it == recording_leases.end()) {
-                    it = recording_leases
-                             .emplace(handle, std::make_pair(
-                                                  surfaces.acquire_lease(handle),
-                                                  std::size_t{0}))
-                             .first;
-                }
-                ++it->second.second;
-                ++processed;
-            }
-        } catch (...) {
-            // A handle whose lease cannot be taken must not leave the earlier
-            // pins of this call behind, or prune and re-materialization would be
-            // wedged forever. The unwind loop lives in rollback_pins_locked()
-            // so this error path carries no loop of its own.
-            rollback_pins_locked(handles, processed);
-            recording_leases_active.store(!recording_leases.empty(),
-                                          std::memory_order_release);
-            throw;
-        }
-        recording_leases_active.store(!recording_leases.empty(),
-                                      std::memory_order_release);
-    }
+        std::span<const runtime::RenderSurfaceHandle> handles);
 
     void release_recording_leases(
-        std::span<const runtime::RenderSurfaceHandle> handles) {
-        DomainLock store_lock(*this, LockDomain::Surface);
-        release_recording_leases_locked(handles);
-    }
+        std::span<const runtime::RenderSurfaceHandle> handles);
 
     /// Store lock MUST be held. Symmetric counterpart of
     /// pin_recording_leases_locked(handles): one release per list element.
     void release_recording_leases_locked(
-        std::span<const runtime::RenderSurfaceHandle> handles) {
-        std::lock_guard pin_lock(recording_leases_mutex);
-        for (const auto handle : handles) {
-            if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
-            release_lease_entry_locked(handle);
-        }
-        recording_leases_active.store(!recording_leases.empty(),
-                                      std::memory_order_release);
-    }
+        std::span<const runtime::RenderSurfaceHandle> handles);
 
     /// recording_leases_mutex MUST be held.
-    void release_lease_entry_locked(runtime::RenderSurfaceHandle handle) {
-        const auto it = recording_leases.find(handle);
-        if (it == recording_leases.end()) return;
-        if (it->second.second > 1) {
-            --it->second.second;
-            return;
-        }
-        surfaces.release_lease(it->second.first);
-        recording_leases.erase(it);
-    }
+    void release_lease_entry_locked(runtime::RenderSurfaceHandle handle);
 
-    void release_all_recording_leases() {
-        DomainLock store_lock(*this, LockDomain::Surface);
-        release_all_recording_leases_locked();
-    }
+    void release_all_recording_leases();
 
     /// Store lock MUST be held. Drops one reference from every entry: used by
     /// the batch end to release the plan-wide lease set.
-    void release_all_recording_leases_locked() {
-        std::lock_guard pin_lock(recording_leases_mutex);
-        for (auto it = recording_leases.begin();
-             it != recording_leases.end();) {
-            if (it->second.second > 1) {
-                --it->second.second;
-                ++it;
-                continue;
-            }
-            surfaces.release_lease(it->second.first);
-            it = recording_leases.erase(it);
-        }
-        recording_leases_active.store(!recording_leases.empty(),
-                                      std::memory_order_release);
-    }
+    void release_all_recording_leases_locked();
 
     /// True while THIS thread is inside a recording fn() whose surface-store
     /// lock has been released, so resolve_image() must read the lease table
@@ -472,10 +345,7 @@ struct VulkanBackend::Impl {
     /// to the backend. Another thread parked in download_surface() still holds
     /// the store lock and must keep reading the store even while plan-wide
     /// leases are pinned.
-    [[nodiscard]] static bool& recording_resolve_context() noexcept {
-        static thread_local bool value = false;
-        return value;
-    }
+    [[nodiscard]] static bool& recording_resolve_context() noexcept;
 
     /// RAII flag for the recording window; nests by saving the previous value.
     struct RecordingResolveScope {
@@ -489,25 +359,12 @@ struct VulkanBackend::Impl {
     };
 
     /// Lock-free lease lookup used by resolve_image() while recording.
-    [[nodiscard]] Image* leased_image(runtime::RenderSurfaceHandle handle) {
-        if (!recording_leases_active.load(std::memory_order_acquire)) {
-            return nullptr;
-        }
-        std::lock_guard pin_lock(recording_leases_mutex);
-        const auto it = recording_leases.find(handle);
-        return it == recording_leases.end() ? nullptr : it->second.first.image;
-    }
+    [[nodiscard]] Image* leased_image(runtime::RenderSurfaceHandle handle);
 
     /// Generation-token revalidation, run between the state lookup and the
     /// ring registration. False means a leased slot changed underneath the
     /// op — a pin-enforcement bug that must fail loudly, never record on.
-    [[nodiscard]] bool revalidate_recording_leases() const {
-        std::lock_guard pin_lock(recording_leases_mutex);
-        for (const auto& entry : recording_leases) {
-            if (!surfaces.revalidate(entry.second.first)) return false;
-        }
-        return true;
-    }
+    [[nodiscard]] bool revalidate_recording_leases() const;
 
     VulkanSubmissionRing& frame_batch;
     bool& command_batch_active{submission_ring.command_batch_active};

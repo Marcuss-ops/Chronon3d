@@ -135,6 +135,7 @@ target_sources(chronon3d_cli_render PRIVATE
     utils/video/video_job_dry_run.cpp
     utils/video/video_job_execute_options.cpp
     utils/video/video_job_execute_dispatch.cpp
+    utils/video/video_job_time_rescale.cpp
 )
 set_target_properties(chronon3d_cli_render PROPERTIES UNITY_BUILD OFF)
 set_source_files_properties(

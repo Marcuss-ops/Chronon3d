@@ -17,7 +17,12 @@ add_library(chronon3d_cli_render STATIC
     commands/render/command_inspect_plan.cpp
     commands/render/command_script.cpp
     commands/render/command_scopes.cpp
+    commands/render/scope_analysis_detail.cpp
     commands/render/command_mask_propagate.cpp
+    commands/render/command_mask_propagate_frame_io.cpp
+    commands/render/command_mask_propagate_video_output.cpp
+    commands/render/command_mask_propagate_support.cpp
+    commands/render/command_mask_segment.cpp
     commands/render/command_ocio_bake_lut.cpp
     utils/job/render_job.cpp
     utils/job/render_job_setup.cpp

@@ -41,6 +41,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     # ── TICKET-011a follow-up #1 — RenderPipeline typed facade over
     #    graph::render_scene_via_graph / graph::render_composition_frame.
     render_pipeline.cpp
+    render_pipeline_batch.cpp
     # ── TICKET-ASSET-PREP-BARRIER — ResourcePreparation 5-phase
     #    barrier (font-load / image-decode / video-metadata / audio-index
     #    / layout-preparation).  Stateless helper that bridges the gap
