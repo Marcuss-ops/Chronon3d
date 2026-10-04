@@ -82,8 +82,10 @@ the full software/GPU effect corpus passes on the same SHA.
   native route.
 - Echo now uses job-owned, frame-addressed Vulkan surface history and weighted
   premultiplied source-over, including as an ordered stack stage. Local fixtures
-  cover exact frame/key lookup, reset, no-readback surface copies, and two-frame
-  graph output values. The capability census now reports 15 native routes.
+  cover exact frame/key lookup, reset, no-readback surface copies, two-frame
+  graph output values, direct comparison against the registered software
+  processor for every output channel, and a fixed second-frame display-space
+  framehash. The capability census now reports 15 native routes.
 - After Echo and uniform-scale stroke parity changes, CTest passed the Vulkan
   backend-registry, render-graph, and Vulkan debug-context suites on llvmpipe.
   The focused Echo/history run passed 2 cases / 48 assertions; the expanded
