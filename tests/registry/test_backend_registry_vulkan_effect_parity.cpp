@@ -166,7 +166,9 @@ VulkanRun vulkan_strict_stack(const EffectStack& stack) {
     return run;
 }
 
-VulkanRun vulkan_strict_adjustment_stack(const EffectStack& stack) {
+VulkanRun vulkan_strict_adjustment_stack(
+    const EffectStack& stack,
+    std::optional<raster::BBox> input_bbox = std::nullopt) {
     backends::vulkan::VulkanBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
     RenderGraphContext ctx;
@@ -179,7 +181,8 @@ VulkanRun vulkan_strict_adjustment_stack(const EffectStack& stack) {
     auto source = make_source();
     AdjustmentNode node(stack);
     const std::array<FramebufferRef, 1> inputs{source.get()};
-    const auto result = node.execute(ctx, inputs, {});
+    const std::array<std::optional<raster::BBox>, 1> bboxes{input_bbox};
+    const auto result = node.execute(ctx, inputs, bboxes);
     VulkanRun run;
     if (!result.ok()) {
         run.error = result.error().message;
@@ -536,12 +539,31 @@ TEST_CASE("Strict Vulkan AdjustmentNode preserves keying order") {
     CHECK(order_changes_output);
 }
 
-TEST_CASE("Strict Vulkan AdjustmentNode rejects unsupported spatial stacks") {
+TEST_CASE("Strict Vulkan AdjustmentNode preserves extent for ordered blur stacks") {
+    auto expected = *make_source();
+    auto blur = renderer::create_blur_effect_processor();
+    auto invert = renderer::create_invert_effect_processor();
+    effects::EffectExecutionContext context{};
+    blur->apply(expected, BlurParams{.radius = 1.25f}, context);
+    invert->apply(expected, InvertParams{.amount = 0.3f}, context);
+
     EffectStack stack;
-    stack.emplace_back(BlurParams{.radius = 2.0f});
-    const auto result = vulkan_strict_adjustment_stack(stack);
-    CHECK_FALSE(result.ok);
-    CHECK(result.error.find("fixed-extent route") != std::string::npos);
+    stack.emplace_back(BlurParams{.radius = 1.25f});
+    stack.emplace_back(InvertParams{.amount = 0.3f});
+    const auto actual = vulkan_strict_adjustment_stack(
+        stack, raster::BBox{0, 0, kW, kH});
+    INFO("strict Vulkan adjustment error: " << actual.error);
+    REQUIRE(actual.ok);
+    REQUIRE(actual.pixels.size() == static_cast<std::size_t>(kW * kH * 4));
+    for (int y = 0; y < kH; ++y)
+        for (int x = 0; x < kW; ++x) {
+            const Color color = expected.get_pixel(x, y);
+            const float channels[]{color.r, color.g, color.b, color.a};
+            const auto index = static_cast<std::size_t>((y * kW + x) * 4);
+            for (int channel = 0; channel < 4; ++channel)
+                CHECK(actual.pixels[index + static_cast<std::size_t>(channel)] ==
+                      doctest::Approx(channels[channel]).epsilon(kTolerance));
+        }
 }
 
 TEST_CASE("Strict Vulkan preserves keying order inside native effect stacks") {
