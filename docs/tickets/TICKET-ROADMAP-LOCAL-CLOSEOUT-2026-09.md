@@ -60,28 +60,21 @@ hardware, assets, or remote CI remain open below.
   PTS. Source VFR support does not constitute VFR output support; output VFR is
   not exposed and remains deferred. CFR remains the only/default output mode.
 
-## Stroke parity status — OPEN / unverified
+## Stroke parity status — LOCAL PIXEL PARITY; HARDWARE OPEN
 
-The CPU shape rasterizer defines strokes through alignment-specific outer/inner
-hit tests, `spread`, clip/mask checks, fill-over-stroke precedence, and hard
-binary coverage at inverse-transformed pixel centers. The working tree contains an SDF-based Vulkan stroke shader candidate in
-`fill_rect.comp`. The native shape dispatcher now fails closed for enabled
-Rect/RoundedRect/Circle strokes until the candidate has pixel parity; the
-backend has no implicit CPU fallback. The fixed smooth coverage and
-fill/stroke handling have not been validated against the CPU pixel contract.
+The solid Rect, RoundedRect and Circle Vulkan stroke route now has a software
+pixel oracle for all three alignments, translated geometry, clipping, fill and
+stroke opacity, and uniform scales 0.75x, 1x, 1.25x and 2x. Coverage is computed
+in inverse-transformed local coordinates using the same inverse matrix
+coefficients as the CPU rasterizer; the local Vulkan test passes 884,916 pixel
+channel assertions on llvmpipe. Non-uniform scale, rotation, masks and
+per-corner rounded-rectangle strokes remain unsupported and fail closed.
 
-The Vulkan dispatch contract in `test_vulkan_debug_context.cpp` now expects
-all nine enabled closed-shape stroke cases to return `UnsupportedCapability`;
-the source dispatcher has been returned to that fail-closed boundary. The
-previously recorded doctest results predate this reconciliation and do not
-verify the current tree. The test also had a post-doctest
-`free(): invalid pointer` teardown abort, which remains unresolved.
-
-Acceptance remains open until the candidate is reconciled with the intended
-fail-closed policy and covered by a software-versus-Vulkan pixel parity oracle
-for each primitive/alignment, including fill/stroke precedence, opacity and
-clipping. Rebuild and rerun the updated dispatch/parity tests after that source
-state is settled; GPU hardware certification is a separate external gate.
+The nine shape/alignment combinations in `test_vulkan_debug_context.cpp` use
+the certified solid-stroke subset. On 2026-10-04, `chronon3d_vulkan_debug_context_tests`
+also passed after rebuilding; this rerun did not reproduce the previously
+reported teardown abort. GPU hardware certification is a separate external
+gate.
 
 ## Current-tree verification status — VERIFIED (2026-09-25)
 
