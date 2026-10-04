@@ -125,6 +125,12 @@ again completed without runner allocation (`runner_id=0`, no steps) and carried
 the same billing annotation. The tested commit is `main`/`origin/main`; remote
 GPU-host certification remains pending until Actions can allocate a runner.
 
+After adding the native Vignette stage, commit
+`584e085472f045e4cb5139e3da560acf978d2a77` was also pushed to `main`. Its
+`Vulkan-gated unit suites` job (run `37217448778`, job `111480751356`) has
+`runner_id=0`, no steps, and the same account-billing annotation. Local
+llvmpipe tests pass, but this run provides no GPU-host evidence.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
