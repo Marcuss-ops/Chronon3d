@@ -131,6 +131,17 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
         out.honors_clip = true;
         return out;
     }
+    case effects::EffectType::Vignette: {
+        const auto* p = std::get_if<VignetteParams>(&instance.params);
+        if (!p || !finite_all({p->radius, p->softness, p->amount,
+                               p->color.r, p->color.g, p->color.b}))
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::Vignette;
+        out.transform.p[0] = {p->radius, p->softness, p->amount, p->color.r};
+        out.transform.p[1] = {p->color.g, p->color.b, 0.0f, 0.0f};
+        out.honors_clip = true;
+        return out;
+    }
     case effects::EffectType::Levels: {
         const auto* p = std::get_if<LevelsParams>(&instance.params);
         if (!p) return std::nullopt;

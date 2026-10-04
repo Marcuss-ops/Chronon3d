@@ -3,8 +3,9 @@
 ## Stato
 
 OPEN — software exposes 47 effect types; strict Vulkan has native dispatch
-routes for 15 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast, Saturation,
-HueRotate, Invert, Exposure, Fill, Levels, Threshold, Keying) and explicitly rejects DropShadow.
+routes for 16 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast,
+Saturation, HueRotate, Invert, Exposure, Fill, Levels, Threshold, Keying,
+Vignette, Echo) and explicitly rejects DropShadow.
 All remaining types are unsupported on this capability surface and fail closed. No CPU fallback
 is allowed for a strict GPU request.
 
@@ -78,7 +79,9 @@ the full software/GPU effect corpus passes on the same SHA.
   software oracle, and the outputs differ as expected (259 assertions).
   Echo → non-identity Brightness also matches the software golden for both
   frames, confirming a temporal stage followed by a substantive native color
-  stage.
+  stage. Vignette now lowers through the same color-matrix dispatch, with
+  software/Vulkan pixel parity across parameter cases and clip coverage; a
+  three-stage Brightness → Vignette → Invert stack matches the software result.
   Unsupported effects and the full catalog are not certified.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
@@ -95,7 +98,7 @@ the full software/GPU effect corpus passes on the same SHA.
   cover exact frame/key lookup, reset, no-readback surface copies, two-frame
   graph output values, direct comparison against the registered software
   processor for every output channel, and a fixed second-frame display-space
-  framehash. The capability census now reports 15 native routes.
+  framehash. The capability census now reports 16 native routes.
 - After Echo/keying framehash additions and rotated stroke parity changes,
   CTest passed the Vulkan backend-registry, render-graph, and Vulkan
   debug-context suites on llvmpipe (3/3); backend-registry was rerun after the
