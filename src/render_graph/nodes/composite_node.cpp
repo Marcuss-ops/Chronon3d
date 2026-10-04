@@ -40,11 +40,11 @@ namespace {
 bool try_native_affine_composite(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source, const std::optional<raster::BBox>& clip) {
-    if (!ctx.backend || !ctx.surface_registry ||
-        (source.width() == destination.width() &&
-         source.height() == destination.height() &&
-         source.origin_x() == destination.origin_x() &&
-         source.origin_y() == destination.origin_y())) {
+    if (!ctx.backend || !ctx.surface_registry) return false;
+    if (source.width() == destination.width() &&
+        source.height() == destination.height() &&
+        source.origin_x() == destination.origin_x() &&
+        source.origin_y() == destination.origin_y()) {
         return false;
     }
     const auto original_destination = destination.surface_handle();
@@ -123,6 +123,10 @@ bool try_native_affine_composite(
         destination.surface_handle(), source_handle, transform);
     if (source_copy) release_native_surface(ctx, *source_copy);
     if (!composited.ok()) {
+        spdlog::error(
+            "[native-composite] affine operation failed: [{}] {}",
+            chronon3d::graph::render_backend_error_code_name(composited.error().code),
+            composited.error().message);
         if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
             release_native_surface(ctx, destination);
         }
@@ -138,7 +142,9 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
     // Vulkan's surface compositor supports both the ordinary source-over
     // path and additive overlays. Keeping Add on the CPU fallback would call
     // composite_layer(), whose legacy contract intentionally rejects it.
-    if ((mode != BlendMode::Normal && mode != BlendMode::Add) ||
+    if ((mode != BlendMode::Normal && mode != BlendMode::Add &&
+         mode != BlendMode::Multiply && mode != BlendMode::Screen &&
+         mode != BlendMode::Overlay) ||
         op != CompositeOperator::SourceOver ||
         source.width() != destination.width() ||
         source.height() != destination.height() ||
@@ -163,6 +169,10 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
     if (result.ok()) {
         return true;
     }
+    spdlog::error(
+        "[native-composite] surface operation failed: [{}] {}",
+        chronon3d::graph::render_backend_error_code_name(result.error().code),
+        result.error().message);
     if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
         release_native_surface(ctx, destination);
     }
@@ -296,7 +306,10 @@ void publish_dof_provenance(
     const std::optional<raster::BBox>& clip,
     i32 framebuffer_width, i32 framebuffer_height) {
     auto& dof_depth = ctx.node_exec.dof_depth_buffer();
-    if (dof_depth.empty()) return;
+    if (dof_depth.empty() || !surface.is_cpu_authoritative() ||
+        surface.data() == nullptr) {
+        return;
+    }
     const i32 w = framebuffer_width;
     const i32 bx0 = clip ? clip->x0 : 0;
     const i32 by0 = clip ? clip->y0 : 0;
@@ -306,6 +319,7 @@ void publish_dof_provenance(
         const i32 sy = y - surface.origin_y();
         if (sy < 0 || sy >= surface.height()) continue;
         const Color* row = surface.pixels_row(sy);
+        if (row == nullptr) continue;
         for (i32 x = bx0; x < bx1; ++x) {
             const i32 sx = x - surface.origin_x();
             if (sx < 0 || sx >= surface.width() || row[sx].a <= 0.01f) continue;
@@ -473,9 +487,11 @@ NodeExecResult CompositeNode::execute(
     }
 
     // Skip-opaque optimization — only applies to SourceOver + Normal blend
-    if (top && m_operator == CompositeOperator::SourceOver &&
+    if (!ctx.policy.require_native_gpu &&
+        top && m_operator == CompositeOperator::SourceOver &&
         m_mode == BlendMode::Normal && top->is_opaque() &&
         top->is_cpu_authoritative() &&
+        top->data() != nullptr &&
         input_bboxes.size() >= 2 && input_bboxes[1].has_value())
     {
         const auto& tb = *input_bboxes[1];

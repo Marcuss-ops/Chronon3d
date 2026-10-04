@@ -103,7 +103,9 @@ void VulkanMemoryManager::initialize(
     std::vector<VkExternalMemoryHandleTypeFlags> external_types(props.memoryTypeCount, 0);
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     for (uint32_t i = 0; i < props.memoryTypeCount; ++i) {
-        if (props.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+        const auto flags = props.memoryTypes[i].propertyFlags;
+        if ((flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0 &&
+            (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == 0) {
             external_types[i] = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
         }
     }

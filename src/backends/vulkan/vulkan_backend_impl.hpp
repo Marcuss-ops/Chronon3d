@@ -180,7 +180,12 @@ struct VulkanBackend::Impl {
     VulkanUploadRing uploads{};
     VulkanBufferAllocation& staging{uploads.staging};
 
-    static constexpr std::size_t kGlyphInstancePassesPerSlot = 64;
+    // Text can contribute several upload passes per visible layer (glyph
+    // surface, selector and run metadata). Keep its per-frame ring aligned
+    // with the compiled graph's 256-pass budget so documentary sequences with
+    // many native text layers do not exhaust the upload slots before graph
+    // execution reaches the later composite levels.
+    static constexpr std::size_t kGlyphInstancePassesPerSlot = 256;
     static constexpr std::size_t kGlyphInstanceRingSize =
         FrameBatchState::kSlotCount * kGlyphInstancePassesPerSlot;
     std::array<VulkanBufferAllocation, kGlyphInstanceRingSize> glyph_instance_buffers{};

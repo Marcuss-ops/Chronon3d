@@ -17,6 +17,7 @@ prepared plate, so a caller can never render garbage - only slow down.
 from __future__ import annotations
 
 import math
+import time
 
 import cv2
 import numpy as np
@@ -39,6 +40,13 @@ class FastPlateSampler:
         # the allocator churn is gone. Three slots: resize lo, resize hi,
         # blend (the blend reads slots 0 and 1 and writes slot 2).
         self._scratch: dict[tuple[int, int], list[np.ndarray]] = {}
+        self.prepare_telemetry = {
+            "prepare_ms": 0.0,
+            "plate_compose_ms": 0.0,
+            "plate_count": 0,
+            "plate_bytes": 0,
+            "required_tile_count": 0,
+        }
         # Honest telemetry: frames a worker had to serve from the slow
         # engine because a window left a prepared plate. The harness
         # aggregates the per-block deltas into a run total; 0 means every
@@ -50,44 +58,119 @@ class FastPlateSampler:
     MAX_PLATE_H = 5400   # far-apart anchors costs more RAM than it saves
 
     def prepare(self, anchors, z_min: int, z_max: int) -> None:
-        """Compose the union plate of every level, covering all anchors.
+        """Prefetch exact plate coverage, then compose each plate once.
 
         A level whose union extent would exceed the plate budget (anchors
-        kilometres apart at fine zooms) is simply not prepared: sample()
-        falls back to the engine for it, which is slow-but-correct instead of
-        fast-but-swapped.
+        kilometres apart at fine zooms) gets one plate per anchor. The exact
+        tile set is computed before composition and fetched concurrently, so
+        `_compose_px` never performs network I/O in its nested pixel/tile loop.
         """
         from dynamic_tile_pyramid import latlon_to_global_px
 
+        if not anchors:
+            raise ValueError("FastPlateSampler.prepare requires at least one geographic anchor")
+        if z_min < 0 or z_max < z_min:
+            raise ValueError(f"invalid prepared zoom range {z_min}..{z_max}")
+        prepare_started = time.perf_counter()
+        self.plates.clear()
+        self.prepare_telemetry = {
+            "prepare_ms": 0.0,
+            "plate_compose_ms": 0.0,
+            "plate_count": 0,
+            "plate_bytes": 0,
+            "required_tile_count": 0,
+        }
         self.z_min, self.z_max = int(z_min), int(z_max)
-        # Worst case per level: a caller may sample the OVERSIZE warp canvas
-        # (1.5x the delivery canvas) and this level may serve as the cross-
-        # fade's high layer, which doubles the span again: 1.5 x 2 = 3x the
-        # canvas (+ the engine's +4). A 2x extent here silently breaks the
-        # warp-phase crops and falls back to the slow engine every frame.
         ext_w = 3 * self.W + 8
         ext_h = 3 * self.H + 8
+        specs: dict[int, list[tuple[float, float, int, int]]] = {}
+        required_tiles: set[tuple[int, int, int]] = set()
+
+        # First plan every plate and union its exact tile footprint. This is
+        # the same half-open tile range consumed below by _compose_px.
         for z in range(self.z_min, self.z_max + 1):
             pts = [latlon_to_global_px(lat, lon, z) for lat, lon in anchors]
             xs = [x for x, _ in pts]
             ys = [y for _, y in pts]
             w = int(math.ceil(max(xs) - min(xs))) + ext_w
             h = int(math.ceil(max(ys) - min(ys))) + ext_h
-            entries = []
             if w <= self.MAX_PLATE_W and h <= self.MAX_PLATE_H:
                 cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
-                left, top = cx - w / 2, cy - h / 2
-                entries.append((left, top, self._compose_px(left, top, w, h, z)))
+                plate_specs = [(cx - w / 2, cy - h / 2, w, h)]
             else:
-                # Far-apart anchors: one plate per anchor, so a multi-place
-                # tour still runs the fast path (each stop crops its own
-                # plate; only a window straddling two anchors falls back).
-                for ax, ay in pts:
-                    left, top = ax - ext_w / 2, ay - ext_h / 2
-                    entries.append((left, top,
-                                    self._compose_px(left, top, ext_w, ext_h, z)))
+                plate_specs = [(ax - ext_w / 2, ay - ext_h / 2, ext_w, ext_h)
+                               for ax, ay in pts]
+            specs[z] = plate_specs
+            world_tiles = 2 ** z
+            for left, top, width, height in plate_specs:
+                min_tx = math.floor(left / 256.0)
+                max_tx = math.ceil((left + width) / 256.0)
+                min_ty = max(0, math.floor(top / 256.0))
+                max_ty = min(world_tiles, math.ceil((top + height) / 256.0))
+                for tile_y in range(min_ty, max_ty):
+                    for tile_x in range(min_tx, max_tx):
+                        required_tiles.add((z, tile_x % world_tiles, tile_y))
+
+        prefetch = self.pyr.prefetch_tiles(required_tiles)
+        if prefetch["fetched"] + prefetch["memory_hits"] != len(required_tiles):
+            raise RuntimeError("tile prefetch result does not cover the exact required plate set")
+        self.prepare_telemetry["required_tile_count"] = len(required_tiles)
+        self.prepare_telemetry["prefetch_ms"] = float(prefetch["elapsed_ms"])
+        self.prepare_telemetry["prefetch_tiles_fetched"] = int(prefetch["fetched"])
+        self.prepare_telemetry["prefetch_tiles_memory_hits"] = int(prefetch["memory_hits"])
+
+        compose_started_all = time.perf_counter()
+        for z, plate_specs in specs.items():
+            entries = []
+            for left, top, width, height in plate_specs:
+                plate = self._compose_px(left, top, width, height, z)
+                entries.append((left, top, plate))
+                self.prepare_telemetry["plate_count"] += 1
+                self.prepare_telemetry["plate_bytes"] += plate.nbytes
             if entries:
                 self.plates[z] = entries
+        self.prepare_telemetry["plate_compose_ms"] = (time.perf_counter() - compose_started_all) * 1000.0
+        self.prepare_telemetry["prepare_ms"] = (time.perf_counter() - prepare_started) * 1000.0
+
+    def can_sample(self, lat: float, lon: float, zoom: float,
+                   width: int | None = None, height: int | None = None) -> bool:
+        """Check crop coverage without rendering pixels or triggering tile I/O."""
+        from dynamic_tile_pyramid import latlon_to_global_px
+
+        W = self.W if width is None else int(width)
+        H = self.H if height is None else int(height)
+        z_lo = int(math.floor(zoom))
+        if not (self.z_min <= z_lo <= self.z_max):
+            return False
+        t = zoom - z_lo
+        w_lo = int(round(W / (2.0 ** t))) + 4
+        h_lo = int(round(H / (2.0 ** t))) + 4
+        if self._crop(z_lo, latlon_to_global_px(lat, lon, z_lo), w_lo, h_lo) is None:
+            return False
+        if t * t * (3.0 - 2.0 * t) <= 0.001 or z_lo + 1 > self.z_max:
+            return True
+        scale_hi = 2.0 ** (t - 1.0)
+        w_hi = int(round(W / scale_hi)) + 4
+        h_hi = int(round(H / scale_hi)) + 4
+        return self._crop(z_lo + 1, latlon_to_global_px(lat, lon, z_lo + 1),
+                          w_hi, h_hi) is not None
+
+    def required_tile_keys(self) -> set[tuple[int, int, int]]:
+        """Return exact Mercator tile coverage of every prepared raster plate."""
+        keys = set()
+        for zoom, entries in self.plates.items():
+            world_tiles = 2 ** zoom
+            for left, top, plate in entries:
+                right = left + plate.shape[1]
+                bottom = top + plate.shape[0]
+                min_tx = math.floor(left / 256.0)
+                max_tx = math.ceil(right / 256.0)
+                min_ty = max(0, math.floor(top / 256.0))
+                max_ty = min(world_tiles, math.ceil(bottom / 256.0))
+                for tile_y in range(min_ty, max_ty):
+                    for tile_x in range(min_tx, max_tx):
+                        keys.add((zoom, tile_x % world_tiles, tile_y))
+        return keys
 
     def _compose_px(self, left: float, top: float, width: int, height: int,
                     zoom: int) -> np.ndarray:
@@ -113,6 +196,7 @@ class FastPlateSampler:
                 key = (zoom, tx % max_idx, ty)
                 tile = self.pyr.tile_cache.get(key)
                 if tile is None:
+                    self.pyr.record_telemetry("late_tile_fetches")
                     _, tile = self.pyr._fetch_single_tile(zoom, tx, ty)
                     self.pyr.tile_cache[key] = tile
                 hs = min(dy1 - dy0, sy1 - sy0)

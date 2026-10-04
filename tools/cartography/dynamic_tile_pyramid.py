@@ -19,7 +19,8 @@ import time
 import json
 import urllib.request
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from threading import Lock, get_ident
 import numpy as np
 
 # OpenCV accelerates the resample/blend path but is optional on purpose: the
@@ -56,6 +57,15 @@ if cv2 is None:
             from PIL import Image
             try:
                 return np.asarray(Image.open(path).convert("RGB"))[:, :, ::-1].copy()
+            except Exception:
+                return None
+
+        @staticmethod
+        def imdecode(raw, _flags=1):
+            from io import BytesIO
+            from PIL import Image
+            try:
+                return np.asarray(Image.open(BytesIO(raw)).convert("RGB"))[:, :, ::-1].copy()
             except Exception:
                 return None
 
@@ -143,8 +153,32 @@ class DynamicTilePyramid:
         self.url_template = TILE_URLS.get(provider, TILE_URLS["esri_sat"])
         self.tile_cache = {}  # In-memory RAM cache for fast composition
         self.fallback_tile_count = 0
+        self._cache_io_lock = Lock()
+        # Per-instance counters: they are included in the dynamic-map render
+        # summary so tile fetches, plate preparation and frame production are
+        # separately attributable. Fetches run in a thread pool, so updates
+        # share one small lock rather than relying on incidental GIL behavior.
+        self.telemetry = {
+            "tile_disk_cache_hits": 0,
+            "tile_disk_cache_misses": 0,
+            "tile_network_fetches": 0,
+            "tile_fallbacks": 0,
+            "tile_bytes_downloaded": 0,
+            "tile_fetch_ms": 0.0,
+            "prefetch_tiles_requested": 0,
+            "prefetch_tiles_memory_hits": 0,
+            "prefetch_ms": 0.0,
+            "late_tile_fetches": 0,
+        }
+        self._telemetry_lock = Lock()
+
+    def record_telemetry(self, name: str, value: int | float = 1) -> None:
+        """Thread-safe additive update of a known per-instance metric."""
+        with self._telemetry_lock:
+            self.telemetry[name] = self.telemetry.get(name, 0) + value
 
     def _fetch_single_tile(self, z: int, x: int, y: int) -> tuple[tuple[int, int, int], np.ndarray]:
+        fetch_started = time.perf_counter()
         max_idx = 2 ** z
         x = x % max_idx
         if y < 0 or y >= max_idx:
@@ -155,10 +189,14 @@ class DynamicTilePyramid:
         prov_cache.mkdir(parents=True, exist_ok=True)
         tile_path = prov_cache / f"{y}.jpg"
 
-        if tile_path.exists():
+        with self._cache_io_lock:
+            cached = tile_path.exists()
+        if cached:
             try:
                 img = cv2.imread(str(tile_path), cv2.IMREAD_COLOR)
                 if img is not None and img.shape == (256, 256, 3):
+                    self.record_telemetry("tile_disk_cache_hits")
+                    self.record_telemetry("tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
                     return (z, x, y), img
             except Exception:
                 pass
@@ -169,9 +207,14 @@ class DynamicTilePyramid:
                     pil = Image.open(tile_path).convert("RGB")
                     img = np.asarray(pil)[:, :, ::-1].copy()
                     if img.shape == (256, 256, 3):
+                        self.record_telemetry("tile_disk_cache_hits")
+                        self.record_telemetry("tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
                         return (z, x, y), img
                 except Exception:
                     pass
+            self.record_telemetry("tile_disk_cache_misses")
+        else:
+            self.record_telemetry("tile_disk_cache_misses")
 
         url = self.url_template.format(z=z, x=x, y=y)
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (ChrononDynamicPyramid/2.0)"})
@@ -179,18 +222,79 @@ class DynamicTilePyramid:
             try:
                 with urllib.request.urlopen(req, timeout=6) as resp:
                     raw = resp.read()
-                    with open(tile_path, "wb") as f:
-                        f.write(raw)
                     img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
                     if img is not None and img.shape == (256, 256, 3):
+                        with self._cache_io_lock:
+                            tile_path.parent.mkdir(parents=True, exist_ok=True)
+                            temporary_path = tile_path.with_name(f"{tile_path.name}.{os.getpid()}.{get_ident()}.tmp")
+                            temporary_path.write_bytes(raw)
+                            os.replace(temporary_path, tile_path)
+                    if img is not None and img.shape == (256, 256, 3):
+                        self.record_telemetry("tile_network_fetches")
+                        self.record_telemetry("tile_bytes_downloaded", len(raw))
+                        self.record_telemetry("tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
                         return (z, x, y), img
             except Exception:
                 time.sleep(0.1)
 
         # Fallback dark tone if network unavailable
         self.fallback_tile_count += 1
+        self.record_telemetry("tile_fallbacks")
+        self.record_telemetry("tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
         fallback = np.full((256, 256, 3), (25, 30, 40), dtype=np.uint8)
         return (z, x, y), fallback
+
+    def prefetch_tiles(self, tile_keys, max_workers: int = 12) -> dict[str, float | int]:
+        """Fetch an exact tile-key set with bounded concurrent submissions.
+
+        This is the path used by FastPlateSampler: unlike a fixed-radius warmup,
+        its input covers every tile the actual output plates will sample. At
+        most 2*max_workers futures are live, even for high-zoom/wide plates.
+        """
+        started = time.perf_counter()
+        normalized = set()
+        for z, x, y in tile_keys:
+            if z < 0:
+                raise ValueError(f"invalid tile zoom {z}")
+            max_idx = 2 ** z
+            if 0 <= y < max_idx:
+                normalized.add((z, x % max_idx, y))
+        requested = len(normalized)
+        missing = sorted(key for key in normalized if key not in self.tile_cache)
+        self.record_telemetry("prefetch_tiles_requested", requested)
+        self.record_telemetry("prefetch_tiles_memory_hits", requested - len(missing))
+        if not missing:
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            self.record_telemetry("prefetch_ms", elapsed_ms)
+            return {"requested": requested, "memory_hits": requested, "fetched": 0,
+                    "elapsed_ms": elapsed_ms}
+
+        workers = max(1, int(max_workers))
+        print(f"[DynamicTilePyramid] Prefetching exact plate coverage: {len(missing)} tiles, workers={workers}...", flush=True)
+        next_key = iter(missing)
+        fetched = 0
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            pending = {}
+            for _ in range(min(len(missing), workers * 2)):
+                key = next(next_key, None)
+                if key is None:
+                    break
+                pending[pool.submit(self._fetch_single_tile, *key)] = key
+            while pending:
+                done, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in done:
+                    pending.pop(future)
+                    key, image = future.result()
+                    self.tile_cache[key] = image
+                    fetched += 1
+                    next_item = next(next_key, None)
+                    if next_item is not None:
+                        pending[pool.submit(self._fetch_single_tile, *next_item)] = next_item
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        self.record_telemetry("prefetch_ms", elapsed_ms)
+        print(f"[DynamicTilePyramid] Exact tile prefetch complete: requested={requested} fetched={fetched} memory_hits={requested - len(missing)} elapsed_ms={elapsed_ms:.1f}.", flush=True)
+        return {"requested": requested, "memory_hits": requested - len(missing),
+                "fetched": fetched, "elapsed_ms": elapsed_ms}
 
     def prefetch_pyramid(self, center_lat: float, center_lon: float,
                          min_zoom: int = 5, max_zoom: int = 18,
@@ -204,26 +308,11 @@ class DynamicTilePyramid:
             cty = int(gy // 256)
             for dx in range(-tile_radius_x, tile_radius_x + 1):
                 for dy in range(-tile_radius_y, tile_radius_y + 1):
-                    tx = ctx + dx
-                    ty = cty + dy
-                    if (z, tx, ty) not in self.tile_cache:
-                        tasks.append((z, tx, ty))
+                    tasks.append((z, ctx + dx, cty + dy))
 
-        # A warm RAM cache makes the repeat runs of the validation suite pure
-        # composition: skip the thread pool entirely instead of re-entering
-        # _fetch_single_tile for tiles it would return from memory anyway.
-        if not tasks:
-            print(f"[DynamicTilePyramid] All {len(self.tile_cache)} requested tiles already in RAM cache.")
-            return
-
-        print(f"[DynamicTilePyramid] Prefetching {len(tasks)} tiles for z={min_zoom}..{max_zoom}...")
-        t0 = time.time()
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = [pool.submit(self._fetch_single_tile, z, x, y) for z, x, y in tasks]
-            for fut in as_completed(futures):
-                key, img = fut.result()
-                self.tile_cache[key] = img
-        print(f"[DynamicTilePyramid] Prefetch completed in {time.time() - t0:.2f}s.")
+        # Normalize x before cache identity (Mercator wraps horizontally),
+        # then use the bounded, instrumented executor shared by plate warmup.
+        self.prefetch_tiles(tasks, max_workers=max_workers)
 
     def render_plate_at_zoom(self, center_lat: float, center_lon: float, zoom_int: int,
                             width: int = 1920, height: int = 1080) -> np.ndarray:
@@ -269,10 +358,11 @@ class DynamicTilePyramid:
                 src_x0 = int(round(x_start - tile_x0))
                 src_x1 = int(round(x_end - tile_x0))
 
-                key = (zoom_int, tx, ty)
+                key = (zoom_int, tx % (2 ** zoom_int), ty)
                 if key in self.tile_cache:
                     tile = self.tile_cache[key]
                 else:
+                    self.record_telemetry("late_tile_fetches")
                     _, tile = self._fetch_single_tile(zoom_int, tx, ty)
                     self.tile_cache[key] = tile
 
