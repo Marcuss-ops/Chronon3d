@@ -80,9 +80,11 @@ the full software/GPU effect corpus passes on the same SHA.
   (Inside alignment; pixel (12,10)), so scale parity remains open across the
   shape family rather than only at rounded corners.
 - Strict Vulkan has a regression test that Echo is rejected with a non-empty
-  error while native temporal surface history is unavailable; Echo itself is
-  still not implemented.
-- Full local Vulkan backend-registry run: 77 cases / 222,611 assertions passed
+  error while native temporal surface history is unavailable. The backend now
+  has a native weighted premultiplied source-over composite with a CPU formula
+  oracle, suitable for building decayed taps without readback; Echo history and
+  stage integration are still not implemented.
+- Full local Vulkan backend-registry run: 78 cases / 222,627 assertions passed
   on llvmpipe, including the stroke oracle, keying and stack cases. This is not
   GPU-hardware or same-SHA CI certification. Echo and remaining catalog routes
   are still unsupported.
