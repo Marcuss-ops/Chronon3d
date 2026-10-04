@@ -185,6 +185,14 @@ After adding frame-addressed Echo to strict adjustment stacks, commit
 ended before runner allocation (`runner_id=0`, no steps) with the same billing
 annotation. Hardware certification remains pending.
 
+After native Bloom stack parity landed, commit
+`39f130835260f7a27e527353938c57e7a3ba06b7` was checked in run `37227188905`.
+Both Vulkan-gated jobs ended before runner allocation (`runner_name` empty,
+steps empty) with the same account-billing annotation. The full developer-gate
+workflow (`37227188955`) had the same pre-allocation failure. These runs do
+not provide GPU-host certification; local llvmpipe remains the available
+parity evidence.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
