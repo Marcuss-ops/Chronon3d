@@ -2,9 +2,9 @@
 
 ## Stato
 
-OPEN — software exposes 47 effect types; strict Vulkan certifies 13
-native effect routes (Blur, Glow, Bloom, Tint, Brightness, Contrast, Saturation,
-HueRotate, Invert, Exposure, Fill, Levels, Threshold) and explicitly rejects DropShadow.
+OPEN — software exposes 47 effect types; strict Vulkan has native dispatch
+routes for 14 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast, Saturation,
+HueRotate, Invert, Exposure, Fill, Levels, Threshold, Keying) and explicitly rejects DropShadow.
 All remaining types are unsupported on this capability surface and fail closed. No CPU fallback
 is allowed for a strict GPU request.
 
@@ -61,6 +61,29 @@ the full software/GPU effect corpus passes on the same SHA.
   dispatch for the entire supported catalog.
 - [ ] GPU-host same-SHA certification passes; a host without GPU reports
   `NOT RUN`, not PASS.
+
+## Local progress — 2026-10-04
+
+- Keying lowers through the existing Vulkan color-matrix route. The local
+  Vulkan pixel-parity fixture covers luma/chroma, spill, matte clipping/choke,
+  garbage matte and partial clip.
+- Strict multi-effect stacks execute currently certified routes in authored
+  order through graph-owned intermediate surfaces. Both a Brightness →
+  disabled stage → Invert fixture and a Blur → Invert pixel oracle match the
+  software reference. The blur stack route uses the CPU processor's repeated
+  box-filter kernel; the existing Gaussian kernel remains unchanged for its
+  other callers. Unsupported effects and the full catalog are not certified.
+- Solid Rect, RoundedRect and Circle strokes now have a CPU/Vulkan pixel oracle
+  for all three alignments with translated geometry and clipping. Uniformly
+  scaled strokes are explicitly rejected because the rounded-corner oracle
+  found a pixel mismatch; scale parity remains open.
+- Strict Vulkan has a regression test that Echo is rejected with a non-empty
+  error while native temporal surface history is unavailable; Echo itself is
+  still not implemented.
+- Full local Vulkan backend-registry run: 77 cases / 222,611 assertions passed
+  on llvmpipe, including the stroke oracle, keying and stack cases. This is not
+  GPU-hardware or same-SHA CI certification. Echo and remaining catalog routes
+  are still unsupported.
 
 ## Demolition debt
 

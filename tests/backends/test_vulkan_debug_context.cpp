@@ -217,9 +217,8 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
         PathCommand::line_to({64.0f, 34.0f}),
         PathCommand::close()};
 
-    // Solid closed-shape strokes remain explicitly rejected by this backend
-    // until a software/Vulkan pixel-parity oracle certifies the SDF candidate.
-    // Gradients / non-uniform scale / masks are also unsupported.
+    // Solid closed-shape strokes use the certified solid SDF subset.
+    // Gradients / non-uniform scale / masks remain unsupported.
     RenderNode stroked_rounded;
     stroked_rounded.shape.set_type(ShapeType::RoundedRect);
     stroked_rounded.shape.rounded_rect().size = rounded.shape.rounded_rect().size;
@@ -271,9 +270,7 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
             }
             const auto result = backend->draw_node(
                 framebuffer, *stroked, state, camera, 96, 64);
-            REQUIRE_FALSE(result.ok());
-            CHECK(result.error().code ==
-                  graph::RenderBackendErrorCode::UnsupportedCapability);
+            REQUIRE(result.ok());
         }
     }
     backend->draw_node(framebuffer, line, state, camera, 96, 64);
@@ -285,8 +282,8 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
     backend->end_frame_batch();
 
     const auto stats = backend->stats();
-    // Basic fills/lines and the filled path take native passes; all nine
-    // closed-shape stroke cases plus the cubic-stroke Path fail closed.
+    // Basic fills/lines, the filled path and closed-shape solid strokes take
+    // native passes; only the cubic-stroke Path fails closed.
     CHECK(stats.passes_executed >= 6);
     REQUIRE(backend->release_surface(handle).ok());
 }
