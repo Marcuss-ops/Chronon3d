@@ -116,6 +116,12 @@ was not started because recent account payments failed or the spending limit
 must be increased. This records an account-level execution blocker; it is not
 test evidence and does not certify this SHA on GPU hardware.
 
+The same condition was rechecked after pushing `e87d65fe0a85abe3b04071b1d7e14abb5c0b9c3d`:
+the `Vulkan-gated unit suites` job (run `37215701067`, job `111475639697`)
+again completed without runner allocation (`runner_id=0`, no steps) and carried
+the same billing annotation. The tested commit is `main`/`origin/main`; remote
+GPU-host certification remains pending until Actions can allocate a runner.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
