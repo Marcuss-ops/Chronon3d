@@ -52,6 +52,10 @@ inline constexpr std::array<NativeRoute, 14> kNativeRoutes{{
         return {effect, GpuEffectRoute::Unsupported,
                 "Vulkan drop-shadow kernel is not implemented (software uses "
                 "box/downsampled blur with no matching native kernel)"};
+    if (effect == effects::EffectType::Echo)
+        return {effect, GpuEffectRoute::Unsupported,
+                "Vulkan Echo requires frame-addressed native surface history and "
+                "decayed multi-surface compositing; neither is implemented"};
     return {effect, GpuEffectRoute::Unsupported,
             "Vulkan native kernel for this effect is not implemented"};
 }
