@@ -210,6 +210,9 @@ TEST_CASE("Vulkan closed-shape strokes reject sheared transforms") {
     VulkanBackend backend;
     constexpr int width = 48;
     constexpr int height = 32;
+    constexpr std::array alignments{
+        StrokeAlignment::Inside, StrokeAlignment::Center,
+        StrokeAlignment::Outside};
     const auto desc = runtime::SurfaceDesc::make(
         width, height, runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
@@ -231,9 +234,12 @@ TEST_CASE("Vulkan closed-shape strokes reject sheared transforms") {
 
     Framebuffer target(width, height);
     target.set_surface_handle(handle);
-    const auto result = backend.draw_node(target, node, state, Camera{}, width, height);
-    CHECK_FALSE(result.ok());
-    CHECK(result.error().code == graph::RenderBackendErrorCode::UnsupportedCapability);
+    for (const auto alignment : alignments) {
+        node.shape.rect().stroke.alignment = alignment;
+        const auto result = backend.draw_node(target, node, state, Camera{}, width, height);
+        CHECK_FALSE(result.ok());
+        CHECK(result.error().code == graph::RenderBackendErrorCode::UnsupportedCapability);
+    }
     REQUIRE(backend.release_surface(handle).ok());
 }
 
