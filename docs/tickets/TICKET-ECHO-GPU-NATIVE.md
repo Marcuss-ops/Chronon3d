@@ -17,11 +17,14 @@ values. The backend-registry suite passes on llvmpipe.
   canvas-space bounds, and deterministic compositing order in the local path.
 - [x] Add a Vulkan graph integration test with frame-to-frame pixel assertions.
 - [x] Expose the supported native route in the exhaustive effect capability.
-- [ ] Add a stable framehash canary and direct CPU software golden comparison.
+- [x] Add a stable framehash canary and direct CPU software golden comparison
+  to the two-frame Vulkan graph fixture; every output channel is compared and
+  the second frame is checked against a fixed 8-bit sRGB FNV-1a hash.
 - [ ] Pass GPU-host same-SHA CI certification; llvmpipe is local evidence only.
 
 ## Status
 
-PARTIAL — native Vulkan Echo and local graph parity are implemented. The
-framehash/software-golden and GPU-host same-SHA gates remain open. RenderingGen
-is out of this repository and must consume the native capability.
+PARTIAL — native Vulkan Echo, local graph parity, framehash and direct software
+golden comparison are implemented. GPU-host same-SHA certification remains
+open. RenderingGen is out of this repository and must consume the native
+capability.
