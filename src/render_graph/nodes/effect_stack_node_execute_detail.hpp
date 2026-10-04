@@ -173,7 +173,8 @@ NodeExecResult EffectStackNode::execute(
             active_effects.size() > 1 && ctx.backend->supports_native_surfaces() &&
             ctx.surface_registry && echo_count <= 1;
         bool native_source_promotion_failed = false;
-        if (strict_native_stack && !native_source_available && !gpu_only_input) {
+        if ((strict_native_stack || ctx.policy.is_gpu_native_required()) &&
+            !native_source_available && !gpu_only_input) {
             // Effect expansion may allocate a CPU-less output framebuffer under
             // strict GPU policy. Promote the actual input first, so spatial
             // stages can expand/crop that native source without trying to
@@ -257,6 +258,13 @@ NodeExecResult EffectStackNode::execute(
                 ctx.surface_registry->release(current_source);
                 result->clear_surface_handle();
             }
+        } else if (native_source_promotion_failed &&
+                   ctx.policy.is_gpu_native_required()) {
+            // Never let a strict native route upload the CPU-less expanded
+            // output after source promotion failed. Return the common
+            // UnsupportedCapability result below instead of passing an empty
+            // host span into a backend upload.
+            native_handled = false;
         } else {
             native_handled = native_effects::try_native_full_frame_blur(
                 ctx, active_effects, *result, local_clip,

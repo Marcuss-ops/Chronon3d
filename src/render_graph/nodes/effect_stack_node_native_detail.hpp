@@ -35,7 +35,8 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
     const bool valid_params = std::isfinite(radius) && std::isfinite(intensity) &&
         radius >= 0.0f && radius <= 64.0f && intensity >= 0.0f && intensity <= 4.0f &&
         (!bloom_params || (std::isfinite(bloom_params->threshold) &&
-                           bloom_params->threshold >= 0.0f && bloom_params->threshold <= 1.0f)) &&
+                           bloom_params->threshold >= 0.0f && bloom_params->threshold <= 1.0f &&
+                           radius <= 10.0f)) &&
         (!glow_params || (std::isfinite(glow_params->color.r) &&
                           std::isfinite(glow_params->color.g) &&
                           std::isfinite(glow_params->color.b) &&

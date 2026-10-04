@@ -619,16 +619,24 @@ TEST_CASE("Strict Vulkan AdjustmentNode rejects glow and bloom parity gaps") {
     CHECK(bloom.error.find("fixed-extent native route") != std::string::npos);
 }
 
-TEST_CASE("Strict Vulkan Bloom threshold clears pixels below the threshold") {
+TEST_CASE("Strict Vulkan Bloom matches software across full-resolution radii") {
     auto bloom = renderer::create_bloom_effect_processor();
-    const BloomParams params{
-        .threshold = 0.32f, .radius = 0.0f, .intensity = 0.7f};
-    const auto expected = software_oracle(*bloom, params, std::nullopt);
-    const auto actual = vulkan_strict(params, std::nullopt);
-    REQUIRE(actual.ok);
-    REQUIRE(actual.pixels.size() == expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        CHECK(actual.pixels[i] == doctest::Approx(expected[i]).epsilon(kTolerance));
+    for (const float radius : {0.0f, 0.5f, 1.5f, 3.0f, 10.0f}) {
+        INFO("radius=" << radius);
+        const BloomParams params{
+            .threshold = 0.32f, .radius = radius, .intensity = 0.7f};
+        const auto expected = software_oracle(*bloom, params, std::nullopt);
+        const auto actual = vulkan_strict(params, std::nullopt);
+        INFO("strict Vulkan error: " << actual.error);
+        REQUIRE(actual.ok);
+        REQUIRE(actual.pixels.size() == expected.size());
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            CHECK(actual.pixels[i] == doctest::Approx(expected[i]).epsilon(kTolerance));
+    }
+    const auto downsampled = vulkan_strict(
+        BloomParams{.threshold = 0.32f, .radius = 10.1f, .intensity = 0.7f},
+        std::nullopt);
+    CHECK_FALSE(downsampled.ok);
 }
 
 TEST_CASE("Strict Vulkan preserves keying order inside native effect stacks") {

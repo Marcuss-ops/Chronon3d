@@ -109,11 +109,12 @@ the full software/GPU effect corpus passes on the same SHA.
   outside tolerance in each fixture); strict AdjustmentNode continues to
   reject those stacks before dispatch. Regression checks confirm both fail
   closed (4 assertions). An additional two-frame AdjustmentNode oracle now
-  covers Brightness → Echo → ChromaKey (88 channel assertions). A strict
-  full-frame Bloom probe with positive radius still crashes in
-  `VulkanBackend::Impl::upload` before the Bloom dispatch; the zero-radius
-  threshold-only case matches software (130 assertions), but this does not
-  certify blurred Bloom.
+  covers Brightness → Echo → ChromaKey (88 channel assertions). The strict
+  full-frame Bloom route promotes the original input surface before processing
+  expanded output bounds, uses the software box kernel, and matches its oracle
+  at radii 0, 0.5, 1.5, 3, and 10 (650 channel assertions); radius 10.1 fails
+  closed because the CPU route downsamples above radius 10. Bloom → Invert in
+  AdjustmentNode remains rejected because its stack parity is not certified.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
