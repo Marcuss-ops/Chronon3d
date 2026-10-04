@@ -161,6 +161,12 @@ After adding strict `AdjustmentNode` stack execution, commit
 had `runner_id=0`, no steps, and the same billing annotation; no GPU-host
 certification ran for this commit.
 
+After adding frame-addressed Echo to strict adjustment stacks, commit
+`0f1b00f9ebc992e5732af4722e69ae805e20a051` was checked as well. Its
+`Vulkan-gated unit suites` job (run `37221466498`, job `111492504050`) again
+ended before runner allocation (`runner_id=0`, no steps) with the same billing
+annotation. Hardware certification remains pending.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
