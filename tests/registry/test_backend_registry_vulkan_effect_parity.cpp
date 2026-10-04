@@ -25,6 +25,7 @@
 
 namespace chronon3d::renderer {
 std::unique_ptr<EffectProcessor> create_brightness_effect_processor();
+std::unique_ptr<EffectProcessor> create_bloom_effect_processor();
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_contrast_effect_processor();
 std::unique_ptr<EffectProcessor> create_saturation_effect_processor();
@@ -616,6 +617,18 @@ TEST_CASE("Strict Vulkan AdjustmentNode rejects glow and bloom parity gaps") {
     const auto bloom = vulkan_strict_adjustment_stack(bloom_stack);
     CHECK_FALSE(bloom.ok);
     CHECK(bloom.error.find("fixed-extent native route") != std::string::npos);
+}
+
+TEST_CASE("Strict Vulkan Bloom threshold clears pixels below the threshold") {
+    auto bloom = renderer::create_bloom_effect_processor();
+    const BloomParams params{
+        .threshold = 0.32f, .radius = 0.0f, .intensity = 0.7f};
+    const auto expected = software_oracle(*bloom, params, std::nullopt);
+    const auto actual = vulkan_strict(params, std::nullopt);
+    REQUIRE(actual.ok);
+    REQUIRE(actual.pixels.size() == expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i)
+        CHECK(actual.pixels[i] == doctest::Approx(expected[i]).epsilon(kTolerance));
 }
 
 TEST_CASE("Strict Vulkan preserves keying order inside native effect stacks") {
