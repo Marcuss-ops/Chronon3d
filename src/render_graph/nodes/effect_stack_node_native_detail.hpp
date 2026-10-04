@@ -330,9 +330,14 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     const bool partial_clip = clip && !clip_covers_result(clip, result);
     std::optional<raster::BBox> local_clip;
     if (partial_clip) {
+        const auto halo = static_cast<i32>(std::ceil(
+            effects::spatial_halo_extent(
+                effects::blur_spatial_halo(params->radius, 2))));
         local_clip = raster::BBox{
-            clip->x0 - result.origin_x(), clip->y0 - result.origin_y(),
-            clip->x1 - result.origin_x(), clip->y1 - result.origin_y()};
+            clip->x0 - halo - result.origin_x(),
+            clip->y0 - halo - result.origin_y(),
+            clip->x1 + halo - result.origin_x(),
+            clip->y1 + halo - result.origin_y()};
         local_clip->clip_to(result.width(), result.height());
     }
     const auto rounded_radius = std::max(1, static_cast<int>(std::round(params->radius)));
