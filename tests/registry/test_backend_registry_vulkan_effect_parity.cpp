@@ -485,6 +485,57 @@ TEST_CASE("Strict Vulkan AdjustmentNode composes ordered native color stages") {
         }
 }
 
+TEST_CASE("Strict Vulkan AdjustmentNode preserves keying order") {
+    auto brightness = renderer::create_brightness_effect_processor();
+    auto keying = renderer::create_keying_effect_processor();
+    const BrightnessParams brightness_params{.value = 0.18f};
+    const KeyingParams keying_params{
+        .mode = KeyingMode::Chroma,
+        .key_color = Color{0.12f, 0.48f, 0.76f, 1.0f},
+        .threshold = 0.38f,
+        .softness = 0.24f,
+        .spill = 0.17f};
+    effects::EffectExecutionContext context{};
+
+    auto expected_brightness_key = *make_source();
+    brightness->apply(expected_brightness_key, brightness_params, context);
+    keying->apply(expected_brightness_key, keying_params, context);
+    EffectStack brightness_key_stack;
+    brightness_key_stack.emplace_back(brightness_params);
+    brightness_key_stack.emplace_back(keying_params);
+    const auto brightness_key = vulkan_strict_adjustment_stack(brightness_key_stack);
+    INFO("strict Vulkan adjustment error: " << brightness_key.error);
+    REQUIRE(brightness_key.ok);
+
+    auto expected_key_brightness = *make_source();
+    keying->apply(expected_key_brightness, keying_params, context);
+    brightness->apply(expected_key_brightness, brightness_params, context);
+    EffectStack key_brightness_stack;
+    key_brightness_stack.emplace_back(keying_params);
+    key_brightness_stack.emplace_back(brightness_params);
+    const auto key_brightness = vulkan_strict_adjustment_stack(key_brightness_stack);
+    INFO("strict Vulkan adjustment error: " << key_brightness.error);
+    REQUIRE(key_brightness.ok);
+
+    bool order_changes_output = false;
+    for (int y = 0; y < kH; ++y)
+        for (int x = 0; x < kW; ++x) {
+            const auto i = static_cast<std::size_t>((y * kW + x) * 4);
+            const Color a = expected_brightness_key.get_pixel(x, y);
+            const Color b = expected_key_brightness.get_pixel(x, y);
+            const float channels_a[]{a.r, a.g, a.b, a.a};
+            const float channels_b[]{b.r, b.g, b.b, b.a};
+            for (std::size_t channel = 0; channel < 4; ++channel) {
+                CHECK(brightness_key.pixels[i + channel] ==
+                      doctest::Approx(channels_a[channel]).epsilon(kTolerance));
+                CHECK(key_brightness.pixels[i + channel] ==
+                      doctest::Approx(channels_b[channel]).epsilon(kTolerance));
+                order_changes_output |= std::abs(channels_a[channel] - channels_b[channel]) > 1e-4f;
+            }
+        }
+    CHECK(order_changes_output);
+}
+
 TEST_CASE("Strict Vulkan AdjustmentNode rejects unsupported spatial stacks") {
     EffectStack stack;
     stack.emplace_back(BlurParams{.radius = 2.0f});
