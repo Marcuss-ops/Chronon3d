@@ -118,7 +118,9 @@ the full software/GPU effect corpus passes on the same SHA.
   expanded output bounds, uses the software box kernel, and matches its oracle
   at radii 0, 0.5, 1.5, 3, and 10 (650 channel assertions); radius 10.1 fails
   closed because the CPU route downsamples above radius 10. Bloom → Invert in
-  AdjustmentNode remains rejected because its stack parity is not certified.
+  AdjustmentNode matches the software oracle at radii 0.5, 1.5, 3, and 10;
+  this is focused parity evidence for those parameters, not exhaustive Bloom
+  boundary or downsampling parity.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
