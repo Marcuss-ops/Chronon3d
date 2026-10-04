@@ -485,7 +485,19 @@ bool try_native_solid_rect(
         shape_params = Vec4{3.0f, width, 0.0f, 0.0f};
         shape_color = line.stroke.color;
     }
-    if (!is_line && !graph::native_promotion::is_axis_aligned_affine(state)) {
+    // The local-space SDF supports rotation with axis scaling. Keep shear,
+    // projected transforms and ordinary fills on their existing fail-closed
+    // paths until their pixel coverage contracts are certified.
+    const float basis_x = std::hypot(state.matrix[0][0], state.matrix[0][1]);
+    const float basis_y = std::hypot(state.matrix[1][0], state.matrix[1][1]);
+    const float basis_dot = state.matrix[0][0] * state.matrix[1][0] +
+                            state.matrix[0][1] * state.matrix[1][1];
+    const bool orthogonal_affine = std::isfinite(basis_x) &&
+        std::isfinite(basis_y) && std::isfinite(basis_dot) &&
+        basis_x > 1e-6f && basis_y > 1e-6f &&
+        std::abs(basis_dot) <= 1e-5f * basis_x * basis_y;
+    if (!is_line && (!has_stroke || !orthogonal_affine ||
+                     graph::native_promotion::is_projected(state))) {
         return false;
     }
 
@@ -493,8 +505,8 @@ bool try_native_solid_rect(
         const float sx = std::hypot(state.matrix[0][0], state.matrix[1][0]);
         const float sy = std::hypot(state.matrix[0][1], state.matrix[1][1]);
         // The software stroke contract is evaluated in inverse-transformed
-        // local coordinates. The shader applies the full inverse axis-aligned
-        // transform, so non-uniform scale preserves the CPU SDF metric too.
+        // local coordinates. The shader applies the full inverse orthogonal
+        // transform, preserving the CPU SDF metric for scale and rotation.
         if (sx <= 1e-6f || sy <= 1e-6f)
             return false;
     }
