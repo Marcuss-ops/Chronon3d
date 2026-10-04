@@ -95,7 +95,16 @@ raster::BBox compute_path_bbox(const PathShape& path, const Mat4& model, f32 spr
     f32 min_y = 1e10f;
     f32 max_x = -1e10f;
     f32 max_y = -1e10f;
-    const f32 radius = std::max(0.0f, path.stroke.width * 0.5f) + spread + 1.0f;
+    const f32 fallback_width = std::isfinite(path.stroke.width)
+        ? std::max(0.0f, path.stroke.width) : 0.0f;
+    const bool valid_brush = path.stroke.brush && path.stroke.brush->valid() &&
+        std::isfinite(path.stroke.width) && path.stroke.width >= 0.0f;
+    const f32 stroke_diameter = std::max(fallback_width,
+        valid_brush ? path.stroke.brush->size : 0.0f);
+    const f32 brush_extent = valid_brush
+        ? path.stroke.brush->maximum_extent_radius(fallback_width)
+        : std::max(0.0f, stroke_diameter * 0.5f);
+    const f32 radius = brush_extent + spread + 1.0f;
     bool empty = true;
 
     for (const auto& contour : *contours) {
@@ -154,7 +163,9 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
         ensure_mask_alpha_cache(*state, fb.width(), fb.height());
     }
 
-    const f32 radius = std::max(0.0f, path.stroke.width * 0.5f);
+    const f32 radius = path.stroke.brush && path.stroke.brush->valid()
+        ? path.stroke.brush->maximum_extent_radius(path.stroke.width)
+        : std::max(0.0f, path.stroke.width * 0.5f);
     const f32 opacity = stroke_color.a;
     const bool fill_enabled = path.fill.enabled;
 
@@ -163,16 +174,19 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     // case so the ROI isn't filled twice.
     const VectorRasterizerDebugMode vec_mode = current_vector_rasterizer_mode();
     if (fill_enabled && path.fill.type != FillType::Field2D &&
+        path.fill.type != FillType::GradientMesh &&
         vec_mode != VectorRasterizerDebugMode::Custom) {
         rasterize_path_fill_blend2d(fb, path, model, opacity, bbox, state);
     }
     const bool use_custom_fill =
         fill_enabled && (vec_mode == VectorRasterizerDebugMode::Custom ||
-                         path.fill.type == FillType::Field2D);
+                         path.fill.type == FillType::Field2D ||
+                         path.fill.type == FillType::GradientMesh);
 
     std::optional<graphics::CompiledGradient> compiled_fill;
     if (use_custom_fill && path.fill.type != FillType::Solid &&
-        path.fill.type != FillType::Field2D) {
+        path.fill.type != FillType::Field2D &&
+        path.fill.type != FillType::GradientMesh) {
         compiled_fill = graphics::compile_gradient(path.fill.gradient);
     }
 
@@ -187,19 +201,189 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     // PR5: in Blend2D mode hand the prepared contours to the BL2
     // stroker.  Cap / join / anti-aliased outline coverage come from
     // BL2; Chronon keeps colour resolution + alpha modulation.
+    // Presence selects brush semantics even for invalid in-memory profiles:
+    // invalid brush data must not silently fall back to a solid path stroke.
+    const bool has_brush = path.stroke.brush.has_value();
     const bool use_custom_stroke =
-        path.stroke.enabled && (vec_mode == VectorRasterizerDebugMode::Custom ||
+        path.stroke.enabled && !has_brush && (vec_mode == VectorRasterizerDebugMode::Custom ||
             path.stroke.taper_start != 1.0f || path.stroke.taper_end != 1.0f);
     std::optional<graphics::CompiledGradient> compiled_stroke;
     if (use_custom_stroke && path.stroke.gradient.has_value()) {
         compiled_stroke = graphics::compile_gradient(*path.stroke.gradient);
     }
-    if (path.stroke.enabled && vec_mode != VectorRasterizerDebugMode::Custom &&
+    if (path.stroke.enabled && !has_brush && vec_mode != VectorRasterizerDebugMode::Custom &&
         !use_custom_stroke) {
         rasterize_path_stroke_blend2d(
             fb, path, model, stroke_color,
             prepared_strokes.data(), prepared_strokes.size(),
             bbox, state);
+    }
+
+    // Brush dabs are rasterized into an isolated stroke layer so fill remains
+    // beneath stroke regardless of whether the brush uses the analytic or dab path.
+    const bool render_brush = path.stroke.enabled && has_brush && path.stroke.brush->valid() &&
+        std::isfinite(path.stroke.width) && path.stroke.width >= 0.0f &&
+        (path.stroke.brush->size > 0.0f || path.stroke.width > 0.0f);
+    std::vector<Color> brush_layer;
+    if (render_brush) {
+        brush_layer.assign(static_cast<std::size_t>(bbox.x1 - bbox.x0) *
+                           static_cast<std::size_t>(bbox.y1 - bbox.y0),
+                           Color{0.0f, 0.0f, 0.0f, 0.0f});
+    }
+    if (render_brush) {
+        const auto& brush = *path.stroke.brush;
+        const float diameter = brush.size > 0.0f ? brush.size : path.stroke.width;
+        const float nominal_radius = diameter * 0.5f;
+        const auto& along_gradient = brush.along_path_gradient;
+        if (!brush.requires_dabs()) {
+            for (int y = bbox.y0; y < bbox.y1; ++y) {
+                for (int x = bbox.x0; x < bbox.x1; ++x) {
+                    if (state && !pixel_passes_mask(*state, x, y)) continue;
+                    const Vec2 p{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f};
+                    float best_distance = std::numeric_limits<float>::infinity();
+                    float best_progress = 0.0f;
+                    for (const auto& contour : prepared_strokes) {
+                        for (const auto& sub : contour.visible_subpaths) {
+                            for (std::size_t segment = 1; segment < sub.points.size(); ++segment) {
+                                const Vec2 a = sub.points[segment - 1];
+                                const Vec2 delta = sub.points[segment] - a;
+                                const float length_squared = glm::dot(delta, delta);
+                                const float u = length_squared > 0.0f
+                                    ? std::clamp(glm::dot(p - a, delta) / length_squared, 0.0f, 1.0f)
+                                    : 0.0f;
+                                const Vec2 nearest = a + delta * u;
+                                const float distance = glm::length(p - nearest);
+                                if (distance < best_distance) {
+                                    best_distance = distance;
+                                    const float segment_length = sub.cumulative_lengths[segment] -
+                                        sub.cumulative_lengths[segment - 1];
+                                    best_progress = sub.total_length > 0.0f
+                                        ? (sub.cumulative_lengths[segment - 1] + u * segment_length) /
+                                            sub.total_length : 0.0f;
+                                }
+                            }
+                        }
+                    }
+                    const float taper = std::lerp(path.stroke.taper_start, path.stroke.taper_end, best_progress) *
+                        graphics::BrushProfile::brush_taper(
+                            best_progress, brush.taper_start, brush.taper_end);
+                    const float pressure = brush.pressure_at(best_progress);
+                    const float shape_alpha = brush.sample_alpha(best_distance /
+                        std::max(1.0e-4f, nominal_radius * taper), best_progress, p, pressure);
+                    if (shape_alpha <= 0.0f) continue;
+                    Color paint = path.stroke.color.to_linear();
+                    if (along_gradient) paint = graphics::sample_gradient(*along_gradient, best_progress);
+                    else if (path.stroke.gradient) paint = graphics::sample_gradient(*path.stroke.gradient, best_progress);
+                    paint.r *= stroke_color.r;
+                    paint.g *= stroke_color.g;
+                    paint.b *= stroke_color.b;
+                    paint.a = std::clamp(shape_alpha * paint.a * opacity, 0.0f, 1.0f);
+                    const std::size_t index = static_cast<std::size_t>(y - bbox.y0) *
+                        static_cast<std::size_t>(bbox.x1 - bbox.x0) +
+                        static_cast<std::size_t>(x - bbox.x0);
+                    brush_layer[index] = compositor::blend(paint, brush_layer[index], BlendMode::Normal);
+                    if (brush_layer[index].a > brush.opacity && brush_layer[index].a > 0.0f) {
+                        const float scale = brush.opacity / brush_layer[index].a;
+                        brush_layer[index].r *= scale;
+                        brush_layer[index].g *= scale;
+                        brush_layer[index].b *= scale;
+                        brush_layer[index].a = brush.opacity;
+                    }
+                }
+            }
+        } else {
+            for (const auto& contour : prepared_strokes) {
+                for (const auto& sub : contour.visible_subpaths) {
+                    if (sub.points.size() < 2 || sub.total_length <= kPathEpsilon)
+                        continue;
+                    const auto dabs = brush.sample_dabs(sub.points, sub.total_length, diameter);
+                    for (const auto& dab : dabs) {
+                        const float taper = std::lerp(
+                            path.stroke.taper_start, path.stroke.taper_end, dab.progress) *
+                            graphics::BrushProfile::brush_taper(
+                                dab.progress, brush.taper_start, brush.taper_end);
+                        const float dab_radius = nominal_radius * taper;
+                        if (dab_radius <= 0.0f) continue;
+                        const float minimum_width_factor = std::max(
+                            0.5f, 1.0f - 0.5f * std::clamp(brush.width_jitter, 0.0f, 1.0f));
+                        const float dab_extent = dab_radius *
+                            (1.0f + brush.bleed_radius + brush.edge_noise * 0.1f) /
+                            minimum_width_factor + 1.0f;
+                        const int x0 = std::max(bbox.x0, static_cast<int>(
+                            std::floor(dab.position.x - dab_extent)));
+                        const int x1 = std::min(bbox.x1, static_cast<int>(
+                            std::ceil(dab.position.x + dab_extent)));
+                        const int y0 = std::max(bbox.y0, static_cast<int>(
+                            std::floor(dab.position.y - dab_extent)));
+                        const int y1 = std::min(bbox.y1, static_cast<int>(
+                            std::ceil(dab.position.y + dab_extent)));
+                        for (int y = y0; y < y1; ++y) {
+                            for (int x = x0; x < x1; ++x) {
+                                if (state && !pixel_passes_mask(*state, x, y)) continue;
+                                const Vec2 pixel{static_cast<float>(x) + 0.5f,
+                                                 static_cast<float>(y) + 0.5f};
+                                const Vec2 offset = pixel - dab.position;
+                                const float shape_alpha = brush.sample_dab_alpha(
+                                    offset, dab_radius, dab.progress, dab.pressure, dab.angle, pixel);
+                                if (shape_alpha <= 0.0f) continue;
+
+                                float paint_progress = dab.progress;
+                                float best_distance_squared = std::numeric_limits<float>::infinity();
+                                for (std::size_t segment = 1; segment < sub.points.size(); ++segment) {
+                                    const Vec2 a = sub.points[segment - 1];
+                                    const Vec2 delta = sub.points[segment] - a;
+                                    const float length_squared = glm::dot(delta, delta);
+                                    const float u = length_squared > 0.0f
+                                        ? std::clamp(glm::dot(pixel - a, delta) / length_squared,
+                                                     0.0f, 1.0f)
+                                        : 0.0f;
+                                    const Vec2 nearest = a + delta * u;
+                                    const Vec2 difference = pixel - nearest;
+                                    const float distance_squared = glm::dot(difference, difference);
+                                    if (distance_squared < best_distance_squared) {
+                                        best_distance_squared = distance_squared;
+                                        const float segment_length = sub.cumulative_lengths[segment] -
+                                            sub.cumulative_lengths[segment - 1];
+                                        paint_progress = (sub.cumulative_lengths[segment - 1] +
+                                            u * segment_length) / sub.total_length;
+                                    }
+                                }
+
+                                Color dab_color = path.stroke.color.to_linear();
+                                if (along_gradient)
+                                    dab_color = graphics::sample_gradient(*along_gradient, paint_progress);
+                                else if (path.stroke.gradient)
+                                    dab_color = graphics::sample_gradient(*path.stroke.gradient, paint_progress);
+                                dab_color.r *= stroke_color.r;
+                                dab_color.g *= stroke_color.g;
+                                dab_color.b *= stroke_color.b;
+                                const float alpha = std::clamp(
+                                    shape_alpha * dab_color.a * opacity * brush.flow,
+                                    0.0f, 1.0f);
+                                if (alpha <= 0.0f) continue;
+
+                                const std::size_t index = static_cast<std::size_t>(y - bbox.y0) *
+                                    static_cast<std::size_t>(bbox.x1 - bbox.x0) +
+                                    static_cast<std::size_t>(x - bbox.x0);
+                                Color& destination = brush_layer[index];
+                                const float inverse_alpha = 1.0f - alpha;
+                                destination.r = dab_color.r * alpha + destination.r * inverse_alpha;
+                                destination.g = dab_color.g * alpha + destination.g * inverse_alpha;
+                                destination.b = dab_color.b * alpha + destination.b * inverse_alpha;
+                                destination.a = alpha + destination.a * inverse_alpha;
+                                if (destination.a > brush.opacity && destination.a > 0.0f) {
+                                    const float scale = brush.opacity / destination.a;
+                                    destination.r *= scale;
+                                    destination.g *= scale;
+                                    destination.b *= scale;
+                                    destination.a = brush.opacity;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
@@ -243,6 +427,12 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                         const f32 h = std::max(1.0f, static_cast<f32>(bbox.y1 - bbox.y0));
                         const Vec2 normalized{(p.x - bbox.x0) / w, (p.y - bbox.y0) / h};
                         pixel_color = sample_fill_at(path.fill, normalized).to_linear();
+                        pixel_color.a *= opacity;
+                    } else if (path.fill.type == FillType::GradientMesh && path.fill.gradient_mesh) {
+                        const f32 w = std::max(1.0f, static_cast<f32>(bbox.x1 - bbox.x0));
+                        const f32 h = std::max(1.0f, static_cast<f32>(bbox.y1 - bbox.y0));
+                        const Vec2 normalized{(p.x - bbox.x0) / w, (p.y - bbox.y0) / h};
+                        pixel_color = path.fill.gradient_mesh->sample(normalized).to_linear();
                         pixel_color.a *= opacity;
                     } else {
                         pixel_color = resolve_compiled_gradient_color(
@@ -366,6 +556,26 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
             }
         }
     }
+    if (render_brush) {
+        for (int y = bbox.y0; y < bbox.y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = bbox.x0; x < bbox.x1; ++x) {
+                const std::size_t index = static_cast<std::size_t>(y - bbox.y0) *
+                    static_cast<std::size_t>(bbox.x1 - bbox.x0) +
+                    static_cast<std::size_t>(x - bbox.x0);
+                if (brush_layer[index].a > 0.0f) {
+                    const Color& source = brush_layer[index]; // premultiplied accumulation
+                    Color& destination = row[x];             // framebuffer is premultiplied
+                    const float source_alpha = std::clamp(source.a, 0.0f, 1.0f);
+                    const float inverse_alpha = 1.0f - source_alpha;
+                    destination.r = source.r + destination.r * inverse_alpha;
+                    destination.g = source.g + destination.g * inverse_alpha;
+                    destination.b = source.b + destination.b * inverse_alpha;
+                    destination.a = source_alpha + destination.a * inverse_alpha;
+                }
+            }
+        }
+    }
 }
 
 void PathRasterizer::draw_path(Framebuffer& fb, const RenderNode& node, const RenderState& state,
@@ -388,9 +598,17 @@ Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32
     const Vec2 normalized{
         (p.x - static_cast<f32>(bbox.x0)) / w,
         (p.y - static_cast<f32>(bbox.y0)) / h};
-    Color c = fill.type == FillType::Field2D
-        ? sample_fill_at(fill, normalized)
-        : graphics::dither_gradient_sample(sample_gradient_at(fill.gradient, normalized), p.x, p.y);
+    Color c;
+    if (fill.type == FillType::Field2D) {
+        c = sample_fill_at(fill, normalized);
+    } else if (fill.type == FillType::GradientMesh && fill.gradient_mesh) {
+        c = fill.gradient_mesh->sample(normalized).to_linear();
+    } else if (fill.type == FillType::Solid) {
+        c = fill.solid.to_linear();
+    } else {
+        c = graphics::dither_gradient_sample(
+            sample_gradient_at(fill.gradient, normalized), p.x, p.y);
+    }
     c.a *= opacity;
     return c;
 }

@@ -201,7 +201,21 @@ TEST_CASE("media background card and rounded stroke frame an image") {
     auto plan = image_plan();
     plan.layers.front().size = {32.0f, 32.0f};
     plan.layers.front().size_dimensions = 2;
+    plan.layers.front().position = {32.0f, 32.0f, 0.0f};
+    plan.layers.front().position_dimensions = 3;
+    plan.layers.front().opacity = 0.0f;
     plan.layers.front().radius = 4.0f;
+    AnimationPlan media_animation;
+    AnimationTrackPlan opacity_track;
+    opacity_track.property = "opacity";
+    opacity_track.keyframes = {{Frame{0}, {0.0f}}, {Frame{2}, {1.0f}}};
+    media_animation.tracks.push_back(opacity_track);
+    AnimationTrackPlan scale_track;
+    scale_track.property = "scale";
+    scale_track.keyframes = {{Frame{0}, {1.0f, 1.0f, 1.0f}},
+                             {Frame{2}, {1.5f, 1.5f, 1.0f}}};
+    media_animation.tracks.push_back(scale_track);
+    plan.layers.front().animation = std::move(media_animation);
     LayerStylePlan style;
     style.background = BackgroundStyle{
         "#FFFFFF", 1.0f, 6.0f, {4.0f, 4.0f}, 2};
@@ -229,9 +243,24 @@ TEST_CASE("media background card and rounded stroke frame an image") {
     CHECK(frame_node.shape.rounded_rect().size.y == doctest::Approx(40.0f));
     CHECK(frame_node.shape.rounded_rect().radius == doctest::Approx(6.0f));
     CHECK(frame_node.corner_radius == doctest::Approx(6.0f));
+    CHECK(scene.layers()[0].transform.position.x ==
+          doctest::Approx(scene.layers()[1].transform.position.x));
+    CHECK(scene.layers()[0].transform.position.y ==
+          doctest::Approx(scene.layers()[1].transform.position.y));
+    CHECK(scene.layers()[0].transform.opacity == doctest::Approx(0.0f));
+    REQUIRE(scene.layers()[0].anim_transform.scale.is_animated());
+    CHECK(scene.layers()[0].anim_transform.scale.evaluate(SampleTime::from_frame(0.0, plan.canvas.fps)).x ==
+          doctest::Approx(1.0f));
+    CHECK(scene.layers()[0].anim_transform.scale.evaluate(SampleTime::from_frame(2.0, plan.canvas.fps)).x ==
+          doctest::Approx(1.5f));
     REQUIRE(scene.layers()[1].nodes.size() == 1);
     CHECK(scene.layers()[1].nodes.front().shape.type() == ShapeType::Image);
     CHECK(scene.layers()[1].nodes.front().shape.image().radius == doctest::Approx(4.0f));
+    params.global_time = SampleTime::from_frame(2.0, plan.canvas.fps);
+    const auto final_scene = prepared->composition->evaluate(make_frame_context(params));
+    CHECK(final_scene.layers()[0].transform.opacity == doctest::Approx(1.0f));
+    CHECK(final_scene.layers()[1].transform.opacity == doctest::Approx(1.0f));
+    CHECK(final_scene.layers()[0].transform.scale.x == doctest::Approx(1.5f));
 }
 
 // A shadow without a plate is the clip's own shadow (the widened style.shadow
@@ -1022,6 +1051,41 @@ TEST_CASE("render plan fill and gradient tracks clamp eased values and hold as s
     REQUIRE(gradient_held.has_value());
     CHECK(gradient_held->color_stops[0].color.r == doctest::Approx(1.0f));
     CHECK(gradient_held->color_stops[0].color.g == doctest::Approx(0.0f));
+}
+
+TEST_CASE("render plan compiles a GradientMesh fill to the canonical path paint") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "gradient-mesh-fill";
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    LayerPlan shape;
+    shape.id = "mesh";
+    shape.type = LayerType::Shape;
+    shape.size = {32.0f, 32.0f};
+    shape.size_dimensions = 2;
+    shape.shape = ShapeContentPlan{};
+    shape.shape->type = ShapeContentTypePlan::Rect;
+    shape.shape->gradient_mesh = graphics::GradientMesh::four_corner(
+        Color::red(), Color::green(), Color::blue(), Color::white());
+    plan.layers.push_back(std::move(shape));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+                                    CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+    const auto& fill = evaluated->scene.layers()[0].nodes[0].fill;
+    CHECK(fill.type == FillType::GradientMesh);
+    REQUIRE(fill.gradient_mesh);
+    REQUIRE(fill.gradient_mesh->nodes.size() == 4);
+    CHECK(fill.gradient_mesh->nodes[0].color.r == doctest::Approx(1.0f));
+    CHECK(fill.gradient_mesh->nodes[1].color.g == doctest::Approx(1.0f));
+    CHECK(fill.gradient_mesh->nodes[2].color.b == doctest::Approx(1.0f));
 }
 
 TEST_CASE("render plan evaluates animated gradient color ramps in authored sRGB") {

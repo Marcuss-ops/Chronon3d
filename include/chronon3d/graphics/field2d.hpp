@@ -87,6 +87,7 @@ struct Field2D {
             return 0.0f;
 
         point = transform.apply(point);
+        if (!std::isfinite(point.x) || !std::isfinite(point.y)) return 0.0f;
 
         const auto base = [&](Vec2 p) {
             return sample_generator(p);
@@ -182,8 +183,14 @@ struct Field2D {
                     break;
                 }
             }
+            if (!std::isfinite(value) || !std::isfinite(point.x) ||
+                !std::isfinite(point.y) || std::abs(point.x) > 1.0e6f ||
+                std::abs(point.y) > 1.0e6f ||
+                std::abs(point.x * frequency) > 1.0e8f ||
+                std::abs(point.y * frequency) > 1.0e8f)
+                return 0.0f;
         }
-        return std::clamp(value, 0.0f, 1.0f);
+        return std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 0.0f;
     }
 
 private:
@@ -208,6 +215,9 @@ private:
     }
 
     [[nodiscard]] static float lattice_noise(Vec2 p, std::uint32_t seed_value) noexcept {
+        if (!std::isfinite(p.x) || !std::isfinite(p.y) ||
+            std::abs(p.x) > 1.0e8f || std::abs(p.y) > 1.0e8f)
+            return 0.5f;
         const auto ix = static_cast<std::int32_t>(std::floor(p.x));
         const auto iy = static_cast<std::int32_t>(std::floor(p.y));
         const float x = p.x - static_cast<float>(ix);
@@ -306,6 +316,12 @@ private:
     }
 
     [[nodiscard]] float sample_generator(Vec2 point) const noexcept {
+        if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+            std::abs(point.x) > 1.0e6f || std::abs(point.y) > 1.0e6f ||
+            !std::isfinite(frequency) || frequency <= 0.0f ||
+            std::abs(point.x * frequency) > 1.0e8f ||
+            std::abs(point.y * frequency) > 1.0e8f)
+            return 0.0f;
         Vec2 p = point * frequency;
         switch (generator) {
             case Field2DGenerator::Perlin:

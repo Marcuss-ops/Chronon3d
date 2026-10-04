@@ -160,6 +160,9 @@ namespace detail {
     const FillStyle& b,
     f32 t) noexcept
 {
+    if (a.gradient_mesh || b.gradient_mesh)
+        return t < 0.5f ? a : b;
+
     const bool a_solid = a.is_solid() || !a.enabled;
     const bool b_solid = b.is_solid() || !b.enabled;
 

@@ -128,6 +128,7 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     if (!ctx.image_cache || !ctx.gpu_asset_cache ||
         !ctx.backend || !ctx.surface_registry ||
         image.path.empty() ||
+        image.crop.flip_x ||
         native_promotion::has_active_mask(state) ||
         !native_promotion::is_axis_aligned_affine(state)) {
         if (native_surface_promotion_diag_enabled()) {

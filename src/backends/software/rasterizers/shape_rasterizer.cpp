@@ -192,7 +192,14 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread, f32 corner_radius) {
 
 void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
                              f32 spread, const RenderState* state, const Fill* fill, f32 corner_radius) {
-    const bool has_stroke = stroke_width_for_shape(shape) > 0.0f;
+    const bool has_stroke = shape.type() == ShapeType::Path
+        ? shape.path().stroke.enabled &&
+            (shape.path().stroke.brush
+                ? shape.path().stroke.brush->valid() &&
+                    std::isfinite(shape.path().stroke.width) && shape.path().stroke.width >= 0.0f &&
+                    (shape.path().stroke.width > 0.0f || shape.path().stroke.brush->size > 0.0f)
+                : shape.path().stroke.width > 0.0f)
+        : stroke_width_for_shape(shape) > 0.0f;
     const bool has_visible_stroke = has_stroke && (stroke_color_for_shape(shape).a > 0.0f || stroke_has_gradient(shape));
     const bool has_visible_fill = color.a > 0.0f;
     if (!has_visible_fill && !has_visible_stroke) return;

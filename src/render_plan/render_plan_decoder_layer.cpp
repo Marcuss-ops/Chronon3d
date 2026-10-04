@@ -422,6 +422,24 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     layer.start_frame = optional_frame(value, "start_frame");
     layer.duration_frames = optional_frame(value, "duration_frames");
     if (value.contains("fit")) layer.fit = fit_mode(value.at("fit").get<std::string>());
+    if (value.contains("crop")) {
+        if (layer.type != LayerType::Image)
+            throw std::runtime_error("crop is only valid for image layers");
+        const auto& raw_crop = value.at("crop");
+        ImageCropPlan crop;
+        crop.enabled = raw_crop.value("enabled", true);
+        if (raw_crop.contains("origin")) crop.origin = raw_crop.at("origin").get<std::array<float, 2>>();
+        if (raw_crop.contains("size")) crop.size = raw_crop.at("size").get<std::array<float, 2>>();
+        crop.flip_x = raw_crop.value("flip_x", false);
+        for (std::size_t i = 0; i < 2; ++i) {
+            const float origin = crop.origin[i];
+            const float extent = crop.size[i];
+            if (!std::isfinite(origin) || !std::isfinite(extent) || origin < 0.0f ||
+                extent <= 0.0f || origin + extent > 1.0f)
+                throw std::runtime_error("crop origin and size must define a finite normalized rectangle");
+        }
+        layer.crop = crop;
+    }
     layer.radius = optional_value<float>(value, "radius");
 
     if (value.contains("style")) {

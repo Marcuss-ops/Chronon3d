@@ -1207,7 +1207,10 @@
             "camera_rotation_y",
             "camera_rotation_z",
             "camera_fov_deg",
-            "camera_zoom"
+            "camera_zoom",
+            "camera_focus_distance",
+            "camera_aperture",
+            "camera_max_blur"
           ]
         },
         "easing": {

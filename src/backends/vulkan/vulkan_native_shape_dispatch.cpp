@@ -31,6 +31,7 @@ bool try_native_path_fill(
         return false;
     }
     const auto& path = node.shape.path();
+    if (path.stroke.brush.has_value()) return false;
     if (path.stroke.taper_start != 1.0f || path.stroke.taper_end != 1.0f)
         return false;
     if (!path.fill.enabled || path.fill.type != FillType::Solid ||
@@ -201,6 +202,9 @@ bool try_native_path_stroke(
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle)
         return false;
     const auto& path = node.shape.path();
+    // Brush profiles currently have software semantics only; never promote
+    // them to the native Vulkan stroke path until pixel parity is certified.
+    if (path.stroke.brush.has_value()) return false;
     const bool path_diag = [] {
         const char* value = std::getenv("CHRONON3D_PATH_DIAG");
         return value && std::string_view(value) == "1";

@@ -292,7 +292,7 @@ inline void frosted_glass(LayerPlan& layer, const BackdropFilterPlan& filter = B
 // bloom, ray and dispersion primitives. Every recipe:
 //   * is deterministic — identical inputs push identical EffectPlan fields;
 //   * fails closed on out-of-range parameters;
-//   * is a no-op at intensity 0 (a leak that adds nothing must not add cost);
+//   * lowers intensity 0 to a fully transparent shape with no optional effect stages;
 //   * bounds total energy through the underlying effect validators, so an
 //     SDR white plate cannot explode: screen/add blends saturate at the
 //     compositor and the response intensity ceiling is enforced here.
@@ -303,6 +303,216 @@ inline constexpr float kMaxIntensity = 4.0f;
 inline constexpr Color kWarmTint{1.0f, 0.62f, 0.24f, 1.0f};
 inline constexpr Color kAmberTint{1.0f, 0.80f, 0.45f, 1.0f};
 inline constexpr Color kCoolTint{0.55f, 0.78f, 1.0f, 1.0f};
+
+enum class LightLeakShape : std::uint8_t { Edge, Corner, Sweep, Radial, Band };
+enum class LightLeakBlend : std::uint8_t { Screen, Add, SoftLight };
+enum class LightLeakEdge : std::uint8_t { Left, Top, Right, Bottom };
+enum class LightLeakCorner : std::uint8_t { TopLeft, TopRight, BottomLeft, BottomRight };
+
+/// Declarative controls for one deterministic, screen-space light leak.
+/// Geometry is lowered to the existing gradient/shape/effect/compositor path;
+/// this profile does not introduce a second pixel renderer.
+struct LightLeakProfile {
+    LightLeakShape shape{LightLeakShape::Edge};
+    LightLeakBlend blend{LightLeakBlend::Screen};
+    LightLeakEdge edge{LightLeakEdge::Left};
+    LightLeakCorner corner{LightLeakCorner::TopLeft};
+    Color color_a{1.0f, 0.62f, 0.24f, 1.0f};
+    Color color_b{1.0f, 0.90f, 0.62f, 1.0f};
+    float intensity{1.0f};
+    float softness{0.35f};       // normalized [0, 1]
+    float spread{0.5f};          // normalized radial radius / extent
+    float angle{0.0f};           // degrees, clockwise in screen coordinates
+    float position{0.5f};        // position along edge / sweep travel [0, 1]
+    float position_y{0.5f};      // radial center Y [0, 1]
+    float width{0.25f};          // normalized band width [0, 1]
+    float chroma_split{0.0f};    // symmetric channel offset in pixels
+    float grain{0.0f};           // spatially stable seeded grain [0, 1]
+    float flicker{0.0f};         // explicit frame-varying noise amount [0, 1]
+    std::uint32_t seed{0};
+
+    [[nodiscard]] bool valid() const noexcept {
+        const auto valid_color = [](const Color& color) {
+            const auto unit = [](float value) {
+                return std::isfinite(value) && value >= 0.0f && value <= 1.0f;
+            };
+            return unit(color.r) && unit(color.g) && unit(color.b) && unit(color.a);
+        };
+        const bool valid_shape = shape == LightLeakShape::Edge ||
+            shape == LightLeakShape::Corner || shape == LightLeakShape::Sweep ||
+            shape == LightLeakShape::Radial || shape == LightLeakShape::Band;
+        const bool valid_blend = blend == LightLeakBlend::Screen ||
+            blend == LightLeakBlend::Add || blend == LightLeakBlend::SoftLight;
+        const bool valid_edge = edge == LightLeakEdge::Left || edge == LightLeakEdge::Top ||
+            edge == LightLeakEdge::Right || edge == LightLeakEdge::Bottom;
+        const bool valid_corner = corner == LightLeakCorner::TopLeft ||
+            corner == LightLeakCorner::TopRight || corner == LightLeakCorner::BottomLeft ||
+            corner == LightLeakCorner::BottomRight;
+        return valid_shape && valid_blend && valid_edge && valid_corner &&
+            valid_color(color_a) && valid_color(color_b) &&
+            std::isfinite(intensity) && intensity >= 0.0f && intensity <= kMaxIntensity &&
+            std::isfinite(softness) && softness >= 0.0f && softness <= 1.0f &&
+            std::isfinite(spread) && spread >= 0.0f && spread <= 1.0f &&
+            std::isfinite(angle) && std::abs(angle) <= 3600.0f &&
+            std::isfinite(position) && position >= 0.0f && position <= 1.0f &&
+            std::isfinite(position_y) && position_y >= 0.0f && position_y <= 1.0f &&
+            std::isfinite(width) && width >= 0.0f && width <= 1.0f &&
+            std::isfinite(chroma_split) && chroma_split >= 0.0f && chroma_split <= 16.0f &&
+            std::isfinite(grain) && grain >= 0.0f && grain <= 1.0f &&
+            std::isfinite(flicker) && flicker >= 0.0f && flicker <= 1.0f;
+    }
+};
+
+/// Canonical lowering for profile-authored leaks. The generated full-canvas
+/// shape uses a gradient mask, then the ordinary ordered effect stack and
+/// layer blend mode; equal profile/canvas/id values produce equal plans.
+class LightLeakResolver {
+public:
+    [[nodiscard]] static LayerPlan resolve(const LightLeakProfile& profile,
+                                           Vec2 canvas_size,
+                                           std::string id = "light_leak") {
+        if (!profile.valid() || !std::isfinite(canvas_size.x) ||
+            !std::isfinite(canvas_size.y) || canvas_size.x <= 0.0f ||
+            canvas_size.y <= 0.0f || canvas_size.x > 1000000.0f ||
+            canvas_size.y > 1000000.0f)
+            throw std::invalid_argument("light leak profile or canvas is outside supported bounds");
+
+        LayerPlan layer;
+        layer.id = std::move(id);
+        layer.type = LayerType::Shape;
+        layer.size = {canvas_size.x, canvas_size.y};
+        layer.size_dimensions = 2;
+        layer.position = {canvas_size.x * 0.5f, canvas_size.y * 0.5f, 0.0f};
+        layer.position_dimensions = 2;
+        layer.screen_space = true;
+        layer.blend_mode = profile.blend == LightLeakBlend::Add
+            ? chronon3d::BlendMode::Add
+            : profile.blend == LightLeakBlend::SoftLight
+                ? chronon3d::BlendMode::SoftLight : chronon3d::BlendMode::Screen;
+
+        ShapeContentPlan shape;
+        shape.type = ShapeContentTypePlan::Rect;
+        shape.fill_color = std::array<float, 4>{
+            profile.color_a.r, profile.color_a.g, profile.color_a.b, 0.0f};
+        const Vec2 center{profile.position, profile.position_y};
+        const float strength = profile.intensity;
+        const Color clear = Color::transparent();
+        const Color a{profile.color_a.r, profile.color_a.g,
+                      profile.color_a.b, profile.color_a.a};
+        const Color b{profile.color_b.r, profile.color_b.g,
+                      profile.color_b.b, profile.color_b.a};
+        const auto with_intensity = [strength](Color color) {
+            color.a = std::clamp(color.a * strength, 0.0f, 1.0f);
+            return color;
+        };
+        const auto with_opacity = [](Color color, float opacity) {
+            color.a *= opacity;
+            return color;
+        };
+        const float diagonal_extent = std::sqrt(1.0f +
+            std::pow(std::min(canvas_size.x, canvas_size.y) /
+                     std::max(canvas_size.x, canvas_size.y), 2.0f));
+        const float radial_radius = std::max(
+            profile.spread * diagonal_extent, 0.001f);
+        const float sweep_length = std::max(1.0f,
+            std::abs(std::cos(profile.angle * 0.01745329251994329577f)) +
+            std::abs(std::sin(profile.angle * 0.01745329251994329577f)));
+
+        switch (profile.shape) {
+            case LightLeakShape::Edge: {
+                Vec2 edge_center{};
+                switch (profile.edge) {
+                    case LightLeakEdge::Left: edge_center = {0.0f, profile.position}; break;
+                    case LightLeakEdge::Top: edge_center = {profile.position, 0.0f}; break;
+                    case LightLeakEdge::Right: edge_center = {1.0f, profile.position}; break;
+                    case LightLeakEdge::Bottom: edge_center = {profile.position, 1.0f}; break;
+                }
+                const Color peak = with_intensity(a);
+                shape.gradient = graphics::GradientDefinition::radial(
+                    edge_center, radial_radius,
+                    {{0.0f, peak}, {1.0f, clear}});
+                break;
+            }
+            case LightLeakShape::Corner: {
+                constexpr std::array<Vec2, 4> corners{
+                    Vec2{0.0f, 0.0f}, Vec2{1.0f, 0.0f},
+                    Vec2{0.0f, 1.0f}, Vec2{1.0f, 1.0f}};
+                const auto corner = static_cast<std::size_t>(profile.corner);
+                const Color peak = with_intensity(a);
+                shape.gradient = graphics::GradientDefinition::radial(
+                    corners[corner], radial_radius,
+                    {{0.0f, peak}, {1.0f, clear}});
+                break;
+            }
+            case LightLeakShape::Radial: {
+                const Color color_a = with_intensity(a);
+                const Color color_b = with_intensity(b);
+                shape.gradient = graphics::GradientDefinition::radial(
+                    center, radial_radius,
+                    {{0.0f, color_a}, {0.55f, color_b}, {1.0f, clear}});
+                break;
+            }
+            case LightLeakShape::Sweep:
+            case LightLeakShape::Band: {
+                const float radians = profile.angle *
+                    (3.14159265358979323846f / 180.0f);
+                const Vec2 tangent{std::cos(radians), std::sin(radians)};
+                const Vec2 normal{-tangent.y, tangent.x};
+                const Vec2 band_center = Vec2{0.5f, 0.5f} + normal *
+                    ((profile.position - 0.5f) * sweep_length);
+                const float half_width = std::max(profile.width, 0.001f) * 0.5f;
+                const float half_width_t = std::clamp(
+                    half_width / (2.0f * sweep_length), 0.001f, 0.499f);
+                const float extension = 1.5f * sweep_length;
+                const Vec2 start = band_center - normal * extension;
+                const Vec2 end = band_center + normal * extension;
+                const float band_opacity = profile.shape == LightLeakShape::Band
+                    ? 1.0f : 0.5f + 0.5f * std::clamp(profile.spread, 0.0f, 1.0f);
+                Color band_color = with_intensity(with_opacity(a, band_opacity));
+                shape.gradient = graphics::GradientDefinition::linear(
+                    start, end,
+                    {{0.0f, clear}, {0.5f - half_width_t, clear},
+                     {0.5f, band_color}, {0.5f + half_width_t, clear}, {1.0f, clear}});
+                break;
+            }
+        }
+        layer.shape = std::move(shape);
+        if (profile.intensity == 0.0f) return layer;
+
+        if (profile.softness > 0.0f) {
+            LayerPlan::EffectPlan blur;
+            blur.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+            blur.radius = std::min(profile.softness *
+                std::min(canvas_size.x, canvas_size.y) * 0.10f, 256.0f);
+            layer.effects.push_back(std::move(blur));
+        }
+        if (profile.chroma_split > 0.0f) {
+            LayerPlan::EffectPlan split;
+            split.kind = LayerPlan::EffectKindPlan::ChromaticAberration;
+            split.chromatic_red_offset = profile.chroma_split;
+            split.chromatic_blue_offset = -profile.chroma_split;
+            layer.effects.push_back(std::move(split));
+        }
+        const auto append_noise = [&](float amount, std::uint32_t seed, bool animated) {
+            if (amount <= 0.0f) return;
+            LayerPlan::EffectPlan noise;
+            noise.kind = LayerPlan::EffectKindPlan::Noise;
+            noise.amount = amount;
+            noise.seed = seed;
+            noise.animated = animated;
+            noise.rgb_noise = true;
+            noise.noise_size = 1.0f;
+            layer.effects.push_back(std::move(noise));
+        };
+        // Keep the seeded film grain spatially stable even when the caller
+        // separately requests frame-varying flicker.
+        append_noise(profile.grain, profile.seed, false);
+        append_noise(profile.flicker, profile.seed ^ 0x9e3779b9U, true);
+        // Chroma separation precedes grain so seeded noise does not decorrelate
+        // channel displacement or add an unrequested fringe of its own.
+        return layer;
+    }
+};
 
 inline void require_intensity(float intensity) {
     if (!std::isfinite(intensity) || intensity < 0.0f || intensity > kMaxIntensity)

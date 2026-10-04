@@ -32,10 +32,17 @@ namespace chronon3d::renderer {
     const f32 sy = std::max(sz.y, 1.0f);
 
     const Vec2 normalized{lp.x / sx, lp.y / sy};
-    Color color = fill.type == FillType::Field2D
-        ? sample_fill_at(fill, normalized)
-        : graphics::dither_gradient_sample(
+    Color color;
+    if (fill.type == FillType::Field2D) {
+        color = sample_fill_at(fill, normalized);
+    } else if (fill.type == FillType::GradientMesh && fill.gradient_mesh) {
+        // GradientMesh stores authored sRGB node colors; convert the sampled
+        // interpolation once at the software rasterizer color-space boundary.
+        color = fill.gradient_mesh->sample(normalized).to_linear();
+    } else {
+        color = graphics::dither_gradient_sample(
             sample_gradient_at(fill.gradient, normalized), lp.x, lp.y);
+    }
     color.a *= opacity;
     return color;
 }
@@ -79,9 +86,14 @@ namespace chronon3d::renderer {
         case ShapeType::Circle:
             return shape.circle().stroke.enabled ? std::max(0.0f, shape.circle().stroke.width) : 0.0f;
         case ShapeType::Path:
-            // Paths carry their stroke on the path payload. Reporting 0 here
-            // under-padded every path bbox by half the stroke width.
-            return shape.path().stroke.enabled ? std::max(0.0f, shape.path().stroke.width) : 0.0f;
+            // Paths carry their stroke on the path payload. A nonzero brush
+            // diameter is authoritative even when the fallback path width is 0.
+            if (!shape.path().stroke.enabled) return 0.0f;
+            if (shape.path().stroke.brush && shape.path().stroke.brush->valid() &&
+                std::isfinite(shape.path().stroke.width) && shape.path().stroke.width >= 0.0f)
+                return std::max(shape.path().stroke.width, shape.path().stroke.brush->size);
+            return std::isfinite(shape.path().stroke.width)
+                ? std::max(0.0f, shape.path().stroke.width) : 0.0f;
         default:
             return 0.0f;
     }
@@ -108,6 +120,8 @@ namespace chronon3d::renderer {
             return shape.rounded_rect().stroke.color.to_linear();
         case ShapeType::Circle:
             return shape.circle().stroke.color.to_linear();
+        case ShapeType::Path:
+            return shape.path().stroke.color.to_linear();
         default:
             return Color{0.0f, 0.0f, 0.0f, 1.0f};
     }
@@ -122,6 +136,10 @@ namespace chronon3d::renderer {
             return shape.rounded_rect().stroke.gradient.has_value();
         case ShapeType::Circle:
             return shape.circle().stroke.gradient.has_value();
+        case ShapeType::Path:
+            return shape.path().stroke.gradient.has_value() ||
+                (shape.path().stroke.brush &&
+                 shape.path().stroke.brush->along_path_gradient.has_value());
         default:
             return false;
     }
@@ -143,6 +161,16 @@ namespace chronon3d::renderer {
             break;
         case ShapeType::Circle:
             g = &shape.circle().stroke.gradient;
+            break;
+        case ShapeType::Path:
+            if (shape.path().stroke.brush &&
+                shape.path().stroke.brush->along_path_gradient) {
+                Fill fake_fill;
+                fake_fill.type = FillType::LinearGradient;
+                fake_fill.gradient = *shape.path().stroke.brush->along_path_gradient;
+                return resolve_gradient_color(fake_fill, lp, sz, 1.0f);
+            }
+            g = &shape.path().stroke.gradient;
             break;
         default:
             return Color{0.0f, 0.0f, 0.0f, 0.0f};

@@ -3,6 +3,7 @@
 #include <chronon3d/media/video/media_probe.hpp>
 #include <chronon3d/media/video/video_sink_factory.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#include <chronon3d/media/tracking/temporal_mask_propagator.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -15,6 +16,9 @@
 #include <utility>
 #include <vector>
 namespace chronon3d::cli::mask_propagation_detail {
+using chronon3d::media::tracking::TemporalFlowOptions;
+using chronon3d::media::tracking::TemporalMaskPropagator;
+
 void decode_sdr_video_frames(MaskPropagationState& state,
                              const TemporaryMaskSpool& spool) {
     if (state.source_video.empty()) return;

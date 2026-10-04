@@ -6,6 +6,8 @@
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/graphics/field2d.hpp>
+#include <chronon3d/graphics/gradient_mesh.hpp>
+#include <chronon3d/graphics/stroke/brush_profile.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
@@ -59,6 +61,7 @@ struct StrokeStyle {
     std::optional<float> trim_end;
     std::optional<std::array<float, 4>> solid_color;
     std::optional<graphics::GradientDefinition> gradient;
+    std::optional<graphics::BrushProfile> brush;
     std::vector<float> dash_array;
     float dash_offset{0.0f};
     std::string cap{"butt"};
@@ -220,6 +223,7 @@ struct ShapeContentPlan {
     ShapeFillRulePlan fill_rule{ShapeFillRulePlan::EvenOdd};
     std::optional<graphics::GradientDefinition> gradient;
     std::optional<Field2DPlan> field;
+    std::optional<graphics::GradientMesh> gradient_mesh;
     std::optional<StrokeStyle> stroke;
     std::vector<ShapePathCommandPlan> path;
     // Resolver-backed SVG/Lottie elements retain authored path/style order as
@@ -249,6 +253,12 @@ struct ShapeContentPlan {
     std::optional<DeviceFramePlan> device_frame;
 };
 enum class FitMode : std::uint8_t { Cover, Contain, Stretch, None };
+struct ImageCropPlan {
+    bool enabled{false};
+    std::array<float, 2> origin{0.0f, 0.0f};
+    std::array<float, 2> size{1.0f, 1.0f};
+    bool flip_x{false};
+};
 enum class OutputFormat : std::uint8_t { Png, Mp4, Mkv, WebM, PngSequence, Gif };
 enum class VideoCodec : std::uint8_t { Auto, H264, H265, VP9, AV1 };
 enum class RateControlMode : std::uint8_t { Crf, ConstantQp, Bitrate };
@@ -386,7 +396,7 @@ struct CameraShakePlan {
 enum class CameraPropertyPlan : std::uint8_t {
     PositionX, PositionY, PositionZ,
     RotationX, RotationY, RotationZ,
-    FovDeg, Zoom
+    FovDeg, Zoom, FocusDistance, Aperture, MaxBlur
 };
 
 struct CameraTrackPlan {
@@ -680,6 +690,7 @@ struct LayerPlan {
     std::optional<TransitionPlan> transition_in;
     std::optional<TransitionPlan> transition_out;
     std::optional<FitMode> fit;
+    std::optional<ImageCropPlan> crop;
     std::optional<AnimationPlan> animation;
     std::optional<GradientAnimationPlan> fill_gradient_animation;
     std::vector<TextAnimatorPlan> text_animators;

@@ -49,12 +49,6 @@
 
 namespace chronon3d::runtime {
 
-// 06 R3b — SoftwareRenderer passed in by pointer (a single canonical type
-// the RenderPipeline FACADE stores and forwards to graph free functions).
-RenderPipeline::RenderPipeline(
-    SoftwareRenderer* renderer, ::chronon3d::SoftwareExecutionContext& context) noexcept
-    : m_renderer(renderer), m_context(context) {}
-
 const char* frame_scheduling_class_name(
     FrameSchedulingClass scheduling_class) noexcept {
     switch (scheduling_class) {

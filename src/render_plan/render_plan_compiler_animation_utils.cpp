@@ -486,6 +486,15 @@ make_camera_descriptor(const RenderPlan& plan) {
                 case CameraPropertyPlan::Zoom:
                     add_animation_keyframe(tracks.zoom, easing_track, key, 1000.0f * value);
                     break;
+                case CameraPropertyPlan::FocusDistance:
+                    add_animation_keyframe(tracks.focus_distance, easing_track, key, value);
+                    break;
+                case CameraPropertyPlan::Aperture:
+                    add_animation_keyframe(tracks.aperture, easing_track, key, value);
+                    break;
+                case CameraPropertyPlan::MaxBlur:
+                    add_animation_keyframe(tracks.max_blur, easing_track, key, value);
+                    break;
             }
         }
     }
@@ -493,6 +502,9 @@ make_camera_descriptor(const RenderPlan& plan) {
     tracks.rotation.compute_roving(); tracks.rotation.compute_auto_beziers();
     tracks.fov_deg.compute_roving(); tracks.fov_deg.compute_auto_beziers();
     tracks.zoom.compute_roving(); tracks.zoom.compute_auto_beziers();
+    tracks.focus_distance.compute_roving(); tracks.focus_distance.compute_auto_beziers();
+    tracks.aperture.compute_roving(); tracks.aperture.compute_auto_beziers();
+    tracks.max_blur.compute_roving(); tracks.max_blur.compute_auto_beziers();
     descriptor.source = std::move(tracks);
     return descriptor;
 }
