@@ -90,12 +90,23 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
         StrokeAlignment::Outside};
     const std::array types{ShapeType::Rect, ShapeType::RoundedRect,
                            ShapeType::Circle};
-    const std::array scales{
-        Vec2{0.75f, 0.75f}, Vec2{1.0f, 1.0f}, Vec2{1.25f, 1.25f},
-        Vec2{2.0f, 2.0f}, Vec2{1.25f, 0.75f}, Vec2{0.75f, 2.0f}};
+    struct StrokeTransformCase {
+        Vec2 scale;
+        float rotation;
+        float shear;
+    };
+    const std::array transforms{
+        StrokeTransformCase{{0.75f, 0.75f}, 0.0f, 0.0f},
+        StrokeTransformCase{{1.0f, 1.0f}, 0.0f, 0.0f},
+        StrokeTransformCase{{1.25f, 1.25f}, 0.0f, 0.0f},
+        StrokeTransformCase{{2.0f, 2.0f}, 0.0f, 0.0f},
+        StrokeTransformCase{{1.25f, 0.75f}, 0.0f, 0.0f},
+        StrokeTransformCase{{0.75f, 2.0f}, 0.0f, 0.0f},
+        StrokeTransformCase{{1.0f, 1.0f}, 0.37f, 0.0f},
+        StrokeTransformCase{{1.25f, 0.75f}, -0.29f, 0.0f}};
     runtime::RenderSurfaceHandle handle = 0xC3D200u;
 
-    for (const auto scale : scales) {
+    for (const auto transform : transforms) {
       for (const auto type : types) {
         for (const auto alignment : alignments) {
             RenderNode node;
@@ -130,8 +141,12 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
             expected.clear(background);
             RenderState state;
             state.matrix = Mat4{1.0f};
-            state.matrix[0][0] = scale.x;
-            state.matrix[1][1] = scale.y;
+            const float cosine = std::cos(transform.rotation);
+            const float sine = std::sin(transform.rotation);
+            state.matrix[0][0] = cosine * transform.scale.x;
+            state.matrix[0][1] = sine * transform.scale.x;
+            state.matrix[1][0] = (-sine + transform.shear * cosine) * transform.scale.y;
+            state.matrix[1][1] = (cosine + transform.shear * sine) * transform.scale.y;
             state.matrix[3][0] = 10.0f;
             state.matrix[3][1] = 8.0f;
             state.clip_rect = raster::BBox{12, 10, 42, 30};
@@ -166,7 +181,9 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
             REQUIRE(backend.download_surface(handle, pixels).ok());
             INFO("shape=" << static_cast<int>(type)
                  << " alignment=" << static_cast<int>(alignment)
-                 << " scale=" << scale.x << "x" << scale.y);
+                 << " scale=" << transform.scale.x << "x" << transform.scale.y
+                 << " rotation=" << transform.rotation
+                 << " shear=" << transform.shear);
             for (int y = 0; y < height; ++y) {
                 for (int x = 0; x < width; ++x) {
                     const Color c = expected.get_pixel(x, y);
@@ -184,6 +201,40 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
         }
       }
     }
+}
+
+TEST_CASE("Vulkan closed-shape strokes reject sheared transforms") {
+    using namespace chronon3d;
+    using namespace chronon3d::backends::vulkan;
+
+    VulkanBackend backend;
+    constexpr int width = 48;
+    constexpr int height = 32;
+    const auto desc = runtime::SurfaceDesc::make(
+        width, height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient, runtime::ColorMetadata{});
+    constexpr runtime::RenderSurfaceHandle handle = 0xC3D2F0u;
+    REQUIRE(backend.create_surface(handle, desc).ok());
+
+    RenderNode node;
+    node.shape.set_type(ShapeType::Rect);
+    node.shape.rect().size = {24.0f, 16.0f};
+    node.shape.rect().stroke.enabled = true;
+    node.shape.rect().stroke.width = 3.0f;
+    node.shape.rect().stroke.color = Color{1.0f, 0.0f, 0.0f, 1.0f};
+    RenderState state;
+    state.matrix = Mat4{1.0f};
+    state.matrix[1][0] = 0.28f;
+    state.matrix[3][0] = 8.0f;
+    state.matrix[3][1] = 6.0f;
+
+    Framebuffer target(width, height);
+    target.set_surface_handle(handle);
+    const auto result = backend.draw_node(target, node, state, Camera{}, width, height);
+    CHECK_FALSE(result.ok());
+    CHECK(result.error().code == graph::RenderBackendErrorCode::UnsupportedCapability);
+    REQUIRE(backend.release_surface(handle).ok());
 }
 
 TEST_CASE("Vulkan backend creates a persistent headless device") {

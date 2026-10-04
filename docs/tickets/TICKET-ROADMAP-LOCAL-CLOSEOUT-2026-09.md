@@ -64,12 +64,12 @@ hardware, assets, or remote CI remain open below.
 
 The solid Rect, RoundedRect and Circle Vulkan stroke route now has a software
 pixel oracle for all three alignments, translated geometry, clipping, fill and
-stroke opacity, uniform scales 0.75x, 1x, 1.25x and 2x, and anisotropic scales
-1.25x0.75 and 0.75x2. Coverage is computed in inverse-transformed local
+stroke opacity, uniform scales 0.75x, 1x, 1.25x and 2x, anisotropic scales
+1.25x0.75 and 0.75x2, rotations 0.37 and -0.29 radians, and an anisotropic
+rotated transform. Coverage is computed in inverse-transformed local
 coordinates using the same inverse matrix coefficients as the CPU rasterizer;
-the local Vulkan test passes 1,327,374 pixel channel assertions on llvmpipe.
-Rotation, masks and per-corner rounded-rectangle strokes remain unsupported and
-fail closed.
+the local Vulkan test passes 1,769,836 assertions on llvmpipe. Shear, masks and
+per-corner rounded-rectangle strokes remain unsupported and fail closed.
 
 The nine shape/alignment combinations in `test_vulkan_debug_context.cpp` use
 the certified solid-stroke subset. On 2026-10-04, `chronon3d_vulkan_debug_context_tests`
@@ -78,6 +78,13 @@ reported teardown abort. GPU hardware certification is a separate external
 gate.
 
 ## Current-tree verification status — VERIFIED (2026-09-25)
+
+The Vulkan-focused refresh on 2026-10-04 rebuilt the backend-registry,
+render-graph and debug-context targets at `-j12`; CTest passed all three
+suites on llvmpipe after the Echo/keying framehash and rotated-stroke changes.
+The stroke pixel oracle reports 1,769,836 passing assertions, including the
+new rotated and rotated-anisotropic transforms; a separate shear request is
+rejected as `UnsupportedCapability`.
 
 The repository tree was rebuilt in full with `-j 12` (`949/949` targets completed without warnings/errors).
 Targeted test suites passed at 100%:

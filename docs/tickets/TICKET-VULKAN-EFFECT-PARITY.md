@@ -77,21 +77,23 @@ the full software/GPU effect corpus passes on the same SHA.
   other callers. Unsupported effects and the full catalog are not certified.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
-  0.75x, 1x, 1.25x and 2x, and anisotropic scales 1.25x0.75 and 0.75x2
-  (1,327,374 assertions). The Vulkan shader evaluates coverage with the same
-  inverse-transform coefficients as the CPU rasterizer, including pixel-edge
-  rounding. Rotations, masks and per-corner rounded strokes remain outside this
-  native route.
+  0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
+  0.37/-0.29 radians and a rotated anisotropic scale (1,769,836 assertions).
+  The Vulkan shader evaluates coverage with the same inverse-transform
+  coefficients as the CPU rasterizer, including pixel-edge rounding. An
+  explicit shear case fails closed after exposing pixel disagreement; shear,
+  masks and per-corner rounded strokes remain unsupported.
 - Echo now uses job-owned, frame-addressed Vulkan surface history and weighted
   premultiplied source-over, including as an ordered stack stage. Local fixtures
   cover exact frame/key lookup, reset, no-readback surface copies, two-frame
   graph output values, direct comparison against the registered software
   processor for every output channel, and a fixed second-frame display-space
   framehash. The capability census now reports 15 native routes.
-- After Echo and uniform-scale stroke parity changes, CTest passed the Vulkan
-  backend-registry, render-graph, and Vulkan debug-context suites on llvmpipe.
-  The focused Echo/history run passed 2 cases / 48 assertions; the expanded
-  stroke pixel oracle passed 1,327,374 assertions.
+- After Echo/keying framehash additions and rotated stroke parity changes,
+  CTest passed the Vulkan backend-registry, render-graph, and Vulkan
+  debug-context suites on llvmpipe (3/3). The Echo/history focus passed 2 cases
+  / 48 assertions; keying framehashes passed 268 assertions; the expanded
+  stroke pixel oracle passed 1,769,836 assertions.
 - This is not GPU-hardware or same-SHA CI certification. The remaining catalog
   routes and unsupported stroke transforms are still open.
 
