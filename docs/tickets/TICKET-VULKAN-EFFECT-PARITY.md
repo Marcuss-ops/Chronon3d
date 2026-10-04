@@ -74,7 +74,9 @@ the full software/GPU effect corpus passes on the same SHA.
   disabled stage → Invert fixture and a Blur → Invert pixel oracle match the
   software reference. The blur stack route uses the CPU processor's repeated
   box-filter kernel; the existing Gaussian kernel remains unchanged for its
-  other callers. Unsupported effects and the full catalog are not certified.
+  other callers. Brightness → LumaKey and LumaKey → Brightness each match the
+  software oracle, and the outputs differ as expected (259 assertions).
+  Unsupported effects and the full catalog are not certified.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
@@ -91,9 +93,11 @@ the full software/GPU effect corpus passes on the same SHA.
   framehash. The capability census now reports 15 native routes.
 - After Echo/keying framehash additions and rotated stroke parity changes,
   CTest passed the Vulkan backend-registry, render-graph, and Vulkan
-  debug-context suites on llvmpipe (3/3). The Echo/history focus passed 2 cases
-  / 48 assertions; keying framehashes passed 268 assertions; the expanded
-  stroke pixel oracle passed 1,769,836 assertions.
+  debug-context suites on llvmpipe (3/3); backend-registry was rerun after the
+  keying-stack order fixture and passed. The Echo/history focus passed 2 cases
+  / 48 assertions; keying framehashes passed 268 assertions, keying stack order
+  passed 259 assertions; the expanded stroke pixel oracle passed 1,769,836
+  assertions.
 - This is not GPU-hardware or same-SHA CI certification. The remaining catalog
   routes and unsupported stroke transforms are still open.
 
