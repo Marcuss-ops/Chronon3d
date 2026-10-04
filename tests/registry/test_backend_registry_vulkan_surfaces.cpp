@@ -275,7 +275,7 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     CHECK(framehash == 0x095b6643e6cf4424ULL);
 }
 
-TEST_CASE("EffectStackNode preserves color-before-Echo order in native history") {
+TEST_CASE("AdjustmentNode preserves color-before-Echo order in native history") {
     using namespace chronon3d;
     using namespace chronon3d::graph;
     using namespace chronon3d::runtime;
@@ -298,8 +298,9 @@ TEST_CASE("EffectStackNode preserves color-before-Echo order in native history")
     effects.emplace_back(BrightnessParams{.value = 0.1f});
     effects.emplace_back(EchoParams{
         .echoes = 1, .decay = 0.5f, .time_offset_frames = 1});
-    EffectStackNode node(std::move(effects));
+    AdjustmentNode node(std::move(effects));
     node.set_temporal_history_key("echo-integration/color-before-echo");
+    CHECK(node.temporal_requirements().history_frames == 1);
 
     const SurfaceDesc desc{
         4, 2, PixelFormat::Rgba32Float, ResourceUsage::Storage,
