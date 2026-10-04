@@ -58,6 +58,7 @@
 #include <chronon3d/render_graph/nodes/per_pixel_dof_node.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include "native_surface.hpp"
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <spdlog/spdlog.h>
@@ -216,18 +217,55 @@ NodeExecResult PerPixelDofNode::execute(
     // referenced by the graph cache or by the frame-lifetime state.  Disable
     // the executor's zero-copy hints for this node and make an independent
     // framebuffer copy before applying the kernel.
-    ctx.node_exec.planned_physical_slot = nullptr;
     ctx.node_exec.reusable_bottom.reset();
+    bool native_clone_failed = false;
     const auto clone_input = [&](const Framebuffer& input) {
         auto copy = ctx.acquire_owned_fb(input.width(), input.height(), false);
-        for (i32 y = 0; y < input.height(); ++y) {
-            std::memcpy(copy->pixels_row(y), input.pixels_row(y),
-                        static_cast<std::size_t>(input.width()) * sizeof(Color));
+        if (ctx.policy.require_native_gpu && ctx.backend &&
+            ctx.surface_registry && ctx.backend->supports_native_surfaces()) {
+            auto& mutable_input = const_cast<Framebuffer&>(input);
+            if (!ensure_native_surface(ctx, mutable_input,
+                                       "PerPixelDofNode.source") ||
+                !ensure_empty_native_surface(ctx, *copy)) {
+                native_clone_failed = true;
+                return OwnedFB{};
+            }
+            const auto copied = ctx.backend->copy_surface(
+                copy->surface_handle(), input.surface_handle());
+            if (!copied.ok()) {
+                spdlog::error("[PerPixelDofNode] native pass-through copy failed: {}",
+                              copied.error().message);
+                release_native_surface(ctx, *copy);
+                native_clone_failed = true;
+                return OwnedFB{};
+            }
+            copy->mark_gpu_authoritative();
+        } else {
+            for (i32 y = 0; y < input.height(); ++y) {
+                const Color* source = input.pixels_row(y);
+                Color* destination = copy->pixels_row(y);
+                if (!source || !destination) {
+                    native_clone_failed = true;
+                    return OwnedFB{};
+                }
+                std::memcpy(destination, source,
+                            static_cast<std::size_t>(input.width()) * sizeof(Color));
+            }
         }
         copy->set_origin(input.origin_x(), input.origin_y());
         copy->set_opaque(input.is_opaque());
         copy->set_content_cleared(input.is_content_cleared());
         return copy;
+    };
+    const auto cloned_result = [&]() -> NodeExecResult {
+        auto copy = clone_input(*inputs[0]);
+        if (native_clone_failed || !copy) {
+            return NodeExecResult{NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "PerPixelDofNode",
+                "failed to preserve input surface residency"}};
+        }
+        return NodeExecResult{std::move(copy)};
     };
 
     const auto& camera = camera_for(ctx);
@@ -247,16 +285,14 @@ NodeExecResult PerPixelDofNode::execute(
     }
 
     if (!camera.dof.enabled) {
-        return NodeExecResult{clone_input(*inputs[0])};
+        return cloned_result();
     }
 
     // Check that the depth buffer was populated during compositing.
     if (dof_depth.empty()) {
         // No depth data — fall through without blur.
-        return NodeExecResult{clone_input(*inputs[0])};
+        return cloned_result();
     }
-
-    auto result = clone_input(*inputs[0]);
 
     // Find only sources that can produce a visible blur.  A focused background
     // may legitimately have valid depth over the entire canvas; using all
@@ -310,6 +346,26 @@ NodeExecResult PerPixelDofNode::execute(
     // and we can skip the backend entirely instead of allocating its scratch
     // buffers just to discover max_r < 0.5f again.
     const std::optional<raster::BBox> clip = active_region.clip;
+    if (!clip) {
+        // The node does not mutate its input when the computed blur ROI is
+        // empty. Preserve native GPU residency by passing the surface through
+        // instead of cloning pixels through the CPU framebuffer.
+        return cloned_result();
+    }
+    if (ctx.policy.require_native_gpu) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            "PerPixelDofNode",
+            "visible per-pixel DOF blur is not implemented on the required native GPU path"};
+    }
+
+    auto result = clone_input(*inputs[0]);
+    if (!result || native_clone_failed) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "PerPixelDofNode",
+            "failed to preserve input surface residency"};
+    }
     if (active_region.depth_size_valid && clip && ctx.backend) {
         // Explicit span-wrap: `ctx.node_exec.dof_depth` is `std::vector<float>`
         // (the executor owns the depth buffer for node lifetimes).  The kernel
