@@ -91,14 +91,18 @@ the full software/GPU effect corpus passes on the same SHA.
   match the registered software stack on two frames.
   Strict AdjustmentNode execution now delegates fixed-extent stacks to the
   same typed native stage executor. Brightness → Invert matches the software
-  oracle (130 assertions); a spatial Blur stack fails closed before reaching
-  the legacy backend API. AdjustmentNode now carries Echo's deterministic
+  oracle (130 assertions). AdjustmentNode carries Echo's deterministic
   history key, frame-variant cache policy and preroll requirement from the
   graph builder into the same executor. Brightness → Echo matches the software
   oracle on both frames (88 assertions, including the preroll contract);
-  spatially expanding adjustment stacks remain unsupported by the fixed-extent
-  path. Brightness → ChromaKey and ChromaKey → Brightness also match the
+  effects that require output bounds beyond the input remain unsupported by
+  the fixed-extent path. Brightness → ChromaKey and ChromaKey → Brightness also match the
   software oracle through AdjustmentNode (259 pixel-channel assertions).
+  AdjustmentNode now also executes Blur → Invert through the shared native
+  stage executor while preserving its fixed input extent; the output matches
+  the software oracle with an explicit full-frame bbox (130 pixel-channel
+  assertions). Other effects requiring expanded output bounds remain outside
+  this fixed-extent route.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation

@@ -28,12 +28,15 @@ namespace chronon3d::graph {
 NodeExecResult execute_strict_native_adjustment_stack(
     RenderGraphContext& ctx, const EffectStack& effects,
     std::span<const FramebufferRef> inputs,
-    std::span<const std::optional<raster::BBox>> input_bboxes,
     std::string_view temporal_history_key) {
     EffectStackNode native_stack{EffectStack(effects)};
     if (!temporal_history_key.empty())
         native_stack.set_temporal_history_key(std::string(temporal_history_key));
-    return native_stack.execute(ctx, inputs, input_bboxes);
+    // AdjustmentNode transforms its input framebuffer in place conceptually:
+    // its output bounds are fixed to the source extent. Do not feed the source
+    // content bbox into EffectStackNode's halo expansion planner.
+    return native_stack.execute(ctx, inputs,
+        std::span<const std::optional<raster::BBox>>{});
 }
 
 } // namespace chronon3d::graph
