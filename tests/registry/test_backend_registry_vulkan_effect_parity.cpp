@@ -600,7 +600,7 @@ TEST_CASE("Strict Vulkan AdjustmentNode preserves clip for ordered blur stacks")
         }
 }
 
-TEST_CASE("Strict Vulkan AdjustmentNode rejects glow and bloom parity gaps") {
+TEST_CASE("Strict Vulkan AdjustmentNode rejects glow and composes Bloom stacks") {
     EffectStack glow_stack;
     glow_stack.emplace_back(GlowParams{
         .radius = 1.5f, .intensity = 0.45f,
@@ -610,13 +610,35 @@ TEST_CASE("Strict Vulkan AdjustmentNode rejects glow and bloom parity gaps") {
     CHECK_FALSE(glow.ok);
     CHECK(glow.error.find("fixed-extent native route") != std::string::npos);
 
-    EffectStack bloom_stack;
-    bloom_stack.emplace_back(BloomParams{
-        .threshold = 0.35f, .radius = 1.5f, .intensity = 0.5f});
-    bloom_stack.emplace_back(InvertParams{.amount = 0.3f});
-    const auto bloom = vulkan_strict_adjustment_stack(bloom_stack);
-    CHECK_FALSE(bloom.ok);
-    CHECK(bloom.error.find("fixed-extent native route") != std::string::npos);
+    auto bloom_processor = renderer::create_bloom_effect_processor();
+    auto invert_processor = renderer::create_invert_effect_processor();
+    for (const float radius : {0.5f, 1.5f, 3.0f, 10.0f}) {
+        INFO("radius=" << radius);
+        auto expected = *make_source();
+        effects::EffectExecutionContext context{};
+        const BloomParams params{
+            .threshold = 0.35f, .radius = radius, .intensity = 0.5f};
+        bloom_processor->apply(expected, params, context);
+        invert_processor->apply(expected, InvertParams{.amount = 0.3f}, context);
+
+        EffectStack bloom_stack;
+        bloom_stack.emplace_back(params);
+        bloom_stack.emplace_back(InvertParams{.amount = 0.3f});
+        const auto actual = vulkan_strict_adjustment_stack(
+            bloom_stack, raster::BBox{0, 0, kW, kH});
+        INFO("strict Vulkan error: " << actual.error);
+        REQUIRE(actual.ok);
+        REQUIRE(actual.pixels.size() == static_cast<std::size_t>(kW * kH * 4));
+        for (int y = 0; y < kH; ++y)
+            for (int x = 0; x < kW; ++x) {
+                const Color color = expected.get_pixel(x, y);
+                const float channels[]{color.r, color.g, color.b, color.a};
+                const auto index = static_cast<std::size_t>((y * kW + x) * 4);
+                for (int channel = 0; channel < 4; ++channel)
+                    CHECK(actual.pixels[index + static_cast<std::size_t>(channel)] ==
+                          doctest::Approx(channels[channel]).epsilon(kTolerance));
+            }
+    }
 }
 
 TEST_CASE("Strict Vulkan Bloom matches software across full-resolution radii") {
