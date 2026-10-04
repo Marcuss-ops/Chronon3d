@@ -163,7 +163,7 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     EffectStack effects;
     effects.push_back(effects::EffectInstance{EchoParams{
         .echoes = 1, .decay = 0.5f, .time_offset_frames = 1}});
-    effects.push_back(effects::EffectInstance{BrightnessParams{.value = 0.0f}});
+    effects.push_back(effects::EffectInstance{BrightnessParams{.value = 0.1f}});
     EffectStackNode node(std::move(effects));
     node.set_temporal_history_key("echo-integration/layer0/effect0");
 
@@ -211,13 +211,13 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     };
 
     const auto first = render_frame(0, 0);
-    CHECK(first[0] == doctest::Approx(0.0f));
+    CHECK(first[0] == doctest::Approx(0.1f));
     CHECK(first[1] == doctest::Approx(1.0f));
     const auto second = render_frame(1, 1);
-    CHECK(second[0] == doctest::Approx(0.0f));
-    CHECK(second[1] == doctest::Approx(0.5f).epsilon(1e-5));
+    CHECK(second[0] == doctest::Approx(0.1f));
+    CHECK(second[1] == doctest::Approx(0.6f).epsilon(1e-5));
     CHECK(second[3] == doctest::Approx(0.5f).epsilon(1e-5));
-    CHECK(second[4] == doctest::Approx(0.0f));
+    CHECK(second[4] == doctest::Approx(0.1f));
     CHECK(second[5] == doctest::Approx(1.0f));
 
     // Keep a real software-processor golden beside the native graph result.
@@ -228,7 +228,7 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     EffectStack software_stack;
     software_stack.push_back(effects::EffectInstance{EchoParams{
         .echoes = 1, .decay = 0.5f, .time_offset_frames = 1}});
-    software_stack.push_back(effects::EffectInstance{BrightnessParams{.value = 0.0f}});
+    software_stack.push_back(effects::EffectInstance{BrightnessParams{.value = 0.1f}});
     std::array<std::vector<float>, 2> software_frames;
     for (std::int64_t frame_number = 0; frame_number < 2; ++frame_number) {
         Framebuffer input(4, 2);
@@ -272,7 +272,7 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
             framehash *= 1099511628211ULL;
         }
     }
-    CHECK(framehash == 0xdfc31168268fb289ULL);
+    CHECK(framehash == 0x095b6643e6cf4424ULL);
 }
 
 TEST_CASE("Vulkan lighting preserves alpha and matches the CPU multiplier oracle") {
