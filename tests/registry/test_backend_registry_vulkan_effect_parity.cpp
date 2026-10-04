@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <chronon3d/backends/software/effect_processor.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
@@ -26,6 +27,7 @@
 namespace chronon3d::renderer {
 std::unique_ptr<EffectProcessor> create_brightness_effect_processor();
 std::unique_ptr<EffectProcessor> create_bloom_effect_processor();
+std::unique_ptr<EffectProcessor> create_glow_effect_processor();
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_contrast_effect_processor();
 std::unique_ptr<EffectProcessor> create_saturation_effect_processor();
@@ -73,10 +75,12 @@ std::shared_ptr<Framebuffer> make_source(int origin_x = 0, int origin_y = 0) {
 std::vector<float> software_oracle(renderer::EffectProcessor& processor,
                                    const EffectParams& params,
                                    const std::optional<raster::BBox>& clip,
-                                   int origin_x = 0, int origin_y = 0) {
+                                   int origin_x = 0, int origin_y = 0,
+                                   EffectScratchResources* scratch = nullptr) {
     auto fb = make_source(origin_x, origin_y);
     effects::EffectExecutionContext ctx{};
     ctx.clip = clip;
+    ctx.effect_scratch = scratch;
     processor.apply(*fb, params, ctx);
     std::vector<float> out;
     for (int y = 0; y < kH; ++y)
@@ -600,18 +604,41 @@ TEST_CASE("Strict Vulkan AdjustmentNode preserves clip for ordered blur stacks")
         }
 }
 
-TEST_CASE("Strict Vulkan AdjustmentNode rejects glow and composes Bloom stacks") {
-    EffectStack glow_stack;
-    glow_stack.emplace_back(GlowParams{
-        .radius = 1.5f, .intensity = 0.45f,
-        .color = Color{0.7f, 0.35f, 0.9f, 1.0f}});
-    glow_stack.emplace_back(InvertParams{.amount = 0.3f});
-    const auto glow = vulkan_strict_adjustment_stack(glow_stack);
-    CHECK_FALSE(glow.ok);
-    CHECK(glow.error.find("fixed-extent native route") != std::string::npos);
-
+TEST_CASE("Strict Vulkan AdjustmentNode composes Glow and Bloom stacks") {
     auto bloom_processor = renderer::create_bloom_effect_processor();
+    auto glow_processor = renderer::create_glow_effect_processor();
     auto invert_processor = renderer::create_invert_effect_processor();
+    EffectScratchResources glow_scratch;
+    for (const float radius : {0.5f, 1.5f, 3.0f, 10.0f}) {
+        INFO("glow radius=" << radius);
+        auto expected = *make_source();
+        const GlowParams params{
+            .radius = radius, .intensity = 0.45f,
+            .color = Color{0.7f, 0.35f, 0.9f, 0.8f}};
+        effects::EffectExecutionContext context{};
+        context.effect_scratch = &glow_scratch;
+        glow_processor->apply(expected, params, context);
+        invert_processor->apply(expected, InvertParams{.amount = 0.3f}, context);
+
+        EffectStack glow_stack;
+        glow_stack.emplace_back(params);
+        glow_stack.emplace_back(InvertParams{.amount = 0.3f});
+        const auto actual = vulkan_strict_adjustment_stack(
+            glow_stack, raster::BBox{0, 0, kW, kH});
+        INFO("strict Vulkan error: " << actual.error);
+        REQUIRE(actual.ok);
+        REQUIRE(actual.pixels.size() == static_cast<std::size_t>(kW * kH * 4));
+        for (int y = 0; y < kH; ++y)
+            for (int x = 0; x < kW; ++x) {
+                const Color color = expected.get_pixel(x, y);
+                const float channels[]{color.r, color.g, color.b, color.a};
+                const auto index = static_cast<std::size_t>((y * kW + x) * 4);
+                for (int channel = 0; channel < 4; ++channel)
+                    CHECK(actual.pixels[index + static_cast<std::size_t>(channel)] ==
+                          doctest::Approx(channels[channel]).epsilon(kTolerance));
+            }
+    }
+
     for (const float radius : {0.5f, 1.5f, 3.0f, 10.0f}) {
         INFO("radius=" << radius);
         auto expected = *make_source();
@@ -659,6 +686,25 @@ TEST_CASE("Strict Vulkan Bloom matches software across full-resolution radii") {
         BloomParams{.threshold = 0.32f, .radius = 10.1f, .intensity = 0.7f},
         std::nullopt);
     CHECK_FALSE(downsampled.ok);
+}
+
+TEST_CASE("Strict Vulkan Glow matches the software alpha-halo oracle") {
+    auto glow = renderer::create_glow_effect_processor();
+    EffectScratchResources scratch;
+    for (const float radius : {0.0f, 0.49f, 0.5f, 1.5f, 3.0f, 10.0f}) {
+        INFO("radius=" << radius);
+        const GlowParams params{
+            .radius = radius, .intensity = 0.45f,
+            .color = Color{0.7f, 0.35f, 0.9f, 0.8f}};
+        const auto expected = software_oracle(
+            *glow, params, std::nullopt, 0, 0, &scratch);
+        const auto actual = vulkan_strict(params, std::nullopt);
+        INFO("strict Vulkan error: " << actual.error);
+        REQUIRE(actual.ok);
+        REQUIRE(actual.pixels.size() == expected.size());
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            CHECK(actual.pixels[i] == doctest::Approx(expected[i]).epsilon(kTolerance));
+    }
 }
 
 TEST_CASE("Strict Vulkan preserves keying order inside native effect stacks") {

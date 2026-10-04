@@ -356,50 +356,70 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
         vertical.width != src_image.width || vertical.height != src_image.height) {
         throw std::invalid_argument("Vulkan glow surfaces have incompatible dimensions");
     }
-    const float tint_rgba[4] = {tint.r, tint.g, tint.b, tint.a};
+    if (radius < 0.5f || intensity <= 0.0f) return;
 
     if (frame_batch.active) {
-        const auto horizontal_descriptor = allocate_pass_descriptor_set();
-        write_descriptors(horizontal_descriptor, horizontal, src_image);
-        const auto vertical_descriptor = allocate_pass_descriptor_set();
-        write_descriptors(vertical_descriptor, vertical, horizontal);
+        const auto prepare_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(prepare_descriptor, horizontal, src_image);
+        const auto horizontal_blur_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(horizontal_blur_descriptor, vertical, horizontal);
+        const auto vertical_blur_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(vertical_blur_descriptor, horizontal, vertical);
         const auto composite_descriptor = allocate_pass_descriptor_set();
-        write_descriptors(composite_descriptor, dst, vertical);
+        write_descriptors(composite_descriptor, dst, horizontal);
         const auto cmd = active_command_buffer();
 
         // One command-plan pass => consume its canonical transition stream
         // exactly once. Internal dispatch dependencies use the same
         // ResourceTransition -> Sync2 translator.
         emit_pass_sync(cmd, {&dst, &src_image, &horizontal, &vertical});
-        record_blur(cmd, horizontal_descriptor, horizontal, src_image,
-                    radius, true);
+        record_glow_prepare(cmd, prepare_descriptor, horizontal, src_image,
+                            intensity, tint);
         horizontal.initialized = true;
 
-        runtime::ResourceTransition horizontal_ready;
-        horizontal_ready.range = runtime::image_range(runtime::ResourceAspect::Color);
-        horizontal_ready.before = runtime::ResourceState{
+        runtime::ResourceTransition writable_to_readable;
+        writable_to_readable.range = runtime::image_range(runtime::ResourceAspect::Color);
+        writable_to_readable.before = runtime::ResourceState{
             .stages = runtime::PipelineStage::ComputeShader,
             .access = runtime::AccessMask::ShaderWrite,
             .layout = runtime::ResourceLayout::General,
             .queue = runtime::QueueClass::Compute,
         };
-        horizontal_ready.after = runtime::ResourceState{
+        writable_to_readable.after = runtime::ResourceState{
             .stages = runtime::PipelineStage::ComputeShader,
             .access = runtime::AccessMask::ShaderRead,
             .layout = runtime::ResourceLayout::General,
             .queue = runtime::QueueClass::Compute,
         };
-        emit_resource_transition(cmd, horizontal.image, horizontal_ready);
+        emit_resource_transition(cmd, horizontal.image, writable_to_readable);
 
-        record_blur(cmd, vertical_descriptor, vertical, horizontal,
-                    radius, false);
+        const float sigma = std::max(0.5f, radius / 3.0f);
+        record_blur(cmd, horizontal_blur_descriptor, vertical, horizontal,
+                    sigma, true, false, true);
         vertical.initialized = true;
+        emit_resource_transition(cmd, vertical.image, writable_to_readable);
 
-        runtime::ResourceTransition vertical_ready = horizontal_ready;
-        emit_resource_transition(cmd, vertical.image, vertical_ready);
+        runtime::ResourceTransition horizontal_for_write = writable_to_readable;
+        horizontal_for_write.before = runtime::ResourceState{
+            .stages = runtime::PipelineStage::ComputeShader,
+            .access = runtime::AccessMask::ShaderRead,
+            .layout = runtime::ResourceLayout::General,
+            .queue = runtime::QueueClass::Compute,
+        };
+        horizontal_for_write.after = runtime::ResourceState{
+            .stages = runtime::PipelineStage::ComputeShader,
+            .access = runtime::AccessMask::ShaderWrite,
+            .layout = runtime::ResourceLayout::General,
+            .queue = runtime::QueueClass::Compute,
+        };
+        emit_resource_transition(cmd, horizontal.image, horizontal_for_write);
+        record_blur(cmd, vertical_blur_descriptor, horizontal, vertical,
+                    sigma, false, false, true);
+        emit_resource_transition(cmd, horizontal.image, writable_to_readable);
 
-        record_composite(cmd, composite_descriptor, dst, vertical,
-                         1, intensity, tint_rgba);
+        constexpr float identity_tint[4]{1.0f, 1.0f, 1.0f, 1.0f};
+        record_composite(cmd, composite_descriptor, dst, horizontal,
+                         8, 1.0f, identity_tint);
         dst.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

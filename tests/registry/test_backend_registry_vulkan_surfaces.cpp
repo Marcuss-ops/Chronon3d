@@ -469,7 +469,7 @@ TEST_CASE("EffectStackNode dispatches a full-frame glow through Vulkan surfaces"
     REQUIRE(backend.download_surface(handle, output).ok());
     const auto center = static_cast<std::size_t>((4 * 8 + 4) * 4);
     const auto neighbor = static_cast<std::size_t>((4 * 8 + 5) * 4);
-    CHECK(output[center + 0] > 1.0f);
+    CHECK(output[center + 0] == doctest::Approx(1.0f));
     CHECK(output[neighbor + 0] > 0.0f);
 
     REQUIRE(backend.release_surface(handle).ok());
@@ -526,8 +526,11 @@ TEST_CASE("EffectStackNode glow reads an available native surface when CPU mirro
     std::vector<float> output(static_cast<std::size_t>(
         result.value()->width() * result.value()->height() * 4), 0.0f);
     REQUIRE(backend.download_surface(output_handle, output).ok());
-    CHECK(output[output_center] > 1.0f);
+    CHECK(output[output_center] == doctest::Approx(1.0f));
     CHECK(output[output_center + 3] > 0.0f);
+    const auto output_neighbor = output_center + 4;
+    REQUIRE(output_neighbor + 3 < output.size());
+    CHECK(output[output_neighbor] > 0.0f);
 
     REQUIRE(backend.release_surface(output_handle).ok());
     CHECK(surfaces.release(output_handle));
