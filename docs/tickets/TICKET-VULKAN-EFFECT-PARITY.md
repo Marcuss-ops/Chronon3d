@@ -3,9 +3,9 @@
 ## Stato
 
 OPEN — software exposes 47 effect types; strict Vulkan has native dispatch
-routes for 16 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast,
+routes for 17 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast,
 Saturation, HueRotate, Invert, Exposure, Fill, Levels, Threshold, Keying,
-Vignette, Echo) and explicitly rejects DropShadow.
+Vignette, Mosaic, Echo) and explicitly rejects DropShadow.
 All remaining types are unsupported on this capability surface and fail closed. No CPU fallback
 is allowed for a strict GPU request.
 
@@ -82,7 +82,11 @@ the full software/GPU effect corpus passes on the same SHA.
   stage. Vignette now lowers through the same color-matrix dispatch, with
   software/Vulkan pixel parity across parameter cases and clip coverage; a
   three-stage Brightness → Vignette → Invert stack matches the software result.
-  Unsupported effects and the full catalog are not certified.
+  Mosaic now lowers through a source-sampling dispatch. Block sizes 1, 3, and
+  512, partial clip behavior, and a Brightness → Vignette → Mosaic → Invert
+  stack match the software processors on llvmpipe. Mosaic preserves transparent
+  source samples while selecting each block's center. Unsupported effects and
+  the full catalog are not certified.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
@@ -107,6 +111,9 @@ the full software/GPU effect corpus passes on the same SHA.
   passed 259 assertions; the expanded stroke pixel oracle passed 1,769,836
   assertions. The per-corner stroke fixture passed 61,455 pixel-channel
   assertions; the complete backend-registry CTest passed locally on llvmpipe.
+- The native capability census is now 17/47; 30 catalog routes remain
+  unsupported. The backend-registry and render-graph CTest targets both passed
+  locally on llvmpipe after the Mosaic addition.
 - This is not GPU-hardware or same-SHA CI certification. The remaining catalog
   routes and unsupported stroke transforms are still open.
 

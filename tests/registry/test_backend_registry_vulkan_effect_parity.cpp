@@ -34,6 +34,7 @@ std::unique_ptr<EffectProcessor> create_fill_effect_processor();
 std::unique_ptr<EffectProcessor> create_levels_effect_processor();
 std::unique_ptr<EffectProcessor> create_threshold_effect_processor();
 std::unique_ptr<EffectProcessor> create_vignette_effect_processor();
+std::unique_ptr<EffectProcessor> create_mosaic_effect_processor();
 std::unique_ptr<EffectProcessor> create_keying_effect_processor();
 std::unique_ptr<EffectProcessor> create_drop_shadow_effect_processor();
 } // namespace chronon3d::renderer
@@ -49,8 +50,9 @@ constexpr int kH = 4;
 // and FMA contraction may differ from the scalar CPU path by a few ULP.
 constexpr float kTolerance = 2.0e-4f;
 
-std::shared_ptr<Framebuffer> make_source() {
+std::shared_ptr<Framebuffer> make_source(int origin_x = 0, int origin_y = 0) {
     auto fb = std::make_shared<Framebuffer>(kW, kH);
+    fb->set_origin(origin_x, origin_y);
     fb->clear(Color::transparent());
     for (int y = 0; y < kH; ++y) {
         for (int x = 0; x < kW; ++x) {
@@ -68,8 +70,9 @@ std::shared_ptr<Framebuffer> make_source() {
 
 std::vector<float> software_oracle(renderer::EffectProcessor& processor,
                                    const EffectParams& params,
-                                   const std::optional<raster::BBox>& clip) {
-    auto fb = make_source();
+                                   const std::optional<raster::BBox>& clip,
+                                   int origin_x = 0, int origin_y = 0) {
+    auto fb = make_source(origin_x, origin_y);
     effects::EffectExecutionContext ctx{};
     ctx.clip = clip;
     processor.apply(*fb, params, ctx);
@@ -89,7 +92,8 @@ struct VulkanRun {
 };
 
 VulkanRun vulkan_strict(const EffectParams& params,
-                        const std::optional<raster::BBox>& clip) {
+                        const std::optional<raster::BBox>& clip,
+                        int origin_x = 0, int origin_y = 0) {
     backends::vulkan::VulkanBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
     RenderGraphContext ctx;
@@ -100,7 +104,7 @@ VulkanRun vulkan_strict(const EffectParams& params,
     ctx.policy.require_native_gpu = true;
     ctx.node_exec.clip_rect = clip;
 
-    auto source = make_source();
+    auto source = make_source(origin_x, origin_y);
     EffectStack effects;
     effects::EffectInstance inst;
     inst.params = params;
@@ -108,7 +112,8 @@ VulkanRun vulkan_strict(const EffectParams& params,
     effects.push_back(std::move(inst));
     EffectStackNode node(std::move(effects));
     const std::array<FramebufferRef, 1> inputs{source.get()};
-    const std::array<std::optional<raster::BBox>, 1> bboxes{raster::BBox{0, 0, kW, kH}};
+    const std::array<std::optional<raster::BBox>, 1> bboxes{
+        raster::BBox{origin_x, origin_y, origin_x + kW, origin_y + kH}};
     const auto result = node.execute(ctx, inputs, bboxes);
     VulkanRun run;
     if (!result.ok()) {
@@ -161,9 +166,10 @@ VulkanRun vulkan_strict_stack(const EffectStack& stack) {
 }
 
 void check_parity(renderer::EffectProcessor& processor, const EffectParams& params,
-                  const std::optional<raster::BBox>& clip = std::nullopt) {
-    const auto expected = software_oracle(processor, params, clip);
-    const auto actual = vulkan_strict(params, clip);
+                  const std::optional<raster::BBox>& clip = std::nullopt,
+                  int origin_x = 0, int origin_y = 0) {
+    const auto expected = software_oracle(processor, params, clip, origin_x, origin_y);
+    const auto actual = vulkan_strict(params, clip, origin_x, origin_y);
     INFO("strict Vulkan error: " << actual.error);
     REQUIRE(actual.ok);
     REQUIRE(actual.pixels.size() == expected.size());
@@ -273,6 +279,12 @@ TEST_CASE("Vulkan native color effects match the software processors") {
         check_parity(*p, VignetteParams{.radius = 0.5f, .softness = 0.5f,
                                         .amount = 0.0f});
     }
+    SUBCASE("Mosaic") {
+        auto p = renderer::create_mosaic_effect_processor();
+        check_parity(*p, MosaicParams{.block_size = 1});
+        check_parity(*p, MosaicParams{.block_size = 3});
+        check_parity(*p, MosaicParams{.block_size = 512});
+    }
 }
 
 TEST_CASE("Vulkan native color effects honor the software clip contract") {
@@ -286,6 +298,8 @@ TEST_CASE("Vulkan native color effects honor the software clip contract") {
     auto vignette = renderer::create_vignette_effect_processor();
     check_parity(*vignette, VignetteParams{.radius = 0.25f, .softness = 0.45f,
                                            .amount = 0.9f}, clip);
+    auto mosaic = renderer::create_mosaic_effect_processor();
+    check_parity(*mosaic, MosaicParams{.block_size = 3}, clip);
     // Software Exposure/Levels/Fill ignore the clip; native must too.
     auto exposure = renderer::create_exposure_effect_processor();
     check_parity(*exposure, ExposureParams{.stops = 1.0f}, clip);
@@ -375,12 +389,15 @@ TEST_CASE("Strict Vulkan applies certified effect stacks in authored order") {
     auto brightness = renderer::create_brightness_effect_processor();
     auto invert = renderer::create_invert_effect_processor();
     auto vignette = renderer::create_vignette_effect_processor();
+    auto mosaic = renderer::create_mosaic_effect_processor();
     effects::EffectExecutionContext context{};
     brightness->apply(expected, BrightnessParams{.value = 0.12f}, context);
     const VignetteParams vignette_params{.radius = 0.32f, .softness = 0.27f,
                                           .amount = 0.74f,
                                           .color = Color{0.08f, 0.02f, 0.11f, 1.0f}};
     vignette->apply(expected, vignette_params, context);
+    const MosaicParams mosaic_params{.block_size = 3};
+    mosaic->apply(expected, mosaic_params, context);
     invert->apply(expected, InvertParams{.amount = 0.4f}, context);
 
     EffectStack stack;
@@ -389,6 +406,7 @@ TEST_CASE("Strict Vulkan applies certified effect stacks in authored order") {
     disabled.enabled = false;
     stack.push_back(std::move(disabled));
     stack.push_back(effects::EffectInstance{vignette_params});
+    stack.push_back(effects::EffectInstance{mosaic_params});
     stack.push_back(effects::EffectInstance{InvertParams{.amount = 0.4f}});
     const auto actual = vulkan_strict_stack(stack);
     INFO("strict Vulkan error: " << actual.error);

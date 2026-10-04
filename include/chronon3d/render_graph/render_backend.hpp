@@ -180,7 +180,8 @@ using NodeExecResult = Result<OwnedFB, NodeExecutionError>;
 /// are untouched and alpha is always preserved.
 struct NativeColorTransform {
     enum class Mode : std::uint8_t {
-        Affine = 0, Levels = 1, Threshold = 2, Keying = 3, Vignette = 4
+        Affine = 0, Levels = 1, Threshold = 2, Keying = 3, Vignette = 4,
+        Mosaic = 5
     };
     Mode mode{Mode::Affine};
     std::array<std::array<float, 4>, 5> p{{

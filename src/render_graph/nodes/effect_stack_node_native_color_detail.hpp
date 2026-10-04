@@ -35,7 +35,8 @@ inline NativeColorTransform scaled_affine(float scale, float offset, bool clamp)
 } // namespace color_detail
 
 inline std::optional<NativeColorLowering>
-lower_native_color_effect(const effects::EffectInstance& instance) {
+lower_native_color_effect(const effects::EffectInstance& instance,
+                          int origin_x = 0, int origin_y = 0) {
     using color_detail::finite_all;
     using color_detail::identity_affine;
     using color_detail::scaled_affine;
@@ -142,6 +143,17 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
         out.honors_clip = true;
         return out;
     }
+    case effects::EffectType::Mosaic: {
+        const auto* p = std::get_if<MosaicParams>(&instance.params);
+        if (!p || p->block_size == 0 || p->block_size > 512)
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::Mosaic;
+        out.transform.p[0] = {static_cast<float>(p->block_size),
+                              static_cast<float>(origin_x),
+                              static_cast<float>(origin_y), 0.0f};
+        out.honors_clip = true;
+        return out;
+    }
     case effects::EffectType::Levels: {
         const auto* p = std::get_if<LevelsParams>(&instance.params);
         if (!p) return std::nullopt;
@@ -227,7 +239,8 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
         return false;
     const auto& instance = effect_stack[0];
     if (!instance.enabled) return false;
-    const auto lowering = lower_native_color_effect(instance);
+    const auto lowering = lower_native_color_effect(
+        instance, result.origin_x(), result.origin_y());
     if (!lowering) return false;
 
     const auto desc = native_surface_desc(result.width(), result.height());
