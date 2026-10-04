@@ -94,6 +94,30 @@ bool hit_rect_like(vec2 p, vec2 origin, vec2 rect_size,
            p.y >= origin.y - spread && p.y < origin.y + rect_size.y + spread;
 }
 
+bool hit_per_corner_rect_like(vec2 p, vec2 origin, vec2 rect_size,
+                              vec4 corner_radii, float spread) {
+    vec2 q = p - origin;
+    if (q.x < -spread || q.x > rect_size.x + spread ||
+        q.y < -spread || q.y > rect_size.y + spread)
+        return false;
+    int corner = q.y < rect_size.y * 0.5
+        ? (q.x < rect_size.x * 0.5 ? 0 : 1)
+        : (q.x >= rect_size.x * 0.5 ? 2 : 3);
+    float radius = max(0.0, min(corner_radii[corner],
+                                min(rect_size.x, rect_size.y) * 0.5));
+    if (radius <= 0.0) return true;
+    bool in_corner = corner == 0 ? q.x < radius && q.y < radius :
+        corner == 1 ? q.x > rect_size.x - radius && q.y < radius :
+        corner == 2 ? q.x > rect_size.x - radius && q.y > rect_size.y - radius :
+                      q.x < radius && q.y > rect_size.y - radius;
+    if (!in_corner) return true;
+    float cx = corner == 0 || corner == 3 ? radius : rect_size.x - radius;
+    float cy = corner < 2 ? radius : rect_size.y - radius;
+    float expanded = radius + spread;
+    vec2 delta = q - vec2(cx, cy);
+    return dot(delta, delta) <= expanded * expanded;
+}
+
 void main() {
     // Dispatch is restricted to the rectangle's clipped bounds.  Re-add the
     // absolute origin because gl_GlobalInvocationID is local to that region.
@@ -131,6 +155,8 @@ void main() {
         vec2 gCenter = (geomMin + geomMax) * 0.5;
         float halfWidth = 0.5 * w;
         bool isCircle = params.shape.x > 1.5;
+        bool isPerCorner = params.vertices[7].x > 0.5;
+        vec4 authoredRadii = vec4(params.vertices[5], params.vertices[6]);
         float radius = isCircle ? params.shape.y :
             (params.shape.x > 0.5 ? params.shape.y : 0.0);
         float outerSpread = align == 0 ? 0.0 : halfWidth;
@@ -145,8 +171,9 @@ void main() {
             strokeHit = strokePm.a > 0.0 && dist2 <= outerR * outerR &&
                         dist2 >= innerRadius * innerRadius;
         } else {
-            fillHit = params.color.a > 0.0 &&
-                hit_rect_like(p, geomMin, gSize, radius, 0.0);
+            fillHit = params.color.a > 0.0 && (isPerCorner
+                ? hit_per_corner_rect_like(p, geomMin, gSize, authoredRadii, 0.0)
+                : hit_rect_like(p, geomMin, gSize, radius, 0.0));
             vec2 outerOrigin = align == 0 ? geomMin : geomMin - vec2(halfWidth);
             vec2 outerSize = align == 0 ? gSize : gSize + vec2(w);
             float outerRadius = align == 0 ? radius : radius + halfWidth;
@@ -154,10 +181,20 @@ void main() {
             vec2 innerOrigin = geomMin + vec2(innerInset);
             vec2 innerSize = align == 2 ? gSize : max(vec2(0.0), gSize - vec2(w));
             float innerRadius = align == 2 ? radius : max(0.0, radius - halfWidth);
-            bool outerHit = hit_rect_like(p, outerOrigin, outerSize,
-                                          outerRadius, outerSpread);
-            bool innerHit = hit_rect_like(p, innerOrigin, innerSize,
-                                          innerRadius, 0.0);
+            vec4 outerRadii = authoredRadii + vec4(align == 0 ? 0.0 : halfWidth);
+            vec4 innerRadii = align == 2
+                ? authoredRadii
+                : max(vec4(0.0), authoredRadii - vec4(halfWidth));
+            bool outerHit = isPerCorner
+                ? hit_per_corner_rect_like(p, outerOrigin, outerSize,
+                                           outerRadii, outerSpread)
+                : hit_rect_like(p, outerOrigin, outerSize,
+                                outerRadius, outerSpread);
+            bool innerHit = isPerCorner
+                ? hit_per_corner_rect_like(p, innerOrigin, innerSize,
+                                           innerRadii, 0.0)
+                : hit_rect_like(p, innerOrigin, innerSize,
+                                innerRadius, 0.0);
             strokeHit = strokePm.a > 0.0 && outerHit && !innerHit;
         }
         vec4 source = vec4(0.0);
