@@ -86,7 +86,9 @@ the full software/GPU effect corpus passes on the same SHA.
   512, partial clip behavior, and a Brightness → Vignette → Mosaic → Invert
   stack match the software processors on llvmpipe. Mosaic preserves transparent
   source samples while selecting each block's center. Unsupported effects and
-  the full catalog are not certified.
+  the full catalog are not certified. The Echo integration oracle now also
+  covers Brightness → Echo in addition to Echo → Brightness: both frames match
+  the registered software stack across all 32 pixel channels (87 assertions).
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
@@ -102,7 +104,7 @@ the full software/GPU effect corpus passes on the same SHA.
   cover exact frame/key lookup, reset, no-readback surface copies, two-frame
   graph output values, direct comparison against the registered software
   processor for every output channel, and a fixed second-frame display-space
-  framehash. The capability census now reports 16 native routes.
+  framehash. The capability census reports 17 native routes.
 - After Echo/keying framehash additions and rotated stroke parity changes,
   CTest passed the Vulkan backend-registry, render-graph, and Vulkan
   debug-context suites on llvmpipe (3/3); backend-registry was rerun after the

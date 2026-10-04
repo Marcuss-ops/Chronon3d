@@ -275,6 +275,105 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     CHECK(framehash == 0x095b6643e6cf4424ULL);
 }
 
+TEST_CASE("EffectStackNode preserves color-before-Echo order in native history") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+    using namespace chronon3d::runtime;
+
+    auto runtime_result = RuntimeContext::create(
+        RuntimeConfig{.config = Config{}, .assets_root = std::nullopt});
+    REQUIRE(runtime_result);
+    auto& runtime = *runtime_result.value();
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry surfaces;
+    JobSession job(runtime);
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 4;
+    ctx.frame_input.height = 2;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+    ctx.policy.require_native_gpu = true;
+
+    EffectStack effects;
+    effects.emplace_back(BrightnessParams{.value = 0.1f});
+    effects.emplace_back(EchoParams{
+        .echoes = 1, .decay = 0.5f, .time_offset_frames = 1});
+    EffectStackNode node(std::move(effects));
+    node.set_temporal_history_key("echo-integration/color-before-echo");
+
+    const SurfaceDesc desc{
+        4, 2, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, 0};
+    std::array<std::vector<float>, 2> native_frames;
+    for (std::int64_t frame_number = 0; frame_number < 2; ++frame_number) {
+        const auto source_handle = surfaces.create(desc);
+        REQUIRE(source_handle != kInvalidRenderSurfaceHandle);
+        REQUIRE(backend.create_surface(source_handle, desc).ok());
+        std::vector<float> pixels(4 * 2 * 4, 0.0f);
+        const auto base = static_cast<std::size_t>(frame_number) * 4;
+        pixels[base + 1] = 1.0f;
+        pixels[base + 3] = 1.0f;
+        REQUIRE(backend.upload_surface(source_handle, desc, pixels).ok());
+        auto source = std::make_shared<Framebuffer>(4, 2, static_cast<Color*>(nullptr));
+        source->set_surface_handle(source_handle);
+        ctx.frame_input.frame = Frame{frame_number};
+        ctx.frame_input.sample_time = SampleTime::from_frame_int(
+            Frame{frame_number}, FrameRate{});
+        auto* slot = job.slots().try_acquire(FrameSlotState::Evaluating);
+        REQUIRE(slot != nullptr);
+        auto& payload = job.slots().payload(slot->slot_id);
+        FrameExecution execution(
+            job, Frame{frame_number}, ctx.frame_input.sample_time, *slot, payload);
+        ctx.execution = &execution;
+        const std::array<FramebufferRef, 1> inputs{source.get()};
+        const std::array<std::optional<raster::BBox>, 1> bboxes{
+            raster::BBox{0, 0, 4, 2}};
+        auto result = node.execute(ctx, inputs, bboxes);
+        REQUIRE(result.ok());
+        const auto output_handle = result.value()->surface_handle();
+        REQUIRE(output_handle != kInvalidRenderSurfaceHandle);
+        auto& output = native_frames[static_cast<std::size_t>(frame_number)];
+        output.resize(4 * 2 * 4);
+        REQUIRE(backend.download_surface(output_handle, output).ok());
+        execution.complete();
+        ctx.execution = nullptr;
+        job.slots().release(*slot);
+        REQUIRE(backend.release_surface(output_handle).ok());
+        CHECK(surfaces.release(output_handle));
+        REQUIRE(backend.release_surface(source_handle).ok());
+        CHECK(surfaces.release(source_handle));
+    }
+
+    renderer::SoftwareRegistry software_registry;
+    renderer::register_builtin_processors(software_registry);
+    EffectScratchResources software_scratch;
+    EffectStack software_stack;
+    software_stack.emplace_back(BrightnessParams{.value = 0.1f});
+    software_stack.emplace_back(EchoParams{
+        .echoes = 1, .decay = 0.5f, .time_offset_frames = 1});
+    for (std::int64_t frame_number = 0; frame_number < 2; ++frame_number) {
+        Framebuffer input(4, 2);
+        input.clear(Color::transparent());
+        input.set_pixel(static_cast<int>(frame_number), 0, Color{0, 1, 0, 1});
+        effects::EffectExecutionContext effect_context;
+        effect_context.frame = Frame{frame_number};
+        effect_context.temporal_history_key = "echo-integration/color-before-echo";
+        effect_context.effect_scratch = &software_scratch;
+        renderer::apply_effect_stack(
+            input, software_stack, effect_context, software_registry);
+        const auto& actual = native_frames[static_cast<std::size_t>(frame_number)];
+        for (int y = 0; y < 2; ++y)
+            for (int x = 0; x < 4; ++x) {
+                const Color expected = input.get_pixel(x, y);
+                const float channels[]{expected.r, expected.g, expected.b, expected.a};
+                const auto pixel = static_cast<std::size_t>((y * 4 + x) * 4);
+                for (int channel = 0; channel < 4; ++channel)
+                    CHECK(actual[pixel + static_cast<std::size_t>(channel)] ==
+                          doctest::Approx(channels[channel]).epsilon(1e-6));
+            }
+    }
+}
+
 TEST_CASE("Vulkan lighting preserves alpha and matches the CPU multiplier oracle") {
     using namespace chronon3d;
 
