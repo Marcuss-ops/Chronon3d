@@ -494,7 +494,7 @@ TEST_CASE("Vulkan separable blur stays on device across two passes") {
     CHECK(output[neighbor + 0] < output[center + 0]);
 }
 
-TEST_CASE("Vulkan glow sequence uses blur passes followed by additive composite") {
+TEST_CASE("Vulkan glow sequence preserves source and composites halo behind it") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     constexpr std::uint32_t size = 9;
     const chronon3d::runtime::SurfaceDesc desc{
@@ -520,7 +520,7 @@ TEST_CASE("Vulkan glow sequence uses blur passes followed by additive composite"
     CHECK(backend.stats().submissions == submissions_before + 1);
     REQUIRE(backend.download_surface(413, output).ok());
 
-    CHECK(output[center + 0] > source[center + 0]);
+    CHECK(output[center + 0] == doctest::Approx(source[center + 0]));
     const auto neighbor = (static_cast<std::size_t>(size / 2) * size + size / 2 + 1) * 4;
     CHECK(output[neighbor + 0] > 0.0f);
 

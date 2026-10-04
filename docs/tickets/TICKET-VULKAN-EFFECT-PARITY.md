@@ -104,10 +104,15 @@ the full software/GPU effect corpus passes on the same SHA.
   assertions). A partial-clip fixture also matches all channels (130
   assertions); Vulkan copies the CPU-equivalent blur halo before the following
   clipped color stage. Other effects requiring expanded output bounds remain
-  outside this fixed-extent route. Glow → Invert still fails its software
-  pixel oracle and remains fail-closed. Bloom → Invert now runs through
-  AdjustmentNode at radii 0.5, 1.5, 3, and 10 and matches the software oracle
-  (512 channel assertions). An additional two-frame AdjustmentNode oracle now
+  outside this fixed-extent route. The native Glow route now prepares a
+  colorized alpha field, applies the CPU-equivalent linearized Gaussian and
+  composites the halo behind the source; full-frame Glow matches software at
+  radii 0, 0.49, 0.5, 1.5, 3, and 10 (768 channel comparisons, 780 total
+  assertions). Glow → Invert
+  and Bloom → Invert both run through AdjustmentNode at radii 0.5, 1.5, 3,
+  and 10 and match the software oracle (1,024 channel comparisons, 1,040 total
+  assertions). An
+  additional two-frame AdjustmentNode oracle now
   covers Brightness → Echo → ChromaKey (88 channel assertions). The strict
   full-frame Bloom route promotes the original input surface before processing
   expanded output bounds, uses the software box kernel, and matches its oracle
