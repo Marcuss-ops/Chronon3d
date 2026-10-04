@@ -14,6 +14,8 @@
 // mode 3 (keying): p[0] key rgb + threshold; p[1] softness, spill,
 //                  clip black/white; p[2] choke + garbage x/y/w;
 //                  p[3] garbage h/feather; p[4].x selects luma vs chroma.
+// mode 4 (vignette): p[0] radius, softness, amount, color.r;
+//                    p[1].xy = color.gb.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
@@ -72,6 +74,20 @@ void main() {
             val = t * t * (3.0 - 2.0 * t);
         }
         rgb = vec3(val);
+    } else if (params.options.x > 3.5) {
+        float diagonal = sqrt(float(size.x * size.x + size.y * size.y));
+        float dx = float(coord.x) - float(size.x) * 0.5;
+        float dy = float(coord.y) - float(size.y) * 0.5;
+        float distance_to_center = sqrt(dx * dx + dy * dy);
+        float inner_radius = params.p[0].x * diagonal * 0.5;
+        float outer_radius = inner_radius + params.p[0].y * diagonal * 0.5;
+        float inverse_range = 1.0 / max(1.0, outer_radius - inner_radius);
+        float vignette = clamp((distance_to_center - inner_radius) * inverse_range,
+                               0.0, 1.0);
+        vignette = vignette * vignette * (3.0 - 2.0 * vignette);
+        float amount = vignette * params.p[0].z;
+        vec3 color = vec3(params.p[0].w, params.p[1].x, params.p[1].y);
+        rgb = rgb * (1.0 - amount) + color * amount;
     } else if (params.options.x > 2.5) {
         float measure;
         if (params.p[4].x > 0.5) {
