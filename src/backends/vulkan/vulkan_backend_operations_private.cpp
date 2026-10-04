@@ -436,7 +436,9 @@ void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
     write_descriptors(threshold_descriptor, horizontal, src_image);
     VkDescriptorSet horizontal_blur_descriptor = VK_NULL_HANDLE;
     VkDescriptorSet vertical_blur_descriptor = VK_NULL_HANDLE;
-    if (radius > 0.0f) {
+    const bool blur_enabled = radius > 0.5f;
+    const float box_radius = std::ceil(radius);
+    if (blur_enabled) {
         horizontal_blur_descriptor = allocate_pass_descriptor_set();
         write_descriptors(horizontal_blur_descriptor, vertical, horizontal);
         vertical_blur_descriptor = allocate_pass_descriptor_set();
@@ -463,9 +465,10 @@ void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
         .layout = runtime::ResourceLayout::General,
         .queue = runtime::QueueClass::Compute,
     };
-    if (radius > 0.0f) {
+    if (blur_enabled) {
         emit_resource_transition(command, horizontal.image, ready_for_read);
-        record_blur(command, horizontal_blur_descriptor, vertical, horizontal, radius, true);
+        record_blur(command, horizontal_blur_descriptor, vertical, horizontal,
+                    box_radius, true, true);
         vertical.initialized = true;
         emit_resource_transition(command, vertical.image, ready_for_read);
         runtime::ResourceTransition horizontal_for_write = ready_for_read;
@@ -482,7 +485,8 @@ void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
             .queue = runtime::QueueClass::Compute,
         };
         emit_resource_transition(command, horizontal.image, horizontal_for_write);
-        record_blur(command, vertical_blur_descriptor, horizontal, vertical, radius, false);
+        record_blur(command, vertical_blur_descriptor, horizontal, vertical,
+                    box_radius, false, true);
         horizontal.initialized = true;
         emit_resource_transition(command, horizontal.image, ready_for_read);
     } else {
