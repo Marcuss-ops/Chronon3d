@@ -102,7 +102,11 @@ the full software/GPU effect corpus passes on the same SHA.
   stage executor while preserving its fixed input extent; the output matches
   the software oracle with an explicit full-frame bbox (130 pixel-channel
   assertions). Other effects requiring expanded output bounds remain outside
-  this fixed-extent route.
+  this fixed-extent route. Glow → Invert and Bloom → Invert were probed through
+  the same path but failed the software pixel oracle (more than 200 channels
+  outside tolerance in each fixture); strict AdjustmentNode continues to
+  reject those stacks before dispatch. Regression checks confirm both fail
+  closed (4 assertions).
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation

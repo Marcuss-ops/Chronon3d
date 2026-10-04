@@ -566,6 +566,25 @@ TEST_CASE("Strict Vulkan AdjustmentNode preserves extent for ordered blur stacks
         }
 }
 
+TEST_CASE("Strict Vulkan AdjustmentNode rejects glow and bloom parity gaps") {
+    EffectStack glow_stack;
+    glow_stack.emplace_back(GlowParams{
+        .radius = 1.5f, .intensity = 0.45f,
+        .color = Color{0.7f, 0.35f, 0.9f, 1.0f}});
+    glow_stack.emplace_back(InvertParams{.amount = 0.3f});
+    const auto glow = vulkan_strict_adjustment_stack(glow_stack);
+    CHECK_FALSE(glow.ok);
+    CHECK(glow.error.find("fixed-extent native route") != std::string::npos);
+
+    EffectStack bloom_stack;
+    bloom_stack.emplace_back(BloomParams{
+        .threshold = 0.35f, .radius = 1.5f, .intensity = 0.5f});
+    bloom_stack.emplace_back(InvertParams{.amount = 0.3f});
+    const auto bloom = vulkan_strict_adjustment_stack(bloom_stack);
+    CHECK_FALSE(bloom.ok);
+    CHECK(bloom.error.find("fixed-extent native route") != std::string::npos);
+}
+
 TEST_CASE("Strict Vulkan preserves keying order inside native effect stacks") {
     auto brightness = renderer::create_brightness_effect_processor();
     auto keying = renderer::create_keying_effect_processor();
