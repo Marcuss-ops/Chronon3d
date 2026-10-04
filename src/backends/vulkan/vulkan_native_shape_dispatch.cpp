@@ -493,9 +493,9 @@ bool try_native_solid_rect(
         const float sx = std::hypot(state.matrix[0][0], state.matrix[1][0]);
         const float sy = std::hypot(state.matrix[0][1], state.matrix[1][1]);
         // The software stroke contract is evaluated in inverse-transformed
-        // local coordinates. Preserve that contract while allowing uniform
-        // axis-aligned scales; non-uniform transforms change the SDF metric.
-        if (std::abs(sx - sy) > 1e-4f || sx <= 1e-6f || sy <= 1e-6f)
+        // local coordinates. The shader applies the full inverse axis-aligned
+        // transform, so non-uniform scale preserves the CPU SDF metric too.
+        if (sx <= 1e-6f || sy <= 1e-6f)
             return false;
     }
 

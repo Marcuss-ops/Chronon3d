@@ -74,11 +74,12 @@ the full software/GPU effect corpus passes on the same SHA.
   box-filter kernel; the existing Gaussian kernel remains unchanged for its
   other callers. Unsupported effects and the full catalog are not certified.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
-  all three alignments with translated geometry, clipping, and uniform scales
-  0.75x, 1x, 1.25x and 2x (884,916 assertions). The Vulkan shader now evaluates
-  stroke coverage with the same inverse-transform coefficients as the CPU
-  rasterizer, including its pixel-edge rounding. Non-uniform scales, rotations,
-  masks and per-corner rounded strokes remain outside this native route.
+  all three alignments with translated geometry, clipping, uniform scales
+  0.75x, 1x, 1.25x and 2x, and anisotropic scales 1.25x0.75 and 0.75x2
+  (1,327,374 assertions). The Vulkan shader evaluates coverage with the same
+  inverse-transform coefficients as the CPU rasterizer, including pixel-edge
+  rounding. Rotations, masks and per-corner rounded strokes remain outside this
+  native route.
 - Echo now uses job-owned, frame-addressed Vulkan surface history and weighted
   premultiplied source-over, including as an ordered stack stage. Local fixtures
   cover exact frame/key lookup, reset, no-readback surface copies, and two-frame
@@ -86,7 +87,7 @@ the full software/GPU effect corpus passes on the same SHA.
 - After Echo and uniform-scale stroke parity changes, CTest passed the Vulkan
   backend-registry, render-graph, and Vulkan debug-context suites on llvmpipe.
   The focused Echo/history run passed 2 cases / 48 assertions; the expanded
-  scaled-stroke pixel oracle passed 884,916 assertions.
+  stroke pixel oracle passed 1,327,374 assertions.
 - This is not GPU-hardware or same-SHA CI certification. The remaining catalog
   routes and unsupported stroke transforms are still open.
 

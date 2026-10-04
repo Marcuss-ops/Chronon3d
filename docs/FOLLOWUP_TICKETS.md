@@ -12,7 +12,7 @@
 | Echo native GPU dispatch | P1 | PARTIAL — local Vulkan graph parity; framehash and GPU-host certification pending | [ECHO-GPU-NATIVE](tickets/TICKET-ECHO-GPU-NATIVE.md) |
 | Engine certification aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | Test harness and WBH certification | P1 | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) · [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
-| Vulkan shape-stroke parity | P1 | PARTIAL — solid closed shapes pass pixel oracle at uniform scales 0.75×, 1×, 1.25× and 2×; non-uniform transforms and hardware certification pending | [ROADMAP-LOCAL-CLOSEOUT](tickets/TICKET-ROADMAP-LOCAL-CLOSEOUT-2026-09.md) |
+| Vulkan shape-stroke parity | P1 | PARTIAL — solid closed shapes pass pixel oracle at uniform and anisotropic axis-aligned scales; rotation/mask cases and hardware certification pending | [ROADMAP-LOCAL-CLOSEOUT](tickets/TICKET-ROADMAP-LOCAL-CLOSEOUT-2026-09.md) |
 | Daemon job lifecycle throughput | P1 | OPEN — allocator data gate | [DAEMON-JOB-LIFECYCLE](tickets/TICKET-DAEMON-JOB-LIFECYCLE.md) |
 | Benchmark corpus and CPU budget | P1 | MEASURED — host certification pending | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) |
 | Node memory metrics | P1 | OPEN — representative corpus pending | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
