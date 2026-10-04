@@ -33,6 +33,7 @@ std::unique_ptr<EffectProcessor> create_exposure_effect_processor();
 std::unique_ptr<EffectProcessor> create_fill_effect_processor();
 std::unique_ptr<EffectProcessor> create_levels_effect_processor();
 std::unique_ptr<EffectProcessor> create_threshold_effect_processor();
+std::unique_ptr<EffectProcessor> create_vignette_effect_processor();
 std::unique_ptr<EffectProcessor> create_keying_effect_processor();
 std::unique_ptr<EffectProcessor> create_drop_shadow_effect_processor();
 } // namespace chronon3d::renderer
@@ -261,6 +262,17 @@ TEST_CASE("Vulkan native color effects match the software processors") {
         check_parity(*p, ThresholdParams{.threshold = 0.0f, .softness = 0.0f});
         check_parity(*p, ThresholdParams{.threshold = 1.0f, .softness = 1.0f});
     }
+    SUBCASE("Vignette") {
+        auto p = renderer::create_vignette_effect_processor();
+        check_parity(*p, VignetteParams{.radius = 0.27f, .softness = 0.38f,
+                                        .amount = 0.82f,
+                                        .color = Color{0.12f, 0.04f, 0.31f, 0.2f}});
+        check_parity(*p, VignetteParams{.radius = 0.75f, .softness = 0.0f,
+                                        .amount = 1.0f,
+                                        .color = Color{0.0f, 0.0f, 0.0f, 1.0f}});
+        check_parity(*p, VignetteParams{.radius = 0.5f, .softness = 0.5f,
+                                        .amount = 0.0f});
+    }
 }
 
 TEST_CASE("Vulkan native color effects honor the software clip contract") {
@@ -271,6 +283,9 @@ TEST_CASE("Vulkan native color effects honor the software clip contract") {
     check_parity(*invert, InvertParams{.amount = 0.8f}, clip);
     auto threshold = renderer::create_threshold_effect_processor();
     check_parity(*threshold, ThresholdParams{.threshold = 0.4f, .softness = 0.15f}, clip);
+    auto vignette = renderer::create_vignette_effect_processor();
+    check_parity(*vignette, VignetteParams{.radius = 0.25f, .softness = 0.45f,
+                                           .amount = 0.9f}, clip);
     // Software Exposure/Levels/Fill ignore the clip; native must too.
     auto exposure = renderer::create_exposure_effect_processor();
     check_parity(*exposure, ExposureParams{.stops = 1.0f}, clip);
@@ -359,8 +374,13 @@ TEST_CASE("Strict Vulkan applies certified effect stacks in authored order") {
     auto expected = *source;
     auto brightness = renderer::create_brightness_effect_processor();
     auto invert = renderer::create_invert_effect_processor();
+    auto vignette = renderer::create_vignette_effect_processor();
     effects::EffectExecutionContext context{};
     brightness->apply(expected, BrightnessParams{.value = 0.12f}, context);
+    const VignetteParams vignette_params{.radius = 0.32f, .softness = 0.27f,
+                                          .amount = 0.74f,
+                                          .color = Color{0.08f, 0.02f, 0.11f, 1.0f}};
+    vignette->apply(expected, vignette_params, context);
     invert->apply(expected, InvertParams{.amount = 0.4f}, context);
 
     EffectStack stack;
@@ -368,6 +388,7 @@ TEST_CASE("Strict Vulkan applies certified effect stacks in authored order") {
     effects::EffectInstance disabled{InvertParams{.amount = 0.9f}};
     disabled.enabled = false;
     stack.push_back(std::move(disabled));
+    stack.push_back(effects::EffectInstance{vignette_params});
     stack.push_back(effects::EffectInstance{InvertParams{.amount = 0.4f}});
     const auto actual = vulkan_strict_stack(stack);
     INFO("strict Vulkan error: " << actual.error);
