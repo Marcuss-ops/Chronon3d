@@ -104,6 +104,15 @@ the full software/GPU effect corpus passes on the same SHA.
 - This is not GPU-hardware or same-SHA CI certification. The remaining catalog
   routes and unsupported stroke transforms are still open.
 
+## Remote certification blocker — 2026-10-04
+
+GitHub Actions runs for `fb052dadf7bd1fe27a5377cbc63c4daeb1a305ca`, including
+the `Vulkan-gated unit suites` job, ended before runner allocation (`runner_id`
+0, empty runner name, no steps). The check-run annotation reports that the job
+was not started because recent account payments failed or the spending limit
+must be increased. This records an account-level execution blocker; it is not
+test evidence and does not certify this SHA on GPU hardware.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
