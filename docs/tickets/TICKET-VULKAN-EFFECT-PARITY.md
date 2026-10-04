@@ -218,6 +218,12 @@ unit suites` job (`111516439414`) likewise ended before runner allocation
 (`runner_id=0`, empty runner name, no steps) with the same billing annotation.
 Hardware certification remains pending.
 
+The two-frame EffectStackNode Echo/keying parity commit,
+`ed96c29794444d6dff8d9fb16564f889527c542b`, was checked in Native Video
+Certification run `37230674950`. Job `111519465115` ended before runner
+allocation (`runner_id=0`, empty runner name, no steps) with the same billing
+annotation. Local tests pass on llvmpipe; this run does not certify hardware.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
