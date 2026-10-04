@@ -140,6 +140,12 @@ After adding the native Vignette stage, commit
 `runner_id=0`, no steps, and the same account-billing annotation. Local
 llvmpipe tests pass, but this run provides no GPU-host evidence.
 
+After the Echo stack-order fixture, commit
+`bf8e23184f8e811fcb2a672b75808bc74e7753e0` was pushed to `main`. The
+`Vulkan-gated unit suites` job (run `37219496458`, job `111486769601`) again
+ended before runner allocation (`runner_id=0`, no steps) with the same billing
+annotation. This remains an external certification blocker, not test evidence.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
