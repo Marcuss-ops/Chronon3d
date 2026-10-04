@@ -61,7 +61,16 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             .blue_offset = effect.chromatic_blue_offset,
             .offset_mode = static_cast<ChromaticOffsetMode>(effect.chromatic_offset_mode),
             .velocity = Vec2{effect.chromatic_velocity[0], effect.chromatic_velocity[1]},
-            .center = Vec2{effect.radial_center[0], effect.radial_center[1]}});
+            .center = Vec2{effect.radial_center[0], effect.radial_center[1]},
+            .red = RgbChannelTransform{Vec2{effect.chromatic_red_transform[0], effect.chromatic_red_transform[1]},
+                Vec2{effect.chromatic_red_transform[2], effect.chromatic_red_transform[3]},
+                effect.chromatic_red_transform[4], effect.chromatic_red_transform[5]},
+            .green = RgbChannelTransform{Vec2{effect.chromatic_green_transform[0], effect.chromatic_green_transform[1]},
+                Vec2{effect.chromatic_green_transform[2], effect.chromatic_green_transform[3]},
+                effect.chromatic_green_transform[4], effect.chromatic_green_transform[5]},
+            .blue = RgbChannelTransform{Vec2{effect.chromatic_blue_transform[0], effect.chromatic_blue_transform[1]},
+                Vec2{effect.chromatic_blue_transform[2], effect.chromatic_blue_transform[3]},
+                effect.chromatic_blue_transform[4], effect.chromatic_blue_transform[5]}});
         } break;
         case LayerPlan::EffectKindPlan::Halftone: {
             prepared_effects[index].emplace_back(HalftoneParams{

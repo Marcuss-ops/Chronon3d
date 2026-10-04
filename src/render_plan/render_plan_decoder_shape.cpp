@@ -122,6 +122,28 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 throw std::runtime_error("shape.field requires a closed procedural shape or authored path");
             shape.field = decode_field2d_plan(raw_shape.at("field"));
         }
+        if (raw_shape.contains("field_ramp")) {
+            if (!shape.field)
+                throw std::runtime_error("shape.field_ramp requires shape.field");
+            shape.field_ramp = decode_gradient_definition(raw_shape.at("field_ramp"));
+        }
+        if (raw_shape.contains("field_render_scale")) {
+            shape.field_render_scale = raw_shape.at("field_render_scale").get<std::uint32_t>();
+            if (!shape.field || (shape.field_render_scale != 1 &&
+                shape.field_render_scale != 2 && shape.field_render_scale != 4))
+                throw std::runtime_error("shape.field_render_scale requires shape.field and must be 1, 2, or 4");
+        }
+        if (raw_shape.contains("field_drift")) {
+            if (!shape.field) throw std::runtime_error("shape.field_drift requires shape.field");
+            const auto& drift = raw_shape.at("field_drift");
+            if (!drift.is_array() || drift.size() != 2)
+                throw std::runtime_error("shape.field_drift must contain two values");
+            const Vec2 decoded_drift{drift[0].get<float>(), drift[1].get<float>()};
+            if (!std::isfinite(decoded_drift.x) || !std::isfinite(decoded_drift.y) ||
+                std::abs(decoded_drift.x) > 100.0f || std::abs(decoded_drift.y) > 100.0f)
+                throw std::runtime_error("shape.field_drift components must be finite and within [-100, 100]");
+            shape.field_drift = decoded_drift;
+        }
         if (layer.size_dimensions != 2 || !std::isfinite(layer.size[0]) ||
             !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
             throw std::runtime_error("shape layers require positive two-dimensional size");

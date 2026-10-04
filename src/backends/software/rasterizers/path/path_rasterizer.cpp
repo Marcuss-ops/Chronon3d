@@ -426,7 +426,9 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                         const f32 w = std::max(1.0f, static_cast<f32>(bbox.x1 - bbox.x0));
                         const f32 h = std::max(1.0f, static_cast<f32>(bbox.y1 - bbox.y0));
                         const Vec2 normalized{(p.x - bbox.x0) / w, (p.y - bbox.y0) / h};
-                        pixel_color = sample_fill_at(path.fill, normalized).to_linear();
+                        const Color field_color = sample_fill_at(path.fill, normalized);
+                        pixel_color = path.fill.field_ramp
+                            ? field_color : field_color.to_linear();
                         pixel_color.a *= opacity;
                     } else if (path.fill.type == FillType::GradientMesh && path.fill.gradient_mesh) {
                         const f32 w = std::max(1.0f, static_cast<f32>(bbox.x1 - bbox.x0));
