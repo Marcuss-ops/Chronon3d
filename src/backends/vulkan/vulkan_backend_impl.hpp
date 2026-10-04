@@ -637,7 +637,8 @@ struct VulkanBackend::Impl {
     void composite(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source, BlendMode mode,
                    const std::optional<raster::BBox>& clip = std::nullopt,
-                   bool replace = false);
+                   bool replace = false, float source_scale = 1.0f,
+                   bool weighted_source_over = false);
     void fill_rect(runtime::RenderSurfaceHandle destination,
                    std::int32_t x0, std::int32_t y0,
                    std::int32_t x1, std::int32_t y1,

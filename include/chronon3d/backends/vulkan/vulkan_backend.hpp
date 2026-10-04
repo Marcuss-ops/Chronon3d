@@ -402,6 +402,9 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         BlendMode, CompositeOperator,
         const std::optional<raster::BBox>& = std::nullopt) override;
+    graph::RenderOpResult composite_surface_weighted(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        float, const std::optional<raster::BBox>& = std::nullopt) override;
     graph::RenderOpResult copy_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const std::optional<raster::BBox>& = std::nullopt) override;

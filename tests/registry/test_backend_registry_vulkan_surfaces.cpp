@@ -424,6 +424,40 @@ TEST_CASE("Vulkan native surfaces stay device-local across upload and composite"
     CHECK(output[3] == doctest::Approx(0.5f));
 }
 
+TEST_CASE("Vulkan weighted source-over scales premultiplied RGBA without readback") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    const runtime::SurfaceDesc desc{
+        2, 1, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::JobPersistent, 0};
+    const std::vector<float> destination{
+        0.10f, 0.05f, 0.0f, 0.25f,
+        0.0f, 0.10f, 0.05f, 0.20f};
+    const std::vector<float> source{
+        0.40f, 0.20f, 0.10f, 0.50f,
+        0.30f, 0.10f, 0.20f, 0.40f};
+    std::vector<float> actual(8, 0.0f);
+    REQUIRE(backend.create_surface(201, desc).ok());
+    REQUIRE(backend.create_surface(202, desc).ok());
+    REQUIRE(backend.upload_surface(201, desc, destination).ok());
+    REQUIRE(backend.upload_surface(202, desc, source).ok());
+    REQUIRE(backend.composite_surface_weighted(201, 202, 0.25f).ok());
+    REQUIRE(backend.download_surface(201, actual).ok());
+    for (std::size_t i = 0; i < actual.size(); i += 4) {
+        const float weighted_alpha = source[i + 3] * 0.25f;
+        const float remain = 1.0f - weighted_alpha;
+        for (std::size_t channel = 0; channel < 3; ++channel)
+            CHECK(actual[i + channel] == doctest::Approx(
+                source[i + channel] * 0.25f + destination[i + channel] * remain));
+        CHECK(actual[i + 3] == doctest::Approx(
+            weighted_alpha + destination[i + 3] * remain));
+    }
+    const auto invalid = backend.composite_surface_weighted(201, 202, 1.25f);
+    CHECK_FALSE(invalid.ok());
+    CHECK(invalid.error().code == graph::RenderBackendErrorCode::InvalidInput);
+}
+
 TEST_CASE("Vulkan source-over composite matches SoftwareCompositor oracle") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     chronon3d::Framebuffer cpu_destination(4, 3);

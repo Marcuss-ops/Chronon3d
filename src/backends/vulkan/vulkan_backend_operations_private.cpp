@@ -18,7 +18,8 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                                     runtime::RenderSurfaceHandle source,
                                     BlendMode mode,
                                     const std::optional<raster::BBox>& clip,
-                                    bool replace) {
+                                    bool replace, float source_scale,
+                                    bool weighted_source_over) {
     auto& dst_image = resolve_image(destination);
     auto& src_image = resolve_image(source);
     if (!src_image.initialized ||
@@ -32,7 +33,7 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
             std::to_string(src_image.height) +
             (src_image.initialized ? "" : " src-uninitialized"));
     }
-    const std::int32_t blend_mode = replace ? 2 :
+    const std::int32_t blend_mode = replace ? 2 : weighted_source_over ? 7 :
         (mode == BlendMode::Add ? 1 : mode == BlendMode::Multiply ? 3 :
          mode == BlendMode::Screen ? 4 : mode == BlendMode::Overlay ? 5 : 0);
     if (frame_batch.active) {
@@ -41,7 +42,7 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &src_image});
         record_composite(cmd, descriptors, dst_image, src_image,
-                         blend_mode, 1.0f, kIdentityTint, clip);
+                         blend_mode, source_scale, kIdentityTint, clip);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

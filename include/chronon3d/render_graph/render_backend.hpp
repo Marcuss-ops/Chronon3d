@@ -480,6 +480,18 @@ public:
             "RenderBackend::composite_surfaces: native surfaces are not supported"));
     }
 
+    /// Source-over composite a native surface after scaling all premultiplied
+    /// RGBA channels by `opacity`. Used by deterministic temporal trails.
+    virtual RenderOpResult composite_surface_weighted(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        float /*opacity*/,
+        const std::optional<raster::BBox>& /*clip*/ = std::nullopt) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::composite_surface_weighted: native surfaces are not supported"));
+    }
+
     /// Replace-copy a native surface, optionally limited to a canvas clip.
     /// Unlike SourceOver this preserves exact source pixels and is used by
     /// native effects to merge a clipped result without a CPU round trip.

@@ -11,6 +11,11 @@ When execution receives a GPU-only surface, `EffectStackNode` fails explicitly
 with `Echo is not available for GPU-only render surfaces`. It must not be
 silently skipped or treated as GPU-native.
 
+The native backend now exposes weighted premultiplied source-over compositing
+for accumulating Echo taps without readback. This is a reusable primitive only:
+frame-addressed GPU history, Echo stage integration, and the graph canary remain
+unimplemented, so strict Vulkan still rejects Echo.
+
 ## Exit criteria
 
 - Add a native effect dispatch and history storage contract for Vulkan/GPU-only
