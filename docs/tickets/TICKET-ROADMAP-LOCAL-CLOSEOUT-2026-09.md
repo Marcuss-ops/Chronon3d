@@ -64,11 +64,12 @@ hardware, assets, or remote CI remain open below.
 
 The solid Rect, RoundedRect and Circle Vulkan stroke route now has a software
 pixel oracle for all three alignments, translated geometry, clipping, fill and
-stroke opacity, and uniform scales 0.75x, 1x, 1.25x and 2x. Coverage is computed
-in inverse-transformed local coordinates using the same inverse matrix
-coefficients as the CPU rasterizer; the local Vulkan test passes 884,916 pixel
-channel assertions on llvmpipe. Non-uniform scale, rotation, masks and
-per-corner rounded-rectangle strokes remain unsupported and fail closed.
+stroke opacity, uniform scales 0.75x, 1x, 1.25x and 2x, and anisotropic scales
+1.25x0.75 and 0.75x2. Coverage is computed in inverse-transformed local
+coordinates using the same inverse matrix coefficients as the CPU rasterizer;
+the local Vulkan test passes 1,327,374 pixel channel assertions on llvmpipe.
+Rotation, masks and per-corner rounded-rectangle strokes remain unsupported and
+fail closed.
 
 The nine shape/alignment combinations in `test_vulkan_debug_context.cpp` use
 the certified solid-stroke subset. On 2026-10-04, `chronon3d_vulkan_debug_context_tests`
