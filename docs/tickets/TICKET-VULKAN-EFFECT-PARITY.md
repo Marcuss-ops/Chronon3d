@@ -106,7 +106,9 @@ the full software/GPU effect corpus passes on the same SHA.
   The Vulkan shader evaluates coverage with the same inverse-transform
   coefficients as the CPU rasterizer, including pixel-edge rounding. An
   explicit shear case fails closed after exposing pixel disagreement. A
-  per-corner RoundedRect stroke fixture now also matches the software oracle
+  regression fixture verifies Rect shear is rejected for Inside, Center and
+  Outside alignment (8 assertions). The per-corner RoundedRect stroke fixture
+  also matches the software oracle
   for Inside/Center/Outside under a rotated anisotropic transform (61,455
   pixel-channel assertions). Shear and masks remain unsupported.
 - Echo now uses job-owned, frame-addressed Vulkan surface history and weighted
