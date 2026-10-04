@@ -15,6 +15,7 @@ enum class GpuKernelId : std::uint8_t {
     AffineTransform,
     Blur,
     BloomThreshold,
+    GlowPrepare,
     ColorAdjust,
     Lighting,
     Matte,
