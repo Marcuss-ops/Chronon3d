@@ -107,21 +107,24 @@ void main() {
     vec2 size = max_corner - min_corner;
     vec2 center = (min_corner + max_corner) * 0.5;
 
-    // Pixel-center path for certified solid strokes on rect / rounded-rect /
-    // circle. The host dispatcher limits requests to the validated transform
-    // and geometry contract; unsupported cases fail closed before dispatch.
+    // Pixel-center path for solid strokes on rect / rounded-rect / circle.
+    // The host dispatcher limits requests to the validated transform and
+    // geometry contract; unsupported cases fail closed before dispatch.
     // params.vertices[7].y == 1.0 signals a stroked primitive. Original geometry
-    // limits are in vertices[0].xy (min) / vertices[1].xy (max), stroke color
-    // in params.line, stroke width (dst pixels, full) in vertices[2].x and
-    // alignment code (0 Inside / 1 Center / 2 Outside) in vertices[2].y.
+    // local size is in vertices[0].xy, inverse transform columns in vertices
+    // [1..3], authored stroke width and alignment in vertices[4].xy, stroke
+    // color in params.line.
     // rect still carries the clipped dispatch rectangle. Geometry is separate
     // so a clip never deforms the corner radius.
     if (params.shape.x <= 2.5 && params.vertices[7].y > 0.5) {
-        vec2 geomMin = params.vertices[0];
-        vec2 geomMax = params.vertices[1];
+        vec2 screen = vec2(pixel) + vec2(0.5);
+        vec2 p = params.vertices[1] * screen.x +
+                 params.vertices[2] * screen.y + params.vertices[3];
+        vec2 geomMin = vec2(0.0);
+        vec2 geomMax = params.vertices[0];
         vec4 strokePm = params.line; // premultiplied RGBA
-        float w = params.vertices[2].x; // full band width in dst pixels
-        int align = int(params.vertices[2].y + 0.5); // 0 Inside, 1 Center, 2 Outside
+        float w = params.vertices[4].x;
+        int align = int(params.vertices[4].y + 0.5); // 0 Inside, 1 Center, 2 Outside
         w = max(w, 0.0);
 
         vec2 gSize = geomMax - geomMin;

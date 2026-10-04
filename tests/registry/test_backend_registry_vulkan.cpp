@@ -90,7 +90,7 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
         StrokeAlignment::Outside};
     const std::array types{ShapeType::Rect, ShapeType::RoundedRect,
                            ShapeType::Circle};
-    const std::array scales{1.0f, 1.25f};
+    const std::array scales{0.75f, 1.0f, 1.25f, 2.0f};
     runtime::RenderSurfaceHandle handle = 0xC3D200u;
 
     for (const auto scale : scales) {
@@ -158,12 +158,6 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
             backend.begin_frame_batch();
             const auto drawn = backend.draw_node(actual, node, state, Camera{}, width, height);
             backend.end_frame_batch();
-            if (scale != 1.0f) {
-                CHECK_FALSE(drawn.ok());
-                REQUIRE(backend.release_surface(handle).ok());
-                ++handle;
-                continue;
-            }
             REQUIRE(drawn.ok());
 
             std::vector<float> pixels(initial.size());

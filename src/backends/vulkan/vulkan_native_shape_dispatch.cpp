@@ -9,6 +9,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -492,11 +493,9 @@ bool try_native_solid_rect(
         const float sx = std::hypot(state.matrix[0][0], state.matrix[1][0]);
         const float sy = std::hypot(state.matrix[0][1], state.matrix[1][1]);
         // The software stroke contract is evaluated in inverse-transformed
-        // local coordinates. The current pixel oracle certifies translations
-        // only; even uniform scale currently changes raster coverage versus
-        // the CPU path. Reject those requests until scale parity is proven.
-        if (std::abs(sx - 1.0f) > 1e-4f || std::abs(sy - 1.0f) > 1e-4f ||
-            std::abs(sx - sy) > 1e-4f)
+        // local coordinates. Preserve that contract while allowing uniform
+        // axis-aligned scales; non-uniform transforms change the SDF metric.
+        if (std::abs(sx - sy) > 1e-4f || sx <= 1e-6f || sy <= 1e-6f)
             return false;
     }
 
@@ -530,33 +529,41 @@ bool try_native_solid_rect(
     std::array<Vec2, 8> vertices{};
     if (has_stroke) {
         const float sx = std::hypot(state.matrix[0][0], state.matrix[1][0]);
+        const float sy = std::hypot(state.matrix[0][1], state.matrix[1][1]);
         const float stroke_width_px = stroke_ptr->width * sx;
         if (!std::isfinite(stroke_width_px) || stroke_width_px <= 0.0f)
             return false;
         const auto alignment = stroke_ptr->alignment;
-        vertices[0] = Vec2{geom_min_x, geom_min_y};
-        vertices[1] = Vec2{geom_max_x, geom_max_y};
+        glm::mat3 inverse_transform;
+        inverse_transform[0][0] = state.matrix[0][0];
+        inverse_transform[0][1] = state.matrix[0][1];
+        inverse_transform[0][2] = state.matrix[0][3];
+        inverse_transform[1][0] = state.matrix[1][0];
+        inverse_transform[1][1] = state.matrix[1][1];
+        inverse_transform[1][2] = state.matrix[1][3];
+        inverse_transform[2][0] = state.matrix[3][0];
+        inverse_transform[2][1] = state.matrix[3][1];
+        inverse_transform[2][2] = state.matrix[3][3];
+        inverse_transform = glm::inverse(inverse_transform);
+        vertices[0] = size;
+        vertices[1] = Vec2{inverse_transform[0][0], inverse_transform[0][1]};
+        vertices[2] = Vec2{inverse_transform[1][0], inverse_transform[1][1]};
+        vertices[3] = Vec2{inverse_transform[2][0], inverse_transform[2][1]};
         const float shader_alignment = alignment == StrokeAlignment::Inside ? 0.0f :
             alignment == StrokeAlignment::Center ? 1.0f : 2.0f;
-        vertices[2] = Vec2{stroke_width_px, shader_alignment};
+        vertices[4] = Vec2{stroke_ptr->width, shader_alignment};
         vertices[7].y = 1.0f;
         line_params = Vec4{stroke_premul.r, stroke_premul.g,
                            stroke_premul.b, stroke_premul.a};
-        const float extent = alignment == StrokeAlignment::Inside
-            ? 0.0f
-            : stroke_width_px;
-        if (extent > 0.0f) {
-            geom_min_x -= extent;
-            geom_min_y -= extent;
-            geom_max_x += extent;
-            geom_max_y += extent;
-        }
-        if (shape_params.x == 1.0f) {
-            shape_params.y *= sx;
-            shape_params.z *= sx;
-            shape_params.w *= sx;
-        } else if (shape_params.x == 2.0f) {
-            shape_params.y *= sx;
+        const float extent_x = alignment == StrokeAlignment::Inside
+            ? 0.0f : stroke_ptr->width * sx;
+        const float extent_y = alignment == StrokeAlignment::Inside
+            ? 0.0f : stroke_ptr->width * sy;
+        if (extent_x > 0.0f || extent_y > 0.0f) {
+            geom_min_x -= extent_x;
+            geom_min_y -= extent_y;
+            geom_max_x += extent_x;
+            geom_max_y += extent_y;
         }
     }
 

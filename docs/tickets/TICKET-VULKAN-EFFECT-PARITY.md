@@ -73,22 +73,22 @@ the full software/GPU effect corpus passes on the same SHA.
   software reference. The blur stack route uses the CPU processor's repeated
   box-filter kernel; the existing Gaussian kernel remains unchanged for its
   other callers. Unsupported effects and the full catalog are not certified.
-- Solid Rect, RoundedRect and Circle strokes now have a CPU/Vulkan pixel oracle
-  for all three alignments with translated geometry and clipping. Uniformly
-  scaled strokes are explicitly rejected. A probe that temporarily enabled
-  uniform scale reproduced a CPU/Vulkan pixel mismatch for Rect at 1.25x
-  (Inside alignment; pixel (12,10)), so scale parity remains open across the
-  shape family rather than only at rounded corners.
+- Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
+  all three alignments with translated geometry, clipping, and uniform scales
+  0.75x, 1x, 1.25x and 2x (884,916 assertions). The Vulkan shader now evaluates
+  stroke coverage with the same inverse-transform coefficients as the CPU
+  rasterizer, including its pixel-edge rounding. Non-uniform scales, rotations,
+  masks and per-corner rounded strokes remain outside this native route.
 - Echo now uses job-owned, frame-addressed Vulkan surface history and weighted
   premultiplied source-over, including as an ordered stack stage. Local fixtures
   cover exact frame/key lookup, reset, no-readback surface copies, and two-frame
   graph output values. The capability census now reports 15 native routes.
-- After Echo integration, CTest passed both the full Vulkan backend-registry
-  suite and the render-graph suite (`chronon3d_backend_registry_tests` and
-  `chronon3d_render_graph_tests`) on llvmpipe. The focused Echo/history run
-  passed 2 cases / 48 assertions.
-- This is not GPU-hardware or same-SHA CI certification. Stroke scale parity and
-  the remaining catalog routes are still unsupported.
+- After Echo and uniform-scale stroke parity changes, CTest passed the Vulkan
+  backend-registry, render-graph, and Vulkan debug-context suites on llvmpipe.
+  The focused Echo/history run passed 2 cases / 48 assertions; the expanded
+  scaled-stroke pixel oracle passed 884,916 assertions.
+- This is not GPU-hardware or same-SHA CI certification. The remaining catalog
+  routes and unsupported stroke transforms are still open.
 
 ## Demolition debt
 
