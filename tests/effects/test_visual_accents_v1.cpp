@@ -300,6 +300,13 @@ TEST_CASE("Visual Accents V1: Light leak profile resolver") {
         chronon3d::assets::AssetResolver resolver;
         const auto prepared = compile_render_plan(plan, resolver);
         REQUIRE(prepared);
+        const auto& authored_shape = plan.layers.front().shape;
+        REQUIRE(authored_shape);
+        REQUIRE(authored_shape->gradient);
+        CHECK(authored_shape->gradient->type == GradientType::Radial);
+        CHECK(authored_shape->gradient->center.x == doctest::Approx(0.5f));
+        CHECK(authored_shape->gradient->center.y == doctest::Approx(0.5f));
+        REQUIRE(authored_shape->gradient->color_stops.size() == 3);
         const auto evaluated = chronon3d::evaluate(
             prepared->compiled_composition, {}, Frame{0});
         REQUIRE(evaluated);
@@ -309,11 +316,7 @@ TEST_CASE("Visual Accents V1: Light leak profile resolver") {
         CHECK(layer.blend_mode == chronon3d::BlendMode::Add);
         REQUIRE(layer.nodes.size() == 1);
         CHECK(layer.nodes.front().shape.type() == chronon3d::ShapeType::Rect);
-        CHECK(layer.nodes.front().fill.type == chronon3d::FillType::RadialGradient);
-        CHECK(layer.nodes.front().fill.gradient.center.x == doctest::Approx(0.5f));
-        CHECK(layer.nodes.front().fill.gradient.center.y == doctest::Approx(0.5f));
-        REQUIRE(layer.nodes.front().fill.gradient.color_stops.size() == 3);
-        CHECK(layer.nodes.front().fill.gradient.color_stops[0].color.a ==
+        CHECK(authored_shape->gradient->color_stops[0].color.a ==
               doctest::Approx(0.6f));
         REQUIRE(layer.effects().size() == 2);
         const auto* split = std::get_if<ChromaticAberrationParams>(
