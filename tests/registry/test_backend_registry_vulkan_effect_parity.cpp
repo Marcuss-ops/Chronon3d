@@ -668,6 +668,67 @@ TEST_CASE("Strict Vulkan AdjustmentNode composes Glow and Bloom stacks") {
     }
 }
 
+TEST_CASE("Strict Vulkan EffectStackNode composes Glow and Bloom stacks") {
+    auto bloom_processor = renderer::create_bloom_effect_processor();
+    auto glow_processor = renderer::create_glow_effect_processor();
+    auto invert_processor = renderer::create_invert_effect_processor();
+    EffectScratchResources glow_scratch;
+
+    for (const float radius : {0.5f, 1.5f, 3.0f, 10.0f}) {
+        INFO("glow radius=" << radius);
+        auto expected = *make_source();
+        const GlowParams params{
+            .radius = radius, .intensity = 0.45f,
+            .color = Color{0.7f, 0.35f, 0.9f, 0.8f}};
+        effects::EffectExecutionContext context{};
+        context.effect_scratch = &glow_scratch;
+        glow_processor->apply(expected, params, context);
+        invert_processor->apply(expected, InvertParams{.amount = 0.3f}, context);
+
+        EffectStack stack;
+        stack.emplace_back(params);
+        stack.emplace_back(InvertParams{.amount = 0.3f});
+        const auto actual = vulkan_strict_stack(stack);
+        INFO("strict Vulkan error: " << actual.error);
+        REQUIRE(actual.ok);
+        for (int y = 0; y < kH; ++y)
+            for (int x = 0; x < kW; ++x) {
+                const Color color = expected.get_pixel(x, y);
+                const float channels[]{color.r, color.g, color.b, color.a};
+                const auto index = static_cast<std::size_t>((y * kW + x) * 4);
+                for (int channel = 0; channel < 4; ++channel)
+                    CHECK(actual.pixels[index + static_cast<std::size_t>(channel)] ==
+                          doctest::Approx(channels[channel]).epsilon(kTolerance));
+            }
+    }
+
+    for (const float radius : {0.5f, 1.5f, 3.0f, 10.0f}) {
+        INFO("bloom radius=" << radius);
+        auto expected = *make_source();
+        const BloomParams params{
+            .threshold = 0.35f, .radius = radius, .intensity = 0.5f};
+        effects::EffectExecutionContext context{};
+        bloom_processor->apply(expected, params, context);
+        invert_processor->apply(expected, InvertParams{.amount = 0.3f}, context);
+
+        EffectStack stack;
+        stack.emplace_back(params);
+        stack.emplace_back(InvertParams{.amount = 0.3f});
+        const auto actual = vulkan_strict_stack(stack);
+        INFO("strict Vulkan error: " << actual.error);
+        REQUIRE(actual.ok);
+        for (int y = 0; y < kH; ++y)
+            for (int x = 0; x < kW; ++x) {
+                const Color color = expected.get_pixel(x, y);
+                const float channels[]{color.r, color.g, color.b, color.a};
+                const auto index = static_cast<std::size_t>((y * kW + x) * 4);
+                for (int channel = 0; channel < 4; ++channel)
+                    CHECK(actual.pixels[index + static_cast<std::size_t>(channel)] ==
+                          doctest::Approx(channels[channel]).epsilon(kTolerance));
+            }
+    }
+}
+
 TEST_CASE("Strict Vulkan Bloom matches software across full-resolution radii") {
     auto bloom = renderer::create_bloom_effect_processor();
     for (const float radius : {0.0f, 0.5f, 1.5f, 3.0f, 10.0f}) {
