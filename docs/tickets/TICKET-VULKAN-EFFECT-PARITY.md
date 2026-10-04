@@ -209,6 +209,12 @@ unit suites` job (`111515841679`) completed before runner allocation
 annotation. This run provides no hardware test evidence; same-SHA GPU-host
 certification remains pending.
 
+The follow-up documentation commit, `9de9613caa5eeb7cb83a8b2c2686da0ede66fe12`,
+was checked in Native Video Certification run `37229649595`. Its `Vulkan-gated
+unit suites` job (`111516439414`) likewise ended before runner allocation
+(`runner_id=0`, empty runner name, no steps) with the same billing annotation.
+Hardware certification remains pending.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
