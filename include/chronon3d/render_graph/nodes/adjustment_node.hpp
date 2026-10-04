@@ -3,13 +3,16 @@
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/native_effects.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <algorithm>
+#include <limits>
 #include <span>
+#include <string>
 
 namespace chronon3d::graph {
 
 NodeExecResult execute_strict_native_adjustment_stack(
     RenderGraphContext&, const EffectStack&, std::span<const FramebufferRef>,
-    std::span<const std::optional<raster::BBox>>);
+    std::span<const std::optional<raster::BBox>>, std::string_view);
 
 class AdjustmentNode final : public RenderGraphNode {
 public:
@@ -27,8 +30,28 @@ public:
             .frame = cache_policy().frame_dependent() ? ctx.frame_input.frame : Frame{0},
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = hash_effect_stack(m_effects)
+            .params_hash = m_temporal_history_key.empty()
+                ? hash_effect_stack(m_effects)
+                : hash_combine(hash_effect_stack(m_effects),
+                               hash_string(m_temporal_history_key))
         };
+    }
+
+    [[nodiscard]] TemporalRequirements temporal_requirements() const noexcept override {
+        std::uint64_t history_frames = 0;
+        for (const auto& effect : m_effects) {
+            if (!effect.enabled || effect.effect_type != effects::EffectType::Echo) continue;
+            const auto* params = std::get_if<EchoParams>(&effect.params);
+            if (!params) continue;
+            history_frames = std::max(history_frames,
+                static_cast<std::uint64_t>(params->echoes) * params->time_offset_frames);
+        }
+        return TemporalRequirements{.history_frames = static_cast<i32>(std::min<std::uint64_t>(
+            history_frames, static_cast<std::uint64_t>(std::numeric_limits<i32>::max())))};
+    }
+
+    void set_temporal_history_key(std::string key) {
+        m_temporal_history_key = std::move(key);
     }
 
     std::optional<raster::BBox> predicted_bbox(
@@ -64,6 +87,7 @@ public:
                 case effects::EffectType::Keying:
                 case effects::EffectType::Vignette:
                 case effects::EffectType::Mosaic:
+                case effects::EffectType::Echo:
                     break;
                 default:
                     return NodeExecutionError{
@@ -73,7 +97,7 @@ public:
                 }
             }
             return execute_strict_native_adjustment_stack(
-                ctx, m_effects, inputs, input_bboxes);
+                ctx, m_effects, inputs, input_bboxes, m_temporal_history_key);
         }
         
         auto result = ctx.acquire_owned_fb(*inputs[0]);
@@ -86,7 +110,8 @@ public:
                 .diagnostics_enabled = ctx.policy.diagnostics_enabled,
                 .effect_processors = ctx.node_exec.current_effect_processors,
                 .processor_snapshot = ctx.node_exec.processor_snapshot,
-                .processors_resolved = ctx.node_exec.processor_bindings_compiled
+                .processors_resolved = ctx.node_exec.processor_bindings_compiled,
+                .temporal_history_key = m_temporal_history_key
             };
             const bool native =
                 native_effects::try_native_full_frame_blur(
@@ -126,6 +151,7 @@ public:
 
 private:
     EffectStack m_effects;
+    std::string m_temporal_history_key;
 };
 
 } // namespace chronon3d::graph
