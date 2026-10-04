@@ -115,7 +115,10 @@ the full software/GPU effect corpus passes on the same SHA.
   AdjustmentNode assertions; the EffectStackNode fixture adds 1,024 channel
   comparisons and passes 1,032 total assertions). An additional two-frame
   AdjustmentNode oracle now
-  covers Brightness → Echo → ChromaKey (88 channel assertions). The strict
+  covers Brightness → Echo → ChromaKey (88 channel assertions). An
+  EffectStackNode fixture also matches two frames of Echo → Brightness →
+  ChromaKey against the registered software stack (64 channel comparisons,
+  92 total assertions) and pins the second-frame display-space framehash. The strict
   full-frame Bloom route promotes the original input surface before processing
   expanded output bounds, uses the software box kernel, and matches its oracle
   at radii 0, 0.5, 1.5, 3, and 10 (650 channel assertions); radius 10.1 fails
