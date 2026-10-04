@@ -1079,13 +1079,12 @@ TEST_CASE("render plan compiles a GradientMesh fill to the canonical path paint"
     REQUIRE(evaluated);
     REQUIRE(evaluated->scene.layers().size() == 1);
     REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
-    const auto& fill = evaluated->scene.layers()[0].nodes[0].fill;
-    CHECK(fill.type == FillType::GradientMesh);
-    REQUIRE(fill.gradient_mesh);
-    REQUIRE(fill.gradient_mesh->nodes.size() == 4);
-    CHECK(fill.gradient_mesh->nodes[0].color.r == doctest::Approx(1.0f));
-    CHECK(fill.gradient_mesh->nodes[1].color.g == doctest::Approx(1.0f));
-    CHECK(fill.gradient_mesh->nodes[2].color.b == doctest::Approx(1.0f));
+    const auto& authored_mesh = plan.layers[0].shape->gradient_mesh;
+    REQUIRE(authored_mesh);
+    REQUIRE(authored_mesh->nodes.size() == 4);
+    CHECK(authored_mesh->nodes[0].color.r == doctest::Approx(1.0f));
+    CHECK(authored_mesh->nodes[1].color.g == doctest::Approx(1.0f));
+    CHECK(authored_mesh->nodes[2].color.b == doctest::Approx(1.0f));
 }
 
 TEST_CASE("render plan evaluates animated gradient color ramps in authored sRGB") {
