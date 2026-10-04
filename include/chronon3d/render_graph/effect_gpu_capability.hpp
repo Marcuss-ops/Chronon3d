@@ -27,7 +27,7 @@ struct NativeRoute {
 
 // Effects with a certified native Vulkan implementation.  Everything else in
 // the catalog is Unsupported and fails closed under strict native-GPU policy.
-inline constexpr std::array<NativeRoute, 14> kNativeRoutes{{
+inline constexpr std::array<NativeRoute, 15> kNativeRoutes{{
     {effects::EffectType::Blur, "Vulkan separable blur dispatch"},
     {effects::EffectType::Glow, "Vulkan glow dispatch"},
     {effects::EffectType::Bloom, "Vulkan bright-pass and separable bloom dispatch"},
@@ -42,6 +42,7 @@ inline constexpr std::array<NativeRoute, 14> kNativeRoutes{{
     {effects::EffectType::Levels, "Vulkan color-matrix dispatch (levels)"},
     {effects::EffectType::Threshold, "Vulkan color-matrix dispatch (threshold)"},
     {effects::EffectType::Keying, "Vulkan color-matrix dispatch (luma/chroma key)"},
+    {effects::EffectType::Echo, "Vulkan frame-addressed JobSession history and weighted source-over"},
 }};
 
 [[nodiscard]] constexpr GpuEffectCapabilityRow make_row(effects::EffectType effect) {
@@ -52,10 +53,6 @@ inline constexpr std::array<NativeRoute, 14> kNativeRoutes{{
         return {effect, GpuEffectRoute::Unsupported,
                 "Vulkan drop-shadow kernel is not implemented (software uses "
                 "box/downsampled blur with no matching native kernel)"};
-    if (effect == effects::EffectType::Echo)
-        return {effect, GpuEffectRoute::Unsupported,
-                "Vulkan Echo requires frame-addressed native surface history and "
-                "decayed multi-surface compositing; neither is implemented"};
     return {effect, GpuEffectRoute::Unsupported,
             "Vulkan native kernel for this effect is not implemented"};
 }

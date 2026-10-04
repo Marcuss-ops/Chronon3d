@@ -26,20 +26,15 @@ NodeExecResult EffectStackNode::execute(
         (!ctx.backend || ctx.backend->is_native_surface_valid(
             inputs[0]->surface_handle()));
     OwnedFB result;
-    if (has_echo && gpu_only_input) {
-        return NodeExecResult{NodeExecutionError{
-            RenderBackendErrorCode::UnsupportedCapability,
-            "EffectStackNode",
-            "Vulkan native Echo history is not implemented; strict GPU execution refuses CPU fallback"}};
-    }
     if (has_echo) {
         // Echo needs a stable canvas coordinate system: tight per-frame layer
         // bounds move as the source animates, while its history is sampled by
         // frame. Expand the source into a transparent canvas before recording
         // or compositing temporal samples so trails survive those bound shifts.
-        result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
+        result = ctx.acquire_owned_fb(
+            ctx.frame_input.width, ctx.frame_input.height, !gpu_only_input);
         result->set_origin(0, 0);
-        if (result->data()) {
+        if (!gpu_only_input && result->data()) {
             result->clear(Color::transparent());
         }
         const auto& source = *inputs[0];
@@ -47,7 +42,8 @@ NodeExecResult EffectStackNode::execute(
         const i32 dst_y0 = std::max(0, source.origin_y());
         const i32 dst_x1 = std::min(ctx.frame_input.width, source.origin_x() + source.width());
         const i32 dst_y1 = std::min(ctx.frame_input.height, source.origin_y() + source.height());
-        if (dst_x1 > dst_x0 && dst_y1 > dst_y0 && result->data() && source.data()) {
+        if (!gpu_only_input && dst_x1 > dst_x0 && dst_y1 > dst_y0 &&
+            result->data() && source.data()) {
             for (i32 y = dst_y0; y < dst_y1; ++y) {
                 const Color* src = source.pixels_row(y - source.origin_y()) + (dst_x0 - source.origin_x());
                 Color* dst = result->pixels_row(y) + dst_x0;
@@ -160,9 +156,22 @@ NodeExecResult EffectStackNode::execute(
         EffectStack active_effects;
         for (const auto& effect : m_effects)
             if (effect.enabled) active_effects.push_back(effect);
-        const bool strict_native_stack = ctx.policy.is_gpu_native_required() &&
+        const auto echo_count = std::count_if(active_effects.begin(), active_effects.end(),
+            [](const EffectInstance& effect) {
+                return effect.effect_type == effects::EffectType::Echo;
+            });
+        bool native_echo_handled = false;
+        if (has_echo && (gpu_only_input || ctx.policy.is_gpu_native_required()) &&
+            active_effects.size() == 1 &&
+            active_effects[0].effect_type == effects::EffectType::Echo) {
+            native_echo_handled = native_effects::try_native_echo(
+                ctx, active_effects[0], *inputs[0], *result,
+                m_temporal_history_key, native_clip);
+        }
+        const bool strict_native_stack =
+            (ctx.policy.is_gpu_native_required() || (gpu_only_input && has_echo)) &&
             active_effects.size() > 1 && ctx.backend->supports_native_surfaces() &&
-            ctx.surface_registry;
+            ctx.surface_registry && echo_count <= 1;
         bool native_source_promotion_failed = false;
         if (strict_native_stack && !native_source_available && !gpu_only_input) {
             // Effect expansion may allocate a CPU-less output framebuffer under
@@ -182,7 +191,9 @@ NodeExecResult EffectStackNode::execute(
         // a new one; the chain is published only after every active stage has
         // succeeded. This preserves authored order and never reads pixels back
         // between effects.
-        if (strict_native_stack) {
+        if (native_echo_handled) {
+            native_handled = true;
+        } else if (strict_native_stack) {
             native_handled = !native_source_promotion_failed;
             for (const auto& effect : active_effects) {
                 const auto* capability = gpu_effect_capability(effect.effect_type);
@@ -192,7 +203,7 @@ NodeExecResult EffectStackNode::execute(
                 }
             }
             auto current_source = native_source;
-            const Framebuffer* current_source_framebuffer =
+            Framebuffer* current_source_framebuffer =
                 native_source_available ? inputs[0].get() : nullptr;
             bool current_source_owned = false;
             for (const auto& effect : active_effects) {
@@ -215,6 +226,11 @@ NodeExecResult EffectStackNode::execute(
                 case effects::EffectType::Tint:
                     stage_handled = native_effects::try_native_full_frame_tint(
                         ctx, one_effect, *result, local_clip, current_source);
+                    break;
+                case effects::EffectType::Echo:
+                    stage_handled = native_effects::try_native_echo(
+                        ctx, effect, *current_source_framebuffer, *result,
+                        m_temporal_history_key, native_clip);
                     break;
                 default:
                     stage_handled = native_effects::try_native_full_frame_color(
@@ -268,7 +284,8 @@ NodeExecResult EffectStackNode::execute(
                     color_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
             }
         }
-        if (ctx.policy.is_gpu_native_required() && !native_handled) {
+        if ((ctx.policy.is_gpu_native_required() || (gpu_only_input && has_echo)) &&
+            !native_handled) {
             std::string capability_message =
                 "strict native GPU effect could not be executed; refusing software fallback";
             if (m_effects.size() == 1) {
