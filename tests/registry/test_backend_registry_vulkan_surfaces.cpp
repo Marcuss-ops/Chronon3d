@@ -32,6 +32,14 @@
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
+#include <chronon3d/backends/software/builtin_processors.hpp>
+#include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/backends/software/software_session_resources.hpp>
+#include <chronon3d/effects/effect_execution_context.hpp>
+#include <chronon3d/effects/color_pipeline.hpp>
+#include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <src/backends/software/effects/render_effects_processor.hpp>
 #include <tests/helpers/cpu_gpu_parity.hpp>
 #include <tests/helpers/gpu_readiness_gate.hpp>
 
@@ -211,6 +219,60 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     CHECK(second[3] == doctest::Approx(0.5f).epsilon(1e-5));
     CHECK(second[4] == doctest::Approx(0.0f));
     CHECK(second[5] == doctest::Approx(1.0f));
+
+    // Keep a real software-processor golden beside the native graph result.
+    // Inputs and temporal context match the two Vulkan frames above.
+    renderer::SoftwareRegistry software_registry;
+    renderer::register_builtin_processors(software_registry);
+    EffectScratchResources software_scratch;
+    EffectStack software_stack;
+    software_stack.push_back(effects::EffectInstance{EchoParams{
+        .echoes = 1, .decay = 0.5f, .time_offset_frames = 1}});
+    software_stack.push_back(effects::EffectInstance{BrightnessParams{.value = 0.0f}});
+    std::array<std::vector<float>, 2> software_frames;
+    for (std::int64_t frame_number = 0; frame_number < 2; ++frame_number) {
+        Framebuffer input(4, 2);
+        input.clear(Color::transparent());
+        const std::size_t lit_pixel = static_cast<std::size_t>(frame_number);
+        input.set_pixel(static_cast<int>(lit_pixel % 4),
+                        static_cast<int>(lit_pixel / 4), Color{0, 1, 0, 1});
+        effects::EffectExecutionContext effect_context;
+        effect_context.frame = Frame{frame_number};
+        effect_context.temporal_history_key = "echo-integration/layer0/effect0";
+        effect_context.effect_scratch = &software_scratch;
+        renderer::apply_effect_stack(input, software_stack, effect_context, software_registry);
+        auto& pixels = software_frames[static_cast<std::size_t>(frame_number)];
+        pixels.reserve(4 * 2 * 4);
+        for (int y = 0; y < 2; ++y)
+            for (int x = 0; x < 4; ++x) {
+                const Color pixel = input.get_pixel(x, y);
+                pixels.insert(pixels.end(), {pixel.r, pixel.g, pixel.b, pixel.a});
+            }
+    }
+    REQUIRE(first.size() == software_frames[0].size());
+    REQUIRE(second.size() == software_frames[1].size());
+    for (std::size_t i = 0; i < first.size(); ++i)
+        CHECK(first[i] == doctest::Approx(software_frames[0][i]).epsilon(1e-6));
+    for (std::size_t i = 0; i < second.size(); ++i)
+        CHECK(second[i] == doctest::Approx(software_frames[1][i]).epsilon(1e-6));
+
+    // Stable 8-bit display-space framehash for the second frame. Quantizing
+    // through the canonical linear-to-sRGB conversion keeps this an image
+    // canary rather than a hash of backend-specific float representation.
+    std::uint64_t framehash = 14695981039346656037ULL;
+    for (std::size_t pixel = 0; pixel < second.size() / 4; ++pixel) {
+        const auto base = pixel * 4;
+        const std::uint8_t rgba[] = {
+            Color::linear_to_srgb8(second[base]),
+            Color::linear_to_srgb8(second[base + 1]),
+            Color::linear_to_srgb8(second[base + 2]),
+            static_cast<std::uint8_t>(std::clamp(second[base + 3], 0.0f, 1.0f) * 255.0f + 0.5f)};
+        for (const auto byte : rgba) {
+            framehash ^= byte;
+            framehash *= 1099511628211ULL;
+        }
+    }
+    CHECK(framehash == 0xdfc31168268fb289ULL);
 }
 
 TEST_CASE("Vulkan lighting preserves alpha and matches the CPU multiplier oracle") {
