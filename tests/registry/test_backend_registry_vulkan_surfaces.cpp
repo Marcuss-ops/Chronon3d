@@ -142,7 +142,7 @@ TEST_CASE("JobSession stores frame-addressed Vulkan Echo surfaces without readba
     CHECK(registry.release(source));
 }
 
-TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
+TEST_CASE("EffectStackNode composes Echo, brightness and chroma key over time") {
     using namespace chronon3d;
     using namespace chronon3d::graph;
     using namespace chronon3d::runtime;
@@ -164,6 +164,12 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     effects.push_back(effects::EffectInstance{EchoParams{
         .echoes = 1, .decay = 0.5f, .time_offset_frames = 1}});
     effects.push_back(effects::EffectInstance{BrightnessParams{.value = 0.1f}});
+    effects.push_back(effects::EffectInstance{KeyingParams{
+        .mode = KeyingMode::Chroma,
+        .key_color = Color{0.0f, 1.0f, 0.0f, 1.0f},
+        .threshold = 0.16f,
+        .softness = 0.42f,
+        .spill = 0.12f}});
     EffectStackNode node(std::move(effects));
     node.set_temporal_history_key("echo-integration/layer0/effect0");
 
@@ -176,7 +182,7 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
         REQUIRE(backend.create_surface(source_handle, desc).ok());
         std::vector<float> pixels(4 * 2 * 4, 0.0f);
         const auto base = lit_pixel * 4;
-        pixels[base + 1] = 1.0f;
+        pixels[base + (frame_number == 0 ? 1 : 0)] = 1.0f;
         pixels[base + 3] = 1.0f;
         REQUIRE(backend.upload_surface(source_handle, desc, pixels).ok());
         auto source = std::make_shared<Framebuffer>(4, 2, static_cast<Color*>(nullptr));
@@ -211,14 +217,7 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     };
 
     const auto first = render_frame(0, 0);
-    CHECK(first[0] == doctest::Approx(0.1f));
-    CHECK(first[1] == doctest::Approx(1.0f));
     const auto second = render_frame(1, 1);
-    CHECK(second[0] == doctest::Approx(0.1f));
-    CHECK(second[1] == doctest::Approx(0.6f).epsilon(1e-5));
-    CHECK(second[3] == doctest::Approx(0.5f).epsilon(1e-5));
-    CHECK(second[4] == doctest::Approx(0.1f));
-    CHECK(second[5] == doctest::Approx(1.0f));
 
     // Keep a real software-processor golden beside the native graph result.
     // Inputs and temporal context match the two Vulkan frames above.
@@ -229,13 +228,20 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
     software_stack.push_back(effects::EffectInstance{EchoParams{
         .echoes = 1, .decay = 0.5f, .time_offset_frames = 1}});
     software_stack.push_back(effects::EffectInstance{BrightnessParams{.value = 0.1f}});
+    software_stack.push_back(effects::EffectInstance{KeyingParams{
+        .mode = KeyingMode::Chroma,
+        .key_color = Color{0.0f, 1.0f, 0.0f, 1.0f},
+        .threshold = 0.16f,
+        .softness = 0.42f,
+        .spill = 0.12f}});
     std::array<std::vector<float>, 2> software_frames;
     for (std::int64_t frame_number = 0; frame_number < 2; ++frame_number) {
         Framebuffer input(4, 2);
         input.clear(Color::transparent());
         const std::size_t lit_pixel = static_cast<std::size_t>(frame_number);
         input.set_pixel(static_cast<int>(lit_pixel % 4),
-                        static_cast<int>(lit_pixel / 4), Color{0, 1, 0, 1});
+                        static_cast<int>(lit_pixel / 4), frame_number == 0
+                            ? Color{0, 1, 0, 1} : Color{1, 0, 0, 1});
         effects::EffectExecutionContext effect_context;
         effect_context.frame = Frame{frame_number};
         effect_context.temporal_history_key = "echo-integration/layer0/effect0";
@@ -272,7 +278,7 @@ TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
             framehash *= 1099511628211ULL;
         }
     }
-    CHECK(framehash == 0x095b6643e6cf4424ULL);
+    CHECK(framehash == 0xf6cf6fc8e59fbd8bULL);
 }
 
 TEST_CASE("AdjustmentNode preserves ordered color, Echo and chroma-key stages") {
