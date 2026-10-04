@@ -179,7 +179,9 @@ using NodeExecResult = Result<OwnedFB, NodeExecutionError>;
 /// output_white with lanes {red, green, blue, master}.  Pixels with alpha <= 0
 /// are untouched and alpha is always preserved.
 struct NativeColorTransform {
-    enum class Mode : std::uint8_t { Affine = 0, Levels = 1, Threshold = 2 };
+    enum class Mode : std::uint8_t {
+        Affine = 0, Levels = 1, Threshold = 2, Keying = 3
+    };
     Mode mode{Mode::Affine};
     std::array<std::array<float, 4>, 5> p{{
         {1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f},
@@ -538,7 +540,7 @@ public:
     virtual RenderOpResult blur_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
-        float /*radius*/, bool /*horizontal*/) {
+        float /*radius*/, bool /*horizontal*/, bool /*box_kernel*/ = false) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::blur_surface: native surfaces are not supported"));
