@@ -25,4 +25,12 @@ namespace chronon3d::graph {
 #include "effect_stack_node_bbox_detail.hpp"
 #include "effect_stack_node_execute_detail.hpp"
 
+NodeExecResult execute_strict_native_adjustment_stack(
+    RenderGraphContext& ctx, const EffectStack& effects,
+    std::span<const FramebufferRef> inputs,
+    std::span<const std::optional<raster::BBox>> input_bboxes) {
+    EffectStackNode native_stack{EffectStack(effects)};
+    return native_stack.execute(ctx, inputs, input_bboxes);
+}
+
 } // namespace chronon3d::graph

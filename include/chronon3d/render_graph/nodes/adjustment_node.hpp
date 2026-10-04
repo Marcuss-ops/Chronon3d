@@ -7,6 +7,10 @@
 
 namespace chronon3d::graph {
 
+NodeExecResult execute_strict_native_adjustment_stack(
+    RenderGraphContext&, const EffectStack&, std::span<const FramebufferRef>,
+    std::span<const std::optional<raster::BBox>>);
+
 class AdjustmentNode final : public RenderGraphNode {
 public:
     explicit AdjustmentNode(EffectStack effects,
@@ -35,8 +39,42 @@ public:
         return input_bboxes[0];
     }
 
-    NodeExecResult execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>>) override {
+    NodeExecResult execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
         if (inputs.empty()) return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
+
+        // Strict-GPU adjustments share the typed EffectStackNode executor so
+        // ordered native stages stay on graph-owned surfaces. The adjustment
+        // contract keeps the input extent fixed; reject spatial/temporal stages
+        // here until their bounds/history contracts are represented by this
+        // node, instead of dropping into VulkanBackend's legacy CPU fallback.
+        if (ctx.policy.is_gpu_native_required()) {
+            for (const auto& effect : m_effects) {
+                if (!effect.enabled) continue;
+                switch (effect.effect_type) {
+                case effects::EffectType::Tint:
+                case effects::EffectType::Brightness:
+                case effects::EffectType::Contrast:
+                case effects::EffectType::Saturation:
+                case effects::EffectType::HueRotate:
+                case effects::EffectType::Invert:
+                case effects::EffectType::Exposure:
+                case effects::EffectType::Fill:
+                case effects::EffectType::Levels:
+                case effects::EffectType::Threshold:
+                case effects::EffectType::Keying:
+                case effects::EffectType::Vignette:
+                case effects::EffectType::Mosaic:
+                    break;
+                default:
+                    return NodeExecutionError{
+                        RenderBackendErrorCode::UnsupportedCapability,
+                        "AdjustmentNode",
+                        "strict Vulkan adjustment stack has no certified fixed-extent route"};
+                }
+            }
+            return execute_strict_native_adjustment_stack(
+                ctx, m_effects, inputs, input_bboxes);
+        }
         
         auto result = ctx.acquire_owned_fb(*inputs[0]);
         if (ctx.backend) {
