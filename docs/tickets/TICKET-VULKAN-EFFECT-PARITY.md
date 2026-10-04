@@ -75,8 +75,10 @@ the full software/GPU effect corpus passes on the same SHA.
   other callers. Unsupported effects and the full catalog are not certified.
 - Solid Rect, RoundedRect and Circle strokes now have a CPU/Vulkan pixel oracle
   for all three alignments with translated geometry and clipping. Uniformly
-  scaled strokes are explicitly rejected because the rounded-corner oracle
-  found a pixel mismatch; scale parity remains open.
+  scaled strokes are explicitly rejected. A probe that temporarily enabled
+  uniform scale reproduced a CPU/Vulkan pixel mismatch for Rect at 1.25x
+  (Inside alignment; pixel (12,10)), so scale parity remains open across the
+  shape family rather than only at rounded corners.
 - Strict Vulkan has a regression test that Echo is rejected with a non-empty
   error while native temporal surface history is unavailable; Echo itself is
   still not implemented.

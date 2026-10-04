@@ -493,8 +493,8 @@ bool try_native_solid_rect(
         const float sy = std::hypot(state.matrix[0][1], state.matrix[1][1]);
         // The software stroke contract is evaluated in inverse-transformed
         // local coordinates. The current pixel oracle certifies translations
-        // only; scaled strokes alter edge ownership around rounded corners.
-        // Reject those requests until scale parity is proven.
+        // only; even uniform scale currently changes raster coverage versus
+        // the CPU path. Reject those requests until scale parity is proven.
         if (std::abs(sx - 1.0f) > 1e-4f || std::abs(sy - 1.0f) > 1e-4f ||
             std::abs(sx - sy) > 1e-4f)
             return false;

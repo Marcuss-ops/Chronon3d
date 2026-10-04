@@ -28,6 +28,12 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
     REQUIRE(keying != nullptr);
     CHECK(keying->route == GpuEffectRoute::NativeZeroReadback);
 
+    const auto* echo = graph::gpu_effect_capability(EffectType::Echo);
+    REQUIRE(echo != nullptr);
+    CHECK(echo->route == GpuEffectRoute::Unsupported);
+    CHECK(echo->diagnostic.find("frame-addressed native surface history") !=
+          std::string_view::npos);
+
     const auto* rgb = graph::gpu_effect_capability(EffectType::ChromaticAberration);
     REQUIRE(rgb != nullptr);
     CHECK(rgb->route == GpuEffectRoute::Unsupported);
