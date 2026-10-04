@@ -20,7 +20,7 @@ The only nearby implemented effect is `LightRaysParams` (radial ray sampling fro
 
 ### Full Vulkan effect parity
 
-`VulkanBackend::apply_effect_stack()` remains explicitly unsupported as a direct backend API. `EffectStackNode` now executes strict native stacks in authored order for the currently declared native routes, through graph-owned intermediate surfaces; local software/Vulkan pixel tests cover pointwise stages and Blur → Invert. Unsupported effects still fail closed for strict GPU input, and this does not establish full parameter parity or catalog-wide Vulkan support. The broader acceptance gate remains in [TICKET-VULKAN-EFFECT-PARITY](TICKET-VULKAN-EFFECT-PARITY.md), including its same-SHA GPU-host certification requirement.
+`VulkanBackend::apply_effect_stack()` remains explicitly unsupported as a direct backend API. `EffectStackNode` executes strict native stacks in authored order for the currently declared native routes, through graph-owned intermediate surfaces; local software/Vulkan pixel tests cover pointwise stages, Blur → Invert, and a two-frame Echo stack on llvmpipe. Unsupported effects still fail closed for strict GPU input, and this does not establish full parameter parity or catalog-wide Vulkan support. The broader acceptance gate remains in [TICKET-VULKAN-EFFECT-PARITY](TICKET-VULKAN-EFFECT-PARITY.md), including its same-SHA GPU-host certification requirement.
 
 ## Verification status
 

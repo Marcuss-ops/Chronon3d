@@ -2,34 +2,26 @@
 
 ## Current behavior
 
-Echo is available through the software effect processor. Render-plan decoding,
-effect ordering, temporal history, fingerprints, and a deterministic
-framehash canary are implemented locally. The effect needs access to earlier
-full-canvas surfaces from the same layer/effect stream.
-
-When execution receives a GPU-only surface, `EffectStackNode` fails explicitly
-with `Echo is not available for GPU-only render surfaces`. It must not be
-silently skipped or treated as GPU-native.
-
-The native backend now exposes weighted premultiplied source-over compositing
-for accumulating Echo taps without readback. This is a reusable primitive only:
-frame-addressed GPU history, Echo stage integration, and the graph canary remain
-unimplemented, so strict Vulkan still rejects Echo.
+Strict Vulkan stores frame-addressed native copies in job-owned history and
+dispatches Echo inside `EffectStackNode`, including as a stage in an ordered
+native stack. Taps use weighted premultiplied source-over with no CPU readback.
+History keys isolate streams; reset clears retained surfaces. The local Vulkan
+integration fixture renders two consecutive frames and checks the decayed pixel
+values. The backend-registry suite passes on llvmpipe.
 
 ## Exit criteria
 
-- Add a native effect dispatch and history storage contract for Vulkan/GPU-only
-  surfaces; do not read back through the CPU unless the renderer's explicit
-  fallback policy requests it.
-- Preserve exact frame addressing, per-layer/effect isolation, reset behavior,
-  canvas-space bounds, and deterministic compositing order.
-- Add a GPU graph integration test and framehash canary; verify the software
-  golden remains unchanged.
-- Expose the capability to the backend resolver so GPU-required plans fail at
-  preflight when Echo is unsupported.
+- [x] Add native dispatch and job-owned history for Vulkan/GPU-only surfaces;
+  Echo accumulation does not read back through the CPU.
+- [x] Preserve exact frame addressing, history-key isolation, reset behavior,
+  canvas-space bounds, and deterministic compositing order in the local path.
+- [x] Add a Vulkan graph integration test with frame-to-frame pixel assertions.
+- [x] Expose the supported native route in the exhaustive effect capability.
+- [ ] Add a stable framehash canary and direct CPU software golden comparison.
+- [ ] Pass GPU-host same-SHA CI certification; llvmpipe is local evidence only.
 
 ## Status
 
-OPEN — software path landed; native GPU path not implemented. RenderingGen is
-out of this repository and must consume the capability once that integration
-is available.
+PARTIAL — native Vulkan Echo and local graph parity are implemented. The
+framehash/software-golden and GPU-host same-SHA gates remain open. RenderingGen
+is out of this repository and must consume the native capability.

@@ -21,6 +21,9 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
@@ -85,6 +88,129 @@ TEST_CASE("Vulkan color adjust matches the CPU scalar oracle") {
         }
         CHECK(actual[base + 3] == doctest::Approx(source[base + 3]));
     }
+}
+
+TEST_CASE("JobSession stores frame-addressed Vulkan Echo surfaces without readback") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    auto runtime_result = RuntimeContext::create(
+        RuntimeConfig{.config = Config{}, .assets_root = std::nullopt});
+    REQUIRE(runtime_result);
+    JobSession job(*runtime_result.value());
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    const SurfaceDesc desc{
+        2, 2, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, 0};
+    const auto source = registry.create(desc);
+    REQUIRE(source != kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.create_surface(source, desc).ok());
+    const std::vector<float> pixels{
+        1.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 1.0f,
+        0.25f, 0.5f, 0.75f, 1.0f};
+    REQUIRE(backend.upload_surface(source, desc, pixels).ok());
+
+    REQUIRE(job.record_native_echo_frame(
+        "layer/effect", 10, source, 4, backend, registry));
+    auto before = job.native_echo_frames("layer/effect", 11, 1, 1);
+    REQUIRE(before.size() == 1);
+    REQUIRE(before[0]);
+    CHECK(before[0]->handle != source);
+    CHECK(before[0]->desc.lifetime == LifetimeClass::JobPersistent);
+
+    std::vector<float> copied(pixels.size(), 0.0f);
+    REQUIRE(backend.download_surface(before[0]->handle, copied).ok());
+    CHECK(copied == pixels);
+    CHECK_FALSE(job.native_echo_frames("layer/effect", 12, 1, 1)[0]);
+    CHECK_FALSE(job.native_echo_frames("other/layer", 11, 1, 1)[0]);
+
+    job.clear_native_echo_history();
+    CHECK_FALSE(job.native_echo_frames("layer/effect", 11, 1, 1)[0]);
+    before.clear();
+    REQUIRE(backend.release_surface(source).ok());
+    CHECK(registry.release(source));
+}
+
+TEST_CASE("EffectStackNode renders Echo from frame-addressed Vulkan history") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+    using namespace chronon3d::runtime;
+
+    auto runtime_result = RuntimeContext::create(
+        RuntimeConfig{.config = Config{}, .assets_root = std::nullopt});
+    REQUIRE(runtime_result);
+    auto& runtime = *runtime_result.value();
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry surfaces;
+    JobSession job(runtime);
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 4;
+    ctx.frame_input.height = 2;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+    ctx.policy.require_native_gpu = true;
+    EffectStack effects;
+    effects.push_back(effects::EffectInstance{EchoParams{
+        .echoes = 1, .decay = 0.5f, .time_offset_frames = 1}});
+    effects.push_back(effects::EffectInstance{BrightnessParams{.value = 0.0f}});
+    EffectStackNode node(std::move(effects));
+    node.set_temporal_history_key("echo-integration/layer0/effect0");
+
+    const SurfaceDesc desc{
+        4, 2, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, 0};
+    const auto render_frame = [&](std::int64_t frame_number, std::size_t lit_pixel) {
+        const auto source_handle = surfaces.create(desc);
+        REQUIRE(source_handle != kInvalidRenderSurfaceHandle);
+        REQUIRE(backend.create_surface(source_handle, desc).ok());
+        std::vector<float> pixels(4 * 2 * 4, 0.0f);
+        const auto base = lit_pixel * 4;
+        pixels[base + 1] = 1.0f;
+        pixels[base + 3] = 1.0f;
+        REQUIRE(backend.upload_surface(source_handle, desc, pixels).ok());
+        auto source = std::make_shared<Framebuffer>(4, 2, static_cast<Color*>(nullptr));
+        source->set_surface_handle(source_handle);
+        ctx.frame_input.frame = Frame{frame_number};
+        ctx.frame_input.sample_time = SampleTime::from_frame_int(
+            Frame{frame_number}, FrameRate{});
+        auto* slot = job.slots().try_acquire(FrameSlotState::Evaluating);
+        REQUIRE(slot != nullptr);
+        auto& payload = job.slots().payload(slot->slot_id);
+        FrameExecution execution(
+            job, Frame{frame_number}, ctx.frame_input.sample_time, *slot, payload);
+        ctx.execution = &execution;
+        const std::array<FramebufferRef, 1> inputs{source.get()};
+        const std::array<std::optional<raster::BBox>, 1> bboxes{
+            raster::BBox{0, 0, 4, 2}};
+        auto result = node.execute(ctx, inputs, bboxes);
+        REQUIRE(result.ok());
+        REQUIRE(result.value() != nullptr);
+        const auto output_handle = result.value()->surface_handle();
+        REQUIRE(output_handle != kInvalidRenderSurfaceHandle);
+        std::vector<float> output(4 * 2 * 4, 0.0f);
+        REQUIRE(backend.download_surface(output_handle, output).ok());
+        execution.complete();
+        ctx.execution = nullptr;
+        job.slots().release(*slot);
+        REQUIRE(backend.release_surface(output_handle).ok());
+        CHECK(surfaces.release(output_handle));
+        REQUIRE(backend.release_surface(source_handle).ok());
+        CHECK(surfaces.release(source_handle));
+        return output;
+    };
+
+    const auto first = render_frame(0, 0);
+    CHECK(first[0] == doctest::Approx(0.0f));
+    CHECK(first[1] == doctest::Approx(1.0f));
+    const auto second = render_frame(1, 1);
+    CHECK(second[0] == doctest::Approx(0.0f));
+    CHECK(second[1] == doctest::Approx(0.5f).epsilon(1e-5));
+    CHECK(second[3] == doctest::Approx(0.5f).epsilon(1e-5));
+    CHECK(second[4] == doctest::Approx(0.0f));
+    CHECK(second[5] == doctest::Approx(1.0f));
 }
 
 TEST_CASE("Vulkan lighting preserves alpha and matches the CPU multiplier oracle") {

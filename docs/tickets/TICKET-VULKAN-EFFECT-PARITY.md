@@ -3,7 +3,7 @@
 ## Stato
 
 OPEN — software exposes 47 effect types; strict Vulkan has native dispatch
-routes for 14 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast, Saturation,
+routes for 15 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast, Saturation,
 HueRotate, Invert, Exposure, Fill, Levels, Threshold, Keying) and explicitly rejects DropShadow.
 All remaining types are unsupported on this capability surface and fail closed. No CPU fallback
 is allowed for a strict GPU request.
@@ -79,15 +79,16 @@ the full software/GPU effect corpus passes on the same SHA.
   uniform scale reproduced a CPU/Vulkan pixel mismatch for Rect at 1.25x
   (Inside alignment; pixel (12,10)), so scale parity remains open across the
   shape family rather than only at rounded corners.
-- Strict Vulkan has a regression test that Echo is rejected with a non-empty
-  error while native temporal surface history is unavailable. The backend now
-  has a native weighted premultiplied source-over composite with a CPU formula
-  oracle, suitable for building decayed taps without readback; Echo history and
-  stage integration are still not implemented.
-- Full local Vulkan backend-registry run: 78 cases / 222,627 assertions passed
-  on llvmpipe, including the stroke oracle, keying and stack cases. This is not
-  GPU-hardware or same-SHA CI certification. Echo and remaining catalog routes
-  are still unsupported.
+- Echo now uses job-owned, frame-addressed Vulkan surface history and weighted
+  premultiplied source-over, including as an ordered stack stage. Local fixtures
+  cover exact frame/key lookup, reset, no-readback surface copies, and two-frame
+  graph output values. The capability census now reports 15 native routes.
+- After Echo integration, CTest passed both the full Vulkan backend-registry
+  suite and the render-graph suite (`chronon3d_backend_registry_tests` and
+  `chronon3d_render_graph_tests`) on llvmpipe. The focused Echo/history run
+  passed 2 cases / 48 assertions.
+- This is not GPU-hardware or same-SHA CI certification. Stroke scale parity and
+  the remaining catalog routes are still unsupported.
 
 ## Demolition debt
 

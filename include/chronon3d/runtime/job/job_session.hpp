@@ -17,6 +17,7 @@
 #include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
 #include <chronon3d/render_graph/executor/execution_workspace.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
+#include <chronon3d/runtime/render_surface.hpp>
 
 #include <cstdint>
 #include <cstddef>
@@ -24,15 +25,33 @@
 #include <optional>
 #include <stdexcept>
 #include <mutex>
+#include <string_view>
+#include <vector>
 
 namespace chronon3d::graph {
 struct NodeExecutionError;
 class GraphExecutor;
+class RenderBackend;
 }
 
 namespace chronon3d::runtime {
 
 class RuntimeContext;
+struct NativeEchoHistoryState;
+
+/// Job-owned device-local copy of one Echo input frame. Shared references keep
+/// a surface alive while another frame is consuming it from the GPU queue.
+struct NativeEchoSurface {
+    RenderSurfaceHandle handle{kInvalidRenderSurfaceHandle};
+    SurfaceDesc desc{};
+    ~NativeEchoSurface();
+
+private:
+    graph::RenderBackend* backend{nullptr};
+    RenderSurfaceRegistry* registry{nullptr};
+    friend class JobSession;
+};
+using NativeEchoSurfaceRef = std::shared_ptr<const NativeEchoSurface>;
 
 struct FrameHistorySlot : FrameHistory {
     using FrameHistory::operator=;
@@ -79,7 +98,7 @@ public:
     /// Empty compatibility session for standalone graph diagnostics. It is
     /// intentionally not a render job until a RuntimeContext is bound.
     JobSession() = default;
-    explicit JobSession(RuntimeContext& runtime) noexcept : runtime_(&runtime) {}
+    explicit JobSession(RuntimeContext& runtime);
     JobSession(RuntimeContext& runtime, JobSessionConfig config);
     /// Compatibility-only session for arbitrary Composition callbacks. It
     /// deliberately has no compiler program; typed production execution must
@@ -235,7 +254,17 @@ public:
     void reset_temporal_history() noexcept {
         frame_history = FrameHistorySlot{};
         dirty_telemetry.previous_layers.clear();
+        clear_native_echo_history();
     }
+
+    [[nodiscard]] std::vector<NativeEchoSurfaceRef> native_echo_frames(
+        std::string_view key, std::int64_t current_frame,
+        std::uint32_t echoes, std::uint32_t frame_offset) const;
+    [[nodiscard]] bool record_native_echo_frame(
+        std::string_view key, std::int64_t frame,
+        RenderSurfaceHandle source, std::size_t keep_frames,
+        graph::RenderBackend& backend, RenderSurfaceRegistry& registry);
+    void clear_native_echo_history() noexcept;
 
     [[nodiscard]] DirtyHistory& dirty_history() noexcept { return dirty_telemetry; }
     [[nodiscard]] const DirtyHistory& dirty_history() const noexcept {
@@ -341,6 +370,7 @@ private:
     CancellationToken cancellation_;
     JobCounters counters_{};
     std::shared_ptr<JobStatus> status_{std::make_shared<JobStatus>()};
+    std::shared_ptr<NativeEchoHistoryState> native_echo_history_;
     std::unique_ptr<GpuCompletionTracker> gpu_completion_{
         std::make_unique<GpuCompletionTracker>(kPipelineDepth)};
     std::unique_ptr<FrameSlotPool> slots_{
