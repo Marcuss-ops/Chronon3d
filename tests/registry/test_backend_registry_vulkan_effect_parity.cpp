@@ -168,7 +168,8 @@ VulkanRun vulkan_strict_stack(const EffectStack& stack) {
 
 VulkanRun vulkan_strict_adjustment_stack(
     const EffectStack& stack,
-    std::optional<raster::BBox> input_bbox = std::nullopt) {
+    std::optional<raster::BBox> input_bbox = std::nullopt,
+    std::optional<raster::BBox> clip = std::nullopt) {
     backends::vulkan::VulkanBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
     RenderGraphContext ctx;
@@ -177,6 +178,7 @@ VulkanRun vulkan_strict_adjustment_stack(
     ctx.backend = &backend;
     ctx.surface_registry = &surfaces;
     ctx.policy.require_native_gpu = true;
+    ctx.node_exec.clip_rect = clip;
 
     auto source = make_source();
     AdjustmentNode node(stack);
@@ -563,6 +565,37 @@ TEST_CASE("Strict Vulkan AdjustmentNode preserves extent for ordered blur stacks
             for (int channel = 0; channel < 4; ++channel)
                 CHECK(actual.pixels[index + static_cast<std::size_t>(channel)] ==
                       doctest::Approx(channels[channel]).epsilon(kTolerance));
+        }
+}
+
+TEST_CASE("Strict Vulkan AdjustmentNode preserves clip for ordered blur stacks") {
+    auto expected = *make_source();
+    auto blur = renderer::create_blur_effect_processor();
+    auto invert = renderer::create_invert_effect_processor();
+    const raster::BBox clip{2, 1, 6, 3};
+    effects::EffectExecutionContext context{};
+    context.clip = clip;
+    blur->apply(expected, BlurParams{.radius = 1.25f}, context);
+    invert->apply(expected, InvertParams{.amount = 0.3f}, context);
+
+    EffectStack stack;
+    stack.emplace_back(BlurParams{.radius = 1.25f});
+    stack.emplace_back(InvertParams{.amount = 0.3f});
+    const auto actual = vulkan_strict_adjustment_stack(
+        stack, raster::BBox{0, 0, kW, kH}, clip);
+    INFO("strict Vulkan adjustment error: " << actual.error);
+    REQUIRE(actual.ok);
+    REQUIRE(actual.pixels.size() == static_cast<std::size_t>(kW * kH * 4));
+    for (int y = 0; y < kH; ++y)
+        for (int x = 0; x < kW; ++x) {
+            const Color color = expected.get_pixel(x, y);
+            const float channels[]{color.r, color.g, color.b, color.a};
+            const auto index = static_cast<std::size_t>((y * kW + x) * 4);
+            for (int channel = 0; channel < 4; ++channel) {
+                INFO("x=" << x << " y=" << y << " channel=" << channel);
+                CHECK(actual.pixels[index + static_cast<std::size_t>(channel)] ==
+                      doctest::Approx(channels[channel]).epsilon(kTolerance));
+            }
         }
 }
 

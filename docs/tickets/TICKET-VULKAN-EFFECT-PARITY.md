@@ -101,8 +101,10 @@ the full software/GPU effect corpus passes on the same SHA.
   AdjustmentNode now also executes Blur → Invert through the shared native
   stage executor while preserving its fixed input extent; the output matches
   the software oracle with an explicit full-frame bbox (130 pixel-channel
-  assertions). Other effects requiring expanded output bounds remain outside
-  this fixed-extent route. Glow → Invert and Bloom → Invert were probed through
+  assertions). A partial-clip fixture also matches all channels (130
+  assertions); Vulkan copies the CPU-equivalent blur halo before the following
+  clipped color stage. Other effects requiring expanded output bounds remain
+  outside this fixed-extent route. Glow → Invert and Bloom → Invert were probed through
   the same path but failed the software pixel oracle (more than 200 channels
   outside tolerance in each fixture); strict AdjustmentNode continues to
   reject those stacks before dispatch. Regression checks confirm both fail
