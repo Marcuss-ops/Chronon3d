@@ -16,8 +16,10 @@ pulls partially keyed edge colors toward gray.
 Keying now lowers to the existing Vulkan color-matrix pipeline for strict
 GPU-only surfaces. A local Vulkan pixel-parity fixture covers luma/chroma,
 spill, clip/choke, garbage matte, partial clip and partial alpha; strict
-execution uses no software fallback. This is not same-SHA GPU-hardware
-certification.
+execution uses no software fallback. Stable luma and chroma display-space
+framehash canaries match both the registered software processor golden and
+fixed expected hashes on the local Vulkan device. This is not same-SHA
+GPU-hardware certification.
 
 ## Exit criteria
 
@@ -25,11 +27,12 @@ certification.
   premultiplied-alpha semantics matching the software processor.
 - [x] Add local Vulkan/software parity coverage for thresholds, partial alpha,
   spill reduction, matte controls and clipped rendering.
-- Add a GPU framehash canary and advertise the capability through backend
-  resolution; run same-SHA GPU-hardware certification.
+- [x] Add luma/chroma GPU framehash canaries and advertise the capability
+  through backend resolution.
+- [ ] Run same-SHA GPU-hardware certification.
 
 ## Status
 
-PARTIAL — native route and local Vulkan/software parity are implemented. The
-GPU framehash canary, same-SHA GPU-hardware certification and RenderingGen
-integration remain open.
+PARTIAL — native route, local Vulkan/software pixel parity and luma/chroma
+framehash canaries are implemented. Same-SHA GPU-hardware certification and
+RenderingGen integration remain open.

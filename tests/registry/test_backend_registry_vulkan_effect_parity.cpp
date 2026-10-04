@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -179,6 +180,23 @@ void check_parity(renderer::EffectProcessor& processor, const EffectParams& para
     MESSAGE("max abs error " << max_err);
 }
 
+std::uint64_t display_framehash(const std::vector<float>& pixels) {
+    REQUIRE(pixels.size() % 4 == 0);
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (std::size_t i = 0; i < pixels.size(); i += 4) {
+        const std::uint8_t rgba[] = {
+            Color::linear_to_srgb8(pixels[i]),
+            Color::linear_to_srgb8(pixels[i + 1]),
+            Color::linear_to_srgb8(pixels[i + 2]),
+            static_cast<std::uint8_t>(std::clamp(pixels[i + 3], 0.0f, 1.0f) * 255.0f + 0.5f)};
+        for (const auto byte : rgba) {
+            hash ^= byte;
+            hash *= 1099511628211ULL;
+        }
+    }
+    return hash;
+}
+
 } // namespace
 
 TEST_CASE("Vulkan native color effects match the software processors") {
@@ -286,6 +304,54 @@ TEST_CASE("Vulkan luma and chroma key match the software processor") {
     luma.clip_white = 0.88f;
     luma.choke = 0.05f;
     check_parity(*processor, luma);
+}
+
+TEST_CASE("Vulkan luma and chroma key have stable display framehashes") {
+    auto processor = renderer::create_keying_effect_processor();
+    const KeyingParams chroma{
+        .mode = KeyingMode::Chroma,
+        .key_color = Color{0.0f, 1.0f, 0.0f, 1.0f},
+        .threshold = 0.12f,
+        .softness = 0.52f,
+        .spill = 0.73f,
+        .clip_black = 0.08f,
+        .clip_white = 0.91f,
+        .choke = 0.17f,
+        .garbage_x = 0.12f,
+        .garbage_y = 0.08f,
+        .garbage_w = 0.76f,
+        .garbage_h = 0.82f,
+        .garbage_feather = 0.09f};
+    const KeyingParams luma{
+        .mode = KeyingMode::Luma,
+        .threshold = 0.32f,
+        .softness = 0.28f,
+        .spill = 0.4f,
+        .clip_black = 0.14f,
+        .clip_white = 0.88f,
+        .choke = 0.05f};
+
+    const auto verify = [&](const KeyingParams& params, std::uint64_t expected_hash) {
+        const auto software = software_oracle(*processor, params, std::nullopt);
+        const auto actual = vulkan_strict(params, std::nullopt);
+        INFO("strict Vulkan error: " << actual.error);
+        REQUIRE(actual.ok);
+        REQUIRE(actual.pixels.size() == software.size());
+        for (std::size_t i = 0; i < software.size(); ++i)
+            CHECK(actual.pixels[i] == doctest::Approx(software[i]).epsilon(kTolerance));
+        const auto gpu_hash = display_framehash(actual.pixels);
+        const auto software_hash = display_framehash(software);
+        MESSAGE("GPU framehash " << gpu_hash << ", software framehash " << software_hash);
+        CHECK(gpu_hash == software_hash);
+        CHECK(gpu_hash == expected_hash);
+    };
+
+    SUBCASE("chroma with spill, matte refinement and garbage matte") {
+        verify(chroma, 0x99f24d5e1a478dd3ULL);
+    }
+    SUBCASE("luma with matte refinement") {
+        verify(luma, 0xbad1bfc197f9213dULL);
+    }
 }
 
 TEST_CASE("Strict Vulkan applies certified effect stacks in authored order") {

@@ -66,7 +66,9 @@ the full software/GPU effect corpus passes on the same SHA.
 
 - Keying lowers through the existing Vulkan color-matrix route. The local
   Vulkan pixel-parity fixture covers luma/chroma, spill, matte clipping/choke,
-  garbage matte and partial clip.
+  garbage matte and partial clip. Fixed display-space framehash canaries for
+  luma and chroma each match the registered software processor and the
+  expected 8-bit sRGB FNV-1a hash (268 pixel-channel/hash assertions).
 - Strict multi-effect stacks execute currently certified routes in authored
   order through graph-owned intermediate surfaces. Both a Brightness →
   disabled stage → Invert fixture and a Blur → Invert pixel oracle match the
