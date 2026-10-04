@@ -17,6 +17,7 @@
 
 #include <chronon3d/backends/software/effect_processor.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
@@ -148,6 +149,37 @@ VulkanRun vulkan_strict_stack(const EffectStack& stack) {
     const std::array<FramebufferRef, 1> inputs{source.get()};
     const std::array<std::optional<raster::BBox>, 1> bboxes{raster::BBox{0, 0, kW, kH}};
     const auto result = node.execute(ctx, inputs, bboxes);
+    VulkanRun run;
+    if (!result.ok()) {
+        run.error = result.error().message;
+        return run;
+    }
+    const auto handle = result.value()->surface_handle();
+    if (handle == runtime::kInvalidRenderSurfaceHandle) {
+        run.error = "no native surface produced";
+        return run;
+    }
+    run.pixels.assign(static_cast<std::size_t>(kW * kH * 4), 0.0f);
+    run.ok = backend.download_surface(handle, run.pixels).ok();
+    (void)backend.release_surface(handle);
+    surfaces.release(handle);
+    return run;
+}
+
+VulkanRun vulkan_strict_adjustment_stack(const EffectStack& stack) {
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+    RenderGraphContext ctx;
+    ctx.frame_input.width = kW;
+    ctx.frame_input.height = kH;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+    ctx.policy.require_native_gpu = true;
+
+    auto source = make_source();
+    AdjustmentNode node(stack);
+    const std::array<FramebufferRef, 1> inputs{source.get()};
+    const auto result = node.execute(ctx, inputs, {});
     VulkanRun run;
     if (!result.ok()) {
         run.error = result.error().message;
@@ -424,6 +456,41 @@ TEST_CASE("Strict Vulkan applies certified effect stacks in authored order") {
             }
         }
     }
+}
+
+TEST_CASE("Strict Vulkan AdjustmentNode composes ordered native color stages") {
+    auto source = make_source();
+    auto expected = *source;
+    auto brightness = renderer::create_brightness_effect_processor();
+    auto invert = renderer::create_invert_effect_processor();
+    effects::EffectExecutionContext context{};
+    brightness->apply(expected, BrightnessParams{.value = 0.14f}, context);
+    invert->apply(expected, InvertParams{.amount = 0.35f}, context);
+
+    EffectStack stack;
+    stack.emplace_back(BrightnessParams{.value = 0.14f});
+    stack.emplace_back(InvertParams{.amount = 0.35f});
+    const auto actual = vulkan_strict_adjustment_stack(stack);
+    INFO("strict Vulkan adjustment error: " << actual.error);
+    REQUIRE(actual.ok);
+    REQUIRE(actual.pixels.size() == static_cast<std::size_t>(kW * kH * 4));
+    for (int y = 0; y < kH; ++y)
+        for (int x = 0; x < kW; ++x) {
+            const Color color = expected.get_pixel(x, y);
+            const float channels[]{color.r, color.g, color.b, color.a};
+            const auto index = static_cast<std::size_t>((y * kW + x) * 4);
+            for (int channel = 0; channel < 4; ++channel)
+                CHECK(actual.pixels[index + static_cast<std::size_t>(channel)] ==
+                      doctest::Approx(channels[channel]).epsilon(kTolerance));
+        }
+}
+
+TEST_CASE("Strict Vulkan AdjustmentNode rejects unsupported spatial stacks") {
+    EffectStack stack;
+    stack.emplace_back(BlurParams{.radius = 2.0f});
+    const auto result = vulkan_strict_adjustment_stack(stack);
+    CHECK_FALSE(result.ok);
+    CHECK(result.error.find("fixed-extent route") != std::string::npos);
 }
 
 TEST_CASE("Strict Vulkan preserves keying order inside native effect stacks") {

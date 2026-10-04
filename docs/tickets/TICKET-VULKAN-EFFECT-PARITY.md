@@ -89,6 +89,11 @@ the full software/GPU effect corpus passes on the same SHA.
   the full catalog are not certified. The Echo integration oracle now also
   covers Brightness → Echo in addition to Echo → Brightness: both frames match
   the registered software stack across all 32 pixel channels (87 assertions).
+  Strict AdjustmentNode execution now delegates fixed-extent stacks to the
+  same typed native stage executor. Brightness → Invert matches the software
+  oracle (130 assertions); a spatial Blur stack fails closed before reaching
+  the legacy backend API. Expanding or temporal adjustment stacks remain
+  unsupported by this fixed-extent path.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
