@@ -151,6 +151,12 @@ After the Echo stack-order fixture, commit
 ended before runner allocation (`runner_id=0`, no steps) with the same billing
 annotation. This remains an external certification blocker, not test evidence.
 
+After adding strict `AdjustmentNode` stack execution, commit
+`456eb4e3b135bfa82ecab35131bfda8e4dc652f6` was also checked. The
+`Vulkan-gated unit suites` job (run `37220681906`, job `111490216673`) again
+had `runner_id=0`, no steps, and the same billing annotation; no GPU-host
+certification ran for this commit.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
