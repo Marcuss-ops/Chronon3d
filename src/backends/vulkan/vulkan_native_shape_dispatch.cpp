@@ -460,7 +460,6 @@ bool try_native_solid_rect(
     } else if (type == ShapeType::RoundedRect) {
         size = node.shape.rounded_rect().size;
         if (node.shape.rounded_rect().corner_radius) {
-            if (has_stroke) return false;
             const auto& r = *node.shape.rounded_rect().corner_radius;
             shape_params = Vec4{1.0f, r[0], r[1], r[2]};
             line_params = Vec4{r[3], 0.0f, 0.0f, 0.0f};
@@ -565,6 +564,13 @@ bool try_native_solid_rect(
             alignment == StrokeAlignment::Center ? 1.0f : 2.0f;
         vertices[4] = Vec2{stroke_ptr->width, shader_alignment};
         vertices[7].y = 1.0f;
+        if (type == ShapeType::RoundedRect &&
+            node.shape.rounded_rect().corner_radius) {
+            const auto& radii = *node.shape.rounded_rect().corner_radius;
+            vertices[5] = Vec2{radii[0], radii[1]};
+            vertices[6] = Vec2{radii[2], radii[3]};
+            vertices[7].x = 1.0f;
+        }
         line_params = Vec4{stroke_premul.r, stroke_premul.g,
                            stroke_premul.b, stroke_premul.a};
         const float extent_x = alignment == StrokeAlignment::Inside
