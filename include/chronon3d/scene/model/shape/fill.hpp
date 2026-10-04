@@ -7,7 +7,10 @@
 #include <chronon3d/math/glm_types.hpp>
 
 #include <cmath>
+#include <algorithm>
+#include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -21,6 +24,34 @@ enum class FillType {
     ConicGradient,
     Field2D,
     GradientMesh,
+};
+
+/// Cached low-resolution scalar field. Sampling interpolates this grid over
+/// normalized shape coordinates, keeping high-frequency field evaluation out
+/// of the per-output-pixel loop.
+struct Field2DSampleGrid {
+    std::uint32_t width{0};
+    std::uint32_t height{0};
+    std::vector<float> values;
+
+    [[nodiscard]] float sample(Vec2 p) const noexcept {
+        if (width == 0 || height == 0 || values.size() !=
+            static_cast<std::size_t>(width) * height) return 0.0f;
+        const float x = std::clamp(p.x, 0.0f, 1.0f) * static_cast<float>(width - 1);
+        const float y = std::clamp(p.y, 0.0f, 1.0f) * static_cast<float>(height - 1);
+        const auto x0 = static_cast<std::uint32_t>(x);
+        const auto y0 = static_cast<std::uint32_t>(y);
+        const auto x1 = std::min(x0 + 1, width - 1);
+        const auto y1 = std::min(y0 + 1, height - 1);
+        const float tx = x - static_cast<float>(x0);
+        const float ty = y - static_cast<float>(y0);
+        const auto at = [&](std::uint32_t ix, std::uint32_t iy) {
+            return values[static_cast<std::size_t>(iy) * width + ix];
+        };
+        const float top = std::lerp(at(x0, y0), at(x1, y0), tx);
+        const float bottom = std::lerp(at(x0, y1), at(x1, y1), tx);
+        return std::lerp(top, bottom, ty);
+    }
 };
 
 // Compatibility bridge for scene/path paint consumers. Do not add new
@@ -82,6 +113,8 @@ struct Fill {
     Color solid{1, 1, 1, 1};
     GradientFill gradient{};
     std::optional<graphics::Field2D> field;
+    std::optional<GradientFill> field_ramp;
+    std::optional<Field2DSampleGrid> field_grid;
     std::optional<graphics::GradientMesh> gradient_mesh;
 
     static Fill solid_color(Color color) {
@@ -116,11 +149,40 @@ struct Fill {
         return fill;
     }
 
-    static Fill field2d(graphics::Field2D value, Color tint = Color{1.0f, 1.0f, 1.0f, 1.0f}) {
+    static Fill field2d(graphics::Field2D value, Color tint = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                        std::optional<GradientFill> ramp = std::nullopt,
+                        std::uint32_t render_scale = 1,
+                        std::uint32_t render_width = 0,
+                        std::uint32_t render_height = 0) {
+        if (render_scale != 1 && render_scale != 2 && render_scale != 4)
+            throw std::invalid_argument("Field2D render scale must be 1, 2, or 4");
+        if (render_scale != 1 && (render_width == 0 || render_height == 0 ||
+            render_width > 1000000 || render_height > 1000000))
+            throw std::invalid_argument("Field2D low-resolution grid dimensions are outside supported bounds");
         Fill fill;
         fill.type = FillType::Field2D;
         fill.solid = tint;
         fill.field = std::move(value);
+        fill.field_ramp = std::move(ramp);
+        if (render_scale != 1 && render_width > 0 && render_height > 0) {
+            Field2DSampleGrid grid;
+            grid.width = std::max(1U, (render_width + render_scale - 1) / render_scale);
+            grid.height = std::max(1U, (render_height + render_scale - 1) / render_scale);
+            const auto cell_count = static_cast<std::uint64_t>(grid.width) * grid.height;
+            if (cell_count > 16U * 1024U * 1024U)
+                throw std::invalid_argument("Field2D low-resolution grid exceeds the 16M sample budget");
+            grid.values.reserve(static_cast<std::size_t>(grid.width) * grid.height);
+            for (std::uint32_t y = 0; y < grid.height; ++y) {
+                for (std::uint32_t x = 0; x < grid.width; ++x) {
+                    const float nx = grid.width > 1
+                        ? static_cast<float>(x) / static_cast<float>(grid.width - 1) : 0.5f;
+                    const float ny = grid.height > 1
+                        ? static_cast<float>(y) / static_cast<float>(grid.height - 1) : 0.5f;
+                    grid.values.push_back(fill.field->sample({nx, ny}));
+                }
+            }
+            fill.field_grid = std::move(grid);
+        }
         return fill;
     }
 
@@ -134,7 +196,16 @@ struct Fill {
 
 [[nodiscard]] inline Color sample_fill_at(const Fill& fill, const Vec2& point) {
     if (fill.type == FillType::Field2D && fill.field) {
-        const float value = fill.field->sample(point);
+        const float value = fill.field_grid
+            ? fill.field_grid->sample(point) : fill.field->sample(point);
+        if (fill.field_ramp) {
+            Color ramp_color = graphics::sample_gradient(*fill.field_ramp, value);
+            ramp_color.r *= fill.solid.r;
+            ramp_color.g *= fill.solid.g;
+            ramp_color.b *= fill.solid.b;
+            ramp_color.a *= fill.solid.a;
+            return ramp_color;
+        }
         return Color{fill.solid.r * value, fill.solid.g * value,
                      fill.solid.b * value, fill.solid.a};
     }

@@ -111,13 +111,16 @@ graphics::GradientDefinition decode_gradient_definition(
         const auto position = raw_stop.at("position").get<float>();
         const Color decoded_color{color[0].get<float>(), color[1].get<float>(),
                                   color[2].get<float>(), color[3].get<float>()};
-        const auto in_unit_range = [](float component) {
+        const auto hdr_component = [](float component) {
+            return std::isfinite(component) && component >= 0.0f && component <= 4.0f;
+        };
+        const auto alpha_component = [](float component) {
             return std::isfinite(component) && component >= 0.0f && component <= 1.0f;
         };
-        if (!in_unit_range(position) || !in_unit_range(decoded_color.r) ||
-            !in_unit_range(decoded_color.g) || !in_unit_range(decoded_color.b) ||
-            !in_unit_range(decoded_color.a))
-            throw std::runtime_error("gradient color stops must be finite and in [0, 1]");
+        if (!alpha_component(position) || !hdr_component(decoded_color.r) ||
+            !hdr_component(decoded_color.g) || !hdr_component(decoded_color.b) ||
+            !alpha_component(decoded_color.a))
+            throw std::runtime_error("gradient stops require finite RGB in [0, 4], alpha and position in [0, 1]");
         gradient.color_stops.push_back({position, decoded_color});
     }
     std::stable_sort(gradient.color_stops.begin(), gradient.color_stops.end(),

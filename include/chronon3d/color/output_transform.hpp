@@ -50,6 +50,13 @@ enum class ColorSpace : uint8_t {
     HLG,         // BT.2100 scene transfer, BT.2020 primaries
 };
 
+/// Optional scene-referred compression before an SDR output transfer.
+enum class ToneMapOperator : uint8_t {
+    None = 0,
+    Reinhard,
+    AcesFitted,
+};
+
 // ---------------------------------------------------------------------------
 // Rgb8 — 8-bit per channel RGB (no alpha)
 // ---------------------------------------------------------------------------
@@ -68,7 +75,30 @@ struct OutputTransformOptions {
     bool apply_gamma{true};
     bool clamp{true};
     float reference_white_nits{100.0f};
+    ToneMapOperator tone_map{ToneMapOperator::None};
+    float exposure{1.0f};
 };
+
+[[nodiscard]] inline float tone_map_channel(float value, ToneMapOperator op,
+                                            float exposure) {
+    value = std::max(0.0f, value * exposure);
+    switch (op) {
+        case ToneMapOperator::None:
+            return value;
+        case ToneMapOperator::Reinhard:
+            return value / (1.0f + value);
+        case ToneMapOperator::AcesFitted: {
+            constexpr float a = 2.51f;
+            constexpr float b = 0.03f;
+            constexpr float c = 2.43f;
+            constexpr float d = 0.59f;
+            constexpr float e = 0.14f;
+            return std::clamp((value * (a * value + b)) /
+                              (value * (c * value + d) + e), 0.0f, 1.0f);
+        }
+    }
+    throw std::invalid_argument("unknown tone-map operator");
+}
 
 // ---------------------------------------------------------------------------
 // Per-space single-channel helpers (linear → uint8_t)
@@ -322,7 +352,11 @@ inline float linear_to_output_float(float v, ColorSpace output, bool clamp = tru
 inline std::array<float, 3> linear_to_output_rgb_float(
     const Color& c, const OutputTransformOptions& opts)
 {
-    const auto linear = to_linear_bt709(c, opts.input, opts.reference_white_nits);
+    if (!std::isfinite(opts.exposure) || opts.exposure < 0.0f || opts.exposure > 64.0f)
+        throw std::invalid_argument("output exposure must be finite and in [0, 64]");
+    auto linear = to_linear_bt709(c, opts.input, opts.reference_white_nits);
+    for (auto& value : linear)
+        value = tone_map_channel(value, opts.tone_map, opts.exposure);
     return from_linear_bt709(linear, opts.output, opts.reference_white_nits,
                              opts.apply_gamma, opts.clamp);
 }
@@ -372,7 +406,7 @@ inline Rgb8 linear_to_output_rgb8(const Color& c, const OutputTransformOptions& 
         opts.output == ColorSpace::LinearBT2020 || opts.output == ColorSpace::ACEScg)
         throw std::invalid_argument("target color space cannot be represented by RGB8");
     if (opts.input == ColorSpace::LinearSRGB && opts.output == ColorSpace::SRGB &&
-        opts.apply_gamma) {
+        opts.apply_gamma && opts.tone_map == ToneMapOperator::None && opts.exposure == 1.0f) {
         const auto channel = [&](float value) {
             return static_cast<uint8_t>(Color::linear_to_srgb8(
                 opts.clamp ? std::clamp(value, 0.0f, 1.0f) : value));

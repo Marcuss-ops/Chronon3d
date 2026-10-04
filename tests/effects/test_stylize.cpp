@@ -79,6 +79,73 @@ TEST_CASE("Chromatic aberration shifts red and blue independently and respects c
     CHECK(fb.get_pixel(0, 0).r == doctest::Approx(0.0f));
 }
 
+TEST_CASE("RGB channel transforms move affine components independently and retain alpha coverage") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(7, 1);
+    fb.set_pixel(3, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});
+    EffectStack stack;
+    stack.emplace_back(ChromaticAberrationParams{
+        .red_offset = 0.0f, .blue_offset = 0.0f,
+        .red = RgbChannelTransform{Vec2{1.0f, 0.0f}, Vec2{1.0f, 1.0f}, 0.0f, 1.0f},
+        .green = RgbChannelTransform{},
+        .blue = RgbChannelTransform{Vec2{-1.0f, 0.0f}, Vec2{1.0f, 1.0f}, 0.0f, 1.0f}});
+    effects::EffectExecutionContext context;
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(2, 0).b == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(2, 0).r == doctest::Approx(0.0f));
+    CHECK(fb.get_pixel(2, 0).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(3, 0).g == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(4, 0).r == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(4, 0).b == doctest::Approx(0.0f));
+    CHECK(fb.get_pixel(4, 0).a == doctest::Approx(1.0f));
+}
+
+TEST_CASE("RGB channel transform supports fractional coverage and per-channel opacity") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(5, 1);
+    fb.set_pixel(2, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});
+    EffectStack stack;
+    stack.emplace_back(ChromaticAberrationParams{
+        .red_offset = 0.0f, .blue_offset = 0.0f,
+        .red = RgbChannelTransform{Vec2{0.5f, 0.0f}, Vec2{1.0f, 1.0f}, 0.0f, 0.25f},
+        .green = RgbChannelTransform{Vec2{0.0f, 0.0f}, Vec2{1.0f, 1.0f}, 0.0f, 0.0f},
+        .blue = RgbChannelTransform{Vec2{0.0f, 0.0f}, Vec2{1.0f, 1.0f}, 0.0f, 0.0f}});
+    effects::EffectExecutionContext context;
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(2, 0).r == doctest::Approx(0.125f));
+    CHECK(fb.get_pixel(3, 0).r == doctest::Approx(0.125f));
+    CHECK(fb.get_pixel(2, 0).a == doctest::Approx(0.125f));
+    CHECK(fb.get_pixel(3, 0).a == doctest::Approx(0.125f));
+}
+
+TEST_CASE("RGB channel transforms apply independent rotation and scale") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(9, 9);
+    fb.set_pixel(5, 4, Color{1.0f, 1.0f, 1.0f, 1.0f});
+    EffectStack stack;
+    stack.emplace_back(ChromaticAberrationParams{
+        .red_offset = 0.0f, .blue_offset = 0.0f,
+        .red = RgbChannelTransform{Vec2{0.0f, 0.0f}, Vec2{1.0f, 1.0f}, 90.0f, 1.0f},
+        .green = RgbChannelTransform{},
+        .blue = RgbChannelTransform{Vec2{0.0f, 0.0f}, Vec2{2.0f, 1.0f}, 0.0f, 1.0f}});
+    effects::EffectExecutionContext context;
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(5, 5).r == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(5, 4).g == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(4, 4).b == doctest::Approx(0.25f));
+    CHECK(fb.get_pixel(5, 4).b == doctest::Approx(0.75f));
+    for (int y = 0; y < fb.height(); ++y) for (int x = 0; x < fb.width(); ++x) {
+        const auto pixel = fb.get_pixel(x, y);
+        CHECK(std::isfinite(pixel.r));
+        CHECK(std::isfinite(pixel.g));
+        CHECK(std::isfinite(pixel.b));
+        CHECK(std::isfinite(pixel.a));
+    }
+}
+
 TEST_CASE("Halftone is deterministic, keeps alpha, and leaves white cells uninked") {
     SoftwareRegistry registry;
     register_builtin_processors(registry);

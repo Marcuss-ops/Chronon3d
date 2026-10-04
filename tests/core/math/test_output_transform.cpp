@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/color/output_transform.hpp>
+#include <limits>
 using namespace chronon3d;
 
 using namespace chronon3d::color;
@@ -170,6 +171,39 @@ TEST_CASE("color::linear_to_rec709_rgb8 convenience") {
     CHECK(rgb.r == 180);
     CHECK(rgb.g == 138);
     CHECK(rgb.b == 74);
+}
+
+TEST_CASE("output_transform: Reinhard and ACES preserve HDR highlights on SDR output") {
+    const Color hot{6.0f, 2.0f, 0.5f, 1.0f};
+    OutputTransformOptions plain;
+    const auto clipped = linear_to_output_rgb_float(hot, plain);
+
+    OutputTransformOptions reinhard;
+    reinhard.tone_map = ToneMapOperator::Reinhard;
+    const auto mapped_r = linear_to_output_rgb_float(hot, reinhard);
+    CHECK(mapped_r[0] < clipped[0]);
+    CHECK(mapped_r[0] > mapped_r[1]);
+    CHECK(mapped_r[1] > mapped_r[2]);
+    CHECK(mapped_r[0] < 1.0f);
+    CHECK(mapped_r[0] > 0.9f);
+
+    OutputTransformOptions aces;
+    aces.tone_map = ToneMapOperator::AcesFitted;
+    const auto mapped_a = linear_to_output_rgb_float(hot, aces);
+    CHECK(mapped_a[0] <= 1.0f);
+    CHECK(mapped_a[0] > mapped_a[1]);
+    CHECK(mapped_a[1] > mapped_a[2]);
+}
+
+TEST_CASE("output_transform: tone-map exposure is bounded and validated") {
+    OutputTransformOptions opts;
+    opts.tone_map = ToneMapOperator::Reinhard;
+    opts.exposure = 2.0f;
+    const auto bright = linear_to_output_rgb_float(Color{1.0f, 1.0f, 1.0f, 1.0f}, opts);
+    CHECK(bright[0] > linear_to_output_rgb_float(Color{1, 1, 1, 1}, OutputTransformOptions{
+        .tone_map = ToneMapOperator::Reinhard})[0]);
+    opts.exposure = std::numeric_limits<float>::infinity();
+    CHECK_THROWS_AS(linear_to_output_rgb_float(Color{1, 1, 1, 1}, opts), std::invalid_argument);
 }
 
 // ---------------------------------------------------------------------------

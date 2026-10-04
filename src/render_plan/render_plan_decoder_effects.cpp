@@ -70,6 +70,7 @@ LayerPlan::EffectKindPlan decode_effect_kind(std::string_view name) {
         {"wave_warp", K::WaveWarp}, {"ripple", K::Ripple},
         {"displacement_map", K::DisplacementMap}, {"light_rays", K::LightRays},
         {"chromatic_aberration", K::ChromaticAberration}, {"chromatic", K::ChromaticAberration},
+        {"rgb_channel_transform", K::ChromaticAberration},
         {"halftone", K::Halftone}, {"directional_blur", K::DirectionalBlur},
         {"radial_blur", K::RadialBlur}, {"vignette", K::Vignette},
         {"catalog", K::Catalog},
@@ -239,6 +240,45 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     std::abs(effect.chromatic_red_offset) > 128.0f ||
                     std::abs(effect.chromatic_blue_offset) > 128.0f)
                     throw std::runtime_error("Chromatic Aberration offsets must be finite and within [-128, 128]");
+                const auto decode_channel_transform = [&raw_effect](const char* key,
+                        std::array<float, 6>& output) {
+                    if (!raw_effect.contains(key)) return;
+                    const auto& raw = raw_effect.at(key);
+                    if (!raw.is_object())
+                        throw std::runtime_error(std::string("Chromatic channel ") + key + " must be an object");
+                    const auto read_pair = [&raw, &output, key](const char* field, std::size_t x, std::size_t y,
+                                                       float minimum, float maximum) {
+                        if (!raw.contains(field)) return;
+                        const auto& value = raw.at(field);
+                        if (!value.is_array() || value.size() != 2)
+                            throw std::runtime_error(std::string("Chromatic channel ") + key + "." + field + " must be [x,y]");
+                        output[x] = value[0].get<float>();
+                        output[y] = value[1].get<float>();
+                        if (!std::isfinite(output[x]) || !std::isfinite(output[y]) ||
+                            output[x] < minimum || output[x] > maximum ||
+                            output[y] < minimum || output[y] > maximum)
+                            throw std::runtime_error(std::string("Chromatic channel ") + key + "." + field + " is out of bounds");
+                    };
+                    read_pair("translation", 0, 1, -2048.0f, 2048.0f);
+                    read_pair("scale", 2, 3, 0.01f, 100.0f);
+                    if (raw.contains("rotation")) {
+                        output[4] = raw.at("rotation").get<float>();
+                        if (!std::isfinite(output[4]) || std::abs(output[4]) > 3600.0f)
+                            throw std::runtime_error(std::string("Chromatic channel ") + key + ".rotation is out of bounds");
+                    }
+                    if (raw.contains("opacity")) {
+                        output[5] = raw.at("opacity").get<float>();
+                        if (!std::isfinite(output[5]) || output[5] < 0.0f || output[5] > 1.0f)
+                            throw std::runtime_error(std::string("Chromatic channel ") + key + ".opacity must be in [0,1]");
+                    }
+                    for (auto it = raw.begin(); it != raw.end(); ++it)
+                        if (it.key() != "translation" && it.key() != "scale" &&
+                            it.key() != "rotation" && it.key() != "opacity")
+                            throw std::runtime_error(std::string("Unsupported Chromatic channel option: ") + it.key());
+                };
+                decode_channel_transform("red_transform", effect.chromatic_red_transform);
+                decode_channel_transform("green_transform", effect.chromatic_green_transform);
+                decode_channel_transform("blue_transform", effect.chromatic_blue_transform);
             } break;
             case LayerPlan::EffectKindPlan::Halftone: {
                 effect.kind = LayerPlan::EffectKindPlan::Halftone;

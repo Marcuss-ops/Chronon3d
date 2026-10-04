@@ -340,6 +340,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         filter.brightness = raw_bf.value("brightness", filter.brightness);
         filter.saturation = raw_bf.value("saturation", filter.saturation);
         filter.refraction_strength = raw_bf.value("refraction_strength", filter.refraction_strength);
+        if (raw_bf.contains("refraction_field"))
+            filter.refraction_field = decode_field2d_plan(raw_bf.at("refraction_field"));
         filter.rim_strength = raw_bf.value("rim_strength", filter.rim_strength);
         filter.rim_width = raw_bf.value("rim_width", filter.rim_width);
         filter.chromatic_dispersion = raw_bf.value("chromatic_dispersion", filter.chromatic_dispersion);

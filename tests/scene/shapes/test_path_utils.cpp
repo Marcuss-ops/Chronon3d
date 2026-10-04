@@ -68,7 +68,8 @@ TEST_CASE("Field2D generators and operators are deterministic and bounded") {
         Field2DGenerator::Perlin, Field2DGenerator::Simplex, Field2DGenerator::Fractal,
         Field2DGenerator::Cellular, Field2DGenerator::Grid, Field2DGenerator::Checker,
         Field2DGenerator::Dots, Field2DGenerator::Stripes, Field2DGenerator::Rings,
-        Field2DGenerator::Linear, Field2DGenerator::Radial, Field2DGenerator::Conic};
+        Field2DGenerator::Linear, Field2DGenerator::Radial, Field2DGenerator::Conic,
+        Field2DGenerator::Burst};
     for (const auto generator : generators) {
         Field2D field;
         field.generator = generator;
@@ -93,6 +94,25 @@ TEST_CASE("Field2D generators and operators are deterministic and bounded") {
     CHECK(linear.sample({0.75f, 0.1f}) == doctest::Approx(1.0f));
 }
 
+TEST_CASE("Field2D temporal drift is deterministic under random frame access") {
+    chronon3d::graphics::Field2D field;
+    field.generator = chronon3d::graphics::Field2DGenerator::Fractal;
+    field.seed = 812;
+    field.frequency = 2.6f;
+    field.octaves = 4;
+    const auto frame_at_two_seconds = field.drifted(2.0, {0.08f, -0.04f});
+    const auto direct_frame_at_two_seconds = field.drifted(2.0, {0.08f, -0.04f});
+    CHECK(chronon3d::graphics::field2d_fingerprint(frame_at_two_seconds) ==
+          chronon3d::graphics::field2d_fingerprint(direct_frame_at_two_seconds));
+    CHECK(frame_at_two_seconds.sample({0.3f, 0.6f}) ==
+          direct_frame_at_two_seconds.sample({0.3f, 0.6f}));
+    CHECK(chronon3d::graphics::field2d_fingerprint(frame_at_two_seconds) !=
+          chronon3d::graphics::field2d_fingerprint(field));
+    CHECK_THROWS_AS(([&] {
+        (void)field.drifted(std::numeric_limits<double>::infinity(), {0, 0});
+    }()), std::invalid_argument);
+}
+
 TEST_CASE("Field2D is retained by the canonical FillStyle bridge") {
     chronon3d::graphics::Field2D field;
     field.generator = chronon3d::graphics::Field2DGenerator::Linear;
@@ -106,6 +126,61 @@ TEST_CASE("Field2D is retained by the canonical FillStyle bridge") {
     CHECK(sampled.g == doctest::Approx(0.1f));
     CHECK(sampled.b == doctest::Approx(0.05f));
     CHECK(sampled.a == doctest::Approx(0.75f));
+}
+
+TEST_CASE("Field2D ColorRamp maps scalar values to authored colors") {
+    chronon3d::graphics::Field2D field;
+    field.generator = chronon3d::graphics::Field2DGenerator::Linear;
+    auto ramp = chronon3d::graphics::GradientDefinition::linear(
+        {0.0f, 0.5f}, {1.0f, 0.5f},
+        {{0.0f, {0.0f, 0.0f, 0.0f, 1.0f}},
+         {0.5f, {1.0f, 0.0f, 0.0f, 1.0f}},
+         {1.0f, {1.0f, 1.0f, 1.0f, 1.0f}}});
+    auto style = chronon3d::graphics::FillStyle::solid({1.0f, 1.0f, 1.0f, 1.0f});
+    style.field = field;
+    style.field_ramp = ramp;
+    const auto runtime = style.to_fill();
+    REQUIRE(runtime.field_ramp.has_value());
+    const auto sampled = chronon3d::sample_fill_at(runtime, {0.25f, 0.9f});
+    CHECK(sampled.r == doctest::Approx(0.5f));
+    CHECK(sampled.g == doctest::Approx(0.0f));
+    CHECK(sampled.b == doctest::Approx(0.0f));
+    CHECK(sampled.a == doctest::Approx(1.0f));
+    const auto first = chronon3d::sample_fill_at(runtime, {0.0f, 0.5f});
+    const auto last = chronon3d::sample_fill_at(runtime, {1.0f, 0.5f});
+    CHECK(first.r == doctest::Approx(0.0f));
+    CHECK(first.g == doctest::Approx(0.0f));
+    CHECK(last.r == doctest::Approx(1.0f));
+    CHECK(last.g == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Field2D low-resolution grid interpolates a dense deterministic field") {
+    chronon3d::graphics::Field2D field;
+    field.generator = chronon3d::graphics::Field2DGenerator::Fractal;
+    field.seed = 29;
+    field.frequency = 2.4f;
+    field.octaves = 3;
+    auto low_res = chronon3d::Fill::field2d(
+        field, {1.0f, 1.0f, 1.0f, 1.0f}, std::nullopt, 4, 256, 144);
+    REQUIRE(low_res.field_grid.has_value());
+    CHECK(low_res.field_grid->width == 64);
+    CHECK(low_res.field_grid->height == 36);
+    double error_sum = 0.0;
+    float max_error = 0.0f;
+    constexpr int samples = 101;
+    for (int i = 0; i < samples; ++i) {
+        const float x = static_cast<float>((i * 37) % samples) / (samples - 1);
+        const float y = static_cast<float>((i * 61) % samples) / (samples - 1);
+        const float reference = field.sample({x, y});
+        const float interpolated = low_res.field_grid->sample({x, y});
+        const float error = std::abs(reference - interpolated);
+        error_sum += error;
+        max_error = std::max(max_error, error);
+    }
+    CHECK(error_sum / samples < 0.025);
+    CHECK(max_error < 0.12f);
+    CHECK_THROWS_AS(chronon3d::Fill::field2d(field, {1, 1, 1, 1}, std::nullopt,
+                                             3, 256, 144), std::invalid_argument);
 }
 
 TEST_CASE("Path Utilities: Trim Polyline") {

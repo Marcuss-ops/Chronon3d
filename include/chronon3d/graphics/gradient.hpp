@@ -375,9 +375,15 @@ namespace detail {
     const auto iy = static_cast<unsigned>(static_cast<std::int64_t>(std::floor(y))) & 7u;
     const f32 offset = ((static_cast<f32>(bayer[iy * 8u + ix]) + 0.5f) / 64.0f - 0.5f)
         / 255.0f;
-    color.r = std::clamp(color.r + offset, 0.0f, 1.0f);
-    color.g = std::clamp(color.g + offset, 0.0f, 1.0f);
-    color.b = std::clamp(color.b + offset, 0.0f, 1.0f);
+    const auto dither = [offset](f32 channel) {
+        // Preserve HDR highlights for the downstream output transform while
+        // retaining the historical SDR clamp.
+        return channel > 1.0f ? std::max(0.0f, channel + offset)
+                              : std::clamp(channel + offset, 0.0f, 1.0f);
+    };
+    color.r = dither(color.r);
+    color.g = dither(color.g);
+    color.b = dither(color.b);
     return color;
 }
 

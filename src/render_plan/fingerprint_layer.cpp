@@ -172,6 +172,21 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         add_optional(out, shape.field, [](auto& nested, const auto& field) {
             add_field2d(nested, field);
         });
+        // Append ramp identity only when present to preserve fingerprints for
+        // legacy plans without a field color ramp.
+        if (shape.field_ramp) {
+            out.add_bool(true);
+            add_gradient(out, *shape.field_ramp);
+        }
+        if (shape.field_render_scale != 1) {
+            out.add_bool(true);
+            out.add_uint64(shape.field_render_scale);
+        }
+        if (shape.field_drift) {
+            out.add_bool(true);
+            out.add_float(shape.field_drift->x);
+            out.add_float(shape.field_drift->y);
+        }
         // Append mesh identity only when present to preserve fingerprints for
         // every legacy plan that predates mesh fills.
         if (shape.gradient_mesh) {
@@ -608,6 +623,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_size(static_cast<std::size_t>(effect.chromatic_offset_mode));
                 out.add_float(effect.chromatic_velocity[0]);
                 out.add_float(effect.chromatic_velocity[1]);
+                for (const auto value : effect.chromatic_red_transform) out.add_float(value);
+                for (const auto value : effect.chromatic_green_transform) out.add_float(value);
+                for (const auto value : effect.chromatic_blue_transform) out.add_float(value);
             } break;
             case LayerPlan::EffectKindPlan::Halftone: {
                 out.add_size(effect.halftone_size);
@@ -670,6 +688,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_float(layer.backdrop_filter->brightness);
         out.add_float(layer.backdrop_filter->saturation);
         out.add_float(layer.backdrop_filter->refraction_strength);
+        if (layer.backdrop_filter->refraction_field) {
+            out.add_bool(true);
+            out.add_uint64(graphics::field2d_fingerprint(
+                *layer.backdrop_filter->refraction_field));
+        }
         out.add_float(layer.backdrop_filter->rim_strength);
         out.add_float(layer.backdrop_filter->rim_width);
         out.add_float(layer.backdrop_filter->chromatic_dispersion);
