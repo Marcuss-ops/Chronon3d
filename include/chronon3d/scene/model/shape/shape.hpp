@@ -248,6 +248,7 @@ struct ImageCrop {
     bool enabled{false};
     Vec2 origin{0.0f, 0.0f}; // normalized
     Vec2 size{1.0f, 1.0f};   // normalized
+    bool flip_x{false};
 };
 
 struct ImageShape {

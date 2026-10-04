@@ -209,6 +209,33 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void VulkanBackend::Impl::record_color_transform(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& /*source*/,
+        const graph::NativeColorTransform& transform) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::ColorMatrix)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float p[5][4];
+            float options[4];
+        } params{};
+        static_assert(sizeof(PushConstants) == 96);
+        for (int row = 0; row < 5; ++row)
+            for (int lane = 0; lane < 4; ++lane)
+                params.p[row][lane] = transform.p[static_cast<std::size_t>(row)][static_cast<std::size_t>(lane)];
+        params.options[0] = transform.mode == graph::NativeColorTransform::Mode::Levels ? 1.0f :
+                            (transform.mode == graph::NativeColorTransform::Mode::Threshold ? 2.0f : 0.0f);
+        params.options[1] = transform.clamp_unit ? 1.0f : 0.0f;
+        params.options[2] = transform.straight_alpha ? 1.0f : 0.0f;
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
     void VulkanBackend::Impl::record_lighting(
         VkCommandBuffer command, VkDescriptorSet descriptors,
         const Image& destination, const Image& source,

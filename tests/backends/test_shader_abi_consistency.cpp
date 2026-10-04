@@ -25,6 +25,7 @@
 #include "affine_transform_comp_spv.hpp"
 #include "blur_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
+#include "color_matrix_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
@@ -179,6 +180,12 @@ TEST_CASE("blur shader ABI") {
 
 TEST_CASE("color_adjust shader ABI") {
     auto abi = REFLECT_SHADER(chronon3d_color_adjust_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+}
+
+TEST_CASE("color_matrix shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_color_matrix_comp_spv);
     REQUIRE(find_binding(abi, 0, 0) != nullptr);
     REQUIRE(find_binding(abi, 0, 1) != nullptr);
 }

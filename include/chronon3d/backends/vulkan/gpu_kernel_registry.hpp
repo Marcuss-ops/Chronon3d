@@ -23,6 +23,7 @@ enum class GpuKernelId : std::uint8_t {
     LayerBatch,
     TextTileBin,
     TextTileRaster,
+    ColorMatrix,
 };
 
 class GpuKernelRegistry {

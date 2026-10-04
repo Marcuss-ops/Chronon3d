@@ -1,0 +1,84 @@
+#version 450
+
+// Native per-pixel color transform used by the strict-Vulkan effect stack.
+// Mirrors the scalar software processors (effect_color.cpp,
+// exposure_levels.cpp, fill_noise_offset.cpp):
+//   * pixels with alpha <= 0 are left untouched;
+//   * alpha is always preserved;
+//   * optional straight-alpha (unpremultiply -> op -> premultiply) domain.
+//
+// mode 0 (affine): rgb' = M * rgb + offset, rows p[0..2] = (m0, m1, m2, offset)
+// mode 1 (levels): p[0] input_black, p[1] input_white, p[2] gamma,
+//                  p[3] output_black, p[4] output_white; lanes are
+//                  (red, green, blue, master). Per-channel first, then master.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform ColorMatrixParams {
+    vec4 p[5];
+    // x: mode, y: clamp to [0,1] (affine only), z: straight-alpha domain
+    vec4 options;
+} params;
+
+float levels_channel(float x, float ib, float iw, float g, float ob, float ow) {
+    float range = max(iw - ib, 1.0e-6);
+    float n = (x - ib) / range;
+    float inv_g = 1.0 / max(g, 1.0e-6);
+    float shaped = n >= 0.0 ? pow(n, inv_g) : -pow(-n, inv_g);
+    return ob + shaped * (ow - ob);
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(destination_image);
+    if (coord.x >= size.x || coord.y >= size.y) return;
+
+    vec4 source = imageLoad(source_image, coord);
+    if (source.a <= 0.0) {
+        imageStore(destination_image, coord, params.options.x > 1.5 ? vec4(0.0) : source);
+        return;
+    }
+    const bool straight = params.options.z > 0.5;
+    vec3 rgb = source.rgb;
+    if (straight) {
+        rgb = source.a <= 1.0e-8 ? vec3(0.0) : rgb * (1.0 / source.a);
+    }
+
+    if (params.options.x < 0.5) {
+        vec3 r = vec3(dot(params.p[0].xyz, rgb) + params.p[0].w,
+                      dot(params.p[1].xyz, rgb) + params.p[1].w,
+                      dot(params.p[2].xyz, rgb) + params.p[2].w);
+        rgb = params.options.y > 0.5 ? clamp(r, vec3(0.0), vec3(1.0)) : r;
+    } else if (params.options.x > 1.5) {
+        float luma = dot(vec3(0.2126, 0.7152, 0.0722), rgb);
+        float threshold = params.p[0].x;
+        float softness = params.p[0].y;
+        float val = 0.0;
+        if (softness <= 0.0) {
+            val = luma >= threshold ? 1.0 : 0.0;
+        } else {
+            float t = clamp((luma - threshold) / softness, 0.0, 1.0);
+            val = t * t * (3.0 - 2.0 * t);
+        }
+        rgb = vec3(val);
+    } else {
+        for (int c = 0; c < 3; ++c) {
+            rgb[c] = levels_channel(rgb[c], params.p[0][c], params.p[1][c],
+                                    params.p[2][c], params.p[3][c], params.p[4][c]);
+        }
+        for (int c = 0; c < 3; ++c) {
+            rgb[c] = levels_channel(rgb[c], params.p[0].w, params.p[1].w,
+                                    params.p[2].w, params.p[3].w, params.p[4].w);
+        }
+    }
+
+    if (straight && source.a <= 1.0e-8) {
+        // color::premultiply_rgb collapses near-zero alpha to transparent.
+        imageStore(destination_image, coord, vec4(0.0));
+        return;
+    }
+    if (straight) rgb *= source.a;
+    imageStore(destination_image, coord, vec4(rgb, source.a));
+}

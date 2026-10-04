@@ -15,6 +15,7 @@
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <glm/glm.hpp>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -171,6 +172,22 @@ struct NodeExecutionError {
 /// On failure: carries a NodeExecutionError that the executor propagates
 /// to frame-level failure (GraphExecutor returns nullptr).
 using NodeExecResult = Result<OwnedFB, NodeExecutionError>;
+
+/// Parameters for the native per-pixel color kernel (color_matrix.comp).
+/// Affine: rgb' = M * rgb + offset, rows p[0..2] = {m0, m1, m2, offset}.
+/// Levels: p[0..4] = input_black, input_white, gamma, output_black,
+/// output_white with lanes {red, green, blue, master}.  Pixels with alpha <= 0
+/// are untouched and alpha is always preserved.
+struct NativeColorTransform {
+    enum class Mode : std::uint8_t { Affine = 0, Levels = 1, Threshold = 2 };
+    Mode mode{Mode::Affine};
+    std::array<std::array<float, 4>, 5> p{{
+        {1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, 0.0f, 0.0f}}};
+    bool clamp_unit{false};      ///< clamp affine result to [0, 1]
+    bool straight_alpha{false};  ///< unpremultiply -> op -> premultiply
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RenderBackend
@@ -578,6 +595,16 @@ public:
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::color_adjust_surface: native surfaces are not supported"));
+    }
+
+    /// Apply a native per-pixel color transform (see NativeColorTransform).
+    virtual RenderOpResult color_transform_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const NativeColorTransform& /*transform*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::color_transform_surface: native surfaces are not supported"));
     }
 
     /// Apply a constant per-layer lighting multiplier to native RGBA surfaces.

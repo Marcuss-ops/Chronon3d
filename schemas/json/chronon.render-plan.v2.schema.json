@@ -132,7 +132,7 @@
       "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
       "required": ["property", "keyframes"],
       "properties": {
-        "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_fov_deg", "camera_zoom"] },
+          "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_fov_deg", "camera_zoom", "camera_focus_distance", "camera_aperture", "camera_max_blur"] },
         "easing": { "$ref": "#/$defs/easing" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
         "keyframes": { "$ref": "#/$defs/keyframe_list" }
@@ -273,6 +273,15 @@
           "start_frame": { "type": "integer", "minimum": 0 },
           "duration_frames": { "type": "integer", "minimum": 1 },
           "fit": { "enum": ["cover", "contain", "stretch", "none"] },
+          "crop": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "flip_x": { "type": "boolean" },
+              "origin": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+              "size": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 } }
+            }
+          },
           "radius": { "type": "number", "minimum": 0 },
           "style": {
             "type": "object",

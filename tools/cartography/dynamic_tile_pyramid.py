@@ -142,6 +142,7 @@ class DynamicTilePyramid:
         self.provider = provider
         self.url_template = TILE_URLS.get(provider, TILE_URLS["esri_sat"])
         self.tile_cache = {}  # In-memory RAM cache for fast composition
+        self.fallback_tile_count = 0
 
     def _fetch_single_tile(self, z: int, x: int, y: int) -> tuple[tuple[int, int, int], np.ndarray]:
         max_idx = 2 ** z
@@ -187,6 +188,7 @@ class DynamicTilePyramid:
                 time.sleep(0.1)
 
         # Fallback dark tone if network unavailable
+        self.fallback_tile_count += 1
         fallback = np.full((256, 256, 3), (25, 30, 40), dtype=np.uint8)
         return (z, x, y), fallback
 

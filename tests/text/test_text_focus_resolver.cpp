@@ -16,6 +16,9 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/presets/text/text_focus_resolver.hpp>
+#include <chronon3d/text/glyph_selector.hpp>
+
+#include "glyph_selector_helpers.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -30,9 +33,181 @@ using namespace chronon3d::presets::text;
 
 namespace {
 
-constexpr float kEps = 1e-5f;}
+constexpr float kEps = 1e-5f;
 
- // namespace
+} // namespace
+
+TEST_CASE("TextFocusProfile resolves Word, Span, and Line groups without layout authority") {
+    TextFocusProfile profile;
+    profile.basis = TextGroupBasis::Word;
+    profile.focus_position = 1.5f;
+    profile.blur_far = 12.0f;
+    profile.blur_per_unit = 4.0f;
+    profile.opacity_falloff = 0.1f;
+    profile.scale_falloff = 0.02f;
+    profile.curve = FocusCurve::Linear;
+    const auto words = resolve_text_focus(profile, 4);
+    REQUIRE(words.size() == 4);
+    CHECK(words[1].blur_radius == doctest::Approx(words[2].blur_radius));
+    CHECK(words[1].blur_radius == doctest::Approx(2.0f));
+    CHECK(words[1].opacity == doctest::Approx(words[2].opacity));
+    CHECK(words[1].scale == doctest::Approx(words[2].scale));
+    CHECK(words[0].blur_radius > words[1].blur_radius);
+    profile.curve = FocusCurve::SmoothStep;
+    profile.focus_position = 1.75f;
+    const auto smooth = resolve_text_focus(profile, 4);
+    CHECK(smooth[1].blur_radius == doctest::Approx(2.755102f));
+    CHECK(smooth[2].blur_radius == doctest::Approx(0.387755f));
+    CHECK(smooth[0].blur_radius == doctest::Approx(7.0f));
+    CHECK(smooth[1].blur_radius > smooth[2].blur_radius);
+
+    profile.basis = TextGroupBasis::Span;
+    profile.group_ids = {"title", "number", "suffix"};
+    profile.focus_position = 1.0f;
+    const auto spans = make_text_focus_animators(profile, 3);
+    REQUIRE(spans.size() == 3);
+    CHECK(spans[0].selectors.front().unit == TextSelectorUnit::Glyph);
+    CHECK(spans[0].selectors.front().semantic_id == std::optional<std::string>{"title"});
+    CHECK(spans[1].selectors.front().semantic_id == std::optional<std::string>{"number"});
+    CHECK(spans[1].properties.size() == 3);
+    CHECK(std::get<BlurProperty>(spans[1].properties[0]).radius.default_value() == doctest::Approx(0.0f));
+
+    profile.basis = TextGroupBasis::Line;
+    profile.group_ids.clear();
+    const auto lines = make_text_focus_animators(profile, 2);
+    REQUIRE(lines.size() == 2);
+    CHECK(lines[0].selectors.front().unit == TextSelectorUnit::Line);
+    CHECK(lines[1].selectors.front().unit == TextSelectorUnit::Line);
+    CHECK(lines[0].selectors.front().start.default_value() == doctest::Approx(0.0f));
+    CHECK(lines[0].selectors.front().end.default_value() == doctest::Approx(50.0f));
+    CHECK(lines[1].selectors.front().start.default_value() == doctest::Approx(50.0f));
+    CHECK(lines[1].selectors.front().end.default_value() == doctest::Approx(100.0f));
+    CHECK(lines[0].selectors.front().order == TextSelectorOrder::Forward);
+    CHECK(lines[0].selectors.front().index_step == 1U);
+}
+
+TEST_CASE("TextFocusProfile normalizes falloffs against the farthest group from focus") {
+    TextFocusProfile profile;
+    profile.focus_position = 1.0f;
+    profile.opacity_falloff = 0.2f;
+    profile.scale_falloff = 0.1f;
+    const auto samples = resolve_text_focus(profile, 5);
+    CHECK(samples[0].opacity == doctest::Approx(0.933333f));
+    CHECK(samples[4].opacity == doctest::Approx(0.8f));
+    CHECK(samples[0].scale == doctest::Approx(0.966667f));
+    CHECK(samples[4].scale == doctest::Approx(0.9f));
+
+    profile.focus_position = 0.0f;
+    profile.curve = FocusCurve::Quadratic;
+    const auto quadratic = resolve_text_focus(profile, 5);
+    CHECK(quadratic[1].opacity == doctest::Approx(0.9875f));
+    CHECK(quadratic[4].opacity == doctest::Approx(0.8f));
+}
+
+TEST_CASE("TextFocusProfile respects disabled falloffs, custom curves, and validation") {
+    TextFocusProfile profile;
+    profile.focus_position = 1.0f;
+    profile.blur_near = 2.0f;
+    profile.blur_far = 8.0f;
+    profile.blur_per_unit = 3.0f;
+    profile.opacity_falloff = 0.0f;
+    profile.scale_falloff = 0.0f;
+    profile.curve = FocusCurve::Quadratic;
+    const auto samples = resolve_text_focus(profile, 3);
+    CHECK(samples[1].blur_radius == doctest::Approx(2.0f));
+    CHECK(samples[0].blur_radius == doctest::Approx(5.0f));
+    CHECK(samples[2].blur_radius == doctest::Approx(5.0f));
+    for (const auto& sample : samples) {
+        CHECK(sample.opacity == doctest::Approx(1.0f));
+        CHECK(sample.scale == doctest::Approx(1.0f));
+    }
+    profile.basis = TextGroupBasis::Span;
+    profile.group_ids = {"duplicate", "duplicate", "third"};
+    CHECK_THROWS(resolve_text_focus(profile, 3));
+    profile.group_ids = {"only-one"};
+    CHECK_THROWS(make_text_focus_animators(profile, 3));
+    profile.basis = TextGroupBasis::Word;
+    profile.group_ids.clear();
+    profile.focus_position = 3.0f;
+    CHECK_THROWS(resolve_text_focus(profile, 3));
+    profile.focus_position = 0.0f;
+    profile.curve = static_cast<FocusCurve>(255);
+    CHECK_THROWS(resolve_text_focus(profile, 3));
+    profile.curve = FocusCurve::Linear;
+    profile.basis = static_cast<TextGroupBasis>(255);
+    CHECK_THROWS(resolve_text_focus(profile, 3));
+    profile = {};
+    profile.focus_position = 1.0f;
+    CHECK_THROWS(resolve_text_focus(profile, 0));
+    profile = {};
+    profile.group_ids = {"not-used"};
+    CHECK_THROWS(resolve_text_focus(profile, 2));
+}
+
+TEST_CASE("Word, semantic Span, and Line focus selectors target exactly one canonical group") {
+    const auto time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    TextFocusProfile profile;
+
+    const std::string word_text = "alpha beta gamma";
+    const auto word_run = test_glyph_sel::make_run_for_source(word_text);
+    const auto word_map = build_text_unit_map(word_run, word_text);
+    profile.basis = TextGroupBasis::Word;
+    const auto words = make_text_focus_animators(profile, word_map.word_count);
+    REQUIRE(words.size() == 3);
+    for (std::size_t group = 0; group < words.size(); ++group) {
+        const auto& selector = words[group].selectors.front();
+        CHECK(selector.unit == TextSelectorUnit::Word);
+        CHECK(selector.order == TextSelectorOrder::Forward);
+        for (u32 glyph = 0; glyph < word_run.glyphs.size(); ++glyph) {
+            const bool expected = word_map.unit_index(glyph, TextSelectorUnit::Word) == group;
+            CHECK(evaluate_selector(selector, word_map, glyph, word_text, time, &word_run) ==
+                  doctest::Approx(expected ? 1.0f : 0.0f));
+        }
+    }
+
+    profile.basis = TextGroupBasis::Span;
+    profile.group_ids = {"alpha", "beta", "gamma"};
+    auto span_map = word_map;
+    span_map.glyph_semantic_id.resize(word_run.glyphs.size());
+    for (std::size_t glyph = 0; glyph < word_run.glyphs.size(); ++glyph) {
+        const auto word = word_map.glyph_to_word[glyph];
+        if (word < profile.group_ids.size())
+            span_map.glyph_semantic_id[glyph] = profile.group_ids[word];
+    }
+    const auto spans = make_text_focus_animators(profile, profile.group_ids.size());
+    REQUIRE(spans.size() == 3);
+    for (std::size_t group = 0; group < spans.size(); ++group) {
+        const auto& selector = spans[group].selectors.front();
+        CHECK(selector.semantic_id == profile.group_ids[group]);
+        for (u32 glyph = 0; glyph < word_run.glyphs.size(); ++glyph) {
+            const bool expected = word_map.glyph_to_word[glyph] == group;
+            CHECK(evaluate_selector(selector, span_map, glyph, word_text, time, &word_run) ==
+                  doctest::Approx(expected ? 1.0f : 0.0f));
+        }
+    }
+
+    const std::string line_text = "abcdefghijkl";
+    auto line_run = test_glyph_sel::make_run_for_source(line_text);
+    for (std::size_t glyph = 0; glyph < line_run.glyphs.size(); ++glyph)
+        line_run.glyphs[glyph].y = static_cast<float>(glyph / 4) * 16.0f;
+    const auto line_map = build_text_unit_map(line_run, line_text);
+    REQUIRE(line_map.line_count == 3);
+    profile.basis = TextGroupBasis::Line;
+    profile.group_ids.clear();
+    const auto lines = make_text_focus_animators(profile, line_map.line_count);
+    REQUIRE(lines.size() == 3);
+    for (std::size_t group = 0; group < lines.size(); ++group) {
+        const auto& selector = lines[group].selectors.front();
+        CHECK(selector.unit == TextSelectorUnit::Line);
+        CHECK(selector.order == TextSelectorOrder::Forward);
+        CHECK_FALSE(selector.exclude_spaces);
+        for (u32 glyph = 0; glyph < line_run.glyphs.size(); ++glyph) {
+            const bool expected = line_map.unit_index(glyph, TextSelectorUnit::Line) == group;
+            CHECK(evaluate_selector(selector, line_map, glyph, line_text, time, &line_run) ==
+                  doctest::Approx(expected ? 1.0f : 0.0f));
+        }
+    }
+}
 
 TEST_CASE("TestFocusedWordHasZeroBlur — editorial mode") {
     TextFocusOptions options;

@@ -94,7 +94,7 @@ std::optional<PlanDecodeError> validate_render_budget(
                 layer.rotation_dimensions != 0 ||
                 layer.enable_3d || layer.screen_space || layer.safe_insets || layer.depth_role ||
                 layer.depth_offset != 0.0f || layer.radius || layer.start_frame ||
-                layer.duration_frames || layer.fit || layer.animation ||
+                layer.duration_frames || layer.fit || layer.crop || layer.animation ||
                 layer.fill_gradient_animation || !layer.text_animators.empty() ||
                 layer.blend_mode || layer.opacity || layer.loop || layer.parent ||
                 layer.track_matte || layer.time_remap || layer.transition_in || layer.transition_out) {

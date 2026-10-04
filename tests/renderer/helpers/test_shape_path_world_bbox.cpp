@@ -19,6 +19,7 @@
 
 #include "src/backends/software/rasterizers/shape_rasterizer.hpp"
 #include "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp"
+#include "src/backends/software/rasterizers/path_rasterizer.hpp"
 
 using namespace chronon3d;
 
@@ -74,6 +75,42 @@ TEST_CASE("path bbox padding tracks the path's own stroke width") {
     CHECK((thick_bbox.y1 - thick_bbox.y0) > (thin_bbox.y1 - thin_bbox.y0));
     CHECK(renderer::stroke_width_for_shape(thick) == doctest::Approx(40.0f));
     CHECK(renderer::stroke_width_for_shape(thin) == doctest::Approx(4.0f));
+}
+
+TEST_CASE("software path brush rasterization paints dab endpoints into premultiplied framebuffer") {
+    Framebuffer framebuffer(64, 64);
+    framebuffer.clear(Color::transparent());
+
+    PathShape path;
+    path.commands = {PathCommand::move_to({10.0f, 32.0f}),
+                     PathCommand::line_to({54.0f, 32.0f})};
+    path.fill.enabled = false;
+    path.stroke.enabled = true;
+    path.stroke.width = 8.0f;
+    path.stroke.color = Color::white();
+    path.stroke.brush = graphics::BrushProfile::hard_round();
+    path.stroke.brush->size = 10.0f;
+    path.stroke.brush->flow = 0.5f; // force deterministic endpoint-inclusive dabs
+
+    renderer::draw_path(framebuffer, path, Mat4(1.0f), Color::white(), nullptr);
+    const Color start = framebuffer.get_pixel(10, 32);
+    const Color middle = framebuffer.get_pixel(32, 32);
+    const Color end = framebuffer.get_pixel(54, 32);
+    CHECK(start.a > 0.0f);
+    CHECK(middle.a > 0.0f);
+    CHECK(end.a > 0.0f);
+    CHECK(start.r == doctest::Approx(start.a).epsilon(1.0e-5f));
+    CHECK(middle.r == doctest::Approx(middle.a).epsilon(1.0e-5f));
+    CHECK(framebuffer.get_pixel(32, 50).a == 0.0f);
+
+    path.stroke.brush->scatter = 1.0f;
+    path.stroke.brush->width_jitter = 1.0f;
+    const auto dabs = path.stroke.brush->sample_dabs(
+        {{20.0f, 20.0f}, {40.0f, 20.0f}}, 20.0f,
+        path.stroke.brush->size);
+    REQUIRE_FALSE(dabs.empty());
+    CHECK(dabs.front().position.x >= 15.0f);
+    CHECK(dabs.front().position.x <= 45.0f);
 }
 
 TEST_CASE("a path with no commands reports an empty bbox instead of a square") {

@@ -580,6 +580,9 @@ struct VulkanBackend::Impl {
                              const Image& destination, const Image& source,
                              float brightness, float contrast,
                              const Color& tint, float tint_amount);
+    void record_color_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                const Image& destination, const Image& source,
+                                const graph::NativeColorTransform& transform);
     void record_lighting(VkCommandBuffer command, VkDescriptorSet descriptors,
                          const Image& destination, const Image& source,
                          const Color& multiplier);
@@ -679,6 +682,9 @@ struct VulkanBackend::Impl {
                       runtime::RenderSurfaceHandle source,
                       float brightness, float contrast,
                       const Color& tint, float tint_amount);
+    void color_transform(runtime::RenderSurfaceHandle destination,
+                         runtime::RenderSurfaceHandle source,
+                         const graph::NativeColorTransform& transform);
     void lighting(runtime::RenderSurfaceHandle destination,
                   runtime::RenderSurfaceHandle source,
                   const Color& multiplier);

@@ -456,6 +456,9 @@ public:
     graph::RenderOpResult color_adjust_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, const Color&, float) override;
+    graph::RenderOpResult color_transform_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const graph::NativeColorTransform&) override;
     graph::RenderOpResult lighting_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const Color&) override;

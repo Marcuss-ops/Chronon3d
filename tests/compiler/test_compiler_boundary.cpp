@@ -10,6 +10,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/graphics/gradient.hpp>
+#include <chronon3d/graphics/shape_style/stroke_style.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -21,6 +22,26 @@
 #include <utility>
 #include <filesystem>
 #include <cmath>
+
+TEST_CASE("StrokeStyle brush conversion preserves path semantics and rejects loss") {
+    using namespace chronon3d;
+    graphics::StrokeStyle style = graphics::StrokeStyle::solid(Color::white(), 4.0f);
+    style.brush = graphics::BrushProfile::hard_round();
+    const PathStroke path_stroke = style.to_path_stroke();
+    REQUIRE(path_stroke.brush);
+    CHECK(path_stroke.width == doctest::Approx(4.0f));
+
+    CHECK_THROWS_AS(style.to_shape_stroke(), std::invalid_argument);
+    style.width = -1.0f;
+    CHECK_THROWS_AS(style.to_path_stroke(), std::invalid_argument);
+    style.width = 4.0f;
+    style.taper_start = 0.5f;
+    CHECK_THROWS_AS(style.to_path_stroke(), std::invalid_argument);
+    style.taper_start = 1.0f;
+    style.gradient = GradientDefinition::linear(
+        {0, 0}, {1, 0}, {{0, Color::black()}, {1, Color::white()}});
+    CHECK_THROWS_AS(style.to_path_stroke(), std::invalid_argument);
+}
 
 TEST_CASE("compiler boundary returns an immutable CompiledProgram") {
     static_assert(!std::is_copy_constructible_v<chronon3d::compiler::CompiledProgram>);

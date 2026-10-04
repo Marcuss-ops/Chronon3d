@@ -7,6 +7,22 @@
 #include <utility>
 namespace chronon3d::render_plan::detail {
 namespace { using json=nlohmann::json; }
+bool lottie_identity_transform(const json& transform) {
+    std::array<float, 2> position{};
+    std::array<float, 2> anchor{};
+    std::array<float, 2> scale{};
+    float rotation = 0.0f;
+    float opacity = 0.0f;
+    return lottie_static_vec2_property(transform, "p", position) &&
+           lottie_static_vec2_property(transform, "a", anchor) &&
+           lottie_static_vec2_property(transform, "s", scale) &&
+           lottie_static_scalar_property(transform, "r", rotation) &&
+           lottie_static_scalar_property(transform, "o", opacity) &&
+           position[0] == 0.0f && position[1] == 0.0f &&
+           anchor[0] == 0.0f && anchor[1] == 0.0f &&
+           scale[0] == 100.0f && scale[1] == 100.0f &&
+           rotation == 0.0f && opacity == 100.0f;
+}
 bool lottie_static_vec2_property(const json& owner, const char* key,
                                               std::array<float, 2>& out) {
 

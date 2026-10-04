@@ -104,6 +104,36 @@ TEST_CASE("Shape fill, rounded radius, gradient stops, stroke, and path affect f
     CHECK(changed_path->content_fingerprint != path_hash);
 }
 
+TEST_CASE("Brush profile fields affect the RenderPlan fingerprint") {
+    auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({
+        {"type", "path"},
+        {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
+                   {{"type", "line_to"}, {"point", {20, 0}}}}},
+        {"stroke", {{"width", 8}, {"color", "#FFFFFF"},
+            {"brush", {{"size", 12}, {"grain", 0.2},
+                {"texture", {{"generator", "perlin"}, {"frequency", 3.0}}},
+                {"along_path_gradient", render_plan_test::gradient()}}}}}
+    })});
+    const auto first = render_plan::decode_render_plan(plan);
+    REQUIRE(first);
+    const auto fingerprint = first->content_fingerprint;
+    const std::vector<std::pair<std::string, nlohmann::json>> changes{
+        {"size", 13.0}, {"grain", 0.3}, {"texture frequency", 4.0},
+        {"gradient stop", 0.7}
+    };
+    for (const auto& [field, value] : changes) {
+        auto changed_plan = plan;
+        auto& brush = changed_plan["layers"][0]["shape"]["stroke"]["brush"];
+        if (field == "size") brush["size"] = value;
+        else if (field == "grain") brush["grain"] = value;
+        else if (field == "texture frequency") brush["texture"]["frequency"] = value;
+        else brush["along_path_gradient"]["color_stops"][1]["color"][0] = value;
+        const auto changed = render_plan::decode_render_plan(changed_plan);
+        REQUIRE(changed);
+        CHECK(changed->content_fingerprint != fingerprint);
+    }
+}
+
 TEST_CASE("Per-corner radii affect the render plan fingerprint") {
     auto plan = render_plan_test::base_plan({render_plan_test::shape_layer({
         {"type", "rounded_rect"}, {"corner_radius", {8.0, 8.0, 0.0, 8.0}}})});

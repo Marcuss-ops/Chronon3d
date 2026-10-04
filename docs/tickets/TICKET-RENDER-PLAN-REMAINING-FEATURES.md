@@ -224,7 +224,120 @@ status below is updated only from commands actually executed in this workspace.
   fingerprint stream: absence emits no bytes, while present values are hashed;
   pin both the V32 no-filter golden and the new filter sensitivity.
 
+## 13. Procedural background generators — audit and gated next steps
+
+### Verified repository state (2026-10-03)
+
+- [x] **Gradient mesh is already exposed on the V3 RenderPlan shape fill.**
+  `schemas/json/chronon.render-plan.v3.extensions.schema.json` defines
+  `gradient_mesh` / `gradient_mesh_fill`; `render_plan_decoder_shape.cpp`
+  validates and decodes `fill: {"type":"mesh", "mesh":{"nodes":[...]}}`;
+  `render_plan_compiler_shape.cpp` lowers it to the canonical `Fill::mesh`;
+  `fingerprint_layer.cpp` hashes every node; the software path rasterizer samples
+  the mesh. The `GradientMesh::aurora_preset()` remains a C++ helper, not a
+  RenderPlan preset identifier. **Strict Vulkan parity is not implemented or
+  certified** (no GradientMesh/Field2D/vector-field matches under
+  `src/backends/vulkan`); a CPU render does not satisfy a strict-native request.
+- [x] **SDF math and mask generators exist, but not as general RenderPlan paint.**
+  `DistanceField2D` supplies circle/box/rounded-box/segment, CSG, smooth union
+  and subtraction, and edge operators. `PaintMaskGenerator` supplies
+  deterministic blob/wipe masks. Neither is decoded as a composable SDF shape
+  fill with its own color/gradient ramp; `VectorField2D` is likewise a standalone
+  C++ sampler, not a RenderPlan background generator.
+- [x] **Field2D is a scalar tinted fill, not a general color-ramp fill.**
+  Existing generators/operators and ordinary gradient fills remain available,
+  but the field-to-color ramp/contrast/threshold/alpha mapping described in the
+  audit is not a RenderPlan fill contract.
+- [x] **Pattern inventory confirmed:** Grid and DotGrid shape/path generation
+  exist. Dedicated hexagonal, triangular, and contour/topographic pattern
+  generators are not present in the audited RenderPlan shape contract.
+- [x] **Feature-freeze gate checked:** `docs/CURRENT_STATUS.md` reports same-SHA
+  GitHub CI blocked before runner allocation; `docs/CHRONON_PLAN.md` and
+  `docs/ROADMAP.md` prohibit new feature work until the prerequisite
+  certification is green. No product implementation was started under this
+  gate.
+
+### Ordered acceptance checklist (blocked until the feature freeze is lifted)
+
+- [ ] **Gate 0 — unblock implementation:** restore GitHub runner dispatch and
+  obtain green same-SHA CI on a reviewed main tip; reconcile local/source status
+  and explicitly lift the freeze. Owner: project/repository maintainers; the
+  runner-dispatch service is external to this checkout.
+- [ ] **Gate 1 — GradientMesh native parity (highest priority):** preserve the
+  existing V3 contract and canonical graph/fill authorities; define its strict
+  Vulkan capability row; implement or explicitly reject it before dispatch;
+  add software/Vulkan pixel-oracle cases (transparent/opaque, clipping and
+  boundary samples), deterministic fingerprint/render checks, and a strict
+  native test proving no CPU fallback/readback. Add a named animated aurora
+  contract only if required; the existing C++ preset alone is not a wire API.
+- [ ] **Gate 2 — colored Field2D:** define a bounded ramp contract (ordered
+  color/alpha stops, contrast, threshold and mapping semantics), validation,
+  V3 schema/decoder, fingerprint inputs and frame evaluation; lower through the
+  existing fill/compiler path; add CPU pixel, random-access determinism, strict
+  Vulkan parity and explicit rejection/fallback-policy tests.
+- [ ] **Gate 3 — composable SDF fills:** agree a bounded typed representation
+  for supported primitives and smooth union/subtraction (including units,
+  softness, edge coverage and fill mapping); validate resource/operator limits;
+  carry it through schema, decoder, compiler and fingerprint; certify software
+  output and a strict Vulkan counterpart with pixel-oracle and deterministic
+  frame tests. Do not create a second renderer or unbounded expression engine.
+- [ ] **Gate 4 — VectorField backgrounds/deformation:** specify bounded field
+  kinds, normalized coordinates, seed/time semantics and how a field generates
+  color or deforms an existing field/fill; integrate with the canonical graph;
+  test random-access determinism and CPU/Vulkan parity, with strict native
+  requests failing closed until certified.
+- [ ] **Gate 5 — lower-priority geometric patterns:** evaluate hexagonal,
+  triangular and contour patterns after Gates 1–4; reuse bounded pattern/fill
+  plumbing and require schema/decode/fingerprint, software pixel fixtures and
+  strict Vulkan capability/parity tests for every accepted generator.
+- [ ] **Gate 6 — end-to-end acceptance:** for each accepted feature, pass schema
+  validation and typed decode, malformed/range rejection, fingerprint
+  sensitivity, prepared/render-plan execution, CPU golden/pixel checks,
+  deterministic repeated/random-access rendering, strict Vulkan no-fallback
+  checks, and the relevant same-SHA integration suites. Report GPU cases as
+  `NOT RUN` on non-GPU hosts, never as PASS.
+
+**Current verdict:** audit PASS; GradientMesh RenderPlan/CPU support PASS;
+procedural color-ramp/SDF/vector-field RenderPlan contracts PARTIAL; Vulkan
+parity and all new feature gates NOT RUN/BLOCKED by Gate 0. Do not mark the
+blocked implementation criteria complete until their acceptance evidence exists.
+
+### Local verification follow-through (2026-10-03)
+
+- [x] Add regressions for V3 mesh typed decode, per-node fingerprint changes,
+  malformed node rejection, field/mesh conflict rejection, schema bounds, and
+  prepared-plan lowering to canonical `FillType::GradientMesh`.
+- [x] Compile the three changed C ABI test translation units and both runtime
+  pipeline translation units; all five object builds PASS after correcting a
+  malformed JSON test fixture found by compilation.
+- [x] `git diff --check` PASS.
+- [ ] C ABI executable link and test execution NOT RUN: the existing binary
+  predates these source edits and was not reused. Rebuilding
+  `chronon3d_c_abi_tests` from the configured Release tree repeatedly expands
+  into 400 build edges; the latest `ninja -j8` attempt timed out after 600s.
+  The generated object files are newer than the edited sources, but no fresh
+  executable/test result is claimed. Re-run the C ABI suite once the build tree
+  can complete its dependency rebuild; then run the full relevant same-SHA CI.
+- [ ] Native Vulkan parity remains BLOCKED by Gate 0 and requires the
+  certified GPU host; no GPU test was claimed or executed.
+
+The same-SHA CI/feature-freeze blocker remains external to this workspace; these
+local regression tests do not lift it or authorize new product feature work.
+
 ## Progress log
+
+- **v13 — 2026-10-03:** audited the procedural-background acceptance surface;
+  added Section 13 and local GradientMesh regression coverage. The new test
+  translation units and runtime pipeline TUs compile, but linking/running the
+  full C ABI suite remains NOT RUN after the configured 400-edge rebuild timed
+  out at 600s. Strict Vulkan parity and other new generator APIs remain blocked
+  by the exact-main-SHA CI/feature-freeze gate.
+
+## Progress log
+
+- **v12 — 2026-09-30:** continued the Chronon3D fast aggregate at `-j 8`.
+  Confirmed `chronon3d_tests_fast` includes `chronon3d_cli_tests`; the configured
+  build has `CHRONON3D_ENABLE_NATIVE_FFMPEG=OFF`. Fixed the concrete no-FFmpeg
 
 - **v12 — 2026-09-30:** continued the Chronon3D fast aggregate at `-j 8`.
   Confirmed `chronon3d_tests_fast` includes `chronon3d_cli_tests`; the configured

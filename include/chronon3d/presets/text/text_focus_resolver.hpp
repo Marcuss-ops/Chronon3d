@@ -48,6 +48,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -55,6 +57,55 @@
 #include <vector>
 
 namespace chronon3d::presets::text {
+
+enum class TextGroupBasis { Word, Span, Line };
+enum class FocusCurve { Linear, SmoothStep, Quadratic };
+
+/// Public editorial-focus authoring contract, independent of camera DOF.
+/// `group_ids` is required for Span basis and names the existing semantic text
+/// spans selected by the canonical glyph selector.
+struct TextFocusProfile {
+    TextGroupBasis basis{TextGroupBasis::Word};
+    float focus_position{0.0f};
+    float blur_near{0.0f};
+    float blur_far{14.0f};
+    float blur_per_unit{3.0f};
+    float opacity_falloff{0.20f};
+    float scale_falloff{0.015f};
+    FocusCurve curve{FocusCurve::Linear};
+    std::vector<std::string> group_ids;
+
+    [[nodiscard]] bool valid(std::size_t group_count) const noexcept {
+        const bool valid_basis = basis == TextGroupBasis::Word ||
+            basis == TextGroupBasis::Span || basis == TextGroupBasis::Line;
+        const bool valid_curve = curve == FocusCurve::Linear ||
+            curve == FocusCurve::SmoothStep || curve == FocusCurve::Quadratic;
+        if (!valid_basis || !valid_curve ||
+            !std::isfinite(focus_position) || !std::isfinite(blur_near) ||
+            !std::isfinite(blur_far) || !std::isfinite(blur_per_unit) ||
+            !std::isfinite(opacity_falloff) || !std::isfinite(scale_falloff) ||
+            blur_near < 0.0f || blur_far < blur_near || blur_far > 256.0f ||
+            blur_per_unit < 0.0f || blur_per_unit > 256.0f ||
+            opacity_falloff < 0.0f || opacity_falloff > 1.0f ||
+            scale_falloff < 0.0f || scale_falloff > 0.5f ||
+            (group_count > 0 && (focus_position < 0.0f ||
+                focus_position > static_cast<float>(group_count - 1))) ||
+            (group_count == 0 && focus_position != 0.0f) ||
+            group_count > static_cast<std::size_t>(std::numeric_limits<u32>::max()))
+            return false;
+        if (basis == TextGroupBasis::Span) {
+            if (group_ids.size() != group_count) return false;
+            for (std::size_t i = 0; i < group_ids.size(); ++i) {
+                if (group_ids[i].empty() || group_ids[i].size() > 256) return false;
+                for (std::size_t j = 0; j < i; ++j)
+                    if (group_ids[i] == group_ids[j]) return false;
+            }
+        } else if (!group_ids.empty()) {
+            return false;
+        }
+        return true;
+    }
+};
 
 // ── TextDepthProfile — bounded depth/blur policy knobs ────────────────────
 
@@ -161,6 +212,112 @@ namespace detail {
         samples[i] = resolve_word_focus_distance(distance, options);
     }
     return samples;
+}
+
+namespace detail {
+
+[[nodiscard]] inline float focus_curve_distance(
+    float distance, float maximum_distance, FocusCurve curve) noexcept {
+    if (curve == FocusCurve::Linear || maximum_distance <= 0.0f)
+        return distance;
+    const float t = std::clamp(distance / maximum_distance, 0.0f, 1.0f);
+    switch (curve) {
+        case FocusCurve::Linear:
+            return distance;
+        case FocusCurve::SmoothStep:
+            return maximum_distance * t * t * (3.0f - 2.0f * t);
+        case FocusCurve::Quadratic:
+            return maximum_distance * t * t;
+    }
+    return distance;
+}
+
+} // namespace detail
+
+/// Resolve group-scoped editorial focus for Word, semantic Span or Line groups.
+/// The resolver is pure: the caller supplies the evaluated continuous focus
+/// position, so direct frame-N sampling is identical to sequential sampling.
+[[nodiscard]] inline std::vector<TextWordFocusSample> resolve_text_focus(
+    const TextFocusProfile& profile, std::size_t group_count) {
+    if (!profile.valid(group_count))
+        throw std::invalid_argument("text focus profile or group basis is outside supported bounds");
+    std::vector<TextWordFocusSample> samples(group_count);
+    for (std::size_t i = 0; i < group_count; ++i) {
+        const float raw_distance = std::fabs(static_cast<float>(i) - profile.focus_position);
+        const float raw_max_distance = std::max(
+            profile.focus_position,
+            static_cast<float>(group_count - 1) - profile.focus_position);
+        const float distance = detail::focus_curve_distance(
+            raw_distance, raw_max_distance, profile.curve);
+        auto& sample = samples[i];
+        const float max_distance = raw_max_distance;
+        const float normalized_distance = max_distance > 0.0f
+            ? std::clamp(distance / max_distance, 0.0f, 1.0f) : 0.0f;
+        sample.blur_radius = std::clamp(profile.blur_near +
+            distance * profile.blur_per_unit, profile.blur_near, profile.blur_far);
+        sample.opacity = 1.0f - normalized_distance * profile.opacity_falloff;
+        sample.scale = 1.0f - normalized_distance * profile.scale_falloff;
+    }
+    return samples;
+}
+
+/// Lower a static editorial focus profile to the canonical per-group text
+/// animator stack. Layout is not rebuilt or modified: only blur/opacity/scale
+/// post-layout properties are emitted. Span selection uses semantic ids.
+[[nodiscard]] inline std::vector<TextAnimatorSpec> make_text_focus_animators(
+    const TextFocusProfile& profile, std::size_t group_count) {
+    const auto samples = resolve_text_focus(profile, group_count);
+    std::vector<TextAnimatorSpec> result;
+    result.reserve(group_count);
+
+    // Selector positions are unit centers: (index + 0.5) / total_units.
+    // The matching [i/N, (i+1)/N] window therefore selects exactly group i
+    // when the caller's group_count matches the compiled Word/Line map.
+    const f32 group_width = group_count > 0
+        ? 100.0f / static_cast<f32>(group_count) : 100.0f;
+    for (std::size_t i = 0; i < group_count; ++i) {
+        TextAnimatorSpec animator;
+
+        animator.id = "text_focus_" + std::to_string(i);
+        GlyphSelectorSpec selector;
+        selector.id = animator.id + "_selector";
+        selector.shape = TextSelectorShape::Square;
+        selector.order = TextSelectorOrder::Forward;
+        // Word grouping has no units for separators. A visual line can start
+        // with whitespace, so first-glyph whitespace exclusion would wrongly
+        // suppress its whole unit; spaces themselves carry no visible glyph
+        // effect and should remain part of the line selection.
+        selector.exclude_spaces = profile.basis != TextGroupBasis::Line;
+        if (profile.basis == TextGroupBasis::Word) {
+            selector.unit = TextSelectorUnit::Word;
+            selector.start = AnimatedValue<f32>{static_cast<f32>(i) * group_width};
+            selector.end = AnimatedValue<f32>{static_cast<f32>(i + 1) * group_width};
+        } else if (profile.basis == TextGroupBasis::Line) {
+            selector.unit = TextSelectorUnit::Line;
+            selector.start = AnimatedValue<f32>{static_cast<f32>(i) * group_width};
+            selector.end = AnimatedValue<f32>{static_cast<f32>(i + 1) * group_width};
+        } else {
+            selector.unit = TextSelectorUnit::Glyph;
+            selector.start = AnimatedValue<f32>{0.0f};
+            selector.end = AnimatedValue<f32>{100.0f};
+            selector.semantic_id = profile.group_ids[i];
+        }
+        selector.amount = AnimatedValue<f32>{100.0f};
+        animator.selectors.push_back(std::move(selector));
+
+        BlurProperty blur;
+        blur.radius.set(samples[i].blur_radius);
+        OpacityProperty opacity;
+        opacity.value.set(samples[i].opacity);
+        ScaleProperty scale;
+        scale.value.set(Vec3{samples[i].scale, samples[i].scale, 1.0f});
+        animator.properties.push_back(std::move(blur));
+        animator.properties.push_back(std::move(opacity));
+        animator.properties.push_back(std::move(scale));
+        (void)animator.compile();
+        result.push_back(std::move(animator));
+    }
+    return result;
 }
 
 // ── Word depth assignment (depth cascade) ─────────────────────────────────

@@ -71,6 +71,7 @@ chronon3d_add_test_suite(
         # Split from test_backend_registry_vulkan.cpp (each part ≤ 400 LOC):
         registry/test_backend_registry_vulkan_dispatch.cpp
         registry/test_backend_registry_vulkan_surfaces.cpp
+        registry/test_backend_registry_vulkan_effect_parity.cpp
         registry/test_backend_registry_vulkan_transforms.cpp
         registry/test_backend_registry_plan.cpp
         registry/test_backend_registry_batches.cpp

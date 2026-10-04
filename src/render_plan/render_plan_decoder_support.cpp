@@ -203,6 +203,9 @@ CameraPropertyPlan camera_property(const std::string& value) {
         std::pair{"camera_rotation_z"sv, CameraPropertyPlan::RotationZ},
         std::pair{"camera_fov_deg"sv, CameraPropertyPlan::FovDeg},
         std::pair{"camera_zoom"sv, CameraPropertyPlan::Zoom},
+        std::pair{"camera_focus_distance"sv, CameraPropertyPlan::FocusDistance},
+        std::pair{"camera_aperture"sv, CameraPropertyPlan::Aperture},
+        std::pair{"camera_max_blur"sv, CameraPropertyPlan::MaxBlur},
     };
     return enum_from_string(value, kValues, "unsupported camera animation property: ");
 }
@@ -297,6 +300,15 @@ std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value) {
             const float scalar = raw_value.get<float>();
             if (!std::isfinite(scalar))
                 throw std::runtime_error("camera keyframe value must be finite");
+            if (track.property == CameraPropertyPlan::FocusDistance &&
+                (scalar <= 0.0f || scalar > 10000000.0f))
+                throw std::runtime_error("camera_focus_distance values must be in (0, 10000000]");
+            if (track.property == CameraPropertyPlan::Aperture &&
+                (scalar < 0.0f || scalar > 1.0f))
+                throw std::runtime_error("camera_aperture values must be in [0, 1]");
+            if (track.property == CameraPropertyPlan::MaxBlur &&
+                (scalar < 0.0f || scalar > 256.0f))
+                throw std::runtime_error("camera_max_blur values must be in [0, 256]");
             key.value.push_back(scalar);
             if (raw_key.contains("interpolation")) key.interpolation = raw_key.at("interpolation").get<std::string>();
             if (raw_key.contains("easing")) key.easing = raw_key.at("easing").get<std::string>();

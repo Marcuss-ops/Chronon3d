@@ -15,6 +15,10 @@
 #include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 
+#include <array>
+#include <limits>
+#include <vector>
+
 using namespace chronon3d;
 using namespace chronon3d::graphics;
 using namespace chronon3d::effects;
@@ -75,6 +79,26 @@ TEST_CASE("Premium Effects V1: Field2D transform and combined operators") {
         CHECK(doctest::Approx(val).epsilon(1e-3) == 0.6f);
     }
 
+    SUBCASE("Field2D rejects non-finite and out-of-range transformed lattice coordinates") {
+        Field2D field;
+        field.generator = Field2DGenerator::Cellular;
+        field.transform.translation = Vec2{1.0e20f, -1.0e20f};
+        CHECK(std::isfinite(field.sample(Vec2{0.5f, 0.5f})));
+
+        field.transform = {};
+        Field2DOperator translate;
+        translate.kind = Field2DOperatorKind::Translate;
+        translate.vec = Vec2{1.0e20f, 1.0e20f};
+        field.operators = {translate};
+        CHECK(std::isfinite(field.sample(Vec2{0.5f, 0.5f})));
+
+        Field2DOperator overflow;
+        overflow.kind = Field2DOperatorKind::Add;
+        overflow.scalar = std::numeric_limits<float>::infinity();
+        field.operators = {overflow};
+        CHECK(field.sample(Vec2{0.5f, 0.5f}) == doctest::Approx(0.0f));
+    }
+
     SUBCASE("Field2D fingerprint determinism") {
         Field2D f1;
         f1.seed = 12345;
@@ -120,6 +144,66 @@ TEST_CASE("Premium Effects V1: BrushProfile primitive authority") {
 
         const auto scribble = BrushProfile::scribble(1337);
         CHECK(scribble.width_jitter > 0.15f);
+    }
+
+    SUBCASE("All canonical presets are valid and deterministic") {
+        const std::array profiles{
+            BrushProfile::hard_round(), BrushProfile::soft_round(), BrushProfile::marker(),
+            BrushProfile::highlighter(), BrushProfile::felt_pen(), BrushProfile::chalk(),
+            BrushProfile::pencil(), BrushProfile::dry_paint(), BrushProfile::ink(),
+            BrushProfile::calligraphy(), BrushProfile::glow(), BrushProfile::scribble()};
+        for (const auto& profile : profiles) {
+            CHECK(profile.valid());
+            CHECK(profile.fingerprint() == profile.fingerprint());
+        }
+    }
+
+    SUBCASE("Profile fingerprint includes texture transform pivot and gradient") {
+        BrushProfile base;
+        BrushProfile changed = base;
+        Field2D field;
+        base.texture = field;
+        changed.texture = field;
+        changed.texture->transform.pivot.x = 0.25f;
+        CHECK(base.fingerprint() != changed.fingerprint());
+
+        BrushProfile gradient_a;
+        BrushProfile gradient_b = gradient_a;
+        gradient_a.along_path_gradient = GradientDefinition::linear(
+            {0, 0}, {1, 0}, {{0, Color::black()}, {1, Color::white()}});
+        gradient_b.along_path_gradient = gradient_a.along_path_gradient;
+        gradient_b.along_path_gradient->color_stops[1].color.r = 0.5f;
+        CHECK(gradient_a.fingerprint() != gradient_b.fingerprint());
+    }
+
+    SUBCASE("Pressure curve interpolates width and opacity deterministically") {
+        BrushProfile profile;
+        profile.pressure_width = 1.0f;
+        profile.pressure_opacity = 1.0f;
+        profile.pressure_curve = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+        CHECK(profile.pressure_at(0.5f) == doctest::Approx(0.5f));
+        CHECK(profile.sample_alpha(0.0f, 0.5f, Vec2{0, 0}, profile.pressure_at(0.5f)) ==
+              doctest::Approx(0.25f));
+    }
+
+    SUBCASE("Dab sampling includes exact endpoints and rejects length mismatch") {
+        BrushProfile profile = BrushProfile::hard_round();
+        const std::vector<Vec2> points{{0, 0}, {10, 0}};
+        const auto dabs = profile.sample_dabs(points, 10.0f, 8.0f);
+        REQUIRE(dabs.size() >= 2);
+        CHECK(dabs.front().position.x == doctest::Approx(0.0f));
+        CHECK(dabs.back().position.x == doctest::Approx(10.0f));
+        CHECK(dabs.back().progress == doctest::Approx(1.0f));
+        CHECK(profile.sample_dabs(points, 100000.0f, 8.0f).empty());
+        CHECK(BrushProfile::dab_count(0.0f, 8.0f, 0.25f) == 1);
+    }
+
+    SUBCASE("Flow deposition is capped at profile opacity") {
+        BrushProfile profile;
+        profile.opacity = 0.4f;
+        profile.flow = 0.5f;
+        CHECK(profile.accumulate_flow(1.0f, 1) == doctest::Approx(0.4f));
+        CHECK(profile.accumulate_flow(0.5f, 1) == doctest::Approx(0.25f));
     }
 }
 

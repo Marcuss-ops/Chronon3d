@@ -40,13 +40,15 @@ NodeExecResult EffectStackNode::execute(
         // or compositing temporal samples so trails survive those bound shifts.
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         result->set_origin(0, 0);
-        result->clear(Color::transparent());
+        if (result->data()) {
+            result->clear(Color::transparent());
+        }
         const auto& source = *inputs[0];
         const i32 dst_x0 = std::max(0, source.origin_x());
         const i32 dst_y0 = std::max(0, source.origin_y());
         const i32 dst_x1 = std::min(ctx.frame_input.width, source.origin_x() + source.width());
         const i32 dst_y1 = std::min(ctx.frame_input.height, source.origin_y() + source.height());
-        if (dst_x1 > dst_x0 && dst_y1 > dst_y0) {
+        if (dst_x1 > dst_x0 && dst_y1 > dst_y0 && result->data() && source.data()) {
             for (i32 y = dst_y0; y < dst_y1; ++y) {
                 const Color* src = source.pixels_row(y - source.origin_y()) + (dst_x0 - source.origin_x());
                 Color* dst = result->pixels_row(y) + dst_x0;
@@ -78,7 +80,7 @@ NodeExecResult EffectStackNode::execute(
         const i32 intersect_x1 = std::min(inputs[0]->origin_x() + inputs[0]->width(), out_bounds.x1);
         const i32 intersect_y1 = std::min(inputs[0]->origin_y() + inputs[0]->height(), out_bounds.y1);
 
-        if (!gpu_only_input && intersect_x1 > intersect_x0 && intersect_y1 > intersect_y0) {
+        if (!gpu_only_input && result->data() && inputs[0]->data() && intersect_x1 > intersect_x0 && intersect_y1 > intersect_y0) {
             const i32 w_copy = intersect_x1 - intersect_x0;
             for (i32 y = intersect_y0; y < intersect_y1; ++y) {
                 const Color* src = inputs[0]->pixels_row(y - inputs[0]->origin_y()) + (intersect_x0 - inputs[0]->origin_x());
@@ -175,6 +177,15 @@ NodeExecResult EffectStackNode::execute(
         if (!native_handled && !gpu_only_input) {
             native_handled = native_effects::try_native_full_frame_tint(
                 ctx, m_effects, *result, local_clip);
+        }
+        if (!native_handled) {
+            const auto color_source = native_source_available
+                ? native_source
+                : (gpu_only_input ? inputs[0]->surface_handle()
+                                  : runtime::kInvalidRenderSurfaceHandle);
+            native_handled = native_effects::try_native_full_frame_color(
+                ctx, m_effects, *result, local_clip, color_source,
+                color_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
         }
         if (ctx.policy.is_gpu_native_required() && !native_handled) {
             std::string capability_message =

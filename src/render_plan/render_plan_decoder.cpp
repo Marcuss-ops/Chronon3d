@@ -434,6 +434,16 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                     "camera_animation requires a camera object",
                     "camera_animation_requires_camera", "render-plan-decoder"};
             plan.camera_animation = detail::decode_camera_tracks(resolved_root.at("camera_animation"));
+            const bool has_dof_animation = std::any_of(
+                plan.camera_animation->begin(), plan.camera_animation->end(), [](const auto& track) {
+                    return track.property == chronon3d::render_plan::CameraPropertyPlan::FocusDistance ||
+                           track.property == chronon3d::render_plan::CameraPropertyPlan::Aperture ||
+                           track.property == chronon3d::render_plan::CameraPropertyPlan::MaxBlur;
+                });
+            if (has_dof_animation && !plan.camera->dof_enabled)
+                return PlanDecodeError{"camera_animation",
+                    "animated DOF channels require camera.dof.enabled=true",
+                    "camera_dof_animation_requires_dof", "render-plan-decoder"};
         }
 
         std::size_t layer_index = 0;

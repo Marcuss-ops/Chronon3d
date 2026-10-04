@@ -10,6 +10,7 @@
 #include <chronon3d/render_graph/effect_gpu_capability.hpp>
 #include <spdlog/spdlog.h>
 #include <cmath>
+#include <initializer_list>
 #include <vector>
 
 #include "native_surface.hpp"
@@ -17,6 +18,7 @@
 namespace chronon3d::graph {
 
 #include "effect_stack_node_native_detail.hpp"
+#include "effect_stack_node_native_color_detail.hpp"
 #include "effect_stack_node_bbox_detail.hpp"
 #include "effect_stack_node_execute_detail.hpp"
 

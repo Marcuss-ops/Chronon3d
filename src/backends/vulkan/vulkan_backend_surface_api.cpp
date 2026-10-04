@@ -556,6 +556,23 @@ graph::RenderOpResult VulkanBackend::color_adjust_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::color_transform_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const graph::NativeColorTransform& transform) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->color_transform(destination, source, transform);
+    });
+#else
+    (void)destination; (void)source; (void)transform;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::color_transform_surface: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::lighting_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
