@@ -86,8 +86,10 @@ the full software/GPU effect corpus passes on the same SHA.
   0.37/-0.29 radians and a rotated anisotropic scale (1,769,836 assertions).
   The Vulkan shader evaluates coverage with the same inverse-transform
   coefficients as the CPU rasterizer, including pixel-edge rounding. An
-  explicit shear case fails closed after exposing pixel disagreement; shear,
-  masks and per-corner rounded strokes remain unsupported.
+  explicit shear case fails closed after exposing pixel disagreement. A
+  per-corner RoundedRect stroke fixture now also matches the software oracle
+  for Inside/Center/Outside under a rotated anisotropic transform (61,455
+  pixel-channel assertions). Shear and masks remain unsupported.
 - Echo now uses job-owned, frame-addressed Vulkan surface history and weighted
   premultiplied source-over, including as an ordered stack stage. Local fixtures
   cover exact frame/key lookup, reset, no-readback surface copies, two-frame
@@ -100,7 +102,8 @@ the full software/GPU effect corpus passes on the same SHA.
   keying-stack order fixture and passed. The Echo/history focus passed 2 cases
   / 48 assertions; keying framehashes passed 268 assertions, keying stack order
   passed 259 assertions; the expanded stroke pixel oracle passed 1,769,836
-  assertions.
+  assertions. The per-corner stroke fixture passed 61,455 pixel-channel
+  assertions; the complete backend-registry CTest passed locally on llvmpipe.
 - This is not GPU-hardware or same-SHA CI certification. The remaining catalog
   routes and unsupported stroke transforms are still open.
 

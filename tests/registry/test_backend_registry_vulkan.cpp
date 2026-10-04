@@ -237,6 +237,91 @@ TEST_CASE("Vulkan closed-shape strokes reject sheared transforms") {
     REQUIRE(backend.release_surface(handle).ok());
 }
 
+TEST_CASE("Vulkan per-corner rounded strokes match software pixels") {
+    using namespace chronon3d;
+    using namespace chronon3d::backends::vulkan;
+
+    VulkanBackend backend;
+    constexpr int width = 80;
+    constexpr int height = 64;
+    constexpr std::array alignments{
+        StrokeAlignment::Inside, StrokeAlignment::Center,
+        StrokeAlignment::Outside};
+    runtime::RenderSurfaceHandle handle = 0xC3D300u;
+
+    for (const auto alignment : alignments) {
+        RenderNode node;
+        node.shape.set_type(ShapeType::RoundedRect);
+        node.shape.rounded_rect().size = {34.0f, 26.0f};
+        node.shape.rounded_rect().corner_radius =
+            std::array<float, 4>{4.0f, 10.0f, 12.0f, 2.0f};
+        node.shape.rounded_rect().stroke.enabled = true;
+        node.shape.rounded_rect().stroke.width = 4.0f;
+        node.shape.rounded_rect().stroke.color = Color{0.9f, 0.18f, 0.34f, 0.63f};
+        node.shape.rounded_rect().stroke.alignment = alignment;
+        node.color = Color{0.16f, 0.28f, 0.52f, 0.72f};
+
+        RenderState state;
+        state.matrix = Mat4{1.0f};
+        const Vec2 scale{0.9f, 1.1f};
+        const float angle = 0.22f;
+        const float cosine = std::cos(angle);
+        const float sine = std::sin(angle);
+        state.matrix[0][0] = cosine * scale.x;
+        state.matrix[0][1] = sine * scale.x;
+        state.matrix[1][0] = -sine * scale.y;
+        state.matrix[1][1] = cosine * scale.y;
+        state.matrix[3][0] = 25.0f;
+        state.matrix[3][1] = 14.0f;
+        state.clip_rect = raster::BBox{15, 8, 66, 54};
+
+        Framebuffer expected(width, height);
+        Color background = Color{0.08f, 0.12f, 0.2f, 0.7f}.to_linear();
+        background.r *= background.a;
+        background.g *= background.a;
+        background.b *= background.a;
+        expected.clear(background);
+        const Color linear_fill = node.color.to_linear();
+        const auto desc = runtime::SurfaceDesc::make(
+            width, height, runtime::PixelFormat::Rgba32Float,
+            runtime::ResourceUsage::Generic,
+            runtime::LifetimeClass::FrameTransient, runtime::ColorMetadata{});
+        REQUIRE(backend.create_surface(handle, desc).ok());
+        std::vector<float> initial(static_cast<std::size_t>(width * height * 4));
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x) {
+                const Color pixel = expected.get_pixel(x, y);
+                const auto i = static_cast<std::size_t>((y * width + x) * 4);
+                initial[i] = pixel.r; initial[i + 1] = pixel.g;
+                initial[i + 2] = pixel.b; initial[i + 3] = pixel.a;
+            }
+        renderer::draw_transformed_shape(
+            expected, node.shape, state.matrix, linear_fill, 0.0f,
+            &state, nullptr, node.corner_radius);
+        REQUIRE(backend.upload_surface(handle, desc, initial).ok());
+        Framebuffer actual(width, height);
+        actual.set_surface_handle(handle);
+        const auto drawn = backend.draw_node(actual, node, state, Camera{}, width, height);
+        REQUIRE(drawn.ok());
+        std::vector<float> pixels(initial.size());
+        REQUIRE(backend.download_surface(handle, pixels).ok());
+        INFO("per-corner stroke alignment=" << static_cast<int>(alignment));
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x) {
+                const Color pixel = expected.get_pixel(x, y);
+                const float wanted[] = {pixel.r, pixel.g, pixel.b, pixel.a};
+                const auto i = static_cast<std::size_t>((y * width + x) * 4);
+                for (int channel = 0; channel < 4; ++channel) {
+                    INFO("x=" << x << " y=" << y << " channel=" << channel);
+                    CHECK(pixels[i + static_cast<std::size_t>(channel)] ==
+                          doctest::Approx(wanted[channel]).epsilon(2.0e-6));
+                }
+            }
+        REQUIRE(backend.release_surface(handle).ok());
+        ++handle;
+    }
+}
+
 TEST_CASE("Vulkan backend creates a persistent headless device") {
     auto backend = chronon3d::backends::vulkan::make_vulkan_backend();
     REQUIRE(backend != nullptr);
