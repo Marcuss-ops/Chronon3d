@@ -8,8 +8,8 @@
 |---|---:|---|---|
 | Main truth / same-SHA CI | P0 | VERIFY — remote job allocation pending | [MAIN-TRUTH-STAGE-1-2](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) |
 | Stabilizzazione Stage 1–5 | P0 | VERIFY — close after same-SHA CI | [TICKET-200](tickets/TICKET-200-stage-plan.md) |
-| Luma/chroma key native GPU | P1 | PARTIAL — local Vulkan parity; hardware canary pending | [KEYING-GPU-NATIVE](tickets/TICKET-KEYING-GPU-NATIVE.md) |
-| Echo native GPU dispatch | P1 | PARTIAL — local Vulkan graph parity; framehash and GPU-host certification pending | [ECHO-GPU-NATIVE](tickets/TICKET-ECHO-GPU-NATIVE.md) |
+| Luma/chroma key native GPU | P1 | PARTIAL — local Vulkan parity and framehash; hardware certification pending | [KEYING-GPU-NATIVE](tickets/TICKET-KEYING-GPU-NATIVE.md) |
+| Echo native GPU dispatch | P1 | PARTIAL — local Vulkan parity and framehash; GPU-host certification pending | [ECHO-GPU-NATIVE](tickets/TICKET-ECHO-GPU-NATIVE.md) |
 | Engine certification aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | Test harness and WBH certification | P1 | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) · [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
 | Vulkan shape-stroke parity | P1 | PARTIAL — solid closed shapes pass pixel oracle at uniform and anisotropic axis-aligned scales; rotation/mask cases and hardware certification pending | [ROADMAP-LOCAL-CLOSEOUT](tickets/TICKET-ROADMAP-LOCAL-CLOSEOUT-2026-09.md) |
