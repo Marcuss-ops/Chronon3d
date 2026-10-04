@@ -202,6 +202,13 @@ workflow (`37227188955`) had the same pre-allocation failure. These runs do
 not provide GPU-host certification; local llvmpipe remains the available
 parity evidence.
 
+The latest effect-stack parity commit, `51656c0740d3f54b7ce1952112d624a8402648b6`,
+was checked in Native Video Certification run `37229448896`. Its `Vulkan-gated
+unit suites` job (`111515841679`) completed before runner allocation
+(`runner_id=0`, empty runner name, no steps) with the same account-billing
+annotation. This run provides no hardware test evidence; same-SHA GPU-host
+certification remains pending.
+
 ## Demolition debt
 
 - **Owner:** render-graph and Vulkan backend maintainers.
