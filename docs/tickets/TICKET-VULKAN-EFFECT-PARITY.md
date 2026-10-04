@@ -77,23 +77,27 @@ the full software/GPU effect corpus passes on the same SHA.
   box-filter kernel; the existing Gaussian kernel remains unchanged for its
   other callers. Brightness → LumaKey and LumaKey → Brightness each match the
   software oracle, and the outputs differ as expected (259 assertions).
-  Echo → non-identity Brightness also matches the software golden for both
-  frames, confirming a temporal stage followed by a substantive native color
-  stage. Vignette now lowers through the same color-matrix dispatch, with
+  Echo → non-identity Brightness in EffectStackNode matches the software
+  golden for both frames, confirming a temporal stage followed by a substantive
+  native color stage. Vignette now lowers through the same color-matrix dispatch, with
   software/Vulkan pixel parity across parameter cases and clip coverage; a
   three-stage Brightness → Vignette → Invert stack matches the software result.
   Mosaic now lowers through a source-sampling dispatch. Block sizes 1, 3, and
   512, partial clip behavior, and a Brightness → Vignette → Mosaic → Invert
   stack match the software processors on llvmpipe. Mosaic preserves transparent
   source samples while selecting each block's center. Unsupported effects and
-  the full catalog are not certified. The Echo integration oracle now also
-  covers Brightness → Echo in addition to Echo → Brightness: both frames match
-  the registered software stack across all 32 pixel channels (87 assertions).
+  the full catalog are not certified. Echo parity covers both stage orders:
+  EffectStackNode Echo → Brightness and AdjustmentNode Brightness → Echo both
+  match the registered software stack on two frames.
   Strict AdjustmentNode execution now delegates fixed-extent stacks to the
   same typed native stage executor. Brightness → Invert matches the software
   oracle (130 assertions); a spatial Blur stack fails closed before reaching
-  the legacy backend API. Expanding or temporal adjustment stacks remain
-  unsupported by this fixed-extent path.
+  the legacy backend API. AdjustmentNode now carries Echo's deterministic
+  history key, frame-variant cache policy and preroll requirement from the
+  graph builder into the same executor. Brightness → Echo matches the software
+  oracle on both frames (88 assertions, including the preroll contract);
+  spatially expanding adjustment stacks
+  remain unsupported by the fixed-extent path.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
