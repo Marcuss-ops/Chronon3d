@@ -234,12 +234,24 @@ enum class ChromaticOffsetMode : std::uint8_t {
     Velocity
 };
 
+/// Inverse-sampled affine transform for one RGB component. Translation and
+/// rotation are in screen pixels/degrees; scale is centered on the frame.
+struct RgbChannelTransform {
+    Vec2 translation{0.0f, 0.0f};
+    Vec2 scale{1.0f, 1.0f};
+    f32 rotation_degrees{0.0f};
+    f32 opacity{1.0f};
+};
+
 struct ChromaticAberrationParams {
     float red_offset{2.0f};
     float blue_offset{-2.0f};
     ChromaticOffsetMode offset_mode{ChromaticOffsetMode::Constant};
     Vec2 velocity{0.0f, 0.0f};
     Vec2 center{0.5f, 0.5f};
+    RgbChannelTransform red{};
+    RgbChannelTransform green{};
+    RgbChannelTransform blue{};
 };
 
 struct HalftoneParams {

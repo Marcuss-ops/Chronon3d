@@ -7,13 +7,14 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 namespace chronon3d::graphics {
 
 enum class Field2DGenerator : std::uint8_t {
     Perlin, Simplex, Fractal, Cellular, Grid, Checker, Dots, Stripes,
-    Rings, Linear, Radial, Conic
+    Rings, Linear, Radial, Conic, Burst
 };
 
 enum class Field2DOperatorKind : std::uint8_t {
@@ -73,6 +74,25 @@ struct Field2D {
     std::vector<Field2DOperator> operators;
     FieldTransform2D transform{};
 
+    /// Return the field translated by normalized units per second at the
+    /// supplied absolute time. Equal inputs produce an identical field,
+    /// independent of the order in which frames are requested.
+    [[nodiscard]] Field2D drifted(double time_seconds, Vec2 velocity) const {
+        if (!std::isfinite(time_seconds) || std::abs(time_seconds) > 1.0e9 ||
+            !std::isfinite(velocity.x) || !std::isfinite(velocity.y) ||
+            std::abs(velocity.x) > 100.0f || std::abs(velocity.y) > 100.0f)
+            throw std::invalid_argument("Field2D drift inputs are outside supported bounds");
+        const double dx = static_cast<double>(velocity.x) * time_seconds;
+        const double dy = static_cast<double>(velocity.y) * time_seconds;
+        if (!std::isfinite(dx) || !std::isfinite(dy) ||
+            std::abs(dx) > 1.0e6 || std::abs(dy) > 1.0e6)
+            throw std::invalid_argument("Field2D drift exceeds supported coordinates");
+        Field2D result = *this;
+        result.transform.translation.x += static_cast<float>(dx);
+        result.transform.translation.y += static_cast<float>(dy);
+        return result;
+    }
+
     [[nodiscard]] float sample(Vec2 point) const noexcept {
         if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
             std::abs(point.x) > 1.0e6f || std::abs(point.y) > 1.0e6f ||
@@ -84,6 +104,8 @@ struct Field2D {
             (octaves == 0 || octaves > 16 || !std::isfinite(persistence) ||
              persistence < 0.0f || persistence > 1.0f ||
              !std::isfinite(lacunarity) || lacunarity <= 0.0f || lacunarity > 8.0f))
+            return 0.0f;
+        if (generator == Field2DGenerator::Burst && (octaves < 3 || octaves > 16))
             return 0.0f;
 
         point = transform.apply(point);
@@ -377,6 +399,15 @@ private:
                 const Vec2 d = point - Vec2{0.5f};
                 float a = std::atan2(d.y, d.x) * (1.0f / 6.28318530718f) + 0.5f;
                 return a - std::floor(a);
+            }
+            case Field2DGenerator::Burst: {
+                const Vec2 d = point - Vec2{0.5f};
+                const float angle = std::atan2(d.y, d.x);
+                const float radius = glm::length(d) * 2.0f;
+                const float lobes = static_cast<float>(std::clamp(octaves, 3U, 16U));
+                const float radial_falloff = std::clamp(1.0f - radius, 0.0f, 1.0f);
+                const float angular = 0.5f + 0.5f * std::cos(angle * lobes);
+                return std::clamp(angular * angular * radial_falloff, 0.0f, 1.0f);
             }
         }
         return 0.0f;

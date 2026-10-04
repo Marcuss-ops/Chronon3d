@@ -28,7 +28,8 @@ graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
         std::pair{"rings", graphics::Field2DGenerator::Rings},
         std::pair{"linear", graphics::Field2DGenerator::Linear},
         std::pair{"radial", graphics::Field2DGenerator::Radial},
-        std::pair{"conic", graphics::Field2DGenerator::Conic}};
+        std::pair{"conic", graphics::Field2DGenerator::Conic},
+        std::pair{"burst", graphics::Field2DGenerator::Burst}};
     const auto found = std::find_if(generators.begin(), generators.end(),
         [&](const auto& item) { return generator == item.first; });
     if (found == generators.end()) throw std::runtime_error("field.generator is unsupported");
@@ -43,6 +44,9 @@ graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
         field.persistence < 0.0f || field.persistence > 1.0f ||
         !std::isfinite(field.lacunarity) || field.lacunarity <= 0.0f || field.lacunarity > 8.0f)
         throw std::runtime_error("field generator parameters are outside supported bounds");
+    if (field.generator == graphics::Field2DGenerator::Burst &&
+        (field.octaves < 3 || field.octaves > 16))
+        throw std::runtime_error("burst field lobes must be in [3, 16]");
     if (raw.contains("operators")) {
         if (raw.at("operators").size() > 8)
             throw std::runtime_error("field operator chain exceeds the 8-operation limit");

@@ -223,6 +223,12 @@ struct ShapeContentPlan {
     ShapeFillRulePlan fill_rule{ShapeFillRulePlan::EvenOdd};
     std::optional<graphics::GradientDefinition> gradient;
     std::optional<Field2DPlan> field;
+    // Maps the scalar Field2D sample to color; gradient geometry is ignored.
+    std::optional<graphics::GradientDefinition> field_ramp;
+    // Sample scalar fields at 1/2/4x fewer pixels per axis, then interpolate.
+    std::uint32_t field_render_scale{1};
+    // Normalized coordinate drift per second; sampled from frame / fps.
+    std::optional<Vec2> field_drift;
     std::optional<graphics::GradientMesh> gradient_mesh;
     std::optional<StrokeStyle> stroke;
     std::vector<ShapePathCommandPlan> path;
@@ -558,6 +564,10 @@ struct LayerPlan {
         float chromatic_blue_offset{-2.0f};
         std::uint8_t chromatic_offset_mode{0}; // 0 = Constant, 1 = Radial, 2 = Velocity
         std::array<float, 2> chromatic_velocity{0.0f, 0.0f};
+        // translation x/y, scale x/y, rotation degrees, opacity
+        std::array<float, 6> chromatic_red_transform{0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+        std::array<float, 6> chromatic_green_transform{0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+        std::array<float, 6> chromatic_blue_transform{0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
         std::uint32_t halftone_size{8};
         float halftone_angle{0.0f};
         float halftone_amount{1.0f};

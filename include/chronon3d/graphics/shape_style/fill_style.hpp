@@ -18,6 +18,9 @@
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>  // FASE 9 — StrokeStyle extracted
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <optional>
+#include <cmath>
+#include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 namespace chronon3d::graphics {
@@ -34,7 +37,10 @@ struct FillStyle {
     /// solid_color as the fill source.
     std::optional<GradientDefinition> gradient;
     std::optional<Field2D> field;
+    std::optional<GradientDefinition> field_ramp;
     std::optional<GradientMesh> gradient_mesh;
+    std::uint32_t field_render_scale{1};
+    Vec2 field_render_size{0.0f, 0.0f};
 
     // ── Factory helpers ──────────────────────────────────────────────
 
@@ -90,7 +96,16 @@ inline Fill FillStyle::to_fill() const {
     }
     if (gradient_mesh) return Fill::mesh(*gradient_mesh);
     if (field) {
-        auto result = Fill::field2d(*field, solid_color);
+        if (!std::isfinite(field_render_size.x) || !std::isfinite(field_render_size.y) ||
+            field_render_size.x < 0.0f || field_render_size.y < 0.0f ||
+            field_render_size.x > 1000000.0f || field_render_size.y > 1000000.0f)
+            throw std::invalid_argument("Field2D render size is outside supported bounds");
+        const auto width = std::isfinite(field_render_size.x) && field_render_size.x > 0.0f
+            ? static_cast<std::uint32_t>(std::ceil(field_render_size.x)) : 0U;
+        const auto height = std::isfinite(field_render_size.y) && field_render_size.y > 0.0f
+            ? static_cast<std::uint32_t>(std::ceil(field_render_size.y)) : 0U;
+        auto result = Fill::field2d(*field, solid_color, field_ramp,
+                                    field_render_scale, width, height);
         result.enabled = true;
         return result;
     }

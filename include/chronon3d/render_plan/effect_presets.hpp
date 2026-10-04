@@ -7,8 +7,12 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
+#include <optional>
+#include <string>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace chronon3d::render_plan::effect_presets {
 
@@ -323,8 +327,8 @@ struct LightLeakProfile {
     float softness{0.35f};       // normalized [0, 1]
     float spread{0.5f};          // normalized radial radius / extent
     float angle{0.0f};           // degrees, clockwise in screen coordinates
-    float position{0.5f};        // position along edge / sweep travel [0, 1]
-    float position_y{0.5f};      // radial center Y [0, 1]
+    float position{0.5f};        // normalized position; off-canvas allowed [-4, 5]
+    float position_y{0.5f};      // normalized radial center Y; off-canvas allowed [-4, 5]
     float width{0.25f};          // normalized band width [0, 1]
     float chroma_split{0.0f};    // symmetric channel offset in pixels
     float grain{0.0f};           // spatially stable seeded grain [0, 1]
@@ -354,13 +358,24 @@ struct LightLeakProfile {
             std::isfinite(softness) && softness >= 0.0f && softness <= 1.0f &&
             std::isfinite(spread) && spread >= 0.0f && spread <= 1.0f &&
             std::isfinite(angle) && std::abs(angle) <= 3600.0f &&
-            std::isfinite(position) && position >= 0.0f && position <= 1.0f &&
-            std::isfinite(position_y) && position_y >= 0.0f && position_y <= 1.0f &&
+            std::isfinite(position) && position >= -4.0f && position <= 5.0f &&
+            std::isfinite(position_y) && position_y >= -4.0f && position_y <= 5.0f &&
             std::isfinite(width) && width >= 0.0f && width <= 1.0f &&
             std::isfinite(chroma_split) && chroma_split >= 0.0f && chroma_split <= 16.0f &&
             std::isfinite(grain) && grain >= 0.0f && grain <= 1.0f &&
             std::isfinite(flicker) && flicker >= 0.0f && flicker <= 1.0f;
     }
+};
+
+/// Deterministic time driver for one leak emitter. Time is supplied by the
+/// caller (normally frame / fps); no frame-local random state is used.
+struct AnimatedLightLeakEmitter {
+    LightLeakProfile profile{};
+    Vec2 velocity{0.0f, 0.0f}; // normalized canvas units per second
+    float pulse_amount{0.0f};
+    float pulse_speed{0.0f};  // radians per second
+    float phase{0.0f};
+    std::string id{"light_leak"};
 };
 
 /// Canonical lowering for profile-authored leaks. The generated full-canvas
@@ -402,6 +417,9 @@ public:
         const Color b{profile.color_b.r, profile.color_b.g,
                       profile.color_b.b, profile.color_b.a};
         const auto with_intensity = [strength](Color color) {
+            color.r = std::min(color.r * strength, kMaxIntensity);
+            color.g = std::min(color.g * strength, kMaxIntensity);
+            color.b = std::min(color.b * strength, kMaxIntensity);
             color.a = std::clamp(color.a * strength, 0.0f, 1.0f);
             return color;
         };
@@ -512,7 +530,179 @@ public:
         // channel displacement or add an unrequested fringe of its own.
         return layer;
     }
+
+    /// Resolve a bounded emitter set at an explicit timestamp. Position and
+    /// intensity are pure functions of time, so random-access frames match a
+    /// sequential render.
+    [[nodiscard]] static std::vector<LayerPlan> resolve_many(
+        const std::vector<AnimatedLightLeakEmitter>& emitters,
+        Vec2 canvas_size, double time_seconds) {
+        if (emitters.empty() || emitters.size() > 8 ||
+            !std::isfinite(time_seconds) || std::abs(time_seconds) > 1.0e9)
+            throw std::invalid_argument("light leak emitter set or time is outside supported bounds");
+        std::vector<LayerPlan> layers;
+        layers.reserve(emitters.size());
+        std::vector<std::string> ids;
+        ids.reserve(emitters.size());
+        for (const auto& emitter : emitters) {
+            if (emitter.id.empty() || !std::isfinite(emitter.velocity.x) ||
+                !std::isfinite(emitter.velocity.y) || std::abs(emitter.velocity.x) > 100.0f ||
+                std::abs(emitter.velocity.y) > 100.0f ||
+                !std::isfinite(emitter.pulse_amount) || emitter.pulse_amount < 0.0f ||
+                emitter.pulse_amount > 1.0f || !std::isfinite(emitter.pulse_speed) ||
+                std::abs(emitter.pulse_speed) > 1000.0f || !std::isfinite(emitter.phase))
+                throw std::invalid_argument("light leak emitter animation is outside supported bounds");
+            if (std::find(ids.begin(), ids.end(), emitter.id) != ids.end())
+                throw std::invalid_argument("light leak emitter ids must be unique");
+            ids.push_back(emitter.id);
+            auto profile = emitter.profile;
+            profile.position += emitter.velocity.x * static_cast<float>(time_seconds);
+            profile.position_y += emitter.velocity.y * static_cast<float>(time_seconds);
+            const float pulse = 1.0f + emitter.pulse_amount * std::sin(
+                emitter.phase + emitter.pulse_speed * static_cast<float>(time_seconds));
+            profile.intensity = std::clamp(profile.intensity * pulse, 0.0f, kMaxIntensity);
+            layers.push_back(resolve(profile, canvas_size, emitter.id));
+        }
+        return layers;
+    }
 };
+
+/// A soft, warm emitter centered on the frame. The radial fill is generated
+/// by LightLeakResolver and remains editable through the ordinary RenderPlan
+/// shape and effect contracts.
+[[nodiscard]] inline LayerPlan cinematic_soft_blob(
+    Vec2 canvas_size, float intensity = 1.0f,
+    Color inner = kWarmTint, Color outer = kAmberTint,
+    std::uint32_t seed = 0, std::string id = "cinematic_soft_blob") {
+    LightLeakProfile profile;
+    profile.shape = LightLeakShape::Radial;
+    profile.blend = LightLeakBlend::Screen;
+    profile.color_a = inner;
+    profile.color_b = outer;
+    profile.position = 0.5f;
+    profile.position_y = 0.5f;
+    profile.spread = 0.72f;
+    profile.softness = 0.22f;
+    profile.intensity = intensity;
+    profile.grain = 0.035f;
+    profile.seed = seed;
+    auto layer = LightLeakResolver::resolve(profile, canvas_size, std::move(id));
+    if (intensity > 0.0f) {
+        LayerPlan::EffectPlan bloom;
+        bloom.kind = LayerPlan::EffectKindPlan::Bloom;
+        bloom.bloom_threshold = 0.58f;
+        bloom.bloom_intensity = std::min(0.18f * intensity, 0.72f);
+        bloom.radius = 32.0f;
+        layer.effects.push_back(std::move(bloom));
+    }
+    return layer;
+}
+
+/// Large emitter anchored to a selected frame edge. Position is normalized
+/// along that edge, so callers can animate it with ordinary layer tracks.
+[[nodiscard]] inline LayerPlan cinematic_edge_burn(
+    Vec2 canvas_size, LightLeakEdge edge = LightLeakEdge::Right,
+    float position = 0.5f, float intensity = 1.0f,
+    Color tint = kWarmTint, std::uint32_t seed = 0,
+    std::string id = "cinematic_edge_burn") {
+    LightLeakProfile profile;
+    profile.shape = LightLeakShape::Edge;
+    profile.edge = edge;
+    profile.position = position;
+    profile.position_y = position;
+    profile.spread = 0.82f;
+    profile.softness = 0.3f;
+    profile.intensity = intensity;
+    profile.color_a = tint;
+    profile.blend = LightLeakBlend::Screen;
+    profile.grain = 0.04f;
+    profile.seed = seed;
+    return LightLeakResolver::resolve(profile, canvas_size, std::move(id));
+}
+
+/// Diagonal broad streak suitable for the moving ribbon/sweep portion of a
+/// cinematic background. Motion is authored by normal layer transforms.
+[[nodiscard]] inline LayerPlan cinematic_diagonal_streak(
+    Vec2 canvas_size, float angle = 35.0f, float position = 0.5f,
+    float width = 0.2f, float intensity = 0.8f,
+    Color tint = kAmberTint, std::string id = "cinematic_diagonal_streak") {
+    LightLeakProfile profile;
+    profile.shape = LightLeakShape::Band;
+    profile.angle = angle;
+    profile.position = position;
+    profile.width = width;
+    profile.spread = 0.8f;
+    profile.softness = 0.18f;
+    profile.intensity = intensity;
+    profile.color_a = tint;
+    profile.blend = LightLeakBlend::Add;
+    auto layer = LightLeakResolver::resolve(profile, canvas_size, std::move(id));
+    if (intensity > 0.0f) {
+        LayerPlan::EffectPlan blur;
+        blur.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+        blur.radius = std::min(std::min(canvas_size.x, canvas_size.y) * 0.035f, 96.0f);
+        layer.effects.push_back(std::move(blur));
+    }
+    return layer;
+}
+
+[[nodiscard]] inline LayerPlan cinematic_bezier_ribbon(
+    Vec2 canvas_size, Color tint = kAmberTint, float width_fraction = 0.12f,
+    float softness = 0.8f, std::string id = "cinematic_bezier_ribbon") {
+    if (!std::isfinite(canvas_size.x) || !std::isfinite(canvas_size.y) ||
+        canvas_size.x <= 0.0f || canvas_size.y <= 0.0f ||
+        canvas_size.x > 1000000.0f || canvas_size.y > 1000000.0f ||
+        !std::isfinite(width_fraction) || width_fraction <= 0.0f || width_fraction > 0.5f ||
+        !std::isfinite(softness) || softness < 0.0f || softness > 1.0f)
+        throw std::invalid_argument("cinematic Bezier ribbon inputs are outside supported bounds");
+    LightLeakProfile color_check;
+    color_check.color_a = tint;
+    if (!color_check.valid())
+        throw std::invalid_argument("cinematic Bezier ribbon tint must be an SDR color");
+
+    LayerPlan layer;
+    layer.id = std::move(id);
+    layer.type = LayerType::Shape;
+    layer.size = {canvas_size.x, canvas_size.y};
+    layer.size_dimensions = 2;
+    layer.position = {canvas_size.x * 0.5f, canvas_size.y * 0.5f, 0.0f};
+    layer.position_dimensions = 2;
+    layer.screen_space = true;
+    layer.blend_mode = BlendMode::Add;
+    layer.color = {tint.r, tint.g, tint.b, tint.a};
+
+    ShapeContentPlan shape;
+    shape.type = ShapeContentTypePlan::Path;
+    ShapePathCommandPlan move;
+    move.type = ShapePathCommandTypePlan::MoveTo;
+    move.point = {0.0f, canvas_size.y * 0.62f};
+    ShapePathCommandPlan curve;
+    curve.type = ShapePathCommandTypePlan::CubicTo;
+    curve.point = {canvas_size.x, canvas_size.y * 0.38f};
+    curve.control1 = {canvas_size.x * 0.28f, canvas_size.y * 0.06f};
+    curve.control2 = {canvas_size.x * 0.72f, canvas_size.y * 0.94f};
+    shape.path = {move, curve};
+    StrokeStyle stroke;
+    stroke.width = std::min(canvas_size.x, canvas_size.y) * width_fraction;
+    stroke.solid_color = std::array<float, 4>{tint.r, tint.g, tint.b, tint.a};
+    stroke.cap = "round";
+    stroke.join = "round";
+    graphics::BrushProfile brush;
+    brush.size = *stroke.width;
+    brush.hardness = 1.0f - softness;
+    brush.edge_softness = softness;
+    stroke.brush = std::move(brush);
+    shape.stroke = std::move(stroke);
+    layer.shape = std::move(shape);
+
+    LayerPlan::EffectPlan bloom;
+    bloom.kind = LayerPlan::EffectKindPlan::Bloom;
+    bloom.bloom_threshold = 0.5f;
+    bloom.bloom_intensity = 0.55f;
+    bloom.radius = std::min(std::min(canvas_size.x, canvas_size.y) * 0.06f, 96.0f);
+    layer.effects.push_back(std::move(bloom));
+    return layer;
+}
 
 inline void require_intensity(float intensity) {
     if (!std::isfinite(intensity) || intensity < 0.0f || intensity > kMaxIntensity)
@@ -774,5 +964,450 @@ inline void bokeh_pass(LayerPlan& layer, float intensity = 1.0f,
 }
 
 } // namespace light_leak
+
+/// Procedural abstract backgrounds composed from canonical Field2D, gradient,
+/// shape and effect contracts. These recipes author layers only; rendering,
+/// blending and animation continue through the normal RenderPlan pipeline.
+namespace abstract_background {
+
+using namespace light_leak;
+
+inline LayerPlan field_layer(Vec2 canvas_size, std::string id, Color tint,
+                             graphics::Field2D field,
+                             BlendMode blend = BlendMode::Screen,
+                             std::uint32_t render_scale = 4,
+                             std::optional<graphics::GradientDefinition> field_ramp = std::nullopt) {
+    const auto channel_valid = [](float channel) {
+        return std::isfinite(channel) && channel >= 0.0f && channel <= 1.0f;
+    };
+    if (!std::isfinite(canvas_size.x) || !std::isfinite(canvas_size.y) ||
+        canvas_size.x <= 0.0f || canvas_size.y <= 0.0f ||
+        canvas_size.x > 1000000.0f || canvas_size.y > 1000000.0f ||
+        (render_scale != 1 && render_scale != 2 && render_scale != 4) ||
+        !channel_valid(tint.r) || !channel_valid(tint.g) ||
+        !channel_valid(tint.b) || !channel_valid(tint.a) ||
+        !std::isfinite(field.frequency) || field.frequency <= 0.0f ||
+        field.frequency > 4096.0f ||
+        (field.generator == graphics::Field2DGenerator::Fractal &&
+         (field.octaves == 0 || field.octaves > 16 ||
+          !std::isfinite(field.persistence) || field.persistence < 0.0f ||
+          field.persistence > 1.0f || !std::isfinite(field.lacunarity) ||
+          field.lacunarity <= 0.0f || field.lacunarity > 8.0f)))
+        throw std::invalid_argument("abstract background inputs are outside supported bounds");
+    LayerPlan layer;
+    layer.id = std::move(id);
+    layer.type = LayerType::Shape;
+    layer.size = {canvas_size.x, canvas_size.y};
+    layer.size_dimensions = 2;
+    layer.position = {canvas_size.x * 0.5f, canvas_size.y * 0.5f, 0.0f};
+    layer.position_dimensions = 2;
+    layer.screen_space = true;
+    layer.blend_mode = blend;
+    layer.color = {tint.r, tint.g, tint.b, tint.a};
+    ShapeContentPlan shape;
+    shape.type = ShapeContentTypePlan::Rect;
+    shape.fill_color = std::array<float, 4>{tint.r, tint.g, tint.b, tint.a};
+    shape.field = std::move(field);
+    shape.field_render_scale = render_scale;
+    shape.field_ramp = std::move(field_ramp);
+    layer.shape = std::move(shape);
+    return layer;
+}
+
+inline graphics::Field2D warped_field(std::uint32_t seed, float frequency,
+                                      float warp, std::uint32_t octaves = 4) {
+    graphics::Field2D field;
+    field.generator = graphics::Field2DGenerator::Fractal;
+    field.seed = seed;
+    field.frequency = frequency;
+    field.octaves = octaves;
+    if (warp > 0.0f) {
+        graphics::Field2DOperator op;
+        op.kind = graphics::Field2DOperatorKind::DomainWarp;
+        op.amount = warp;
+        field.operators.push_back(op);
+    }
+    return field;
+}
+
+inline graphics::GradientDefinition color_ramp(std::vector<graphics::GradientStop> stops) {
+    return graphics::GradientDefinition::linear({0.0f, 0.5f}, {1.0f, 0.5f},
+                                                  std::move(stops));
+}
+
+inline graphics::GradientDefinition neon_ramp() {
+    return color_ramp({{0.0f, Color{0.015f, 0.025f, 0.16f, 1.0f}},
+                       {0.32f, Color{0.24f, 0.035f, 0.58f, 1.0f}},
+                       {0.62f, Color{0.88f, 0.055f, 0.68f, 1.0f}},
+                       {0.82f, Color{0.12f, 0.7f, 0.94f, 1.0f}},
+                       {1.0f, Color{1.0f, 0.68f, 0.92f, 1.0f}}});
+}
+
+inline graphics::GradientDefinition magenta_ramp() {
+    return color_ramp({{0.0f, Color{0.08f, 0.008f, 0.22f, 1.0f}},
+                       {0.42f, Color{0.56f, 0.025f, 0.48f, 1.0f}},
+                       {0.78f, Color{0.98f, 0.12f, 0.62f, 1.0f}},
+                       {1.0f, Color{1.0f, 0.72f, 0.9f, 1.0f}}});
+}
+
+inline graphics::GradientDefinition cyan_ramp() {
+    return color_ramp({{0.0f, Color{0.008f, 0.035f, 0.16f, 1.0f}},
+                       {0.38f, Color{0.025f, 0.2f, 0.62f, 1.0f}},
+                       {0.74f, Color{0.04f, 0.72f, 0.86f, 1.0f}},
+                       {1.0f, Color{0.68f, 0.98f, 1.0f, 1.0f}}});
+}
+
+inline std::vector<LayerPlan> aurora_horizon(Vec2 canvas_size,
+                                              std::uint32_t seed = 1) {
+    std::vector<LayerPlan> layers;
+    LightLeakProfile base;
+    base.shape = LightLeakShape::Band;
+    base.angle = 90.0f;
+    base.position = 0.72f;
+    base.width = 0.42f;
+    base.spread = 0.75f;
+    base.softness = 0.5f;
+    base.color_a = Color{0.34f, 0.08f, 0.72f, 0.72f};
+    base.color_b = Color{0.95f, 0.32f, 0.74f, 1.0f};
+    base.seed = seed;
+    layers.push_back(LightLeakResolver::resolve(base, canvas_size, "aurora_horizon"));
+    auto field = warped_field(seed, 2.2f, 0.16f, 5);
+    layers.push_back(field_layer(canvas_size, "aurora_horizon_ridge",
+        Color{0.64f, 0.22f, 0.9f, 0.38f}, std::move(field)));
+    return layers;
+}
+
+inline std::vector<LayerPlan> liquid_neon(Vec2 canvas_size,
+                                          std::uint32_t seed = 7,
+                                          Color tint = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                                          std::optional<graphics::GradientDefinition> ramp = neon_ramp()) {
+    std::vector<LayerPlan> layers;
+    layers.push_back(field_layer(canvas_size, "liquid_neon_field_a",
+        tint, warped_field(seed, 2.0f, 0.22f, 5), BlendMode::Screen, 4, ramp));
+    layers.push_back(field_layer(canvas_size, "liquid_neon_field_b",
+        Color{0.12f, 0.55f, 0.95f, 0.44f},
+        warped_field(seed ^ 0x9e3779b9U, 3.7f, 0.12f, 4), BlendMode::Screen, 4, ramp));
+    return layers;
+}
+
+inline std::vector<LayerPlan> liquid_magenta(Vec2 canvas_size,
+                                             std::uint32_t seed = 43) {
+    return liquid_neon(canvas_size, seed, Color{0.92f, 0.08f, 0.62f, 0.86f}, magenta_ramp());
+}
+
+inline std::vector<LayerPlan> liquid_cyan(Vec2 canvas_size,
+                                           std::uint32_t seed = 47) {
+    return liquid_neon(canvas_size, seed, Color{0.04f, 0.62f, 0.9f, 0.82f}, cyan_ramp());
+}
+
+inline std::vector<LayerPlan> metaball_soft(Vec2 canvas_size,
+                                             std::uint32_t seed = 11) {
+    auto field = warped_field(seed, 3.0f, 0.05f, 2);
+    field.generator = graphics::Field2DGenerator::Cellular;
+    graphics::Field2DOperator soften;
+    soften.kind = graphics::Field2DOperatorKind::Smoothstep;
+    soften.edge = 0.42f;
+    soften.softness = 0.28f;
+    field.operators.push_back(soften);
+    return {field_layer(canvas_size, "metaball_soft", Color{0.48f, 0.12f, 0.82f, 0.72f},
+                        std::move(field))};
+}
+
+inline std::vector<LayerPlan> metaball_neon(Vec2 canvas_size,
+                                             std::uint32_t seed = 53) {
+    auto layers = metaball_soft(canvas_size, seed);
+    layers.front().shape->fill_color = std::array<float, 4>{0.92f, 0.08f, 0.68f, 0.9f};
+    layers.front().color = {0.92f, 0.08f, 0.68f, 0.9f};
+    LayerPlan::EffectPlan glow;
+    glow.kind = LayerPlan::EffectKindPlan::Glow;
+    glow.radius = 42.0f;
+    glow.glow_intensity = 0.8f;
+    glow.effect_color = {0.7f, 0.16f, 1.0f, 1.0f};
+    layers.front().effects.push_back(std::move(glow));
+    return layers;
+}
+
+inline std::vector<LayerPlan> glass_orb(Vec2 canvas_size,
+                                         std::uint32_t seed = 17) {
+    const float diameter = std::min(canvas_size.x, canvas_size.y) * 0.56f;
+    LightLeakProfile profile;
+    profile.shape = LightLeakShape::Radial;
+    profile.position = 0.5f;
+    profile.position_y = 0.5f;
+    profile.spread = 0.62f;
+    profile.softness = 0.18f;
+    profile.color_a = Color{0.72f, 0.24f, 1.0f, 0.72f};
+    profile.color_b = Color{0.96f, 0.4f, 0.82f, 0.62f};
+    profile.seed = seed;
+    auto orb = LightLeakResolver::resolve(profile, canvas_size, "glass_orb");
+    orb.size = {diameter, diameter};
+    orb.position = {canvas_size.x * 0.5f, canvas_size.y * 0.48f, 0.0f};
+    orb.shape->type = ShapeContentTypePlan::Ellipse;
+    auto optical = BackdropFilterPlan::glass_refractive();
+    optical.refraction_field = warped_field(seed ^ 0xa511e9b3U, 3.2f, 0.035f, 3);
+    optical.rim_strength = 1.1f;
+    optical.rim_width = std::min(diameter * 0.04f, 12.0f);
+    optical.validate();
+    orb.backdrop_filter = std::move(optical);
+    LayerPlan::EffectPlan bloom;
+    bloom.kind = LayerPlan::EffectKindPlan::Bloom;
+    bloom.bloom_threshold = 0.56f;
+    bloom.bloom_intensity = 0.45f;
+    bloom.radius = 28.0f;
+    orb.effects.push_back(std::move(bloom));
+    return {std::move(orb)};
+}
+
+inline std::vector<LayerPlan> dual_orbs(Vec2 canvas_size,
+                                         std::uint32_t seed = 19) {
+    auto layers = glass_orb(canvas_size, seed);
+    LightLeakProfile second;
+    second.shape = LightLeakShape::Radial;
+    second.position = 0.72f;
+    second.position_y = 0.38f;
+    second.spread = 0.28f;
+    second.softness = 0.2f;
+    second.color_a = Color{0.12f, 0.7f, 1.0f, 0.72f};
+    second.color_b = Color{0.45f, 0.84f, 1.0f, 0.58f};
+    second.seed = seed ^ 0x85ebca6bU;
+    layers.push_back(LightLeakResolver::resolve(second, canvas_size, "dual_orbs_cool"));
+    return layers;
+}
+
+inline std::vector<LayerPlan> topographic_contours(Vec2 canvas_size,
+                                                    std::uint32_t seed = 23,
+                                                    float frequency = 8.0f,
+                                                    float line_width = 0.08f) {
+    if (!std::isfinite(frequency) || frequency < 1.0f || frequency > 128.0f ||
+        !std::isfinite(line_width) || line_width < 0.01f || line_width > 0.4f)
+        throw std::invalid_argument("contour frequency/line width is outside supported bounds");
+    graphics::Field2D field;
+    field.generator = graphics::Field2DGenerator::Rings;
+    field.seed = seed;
+    field.frequency = frequency;
+    graphics::Field2DOperator warp;
+    warp.kind = graphics::Field2DOperatorKind::DomainWarp;
+    warp.amount = 0.12f;
+    field.operators.push_back(warp);
+    graphics::Field2DOperator isolate_lines;
+    isolate_lines.kind = graphics::Field2DOperatorKind::Smoothstep;
+    isolate_lines.edge = 1.0f - line_width * 0.5f;
+    isolate_lines.softness = line_width;
+    field.operators.push_back(isolate_lines);
+    return {field_layer(canvas_size, "topographic_contours",
+                        Color{0.86f, 0.91f, 1.0f, 0.68f}, std::move(field), BlendMode::Screen)};
+}
+
+inline std::vector<LayerPlan> cinematic_warped_ring(Vec2 canvas_size,
+                                                     std::uint32_t seed = 59,
+                                                     Color tint = Color{1.0f, 0.38f, 0.12f, 0.9f}) {
+    graphics::Field2D field;
+    field.generator = graphics::Field2DGenerator::Rings;
+    field.frequency = 1.6f;
+    field.seed = seed;
+    graphics::Field2DOperator warp;
+    warp.kind = graphics::Field2DOperatorKind::DomainWarp;
+    warp.amount = 0.11f;
+    field.operators.push_back(warp);
+    graphics::Field2DOperator isolate;
+    isolate.kind = graphics::Field2DOperatorKind::Threshold;
+    isolate.edge = 0.92f;
+    field.operators.push_back(isolate);
+    auto ring = field_layer(canvas_size, "cinematic_warped_ring", tint,
+                            std::move(field), BlendMode::Add);
+    LayerPlan::EffectPlan blur;
+    blur.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+    blur.radius = 14.0f;
+    ring.effects.push_back(std::move(blur));
+    return {std::move(ring)};
+}
+
+inline std::vector<LayerPlan> cinematic_radial_burst(
+    Vec2 canvas_size, std::uint32_t lobes = 8,
+    Color tint = Color{1.0f, 0.58f, 0.12f, 0.9f}) {
+    const auto channel_valid = [](float channel) {
+        return std::isfinite(channel) && channel >= 0.0f && channel <= 1.0f;
+    };
+    if (lobes < 5 || lobes > 12 || !std::isfinite(canvas_size.x) ||
+        !std::isfinite(canvas_size.y) || canvas_size.x <= 0.0f || canvas_size.y <= 0.0f ||
+        canvas_size.x > 1000000.0f || canvas_size.y > 1000000.0f ||
+        !channel_valid(tint.r) || !channel_valid(tint.g) ||
+        !channel_valid(tint.b) || !channel_valid(tint.a))
+        throw std::invalid_argument("cinematic burst inputs are outside supported bounds");
+    graphics::Field2D field;
+    field.generator = graphics::Field2DGenerator::Burst;
+    field.seed = 0;
+    field.frequency = 1.0f;
+    field.octaves = lobes;
+    auto layer = field_layer(canvas_size, "cinematic_radial_burst", tint,
+                             std::move(field), BlendMode::Add);
+    LayerPlan::EffectPlan blur;
+    blur.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+    blur.radius = std::min(std::min(canvas_size.x, canvas_size.y) * 0.025f, 64.0f);
+    layer.effects.push_back(std::move(blur));
+    LayerPlan::EffectPlan bloom;
+    bloom.kind = LayerPlan::EffectKindPlan::Bloom;
+    bloom.bloom_threshold = 0.42f;
+    bloom.bloom_intensity = 0.72f;
+    bloom.radius = 36.0f;
+    layer.effects.push_back(std::move(bloom));
+    return {std::move(layer)};
+}
+
+inline std::vector<LayerPlan> cinematic_dual_blob(Vec2 canvas_size,
+                                                   std::uint32_t seed = 73) {
+    auto layers = liquid_magenta(canvas_size, seed);
+    LightLeakProfile cool;
+    cool.shape = LightLeakShape::Radial;
+    cool.position = 0.72f;
+    cool.position_y = 0.35f;
+    cool.spread = 0.32f;
+    cool.softness = 0.28f;
+    cool.color_a = Color{0.08f, 0.44f, 1.0f, 0.8f};
+    cool.color_b = Color{0.22f, 0.82f, 1.0f, 0.6f};
+    cool.seed = seed ^ 0x9e3779b9U;
+    layers.push_back(LightLeakResolver::resolve(cool, canvas_size, "cinematic_dual_blob_cool"));
+    return layers;
+}
+
+inline std::vector<LayerPlan> cinematic_film_burn(Vec2 canvas_size,
+                                                   float intensity = 2.0f,
+                                                   std::uint32_t seed = 79) {
+    light_leak::require_intensity(intensity);
+    LightLeakProfile source;
+    source.shape = LightLeakShape::Radial;
+    source.position = 0.5f;
+    source.position_y = 0.5f;
+    source.spread = 0.88f;
+    source.softness = 0.42f;
+    source.intensity = intensity;
+    source.color_a = Color{0.64f, 0.04f, 0.01f, 1.0f};
+    source.color_b = Color{1.0f, 0.34f, 0.04f, 0.92f};
+    source.blend = LightLeakBlend::Add;
+    source.grain = 0.06f;
+    source.seed = seed;
+    auto layer = LightLeakResolver::resolve(source, canvas_size, "cinematic_film_burn");
+    light_leak::film_burn(layer, source.intensity, 0.35f, light_leak::kWarmTint);
+    return {std::move(layer)};
+}
+
+inline std::vector<LayerPlan> plasma_orb(Vec2 canvas_size,
+                                         std::uint32_t seed = 61) {
+    auto layers = glass_orb(canvas_size, seed);
+    auto surface = warped_field(seed ^ 0x9e3779b9U, 6.0f, 0.025f, 3);
+    graphics::Field2DOperator edge;
+    edge.kind = graphics::Field2DOperatorKind::Threshold;
+    edge.edge = 0.72f;
+    surface.operators.push_back(edge);
+    layers.push_back(field_layer(canvas_size, "plasma_orb_surface",
+        Color{0.95f, 0.56f, 1.0f, 0.3f}, std::move(surface), BlendMode::Add));
+    return layers;
+}
+
+inline std::vector<LayerPlan> flowlines_vertical(Vec2 canvas_size,
+                                                  std::uint32_t seed = 29,
+                                                  std::uint32_t line_count = 80,
+                                                  float displacement = 0.004f,
+                                                  bool allow_crossing = false) {
+    if (line_count < 4 || line_count > 512 || !std::isfinite(displacement) ||
+        displacement < 0.0f || displacement > 0.25f ||
+        (!allow_crossing && displacement > 0.5f / static_cast<float>(line_count)))
+        throw std::invalid_argument("flowline spacing/displacement is outside supported bounds");
+    graphics::Field2D field;
+    field.generator = graphics::Field2DGenerator::Stripes;
+    field.seed = seed;
+    field.frequency = static_cast<float>(line_count);
+    graphics::Field2DOperator warp;
+    warp.kind = graphics::Field2DOperatorKind::DomainWarp;
+    warp.amount = displacement;
+    field.operators.push_back(warp);
+    return {field_layer(canvas_size, "flowlines_vertical",
+                        Color{0.82f, 0.9f, 1.0f, 0.6f}, std::move(field), BlendMode::Screen)};
+}
+
+inline std::vector<LayerPlan> flowlines_mesh(Vec2 canvas_size,
+                                              std::uint32_t seed = 67,
+                                              std::uint32_t line_count = 48,
+                                              float displacement = 0.003f,
+                                              bool allow_crossing = false) {
+    auto vertical = flowlines_vertical(canvas_size, seed, line_count,
+                                       displacement, allow_crossing);
+    graphics::Field2D horizontal;
+    horizontal.generator = graphics::Field2DGenerator::Stripes;
+    horizontal.seed = seed ^ 0x85ebca6bU;
+    horizontal.frequency = static_cast<float>(line_count);
+    horizontal.transform.rotation_radians = 1.57079632679f;
+    graphics::Field2DOperator warp;
+    warp.kind = graphics::Field2DOperatorKind::DomainWarp;
+    warp.amount = displacement;
+    horizontal.operators.push_back(warp);
+    vertical.push_back(field_layer(canvas_size, "flowlines_mesh_horizontal",
+        Color{0.62f, 0.76f, 1.0f, 0.42f}, std::move(horizontal), BlendMode::Screen));
+    return vertical;
+}
+
+inline std::vector<LayerPlan> folded_ribbon(Vec2 canvas_size,
+                                            std::uint32_t seed = 31,
+                                            float repeat = 5.0f,
+                                            float warp_amount = 0.08f) {
+    if (!std::isfinite(repeat) || repeat < 1.0f || repeat > 64.0f ||
+        !std::isfinite(warp_amount) || warp_amount < 0.0f || warp_amount > 0.25f)
+        throw std::invalid_argument("fold repeat/warp is outside supported bounds");
+    graphics::Field2D field;
+    field.generator = graphics::Field2DGenerator::Stripes;
+    field.seed = seed;
+    field.frequency = repeat;
+    graphics::Field2DOperator warp;
+    warp.kind = graphics::Field2DOperatorKind::DomainWarp;
+    warp.amount = warp_amount;
+    if (warp_amount > 0.0f) field.operators.push_back(warp);
+    return {field_layer(canvas_size, "folded_ribbon",
+                        Color{0.54f, 0.26f, 0.9f, 0.8f}, std::move(field), BlendMode::Screen)};
+}
+
+inline std::vector<LayerPlan> gradient_fan(Vec2 canvas_size,
+                                           std::uint32_t seed = 71) {
+    graphics::Field2D field;
+    field.generator = graphics::Field2DGenerator::Conic;
+    field.frequency = 1.0f;
+    field.seed = seed;
+    graphics::Field2DOperator warp;
+    warp.kind = graphics::Field2DOperatorKind::DomainWarp;
+    warp.amount = 0.045f;
+    field.operators.push_back(warp);
+    return {field_layer(canvas_size, "gradient_fan",
+                        Color{0.58f, 0.32f, 0.92f, 0.58f}, std::move(field), BlendMode::Screen)};
+}
+
+inline std::vector<LayerPlan> blue_atmosphere(Vec2 canvas_size,
+                                               std::uint32_t seed = 37) {
+    LightLeakProfile profile;
+    profile.shape = LightLeakShape::Radial;
+    profile.position = 0.38f;
+    profile.position_y = 0.48f;
+    profile.spread = 0.9f;
+    profile.softness = 0.62f;
+    profile.color_a = Color{0.05f, 0.22f, 0.58f, 0.64f};
+    profile.color_b = Color{0.08f, 0.62f, 0.92f, 0.38f};
+    profile.seed = seed;
+    return {LightLeakResolver::resolve(profile, canvas_size, "blue_atmosphere")};
+}
+
+inline std::vector<LayerPlan> mega_mix(Vec2 canvas_size,
+                                       std::uint32_t seed = 41) {
+    auto layers = aurora_horizon(canvas_size, seed);
+    auto liquid = liquid_neon(canvas_size, seed ^ 0x9e3779b9U);
+    auto orbs = dual_orbs(canvas_size, seed ^ 0x85ebca6bU);
+    auto contours = topographic_contours(canvas_size, seed ^ 0xc2b2ae35U);
+    layers.insert(layers.end(), std::make_move_iterator(liquid.begin()),
+                  std::make_move_iterator(liquid.end()));
+    layers.insert(layers.end(), std::make_move_iterator(orbs.begin()),
+                  std::make_move_iterator(orbs.end()));
+    layers.insert(layers.end(), std::make_move_iterator(contours.begin()),
+                  std::make_move_iterator(contours.end()));
+    return layers;
+}
+
+} // namespace abstract_background
 
 } // namespace chronon3d::render_plan::effect_presets

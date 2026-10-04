@@ -4,6 +4,22 @@
   "title": "Chronon3D Render Plan V3 Shape and Gradient Extensions",
   "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
   "$defs": {
+    "rgb_channel_transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "translation": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {"type": "number", "minimum": -2048, "maximum": 2048}
+        },
+        "scale": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {"type": "number", "minimum": 0.01, "maximum": 100}
+        },
+        "rotation": {"type": "number", "minimum": -3600, "maximum": 3600},
+        "opacity": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
     "effect_param_track": {
       "type": "object",
       "additionalProperties": false,
@@ -1568,7 +1584,8 @@
             "rings",
             "linear",
             "radial",
-            "conic"
+            "conic",
+            "burst"
           ]
         },
         "seed": {
@@ -2558,8 +2575,18 @@
           "maximum": 1
         },
         "color": {
-          "$ref": "#/$defs/rgba"
+          "$ref": "#/$defs/hdr_rgba"
         }
+      }
+    },
+    "hdr_rgba": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 4
       }
     },
     "opacity_stop": {
@@ -2974,6 +3001,17 @@
         },
         "field": {
           "$ref": "#/$defs/field2d"
+        },
+        "field_ramp": {
+          "$ref": "#/$defs/gradient"
+        },
+        "field_render_scale": {
+          "type": "integer",
+          "enum": [1, 2, 4],
+          "default": 1
+        },
+        "field_drift": {
+          "$ref": "#/$defs/point"
         },
         "stroke": {
           "$ref": "#/$defs/stroke"
@@ -5799,7 +5837,10 @@
                   ],
                   "properties": {
                     "type": {
-                      "const": "chromatic_aberration"
+                      "enum": [
+                        "chromatic_aberration",
+                        "rgb_channel_transform"
+                      ]
                     },
                     "time": {
                       "$ref": "#/$defs/effect_time"
@@ -5814,6 +5855,9 @@
                       "minimum": -128,
                       "maximum": 128
                     },
+                    "red_transform": {"$ref": "#/$defs/rgb_channel_transform"},
+                    "green_transform": {"$ref": "#/$defs/rgb_channel_transform"},
+                    "blue_transform": {"$ref": "#/$defs/rgb_channel_transform"},
                     "amount": {
                       "type": "number",
                       "minimum": -128,
@@ -6869,6 +6913,9 @@
                 "type": "number",
                 "minimum": 0,
                 "maximum": 4
+              },
+              "refraction_field": {
+                "$ref": "#/$defs/field2d"
               },
               "rim_strength": {
                 "type": "number",

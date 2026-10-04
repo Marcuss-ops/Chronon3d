@@ -281,6 +281,50 @@ public:
         const int w = fb.width();
         const int h = fb.height();
         const Vec2 center_px{p->center.x * static_cast<float>(w), p->center.y * static_cast<float>(h)};
+        const auto valid_transform = [](const RgbChannelTransform& channel) {
+            return std::isfinite(channel.translation.x) && std::isfinite(channel.translation.y) &&
+                std::abs(channel.translation.x) <= 2048.0f && std::abs(channel.translation.y) <= 2048.0f &&
+                std::isfinite(channel.scale.x) && std::isfinite(channel.scale.y) &&
+                channel.scale.x >= 0.01f && channel.scale.x <= 100.0f &&
+                channel.scale.y >= 0.01f && channel.scale.y <= 100.0f &&
+                std::isfinite(channel.rotation_degrees) && std::abs(channel.rotation_degrees) <= 3600.0f &&
+                std::isfinite(channel.opacity) && channel.opacity >= 0.0f && channel.opacity <= 1.0f;
+        };
+        if (!valid_transform(p->red) || !valid_transform(p->green) || !valid_transform(p->blue))
+            throw std::runtime_error("RGB channel transforms are outside supported bounds");
+        const auto identity = [](const RgbChannelTransform& channel) {
+            return channel.translation.x == 0.0f && channel.translation.y == 0.0f &&
+                channel.scale.x == 1.0f && channel.scale.y == 1.0f &&
+                channel.rotation_degrees == 0.0f && channel.opacity == 1.0f;
+        };
+        const bool legacy_alpha = identity(p->red) && identity(p->green) && identity(p->blue);
+        const auto sample_bilinear = [&source, w, h](float x, float y) {
+            x = std::clamp(x, 0.0f, static_cast<float>(w - 1));
+            y = std::clamp(y, 0.0f, static_cast<float>(h - 1));
+            const int x0 = static_cast<int>(std::floor(x));
+            const int y0 = static_cast<int>(std::floor(y));
+            const int x1 = std::min(x0 + 1, w - 1);
+            const int y1 = std::min(y0 + 1, h - 1);
+            const float tx = x - static_cast<float>(x0);
+            const float ty = y - static_cast<float>(y0);
+            const Color a = source.get_pixel(x0, y0), b = source.get_pixel(x1, y0);
+            const Color c = source.get_pixel(x0, y1), d = source.get_pixel(x1, y1);
+            const auto mix = [tx, ty](float av, float bv, float cv, float dv) {
+                return (av * (1.0f - tx) + bv * tx) * (1.0f - ty) +
+                       (cv * (1.0f - tx) + dv * tx) * ty;
+            };
+            return Color{mix(a.r,b.r,c.r,d.r), mix(a.g,b.g,c.g,d.g),
+                         mix(a.b,b.b,c.b,d.b), mix(a.a,b.a,c.a,d.a)};
+        };
+        const auto source_position = [center_px](const RgbChannelTransform& channel,
+                                                float x, float y, float extra_x, float extra_y) {
+            const float radians = channel.rotation_degrees * 0.01745329251994329577f;
+            const float cs = std::cos(radians), sn = std::sin(radians);
+            const float dx = x - center_px.x - channel.translation.x;
+            const float dy = y - center_px.y - channel.translation.y;
+            return Vec2{center_px.x + (cs * dx + sn * dy) / channel.scale.x + extra_x,
+                        center_px.y + (-sn * dx + cs * dy) / channel.scale.y + extra_y};
+        };
 
         Vec2 vel_dir{1.0f, 0.0f};
         float vel_len = glm::length(p->velocity);
@@ -292,43 +336,48 @@ public:
             Color* dst = fb.pixels_row(y);
             for (int x = x0; x < x1; ++x) {
                 const Color center = source.get_pixel(x, y);
-                int rx = x, ry = y, bx = x, by = y;
+                float red_dx = 0.0f, red_dy = 0.0f, blue_dx = 0.0f, blue_dy = 0.0f;
 
                 if (p->offset_mode == ChromaticOffsetMode::Constant) {
-                    const int red = static_cast<int>(std::lround(p->red_offset));
-                    const int blue = static_cast<int>(std::lround(p->blue_offset));
-                    rx = std::clamp(x + red, 0, w - 1);
-                    bx = std::clamp(x + blue, 0, w - 1);
+                    red_dx = static_cast<float>(std::lround(p->red_offset));
+                    blue_dx = static_cast<float>(std::lround(p->blue_offset));
                 } else if (p->offset_mode == ChromaticOffsetMode::Velocity) {
-                    const int r_dx = static_cast<int>(std::lround(vel_dir.x * p->red_offset));
-                    const int r_dy = static_cast<int>(std::lround(vel_dir.y * p->red_offset));
-                    const int b_dx = static_cast<int>(std::lround(vel_dir.x * p->blue_offset));
-                    const int b_dy = static_cast<int>(std::lround(vel_dir.y * p->blue_offset));
-                    rx = std::clamp(x + r_dx, 0, w - 1);
-                    ry = std::clamp(y + r_dy, 0, h - 1);
-                    bx = std::clamp(x + b_dx, 0, w - 1);
-                    by = std::clamp(y + b_dy, 0, h - 1);
+                    red_dx = std::round(vel_dir.x * p->red_offset);
+                    red_dy = std::round(vel_dir.y * p->red_offset);
+                    blue_dx = std::round(vel_dir.x * p->blue_offset);
+                    blue_dy = std::round(vel_dir.y * p->blue_offset);
                 } else if (p->offset_mode == ChromaticOffsetMode::Radial) {
                     const Vec2 diff = Vec2{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f} - center_px;
                     const float dist = glm::length(diff);
                     const Vec2 r_dir = dist > 1.0e-5f ? (diff / dist) : Vec2{0.0f, 0.0f};
-                    const int r_dx = static_cast<int>(std::lround(r_dir.x * p->red_offset));
-                    const int r_dy = static_cast<int>(std::lround(r_dir.y * p->red_offset));
-                    const int b_dx = static_cast<int>(std::lround(r_dir.x * p->blue_offset));
-                    const int b_dy = static_cast<int>(std::lround(r_dir.y * p->blue_offset));
-                    rx = std::clamp(x + r_dx, 0, w - 1);
-                    ry = std::clamp(y + r_dy, 0, h - 1);
-                    bx = std::clamp(x + b_dx, 0, w - 1);
-                    by = std::clamp(y + b_dy, 0, h - 1);
+                    red_dx = std::round(r_dir.x * p->red_offset);
+                    red_dy = std::round(r_dir.y * p->red_offset);
+                    blue_dx = std::round(r_dir.x * p->blue_offset);
+                    blue_dy = std::round(r_dir.y * p->blue_offset);
                 }
 
-                const Color r = source.get_pixel(rx, ry);
-                const Color b = source.get_pixel(bx, by);
-                const float red_channel = center.a > 1.0e-8f && r.a > 1.0e-8f
-                    ? (r.r / r.a) * center.a : 0.0f;
-                const float blue_channel = center.a > 1.0e-8f && b.a > 1.0e-8f
-                    ? (b.b / b.a) * center.a : 0.0f;
-                dst[x] = {red_channel, center.g, blue_channel, center.a};
+                const Vec2 rp = source_position(p->red, static_cast<float>(x), static_cast<float>(y), red_dx, red_dy);
+                const Vec2 gp = source_position(p->green, static_cast<float>(x), static_cast<float>(y), 0.0f, 0.0f);
+                const Vec2 bp = source_position(p->blue, static_cast<float>(x), static_cast<float>(y), blue_dx, blue_dy);
+                const Color r = sample_bilinear(rp.x, rp.y), g = sample_bilinear(gp.x, gp.y),
+                            b = sample_bilinear(bp.x, bp.y);
+                if (legacy_alpha) {
+                    const float red_channel = center.a > 1.0e-8f && r.a > 1.0e-8f
+                        ? (r.r / r.a) * center.a : 0.0f;
+                    const float blue_channel = center.a > 1.0e-8f && b.a > 1.0e-8f
+                        ? (b.b / b.a) * center.a : 0.0f;
+                    const float green_channel = center.a > 1.0e-8f && g.a > 1.0e-8f
+                        ? (g.g / g.a) * center.a : 0.0f;
+                    dst[x] = {red_channel, green_channel, blue_channel, center.a};
+                } else {
+                    const float ar = r.a * p->red.opacity;
+                    const float ag = g.a * p->green.opacity;
+                    const float ab = b.a * p->blue.opacity;
+                    dst[x] = {r.a > 1.0e-8f ? r.r / r.a * ar : 0.0f,
+                              g.a > 1.0e-8f ? g.g / g.a * ag : 0.0f,
+                              b.a > 1.0e-8f ? b.b / b.a * ab : 0.0f,
+                              std::max({ar, ag, ab})};
+                }
             }
         }
     }

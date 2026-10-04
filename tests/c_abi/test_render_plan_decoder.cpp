@@ -2364,7 +2364,9 @@ TEST_CASE("render plan decodes bounded Threshold and Mosaic parameters") {
 TEST_CASE("render plan decodes bounded Chromatic Aberration and Halftone") {
     auto plan = render_plan_test::base_plan(nlohmann::json::array({
         {{"id", "styled"}, {"type", "color"}, {"color", {0.2, 0.3, 0.4, 1.0}},
-         {"effects", {{{"type", "chromatic_aberration"}, {"red_offset", 3.5}, {"blue_offset", -4.0}},
+         {"effects", {{{"type", "rgb_channel_transform"}, {"red_offset", 3.5}, {"blue_offset", -4.0},
+                        {"red_transform", {{"translation", {4.0, -2.0}}, {"scale", {1.2, 0.8}},
+                                            {"rotation", -5.0}, {"opacity", 0.75}}}},
                        {{"type", "halftone"}, {"size", 12}, {"angle", 22.5}, {"amount", 0.8}}}}}
     }));
     const auto decoded = chronon3d::render_plan::decode_render_plan(plan);
@@ -2373,12 +2375,19 @@ TEST_CASE("render plan decodes bounded Chromatic Aberration and Halftone") {
     CHECK(decoded->layers[0].effects[0].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::ChromaticAberration);
     CHECK(decoded->layers[0].effects[0].chromatic_red_offset == doctest::Approx(3.5f));
     CHECK(decoded->layers[0].effects[0].chromatic_blue_offset == doctest::Approx(-4.0f));
+    CHECK(decoded->layers[0].effects[0].chromatic_red_transform[0] == doctest::Approx(4.0f));
+    CHECK(decoded->layers[0].effects[0].chromatic_red_transform[2] == doctest::Approx(1.2f));
+    CHECK(decoded->layers[0].effects[0].chromatic_red_transform[4] == doctest::Approx(-5.0f));
+    CHECK(decoded->layers[0].effects[0].chromatic_red_transform[5] == doctest::Approx(0.75f));
     CHECK(decoded->layers[0].effects[1].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Halftone);
     CHECK(decoded->layers[0].effects[1].halftone_size == 12);
     plan["layers"][0]["effects"][0]["red_offset"] = 129.0;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
     plan["layers"][0]["effects"][0]["red_offset"] = 2.0;
     plan["layers"][0]["effects"][1]["amount"] = 1.1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
+    plan["layers"][0]["effects"][1]["amount"] = 0.8;
+    plan["layers"][0]["effects"][0]["green_transform"] = {{"scale", {0.0, 1.0}}};
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(plan));
 }
 
@@ -3023,11 +3032,20 @@ TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinte
 
     using nlohmann::json;
     auto input = render_plan_test::base_plan({render_plan_test::shape_layer({
-        {"type", "rect"}, {"fill", {0.8, 0.4, 0.2, 1.0}},
-        {"field", {{"generator", "fractal"}, {"seed", 41}, {"frequency", 6.0},
-                   {"octaves", 5}, {"operators", json::array({
-                       {{"kind", "warp"}, {"amount", 0.15}},
-                       {{"kind", "smoothstep"}, {"edge", 0.55}, {"softness", 0.2}}})}}}})});
+        {"type", "rect"}, {"fill", {0.8, 0.4, 0.2, 1.0}}})});
+    input["layers"][0]["shape"]["field"] = {
+        {"generator", "fractal"}, {"seed", 41}, {"frequency", 6.0},
+        {"octaves", 5}, {"operators", json::array({
+            {{"kind", "warp"}, {"amount", 0.15}},
+            {{"kind", "smoothstep"}, {"edge", 0.55}, {"softness", 0.2}}})}};
+    input["layers"][0]["shape"]["field_ramp"] = {
+        {"type", "linear"}, {"start", json::array({0.0, 0.5})},
+        {"end", json::array({1.0, 0.5})}, {"color_stops", json::array({
+            json{{"position", 0.0}, {"color", json::array({0.02, 0.01, 0.1, 1.0})}},
+            json{{"position", 0.45}, {"color", json::array({0.45, 0.05, 0.8, 1.0})}},
+            json{{"position", 1.0}, {"color", json::array({1.0, 0.7, 0.9, 1.0})}}})}};
+    input["layers"][0]["shape"]["field_render_scale"] = 4;
+    input["layers"][0]["shape"]["field_drift"] = {0.1, -0.05};
     const auto decoded = chronon3d::render_plan::decode_render_plan(input);
     REQUIRE(decoded);
     REQUIRE(decoded->layers[0].shape);
@@ -3036,16 +3054,62 @@ TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinte
           chronon3d::graphics::Field2DGenerator::Fractal);
     CHECK(decoded->layers[0].shape->field->seed == 41);
     CHECK(decoded->layers[0].shape->field->operators.size() == 2);
+    REQUIRE(decoded->layers[0].shape->field_ramp);
+    CHECK(decoded->layers[0].shape->field_ramp->color_stops.size() == 3);
+    CHECK(decoded->layers[0].shape->field_render_scale == 4);
+    REQUIRE(decoded->layers[0].shape->field_drift);
+    CHECK(decoded->layers[0].shape->field_drift->x == doctest::Approx(0.1f));
+    CHECK(decoded->layers[0].shape->field_drift->y == doctest::Approx(-0.05f));
 
     auto different_seed = input;
     different_seed["layers"][0]["shape"]["field"]["seed"] = 42;
     const auto other = chronon3d::render_plan::decode_render_plan(different_seed);
     REQUIRE(other);
     CHECK(decoded->content_fingerprint != other->content_fingerprint);
+    auto different_ramp = input;
+    different_ramp["layers"][0]["shape"]["field_ramp"]["color_stops"][1]["color"][1] = 0.2;
+    const auto other_ramp = chronon3d::render_plan::decode_render_plan(different_ramp);
+    REQUIRE(other_ramp);
+    CHECK(decoded->content_fingerprint != other_ramp->content_fingerprint);
+    auto hdr_ramp = input;
+    hdr_ramp["layers"][0]["shape"]["field_ramp"]["color_stops"][1]["color"][0] = 4.0;
+    CHECK(chronon3d::render_plan::decode_render_plan(hdr_ramp));
+    hdr_ramp["layers"][0]["shape"]["field_ramp"]["color_stops"][1]["color"][0] = 4.01;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(hdr_ramp));
+    auto different_scale = input;
+    different_scale["layers"][0]["shape"]["field_render_scale"] = 2;
+    const auto other_scale = chronon3d::render_plan::decode_render_plan(different_scale);
+    REQUIRE(other_scale);
+    CHECK(decoded->content_fingerprint != other_scale->content_fingerprint);
+    auto different_drift = input;
+    different_drift["layers"][0]["shape"]["field_drift"][0] = 0.2;
+    const auto other_drift = chronon3d::render_plan::decode_render_plan(different_drift);
+    REQUIRE(other_drift);
+    CHECK(decoded->content_fingerprint != other_drift->content_fingerprint);
+
+    auto invalid_scale = input;
+    invalid_scale["layers"][0]["shape"]["field_render_scale"] = 3;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_scale));
+
+    auto ramp_without_field = input;
+    ramp_without_field["layers"][0]["shape"].erase("field");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(ramp_without_field));
 
     auto invalid = input;
     invalid["layers"][0]["shape"]["field"]["operators"][0]["amount"] = 2.0;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
+
+    auto burst = input;
+    burst["layers"][0]["shape"]["field"] = {
+        {"generator", "burst"}, {"frequency", 1.0}, {"octaves", 8}};
+    const auto decoded_burst = chronon3d::render_plan::decode_render_plan(burst);
+    REQUIRE(decoded_burst);
+    REQUIRE(decoded_burst->layers[0].shape->field);
+    CHECK(decoded_burst->layers[0].shape->field->generator ==
+          chronon3d::graphics::Field2DGenerator::Burst);
+    auto invalid_burst = burst;
+    invalid_burst["layers"][0]["shape"]["field"]["octaves"] = 2;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_burst));
 }
 
 TEST_CASE("V3 Field2D can drive displacement without a layer map") {

@@ -139,6 +139,15 @@ private:
     seed = hash_combine(seed, hash_value(f.field.has_value()));
     if (f.field)
         seed = hash_combine(seed, hash_value(graphics::field2d_fingerprint(*f.field)));
+    if (f.field_ramp) {
+        seed = hash_combine(seed, hash_value(true));
+        seed = hash_combine(seed, hash_gradient(*f.field_ramp));
+    }
+    if (f.field_grid) {
+        seed = hash_combine(seed, hash_value(true));
+        seed = hash_combine(seed, hash_value(f.field_grid->width));
+        seed = hash_combine(seed, hash_value(f.field_grid->height));
+    }
     if (f.gradient_mesh) {
         seed = hash_combine(seed, hash_value(true));
         seed = hash_combine(seed, hash_value(f.gradient_mesh->nodes.size()));
@@ -448,6 +457,15 @@ private:
                 seed = hash_combine(seed, hash_value(static_cast<int>(p->offset_mode)));
                 seed = hash_combine(seed, hash_vec2(p->velocity));
                 seed = hash_combine(seed, hash_vec2(p->center));
+                const auto add_channel_transform = [&seed](const RgbChannelTransform& channel) {
+                    seed = hash_combine(seed, hash_vec2(channel.translation));
+                    seed = hash_combine(seed, hash_vec2(channel.scale));
+                    seed = hash_combine(seed, hash_value(channel.rotation_degrees));
+                    seed = hash_combine(seed, hash_value(channel.opacity));
+                };
+                add_channel_transform(p->red);
+                add_channel_transform(p->green);
+                add_channel_transform(p->blue);
             }
             break;
         }

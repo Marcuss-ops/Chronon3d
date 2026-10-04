@@ -71,6 +71,20 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
         layer, ctx.effective_frame());
     const auto& active_gradient = animated_gradient
         ? animated_gradient : shape.gradient;
+    std::optional<graphics::Field2D> sampled_field = shape.field
+        ? std::optional<graphics::Field2D>{*shape.field} : std::nullopt;
+    if (sampled_field && shape.field_drift) {
+        const double fps = static_cast<double>(plan.canvas.fps.numerator) /
+            static_cast<double>(plan.canvas.fps.denominator);
+        if (!std::isfinite(fps) || fps <= 0.0)
+            throw std::runtime_error("animated Field2D requires a positive canvas frame rate");
+        const double seconds = static_cast<double>(ctx.effective_frame()) / fps;
+        try {
+            sampled_field = sampled_field->drifted(seconds, *shape.field_drift);
+        } catch (const std::invalid_argument& error) {
+            throw std::runtime_error(error.what());
+        }
+    }
     if ((active_gradient || shape.gradient_mesh) && shape.field)
         throw std::runtime_error("shape '" + layer.id +
             "' cannot combine gradient/mesh fill with Field2D");
@@ -86,7 +100,10 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
     }
     if (shape.field) {
         fill = graphics::FillStyle::solid(base_color);
-        fill->field = *shape.field;
+        fill->field = *sampled_field;
+        fill->field_ramp = shape.field_ramp;
+        fill->field_render_scale = shape.field_render_scale;
+        fill->field_render_size = size;
     }
     graphics::StrokeStyle stroke;
     if (shape.stroke) {
@@ -277,7 +294,10 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
             } else if (shape.gradient_mesh) {
                 params.fill = Fill::mesh(*shape.gradient_mesh);
             } else if (shape.field) {
-                params.fill = Fill::field2d(*shape.field, base_color);
+                params.fill = Fill::field2d(*sampled_field, base_color, shape.field_ramp,
+                    shape.field_render_scale,
+                    static_cast<std::uint32_t>(std::max(1.0f, std::ceil(size.x))),
+                    static_cast<std::uint32_t>(std::max(1.0f, std::ceil(size.y))));
             } else if (shape.fill_color) {
                 // Path fill RGB/alpha lives in its Fill payload; node.color
                 // supplies only the layer-opacity multiplier to draw_path().

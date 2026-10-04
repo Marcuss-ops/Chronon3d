@@ -145,6 +145,39 @@ TEST_CASE("Visual Accents V1: Light leak profile resolver") {
         CHECK_FALSE(first.effects[2].animated);
     }
 
+    SUBCASE("multi-emitter resolver is bounded and random-access deterministic") {
+        AnimatedLightLeakEmitter moving;
+        moving.id = "moving";
+        moving.profile.shape = LightLeakShape::Radial;
+        moving.profile.position = 0.3f;
+        moving.profile.position_y = 0.4f;
+        moving.velocity = {0.1f, -0.05f};
+        moving.pulse_amount = 0.25f;
+        moving.pulse_speed = 1.5f;
+        moving.phase = 0.2f;
+        AnimatedLightLeakEmitter fixed;
+        fixed.id = "fixed";
+        fixed.profile.shape = LightLeakShape::Corner;
+        fixed.profile.corner = LightLeakCorner::BottomRight;
+        const std::vector<AnimatedLightLeakEmitter> emitters{moving, fixed};
+        const auto at_zero = LightLeakResolver::resolve_many(emitters, {1920.0f, 1080.0f}, 0.0);
+        const auto at_two = LightLeakResolver::resolve_many(emitters, {1920.0f, 1080.0f}, 2.0);
+        const auto at_two_again = LightLeakResolver::resolve_many(emitters, {1920.0f, 1080.0f}, 2.0);
+        REQUIRE(at_zero.size() == 2);
+        REQUIRE(at_two.size() == 2);
+        REQUIRE(at_two[0].shape->gradient.has_value());
+        REQUIRE(at_two_again[0].shape->gradient.has_value());
+        CHECK(at_two[0].id == "moving");
+        CHECK(at_two[0].shape->gradient->center.x == doctest::Approx(0.5f));
+        CHECK(at_two[0].shape->gradient->center.y == doctest::Approx(0.3f));
+        CHECK(at_two[0].shape->gradient->center.x == at_two_again[0].shape->gradient->center.x);
+        CHECK(at_zero[0].shape->gradient->center.x != at_two[0].shape->gradient->center.x);
+        auto too_many = emitters;
+        too_many.resize(9);
+        CHECK_THROWS_AS(LightLeakResolver::resolve_many(too_many, {1920.0f, 1080.0f}, 0.0),
+                        std::invalid_argument);
+    }
+
     SUBCASE("edge position, corner, radial and band geometry resolve with exact controls") {
         LightLeakProfile profile;
         profile.shape = LightLeakShape::Edge;
@@ -194,6 +227,25 @@ TEST_CASE("Visual Accents V1: Light leak profile resolver") {
               doctest::Approx(profile.color_a.r));
         CHECK(band.shape->gradient->color_stops[2].color.a ==
               doctest::Approx(profile.intensity * profile.color_a.a));
+    }
+
+    SUBCASE("emitter intensity is retained as HDR color for tone mapping and bloom") {
+        LightLeakProfile profile;
+        profile.shape = LightLeakShape::Radial;
+        profile.intensity = 4.0f;
+        const auto layer = LightLeakResolver::resolve(profile, {320.0f, 180.0f});
+        REQUIRE(layer.shape);
+        REQUIRE(layer.shape->gradient);
+        CHECK(layer.shape->gradient->color_stops.front().color.r == doctest::Approx(4.0f));
+        CHECK(layer.shape->gradient->color_stops.front().color.a == doctest::Approx(1.0f));
+        const Color dithered = graphics::dither_gradient_sample(
+            Color{4.0f, 2.0f, 1.5f, 1.0f}, 3.0f, 9.0f);
+        CHECK(dithered.r > 3.9f);
+        CHECK(dithered.g > 1.9f);
+        profile.intensity = 0.0f;
+        const auto identity = LightLeakResolver::resolve(profile, {320.0f, 180.0f});
+        REQUIRE(identity.shape->gradient);
+        CHECK(identity.shape->gradient->color_stops.front().color.a == doctest::Approx(0.0f));
     }
 
     SUBCASE("zero intensity is identity; flicker is explicit and seed-bound") {
@@ -274,7 +326,7 @@ TEST_CASE("Visual Accents V1: Light leak profile resolver") {
         CHECK_FALSE(grain->animated);
     }
 
-    SUBCASE("profile intensity is bounded across SDR RGB and alpha channels") {
+    SUBCASE("profile intensity scales RGB into HDR and bounds alpha coverage") {
         LightLeakProfile profile;
         profile.shape = LightLeakShape::Radial;
         profile.intensity = 2.0f;
@@ -282,11 +334,11 @@ TEST_CASE("Visual Accents V1: Light leak profile resolver") {
         auto layer = LightLeakResolver::resolve(profile, Vec2{64.0f, 64.0f});
         REQUIRE(layer.shape);
         REQUIRE(layer.shape->gradient);
-        CHECK(layer.shape->gradient->color_stops[0].color.r == doctest::Approx(0.7f));
+        CHECK(layer.shape->gradient->color_stops[0].color.r == doctest::Approx(1.4f));
         CHECK(layer.shape->gradient->color_stops[0].color.a == doctest::Approx(0.8f));
         profile.intensity = light_leak::kMaxIntensity;
         layer = LightLeakResolver::resolve(profile, Vec2{64.0f, 64.0f});
-        CHECK(layer.shape->gradient->color_stops[0].color.r == doctest::Approx(0.7f));
+        CHECK(layer.shape->gradient->color_stops[0].color.r == doctest::Approx(2.8f));
         CHECK(layer.shape->gradient->color_stops[0].color.a == doctest::Approx(1.0f));
     }
 
@@ -299,7 +351,7 @@ TEST_CASE("Visual Accents V1: Light leak profile resolver") {
         profile.chroma_split = 17.0f;
         CHECK_THROWS_AS(LightLeakResolver::resolve(profile, Vec2{100.0f, 100.0f}), std::invalid_argument);
         profile = {};
-        profile.position_y = -0.1f;
+        profile.position_y = -4.1f;
         CHECK_FALSE(profile.valid());
         profile = {};
         profile.blend = static_cast<LightLeakBlend>(255);
@@ -409,5 +461,141 @@ TEST_CASE("Visual Accents V1: Light leak recipes") {
         CHECK(layer.effects[0].light_rays_origin[0] == doctest::Approx(1.0f));
         CHECK(layer.effects[0].light_rays_origin[1] == doctest::Approx(1.0f));
         CHECK(layer.effects[1].kind == LayerPlan::EffectKindPlan::Bloom);
+    }
+}
+
+TEST_CASE("Visual Accents V1: abstract and cinematic background recipes") {
+    using namespace abstract_background;
+    using namespace light_leak;
+    const Vec2 canvas{320.0f, 180.0f};
+
+    SUBCASE("every abstract recipe lowers to finite, identified RenderPlan layers") {
+        const std::vector<std::vector<LayerPlan>> recipes{
+            aurora_horizon(canvas), liquid_neon(canvas), liquid_magenta(canvas),
+            liquid_cyan(canvas), metaball_soft(canvas), metaball_neon(canvas),
+            glass_orb(canvas), dual_orbs(canvas), plasma_orb(canvas),
+            topographic_contours(canvas), flowlines_vertical(canvas),
+            flowlines_mesh(canvas), folded_ribbon(canvas), gradient_fan(canvas),
+            blue_atmosphere(canvas), mega_mix(canvas)};
+        for (const auto& recipe : recipes) {
+            REQUIRE_FALSE(recipe.empty());
+            for (const auto& layer : recipe) {
+                CHECK_FALSE(layer.id.empty());
+                CHECK(layer.type == LayerType::Shape);
+                CHECK(layer.screen_space);
+                REQUIRE(layer.shape.has_value());
+                if (layer.id == "glass_orb") {
+                    CHECK(layer.shape->type == ShapeContentTypePlan::Ellipse);
+                    CHECK(layer.size[0] == doctest::Approx(canvas.y * 0.56f));
+                    CHECK(layer.size[1] == doctest::Approx(canvas.y * 0.56f));
+                } else {
+                    CHECK(layer.size[0] == doctest::Approx(canvas.x));
+                    CHECK(layer.size[1] == doctest::Approx(canvas.y));
+                }
+            }
+        }
+    }
+
+    SUBCASE("field recipes preserve their explicit generator and deterministic seed") {
+        const auto neon = liquid_neon(canvas);
+        REQUIRE(neon.front().shape->field_ramp);
+        CHECK(neon.front().shape->field_ramp->color_stops.size() == 5);
+        CHECK(neon.front().shape->field_render_scale == 4);
+        const auto custom_palette = liquid_neon(canvas, 7, Color{1, 1, 1, 1}, magenta_ramp());
+        REQUIRE(custom_palette.front().shape->field_ramp);
+        CHECK(custom_palette.front().shape->field_ramp->color_stops.size() == 4);
+
+        const auto contours_a = topographic_contours(canvas, 101);
+        const auto contours_b = topographic_contours(canvas, 101);
+        REQUIRE(contours_a.front().shape->field);
+        REQUIRE(contours_b.front().shape->field);
+        CHECK(contours_a.front().shape->field->generator == Field2DGenerator::Rings);
+        CHECK(field2d_fingerprint(*contours_a.front().shape->field) ==
+              field2d_fingerprint(*contours_b.front().shape->field));
+
+        const auto flow = flowlines_vertical(canvas, 102, 80, 0.004f);
+        REQUIRE(flow.front().shape->field);
+        CHECK(flow.front().shape->field->generator == Field2DGenerator::Stripes);
+        CHECK(flow.front().shape->field->frequency == doctest::Approx(80.0f));
+
+        const auto contours = topographic_contours(canvas, 108, 16.0f, 0.06f);
+        REQUIRE(contours.front().shape->field);
+        CHECK(contours.front().shape->field->frequency == doctest::Approx(16.0f));
+        REQUIRE(contours.front().shape->field->operators.size() == 2);
+        CHECK(contours.front().shape->field->operators.back().softness == doctest::Approx(0.06f));
+
+        const auto folded = folded_ribbon(canvas, 109, 9.0f, 0.0f);
+        REQUIRE(folded.front().shape->field);
+        CHECK(folded.front().shape->field->frequency == doctest::Approx(9.0f));
+        CHECK_THROWS_AS(folded_ribbon(canvas, 109, 9.0f, 0.3f), std::invalid_argument);
+        CHECK_THROWS_AS(flowlines_vertical(canvas, 110, 80, 0.01f), std::invalid_argument);
+    }
+
+    SUBCASE("off-canvas radial emitters are accepted while the declared bounds fail closed") {
+        LightLeakProfile profile;
+        profile.shape = LightLeakShape::Radial;
+        profile.position = -1.25f;
+        profile.position_y = 1.4f;
+        const auto layer = LightLeakResolver::resolve(profile, canvas);
+        REQUIRE(layer.shape);
+        REQUIRE(layer.shape->gradient);
+        CHECK(layer.shape->gradient->center.x == doctest::Approx(-1.25f));
+        CHECK(layer.shape->gradient->center.y == doctest::Approx(1.4f));
+        profile.position = -4.1f;
+        CHECK_FALSE(profile.valid());
+    }
+
+    SUBCASE("cinematic recipes expose their underlying composition primitives") {
+        const auto ring = cinematic_warped_ring(canvas, 103);
+        REQUIRE(ring.size() == 1);
+        REQUIRE(ring.front().shape->field);
+        CHECK(ring.front().shape->field->generator == Field2DGenerator::Rings);
+
+        const auto burst = cinematic_radial_burst(canvas, 8);
+        REQUIRE(burst.size() == 1);
+        REQUIRE(burst.front().shape->field);
+        CHECK(burst.front().shape->field->generator == Field2DGenerator::Burst);
+        CHECK(burst.front().shape->field->octaves == 8);
+        const auto& burst_field = *burst.front().shape->field;
+        std::vector<float> ring_samples(1200);
+        for (std::size_t i = 0; i < ring_samples.size(); ++i) {
+            const float angle = 6.28318530718f * static_cast<float>(i) /
+                                static_cast<float>(ring_samples.size());
+            ring_samples[i] = burst_field.sample(
+                Vec2{0.5f + 0.25f * std::cos(angle),
+                     0.5f + 0.25f * std::sin(angle)});
+        }
+        std::size_t peaks = 0;
+        for (std::size_t i = 0; i < ring_samples.size(); ++i) {
+            const auto before = (i + ring_samples.size() - 1) % ring_samples.size();
+            const auto after = (i + 1) % ring_samples.size();
+            if (ring_samples[i] > ring_samples[before] &&
+                ring_samples[i] > ring_samples[after]) ++peaks;
+        }
+        CHECK(peaks == 8);
+
+        const auto orb = glass_orb(canvas, 105);
+        REQUIRE(orb.front().backdrop_filter);
+        REQUIRE(orb.front().backdrop_filter->refraction_field);
+        CHECK(orb.front().backdrop_filter->rim_strength > 0.0f);
+
+        const auto burn = cinematic_film_burn(canvas, 2.0f, 104);
+        REQUIRE(burn.size() == 1);
+        CHECK(burn.front().effects.size() >= 2);
+
+        const auto ribbon = cinematic_bezier_ribbon(canvas);
+        REQUIRE(ribbon.shape);
+        REQUIRE(ribbon.shape->stroke);
+        REQUIRE(ribbon.shape->stroke->brush);
+        CHECK(ribbon.shape->path.size() == 2);
+        CHECK(ribbon.shape->path[1].type == ShapePathCommandTypePlan::CubicTo);
+        CHECK(ribbon.shape->stroke->brush->valid());
+    }
+
+    SUBCASE("recipe bounds reject invalid canvas and burst counts") {
+        CHECK_THROWS_AS(liquid_neon(Vec2{0.0f, 180.0f}), std::invalid_argument);
+        CHECK_THROWS_AS(cinematic_radial_burst(canvas, 13), std::invalid_argument);
+        CHECK_THROWS_AS(cinematic_film_burn(canvas, 4.1f), std::invalid_argument);
+        CHECK_THROWS_AS(cinematic_bezier_ribbon(canvas, kWarmTint, 0.0f), std::invalid_argument);
     }
 }

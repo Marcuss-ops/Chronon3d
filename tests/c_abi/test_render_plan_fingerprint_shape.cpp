@@ -391,6 +391,10 @@ TEST_CASE("Chromatic Aberration and Halftone controls affect render plan fingerp
     auto changed = render_plan::decode_render_plan(plan);
     REQUIRE(changed);
     CHECK(changed->content_fingerprint != baseline);
+    plan["layers"][0]["effects"][0]["red_transform"] = {{"translation", {8.0, 0.0}}};
+    changed = render_plan::decode_render_plan(plan);
+    REQUIRE(changed);
+    CHECK(changed->content_fingerprint != baseline);
     plan["layers"][0]["effects"][0]["red_offset"] = 2.0;
     plan["layers"][0]["effects"][1]["angle"] = 30.0;
     changed = render_plan::decode_render_plan(plan);
@@ -522,6 +526,15 @@ TEST_CASE("Backdrop filter parameters affect the fingerprint while absence prese
     const auto changed = render_plan::decode_render_plan(json);
     REQUIRE(changed);
     CHECK(first->content_fingerprint != changed->content_fingerprint);
+
+    json["layers"][0]["backdrop_filter"]["refraction_field"] = {
+        {"generator", "fractal"}, {"frequency", 3.0}, {"seed", 17}};
+    const auto refractive_a = render_plan::decode_render_plan(json);
+    REQUIRE(refractive_a);
+    json["layers"][0]["backdrop_filter"]["refraction_field"]["seed"] = 18;
+    const auto refractive_b = render_plan::decode_render_plan(json);
+    REQUIRE(refractive_b);
+    CHECK(refractive_a->content_fingerprint != refractive_b->content_fingerprint);
 }
 
 TEST_CASE("LightRays controls affect render-plan fingerprints") {
