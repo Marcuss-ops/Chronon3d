@@ -16,6 +16,7 @@
 //                  p[3] garbage h/feather; p[4].x selects luma vs chroma.
 // mode 4 (vignette): p[0] radius, softness, amount, color.r;
 //                    p[1].xy = color.gb.
+// mode 5 (mosaic): p[0] block size, framebuffer origin x/y.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
@@ -41,6 +42,16 @@ void main() {
     if (coord.x >= size.x || coord.y >= size.y) return;
 
     vec4 source = imageLoad(source_image, coord);
+    if (params.options.x > 4.5) {
+        int block_size = max(1, int(params.p[0].x + 0.5));
+        ivec2 origin = ivec2(params.p[0].yz);
+        ivec2 global_coord = coord + origin;
+        ivec2 cell = ivec2(floor(vec2(global_coord) / float(block_size)));
+        ivec2 sample_global = cell * block_size + ivec2(block_size / 2);
+        ivec2 sample_coord = clamp(sample_global - origin, ivec2(0), size - ivec2(1));
+        imageStore(destination_image, coord, imageLoad(source_image, sample_coord));
+        return;
+    }
     if (source.a <= 0.0) {
         // Threshold clears transparent inputs; Keying follows the software
         // processor's alpha<=epsilon skip and preserves transparent RGB.

@@ -229,7 +229,8 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         params.options[0] = transform.mode == graph::NativeColorTransform::Mode::Levels ? 1.0f :
                             (transform.mode == graph::NativeColorTransform::Mode::Threshold ? 2.0f :
                              (transform.mode == graph::NativeColorTransform::Mode::Keying ? 3.0f :
-                              (transform.mode == graph::NativeColorTransform::Mode::Vignette ? 4.0f : 0.0f)));
+                              (transform.mode == graph::NativeColorTransform::Mode::Vignette ? 4.0f :
+                               (transform.mode == graph::NativeColorTransform::Mode::Mosaic ? 5.0f : 0.0f))));
         params.options[1] = transform.clamp_unit ? 1.0f : 0.0f;
         params.options[2] = transform.straight_alpha ? 1.0f : 0.0f;
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
