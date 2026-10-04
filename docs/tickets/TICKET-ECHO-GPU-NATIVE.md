@@ -15,7 +15,9 @@ values. The backend-registry suite passes on llvmpipe.
   Echo accumulation does not read back through the CPU.
 - [x] Preserve exact frame addressing, history-key isolation, reset behavior,
   canvas-space bounds, and deterministic compositing order in the local path.
-- [x] Add a Vulkan graph integration test with frame-to-frame pixel assertions.
+- [x] Add a Vulkan graph integration test with frame-to-frame pixel assertions
+  for Echo → non-identity Brightness, compared channel-by-channel against the
+  software processor and pinned by a second-frame display-space hash.
 - [x] Expose the supported native route in the exhaustive effect capability.
 - [x] Add a stable framehash canary and direct CPU software golden comparison
   to the two-frame Vulkan graph fixture; every output channel is compared and

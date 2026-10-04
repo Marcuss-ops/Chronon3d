@@ -76,6 +76,9 @@ the full software/GPU effect corpus passes on the same SHA.
   box-filter kernel; the existing Gaussian kernel remains unchanged for its
   other callers. Brightness → LumaKey and LumaKey → Brightness each match the
   software oracle, and the outputs differ as expected (259 assertions).
+  Echo → non-identity Brightness also matches the software golden for both
+  frames, confirming a temporal stage followed by a substantive native color
+  stage.
   Unsupported effects and the full catalog are not certified.
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
