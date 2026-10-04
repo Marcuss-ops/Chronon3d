@@ -131,9 +131,9 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
             auto& shape = layer["shape"];
             if (shape.contains("fill") && shape["fill"].is_array())
                 layer["color"] = shape["fill"];
-            // Gradient fill has no V2 color-array equivalent. Remove only from
-            // the validation projection; the source plan is never mutated and
-            // the V3 decoder retains the canonical GradientDefinition.
+            // Gradient and mesh fills have no V2 color-array equivalent.
+            // Remove only from the validation projection; the source plan is
+            // unchanged and the V3 decoder retains the typed fill payload.
             if (shape.contains("fill")) shape.erase("fill");
             if (shape.contains("stroke") && shape["stroke"].is_object()) {
                 auto& stroke = shape["stroke"];

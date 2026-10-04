@@ -71,13 +71,16 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
         layer, ctx.effective_frame());
     const auto& active_gradient = animated_gradient
         ? animated_gradient : shape.gradient;
-    if (active_gradient && shape.field)
+    if ((active_gradient || shape.gradient_mesh) && shape.field)
         throw std::runtime_error("shape '" + layer.id +
-            "' cannot combine a gradient fill with Field2D");
+            "' cannot combine gradient/mesh fill with Field2D");
     std::optional<graphics::FillStyle> fill;
     if (active_gradient) {
         fill = graphics::FillStyle::solid(base_color);
         fill->gradient = *active_gradient;
+    } else if (shape.gradient_mesh) {
+        fill = graphics::FillStyle::solid(base_color);
+        fill->gradient_mesh = *shape.gradient_mesh;
     } else if (shape.fill_color) {
         fill = graphics::FillStyle::solid(base_color);
     }
@@ -99,6 +102,7 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
             stroke.color = *parsed;
         }
         stroke.gradient = shape.stroke->gradient;
+        stroke.brush = shape.stroke->brush;
         stroke.cap = shape.stroke->cap == "round" ? LineCap::Round
             : shape.stroke->cap == "square" ? LineCap::Square : LineCap::Butt;
         stroke.join = shape.stroke->join == "round" ? LineJoin::Round
@@ -270,6 +274,8 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                 params.fill.enabled = true;
                 params.fill.type = fill_type_for_gradient(active_gradient->type);
                 params.fill.gradient = *active_gradient;
+            } else if (shape.gradient_mesh) {
+                params.fill = Fill::mesh(*shape.gradient_mesh);
             } else if (shape.field) {
                 params.fill = Fill::field2d(*shape.field, base_color);
             } else if (shape.fill_color) {

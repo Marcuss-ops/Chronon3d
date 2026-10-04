@@ -90,7 +90,15 @@ raster::BBox compute_path_world_bbox(const PathShape& path, const Mat4& model,
     auto contours = flatten_path_geometry_cached(path);
     if (!contours || contours->empty()) return {0, 0, 0, 0};
 
-    const f32 padding = path.stroke.width * 0.5f + spread;
+    const bool valid_brush = path.stroke.brush && path.stroke.brush->valid() &&
+        std::isfinite(path.stroke.width) && path.stroke.width >= 0.0f;
+    const f32 fallback_width = std::isfinite(path.stroke.width)
+        ? std::max(0.0f, path.stroke.width) : 0.0f;
+    const f32 stroke_diameter = std::max(fallback_width,
+        valid_brush ? path.stroke.brush->size : 0.0f);
+    const f32 padding = path.stroke.enabled && valid_brush
+        ? path.stroke.brush->maximum_extent_radius(fallback_width) + spread
+        : std::max(0.0f, path.stroke.enabled ? stroke_diameter * 0.5f : 0.0f) + spread;
     f32 min_x = 1e10f, min_y = 1e10f;
     f32 max_x = -1e10f, max_y = -1e10f;
     bool empty = true;
@@ -131,9 +139,18 @@ bool hit_test_path(const PathShape& path, Vec2 local_point, f32 spread) {
     auto contours = flatten_path_geometry_cached(path);
     if (!contours || contours->empty()) return false;
 
-    const f32 radius_sq =
-        std::pow(path.stroke.width * 0.5f + spread, 2.0f);
+    const bool valid_brush = path.stroke.brush && path.stroke.brush->valid() &&
+        std::isfinite(path.stroke.width) && path.stroke.width >= 0.0f;
+    const f32 fallback_width = std::isfinite(path.stroke.width)
+        ? std::max(0.0f, path.stroke.width) : 0.0f;
+    const f32 stroke_diameter = std::max(fallback_width,
+        valid_brush ? path.stroke.brush->size : 0.0f);
+    const f32 hit_radius = path.stroke.enabled && valid_brush
+        ? path.stroke.brush->maximum_extent_radius(fallback_width) + spread
+        : std::max(0.0f, path.stroke.enabled ? stroke_diameter * 0.5f : 0.0f) + spread;
+    const f32 radius_sq = hit_radius * hit_radius;
 
+    if (!path.stroke.enabled && !path.fill.enabled) return false;
     for (const auto& contour : *contours) {
         const auto& pts = contour.points;
         if (pts.size() < 2) continue;

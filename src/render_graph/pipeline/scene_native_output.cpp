@@ -78,8 +78,19 @@ void synchronize_native_output(RenderGraphContext& ctx,
     // are already the authoritative render result.  Downloading that stale
     // handle makes Vulkan reject an otherwise valid FullGraph frame as an
     // uninitialized surface.
-    if (framebuffer->is_cpu_authoritative()) {
+    // A reused graph output can retain the CPU-authoritative flag while its
+    // arena-backed framebuffer has no host allocation.  In that case the
+    // flag alone does not satisfy the CPU encoder contract: recover the
+    // pixels from the still-live native surface instead of forwarding an
+    // empty framebuffer to the video writer.
+    if (framebuffer->is_cpu_authoritative() && framebuffer->data()) {
         return;
+    }
+    if (framebuffer->is_cpu_authoritative()) {
+        spdlog::warn(
+            "[video] CPU-authoritative output has no host pixels at frame {}; "
+            "reading back the native surface",
+            static_cast<int>(ctx.frame_input.frame));
     }
     const auto scratch = ctx.download_scratch(framebuffer->width(),
                                               framebuffer->height());

@@ -61,8 +61,8 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Area | Stato |
 |---|---|
 | Render-plan V3 coherence | PASS on 264b3c3d — v3 extensions dedup + per-key timing + flash hex + fingerprint v10 golden pinned (c_abi 138/138) — see git log 264b3c3dc |
-| Lottie Bodymovin lowering | DEFERRED — supported bounded L1-L4 subset remains; no further Lottie scope until core CI is green — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
-| Vulkan effect parity | DEFERRED — four native effect routes are certified; remaining parity work is parked until core CI is green and a product need is recorded — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
+| Lottie Bodymovin lowering | PARTIAL — L1 transforms, L2 nested groups, L3 static features, and bounded two-keyframe L4 morphs lower in software; CLI MP4 frame-hash and broader morph gates remain — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
+| Vulkan effect parity | OPEN — software catalog has 47 effect types; strict Vulkan certifies 13 native routes (Blur, Glow, Bloom, Tint, Brightness, Contrast, Saturation, HueRotate, Invert, Exposure, Fill, Levels, Threshold), explicitly rejects DropShadow, and has no native route for the rest — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera V1 | PARTIAL — same-SHA certification outstanding |
 | Text Core V1 | PASS (focused) |

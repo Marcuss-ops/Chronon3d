@@ -4,8 +4,13 @@
 #include <chronon3d/graphics/stroke/brush_profile.hpp>
 #include <chronon3d/render_plan/effect_presets.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/timeline/compile_evaluate.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 using namespace chronon3d;
@@ -101,6 +106,206 @@ TEST_CASE("Visual Accents V1: PaintMaskGenerator authority") {
         CHECK(std::isfinite(right));
         // Deterministic double sample.
         CHECK(left == generator.sample(Vec2{0.2f, 0.5f}));
+    }
+}
+
+TEST_CASE("Visual Accents V1: Light leak profile resolver") {
+    using namespace light_leak;
+    SUBCASE("canonical profile lowers deterministically to existing composition primitives") {
+        LightLeakProfile profile;
+        profile.shape = LightLeakShape::Sweep;
+        profile.blend = LightLeakBlend::SoftLight;
+        profile.angle = 45.0f;
+        profile.position = 0.25f;
+        profile.width = 0.30f;
+        profile.chroma_split = 2.0f;
+        profile.grain = 0.1f;
+        profile.seed = 10;
+        const auto first = LightLeakResolver::resolve(profile, Vec2{1920.0f, 1080.0f}, "leak");
+        const auto second = LightLeakResolver::resolve(profile, Vec2{1920.0f, 1080.0f}, "leak");
+        REQUIRE(first.shape.has_value());
+        REQUIRE(second.shape.has_value());
+        CHECK(first.id == second.id);
+        CHECK(first.type == LayerType::Shape);
+        CHECK(first.screen_space);
+        CHECK(first.position[0] == doctest::Approx(960.0f));
+        CHECK(first.position[1] == doctest::Approx(540.0f));
+        CHECK(first.position[2] == doctest::Approx(0.0f));
+        CHECK(first.blend_mode == chronon3d::BlendMode::SoftLight);
+        REQUIRE(first.shape->gradient.has_value());
+        CHECK(first.shape->gradient->type == GradientType::Linear);
+        CHECK(first.shape->gradient->start.x == second.shape->gradient->start.x);
+        CHECK(first.shape->gradient->start.y == second.shape->gradient->start.y);
+        CHECK(first.effects.size() == 3); // softness, RGB split, seeded static grain
+        CHECK(first.effects[0].kind == LayerPlan::EffectKindPlan::GaussianBlur);
+        CHECK(first.effects[0].radius == doctest::Approx(37.8f));
+        CHECK(first.effects[1].kind == LayerPlan::EffectKindPlan::ChromaticAberration);
+        CHECK(first.effects[2].kind == LayerPlan::EffectKindPlan::Noise);
+        CHECK(first.effects[2].seed == 10);
+        CHECK_FALSE(first.effects[2].animated);
+    }
+
+    SUBCASE("edge position, corner, radial and band geometry resolve with exact controls") {
+        LightLeakProfile profile;
+        profile.shape = LightLeakShape::Edge;
+        profile.edge = LightLeakEdge::Right;
+        profile.position = 0.25f;
+        auto edge = LightLeakResolver::resolve(profile, Vec2{100.0f, 100.0f});
+        REQUIRE(edge.shape.has_value());
+        REQUIRE(edge.shape->gradient.has_value());
+        CHECK(edge.shape->gradient->center.x == doctest::Approx(1.0f));
+        CHECK(edge.shape->gradient->center.y == doctest::Approx(0.25f));
+        profile.edge = LightLeakEdge::Bottom;
+        profile.position = 0.75f;
+        edge = LightLeakResolver::resolve(profile, Vec2{100.0f, 100.0f});
+        REQUIRE(edge.shape->gradient.has_value());
+        CHECK(edge.shape->gradient->center.x == doctest::Approx(0.75f));
+        CHECK(edge.shape->gradient->center.y == doctest::Approx(1.0f));
+        profile.shape = LightLeakShape::Corner;
+        profile.corner = LightLeakCorner::BottomLeft;
+        auto corner = LightLeakResolver::resolve(profile, Vec2{100.0f, 100.0f});
+        REQUIRE(corner.shape.has_value());
+        REQUIRE(corner.shape->gradient.has_value());
+        CHECK(corner.shape->gradient->center.x == doctest::Approx(0.0f));
+        CHECK(corner.shape->gradient->center.y == doctest::Approx(1.0f));
+        profile.shape = LightLeakShape::Radial;
+        profile.spread = 0.4f;
+        profile.position = 0.25f;
+        profile.position_y = 0.75f;
+        auto radial = LightLeakResolver::resolve(profile, Vec2{100.0f, 100.0f});
+        REQUIRE(radial.shape.has_value());
+        REQUIRE(radial.shape->gradient.has_value());
+        CHECK(radial.shape->gradient->center.x == doctest::Approx(0.25f));
+        CHECK(radial.shape->gradient->center.y == doctest::Approx(0.75f));
+        CHECK(radial.shape->gradient->radius == doctest::Approx(0.4f * std::sqrt(2.0f)));
+        CHECK(radial.shape->gradient->color_stops.size() == 3);
+        profile.shape = LightLeakShape::Band;
+        profile.angle = 90.0f;
+        const auto band = LightLeakResolver::resolve(profile, Vec2{100.0f, 100.0f});
+        REQUIRE(band.shape.has_value());
+        REQUIRE(band.shape->gradient.has_value());
+        CHECK(std::abs(band.shape->gradient->start.x - band.shape->gradient->end.x) > 0.24f);
+        CHECK(std::abs(band.shape->gradient->start.y - band.shape->gradient->end.y) < 1.0e-5f);
+        CHECK(band.shape->gradient->color_stops.size() == 5);
+        CHECK(band.shape->gradient->color_stops[0].color.a == doctest::Approx(0.0f));
+        CHECK(band.shape->gradient->color_stops[2].color.a == doctest::Approx(profile.intensity));
+        CHECK(band.shape->gradient->color_stops[4].color.a == doctest::Approx(0.0f));
+        CHECK(band.shape->gradient->color_stops[2].color.r ==
+              doctest::Approx(profile.color_a.r));
+        CHECK(band.shape->gradient->color_stops[2].color.a ==
+              doctest::Approx(profile.intensity * profile.color_a.a));
+    }
+
+    SUBCASE("zero intensity is identity; flicker is explicit and seed-bound") {
+        LightLeakProfile profile;
+        profile.intensity = 0.0f;
+        auto identity = LightLeakResolver::resolve(profile, Vec2{1920.0f, 1080.0f});
+        REQUIRE(identity.shape.has_value());
+        REQUIRE(identity.shape->gradient.has_value());
+        CHECK(identity.shape->gradient->color_stops[0].color.a == doctest::Approx(0.0f));
+        CHECK(identity.effects.empty());
+        profile.intensity = 1.0f;
+        profile.softness = 0.0f;
+        profile.flicker = 0.25f;
+        profile.seed = 10;
+        auto animated = LightLeakResolver::resolve(profile, Vec2{1920.0f, 1080.0f});
+        REQUIRE(animated.effects.size() == 1);
+        CHECK(animated.effects[0].kind == LayerPlan::EffectKindPlan::Noise);
+        CHECK(animated.effects[0].animated);
+        REQUIRE(animated.effects.size() == 1);
+        CHECK(animated.effects[0].seed == (10U ^ 0x9e3779b9U));
+        profile.grain = 0.2f;
+        profile.seed = 11;
+        auto other_seed = LightLeakResolver::resolve(profile, Vec2{1920.0f, 1080.0f});
+        REQUIRE(other_seed.effects.size() == 2);
+        CHECK(other_seed.effects[0].seed == 11U);
+        CHECK(other_seed.effects[1].seed == (11U ^ 0x9e3779b9U));
+        CHECK_FALSE(other_seed.effects[0].animated);
+        CHECK(other_seed.effects[1].animated);
+        REQUIRE(other_seed.shape.has_value());
+        REQUIRE(other_seed.shape->gradient.has_value());
+        CHECK(other_seed.shape->gradient->color_stops[0].color.r ==
+              doctest::Approx(profile.color_a.r));
+        CHECK(other_seed.shape->gradient->color_stops[0].color.a == doctest::Approx(profile.intensity));
+        CHECK(other_seed.shape->gradient->color_stops[1].color.a == doctest::Approx(0.0f));
+    }
+
+    SUBCASE("profile-generated shape and effects compile through the canonical plan") {
+        LightLeakProfile profile;
+        profile.shape = LightLeakShape::Radial;
+        profile.blend = LightLeakBlend::Add;
+        profile.intensity = 0.6f;
+        profile.softness = 0.0f;
+        profile.chroma_split = 2.0f;
+        profile.grain = 0.15f;
+        profile.seed = 73;
+        auto leak = LightLeakResolver::resolve(profile, Vec2{32.0f, 32.0f}, "profile-leak");
+        RenderPlan plan;
+        plan.job_id = "light-leak-profile";
+        plan.canvas = {.width = 32, .height = 32,
+                       .fps = FrameRate{30, 1}, .duration = Frame{2}};
+        plan.layers.push_back(std::move(leak));
+        chronon3d::assets::AssetResolver resolver;
+        const auto prepared = compile_render_plan(plan, resolver);
+        REQUIRE(prepared);
+        const auto evaluated = chronon3d::evaluate(
+            prepared->compiled_composition, {}, Frame{0});
+        REQUIRE(evaluated);
+        REQUIRE(evaluated->scene.layers().size() == 1);
+        const auto& layer = evaluated->scene.layers().front();
+        CHECK(layer.screen_space);
+        CHECK(layer.blend_mode == chronon3d::BlendMode::Add);
+        REQUIRE(layer.nodes.size() == 1);
+        CHECK(layer.nodes.front().shape.type() == chronon3d::ShapeType::Rect);
+        CHECK(layer.nodes.front().fill.type == chronon3d::FillType::RadialGradient);
+        CHECK(layer.nodes.front().fill.gradient.center.x == doctest::Approx(0.5f));
+        CHECK(layer.nodes.front().fill.gradient.center.y == doctest::Approx(0.5f));
+        REQUIRE(layer.nodes.front().fill.gradient.color_stops.size() == 3);
+        CHECK(layer.nodes.front().fill.gradient.color_stops[0].color.a ==
+              doctest::Approx(0.6f));
+        REQUIRE(layer.effects().size() == 2);
+        const auto* split = std::get_if<ChromaticAberrationParams>(
+            &layer.effects()[0].params);
+        REQUIRE(split);
+        CHECK(split->red_offset == doctest::Approx(2.0f));
+        const auto* grain = std::get_if<NoiseParams>(&layer.effects()[1].params);
+        REQUIRE(grain);
+        CHECK(grain->seed == 73U);
+        CHECK_FALSE(grain->animated);
+    }
+
+    SUBCASE("profile intensity is bounded across SDR RGB and alpha channels") {
+        LightLeakProfile profile;
+        profile.shape = LightLeakShape::Radial;
+        profile.intensity = 2.0f;
+        profile.color_a = Color{0.7f, 0.6f, 0.5f, 0.4f};
+        auto layer = LightLeakResolver::resolve(profile, Vec2{64.0f, 64.0f});
+        REQUIRE(layer.shape);
+        REQUIRE(layer.shape->gradient);
+        CHECK(layer.shape->gradient->color_stops[0].color.r == doctest::Approx(0.7f));
+        CHECK(layer.shape->gradient->color_stops[0].color.a == doctest::Approx(0.8f));
+        profile.intensity = light_leak::kMaxIntensity;
+        layer = LightLeakResolver::resolve(profile, Vec2{64.0f, 64.0f});
+        CHECK(layer.shape->gradient->color_stops[0].color.r == doctest::Approx(0.7f));
+        CHECK(layer.shape->gradient->color_stops[0].color.a == doctest::Approx(1.0f));
+    }
+
+    SUBCASE("profile validation rejects non-finite and out-of-range controls") {
+        LightLeakProfile profile;
+        CHECK(profile.valid());
+        profile.angle = std::numeric_limits<float>::quiet_NaN();
+        CHECK_FALSE(profile.valid());
+        profile = {};
+        profile.chroma_split = 17.0f;
+        CHECK_THROWS_AS(LightLeakResolver::resolve(profile, Vec2{100.0f, 100.0f}), std::invalid_argument);
+        profile = {};
+        profile.position_y = -0.1f;
+        CHECK_FALSE(profile.valid());
+        profile = {};
+        profile.blend = static_cast<LightLeakBlend>(255);
+        CHECK_FALSE(profile.valid());
+        profile = {};
+        CHECK_THROWS_AS(LightLeakResolver::resolve(profile, Vec2{0.0f, 100.0f}), std::invalid_argument);
     }
 }
 

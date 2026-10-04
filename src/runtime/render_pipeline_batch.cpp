@@ -169,6 +169,13 @@ private:
     bool m_stop{false};
 };
 
+// The constructor and destructor must be defined where the private StagePool
+// type is complete: unique_ptr cleanup is instantiated on constructor failure.
+RenderPipeline::RenderPipeline(
+    SoftwareRenderer* renderer,
+    ::chronon3d::SoftwareExecutionContext& context) noexcept
+    : m_renderer(renderer), m_context(context) {}
+
 RenderPipeline::~RenderPipeline() = default;
 
 RenderBatchResult RenderPipeline::render_compatibility_frames(

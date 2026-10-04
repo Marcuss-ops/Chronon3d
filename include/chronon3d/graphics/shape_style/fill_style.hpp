@@ -14,6 +14,7 @@
 
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/graphics/field2d.hpp>
+#include <chronon3d/graphics/gradient_mesh.hpp>
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>  // FASE 9 — StrokeStyle extracted
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <optional>
@@ -33,6 +34,7 @@ struct FillStyle {
     /// solid_color as the fill source.
     std::optional<GradientDefinition> gradient;
     std::optional<Field2D> field;
+    std::optional<GradientMesh> gradient_mesh;
 
     // ── Factory helpers ──────────────────────────────────────────────
 
@@ -63,8 +65,12 @@ struct FillStyle {
 
     // ── Query helpers ────────────────────────────────────────────────
 
-    [[nodiscard]] bool is_solid()   const noexcept { return !gradient.has_value() && !field.has_value(); }
-    [[nodiscard]] bool is_gradient() const noexcept { return  gradient.has_value(); }
+    [[nodiscard]] bool is_solid()   const noexcept {
+        return !gradient.has_value() && !field.has_value() && !gradient_mesh.has_value();
+    }
+    [[nodiscard]] bool is_gradient() const noexcept {
+        return gradient.has_value() || gradient_mesh.has_value();
+    }
 
     // ── Bridge to scene Fill, retaining the canonical gradient ────────
 
@@ -77,7 +83,12 @@ struct FillStyle {
 // ══════════════════════════════════════════════════════════════════════
 
 inline Fill FillStyle::to_fill() const {
-    if (!enabled) return {false, FillType::Solid, solid_color, {}};
+    if (!enabled) {
+        Fill fill = Fill::solid_color(solid_color);
+        fill.enabled = false;
+        return fill;
+    }
+    if (gradient_mesh) return Fill::mesh(*gradient_mesh);
     if (field) {
         auto result = Fill::field2d(*field, solid_color);
         result.enabled = true;

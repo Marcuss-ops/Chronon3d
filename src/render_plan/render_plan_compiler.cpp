@@ -148,6 +148,10 @@ void materialize_media_background_cards(RenderPlan& plan) {
         // unit-scaled.
         card.position = layer.position;
         card.position_dimensions = layer.position_dimensions;
+        card.rotation = layer.rotation;
+        card.rotation_dimensions = layer.rotation_dimensions;
+        card.enable_3d = layer.enable_3d;
+        card.opacity = layer.opacity;
         if (layer.type == LayerType::Video && layer.position_dimensions >= 2) {
             const float displayed_w = layer.size_dimensions == 2
                 ? layer.size[0] : static_cast<float>(plan.canvas.width) * scale_x;
@@ -157,6 +161,33 @@ void materialize_media_background_cards(RenderPlan& plan) {
                 static_cast<float>(plan.canvas.width) * 0.5f;
             card.position[1] += displayed_h * 0.5f -
                 static_cast<float>(plan.canvas.height) * 0.5f;
+        }
+        // The frame plate is a sibling layer, so it must follow the media's
+        // transform and visibility tracks explicitly. Its base size above
+        // already includes the media's initial scale; normalize animated
+        // scales around that base to avoid applying the initial scale twice.
+        if (layer.animation) {
+            AnimationPlan plate_animation;
+            for (const auto& source_track : layer.animation->tracks) {
+                if (source_track.property != "position" && source_track.property != "rotation" &&
+                    source_track.property != "scale" && source_track.property != "opacity")
+                    continue;
+                auto track = source_track;
+                if (track.property == "scale") {
+                    for (auto& keyframe : track.keyframes) {
+                        for (std::size_t axis = 0; axis < keyframe.value.size() && axis < 3; ++axis) {
+                            const float base_scale = layer.scale[axis];
+                            if (!std::isfinite(base_scale) || std::abs(base_scale) <= 1e-6f)
+                                throw std::runtime_error("layer '" + layer.id +
+                                    "' has an invalid base scale for its animated media frame");
+                            keyframe.value[axis] /= base_scale;
+                        }
+                    }
+                }
+                plate_animation.tracks.push_back(std::move(track));
+            }
+            if (!plate_animation.tracks.empty())
+                card.animation = std::move(plate_animation);
         }
         card.color = {parsed_color->r, parsed_color->g, parsed_color->b,
                       parsed_color->a * opacity};

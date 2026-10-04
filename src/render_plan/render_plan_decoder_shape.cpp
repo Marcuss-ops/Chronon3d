@@ -18,6 +18,39 @@
 namespace chronon3d::render_plan::detail {
 namespace {
 
+graphics::GradientMesh decode_gradient_mesh(const nlohmann::json& value) {
+    graphics::GradientMesh mesh;
+    const auto& nodes = value.at("nodes");
+    if (!nodes.is_array() || nodes.empty() || nodes.size() > 256)
+        throw std::runtime_error("gradient mesh requires between 1 and 256 nodes");
+    mesh.nodes.reserve(nodes.size());
+    for (const auto& raw_node : nodes) {
+        if (!raw_node.is_object() || !raw_node.contains("position") ||
+            !raw_node.contains("color"))
+            throw std::runtime_error("gradient mesh nodes require position and color");
+        const auto& position = raw_node.at("position");
+        const auto& color = raw_node.at("color");
+        if (!position.is_array() || position.size() != 2 ||
+            !color.is_array() || color.size() != 4)
+            throw std::runtime_error("gradient mesh node position and color must contain two and four values");
+        graphics::GradientMeshNode node;
+        node.position = {position[0].get<float>(), position[1].get<float>()};
+        node.color = Color{color[0].get<float>(), color[1].get<float>(),
+                           color[2].get<float>(), color[3].get<float>()};
+        node.weight = raw_node.value("weight", 1.0f);
+        const auto bounded = [](float component) {
+            return std::isfinite(component) && component >= 0.0f && component <= 1.0f;
+        };
+        if (!bounded(node.position.x) || !bounded(node.position.y) ||
+            !bounded(node.color.r) || !bounded(node.color.g) ||
+            !bounded(node.color.b) || !bounded(node.color.a) ||
+            !std::isfinite(node.weight) || node.weight < 0.0001f || node.weight > 1000.0f)
+            throw std::runtime_error("gradient mesh positions and RGBA must be in [0, 1]; weights must be in [0.0001, 1000]");
+        mesh.nodes.push_back(node);
+    }
+    return mesh;
+}
+
 GradientAnimationPlan decode_gradient_animation(const nlohmann::json& value) {
     GradientAnimationPlan animation;
     animation.easing = value.value("easing", std::string{"linear"});
@@ -79,7 +112,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
         }
         if (raw_shape.contains("field")) {
             if (raw_shape.contains("fill") && raw_shape.at("fill").is_object())
-                throw std::runtime_error("shape.field cannot be combined with a gradient fill");
+                throw std::runtime_error("shape.field cannot be combined with a gradient or mesh fill");
             if (shape.type == ShapeContentTypePlan::Line ||
                 shape.type == ShapeContentTypePlan::Arc ||
                 shape.type == ShapeContentTypePlan::Grid ||
@@ -580,11 +613,6 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 return command.type == ShapePathCommandTypePlan::Close;
             }))
             throw std::runtime_error("Field2D path fills require at least one closed subpath");
-        if (shape.stroke && (shape.stroke->taper_start != 1.0f || shape.stroke->taper_end != 1.0f) &&
-            std::any_of(shape.path.begin(), shape.path.end(), [](const auto& command) {
-                return command.type == ShapePathCommandTypePlan::Close;
-            }))
-            throw std::runtime_error("tapered strokes require an open path");
         if (raw_shape.contains("fill")) {
             const auto& fill = raw_shape.at("fill");
             if (fill.is_array()) {
@@ -594,9 +622,40 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                     fill[0].get<float>(), fill[1].get<float>(),
                     fill[2].get<float>(), fill[3].get<float>()};
             } else if (fill.is_object()) {
-                shape.gradient = decode_gradient_definition(fill);
+                if (fill.value("type", std::string{}) == "mesh") {
+                    for (auto it = fill.begin(); it != fill.end(); ++it)
+                        if (it.key() != "type" && it.key() != "mesh")
+                            throw std::runtime_error("mesh fill accepts only type and mesh");
+                    if (fill.contains("nodes"))
+                        throw std::runtime_error("mesh fill nodes must be nested under fill.mesh.nodes");
+                    if (!fill.contains("mesh"))
+                        throw std::runtime_error("mesh fill requires a mesh object");
+                    if (raw_shape.contains("field"))
+                        throw std::runtime_error("mesh fill cannot be combined with shape.field");
+                    const bool closed_shape = shape.type == ShapeContentTypePlan::Rect ||
+                        shape.type == ShapeContentTypePlan::RoundedRect ||
+                        shape.type == ShapeContentTypePlan::Ellipse ||
+                        shape.type == ShapeContentTypePlan::Star ||
+                        shape.type == ShapeContentTypePlan::Polygon ||
+                        shape.type == ShapeContentTypePlan::Arrow ||
+                        shape.type == ShapeContentTypePlan::DotGrid;
+                    const bool closed_path = shape.type == ShapeContentTypePlan::Path &&
+                        !shape.svg_asset && !shape.lottie_asset &&
+                        std::any_of(shape.path.begin(), shape.path.end(), [](const auto& command) {
+                            return command.type == ShapePathCommandTypePlan::Close;
+                        });
+                    if (!closed_shape && !closed_path)
+                        throw std::runtime_error("mesh fills require a closed filled shape or closed authored path");
+                    shape.gradient_mesh = decode_gradient_mesh(fill.at("mesh"));
+                } else {
+                    shape.gradient = decode_gradient_definition(fill);
+                }
             }
         }
+        if (shape.gradient && (shape.field || shape.gradient_mesh))
+            throw std::runtime_error("gradient fill cannot be combined with Field2D or Gradient Mesh");
+        if (shape.gradient_mesh && shape.field)
+            throw std::runtime_error("Gradient Mesh cannot be combined with Field2D");
         if (shape.gradient) {
             const auto valid_stop = [](float position, float alpha) {
                 return std::isfinite(position) && position >= 0.0f && position <= 1.0f &&
@@ -660,8 +719,86 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             }
             decoded_stroke.cap = stroke.value("cap", decoded_stroke.cap);
             decoded_stroke.join = stroke.value("join", decoded_stroke.join);
+            if (stroke.contains("brush")) {
+                if (shape.type != ShapeContentTypePlan::Line &&
+                    shape.type != ShapeContentTypePlan::Path &&
+                    shape.type != ShapeContentTypePlan::Star &&
+                    shape.type != ShapeContentTypePlan::Polygon &&
+                    shape.type != ShapeContentTypePlan::Arrow &&
+                    shape.type != ShapeContentTypePlan::Arc &&
+                    shape.type != ShapeContentTypePlan::Grid &&
+                    shape.type != ShapeContentTypePlan::DotGrid)
+                    throw std::runtime_error("brush strokes require a path-backed shape");
+                if (shape.svg_asset || shape.lottie_asset)
+                    throw std::runtime_error("brush strokes are not supported on imported asset paths");
+                const auto& raw_brush = stroke.at("brush");
+                graphics::BrushProfile brush;
+                brush.size = raw_brush.value("size", 0.0f);
+                const bool has_brush_size = raw_brush.contains("size") && brush.size > 0.0f;
+                brush.hardness = raw_brush.value("hardness", brush.hardness);
+                brush.opacity = raw_brush.value("opacity", brush.opacity);
+                brush.flow = raw_brush.value("flow", brush.flow);
+                brush.opacity_start = raw_brush.value("opacity_start", brush.opacity_start);
+                brush.opacity_end = raw_brush.value("opacity_end", brush.opacity_end);
+                brush.bleed_radius = raw_brush.value("bleed_radius", brush.bleed_radius);
+                brush.edge_density = raw_brush.value("edge_density", brush.edge_density);
+                brush.spacing = raw_brush.value("spacing", brush.spacing);
+                brush.roundness = raw_brush.value("roundness", brush.roundness);
+                brush.angle = raw_brush.value("angle", brush.angle);
+                brush.taper_start = raw_brush.value("taper_start", brush.taper_start);
+                brush.taper_end = raw_brush.value("taper_end", brush.taper_end);
+                brush.pressure_width = raw_brush.value("pressure_width", brush.pressure_width);
+                brush.pressure_opacity = raw_brush.value("pressure_opacity", brush.pressure_opacity);
+                brush.width_jitter = raw_brush.value("width_jitter", brush.width_jitter);
+                brush.opacity_jitter = raw_brush.value("opacity_jitter", brush.opacity_jitter);
+                brush.angle_jitter = raw_brush.value("angle_jitter", brush.angle_jitter);
+                brush.scatter = raw_brush.value("scatter", brush.scatter);
+                brush.grain_strength = raw_brush.value("grain", brush.grain_strength);
+                brush.grain_scale = raw_brush.value("grain_scale", brush.grain_scale);
+                brush.edge_noise = raw_brush.value("edge_noise", brush.edge_noise);
+                brush.edge_softness = raw_brush.value("edge_softness", brush.edge_softness);
+                brush.seed = raw_brush.value("seed", brush.seed);
+                if (raw_brush.contains("texture"))
+                    brush.texture = decode_field2d_plan(raw_brush.at("texture"));
+                if (raw_brush.contains("along_path_gradient")) {
+                    brush.along_path_gradient = decode_gradient_definition(raw_brush.at("along_path_gradient"));
+                    const auto& gradient = *brush.along_path_gradient;
+                    if (gradient.type != graphics::GradientType::Linear ||
+                        gradient.color_stops.size() < 2 ||
+                        std::any_of(gradient.color_stops.begin(), gradient.color_stops.end(), [](const auto& stop) {
+                            return !std::isfinite(stop.position) || stop.position < 0.0f || stop.position > 1.0f ||
+                                !std::isfinite(stop.color.r) || !std::isfinite(stop.color.g) ||
+                                !std::isfinite(stop.color.b) || !std::isfinite(stop.color.a) ||
+                                stop.color.r < 0.0f || stop.color.r > 1.0f || stop.color.g < 0.0f || stop.color.g > 1.0f ||
+                                stop.color.b < 0.0f || stop.color.b > 1.0f || stop.color.a < 0.0f || stop.color.a > 1.0f;
+                        }) ||
+                        std::any_of(gradient.opacity_stops.begin(), gradient.opacity_stops.end(), [](const auto& stop) {
+                            return !std::isfinite(stop.position) || stop.position < 0.0f || stop.position > 1.0f ||
+                                !std::isfinite(stop.opacity) || stop.opacity < 0.0f || stop.opacity > 1.0f;
+                        }))
+                        throw std::runtime_error("brush along-path gradient stops must be finite and in [0, 1]");
+                }
+                if (raw_brush.contains("pressure_curve")) {
+                    const auto& curve = raw_brush.at("pressure_curve");
+                    if (!curve.is_array() || curve.size() > 256)
+                        throw std::runtime_error("stroke.brush.pressure_curve must contain at most 256 points");
+                    for (const auto& point : curve) {
+                        if (!point.is_array() || point.size() != 2)
+                            throw std::runtime_error("stroke.brush.pressure_curve points must be [position, pressure]");
+                        brush.pressure_curve.push_back({point[0].get<float>(), point[1].get<float>()});
+                    }
+                }
+                if (!brush.valid())
+                    throw std::runtime_error("shape.stroke.brush parameters are outside the supported range");
+                if (!has_brush_size && (!decoded_stroke.width ||
+                    !std::isfinite(*decoded_stroke.width) || *decoded_stroke.width <= 0.0f))
+                    throw std::runtime_error("brush stroke requires an explicit positive width when brush.size is zero");
+                decoded_stroke.brush = std::move(brush);
+            }
             decoded_stroke.taper_start = stroke.value("taper_start", 1.0f);
             decoded_stroke.taper_end = stroke.value("taper_end", 1.0f);
+            if (decoded_stroke.brush && (stroke.contains("taper_start") || stroke.contains("taper_end")))
+                throw std::runtime_error("brush taper must be authored in stroke.brush");
             if ((decoded_stroke.cap != "butt" && decoded_stroke.cap != "round" &&
                  decoded_stroke.cap != "square") ||
                 (decoded_stroke.join != "miter" && decoded_stroke.join != "round" &&
@@ -672,6 +809,28 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 throw std::runtime_error("shape.stroke cap, join, or taper is outside the supported range");
             if (stroke.contains("gradient"))
                 decoded_stroke.gradient = decode_gradient_definition(stroke.at("gradient"));
+            if (decoded_stroke.brush && stroke.contains("color") && stroke.at("color").is_object())
+                throw std::runtime_error("brush stroke color must be a solid color; use brush.along_path_gradient for a color ramp");
+            const bool closed_stroke_path =
+                shape.type == ShapeContentTypePlan::Star ||
+                shape.type == ShapeContentTypePlan::Polygon ||
+                shape.type == ShapeContentTypePlan::Arrow ||
+                shape.type == ShapeContentTypePlan::DotGrid ||
+                ((shape.type == ShapeContentTypePlan::Line ||
+                  shape.type == ShapeContentTypePlan::Path) &&
+                 std::any_of(shape.path.begin(), shape.path.end(), [](const auto& command) {
+                    return command.type == ShapePathCommandTypePlan::Close;
+                }));
+            if (closed_stroke_path &&
+                ((decoded_stroke.brush &&
+                  (decoded_stroke.brush->taper_start != 1.0f ||
+                   decoded_stroke.brush->taper_end != 1.0f)) ||
+                 (!decoded_stroke.brush &&
+                  (decoded_stroke.taper_start != 1.0f ||
+                   decoded_stroke.taper_end != 1.0f))))
+                throw std::runtime_error("tapered strokes require an open path");
+            if (decoded_stroke.brush && decoded_stroke.gradient)
+                throw std::runtime_error("brush strokes use brush.along_path_gradient or brush opacity, not a competing stroke gradient");
             if (decoded_stroke.gradient) {
                 const auto& gradient = *decoded_stroke.gradient;
                 if (gradient.color_stops.size() < 2)

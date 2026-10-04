@@ -88,6 +88,12 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                                    static_cast<float>(plan.canvas.height)};
                         params.fit = detail::fit_mode(
                             layer.fit.value_or(FitMode::Cover));
+                        if (layer.crop) {
+                            params.crop.enabled = layer.crop->enabled;
+                            params.crop.origin = Vec2{layer.crop->origin[0], layer.crop->origin[1]};
+                            params.crop.size = Vec2{layer.crop->size[0], layer.crop->size[1]};
+                            params.crop.flip_x = layer.crop->flip_x;
+                        }
                         params.radius = layer.radius.value_or(0.0f);
                         builder.image("image", std::move(params));
                         break;
@@ -212,13 +218,7 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                                 std::min(solid_size.x, solid_size.y) * 0.5f);
                             params.color = solid_color;
                             params.fill = graphics::FillStyle::solid(solid_color);
-                            if (layer.id.ends_with("__frame")) {
-                                // A media frame plate must share the
-                                // centered source box whether its layer
-                                // inherits an explicit transform or uses
-                                // the implicit canvas-center placement.
-                                params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
-                            } else if (layer.position_dimensions < 2) {
+                            if (layer.position_dimensions < 2) {
                                 builder.pin_to(Anchor::Center);
                                 params.pos = {-params.size.x * 0.5f, -params.size.y * 0.5f, 0.0f};
                             }

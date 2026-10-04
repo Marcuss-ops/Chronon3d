@@ -372,6 +372,19 @@ if(CHRONON3D_BUILD_FUZZERS AND CHRONON3D_ENABLE_IPC)
     add_subdirectory(tests/fuzz)
 endif()
 
+# Official Go/Python bindings over the C ABI (bindings/).  Opt-in: needs the
+# shared C ABI plus python3+pytest and/or go on the host.  Exit 77 = skipped.
+option(CHRONON3D_BUILD_BINDING_TESTS "Register Go/Python binding tests (needs C API)" OFF)
+if(CHRONON3D_BUILD_BINDING_TESTS AND TARGET chronon3d_c)
+    foreach(_lang IN ITEMS python go)
+        add_test(NAME chronon3d_bindings_${_lang}
+            COMMAND ${CMAKE_COMMAND} -E env "CHRONON3D_LIB=$<TARGET_FILE:chronon3d_c>"
+                    bash "${CMAKE_SOURCE_DIR}/bindings/run_binding_tests.sh" ${_lang})
+        set_tests_properties(chronon3d_bindings_${_lang} PROPERTIES
+            SKIP_RETURN_CODE 77 LABELS "bindings")
+    endforeach()
+endif()
+
 # Install-boundary CI gate.
 option(CHRONON3D_BUILD_INSTALL_CONSUMER_TEST
     "Register the end-to-end SDK install-boundary check" OFF)

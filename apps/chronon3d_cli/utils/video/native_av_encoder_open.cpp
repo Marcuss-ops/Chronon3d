@@ -5,6 +5,7 @@
 #include <chronon3d/media/video/keyframe_cadence.hpp>
 #include <libavutil/mastering_display_metadata.h>
 #include <libavutil/mathematics.h>
+#include <libavcodec/version.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -62,6 +63,13 @@ bool set_codec_option_checked(AVCodecContext* codec, const char* key,
 
 bool configure_hdr_static_metadata(
     AVCodecContext* codec, const color::HdrMasteringMetadata& metadata) {
+#if LIBAVCODEC_VERSION_MAJOR < 61
+    // Older FFmpeg releases do not expose encoder context side data APIs.
+    // Keep SDR/software-pipe builds usable and reject explicit HDR metadata.
+    (void)codec;
+    (void)metadata;
+    return false;
+#else
     auto* mastering_side_data = av_frame_side_data_new(
         &codec->decoded_side_data, &codec->nb_decoded_side_data,
         AV_FRAME_DATA_MASTERING_DISPLAY_METADATA,
@@ -95,6 +103,7 @@ bool configure_hdr_static_metadata(
         light->MaxFALL = metadata.content_light->max_fall_nits;
     }
     return true;
+#endif
 }
 
 bool validate_encoder_options(const FfmpegPipeOptions& options) {
@@ -349,23 +358,23 @@ bool NativeAvEncoder::configure_codec_and_surface() {
                                 options_.color_transform.output == color::ColorSpace::HLG;
         codec_->profile = declared_profile >= 0
             ? declared_profile
-            : (hdr_output ? AV_PROFILE_H264_HIGH_10 : AV_PROFILE_H264_HIGH);
+            : (hdr_output ? FF_PROFILE_H264_HIGH_10 : FF_PROFILE_H264_HIGH);
         // FFmpeg's NVENC wrapper can leave its private profile at Main even
         // when AVCodecContext::profile is set before avcodec_open2(). Pass the
         // profile through the encoder option as well so the emitted SPS and
         // packet facts match the assembly contract (and any borrowed stream).
         const char* profile_option = nullptr;
         switch (codec_->profile) {
-            case AV_PROFILE_H264_BASELINE:
+            case FF_PROFILE_H264_BASELINE:
                 profile_option = "baseline";
                 break;
-            case AV_PROFILE_H264_MAIN:
+            case FF_PROFILE_H264_MAIN:
                 profile_option = "main";
                 break;
-            case AV_PROFILE_H264_HIGH:
+            case FF_PROFILE_H264_HIGH:
                 profile_option = "high";
                 break;
-            case AV_PROFILE_H264_HIGH_10:
+            case FF_PROFILE_H264_HIGH_10:
                 profile_option = "high10";
                 break;
             default:

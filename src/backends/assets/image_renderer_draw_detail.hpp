@@ -120,9 +120,21 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         Vec3{-static_cast<float>(fb.origin_x()),
              -static_cast<float>(fb.origin_y()),
              0.0f});
-    Mat4 scaled_model = canvas_to_surface * state.matrix
-                      * glm::translate(Mat4(1.0f), Vec3(placement.dst_rect.origin, 0.0f))
-                      * glm::scale(Mat4(1.0f), Vec3(scale, 1.0f));
+    Mat4 scaled_model;
+    if (image.crop.flip_x) {
+        // Mirror the sampled content inside its authored image box. This is
+        // a local UV presentation choice; it does not reflect the layer's
+        // world transform or alter projected-card winding.
+        const Vec3 mirroredOrigin(placement.dst_rect.origin.x + placement.dst_rect.size.x,
+                                  placement.dst_rect.origin.y, 0.0f);
+        scaled_model = canvas_to_surface * state.matrix
+                     * glm::translate(Mat4(1.0f), mirroredOrigin)
+                     * glm::scale(Mat4(1.0f), Vec3(-scale.x, scale.y, 1.0f));
+    } else {
+        scaled_model = canvas_to_surface * state.matrix
+                     * glm::translate(Mat4(1.0f), Vec3(placement.dst_rect.origin, 0.0f))
+                     * glm::scale(Mat4(1.0f), Vec3(scale, 1.0f));
+    }
 
     // Scale the radius from destination space to sub-image source space.
     float scaled_radius = 0.0f;

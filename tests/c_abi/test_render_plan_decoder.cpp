@@ -2973,7 +2973,54 @@ TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
     CHECK_FALSE(render_plan::decode_render_plan(render_plan_test::base_plan({unbounded_dots})));
 }
 
+TEST_CASE("V3 GradientMesh fill decodes with bounded nodes and fingerprints every node") {
+    using nlohmann::json;
+    auto nodes = json::array({
+        {{"position", {0.0, 0.0}}, {"color", {1.0, 0.0, 0.0, 1.0}}},
+        {{"position", {1.0, 0.0}}, {"color", {0.0, 1.0, 0.0, 1.0}}},
+        {{"position", {0.0, 1.0}}, {"color", {0.0, 0.0, 1.0, 1.0}}},
+        {{"position", {1.0, 1.0}}, {"color", {1.0, 1.0, 1.0, 1.0}}}
+    });
+    auto input = render_plan_test::base_plan({render_plan_test::shape_layer({
+        {"type", "rect"}, {"fill", {{"type", "mesh"}, {"mesh", {{"nodes", nodes}}}}}})});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(input);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].shape);
+    REQUIRE(decoded->layers[0].shape->gradient_mesh);
+    REQUIRE(decoded->layers[0].shape->gradient_mesh->nodes.size() == 4);
+
+    auto moved_node = input;
+    moved_node["layers"][0]["shape"]["fill"]["mesh"]["nodes"][1]["position"][0] = 0.9;
+    const auto moved = chronon3d::render_plan::decode_render_plan(moved_node);
+    REQUIRE(moved);
+    CHECK(moved->content_fingerprint != decoded->content_fingerprint);
+
+    auto recolored_node = input;
+    recolored_node["layers"][0]["shape"]["fill"]["mesh"]["nodes"][2]["color"][1] = 0.4;
+    const auto recolored = chronon3d::render_plan::decode_render_plan(recolored_node);
+    REQUIRE(recolored);
+    CHECK(recolored->content_fingerprint != decoded->content_fingerprint);
+
+    auto weighted_node = input;
+    weighted_node["layers"][0]["shape"]["fill"]["mesh"]["nodes"][0]["weight"] = 2.0;
+    const auto weighted = chronon3d::render_plan::decode_render_plan(weighted_node);
+    REQUIRE(weighted);
+    CHECK(weighted->content_fingerprint != decoded->content_fingerprint);
+
+    auto invalid_position = input;
+    invalid_position["layers"][0]["shape"]["fill"]["mesh"]["nodes"][0]["position"][0] = 1.1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_position));
+    auto invalid_weight = input;
+    invalid_weight["layers"][0]["shape"]["fill"]["mesh"]["nodes"][0]["weight"] = 0.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_weight));
+
+    auto field_conflict = input;
+    field_conflict["layers"][0]["shape"]["field"] = {{"generator", "perlin"}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(field_conflict));
+}
+
 TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinted") {
+
     using nlohmann::json;
     auto input = render_plan_test::base_plan({render_plan_test::shape_layer({
         {"type", "rect"}, {"fill", {0.8, 0.4, 0.2, 1.0}},
@@ -3258,6 +3305,78 @@ TEST_CASE("Render plan declares PNG sequence and GIF output formats") {
     CHECK(gif->output.format == chronon3d::render_plan::OutputFormat::Gif);
 }
 
+TEST_CASE("V3 brush strokes decode texture, linear color ramp, and deterministic profile") {
+    auto source = render_plan_test::base_plan({render_plan_test::shape_layer({
+        {"type", "path"},
+        {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
+                   {{"type", "line_to"}, {"point", {20, 0}}}}},
+        {"stroke", {{"width", 8}, {"color", {1, 0.5, 0.25, 1}},
+            {"brush", {{"size", 12}, {"hardness", 0.8}, {"opacity", 0.7},
+                {"flow", 0.5}, {"spacing", 0.2}, {"grain", 0.3},
+                {"texture", {{"generator", "linear"}, {"frequency", 2.0}}},
+                {"along_path_gradient", render_plan_test::gradient()}}}}}
+    })});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) INFO(decoded.error().path << ": " << decoded.error().message);
+    REQUIRE(decoded);
+    const auto& profile = *decoded->layers[0].shape->stroke->brush;
+    REQUIRE(profile.texture);
+    CHECK(profile.texture->generator == chronon3d::graphics::Field2DGenerator::Linear);
+    REQUIRE(profile.along_path_gradient);
+    CHECK(profile.along_path_gradient->type == chronon3d::graphics::GradientType::Linear);
+    const auto repeated = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(repeated);
+    CHECK(decoded->content_fingerprint == repeated->content_fingerprint);
+
+    auto unsupported_gradient = source;
+    unsupported_gradient["layers"][0]["shape"]["stroke"]["brush"]["along_path_gradient"]["type"] = "radial";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(unsupported_gradient));
+    auto bad_pressure = source;
+    bad_pressure["layers"][0]["shape"]["stroke"]["brush"]["pressure_curve"] = {{0.8, 0.4}, {0.2, 0.9}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_pressure));
+    auto imported = source;
+    imported["layers"][0]["shape"] = {{"type", "path"}, {"asset", "shapes/icon.svg"},
+        {"stroke", {{"width", 8}, {"brush", {{"size", 12}}}}}};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(imported));
+    auto no_base_width = source;
+    no_base_width["layers"][0]["shape"]["stroke"]["width"] = 0;
+    no_base_width["layers"][0]["shape"]["stroke"]["brush"]["size"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(no_base_width));
+
+    auto brush_size_supplies_width = source;
+    brush_size_supplies_width["layers"][0]["shape"]["stroke"].erase("width");
+    const auto size_only = chronon3d::render_plan::decode_render_plan(brush_size_supplies_width);
+    REQUIRE(size_only);
+    CHECK(size_only->layers[0].shape->stroke->brush->size == doctest::Approx(12.0f));
+    CHECK_FALSE(size_only->layers[0].shape->stroke->width.has_value());
+
+    auto negative_base_width = source;
+    negative_base_width["layers"][0]["shape"]["stroke"]["width"] = -1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(negative_base_width));
+
+    auto closed_solid = render_plan_test::base_plan({render_plan_test::shape_layer({
+        {"type", "path"},
+        {"path", {{{"type", "move_to"}, {"point", {0, 0}}},
+                   {{"type", "line_to"}, {"point", {20, 0}}},
+                   {{"type", "line_to"}, {"point", {10, 20}}},
+                   {{"type", "close"}}}},
+        {"stroke", {{"width", 4}, {"taper_start", 0.4}}}
+    })});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(closed_solid));
+    closed_solid["layers"][0]["shape"]["stroke"].erase("taper_start");
+    REQUIRE(chronon3d::render_plan::decode_render_plan(closed_solid));
+
+    auto closed_brush = closed_solid;
+    closed_brush["layers"][0]["shape"]["stroke"]["brush"] = {{"size", 8}};
+    REQUIRE(chronon3d::render_plan::decode_render_plan(closed_brush));
+    closed_brush["layers"][0]["shape"]["stroke"]["brush"]["taper_end"] = 0.5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(closed_brush));
+
+    auto open_brush_with_stroke_taper = source;
+    open_brush_with_stroke_taper["layers"][0]["shape"]["stroke"]["taper_start"] = 0.5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(open_brush_with_stroke_taper));
+}
+
 TEST_CASE("Backdrop blur is accepted only on shape layers with bounded parameters") {
     auto shape = render_plan_test::shape_layer({{"type", "rounded_rect"}});
     shape["style"] = {{"backdrop", {{"blur", 16.0}, {"brightness", 1.0}, {"saturation", 1.0},
@@ -3329,4 +3448,66 @@ TEST_CASE("V3 gradient decoding requires two stops and preserves spread and opac
     REQUIRE(gradient_plan);
     REQUIRE(gradient_plan->layers[0].shape->gradient);
     CHECK_FALSE(gradient_plan->layers[0].shape->fill_color);
+}
+
+TEST_CASE("RenderPlan image crop decodes normalized rectangles and rejects invalid bounds") {
+    using namespace chronon3d;
+    auto image = nlohmann::json{{"id", "archive"}, {"type", "image"},
+        {"asset", "archive.jpg"}, {"size", {400, 220}}, {"fit", "cover"},
+        {"crop", {{"enabled", true}, {"origin", {0.14, 0.08}},
+                  {"size", {0.72, 0.84}}, {"flip_x", true}}}};
+    auto source = render_plan_test::base_plan({image});
+    const auto decoded = render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].crop);
+    CHECK(decoded->layers[0].crop->enabled);
+    CHECK(decoded->layers[0].crop->origin[0] == doctest::Approx(0.14f));
+    CHECK(decoded->layers[0].crop->origin[1] == doctest::Approx(0.08f));
+    CHECK(decoded->layers[0].crop->size[0] == doctest::Approx(0.72f));
+    CHECK(decoded->layers[0].crop->size[1] == doctest::Approx(0.84f));
+    CHECK(decoded->layers[0].crop->flip_x);
+
+    auto out_of_bounds = source;
+    out_of_bounds["layers"][0]["crop"]["origin"] = {0.8, 0.2};
+    CHECK_FALSE(render_plan::decode_render_plan(out_of_bounds));
+    auto on_text = source;
+    on_text["layers"][0]["type"] = "text";
+    on_text["layers"][0].erase("asset");
+    on_text["layers"][0]["text"] = "archive";
+    on_text["layers"][0]["crop"] = {{"origin", {0.0, 0.0}}, {"size", {1.0, 1.0}}};
+    CHECK_FALSE(render_plan::decode_render_plan(on_text));
+}
+
+TEST_CASE("RenderPlan camera DOF channels decode and enforce their ranges") {
+    auto source = render_plan_test::base_plan(nlohmann::json::array({{
+        {"id", "dof-background"}, {"type", "color"},
+        {"size", {320, 180}}, {"color", {0, 0, 0, 1}}
+    }}));
+    source["canvas"]["duration_frames"] = 54;
+    source["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1000}},
+        {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}, {"near", 1}, {"far", 10000},
+        {"zoom", 1}, {"dof", {
+        {"enabled", true}, {"focus_distance", 0.001}, {"aperture", 0.18}, {"max_blur", 24}}}};
+    source["camera_animation"] = {{"tracks", nlohmann::json::array({
+        {{"property", "camera_focus_distance"}, {"keyframes", nlohmann::json::array({
+            {{"frame", 0}, {"value", 0.001}}, {{"frame", 53}, {"value", 80.0}}})}},
+        {{"property", "camera_aperture"}, {"keyframes", nlohmann::json::array({
+            {{"frame", 0}, {"value", 0.18}}, {{"frame", 53}, {"value", 0.18}}})}}
+    })}};
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->camera_animation);
+    CHECK(decoded->camera_animation->size() == 2);
+    CHECK(decoded->camera_animation->at(0).property ==
+          chronon3d::render_plan::CameraPropertyPlan::FocusDistance);
+    CHECK(decoded->camera_animation->at(1).property ==
+          chronon3d::render_plan::CameraPropertyPlan::Aperture);
+
+    auto dof_disabled = source;
+    dof_disabled["camera"]["dof"]["enabled"] = false;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(dof_disabled));
+    auto invalid_aperture = source;
+    invalid_aperture["camera_animation"]["tracks"][1]["keyframes"][0]["value"] = 1.1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_aperture));
 }

@@ -139,6 +139,15 @@ private:
     seed = hash_combine(seed, hash_value(f.field.has_value()));
     if (f.field)
         seed = hash_combine(seed, hash_value(graphics::field2d_fingerprint(*f.field)));
+    if (f.gradient_mesh) {
+        seed = hash_combine(seed, hash_value(true));
+        seed = hash_combine(seed, hash_value(f.gradient_mesh->nodes.size()));
+        for (const auto& node : f.gradient_mesh->nodes) {
+            seed = hash_combine(seed, hash_vec2(node.position));
+            seed = hash_combine(seed, hash_color(node.color));
+            seed = hash_combine(seed, hash_value(node.weight));
+        }
+    }
     return seed;
 }
 
@@ -626,6 +635,9 @@ private:
             seed = hash_combine(seed, hash_value(s.path().stroke.gradient.has_value()));
             if (s.path().stroke.gradient)
                 seed = hash_combine(seed, hash_gradient(*s.path().stroke.gradient));
+            seed = hash_combine(seed, hash_value(s.path().stroke.brush.has_value()));
+            if (s.path().stroke.brush)
+                seed = hash_combine(seed, hash_value(s.path().stroke.brush->fingerprint()));
             seed = hash_combine(seed, hash_value(s.path().stroke.trim_start));
             seed = hash_combine(seed, hash_value(s.path().stroke.trim_end));
             seed = hash_combine(seed, hash_bytes(&s.path().stroke.cap, sizeof(s.path().stroke.cap)));

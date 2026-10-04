@@ -172,6 +172,21 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         add_optional(out, shape.field, [](auto& nested, const auto& field) {
             add_field2d(nested, field);
         });
+        // Append mesh identity only when present to preserve fingerprints for
+        // every legacy plan that predates mesh fills.
+        if (shape.gradient_mesh) {
+            out.add_bool(true);
+            out.add_size(shape.gradient_mesh->nodes.size());
+            for (const auto& node : shape.gradient_mesh->nodes) {
+                out.add_float(node.position.x);
+                out.add_float(node.position.y);
+                out.add_float(node.color.r);
+                out.add_float(node.color.g);
+                out.add_float(node.color.b);
+                out.add_float(node.color.a);
+                out.add_float(node.weight);
+            }
+        }
         add_optional(out, shape.stroke, [](auto& nested, const StrokeStyle& stroke) {
             nested.add_string(stroke.color);
             add_optional(nested, stroke.width, [](auto& w, float v) { w.add_float(v); });
@@ -190,6 +205,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             add_optional(nested, stroke.gradient, [](auto& w,
                     const graphics::GradientDefinition& value) {
                 add_gradient(w, value);
+            });
+            add_optional(nested, stroke.brush, [](auto& w,
+                    const graphics::BrushProfile& brush) {
+                w.add_uint64(brush.fingerprint());
             });
         });
         out.add_size(shape.path.size());
@@ -213,6 +232,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 });
                 add_optional(writer, stroke.solid_color, [](auto& nested, const auto& color) {
                     for (const auto component : color) nested.add_float(component);
+                });
+                add_optional(writer, stroke.brush, [](auto& nested,
+                        const graphics::BrushProfile& brush) {
+                    nested.add_uint64(brush.fingerprint());
                 });
             });
             out.add_size(subpath.path.size());
@@ -703,6 +726,13 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                  [](auto& writer, const TransitionPlan& value) { add_transition(writer, value); });
     add_optional(out, layer.fit,
                  [](auto& writer, FitMode value) { writer.add_enum(value); });
+    add_optional(out, layer.crop,
+                 [](auto& writer, const ImageCropPlan& value) {
+        writer.add_bool(value.enabled);
+        for (const float v : value.origin) writer.add_float(v);
+        for (const float v : value.size) writer.add_float(v);
+        writer.add_bool(value.flip_x);
+    });
 
     add_optional(out, layer.animation,
                  [](auto& writer, const AnimationPlan& animation) {

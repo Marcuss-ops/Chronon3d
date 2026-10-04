@@ -147,6 +147,35 @@ TEST_CASE("render_plan V3 shape fill is accepted as an extension and checked by 
     CHECK(plan["layers"][0]["shape"].contains("fill"));
 }
 
+TEST_CASE("render_plan V3 GradientMesh fills validate and enforce node bounds") {
+    auto plan = make_minimal_valid_plan();
+    plan["schema"] = "chronon.render-plan.v3";
+    plan["version"] = 3;
+
+    json nodes = json::array({
+        {{"position", {0.0, 0.0}}, {"color", {1.0, 0.0, 0.0, 1.0}}},
+        {{"position", {1.0, 0.0}}, {"color", {0.0, 1.0, 0.0, 1.0}}},
+        {{"position", {0.0, 1.0}}, {"color", {0.0, 0.0, 1.0, 1.0}}},
+        {{"position", {1.0, 1.0}}, {"color", {1.0, 1.0, 1.0, 1.0}}}
+    });
+    json fill = {{"type", "mesh"}};
+    fill["mesh"]["nodes"] = std::move(nodes);
+    json shape = {{"type", "rect"}};
+    shape["fill"] = std::move(fill);
+    json layer = {
+        {"id", "mesh-shape"}, {"type", "shape"}, {"size", {20, 10}},
+        {"shape", std::move(shape)}
+    };
+    plan["layers"] = json::array({std::move(layer)});
+
+    const auto valid = validate_render_plan(plan);
+    INFO(valid.format());
+    CHECK(valid.ok());
+
+    plan["layers"][0]["shape"]["fill"]["mesh"]["nodes"][0]["position"][0] = 1.1;
+    check_schema_violation(validate_render_plan(plan));
+}
+
 TEST_CASE("render_plan V3 text solid stroke remains valid through the shared V2 projection") {
     auto plan = json{
         {"schema", "chronon.render-plan.v3"}, {"version", 3},
@@ -190,6 +219,81 @@ TEST_CASE("render_plan V3 rejects unsupported WorldMap, Chart, and shape.counter
         INFO(shape.dump());
         check_schema_violation(validate_render_plan(valid_shape_plan(shape)));
     }
+}
+
+TEST_CASE("render_plan V3 brush strokes validate paths, widths, and taper restrictions") {
+    const auto make_shape_plan = [](json shape) {
+        return json{
+            {"schema", "chronon.render-plan.v3"}, {"version", 3},
+            {"canvas", {{"width", 64}, {"height", 64}, {"fps_num", 30},
+                         {"fps_den", 1}, {"duration_frames", 12}}},
+            {"layers", json::array({{{"id", "paint"}, {"type", "shape"},
+                {"size", {64, 64}}, {"shape", std::move(shape)}}})},
+            {"output", {{"path", "out.png"}}}
+        };
+    };
+    const auto open_path = json::parse(R"JSON({
+      "type":"path","path":[{"type":"move_to","point":[0,0]},
+        {"type":"line_to","point":[40,0]}],
+      "stroke":{"color":"#FFFFFF","brush":{"size":8,"taper_start":0.2}}
+    })JSON");
+    CHECK(validate_render_plan(make_shape_plan(open_path)).ok());
+
+    auto missing_width = open_path;
+    missing_width["stroke"]["brush"].erase("size");
+    check_schema_violation(validate_render_plan(make_shape_plan(missing_width)));
+    auto explicit_width = missing_width;
+    explicit_width["stroke"]["width"] = 4;
+    CHECK(validate_render_plan(make_shape_plan(explicit_width)).ok());
+    auto zero_size_inherits_width = explicit_width;
+    zero_size_inherits_width["stroke"]["brush"]["size"] = 0;
+    CHECK(validate_render_plan(make_shape_plan(zero_size_inherits_width)).ok());
+    auto zero_width = open_path;
+    zero_width["stroke"]["width"] = 0;
+    zero_width["stroke"]["brush"]["size"] = 0;
+    check_schema_violation(validate_render_plan(make_shape_plan(zero_width)));
+    auto negative_width = open_path;
+    negative_width["stroke"]["width"] = -1;
+    check_schema_violation(validate_render_plan(make_shape_plan(negative_width)));
+
+    auto closed_path = json::parse(R"JSON({
+      "type":"path","path":[{"type":"move_to","point":[0,0]},
+        {"type":"line_to","point":[40,0]},{"type":"line_to","point":[20,40]},
+        {"type":"close"}],
+      "stroke":{"color":"#FFFFFF","width":3}
+    })JSON");
+    CHECK(validate_render_plan(make_shape_plan(closed_path)).ok());
+    closed_path["stroke"]["taper_start"] = 0.2;
+    check_schema_violation(validate_render_plan(make_shape_plan(closed_path)));
+
+    closed_path["stroke"].erase("taper_start");
+    closed_path["stroke"]["brush"] = {{"size", 8}};
+    CHECK(validate_render_plan(make_shape_plan(closed_path)).ok());
+    closed_path["stroke"]["brush"]["taper_end"] = 0.8;
+    check_schema_violation(validate_render_plan(make_shape_plan(closed_path)));
+
+    auto generated_closed = make_shape_plan({{"type", "star"},
+        {"points", 5}, {"stroke", {{"color", "#FFFFFF"},
+            {"brush", {{"size", 8}, {"taper_start", 0.2}}}}}});
+    check_schema_violation(validate_render_plan(generated_closed));
+    auto aliased_dot_grid_taper = make_shape_plan({{"type", "dotgrid"},
+        {"stroke", {{"color", "#FFFFFF"},
+            {"brush", {{"size", 8}, {"taper_end", 0.5}}}}}});
+    check_schema_violation(validate_render_plan(aliased_dot_grid_taper));
+
+    auto competing_gradient = open_path;
+    competing_gradient["stroke"]["gradient"] = {
+        {"type", "linear"}, {"start", {0, 0}}, {"end", {1, 0}},
+        {"color_stops", {{{"position", 0}, {"color", {1, 0, 0, 1}}},
+                          {{"position", 1}, {"color", {0, 0, 1, 1}}}}}};
+    check_schema_violation(validate_render_plan(make_shape_plan(competing_gradient)));
+
+    auto unsupported_shape = make_shape_plan({{"type", "ellipse"},
+        {"stroke", {{"color", "#FFFFFF"}, {"brush", {{"size", 8}}}}}});
+    check_schema_violation(validate_render_plan(unsupported_shape));
+    auto imported = make_shape_plan({{"type", "path"}, {"asset", "marks/a.svg"},
+        {"stroke", {{"color", "#FFFFFF"}, {"brush", {{"size", 8}}}}}});
+    check_schema_violation(validate_render_plan(imported));
 }
 
 TEST_CASE("render_plan V3 accepts the per-frame paint track family") {

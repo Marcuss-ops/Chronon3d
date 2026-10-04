@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chronon3d"
+version = "0.1.0"
+description = "Python bindings for the Chronon3D C ABI (ctypes)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "See LICENSE in the Chronon3D repository" }
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+pil = ["Pillow"]
+
+[tool.setuptools]
+packages = ["chronon3d"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

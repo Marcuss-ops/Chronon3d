@@ -28,7 +28,7 @@ struct ImageDecodeOptions {
     std::string ocio_input_space;
     std::string ocio_working_space;
 
-    friend constexpr bool operator==(const ImageDecodeOptions&, const ImageDecodeOptions&) = default;
+    friend bool operator==(const ImageDecodeOptions&, const ImageDecodeOptions&) = default;
 };
 
 struct ImageAssetKey {

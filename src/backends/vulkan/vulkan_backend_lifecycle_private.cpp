@@ -9,6 +9,7 @@
 #include "blur_comp_spv.hpp"
 #include "bloom_threshold_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
+#include "color_matrix_comp_spv.hpp"
 #include "lighting_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
 #include "text_run_comp_spv.hpp"
@@ -311,6 +312,29 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::ColorAdjust, color_adjust_pipeline, "ColorAdjust");
         if (debug_context) debug_context->set_pipeline_name(color_adjust_pipeline, "Chronon3D.Pipeline.ColorAdjust");
+
+        const VkShaderModuleCreateInfo color_matrix_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_color_matrix_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_color_matrix_comp_spv)};
+        VkShaderModule color_matrix_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &color_matrix_shader_info, nullptr, &color_matrix_shader),
+              "vkCreateShaderModule(color matrix)");
+        const VkPipelineShaderStageCreateInfo color_matrix_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            color_matrix_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo color_matrix_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            color_matrix_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline color_matrix_pipeline = VK_NULL_HANDLE;
+        const VkResult color_matrix_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &color_matrix_pipeline_info, nullptr, &color_matrix_pipeline);
+        vkDestroyShaderModule(device, color_matrix_shader, nullptr);
+        check(color_matrix_result, "vkCreateComputePipelines(color matrix)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::ColorMatrix, color_matrix_pipeline, "ColorMatrix");
+        if (debug_context) debug_context->set_pipeline_name(color_matrix_pipeline, "Chronon3D.Pipeline.ColorMatrix");
 
         const VkShaderModuleCreateInfo lighting_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

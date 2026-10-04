@@ -2,6 +2,7 @@
 
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/graphics/field2d.hpp>
+#include <chronon3d/graphics/gradient_mesh.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
@@ -19,6 +20,7 @@ enum class FillType {
     RadialGradient,
     ConicGradient,
     Field2D,
+    GradientMesh,
 };
 
 // Compatibility bridge for scene/path paint consumers. Do not add new
@@ -80,9 +82,14 @@ struct Fill {
     Color solid{1, 1, 1, 1};
     GradientFill gradient{};
     std::optional<graphics::Field2D> field;
+    std::optional<graphics::GradientMesh> gradient_mesh;
 
     static Fill solid_color(Color color) {
-        return Fill{true, FillType::Solid, color, {}};
+        Fill fill;
+        fill.enabled = true;
+        fill.type = FillType::Solid;
+        fill.solid = color;
+        return fill;
     }
 
     static Fill linear(Vec2 from, Vec2 to, std::vector<GradientStop> stops) {
@@ -116,6 +123,13 @@ struct Fill {
         fill.field = std::move(value);
         return fill;
     }
+
+    static Fill mesh(graphics::GradientMesh value) {
+        Fill fill;
+        fill.type = FillType::GradientMesh;
+        fill.gradient_mesh = std::move(value);
+        return fill;
+    }
 };
 
 [[nodiscard]] inline Color sample_fill_at(const Fill& fill, const Vec2& point) {
@@ -124,6 +138,8 @@ struct Fill {
         return Color{fill.solid.r * value, fill.solid.g * value,
                      fill.solid.b * value, fill.solid.a};
     }
+    if (fill.type == FillType::GradientMesh && fill.gradient_mesh)
+        return fill.gradient_mesh->sample(point);
     return sample_gradient_at(fill.gradient, point);
 }
 

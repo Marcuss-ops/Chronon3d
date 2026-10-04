@@ -353,6 +353,12 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 
         RenderSettings settings;
         settings.fail_on_missing_assets = true;
+        if (plan.temporal_motion_blur) {
+            settings.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
+            settings.motion_blur.samples = static_cast<int>(plan.temporal_motion_blur->samples);
+            settings.motion_blur.shutter_angle_deg = plan.temporal_motion_blur->shutter_angle;
+            settings.motion_blur.shutter_phase_deg = -90.f;
+        }
         render_plan::RenderPlanFingerprintOptions fingerprint_options;
         apply_fingerprint_settings(fingerprint_options, settings);
 
