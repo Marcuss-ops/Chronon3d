@@ -90,7 +90,9 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
         StrokeAlignment::Outside};
     const std::array types{ShapeType::Rect, ShapeType::RoundedRect,
                            ShapeType::Circle};
-    const std::array scales{0.75f, 1.0f, 1.25f, 2.0f};
+    const std::array scales{
+        Vec2{0.75f, 0.75f}, Vec2{1.0f, 1.0f}, Vec2{1.25f, 1.25f},
+        Vec2{2.0f, 2.0f}, Vec2{1.25f, 0.75f}, Vec2{0.75f, 2.0f}};
     runtime::RenderSurfaceHandle handle = 0xC3D200u;
 
     for (const auto scale : scales) {
@@ -128,8 +130,8 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
             expected.clear(background);
             RenderState state;
             state.matrix = Mat4{1.0f};
-            state.matrix[0][0] = scale;
-            state.matrix[1][1] = scale;
+            state.matrix[0][0] = scale.x;
+            state.matrix[1][1] = scale.y;
             state.matrix[3][0] = 10.0f;
             state.matrix[3][1] = 8.0f;
             state.clip_rect = raster::BBox{12, 10, 42, 30};
@@ -164,7 +166,7 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
             REQUIRE(backend.download_surface(handle, pixels).ok());
             INFO("shape=" << static_cast<int>(type)
                  << " alignment=" << static_cast<int>(alignment)
-                 << " scale=" << scale);
+                 << " scale=" << scale.x << "x" << scale.y);
             for (int y = 0; y < height; ++y) {
                 for (int x = 0; x < width; ++x) {
                     const Color c = expected.get_pixel(x, y);
