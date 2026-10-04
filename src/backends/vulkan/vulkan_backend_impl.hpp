@@ -577,7 +577,7 @@ struct VulkanBackend::Impl {
                                  runtime::SurfaceAffineTransform transform);
     void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                      const Image& destination, const Image& source,
-                     float radius, bool horizontal);
+                     float radius, bool horizontal, bool box_kernel = false);
     void record_bloom_threshold(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& destination, const Image& source,
                                 float threshold);
@@ -672,7 +672,8 @@ struct VulkanBackend::Impl {
                           runtime::RenderSurfaceHandle source,
                           const runtime::SurfaceAffineTransform& transform);
     void blur(runtime::RenderSurfaceHandle destination,
-              runtime::RenderSurfaceHandle source, float radius, bool horizontal);
+              runtime::RenderSurfaceHandle source, float radius, bool horizontal,
+              bool box_kernel = false);
     void glow(runtime::RenderSurfaceHandle destination,
               runtime::RenderSurfaceHandle source,
               runtime::RenderSurfaceHandle scratch_horizontal,

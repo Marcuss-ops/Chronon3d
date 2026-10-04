@@ -7,6 +7,7 @@ layout(binding = 1, rgba32f) uniform readonly image2D source_image;
 layout(push_constant) uniform BlurParams {
     float radius;
     int horizontal;
+    int box_kernel;
 } params;
 
 void main() {
@@ -14,6 +15,21 @@ void main() {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (pixel.x >= size.x || pixel.y >= size.y) return;
 
+    if (params.box_kernel != 0) {
+        int extent = max(1, int(round(params.radius)));
+        vec4 sum = vec4(0.0);
+        for (int offset = -extent; offset <= extent; ++offset) {
+            ivec2 sample_pixel = pixel + (params.horizontal != 0
+                ? ivec2(offset, 0) : ivec2(0, offset));
+            sample_pixel = clamp(sample_pixel, ivec2(0), size - ivec2(1));
+            sum += imageLoad(source_image, sample_pixel);
+        }
+        vec4 value = sum / float(2 * extent + 1);
+        imageStore(destination_image,
+                   pixel,
+                   vec4(max(value.rgb, vec3(0.0)), clamp(value.a, 0.0, 1.0)));
+        return;
+    }
     float sigma = max(params.radius, 0.5);
     // The glow path accepts radii up to 64. A radius of 42 therefore needs
     // an 84-pixel support window to preserve the approved canary falloff.

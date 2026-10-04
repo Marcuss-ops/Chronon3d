@@ -158,7 +158,7 @@ TEST_CASE("Vulkan plan-driven batch synchronizes through the BarrierPlan mapper"
     const auto submissions_before = backend.stats().submissions;
     backend.begin_plan_batch(plan);
     REQUIRE(backend.transform_surface(542, 541, 0, 0, 1.0f).ok());
-    REQUIRE(backend.blur_surface(543, 542, 1.5f, true).ok());
+    REQUIRE(backend.blur_surface(543, 542, 1.5f, true, false).ok());
     REQUIRE(backend.composite_surfaces(
         543, 541, chronon3d::BlendMode::Normal,
         chronon3d::CompositeOperator::SourceOver).ok());

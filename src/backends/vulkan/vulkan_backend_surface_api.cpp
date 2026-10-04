@@ -480,14 +480,15 @@ graph::RenderOpResult VulkanBackend::transform_surface_affine(
 
 graph::RenderOpResult VulkanBackend::blur_surface(
     runtime::RenderSurfaceHandle destination,
-    runtime::RenderSurfaceHandle source, float radius, bool horizontal) {
+    runtime::RenderSurfaceHandle source, float radius, bool horizontal,
+    bool box_kernel) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
     return run_batched_surface_op(touched, {}, [&] {
-        m_impl->blur(destination, source, radius, horizontal);
+        m_impl->blur(destination, source, radius, horizontal, box_kernel);
     });
 #else
-    (void)destination; (void)source; (void)radius; (void)horizontal;
+    (void)destination; (void)source; (void)radius; (void)horizontal; (void)box_kernel;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::blur_surface: Vulkan support is disabled"));

@@ -310,7 +310,7 @@ void VulkanBackend::Impl::transform_affine(
 
 void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle source,
-                               float radius, bool horizontal) {
+                               float radius, bool horizontal, bool box_kernel) {
     if (!(radius >= 0.0f) || radius > 32.0f) {
         throw std::invalid_argument("Vulkan blur radius must be within [0, 32]");
     }
@@ -326,7 +326,8 @@ void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &src_image});
-        record_blur(cmd, descriptors, dst_image, src_image, radius, horizontal);
+        record_blur(cmd, descriptors, dst_image, src_image, radius, horizontal,
+                    box_kernel);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

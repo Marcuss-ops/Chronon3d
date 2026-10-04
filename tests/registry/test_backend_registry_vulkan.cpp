@@ -48,6 +48,11 @@
 
 #include "../../src/render_graph/nodes/text_run/gpu_text_run.hpp"
 
+namespace chronon3d::renderer {
+void draw_transformed_shape(Framebuffer&, const Shape&, const Mat4&, const Color&,
+                            float, const RenderState*, const Fill*, float);
+}
+
 namespace {
 
 class StubBackend final : public chronon3d::graph::RenderBackend {
@@ -73,6 +78,118 @@ public:
 
 } // namespace
 #ifdef CHRONON3D_ENABLE_VULKAN
+TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
+    using namespace chronon3d;
+    using namespace chronon3d::backends::vulkan;
+
+    VulkanBackend backend;
+    constexpr int width = 96;
+    constexpr int height = 64;
+    constexpr std::array alignments{
+        StrokeAlignment::Inside, StrokeAlignment::Center,
+        StrokeAlignment::Outside};
+    const std::array types{ShapeType::Rect, ShapeType::RoundedRect,
+                           ShapeType::Circle};
+    const std::array scales{1.0f, 1.25f};
+    runtime::RenderSurfaceHandle handle = 0xC3D200u;
+
+    for (const auto scale : scales) {
+      for (const auto type : types) {
+        for (const auto alignment : alignments) {
+            RenderNode node;
+            node.shape.set_type(type);
+            node.color = Color{0.16f, 0.28f, 0.52f, 0.72f};
+            if (type == ShapeType::Rect) {
+                node.shape.rect().size = {30.0f, 20.0f};
+                node.shape.rect().stroke.enabled = true;
+                node.shape.rect().stroke.width = 4.0f;
+                node.shape.rect().stroke.color = Color{0.9f, 0.18f, 0.34f, 0.63f};
+                node.shape.rect().stroke.alignment = alignment;
+            } else if (type == ShapeType::RoundedRect) {
+                node.shape.rounded_rect().size = {30.0f, 20.0f};
+                node.shape.rounded_rect().radius = 6.0f;
+                node.shape.rounded_rect().stroke.enabled = true;
+                node.shape.rounded_rect().stroke.width = 4.0f;
+                node.shape.rounded_rect().stroke.color = Color{0.9f, 0.18f, 0.34f, 0.63f};
+                node.shape.rounded_rect().stroke.alignment = alignment;
+            } else {
+                node.shape.circle().radius = 12.0f;
+                node.shape.circle().stroke.enabled = true;
+                node.shape.circle().stroke.width = 4.0f;
+                node.shape.circle().stroke.color = Color{0.9f, 0.18f, 0.34f, 0.63f};
+                node.shape.circle().stroke.alignment = alignment;
+            }
+
+            Framebuffer expected(width, height);
+            Color background = Color{0.08f, 0.12f, 0.2f, 0.7f}.to_linear();
+            background.r *= background.a;
+            background.g *= background.a;
+            background.b *= background.a;
+            expected.clear(background);
+            RenderState state;
+            state.matrix = Mat4{1.0f};
+            state.matrix[0][0] = scale;
+            state.matrix[1][1] = scale;
+            state.matrix[3][0] = 10.0f;
+            state.matrix[3][1] = 8.0f;
+            state.clip_rect = raster::BBox{12, 10, 42, 30};
+            state.opacity = 1.0f;
+            const auto desc = runtime::SurfaceDesc::make(
+                width, height, runtime::PixelFormat::Rgba32Float,
+                runtime::ResourceUsage::Generic,
+                runtime::LifetimeClass::FrameTransient, runtime::ColorMetadata{});
+            REQUIRE(backend.create_surface(handle, desc).ok());
+            std::vector<float> initial(static_cast<std::size_t>(width * height * 4));
+            for (int y = 0; y < height; ++y) {
+                for (int x = 0; x < width; ++x) {
+                    const Color c = expected.get_pixel(x, y);
+                    const auto i = static_cast<std::size_t>((y * width + x) * 4);
+                    initial[i] = c.r; initial[i + 1] = c.g;
+                    initial[i + 2] = c.b; initial[i + 3] = c.a;
+                }
+            }
+            REQUIRE(backend.upload_surface(handle, desc, initial).ok());
+            const Color linear_fill = node.color.to_linear();
+            renderer::draw_transformed_shape(
+                expected, node.shape, state.matrix, linear_fill, 0.0f,
+                &state, nullptr, node.corner_radius);
+            Framebuffer actual(width, height);
+            actual.set_surface_handle(handle);
+            backend.begin_frame_batch();
+            const auto drawn = backend.draw_node(actual, node, state, Camera{}, width, height);
+            backend.end_frame_batch();
+            if (scale != 1.0f) {
+                CHECK_FALSE(drawn.ok());
+                REQUIRE(backend.release_surface(handle).ok());
+                ++handle;
+                continue;
+            }
+            REQUIRE(drawn.ok());
+
+            std::vector<float> pixels(initial.size());
+            REQUIRE(backend.download_surface(handle, pixels).ok());
+            INFO("shape=" << static_cast<int>(type)
+                 << " alignment=" << static_cast<int>(alignment)
+                 << " scale=" << scale);
+            for (int y = 0; y < height; ++y) {
+                for (int x = 0; x < width; ++x) {
+                    const Color c = expected.get_pixel(x, y);
+                    const float wanted[] = {c.r, c.g, c.b, c.a};
+                    const auto i = static_cast<std::size_t>((y * width + x) * 4);
+                    for (int channel = 0; channel < 4; ++channel) {
+                        INFO("x=" << x << " y=" << y << " channel=" << channel);
+                        REQUIRE(pixels[i + static_cast<std::size_t>(channel)] ==
+                                doctest::Approx(wanted[channel]).epsilon(2.0e-6));
+                    }
+                }
+            }
+            REQUIRE(backend.release_surface(handle).ok());
+            ++handle;
+        }
+      }
+    }
+}
+
 TEST_CASE("Vulkan backend creates a persistent headless device") {
     auto backend = chronon3d::backends::vulkan::make_vulkan_backend();
     REQUIRE(backend != nullptr);

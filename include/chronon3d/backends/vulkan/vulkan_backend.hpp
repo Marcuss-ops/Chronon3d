@@ -444,7 +444,7 @@ public:
         const runtime::SurfaceAffineTransform&) override;
     graph::RenderOpResult blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
-        float, bool) override;
+        float, bool, bool) override;
     graph::RenderOpResult glow_surfaces(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,

@@ -484,8 +484,8 @@ TEST_CASE("Vulkan separable blur stays on device across two passes") {
     REQUIRE(backend.create_surface(402, desc).ok());
     REQUIRE(backend.create_surface(403, desc).ok());
     REQUIRE(backend.upload_surface(401, desc, source).ok());
-    REQUIRE(backend.blur_surface(402, 401, 1.5f, true).ok());
-    REQUIRE(backend.blur_surface(403, 402, 1.5f, false).ok());
+    REQUIRE(backend.blur_surface(402, 401, 1.5f, true, false).ok());
+    REQUIRE(backend.blur_surface(403, 402, 1.5f, false, false).ok());
     REQUIRE(backend.download_surface(403, output).ok());
 
     const auto neighbor = (static_cast<std::size_t>(size / 2) * size + size / 2 + 1) * 4;
@@ -554,7 +554,7 @@ TEST_CASE("Vulkan frame batch records every pass into a single submission") {
     const auto submissions_before = backend.stats().submissions;
     backend.begin_frame_batch();
     REQUIRE(backend.transform_surface(522, 521, 0, 0, 1.0f).ok());
-    REQUIRE(backend.blur_surface(523, 522, 1.5f, true).ok());
+    REQUIRE(backend.blur_surface(523, 522, 1.5f, true, false).ok());
     REQUIRE(backend.color_adjust_surface(
         524, 523, 0.0f, 1.0f,
         chronon3d::Color{1.0f, 1.0f, 1.0f, 1.0f}, 0.0f).ok());

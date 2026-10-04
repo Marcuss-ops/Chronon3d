@@ -107,17 +107,18 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
     case effects::EffectType::Exposure: {
         const auto* p = std::get_if<ExposureParams>(&instance.params);
         if (!p || !finite_all({p->stops})) return std::nullopt;
-        // Software Exposure ignores the clip and multiplies straight RGB.
+        // Software Exposure multiplies straight RGB inside context.clip.
         if (p->stops == 0.0f) { out.transform = identity_affine(); return out; }
         out.transform = scaled_affine(std::exp2(p->stops), 0.0f, false);
         out.transform.straight_alpha = true;
+        out.honors_clip = true;
         return out;
     }
     case effects::EffectType::Fill: {
         const auto* p = std::get_if<FillParams>(&instance.params);
         if (!p || !finite_all({p->amount, p->color.r, p->color.g, p->color.b}))
             return std::nullopt;
-        // Software Fill ignores the clip and works on straight RGB.
+        // Software Fill works on straight RGB inside context.clip.
         if (p->amount <= 0.0f) { out.transform = identity_affine(); return out; }
         const bool replace = p->mode == FillMode::Replace;
         const float t = p->amount;
@@ -127,6 +128,7 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
         out.transform.p[1] = {0.0f, keep, 0.0f, p->color.g * mix};
         out.transform.p[2] = {0.0f, 0.0f, keep, p->color.b * mix};
         out.transform.straight_alpha = true;
+        out.honors_clip = true;
         return out;
     }
     case effects::EffectType::Levels: {
@@ -146,6 +148,7 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
             out.transform.p[3][lane] = c.output_black;
             out.transform.p[4][lane] = c.output_white;
         }
+        out.honors_clip = true;
         return out;
     }
     case effects::EffectType::Threshold: {
@@ -158,6 +161,42 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
         out.transform.straight_alpha = true;
         out.transform.p[0][0] = p->threshold;
         out.transform.p[0][1] = p->softness;
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::Keying: {
+        const auto* p = std::get_if<KeyingParams>(&instance.params);
+        if (!p || (p->mode != KeyingMode::Luma && p->mode != KeyingMode::Chroma) ||
+            !finite_all({p->threshold, p->softness, p->spill,
+                         p->key_color.r, p->key_color.g, p->key_color.b,
+                         p->clip_black, p->clip_white, p->choke,
+                         p->garbage_x, p->garbage_y, p->garbage_w,
+                         p->garbage_h, p->garbage_feather}) ||
+            p->threshold < 0.0f || p->threshold > 1.0f ||
+            p->softness < 0.0f || p->softness > 1.0f ||
+            p->spill < 0.0f || p->spill > 1.0f ||
+            p->key_color.r < 0.0f || p->key_color.r > 1.0f ||
+            p->key_color.g < 0.0f || p->key_color.g > 1.0f ||
+            p->key_color.b < 0.0f || p->key_color.b > 1.0f ||
+            p->clip_black < 0.0f || p->clip_white > 1.0f ||
+            p->clip_white <= p->clip_black || p->choke < 0.0f ||
+            p->choke >= 1.0f || p->garbage_x < 0.0f || p->garbage_x > 1.0f ||
+            p->garbage_y < 0.0f || p->garbage_y > 1.0f ||
+            p->garbage_w < 0.0f || p->garbage_w > 1.0f ||
+            p->garbage_h < 0.0f || p->garbage_h > 1.0f ||
+            p->garbage_feather < 0.0f || p->garbage_feather > 0.5f)
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::Keying;
+        out.transform.straight_alpha = true;
+        out.transform.p[0] = {p->key_color.r, p->key_color.g,
+                              p->key_color.b, p->threshold};
+        out.transform.p[1] = {p->softness, p->spill,
+                              p->clip_black, p->clip_white};
+        out.transform.p[2] = {p->choke, p->garbage_x,
+                              p->garbage_y, p->garbage_w};
+        out.transform.p[3] = {p->garbage_h, p->garbage_feather,
+                              0.0f, 0.0f};
+        out.transform.p[4][0] = p->mode == KeyingMode::Luma ? 1.0f : 0.0f;
         out.honors_clip = true;
         return out;
     }

@@ -24,6 +24,10 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
     CHECK(bloom->route == GpuEffectRoute::NativeZeroReadback);
     CHECK(bloom->diagnostic.find("bright-pass") != std::string_view::npos);
 
+    const auto* keying = graph::gpu_effect_capability(EffectType::Keying);
+    REQUIRE(keying != nullptr);
+    CHECK(keying->route == GpuEffectRoute::NativeZeroReadback);
+
     const auto* rgb = graph::gpu_effect_capability(EffectType::ChromaticAberration);
     REQUIRE(rgb != nullptr);
     CHECK(rgb->route == GpuEffectRoute::Unsupported);
@@ -62,5 +66,5 @@ TEST_CASE("strict GPU effect capability census covers every catalog effect once"
     std::size_t native = 0;
     for (const auto& row : graph::kGpuEffectCapabilityRows)
         if (row.route == graph::GpuEffectRoute::NativeZeroReadback) ++native;
-    CHECK(native == 13);
+    CHECK(native == 14);
 }
