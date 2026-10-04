@@ -41,6 +41,10 @@ void main() {
         result.rgb = dst.rgb + src.rgb * params.source_scale;
         result.a = max(dst.a, clamp(src.a * params.source_scale, 0.0, 1.0));
     }
+    else if (params.blend_mode == 7) {
+        vec4 weighted = src * clamp(params.source_scale, 0.0, 1.0);
+        result = weighted + dst * (1.0 - clamp(weighted.a, 0.0, 1.0));
+    }
     else if (params.blend_mode >= 3 && params.blend_mode <= 5)
         result = blend_separable(src, dst, params.blend_mode);
     else result = src + dst * (1.0 - src.a);
