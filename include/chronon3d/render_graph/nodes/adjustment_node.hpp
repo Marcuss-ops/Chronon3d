@@ -75,6 +75,7 @@ public:
                 if (!effect.enabled) continue;
                 switch (effect.effect_type) {
                 case effects::EffectType::Blur:
+                case effects::EffectType::Bloom:
                 case effects::EffectType::Tint:
                 case effects::EffectType::Brightness:
                 case effects::EffectType::Contrast:
