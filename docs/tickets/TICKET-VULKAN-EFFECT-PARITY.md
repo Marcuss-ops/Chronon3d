@@ -96,8 +96,9 @@ the full software/GPU effect corpus passes on the same SHA.
   history key, frame-variant cache policy and preroll requirement from the
   graph builder into the same executor. Brightness → Echo matches the software
   oracle on both frames (88 assertions, including the preroll contract);
-  spatially expanding adjustment stacks
-  remain unsupported by the fixed-extent path.
+  spatially expanding adjustment stacks remain unsupported by the fixed-extent
+  path. Brightness → ChromaKey and ChromaKey → Brightness also match the
+  software oracle through AdjustmentNode (259 pixel-channel assertions).
 - Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
   all three alignments with translated geometry, clipping, uniform scales
   0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
