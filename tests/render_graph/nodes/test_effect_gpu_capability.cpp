@@ -26,8 +26,8 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
 
     const auto* rgb = graph::gpu_effect_capability(EffectType::ChromaticAberration);
     REQUIRE(rgb != nullptr);
-    CHECK(rgb->route == GpuEffectRoute::Unsupported);
-    CHECK(rgb->diagnostic.find("not implemented") != std::string_view::npos);
+    CHECK(rgb->route == GpuEffectRoute::NativeZeroReadback);
+    CHECK(rgb->diagnostic.find("RGB") != std::string_view::npos);
 
     for (const auto type : {EffectType::Brightness, EffectType::Contrast,
                             EffectType::Saturation, EffectType::HueRotate,
@@ -62,5 +62,5 @@ TEST_CASE("strict GPU effect capability census covers every catalog effect once"
     std::size_t native = 0;
     for (const auto& row : graph::kGpuEffectCapabilityRows)
         if (row.route == graph::GpuEffectRoute::NativeZeroReadback) ++native;
-    CHECK(native == 13);
+    CHECK(native == 14);
 }

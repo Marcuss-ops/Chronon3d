@@ -3,6 +3,7 @@
 // encoder copies. Compiled only when CHRONON3D_ENABLE_CUDA_INTEROP is set.
 
 #include "vulkan_backend_impl.hpp"
+#include "vulkan_external_fds.hpp"
 
 #include <chronon3d/runtime/cuda_surface_contract.hpp>
 
@@ -126,12 +127,11 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
     VkMemoryGetFdInfoKHR info{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
     info.memory = alloc_info.deviceMemory;
     info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
-    int fd = -1;
-    check(get_fd(device, &info, &fd), "vkGetMemoryFdKHR");
+    VulkanExternalFds descriptors;
+    check(get_fd(device, &info, &descriptors[0]), "vkGetMemoryFdKHR");
     auto get_semaphore_fd = reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(
         vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
     if (!get_semaphore_fd) {
-        close(fd);
         throw std::runtime_error("vkGetSemaphoreFdKHR is unavailable");
     }
     const auto& image = image_it->second.image;
@@ -143,17 +143,10 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
         VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR, nullptr,
         image.vulkan_to_cuda,
         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT};
-    int cuda_to_vulkan_fd = -1;
-    int vulkan_to_cuda_fd = -1;
-    check(get_semaphore_fd(device, &cuda_to_vulkan_info, &cuda_to_vulkan_fd),
+    check(get_semaphore_fd(device, &cuda_to_vulkan_info, &descriptors[1]),
           "vkGetSemaphoreFdKHR(cuda to Vulkan)");
-    const auto second_result = get_semaphore_fd(
-        device, &vulkan_to_cuda_info, &vulkan_to_cuda_fd);
-    if (second_result != VK_SUCCESS) {
-        close(fd);
-        close(cuda_to_vulkan_fd);
-        check(second_result, "vkGetSemaphoreFdKHR(Vulkan to CUDA)");
-    }
+    check(get_semaphore_fd(device, &vulkan_to_cuda_info, &descriptors[2]),
+          "vkGetSemaphoreFdKHR(Vulkan to CUDA)");
     VkMemoryRequirements requirements{};
     vkGetImageMemoryRequirements(device, image_it->second.image.image,
                                  &requirements);
@@ -165,7 +158,7 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
                         fmt == VK_FORMAT_A8B8G8R8_UNORM_PACK32 ||
                         fmt == VK_FORMAT_A8B8G8R8_SRGB_PACK32);
     CudaExternalMemoryInfo exported{
-        fd, cuda_to_vulkan_fd, vulkan_to_cuda_fd, requirements.size,
+        descriptors[0], descriptors[1], descriptors[2], requirements.size,
         image_it->second.image.width, image_it->second.image.height,
         is_u8 ? 2u : 1u, image_it->second.image.cuda_timeline,
         image_it->second.image.interop_generation};
@@ -178,18 +171,33 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
         if (image.cuda_export_standalone_fence) {
             if (impl->pending_timeline_value == 0) return image.last_vulkan_to_cuda_value;
             const VkFence fence = impl->fence;
+            const auto started = profiling::now();
             check(vkWaitForFences(impl->device, 1, &fence, VK_TRUE, UINT64_MAX),
                   "vkWaitForFences(CUDA export standalone)");
+            if (auto* counters = profiling::g_current_counters) {
+                counters->vulkan_cuda_export_fence_wait_count.fetch_add(1, std::memory_order_relaxed);
+                counters->vulkan_cuda_export_fence_wait_us.fetch_add(
+                    static_cast<std::uint64_t>(profiling::elapsed_us(started)), std::memory_order_relaxed);
+            }
             return image.last_vulkan_to_cuda_value;
         }
         const auto slot = image.cuda_export_fence_slot;
         if (!slot || *slot >= Impl::FrameBatchState::kSlotCount ||
             !impl->frame_batch.in_flight[*slot]) return image.last_vulkan_to_cuda_value;
         const VkFence fence = impl->frame_batch.fences[*slot];
+        const auto started = profiling::now();
         check(vkWaitForFences(impl->device, 1, &fence, VK_TRUE, UINT64_MAX),
               "vkWaitForFences(CUDA export slot)");
+        if (auto* counters = profiling::g_current_counters) {
+            counters->vulkan_cuda_export_fence_wait_count.fetch_add(1, std::memory_order_relaxed);
+            counters->vulkan_cuda_export_fence_wait_us.fetch_add(
+                static_cast<std::uint64_t>(profiling::elapsed_us(started)), std::memory_order_relaxed);
+        }
         return image.last_vulkan_to_cuda_value;
     };
+    // std::function assignment above can allocate and throw: ownership must
+    // not escape until the complete handoff has been constructed.
+    for (std::size_t i = 0; i < 3; ++i) (void)descriptors.release(i);
     return exported;
 }
 

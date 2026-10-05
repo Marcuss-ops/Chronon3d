@@ -6,9 +6,28 @@
 #include <chronon3d/math/color.hpp>
 
 #include "src/render_graph/executor/node_executor.hpp"
+#include "src/render_graph/executor/cache_evaluator.hpp"
+#include <chronon3d/render_graph/nodes/clear_node.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::graph;
+
+TEST_CASE("cache evaluation production path retains sub-millisecond timing") {
+    RenderCounters counters;
+    RenderGraphContext context;
+    context.node_exec.counters = &counters;
+    ClearNode node;
+    for (int i = 0; i < 1000; ++i)
+        (void)evaluate_cache(node, context, 0, false, false, 0, false);
+    CHECK(counters.cache_eval_wall_ns.load() > 0);
+    CHECK(counters.cache_eval_wall_ms.load() == counters.cache_eval_wall_ns.load() / 1'000'000);
+    CHECK(counters.cache_eval_wall_us.load() == counters.cache_eval_wall_ns.load() / 1000);
+    context.node_exec.counters = nullptr;
+    const auto previous = counters.cache_eval_wall_ns.load();
+    (void)evaluate_cache(node, context, 0, false, false, 0, false);
+    CHECK(counters.cache_eval_wall_ns.load() == previous);
+}
 
 TEST_CASE("NodeCache lifetime policy rejects arena-backed framebuffer storage") {
     FramebufferArena arena(4096);

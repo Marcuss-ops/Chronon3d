@@ -101,6 +101,34 @@ TEST_CASE("RGB channel transforms move affine components independently and retai
     CHECK(fb.get_pixel(4, 0).a == doctest::Approx(1.0f));
 }
 
+TEST_CASE("RGB channel identity transform preserves every source component exactly") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(7, 3);
+    for (int y = 0; y < fb.height(); ++y)
+        for (int x = 0; x < fb.width(); ++x) {
+            const float alpha = static_cast<float>((x + 2 * y) % 4) / 3.0f;
+            fb.set_pixel(x, y, Color{0.2f * alpha, 0.4f * alpha, 0.7f * alpha, alpha});
+        }
+    const Framebuffer source = fb;
+    EffectStack stack;
+    stack.emplace_back(ChromaticAberrationParams{
+        .red_offset = 0.0f, .blue_offset = 0.0f,
+        .red = RgbChannelTransform{}, .green = RgbChannelTransform{},
+        .blue = RgbChannelTransform{}});
+    effects::EffectExecutionContext context;
+    apply_effect_stack(fb, stack, context, registry);
+    for (int y = 0; y < fb.height(); ++y)
+        for (int x = 0; x < fb.width(); ++x) {
+            const Color actual = fb.get_pixel(x, y);
+            const Color expected = source.get_pixel(x, y);
+            CHECK(actual.r == doctest::Approx(expected.r).epsilon(1e-6));
+            CHECK(actual.g == doctest::Approx(expected.g).epsilon(1e-6));
+            CHECK(actual.b == doctest::Approx(expected.b).epsilon(1e-6));
+            CHECK(actual.a == doctest::Approx(expected.a).epsilon(1e-6));
+        }
+}
+
 TEST_CASE("RGB channel transform supports fractional coverage and per-channel opacity") {
     SoftwareRegistry registry;
     register_builtin_processors(registry);

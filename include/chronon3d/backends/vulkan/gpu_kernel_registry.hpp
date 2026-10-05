@@ -24,6 +24,7 @@ enum class GpuKernelId : std::uint8_t {
     TextTileBin,
     TextTileRaster,
     ColorMatrix,
+    ChromaticAberration,
 };
 
 class GpuKernelRegistry {

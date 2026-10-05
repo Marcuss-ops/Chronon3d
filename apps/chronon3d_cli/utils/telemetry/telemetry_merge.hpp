@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/timing.hpp>
 
 #include <cstddef>
 
@@ -39,8 +40,25 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.compiled_graph_refresh_wall_ms.fetch_add(src.compiled_graph_refresh_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.graph_refresh_scratch_node_builds.fetch_add(src.graph_refresh_scratch_node_builds.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.graph_refresh_scratch_node_reuses.fetch_add(src.graph_refresh_scratch_node_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.cache_eval_wall_ms.fetch_add(src.cache_eval_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.dirty_eval_wall_ms.fetch_add(src.dirty_eval_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    const auto merge_duration = [](auto& dst_ns, auto& dst_ms, const auto& src_ns, const auto& src_ms,
+                                   auto& dst_us, const auto& src_us) {
+        const auto nanoseconds = src_ns.load(std::memory_order_relaxed);
+        const auto milliseconds = src_ms.load(std::memory_order_relaxed);
+        profiling::accumulate_duration_ns(dst_ns, dst_ms, nanoseconds, &dst_us);
+        const auto microseconds = src_us.load(std::memory_order_relaxed);
+        if (microseconds > nanoseconds / 1000)
+            dst_us.fetch_add(microseconds - nanoseconds / 1000, std::memory_order_relaxed);
+        // Preserve legacy integer-only contributions as well as ns carry.
+        const auto represented_ms = nanoseconds / 1'000'000;
+        if (milliseconds > represented_ms)
+            dst_ms.fetch_add(milliseconds - represented_ms, std::memory_order_relaxed);
+    };
+    merge_duration(dst.cache_eval_wall_ns, dst.cache_eval_wall_ms,
+                   src.cache_eval_wall_ns, src.cache_eval_wall_ms,
+                   dst.cache_eval_wall_us, src.cache_eval_wall_us);
+    merge_duration(dst.dirty_eval_wall_ns, dst.dirty_eval_wall_ms,
+                   src.dirty_eval_wall_ns, src.dirty_eval_wall_ms,
+                   dst.dirty_eval_wall_us, src.dirty_eval_wall_us);
     dst.input_resolve_wall_ms.fetch_add(src.input_resolve_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_lifetime_wall_ms.fetch_add(src.framebuffer_lifetime_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.node_schedule_wall_ms.fetch_add(src.node_schedule_wall_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);

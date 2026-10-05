@@ -189,6 +189,7 @@ TEST_CASE("PreparedRenderJob render_frames propagates encoder failure without de
 }
 
 TEST_CASE("PreparedRenderJob bounded pipeline preserves serial framebuffer hashes") {
+    spdlog::set_level(spdlog::level::info);
     const chronon3d::Composition composition{
         chronon3d::CompositionSpec{
             .name = "prepared-render-job-pipeline-parity",
@@ -198,6 +199,7 @@ TEST_CASE("PreparedRenderJob bounded pipeline preserves serial framebuffer hashe
             .duration = chronon3d::Frame{3}},
         [](const chronon3d::FrameContext& ctx) {
             chronon3d::SceneBuilder scene(ctx.resource);
+            std::cerr << "evaluate " << ctx.local_time().frame << '\n';
             scene.rect("pipeline-rect", {
                 .size = {24.0f, 16.0f},
                 .color = chronon3d::Color{0.8f, 0.3f, 0.1f, 1.0f},
@@ -207,22 +209,36 @@ TEST_CASE("PreparedRenderJob bounded pipeline preserves serial framebuffer hashe
         }};
 
     chronon3d::RenderEngine serial_engine;
+    auto diagnostic_settings = serial_engine.settings();
+    diagnostic_settings.diagnostics.enabled = true;
+    serial_engine.set_settings(diagnostic_settings);
     auto serial_job = serial_engine.prepare(composition);
     std::vector<std::uint64_t> serial_hashes;
     for (int frame = 0; frame < 3; ++frame) {
         const auto output = serial_job.render(chronon3d::Frame{frame});
         REQUIRE(output != nullptr);
         serial_hashes.push_back(chronon3d::test::framebuffer_hash(*output));
+        std::cerr << "serial " << frame << " hash=" << serial_hashes.back()
+                  << " ptr=" << output->data() << " stride=" << output->stride()
+                  << " height=" << output->allocated_height() << " pixels=";
+        for (int y = 0; y < output->height(); ++y) for (int x = 0; x < output->width(); ++x) if (output->get_pixel(x, y).a > 0) std::cerr << x << ':' << y << ',';
+        std::cerr << '\n';
     }
 
     chronon3d::RenderEngine pipeline_engine;
+    pipeline_engine.set_settings(diagnostic_settings);
     auto pipeline_job = pipeline_engine.prepare(composition);
     std::vector<std::uint64_t> pipeline_hashes;
     const auto result = pipeline_job.render_frames(
         chronon3d::Frame{0}, chronon3d::Frame{3},
-        [&](chronon3d::Frame, const chronon3d::Framebuffer& output) {
+        [&](chronon3d::Frame frame, const chronon3d::Framebuffer& output) {
             pipeline_hashes.push_back(
                 chronon3d::test::framebuffer_hash(output));
+            std::cerr << "batch " << frame.integral() << " hash=" << pipeline_hashes.back()
+                      << " ptr=" << output.data() << " stride=" << output.stride()
+                      << " height=" << output.allocated_height() << " pixels=";
+            for (int y = 0; y < output.height(); ++y) for (int x = 0; x < output.width(); ++x) if (output.get_pixel(x, y).a > 0) std::cerr << x << ':' << y << ',';
+            std::cerr << '\n';
             return true;
         });
 

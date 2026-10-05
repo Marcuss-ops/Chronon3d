@@ -29,6 +29,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_common_performance_gate.py")
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_common_performance_gate.py"
     )
 endif()
+if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_gpu_lane_profiles.py")
+    add_test(
+        NAME chronon3d_gpu_lane_profile_contract_tests
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_gpu_lane_profiles.py"
+    )
+endif()
 if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_gpu_corpus_manifest.py")
     add_test(
         NAME chronon3d_gpu_corpus_manifest_tests

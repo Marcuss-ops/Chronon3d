@@ -256,6 +256,11 @@ status below is updated only from commands actually executed in this workspace.
   `docs/ROADMAP.md` prohibit new feature work until the prerequisite
   certification is green. No product implementation was started under this
   gate.
+- [x] Define the candidate fold/cone/path composer boundaries and explicitly
+  defer field-warped leaks in
+  [`TICKET-ABSTRACT-BACKGROUND-COMPOSERS.md`](TICKET-ABSTRACT-BACKGROUND-COMPOSERS.md).
+  Its reference inventory and implementation checklist remain blocked by Gate 0
+  and by the absent source ZIP/CSV/contact sheet.
 
 ### Ordered acceptance checklist (blocked until the feature freeze is lifted)
 

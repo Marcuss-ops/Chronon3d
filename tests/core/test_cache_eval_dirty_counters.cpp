@@ -15,15 +15,14 @@
 //   3. A simulated `compute_dirty_rect` workload (parallel bbox
 //      gathering + union + decision making) drives `dirty_eval_wall_ms > 0`.
 //
-// Each simulated workload uses the same instrumentation pattern the real
-// code uses (`profiling::now()` → `static_cast<uint64_t>(duration_ms(...))`
-// → `fetch_add(..., std::memory_order_relaxed)`) so that any breakage in
-// the pattern surfaces here with a clear message.
+// Timing regressions use deterministic synthetic nanosecond samples through
+// the production accumulator; no sleep is needed to expose rounding loss.
 
 #include <doctest/doctest.h>
 
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include "../../apps/chronon3d_cli/utils/telemetry/telemetry_merge.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -70,8 +69,7 @@ TEST_CASE("counters: cache_eval_wall_ms > 0 after a simulate-and-accumulate pass
     }
     (void)sink;
     std::this_thread::sleep_for(std::chrono::microseconds(1500));
-    const auto elapsed = static_cast<std::uint64_t>(duration_ms(t0, now()));
-    c.cache_eval_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+    profiling::accumulate_duration(c.cache_eval_wall_ns, c.cache_eval_wall_ms, t0, now());
 
     CHECK(c.cache_eval_wall_ms.load() > 0);
     // The simulated work must take measurably less than 10s; upper bound
@@ -107,11 +105,61 @@ TEST_CASE("counters: dirty_eval_wall_ms > 0 after a simulate-and-accumulate pass
     for (auto& th : workers) th.join();
     CHECK(sum.load() > 0);
     std::this_thread::sleep_for(std::chrono::microseconds(1500));
-    const auto elapsed = static_cast<std::uint64_t>(duration_ms(t0, now()));
-    c.dirty_eval_wall_ms.fetch_add(elapsed, std::memory_order_relaxed);
+    profiling::accumulate_duration(c.dirty_eval_wall_ns, c.dirty_eval_wall_ms, t0, now());
 
     CHECK(c.dirty_eval_wall_ms.load() > 0);
     CHECK(c.dirty_eval_wall_ms.load() < 10'000);
+}
+
+TEST_CASE("counters: sub-millisecond samples accumulate before rounding") {
+    RenderCounters c;
+    for (int i = 0; i < 1000; ++i) {
+        profiling::accumulate_duration_ns(c.cache_eval_wall_ns, c.cache_eval_wall_ms, 30'000);
+        profiling::accumulate_duration_ns(c.dirty_eval_wall_ns, c.dirty_eval_wall_ms, 30'000);
+    }
+    CHECK(c.cache_eval_wall_ns.load() == 30'000'000);
+    CHECK(c.cache_eval_wall_ms.load() == 30);
+    CHECK(c.dirty_eval_wall_ms.load() == 30);
+    RenderCounters copy(c);
+    CHECK(copy.cache_eval_wall_ns.load() == 30'000'000);
+    c.reset();
+    CHECK(c.cache_eval_wall_ns.load() == 0);
+    CHECK(c.dirty_eval_wall_ns.load() == 0);
+    CHECK(c.cache_eval_wall_ms.load() == 0);
+}
+
+TEST_CASE("counters: fractional timing carries across per-frame telemetry merges") {
+    RenderCounters total;
+    for (int frame = 0; frame < 1000; ++frame) {
+        RenderCounters sample;
+        profiling::accumulate_duration_ns(sample.cache_eval_wall_ns, sample.cache_eval_wall_ms, 30'000,
+                                          &sample.cache_eval_wall_us);
+        profiling::accumulate_duration_ns(sample.dirty_eval_wall_ns, sample.dirty_eval_wall_ms, 30'000);
+        cli::telemetry::add_counters(total, sample);
+    }
+    CHECK(total.cache_eval_wall_ms.load() == 30);
+    CHECK(total.cache_eval_wall_us.load() == 30'000);
+    CHECK(total.dirty_eval_wall_ms.load() == 30);
+    RenderCounters legacy;
+    legacy.cache_eval_wall_ms = 7;
+    legacy.cache_eval_wall_us = 7000;
+    cli::telemetry::add_counters(total, legacy);
+    CHECK(total.cache_eval_wall_ms.load() == 37);
+    CHECK(total.cache_eval_wall_us.load() == 37'000);
+}
+
+TEST_CASE("counters: concurrent fractional samples retain all elapsed time") {
+    RenderCounters c;
+    std::vector<std::thread> workers;
+    for (int t = 0; t < 8; ++t) {
+        workers.emplace_back([&] {
+            for (int i = 0; i < 1000; ++i)
+                profiling::accumulate_duration_ns(c.cache_eval_wall_ns, c.cache_eval_wall_ms, 30'001);
+        });
+    }
+    for (auto& worker : workers) worker.join();
+    CHECK(c.cache_eval_wall_ns.load() == 240'008'000);
+    CHECK(c.cache_eval_wall_ms.load() == 240);
 }
 
 // ── 4. Concurrent fetch_add from N threads doesn't lose records. ───

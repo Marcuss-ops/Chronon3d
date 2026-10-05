@@ -607,6 +607,18 @@ public:
             "RenderBackend::color_transform_surface: native surfaces are not supported"));
     }
 
+    /// Apply inverse-sampled, independent RGB channel transforms to a native
+    /// RGBA surface. The output preserves the software processor's alpha and
+    /// premultiplied-coverage semantics.
+    virtual RenderOpResult chromatic_transform_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const ChromaticAberrationParams& /*params*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::chromatic_transform_surface: native surfaces are not supported"));
+    }
+
     /// Apply a constant per-layer lighting multiplier to native RGBA surfaces.
     /// The layer's normal/light/material evaluation happens once on the CPU;
     /// the pixel multiply itself stays on the device and preserves alpha.

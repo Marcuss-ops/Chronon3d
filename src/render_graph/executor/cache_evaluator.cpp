@@ -187,9 +187,10 @@ CacheEvalResult evaluate_cache(
     }
 
     if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->cache_eval_wall_ms.fetch_add(
-            static_cast<uint64_t>(profiling::duration_ms(t_cache0, profiling::now())),
-            std::memory_order_relaxed);
+        profiling::accumulate_duration(
+            ctx.node_exec.counters->cache_eval_wall_ns,
+            ctx.node_exec.counters->cache_eval_wall_ms, t_cache0, profiling::now(),
+            &ctx.node_exec.counters->cache_eval_wall_us);
     }
     return cr;
 }

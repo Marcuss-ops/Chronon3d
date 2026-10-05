@@ -19,7 +19,7 @@
 
 #include "src/backends/software/rasterizers/shape_rasterizer.hpp"
 #include "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp"
-#include "src/backends/software/rasterizers/path_rasterizer.hpp"
+#include "src/backends/software/rasterizers/path/path_rasterizer.hpp"
 
 using namespace chronon3d;
 
