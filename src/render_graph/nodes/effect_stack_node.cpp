@@ -9,6 +9,7 @@
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/effect_gpu_capability.hpp>
 #include <spdlog/spdlog.h>
+#include <array>
 #include <cmath>
 #include <initializer_list>
 #include <vector>

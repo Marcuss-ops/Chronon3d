@@ -288,6 +288,8 @@ namespace chronon3d {
     X(graph_cache_restore_failures)  /**< CachedGraphLease could not restore a checked-out compiled graph (fatal path is made observable) */ \
     X(cache_eval_wall_ms) \
     X(dirty_eval_wall_ms) \
+    X(cache_eval_wall_ns) \
+    X(dirty_eval_wall_ns) \
     X(input_resolve_wall_ms) \
     X(framebuffer_lifetime_wall_ms) \
     X(node_schedule_wall_ms) \

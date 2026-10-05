@@ -218,9 +218,17 @@ TEST_CASE("Vulkan native color effects honor the software clip contract") {
     check_parity(*invert, InvertParams{.amount = 0.8f}, clip);
     auto threshold = renderer::create_threshold_effect_processor();
     check_parity(*threshold, ThresholdParams{.threshold = 0.4f, .softness = 0.15f}, clip);
-    // Software Exposure/Levels/Fill ignore the clip; native must too.
+    // Straight-alpha processors honor the clip too: untouched HDR/half-alpha
+    // pixels outside the region must survive the native output copy.
     auto exposure = renderer::create_exposure_effect_processor();
     check_parity(*exposure, ExposureParams{.stops = 1.0f}, clip);
+    auto levels = renderer::create_levels_effect_processor();
+    LevelsParams levels_params;
+    levels_params.master.gamma = 1.5f;
+    check_parity(*levels, levels_params, clip);
+    auto fill = renderer::create_fill_effect_processor();
+    check_parity(*fill, FillParams{.color = Color{0.9f, 0.2f, 0.4f, 1.0f},
+        .amount = 0.4f, .mode = FillMode::Mix}, clip);
 }
 
 TEST_CASE("Strict Vulkan still fails closed for non-native effects") {

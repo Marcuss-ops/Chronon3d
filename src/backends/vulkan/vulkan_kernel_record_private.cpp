@@ -236,6 +236,43 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void VulkanBackend::Impl::record_chromatic_transform(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& /*source*/,
+        const ChromaticAberrationParams& transform) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(
+                              GpuKernelId::ChromaticAberration)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants { float values[32]; } params{};
+        static_assert(sizeof(PushConstants) == 128);
+        const auto channel = [&](std::size_t index, const RgbChannelTransform& value) {
+            const std::size_t offset = index * 8;
+            params.values[offset + 0] = value.translation.x;
+            params.values[offset + 1] = value.translation.y;
+            params.values[offset + 2] = value.scale.x;
+            params.values[offset + 3] = value.scale.y;
+            params.values[offset + 4] = value.rotation_degrees;
+            params.values[offset + 5] = value.opacity;
+        };
+        channel(0, transform.red);
+        channel(1, transform.green);
+        channel(2, transform.blue);
+        params.values[24] = transform.red_offset;
+        params.values[25] = transform.blue_offset;
+        params.values[26] = static_cast<float>(transform.offset_mode);
+        params.values[28] = transform.center.x;
+        params.values[29] = transform.center.y;
+        params.values[30] = transform.velocity.x;
+        params.values[31] = transform.velocity.y;
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
     void VulkanBackend::Impl::record_lighting(
         VkCommandBuffer command, VkDescriptorSet descriptors,
         const Image& destination, const Image& source,

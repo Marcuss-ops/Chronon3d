@@ -236,6 +236,8 @@ CPU_READBACK_BYTES=$(extract_counter "$REPORT_JSON" "cpu_pixel_readback_bytes")
 VIDEO_UPLOAD_BYTES=$(extract_counter "$REPORT_JSON" "video_surface_upload_bytes")
 NATIVE_SURFACE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_surface_frames")
 NATIVE_ENCODE_FRAMES=$(extract_counter "$REPORT_JSON" "gpu_native_encode_frames")
+SOFTWARE_ENCODE_FRAMES=$(extract_counter "$REPORT_JSON" "software_encode_frames")
+VIDEO_PIPE_FALLBACK_FRAMES=$(extract_counter "$REPORT_JSON" "video_pipe_fallback_frames")
 EXECUTION_PATH=$(extract_counter "$REPORT_JSON" "execution_path")
 DECODER_BACKEND=$(extract_counter "$REPORT_JSON" "decoder_backend")
 # CUDA-lane half of gate 1 (host uploads): bytes pushed host→device by the
@@ -356,6 +358,20 @@ check_positive_gate() {
 }
 check_positive_gate "gpu_native_surface_frames" "$NATIVE_SURFACE_FRAMES"
 check_positive_gate "gpu_native_encode_frames" "$NATIVE_ENCODE_FRAMES"
+check_gate "software_encode_frames" "$SOFTWARE_ENCODE_FRAMES" "0"
+check_gate "video_pipe_fallback_frames" "$VIDEO_PIPE_FALLBACK_FRAMES" "0"
+
+# When the harness produced the report itself, the final MP4 must also exist;
+# counters without a deliverable artifact are not an end-to-end certification.
+if [[ "$REPORT_JSON" == "$OUTPUT_DIR/zero_copy_report.json" ]]; then
+    if [[ -s "$OUTPUT_DIR/zero_copy.mp4" ]]; then
+        _pass "structural output artifact = present and non-empty"
+        PASS_COUNT=$((PASS_COUNT + 1))
+    else
+        _fail "structural output artifact is missing or empty"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+fi
 
 # ── Verdict ──────────────────────────────────────────────────────────────
 _info "── Summary ──"

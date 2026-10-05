@@ -113,6 +113,85 @@ TEST_CASE("Premium Effects V1: Field2D transform and combined operators") {
     }
 }
 
+TEST_CASE("Field2D V1 range, radial peak, monotone falloff, and transforms") {
+    Field2D field;
+    field.generator = Field2DGenerator::Radial;
+    field.frequency = 1.0f;
+    CHECK(field.sample(Vec2{0.5f, 0.5f}) == doctest::Approx(1.0f));
+    float previous = field.sample(Vec2{0.5f, 0.5f});
+    for (int step = 1; step <= 10; ++step) {
+        const float x = 0.5f + 0.05f * static_cast<float>(step);
+        const float value = field.sample(Vec2{x, 0.5f});
+        CHECK(value >= 0.0f);
+        CHECK(value <= 1.0f);
+        CHECK(value <= previous);
+        previous = value;
+    }
+
+    Field2D translated = field;
+    translated.transform.translation = Vec2{0.1f, 0.0f};
+    CHECK(translated.sample(Vec2{0.4f, 0.5f}) == doctest::Approx(field.sample(Vec2{0.5f, 0.5f})));
+    Field2D rotated = field;
+    rotated.transform.rotation_radians = 1.57079632679f;
+    CHECK(rotated.sample(Vec2{0.6f, 0.5f}) == doctest::Approx(field.sample(Vec2{0.5f, 0.6f})));
+}
+
+TEST_CASE("Field2D V1 seeded drift is deterministic under random frame access") {
+    Field2D base;
+    base.generator = Field2DGenerator::Fractal;
+    base.seed = 42;
+    base.frequency = 5.0f;
+    const Vec2 velocity{0.04f, -0.02f};
+    const Vec2 probe{0.37f, 0.63f};
+    const float direct = base.drifted(16.0, velocity).sample(probe);
+    float sequential = 0.0f;
+    for (int frame = 0; frame <= 16; ++frame)
+        sequential = base.drifted(static_cast<double>(frame), velocity).sample(probe);
+    CHECK(direct == sequential);
+    CHECK(direct == base.drifted(16.0, velocity).sample(probe));
+
+    Field2D different_seed = base;
+    different_seed.seed = 43;
+    bool differs = false;
+    for (const auto point : std::array<Vec2, 8>{{{0.1f, 0.2f}, {0.2f, 0.7f}, {0.35f, 0.4f},
+            {0.4f, 0.8f}, {0.6f, 0.3f}, {0.7f, 0.7f}, {0.8f, 0.15f}, {0.9f, 0.9f}}})
+        differs = differs || base.sample(point) != different_seed.sample(point);
+    CHECK(differs);
+}
+
+TEST_CASE("Domain warp V1 is deterministic, continuous, bounded, and identity at zero") {
+    Field2D base;
+    base.generator = Field2DGenerator::Perlin;
+    base.seed = 42;
+    base.frequency = 3.0f;
+    Field2D identity = base;
+    identity.operators.push_back(Field2DOperator{
+        .kind = Field2DOperatorKind::DomainWarp, .amount = 0.0f});
+    const std::array<Vec2, 5> points{{{0.1f, 0.2f}, {0.3f, 0.4f}, {0.5f, 0.5f},
+                                     {0.7f, 0.6f}, {0.9f, 0.8f}}};
+    for (const auto point : points)
+        CHECK(identity.sample(point) == doctest::Approx(base.sample(point)));
+
+    Field2D warped = base;
+    warped.operators.push_back(Field2DOperator{
+        .kind = Field2DOperatorKind::DomainWarp, .amount = 0.35f});
+    Field2D same = warped;
+    for (const auto point : points) {
+        const float value = warped.sample(point);
+        CHECK(value == same.sample(point));
+        CHECK(std::isfinite(value));
+        CHECK(value >= 0.0f);
+        CHECK(value <= 1.0f);
+    }
+    CHECK(std::abs(warped.sample(Vec2{0.5f, 0.5f}) -
+                   warped.sample(Vec2{0.501f, 0.5f})) < 0.1f);
+
+    warped.operators[0].amount = 1.0e30f;
+    CHECK(std::isfinite(warped.sample(Vec2{0.5f, 0.5f})));
+    warped.operators[0].amount = std::numeric_limits<float>::infinity();
+    CHECK(std::isfinite(warped.sample(Vec2{0.5f, 0.5f})));
+}
+
 TEST_CASE("Premium Effects V1: BrushProfile primitive authority") {
     SUBCASE("Highlighter preset determinism and multiply blend suitability") {
         const auto hl1 = BrushProfile::highlighter(42);

@@ -387,6 +387,15 @@ struct VulkanBackend::Impl {
     // Reused scratch for the plan-wide lease set (one fill per plan batch, so
     // the compiled hot path stays allocation-free after warmup).
     std::vector<runtime::RenderSurfaceHandle> plan_lease_scratch_{};
+    // Placement scratch is ephemeral, not a second allocation authority. Both
+    // domains are held during begin_plan_batch; retain only CPU capacities.
+    std::vector<runtime::RenderSurfaceHandle> plan_protected_handles_scratch_{};
+    std::vector<std::vector<std::size_t>> plan_slot_allocations_scratch_{};
+    std::vector<std::size_t> plan_slot_map_scratch_{};
+    std::vector<std::size_t> plan_carriers_scratch_{};
+    std::vector<std::size_t> plan_carrier_slots_scratch_{};
+    std::vector<std::size_t> plan_deferred_producers_scratch_{};
+    std::vector<std::pair<std::size_t, runtime::RenderSurfaceHandle>> plan_occupants_scratch_{};
 
     // Recording pin table (audit N4). Guarded by recording_leases_mutex, which
     // is always the innermost lock of any acquisition chain.
@@ -586,8 +595,11 @@ struct VulkanBackend::Impl {
                              float brightness, float contrast,
                              const Color& tint, float tint_amount);
     void record_color_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
-                                const Image& destination, const Image& source,
-                                const graph::NativeColorTransform& transform);
+        const Image& destination, const Image& source,
+        const graph::NativeColorTransform& transform);
+    void record_chromatic_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source,
+        const ChromaticAberrationParams& params);
     void record_lighting(VkCommandBuffer command, VkDescriptorSet descriptors,
                          const Image& destination, const Image& source,
                          const Color& multiplier);
@@ -688,8 +700,11 @@ struct VulkanBackend::Impl {
                       float brightness, float contrast,
                       const Color& tint, float tint_amount);
     void color_transform(runtime::RenderSurfaceHandle destination,
-                         runtime::RenderSurfaceHandle source,
-                         const graph::NativeColorTransform& transform);
+        runtime::RenderSurfaceHandle source,
+        const graph::NativeColorTransform& transform);
+    void chromatic_transform(runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle source,
+        const ChromaticAberrationParams& params);
     void lighting(runtime::RenderSurfaceHandle destination,
                   runtime::RenderSurfaceHandle source,
                   const Color& multiplier);

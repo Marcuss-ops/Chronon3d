@@ -3,6 +3,7 @@
 // vulkan_backend_impl.hpp.
 
 #include "vulkan_backend_impl.hpp"
+#include "vulkan_pipeline_cache_io.hpp"
 #include "composite_comp_spv.hpp"
 #include "transform_comp_spv.hpp"
 #include "affine_transform_comp_spv.hpp"
@@ -10,6 +11,7 @@
 #include "bloom_threshold_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "color_matrix_comp_spv.hpp"
+#include "chromatic_aberration_comp_spv.hpp"
 #include "lighting_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
 #include "text_run_comp_spv.hpp"
@@ -158,24 +160,53 @@ namespace chronon3d::backends::vulkan {
                                      &kernels.text_tile_raster_layout),
               "vkCreatePipelineLayout(text tile raster)");
         // ── Persistent VkPipelineCache on disk ────────────────────
-        std::filesystem::path cache_dir = std::filesystem::path(std::getenv("HOME") ? std::getenv("HOME") : "/tmp") / ".cache" / "chronon";
-        std::filesystem::create_directories(cache_dir);
-        std::filesystem::path cache_file = cache_dir / "vk_pipeline_cache.bin";
-
+        // Key the driver hint by device/driver/UUID and actual embedded SPIR-V
+        // bytes (including shader ABI). Disk failure must not prevent rendering.
+        std::uint64_t shader_hash = 14695981039346656037ULL;
+        const auto hash_shader = [&](const void* data, std::size_t size) {
+            const auto* bytes = static_cast<const unsigned char*>(data);
+            for (std::size_t i = 0; i < size; ++i)
+                shader_hash = (shader_hash ^ bytes[i]) * 1099511628211ULL;
+        };
+#define CHRONON_HASH_SHADER(name) hash_shader(shaders::chronon3d_##name##_comp_spv, shaders::chronon3d_##name##_comp_spv_size)
+        CHRONON_HASH_SHADER(composite);
+        CHRONON_HASH_SHADER(transform);
+        CHRONON_HASH_SHADER(affine_transform);
+        CHRONON_HASH_SHADER(blur);
+        CHRONON_HASH_SHADER(bloom_threshold);
+        CHRONON_HASH_SHADER(color_adjust);
+        CHRONON_HASH_SHADER(color_matrix);
+        CHRONON_HASH_SHADER(chromatic_aberration);
+        CHRONON_HASH_SHADER(lighting);
+        CHRONON_HASH_SHADER(matte);
+        CHRONON_HASH_SHADER(text_run);
+        CHRONON_HASH_SHADER(fill_rect);
+        CHRONON_HASH_SHADER(layer_batch);
+        CHRONON_HASH_SHADER(text_tile_bin);
+        CHRONON_HASH_SHADER(text_tile_raster);
+#undef CHRONON_HASH_SHADER
+        std::filesystem::path cache_file;
         std::vector<char> cache_data;
-        if (std::ifstream is{cache_file, std::ios::binary | std::ios::ate}) {
-            auto size = is.tellg();
-            if (size > 0) {
-                cache_data.resize(static_cast<size_t>(size));
-                is.seekg(0);
-                is.read(cache_data.data(), size);
-            }
+        try {
+            const auto cache_dir = std::filesystem::path(
+                std::getenv("HOME") ? std::getenv("HOME") : "/tmp") / ".cache" / "chronon";
+            cache_file = cache_dir / pipeline_cache_io::filename(device_properties, shader_hash);
+            cache_data = pipeline_cache_io::read(cache_file, device_properties);
+        } catch (const std::exception& error) {
+            spdlog::warn("[Vulkan] pipeline cache read unavailable: {}", error.what());
         }
 
         VkPipelineCacheCreateInfo cache_ci{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO, nullptr, 0,
                                            cache_data.size(), cache_data.empty() ? nullptr : cache_data.data()};
-        check(vkCreatePipelineCache(device, &cache_ci, nullptr, &kernels.pipeline_cache),
-              "vkCreatePipelineCache");
+        auto cache_result = vkCreatePipelineCache(device, &cache_ci, nullptr, &kernels.pipeline_cache);
+        if (cache_result != VK_SUCCESS && !cache_data.empty() &&
+            cache_result != VK_ERROR_DEVICE_LOST) {
+            spdlog::warn("[Vulkan] driver rejected persisted pipeline cache; retrying empty");
+            cache_ci.initialDataSize = 0;
+            cache_ci.pInitialData = nullptr;
+            cache_result = vkCreatePipelineCache(device, &cache_ci, nullptr, &kernels.pipeline_cache);
+        }
+        check(cache_result, "vkCreatePipelineCache");
 
         const VkShaderModuleCreateInfo shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -335,6 +366,29 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::ColorMatrix, color_matrix_pipeline, "ColorMatrix");
         if (debug_context) debug_context->set_pipeline_name(color_matrix_pipeline, "Chronon3D.Pipeline.ColorMatrix");
+
+        const VkShaderModuleCreateInfo chromatic_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_chromatic_aberration_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_chromatic_aberration_comp_spv)};
+        VkShaderModule chromatic_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &chromatic_shader_info, nullptr, &chromatic_shader),
+              "vkCreateShaderModule(chromatic aberration)");
+        const VkPipelineShaderStageCreateInfo chromatic_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT, chromatic_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo chromatic_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            chromatic_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline chromatic_pipeline = VK_NULL_HANDLE;
+        const VkResult chromatic_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &chromatic_pipeline_info, nullptr, &chromatic_pipeline);
+        vkDestroyShaderModule(device, chromatic_shader, nullptr);
+        check(chromatic_result, "vkCreateComputePipelines(chromatic aberration)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::ChromaticAberration, chromatic_pipeline, "ChromaticAberration");
+        if (debug_context) debug_context->set_pipeline_name(
+            chromatic_pipeline, "Chronon3D.Pipeline.ChromaticAberration");
 
         const VkShaderModuleCreateInfo lighting_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
@@ -502,16 +556,21 @@ namespace chronon3d::backends::vulkan {
         if (debug_context) debug_context->set_pipeline_name(text_tile_raster_pipeline, "Chronon3D.Pipeline.TextTileRaster");
 
         // ── Save compiled pipeline cache to disk for instant warm starts ──
-        if (kernels.pipeline_cache != VK_NULL_HANDLE) {
-            size_t cache_size = 0;
-            if (vkGetPipelineCacheData(device, kernels.pipeline_cache, &cache_size, nullptr) == VK_SUCCESS && cache_size > 0) {
-                std::vector<char> cache_out(cache_size);
-                if (vkGetPipelineCacheData(device, kernels.pipeline_cache, &cache_size, cache_out.data()) == VK_SUCCESS) {
-                    std::ofstream os{cache_file, std::ios::binary};
-                    if (os) {
-                        os.write(cache_out.data(), cache_size);
+        if (kernels.pipeline_cache != VK_NULL_HANDLE && !cache_file.empty()) {
+            try {
+                size_t cache_size = 0;
+                if (vkGetPipelineCacheData(device, kernels.pipeline_cache, &cache_size, nullptr) == VK_SUCCESS &&
+                    cache_size >= pipeline_cache_io::kHeaderBytes &&
+                    cache_size <= pipeline_cache_io::kMaximumBytes) {
+                    std::vector<char> cache_out(cache_size);
+                    if (vkGetPipelineCacheData(device, kernels.pipeline_cache, &cache_size, cache_out.data()) == VK_SUCCESS) {
+                        cache_out.resize(cache_size);
+                        if (!pipeline_cache_io::write_atomic(cache_file, cache_out, device_properties))
+                            spdlog::warn("[Vulkan] pipeline cache persistence unavailable: {}", cache_file.string());
                     }
                 }
+            } catch (const std::exception& error) {
+                spdlog::warn("[Vulkan] pipeline cache persistence unavailable: {}", error.what());
             }
         }
 

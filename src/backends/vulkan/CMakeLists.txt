@@ -12,6 +12,7 @@ set(_chronon3d_shaders
     bloom_threshold
     color_adjust
     color_matrix
+    chromatic_aberration
     lighting
     matte
     text_run
@@ -47,6 +48,7 @@ set(_chronon3d_shader_abi_prefixes
     bloom_threshold:BloomThreshold
     color_adjust:ColorAdjust
     color_matrix:ColorMatrix
+    chromatic_aberration:ChromaticAberration
     lighting:Lighting
     matte:Matte
     text_run:TextRun

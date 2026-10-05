@@ -187,6 +187,15 @@ NodeExecResult EffectStackNode::execute(
                 ctx, m_effects, *result, local_clip, color_source,
                 color_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
         }
+        if (!native_handled) {
+            const auto chromatic_source = native_source_available
+                ? native_source
+                : (gpu_only_input ? inputs[0]->surface_handle()
+                                  : runtime::kInvalidRenderSurfaceHandle);
+            native_handled = native_effects::try_native_full_frame_chromatic(
+                ctx, m_effects, *result, local_clip, chromatic_source,
+                chromatic_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
+        }
         if (ctx.policy.is_gpu_native_required() && !native_handled) {
             std::string capability_message =
                 "strict native GPU effect could not be executed; refusing software fallback";
