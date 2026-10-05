@@ -459,6 +459,9 @@ public:
     graph::RenderOpResult color_transform_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const graph::NativeColorTransform&) override;
+    graph::RenderOpResult chromatic_transform_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const ChromaticAberrationParams&) override;
     graph::RenderOpResult lighting_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const Color&) override;

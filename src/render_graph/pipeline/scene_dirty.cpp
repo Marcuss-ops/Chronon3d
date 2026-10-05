@@ -93,9 +93,10 @@ DirtyRectOutput compute_dirty_rect(
             !out.frame_delta->scene_changed && !out.frame_delta->camera_changed;
         out.dirty_rect = out.frame_delta->dirty_bounds;
         if (ctx.node_exec.counters) {
-            ctx.node_exec.counters->dirty_eval_wall_ms.fetch_add(
-                static_cast<uint64_t>(profiling::duration_ms(t_dirty0, profiling::now())),
-                std::memory_order_relaxed);
+            profiling::accumulate_duration(
+                ctx.node_exec.counters->dirty_eval_wall_ns,
+                ctx.node_exec.counters->dirty_eval_wall_ms, t_dirty0, profiling::now(),
+                &ctx.node_exec.counters->dirty_eval_wall_us);
         }
         return out;
     }
@@ -246,9 +247,10 @@ DirtyRectOutput compute_dirty_rect(
     }
 
     if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->dirty_eval_wall_ms.fetch_add(
-            static_cast<uint64_t>(profiling::duration_ms(t_dirty0, profiling::now())),
-            std::memory_order_relaxed);
+        profiling::accumulate_duration(
+            ctx.node_exec.counters->dirty_eval_wall_ns,
+            ctx.node_exec.counters->dirty_eval_wall_ms, t_dirty0, profiling::now(),
+            &ctx.node_exec.counters->dirty_eval_wall_us);
     }
     return out;
 }

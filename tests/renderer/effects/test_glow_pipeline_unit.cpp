@@ -311,3 +311,116 @@ TEST_CASE("PhaseB blur, drop shadow, and bloom reuse warmed framebuffer scratch"
             CHECK(first.pixels_row(y)[x].a == second.pixels_row(y)[x].a);
         }
 }
+
+TEST_CASE("Bloom V1 threshold boundary and zero strength are exact") {
+    Framebuffer source{7, 1};
+    source.clear(Color::transparent());
+    const float values[] = {0.2f, 0.5f, 0.699f, 0.700f, 0.701f, 0.8f, 1.2f};
+    for (int x = 0; x < 7; ++x)
+        source.pixels_row(0)[x] = Color{values[x], values[x], values[x], 1.0f};
+
+    Framebuffer identity{source};
+    renderer::run_bloom_effect(identity, BloomParams{
+        .threshold = 0.7f, .radius = 0.0f, .intensity = 0.0f}, std::nullopt);
+    for (int x = 0; x < 7; ++x) {
+        CHECK(identity.pixels_row(0)[x].r == source.pixels_row(0)[x].r);
+        CHECK(identity.pixels_row(0)[x].a == source.pixels_row(0)[x].a);
+    }
+
+    Framebuffer extracted{source};
+    renderer::run_bloom_effect(extracted, BloomParams{
+        .threshold = 0.7f, .radius = 0.0f, .intensity = 1.0f}, std::nullopt);
+    CHECK(extracted.pixels_row(0)[0].r == doctest::Approx(0.2f));
+    CHECK(extracted.pixels_row(0)[1].r == doctest::Approx(0.5f));
+    CHECK(extracted.pixels_row(0)[2].r == doctest::Approx(0.699f));
+    CHECK(extracted.pixels_row(0)[3].r == doctest::Approx(0.700f));
+    CHECK(extracted.pixels_row(0)[4].r > 0.701f);
+    CHECK(extracted.pixels_row(0)[5].r > 0.8f);
+    CHECK(extracted.pixels_row(0)[6].r > 1.2f);
+}
+
+TEST_CASE("Bloom V1 preserves HDR, monotonic strength, center and radial symmetry") {
+    const auto make_source = [] {
+        Framebuffer source{513, 513};
+        source.clear(Color::transparent());
+        source.pixels_row(256)[256] = Color{8.0f, 8.0f, 8.0f, 1.0f};
+        return source;
+    };
+    const Framebuffer baseline{make_source()};
+    float prior_energy = -1.0f;
+    for (const float strength : {0.1f, 0.3f, 0.6f, 1.0f}) {
+        Framebuffer result{make_source()};
+        renderer::run_bloom_effect(result, BloomParams{
+            .threshold = 0.7f, .radius = 8.0f, .intensity = strength}, std::nullopt);
+        float energy = 0.0f;
+        for (int y = 0; y < result.height(); ++y)
+            for (int x = 0; x < result.width(); ++x)
+                energy += result.pixels_row(y)[x].r - baseline.pixels_row(y)[x].r;
+        CHECK(energy > prior_energy);
+        prior_energy = energy;
+        CHECK(result.pixels_row(256)[256].r > 8.0f);
+        CHECK(result.pixels_row(256)[254].r == doctest::Approx(result.pixels_row(256)[258].r));
+        CHECK(result.pixels_row(254)[256].r == doctest::Approx(result.pixels_row(258)[256].r));
+        CHECK(result.pixels_row(256)[254].r == doctest::Approx(result.pixels_row(254)[256].r));
+    }
+
+    float prior_spread = -1.0f;
+    for (int radius : {4, 16, 32, 64, 128}) {
+        Framebuffer result{make_source()};
+        renderer::run_bloom_effect(result, BloomParams{
+            .threshold = 0.7f, .radius = static_cast<float>(radius), .intensity = 0.6f}, std::nullopt);
+        CHECK(result.pixels_row(256)[256].r > result.pixels_row(256)[256 + radius / 2].r);
+        CHECK(result.pixels_row(256)[256].r > result.pixels_row(256)[256 - radius / 2].r);
+        float added_energy = 0.0f;
+        float weighted_distance = 0.0f;
+        for (int y = 0; y < result.height(); ++y)
+            for (int x = 0; x < result.width(); ++x) {
+                const auto pixel = result.pixels_row(y)[x];
+                const float added = pixel.r - baseline.pixels_row(y)[x].r;
+                const float dx = static_cast<float>(x - 256);
+                const float dy = static_cast<float>(y - 256);
+                added_energy += added;
+                weighted_distance += added * (dx * dx + dy * dy);
+                CHECK(std::isfinite(pixel.r));
+                CHECK(std::isfinite(pixel.g));
+                CHECK(std::isfinite(pixel.b));
+                CHECK(std::isfinite(pixel.a));
+            }
+        const float spread = weighted_distance / added_energy;
+        CHECK(spread > prior_spread);
+        prior_spread = spread;
+    }
+}
+
+TEST_CASE("Bloom V1 transparent pixels stay colorless and halo remains covered") {
+    Framebuffer source{65, 65};
+    source.clear(Color::transparent());
+    for (int y = 29; y <= 34; ++y)
+        for (int x = 29; x <= 34; ++x)
+            source.pixels_row(y)[x] = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    renderer::run_bloom_effect(source, BloomParams{
+        .threshold = 0.5f, .radius = 8.0f, .intensity = 0.5f}, std::nullopt);
+    CHECK(source.pixels_row(0)[0].r == 0.0f);
+    CHECK(source.pixels_row(0)[0].g == 0.0f);
+    CHECK(source.pixels_row(0)[0].b == 0.0f);
+    CHECK(source.pixels_row(32)[38].r > 0.0f);
+    CHECK(source.pixels_row(32)[38].a > 0.0f);
+    CHECK(source.pixels_row(32)[38].r <= source.pixels_row(32)[38].a);
+}
+
+TEST_CASE("Bloom V1 extreme HDR inputs never produce NaN or infinity") {
+    Framebuffer source{17, 17};
+    source.clear(Color::transparent());
+    source.pixels_row(8)[8] = Color{1.0e30f, 1.0e30f, 1.0e30f, 1.0f};
+    source.pixels_row(8)[9] = Color{1.0e30f, 1.0e30f, 1.0e30f, 1.0f};
+    renderer::run_bloom_effect(source, BloomParams{
+        .threshold = 0.7f, .radius = 128.0f, .intensity = 4.0f}, std::nullopt);
+    for (int y = 0; y < source.height(); ++y)
+        for (int x = 0; x < source.width(); ++x) {
+            const auto pixel = source.pixels_row(y)[x];
+            CHECK(std::isfinite(pixel.r));
+            CHECK(std::isfinite(pixel.g));
+            CHECK(std::isfinite(pixel.b));
+            CHECK(std::isfinite(pixel.a));
+        }
+}

@@ -26,6 +26,7 @@
 #include "blur_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "color_matrix_comp_spv.hpp"
+#include "chromatic_aberration_comp_spv.hpp"
 #include "matte_comp_spv.hpp"
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
@@ -39,6 +40,7 @@
 #include "affine_transform_abi.hpp"
 #include "blur_abi.hpp"
 #include "color_adjust_abi.hpp"
+#include "chromatic_aberration_abi.hpp"
 #include "matte_abi.hpp"
 #include "text_run_abi.hpp"
 #include "fill_rect_abi.hpp"
@@ -190,6 +192,18 @@ TEST_CASE("color_matrix shader ABI") {
     REQUIRE(find_binding(abi, 0, 1) != nullptr);
 }
 
+TEST_CASE("chromatic_aberration shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_chromatic_aberration_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+    CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    CHECK(abi.push_constant_size == 128);
+    CHECK(abi.local_size_x == 16);
+    CHECK(abi.local_size_y == 16);
+    CHECK(abi.local_size_z == 1);
+}
+
 TEST_CASE("matte shader ABI") {
     auto abi = REFLECT_SHADER(chronon3d_matte_comp_spv);
     // matte uses 3 images: destination, target, matte
@@ -213,6 +227,19 @@ TEST_CASE("fill_rect shader ABI") {
     auto abi = REFLECT_SHADER(chronon3d_fill_rect_comp_spv);
     // fill_rect has only one image binding (destination)
     REQUIRE(find_binding(abi, 0, 0) != nullptr);
+}
+
+TEST_CASE("chromatic_aberration shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_chromatic_aberration_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    CHECK(find_binding(abi, 0, 0)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+    CHECK(find_binding(abi, 0, 1)->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+    CHECK(abi.push_constant_size == ChromaticAberrationShaderAbi::kPushConstantSize);
+    CHECK(ChromaticAberrationShaderAbi::kPushConstantSize == 128);
+    CHECK(abi.local_size_x == 16);
+    CHECK(abi.local_size_y == 16);
+    CHECK(abi.local_size_z == 1);
 }
 
 TEST_CASE("layer_batch shader ABI") {

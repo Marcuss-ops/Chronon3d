@@ -5,6 +5,9 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
+#include <cstdlib>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -171,6 +174,52 @@ TEST_CASE("Vulkan plan-driven batch synchronizes through the BarrierPlan mapper"
     // overwrites 543) produced a valid result through the plan barriers.
     CHECK(output[center + 0] > 0.0f);
     CHECK(output[center + 3] > 0.0f);
+}
+
+TEST_CASE("Vulkan repeated plan binding preserves pixels across large and small plans") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const SurfaceDesc desc{4, 4, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+    const ResourceDesc resource{4, 4, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::JobPersistent, 4 * 4 * 4 * sizeof(float)};
+    constexpr RenderSurfaceHandle source_handle = 10001;
+    std::vector<float> source(64, 0.0f);
+    source[0] = 0.6f;
+    source[3] = 1.0f;
+    REQUIRE(backend.create_surface(source_handle, desc).ok());
+    REQUIRE(backend.upload_surface(source_handle, desc, source).ok());
+    const auto make_plan = [&](int count) {
+        GpuCommandPlanner planner;
+        planner.declare_surface(source_handle, resource);
+        for (int i = 0; i < count; ++i) {
+            const auto destination = source_handle + 1 + i;
+            planner.declare_surface(destination, resource);
+            planner.transform(TransformPass{destination, source_handle, 0, 0, 1.0f});
+        }
+        return planner.build();
+    };
+    const auto large = make_plan(128);
+    const auto small = make_plan(8);
+    double binding_us = 0;
+    constexpr int iterations = 200;
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        const auto& plan = iteration % 2 ? small : large;
+        const auto started = std::chrono::steady_clock::now();
+        backend.begin_plan_batch(plan);
+        binding_us += std::chrono::duration<double, std::micro>(
+            std::chrono::steady_clock::now() - started).count();
+        // Exercise one real write, not only command-buffer bookkeeping.
+        REQUIRE(backend.transform_surface(source_handle + 1, source_handle, 0, 0, 1.0f).ok());
+        backend.end_frame_batch();
+        std::vector<float> output(source.size());
+        REQUIRE(backend.download_surface(source_handle + 1, output).ok());
+        CHECK(output[0] == doctest::Approx(source[0]));
+        CHECK(output[3] == doctest::Approx(source[3]));
+    }
+    if (std::getenv("CHRONON3D_BINDING_BENCH"))
+        std::cout << "[binding-bench] iterations=" << iterations
+                  << " total_us=" << binding_us << " mean_us=" << binding_us / iterations << '\n';
 }
 
 TEST_CASE("command plan executor dispatches passes through the canonical backend API") {

@@ -1,0 +1,116 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+// Six channel transform vec4s followed by offset/mode and center/velocity.
+// Total push-constant size is 128 bytes, the Vulkan minimum guaranteed limit.
+layout(push_constant) uniform ChromaticParams {
+    vec4 red_transform0;   // translation.xy, scale.xy
+    vec4 red_transform1;   // rotation degrees, opacity, padding
+    vec4 green_transform0;
+    vec4 green_transform1;
+    vec4 blue_transform0;
+    vec4 blue_transform1;
+    vec4 offsets_mode;     // red offset, blue offset, mode, padding
+    vec4 center_velocity;  // center.xy, velocity.xy
+} params;
+
+float round_away(float value) {
+    return sign(value) * floor(abs(value) + 0.5);
+}
+
+vec2 transformed_source(vec2 pixel, vec4 transform0, vec4 transform1,
+                       vec2 extra_offset, vec2 center) {
+    vec2 delta = pixel - center - transform0.xy;
+    float angle = radians(transform1.x);
+    float cosine = cos(angle);
+    float sine = sin(angle);
+    vec2 inverse_rotated = vec2(cosine * delta.x + sine * delta.y,
+                                -sine * delta.x + cosine * delta.y);
+    return center + inverse_rotated / transform0.zw + extra_offset;
+}
+
+vec4 load_clamped(ivec2 pixel, ivec2 size) {
+    return imageLoad(source_image, clamp(pixel, ivec2(0), size - ivec2(1)));
+}
+
+vec4 sample_bilinear(vec2 source, ivec2 size) {
+    source = clamp(source, vec2(0.0), vec2(size - ivec2(1)));
+    ivec2 p = ivec2(floor(source));
+    vec2 f = source - vec2(p);
+    return mix(mix(load_clamped(p, size), load_clamped(p + ivec2(1, 0), size), f.x),
+               mix(load_clamped(p + ivec2(0, 1), size),
+                   load_clamped(p + ivec2(1, 1), size), f.x), f.y);
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(destination_image);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec4 center_sample = imageLoad(source_image, pixel);
+    vec2 center = params.center_velocity.xy * vec2(size);
+    vec2 red_offset = vec2(0.0);
+    vec2 blue_offset = vec2(0.0);
+    int mode = int(params.offsets_mode.z + 0.5);
+    if (mode == 0) {
+        red_offset.x = round_away(params.offsets_mode.x);
+        blue_offset.x = round_away(params.offsets_mode.y);
+    } else if (mode == 1) {
+        vec2 difference = vec2(pixel) + vec2(0.5) - center;
+        float distance_to_center = length(difference);
+        vec2 direction = distance_to_center > 1.0e-5
+            ? difference / distance_to_center : vec2(0.0);
+        red_offset = vec2(round_away(direction.x * params.offsets_mode.x),
+                          round_away(direction.y * params.offsets_mode.x));
+        blue_offset = vec2(round_away(direction.x * params.offsets_mode.y),
+                           round_away(direction.y * params.offsets_mode.y));
+    } else {
+        vec2 velocity = params.center_velocity.zw;
+        float velocity_length = length(velocity);
+        vec2 direction = velocity_length > 1.0e-5
+            ? velocity / velocity_length : vec2(1.0, 0.0);
+        red_offset = vec2(round_away(direction.x * params.offsets_mode.x),
+                          round_away(direction.y * params.offsets_mode.x));
+        blue_offset = vec2(round_away(direction.x * params.offsets_mode.y),
+                           round_away(direction.y * params.offsets_mode.y));
+    }
+
+    vec2 position = vec2(pixel);
+    vec4 red = sample_bilinear(transformed_source(
+        position, params.red_transform0, params.red_transform1, red_offset, center), size);
+    vec4 green = sample_bilinear(transformed_source(
+        position, params.green_transform0, params.green_transform1, vec2(0.0), center), size);
+    vec4 blue = sample_bilinear(transformed_source(
+        position, params.blue_transform0, params.blue_transform1, blue_offset, center), size);
+
+    bool identity = all(equal(params.red_transform0, vec4(0.0, 0.0, 1.0, 1.0))) &&
+        all(equal(params.green_transform0, vec4(0.0, 0.0, 1.0, 1.0))) &&
+        all(equal(params.blue_transform0, vec4(0.0, 0.0, 1.0, 1.0))) &&
+        params.red_transform1.x == 0.0 && params.red_transform1.y == 1.0 &&
+        params.green_transform1.x == 0.0 && params.green_transform1.y == 1.0 &&
+        params.blue_transform1.x == 0.0 && params.blue_transform1.y == 1.0;
+    if (identity) {
+        vec3 rgb = vec3(
+            center_sample.a > 1.0e-8 && red.a > 1.0e-8
+                ? red.r / red.a * center_sample.a : 0.0,
+            center_sample.a > 1.0e-8 && green.a > 1.0e-8
+                ? green.g / green.a * center_sample.a : 0.0,
+            center_sample.a > 1.0e-8 && blue.a > 1.0e-8
+                ? blue.b / blue.a * center_sample.a : 0.0);
+        imageStore(destination_image, pixel, vec4(rgb, center_sample.a));
+        return;
+    }
+
+    float red_alpha = red.a * params.red_transform1.y;
+    float green_alpha = green.a * params.green_transform1.y;
+    float blue_alpha = blue.a * params.blue_transform1.y;
+    vec3 rgb = vec3(
+        red.a > 1.0e-8 ? red.r / red.a * red_alpha : 0.0,
+        green.a > 1.0e-8 ? green.g / green.a * green_alpha : 0.0,
+        blue.a > 1.0e-8 ? blue.b / blue.a * blue_alpha : 0.0);
+    imageStore(destination_image, pixel,
+               vec4(rgb, max(red_alpha, max(green_alpha, blue_alpha))));
+}

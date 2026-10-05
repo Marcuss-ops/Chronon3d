@@ -26,6 +26,11 @@ bool try_native_full_frame_glow(
 bool try_native_full_frame_tint(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
     const std::optional<raster::BBox>&);
+bool try_native_full_frame_chromatic(
+    RenderGraphContext&, const EffectStack&, Framebuffer&,
+    const std::optional<raster::BBox>&,
+    runtime::RenderSurfaceHandle borrowed_source = runtime::kInvalidRenderSurfaceHandle,
+    const Framebuffer* borrowed_source_framebuffer = nullptr);
 
 } // namespace native_effects
 } // namespace graph

@@ -29,6 +29,9 @@
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
+#include <chronon3d/backends/software/builtin_processors.hpp>
+#include "src/backends/software/effects/render_effects_processor.hpp"
+#include <chronon3d/effects/glow_pipeline.hpp>
 #include <tests/helpers/cpu_gpu_parity.hpp>
 #include <tests/helpers/gpu_readiness_gate.hpp>
 
@@ -545,5 +548,119 @@ TEST_CASE("Vulkan bloom bright-pass preserves source and adds only thresholded l
     CHECK(output[3] == doctest::Approx(1.0f));
     for (const auto handle : {911U, 912U, 913U, 914U})
         REQUIRE(backend.release_surface(handle).ok());
+}
+
+TEST_CASE("Vulkan bloom threshold boundary and HDR match the scalar reference") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    constexpr std::uint32_t width = 5;
+    const runtime::SurfaceDesc desc{
+        width, 1, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::JobPersistent, 0};
+    const std::array<float, width> values{0.699f, 0.700f, 0.701f, 1.0f, 4.0f};
+    std::vector<float> source;
+    source.reserve(width * 4);
+    for (const float value : values)
+        source.insert(source.end(), {value, value, value, 1.0f});
+    const std::vector<float> empty(source.size(), 0.0f);
+    for (const auto handle : {921U, 922U, 923U, 924U})
+        REQUIRE(backend.create_surface(handle, desc).ok());
+    REQUIRE(backend.upload_surface(921, desc, source).ok());
+    REQUIRE(backend.upload_surface(922, desc, source).ok());
+    REQUIRE(backend.upload_surface(923, desc, empty).ok());
+    REQUIRE(backend.upload_surface(924, desc, empty).ok());
+    REQUIRE(backend.bloom_surfaces(921, 922, 923, 924, 0.7f, 0.0f, 0.5f).ok());
+    std::vector<float> actual(source.size(), 0.0f);
+    REQUIRE(backend.download_surface(921, actual).ok());
+    Framebuffer cpu{static_cast<int>(width), 1};
+    for (std::size_t i = 0; i < values.size(); ++i)
+        cpu.pixels_row(0)[i] = Color{values[i], values[i], values[i], 1.0f};
+    renderer::run_bloom_effect(cpu, BloomParams{
+        .threshold = 0.7f, .radius = 0.0f, .intensity = 0.5f}, std::nullopt);
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        const float contribution = std::clamp((values[i] - 0.7f) / 0.3f, 0.0f, 1.0f);
+        const float expected = values[i] + values[i] * contribution * 0.5f;
+        CHECK(actual[i * 4] == doctest::Approx(expected).epsilon(1e-5));
+        CHECK(actual[i * 4 + 1] == doctest::Approx(expected).epsilon(1e-5));
+        CHECK(actual[i * 4 + 2] == doctest::Approx(expected).epsilon(1e-5));
+        CHECK(actual[i * 4 + 3] == doctest::Approx(1.0f));
+        CHECK(actual[i * 4] == doctest::Approx(cpu.pixels_row(0)[i].r).epsilon(1e-5));
+        CHECK(actual[i * 4 + 1] == doctest::Approx(cpu.pixels_row(0)[i].g).epsilon(1e-5));
+        CHECK(actual[i * 4 + 2] == doctest::Approx(cpu.pixels_row(0)[i].b).epsilon(1e-5));
+        CHECK(actual[i * 4 + 3] == doctest::Approx(cpu.pixels_row(0)[i].a).epsilon(1e-5));
+    }
+    for (const auto handle : {921U, 922U, 923U, 924U})
+        REQUIRE(backend.release_surface(handle).ok());
+}
+
+TEST_CASE("Vulkan RGB channel transform matches software for offsets, affine channels, and alpha") {
+    using namespace chronon3d;
+    constexpr std::uint32_t width = 9;
+    constexpr std::uint32_t height = 5;
+    const runtime::SurfaceDesc desc{
+        width, height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::JobPersistent, 0};
+    Framebuffer original{static_cast<int>(width), static_cast<int>(height)};
+    std::vector<float> packed;
+    packed.reserve(width * height * 4);
+    for (int y = 0; y < static_cast<int>(height); ++y)
+        for (int x = 0; x < static_cast<int>(width); ++x) {
+            const float alpha = static_cast<float>((x + 2 * y) % 5 + 1) / 5.0f;
+            const Color color{alpha * static_cast<float>(x + 1) / width,
+                              alpha * static_cast<float>(y + 1) / height,
+                              alpha * static_cast<float>((x + y) % 7) / 7.0f, alpha};
+            original.pixels_row(y)[x] = color;
+            packed.insert(packed.end(), {color.r, color.g, color.b, color.a});
+        }
+
+    backends::vulkan::VulkanBackend backend;
+    REQUIRE(backend.create_surface(931, desc).ok());
+    REQUIRE(backend.create_surface(932, desc).ok());
+    const std::array<ChromaticAberrationParams, 3> cases{{
+        ChromaticAberrationParams{
+            .red_offset = 2.0f, .blue_offset = -1.0f,
+            .red = RgbChannelTransform{Vec2{1.0f, 0.0f}, Vec2{1.0f, 1.0f}, -5.0f, 1.0f},
+            .green = RgbChannelTransform{},
+            .blue = RgbChannelTransform{Vec2{-1.0f, 0.0f}, Vec2{1.0f, 1.0f}, 5.0f, 1.0f}},
+        ChromaticAberrationParams{
+            .red_offset = 1.5f, .blue_offset = -2.0f,
+            .offset_mode = ChromaticOffsetMode::Radial, .center = Vec2{0.35f, 0.6f},
+            .red = RgbChannelTransform{Vec2{0.25f, -0.5f}, Vec2{1.0f, 1.0f}, 0.0f, 0.75f},
+            .green = RgbChannelTransform{},
+            .blue = RgbChannelTransform{Vec2{-0.5f, 0.0f}, Vec2{1.0f, 1.0f}, 0.0f, 0.5f}},
+        ChromaticAberrationParams{
+            .red_offset = -2.0f, .blue_offset = 2.0f,
+            .offset_mode = ChromaticOffsetMode::Velocity, .velocity = Vec2{3.0f, 4.0f},
+            .red = RgbChannelTransform{}, .green = RgbChannelTransform{},
+            .blue = RgbChannelTransform{Vec2{0.0f, 0.0f}, Vec2{1.4f, 0.8f}, 12.0f, 0.6f}}
+    }};
+    renderer::SoftwareRegistry registry;
+    renderer::register_builtin_processors(registry);
+    for (const auto& params : cases) {
+        REQUIRE(backend.upload_surface(932, desc, packed).ok());
+        REQUIRE(backend.chromatic_transform_surface(931, 932, params).ok());
+        std::vector<float> actual(packed.size(), 0.0f);
+        REQUIRE(backend.download_surface(931, actual).ok());
+
+        Framebuffer expected{original};
+        EffectStack stack;
+        stack.emplace_back(params);
+        effects::EffectExecutionContext context;
+        renderer::apply_effect_stack(expected, stack, context, registry);
+        for (std::size_t index = 0; index < actual.size() / 4; ++index) {
+            const int x = static_cast<int>(index % width);
+            const int y = static_cast<int>(index / width);
+            const Color reference = expected.pixels_row(y)[x];
+            for (std::size_t channel = 0; channel < 4; ++channel) {
+                const float value = channel == 0 ? reference.r : channel == 1 ? reference.g :
+                                    channel == 2 ? reference.b : reference.a;
+                CHECK(actual[index * 4 + channel] == doctest::Approx(value).epsilon(1e-5));
+            }
+        }
+    }
+    REQUIRE(backend.release_surface(931).ok());
+    REQUIRE(backend.release_surface(932).ok());
 }
 #endif

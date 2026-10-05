@@ -107,7 +107,8 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
     case effects::EffectType::Exposure: {
         const auto* p = std::get_if<ExposureParams>(&instance.params);
         if (!p || !finite_all({p->stops})) return std::nullopt;
-        // Software Exposure ignores the clip and multiplies straight RGB.
+        // Software Exposure honors the clip and multiplies straight RGB.
+        out.honors_clip = true;
         if (p->stops == 0.0f) { out.transform = identity_affine(); return out; }
         out.transform = scaled_affine(std::exp2(p->stops), 0.0f, false);
         out.transform.straight_alpha = true;
@@ -117,7 +118,8 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
         const auto* p = std::get_if<FillParams>(&instance.params);
         if (!p || !finite_all({p->amount, p->color.r, p->color.g, p->color.b}))
             return std::nullopt;
-        // Software Fill ignores the clip and works on straight RGB.
+        // Software Fill honors the clip and works on straight RGB.
+        out.honors_clip = true;
         if (p->amount <= 0.0f) { out.transform = identity_affine(); return out; }
         const bool replace = p->mode == FillMode::Replace;
         const float t = p->amount;
@@ -135,6 +137,7 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
         const LevelsChannel* lanes[4] = {&p->red, &p->green, &p->blue, &p->master};
         out.transform.mode = NativeColorTransform::Mode::Levels;
         out.transform.straight_alpha = true;
+        out.honors_clip = true;
         for (std::size_t lane = 0; lane < 4; ++lane) {
             const auto& c = *lanes[lane];
             if (!finite_all({c.input_black, c.input_white, c.gamma,
@@ -193,17 +196,19 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
     if (!source_is_existing && !source_needs_expansion && result.data() == nullptr)
         return false;  // nothing to upload and no native source
 
-    std::vector<runtime::RenderSurfaceHandle> owned;
+    // At most source + output + clip destination: fixed stack ownership list.
+    std::array<runtime::RenderSurfaceHandle, 3> owned{};
+    std::size_t owned_count = 0;
     const auto make = [&]() {
         const auto h = ctx.surface_registry->create(desc);
-        if (h != runtime::kInvalidRenderSurfaceHandle) owned.push_back(h);
+        if (h != runtime::kInvalidRenderSurfaceHandle) owned[owned_count++] = h;
         return h;
     };
     const auto release = [&](runtime::RenderSurfaceHandle h) {
         (void)ctx.backend->release_surface(h);
         ctx.surface_registry->release(h);
     };
-    const auto cleanup = [&] { for (const auto h : owned) release(h); };
+    const auto cleanup = [&] { for (const auto h : std::span(owned).first(owned_count)) release(h); };
 
     const auto source = source_is_existing
         ? (source_is_borrowed ? borrowed_source : result.surface_handle())
@@ -211,7 +216,7 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
     const auto output = make();
     if (source == runtime::kInvalidRenderSurfaceHandle ||
         output == runtime::kInvalidRenderSurfaceHandle) {
-        for (const auto h : owned) ctx.surface_registry->release(h);
+        for (const auto h : std::span(owned).first(owned_count)) ctx.surface_registry->release(h);
         return false;
     }
 
@@ -259,10 +264,122 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
         cleanup();
         return false;
     }
-    for (const auto h : owned)
+    for (const auto h : std::span(owned).first(owned_count))
         if (h != final_surface) release(h);
     // The result's previous native surface (if any) is superseded, matching
     // the blur fast-path ownership contract.
+    if (source_is_existing && !source_is_borrowed) release(source);
+    result.set_surface_handle(final_surface);
+    return true;
+}
+
+bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
+                                    const EffectStack& effect_stack,
+                                    Framebuffer& result,
+                                    const std::optional<raster::BBox>& clip,
+                                    runtime::RenderSurfaceHandle borrowed_source,
+                                    const Framebuffer* borrowed_source_framebuffer) {
+    if (!ctx.backend || !ctx.surface_registry || effect_stack.size() != 1 ||
+        !ctx.backend->supports_native_surfaces()) return false;
+    const auto& instance = effect_stack[0];
+    const auto* p = std::get_if<ChromaticAberrationParams>(&instance.params);
+    if (!instance.enabled || instance.effect_type != effects::EffectType::ChromaticAberration || !p)
+        return false;
+    const auto valid_channel = [](const RgbChannelTransform& channel) {
+        return std::isfinite(channel.translation.x) && std::isfinite(channel.translation.y) &&
+            std::abs(channel.translation.x) <= 2048.0f &&
+            std::abs(channel.translation.y) <= 2048.0f &&
+            std::isfinite(channel.scale.x) && std::isfinite(channel.scale.y) &&
+            channel.scale.x >= 0.01f && channel.scale.x <= 100.0f &&
+            channel.scale.y >= 0.01f && channel.scale.y <= 100.0f &&
+            std::isfinite(channel.rotation_degrees) &&
+            std::abs(channel.rotation_degrees) <= 3600.0f &&
+            std::isfinite(channel.opacity) && channel.opacity >= 0.0f && channel.opacity <= 1.0f;
+    };
+    if (!std::isfinite(p->red_offset) || !std::isfinite(p->blue_offset) ||
+        std::abs(p->red_offset) > 128.0f || std::abs(p->blue_offset) > 128.0f ||
+        !std::isfinite(p->center.x) || !std::isfinite(p->center.y) ||
+        !std::isfinite(p->velocity.x) || !std::isfinite(p->velocity.y) ||
+        std::abs(p->center.x) > 1.0e6f || std::abs(p->center.y) > 1.0e6f ||
+        std::abs(p->velocity.x) > 1.0e6f || std::abs(p->velocity.y) > 1.0e6f ||
+        !valid_channel(p->red) || !valid_channel(p->green) || !valid_channel(p->blue))
+        return false;
+    if (p->offset_mode != ChromaticOffsetMode::Constant &&
+        p->offset_mode != ChromaticOffsetMode::Radial &&
+        p->offset_mode != ChromaticOffsetMode::Velocity) return false;
+
+    const auto desc = native_surface_desc(result.width(), result.height());
+    const bool source_is_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool source_needs_expansion = source_is_borrowed && borrowed_source_framebuffer &&
+        (borrowed_source_framebuffer->width() != result.width() ||
+         borrowed_source_framebuffer->height() != result.height() ||
+         borrowed_source_framebuffer->origin_x() != result.origin_x() ||
+         borrowed_source_framebuffer->origin_y() != result.origin_y());
+    const bool source_is_existing = !source_needs_expansion &&
+        (source_is_borrowed || result.surface_handle() != runtime::kInvalidRenderSurfaceHandle);
+    if (!source_is_existing && !source_needs_expansion && result.data() == nullptr) return false;
+
+    // At most source + output + clip destination: fixed stack ownership list.
+    std::array<runtime::RenderSurfaceHandle, 3> owned{};
+    std::size_t owned_count = 0;
+    const auto make = [&]() {
+        const auto handle = ctx.surface_registry->create(desc);
+        if (handle != runtime::kInvalidRenderSurfaceHandle) owned[owned_count++] = handle;
+        return handle;
+    };
+    const auto release = [&](runtime::RenderSurfaceHandle handle) {
+        (void)ctx.backend->release_surface(handle);
+        ctx.surface_registry->release(handle);
+    };
+    const auto cleanup = [&] { for (const auto handle : std::span(owned).first(owned_count)) release(handle); };
+
+    const auto source = source_is_existing
+        ? (source_is_borrowed ? borrowed_source : result.surface_handle()) : make();
+    const auto output = make();
+    if (source == runtime::kInvalidRenderSurfaceHandle ||
+        output == runtime::kInvalidRenderSurfaceHandle) {
+        for (const auto handle : std::span(owned).first(owned_count)) ctx.surface_registry->release(handle);
+        return false;
+    }
+
+    RenderOpResult status = source_is_existing
+        ? RenderOpResult(RenderOpOutcome{}) : ctx.backend->create_surface(source, desc);
+    if (status.ok() && source_needs_expansion) {
+        status = ctx.backend->initialize_transparent_surface(source);
+        if (status.ok()) status = ctx.backend->transform_surface(
+            source, borrowed_source,
+            borrowed_source_framebuffer->origin_x() - result.origin_x(),
+            borrowed_source_framebuffer->origin_y() - result.origin_y(), 1.0f);
+    } else if (status.ok() && !source_is_existing) {
+        profiling::GpuUploadProducerScope upload_scope(profiling::GpuUploadProducer::Effects);
+        std::vector<float> packed_rgba;
+        status = ctx.backend->upload_surface(source, desc, framebuffer_rgba_view(result, packed_rgba));
+    }
+    if (status.ok()) status = ctx.backend->create_surface(output, desc);
+    if (status.ok()) status = ctx.backend->chromatic_transform_surface(output, source, *p);
+
+    auto final_surface = output;
+    const bool partial_clip = clip && !clip_covers_result(clip, result);
+    if (status.ok() && partial_clip) {
+        raster::BBox local{clip->x0 - result.origin_x(), clip->y0 - result.origin_y(),
+                           clip->x1 - result.origin_x(), clip->y1 - result.origin_y()};
+        local.clip_to(result.width(), result.height());
+        final_surface = make();
+        status = final_surface == runtime::kInvalidRenderSurfaceHandle
+            ? RenderOpResult(make_render_backend_error(RenderBackendErrorCode::ExecutionFailure,
+                  "native chromatic effect: clip surface allocation failed"))
+            : ctx.backend->create_surface(final_surface, desc);
+        if (status.ok()) status = ctx.backend->copy_surface(final_surface, source);
+        if (status.ok() && !local.is_empty())
+            status = ctx.backend->copy_surface(final_surface, output, local);
+    }
+    if (!status.ok()) {
+        spdlog::error("[native-chromatic] failed: {}", status.error().message);
+        cleanup();
+        return false;
+    }
+    for (const auto handle : std::span(owned).first(owned_count))
+        if (handle != final_surface) release(handle);
     if (source_is_existing && !source_is_borrowed) release(source);
     result.set_surface_handle(final_surface);
     return true;

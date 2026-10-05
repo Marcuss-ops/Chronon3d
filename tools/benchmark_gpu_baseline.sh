@@ -273,6 +273,18 @@ for spec in cases:
                     entry["error"] = "native NVENC contract missing or empty"
                 elif get(data, "job", "surface_handoff_path") != "direct":
                     entry["error"] = "surface handoff is not direct"
+                else:
+                    gpu = get(data, "job", "gpu") or {}
+                    software_encode = gpu.get("software_encode_frames", 0)
+                    pipe_fallback = gpu.get("video_pipe_fallback_frames", 0)
+                    if not isinstance(software_encode, (int, float)):
+                        entry["error"] = "software encode fallback counter missing or invalid"
+                    elif software_encode != 0:
+                        entry["error"] = f"software encode fallback frames must be 0, got {software_encode}"
+                    elif not isinstance(pipe_fallback, (int, float)):
+                        entry["error"] = "video pipe fallback counter missing or invalid"
+                    elif pipe_fallback != 0:
+                        entry["error"] = f"video pipe fallback frames must be 0, got {pipe_fallback}"
         except (OSError, json.JSONDecodeError) as exc:
             entry["error"] = f"invalid timing sidecar: {exc}"
     result["cases"].append(entry)

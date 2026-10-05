@@ -1,4 +1,5 @@
 #include <chronon3d/backends/vulkan/cuda_vulkan_surface_bridge.hpp>
+#include "vulkan_external_fds.hpp"
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 
@@ -38,10 +39,7 @@ CUexternalSemaphore import_semaphore(
     desc.handle.fd = fd;
     CUexternalSemaphore semaphore = nullptr;
     const CUresult result = cuImportExternalSemaphore(&semaphore, &desc);
-    // CUDA consumes the opaque FD on success. Close it only on failure; doing
-    // so after a successful import can close an unrelated descriptor that was
-    // allocated after the Vulkan export, corrupting filesystem/IPC state.
-    if (result != CUDA_SUCCESS) close(fd);
+    // The caller retains FD ownership on failure; CUDA consumes it on success.
     check_cuda(result, operation);
     return semaphore;
 }
@@ -51,7 +49,9 @@ CUexternalSemaphore import_semaphore(
 CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     const CudaExternalMemoryInfo& info, CUcontext context, CUstream stream)
     : m_context(context), m_stream(stream), m_timeline(info.timeline_semaphores),
-      m_generation(info.generation), m_wait_vulkan_fence(info.wait_vulkan_fence) {
+      m_generation(info.generation) {
+    VulkanExternalFds descriptors(info.fd, info.cuda_to_vulkan_semaphore_fd,
+                                  info.vulkan_to_cuda_semaphore_fd);
     if (!m_context || info.fd < 0 || info.cuda_to_vulkan_semaphore_fd < 0 ||
         info.vulkan_to_cuda_semaphore_fd < 0 || info.width == 0 ||
         info.height == 0 || info.allocation_size == 0 ||
@@ -62,6 +62,7 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
         throw std::invalid_argument(
             "timeline CUDA/Vulkan bridge requires the Vulkan interop generation authority");
     }
+    m_wait_vulkan_fence = info.wait_vulkan_fence;
     make_current();
 
     CUDA_EXTERNAL_MEMORY_HANDLE_DESC memory_desc{};
@@ -69,9 +70,8 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     memory_desc.handle.fd = info.fd;
     memory_desc.size = info.allocation_size;
     CUresult result = cuImportExternalMemory(&m_memory, &memory_desc);
-    // Ownership of the opaque FD transfers to CUDA on success.
-    if (result != CUDA_SUCCESS) close(info.fd);
     check_cuda(result, "cuImportExternalMemory(surface)");
+    (void)descriptors.release(0);  // CUDA owns the imported memory FD.
 
     CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC array_desc{};
     array_desc.offset = 0;
@@ -96,12 +96,15 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
         m_cuda_to_vulkan = import_semaphore(
             info.cuda_to_vulkan_semaphore_fd, m_timeline,
             "cuImportExternalSemaphore(cuda->vulkan)");
+        (void)descriptors.release(1);
         m_vulkan_to_cuda = import_semaphore(
             info.vulkan_to_cuda_semaphore_fd, m_timeline,
             "cuImportExternalSemaphore(vulkan->cuda)");
+        (void)descriptors.release(2);
     } catch (...) {
         if (m_vulkan_to_cuda) cuDestroyExternalSemaphore(m_vulkan_to_cuda);
         if (m_cuda_to_vulkan) cuDestroyExternalSemaphore(m_cuda_to_vulkan);
+        if (m_surface) cuSurfObjectDestroy(m_surface);
         if (m_mipmapped) cuMipmappedArrayDestroy(m_mipmapped);
         if (m_memory) cuDestroyExternalMemory(m_memory);
         throw;

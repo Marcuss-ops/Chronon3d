@@ -546,6 +546,54 @@ void VulkanBackend::Impl::color_transform(
     throw std::logic_error("Vulkan color_transform requires an active frame batch");
 }
 
+void VulkanBackend::Impl::chromatic_transform(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const ChromaticAberrationParams& params) {
+    const auto finite = [](float value) { return std::isfinite(value); };
+    const auto valid_channel = [&](const RgbChannelTransform& channel) {
+        return finite(channel.translation.x) && finite(channel.translation.y) &&
+            std::abs(channel.translation.x) <= 2048.0f &&
+            std::abs(channel.translation.y) <= 2048.0f &&
+            finite(channel.scale.x) && finite(channel.scale.y) &&
+            channel.scale.x >= 0.01f && channel.scale.x <= 100.0f &&
+            channel.scale.y >= 0.01f && channel.scale.y <= 100.0f &&
+            finite(channel.rotation_degrees) &&
+            std::abs(channel.rotation_degrees) <= 3600.0f &&
+            finite(channel.opacity) && channel.opacity >= 0.0f && channel.opacity <= 1.0f;
+    };
+    if (!finite(params.red_offset) || !finite(params.blue_offset) ||
+        std::abs(params.red_offset) > 128.0f || std::abs(params.blue_offset) > 128.0f ||
+        !finite(params.center.x) || !finite(params.center.y) ||
+        std::abs(params.center.x) > 1.0e6f || std::abs(params.center.y) > 1.0e6f ||
+        !finite(params.velocity.x) || !finite(params.velocity.y) ||
+        std::abs(params.velocity.x) > 1.0e6f || std::abs(params.velocity.y) > 1.0e6f ||
+        !valid_channel(params.red) || !valid_channel(params.green) || !valid_channel(params.blue))
+        throw std::invalid_argument("Vulkan RGB channel parameters are outside supported ranges");
+    switch (params.offset_mode) {
+        case ChromaticOffsetMode::Constant:
+        case ChromaticOffsetMode::Radial:
+        case ChromaticOffsetMode::Velocity: break;
+        default: throw std::invalid_argument("Vulkan RGB offset mode is invalid");
+    }
+    auto& dst = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    if (destination == source)
+        throw std::invalid_argument("Vulkan RGB transform requires distinct source and destination surfaces");
+    if (!src_image.initialized || dst.width != src_image.width || dst.height != src_image.height)
+        throw std::invalid_argument("Vulkan RGB transform references incompatible surfaces");
+    if (!frame_batch.active)
+        throw std::logic_error("Vulkan RGB transform requires an active frame batch");
+    const auto descriptors = allocate_pass_descriptor_set();
+    write_descriptors(descriptors, dst, src_image);
+    const auto command = active_command_buffer();
+    emit_pass_sync(command, {&dst, &src_image});
+    record_chromatic_transform(command, descriptors, dst, src_image, params);
+    dst.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
+}
+
 void VulkanBackend::Impl::lighting(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
