@@ -14,10 +14,6 @@ NodeExecResult EffectStackNode::execute(
         [](const EffectInstance& effect) {
             return effect.enabled && effect.effect_type == effects::EffectType::Echo;
         });
-    const bool has_keying = std::any_of(m_effects.begin(), m_effects.end(),
-        [](const EffectInstance& effect) {
-            return effect.enabled && effect.effect_type == effects::EffectType::Keying;
-        });
     auto pred_bbox = predicted_bbox(ctx, input_bboxes);
     // A strict native export may carry a stale CPU-side allocation from a
     // reused physical slot while the Vulkan surface is already authoritative.
@@ -30,17 +26,15 @@ NodeExecResult EffectStackNode::execute(
         (!ctx.backend || ctx.backend->is_native_surface_valid(
             inputs[0]->surface_handle()));
     OwnedFB result;
-    if ((has_echo || has_keying) && gpu_only_input) {
-        throw std::runtime_error("Echo and Luma/Chroma Key require the software renderer for GPU-only surfaces");
-    }
     if (has_echo) {
         // Echo needs a stable canvas coordinate system: tight per-frame layer
         // bounds move as the source animates, while its history is sampled by
         // frame. Expand the source into a transparent canvas before recording
         // or compositing temporal samples so trails survive those bound shifts.
-        result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
+        result = ctx.acquire_owned_fb(
+            ctx.frame_input.width, ctx.frame_input.height, !gpu_only_input);
         result->set_origin(0, 0);
-        if (result->data()) {
+        if (!gpu_only_input && result->data()) {
             result->clear(Color::transparent());
         }
         const auto& source = *inputs[0];
@@ -48,7 +42,8 @@ NodeExecResult EffectStackNode::execute(
         const i32 dst_y0 = std::max(0, source.origin_y());
         const i32 dst_x1 = std::min(ctx.frame_input.width, source.origin_x() + source.width());
         const i32 dst_y1 = std::min(ctx.frame_input.height, source.origin_y() + source.height());
-        if (dst_x1 > dst_x0 && dst_y1 > dst_y0 && result->data() && source.data()) {
+        if (!gpu_only_input && dst_x1 > dst_x0 && dst_y1 > dst_y0 &&
+            result->data() && source.data()) {
             for (i32 y = dst_y0; y < dst_y1; ++y) {
                 const Color* src = source.pixels_row(y - source.origin_y()) + (dst_x0 - source.origin_x());
                 Color* dst = result->pixels_row(y) + dst_x0;
@@ -150,53 +145,164 @@ NodeExecResult EffectStackNode::execute(
         // when strict native-GPU policy is disabled. Prefer that surface for
         // native effects too: its CPU mirror can be absent or stale (notably
         // for cropped MTSDF text), and copying the mirror would erase it.
-        const auto input_surface = inputs[0]->surface_handle();
-        const bool native_source_available =
+        auto input_surface = inputs[0]->surface_handle();
+        bool native_source_available =
             input_surface != runtime::kInvalidRenderSurfaceHandle &&
             ctx.backend->supports_native_surfaces() &&
             ctx.backend->is_native_surface_valid(input_surface);
-        const auto native_source = native_source_available
-            ? input_surface
-            : runtime::kInvalidRenderSurfaceHandle;
         const auto native_clip = gpu_only_input
             ? std::optional<raster::BBox>{}
             : local_clip;
+        EffectStack active_effects;
+        for (const auto& effect : m_effects)
+            if (effect.enabled) active_effects.push_back(effect);
+        const auto echo_count = std::count_if(active_effects.begin(), active_effects.end(),
+            [](const EffectInstance& effect) {
+                return effect.effect_type == effects::EffectType::Echo;
+            });
+        bool native_echo_handled = false;
+        if (has_echo && (gpu_only_input || ctx.policy.is_gpu_native_required()) &&
+            active_effects.size() == 1 &&
+            active_effects[0].effect_type == effects::EffectType::Echo) {
+            native_echo_handled = native_effects::try_native_echo(
+                ctx, active_effects[0], *inputs[0], *result,
+                m_temporal_history_key, native_clip);
+        }
+        const bool strict_native_stack =
+            (ctx.policy.is_gpu_native_required() || (gpu_only_input && has_echo)) &&
+            active_effects.size() > 1 && ctx.backend->supports_native_surfaces() &&
+            ctx.surface_registry && echo_count <= 1;
+        bool native_source_promotion_failed = false;
+        if ((strict_native_stack || ctx.policy.is_gpu_native_required()) &&
+            !native_source_available && !gpu_only_input) {
+            // Effect expansion may allocate a CPU-less output framebuffer under
+            // strict GPU policy. Promote the actual input first, so spatial
+            // stages can expand/crop that native source without trying to
+            // upload an empty intermediate framebuffer.
+            native_source_available = ensure_native_surface(ctx, *inputs[0]);
+            input_surface = inputs[0]->surface_handle();
+            native_source_promotion_failed = !native_source_available;
+        }
+        const auto native_source = native_source_available
+            ? input_surface
+            : runtime::kInvalidRenderSurfaceHandle;
         bool native_handled = false;
-        native_handled = native_effects::try_native_full_frame_blur(
-            ctx, m_effects, *result, local_clip,
-            gpu_only_input ? inputs[0]->surface_handle()
-                           : runtime::kInvalidRenderSurfaceHandle,
-            gpu_only_input ? inputs[0].get() : nullptr);
-        // The native glow entry point owns its capability guard. Unsupported
-        // backends fall through to their registered software processor.
-        if (!native_handled) {
-            native_handled = native_effects::try_native_full_frame_glow_or_bloom(
-            ctx, m_effects, *result, native_clip, native_source,
-                native_source_available ? inputs[0].get() : nullptr);
+        // Strict GPU programs may compose several individually certified
+        // effects. Each stage consumes the previous native surface and writes
+        // a new one; the chain is published only after every active stage has
+        // succeeded. This preserves authored order and never reads pixels back
+        // between effects.
+        if (native_echo_handled) {
+            native_handled = true;
+        } else if (strict_native_stack) {
+            native_handled = !native_source_promotion_failed;
+            for (const auto& effect : active_effects) {
+                const auto* capability = gpu_effect_capability(effect.effect_type);
+                if (!capability || capability->route != GpuEffectRoute::NativeZeroReadback) {
+                    native_handled = false;
+                    break;
+                }
+            }
+            auto current_source = native_source;
+            Framebuffer* current_source_framebuffer =
+                native_source_available ? inputs[0].get() : nullptr;
+            bool current_source_owned = false;
+            for (const auto& effect : active_effects) {
+                if (!native_handled) continue;
+                EffectStack one_effect;
+                one_effect.push_back(effect);
+                bool stage_handled = false;
+                switch (effect.effect_type) {
+                case effects::EffectType::Blur:
+                    stage_handled = native_effects::try_native_full_frame_blur(
+                        ctx, one_effect, *result, native_clip, current_source,
+                        current_source_framebuffer);
+                    break;
+                case effects::EffectType::Glow:
+                case effects::EffectType::Bloom:
+                    stage_handled = native_effects::try_native_full_frame_glow_or_bloom(
+                        ctx, one_effect, *result, native_clip, current_source,
+                        current_source_framebuffer);
+                    break;
+                case effects::EffectType::Tint:
+                    stage_handled = native_effects::try_native_full_frame_tint(
+                        ctx, one_effect, *result, local_clip, current_source);
+                    break;
+                case effects::EffectType::Echo:
+                    stage_handled = native_effects::try_native_echo(
+                        ctx, effect, *current_source_framebuffer, *result,
+                        m_temporal_history_key, native_clip);
+                    break;
+                default:
+                    stage_handled = native_effects::try_native_full_frame_color(
+                        ctx, one_effect, *result, local_clip, current_source,
+                        current_source_framebuffer);
+                    break;
+                }
+                if (!stage_handled) {
+                    native_handled = false;
+                    break;
+                }
+                const auto previous_source = current_source;
+                const auto next_source = result->surface_handle();
+                if (current_source_owned && previous_source != next_source) {
+                    (void)ctx.backend->release_surface(previous_source);
+                    ctx.surface_registry->release(previous_source);
+                }
+                current_source = next_source;
+                current_source_framebuffer = result.get();
+                current_source_owned = true;
+            }
+            if (!native_handled && current_source_owned) {
+                (void)ctx.backend->release_surface(current_source);
+                ctx.surface_registry->release(current_source);
+                result->clear_surface_handle();
+            }
+        } else if (native_source_promotion_failed &&
+                   ctx.policy.is_gpu_native_required()) {
+            // Never let a strict native route upload the CPU-less expanded
+            // output after source promotion failed. Return the common
+            // UnsupportedCapability result below instead of passing an empty
+            // host span into a backend upload.
+            native_handled = false;
+        } else {
+            native_handled = native_effects::try_native_full_frame_blur(
+                ctx, active_effects, *result, local_clip,
+                gpu_only_input ? inputs[0]->surface_handle()
+                               : runtime::kInvalidRenderSurfaceHandle,
+                gpu_only_input ? inputs[0].get() : nullptr);
+            // The native glow entry point owns its capability guard. Unsupported
+            // backends fall through to their registered software processor.
+            if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_glow_or_bloom(
+                    ctx, active_effects, *result, native_clip, native_source,
+                    native_source_available ? inputs[0].get() : nullptr);
+            }
+            if (!native_handled && !gpu_only_input) {
+                native_handled = native_effects::try_native_full_frame_tint(
+                    ctx, active_effects, *result, local_clip);
+            }
+            if (!native_handled) {
+                const auto color_source = native_source_available
+                    ? native_source
+                    : (gpu_only_input ? inputs[0]->surface_handle()
+                                      : runtime::kInvalidRenderSurfaceHandle);
+                native_handled = native_effects::try_native_full_frame_color(
+                    ctx, active_effects, *result, local_clip, color_source,
+                    color_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
+            }
+            if (!native_handled) {
+                const auto chromatic_source = native_source_available
+                    ? native_source
+                    : (gpu_only_input ? inputs[0]->surface_handle()
+                                      : runtime::kInvalidRenderSurfaceHandle);
+                native_handled = native_effects::try_native_full_frame_chromatic(
+                    ctx, active_effects, *result, local_clip, chromatic_source,
+                    chromatic_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
+            }
         }
-        if (!native_handled && !gpu_only_input) {
-            native_handled = native_effects::try_native_full_frame_tint(
-                ctx, m_effects, *result, local_clip);
-        }
-        if (!native_handled) {
-            const auto color_source = native_source_available
-                ? native_source
-                : (gpu_only_input ? inputs[0]->surface_handle()
-                                  : runtime::kInvalidRenderSurfaceHandle);
-            native_handled = native_effects::try_native_full_frame_color(
-                ctx, m_effects, *result, local_clip, color_source,
-                color_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
-        }
-        if (!native_handled) {
-            const auto chromatic_source = native_source_available
-                ? native_source
-                : (gpu_only_input ? inputs[0]->surface_handle()
-                                  : runtime::kInvalidRenderSurfaceHandle);
-            native_handled = native_effects::try_native_full_frame_chromatic(
-                ctx, m_effects, *result, local_clip, chromatic_source,
-                chromatic_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
-        }
-        if (ctx.policy.is_gpu_native_required() && !native_handled) {
+        if ((ctx.policy.is_gpu_native_required() || (gpu_only_input && has_echo)) &&
+            !native_handled) {
             std::string capability_message =
                 "strict native GPU effect could not be executed; refusing software fallback";
             if (m_effects.size() == 1) {

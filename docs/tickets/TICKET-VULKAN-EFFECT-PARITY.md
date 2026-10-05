@@ -2,9 +2,10 @@
 
 ## Stato
 
-OPEN — software exposes 47 effect types; strict Vulkan certifies 13
-native effect routes (Blur, Glow, Bloom, Tint, Brightness, Contrast, Saturation,
-HueRotate, Invert, Exposure, Fill, Levels, Threshold) and explicitly rejects DropShadow.
+OPEN — software exposes 47 effect types; strict Vulkan has native dispatch
+routes for 17 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast,
+Saturation, HueRotate, Invert, Exposure, Fill, Levels, Threshold, Keying,
+Vignette, Mosaic, Echo) and explicitly rejects DropShadow.
 All remaining types are unsupported on this capability surface and fail closed. No CPU fallback
 is allowed for a strict GPU request.
 
@@ -61,6 +62,167 @@ the full software/GPU effect corpus passes on the same SHA.
   dispatch for the entire supported catalog.
 - [ ] GPU-host same-SHA certification passes; a host without GPU reports
   `NOT RUN`, not PASS.
+
+## Local progress — 2026-10-04
+
+- Keying lowers through the existing Vulkan color-matrix route. The local
+  Vulkan pixel-parity fixture covers luma/chroma, spill, matte clipping/choke,
+  garbage matte and partial clip. Fixed display-space framehash canaries for
+  luma and chroma each match the registered software processor and the
+  expected 8-bit sRGB FNV-1a hash (268 pixel-channel/hash assertions).
+- Strict multi-effect stacks execute currently certified routes in authored
+  order through graph-owned intermediate surfaces. Both a Brightness →
+  disabled stage → Invert fixture and a Blur → Invert pixel oracle match the
+  software reference. The blur stack route uses the CPU processor's repeated
+  box-filter kernel; the existing Gaussian kernel remains unchanged for its
+  other callers. Brightness → LumaKey and LumaKey → Brightness each match the
+  software oracle, and the outputs differ as expected (259 assertions).
+  Echo → non-identity Brightness in EffectStackNode matches the software
+  golden for both frames, confirming a temporal stage followed by a substantive
+  native color stage. Vignette now lowers through the same color-matrix dispatch, with
+  software/Vulkan pixel parity across parameter cases and clip coverage; a
+  three-stage Brightness → Vignette → Invert stack matches the software result.
+  Mosaic now lowers through a source-sampling dispatch. Block sizes 1, 3, and
+  512, partial clip behavior, and a Brightness → Vignette → Mosaic → Invert
+  stack match the software processors on llvmpipe. Mosaic preserves transparent
+  source samples while selecting each block's center. Unsupported effects and
+  the full catalog are not certified. Echo parity covers both stage orders:
+  EffectStackNode Echo → Brightness and AdjustmentNode Brightness → Echo both
+  match the registered software stack on two frames.
+  Strict AdjustmentNode execution now delegates fixed-extent stacks to the
+  same typed native stage executor. Brightness → Invert matches the software
+  oracle (130 assertions). AdjustmentNode carries Echo's deterministic
+  history key, frame-variant cache policy and preroll requirement from the
+  graph builder into the same executor. Brightness → Echo matches the software
+  oracle on both frames (88 assertions, including the preroll contract);
+  effects that require output bounds beyond the input remain unsupported by
+  the fixed-extent path. Brightness → ChromaKey and ChromaKey → Brightness also match the
+  software oracle through AdjustmentNode (259 pixel-channel assertions).
+  AdjustmentNode now also executes Blur → Invert through the shared native
+  stage executor while preserving its fixed input extent; the output matches
+  the software oracle with an explicit full-frame bbox (130 pixel-channel
+  assertions). A partial-clip fixture also matches all channels (130
+  assertions); Vulkan copies the CPU-equivalent blur halo before the following
+  clipped color stage. Other effects requiring expanded output bounds remain
+  outside this fixed-extent route. The native Glow route now prepares a
+  colorized alpha field, applies the CPU-equivalent linearized Gaussian and
+  composites the halo behind the source; full-frame Glow matches software at
+  radii 0, 0.49, 0.5, 1.5, 3, and 10 (768 channel comparisons, 780 total
+  assertions). Glow → Invert
+  and Bloom → Invert both run through AdjustmentNode and EffectStackNode at
+  radii 0.5, 1.5, 3,
+  and 10 and match the software oracle (1,024 channel comparisons, 1,040 total
+  AdjustmentNode assertions; the EffectStackNode fixture adds 1,024 channel
+  comparisons and passes 1,032 total assertions). An additional two-frame
+  AdjustmentNode oracle now
+  covers Brightness → Echo → ChromaKey (88 channel assertions). An
+  EffectStackNode fixture also matches two frames of Echo → Brightness →
+  ChromaKey against the registered software stack (64 channel comparisons,
+  92 total assertions) and pins the second-frame display-space framehash. The strict
+  full-frame Bloom route promotes the original input surface before processing
+  expanded output bounds, uses the software box kernel, and matches its oracle
+  at radii 0, 0.5, 1.5, 3, and 10 (650 channel assertions); radius 10.1 fails
+  closed because the CPU route downsamples above radius 10. Bloom → Invert in
+  AdjustmentNode matches the software oracle at radii 0.5, 1.5, 3, and 10;
+  this is focused parity evidence for those parameters, not exhaustive Bloom
+  boundary or downsampling parity.
+- Solid Rect, RoundedRect and Circle strokes have a CPU/Vulkan pixel oracle for
+  all three alignments with translated geometry, clipping, uniform scales
+  0.75x, 1x, 1.25x and 2x, anisotropic scales 1.25x0.75 and 0.75x2, rotation
+  0.37/-0.29 radians and a rotated anisotropic scale (1,769,836 assertions).
+  The Vulkan shader evaluates coverage with the same inverse-transform
+  coefficients as the CPU rasterizer, including pixel-edge rounding. An
+  explicit shear case fails closed after exposing pixel disagreement. A
+  regression fixture verifies Rect shear is rejected for Inside, Center and
+  Outside alignment (8 assertions). The per-corner RoundedRect stroke fixture
+  also matches the software oracle
+  for Inside/Center/Outside under a rotated anisotropic transform (61,455
+  pixel-channel assertions). Shear and masks remain unsupported.
+- Echo now uses job-owned, frame-addressed Vulkan surface history and weighted
+  premultiplied source-over, including as an ordered stack stage. Local fixtures
+  cover exact frame/key lookup, reset, no-readback surface copies, two-frame
+  graph output values, direct comparison against the registered software
+  processor for every output channel, and a fixed second-frame display-space
+  framehash. The capability census reports 17 native routes.
+- After Echo/keying framehash additions and rotated stroke parity changes,
+  CTest passed the Vulkan backend-registry, render-graph, and Vulkan
+  debug-context suites on llvmpipe (3/3); backend-registry was rerun after the
+  keying-stack order fixture and passed. The Echo/history focus passed 2 cases
+  / 48 assertions; keying framehashes passed 268 assertions, keying stack order
+  passed 259 assertions; the expanded stroke pixel oracle passed 1,769,836
+  assertions. The per-corner stroke fixture passed 61,455 pixel-channel
+  assertions; the complete backend-registry CTest passed locally on llvmpipe.
+- The native capability census is now 17/47; 30 catalog routes remain
+  unsupported. The backend-registry and render-graph CTest targets both passed
+  locally on llvmpipe after the Mosaic addition.
+- This is not GPU-hardware or same-SHA CI certification. The remaining catalog
+  routes and unsupported stroke transforms are still open.
+
+## Remote certification blocker — 2026-10-04
+
+GitHub Actions runs for `fb052dadf7bd1fe27a5377cbc63c4daeb1a305ca`, including
+the `Vulkan-gated unit suites` job, ended before runner allocation (`runner_id`
+0, empty runner name, no steps). The check-run annotation reports that the job
+was not started because recent account payments failed or the spending limit
+must be increased. This records an account-level execution blocker; it is not
+test evidence and does not certify this SHA on GPU hardware.
+
+The same condition was rechecked after pushing `e87d65fe0a85abe3b04071b1d7e14abb5c0b9c3d`:
+the `Vulkan-gated unit suites` job (run `37215701067`, job `111475639697`)
+again completed without runner allocation (`runner_id=0`, no steps) and carried
+the same billing annotation. The tested commit is `main`/`origin/main`; remote
+GPU-host certification remains pending until Actions can allocate a runner.
+
+After adding the native Vignette stage, commit
+`584e085472f045e4cb5139e3da560acf978d2a77` was also pushed to `main`. Its
+`Vulkan-gated unit suites` job (run `37217448778`, job `111480751356`) has
+`runner_id=0`, no steps, and the same account-billing annotation. Local
+llvmpipe tests pass, but this run provides no GPU-host evidence.
+
+After the Echo stack-order fixture, commit
+`bf8e23184f8e811fcb2a672b75808bc74e7753e0` was pushed to `main`. The
+`Vulkan-gated unit suites` job (run `37219496458`, job `111486769601`) again
+ended before runner allocation (`runner_id=0`, no steps) with the same billing
+annotation. This remains an external certification blocker, not test evidence.
+
+After adding strict `AdjustmentNode` stack execution, commit
+`456eb4e3b135bfa82ecab35131bfda8e4dc652f6` was also checked. The
+`Vulkan-gated unit suites` job (run `37220681906`, job `111490216673`) again
+had `runner_id=0`, no steps, and the same billing annotation; no GPU-host
+certification ran for this commit.
+
+After adding frame-addressed Echo to strict adjustment stacks, commit
+`0f1b00f9ebc992e5732af4722e69ae805e20a051` was checked as well. Its
+`Vulkan-gated unit suites` job (run `37221466498`, job `111492504050`) again
+ended before runner allocation (`runner_id=0`, no steps) with the same billing
+annotation. Hardware certification remains pending.
+
+After native Bloom stack parity landed, commit
+`39f130835260f7a27e527353938c57e7a3ba06b7` was checked in run `37227188905`.
+Both Vulkan-gated jobs ended before runner allocation (`runner_name` empty,
+steps empty) with the same account-billing annotation. The full developer-gate
+workflow (`37227188955`) had the same pre-allocation failure. These runs do
+not provide GPU-host certification; local llvmpipe remains the available
+parity evidence.
+
+The latest effect-stack parity commit, `51656c0740d3f54b7ce1952112d624a8402648b6`,
+was checked in Native Video Certification run `37229448896`. Its `Vulkan-gated
+unit suites` job (`111515841679`) completed before runner allocation
+(`runner_id=0`, empty runner name, no steps) with the same account-billing
+annotation. This run provides no hardware test evidence; same-SHA GPU-host
+certification remains pending.
+
+The follow-up documentation commit, `9de9613caa5eeb7cb83a8b2c2686da0ede66fe12`,
+was checked in Native Video Certification run `37229649595`. Its `Vulkan-gated
+unit suites` job (`111516439414`) likewise ended before runner allocation
+(`runner_id=0`, empty runner name, no steps) with the same billing annotation.
+Hardware certification remains pending.
+
+The two-frame EffectStackNode Echo/keying parity commit,
+`ed96c29794444d6dff8d9fb16564f889527c542b`, was checked in Native Video
+Certification run `37230674950`. Job `111519465115` ended before runner
+allocation (`runner_id=0`, empty runner name, no steps) with the same billing
+annotation. Local tests pass on llvmpipe; this run does not certify hardware.
 
 ## Demolition debt
 

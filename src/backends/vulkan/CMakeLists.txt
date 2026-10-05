@@ -10,6 +10,7 @@ set(_chronon3d_shaders
     affine_transform
     blur
     bloom_threshold
+    glow_prepare
     color_adjust
     color_matrix
     chromatic_aberration
@@ -46,6 +47,7 @@ set(_chronon3d_shader_abi_prefixes
     affine_transform:AffineTransform
     blur:Blur
     bloom_threshold:BloomThreshold
+    glow_prepare:GlowPrepare
     color_adjust:ColorAdjust
     color_matrix:ColorMatrix
     chromatic_aberration:ChromaticAberration

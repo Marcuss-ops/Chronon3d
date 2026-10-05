@@ -150,7 +150,8 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
 
     void VulkanBackend::Impl::record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                      const Image& destination, const Image& source,
-                     float radius, bool horizontal) {
+                     float radius, bool horizontal, bool box_kernel,
+                     bool glow_kernel) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Blur)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -158,7 +159,9 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
         struct PushConstants {
             float radius;
             std::int32_t horizontal;
-        } params{radius, horizontal ? 1 : 0};
+            std::int32_t box_kernel;
+        } params{radius, horizontal ? 1 : 0,
+                 box_kernel ? 1 : (glow_kernel ? 2 : 0)};
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,
@@ -179,6 +182,26 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
             float padding;
             float dispatch_origin[2];
         } push{threshold, 0.0f, {0.0f, 0.0f}};
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void VulkanBackend::Impl::record_glow_prepare(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source,
+        float intensity, const Color& tint) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::GlowPrepare)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float tint[4];
+            float intensity;
+            float padding[3];
+        } push{{tint.r, tint.g, tint.b, tint.a}, intensity, {0.0f, 0.0f, 0.0f}};
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(push), &push);
         vkCmdDispatch(command, (destination.width + 15) / 16,
@@ -226,7 +249,10 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
             for (int lane = 0; lane < 4; ++lane)
                 params.p[row][lane] = transform.p[static_cast<std::size_t>(row)][static_cast<std::size_t>(lane)];
         params.options[0] = transform.mode == graph::NativeColorTransform::Mode::Levels ? 1.0f :
-                            (transform.mode == graph::NativeColorTransform::Mode::Threshold ? 2.0f : 0.0f);
+                            (transform.mode == graph::NativeColorTransform::Mode::Threshold ? 2.0f :
+                             (transform.mode == graph::NativeColorTransform::Mode::Keying ? 3.0f :
+                              (transform.mode == graph::NativeColorTransform::Mode::Vignette ? 4.0f :
+                               (transform.mode == graph::NativeColorTransform::Mode::Mosaic ? 5.0f : 0.0f))));
         params.options[1] = transform.clamp_unit ? 1.0f : 0.0f;
         params.options[2] = transform.straight_alpha ? 1.0f : 0.0f;
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
