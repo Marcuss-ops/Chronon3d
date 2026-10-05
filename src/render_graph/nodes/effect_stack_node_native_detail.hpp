@@ -35,7 +35,8 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
     const bool valid_params = std::isfinite(radius) && std::isfinite(intensity) &&
         radius >= 0.0f && radius <= 64.0f && intensity >= 0.0f && intensity <= 4.0f &&
         (!bloom_params || (std::isfinite(bloom_params->threshold) &&
-                           bloom_params->threshold >= 0.0f && bloom_params->threshold <= 1.0f)) &&
+                           bloom_params->threshold >= 0.0f && bloom_params->threshold <= 1.0f &&
+                           radius <= 10.0f)) &&
         (!glow_params || (std::isfinite(glow_params->color.r) &&
                           std::isfinite(glow_params->color.g) &&
                           std::isfinite(glow_params->color.b) &&
@@ -180,10 +181,10 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
 bool try_native_full_frame_tint(RenderGraphContext& ctx,
                                 const EffectStack& effect_stack,
                                 Framebuffer& result,
-                                const std::optional<raster::BBox>& clip) {
+                                const std::optional<raster::BBox>& clip,
+                                runtime::RenderSurfaceHandle borrowed_source) {
     if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
-        effect_stack.size() != 1 ||
-        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+        effect_stack.size() != 1) {
         return false;
     }
     const auto& instance = effect_stack[0];
@@ -199,27 +200,34 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
     const auto desc = native_surface_desc(result.width(), result.height());
     // AUDIT F10 — zero-copy tight-storage path (see the glow fast-path above).
     std::vector<float> packed_rgba;
-    const auto rgba = framebuffer_rgba_view(result, packed_rgba);
-    const auto source = ctx.surface_registry->create(desc);
+    const bool source_is_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool source_is_existing = source_is_borrowed ||
+        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle;
+    const auto source = source_is_borrowed ? borrowed_source :
+        (source_is_existing ? result.surface_handle() : ctx.surface_registry->create(desc));
     const auto destination = ctx.surface_registry->create(desc);
     if (source == runtime::kInvalidRenderSurfaceHandle ||
         destination == runtime::kInvalidRenderSurfaceHandle) {
-        if (source != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(source);
+        if (!source_is_existing && source != runtime::kInvalidRenderSurfaceHandle)
+            ctx.surface_registry->release(source);
         if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(destination);
         return false;
     }
     const auto cleanup = [&] {
-        (void)ctx.backend->release_surface(source);
+        if (!source_is_existing) (void)ctx.backend->release_surface(source);
         (void)ctx.backend->release_surface(destination);
-        ctx.surface_registry->release(source);
+        if (!source_is_existing) ctx.surface_registry->release(source);
         ctx.surface_registry->release(destination);
     };
-    const auto created_source = ctx.backend->create_surface(source, desc);
+    auto created_source = source_is_existing
+        ? RenderOpResult(RenderOpOutcome{})
+        : ctx.backend->create_surface(source, desc);
     RenderOpResult uploaded = created_source;
-    if (created_source.ok()) {
+    if (created_source.ok() && !source_is_existing) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
-        uploaded = ctx.backend->upload_surface(source, desc, rgba);
+        uploaded = ctx.backend->upload_surface(
+            source, desc, framebuffer_rgba_view(result, packed_rgba));
     }
     const auto created_destination = uploaded.ok()
         ? ctx.backend->create_surface(destination, desc)
@@ -233,8 +241,10 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
         cleanup();
         return false;
     }
-    (void)ctx.backend->release_surface(source);
-    ctx.surface_registry->release(source);
+    if (!source_is_borrowed) {
+        (void)ctx.backend->release_surface(source);
+        ctx.surface_registry->release(source);
+    }
     result.set_surface_handle(destination);
     return true;
 }
@@ -252,8 +262,11 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     const auto& instance = effect_stack[0];
     if (!instance.enabled || instance.effect_type != effects::EffectType::Blur) return false;
     const auto* params = std::get_if<BlurParams>(&instance.params);
+    // The software processor changes to downsampled strategies above 10 px;
+    // this native route currently certifies the full-resolution two-pass
+    // box-filter branch only.
     if (!params || !std::isfinite(params->radius) ||
-        params->radius < 0.0f || params->radius > 32.0f) {
+        params->radius < 0.0f || params->radius > 10.0f) {
         return false;
     }
     const auto desc = native_surface_desc(result.width(), result.height());
@@ -318,17 +331,38 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     const bool partial_clip = clip && !clip_covers_result(clip, result);
     std::optional<raster::BBox> local_clip;
     if (partial_clip) {
+        const auto halo = static_cast<i32>(std::ceil(
+            effects::spatial_halo_extent(
+                effects::blur_spatial_halo(params->radius, 2))));
         local_clip = raster::BBox{
-            clip->x0 - result.origin_x(), clip->y0 - result.origin_y(),
-            clip->x1 - result.origin_x(), clip->y1 - result.origin_y()};
+            clip->x0 - halo - result.origin_x(),
+            clip->y0 - halo - result.origin_y(),
+            clip->x1 + halo - result.origin_x(),
+            clip->y1 + halo - result.origin_y()};
         local_clip->clip_to(result.width(), result.height());
     }
-    const auto blurred_horizontal = created_output.ok()
-        ? ctx.backend->blur_surface(horizontal, source, params->radius, /*horizontal=*/true)
+    const auto rounded_radius = std::max(1, static_cast<int>(std::round(params->radius)));
+    const float r_plus = static_cast<float>(rounded_radius * rounded_radius + rounded_radius);
+    const int box_radius = std::max(1, static_cast<int>(std::round(
+        0.5f * (std::sqrt(1.0f + 6.0f * r_plus) - 1.0f))));
+    const auto pass1_horizontal = created_output.ok()
+        ? ctx.backend->blur_surface(horizontal, source, static_cast<float>(box_radius),
+                                    /*horizontal=*/true, /*box_kernel=*/true)
         : created_output;
-    const auto blurred_vertical = blurred_horizontal.ok()
-        ? ctx.backend->blur_surface(output, horizontal, params->radius, /*horizontal=*/false)
-        : blurred_horizontal;
+    const auto pass1_vertical = pass1_horizontal.ok()
+        ? ctx.backend->blur_surface(output, horizontal, static_cast<float>(box_radius),
+                                    /*horizontal=*/false, /*box_kernel=*/true)
+        : pass1_horizontal;
+    const auto pass2_horizontal = pass1_vertical.ok()
+        ? ctx.backend->blur_surface(
+            horizontal, output, static_cast<float>(box_radius),
+            /*horizontal=*/true, /*box_kernel=*/true)
+        : pass1_vertical;
+    const auto blurred_vertical = pass2_horizontal.ok()
+        ? ctx.backend->blur_surface(
+            output, horizontal, static_cast<float>(box_radius),
+            /*horizontal=*/false, /*box_kernel=*/true)
+        : pass2_horizontal;
     const auto clipped_result = blurred_vertical.ok() && partial_clip
         ? ctx.backend->copy_surface(source, output, local_clip)
         : blurred_vertical;

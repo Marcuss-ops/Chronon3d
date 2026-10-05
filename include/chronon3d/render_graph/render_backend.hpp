@@ -179,7 +179,10 @@ using NodeExecResult = Result<OwnedFB, NodeExecutionError>;
 /// output_white with lanes {red, green, blue, master}.  Pixels with alpha <= 0
 /// are untouched and alpha is always preserved.
 struct NativeColorTransform {
-    enum class Mode : std::uint8_t { Affine = 0, Levels = 1, Threshold = 2 };
+    enum class Mode : std::uint8_t {
+        Affine = 0, Levels = 1, Threshold = 2, Keying = 3, Vignette = 4,
+        Mosaic = 5
+    };
     Mode mode{Mode::Affine};
     std::array<std::array<float, 4>, 5> p{{
         {1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f},
@@ -478,6 +481,18 @@ public:
             "RenderBackend::composite_surfaces: native surfaces are not supported"));
     }
 
+    /// Source-over composite a native surface after scaling all premultiplied
+    /// RGBA channels by `opacity`. Used by deterministic temporal trails.
+    virtual RenderOpResult composite_surface_weighted(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        float /*opacity*/,
+        const std::optional<raster::BBox>& /*clip*/ = std::nullopt) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::composite_surface_weighted: native surfaces are not supported"));
+    }
+
     /// Replace-copy a native surface, optionally limited to a canvas clip.
     /// Unlike SourceOver this preserves exact source pixels and is used by
     /// native effects to merge a clipped result without a CPU round trip.
@@ -538,7 +553,7 @@ public:
     virtual RenderOpResult blur_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
-        float /*radius*/, bool /*horizontal*/) {
+        float /*radius*/, bool /*horizontal*/, bool /*box_kernel*/ = false) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::blur_surface: native surfaces are not supported"));

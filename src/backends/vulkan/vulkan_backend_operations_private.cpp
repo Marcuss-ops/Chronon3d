@@ -18,7 +18,8 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                                     runtime::RenderSurfaceHandle source,
                                     BlendMode mode,
                                     const std::optional<raster::BBox>& clip,
-                                    bool replace) {
+                                    bool replace, float source_scale,
+                                    bool weighted_source_over) {
     auto& dst_image = resolve_image(destination);
     auto& src_image = resolve_image(source);
     if (!src_image.initialized ||
@@ -32,7 +33,7 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
             std::to_string(src_image.height) +
             (src_image.initialized ? "" : " src-uninitialized"));
     }
-    const std::int32_t blend_mode = replace ? 2 :
+    const std::int32_t blend_mode = replace ? 2 : weighted_source_over ? 7 :
         (mode == BlendMode::Add ? 1 : mode == BlendMode::Multiply ? 3 :
          mode == BlendMode::Screen ? 4 : mode == BlendMode::Overlay ? 5 : 0);
     if (frame_batch.active) {
@@ -41,7 +42,7 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &src_image});
         record_composite(cmd, descriptors, dst_image, src_image,
-                         blend_mode, 1.0f, kIdentityTint, clip);
+                         blend_mode, source_scale, kIdentityTint, clip);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;
@@ -310,7 +311,7 @@ void VulkanBackend::Impl::transform_affine(
 
 void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle source,
-                               float radius, bool horizontal) {
+                               float radius, bool horizontal, bool box_kernel) {
     if (!(radius >= 0.0f) || radius > 32.0f) {
         throw std::invalid_argument("Vulkan blur radius must be within [0, 32]");
     }
@@ -326,7 +327,8 @@ void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &src_image});
-        record_blur(cmd, descriptors, dst_image, src_image, radius, horizontal);
+        record_blur(cmd, descriptors, dst_image, src_image, radius, horizontal,
+                    box_kernel);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;
@@ -354,50 +356,70 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
         vertical.width != src_image.width || vertical.height != src_image.height) {
         throw std::invalid_argument("Vulkan glow surfaces have incompatible dimensions");
     }
-    const float tint_rgba[4] = {tint.r, tint.g, tint.b, tint.a};
+    if (radius < 0.5f || intensity <= 0.0f) return;
 
     if (frame_batch.active) {
-        const auto horizontal_descriptor = allocate_pass_descriptor_set();
-        write_descriptors(horizontal_descriptor, horizontal, src_image);
-        const auto vertical_descriptor = allocate_pass_descriptor_set();
-        write_descriptors(vertical_descriptor, vertical, horizontal);
+        const auto prepare_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(prepare_descriptor, horizontal, src_image);
+        const auto horizontal_blur_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(horizontal_blur_descriptor, vertical, horizontal);
+        const auto vertical_blur_descriptor = allocate_pass_descriptor_set();
+        write_descriptors(vertical_blur_descriptor, horizontal, vertical);
         const auto composite_descriptor = allocate_pass_descriptor_set();
-        write_descriptors(composite_descriptor, dst, vertical);
+        write_descriptors(composite_descriptor, dst, horizontal);
         const auto cmd = active_command_buffer();
 
         // One command-plan pass => consume its canonical transition stream
         // exactly once. Internal dispatch dependencies use the same
         // ResourceTransition -> Sync2 translator.
         emit_pass_sync(cmd, {&dst, &src_image, &horizontal, &vertical});
-        record_blur(cmd, horizontal_descriptor, horizontal, src_image,
-                    radius, true);
+        record_glow_prepare(cmd, prepare_descriptor, horizontal, src_image,
+                            intensity, tint);
         horizontal.initialized = true;
 
-        runtime::ResourceTransition horizontal_ready;
-        horizontal_ready.range = runtime::image_range(runtime::ResourceAspect::Color);
-        horizontal_ready.before = runtime::ResourceState{
+        runtime::ResourceTransition writable_to_readable;
+        writable_to_readable.range = runtime::image_range(runtime::ResourceAspect::Color);
+        writable_to_readable.before = runtime::ResourceState{
             .stages = runtime::PipelineStage::ComputeShader,
             .access = runtime::AccessMask::ShaderWrite,
             .layout = runtime::ResourceLayout::General,
             .queue = runtime::QueueClass::Compute,
         };
-        horizontal_ready.after = runtime::ResourceState{
+        writable_to_readable.after = runtime::ResourceState{
             .stages = runtime::PipelineStage::ComputeShader,
             .access = runtime::AccessMask::ShaderRead,
             .layout = runtime::ResourceLayout::General,
             .queue = runtime::QueueClass::Compute,
         };
-        emit_resource_transition(cmd, horizontal.image, horizontal_ready);
+        emit_resource_transition(cmd, horizontal.image, writable_to_readable);
 
-        record_blur(cmd, vertical_descriptor, vertical, horizontal,
-                    radius, false);
+        const float sigma = std::max(0.5f, radius / 3.0f);
+        record_blur(cmd, horizontal_blur_descriptor, vertical, horizontal,
+                    sigma, true, false, true);
         vertical.initialized = true;
+        emit_resource_transition(cmd, vertical.image, writable_to_readable);
 
-        runtime::ResourceTransition vertical_ready = horizontal_ready;
-        emit_resource_transition(cmd, vertical.image, vertical_ready);
+        runtime::ResourceTransition horizontal_for_write = writable_to_readable;
+        horizontal_for_write.before = runtime::ResourceState{
+            .stages = runtime::PipelineStage::ComputeShader,
+            .access = runtime::AccessMask::ShaderRead,
+            .layout = runtime::ResourceLayout::General,
+            .queue = runtime::QueueClass::Compute,
+        };
+        horizontal_for_write.after = runtime::ResourceState{
+            .stages = runtime::PipelineStage::ComputeShader,
+            .access = runtime::AccessMask::ShaderWrite,
+            .layout = runtime::ResourceLayout::General,
+            .queue = runtime::QueueClass::Compute,
+        };
+        emit_resource_transition(cmd, horizontal.image, horizontal_for_write);
+        record_blur(cmd, vertical_blur_descriptor, horizontal, vertical,
+                    sigma, false, false, true);
+        emit_resource_transition(cmd, horizontal.image, writable_to_readable);
 
-        record_composite(cmd, composite_descriptor, dst, vertical,
-                         1, intensity, tint_rgba);
+        constexpr float identity_tint[4]{1.0f, 1.0f, 1.0f, 1.0f};
+        record_composite(cmd, composite_descriptor, dst, horizontal,
+                         8, 1.0f, identity_tint);
         dst.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;
@@ -434,7 +456,9 @@ void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
     write_descriptors(threshold_descriptor, horizontal, src_image);
     VkDescriptorSet horizontal_blur_descriptor = VK_NULL_HANDLE;
     VkDescriptorSet vertical_blur_descriptor = VK_NULL_HANDLE;
-    if (radius > 0.0f) {
+    const bool blur_enabled = radius > 0.5f;
+    const float box_radius = std::ceil(radius);
+    if (blur_enabled) {
         horizontal_blur_descriptor = allocate_pass_descriptor_set();
         write_descriptors(horizontal_blur_descriptor, vertical, horizontal);
         vertical_blur_descriptor = allocate_pass_descriptor_set();
@@ -461,9 +485,10 @@ void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
         .layout = runtime::ResourceLayout::General,
         .queue = runtime::QueueClass::Compute,
     };
-    if (radius > 0.0f) {
+    if (blur_enabled) {
         emit_resource_transition(command, horizontal.image, ready_for_read);
-        record_blur(command, horizontal_blur_descriptor, vertical, horizontal, radius, true);
+        record_blur(command, horizontal_blur_descriptor, vertical, horizontal,
+                    box_radius, true, true);
         vertical.initialized = true;
         emit_resource_transition(command, vertical.image, ready_for_read);
         runtime::ResourceTransition horizontal_for_write = ready_for_read;
@@ -480,7 +505,8 @@ void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
             .queue = runtime::QueueClass::Compute,
         };
         emit_resource_transition(command, horizontal.image, horizontal_for_write);
-        record_blur(command, vertical_blur_descriptor, horizontal, vertical, radius, false);
+        record_blur(command, vertical_blur_descriptor, horizontal, vertical,
+                    box_radius, false, true);
         horizontal.initialized = true;
         emit_resource_transition(command, horizontal.image, ready_for_read);
     } else {

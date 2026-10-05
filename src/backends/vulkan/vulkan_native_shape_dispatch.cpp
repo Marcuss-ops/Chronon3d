@@ -6,8 +6,10 @@
 #include "../../render_graph/nodes/detail/native_promotion.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -437,21 +439,13 @@ bool try_native_solid_rect(
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return false;
     }
-    // Native primitives are deliberately restricted to fills and un-stroked
-    // straight lines. Closed-shape strokes remain fail-closed until their
-    // software/Vulkan pixel contract is validated; the Vulkan backend does not
-    // have an implicit CPU fallback. Gradients and masks are also unsupported.
+    // Gradients and masks remain unsupported. Closed-shape solid strokes are
+    // accepted only for the exact SDF contract implemented below.
     const ShapeStroke* stroke_ptr = nullptr;
     if (type == ShapeType::Rect) stroke_ptr = &node.shape.rect().stroke;
     else if (type == ShapeType::RoundedRect) stroke_ptr = &node.shape.rounded_rect().stroke;
     else if (type == ShapeType::Circle) stroke_ptr = &node.shape.circle().stroke;
-    const bool has_stroke = stroke_ptr && stroke_ptr->enabled && stroke_ptr->width > 0.0f;
-    // The current SDF stroke shader has no CPU-pixel parity oracle yet. Keep
-    // this capability fail-closed until alignment, fill/stroke precedence,
-    // clipping, opacity, and edge coverage are certified against the software
-    // rasterizer. VulkanBackend has no implicit CPU fallback.
-    if (has_stroke) return false;
-
+    bool has_stroke = stroke_ptr && stroke_ptr->enabled && stroke_ptr->width > 0.0f;
     Vec2 size{};
     Vec4 shape_params{0.0f};
     Vec4 line_params{0.0f};
@@ -490,15 +484,48 @@ bool try_native_solid_rect(
         shape_params = Vec4{3.0f, width, 0.0f, 0.0f};
         shape_color = line.stroke.color;
     }
-    if (!is_line && !graph::native_promotion::is_axis_aligned_affine(state)) {
+    // The local-space SDF supports rotation with axis scaling. Keep shear,
+    // projected transforms and ordinary fills on their existing fail-closed
+    // paths until their pixel coverage contracts are certified.
+    const float basis_x = std::hypot(state.matrix[0][0], state.matrix[0][1]);
+    const float basis_y = std::hypot(state.matrix[1][0], state.matrix[1][1]);
+    const float basis_dot = state.matrix[0][0] * state.matrix[1][0] +
+                            state.matrix[0][1] * state.matrix[1][1];
+    const bool orthogonal_affine = std::isfinite(basis_x) &&
+        std::isfinite(basis_y) && std::isfinite(basis_dot) &&
+        basis_x > 1e-6f && basis_y > 1e-6f &&
+        std::abs(basis_dot) <= 1e-5f * basis_x * basis_y;
+    if (!is_line && (!has_stroke || !orthogonal_affine ||
+                     graph::native_promotion::is_projected(state))) {
         return false;
+    }
+
+    if (has_stroke) {
+        const float sx = std::hypot(state.matrix[0][0], state.matrix[1][0]);
+        const float sy = std::hypot(state.matrix[0][1], state.matrix[1][1]);
+        // The software stroke contract is evaluated in inverse-transformed
+        // local coordinates. The shader applies the full inverse orthogonal
+        // transform, preserving the CPU SDF metric for scale and rotation.
+        if (sx <= 1e-6f || sy <= 1e-6f)
+            return false;
     }
 
     // Resolve the fill color exactly as the software shape processor does.
     bool fill_alpha_zero = false;
     const Color fill_premul = graph::native_promotion::premultiply(
         shape_color, state.opacity, &fill_alpha_zero);
-    if (fill_alpha_zero) return true;
+    Color stroke_premul{0.0f, 0.0f, 0.0f, 0.0f};
+    if (has_stroke) {
+        bool stroke_alpha_zero = false;
+        stroke_premul = graph::native_promotion::premultiply(
+            stroke_ptr->color, state.opacity, &stroke_alpha_zero);
+        if (stroke_alpha_zero) {
+            if (fill_alpha_zero) return true;
+            has_stroke = false;
+        }
+    } else if (fill_alpha_zero) {
+        return true;
+    }
 
     // Geometry bounds in destination pixels (axis-aligned affine outer hull).
     const Vec4 c00 = state.matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -509,6 +536,54 @@ bool try_native_solid_rect(
     float geom_min_y = std::min({c00.y, c10.y, c01.y, c11.y});
     float geom_max_x = std::max({c00.x, c10.x, c01.x, c11.x});
     float geom_max_y = std::max({c00.y, c10.y, c01.y, c11.y});
+
+    std::array<Vec2, 8> vertices{};
+    if (has_stroke) {
+        const float sx = std::hypot(state.matrix[0][0], state.matrix[1][0]);
+        const float sy = std::hypot(state.matrix[0][1], state.matrix[1][1]);
+        const float stroke_width_px = stroke_ptr->width * sx;
+        if (!std::isfinite(stroke_width_px) || stroke_width_px <= 0.0f)
+            return false;
+        const auto alignment = stroke_ptr->alignment;
+        glm::mat3 inverse_transform;
+        inverse_transform[0][0] = state.matrix[0][0];
+        inverse_transform[0][1] = state.matrix[0][1];
+        inverse_transform[0][2] = state.matrix[0][3];
+        inverse_transform[1][0] = state.matrix[1][0];
+        inverse_transform[1][1] = state.matrix[1][1];
+        inverse_transform[1][2] = state.matrix[1][3];
+        inverse_transform[2][0] = state.matrix[3][0];
+        inverse_transform[2][1] = state.matrix[3][1];
+        inverse_transform[2][2] = state.matrix[3][3];
+        inverse_transform = glm::inverse(inverse_transform);
+        vertices[0] = size;
+        vertices[1] = Vec2{inverse_transform[0][0], inverse_transform[0][1]};
+        vertices[2] = Vec2{inverse_transform[1][0], inverse_transform[1][1]};
+        vertices[3] = Vec2{inverse_transform[2][0], inverse_transform[2][1]};
+        const float shader_alignment = alignment == StrokeAlignment::Inside ? 0.0f :
+            alignment == StrokeAlignment::Center ? 1.0f : 2.0f;
+        vertices[4] = Vec2{stroke_ptr->width, shader_alignment};
+        vertices[7].y = 1.0f;
+        if (type == ShapeType::RoundedRect &&
+            node.shape.rounded_rect().corner_radius) {
+            const auto& radii = *node.shape.rounded_rect().corner_radius;
+            vertices[5] = Vec2{radii[0], radii[1]};
+            vertices[6] = Vec2{radii[2], radii[3]};
+            vertices[7].x = 1.0f;
+        }
+        line_params = Vec4{stroke_premul.r, stroke_premul.g,
+                           stroke_premul.b, stroke_premul.a};
+        const float extent_x = alignment == StrokeAlignment::Inside
+            ? 0.0f : stroke_ptr->width * sx;
+        const float extent_y = alignment == StrokeAlignment::Inside
+            ? 0.0f : stroke_ptr->width * sy;
+        if (extent_x > 0.0f || extent_y > 0.0f) {
+            geom_min_x -= extent_x;
+            geom_min_y -= extent_y;
+            geom_max_x += extent_x;
+            geom_max_y += extent_y;
+        }
+    }
 
     float dispatch_min_x, dispatch_min_y, dispatch_max_x, dispatch_max_y;
 
@@ -545,7 +620,7 @@ bool try_native_solid_rect(
 
     return backend.fill_solid_shape_surface(
         framebuffer.surface_handle(), x0, y0, x1, y1,
-        shape_params, line_params, fill_premul).ok();
+        shape_params, line_params, fill_premul, vertices).ok();
 }
 
 void sync_gpu_to_cpu(VulkanBackend& backend, Framebuffer& fb) {

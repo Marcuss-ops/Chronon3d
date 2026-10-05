@@ -35,7 +35,8 @@ inline NativeColorTransform scaled_affine(float scale, float offset, bool clamp)
 } // namespace color_detail
 
 inline std::optional<NativeColorLowering>
-lower_native_color_effect(const effects::EffectInstance& instance) {
+lower_native_color_effect(const effects::EffectInstance& instance,
+                          int origin_x = 0, int origin_y = 0) {
     using color_detail::finite_all;
     using color_detail::identity_affine;
     using color_detail::scaled_affine;
@@ -107,18 +108,21 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
     case effects::EffectType::Exposure: {
         const auto* p = std::get_if<ExposureParams>(&instance.params);
         if (!p || !finite_all({p->stops})) return std::nullopt;
-        // Software Exposure honors the clip and multiplies straight RGB.
+        // Software Exposure honors the clip and multiplies straight RGB
+        // inside context.clip.
         out.honors_clip = true;
         if (p->stops == 0.0f) { out.transform = identity_affine(); return out; }
         out.transform = scaled_affine(std::exp2(p->stops), 0.0f, false);
         out.transform.straight_alpha = true;
+        out.honors_clip = true;
         return out;
     }
     case effects::EffectType::Fill: {
         const auto* p = std::get_if<FillParams>(&instance.params);
         if (!p || !finite_all({p->amount, p->color.r, p->color.g, p->color.b}))
             return std::nullopt;
-        // Software Fill honors the clip and works on straight RGB.
+        // Software Fill honors the clip and works on straight RGB inside
+        // context.clip.
         out.honors_clip = true;
         if (p->amount <= 0.0f) { out.transform = identity_affine(); return out; }
         const bool replace = p->mode == FillMode::Replace;
@@ -129,6 +133,29 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
         out.transform.p[1] = {0.0f, keep, 0.0f, p->color.g * mix};
         out.transform.p[2] = {0.0f, 0.0f, keep, p->color.b * mix};
         out.transform.straight_alpha = true;
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::Vignette: {
+        const auto* p = std::get_if<VignetteParams>(&instance.params);
+        if (!p || !finite_all({p->radius, p->softness, p->amount,
+                               p->color.r, p->color.g, p->color.b}))
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::Vignette;
+        out.transform.p[0] = {p->radius, p->softness, p->amount, p->color.r};
+        out.transform.p[1] = {p->color.g, p->color.b, 0.0f, 0.0f};
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::Mosaic: {
+        const auto* p = std::get_if<MosaicParams>(&instance.params);
+        if (!p || p->block_size == 0 || p->block_size > 512)
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::Mosaic;
+        out.transform.p[0] = {static_cast<float>(p->block_size),
+                              static_cast<float>(origin_x),
+                              static_cast<float>(origin_y), 0.0f};
+        out.honors_clip = true;
         return out;
     }
     case effects::EffectType::Levels: {
@@ -149,6 +176,7 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
             out.transform.p[3][lane] = c.output_black;
             out.transform.p[4][lane] = c.output_white;
         }
+        out.honors_clip = true;
         return out;
     }
     case effects::EffectType::Threshold: {
@@ -161,6 +189,42 @@ lower_native_color_effect(const effects::EffectInstance& instance) {
         out.transform.straight_alpha = true;
         out.transform.p[0][0] = p->threshold;
         out.transform.p[0][1] = p->softness;
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::Keying: {
+        const auto* p = std::get_if<KeyingParams>(&instance.params);
+        if (!p || (p->mode != KeyingMode::Luma && p->mode != KeyingMode::Chroma) ||
+            !finite_all({p->threshold, p->softness, p->spill,
+                         p->key_color.r, p->key_color.g, p->key_color.b,
+                         p->clip_black, p->clip_white, p->choke,
+                         p->garbage_x, p->garbage_y, p->garbage_w,
+                         p->garbage_h, p->garbage_feather}) ||
+            p->threshold < 0.0f || p->threshold > 1.0f ||
+            p->softness < 0.0f || p->softness > 1.0f ||
+            p->spill < 0.0f || p->spill > 1.0f ||
+            p->key_color.r < 0.0f || p->key_color.r > 1.0f ||
+            p->key_color.g < 0.0f || p->key_color.g > 1.0f ||
+            p->key_color.b < 0.0f || p->key_color.b > 1.0f ||
+            p->clip_black < 0.0f || p->clip_white > 1.0f ||
+            p->clip_white <= p->clip_black || p->choke < 0.0f ||
+            p->choke >= 1.0f || p->garbage_x < 0.0f || p->garbage_x > 1.0f ||
+            p->garbage_y < 0.0f || p->garbage_y > 1.0f ||
+            p->garbage_w < 0.0f || p->garbage_w > 1.0f ||
+            p->garbage_h < 0.0f || p->garbage_h > 1.0f ||
+            p->garbage_feather < 0.0f || p->garbage_feather > 0.5f)
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::Keying;
+        out.transform.straight_alpha = true;
+        out.transform.p[0] = {p->key_color.r, p->key_color.g,
+                              p->key_color.b, p->threshold};
+        out.transform.p[1] = {p->softness, p->spill,
+                              p->clip_black, p->clip_white};
+        out.transform.p[2] = {p->choke, p->garbage_x,
+                              p->garbage_y, p->garbage_w};
+        out.transform.p[3] = {p->garbage_h, p->garbage_feather,
+                              0.0f, 0.0f};
+        out.transform.p[4][0] = p->mode == KeyingMode::Luma ? 1.0f : 0.0f;
         out.honors_clip = true;
         return out;
     }
@@ -180,7 +244,8 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
         return false;
     const auto& instance = effect_stack[0];
     if (!instance.enabled) return false;
-    const auto lowering = lower_native_color_effect(instance);
+    const auto lowering = lower_native_color_effect(
+        instance, result.origin_x(), result.origin_y());
     if (!lowering) return false;
 
     const auto desc = native_surface_desc(result.width(), result.height());

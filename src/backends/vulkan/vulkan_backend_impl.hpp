@@ -586,10 +586,14 @@ struct VulkanBackend::Impl {
                                  runtime::SurfaceAffineTransform transform);
     void record_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                      const Image& destination, const Image& source,
-                     float radius, bool horizontal);
+                     float radius, bool horizontal, bool box_kernel = false,
+                     bool glow_kernel = false);
     void record_bloom_threshold(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& destination, const Image& source,
                                 float threshold);
+    void record_glow_prepare(VkCommandBuffer command, VkDescriptorSet descriptors,
+                             const Image& destination, const Image& source,
+                             float intensity, const Color& tint);
     void record_color_adjust(VkCommandBuffer command, VkDescriptorSet descriptors,
                              const Image& destination, const Image& source,
                              float brightness, float contrast,
@@ -649,7 +653,8 @@ struct VulkanBackend::Impl {
     void composite(runtime::RenderSurfaceHandle destination,
                    runtime::RenderSurfaceHandle source, BlendMode mode,
                    const std::optional<raster::BBox>& clip = std::nullopt,
-                   bool replace = false);
+                   bool replace = false, float source_scale = 1.0f,
+                   bool weighted_source_over = false);
     void fill_rect(runtime::RenderSurfaceHandle destination,
                    std::int32_t x0, std::int32_t y0,
                    std::int32_t x1, std::int32_t y1,
@@ -684,7 +689,8 @@ struct VulkanBackend::Impl {
                           runtime::RenderSurfaceHandle source,
                           const runtime::SurfaceAffineTransform& transform);
     void blur(runtime::RenderSurfaceHandle destination,
-              runtime::RenderSurfaceHandle source, float radius, bool horizontal);
+              runtime::RenderSurfaceHandle source, float radius, bool horizontal,
+              bool box_kernel = false);
     void glow(runtime::RenderSurfaceHandle destination,
               runtime::RenderSurfaceHandle source,
               runtime::RenderSurfaceHandle scratch_horizontal,

@@ -11,6 +11,12 @@
 // mode 1 (levels): p[0] input_black, p[1] input_white, p[2] gamma,
 //                  p[3] output_black, p[4] output_white; lanes are
 //                  (red, green, blue, master). Per-channel first, then master.
+// mode 3 (keying): p[0] key rgb + threshold; p[1] softness, spill,
+//                  clip black/white; p[2] choke + garbage x/y/w;
+//                  p[3] garbage h/feather; p[4].x selects luma vs chroma.
+// mode 4 (vignette): p[0] radius, softness, amount, color.r;
+//                    p[1].xy = color.gb.
+// mode 5 (mosaic): p[0] block size, framebuffer origin x/y.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
@@ -36,14 +42,30 @@ void main() {
     if (coord.x >= size.x || coord.y >= size.y) return;
 
     vec4 source = imageLoad(source_image, coord);
+    if (params.options.x > 4.5) {
+        int block_size = max(1, int(params.p[0].x + 0.5));
+        ivec2 origin = ivec2(params.p[0].yz);
+        ivec2 global_coord = coord + origin;
+        ivec2 cell = ivec2(floor(vec2(global_coord) / float(block_size)));
+        ivec2 sample_global = cell * block_size + ivec2(block_size / 2);
+        ivec2 sample_coord = clamp(sample_global - origin, ivec2(0), size - ivec2(1));
+        imageStore(destination_image, coord, imageLoad(source_image, sample_coord));
+        return;
+    }
     if (source.a <= 0.0) {
-        imageStore(destination_image, coord, params.options.x > 1.5 ? vec4(0.0) : source);
+        // Threshold clears transparent inputs; Keying follows the software
+        // processor's alpha<=epsilon skip and preserves transparent RGB.
+        bool threshold_mode = params.options.x > 1.5 && params.options.x < 2.5;
+        imageStore(destination_image, coord, threshold_mode ? vec4(0.0) : source);
         return;
     }
     const bool straight = params.options.z > 0.5;
     vec3 rgb = source.rgb;
     if (straight) {
-        rgb = source.a <= 1.0e-8 ? vec3(0.0) : rgb * (1.0 / source.a);
+        float alpha_for_unpremultiply = params.options.x > 2.5
+            ? clamp(source.a, 0.0, 1.0) : source.a;
+        rgb = alpha_for_unpremultiply <= 1.0e-8
+            ? vec3(0.0) : rgb * (1.0 / alpha_for_unpremultiply);
     }
 
     if (params.options.x < 0.5) {
@@ -51,7 +73,7 @@ void main() {
                       dot(params.p[1].xyz, rgb) + params.p[1].w,
                       dot(params.p[2].xyz, rgb) + params.p[2].w);
         rgb = params.options.y > 0.5 ? clamp(r, vec3(0.0), vec3(1.0)) : r;
-    } else if (params.options.x > 1.5) {
+    } else if (params.options.x > 1.5 && params.options.x < 2.5) {
         float luma = dot(vec3(0.2126, 0.7152, 0.0722), rgb);
         float threshold = params.p[0].x;
         float softness = params.p[0].y;
@@ -63,6 +85,63 @@ void main() {
             val = t * t * (3.0 - 2.0 * t);
         }
         rgb = vec3(val);
+    } else if (params.options.x > 3.5) {
+        float diagonal = sqrt(float(size.x * size.x + size.y * size.y));
+        float dx = float(coord.x) - float(size.x) * 0.5;
+        float dy = float(coord.y) - float(size.y) * 0.5;
+        float distance_to_center = sqrt(dx * dx + dy * dy);
+        float inner_radius = params.p[0].x * diagonal * 0.5;
+        float outer_radius = inner_radius + params.p[0].y * diagonal * 0.5;
+        float inverse_range = 1.0 / max(1.0, outer_radius - inner_radius);
+        float vignette = clamp((distance_to_center - inner_radius) * inverse_range,
+                               0.0, 1.0);
+        vignette = vignette * vignette * (3.0 - 2.0 * vignette);
+        float amount = vignette * params.p[0].z;
+        vec3 color = vec3(params.p[0].w, params.p[1].x, params.p[1].y);
+        rgb = rgb * (1.0 - amount) + color * amount;
+    } else if (params.options.x > 2.5) {
+        float measure;
+        if (params.p[4].x > 0.5) {
+            measure = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+        } else {
+            vec3 delta = rgb - params.p[0].xyz;
+            measure = length(delta) * 0.57735026919;
+        }
+        float keep;
+        float softness = params.p[1].x;
+        if (softness <= 0.0) {
+            keep = measure >= params.p[0].w ? 1.0 : 0.0;
+        } else {
+            float t = clamp((measure - params.p[0].w) / softness, 0.0, 1.0);
+            keep = t * t * (3.0 - 2.0 * t);
+        }
+        keep = clamp((keep - params.p[1].z) /
+                     max(params.p[1].w - params.p[1].z, 1.0e-6), 0.0, 1.0);
+        float choke = params.p[2].x;
+        if (choke > 0.0)
+            keep = clamp((keep - choke) / (1.0 - choke), 0.0, 1.0);
+
+        float garbage = 1.0;
+        float garbage_w = params.p[2].w;
+        float garbage_h = params.p[3].x;
+        if (garbage_w > 0.0 && garbage_h > 0.0) {
+            vec2 uv = (vec2(coord) + vec2(0.5)) / vec2(size);
+            float dx = min(uv.x - params.p[2].y,
+                           params.p[2].y + garbage_w - uv.x);
+            float dy = min(uv.y - params.p[2].z,
+                           params.p[2].z + garbage_h - uv.y);
+            float distance = min(dx, dy);
+            float feather = params.p[3].y;
+            garbage = feather > 0.0
+                ? clamp(distance / feather, 0.0, 1.0)
+                : (distance >= 0.0 ? 1.0 : 0.0);
+        }
+        float gray = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+        float spill = params.p[1].y * (1.0 - keep);
+        rgb += (vec3(gray) - rgb) * spill;
+        float alpha = clamp(source.a, 0.0, 1.0) * keep * garbage;
+        imageStore(destination_image, coord, vec4(rgb * alpha, alpha));
+        return;
     } else {
         for (int c = 0; c < 3; ++c) {
             rgb[c] = levels_channel(rgb[c], params.p[0][c], params.p[1][c],

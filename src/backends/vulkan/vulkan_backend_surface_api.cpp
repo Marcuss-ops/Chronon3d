@@ -290,6 +290,30 @@ graph::RenderOpResult VulkanBackend::composite_surfaces(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::composite_surface_weighted(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    float opacity,
+    const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput,
+            "VulkanBackend::composite_surface_weighted: opacity must be finite and in [0, 1]"));
+    }
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->composite(destination, source, BlendMode::Normal, clip,
+                          false, opacity, true);
+    });
+#else
+    (void)destination; (void)source; (void)clip;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::composite_surface_weighted: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::copy_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
@@ -480,14 +504,15 @@ graph::RenderOpResult VulkanBackend::transform_surface_affine(
 
 graph::RenderOpResult VulkanBackend::blur_surface(
     runtime::RenderSurfaceHandle destination,
-    runtime::RenderSurfaceHandle source, float radius, bool horizontal) {
+    runtime::RenderSurfaceHandle source, float radius, bool horizontal,
+    bool box_kernel) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
     return run_batched_surface_op(touched, {}, [&] {
-        m_impl->blur(destination, source, radius, horizontal);
+        m_impl->blur(destination, source, radius, horizontal, box_kernel);
     });
 #else
-    (void)destination; (void)source; (void)radius; (void)horizontal;
+    (void)destination; (void)source; (void)radius; (void)horizontal; (void)box_kernel;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::blur_surface: Vulkan support is disabled"));

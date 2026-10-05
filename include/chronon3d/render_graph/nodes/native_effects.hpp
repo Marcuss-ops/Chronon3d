@@ -25,7 +25,9 @@ bool try_native_full_frame_glow(
     const Framebuffer* existing_source_framebuffer = nullptr);
 bool try_native_full_frame_tint(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
-    const std::optional<raster::BBox>&);
+    const std::optional<raster::BBox>&,
+    runtime::RenderSurfaceHandle borrowed_source =
+        runtime::kInvalidRenderSurfaceHandle);
 bool try_native_full_frame_chromatic(
     RenderGraphContext&, const EffectStack&, Framebuffer&,
     const std::optional<raster::BBox>&,
