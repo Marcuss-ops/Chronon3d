@@ -13,19 +13,26 @@ luma. Chroma mode keys pixels near `key_color` using normalized linear RGB
 distance. `threshold` begins the transition, `softness` ends it, and `spill`
 pulls partially keyed edge colors toward gray.
 
-GPU-only surfaces currently fail explicitly because there is no native keyer
-dispatch. Do not silently omit the effect in a strict GPU render.
+Keying now lowers to the existing Vulkan color-matrix pipeline for strict
+GPU-only surfaces. A local Vulkan pixel-parity fixture covers luma/chroma,
+spill, clip/choke, garbage matte, partial clip and partial alpha; strict
+execution uses no software fallback. Stable luma and chroma display-space
+framehash canaries match both the registered software processor golden and
+fixed expected hashes on the local Vulkan device. This is not same-SHA
+GPU-hardware certification.
 
 ## Exit criteria
 
-- Implement native GPU luma/chroma kernels with the same linear-light,
-  premultiplied-alpha semantics as the software processor.
-- Add shader/CPU parity tests for hard and soft thresholds, partial alpha,
-  spill reduction, and clipped rendering.
-- Add a GPU framehash canary and advertise the capability through backend
-  resolution; strict GPU jobs must reject the effect at preflight until then.
+- [x] Implement native GPU luma/chroma processing with linear-light,
+  premultiplied-alpha semantics matching the software processor.
+- [x] Add local Vulkan/software parity coverage for thresholds, partial alpha,
+  spill reduction, matte controls and clipped rendering.
+- [x] Add luma/chroma GPU framehash canaries and advertise the capability
+  through backend resolution.
+- [ ] Run same-SHA GPU-hardware certification.
 
 ## Status
 
-OPEN — software path landed; native GPU path not implemented. RenderingGen is
-outside this repository and has not been changed.
+PARTIAL — native route, local Vulkan/software pixel parity and luma/chroma
+framehash canaries are implemented. Same-SHA GPU-hardware certification and
+RenderingGen integration remain open.

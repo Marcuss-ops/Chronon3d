@@ -7,6 +7,7 @@ layout(binding = 1, rgba32f) uniform readonly image2D source_image;
 layout(push_constant) uniform BlurParams {
     float radius;
     int horizontal;
+    int box_kernel;
 } params;
 
 void main() {
@@ -14,6 +15,64 @@ void main() {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (pixel.x >= size.x || pixel.y >= size.y) return;
 
+    if (params.box_kernel != 0) {
+        if (params.box_kernel == 2) {
+            // Glow uses the CPU oracle's display-referred premultiplied
+            // Gaussian: convert straight sRGB to linear before filtering,
+            // preserve transparent image edges, then convert back.
+            float sigma = max(params.radius, 0.5);
+            int extent = clamp(int(ceil(sigma * 3.0)), 1, 128);
+            vec4 accumulated = vec4(0.0);
+            float weight_sum = 0.0;
+            for (int offset = -extent; offset <= extent; ++offset) {
+                float distance = float(offset);
+                float weight = exp(-0.5 * distance * distance / (sigma * sigma));
+                ivec2 sample_pixel = pixel + (params.horizontal != 0
+                    ? ivec2(offset, 0) : ivec2(0, offset));
+                weight_sum += weight;
+                if (sample_pixel.x < 0 || sample_pixel.x >= size.x ||
+                    sample_pixel.y < 0 || sample_pixel.y >= size.y)
+                    continue;
+                vec4 sample_value = imageLoad(source_image, sample_pixel);
+                float alpha = clamp(sample_value.a, 0.0, 1.0);
+                if (alpha <= 1.0e-8) continue;
+                vec3 straight_srgb = max(sample_value.rgb / alpha, vec3(0.0));
+                vec3 straight_linear = mix(
+                    straight_srgb / 12.92,
+                    pow((straight_srgb + vec3(0.055)) / 1.055, vec3(2.4)),
+                    greaterThan(straight_srgb, vec3(0.04045)));
+                accumulated.rgb += straight_linear * alpha * weight;
+                accumulated.a += alpha * weight;
+            }
+            vec4 filtered = accumulated / max(weight_sum, 1.0e-8);
+            float out_alpha = clamp(filtered.a, 0.0, 1.0);
+            if (filtered.a <= 1.0e-8 || out_alpha <= 0.0) {
+                imageStore(destination_image, pixel, vec4(0.0));
+                return;
+            }
+            vec3 straight_linear = max(filtered.rgb / filtered.a, vec3(0.0));
+            vec3 straight_srgb = mix(
+                straight_linear * 12.92,
+                1.055 * pow(straight_linear, vec3(1.0 / 2.4)) - vec3(0.055),
+                greaterThan(straight_linear, vec3(0.0031308)));
+            imageStore(destination_image, pixel,
+                       vec4(straight_srgb * out_alpha, out_alpha));
+            return;
+        }
+        int extent = max(1, int(round(params.radius)));
+        vec4 sum = vec4(0.0);
+        for (int offset = -extent; offset <= extent; ++offset) {
+            ivec2 sample_pixel = pixel + (params.horizontal != 0
+                ? ivec2(offset, 0) : ivec2(0, offset));
+            sample_pixel = clamp(sample_pixel, ivec2(0), size - ivec2(1));
+            sum += imageLoad(source_image, sample_pixel);
+        }
+        vec4 value = sum / float(2 * extent + 1);
+        imageStore(destination_image,
+                   pixel,
+                   vec4(max(value.rgb, vec3(0.0)), clamp(value.a, 0.0, 1.0)));
+        return;
+    }
     float sigma = max(params.radius, 0.5);
     // The glow path accepts radii up to 64. A radius of 42 therefore needs
     // an 84-pixel support window to preserve the approved canary falloff.

@@ -402,6 +402,9 @@ public:
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         BlendMode, CompositeOperator,
         const std::optional<raster::BBox>& = std::nullopt) override;
+    graph::RenderOpResult composite_surface_weighted(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        float, const std::optional<raster::BBox>& = std::nullopt) override;
     graph::RenderOpResult copy_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         const std::optional<raster::BBox>& = std::nullopt) override;
@@ -444,7 +447,7 @@ public:
         const runtime::SurfaceAffineTransform&) override;
     graph::RenderOpResult blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
-        float, bool) override;
+        float, bool, bool) override;
     graph::RenderOpResult glow_surfaces(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,

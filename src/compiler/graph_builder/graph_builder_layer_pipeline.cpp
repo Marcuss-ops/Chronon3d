@@ -237,10 +237,22 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     if (layer.kind == LayerKind::Adjustment) {
         const bool is_static = layer.cache_static || item.is_static;
         const auto policy = is_static ? static_memory_cache("adjustment") : frame_variant_cache("adjustment");
+        std::size_t effect_index = 0;
         for (const auto& eff : layer.effects()) {
+            const auto current_effect_index = effect_index++;
             chronon3d::EffectStack stack;
             stack.push_back(eff);
-            GraphNodeId adj_id = graph.add_node(std::make_unique<AdjustmentNode>(std::move(stack), policy), node_ctx);
+            const bool temporal_echo = eff.enabled &&
+                eff.effect_type == effects::EffectType::Echo;
+            const auto effect_policy = temporal_echo
+                ? frame_variant_cache("adjustment_echo") : policy;
+            auto adjustment = std::make_unique<AdjustmentNode>(
+                std::move(stack), effect_policy);
+            if (temporal_echo)
+                adjustment->set_temporal_history_key(
+                    std::string(layer.name) + "/echo/" +
+                    std::to_string(current_effect_index));
+            GraphNodeId adj_id = graph.add_node(std::move(adjustment), node_ctx);
             graph.connect(current, adj_id);
             current = adj_id;
         }

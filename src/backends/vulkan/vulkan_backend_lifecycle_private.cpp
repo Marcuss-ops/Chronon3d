@@ -9,6 +9,7 @@
 #include "affine_transform_comp_spv.hpp"
 #include "blur_comp_spv.hpp"
 #include "bloom_threshold_comp_spv.hpp"
+#include "glow_prepare_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "color_matrix_comp_spv.hpp"
 #include "chromatic_aberration_comp_spv.hpp"
@@ -320,6 +321,32 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::BloomThreshold, bloom_pipeline, "BloomThreshold");
         if (debug_context) debug_context->set_pipeline_name(bloom_pipeline, "Chronon3D.Pipeline.BloomThreshold");
+
+        const VkShaderModuleCreateInfo glow_prepare_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_glow_prepare_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_glow_prepare_comp_spv)};
+        VkShaderModule glow_prepare_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &glow_prepare_shader_info, nullptr,
+                                  &glow_prepare_shader),
+              "vkCreateShaderModule(glow prepare)");
+        const VkPipelineShaderStageCreateInfo glow_prepare_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0,
+            VK_SHADER_STAGE_COMPUTE_BIT, glow_prepare_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo glow_prepare_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            glow_prepare_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline glow_prepare_pipeline = VK_NULL_HANDLE;
+        const VkResult glow_prepare_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &glow_prepare_pipeline_info, nullptr,
+            &glow_prepare_pipeline);
+        vkDestroyShaderModule(device, glow_prepare_shader, nullptr);
+        check(glow_prepare_result, "vkCreateComputePipelines(glow prepare)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::GlowPrepare, glow_prepare_pipeline, "GlowPrepare");
+        if (debug_context)
+            debug_context->set_pipeline_name(glow_prepare_pipeline,
+                                             "Chronon3D.Pipeline.GlowPrepare");
 
         const VkShaderModuleCreateInfo color_adjust_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
