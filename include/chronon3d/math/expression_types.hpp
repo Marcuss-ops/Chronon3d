@@ -118,31 +118,12 @@ inline constexpr double ease_t(double t, double t_min, double t_max, double v_mi
     return v_min + frac * (v_max - v_min);
 }
 
-// loopHelper — computes looped time fraction for loopOut/loopIn.
-inline double loop_helper(double t, double t_min, double t_max, int num_keyframes,
-                          const std::string& type) {
-    if (t <= t_min) return t_min;
-    if (t_max <= t_min) return t_min;
-
-    const double dur = t_max - t_min;
-    double frac = (t - t_min) / dur;
-
-    if (type == "cycle" || type.empty()) {
-        frac = frac - std::floor(frac);
-    } else if (type == "pingpong") {
-        double cycle = std::floor(frac);
-        frac = frac - cycle;
-        if (static_cast<int>(cycle) % 2 == 1) {
-            frac = 1.0 - frac;
-        }
-    } else if (type == "offset") {
-        frac = frac - std::floor(frac);
-    } else {
-        frac = frac - std::floor(frac);
-    }
-
-    return t_min + frac * dur;
-}
+// NOTE: the AE loopOut/loopIn helpers are intentionally absent. Real loop
+// evaluation needs to sample a property's keyframe table at a wrapped time,
+// and ExpressionContext carries no keyframe table (only the current base
+// value and the layer in/out points). Until a keyframe sampler exists on the
+// context, the parser accepts the loopOut/loopIn argument forms and returns
+// the property's base value; a looped-time helper here would be dead code.
 
 } // namespace expr_detail
 

@@ -170,14 +170,19 @@ namespace detail {
         const Color& ca = a.solid_color;
         const Color& cb = b.solid_color;
         return FillStyle{
-            true,
-            {
+            .enabled = true,
+            .solid_color = {
                 ca.r + (cb.r - ca.r) * t,
                 ca.g + (cb.g - ca.g) * t,
                 ca.b + (cb.b - ca.b) * t,
                 ca.a + (cb.a - ca.a) * t,
             },
-            std::nullopt
+            .gradient = std::nullopt,
+            .field = std::nullopt,
+            .field_ramp = std::nullopt,
+            .gradient_mesh = std::nullopt,
+            .field_render_scale = 1,
+            .field_render_size = {0.0f, 0.0f},
         };
     }
 
