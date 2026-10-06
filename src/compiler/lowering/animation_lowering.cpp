@@ -5,6 +5,27 @@
 
 namespace chronon3d::compiler::stages {
 namespace {
+bool affects_transform(AnimationProperty property) noexcept {
+    switch (property) {
+    case AnimationProperty::PositionX:
+    case AnimationProperty::PositionY:
+    case AnimationProperty::PositionZ:
+    case AnimationProperty::PositionXOffset:
+    case AnimationProperty::PositionYOffset:
+    case AnimationProperty::PositionZOffset:
+    case AnimationProperty::ScaleX:
+    case AnimationProperty::ScaleY:
+    case AnimationProperty::ScaleZ:
+    case AnimationProperty::UniformScale:
+    case AnimationProperty::RotationX:
+    case AnimationProperty::RotationY:
+    case AnimationProperty::RotationZ:
+        return true;
+    default:
+        return false;
+    }
+}
+
 AnimationProperty property_kind(std::string_view property) {
     using Kind = chronon3d::AnimationPropertyKind;
     const auto kind = chronon3d::animation_property_kind(property);
@@ -78,6 +99,14 @@ void lower_animation(const render_plan::RenderPlan& plan, CompiledProgramData& o
                 static_cast<std::uint32_t>(out.animation_tracks.size() - first_track),
                 i});
             out.layers[i].animation_program_index = animation_index;
+            for (std::size_t track_index = first_track;
+                 track_index < out.animation_tracks.size(); ++track_index) {
+                const auto& track = out.animation_tracks[track_index];
+                if (track.keyframe_count != 0 && affects_transform(track.property_kind)) {
+                    out.layers[i].has_transform_animation = true;
+                    break;
+                }
+            }
             out.parameters.push_back({i, i, 1});
         }
     }

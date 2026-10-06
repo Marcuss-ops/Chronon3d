@@ -3,10 +3,11 @@
 ## Stato
 
 OPEN — software exposes 47 effect types; strict Vulkan has native dispatch
-routes for 17 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast,
-Saturation, HueRotate, Invert, Exposure, Fill, Levels, Threshold, Keying,
-Vignette, Mosaic, Echo) and explicitly rejects DropShadow.
-All remaining types are unsupported on this capability surface and fail closed. No CPU fallback
+routes for 23 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast,
+Saturation, HueRotate, Invert, Exposure, TemperatureTint, LiftGammaGain, Offset,
+Noise, Checkerboard, Fill, Levels, Threshold, Keying, Vignette, Mosaic, ChromaticAberration,
+Echo) and explicitly rejects DropShadow. All remaining 24 types are unsupported on this capability
+surface and fail closed. No CPU fallback
 is allowed for a strict GPU request.
 
 ## Obiettivo
@@ -152,9 +153,15 @@ the full software/GPU effect corpus passes on the same SHA.
   passed 259 assertions; the expanded stroke pixel oracle passed 1,769,836
   assertions. The per-corner stroke fixture passed 61,455 pixel-channel
   assertions; the complete backend-registry CTest passed locally on llvmpipe.
-- The native capability census is now 17/47; 30 catalog routes remain
+- The native capability census is now 19/47; 28 catalog routes remain
   unsupported. The backend-registry and render-graph CTest targets both passed
   locally on llvmpipe after the Mosaic addition.
+- TemperatureTint is now lowered through the native affine color transform
+  using the software processor's clamped temperature/tint gains in straight
+  alpha. Pixel oracles cover mixed and clamped parameters, half-alpha/HDR source
+  samples, clip behavior and ordered strict AdjustmentNode execution. The
+  native capability inventory was increased to 19 routes; local hardware
+  certification is still outstanding.
 - This is not GPU-hardware or same-SHA CI certification. The remaining catalog
   routes and unsupported stroke transforms are still open.
 
@@ -223,6 +230,52 @@ The two-frame EffectStackNode Echo/keying parity commit,
 Certification run `37230674950`. Job `111519465115` ended before runner
 allocation (`runner_id=0`, empty runner name, no steps) with the same billing
 annotation. Local tests pass on llvmpipe; this run does not certify hardware.
+
+### Local implementation progress — 2026-10-05
+
+- Added LiftGammaGain as native color-matrix mode 6. The shader evaluates the
+  signed power curve in straight RGB, with the same finite-input check and
+  software parameter clamps (`lift [-1,1]`, `gamma [0.1,4]`, `gain [0,4]`).
+  The route is admitted by strict AdjustmentNode and its pixel-parity cases
+  include fractional alpha, HDR input, clamp extremes, identity, and clipping.
+- At LiftGammaGain landing, the native census was 20/47; 27 catalog effects
+  remained explicitly unsupported. The current census is 21/47 after Offset.
+  Hardware certification still depends on a remotely allocated GPU runner;
+  local llvmpipe results are not hardware evidence.
+- Verified locally: LiftGammaGain parity (4 parameter cases; maximum observed
+  absolute error 0.00390625 on clamped extreme parameters), ordered strict
+  AdjustmentNode composition (130 assertions), full backend registry CTest
+  (1/1), full render-graph CTest (1/1), and capability census (96 assertions).
+- Offset is now native for both sample filters and all edge modes, using the
+  software sampler's pixel-center and zero-offset no-op rules. Its local parity
+  case covers the 8 filter/edge pairs, integer Wrap offset, identity and a
+  partial-clip Bilinear case (22 assertions; maximum error 1.19209e-7).
+  Strict AdjustmentNode composition also includes fractional mirrored
+  Bilinear Offset.
+- At Offset landing, the native census was 21/47; 26 effects remained
+  explicitly unsupported.
+- After Offset integration, backend registry CTest passes (1/1, 18.96 s),
+  render-graph CTest passes (1/1, 39.07 s), architecture gate passes 206/206,
+  and `git diff --check` is clean. The tests use local llvmpipe.
+- Noise is now native using a shader implementation of the software SplitMix64
+  per-pixel hash. The lowering carries seed/frame bits losslessly and mirrors
+  grain size, animated frame selection, monochrome/RGB modes, tone response,
+  clip and software no-op conditions. Its parity cases cover static monochrome,
+  animated RGB at frame 37, partial clip, amount zero and invalid response.
+- Local Noise evidence: focused parity passes 10 assertions with maximum
+  absolute error 5.96046e-8; ordered AdjustmentNode composition passes 130
+  assertions; full backend registry and render-graph CTest pass (1/1 each).
+- Historical census after Noise: 22/47; 25 effects remained explicitly unsupported.
+
+Checkerboard now has a strict Vulkan generator route. It mirrors software cell
+parity, feathering, color interpolation, premultiplied alpha and clipping. Four
+focused parity cases pass on local llvmpipe (8 pixel assertions; maximum error
+5.96046e-8); they cover fractional cell size, translucent colors, clipping,
+feather clamp and invalid-size no-op. The ordered AdjustmentNode composition
+test also includes Checkerboard and passes 130 assertions. Current native
+census is 23/47 with 24 effects explicitly unsupported. Local CTest passes the
+backend registry and render-graph suites (1/1 each); hardware certification
+remains open.
 
 ## Demolition debt
 

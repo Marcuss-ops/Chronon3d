@@ -7,6 +7,7 @@
 #include <array>
 #include <memory>
 #include <atomic>
+#include <vector>
 
 namespace chronon3d::runtime {
 
@@ -18,6 +19,8 @@ class GpuCompletionTracker;
 class FrameSlotPool {
 public:
     FrameSlotPool(std::size_t capacity, GpuCompletionTracker& gpu_tracker);
+    FrameSlotPool(std::size_t capacity, GpuCompletionTracker& gpu_tracker,
+                  std::size_t arena_capacity_bytes);
 
     [[nodiscard]] std::size_t capacity() const noexcept { return capacity_; }
     [[nodiscard]] FrameExecutionSlot* try_acquire(FrameSlotState acquired_state) noexcept;
@@ -51,7 +54,7 @@ private:
     // eagerly constructs 256 strict 4 MiB arenas (~1 GiB) for the normal
     // three-slot pipeline.
     std::array<FrameExecutionSlot, kMaxFrameExecutionSlots> slots_{};
-    std::unique_ptr<FrameSlotPayload[]> payloads_{};
+    std::vector<std::unique_ptr<FrameSlotPayload>> payloads_{};
     std::atomic<std::uint64_t> hot_path_allocation_events_{0};
 };
 

@@ -6,6 +6,7 @@
 #include <chronon3d/timeline/render_job.hpp>
 #include <chronon3d/verification/render_receipt.hpp>
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -1089,7 +1090,7 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
         CHECK(pending.height == 64);
         CHECK(pending.encoder_materialized);
         CHECK_FALSE(pending.parameter_sets.empty());
-        CHECK(pending.profile == FF_PROFILE_H264_HIGH);
+        CHECK(pending.profile == AV_PROFILE_H264_HIGH);
         CHECK(pending.level < 0);
         // The container the encoder owns is declared from this same context, so
         // the parameter sets are already the ones a demuxer will read back.
@@ -1113,7 +1114,7 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
     // unmaterialized and the gate stays fail-closed; a materialized contract
     // must describe the stream a demuxer reads back from the produced file.
     REQUIRE(contract.encoder_materialized);
-    CHECK(contract.profile == FF_PROFILE_H264_HIGH);
+    CHECK(contract.profile == AV_PROFILE_H264_HIGH);
     CHECK(contract.level < 0);
     if (!closed || !std::filesystem::exists(output)) {
         MESSAGE("Skipping demux comparison — encoder produced no container");
@@ -1434,6 +1435,7 @@ TEST_CASE("A1 direct native export route renders a software composition") {
     REQUIRE(exported.success);
     REQUIRE(exported.output_published);
     REQUIRE(exported.copy_eligible);
+    CHECK(exported.sidecar_written_at != std::chrono::steady_clock::time_point{});
     REQUIRE(std::filesystem::exists(output));
     REQUIRE(std::filesystem::exists(sidecar));
     REQUIRE(exported.sha256.size() == 64);
@@ -1476,6 +1478,29 @@ TEST_CASE("A1 direct native export route renders a software composition") {
     REQUIRE(chronon3d::verification::write_render_receipt(
                  built_receipt, output) == receipt);
     REQUIRE(std::filesystem::exists(receipt));
+
+    const auto wrapped_output = std::filesystem::temp_directory_path() /
+        "chronon3d_a1_native_route_wrapped.mp4";
+    const auto wrapped_sidecar = std::filesystem::path(
+        wrapped_output.string() + ".timing.json");
+    std::filesystem::remove(wrapped_output, cleanup_error);
+    std::filesystem::remove(wrapped_sidecar, cleanup_error);
+    auto wrapped_options = options;
+    wrapped_options.output.output = wrapped_output.string();
+    auto wrapped_execution =
+        std::make_shared<chronon3d::media::VideoJobExecutionContext>();
+    wrapped_execution->video_runtimes =
+        std::make_shared<chronon3d::media::VideoRuntimeRegistry>();
+    auto sidecar_written_at = std::chrono::steady_clock::time_point{};
+    CHECK(chronon3d::cli::render_and_encode_ffmpeg(
+        registry, *job->compiled, job->comp_id, job->settings,
+        chronon3d::Frame{0}, chronon3d::Frame{10}, wrapped_options,
+        job->execution.cpu_budget,
+        wrapped_execution, &sidecar_written_at) == 0);
+    CHECK(sidecar_written_at != std::chrono::steady_clock::time_point{});
+    CHECK(std::filesystem::exists(wrapped_sidecar));
+    std::filesystem::remove(wrapped_output, cleanup_error);
+    std::filesystem::remove(wrapped_sidecar, cleanup_error);
 
     std::filesystem::remove(output, cleanup_error);
     std::filesystem::remove(sidecar, cleanup_error);

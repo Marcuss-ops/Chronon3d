@@ -16,7 +16,7 @@ using Clock = detail::NativeAvClock;
 using detail::elapsed_ms;
 
 bool NativeAvEncoder::close() {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     if (!codec_) {
         if (!open_complete_) abort_open();
         return true;
@@ -81,7 +81,9 @@ bool NativeAvEncoder::close() {
             // Refresh first: an encoder that has produced packets by now has
             // published profile/level/SPS-PPS. A still-unmaterialized contract
             // stays fail-closed rather than being assumed equal.
-            const auto& materialized = encoder_target_contract();
+            // close() already owns mutex_; use the lock-free internal accessor
+            // to keep this operation non-recursive.
+            const auto& materialized = encoder_target_contract_unlocked();
             borrowed_stream_checked_ = true;
             borrowed_stream_reproduced_ = encoder_reproduces_declared_stream(
                 *options_.borrowed_declared_stream, materialized);

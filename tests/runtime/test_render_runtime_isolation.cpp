@@ -16,6 +16,8 @@
 
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
+#include <chronon3d/runtime/job/temporal_sample_workspace.hpp>
 
 #include <doctest/doctest.h>
 
@@ -30,6 +32,33 @@ namespace {
 } // namespace
 
 namespace chronon3d::test {
+
+TEST_CASE("temporal sample workspace reuses per-slot resources with one-slot sessions") {
+    runtime::JobSession job;
+    auto& first_slot = job.temporal_sample_workspace(0);
+    auto& second_slot = job.temporal_sample_workspace(1);
+    first_slot.ensure(2, 1024 * 1024);
+    second_slot.ensure(2, 1024 * 1024);
+
+    CHECK(&first_slot != &second_slot);
+    CHECK(first_slot.session(0).slots().capacity() == 1);
+    CHECK(second_slot.session(0).slots().capacity() == 1);
+    CHECK(first_slot.session(0).root_arena().capacity() == 256 * 1024);
+
+    auto* cache = &first_slot.value_cache(0);
+    auto* topology = &first_slot.topology_cache(0);
+    auto* session = &first_slot.session(0);
+    auto* scratch = &first_slot.transform_scratch(0);
+    auto* pool = first_slot.framebuffer_pool(0).get();
+    first_slot.begin_frame();
+    first_slot.ensure(2, 1024 * 1024);
+
+    CHECK(&first_slot.value_cache(0) == cache);
+    CHECK(&first_slot.topology_cache(0) == topology);
+    CHECK(&first_slot.session(0) == session);
+    CHECK(&first_slot.transform_scratch(0) == scratch);
+    CHECK(first_slot.framebuffer_pool(0).get() == pool);
+}
 
 TEST_CASE("RuntimeContext::create preserves the structured asset mount failure") {
     chronon3d::Config config;

@@ -31,7 +31,18 @@ inline bool try_native_echo(
     const auto width = ctx.frame_input.width;
     const auto height = ctx.frame_input.height;
     const auto desc = native_surface_desc(width, height);
-    std::vector<runtime::RenderSurfaceHandle> temporaries;
+    const auto keep_frames = static_cast<std::size_t>(params->echoes) *
+        static_cast<std::size_t>(params->time_offset_frames) + 1U;
+    if (!job.reserve_native_echo_history(history_key, desc.tight_bytes(), keep_frames))
+        return false;
+    const auto scratch = job.native_echo_scratch(
+        history_key, ctx.execution->slot()->slot_id, desc,
+        *ctx.backend, *ctx.surface_registry);
+    if (!scratch) return false;
+    // The three scratch handles are retained by JobSession. Only the output
+    // transfers to the framebuffer, so track just that frame-owned handle.
+    std::array<runtime::RenderSurfaceHandle, 4> temporaries{};
+    std::size_t temporary_count = 0;
     const auto create_surface = [&]() -> runtime::RenderSurfaceHandle {
         const auto handle = ctx.surface_registry->create(desc);
         if (handle == runtime::kInvalidRenderSurfaceHandle) return handle;
@@ -41,23 +52,25 @@ inline bool try_native_echo(
             (void)ctx.surface_registry->release(handle);
             return runtime::kInvalidRenderSurfaceHandle;
         }
-        temporaries.push_back(handle);
+        temporaries[temporary_count++] = handle;
         return handle;
     };
     const auto release_temporaries = [&] {
-        for (const auto handle : temporaries) {
+        for (std::size_t i = 0; i < temporary_count; ++i) {
+            const auto handle = temporaries[i];
+            if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
             (void)ctx.backend->release_surface(handle);
             (void)ctx.surface_registry->release(handle);
         }
-        temporaries.clear();
+        temporary_count = 0;
     };
     const auto run = [&](RenderOpResult operation) {
         return operation.ok();
     };
 
-    const auto current = create_surface();
-    const auto trail = create_surface();
-    const auto composed = create_surface();
+    const auto current = (*scratch)[0];
+    const auto trail = (*scratch)[1];
+    const auto composed = (*scratch)[2];
     const auto output = create_surface();
     if (current == runtime::kInvalidRenderSurfaceHandle ||
         trail == runtime::kInvalidRenderSurfaceHandle ||
@@ -67,10 +80,12 @@ inline bool try_native_echo(
         return false;
     }
 
-    bool succeeded = run(ctx.backend->initialize_transparent_surface(current)) &&
-        run(ctx.backend->initialize_transparent_surface(trail)) &&
-        run(ctx.backend->initialize_transparent_surface(composed)) &&
-        run(ctx.backend->initialize_transparent_surface(output));
+    // `transform_surface` overwrites every pixel in current, and the two copy
+    // passes below fully define composed/output. Only the trail is an
+    // accumulation target, so it must be cleared between uses of this
+    // frame-slot scratch tuple. This removes three full-frame transparent
+    // initialization dispatches from each invocation.
+    bool succeeded = run(ctx.backend->initialize_transparent_surface(trail));
     if (succeeded) {
         succeeded = run(ctx.backend->transform_surface(
             current, source_handle, source.origin_x(), source.origin_y(), 1.0f));
@@ -83,8 +98,6 @@ inline bool try_native_echo(
     const auto current_frame = ctx.frame_input.frame.integral();
     const auto history = job.native_echo_frames(
         history_key, current_frame, params->echoes, params->time_offset_frames);
-    const auto keep_frames = static_cast<std::size_t>(params->echoes) *
-        static_cast<std::size_t>(params->time_offset_frames) + 1U;
     if (!job.record_native_echo_frame(
             history_key, current_frame, current, keep_frames,
             *ctx.backend, *ctx.surface_registry)) {
@@ -103,8 +116,7 @@ inline bool try_native_echo(
             trail, sample->handle, weight, clip));
     }
     if (succeeded)
-        succeeded = run(ctx.backend->composite_surfaces(
-            composed, trail, BlendMode::Normal, CompositeOperator::SourceOver));
+        succeeded = run(ctx.backend->copy_surface(composed, trail));
     if (succeeded)
         succeeded = run(ctx.backend->composite_surfaces(
             composed, current, BlendMode::Normal, CompositeOperator::SourceOver));
@@ -119,8 +131,12 @@ inline bool try_native_echo(
 
     // Transfer the output handle to the result framebuffer. It is frame
     // transient and follows the normal native framebuffer lifetime path.
-    temporaries.erase(std::remove(temporaries.begin(), temporaries.end(), output),
-                      temporaries.end());
+    for (std::size_t i = 0; i < temporary_count; ++i) {
+        if (temporaries[i] == output) {
+            temporaries[i] = runtime::kInvalidRenderSurfaceHandle;
+            break;
+        }
+    }
     result.set_surface_handle(output);
     result.mark_gpu_authoritative();
     result.set_origin(0, 0);

@@ -5,6 +5,15 @@
 **Data:** 2026-09-04  
 **Baseline censita:** `main@eb56a6f6c59e6d5ae3eefa1f1cbd69e3ee1f58d1`
 
+## Update 2026-10-05 — runner dispatch remains blocked
+
+Fetched `main@b67a750e6` and queried the latest Actions runs for that exact
+SHA. Runs `37313378103` (ABI compatibility) and `37313378100`
+(chronon3d-runtime) both failed within seconds; each job reports `steps: []`.
+This is still pre-execution runner dispatch failure, so no source-level result
+can be inferred. Restoring account/organization runner billing or spending
+limits requires GitHub owner access and remains an external blocker.
+
 ## Update 2026-10-03 — same-SHA CI check
 
 - Local HEAD is now `5d960421dd1b`, matching fetched remote `main`; the prior

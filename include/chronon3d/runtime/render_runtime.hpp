@@ -10,7 +10,6 @@
 #include <chronon3d/runtime/gpu_text_run_cache.hpp>
 #include <chronon3d/runtime/gpu_runtime.hpp>
 #include <chronon3d/runtime/media_session_pool.hpp>
-#include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/types/result.hpp>     // Result<T,E> for create() factory
@@ -172,7 +171,6 @@ struct RuntimeCaches {
     GpuGlyphAtlas gpu_glyph_atlas{};
     GpuStyledGlyphCache gpu_styled_glyph_cache{};
     GpuTextRunPreparedCache gpu_text_prepared_cache{};
-    OverlayTemplateCache overlay_template_cache{};
     GpuRuntime gpu_runtime{};
     chronon3d::TextLayoutCache text_layout_cache{};
 };
@@ -331,8 +329,6 @@ public:
     [[nodiscard]] GpuStyledGlyphCache&                     gpu_styled_glyph_cache() noexcept { return m_caches.gpu_styled_glyph_cache; }
     [[nodiscard]] GpuTextRunPreparedCache&                 gpu_text_prepared_cache() noexcept { return m_caches.gpu_text_prepared_cache; }
     [[nodiscard]] const GpuTextRunPreparedCache&           gpu_text_prepared_cache() const noexcept { return m_caches.gpu_text_prepared_cache; }
-    [[nodiscard]] OverlayTemplateCache&                    overlay_template_cache() noexcept { return m_caches.overlay_template_cache; }
-    [[nodiscard]] const OverlayTemplateCache&              overlay_template_cache() const noexcept { return m_caches.overlay_template_cache; }
     [[nodiscard]] GpuRuntime&                              gpu_runtime() noexcept { return m_caches.gpu_runtime; }
     [[nodiscard]] const GpuRuntime&                        gpu_runtime() const noexcept { return m_caches.gpu_runtime; }
     [[nodiscard]] MediaSessionPool&                        media_sessions() noexcept { return m_asset_services.media_sessions; }

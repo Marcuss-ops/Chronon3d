@@ -11,13 +11,24 @@ namespace chronon3d::runtime {
 FrameSlotPool::FrameSlotPool(
     std::size_t capacity,
     GpuCompletionTracker& gpu_tracker)
+    : FrameSlotPool(capacity, gpu_tracker, 4u * 1024u * 1024u) {}
+
+FrameSlotPool::FrameSlotPool(
+    std::size_t capacity,
+    GpuCompletionTracker& gpu_tracker,
+    std::size_t arena_capacity_bytes)
     : capacity_(capacity) {
     if (capacity_ == 0 || capacity_ > kMaxFrameExecutionSlots ||
+        arena_capacity_bytes == 0 ||
         gpu_tracker.capacity() != capacity_) {
         throw std::invalid_argument(
             "FrameSlotPool: invalid capacity or tracker capacity mismatch");
     }
-    payloads_ = std::make_unique<FrameSlotPayload[]>(capacity_);
+    payloads_.reserve(capacity_);
+    for (std::size_t index = 0; index < capacity_; ++index) {
+        payloads_.push_back(
+            std::make_unique<FrameSlotPayload>(arena_capacity_bytes));
+    }
     for (FrameSlotId slot_id = 0; slot_id < capacity_; ++slot_id) {
         auto& entry = slots_[slot_id];
         entry.slot_id = slot_id;
@@ -64,7 +75,7 @@ void FrameSlotPool::reset() noexcept {
     producer_cursor_ = 0;
     reset_hot_path_counters();
     for (FrameSlotId slot_id = 0; slot_id < capacity_; ++slot_id) {
-        payloads_[slot_id].reset();
+        payloads_[slot_id]->reset();
         auto& entry = slots_[slot_id];
         entry.frame_index = std::numeric_limits<std::uint64_t>::max();
         entry.native_surface_ptr = 0;
@@ -77,14 +88,14 @@ FrameSlotPayload& FrameSlotPool::payload(FrameSlotId slot_id) {
     if (slot_id >= capacity_) {
         throw std::out_of_range("FrameSlotPool: payload id out of range");
     }
-    return payloads_[slot_id];
+    return *payloads_[slot_id];
 }
 
 const FrameSlotPayload& FrameSlotPool::payload(FrameSlotId slot_id) const {
     if (slot_id >= capacity_) {
         throw std::out_of_range("FrameSlotPool: payload id out of range");
     }
-    return payloads_[slot_id];
+    return *payloads_[slot_id];
 }
 
 std::size_t FrameSlotPool::busy_count() const noexcept {

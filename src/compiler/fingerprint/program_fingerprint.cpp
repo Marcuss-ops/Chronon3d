@@ -17,15 +17,24 @@
 namespace chronon3d::compiler::stages {
 
 std::uint64_t fingerprint(const render_plan::RenderPlan& plan, const CompiledProgramData& program) {
-    std::uint64_t value = plan.content_fingerprint;
-    value ^= static_cast<std::uint64_t>(program.nodes.size()) * 0x9e3779b97f4a7c15ULL;
-    value ^= static_cast<std::uint64_t>(program.animations.size()) +
-             (static_cast<std::uint64_t>(program.passes.size()) << 32U);
-    value ^= static_cast<std::uint64_t>(program.timelines.size()) << 7U;
-    value ^= static_cast<std::uint64_t>(program.animation_tracks.size()) << 13U;
-    value ^= static_cast<std::uint64_t>(program.curve_keyframes.size()) << 19U;
-    value ^= static_cast<std::uint64_t>(program.texts.size()) << 23U;
-    value ^= static_cast<std::uint64_t>(program.text_values.size()) << 29U;
+    std::uint64_t value = plan.content_fingerprint ^ 0x9e3779b97f4a7c15ULL;
+    const auto mix = [](std::uint64_t x) {
+        x += 0x9e3779b97f4a7c15ULL;
+        x = (x ^ (x >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+        x = (x ^ (x >> 27U)) * 0x94d049bb133111ebULL;
+        return x ^ (x >> 31U);
+    };
+    const auto combine = [&value, &mix](std::size_t count) {
+        value = mix(value ^ mix(static_cast<std::uint64_t>(count)));
+    };
+    combine(program.nodes.size());
+    combine(program.animations.size());
+    combine(program.passes.size());
+    combine(program.timelines.size());
+    combine(program.animation_tracks.size());
+    combine(program.curve_keyframes.size());
+    combine(program.texts.size());
+    combine(program.text_values.size());
     return value;
 }
 

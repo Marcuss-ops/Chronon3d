@@ -271,7 +271,9 @@ namespace chronon3d::renderer {
 
     const auto alignment = stroke_alignment_for_shape(shape);
     const f32 half = stroke * 0.5f;
-    const f32 outer_spread = alignment == StrokeAlignment::Inside ? spread : spread + half;
+    // Center already moves the virtual outer bounds outward by half the
+    // authored width. Only Outside needs the additional half-width expansion.
+    const f32 outer_spread = alignment == StrokeAlignment::Outside ? spread + half : spread;
     const f32 inner_spread = alignment == StrokeAlignment::Outside ? spread : std::max(0.0f, spread - half);
 
     // ── Origin offsets for inner/outer rects ────────────────────────────
@@ -328,7 +330,9 @@ namespace chronon3d::renderer {
         }
         case ShapeType::Circle: {
             const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.circle().radius : shape.circle().radius + half;
-            const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.circle().radius : std::max(0.0f, shape.circle().radius - half);
+            const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.circle().radius :
+                std::max(0.0f, shape.circle().radius -
+                    (alignment == StrokeAlignment::Inside ? stroke : half));
             const f32 outer_r = outer_radius + outer_spread;
             const f32 inner_r = inner_radius + inner_spread;
             const f32 dx = p.x - shape.circle().radius;

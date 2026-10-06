@@ -29,25 +29,22 @@ indicativa; ogni voce richiede un audit del codice e un ticket con contratto,
 consumer, fingerprint/cache, capability GPU/software e test prima
 dell'implementazione. Non sblocca lavoro mentre il gate sopra resta aperto.
 
-1. **Audio nel render plan** — layer audio con source, trim/timing, volume
-   animabile e mixing; definire ducking e muxing in modo coerente con la
-   pipeline media esistente.
-2. **Effetti immagine** — valutare gaussian blur, drop shadow e glow/bloom
+1. **Effetti immagine** — valutare gaussian blur, drop shadow e glow/bloom
    tramite il catalogo effetti e i consumer canonici.
-3. **Asset vettoriali** — import SVG e Lottie con risoluzione deterministica,
+2. **Asset vettoriali** — import SVG e Lottie con risoluzione deterministica,
    limiti di risorse e supporto d'animazione espliciti.
-4. **Animazione procedurale** — curve Bézier per-keyframe, poi driver riusabili;
+3. **Animazione procedurale** — curve Bézier per-keyframe, poi driver riusabili;
    valutare espressioni dichiarative limitate solo con un contratto sicuro,
    deterministico e compilabile.
-5. **Transizioni dichiarative** — preset di wipe, push, morph e glitch composti
+4. **Transizioni dichiarative** — preset di wipe, push, morph e glitch composti
    dalle primitive esistenti, senza un secondo motore d'animazione.
-6. **Caption e data-viz** — caption sincronizzate a timing audio e preset
+5. **Caption e data-viz** — caption sincronizzate a timing audio e preset
    data-viz, riusando text animator, shape e variabili già presenti.
-7. **Modelli 3D nel piano** — esporre asset, luci e materiali solo dopo aver
+6. **Modelli 3D nel piano** — esporre asset, luci e materiali solo dopo aver
    definito il confine con ChrononMotion3D e il percorso render certificabile.
-8. **Particelle e fisica** — valutare sistemi limitati e riproducibili, con
+7. **Particelle e fisica** — valutare sistemi limitati e riproducibili, con
    budget temporale/memoria e capability dichiarate.
-9. **Animazione gradienti** — aggiungere track per i parametri gradiente se
+8. **Animazione gradienti** — aggiungere track per i parametri gradiente se
    l'audit conferma che non sono già supportati dal contratto corrente.
 
 Ordine iniziale suggerito: audio, effetti immagine, asset vettoriali e curve

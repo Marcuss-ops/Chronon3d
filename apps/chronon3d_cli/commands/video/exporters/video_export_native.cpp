@@ -312,13 +312,10 @@ PipeExportResult render_and_encode_native(
     // Phase 7 — internal profiling projection.
     account_internal_profiling(*session, close_result, decode_stats, counters, timings);
 
-    // Job-lifecycle attribution. The timing sidecar and the telemetry summary
-    // are the last *logged* phases of a job, yet the daemon spends a
-    // measurable constant after them and before the receipt. That constant is
-    // the destruction of the session (encoder close, mux trailer, canvas pool,
-    // execution slots, device runtime) which no timer covered: measured here
-    // explicitly so it stops being an unaccounted stall
-    // (see docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md).
+    // Job-lifecycle attribution. Measure sidecar serialization separately from
+    // releasing the per-output session. The caller carries this timestamp
+    // across the exporter boundary and measures the remaining interval through
+    // receipt build/verification/write.
     const auto sidecar_t0 = profiling::now();
     write_frame_timing_sidecar(session->original_output_path,
                                loop_output.telemetry_frames,
@@ -326,6 +323,7 @@ PipeExportResult render_and_encode_native(
                                wall_time_ms, loop_output.render_ms, encode_ms,
                                timings, is_native);
     const auto sidecar_t1 = profiling::now();
+    result.sidecar_written_at = sidecar_t1;
     session.reset();
     const auto session_teardown_t1 = profiling::now();
     spdlog::info(

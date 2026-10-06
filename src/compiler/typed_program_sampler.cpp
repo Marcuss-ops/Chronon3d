@@ -111,6 +111,7 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         Vec3 position{layer.position[0], layer.position[1], layer.position[2]};
         Vec3 scale{layer.scale[0], layer.scale[1], layer.scale[2]};
         Vec3 rotation{layer.rotation[0], layer.rotation[1], layer.rotation[2]};
+        sampled.matrix = layer.static_matrix;
         sampled.opacity = layer.opacity;
 
         if (layer.animation_program_index < program.animations().size()) {
@@ -125,6 +126,13 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                 0.0, frame_number - static_cast<double>(start));
             for (std::size_t i = first; i < last; ++i) {
                 const auto& track = program.animation_tracks()[i];
+                // An empty/invalid track carries no authored value. In
+                // particular, don't replace a layer's static opacity with
+                // sample_track's generic zero fallback.
+                if (track.keyframe_count == 0 ||
+                    track.first_keyframe >= program.curve_keyframes().size()) {
+                    continue;
+                }
                 const auto value = sample_track(program, track, animation_frame, 0.0f);
                 switch (track.property_kind) {
                     case AnimationProperty::Opacity: sampled.opacity = value; break;
@@ -159,12 +167,14 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
             }
         }
 
-        Transform transform;
-        transform.position = position;
-        transform.scale = scale;
-        transform.rotation = glm::quat(glm::radians(rotation));
-        transform.opacity = sampled.opacity;
-        sampled.matrix = transform.to_matrix();
+        if (layer.has_transform_animation) {
+            Transform transform;
+            transform.position = position;
+            transform.scale = scale;
+            transform.rotation = glm::quat(glm::radians(rotation));
+            transform.opacity = sampled.opacity;
+            sampled.matrix = transform.to_matrix();
+        }
         block.layers.push_back(std::move(sampled));
     }
 }

@@ -13,6 +13,7 @@
 
 #include <chronon3d/runtime/render_pipeline.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
+#include <chronon3d/runtime/job/temporal_sample_workspace.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_execution_context.hpp>
@@ -207,28 +208,17 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
             throw std::invalid_argument(
                 "Render Plan motion-blur temporal sample plan is invalid");
 
-        std::vector<std::unique_ptr<cache::NodeCache>> value_caches;
-        std::vector<std::unique_ptr<graph::CompiledGraphCache>> topology_caches;
-        std::vector<std::unique_ptr<JobSession>> sample_sessions;
-        std::vector<std::unique_ptr<TransformScratchBuffer>> scratches;
-        std::vector<std::shared_ptr<cache::FramebufferPool>> framebuffer_pools;
         const auto count = samples.contexts.size();
-        value_caches.reserve(count);
-        topology_caches.reserve(count);
-        sample_sessions.reserve(count);
-        scratches.reserve(count);
-        framebuffer_pools.reserve(count);
         const auto pool_limit = m_renderer->framebuffer_pool()->stats().budget_bytes;
-        for (std::size_t i = 0; i < count; ++i) {
-            value_caches.push_back(std::make_unique<cache::NodeCache>());
-            topology_caches.push_back(std::make_unique<graph::CompiledGraphCache>());
-            sample_sessions.push_back(std::make_unique<JobSession>());
-            scratches.push_back(std::make_unique<TransformScratchBuffer>());
-            framebuffer_pools.push_back(
-                cache::FramebufferPool::create_shared(pool_limit));
-        }
+        TemporalSampleWorkspace compatibility_workspace;
+        auto& workspace = execution
+            ? execution->job().temporal_sample_workspace(
+                  execution->slot()->slot_id)
+            : compatibility_workspace;
+        workspace.ensure(count, pool_limit);
+        workspace.begin_frame();
 
-        auto accumulated = framebuffer_pools.front()->acquire(
+        auto accumulated = workspace.framebuffer_pool(0)->acquire(
             width, height, /*clear=*/true);
         float weight_sum = 0.0f;
         compiler::TypedProgramSampler sampler;
@@ -243,12 +233,12 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
             const graph::TemporalRenderContext temporal_context{
                 .sample_key = sample.cache_key,
                 .sample_time = sample.time,
-                .value_cache = value_caches[i].get(),
-                .topology_cache = topology_caches[i].get(),
-                .session = sample_sessions[i].get(),
-                .scratch = scratches[i].get(),
+                .value_cache = &workspace.value_cache(i),
+                .topology_cache = &workspace.topology_cache(i),
+                .session = &workspace.session(i),
+                .scratch = &workspace.transform_scratch(i),
                 .counters = nullptr,
-                .framebuffer_pool = framebuffer_pools[i],
+                .framebuffer_pool = workspace.framebuffer_pool(i),
             };
             const auto rendered = graph::render_scene_via_graph_temporal(
                 *m_context.backend, *m_context.scratch.node_cache, *topology,
