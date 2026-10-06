@@ -143,6 +143,8 @@ template <typename LegacyEnum>
                 .legacy_code = "UnregisteredLegacyErrorType",
                 .message = "legacy error type is absent from the canonical mapping inventory",
                 .component = "from_legacy",
+                .node_id = {},
+                .asset = {},
                 .frame = frame,
                 .job_id = job_id,
             },
@@ -178,6 +180,7 @@ template <typename LegacyEnum>
         .category = category,
         .detail = ErrorDetail{
             .domain = std::move(domain),
+            .legacy_type = {},
             .legacy_code = std::move(code),
             .message = std::move(message),
             .component = std::move(component),

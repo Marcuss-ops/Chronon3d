@@ -110,40 +110,9 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             else if (fill_rule == "non_zero") shape.fill_rule = ShapeFillRulePlan::NonZero;
             else throw std::runtime_error("shape.fill_rule must be 'even_odd' or 'non_zero'");
         }
-        if (raw_shape.contains("field")) {
-            if (raw_shape.contains("fill") && raw_shape.at("fill").is_object())
-                throw std::runtime_error("shape.field cannot be combined with a gradient or mesh fill");
-            if (shape.type == ShapeContentTypePlan::Line ||
-                shape.type == ShapeContentTypePlan::Arc ||
-                shape.type == ShapeContentTypePlan::Grid ||
-                shape.type == ShapeContentTypePlan::DotGrid ||
-                shape.type == ShapeContentTypePlan::DeviceFrame ||
-                raw_shape.contains("asset") || raw_shape.contains("lottie"))
-                throw std::runtime_error("shape.field requires a closed procedural shape or authored path");
-            shape.field = decode_field2d_plan(raw_shape.at("field"));
-        }
-        if (raw_shape.contains("field_ramp")) {
-            if (!shape.field)
-                throw std::runtime_error("shape.field_ramp requires shape.field");
-            shape.field_ramp = decode_gradient_definition(raw_shape.at("field_ramp"));
-        }
-        if (raw_shape.contains("field_render_scale")) {
-            shape.field_render_scale = raw_shape.at("field_render_scale").get<std::uint32_t>();
-            if (!shape.field || (shape.field_render_scale != 1 &&
-                shape.field_render_scale != 2 && shape.field_render_scale != 4))
-                throw std::runtime_error("shape.field_render_scale requires shape.field and must be 1, 2, or 4");
-        }
-        if (raw_shape.contains("field_drift")) {
-            if (!shape.field) throw std::runtime_error("shape.field_drift requires shape.field");
-            const auto& drift = raw_shape.at("field_drift");
-            if (!drift.is_array() || drift.size() != 2)
-                throw std::runtime_error("shape.field_drift must contain two values");
-            const Vec2 decoded_drift{drift[0].get<float>(), drift[1].get<float>()};
-            if (!std::isfinite(decoded_drift.x) || !std::isfinite(decoded_drift.y) ||
-                std::abs(decoded_drift.x) > 100.0f || std::abs(decoded_drift.y) > 100.0f)
-                throw std::runtime_error("shape.field_drift components must be finite and within [-100, 100]");
-            shape.field_drift = decoded_drift;
-        }
+        if (raw_shape.contains("field") || raw_shape.contains("field_ramp") ||
+            raw_shape.contains("field_render_scale") || raw_shape.contains("field_drift"))
+            throw std::runtime_error("Field2D source, ramp, scale and drift must be nested under shape.fill");
         if (layer.size_dimensions != 2 || !std::isfinite(layer.size[0]) ||
             !std::isfinite(layer.size[1]) || layer.size[0] <= 0.0f || layer.size[1] <= 0.0f)
             throw std::runtime_error("shape layers require positive two-dimensional size");
@@ -252,10 +221,11 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 throw std::runtime_error("grid shapes require a stroke");
             shape.path = make_grid_path(layer.size[0], layer.size[1],
                 raw_shape.value("spacing", 16.0f));
-        } else if (shape.type == ShapeContentTypePlan::DotGrid) {
-            if (!raw_shape.contains("fill"))
-                throw std::runtime_error("dot_grid shapes require a fill");
-            const float spacing = raw_shape.value("spacing", 16.0f);
+        } else if (shape.type == ShapeContentTypePlan::DotGrid) {                    if (!raw_shape.contains("fill"))
+                        throw std::runtime_error("dot_grid shapes require a fill");
+                    if (!shape.fill_color)
+                        throw std::runtime_error("dot_grid fill must be a solid RGBA color");
+                    const float spacing = raw_shape.value("spacing", 16.0f);
             const float radius = raw_shape.value("dot_radius", spacing * 0.12f);
             shape.path = make_dot_grid_path(layer.size[0], layer.size[1], spacing, radius);
         } else if (shape.type == ShapeContentTypePlan::DeviceFrame) {
@@ -272,7 +242,8 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             // for plans that omit shape.fill; it never overrides explicit fill.
         } else if (raw_shape.contains("fill") && raw_shape.at("fill").is_object()) {
             // Gradient payload is decoded below.
-        } else if (value.contains("color") && value.at("color").is_array()) {
+        } else if (value.contains("color") && value.at("color").is_array() &&
+                   shape.type != ShapeContentTypePlan::Grid && shape.type != ShapeContentTypePlan::DotGrid) {
             const auto& alias = value.at("color");
             if (alias.size() != 4)
                 throw std::runtime_error("legacy layer.color shape alias must contain RGBA");
@@ -652,8 +623,6 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                         throw std::runtime_error("mesh fill nodes must be nested under fill.mesh.nodes");
                     if (!fill.contains("mesh"))
                         throw std::runtime_error("mesh fill requires a mesh object");
-                    if (raw_shape.contains("field"))
-                        throw std::runtime_error("mesh fill cannot be combined with shape.field");
                     const bool closed_shape = shape.type == ShapeContentTypePlan::Rect ||
                         shape.type == ShapeContentTypePlan::RoundedRect ||
                         shape.type == ShapeContentTypePlan::Ellipse ||
@@ -669,6 +638,41 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                     if (!closed_shape && !closed_path)
                         throw std::runtime_error("mesh fills require a closed filled shape or closed authored path");
                     shape.gradient_mesh = decode_gradient_mesh(fill.at("mesh"));
+                } else if (fill.value("type", std::string{}) == "field") {
+                    for (auto it = fill.begin(); it != fill.end(); ++it)
+                        if (it.key() != "type" && it.key() != "field" && it.key() != "field_ramp" &&
+                            it.key() != "field_render_scale" && it.key() != "field_drift")
+                            throw std::runtime_error("field fill accepts only field, ramp, render scale, and drift");
+                    if (!fill.contains("field"))
+                        throw std::runtime_error("field fill requires a field object");
+                    if (shape.type == ShapeContentTypePlan::Line ||
+                        shape.type == ShapeContentTypePlan::Arc ||
+                        shape.type == ShapeContentTypePlan::Grid ||
+                        shape.type == ShapeContentTypePlan::DotGrid ||
+                        shape.type == ShapeContentTypePlan::DeviceFrame ||
+                        raw_shape.contains("asset") || raw_shape.contains("lottie"))
+                        throw std::runtime_error("field fill requires a closed procedural shape or authored path");
+                    if (fill.contains("mesh"))
+                        throw std::runtime_error("field fill cannot contain a mesh payload");
+                    shape.field = decode_field2d_plan(fill.at("field"));
+                    if (fill.contains("field_ramp"))
+                        shape.field_ramp = decode_gradient_definition(fill.at("field_ramp"));
+                    if (fill.contains("field_render_scale")) {
+                        shape.field_render_scale = fill.at("field_render_scale").get<std::uint32_t>();
+                        if (shape.field_render_scale != 1 && shape.field_render_scale != 2 &&
+                            shape.field_render_scale != 4)
+                            throw std::runtime_error("field fill render scale must be 1, 2, or 4");
+                    }
+                    if (fill.contains("field_drift")) {
+                        const auto& drift = fill.at("field_drift");
+                        if (!drift.is_array() || drift.size() != 2)
+                            throw std::runtime_error("field fill drift must contain two values");
+                        const Vec2 decoded{drift[0].get<float>(), drift[1].get<float>()};
+                        if (!std::isfinite(decoded.x) || !std::isfinite(decoded.y) ||
+                            std::abs(decoded.x) > 100.f || std::abs(decoded.y) > 100.f)
+                            throw std::runtime_error("field fill drift components must be finite and within [-100, 100]");
+                        shape.field_drift = decoded;
+                    }
                 } else {
                     shape.gradient = decode_gradient_definition(fill);
                 }

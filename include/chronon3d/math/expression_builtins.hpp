@@ -132,39 +132,12 @@
         }
 
         if (name == "loopOut" || name == "loopIn") {
-            std::string type = "cycle";
-            int num_keys = 0;
-
-            if (nargs >= 1) {
-                int type_idx = static_cast<int>(a);
-                switch (type_idx) {
-                    case 0: type = "cycle"; break;
-                    case 1: type = "pingpong"; break;
-                    case 2: type = "offset"; break;
-                    case 3: type = "continue"; break;
-                    default: type = "cycle"; break;
-                }
-            }
-            if (nargs >= 2) num_keys = static_cast<int>(b);
-
-            if (m_ctx) {
-                double t_min = m_ctx->in_point;
-                double t_max = m_ctx->out_point;
-                double t = m_ctx->time;
-
-                if (name == "loopIn") {
-                    if (t < t_min) {
-                        double looped = expr_detail::loop_helper(t_min + (t_min - t), t_min, t_max, num_keys, type);
-                        return m_ctx->value;
-                    }
-                } else {
-                    if (t > t_max) {
-                        double looped = expr_detail::loop_helper(t, t_min, t_max, num_keys, type);
-                        return m_ctx->value;
-                    }
-                }
-                return m_ctx->value;
-            }
+            // The AE argument forms (type, numKeyframes) parse through the
+            // generic argument parser above, but loop evaluation needs to
+            // sample this property's keyframe table at a wrapped time and the
+            // expression context carries no keyframe table. Until one exists,
+            // both forms return the property's base value — unchanged
+            // behaviour (see the note in expression_types.hpp).
             return m_ctx ? m_ctx->value : 0.0;
         }
 
