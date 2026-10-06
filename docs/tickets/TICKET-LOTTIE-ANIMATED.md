@@ -53,12 +53,16 @@ support.
   anchor animation, and typed failure for unsupported Lottie features.
 - [x] Render-plan fingerprint changes when a Lottie transform keyframe value
   changes; the native track fields use the existing plan fingerprint path.
-- [ ] A CLI software fixture renders an MP4 with distinct frame hashes at the
+- [x] A CLI software fixture renders an MP4 with distinct frame hashes at the
   authored keyframes; input and command limits remain enforced.
+  (`golden/lottie_cli_gate/{mark_anim.json,plan.json}` — 392 B L1 animated
+  rect, keyframes t=0/t=30 — checked by
+  `scripts/ci/check_lottie_cli_frame_gate.py`: frame 0
+  `088168c2…` vs frame 30 `2a589ae1…`, distinct.)
 - [x] Focused Lottie C ABI/render-plan tests pass (software scene evaluation).
 - [x] Focused L4 two-keyframe morph test passes and verifies distinct evaluated
   endpoint geometry.
-- [ ] CLI software fixture and frame-hash gate pass.
+- [x] CLI software fixture and frame-hash gate pass.
 
 ## Demolition debt
 
