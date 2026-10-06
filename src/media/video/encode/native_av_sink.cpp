@@ -473,7 +473,14 @@ bool NativeAvSink::submit_planes(const std::uint8_t* const data[4],
                                 source_av_format == AV_PIX_FMT_RGB24;
         const bool destination_rgb = codec_->pix_fmt == AV_PIX_FMT_RGBA ||
                                      codec_->pix_fmt == AV_PIX_FMT_RGB24;
-        if (sws_setColorspaceDetails(sws_, coefficients, source_rgb ? 1 : 0,
+        // YUV→YUV conversion changes plane layout/subsampling only here; the
+        // compositor contract already supplies BT.709 and the encoder writes
+        // BT.709 metadata. Asking swscale to configure a second matrix for
+        // same-domain NV12/YUV420P frames can be rejected by some FFmpeg
+        // builds even though sws_scale can perform the plane conversion.
+        const bool same_yuv_domain = !source_rgb && !destination_rgb;
+        if (!same_yuv_domain &&
+            sws_setColorspaceDetails(sws_, coefficients, source_rgb ? 1 : 0,
                 coefficients, destination_rgb ? 1 : 0, 0, 1 << 16, 1 << 16) < 0) {
             return fail(VideoSinkError::EncoderFailed,
                         "BT.709 frame conversion setup failed");

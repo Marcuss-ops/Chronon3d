@@ -45,28 +45,53 @@ struct FillStyle {
     // ── Factory helpers ──────────────────────────────────────────────
 
     static FillStyle solid(Color c) {
-        return {true, c, std::nullopt};
+        return {.enabled = true,
+                .solid_color = c,
+                .gradient = std::nullopt,
+                .field = std::nullopt,
+                .field_ramp = std::nullopt,
+                .gradient_mesh = std::nullopt,
+                .field_render_scale = 1,
+                .field_render_size = {0.0f, 0.0f}};
     }
 
     static FillStyle linear(Vec2 from, Vec2 to,
                              std::vector<GradientStop> stops,
                              GradientSpread sp = GradientSpread::Pad) {
-        return {true, {1.0f, 1.0f, 1.0f, 1.0f},
-                GradientDefinition::linear(from, to, std::move(stops), sp)};
+        return {.enabled = true,
+                .solid_color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .gradient = GradientDefinition::linear(from, to, std::move(stops), sp),
+                .field = std::nullopt,
+                .field_ramp = std::nullopt,
+                .gradient_mesh = std::nullopt,
+                .field_render_scale = 1,
+                .field_render_size = {0.0f, 0.0f}};
     }
 
     static FillStyle radial(Vec2 center, f32 radius,
                              std::vector<GradientStop> stops,
                              GradientSpread sp = GradientSpread::Pad) {
-        return {true, {1.0f, 1.0f, 1.0f, 1.0f},
-                GradientDefinition::radial(center, radius, std::move(stops), sp)};
+        return {.enabled = true,
+                .solid_color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .gradient = GradientDefinition::radial(center, radius, std::move(stops), sp),
+                .field = std::nullopt,
+                .field_ramp = std::nullopt,
+                .gradient_mesh = std::nullopt,
+                .field_render_scale = 1,
+                .field_render_size = {0.0f, 0.0f}};
     }
 
     static FillStyle conic(Vec2 center, f32 angle_rad,
                             std::vector<GradientStop> stops,
                             GradientSpread sp = GradientSpread::Pad) {
-        return {true, {1.0f, 1.0f, 1.0f, 1.0f},
-                GradientDefinition::conic(center, angle_rad, std::move(stops), sp)};
+        return {.enabled = true,
+                .solid_color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .gradient = GradientDefinition::conic(center, angle_rad, std::move(stops), sp),
+                .field = std::nullopt,
+                .field_ramp = std::nullopt,
+                .gradient_mesh = std::nullopt,
+                .field_render_scale = 1,
+                .field_render_size = {0.0f, 0.0f}};
     }
 
     // ── Query helpers ────────────────────────────────────────────────

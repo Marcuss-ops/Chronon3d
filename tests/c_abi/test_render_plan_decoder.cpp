@@ -3024,7 +3024,8 @@ TEST_CASE("V3 GradientMesh fill decodes with bounded nodes and fingerprints ever
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_weight));
 
     auto field_conflict = input;
-    field_conflict["layers"][0]["shape"]["field"] = {{"generator", "perlin"}};
+    field_conflict["layers"][0]["shape"]["fill"] = {
+        {"type", "field"}, {"field", {{"generator", "perlin"}}}};
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(field_conflict));
 }
 
@@ -3033,19 +3034,18 @@ TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinte
     using nlohmann::json;
     auto input = render_plan_test::base_plan({render_plan_test::shape_layer({
         {"type", "rect"}, {"fill", {0.8, 0.4, 0.2, 1.0}}})});
-    input["layers"][0]["shape"]["field"] = {
-        {"generator", "fractal"}, {"seed", 41}, {"frequency", 6.0},
-        {"octaves", 5}, {"operators", json::array({
-            {{"kind", "warp"}, {"amount", 0.15}},
-            {{"kind", "smoothstep"}, {"edge", 0.55}, {"softness", 0.2}}})}};
-    input["layers"][0]["shape"]["field_ramp"] = {
-        {"type", "linear"}, {"start", json::array({0.0, 0.5})},
-        {"end", json::array({1.0, 0.5})}, {"color_stops", json::array({
-            json{{"position", 0.0}, {"color", json::array({0.02, 0.01, 0.1, 1.0})}},
-            json{{"position", 0.45}, {"color", json::array({0.45, 0.05, 0.8, 1.0})}},
-            json{{"position", 1.0}, {"color", json::array({1.0, 0.7, 0.9, 1.0})}}})}};
-    input["layers"][0]["shape"]["field_render_scale"] = 4;
-    input["layers"][0]["shape"]["field_drift"] = {0.1, -0.05};
+    input["layers"][0]["shape"]["fill"] = {
+        {"type", "field"},
+        {"field", {{"generator", "fractal"}, {"seed", 41}, {"frequency", 6.0},
+            {"octaves", 5}, {"operators", json::array({
+                {{"kind", "warp"}, {"amount", 0.15}},
+                {{"kind", "smoothstep"}, {"edge", 0.55}, {"softness", 0.2}}})}}},
+        {"field_ramp", {{"type", "linear"}, {"start", json::array({0.0, 0.5})},
+            {"end", json::array({1.0, 0.5})}, {"color_stops", json::array({
+                json{{"position", 0.0}, {"color", json::array({0.02, 0.01, 0.1, 1.0})}},
+                json{{"position", 0.45}, {"color", json::array({0.45, 0.05, 0.8, 1.0})}},
+                json{{"position", 1.0}, {"color", json::array({1.0, 0.7, 0.9, 1.0})}}})}}},
+        {"field_render_scale", 4}, {"field_drift", {0.1, -0.05}}};
     const auto decoded = chronon3d::render_plan::decode_render_plan(input);
     REQUIRE(decoded);
     REQUIRE(decoded->layers[0].shape);
@@ -3062,45 +3062,45 @@ TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinte
     CHECK(decoded->layers[0].shape->field_drift->y == doctest::Approx(-0.05f));
 
     auto different_seed = input;
-    different_seed["layers"][0]["shape"]["field"]["seed"] = 42;
+    different_seed["layers"][0]["shape"]["fill"]["field"]["seed"] = 42;
     const auto other = chronon3d::render_plan::decode_render_plan(different_seed);
     REQUIRE(other);
     CHECK(decoded->content_fingerprint != other->content_fingerprint);
     auto different_ramp = input;
-    different_ramp["layers"][0]["shape"]["field_ramp"]["color_stops"][1]["color"][1] = 0.2;
+    different_ramp["layers"][0]["shape"]["fill"]["field_ramp"]["color_stops"][1]["color"][1] = 0.2;
     const auto other_ramp = chronon3d::render_plan::decode_render_plan(different_ramp);
     REQUIRE(other_ramp);
     CHECK(decoded->content_fingerprint != other_ramp->content_fingerprint);
     auto hdr_ramp = input;
-    hdr_ramp["layers"][0]["shape"]["field_ramp"]["color_stops"][1]["color"][0] = 4.0;
+    hdr_ramp["layers"][0]["shape"]["fill"]["field_ramp"]["color_stops"][1]["color"][0] = 4.0;
     CHECK(chronon3d::render_plan::decode_render_plan(hdr_ramp));
-    hdr_ramp["layers"][0]["shape"]["field_ramp"]["color_stops"][1]["color"][0] = 4.01;
+    hdr_ramp["layers"][0]["shape"]["fill"]["field_ramp"]["color_stops"][1]["color"][0] = 4.01;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(hdr_ramp));
     auto different_scale = input;
-    different_scale["layers"][0]["shape"]["field_render_scale"] = 2;
+    different_scale["layers"][0]["shape"]["fill"]["field_render_scale"] = 2;
     const auto other_scale = chronon3d::render_plan::decode_render_plan(different_scale);
     REQUIRE(other_scale);
     CHECK(decoded->content_fingerprint != other_scale->content_fingerprint);
     auto different_drift = input;
-    different_drift["layers"][0]["shape"]["field_drift"][0] = 0.2;
+    different_drift["layers"][0]["shape"]["fill"]["field_drift"][0] = 0.2;
     const auto other_drift = chronon3d::render_plan::decode_render_plan(different_drift);
     REQUIRE(other_drift);
     CHECK(decoded->content_fingerprint != other_drift->content_fingerprint);
 
     auto invalid_scale = input;
-    invalid_scale["layers"][0]["shape"]["field_render_scale"] = 3;
+    invalid_scale["layers"][0]["shape"]["fill"]["field_render_scale"] = 3;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_scale));
 
     auto ramp_without_field = input;
-    ramp_without_field["layers"][0]["shape"].erase("field");
+    ramp_without_field["layers"][0]["shape"]["fill"].erase("field");
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(ramp_without_field));
 
     auto invalid = input;
-    invalid["layers"][0]["shape"]["field"]["operators"][0]["amount"] = 2.0;
+    invalid["layers"][0]["shape"]["fill"]["field"]["operators"][0]["amount"] = 2.0;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
 
     auto burst = input;
-    burst["layers"][0]["shape"]["field"] = {
+    burst["layers"][0]["shape"]["fill"]["field"] = {
         {"generator", "burst"}, {"frequency", 1.0}, {"octaves", 8}};
     const auto decoded_burst = chronon3d::render_plan::decode_render_plan(burst);
     REQUIRE(decoded_burst);
@@ -3108,7 +3108,7 @@ TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinte
     CHECK(decoded_burst->layers[0].shape->field->generator ==
           chronon3d::graphics::Field2DGenerator::Burst);
     auto invalid_burst = burst;
-    invalid_burst["layers"][0]["shape"]["field"]["octaves"] = 2;
+    invalid_burst["layers"][0]["shape"]["fill"]["field"]["octaves"] = 2;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_burst));
 }
 
