@@ -34,7 +34,7 @@ configurato è 2, la capacità effettiva 1 (il daemon lo segnala con un warning)
 |---|---|---|
 | render loop 121 frame | 230–258 ms (~500 fps) | **~11% del servizio** |
 | pool-warm canvas + pre-import 6 execution slot + encoder open | 610–1 350 ms | **per job**: 101 boot per 100 job |
-| gap tra scrittura sidecar e riga `receipt:` | **1 280 ms** | nessun timer lo attribuisce; assente nel percorso single-shot (~250 ms) |
+| gap tra scrittura sidecar e riga `receipt:` | **1 280 ms (misura storica)** | aggiunti timer sidecar→receipt e receipt-write il 2026-10-05; campione daemon aggiornato ancora da raccogliere |
 | receipt | 284 ms (probe 282) | + **253 ms** di ri-verifica nel worker |
 | handoff al job successivo | 62 ms | |
 
@@ -92,11 +92,13 @@ certificate e la telemetria interna degli allocator (exit condition §5).
 
 ## 4. Leve, in ordine di leva
 
-1. **Attribuire e togliere i 1 280 ms** (oggi invisibili a tutti i timer) —
-   candidati da tagliare con timer dedicati: drain/chiusura encoder, finalize
-   del mux, `vkDeviceWaitIdle`/fence wait, sync CUDA, distruzione di execution
-   slot/pool, hash + rename atomico + sidecar. Un solo `waitIdle` o un poll con
-   backoff in quel tratto spiegherebbe il costo.
+1. **Attribuire e togliere i 1 280 ms** — il percorso ora logga
+   `sidecar_write_ms`, `session_teardown_ms`, `post_sidecar_to_receipt_ms`,
+   `receipt_build_verify_ms` e `receipt_file_write_ms`. Il delta storico non è
+   ancora stato riprodotto dopo questa strumentazione; il prossimo campione
+   deve conservare le cinque misure e i confini `Wrote result.mp4` / `receipt:`
+   per distinguere drain, finalize, sync, teardown, verifica e scrittura del
+   receipt.
    **Aggiornamento 2026-09-17 (secondo esemplare della stessa classe, trovato e
    chiuso):** la ricerca statica di un worker periodico `join`-ato da un
    distruttore sul percorso del job ha trovato `NvmlSampler`
@@ -163,11 +165,14 @@ Resta aperto, e sono i criteri di accettazione della decisione:
    per shape imposti dal loader, aggregazione min/p50/max dell'attribuzione per
    processo, dry-run senza GPU) — `cmd/vram-probe -mode calibration-suite`,
    [`docs/evidence/vram-calibration-suite-2026-09-17.md`](../evidence/vram-calibration-suite-2026-09-17.md).
-   Inventario del checkout: **113 piani concreti, tutti 1920×1080** → 2 shape
-   eseguibili (overlay-only, video-sorgente) e due bloccate da cause diverse:
-   **4K** non ha alcun piano nel repository, **DirectYUV** non è una proprietà
-   del piano (va certificata estraendo `execution_path` dal run, non dichiarata
-   in una label);
+   Inventario precedente del checkout: **113 piani concreti, tutti 1920×1080**.
+   È stato aggiunto `tools/fixtures/vram-calibration-4k-overlay.plan.json`
+   (3840×2160, color + testo, 48 frame). La validazione CLI è PASS (`content_digest`
+   `4df908b0d4578545e27e6b1c2b6d36045500bed49f41ff44110bc4fef36435af`), ma il
+   piano non è ancora incluso/eseguito dalla suite VRAM né calibrato su GPU.
+   Restano quindi le 2 shape misurate (overlay-only, video-sorgente), la shape
+   4K autorata ma non misurata, e DirectYUV ancora da certificare estraendo
+   `execution_path` dal run invece di dichiararlo in una label;
 2. **telemetria interna degli allocator** al posto di `nvidia-smi`: su host
    condiviso il contatore device-wide non è stabile (§3b), quindi il numero che
    alimenta `derive_vram_working_set` deve venire dal runtime;

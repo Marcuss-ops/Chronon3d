@@ -14,7 +14,8 @@ using detail::elapsed_ms;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    // Every caller holds mutex_: this helper operates on the encoder's shared
+    // CUDA queue and deliberately does not acquire it a second time.
     if (!cuda_context_ || cuCtxSetCurrent(reinterpret_cast<CUcontext>(cuda_context_)) != CUDA_SUCCESS) {
         spdlog::error("[native_av] failed to activate CUDA context before event drain");
         return false;

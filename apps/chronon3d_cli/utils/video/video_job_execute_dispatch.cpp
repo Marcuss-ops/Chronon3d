@@ -19,6 +19,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <limits>
@@ -164,7 +165,7 @@ bool execute_direct_mux_gop_plan(
     // the optimization and let the normal encoder produce one High stream
     // for the complete clip (audio can still be copied from gop_source).
     if (declared->codec == AV_CODEC_ID_H264 &&
-        declared->profile != FF_PROFILE_H264_HIGH) {
+        declared->profile != AV_PROFILE_H264_HIGH) {
         reason = "source_profile_not_assembly_ready";
         return false;
     }
@@ -563,7 +564,8 @@ int render_and_encode_ffmpeg(
     Frame end,
     const FfmpegExportOptions& opts,
     const chronon3d::CpuBudget& cpu_budget,
-    std::shared_ptr<media::VideoJobExecutionContext> execution) {
+    std::shared_ptr<media::VideoJobExecutionContext> execution,
+    std::chrono::steady_clock::time_point* sidecar_written_at) {
     if (opts.output.output.empty()) {
         spdlog::error("[video] No output path specified.");
         return 1;
@@ -780,6 +782,7 @@ int render_and_encode_ffmpeg(
         std::move(video_runtimes),
         device_scheduler,
         std::move(execution));
+    if (sidecar_written_at) *sidecar_written_at = result.sidecar_written_at;
     return result.return_code;
 }
 

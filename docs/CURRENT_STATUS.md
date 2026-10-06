@@ -17,7 +17,7 @@
 | Performance baseline | v1 exists and is locked for the software/CPU corpus; GPU-side certification still requires the appropriate build host |
 | GPU-native video | same-SHA host certification at source commit `5e49b7e4a`: Vulkan↔CUDA interop and CUDA→NVENC probes PASS; FullGraph, DirectYUV H.264/H.265, prepared-MTSDF text, and native-image routes PASS with zero readback/staging; GitHub CI remains separate |
 | GPU text route | packed compatibility route CLOSED 2026-09-22; prepared MTSDF is the only native graph route, with explicit software/reject handling |
-| Remote main (observed 2026-10-03) | `5d960421dd1b` — latest scheduled runs [37110073977](https://github.com/Marcuss-ops/Chronon3d/actions/runs/37110073977) and [37107348776](https://github.com/Marcuss-ops/Chronon3d/actions/runs/37107348776) still fail before runner allocation (`steps: []`). Local HEAD matches main with dirty work restored; rebuilt Core and CLI suites pass 2/2 locally, but this is not GitHub same-SHA certification. |
+| Remote main (observed 2026-10-05) | `b67a750e6` — Actions runs [37313378103](https://github.com/Marcuss-ops/Chronon3d/actions/runs/37313378103) and [37313378100](https://github.com/Marcuss-ops/Chronon3d/actions/runs/37313378100) fail before runner allocation (`steps: []`). Local HEAD matches remote; audit remediation is uncommitted and not covered by these runs. |
 
 ## Area authority census
 
@@ -50,7 +50,7 @@ tracked in [`TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`](tickets/TICKET-WAVE-CLOSEOUT
 |---|---|---|---|
 | TICKET-MAIN-TRUTH-STAGE-1-2 | main/build/docs | BLOCKED | [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — remote Chronon3D jobs do not allocate a runner; restore runner dispatch, then certify the reviewed SHA |
 | TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
-| TEST-FONT-ASSET-PATH / CERT-SEQUENCE-WBH | testing/cert | OPEN | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — font/asset fixture debt RESOLVED (bootstrap re-pinned 2026-09-05); WBH cert portion remains |
+| TEST-FONT-ASSET-PATH / CERT-SEQUENCE-WBH | testing/cert | PARTIAL | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — font/asset fixture debt RESOLVED; protocol and toolchain manifest delivered; clean same-SHA WBH certification remains |
 | FFMPEG-PIPE-SINK-DEMOLITION | video cleanup | BLOCKED | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — native CI and production caller exit conditions are not certified |
 | FUSED-STORAGE-IMAGE-DEMOLITION | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; one same-SHA native-image video certificate is PASS, broader overlay corpus parity remains |
 
@@ -62,9 +62,10 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 |---|---|
 | Render-plan V3 coherence | PASS on 264b3c3d — v3 extensions dedup + per-key timing + flash hex + fingerprint v10 golden pinned (c_abi 138/138) — see git log 264b3c3dc |
 | Lottie Bodymovin lowering | PARTIAL — L1 transforms, L2 nested groups, L3 static features, and bounded two-keyframe L4 morphs lower in software; CLI MP4 frame-hash and broader morph gates remain — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
-| Vulkan effect parity | OPEN — software catalog has 47 effect types; strict Vulkan has native routes for 17 types including Keying, Echo, Vignette, and Mosaic, with pixel-tested ordered composition for a subset; 30 catalog routes remain unsupported and local llvmpipe evidence is not GPU-hardware certification — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
+| Vulkan effect parity | OPEN — software catalog has 47 effect types; strict Vulkan has native routes for 23 types including Checkerboard, TemperatureTint, LiftGammaGain, Offset, Noise, Keying, Echo, Vignette, and Mosaic, with pixel-tested ordered composition for a subset; 24 catalog routes remain unsupported and local llvmpipe evidence is not GPU-hardware certification — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera V1 | PARTIAL — same-SHA certification outstanding |
+| Render-plan audio mix | PASS (focused) — V3 clips, trim, gain automation, ducking and native mux integration; GPU/CI same-SHA certification remains separate |
 | Text Core V1 | PASS (focused) |
 | Text depth focus (text_depth_focus_v1) | PASS (unit) — `TextFocusResolver` authority + 8 preset family ids landed header-only over the canonical animator primitives; suite `chronon3d_text_focus_resolver_tests` 16/16 |
 | Text Production | PARTIAL |
@@ -72,7 +73,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Executor ownership | DONE structurally |
 | Agent visual finishing (software) | PARTIAL — RenderPlan color contract and optional mastering facts are wired through native video export; CPU scopes analyze decoded video and report PQ peak measurements. Runtime probes verified PQ H.264 High 10, PQ H.265 Main 10, and HLG H.265 Main 10 as 10-bit BT.2020-NCL limited-range outputs with correct transfer and mastering/CLL stream metadata. An OCIO display/view still probe preserved transparent and half-alpha pixels with transformed color. The local ONNX semantic matte provider passed gates on a real 640×360 clip frame; four-frame CPU temporal propagation published accepted mattes at 80×45. The focused encoder suite passes 32/32 cases (1,607 assertions). Representative project footage matte review, broader color/alpha edge coverage, and full project verification remain open — [ticket](tickets/TICKET-AGENT-VISUAL-FINISHING.md) |
 | Video pipeline | PASS (focused); same-SHA GPU certification at `5e49b7e4a` covers FullGraph zero-copy, DirectYUV conversion-zero on H.264/H.265 video-source fixtures, visual MTSDF text overlay, and Vulkan native-image video. Z1 typed feed • Z4 matrix • Z7 CUDA-lane counter • `video_surface_upload_bytes` sidecar landed (ZERO-COPY-ZWAVES) — plus 264b3c3d local same-SHA for render-plan layer of pipeline |
-| CI infrastructure | LOCAL Core + CLI tests pass on dirty worktree based on `5d960421dd1b`; remote scheduled runs `37110073977`/`37107348776` fail before runner allocation; Motion3D run `36912748216` has the same no-step failure; ChrononTemplate has no remote workflow. Same-SHA GitHub certification remains OPEN. |
+| CI infrastructure | Chronon3D same-SHA Actions runs `37313378103`/`37313378100` on `b67a750e6` fail before runner allocation (`steps: []`); local Core/renderer/registry verification of the uncommitted audit fixes passes (3/3 suites). Same-SHA GitHub certification remains OPEN. |
 | Determinism | PARTIAL — `BitExact` / `DeterministicWithinPlatform` / `Approximate` types and focused fusion certification tests exist; broad cross-backend scene certification remains open |
 | Packaging | PASS (historical/local evidence) |
 
@@ -105,4 +106,4 @@ Do not advance to new compiler architecture while Stage 1 same-SHA CI is red or 
 - [`CHRONON_PLAN.md`](CHRONON_PLAN.md)
 - [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md)
 - [`EXECUTOR_OWNERSHIP.md`](EXECUTOR_OWNERSHIP.md)
-- WBH protocol (P1, OPEN): the gate groups live in `tools/gates/manifest.sh` (`WBH_GATES`); the protocol doc and the toolchain-manifest contract are still to be delivered — see [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md)
+- WBH protocol (P1, PARTIAL): protocol is [documented](CERT-SEQUENCE-WBH-PROTOCOL.md), manifest and checker are `tools/wbh_toolchain_manifest.env` and `tools/check_wbh_toolchain.py`; local toolchain passes, while clean same-SHA gates remain unrun — see [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md)

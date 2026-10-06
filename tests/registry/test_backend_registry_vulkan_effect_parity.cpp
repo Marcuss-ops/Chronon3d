@@ -34,6 +34,11 @@ std::unique_ptr<EffectProcessor> create_saturation_effect_processor();
 std::unique_ptr<EffectProcessor> create_hue_rotate_effect_processor();
 std::unique_ptr<EffectProcessor> create_invert_effect_processor();
 std::unique_ptr<EffectProcessor> create_exposure_effect_processor();
+std::unique_ptr<EffectProcessor> create_temperature_tint_effect_processor();
+std::unique_ptr<EffectProcessor> create_lift_gamma_gain_effect_processor();
+std::unique_ptr<EffectProcessor> create_offset_effect_processor();
+std::unique_ptr<EffectProcessor> create_noise_effect_processor();
+std::unique_ptr<EffectProcessor> create_checkerboard_effect_processor();
 std::unique_ptr<EffectProcessor> create_fill_effect_processor();
 std::unique_ptr<EffectProcessor> create_levels_effect_processor();
 std::unique_ptr<EffectProcessor> create_threshold_effect_processor();
@@ -76,11 +81,13 @@ std::vector<float> software_oracle(renderer::EffectProcessor& processor,
                                    const EffectParams& params,
                                    const std::optional<raster::BBox>& clip,
                                    int origin_x = 0, int origin_y = 0,
-                                   EffectScratchResources* scratch = nullptr) {
+                                   EffectScratchResources* scratch = nullptr,
+                                   Frame frame = Frame{}) {
     auto fb = make_source(origin_x, origin_y);
     effects::EffectExecutionContext ctx{};
     ctx.clip = clip;
     ctx.effect_scratch = scratch;
+    ctx.frame = frame;
     processor.apply(*fb, params, ctx);
     std::vector<float> out;
     for (int y = 0; y < kH; ++y)
@@ -99,12 +106,14 @@ struct VulkanRun {
 
 VulkanRun vulkan_strict(const EffectParams& params,
                         const std::optional<raster::BBox>& clip,
-                        int origin_x = 0, int origin_y = 0) {
+                        int origin_x = 0, int origin_y = 0,
+                        Frame frame = Frame{}) {
     backends::vulkan::VulkanBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
     RenderGraphContext ctx;
     ctx.frame_input.width = kW;
     ctx.frame_input.height = kH;
+    ctx.frame_input.frame = frame;
     ctx.backend = &backend;
     ctx.surface_registry = &surfaces;
     ctx.policy.require_native_gpu = true;
@@ -209,9 +218,12 @@ VulkanRun vulkan_strict_adjustment_stack(
 
 void check_parity(renderer::EffectProcessor& processor, const EffectParams& params,
                   const std::optional<raster::BBox>& clip = std::nullopt,
-                  int origin_x = 0, int origin_y = 0) {
-    const auto expected = software_oracle(processor, params, clip, origin_x, origin_y);
-    const auto actual = vulkan_strict(params, clip, origin_x, origin_y);
+                  int origin_x = 0, int origin_y = 0,
+                  EffectScratchResources* scratch = nullptr,
+                  Frame frame = Frame{}) {
+    const auto expected = software_oracle(processor, params, clip, origin_x, origin_y,
+                                          scratch, frame);
+    const auto actual = vulkan_strict(params, clip, origin_x, origin_y, frame);
     INFO("strict Vulkan error: " << actual.error);
     REQUIRE(actual.ok);
     REQUIRE(actual.pixels.size() == expected.size());
@@ -283,6 +295,75 @@ TEST_CASE("Vulkan native color effects match the software processors") {
         check_parity(*p, ExposureParams{.stops = 1.5f});
         check_parity(*p, ExposureParams{.stops = -2.0f});
     }
+    SUBCASE("TemperatureTint") {
+        auto p = renderer::create_temperature_tint_effect_processor();
+        check_parity(*p, TemperatureTintParams{.temperature = 0.7f, .tint = -0.6f});
+        check_parity(*p, TemperatureTintParams{.temperature = -0.4f, .tint = 0.8f});
+        check_parity(*p, TemperatureTintParams{.temperature = 2.0f, .tint = -2.0f});
+        check_parity(*p, TemperatureTintParams{});
+    }
+    SUBCASE("LiftGammaGain") {
+        auto p = renderer::create_lift_gamma_gain_effect_processor();
+        check_parity(*p, LiftGammaGainParams{.lift = 0.08f, .gamma = 1.7f, .gain = 1.3f});
+        check_parity(*p, LiftGammaGainParams{.lift = -0.2f, .gamma = 0.6f, .gain = 0.8f});
+        check_parity(*p, LiftGammaGainParams{.lift = 3.0f, .gamma = 0.01f, .gain = 8.0f});
+        check_parity(*p, LiftGammaGainParams{});
+    }
+    SUBCASE("Offset") {
+        auto p = renderer::create_offset_effect_processor();
+        EffectScratchResources scratch;
+        for (const auto edge : {sampling::EdgeMode::Transparent, sampling::EdgeMode::Clamp,
+                                sampling::EdgeMode::Wrap, sampling::EdgeMode::Mirror}) {
+            for (const auto filter : {sampling::SampleFilter::Nearest,
+                                      sampling::SampleFilter::Bilinear}) {
+                check_parity(*p, OffsetParams{.offset = {1.25f, -0.75f},
+                                              .edge_mode = edge, .filter = filter},
+                             std::nullopt, 0, 0, &scratch);
+            }
+        }
+        check_parity(*p, OffsetParams{.offset = {-2.0f, 1.0f},
+                                      .edge_mode = sampling::EdgeMode::Wrap,
+                                      .filter = sampling::SampleFilter::Nearest},
+                     std::nullopt, 0, 0, &scratch);
+        check_parity(*p, OffsetParams{.offset = {0.0f, 0.0f}},
+                     std::nullopt, 0, 0, &scratch);
+        check_parity(*p, OffsetParams{.offset = {-0.4f, 1.1f},
+                                      .edge_mode = sampling::EdgeMode::Clamp,
+                                      .filter = sampling::SampleFilter::Bilinear},
+                     raster::BBox{2, 1, 6, 3}, 0, 0, &scratch);
+    }
+    SUBCASE("Noise") {
+        auto p = renderer::create_noise_effect_processor();
+        const NoiseParams monochrome{.amount = 0.18f, .seed = 0x9123abcdU,
+            .animated = false, .color_mode = NoiseColorMode::Monochrome,
+            .size = 2.5f, .shadow_response = 0.35f,
+            .midtone_response = 1.2f, .highlight_response = 0.7f};
+        check_parity(*p, monochrome);
+        const NoiseParams animated_rgb{.amount = 0.11f, .seed = 0xfedcba98U,
+            .animated = true, .color_mode = NoiseColorMode::RGB,
+            .size = 1.0f, .shadow_response = 1.0f,
+            .midtone_response = 0.8f, .highlight_response = 1.3f};
+        check_parity(*p, animated_rgb, std::nullopt, 0, 0, nullptr, Frame{37});
+        check_parity(*p, monochrome, raster::BBox{2, 1, 6, 3});
+        check_parity(*p, NoiseParams{.amount = 0.0f, .seed = 123U});
+        check_parity(*p, NoiseParams{.amount = 0.2f, .seed = 34U,
+                                     .shadow_response = NAN},
+                     std::nullopt, 0, 0, nullptr, Frame{12});
+    }
+    SUBCASE("Checkerboard") {
+        auto p = renderer::create_checkerboard_effect_processor();
+        check_parity(*p, CheckerboardParams{.size = 2.5f,
+            .color_a = Color{0.9f, 0.1f, 0.2f, 1.0f},
+            .color_b = Color{0.05f, 0.8f, 0.4f, 1.0f}, .feather = 0.0f});
+        check_parity(*p, CheckerboardParams{.size = 3.25f,
+            .color_a = Color{0.8f, 0.25f, 0.1f, 0.35f},
+            .color_b = Color{0.05f, 0.6f, 0.95f, 0.85f}, .feather = 0.8f});
+        check_parity(*p, CheckerboardParams{.size = 2.0f,
+            .color_a = Color{1.0f, 0.0f, 0.0f, 1.0f},
+            .color_b = Color{0.0f, 0.0f, 1.0f, 1.0f}, .feather = 8.0f},
+            raster::BBox{2, 1, 6, 3});
+        check_parity(*p, CheckerboardParams{.size = 0.0f});
+    }
     SUBCASE("Fill") {
         auto p = renderer::create_fill_effect_processor();
         check_parity(*p, FillParams{.color = Color{0.9f, 0.2f, 0.4f, 1.0f},
@@ -346,6 +427,9 @@ TEST_CASE("Vulkan native color effects honor the software clip contract") {
     // pixels outside the region must survive the native output copy.
     auto exposure = renderer::create_exposure_effect_processor();
     check_parity(*exposure, ExposureParams{.stops = 1.0f}, clip);
+    auto temperature_tint = renderer::create_temperature_tint_effect_processor();
+    check_parity(*temperature_tint,
+        TemperatureTintParams{.temperature = 0.45f, .tint = -0.3f}, clip);
     auto levels = renderer::create_levels_effect_processor();
     LevelsParams levels_params;
     levels_params.master.gamma = 1.5f;
@@ -357,6 +441,16 @@ TEST_CASE("Vulkan native color effects honor the software clip contract") {
 
 TEST_CASE("Vulkan luma and chroma key match the software processor") {
     auto processor = renderer::create_keying_effect_processor();
+    // Exercise non-opaque premultiplied texels with partial keep alpha and
+    // softness. This catches output RGB being multiplied by the updated alpha
+    // twice after unpremultiplication.
+    KeyingParams semitransparent_soft_key;
+    semitransparent_soft_key.mode = KeyingMode::Luma;
+    semitransparent_soft_key.threshold = 0.18f;
+    semitransparent_soft_key.softness = 0.72f;
+    semitransparent_soft_key.spill = 0.0f;
+    check_parity(*processor, semitransparent_soft_key);
+
     KeyingParams chroma;
     chroma.mode = KeyingMode::Chroma;
     chroma.key_color = Color{0.0f, 1.0f, 0.0f, 1.0f};
@@ -479,15 +573,42 @@ TEST_CASE("Strict Vulkan applies certified effect stacks in authored order") {
 TEST_CASE("Strict Vulkan AdjustmentNode composes ordered native color stages") {
     auto source = make_source();
     auto expected = *source;
+    auto checkerboard = renderer::create_checkerboard_effect_processor();
     auto brightness = renderer::create_brightness_effect_processor();
     auto invert = renderer::create_invert_effect_processor();
+    auto temperature_tint = renderer::create_temperature_tint_effect_processor();
+    auto lift_gamma_gain = renderer::create_lift_gamma_gain_effect_processor();
+    auto offset = renderer::create_offset_effect_processor();
+    auto noise = renderer::create_noise_effect_processor();
+    EffectScratchResources scratch;
     effects::EffectExecutionContext context{};
+    context.effect_scratch = &scratch;
+    const CheckerboardParams checkerboard_params{.size = 2.75f,
+        .color_a = Color{0.8f, 0.15f, 0.35f, 0.9f},
+        .color_b = Color{0.1f, 0.7f, 0.45f, 0.65f}, .feather = 0.6f};
+    checkerboard->apply(expected, checkerboard_params, context);
     brightness->apply(expected, BrightnessParams{.value = 0.14f}, context);
     invert->apply(expected, InvertParams{.amount = 0.35f}, context);
+    const TemperatureTintParams white_balance{.temperature = 0.55f, .tint = -0.4f};
+    temperature_tint->apply(expected, white_balance, context);
+    const LiftGammaGainParams grade{.lift = 0.06f, .gamma = 1.4f, .gain = 1.15f};
+    lift_gamma_gain->apply(expected, grade, context);
+    const OffsetParams offset_params{.offset = {0.75f, -0.5f},
+                                     .edge_mode = sampling::EdgeMode::Mirror,
+                                     .filter = sampling::SampleFilter::Bilinear};
+    offset->apply(expected, offset_params, context);
+    const NoiseParams noise_params{.amount = 0.09f, .seed = 0xabc12345U,
+        .animated = false, .color_mode = NoiseColorMode::RGB, .size = 2.0f};
+    noise->apply(expected, noise_params, context);
 
     EffectStack stack;
+    stack.emplace_back(checkerboard_params);
     stack.emplace_back(BrightnessParams{.value = 0.14f});
     stack.emplace_back(InvertParams{.amount = 0.35f});
+    stack.emplace_back(white_balance);
+    stack.emplace_back(grade);
+    stack.emplace_back(offset_params);
+    stack.emplace_back(noise_params);
     const auto actual = vulkan_strict_adjustment_stack(stack);
     INFO("strict Vulkan adjustment error: " << actual.error);
     REQUIRE(actual.ok);

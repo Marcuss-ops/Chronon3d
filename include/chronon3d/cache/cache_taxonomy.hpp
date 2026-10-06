@@ -72,7 +72,6 @@ enum class CacheFamily : unsigned char {
     ///   • TemplateProgramCache    — compiled template programs by fingerprint
     ///   • CompiledGraphCache      — compiled frame graphs (dimension-dependent)
     ///   • SceneProgramCache       — scene-specific compiled programs
-    ///   • OverlayTemplateCache    — overlay template GPU command plans
     ///   • PixelProgram            — canonical semantic IR (graph::pixel::PixelProgram v1)
     ///   • DeviceProgramKey        — lowered device program identity feeding ProgramArtifactKey
     ///   • CompiledArtifactCache   — persistent compiled-program artifact store

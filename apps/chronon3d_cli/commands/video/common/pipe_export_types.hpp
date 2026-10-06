@@ -40,6 +40,7 @@ struct PipeExportResult {
     double encode_ms{0.0};
     double validation_ms{0.0};
     double output_finalize_ms{0.0};
+    std::chrono::steady_clock::time_point sidecar_written_at{};
 };
 
 struct PipeExportTelemetry {

@@ -84,6 +84,11 @@ public:
                 case effects::EffectType::HueRotate:
                 case effects::EffectType::Invert:
                 case effects::EffectType::Exposure:
+                case effects::EffectType::TemperatureTint:
+                case effects::EffectType::LiftGammaGain:
+                case effects::EffectType::Offset:
+                case effects::EffectType::Noise:
+                case effects::EffectType::Checkerboard:
                 case effects::EffectType::Fill:
                 case effects::EffectType::Levels:
                 case effects::EffectType::Threshold:

@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <array>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -35,6 +36,8 @@ class RenderBackend;
 }
 
 namespace chronon3d::runtime {
+
+class TemporalSampleWorkspace;
 
 class RuntimeContext;
 struct NativeEchoHistoryState;
@@ -90,14 +93,16 @@ enum class JobState : std::uint8_t {
 
 /// Job-lifetime state. The runtime context is borrowed.  History and pipeline
 /// authorities belong to this job; frame-local state is leased separately by
-/// FrameExecution.
+/// FrameExecution. Runtime/backend/surface-registry objects used by retained
+/// native echo surfaces must outlive this session; destruction releases those
+/// surfaces while their owners are still available.
 class JobSession final {
 public:
     static constexpr std::size_t kPipelineDepth = 3;
 
     /// Empty compatibility session for standalone graph diagnostics. It is
     /// intentionally not a render job until a RuntimeContext is bound.
-    JobSession() = default;
+    JobSession();
     explicit JobSession(RuntimeContext& runtime);
     JobSession(RuntimeContext& runtime, JobSessionConfig config);
     /// Compatibility-only session for arbitrary Composition callbacks. It
@@ -105,12 +110,16 @@ public:
     /// use the JobSessionConfig constructor above.
     JobSession(RuntimeContext& runtime, Frame first_frame, Frame end_frame,
                std::uint64_t job_id);
-    ~JobSession() = default;
+    /// Create a lightweight isolated session for one temporal sample. It owns
+    /// one arena slot because it never enters the job's frame scheduler.
+    [[nodiscard]] static std::unique_ptr<JobSession>
+    make_temporal_sample_session();
+    ~JobSession();
 
     JobSession(const JobSession&) = delete;
     JobSession& operator=(const JobSession&) = delete;
-    JobSession(JobSession&&) noexcept = default;
-    JobSession& operator=(JobSession&&) noexcept = default;
+    JobSession(JobSession&&) noexcept;
+    JobSession& operator=(JobSession&&) noexcept;
 
     [[nodiscard]] RuntimeContext& runtime() const noexcept { return *runtime_; }
     [[nodiscard]] bool has_runtime() const noexcept { return runtime_ != nullptr; }
@@ -260,6 +269,15 @@ public:
     [[nodiscard]] std::vector<NativeEchoSurfaceRef> native_echo_frames(
         std::string_view key, std::int64_t current_frame,
         std::uint32_t echoes, std::uint32_t frame_offset) const;
+    [[nodiscard]] bool reserve_native_echo_history(
+        std::string_view key, std::size_t bytes_per_frame,
+        std::size_t keep_frames);
+    [[nodiscard]] std::optional<std::array<RenderSurfaceHandle, 3>>
+    native_echo_scratch(std::string_view key, FrameSlotId slot_id,
+                        const SurfaceDesc& desc, graph::RenderBackend& backend,
+                        RenderSurfaceRegistry& registry);
+    [[nodiscard]] TemporalSampleWorkspace& temporal_sample_workspace(
+        FrameSlotId slot_id);
     [[nodiscard]] bool record_native_echo_frame(
         std::string_view key, std::int64_t frame,
         RenderSurfaceHandle source, std::size_t keep_frames,
@@ -352,6 +370,12 @@ public:
     void reset_job();
 
 private:
+    struct TemporalSampleTag {};
+    explicit JobSession(TemporalSampleTag);
+    void initialize_slot_authorities(
+        std::size_t capacity,
+        std::size_t arena_capacity_bytes = 4u * 1024u * 1024u);
+
     struct JobStatus {
         mutable std::mutex mutex;
         JobState state{JobState::Ready};
@@ -371,14 +395,12 @@ private:
     JobCounters counters_{};
     std::shared_ptr<JobStatus> status_{std::make_shared<JobStatus>()};
     std::shared_ptr<NativeEchoHistoryState> native_echo_history_;
-    std::unique_ptr<GpuCompletionTracker> gpu_completion_{
-        std::make_unique<GpuCompletionTracker>(kPipelineDepth)};
-    std::unique_ptr<FrameSlotPool> slots_{
-        std::make_unique<FrameSlotPool>(kPipelineDepth, *gpu_completion_)};
-    std::unique_ptr<FrameQueue> evaluated_queue_{
-        std::make_unique<FrameQueue>(kPipelineDepth)};
-    std::unique_ptr<FrameQueue> rendered_queue_{
-        std::make_unique<FrameQueue>(kPipelineDepth)};
+    std::array<std::unique_ptr<TemporalSampleWorkspace>, kPipelineDepth>
+        temporal_sample_workspaces_{};
+    std::unique_ptr<GpuCompletionTracker> gpu_completion_{};
+    std::unique_ptr<FrameSlotPool> slots_{};
+    std::unique_ptr<FrameQueue> evaluated_queue_{};
+    std::unique_ptr<FrameQueue> rendered_queue_{};
 };
 
 }  // namespace chronon3d::runtime

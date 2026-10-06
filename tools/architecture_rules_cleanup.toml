@@ -251,7 +251,6 @@ paths = [
   "tools/check_no_source_conflict_markers.sh",
   "tools/check_no_changelog_conflict_markers.sh",
   "tools/check_wbh_toolchain.sh",
-  "tools/wbh_toolchain_manifest.env",
   "tools/check_camera_architecture.sh",
   "tools/check_test_suite_registration.sh",
   "tools/check_perf_regression.sh",

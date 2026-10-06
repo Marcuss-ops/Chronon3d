@@ -28,7 +28,6 @@
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
-#include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
@@ -107,11 +106,35 @@ TEST_CASE("JobSession stores frame-addressed Vulkan Echo surfaces without readba
         RuntimeConfig{.config = Config{}, .assets_root = std::nullopt});
     REQUIRE(runtime_result);
     JobSession job(*runtime_result.value());
+    constexpr std::size_t mib = 1024U * 1024U;
+    CHECK(job.reserve_native_echo_history("budget-a", 256U * mib, 2));
+    CHECK_FALSE(job.reserve_native_echo_history("budget-b", 256U * mib, 2));
+    CHECK_FALSE(job.reserve_native_echo_history("oversized", 1024U * mib, 2));
+    job.clear_native_echo_history();
+    CHECK(job.reserve_native_echo_history("budget-b", 256U * mib, 2));
+    job.clear_native_echo_history();
     backends::vulkan::VulkanBackend backend;
     RenderSurfaceRegistry registry;
     const SurfaceDesc desc{
         2, 2, PixelFormat::Rgba32Float, ResourceUsage::Storage,
         LifetimeClass::FrameTransient, 0};
+    const auto scratch_slot0 = job.native_echo_scratch(
+        "scratch/layer", 0, desc, backend, registry);
+    REQUIRE(scratch_slot0);
+    CHECK(std::all_of(scratch_slot0->begin(), scratch_slot0->end(),
+        [&](RenderSurfaceHandle handle) { return backend.is_native_surface_valid(handle); }));
+    CHECK(job.native_echo_scratch("scratch/layer", 0, desc, backend, registry) ==
+          scratch_slot0);
+    const auto scratch_slot1 = job.native_echo_scratch(
+        "scratch/layer", 1, desc, backend, registry);
+    REQUIRE(scratch_slot1);
+    CHECK(*scratch_slot1 != *scratch_slot0);
+    job.clear_native_echo_history();
+    CHECK(std::all_of(scratch_slot0->begin(), scratch_slot0->end(),
+        [&](RenderSurfaceHandle handle) { return !backend.is_native_surface_valid(handle); }));
+    CHECK(std::all_of(scratch_slot1->begin(), scratch_slot1->end(),
+        [&](RenderSurfaceHandle handle) { return !backend.is_native_surface_valid(handle); }));
+
     const auto source = registry.create(desc);
     REQUIRE(source != kInvalidRenderSurfaceHandle);
     REQUIRE(backend.create_surface(source, desc).ok());
@@ -139,6 +162,19 @@ TEST_CASE("JobSession stores frame-addressed Vulkan Echo surfaces without readba
     job.clear_native_echo_history();
     CHECK_FALSE(job.native_echo_frames("layer/effect", 11, 1, 1)[0]);
     before.clear();
+
+    RenderSurfaceHandle released_by_destructor = kInvalidRenderSurfaceHandle;
+    {
+        JobSession scoped_job(*runtime_result.value());
+        REQUIRE(scoped_job.record_native_echo_frame(
+            "destructor/layer", 20, source, 2, backend, registry));
+        const auto retained = scoped_job.native_echo_frames(
+            "destructor/layer", 21, 1, 1);
+        REQUIRE(retained[0]);
+        released_by_destructor = retained[0]->handle;
+    }
+    CHECK_FALSE(backend.is_native_surface_valid(released_by_destructor));
+    CHECK_FALSE(registry.lookup(released_by_destructor).has_value());
     REQUIRE(backend.release_surface(source).ok());
     CHECK(registry.release(source));
 }
@@ -177,6 +213,8 @@ TEST_CASE("EffectStackNode composes Echo, brightness and chroma key over time") 
     const SurfaceDesc desc{
         4, 2, PixelFormat::Rgba32Float, ResourceUsage::Storage,
         LifetimeClass::FrameTransient, 0};
+    std::unordered_map<FrameSlotId, std::array<RenderSurfaceHandle, 3>>
+        echo_scratch_by_slot;
     const auto render_frame = [&](std::int64_t frame_number, std::size_t lit_pixel) {
         const auto source_handle = surfaces.create(desc);
         REQUIRE(source_handle != kInvalidRenderSurfaceHandle);
@@ -203,6 +241,13 @@ TEST_CASE("EffectStackNode composes Echo, brightness and chroma key over time") 
         auto result = node.execute(ctx, inputs, bboxes);
         REQUIRE(result.ok());
         REQUIRE(result.value() != nullptr);
+        const auto scratch = job.native_echo_scratch(
+            "echo-integration/layer0/effect0", slot->slot_id, desc,
+            backend, surfaces);
+        REQUIRE(scratch);
+        const auto [scratch_it, inserted] = echo_scratch_by_slot.emplace(
+            slot->slot_id, *scratch);
+        if (!inserted) CHECK(scratch_it->second == *scratch);
         const auto output_handle = result.value()->surface_handle();
         REQUIRE(output_handle != kInvalidRenderSurfaceHandle);
         std::vector<float> output(4 * 2 * 4, 0.0f);

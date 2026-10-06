@@ -23,6 +23,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     render_runtime.cpp
     software_runtime_adapter.cpp # Runtime/software orchestration bridge.
     job/job_session.cpp
+    job/temporal_sample_workspace.cpp
     job/render_job_normalizer.cpp
     frame/frame_execution.cpp
     gpu_runtime.cpp
@@ -36,7 +37,6 @@ set(CHRONON3D_RUNTIME_SOURCES
     frame/gpu_completion_tracker.cpp
     frame/frame_queue.cpp
     device_scheduler.cpp
-    overlay_template.cpp
     template_program_cache.cpp   # Fase H (TICKET-VIDEO-COMPILER-ARCH-V1)
     # ── TICKET-011a follow-up #1 — RenderPipeline typed facade over
     #    graph::render_scene_via_graph / graph::render_composition_frame.

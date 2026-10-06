@@ -36,7 +36,8 @@ inline NativeColorTransform scaled_affine(float scale, float offset, bool clamp)
 
 inline std::optional<NativeColorLowering>
 lower_native_color_effect(const effects::EffectInstance& instance,
-                          int origin_x = 0, int origin_y = 0) {
+                          int origin_x = 0, int origin_y = 0,
+                          std::uint32_t frame_index = 0) {
     using color_detail::finite_all;
     using color_detail::identity_affine;
     using color_detail::scaled_affine;
@@ -114,6 +115,94 @@ lower_native_color_effect(const effects::EffectInstance& instance,
         if (p->stops == 0.0f) { out.transform = identity_affine(); return out; }
         out.transform = scaled_affine(std::exp2(p->stops), 0.0f, false);
         out.transform.straight_alpha = true;
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::TemperatureTint: {
+        const auto* p = std::get_if<TemperatureTintParams>(&instance.params);
+        if (!p || !finite_all({p->temperature, p->tint})) return std::nullopt;
+        const float temperature = std::clamp(p->temperature, -1.0f, 1.0f);
+        const float tint = std::clamp(p->tint, -1.0f, 1.0f);
+        out.transform.p[0][0] = std::exp2(0.35f * temperature + 0.15f * tint);
+        out.transform.p[1][1] = std::exp2(0.05f * temperature - 0.30f * tint);
+        out.transform.p[2][2] = std::exp2(-0.35f * temperature + 0.15f * tint);
+        out.transform.straight_alpha = true;
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::LiftGammaGain: {
+        const auto* p = std::get_if<LiftGammaGainParams>(&instance.params);
+        if (!p || !finite_all({p->lift, p->gamma, p->gain})) return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::LiftGammaGain;
+        out.transform.p[0] = {std::clamp(p->lift, -1.0f, 1.0f),
+                              std::clamp(p->gamma, 0.1f, 4.0f),
+                              std::clamp(p->gain, 0.0f, 4.0f), 0.0f};
+        out.transform.straight_alpha = true;
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::Offset: {
+        const auto* p = std::get_if<OffsetParams>(&instance.params);
+        if (!p || !finite_all({p->offset.x, p->offset.y}) ||
+            std::abs(p->offset.x) > 1.0e6f || std::abs(p->offset.y) > 1.0e6f ||
+            (p->edge_mode != sampling::EdgeMode::Transparent &&
+             p->edge_mode != sampling::EdgeMode::Clamp &&
+             p->edge_mode != sampling::EdgeMode::Wrap &&
+             p->edge_mode != sampling::EdgeMode::Mirror) ||
+            (p->filter != sampling::SampleFilter::Nearest &&
+             p->filter != sampling::SampleFilter::Bilinear))
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::Offset;
+        out.transform.p[0] = {p->offset.x, p->offset.y,
+                              static_cast<float>(p->edge_mode),
+                              static_cast<float>(p->filter)};
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::Noise: {
+        const auto* p = std::get_if<NoiseParams>(&instance.params);
+        if (!p || !std::isfinite(p->amount)) return std::nullopt;
+        if (p->amount <= 0.0f ||
+            !finite_all({p->shadow_response, p->midtone_response,
+                         p->highlight_response})) {
+            out.transform = identity_affine();
+            out.honors_clip = true;
+            return out;
+        }
+        if (p->color_mode != NoiseColorMode::Monochrome &&
+            p->color_mode != NoiseColorMode::RGB)
+            return std::nullopt;
+        const float size = std::isfinite(p->size) && p->size > 1.0f ? p->size : 1.0f;
+        out.transform.mode = NativeColorTransform::Mode::Noise;
+        out.transform.p[0] = {p->amount, std::bit_cast<float>(p->seed),
+                              std::bit_cast<float>(p->animated ? frame_index : 0u),
+                              size};
+        out.transform.p[1] = {p->shadow_response, p->midtone_response,
+                              p->highlight_response,
+                              p->color_mode == NoiseColorMode::RGB ? 1.0f : 0.0f};
+        out.transform.straight_alpha = true;
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::Checkerboard: {
+        const auto* p = std::get_if<CheckerboardParams>(&instance.params);
+        if (!p || !finite_all({p->size, p->color_a.r, p->color_a.g,
+                               p->color_a.b, p->color_a.a, p->color_b.r,
+                               p->color_b.g, p->color_b.b, p->color_b.a}))
+            return std::nullopt;
+        if (p->size < 1.0e-4f) {
+            out.transform = identity_affine();
+            out.honors_clip = true;
+            return out;
+        }
+        const float feather = std::isfinite(p->feather)
+            ? std::clamp(p->feather, 0.0f, p->size) : 0.0f;
+        out.transform.mode = NativeColorTransform::Mode::Checkerboard;
+        out.transform.p[0] = {p->size, feather, 0.0f, 0.0f};
+        out.transform.p[1] = {p->color_a.r, p->color_a.g,
+                              p->color_a.b, p->color_a.a};
+        out.transform.p[2] = {p->color_b.r, p->color_b.g,
+                              p->color_b.b, p->color_b.a};
         out.honors_clip = true;
         return out;
     }
@@ -245,7 +334,9 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
     const auto& instance = effect_stack[0];
     if (!instance.enabled) return false;
     const auto lowering = lower_native_color_effect(
-        instance, result.origin_x(), result.origin_y());
+        instance, result.origin_x(), result.origin_y(),
+        static_cast<std::uint32_t>(std::max<std::int64_t>(
+            ctx.frame_input.frame.integral(), 0)));
     if (!lowering) return false;
 
     const auto desc = native_surface_desc(result.width(), result.height());

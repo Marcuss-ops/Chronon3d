@@ -307,6 +307,8 @@ private:
     bool drain_packets();
     bool mux_source_audio();
     bool drain_ready_cuda_frames(bool wait_for_one);
+    [[nodiscard]] const BitstreamTargetContract&
+    encoder_target_contract_unlocked();
     void abort_open() noexcept;
     bool write_native_surface_impl(
         graph::RenderBackend& backend,
@@ -321,7 +323,7 @@ private:
     video::ConversionCacheKey last_conversion_key_{};
     uint64_t cache_hits_{0};
     uint64_t cache_misses_{0};
-    mutable std::recursive_mutex mutex_;
+    mutable std::mutex mutex_;
 };
 
 } // namespace chronon3d::cli

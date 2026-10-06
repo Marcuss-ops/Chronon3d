@@ -11,6 +11,9 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
+#include <rasterizers/shape_rasterizer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
@@ -71,6 +74,59 @@ static Shape make_shape(ShapeType type, const std::optional<GradientFill>& grad 
 }
 
 // ── Dither-aware expectations ────────────────────────────────────────────
+
+TEST_CASE("stroke alignment uses authored widths for center rect and inside circle") {
+    Shape rect;
+    rect.set_type(ShapeType::Rect);
+    rect.rect().size = {20.0f, 20.0f};
+    rect.rect().stroke.enabled = true;
+    rect.rect().stroke.width = 4.0f;
+    rect.rect().stroke.alignment = StrokeAlignment::Center;
+    CHECK(hit_test_shape_stroke(rect, {-1.5f, 10.0f}, 0.0f, 0.0f));
+    CHECK_FALSE(hit_test_shape_stroke(rect, {-2.5f, 10.0f}, 0.0f, 0.0f));
+
+    Shape circle;
+    circle.set_type(ShapeType::Circle);
+    circle.circle().radius = 10.0f;
+    circle.circle().stroke.enabled = true;
+    circle.circle().stroke.width = 4.0f;
+    circle.circle().stroke.alignment = StrokeAlignment::Inside;
+    CHECK(hit_test_shape_stroke(circle, {17.0f, 10.0f}, 0.0f, 0.0f));
+    CHECK_FALSE(hit_test_shape_stroke(circle, {15.0f, 10.0f}, 0.0f, 0.0f));
+}
+
+TEST_CASE("stroke raster pixels pin centered outer edge and full inside-circle width") {
+    RenderState state;
+    state.matrix = Mat4{1.0f};
+    state.matrix[3][0] = 8.0f;
+    state.matrix[3][1] = 8.0f;
+    state.opacity = 1.0f;
+    const auto transparent = Color::transparent().to_linear();
+
+    Shape rect;
+    rect.set_type(ShapeType::Rect);
+    rect.rect().size = {16.0f, 16.0f};
+    rect.rect().stroke.enabled = true;
+    rect.rect().stroke.width = 4.0f;
+    rect.rect().stroke.color = Color::white();
+    rect.rect().stroke.alignment = StrokeAlignment::Center;
+    Framebuffer rect_pixels(32, 32);
+    draw_transformed_shape(rect_pixels, rect, state.matrix, transparent, 0.0f, &state);
+    CHECK(rect_pixels.get_pixel(7, 12).a > 0.5f); // 0.5 px outside the rect
+    CHECK(rect_pixels.get_pixel(5, 12).a == doctest::Approx(0.0f)); // 2.5 px outside
+
+    Shape circle;
+    circle.set_type(ShapeType::Circle);
+    circle.circle().radius = 10.0f;
+    circle.circle().stroke.enabled = true;
+    circle.circle().stroke.width = 4.0f;
+    circle.circle().stroke.color = Color::white();
+    circle.circle().stroke.alignment = StrokeAlignment::Inside;
+    Framebuffer circle_pixels(32, 32);
+    draw_transformed_shape(circle_pixels, circle, state.matrix, transparent, 0.0f, &state);
+    CHECK(circle_pixels.get_pixel(25, 18).a > 0.5f); // radius 7.5, inside the 4 px band
+    CHECK(circle_pixels.get_pixel(23, 18).a == doctest::Approx(0.0f)); // radius 5.5, un-stroked interior
+}
 //
 // resolve_stroke_gradient_color routes every sample through the renderer's
 // spatial ordered dither (graphics::dither_gradient_sample): a deliberate

@@ -17,6 +17,10 @@
 // mode 4 (vignette): p[0] radius, softness, amount, color.r;
 //                    p[1].xy = color.gb.
 // mode 5 (mosaic): p[0] block size, framebuffer origin x/y.
+// mode 6 (lift/gamma/gain): p[0] lift, gamma, gain.
+// mode 7 (offset): p[0] dx, dy, edge mode, sample filter.
+// mode 8 (noise): p[0] amount, seed bits, frame bits, grain size;
+//                 p[1] shadow/midtone/highlight response, RGB flag.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
@@ -36,13 +40,155 @@ float levels_channel(float x, float ib, float iw, float g, float ob, float ow) {
     return ob + shaped * (ow - ob);
 }
 
+int edge_index(int i, int size, int mode) {
+    if (mode == 1) return clamp(i, 0, size - 1);
+    if (mode == 2) return ((i % size) + size) % size;
+    if (mode == 3) {
+        if (size <= 1) return 0;
+        int period = 2 * size - 2;
+        int p = ((i % period) + period) % period;
+        return p < size ? p : period - p;
+    }
+    return i;
+}
+
+vec4 offset_fetch(ivec2 coord, ivec2 size, int edge_mode) {
+    if (edge_mode == 0 &&
+        (coord.x < 0 || coord.y < 0 || coord.x >= size.x || coord.y >= size.y))
+        return vec4(0.0);
+    ivec2 mapped = ivec2(edge_index(coord.x, size.x, edge_mode),
+                         edge_index(coord.y, size.y, edge_mode));
+    return imageLoad(source_image, mapped);
+}
+
+uvec2 mul64(uvec2 a, uvec2 b) {
+    uint hi;
+    uint lo;
+    umulExtended(a.x, b.x, hi, lo);
+    return uvec2(lo, hi + a.x * b.y + a.y * b.x);
+}
+
+uvec2 add64(uvec2 a, uvec2 b) {
+    uint lo = a.x + b.x;
+    return uvec2(lo, a.y + b.y + uint(lo < a.x));
+}
+
+uvec2 xor_shift_right64(uvec2 value, uint shift) {
+    uint lo = (value.x >> shift) | (value.y << (32u - shift));
+    return value ^ uvec2(lo, value.y >> shift);
+}
+
+uint pixel_hash(uint x, uint y, uint seed, uint frame_index) {
+    const uvec2 c1 = uvec2(0x7f4a7c15u, 0x9e3779b9u);
+    const uvec2 c2 = uvec2(0x1ce4e5b9u, 0xbf58476du);
+    const uvec2 c3 = uvec2(0x133111ebu, 0x94d049bbu);
+    uvec2 h = add64(mul64(uvec2(x, 0u), c1), uvec2(y, 0u));
+    h = add64(mul64(h, c2), uvec2(seed, 0u));
+    h = add64(mul64(h, c3), uvec2(frame_index, 0u));
+    h = xor_shift_right64(h, 30u);
+    h = mul64(h, c2);
+    h = xor_shift_right64(h, 27u);
+    h = mul64(h, c3);
+    h = xor_shift_right64(h, 31u);
+    return h.x;
+}
+
+float hash_to_noise(uint hash) {
+    return float(hash >> 8u) * (2.0 / 16777215.0) - 1.0;
+}
+
+float checker_smoothstep(float edge0, float edge1, float x) {
+    if (edge0 == edge1) return x < edge0 ? 0.0 : 1.0;
+    float t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+float checker_axis(float coordinate, float cell_size, float feather) {
+    float scaled = coordinate / cell_size;
+    float cell_floor = floor(scaled);
+    float local = scaled - cell_floor;
+    float cell_sign = mod(cell_floor, 2.0) < 0.5 ? 1.0 : -1.0;
+    float width = clamp(feather / cell_size, 0.0, 1.0);
+    if (width <= 0.0) return cell_sign;
+    float distance_to_edge = min(local, 1.0 - local);
+    if (distance_to_edge >= width * 0.5) return cell_sign;
+    float toward_neighbor = 1.0 - checker_smoothstep(0.0, width * 0.5,
+                                                    distance_to_edge);
+    return cell_sign * (1.0 - toward_neighbor) - cell_sign * toward_neighbor;
+}
+
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(destination_image);
     if (coord.x >= size.x || coord.y >= size.y) return;
 
     vec4 source = imageLoad(source_image, coord);
-    if (params.options.x > 4.5) {
+    if (params.options.x > 6.5 && params.options.x < 7.5) {
+        ivec2 size = imageSize(source_image);
+        if (all(equal(params.p[0].xy, vec2(0.0)))) {
+            imageStore(destination_image, coord, source);
+            return;
+        }
+        vec2 sample_position = vec2(coord) - params.p[0].xy;
+        int edge_mode = int(params.p[0].z + 0.5);
+        if (params.p[0].w < 0.5) {
+            ivec2 sample_coord = ivec2(floor(sample_position));
+            imageStore(destination_image, coord,
+                       offset_fetch(sample_coord, size, edge_mode));
+        } else {
+            vec2 uv = sample_position - vec2(0.5);
+            ivec2 p00 = ivec2(floor(uv));
+            vec2 t = uv - vec2(p00);
+            vec4 top = mix(offset_fetch(p00, size, edge_mode),
+                           offset_fetch(p00 + ivec2(1, 0), size, edge_mode), t.x);
+            vec4 bottom = mix(offset_fetch(p00 + ivec2(0, 1), size, edge_mode),
+                              offset_fetch(p00 + ivec2(1, 1), size, edge_mode), t.x);
+            imageStore(destination_image, coord, mix(top, bottom, t.y));
+        }
+        return;
+    }
+    if (params.options.x > 7.5 && params.options.x < 8.5) {
+        if (source.a <= 0.0) {
+            imageStore(destination_image, coord, source);
+            return;
+        }
+        vec3 rgb = source.rgb / source.a;
+        float luma = clamp(dot(rgb, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+        float tone_response = luma <= 0.5
+            ? mix(params.p[1].x, params.p[1].y, luma * 2.0)
+            : mix(params.p[1].y, params.p[1].z, (luma - 0.5) * 2.0);
+        float scaled_amount = params.p[0].x * tone_response;
+        float grain_size = params.p[0].w;
+        uint noise_x = uint(floor(float(coord.x) / grain_size));
+        uint noise_y = uint(floor(float(coord.y) / grain_size));
+        uint seed = floatBitsToUint(params.p[0].y);
+        uint frame_index = floatBitsToUint(params.p[0].z);
+        if (params.p[1].w > 0.5) {
+            rgb.r += hash_to_noise(pixel_hash(noise_x * 3u, noise_y, seed, frame_index)) * scaled_amount;
+            rgb.g += hash_to_noise(pixel_hash(noise_x * 3u + 1u, noise_y, seed, frame_index)) * scaled_amount;
+            rgb.b += hash_to_noise(pixel_hash(noise_x * 3u + 2u, noise_y, seed, frame_index)) * scaled_amount;
+        } else {
+            float n = hash_to_noise(pixel_hash(noise_x, noise_y, seed, frame_index)) * scaled_amount;
+            rgb += vec3(n);
+        }
+        imageStore(destination_image, coord, vec4(rgb * source.a, source.a));
+        return;
+    }
+    if (params.options.x > 8.5 && params.options.x < 9.5) {
+        float cell_size = params.p[0].x;
+        float feather = params.p[0].y;
+        float wx = checker_axis(float(coord.x) + 0.5, cell_size, feather);
+        float wy = checker_axis(float(coord.y) + 0.5, cell_size, feather);
+        float blend = 0.5 - 0.5 * wx * wy;
+        vec4 a = vec4(params.p[1]);
+        vec4 b = vec4(params.p[2]);
+        float alpha = mix(a.a, b.a, blend);
+        vec3 rgb = mix(a.rgb, b.rgb, blend);
+        imageStore(destination_image, coord,
+                   alpha <= 1.0e-8 ? vec4(0.0) : vec4(rgb * alpha, alpha));
+        return;
+    }
+    if (params.options.x > 4.5 && params.options.x < 5.5) {
         int block_size = max(1, int(params.p[0].x + 0.5));
         ivec2 origin = ivec2(params.p[0].yz);
         ivec2 global_coord = coord + origin;
@@ -85,8 +231,9 @@ void main() {
             val = t * t * (3.0 - 2.0 * t);
         }
         rgb = vec3(val);
-    } else if (params.options.x > 3.5) {
-        float diagonal = sqrt(float(size.x * size.x + size.y * size.y));
+    } else if (params.options.x > 3.5 && params.options.x < 4.5) {
+        vec2 image_size = vec2(size);
+        float diagonal = length(image_size);
         float dx = float(coord.x) - float(size.x) * 0.5;
         float dy = float(coord.y) - float(size.y) * 0.5;
         float distance_to_center = sqrt(dx * dx + dy * dy);
@@ -99,6 +246,12 @@ void main() {
         float amount = vignette * params.p[0].z;
         vec3 color = vec3(params.p[0].w, params.p[1].x, params.p[1].y);
         rgb = rgb * (1.0 - amount) + color * amount;
+    } else if (params.options.x > 5.5) {
+        float exponent = 1.0 / params.p[0].y;
+        for (int c = 0; c < 3; ++c) {
+            float lifted = rgb[c] + params.p[0].x;
+            rgb[c] = sign(lifted) * pow(abs(lifted), exponent) * params.p[0].z;
+        }
     } else if (params.options.x > 2.5) {
         float measure;
         if (params.p[4].x > 0.5) {

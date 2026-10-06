@@ -27,7 +27,7 @@ struct NativeRoute {
 
 // Effects with a certified native Vulkan implementation.  Everything else in
 // the catalog is Unsupported and fails closed under strict native-GPU policy.
-inline constexpr std::array<NativeRoute, 18> kNativeRoutes{{
+inline constexpr std::array<NativeRoute, 23> kNativeRoutes{{
     {effects::EffectType::Blur, "Vulkan separable blur dispatch"},
     {effects::EffectType::Glow, "Vulkan glow dispatch"},
     {effects::EffectType::Bloom, "Vulkan bright-pass and separable bloom dispatch"},
@@ -38,6 +38,16 @@ inline constexpr std::array<NativeRoute, 18> kNativeRoutes{{
     {effects::EffectType::HueRotate, "Vulkan color-matrix dispatch (hue rotate)"},
     {effects::EffectType::Invert, "Vulkan color-matrix dispatch (invert)"},
     {effects::EffectType::Exposure, "Vulkan color-matrix dispatch (exposure)"},
+    {effects::EffectType::TemperatureTint,
+     "Vulkan color-matrix dispatch (temperature/tint white balance)"},
+    {effects::EffectType::LiftGammaGain,
+     "Vulkan color-matrix dispatch (lift/gamma/gain)"},
+    {effects::EffectType::Offset,
+     "Vulkan source sampling dispatch (nearest/bilinear with edge modes)"},
+    {effects::EffectType::Noise,
+     "Vulkan deterministic per-pixel SplitMix64 noise dispatch"},
+    {effects::EffectType::Checkerboard,
+     "Vulkan deterministic checkerboard generator with feathered cells"},
     {effects::EffectType::Fill, "Vulkan color-matrix dispatch (fill)"},
     {effects::EffectType::Levels, "Vulkan color-matrix dispatch (levels)"},
     {effects::EffectType::Threshold, "Vulkan color-matrix dispatch (threshold)"},

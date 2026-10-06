@@ -1,5 +1,7 @@
 #include "../compiler_stages.hpp"
 
+#include <chronon3d/math/transform.hpp>
+
 #include <cmath>
 #include <stdexcept>
 #include <utility>
@@ -139,6 +141,14 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         if (layer.fit.has_value()) {
             lowered.fit = static_cast<LayerFitMode>(static_cast<std::uint8_t>(*layer.fit));
         }
+        Transform static_transform;
+        static_transform.position = Vec3{
+            lowered.position[0], lowered.position[1], lowered.position[2]};
+        static_transform.scale = Vec3{
+            lowered.scale[0], lowered.scale[1], lowered.scale[2]};
+        static_transform.rotation = glm::quat(glm::radians(Vec3{
+            lowered.rotation[0], lowered.rotation[1], lowered.rotation[2]}));
+        lowered.static_matrix = static_transform.to_matrix();
         out.layers.push_back(std::move(lowered));
         if (!layer.asset.empty()) out.resources.push_back({i, ResourceKind::Asset, i, 0});
         if (!layer.font.empty()) out.resources.push_back({i, ResourceKind::Font, i, 0});

@@ -22,7 +22,7 @@ bool NativeAvEncoder::prepare_native_surface(
     return false;
 #else
     if (options_.direct_yuv_mode) return false;
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
         destination == runtime::kInvalidRenderSurfaceHandle) {
         return false;
@@ -88,7 +88,7 @@ bool NativeAvEncoder::write_native_surface_impl(
             "(typed encoder capability mismatch)");
         return false;
     }
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
         source == runtime::kInvalidRenderSurfaceHandle ||
         destination == runtime::kInvalidRenderSurfaceHandle) {
@@ -251,7 +251,7 @@ bool NativeAvEncoder::finish_native_surface(
     (void)backend; (void)destination;
     return true;
 #else
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     (void)backend;
     for (;;) {
         auto it = std::find_if(
@@ -272,7 +272,7 @@ bool NativeAvEncoder::poll_native_surface(
     (void)backend; (void)destination;
     return true;
 #else
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     (void)backend;
     if (!drain_ready_cuda_frames(false)) return false;
     const auto it = std::find_if(

@@ -20,9 +20,7 @@
 //     LRU pool.
 //
 // The cache composes the canonical primitives (LruCache) — no second cache
-// primitive.  This is the compiled-template analogue of the existing
-// OverlayTemplateCache (which keys coarse OverlayTemplateDesc GPU command
-// plans); this cache keys compiled programs by fingerprint.
+// primitive — and is the sole runtime cache for compiled template programs.
 //
 // Ticket: TICKET-VIDEO-COMPILER-ARCH-V1 §Fase H
 // ──────────────────────────────────────────────────────────────────────────────

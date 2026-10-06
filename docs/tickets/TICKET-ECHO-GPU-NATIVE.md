@@ -9,6 +9,11 @@ History keys isolate streams; reset clears retained surfaces. The local Vulkan
 integration fixture renders two consecutive frames and checks the decayed pixel
 values. The backend-registry suite passes on llvmpipe.
 
+Each invocation now clears only the trail accumulator. The current surface is
+fully written by the source transform, and composed/output surfaces are fully
+written by copy operations, removing three redundant full-frame clear passes.
+The trail clear remains necessary because weighted taps accumulate into it.
+
 ## Exit criteria
 
 - [x] Add native dispatch and job-owned history for Vulkan/GPU-only surfaces;
