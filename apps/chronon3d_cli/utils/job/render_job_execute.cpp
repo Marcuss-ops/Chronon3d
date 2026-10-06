@@ -19,6 +19,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
@@ -52,16 +53,23 @@ void write_render_job_receipt(const RenderJob& job) {
     input.reference_white_nits = job.video_settings.reference_white_nits;
     input.hdr_mastering_metadata = job.video_settings.hdr_mastering_metadata;
     input.has_audio_tracks = false;
+    const auto build_t0 = chronon3d::profiling::now();
     const auto receipt = verification::build_render_receipt(
         input, job.output,
         job.mode == RenderMode::Video);
+    const auto build_t1 = chronon3d::profiling::now();
     const auto receipt_path = verification::write_render_receipt(
         receipt, job.output);
+    const auto write_t1 = chronon3d::profiling::now();
     spdlog::info(
         "receipt: {} verification={} copy_eligible={}",
         receipt_path.string(),
         receipt.verification.resolved_policy,
         receipt.copy_eligible ? "true" : "false");
+    spdlog::info(
+        "[INFO] job-lifecycle: receipt_build_verify_ms={:.1f} receipt_file_write_ms={:.1f}",
+        chronon3d::profiling::duration_ms(build_t0, build_t1),
+        chronon3d::profiling::duration_ms(build_t1, write_t1));
 }
 #else
 void write_render_job_receipt(const RenderJob&) {}
@@ -174,6 +182,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
         }
 
         int rc = 0;
+        std::chrono::steady_clock::time_point sidecar_written_at{};
         if (job.video_settings.dry_run) {
             rc = dry_run_video_job(job);
         } else {
@@ -197,7 +206,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.last_frame + Frame{1},
                     opts,
                     job.execution.cpu_budget,
-                    std::move(execution));
+                    std::move(execution),
+                    &sidecar_written_at);
             } catch (const std::exception& error) {
                 return make_render_job_error(
                     RenderJobErrorCode::RenderFailed,
@@ -221,6 +231,12 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
         }
 
         write_render_job_receipt(job);
+        const auto receipt_t1 = chronon3d::profiling::now();
+        if (sidecar_written_at != std::chrono::steady_clock::time_point{}) {
+            spdlog::info(
+                "[INFO] job-lifecycle: post_sidecar_to_receipt_ms={:.1f}",
+                chronon3d::profiling::duration_ms(sidecar_written_at, receipt_t1));
+        }
         const int frames = static_cast<int>(
             job.last_frame.integral() - job.first_frame.integral() + 1);
         return RenderJobOutput{

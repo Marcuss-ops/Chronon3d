@@ -11,6 +11,7 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/graphics/gradient.hpp>
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
+#include "src/compiler/compiler_stages.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -38,7 +39,7 @@ TEST_CASE("StrokeStyle brush conversion preserves path semantics and rejects los
     style.taper_start = 0.5f;
     CHECK_THROWS_AS(style.to_path_stroke(), std::invalid_argument);
     style.taper_start = 1.0f;
-    style.gradient = GradientDefinition::linear(
+    style.gradient = graphics::GradientDefinition::linear(
         {0, 0}, {1, 0}, {{0, Color::black()}, {1, Color::white()}});
     CHECK_THROWS_AS(style.to_path_stroke(), std::invalid_argument);
 }
@@ -212,6 +213,61 @@ TEST_CASE("TypedProgramSampler samples the compiler IR without the legacy bridge
 
     const auto scene = chronon3d::compiler::SceneMaterializer{}.materialize_scene(program);
     CHECK(scene.layers().size() == 1);
+}
+
+TEST_CASE("TypedProgramSampler preserves static opacity for empty animation tracks") {
+    auto plan = test_plan();
+    plan.layers.front().opacity = 0.7f;
+    plan.layers.front().animation->tracks.push_back({"opacity", {}, "linear"});
+
+    chronon3d::assets::AssetResolver resolver;
+    auto result = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(result);
+    const auto program = std::move(result).value();
+    const auto sampled = chronon3d::compiler::TypedProgramSampler{}.sample(
+        program, chronon3d::Frame{0});
+    REQUIRE(sampled.layers.size() == 1);
+    CHECK(sampled.layers.front().opacity == doctest::Approx(0.7f));
+}
+
+TEST_CASE("TypedProgramSampler reuses lowered matrix for opacity-only animation") {
+    auto plan = test_plan();
+    plan.layers.front().position = {13.0f, -4.0f, 2.0f};
+    plan.layers.front().scale = {1.25f, 0.75f, 1.0f};
+    plan.layers.front().rotation = {0.0f, 0.0f, 17.0f};
+    plan.layers.front().animation->tracks.push_back({
+        "opacity", {{chronon3d::Frame{0}, {0.2f}},
+                    {chronon3d::Frame{10}, {0.9f}}}, "linear"});
+    chronon3d::assets::AssetResolver resolver;
+    auto result = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(result);
+    const auto program = std::move(result).value();
+    REQUIRE(program.layers().size() == 1);
+    CHECK_FALSE(program.layers().front().has_transform_animation);
+
+    chronon3d::compiler::TypedProgramSampler sampler;
+    chronon3d::compiler::FrameParameterBlock sampled;
+    sampler.sample_into(program, 0.0, sampled);
+    const auto matrix = sampled.layers.front().matrix;
+    sampler.sample_into(program, 5.0, sampled);
+    CHECK(sampled.layers.front().opacity == doctest::Approx(0.55f));
+    for (int column = 0; column < 4; ++column)
+        for (int row = 0; row < 4; ++row)
+            CHECK(sampled.layers.front().matrix[column][row] ==
+                  doctest::Approx(matrix[column][row]));
+}
+
+TEST_CASE("compiled program structural fingerprint separates overlapping counters") {
+    using namespace chronon3d;
+    compiler::CompiledProgramData timelines;
+    compiler::CompiledProgramData tracks;
+    timelines.timelines.resize(512);
+    tracks.animation_tracks.resize(8);
+    render_plan::RenderPlan plan;
+    plan.content_fingerprint = 17;
+
+    CHECK(compiler::stages::fingerprint(plan, timelines) !=
+          compiler::stages::fingerprint(plan, tracks));
 }
 
 TEST_CASE("Shape plans lower, sample and materialize all five shape contents") {

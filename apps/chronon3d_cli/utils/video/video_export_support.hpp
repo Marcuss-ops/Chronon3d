@@ -15,6 +15,7 @@
 
 #include <string>
 #include <memory>
+#include <chrono>
 
 namespace chronon3d::cli {
 
@@ -35,6 +36,7 @@ namespace chronon3d::cli {
     Frame end,
     const FfmpegExportOptions& opts,
     const chronon3d::CpuBudget& cpu_budget,
-    std::shared_ptr<media::VideoJobExecutionContext> execution = {});
+    std::shared_ptr<media::VideoJobExecutionContext> execution = {},
+    std::chrono::steady_clock::time_point* sidecar_written_at = nullptr);
 
 } // namespace chronon3d::cli

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/compiler/compiled_node.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <array>
@@ -36,6 +37,7 @@ struct StaticLayerProgram {
     std::array<float, 3> position{0.0f, 0.0f, 0.0f};
     std::array<float, 3> scale{1.0f, 1.0f, 1.0f};
     std::array<float, 3> rotation{0.0f, 0.0f, 0.0f};
+    Mat4 static_matrix{1.0f};
     std::uint8_t size_dimensions{0};
     std::uint8_t position_dimensions{0};
     std::uint8_t scale_dimensions{0};
@@ -60,6 +62,7 @@ struct StaticLayerProgram {
     float time_remap_speed{1.0f};
     std::int64_t time_remap_freeze_frame{-1};
     std::uint32_t time_remap_track_index{kInvalidProgramIndex};
+    bool has_transform_animation{false};
 };
 
 }  // namespace chronon3d::compiler

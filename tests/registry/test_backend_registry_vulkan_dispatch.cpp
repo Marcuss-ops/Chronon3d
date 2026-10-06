@@ -25,7 +25,6 @@
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
-#include <chronon3d/runtime/overlay_template.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>

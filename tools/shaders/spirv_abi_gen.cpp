@@ -6,7 +6,7 @@
 // size, local workgroup size).  Linked against spirv-reflect.
 //
 // Usage: spirv_abi_gen <input.spv> <output.hpp> <struct_prefix>
-// Example: spirv_abi_gen text_batch.comp.spv gen/text_batch_abi.hpp TextBatch
+// Example: spirv_abi_gen fill_rect.comp.spv gen/fill_rect_abi.hpp FillRect
 // ---------------------------------------------------------------------------
 
 #include <spirv_reflect.h>

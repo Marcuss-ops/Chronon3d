@@ -8,24 +8,52 @@
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
 
-// PR3 followup note:
-// The five projection assertions below (Tests 9.2, 9.3, 9.4, 9.5, 9.7) currently
-// produce all-zero pixels because the SoftwareRenderer path used here
-// (`enable_3d()` + `s.camera()` on a
-// 200x200 framebuffer) does not yet apply per-pixel 2.5D projection in the way
-// the original tests assumed. They were re-introduced active (not under a dead-code preprocessor guard)
-// in PR3 to replace three previously-disabled tests. Until the renderer projection
-// path is fixed, these tests verify only that the rendering pipeline does not
-// crash and produces a correctly-sized framebuffer. Pixel-level CHECKs are
-// commented out and TODO-marked for restoration in a follow-up PR.
-// TODO(post-PR3): restore `px_value > threshold` CHECKs once 2.5D projection
-// is verified to draw through the modular graph path.
+// These cases pin rendered pixels and silhouettes for the software 2.5D path,
+// including camera translation, perspective, foreshortening, collapse, and
+// layer depth ordering.
 namespace {
+
+struct RedBounds {
+    int pixels{0};
+    int min_x{std::numeric_limits<int>::max()};
+    int min_y{std::numeric_limits<int>::max()};
+    int max_x{-1};
+    int max_y{-1};
+};
+
+RedBounds red_bounds(const Framebuffer& fb) {
+    RedBounds bounds;
+    for (int y = 0; y < fb.height(); ++y) {
+        for (int x = 0; x < fb.width(); ++x) {
+            const auto pixel = fb.get_pixel(x, y);
+            if (pixel.r <= 0.5f || pixel.g >= 0.5f || pixel.b >= 0.5f)
+                continue;
+            ++bounds.pixels;
+            bounds.min_x = std::min(bounds.min_x, x);
+            bounds.min_y = std::min(bounds.min_y, y);
+            bounds.max_x = std::max(bounds.max_x, x);
+            bounds.max_y = std::max(bounds.max_y, y);
+        }
+    }
+    return bounds;
+}
+
+int red_width(const Framebuffer& fb) {
+    const auto bounds = red_bounds(fb);
+    return bounds.pixels == 0 ? 0 : bounds.max_x - bounds.min_x + 1;
+}
+
+int red_height(const Framebuffer& fb) {
+    const auto bounds = red_bounds(fb);
+    return bounds.pixels == 0 ? 0 : bounds.max_y - bounds.min_y + 1;
+}
 
 std::shared_ptr<Framebuffer> render_with_camera_pose(
     bool cam_enabled,
@@ -103,9 +131,9 @@ TEST_CASE("Test 9.2 — 3D layers are projected when camera is enabled") {
     REQUIRE(fb2 != nullptr);
     REQUIRE(fb1->width()  == 200);
     REQUIRE(fb1->height() == 200);
-    // TODO(post-PR3): re-enable pixel-level projection assertion:
-    // CHECK(fb1->get_pixel(100, 100).r > 0.8f); // center of rect
-    // CHECK(fb2->get_pixel(100, 100).r == 0.0f); // rect shifted left, center is empty
+    CHECK(red_bounds(*fb1).pixels > 0);
+    CHECK(fb1->get_pixel(100, 100).r > 0.8f); // center of rect
+    CHECK(fb2->get_pixel(100, 100).r < 0.1f); // camera translation shifts the rect
 }
 
 TEST_CASE("Test 9.3 — Z depth offset changes scale size under camera projection") {
@@ -117,8 +145,7 @@ TEST_CASE("Test 9.3 — Z depth offset changes scale size under camera projectio
     REQUIRE(fb_near != nullptr);
     REQUIRE(fb_far  != nullptr);
     REQUIRE(fb_near->width() == 200);
-    // TODO(post-PR3): re-enable perspective scaling assertion:
-    // CHECK(count_red(*fb_near) > count_red(*fb_far));
+    CHECK(red_bounds(*fb_near).pixels > red_bounds(*fb_far).pixels);
 }
 
 TEST_CASE("Test 9.4 — Camera 2.5D: X rotation causes vertical foreshortening") {
@@ -129,8 +156,7 @@ TEST_CASE("Test 9.4 — Camera 2.5D: X rotation causes vertical foreshortening")
     REQUIRE(fb_flat != nullptr);
     REQUIRE(fb_rot  != nullptr);
     REQUIRE(fb_rot->width() == 200);
-    // TODO(post-PR3): re-enable foreshortening assertion:
-    // CHECK(rot_pixel_height < flat_pixel_height);
+    CHECK(red_height(*fb_rot) < red_height(*fb_flat));
 }
 
 TEST_CASE("Test 9.5 — Camera 2.5D: Y rotation causes horizontal foreshortening") {
@@ -141,8 +167,7 @@ TEST_CASE("Test 9.5 — Camera 2.5D: Y rotation causes horizontal foreshortening
     REQUIRE(fb_flat != nullptr);
     REQUIRE(fb_rot  != nullptr);
     REQUIRE(fb_rot->width() == 200);
-    // TODO(post-PR3): re-enable foreshortening assertion:
-    // CHECK(rot_width < flat_width);
+    CHECK(red_width(*fb_rot) < red_width(*fb_flat));
 }
 
 TEST_CASE("Test 9.6 — Camera 2.5D: 90 deg rotation collapses the layer projection") {
@@ -159,10 +184,7 @@ TEST_CASE("Test 9.6 — Camera 2.5D: 90 deg rotation collapses the layer project
             }
         }
     }
-    // TODO(post-PR3): re-enable projection-collapse assertion once the
-    // modular-graph 2.5D renderer path is implemented.  Until then the test
-    // only verifies the framebuffer is produced without crashing.
-    // CHECK_FALSE(has_red);
+    CHECK_FALSE(has_red);
 }
 
 TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before rendering") {
@@ -202,10 +224,9 @@ TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before render
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 200);
     REQUIRE(fb->height() == 200);
-    // TODO(post-PR3): re-enable depth-sort assertions:
-    // CHECK(fb->get_pixel(100, 100).r > 0.8f); // near (red) wins over far (blue)
-    // CHECK(fb->get_pixel(100, 100).b < 0.2f);
-    // CHECK(fb->get_pixel(145, 145).b > 0.8f); // out-of-near-rect area shows blue
+    CHECK(fb->get_pixel(100, 100).r > 0.8f); // near (red) wins over far (blue)
+    CHECK(fb->get_pixel(100, 100).b < 0.2f);
+    CHECK(fb->get_pixel(145, 145).b > 0.8f); // outside near rect, blue is visible
 }
 
 TEST_CASE("Test 9.8 — Camera 2.5D: Native 3D shapes do not undergo double projection") {

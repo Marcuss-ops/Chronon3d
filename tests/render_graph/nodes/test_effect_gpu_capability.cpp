@@ -47,9 +47,30 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
     CHECK(rgb->route == GpuEffectRoute::NativeZeroReadback);
     CHECK(rgb->diagnostic.find("RGB") != std::string_view::npos);
 
+    const auto* temperature_tint = graph::gpu_effect_capability(EffectType::TemperatureTint);
+    REQUIRE(temperature_tint != nullptr);
+    CHECK(temperature_tint->route == GpuEffectRoute::NativeZeroReadback);
+    const auto* lift_gamma_gain = graph::gpu_effect_capability(EffectType::LiftGammaGain);
+    REQUIRE(lift_gamma_gain != nullptr);
+    CHECK(lift_gamma_gain->route == GpuEffectRoute::NativeZeroReadback);
+    const auto* offset = graph::gpu_effect_capability(EffectType::Offset);
+    REQUIRE(offset != nullptr);
+    CHECK(offset->route == GpuEffectRoute::NativeZeroReadback);
+    const auto* noise = graph::gpu_effect_capability(EffectType::Noise);
+    REQUIRE(noise != nullptr);
+    CHECK(noise->route == GpuEffectRoute::NativeZeroReadback);
+    const auto* checkerboard = graph::gpu_effect_capability(EffectType::Checkerboard);
+    REQUIRE(checkerboard != nullptr);
+    CHECK(checkerboard->route == GpuEffectRoute::NativeZeroReadback);
+
     for (const auto type : {EffectType::Brightness, EffectType::Contrast,
                             EffectType::Saturation, EffectType::HueRotate,
                             EffectType::Invert, EffectType::Exposure,
+                            EffectType::TemperatureTint,
+                            EffectType::LiftGammaGain,
+                            EffectType::Offset,
+                            EffectType::Noise,
+                            EffectType::Checkerboard,
                             EffectType::Fill, EffectType::Levels,
                             EffectType::Threshold, EffectType::Vignette,
                             EffectType::Mosaic}) {
@@ -57,8 +78,7 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
         REQUIRE(row != nullptr);
         CHECK(row->route == GpuEffectRoute::NativeZeroReadback);
     }
-    for (const auto type : {EffectType::Curves, EffectType::Lut3D,
-                            EffectType::Noise}) {
+    for (const auto type : {EffectType::Curves, EffectType::Lut3D}) {
         const auto* row = graph::gpu_effect_capability(type);
         REQUIRE(row != nullptr);
         CHECK(row->route == GpuEffectRoute::Unsupported);
@@ -81,5 +101,5 @@ TEST_CASE("strict GPU effect capability census covers every catalog effect once"
     std::size_t native = 0;
     for (const auto& row : graph::kGpuEffectCapabilityRows)
         if (row.route == graph::GpuEffectRoute::NativeZeroReadback) ++native;
-    CHECK(native == 18);
+    CHECK(native == 23);
 }

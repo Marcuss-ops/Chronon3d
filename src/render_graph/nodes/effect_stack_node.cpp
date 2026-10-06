@@ -12,6 +12,7 @@
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <spdlog/spdlog.h>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <initializer_list>
 #include <vector>

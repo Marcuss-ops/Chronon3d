@@ -18,7 +18,11 @@
 namespace chronon3d::runtime {
 
 struct FrameSlotPayload final {
-    FrameArena arena{4u * 1024u * 1024u, true};
+    explicit FrameSlotPayload(
+        std::size_t arena_capacity_bytes = 4u * 1024u * 1024u)
+        : arena(arena_capacity_bytes, true) {}
+
+    FrameArena arena;
     // Typed compiler output is frame-slot owned.  This is the handoff point
     // for TypedProgramSampler -> GraphExecutor; it must not live in
     // JobSession or an authoring compatibility payload.

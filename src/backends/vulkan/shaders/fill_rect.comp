@@ -159,14 +159,15 @@ void main() {
         vec4 authoredRadii = vec4(params.vertices[5], params.vertices[6]);
         float radius = isCircle ? params.shape.y :
             (params.shape.x > 0.5 ? params.shape.y : 0.0);
-        float outerSpread = align == 0 ? 0.0 : halfWidth;
+        float outerSpread = align == 2 ? halfWidth : 0.0;
         bool fillHit = false;
         bool strokeHit = false;
         if (isCircle) {
             float dist2 = dot(p - gCenter, p - gCenter);
             fillHit = params.color.a > 0.0 && dist2 <= radius * radius;
             float outerRadius = align == 0 ? radius : radius + halfWidth;
-            float innerRadius = align == 2 ? radius : max(0.0, radius - halfWidth);
+            float innerRadius = align == 2 ? radius :
+                max(0.0, radius - (align == 0 ? w : halfWidth));
             float outerR = outerRadius + outerSpread;
             strokeHit = strokePm.a > 0.0 && dist2 <= outerR * outerR &&
                         dist2 >= innerRadius * innerRadius;

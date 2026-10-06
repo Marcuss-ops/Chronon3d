@@ -93,7 +93,7 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
             "session (typed encoder capability mismatch)");
         return false;
     }
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     const auto direct_submit_t0 = Clock::now();
     last_frame_telemetry_ = EncoderFrameTelemetry{};
     if (!gpu_nvenc_ || !cuda_context_ || !cuda_frames_ref_ ||
