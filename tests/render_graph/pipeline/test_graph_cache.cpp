@@ -16,6 +16,27 @@ using namespace chronon3d;
 
 using namespace chronon3d::graph;
 
+TEST_CASE("SSAA pooled downsample matches allocating pixels and survives owner release") {
+    Framebuffer source(128, 96);
+    for (int y = 0; y < source.height(); ++y)
+        for (int x = 0; x < source.width(); ++x)
+            source.set_pixel(x, y, Color{float(x) / 128.f, float(y) / 96.f, .25f, .5f});
+    auto pool = std::make_shared<cache::FramebufferPool>(4 * 1024 * 1024);
+    const auto reference = downsample_fb(source, 64, 48);
+    auto pooled = downsample_fb_pooled(source, 64, 48, pool.get());
+    REQUIRE(pooled != nullptr);
+    CHECK(test::framebuffer_hash(*pooled) == test::framebuffer_hash(*reference));
+    auto* raw = pooled.get();
+    auto retained = pooled;
+    pooled.reset();
+    CHECK(test::framebuffer_hash(*retained) == test::framebuffer_hash(*reference));
+    retained.reset();
+    auto reused = downsample_fb_pooled(source, 64, 48, pool.get());
+    CHECK(reused.get() == raw);
+    pool.reset(); // outstanding output remains valid if its pool disappears
+    CHECK(test::framebuffer_hash(*reused) == test::framebuffer_hash(*reference));
+}
+
 // Helper: render a single frame and return the framebuffer.
 // Uses non-consecutive frames and disables dirty rects so that the
 // pre-existing fast-paths (resolved_scene_reuse / fast_path_reuse) do

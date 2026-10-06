@@ -11,6 +11,7 @@
 #include <chronon3d/runtime/frame_format.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace chronon3d::media::video {
 
@@ -81,7 +82,10 @@ struct VideoFrameView {
     const std::size_t ys = (y_stride > 0) ? y_stride : y_row;
     const std::size_t us = (u_stride > 0) ? u_stride : uv_row;
     const std::size_t vs = (v_stride > 0) ? v_stride : uv_row;
-    return ys >= y_row && us >= uv_row && vs >= uv_row;
+    return ys >= y_row && us >= uv_row && vs >= uv_row &&
+        ys <= static_cast<std::size_t>(std::numeric_limits<int>::max()) &&
+        us <= static_cast<std::size_t>(std::numeric_limits<int>::max()) &&
+        vs <= static_cast<std::size_t>(std::numeric_limits<int>::max());
 }
 
 [[nodiscard]] inline bool validate_biplanar_frame(int width, int height,
@@ -93,7 +97,9 @@ struct VideoFrameView {
     const std::size_t uv_row = static_cast<std::size_t>(width);
     const std::size_t ys  = (y_stride > 0)  ? y_stride  : y_row;
     const std::size_t uvs = (uv_stride > 0) ? uv_stride : uv_row;
-    return ys >= y_row && uvs >= uv_row;
+    return ys >= y_row && uvs >= uv_row &&
+        ys <= static_cast<std::size_t>(std::numeric_limits<int>::max()) &&
+        uvs <= static_cast<std::size_t>(std::numeric_limits<int>::max());
 }
 
 [[nodiscard]] inline bool validate_packed_stride(PixelFormat fmt, int width,
@@ -102,9 +108,10 @@ struct VideoFrameView {
     if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
         return stride_bytes == 0;
     }
-    if (stride_bytes == 0) return true;
     const uint64_t tight_row = frame_buffer_size(fmt, width, 1);
-    return tight_row != 0 && stride_bytes >= tight_row;
+    return tight_row != 0 && (stride_bytes == 0 ||
+        (stride_bytes >= tight_row &&
+         stride_bytes <= static_cast<std::size_t>(std::numeric_limits<int>::max())));
 }
 
 /// Extended frame view for planar YUV420P data.

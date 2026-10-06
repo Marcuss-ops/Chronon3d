@@ -117,12 +117,39 @@ CHRONON3D_ROOT = Path(__file__).resolve().parents[2]
 CACHE_DIR = CHRONON3D_ROOT / "assets" / "maps" / "cache" / "pyramid"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+_ARCGIS = "https://server.arcgisonline.com/ArcGIS/rest/services"
+
 TILE_URLS = {
-    "esri_sat": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    "esri_dark": "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    "esri_sat": f"{_ARCGIS}/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}",
+    "esri_topo": f"{_ARCGIS}/World_Topo_Map/MapServer/tile/{{z}}/{{y}}/{{x}}",
+    "esri_natgeo": f"{_ARCGIS}/NatGeo_World_Map/MapServer/tile/{{z}}/{{y}}/{{x}}",
+    "esri_ocean": f"{_ARCGIS}/Ocean/World_Ocean_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
+    "esri_light": f"{_ARCGIS}/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
+    "esri_dark": f"{_ARCGIS}/Canvas/World_Dark_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
     "osm": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     "carto_dark": "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
 }
+
+# BASEMAP_STYLES is the rotation palette the production dynamic-map renderer
+# draws from: every id is an ArcGIS Online tiled basemap, so a rendered map is
+# always the same licensing posture as the historic World_Imagery default while
+# the *look* (imagery, topography, National Geographic, ocean, light/dark gray
+# canvas) varies from render to render. The runtime selects an id and passes it
+# as the payload's "basemap"; the renderer fails closed on anything outside this
+# tuple, so an unknown style can never silently degrade to the default.
+BASEMAP_STYLES = (
+    "esri_sat",
+    "esri_topo",
+    "esri_natgeo",
+    "esri_ocean",
+    "esri_light",
+    "esri_dark",
+)
+
+
+def is_basemap_style(name: str) -> bool:
+    """Report whether name is a certified rotation-palette basemap id."""
+    return name in BASEMAP_STYLES
 
 MERCATOR_EQUATOR_METRES_PER_PIXEL = 156543.03392
 

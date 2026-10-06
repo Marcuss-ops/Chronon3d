@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <future>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
@@ -32,6 +33,87 @@ struct SlowLoader {
 };
 
 } // namespace
+
+TEST_CASE("LruCache explicit mutation invalidates an outstanding loader") {
+    for (bool write : {false, true}) {
+        LruCache<int, int> cache(8, 1);
+        std::promise<void> started, resume;
+        auto ready = resume.get_future();
+        auto load = std::async(std::launch::async, [&] {
+            return cache.compute_if_absent(1, [&] {
+                started.set_value();
+                ready.wait();
+                return std::pair{10, std::size_t{1}};
+            });
+        });
+        started.get_future().wait();
+        if (write) cache.put(1, 20);
+        else CHECK_FALSE(cache.erase(1));
+        resume.set_value();
+        CHECK(load.get() == 10); // accepted callers still receive their load
+        CHECK(cache.stats().current_weight == (write ? 1 : 0));
+        CHECK(cache.stats().current_size == (write ? 1 : 0));
+        if (write) CHECK(cache.get(1) == 20);
+        cache.erase(1);
+        CHECK(cache.stats().current_weight == 0);
+        cache.put(2, 30, 8); // stale LRU nodes must not evict or miscount
+        CHECK(cache.get(2) == 30);
+        CHECK(cache.stats().current_weight == 8);
+    }
+}
+
+TEST_CASE("LruCache invalidated loader cannot remove a newer same-key flight") {
+    for (bool throws : {false, true}) {
+        LruCache<int, int> cache(8, 1);
+        std::promise<void> first_started, first_resume, second_started, second_resume;
+        auto first_ready = first_resume.get_future();
+        auto second_ready = second_resume.get_future();
+        auto first = std::async(std::launch::async, [&] {
+            try {
+                return cache.compute_if_absent(1, [&]() -> std::pair<int, std::size_t> {
+                    first_started.set_value(); first_ready.wait();
+                    if (throws) throw std::runtime_error("old load failed");
+                    return {10, 1};
+                });
+            } catch (const std::runtime_error&) { return -1; }
+        });
+        first_started.get_future().wait();
+        cache.erase(1);
+        auto second = std::async(std::launch::async, [&] {
+            return cache.compute_if_absent(1, [&] {
+                second_started.set_value(); second_ready.wait();
+                return std::pair{20, std::size_t{1}};
+            });
+        });
+        second_started.get_future().wait();
+        first_resume.set_value();
+        CHECK(first.get() == (throws ? -1 : 10));
+        CHECK_FALSE(cache.contains(1));
+        second_resume.set_value();
+        CHECK(second.get() == 20);
+        CHECK(cache.get(1) == 20);
+        CHECK(cache.stats().current_size == 1);
+        CHECK(cache.stats().current_weight == 1);
+    }
+}
+
+TEST_CASE("LruCache budgets are exact including zero and shard remainder") {
+    for (std::size_t budget : {0U, 1U, 5U, 9U}) {
+        LruCache<int, int> cache(budget, 4);
+        CHECK(cache.capacity() == budget);
+        for (int key = 0; key < 12; ++key) cache.put(key, key);
+        CHECK(cache.stats().current_weight <= budget);
+        cache.resize(0);
+        CHECK(cache.capacity() == 0);
+        CHECK(cache.stats().current_size == 0);
+        CHECK(cache.compute_if_absent(1, [] { return std::pair{42, std::size_t{0}}; }) == 42);
+        CHECK_FALSE(cache.contains(1));
+        cache.resize(5, 3);
+        CHECK(cache.capacity() == 5);
+        for (int key = 0; key < 12; ++key) cache.put(key, key);
+        CHECK(cache.stats().current_weight <= 5);
+    }
+}
 
 TEST_CASE("LruCache count mode evicts the least recently used entry") {
     LruCache<std::int64_t, std::shared_ptr<int>> cache(

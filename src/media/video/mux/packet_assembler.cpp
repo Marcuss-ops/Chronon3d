@@ -181,24 +181,51 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
         return result;
     }
 
-    std::int64_t video_offset = 0;
-    std::int64_t audio_offset = 0;
+    std::int64_t timeline_offset_us = 0;
     for (const auto& input : inputs) {
         auto* video_stream = input->format->streams[input->video_index];
         auto* audio_stream = input->audio_index >= 0 ? input->format->streams[input->audio_index] : nullptr;
-        std::int64_t first_video_dts = AV_NOPTS_VALUE;
-        std::int64_t first_audio_dts = AV_NOPTS_VALUE;
+        // Both streams share one segment origin and one output offset. Resetting
+        // audio independently to its first packet destroys intentional A/V delay.
+        std::int64_t origin_us = AV_NOPTS_VALUE;
+        for (const auto* stream : {video_stream, audio_stream}) {
+            if (!stream || stream->start_time == AV_NOPTS_VALUE) continue;
+            const auto start_us = av_rescale_q(stream->start_time, stream->time_base, AV_TIME_BASE_Q);
+            origin_us = origin_us == AV_NOPTS_VALUE ? start_us : std::min(origin_us, start_us);
+        }
+        const auto video_offset = av_rescale_q(timeline_offset_us, AV_TIME_BASE_Q, video_stream->time_base);
+        const auto audio_offset = audio_stream
+            ? av_rescale_q(timeline_offset_us, AV_TIME_BASE_Q, audio_stream->time_base) : 0;
+        std::int64_t first_video_dts = origin_us == AV_NOPTS_VALUE ? AV_NOPTS_VALUE :
+            av_rescale_q(origin_us, AV_TIME_BASE_Q, video_stream->time_base);
+        std::int64_t first_audio_dts = !audio_stream || origin_us == AV_NOPTS_VALUE ? AV_NOPTS_VALUE :
+            av_rescale_q(origin_us, AV_TIME_BASE_Q, audio_stream->time_base);
         std::int64_t segment_last_video_timestamp = AV_NOPTS_VALUE;
         std::int64_t segment_last_audio_timestamp = AV_NOPTS_VALUE;
         bool saw_video = false;
         bool saw_audio = false;
         AVPacket* raw = av_packet_alloc();
         if (!raw) { result.reason = "failed to allocate input packet"; return result; }
-        while (av_read_frame(input->format, raw) >= 0) {
+        int read_result = 0;
+        while ((read_result = av_read_frame(input->format, raw)) >= 0) {
+            if ((raw->flags & AV_PKT_FLAG_CORRUPT) != 0) {
+                av_packet_free(&raw);
+                result.reason = "segment contains a corrupt packet";
+                return result;
+            }
             if (raw->stream_index == input->video_index) {
                 if (!saw_video) {
                     saw_video = true;
-                    first_video_dts = raw->dts != AV_NOPTS_VALUE ? raw->dts : raw->pts;
+                    if (first_video_dts == AV_NOPTS_VALUE) {
+                        first_video_dts = raw->dts != AV_NOPTS_VALUE ? raw->dts : raw->pts;
+                        if (first_video_dts == AV_NOPTS_VALUE) {
+                            av_packet_free(&raw);
+                            result.reason = "segment video has no timestamp origin";
+                            return result;
+                        }
+                        if (audio_stream && first_audio_dts == AV_NOPTS_VALUE)
+                            first_audio_dts = av_rescale_q(first_video_dts, video_stream->time_base, audio_stream->time_base);
+                    }
                     if (&input != &inputs.front() && !(raw->flags & AV_PKT_FLAG_KEY)) {
                         av_packet_free(&raw);
                         result.reason = "segment does not begin at a video keyframe";
@@ -236,7 +263,16 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
             } else if (audio_stream && raw->stream_index == input->audio_index) {
                 if (!saw_audio) {
                     saw_audio = true;
-                    first_audio_dts = raw->dts != AV_NOPTS_VALUE ? raw->dts : raw->pts;
+                    if (first_audio_dts == AV_NOPTS_VALUE) {
+                        first_audio_dts = raw->dts != AV_NOPTS_VALUE ? raw->dts : raw->pts;
+                        if (first_audio_dts == AV_NOPTS_VALUE) {
+                            av_packet_free(&raw);
+                            result.reason = "segment audio has no timestamp origin";
+                            return result;
+                        }
+                        if (first_video_dts == AV_NOPTS_VALUE)
+                            first_video_dts = av_rescale_q(first_audio_dts, audio_stream->time_base, video_stream->time_base);
+                    }
                 }
                 AVPacket* copy = av_packet_alloc();
                 if (!copy) {
@@ -268,19 +304,25 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
             av_packet_unref(raw);
         }
         av_packet_free(&raw);
-        const auto video_duration = detail::stream_duration(video_stream);
-        if (segment_last_video_timestamp != AV_NOPTS_VALUE) {
-            video_offset = segment_last_video_timestamp;
-        } else if (video_duration > 0) {
-            video_offset += video_duration;
+        if (read_result != AVERROR_EOF ||
+            (input->format->pb && input->format->pb->error < 0 &&
+             input->format->pb->error != AVERROR_EOF)) {
+            result.reason = "failed to read segment packets";
+            return result;
         }
+        if (!saw_video || (audio_stream && !saw_audio)) {
+            result.reason = "segment is missing packets for a declared stream";
+            return result;
+        }
+        const auto video_end = segment_last_video_timestamp != AV_NOPTS_VALUE
+            ? segment_last_video_timestamp : video_offset + detail::stream_duration(video_stream);
+        timeline_offset_us = std::max(timeline_offset_us,
+            av_rescale_q(video_end, video_stream->time_base, AV_TIME_BASE_Q));
         if (audio_stream) {
-            const auto audio_duration = detail::stream_duration(audio_stream);
-            if (segment_last_audio_timestamp != AV_NOPTS_VALUE) {
-                audio_offset = segment_last_audio_timestamp;
-            } else if (audio_duration > 0) {
-                audio_offset += audio_duration;
-            }
+            const auto audio_end = segment_last_audio_timestamp != AV_NOPTS_VALUE
+                ? segment_last_audio_timestamp : audio_offset + detail::stream_duration(audio_stream);
+            timeline_offset_us = std::max(timeline_offset_us,
+                av_rescale_q(audio_end, audio_stream->time_base, AV_TIME_BASE_Q));
         }
     }
     if (!mux.finalize()) {

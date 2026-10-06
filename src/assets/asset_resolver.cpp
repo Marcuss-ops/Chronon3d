@@ -104,7 +104,28 @@ AssetResolver::resolve_logical(const std::filesystem::path& path) const {
     for (const auto& component : path) {
         if (component == std::filesystem::path("..")) return std::nullopt;
     }
-    return resolve(path);
+    std::filesystem::path root;
+    std::optional<std::filesystem::path> candidate;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        root = m_root_path;
+        candidate = resolve_locked_(path);
+    }
+    if (!candidate || root.empty()) return std::nullopt;
+    std::error_code ec;
+    const auto canonical_root = std::filesystem::canonical(root, ec);
+    if (ec) return std::nullopt;
+    const auto canonical_target = std::filesystem::canonical(*candidate, ec);
+    if (ec) return std::nullopt;
+    const auto relative = canonical_target.lexically_relative(canonical_root);
+    if (relative.empty() || relative.is_absolute()) return std::nullopt;
+    for (const auto& component : relative) {
+        if (component == "..") return std::nullopt;
+    }
+    // Return the resolved target, not the symlink spelling checked above.
+    // This is confinement at resolution time, not an atomic sandboxed open:
+    // callers must keep the mounted directory immutable while using the path.
+    return canonical_target;
 }
 
 } // namespace chronon3d::assets

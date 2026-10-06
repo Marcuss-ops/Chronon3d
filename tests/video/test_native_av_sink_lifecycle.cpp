@@ -10,6 +10,7 @@ extern "C" {
 }
 
 #include <cstdint>
+#include <limits>
 #include <filesystem>
 #include <vector>
 
@@ -65,6 +66,71 @@ void certify_native_lifecycle(VideoCodec codec, const char* output_name) {
 }
 
 } // namespace
+
+TEST_CASE("Video frame validation rejects strides not representable by FFmpeg") {
+    const auto maximum = static_cast<std::size_t>(std::numeric_limits<int>::max());
+    CHECK(validate_packed_stride(PixelFormat::RGB24, 16, maximum));
+    CHECK_FALSE(validate_packed_stride(PixelFormat::RGB24, 16, maximum + 1));
+    CHECK_FALSE(validate_packed_stride(PixelFormat::RGBA8, 16, maximum + 1));
+    CHECK_FALSE(validate_planar_frame(16, 16, maximum + 1, 8, 8));
+    CHECK_FALSE(validate_planar_frame(16, 16, 16, maximum + 1, 8));
+    CHECK_FALSE(validate_planar_frame(16, 16, 16, 8, maximum + 1));
+    CHECK_FALSE(validate_biplanar_frame(16, 16, maximum + 1, 16));
+    CHECK_FALSE(validate_biplanar_frame(16, 16, 16, maximum + 1));
+}
+
+TEST_CASE("NativeAvSink RGB conversion pixels agree with emitted BT709 metadata") {
+    const auto path = std::filesystem::path("native-av-bt709-red.mp4");
+    VideoSinkConfig config;
+    config.stream.width = 64; config.stream.height = 64;
+    config.stream.submitted_format = PixelFormat::RGB24;
+    config.encoder.codec = VideoCodec::H264; config.encoder.crf = 0;
+    config.output.output_path = path;
+    auto sink = create_video_sink(config);
+    REQUIRE(sink->open(config));
+    std::vector<std::uint8_t> rgb(64U * 64U * 3U);
+    for (std::size_t i = 0; i < rgb.size(); i += 3) rgb[i] = 255;
+    REQUIRE(sink->submit(VideoFrameView{.data = rgb.data(), .width = 64,
+        .height = 64, .pixel_format = PixelFormat::RGB24, .pts = 0}));
+    REQUIRE(sink->close());
+    AVFormatContext* format = nullptr;
+    REQUIRE(avformat_open_input(&format, path.c_str(), nullptr, nullptr) == 0);
+    struct InputGuard { AVFormatContext*& p; ~InputGuard() { avformat_close_input(&p); } } input{format};
+    REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
+    const int stream = av_find_best_stream(format, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    REQUIRE(stream >= 0);
+    const auto* params = format->streams[stream]->codecpar;
+    CHECK(params->color_space == AVCOL_SPC_BT709);
+    CHECK(params->color_range == AVCOL_RANGE_MPEG);
+    AVCodecContext* decoder = avcodec_alloc_context3(avcodec_find_decoder(params->codec_id));
+    REQUIRE(decoder != nullptr);
+    struct DecoderGuard { AVCodecContext*& p; ~DecoderGuard() { avcodec_free_context(&p); } } codec{decoder};
+    REQUIRE(avcodec_parameters_to_context(decoder, params) >= 0);
+    REQUIRE(avcodec_open2(decoder, avcodec_find_decoder(params->codec_id), nullptr) >= 0);
+    AVPacket* packet = av_packet_alloc(); AVFrame* frame = av_frame_alloc();
+    struct FrameGuard { AVPacket*& p; AVFrame*& f; ~FrameGuard() { av_packet_free(&p); av_frame_free(&f); } } frames{packet, frame};
+    REQUIRE(packet != nullptr); REQUIRE(frame != nullptr);
+    int received = AVERROR(EAGAIN);
+    while (av_read_frame(format, packet) >= 0) {
+        if (packet->stream_index == stream) {
+            REQUIRE(avcodec_send_packet(decoder, packet) >= 0);
+            received = avcodec_receive_frame(decoder, frame);
+        }
+        av_packet_unref(packet);
+        if (received == 0) break;
+    }
+    if (received != 0) {
+        REQUIRE(avcodec_send_packet(decoder, nullptr) >= 0);
+        received = avcodec_receive_frame(decoder, frame);
+    }
+    REQUIRE(received == 0);
+    REQUIRE(frame->format == AV_PIX_FMT_YUV420P);
+    CHECK(frame->data[0][0] == 63);
+    CHECK(frame->data[1][0] == 102);
+    CHECK(frame->data[2][0] == 240);
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
 
 TEST_CASE("NativeAvSink: H264 open submit flush close") {
     certify_native_lifecycle(VideoCodec::H264, "native-av-lifecycle-h264.mp4");

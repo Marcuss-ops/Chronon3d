@@ -468,6 +468,16 @@ bool NativeAvSink::submit_planes(const std::uint8_t* const data[4],
             codec_->width, codec_->height, codec_->pix_fmt,
             SWS_BILINEAR, nullptr, nullptr, nullptr);
         if (!sws_) return fail(VideoSinkError::EncoderFailed, "sws_getCachedContext failed");
+        const int* coefficients = sws_getCoefficients(SWS_CS_ITU709);
+        const bool source_rgb = source_av_format == AV_PIX_FMT_RGBA ||
+                                source_av_format == AV_PIX_FMT_RGB24;
+        const bool destination_rgb = codec_->pix_fmt == AV_PIX_FMT_RGBA ||
+                                     codec_->pix_fmt == AV_PIX_FMT_RGB24;
+        if (sws_setColorspaceDetails(sws_, coefficients, source_rgb ? 1 : 0,
+                coefficients, destination_rgb ? 1 : 0, 0, 1 << 16, 1 << 16) < 0) {
+            return fail(VideoSinkError::EncoderFailed,
+                        "BT.709 frame conversion setup failed");
+        }
         const int rows = sws_scale(sws_, data, linesize, 0, height,
                                    frame_->data, frame_->linesize);
         if (rows != height)
