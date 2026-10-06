@@ -118,13 +118,10 @@ inline void box_downsample_into(const Framebuffer& src, Framebuffer& dst) {
     return dst;
 }
 
-// AUDIT-2026-09-09 N-04 — SSAA hot path: borrow the destination from the
-// renderer's FramebufferPool instead of heap-allocating a fresh framebuffer
-// on every frame with ssaa > 1.0. The returned shared_ptr hands the storage
-// back to the pool on destruction (the deleter owns the pool's OwnedFB, so
-// the existing ReturnToPool lifetime machinery runs unchanged). Steady-state
-// SSAA now performs zero framebuffer allocations; `pool == nullptr` falls
-// back to the allocating path for pool-less callers.
+// SSAA hot path: borrow the destination from the renderer's FramebufferPool.
+// Promotion retains its ReturnToPool reclaim policy and allocates only the
+// returned shared_ptr control block. Warm reuse avoids framebuffer allocations;
+// pool-less callers retain the allocating fallback.
 [[nodiscard]] inline std::shared_ptr<Framebuffer> downsample_fb_pooled(
     const Framebuffer& src, i32 dst_w, i32 dst_h,
     cache::FramebufferPool* pool
@@ -134,15 +131,9 @@ inline void box_downsample_into(const Framebuffer& src, Framebuffer& dst) {
     }
     auto owned = pool->acquire_owned(dst_w, dst_h, /*clear=*/false);
     box_downsample_into(src, *owned);
-    // The deleter must be CopyConstructible for shared_ptr, so the OwnedFB
-    // (move-only) is held through a shared_ptr captured by value. Resetting
-    // it runs the pool's ReturnToPool deleter — storage goes back to the
-    // pool, zero heap churn in steady state.
-    return std::shared_ptr<Framebuffer>(
-        owned.get(),
-        [owner = std::shared_ptr<OwnedFB>(
-             std::make_unique<OwnedFB>(std::move(owned)).release())](
-            Framebuffer*) mutable { owner->reset(); });
+    // Promote through the canonical reclaim policy. Only the returned
+    // shared_ptr control block is allocated; no nested owner/control block.
+    return promote_to_cached(std::move(owned));
 }
 
 // ── RenderGraphContext factory (TICKET-010 — 4 sub-context shape) ──────────

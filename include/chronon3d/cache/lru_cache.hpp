@@ -115,10 +115,9 @@ public:
         if (num_shards == 0) {
             throw std::invalid_argument("LruCache requires at least one shard");
         }
-        size_t shard_capacity = capacity_weight / num_shards;
-        if (shard_capacity == 0) shard_capacity = 1;
-        for (auto& shard : m_shards) {
-            shard = std::make_unique<Shard>(shard_capacity, this);
+        for (size_t i = 0; i < num_shards; ++i) {
+            m_shards[i] = std::make_unique<Shard>(
+                capacity_weight / num_shards + (i < capacity_weight % num_shards), this);
         }
     }
 
@@ -192,7 +191,7 @@ public:
                     std::make_shared<std::promise<std::pair<Value, size_t>>>();
                 waiting_future = promise_ptr->get_future().share();
                 const auto mutate_start = timed_start();
-                shard.inflight[key] = InflightLoad{loader_generation, waiting_future};
+                shard.inflight[key] = InflightLoad{loader_generation, waiting_future, promise_ptr};
                 add_ns_if_enabled(m_lru_mutation_time_ns, mutate_start);
             }
         }
@@ -216,7 +215,7 @@ public:
             promise_ptr->set_exception(std::current_exception());
             auto lock = timed_lock(shard.mutex);
             const auto mutate_start = timed_start();
-            erase_inflight_if_generation_matches(shard, key, loader_generation);
+            erase_inflight_if_matches(shard, key, loader_generation, promise_ptr);
             add_ns_if_enabled(m_lru_mutation_time_ns, mutate_start);
             throw;
         }
@@ -227,10 +226,10 @@ public:
         {
             auto lock = timed_lock(shard.mutex);
             const auto mutate_start = timed_start();
-            const bool generation_current = shard.generation == loader_generation;
-            erase_inflight_if_generation_matches(shard, key, loader_generation);
-            if (generation_current) {
-                if (effective_weight > shard.capacity_weight) {
+            const bool load_current = erase_inflight_if_matches(
+                shard, key, loader_generation, promise_ptr);
+            if (load_current && !shard.entries.contains(key)) {
+                if (shard.capacity_weight == 0 || effective_weight > shard.capacity_weight) {
                     m_oversized_rejections.fetch_add(1, std::memory_order_relaxed);
                     detail::log_item_too_large(effective_weight, shard.capacity_weight,
                                                "compute_if_absent");
@@ -286,7 +285,6 @@ public:
     /// Like the historical single-shard-count resize, this is a control-plane
     /// operation: it is not synchronized against concurrent get/put callers.
     void resize(size_t new_capacity_weight, size_t new_shard_count = 0) {
-        if (new_capacity_weight == 0) return;
         if (new_shard_count != 0 && new_shard_count != m_shards.size()) {
             if (new_shard_count == 0) {
                 throw std::invalid_argument("LruCache::resize requires at least one shard");
@@ -313,24 +311,24 @@ public:
                 shard->current_weight = 0;
                 add_ns_if_enabled(m_lru_mutation_time_ns, mutate_start);
             }
-            const size_t shard_cap =
-                std::max(size_t{1}, new_capacity_weight / new_shard_count);
             m_shards.clear();
             m_shards.reserve(new_shard_count);
             for (size_t i = 0; i < new_shard_count; ++i) {
-                m_shards.push_back(std::make_unique<Shard>(shard_cap, this));
+                m_shards.push_back(std::make_unique<Shard>(
+                    new_capacity_weight / new_shard_count +
+                        (i < new_capacity_weight % new_shard_count), this));
             }
             for (auto& s : survivors) {
-                if (s.weight > shard_cap) {
+                auto& target = get_shard(s.key);
+                if (target.capacity_weight == 0 || s.weight > target.capacity_weight) {
                     // Was resident under the old sharding; cannot fit a new
                     // shard. Report exactly once, like an eviction.
-                    m_evictions.fetch_add(1, std::memory_order_relaxed);
                     dropped.push_back(RemovedEntry{
                         std::move(s.key), std::move(s.value),
                         CacheRemovalReason::Resize});
                     continue;
                 }
-                auto removed = get_shard(s.key).put(
+                auto removed = target.put(
                     std::move(s.key), std::move(s.value), s.weight);
                 dropped.insert(dropped.end(),
                                std::make_move_iterator(removed.begin()),
@@ -340,9 +338,10 @@ public:
             fire_removed(dropped);
             return;
         }
-        const size_t shard_cap =
-            std::max(size_t{1}, new_capacity_weight / m_shards.size());
-        for (auto& shard : m_shards) {
+        for (size_t i = 0; i < m_shards.size(); ++i) {
+            auto& shard = m_shards[i];
+            const size_t shard_cap = new_capacity_weight / m_shards.size() +
+                (i < new_capacity_weight % m_shards.size());
             std::vector<RemovedEntry> evicted;
             {
                 auto lock = timed_lock(shard->mutex);
@@ -421,6 +420,7 @@ private:
     struct InflightLoad {
         std::uint64_t generation{0};
         std::shared_future<std::pair<Value, size_t>> future;
+        std::shared_ptr<std::promise<std::pair<Value, size_t>>> owner;
     };
 
     struct Shard {
@@ -460,12 +460,14 @@ private:
                                       Value value,
                                       size_t weight) {
             auto lock = owner->timed_lock(mutex);
-            if (weight > capacity_weight) {
+            if (capacity_weight == 0 || weight > capacity_weight) {
                 owner->m_oversized_rejections.fetch_add(1, std::memory_order_relaxed);
                 detail::log_item_too_large(weight, capacity_weight, "put");
                 return {};
             }
             const auto mutate_start = owner->timed_start();
+            // An explicit write wins over a loader already running for this key.
+            inflight.erase(key);
             std::vector<RemovedEntry> removed;
             auto it = entries.find(key);
             if (it != entries.end()) {
@@ -497,6 +499,8 @@ private:
 
         std::optional<RemovedEntry> erase(const Key& key) {
             auto lock = owner->timed_lock(mutex);
+            // Even a non-resident key can have an outstanding load to invalidate.
+            inflight.erase(key);
             const auto lookup_start = owner->timed_start();
             auto it = entries.find(key);
             owner->add_ns_if_enabled(owner->m_hash_time_ns, lookup_start);
@@ -533,7 +537,8 @@ private:
             size_t extra_weight,
             CacheRemovalReason reason) {
             std::vector<RemovedEntry> removed;
-            while (current_weight + extra_weight > capacity_weight &&
+            while ((capacity_weight == 0 || current_weight > capacity_weight ||
+                    extra_weight > capacity_weight - current_weight) &&
                    !lru_list.empty()) {
                 Key oldest = lru_list.back();
                 auto it = entries.find(oldest);
@@ -577,13 +582,16 @@ private:
         counter.fetch_add(elapsed, std::memory_order_relaxed);
     }
 
-    void erase_inflight_if_generation_matches(Shard& shard,
-                                               const Key& key,
-                                               std::uint64_t generation) {
+    bool erase_inflight_if_matches(
+        Shard& shard, const Key& key, std::uint64_t generation,
+        const std::shared_ptr<std::promise<std::pair<Value, size_t>>>& owner) {
         auto it = shard.inflight.find(key);
-        if (it != shard.inflight.end() && it->second.generation == generation) {
+        if (it != shard.inflight.end() && it->second.generation == generation &&
+            it->second.owner == owner && shard.generation == generation) {
             shard.inflight.erase(it);
+            return true;
         }
+        return false;
     }
 
     void fire_removed(const std::vector<RemovedEntry>& removed) {

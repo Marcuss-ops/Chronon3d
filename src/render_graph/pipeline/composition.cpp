@@ -468,7 +468,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
             CHRONON_TRACE_SCOPE("chronon.effect", "downsample_ssaa");
             // AUDIT-2026-09-09 N-04 — pooled destination: steady-state SSAA
             // borrows the downsample target from the renderer's framebuffer
-            // pool (zero heap churn per frame). Pool-less callers (CLI
+            // pool (no framebuffer allocation on reuse; one shared owner). Pool-less callers (CLI
             // dry-run, tests) keep the allocating path.
             cache::FramebufferPool* ssaa_pool = nullptr;
             if (sw_sidecar != nullptr) {

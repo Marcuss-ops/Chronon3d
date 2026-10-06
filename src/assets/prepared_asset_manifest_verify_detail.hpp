@@ -16,7 +16,7 @@ Result<bool, AssetPreflightError> verify_asset_manifest(
                      "asset resolver root could not be canonicalized for verification");
 
     for (const auto& asset : manifest.assets()) {
-        const auto resolved = resolver.resolve_logical(asset.logical_path);
+        const auto resolved = resolver.resolve(asset.logical_path);
         if (!resolved)
             return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
                          asset.logical_path,

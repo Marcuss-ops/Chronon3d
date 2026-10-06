@@ -91,7 +91,10 @@ public:
 
     /// Resolve a logical asset reference. Unlike resolve(), this rejects
     /// absolute paths and traversal components so callers can enforce the
-    /// runtime asset-root boundary for untrusted plans.
+    /// runtime asset-root boundary for untrusted plans. Existing symlink
+    /// targets must remain within the canonical mounted root; returns the
+    /// canonical target. The mount must remain immutable between resolution
+    /// and use: this path API is not an atomic sandboxed file-open operation.
     [[nodiscard]] std::optional<std::filesystem::path>
     resolve_logical(const std::filesystem::path& path) const;
 

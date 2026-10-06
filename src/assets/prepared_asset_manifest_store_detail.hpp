@@ -16,7 +16,7 @@ Result<PreparedAssetStore, AssetPreflightError> prepare_asset_store(
         // reopen their source through the runtime boundary only after the
         // render-job integrity check.
         if (asset.kind == PreparedAssetKind::Subtitle) {
-            const auto resolved = resolver.resolve_logical(asset.logical_path);
+            const auto resolved = resolver.resolve(asset.logical_path);
             if (!resolved) {
                 return error(AssetPreflightErrorCode::AssetChangedAfterPreflight,
                              asset.logical_path,

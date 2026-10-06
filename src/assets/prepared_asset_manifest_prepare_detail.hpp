@@ -65,7 +65,9 @@ Result<PreparedAssetManifest, AssetPreflightError> prepare_asset_manifest(
 
         const auto normalized = std::filesystem::path(request.logical_path)
                                     .lexically_normal().generic_string();
-        const auto resolved = resolver.resolve_logical(normalized);
+        // This boundary already validates logical syntax and performs its own
+        // canonical confinement check to retain precise symlink diagnostics.
+        const auto resolved = resolver.resolve(normalized);
         if (!resolved)
             return error(AssetPreflightErrorCode::MissingAsset, normalized,
                          "logical asset does not exist under the mounted root");
