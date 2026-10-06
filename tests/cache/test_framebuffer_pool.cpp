@@ -14,6 +14,25 @@ using namespace chronon3d;
 
 using namespace chronon3d::cache;
 
+TEST_CASE("FramebufferPool cached promotion preserves pixels and returns storage") {
+    auto pool = std::make_shared<FramebufferPool>(1024 * 1024);
+    Framebuffer* raw = nullptr;
+    {
+        auto owned = pool->acquire_owned(64, 64, false);
+        raw = owned.get();
+        owned->set_pixel(0, 0, Color{.25f, .5f, .75f, 1.f});
+        auto shared = promote_to_cached(std::move(owned));
+        CHECK_FALSE(owned);
+        REQUIRE(shared.get() == raw);
+        CHECK(shared->get_pixel(0, 0).r == .25f);
+        auto second = shared;
+        shared.reset();
+        CHECK(second->get_pixel(0, 0).b == .75f);
+    }
+    auto reused = pool->acquire_owned(64, 64, false);
+    CHECK(reused.get() == raw);
+}
+
 TEST_CASE("FramebufferPool::acquire returns framebuffer with requested size") {
     auto pool = std::make_shared<FramebufferPool>(1024 * 1024);
 

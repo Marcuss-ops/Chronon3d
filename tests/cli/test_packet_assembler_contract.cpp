@@ -1569,6 +1569,78 @@ TEST_CASE("B3 CPU native segment assembly normalizes timestamps and checksums ou
     std::filesystem::remove(output, cleanup_error);
 }
 
+TEST_CASE("Segment assembly rejects a truncated packet payload instead of publishing success") {
+    const auto root = std::filesystem::temp_directory_path();
+    const auto input = root / "chronon3d_assembly_truncated.mp4";
+    const auto output = root / "chronon3d_assembly_truncated_output.mp4";
+    chronon3d::cli::NativeAvEncoder encoder;
+    REQUIRE(encoder.open(p0_5a_pipe_options(input.string())));
+    for (int i = 0; i < 10; ++i) {
+        chronon3d::Framebuffer frame(64, 64);
+        REQUIRE(encoder.write_frame(frame));
+    }
+    REQUIRE(encoder.close());
+    AVFormatContext* format = nullptr;
+    REQUIRE(avformat_open_input(&format, input.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
+    AVPacket* packet = av_packet_alloc();
+    REQUIRE(packet != nullptr);
+    REQUIRE(av_read_frame(format, packet) >= 0);
+    const auto cut = packet->pos + packet->size / 2;
+    REQUIRE(packet->pos >= 0);
+    av_packet_free(&packet); avformat_close_input(&format);
+    // Move moov to the front so a partial payload still has readable metadata.
+    const auto fast = root / "chronon3d_assembly_truncated_fast.mp4";
+    const auto command = "ffmpeg -hide_banner -loglevel error -y -i " + input.string() +
+        " -c copy -movflags +faststart " + fast.string();
+    REQUIRE(std::system(command.c_str()) == 0);
+    REQUIRE(avformat_open_input(&format, fast.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
+    packet = av_packet_alloc(); REQUIRE(packet != nullptr);
+    REQUIRE(av_read_frame(format, packet) >= 0);
+    const auto fast_cut = packet->pos + packet->size / 2;
+    REQUIRE(packet->pos >= 0);
+    av_packet_free(&packet); avformat_close_input(&format);
+    (void)cut;
+    std::filesystem::resize_file(fast, static_cast<std::uintmax_t>(fast_cut));
+    const auto result = chronon3d::media::assemble_segments({{fast.string()}, output.string()});
+    CHECK_FALSE(result.success);
+    CHECK_FALSE(result.reason.empty());
+    std::error_code ec;
+    for (const auto& path : {input, fast, output}) std::filesystem::remove(path, ec);
+}
+
+TEST_CASE("Segment assembly retains audio delay on a common timeline") {
+    const auto root = std::filesystem::temp_directory_path();
+    const auto input = root / "chronon3d_assembly_delayed_audio.mp4";
+    const auto output = root / "chronon3d_assembly_delayed_audio_output.mp4";
+    const auto command = "ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=c=red:s=64x64:r=10:d=1 "
+        "-itsoffset 0.25 -f lavfi -i sine=frequency=440:sample_rate=48000:duration=0.5 "
+        "-c:v libx264 -bf 0 -g 10 -c:a aac " + input.string();
+    REQUIRE(std::system(command.c_str()) == 0);
+    const auto delay = [](const std::filesystem::path& path) {
+        AVFormatContext* format = nullptr;
+        REQUIRE(avformat_open_input(&format, path.c_str(), nullptr, nullptr) >= 0);
+        REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
+        double video = 0, audio = 0;
+        for (unsigned i = 0; i < format->nb_streams; ++i) {
+            const auto* stream = format->streams[i];
+            const double start = stream->start_time * av_q2d(stream->time_base);
+            if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) video = start;
+            if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) audio = start;
+        }
+        avformat_close_input(&format);
+        return audio - video;
+    };
+    const auto expected = delay(input);
+    REQUIRE(expected > .2);
+    const auto result = chronon3d::media::assemble_segments({{input.string(), input.string()}, output.string()});
+    REQUIRE(result.success);
+    CHECK(delay(output) == doctest::Approx(expected).epsilon(.001));
+    std::error_code ec;
+    std::filesystem::remove(input, ec); std::filesystem::remove(output, ec);
+}
+
 // P0-5C — the encoder can write through a CALLER-OWNED MuxSession.
 //
 // The direct-mux lane needs one container for copied packets and re-encoded

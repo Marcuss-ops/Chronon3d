@@ -199,6 +199,24 @@ TEST_CASE("AssetResolver::resolve_logical enforces the mounted root") {
     CHECK_FALSE(r.resolve_logical(g_temp.path / "logical/ok.txt").has_value());
 }
 
+TEST_CASE("AssetResolver::resolve_logical follows internal symlinks but rejects escapes") {
+    ProcessTempDir temp;
+    write_file(temp.path, "mount/inside.txt", "inside");
+    write_file(temp.path, "outside.txt", "outside");
+    std::filesystem::create_symlink("inside.txt", temp.path / "mount/inside-link");
+    std::filesystem::create_symlink("../outside.txt", temp.path / "mount/outside-link");
+    std::filesystem::create_directory_symlink("..", temp.path / "mount/outside-dir");
+    std::filesystem::create_symlink("absent", temp.path / "mount/dangling");
+    chronon3d::assets::AssetResolver resolver;
+    resolver.mount(temp.path / "mount");
+    CHECK(resolver.resolve_logical("inside-link") == temp.path / "mount/inside.txt");
+    CHECK_FALSE(resolver.resolve_logical("outside-link"));
+    CHECK_FALSE(resolver.resolve_logical("outside-dir/outside.txt"));
+    CHECK_FALSE(resolver.resolve_logical("dangling"));
+    CHECK(resolver.resolve("outside-link")); // trusted path contract unchanged
+    CHECK_FALSE(resolver.resolve_logical("../outside.txt"));
+}
+
 TEST_CASE("AssetResolver::resolve ../escape returns nullopt") {
     ensure_file("marker_escape_above.txt");
     chronon3d::assets::AssetResolver r;
