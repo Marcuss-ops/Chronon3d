@@ -1,0 +1,5 @@
+{"schema":"chronon.render-plan.v3","version":3,"job_id":"sharpen_native_parity",
+"canvas":{"width":320,"height":240,"fps_num":30,"fps_den":1,"duration_frames":30},
+"layers":[{"id":"photo","type":"image","asset":"source.png","size":[320,240],
+"effects":[{"type":"sharpen","amount":1.5,"radius":2.0,"threshold":0.02}]}],
+"output":{"path":"sharpen_native_parity.mp4","format":"mp4","codec":"h264"}}

@@ -39,6 +39,13 @@ do not add a second renderer, registry, cache, or effect API.
    Exposure, Fill, Threshold, and other one-input pointwise transforms.
 2. **Blur/light effects** — DropShadow and full parameter parity for Blur,
    Glow, Bloom, DirectionalBlur, RadialBlur, Sharpen, and Vignette.
+   Sharpen is DONE (24/47 native): `shaders/sharpen.comp` pointwise
+   unsharp-mask combine over the certified separable box route,
+   `try_native_full_frame_sharpen` (radius (0,10], full frame, fail-closed
+   otherwise), capability row, census 23→24, oracle
+   `golden/sharpen_native_parity` + `scripts/ci/check_sharpen_native_parity.py`
+   (mean 1.939 / max 22 vs lossless CPU oracle; no-effect transport floor
+   0.75 / 11).
 3. **Spatial transforms and stylize** — Offset, Mosaic, CornerPin, Twirl,
    Bulge, MeshWarp, TurbulentDisplace, WaveWarp, Ripple, ChromaticAberration,
    Halftone, Stroke and Fake3DWave.

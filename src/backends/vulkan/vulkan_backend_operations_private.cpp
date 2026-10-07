@@ -337,6 +337,39 @@ void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
     throw std::logic_error("Vulkan blur requires an active frame batch");
 }
 
+void VulkanBackend::Impl::sharpen_combine(runtime::RenderSurfaceHandle destination,
+                                          runtime::RenderSurfaceHandle source,
+                                          runtime::RenderSurfaceHandle blurred,
+                                          float amount, float threshold) {
+    if (!std::isfinite(amount) || std::abs(amount) > 4.0f ||
+        !std::isfinite(threshold) || threshold < 0.0f || threshold > 1.0f) {
+        throw std::invalid_argument(
+            "Vulkan sharpen combine parameters are outside supported ranges");
+    }
+    auto& dst_image = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    auto& blurred_image = resolve_image(blurred);
+    if (!src_image.initialized || !blurred_image.initialized ||
+        dst_image.width != src_image.width || dst_image.height != src_image.height ||
+        dst_image.width != blurred_image.width || dst_image.height != blurred_image.height) {
+        throw std::invalid_argument(
+            "Vulkan sharpen combine references incompatible surfaces");
+    }
+    if (frame_batch.active) {
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_matte_descriptors(descriptors, dst_image, src_image, blurred_image);
+        const auto cmd = active_command_buffer();
+        emit_pass_sync(cmd, {&dst_image, &src_image, &blurred_image});
+        record_sharpen_combine(cmd, descriptors, dst_image, src_image,
+                               blurred_image, amount, threshold);
+        dst_image.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+        return;
+    }
+    throw std::logic_error("Vulkan sharpen combine requires an active frame batch");
+}
+
 void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle source,
                                runtime::RenderSurfaceHandle scratch_horizontal,
