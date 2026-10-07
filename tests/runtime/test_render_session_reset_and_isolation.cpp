@@ -237,12 +237,41 @@ TEST_CASE("WP-3 PR 3.2 + 3.3 + 3.1: reset_job clears frame_history, dirty_teleme
     JobSession session;
     seed_frame_history(session, 0xCAFEBABE);
     seed_dirty_telemetry(session, 0xCAFEBABE);
-    seed_previous_layers(session, 0xCAFEBABE);    CHECK_NOTHROW(session.reset_job());
+    seed_previous_layers(session, 0xCAFEBABE);
+    session.effect_usage().record_native(chronon3d::effects::EffectType::Tint);
+    session.effect_usage().record_admission_rejected(chronon3d::effects::EffectType::Glow);
+    CHECK(session.effect_usage().by_type[static_cast<std::size_t>(chronon3d::effects::EffectType::Tint)]
+              .native_frames.load(std::memory_order_relaxed) == 1);
+    CHECK_NOTHROW(session.reset_job());
+    CHECK(session.effect_usage().by_type[static_cast<std::size_t>(chronon3d::effects::EffectType::Tint)]
+              .native_frames.load(std::memory_order_relaxed) == 0);
+    CHECK(session.effect_usage().by_type[static_cast<std::size_t>(chronon3d::effects::EffectType::Glow)]
+              .admission_rejected_frames.load(std::memory_order_relaxed) == 0);
     CHECK(session.frame_history == FrameHistory{});
     CHECK(session.dirty_telemetry.previous_layers.empty());
     CHECK(dirty_history_default(session.dirty_telemetry));
     CHECK_NOTHROW((void)session.scene_hasher());
     CHECK_NOTHROW((void)session.program_store());
+}
+
+TEST_CASE("Effect usage counters remain per-session and reset at the job boundary") {
+    JobSession first;
+    JobSession second;
+    first.effect_usage().record_native(chronon3d::effects::EffectType::Vignette);
+    first.effect_usage().record_admission_rejected(chronon3d::effects::EffectType::Echo);
+    const auto vignette = static_cast<std::size_t>(chronon3d::effects::EffectType::Vignette);
+    const auto echo = static_cast<std::size_t>(chronon3d::effects::EffectType::Echo);
+    CHECK(first.effect_usage().by_type[vignette].native_frames.load(
+              std::memory_order_relaxed) == 1);
+    CHECK(first.effect_usage().by_type[echo].admission_rejected_frames.load(
+              std::memory_order_relaxed) == 1);
+    CHECK(second.effect_usage().by_type[vignette].native_frames.load(
+              std::memory_order_relaxed) == 0);
+    first.reset_job();
+    CHECK(first.effect_usage().by_type[vignette].native_frames.load(
+              std::memory_order_relaxed) == 0);
+    CHECK(first.effect_usage().by_type[echo].admission_rejected_frames.load(
+              std::memory_order_relaxed) == 0);
 }
 
 TEST_CASE("WP-3 PR 3.2 + 3.3 + 3.1: reset_job on a default-constructed session does NOT abort") {

@@ -15,8 +15,8 @@ struct InspectPlanArgs {
 };
 
 /// `chronon inspect --plan <file>` — render the read-only resolved view of a
-/// prepared render plan (human text or JSON).  Exits 0 on success, 1 when
-/// preparation fails.  Never renders a frame and never feeds the inspection
+/// prepared render plan (human text or JSON). Exits 0 on success, 1 when
+/// preparation fails. Never renders a frame and never feeds the inspection
 /// back into the renderer.
 int command_inspect_plan(const InspectPlanArgs& args);
 

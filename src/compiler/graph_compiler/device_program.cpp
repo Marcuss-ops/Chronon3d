@@ -79,6 +79,8 @@ void write_u32_le(std::uint8_t* p, std::uint32_t v) noexcept {
 
 [[nodiscard]] bool decode_and_execute_cpu_payload(
     std::span<const std::uint8_t> payload,
+    const determinism::FusionCertification& certification,
+    std::optional<std::uint64_t> expected_fingerprint,
     float* dst_rgba,
     const float* src_rgba,
     std::size_t pixels) {
@@ -109,43 +111,29 @@ void write_u32_le(std::uint8_t* p, std::uint32_t v) noexcept {
     if (!(alpha >= 0.0f && alpha <= 1.0f)) return false;
     if (det_raw > 2) return false;
     const auto required = static_cast<determinism::DeterminismClass>(det_raw);
-    if (required == determinism::DeterminismClass::BitExact && certified_flag == 0) return false;
+    if (certified_flag > 1 ||
+        (required == determinism::DeterminismClass::BitExact && certified_flag == 0))
+        return false;
 
-    // Reconstruct a minimal PixelProgram and delegate to its execute path
-    // (kernel dispatch + scratch discipline remains single-authority there).
+    // Raw payloads have no attached evidence, so they are executable only
+    // under the explicitly non-certifying Approximate contract.
+    if (        !expected_fingerprint && required != determinism::DeterminismClass::Approximate)
+        return false;
+    if (expected_fingerprint &&
+        required != determinism::DeterminismClass::Approximate &&
+        !certification.bound_to(*expected_fingerprint))
+        return false;
+    if (!expected_fingerprint && required == determinism::DeterminismClass::Approximate) {
+        // Approximate raw payload execution has no attached evidence.
+    } else if (!certification.permits(required)) {
+        return false;
+    }
+
     PixelProgram program = make_pilot_program(cm, alpha, blend_mode, pixels);
     program.determinism_contract.required = required;
-    // Encode certification as bit_exact evidence: the payload carries the
-    // already-checked flag, so re-derive a minimal cert that satisfies
-    // permits() for the lowering-time determinism class.
-    if (certified_flag != 0) {
-        program.certification.reference_sha256 = "payload-certified";
-        program.certification.fused_sha256 = program.certification.reference_sha256;
-        program.certification.same_plan = true;
-        program.certification.same_assets = true;
-        program.certification.same_environment = true;
-        program.certification.same_chronon_version = true;
-    }
-    // Approximate permits anything; DeterministicWithinPlatform without
-    // BitExact evidence is still permitted by FusionCertification::permits
-    // only when max_ulp_error <= 1 and has_common_inputs. For the payload
-    // path, uncertified Approximate/DeterministicWithinPlatform should
-    // execute — the payload flag distinguishes the BitExact gate above.
-    if (required != determinism::DeterminismClass::BitExact && certified_flag == 0) {
-        // Allow execution: clear certification to the harness-provided
-        // "no evidence needed" path for Approximate. For DeterministicWithinPlatform
-        // without evidence, the payload was lowered as Approximate-safe, so
-        // execute with Approximate semantics.
-        if (required == determinism::DeterminismClass::Approximate) {
-            program.certification = {};
-        } else {
-            // DeterministicWithinPlatform uncertified -> treat as Approximate
-            // for payload execution (same bytes, same kernel, just no bit claim).
-            program.determinism_contract.required =
-                determinism::DeterminismClass::Approximate;
-            program.certification = {};
-        }
-    }
+    if (expected_fingerprint && program.fingerprint() != *expected_fingerprint)
+        return false;
+    program.certification = certification;
     return program.execute(dst_rgba, src_rgba, pixels);
 }
 
@@ -229,16 +217,40 @@ DeviceProgramKey make_device_program_key(
 LoweringResult lower_to_cpu(const PixelProgram& program) noexcept {
     if (!program.is_valid()) {
         return {LoweringStatus::InvalidProgram,
-                "PixelProgram is not a valid canonical pilot triple", {}};
+                "PixelProgram v2 is malformed or violates the supported operation contracts", {}};
     }
     if (!program.certified_for_execution()) {
         return {LoweringStatus::UncertifiedBitExact,
                 "BitExact PixelProgram requires an exact FusionCertification", {}};
     }
+    if (!is_canonical_pilot_triple(program)) {
+        return {LoweringStatus::UnsupportedTarget,
+                "CPU DeviceProgram payload ABI currently supports only the v1 pilot triple; v2 stack lowering remains fail-closed", {}};
+    }
     LoweringResult result;
     result.status = LoweringStatus::Ok;
     result.payload = encode_cpu_payload(program);
+    result.device_program.key_ = make_device_program_key(program, DeviceTarget::CpuSimd);
+    result.device_program.payload_ = result.payload;
+    result.device_program.certification_ = program.certification;
     return result;
+}
+
+bool execute_lowered_cpu(
+    const DeviceProgram& device_program,
+    float* dst_rgba,
+    const float* src_rgba,
+    std::size_t pixels) noexcept {
+    if (device_program.key_.target != DeviceTarget::CpuSimd ||
+        device_program.key_.backend_abi_version != kPixelProgramAbiVersion ||
+        (device_program.key_.determinism_class != determinism::DeterminismClass::Approximate &&
+         !device_program.certification_.bound_to(
+             device_program.key_.pixel_program_fingerprint)) ||
+        !device_program.certification_.permits(device_program.key_.determinism_class))
+        return false;
+    return decode_and_execute_cpu_payload(device_program.payload_,
+        device_program.certification_, device_program.key_.pixel_program_fingerprint,
+        dst_rgba, src_rgba, pixels);
 }
 
 bool execute_lowered_cpu(
@@ -246,13 +258,14 @@ bool execute_lowered_cpu(
     float* dst_rgba,
     const float* src_rgba,
     std::size_t pixels) noexcept {
-    return decode_and_execute_cpu_payload(payload, dst_rgba, src_rgba, pixels);
+    return decode_and_execute_cpu_payload(payload, {}, std::nullopt,
+                                          dst_rgba, src_rgba, pixels);
 }
 
 LoweringResult lower_to_spirv(const PixelProgram& program) noexcept {
     (void)program;
     return {LoweringStatus::UnsupportedTarget,
-            "SPIR-V lowering is reserved until PixelProgram v1 + SLANG ENTRY GATE", {}};
+            "SPIR-V lowering is reserved until the PixelProgram v2 device-kernel entry gate", {}};
 }
 
 LoweringResult lower_to_ptx(const PixelProgram& program) noexcept {

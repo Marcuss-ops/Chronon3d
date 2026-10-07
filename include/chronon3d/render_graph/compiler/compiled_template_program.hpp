@@ -60,15 +60,25 @@ struct CompiledTemporalInfo {
 /// Result of the temporal analysis pass.
 struct TemporalAnalysisResult {
     std::vector<CompiledTemporalInfo> per_node;
+    /// Deterministic fingerprint of the compiled temporal dependency graph
+    /// (stable node identities, temporal classes, cache policy and input edges).
+    /// This is NOT a per-property evaluation schedule; animation property
+    /// payloads are not represented by CompiledNodeInfo yet.
+    std::uint64_t dependency_fingerprint{0};
     std::size_t static_count{0};
     std::size_t total_count{0};
+
+    [[nodiscard]] bool fingerprint_valid() const noexcept {
+        return dependency_fingerprint != 0;
+    }
+
+    [[nodiscard]] bool empty() const noexcept { return per_node.empty(); }
 
     [[nodiscard]] TemporalClass classification(GraphNodeId id) const noexcept {
         if (id >= per_node.size()) return TemporalClass::ExternalDynamic;
         return per_node[id].classification;
     }
 
-    [[nodiscard]] bool empty() const noexcept { return per_node.empty(); }
 };
 
 // ── Fase C — physical resource types ────────────────────────────────────────
@@ -211,14 +221,15 @@ struct ResourceManifest {
 
 // ── StaticBakeRegion ────────────────────────────────────────────────────────
 //
-/// Evolved from StaticSubgraphBakePass.  The compiler bakes the largest
-/// static island reachable from `root`; `members` lists every node inside
-/// that island (Fase A: empty; Phase C fills via discovery).
+/// Compiler-discovered static candidate. Pixel baking is a separate runtime
+/// operation and `is_baked` stays false until surface pixels are published.
 struct StaticBakeRegion {
     std::uint32_t                  bake_id{0};
     GraphNodeId                    root{k_invalid_node};
-    std::vector<GraphNodeId>       members;       // empty in Fase A
-    std::uint64_t                  fingerprint{0}; // from static_fingerprint
+    std::vector<GraphNodeId>       members;       // statically classified candidates
+    std::uint64_t                  fingerprint{0}; // candidate dependency fingerprint
+    /// True only after pixel production and surface publication succeed.
+    /// Compiler discovery alone never sets this flag.
     bool                           is_baked{false};
 };
 
@@ -290,12 +301,10 @@ struct CompiledTemplateProgram {
     }
 };
 
-// ── PreparedFrameProgram (Fase 4 — static bake in prepare) ──────────────────
+// ── PreparedFrameProgram (prepare metadata; static baking not implemented) ──
 //
-/// Result of the prepare() phase.  Pre-computes everything the frame loop
-/// needs so render(f) is a pure dispatch — no allocation, no shaping,
-/// no upload, no bake.  Baked surfaces are produced once in prepare() and
-/// reused across all frames.
+/// Result of the prepare() phase. Static-region candidates remain executable
+/// until a real pixel producer and surface-authority consumer are connected.
 struct BakedSurfaceHandle {
     std::uint32_t index{0};
     [[nodiscard]] bool valid() const noexcept { return index != 0; }
@@ -305,21 +314,20 @@ struct PreparedStaticBake {
     std::uint32_t bake_id{0};
     GraphNodeId   root{k_invalid_node};
     BakedSurfaceHandle surface;
-    std::vector<GraphNodeId> interior_nodes;  // members that are fully skipped
+    std::vector<GraphNodeId> interior_nodes;  // populated only for verified baked output
 };
 
-/// Holds everything the prepare() phase produces.  After prepare(), the
-/// per-frame render() path never allocates surfaces, never shapes fonts,
-/// never uploads glyphs, and never bakes static regions.
+/// Holds prepare-phase metadata. It does not claim to own baked pixels or
+/// suppress execution of static candidates.
 struct PreparedFrameProgram {
-    /// Mask of nodes to skip during frame execution (interior static nodes
-    /// whose output has been pre-baked).
+    /// Skip mask reserved for verified baked output. It remains all-false until
+    /// a real bake surface has been produced and published.
     std::vector<bool> interior_node_skip;
 
-    /// Per-region bake results.  bake_id → prepared region.
+    /// Reserved for verified bake outputs; metadata-only prepare leaves empty.
     std::unordered_map<std::uint32_t, PreparedStaticBake> baked_regions;
 
-    /// Total interior nodes skipped per frame (telemetry).
+    /// Total interior nodes skipped per frame; zero until verified bake support.
     std::size_t skipped_interior_nodes{0};
 
     bool valid{false};
@@ -331,10 +339,8 @@ struct PreparedFrameProgram {
 ///
 /// The caller owns the returned program and must keep it alive for the
 /// lifetime of the frame loop.
-///
-/// For Phase 4 the implementation bakes maximal static islands and
-/// pre-resolves surface residency.  Font shaping / glyph upload / descriptor
-/// table preallocation land in subsequent phases.
+/// Static island discovery is metadata-only; this function must not skip nodes
+/// until a verified baked surface is available through the surface authority.
 [[nodiscard]] PreparedFrameProgram prepare(const CompiledTemplateProgram& program);
 
 /// Phase 5 — pre-allocate every physical GPU surface from the canonical
@@ -369,10 +375,9 @@ compile_template_program(CompiledFrameGraph compiled);
 
 // ── Fase B — temporal analysis entry points ─────────────────────────────────
 //
-/// Topological temporal classification.  The rule: a node is Static when its
-/// own state is static AND all its inputs are static.  Derived classes are
-/// ranked (TransformDynamic < ParameterDynamic < ContentDynamic <
-/// ExternalDynamic) and propagated along the graph.
+/// Topological temporal classification. A deterministic dependency
+/// fingerprint accompanies the propagated class. This is not a schedule for
+/// individual animated properties; those are not present in this compiled IR.
 [[nodiscard]] TemporalAnalysisResult classify_temporal(
     const CompiledFrameGraph& compiled);
 

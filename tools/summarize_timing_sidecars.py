@@ -157,6 +157,53 @@ def load_job_metrics(file_path: Path) -> Optional[dict[str, Any]]:
     return metrics
 
 
+def aggregate_effect_usage(files: list[Path]) -> dict[str, Any]:
+    """Rank native effect usage and estimated time from telemetry sidecars.
+
+    `est_ms` is a descriptive estimate, not a counterfactual speedup: per-effect
+    timing is not currently measured, so use total effect-stack CPU time divided
+    evenly over effect executions when that metric is available.
+    """
+    counts: dict[str, dict[str, float]] = {}
+    for path in files:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"[WARN] Failed to read {path}: {exc}", file=sys.stderr)
+            continue
+        usage = data.get("job", {}).get("effect_usage", {})
+        if not isinstance(usage, dict):
+            continue
+        cpu_ms = data.get("job", {}).get("cpu_breakdown", {}).get("effect_stack_total_ms")
+        executions = sum(
+            float(entry.get("native_frames", 0) or 0)
+            + float(entry.get("admission_rejected_frames", 0) or 0)
+            for entry in usage.values() if isinstance(entry, dict)
+        )
+        per_execution_ms = float(cpu_ms or 0.0) / executions if executions else 0.0
+        for effect, entry in usage.items():
+            if not isinstance(entry, dict):
+                continue
+            row = counts.setdefault(effect, {
+                "native_frames": 0.0, "admission_rejected_frames": 0.0,
+                "freq": 0.0, "est_ms": 0.0,
+            })
+            native = float(entry.get("native_frames", 0) or 0)
+            rejected = float(entry.get("admission_rejected_frames", 0) or 0)
+            row["native_frames"] += native
+            row["admission_rejected_frames"] += rejected
+            row["freq"] += native + rejected
+            row["est_ms"] += (native + rejected) * per_execution_ms
+    ranked = sorted(counts.items(), key=lambda item: (-item[1]["freq"], item[0]))
+    return {
+        "schema": "chronon3d.effect-frequency.v1",
+        "source_sidecars": len(files),
+        "data_coverage": "reported sidecars may predate effect_usage telemetry",
+        "estimate_method": "effect_stack_total_ms apportioned equally per observed effect execution; zero when unavailable",
+        "effects": [{"effect": effect, **values} for effect, values in ranked],
+    }
+
+
 def aggregate_dataset(job_metrics_list: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
     if not job_metrics_list:
         return {}
@@ -289,6 +336,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("input_paths", nargs="+", help="Directory or file path(s) to timing.json sidecars")
     parser.add_argument("--gate-b2", action="store_true", help="Enforce Wave B2 performance gate constraints")
     parser.add_argument("--compare", help="Directory with baseline sidecars to compare against")
+    parser.add_argument("--aggregate", choices=["effect_usage"],
+                        help="Write a ranked aggregate report for the selected telemetry")
+    parser.add_argument("--output", help="Write the aggregate JSON report to this path")
     args = parser.parse_args(argv)
 
     files = _find_json_files(args.input_paths)
@@ -296,6 +346,18 @@ def main(argv: list[str]) -> int:
         print(f"[ERROR] No timing sidecar files found in: {args.input_paths}", file=sys.stderr)
         print("GATE_BLOCKED")
         return 2
+
+    if args.aggregate == "effect_usage":
+        report = aggregate_effect_usage(files)
+        rendered = json.dumps(report, indent=2, sort_keys=False) + "\n"
+        if args.output:
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(rendered, encoding="utf-8")
+            print(f"Wrote effect usage report: {output_path}")
+        else:
+            print(rendered, end="")
+        return 0
 
     job_metrics: list[dict[str, Any]] = []
     for fp in files:

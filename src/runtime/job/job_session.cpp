@@ -411,6 +411,7 @@ void JobSession::reset_job() {
     reset_temporal_history();
     reset_scene_state();
     memory_aggregate_state->reset();
+    effect_usage_.reset();
     // FIXING.md H-07 — job-lifetime peak: shrink only when the buffer has
     // grown pathologically (16 MiB ≈ 4× 1080p float scratch). Keeps warm
     // reuse for normal jobs; bounds idle memory for outlier frames.

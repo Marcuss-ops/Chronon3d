@@ -12,12 +12,15 @@ namespace cd = chronon3d::graph::determinism;
 namespace cs = chronon3d::simd;
 
 namespace {
-cd::FusionCertification exact_certificate() {
+cd::FusionCertification exact_certificate(std::uint64_t fingerprint = 1) {
     cd::FusionCertification cert;
-    cert.reference_sha256 = "0123456789abcdef";
+    cert.reference_sha256 = std::string(64, '0');
     cert.fused_sha256 = cert.reference_sha256;
+    cert.program_fingerprint = 1;
     cert.environment_fingerprint = "test-platform";
     cert.chronon_version = "test-sha";
+    cert.comparison_input_fingerprint = std::string(64, '1');
+    cert.program_fingerprint = fingerprint;
     cert.max_ulp_error = 0;
     cert.same_plan = true;
     cert.same_assets = true;
@@ -45,7 +48,7 @@ cg::FusedPixelProgram valid_program() {
 
 TEST_CASE("BitExactContract: 1 ULP is not BitExact") {
     cd::FusionCertification cert = exact_certificate();
-    cert.fused_sha256 = "different";
+    cert.fused_sha256 = std::string(64, '2');
     cert.max_ulp_error = 1;
 
     CHECK_FALSE(cert.bit_exact());
@@ -72,7 +75,7 @@ TEST_CASE("FusedPixelProgram: BitExact is fail-closed without certificate") {
 
 TEST_CASE("FusedPixelProgram: exact certificate enables certified execution") {
     auto program = valid_program();
-    program.certification = exact_certificate();
+    program.certification = exact_certificate(program.fingerprint());
     CHECK(program.certified_for_execution());
     CHECK(program.bytes_saved() == 3u * 1920u * 1080u * 16u);
 
@@ -87,7 +90,7 @@ TEST_CASE("FusedPixelProgram: exact certificate enables certified execution") {
 
 TEST_CASE("FusedPixelProgram: structural guards remain independently fail-closed") {
     auto program = valid_program();
-    program.certification = exact_certificate();
+    program.certification = exact_certificate(program.fingerprint());
     program.guards.dirty_rect_compatible = false;
     CHECK_FALSE(program.certified_for_execution());
 }

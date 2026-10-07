@@ -28,29 +28,9 @@ PhysicalResourcePlan analyze_physical_resources(
         plan.sized_slots.push_back(sized);
     }
 
-    // Static island outputs are job-persistent and must not be hidden inside
-    // the frame-local aliasing peak. The compiler already certified the
-    // island roots in `compiled.program.static_bakes`; charge one retained
-    // surface per root through the same resource table.
-    std::vector<GraphNodeId> charged_roots;
-    charged_roots.reserve(compiled.program.static_bakes.size());
-    for (const auto& bake : compiled.program.static_bakes) {
-        if (bake.root_node == k_invalid_node ||
-            std::find(charged_roots.begin(), charged_roots.end(), bake.root_node) !=
-                charged_roots.end()) {
-            continue;
-        }
-        const auto* resource = alloc.resource_for(bake.root_node);
-        if (!resource) continue;
-        charged_roots.push_back(bake.root_node);
-        ++plan.baked_surface_count;
-        const auto fallback_bytes = resource->desc.bytes != 0
-            ? resource->desc.bytes
-            : resource->desc.width * resource->desc.height * bytes_per_pixel;
-        plan.baked_surface_bytes += resource->physical.allocation_bytes != 0
-            ? static_cast<std::uint64_t>(resource->physical.allocation_bytes)
-            : static_cast<std::uint64_t>(fallback_bytes);
-    }
+    // No static-island bake producer is connected to the runtime yet. Do not
+    // count candidate roots as retained baked surfaces; their ordinary
+    // execution allocations are already represented by the compiled table.
 
     return plan;
 }

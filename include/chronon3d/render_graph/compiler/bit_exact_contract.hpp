@@ -29,10 +29,26 @@ struct BitExactContract {
 /// the same plan/assets/environment/version. Runtime/compiler code only consumes
 /// the resulting immutable evidence; it does not invent certification.
 struct FusionCertification {
+    [[nodiscard]] static bool is_sha256_hex(std::string_view value) noexcept {
+        if (value.size() != 64) return false;
+        for (const char ch : value) {
+            if (!((ch >= '0' && ch <= '9') ||
+                  (ch >= 'a' && ch <= 'f') ||
+                  (ch >= 'A' && ch <= 'F'))) return false;
+        }
+        return true;
+    }
+
     std::string reference_sha256;
     std::string fused_sha256;
     std::string environment_fingerprint;
     std::string chronon_version;
+    // Harness provenance: identifies the exact initial/source pixels, plan,
+    // assets, environment, frame extent/index and execution slot compared.
+    std::string comparison_input_fingerprint;
+    std::uint64_t frame_index{0};
+    std::uint32_t slot_index{0};
+    std::uint64_t program_fingerprint{0};
     std::uint32_t max_ulp_error{0};
     bool same_plan{false};
     bool same_assets{false};
@@ -40,17 +56,24 @@ struct FusionCertification {
     bool same_chronon_version{false};
 
     [[nodiscard]] bool has_common_inputs() const noexcept {
-        return same_plan && same_assets && same_environment && same_chronon_version;
+        return same_plan && same_assets && same_environment && same_chronon_version &&
+               !environment_fingerprint.empty() && !chronon_version.empty() &&
+               is_sha256_hex(comparison_input_fingerprint);
+    }
+
+    [[nodiscard]] bool bound_to(std::uint64_t fingerprint) const noexcept {
+        return fingerprint != 0 && program_fingerprint == fingerprint;
     }
 
     [[nodiscard]] bool bit_exact() const noexcept {
-        return has_common_inputs() &&
-               !reference_sha256.empty() &&
-               reference_sha256 == fused_sha256;
+        return has_common_inputs() && is_sha256_hex(reference_sha256) &&
+               is_sha256_hex(fused_sha256) && reference_sha256 == fused_sha256 &&
+               max_ulp_error == 0;
     }
 
     [[nodiscard]] bool deterministic_within_platform() const noexcept {
-        return has_common_inputs() && max_ulp_error <= 1;
+        return has_common_inputs() && max_ulp_error <= 1 &&
+               is_sha256_hex(reference_sha256) && is_sha256_hex(fused_sha256);
     }
 
     [[nodiscard]] bool permits(DeterminismClass required) const noexcept {

@@ -1,3 +1,5 @@
+#include <chronon3d/core/hash/hash_builder.hpp>
+
 namespace {
 
 // ── Temporal classification rank ────────────────────────────────────────────
@@ -86,24 +88,87 @@ namespace {
     return TemporalClass::Static;
 }
 
-/// FNV-1a fingerprint over a deterministic member set (stable node ids).
+/// Fingerprint the temporal dependency graph independently of seek/render
+/// order. Stable IDs and sorted edges are used rather than transient graph
+/// addresses; cache policy and derived class participate in invalidation.
+[[nodiscard]] std::uint64_t temporal_dependency_fingerprint(
+    const CompiledFrameGraph& compiled,
+    const TemporalAnalysisResult& temporal) {
+    core::hash::HashBuilder hash;
+    hash.add("chronon.temporal-dependencies.v1");
+    hash.add(static_cast<std::uint64_t>(compiled.nodes.size()));
+    std::vector<const CompiledNodeInfo*> nodes;
+    nodes.reserve(compiled.nodes.size());
+    for (const auto& node : compiled.nodes) nodes.push_back(&node);
+    std::sort(nodes.begin(), nodes.end(), [](const auto* lhs, const auto* rhs) {
+        return lhs->stable_node_id.value < rhs->stable_node_id.value;
+    });
+    for (const auto* node : nodes) {
+        hash.add(node->stable_node_id.value);
+        hash.add_enum(node->kind);
+        hash.add(node->shape_type);
+        hash.add_enum(node->cache_policy.mode);
+        hash.add_enum(node->cache_policy.invalidation);
+        hash.add_enum(node->cache_policy.temporal_class);
+        hash.add(node->cache_policy.reason);
+        const auto classification = node->id < temporal.per_node.size()
+            ? temporal.per_node[node->id].classification
+            : TemporalClass::ExternalDynamic;
+        hash.add_enum(classification);
+        std::vector<std::uint64_t> inputs;
+        inputs.reserve(node->inputs.size());
+        for (const auto input : node->inputs) {
+            inputs.push_back(input < compiled.nodes.size()
+                ? compiled.nodes[input].stable_node_id.value : std::uint64_t{0});
+        }
+        std::sort(inputs.begin(), inputs.end());
+        hash.add(static_cast<std::uint64_t>(inputs.size()));
+        for (const auto input : inputs) hash.add(input);
+    }
+    const auto result = hash.finish();
+    return result == 0 ? 1 : result;
+}
+
+/// FNV-compatible stable candidate-region fingerprint. The candidate is
+/// metadata, not proof that pixels have been baked.
 [[nodiscard]] std::uint64_t region_fingerprint(
     const std::vector<GraphNodeId>& members,
-    const CompiledFrameGraph& compiled) noexcept {
-    std::uint64_t h = 1469598103934665603ULL;  // FNV-1a offset basis
-    auto combine = [&h](std::uint64_t v) noexcept {
-        h ^= v;
-        h *= 1099511628211ULL;
-    };
-    for (const auto id : members) {
-        combine(id);  // node id is deterministic in the compiled graph
-        if (id < compiled.nodes.size()) {
-            combine(compiled.nodes[id].stable_node_id.value);
-            combine(static_cast<std::uint64_t>(compiled.nodes[id].kind));
+    const CompiledFrameGraph& compiled) {
+    core::hash::HashBuilder hash;
+    hash.add("chronon.static-island-candidate.v1");
+    auto ordered_members = members;
+    std::sort(ordered_members.begin(), ordered_members.end(),
+              [&compiled](GraphNodeId lhs, GraphNodeId rhs) {
+                  const auto left = lhs < compiled.nodes.size()
+                      ? compiled.nodes[lhs].stable_node_id.value : 0;
+                  const auto right = rhs < compiled.nodes.size()
+                      ? compiled.nodes[rhs].stable_node_id.value : 0;
+                  return left == right ? lhs < rhs : left < right;
+              });
+    for (const auto id : ordered_members) {
+        if (id >= compiled.nodes.size()) {
+            hash.add(std::uint64_t{0});
+            continue;
         }
+        const auto& node = compiled.nodes[id];
+        hash.add(node.stable_node_id.value);
+        hash.add_enum(node.kind);
+        hash.add(node.shape_type);
+        hash.add_enum(node.cache_policy.mode);
+        hash.add_enum(node.cache_policy.invalidation);
+        hash.add(node.cache_policy.reason);
+        std::vector<std::uint64_t> inputs;
+        inputs.reserve(node.inputs.size());
+        for (const auto input : node.inputs) {
+            inputs.push_back(input < compiled.nodes.size()
+                ? compiled.nodes[input].stable_node_id.value : std::uint64_t{0});
+        }
+        std::sort(inputs.begin(), inputs.end());
+        hash.add(static_cast<std::uint64_t>(inputs.size()));
+        for (const auto input : inputs) hash.add(input);
     }
-    // Guard against the null fingerprint (0).
-    return h == 0 ? 1 : h;
+    const auto result = hash.finish();
+    return result == 0 ? 1 : result;
 }
 
 ResourceKind classify_binding_kind(RenderGraphNodeKind node_kind,

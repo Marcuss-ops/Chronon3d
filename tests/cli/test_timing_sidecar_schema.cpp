@@ -47,7 +47,7 @@ const std::set<std::string>& frozen_job_keys() {
         "render_loop_wall_ms", "encoder_finalize_ms", "mux_finalize_ms",
         "output_finalize_ms", "validation_ms", "ffprobe_ms", "sha256_ms",
         "full_file_reread_count", "hash", "pipeline", "encoder_settings",
-        "gpu", "prepare", "image", "text", "encoder",
+        "gpu", "effect_usage", "prepare", "image", "text", "encoder",
     };
     return keys;
 }
@@ -84,7 +84,7 @@ SidecarContext context_with_one_frame(double wall_time_ms, double render_ms) {
 
 } // namespace
 
-TEST_CASE("video timing sidecar emits one v2 document with an inline summary") {
+TEST_CASE("video timing sidecar emits one v3 document with an inline summary") {
     const auto video = std::filesystem::temp_directory_path()
         / "chronon3d_timing_sidecar_schema_test.mp4";
     const auto sidecar = std::filesystem::path(video.string() + ".timing.json");
@@ -105,9 +105,12 @@ TEST_CASE("video timing sidecar emits one v2 document with an inline summary") {
     std::ifstream input(sidecar);
     const auto document = nlohmann::json::parse(input);
 
+    CHECK(chronon3d::cli::pipe_timing::kTimingSidecarSchema ==
+          "chronon3d.frame-timing.v3");
+    CHECK(chronon3d::cli::pipe_timing::kTimingSidecarVersion == 3);
     CHECK(document.at("schema") == chronon3d::cli::pipe_timing::kTimingSidecarSchema);
     CHECK(document.at("version") == chronon3d::cli::pipe_timing::kTimingSidecarVersion);
-    const std::set<std::string> v2_keys{
+    const std::set<std::string> v3_additive_keys{
         "schema", "version", "video", "wall_time_ms", "render_ms",
         "encode_close_ms", "frames_total", "time_source", "frame_times_ms",
         "summary", "job", "cache", "memory", "exclusive_wall_timeline",
@@ -116,7 +119,7 @@ TEST_CASE("video timing sidecar emits one v2 document with an inline summary") {
     };
     std::set<std::string> emitted_keys;
     for (const auto& item : document.items()) emitted_keys.insert(item.key());
-    CHECK(emitted_keys == v2_keys);
+    CHECK(emitted_keys == v3_additive_keys);
     CHECK_FALSE(std::filesystem::exists(legacy_summary));
 
     std::filesystem::remove(sidecar);
@@ -165,6 +168,7 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     timings.encoder_settings.async_depth = 3;
     timings.gpu.gpu_readback_bytes = 8192u;
     timings.gpu.nvenc_frames = 100u;
+    timings.effect_usage["effect.color.curves"] = {3u, 1u};
     timings.gpu.cuda_composite_frames = 42u;
     timings.gpu.upload_breakdown["text_atlas"] = 999u;
     timings.prepare.asset_preflight_ms = 4.5;
@@ -192,6 +196,8 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("encoder_settings").at("preset") == "p4");
     CHECK(job.at("encoder_settings").at("async_depth") == 3);
     CHECK(job.at("gpu").at("gpu_readback_bytes") == 8192u);
+    CHECK(job.at("effect_usage").at("effect.color.curves").at("native_frames") == 3u);
+    CHECK(job.at("effect_usage").at("effect.color.curves").at("admission_rejected_frames") == 1u);
     CHECK(job.at("gpu").at("nvenc_frames") == 100u);
     CHECK(job.at("gpu").at("cuda_composite_frames") == 42u);
     CHECK(job.at("gpu").at("upload_breakdown").at("text_atlas") == 999u);
@@ -202,6 +208,8 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("text").at("atlas_cache_hits") == 13u);
     CHECK(job.at("encoder").at("submit_cpu_ms") == 2.5);
     CHECK(job.at("encoder").at("cuda_pending_peak") == 9u);
+    CHECK(job.at("effect_usage").is_object());
+    CHECK(keys_of(job) == frozen_job_keys());
 
     // The derived projections the zero-copy gate reads follow from the typed
     // counters, not from a heuristic on the JSON.
@@ -248,7 +256,6 @@ TEST_CASE("A5 sidecar: the job section key set is frozen") {
     nlohmann::json job = nlohmann::json::object();
     chronon3d::cli::pipe_timing_detail::serialize_job_section(job, timings);
 
-    CHECK(keys_of(job) == frozen_job_keys());
     CHECK(keys_of(job.at("hash")) ==
           std::set<std::string>{"output_write_bytes", "output_seek_count",
                                 "output_overwrite_bytes",
@@ -272,6 +279,17 @@ TEST_CASE("A5 sidecar: the job section key set is frozen") {
     }
     CHECK(job.at("gpu").contains("vma_allocation_count"));
     CHECK(job.at("gpu").contains("video_decode_native_surface_frames"));
+    CHECK(keys_of(job) == frozen_job_keys());
+}
+
+TEST_CASE("timing sidecar v3 effect usage is additive and empty when unmeasured") {
+    JobTimings timings;
+    timings.effect_usage["effect.color.vignette"] = {7u, 0u};
+    nlohmann::json job = nlohmann::json::object();
+    chronon3d::cli::pipe_timing_detail::serialize_job_section(job, timings);
+    CHECK(job.at("effect_usage").at("effect.color.vignette").at("native_frames") == 7u);
+    CHECK(job.at("effect_usage").at("effect.color.vignette").at("admission_rejected_frames") == 0u);
+    CHECK(keys_of(job) == frozen_job_keys());
 }
 
 TEST_CASE("A5 sidecar: the summary serializer freezes its key set and its derived rates") {

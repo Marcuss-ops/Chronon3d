@@ -4,6 +4,7 @@
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/core/error.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/effects/effect_type.hpp>
 #include <chronon3d/runtime/dirty_history.hpp>
 #include <chronon3d/runtime/frame_history.hpp>
 #include <chronon3d/runtime/frame/frame_queue.hpp>
@@ -21,6 +22,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <atomic>
 #include <array>
 #include <memory>
 #include <optional>
@@ -84,6 +86,64 @@ struct JobCounters {
     std::uint64_t frames_failed{0};
 };
 
+/// Per-job route telemetry. EffectType values are explicitly assigned and
+/// sparse; the fixed array is indexed by the stable numeric value, with slot 0
+/// reserved for Unknown. Counters observe route decisions only and never
+/// participate in dispatch/admission. kEffectTypeCount must cover the catalog's
+/// highest explicitly assigned enum value (currently 47).
+inline constexpr std::size_t kEffectTypeCount = 48;
+struct AtomicEffectUsagePair {
+    std::atomic<std::uint64_t> native_frames{0};
+    std::atomic<std::uint64_t> admission_rejected_frames{0};
+};
+struct EffectUsageCounters {
+    std::array<AtomicEffectUsagePair, kEffectTypeCount> by_type{};
+
+    EffectUsageCounters() = default;
+    EffectUsageCounters(const EffectUsageCounters&) = delete;
+    EffectUsageCounters& operator=(const EffectUsageCounters&) = delete;
+    EffectUsageCounters(EffectUsageCounters&& other) noexcept {
+        for (std::size_t index = 0; index < by_type.size(); ++index) {
+            by_type[index].native_frames.store(
+                other.by_type[index].native_frames.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            by_type[index].admission_rejected_frames.store(
+                other.by_type[index].admission_rejected_frames.load(
+                    std::memory_order_relaxed), std::memory_order_relaxed);
+        }
+    }
+    EffectUsageCounters& operator=(EffectUsageCounters&& other) noexcept {
+        if (this == &other) return *this;
+        for (std::size_t index = 0; index < by_type.size(); ++index) {
+            by_type[index].native_frames.store(
+                other.by_type[index].native_frames.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            by_type[index].admission_rejected_frames.store(
+                other.by_type[index].admission_rejected_frames.load(
+                    std::memory_order_relaxed), std::memory_order_relaxed);
+        }
+        return *this;
+    }
+
+    void record_native(effects::EffectType type) noexcept {
+        const auto index = static_cast<std::size_t>(type);
+        if (index < by_type.size())
+            by_type[index].native_frames.fetch_add(1, std::memory_order_relaxed);
+    }
+    void record_admission_rejected(effects::EffectType type) noexcept {
+        const auto index = static_cast<std::size_t>(type);
+        if (index < by_type.size())
+            by_type[index].admission_rejected_frames.fetch_add(
+                1, std::memory_order_relaxed);
+    }
+    void reset() noexcept {
+        for (auto& pair : by_type) {
+            pair.native_frames.store(0, std::memory_order_relaxed);
+            pair.admission_rejected_frames.store(0, std::memory_order_relaxed);
+        }
+    }
+};
+
 enum class JobState : std::uint8_t {
     Ready,
     Running,
@@ -144,6 +204,12 @@ public:
 
     [[nodiscard]] JobCounters& counters() noexcept { return counters_; }
     [[nodiscard]] const JobCounters& counters() const noexcept { return counters_; }
+    [[nodiscard]] EffectUsageCounters& effect_usage() noexcept {
+        return effect_usage_;
+    }
+    [[nodiscard]] const EffectUsageCounters& effect_usage() const noexcept {
+        return effect_usage_;
+    }
 
     /// Start a new explicit job boundary. A session can be reused for a
     /// sequence of independent renders, so this clears only the prior job
@@ -393,6 +459,7 @@ private:
     std::uint64_t job_id_{0};
     CancellationToken cancellation_;
     JobCounters counters_{};
+    EffectUsageCounters effect_usage_{};
     std::shared_ptr<JobStatus> status_{std::make_shared<JobStatus>()};
     std::shared_ptr<NativeEchoHistoryState> native_echo_history_;
     std::array<std::unique_ptr<TemporalSampleWorkspace>, kPipelineDepth>

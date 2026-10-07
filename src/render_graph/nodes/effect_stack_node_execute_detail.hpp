@@ -198,7 +198,9 @@ NodeExecResult EffectStackNode::execute(
             native_handled = !native_source_promotion_failed;
             for (const auto& effect : active_effects) {
                 const auto* capability = gpu_effect_capability(effect.effect_type);
-                if (!capability || capability->route != GpuEffectRoute::NativeZeroReadback) {
+                const bool admitted = capability &&
+                    capability->route == GpuEffectRoute::NativeZeroReadback;
+                if (!admitted) {
                     native_handled = false;
                     break;
                 }
@@ -270,6 +272,9 @@ NodeExecResult EffectStackNode::execute(
             // host span into a backend upload.
             native_handled = false;
         } else {
+            // Non-strict native attempts are observable but do not affect route
+            // selection; every active effect is recorded after the existing
+            // native helpers determine whether the whole stack was handled.
             native_handled = native_effects::try_native_full_frame_blur(
                 ctx, active_effects, *result, local_clip,
                 gpu_only_input ? inputs[0]->surface_handle()
@@ -307,6 +312,15 @@ NodeExecResult EffectStackNode::execute(
                     ctx, active_effects, *result, local_clip, chromatic_source,
                     chromatic_source != runtime::kInvalidRenderSurfaceHandle ? inputs[0].get() : nullptr);
             }
+        }
+        if (ctx.session && native_handled) {
+            for (const auto& effect : active_effects)
+                ctx.session->effect_usage().record_native(effect.effect_type);
+        } else if (ctx.session &&
+                   (ctx.policy.is_gpu_native_required() || (gpu_only_input && has_echo))) {
+            for (const auto& effect : active_effects)
+                ctx.session->effect_usage().record_admission_rejected(
+                    effect.effect_type);
         }
         if ((ctx.policy.is_gpu_native_required() || (gpu_only_input && has_echo)) &&
             !native_handled) {
