@@ -22,6 +22,10 @@ struct RenderCounters;
 struct EffectScratchResources;
 }   // TICKET-007: per-instance debug gating
 
+namespace chronon3d::runtime {
+struct EffectUsageCounters;
+}
+
 namespace chronon3d::effects {
 
 enum class RenderQuality : uint8_t {
@@ -59,6 +63,13 @@ struct EffectExecutionContext {
     // legacy direct dispatch means the effect can render but cannot retain history.
     std::string_view temporal_history_key{};
     const chronon3d::Framebuffer* second_input{nullptr};
+
+    /// Optional job telemetry sink. Set only by graph execution; direct effect
+    /// processor users remain independent from JobSession ownership.
+    chronon3d::runtime::EffectUsageCounters* effect_usage{nullptr};
+    /// True when software executes this stack because a native-capable backend
+    /// could not handle its effects. Strict-native requests never take this path.
+    bool software_fallback{false};
 };
 
 } // namespace chronon3d::effects

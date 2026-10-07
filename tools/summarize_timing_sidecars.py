@@ -158,12 +158,7 @@ def load_job_metrics(file_path: Path) -> Optional[dict[str, Any]]:
 
 
 def aggregate_effect_usage(files: list[Path]) -> dict[str, Any]:
-    """Rank native effect usage and estimated time from telemetry sidecars.
-
-    `est_ms` is a descriptive estimate, not a counterfactual speedup: per-effect
-    timing is not currently measured, so use total effect-stack CPU time divided
-    evenly over effect executions when that metric is available.
-    """
+    """Rank effects using measured dispatch, fallback, and CPU-time telemetry."""
     counts: dict[str, dict[str, float]] = {}
     for path in files:
         try:
@@ -174,32 +169,38 @@ def aggregate_effect_usage(files: list[Path]) -> dict[str, Any]:
         usage = data.get("job", {}).get("effect_usage", {})
         if not isinstance(usage, dict):
             continue
-        cpu_ms = data.get("job", {}).get("cpu_breakdown", {}).get("effect_stack_total_ms")
-        executions = sum(
-            float(entry.get("native_frames", 0) or 0)
-            + float(entry.get("admission_rejected_frames", 0) or 0)
-            for entry in usage.values() if isinstance(entry, dict)
-        )
-        per_execution_ms = float(cpu_ms or 0.0) / executions if executions else 0.0
         for effect, entry in usage.items():
             if not isinstance(entry, dict):
                 continue
             row = counts.setdefault(effect, {
                 "native_frames": 0.0, "admission_rejected_frames": 0.0,
-                "freq": 0.0, "est_ms": 0.0,
+                "software_dispatches": 0.0, "fallback_count": 0.0,
+                "effect_time_ns": 0.0, "fallback_effect_time_ns": 0.0,
+                "freq": 0.0,
             })
             native = float(entry.get("native_frames", 0) or 0)
             rejected = float(entry.get("admission_rejected_frames", 0) or 0)
+            software = float(entry.get("software_dispatches", 0) or 0)
+            fallback = float(entry.get("fallback_count", 0) or 0)
             row["native_frames"] += native
             row["admission_rejected_frames"] += rejected
-            row["freq"] += native + rejected
-            row["est_ms"] += (native + rejected) * per_execution_ms
-    ranked = sorted(counts.items(), key=lambda item: (-item[1]["freq"], item[0]))
+            row["software_dispatches"] += software
+            row["fallback_count"] += fallback
+            row["effect_time_ns"] += float(entry.get("effect_time_ns", 0) or 0)
+            row["fallback_effect_time_ns"] += float(
+                entry.get("fallback_effect_time_ns", 0) or 0)
+            row["freq"] += native + rejected + software
+    for row in counts.values():
+        row["effect_time_ms"] = row.pop("effect_time_ns") / 1_000_000.0
+        row["fallback_effect_time_ms"] = row.pop("fallback_effect_time_ns") / 1_000_000.0
+    ranked = sorted(counts.items(), key=lambda item: (
+        -item[1]["fallback_count"], -item[1]["freq"],
+        -item[1]["fallback_effect_time_ms"], item[0]))
     return {
-        "schema": "chronon3d.effect-frequency.v1",
+        "schema": "chronon3d.effect-usage.v2",
         "source_sidecars": len(files),
-        "data_coverage": "reported sidecars may predate effect_usage telemetry",
-        "estimate_method": "effect_stack_total_ms apportioned equally per observed effect execution; zero when unavailable",
+        "data_coverage": "sidecars without software_dispatches predate CPU dispatch telemetry; missing values are not inferred",
+        "ranking": "fallback_count, then invocation frequency, then measured fallback CPU time",
         "effects": [{"effect": effect, **values} for effect, values in ranked],
     }
 

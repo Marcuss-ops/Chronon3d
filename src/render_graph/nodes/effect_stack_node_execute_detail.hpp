@@ -128,7 +128,7 @@ NodeExecResult EffectStackNode::execute(
         // single boundary responsible for translating a clip into the
         // framebuffer-local ROI; translating here as well would subtract the
         // ROI origin twice and silently disable effects on cropped layers.
-        const effects::EffectExecutionContext effect_context{
+        effects::EffectExecutionContext effect_context{
             .time_seconds = ctx.frame_input.time_seconds,
             .frame = ctx.frame_input.frame,
             .clip = local_clip,
@@ -139,6 +139,7 @@ NodeExecResult EffectStackNode::execute(
                 .processors_resolved = ctx.node_exec.processor_bindings_compiled,
             .temporal_history_key = m_temporal_history_key
             , .second_input = inputs.size() > 1 ? inputs[1].get() : nullptr
+            , .effect_usage = ctx.session ? &ctx.session->effect_usage() : nullptr
 
         };
         // A producer may already have an authoritative native surface even
@@ -337,6 +338,8 @@ NodeExecResult EffectStackNode::execute(
                 std::move(capability_message)}};
         }
         if (!native_handled && !gpu_only_input) {
+            effect_context.software_fallback =
+                ctx.backend->supports_native_surfaces() && !active_effects.empty();
             ctx.backend->apply_effect_stack(*result, m_effects, effect_context);
         }
         if (ctx.node_exec.counters) {

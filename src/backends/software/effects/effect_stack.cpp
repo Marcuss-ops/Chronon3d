@@ -7,10 +7,14 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
 
 #include <stdexcept>
 #include <vector>
 #include <cmath>
+#include <chrono>
+#include <cstdint>
+#include <algorithm>
 
 namespace chronon3d::renderer {
 
@@ -110,6 +114,9 @@ void apply_effect_stack(
         if (!effect.enabled) continue;
 
         if (append_fusible_stage(effect, context, fused_pipeline)) {
+            if (context.effect_usage)
+                context.effect_usage->record_software_dispatch(
+                    effect.effect_type, context.software_fallback);
             has_fused_stages = true;
             continue;
         }
@@ -142,7 +149,21 @@ void apply_effect_stack(
             if(effect.composition_fps>0.0)
                 effect_context.frame=Frame{static_cast<i64>(std::llround(effect_context.time_seconds*effect.composition_fps))};
         }
+        if (effect_context.effect_usage)
+            effect_context.effect_usage->record_software_dispatch(
+                effect.effect_type, effect_context.software_fallback);
+        const auto effect_started = effect_context.effect_usage
+            ? std::chrono::steady_clock::now()
+            : std::chrono::steady_clock::time_point{};
         processor->apply(fb, effect.params, effect_context);
+        if (effect_context.effect_usage) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - effect_started).count();
+            effect_context.effect_usage->record_software_cpu_time(
+                effect.effect_type,
+                static_cast<std::uint64_t>(std::max<std::int64_t>(elapsed, 0)),
+                effect_context.software_fallback);
+        }
     }
     flush_fused_pipeline();
 }
