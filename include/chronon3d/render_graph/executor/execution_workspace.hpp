@@ -29,6 +29,8 @@ public:
         resolved_cache_hit.clear();
         resolved_bboxes.clear();
         physical_slots.clear();
+        static_bake_member_skip.clear();
+        static_bake_root_index.clear();
     }
     std::vector<CachedFB> temp;
     std::vector<u64> resolved_key_digest;
@@ -36,6 +38,8 @@ public:
     std::vector<char> resolved_cache_hit;
     std::vector<std::optional<raster::BBox>> resolved_bboxes;
     std::vector<OwnedFB> physical_slots;
+    std::vector<char> static_bake_member_skip;
+    std::vector<std::uint32_t> static_bake_root_index;
 
 };
 

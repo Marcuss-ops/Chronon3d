@@ -189,7 +189,11 @@ PlanDimensions extract_plan_dimensions(
 
 DecodedRenderJobPayload decode_render_job_payload(
     const std::string& payload) {
-    const auto request = nlohmann::json::parse(payload);
+    return decode_render_job_payload(nlohmann::json::parse(payload));
+}
+
+DecodedRenderJobPayload decode_render_job_payload(
+    const nlohmann::json& request) {
     reject_unknown_render_job_keys(request);
 
     DecodedRenderJobPayload decoded;

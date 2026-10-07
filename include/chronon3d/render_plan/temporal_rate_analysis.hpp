@@ -20,6 +20,14 @@ struct LayerRateReport {
     std::vector<Frame> eval_frames;
     std::uint64_t eval_frame_count{0};
     bool eval_frames_complete{true};
+    struct PropertySchedule {
+        std::string path;
+        TemporalRateClass rate{TemporalRateClass::Static};
+        std::vector<Frame> eval_frames;
+        std::uint64_t eval_frame_count{0};
+        bool eval_frames_complete{true};
+    };
+    std::vector<PropertySchedule> properties;
 };
 
 struct TemporalRateReport {
@@ -58,7 +66,8 @@ struct TrackFacts { bool animated{false}; bool per_frame{false}; };
 inline void inspect_track(const AnimationTrackPlan& track, TrackFacts& facts) noexcept {
     if (!track_has_samples(track)) return;
     facts.animated = true;
-    facts.per_frame = facts.per_frame || track_is_per_frame(track);
+    facts.per_frame = facts.per_frame || track_is_per_frame(track) ||
+        track.loop_mode != "none";
 }
 inline void inspect_mask(const LayerPlan::PathMaskPlan& mask, TrackFacts& facts) noexcept {
     if (mask.morph_animation) inspect_track(*mask.morph_animation, facts);
@@ -123,9 +132,6 @@ inline void inspect_subpath(const ImportedSubpathPlan& subpath, TrackFacts& fact
             facts.animated = facts.per_frame = true;
     }
     if (layer.shape) {
-        if (layer.shape->fill_gradient_animation) inspect_gradient(*layer.shape->fill_gradient_animation, facts);
-        if (layer.shape->fill_color_animation) inspect_track(*layer.shape->fill_color_animation, facts);
-        if (layer.shape->fill_opacity_animation) inspect_track(*layer.shape->fill_opacity_animation, facts);
         if (layer.shape->field_drift &&
             (layer.shape->field_drift->x != 0.0f || layer.shape->field_drift->y != 0.0f))
             facts.animated = facts.per_frame = true;
@@ -181,10 +187,30 @@ inline void append_event(std::vector<Frame>& out, Frame frame, bool& complete) {
     if (out.size() == kMaxReportedFrames) { complete = false; return; }
     out.push_back(frame);
 }
-inline void append_track_keys(std::vector<Frame>& out, const AnimationTrackPlan& t,
-                              Frame first, Frame end, bool& complete) {
-    for (const auto& key : t.keyframes)
-        if (key.frame >= first && key.frame < end) append_event(out, key.frame, complete);
+inline void append_track_schedule(std::vector<Frame>& out, const AnimationTrackPlan& t,
+                                  Frame first, Frame end, bool& complete) {
+    if (t.keyframes.empty() || end <= first) return;
+    for (std::size_t i = 0; i < t.keyframes.size(); ++i) {
+        const auto& key = t.keyframes[i];
+        if (i + 1 == t.keyframes.size()) {
+            if (key.frame >= first && key.frame < end)
+                append_event(out, key.frame, complete);
+            continue;
+        }
+        const auto& next = t.keyframes[i + 1];
+        const Frame segment_first{std::max(first.integral(), key.frame.integral())};
+        const Frame segment_end{std::min(end.integral(), next.frame.integral())};
+        if (segment_end <= segment_first) continue;
+        const bool hold = key.interpolation
+            ? *key.interpolation == "hold"
+            : (key.easing ? *key.easing == "hold" : t.easing == "hold");
+        if (hold) {
+            if (key.frame >= first && key.frame < end)
+                append_event(out, key.frame, complete);
+        } else {
+            append_range(out, segment_first, segment_end, complete);
+        }
+    }
 }
 inline void append_gradient_keys(std::vector<Frame>& out, const GradientAnimationPlan& t,
                                  Frame first, Frame end, bool& complete) {
@@ -192,10 +218,167 @@ inline void append_gradient_keys(std::vector<Frame>& out, const GradientAnimatio
         if (key.frame >= first && key.frame < end) append_event(out, key.frame, complete);
 }
 
+inline LayerRateReport::PropertySchedule make_property_schedule(
+    std::string path, const AnimationTrackPlan& track, Frame first, Frame end) {
+    LayerRateReport::PropertySchedule property;
+    property.path = std::move(path);
+    property.rate = track_is_per_frame(track) || track.loop_mode != "none"
+        ? TemporalRateClass::PerFrame
+        : (track_has_samples(track) ? TemporalRateClass::KeyframeInterval
+                                    : TemporalRateClass::Static);
+    if (property.rate == TemporalRateClass::PerFrame) {
+        property.eval_frame_count = range_count(first, end);
+        if (property.eval_frame_count <= kMaxReportedFrames)
+            append_range(property.eval_frames, first, end, property.eval_frames_complete);
+        else
+            property.eval_frames_complete = false;
+    } else {
+        append_track_schedule(property.eval_frames, track, first, end,
+                              property.eval_frames_complete);
+        std::sort(property.eval_frames.begin(), property.eval_frames.end());
+        property.eval_frames.erase(std::unique(property.eval_frames.begin(), property.eval_frames.end()),
+                                   property.eval_frames.end());
+        property.eval_frame_count = property.eval_frames.size();
+    }
+    // An incomplete list is diagnostic only. Never expose a prefix as an executable schedule.
+    if (!property.eval_frames_complete) {
+        property.eval_frames.clear();
+        if (property.rate != TemporalRateClass::PerFrame)
+            property.eval_frame_count = 0;
+    }
+    return property;
+}
+
+inline void append_property_schedules(std::vector<LayerRateReport::PropertySchedule>& out,
+                                      const LayerPlan& layer, Frame first, Frame end) {
+    const auto add = [&](std::string path, const AnimationTrackPlan& track) {
+        if (!track_has_samples(track)) return;
+        out.push_back(make_property_schedule(std::move(path), track, first, end));
+    };
+    if (layer.animation) for (const auto& track : layer.animation->tracks)
+        add("animation." + track.property, track);
+    for (std::size_t i = 0; i < layer.text_animators.size(); ++i) {
+        const auto& animator = layer.text_animators[i];
+        for (const auto& track : animator.properties)
+            add("text_animators[" + std::to_string(i) + "]." + track.property, track);
+        for (std::size_t j = 0; j < animator.selectors.size(); ++j) {
+            const auto& selector = animator.selectors[j];
+            const auto prefix = "text_animators[" + std::to_string(i) + "].selectors[" +
+                std::to_string(j) + "].";
+            add(prefix + "start", selector.start); add(prefix + "end", selector.end);
+            add(prefix + "offset", selector.offset); add(prefix + "amount", selector.amount);
+        }
+    }
+    if (layer.follow_path) add("follow_path.progress", layer.follow_path->progress);
+    if (layer.time_remap && layer.time_remap->animation)
+        add("time_remap", *layer.time_remap->animation);
+    for (std::size_t i = 0; i < layer.effect_param_tracks.size(); ++i)
+        add("effect_param_tracks[" + std::to_string(i) + "]." +
+            layer.effect_param_tracks[i].param, layer.effect_param_tracks[i].track);
+    if (layer.path_mask) {
+        const auto& m = *layer.path_mask;
+        if (m.morph_animation) add("path_mask.morph", *m.morph_animation);
+        if (m.feather_track) add("path_mask.feather", *m.feather_track);
+        if (m.expansion_track) add("path_mask.expansion", *m.expansion_track);
+        if (m.opacity_track) add("path_mask.opacity", *m.opacity_track);
+    }
+    for (std::size_t i = 0; i < layer.masks.size(); ++i) {
+        const auto& m = layer.masks[i];
+        const auto prefix = "masks[" + std::to_string(i) + "].";
+        if (m.morph_animation) add(prefix + "morph", *m.morph_animation);
+        if (m.feather_track) add(prefix + "feather", *m.feather_track);
+        if (m.expansion_track) add(prefix + "expansion", *m.expansion_track);
+        if (m.opacity_track) add(prefix + "opacity", *m.opacity_track);
+    }
+    if (layer.shape) {
+        for (std::size_t i = 0; i < layer.shape->imported_subpaths.size(); ++i) {
+            const auto& s = layer.shape->imported_subpaths[i];
+            const auto prefix = "shape.imported_subpaths[" + std::to_string(i) + "].";
+            const std::pair<const char*, const std::optional<AnimationTrackPlan>*> tracks[] = {
+                {"fill_color", &s.fill_color_animation}, {"fill_opacity", &s.fill_opacity_animation},
+                {"stroke_color", &s.stroke_color_animation}, {"stroke_opacity", &s.stroke_opacity_animation},
+                {"stroke_width", &s.stroke_width_animation}, {"svg_opacity", &s.svg_opacity_animation},
+                {"svg_translation", &s.svg_translation_animation}, {"svg_scale", &s.svg_scale_animation},
+                {"svg_rotation", &s.svg_rotation_animation}, {"morph", &s.morph_animation}};
+            for (const auto& [name, track] : tracks)
+                if (*track) add(prefix + name, **track);
+            if (s.lottie_group_transform) {
+                const auto& t = *s.lottie_group_transform;
+                if (t.position_animation) add(prefix + "group.position", *t.position_animation);
+                if (t.scale_animation) add(prefix + "group.scale", *t.scale_animation);
+                if (t.rotation_animation) add(prefix + "group.rotation", *t.rotation_animation);
+                if (t.opacity_animation) add(prefix + "group.opacity", *t.opacity_animation);
+            }
+        }
+        for (std::size_t i = 0; i < layer.shape->operators.size(); ++i) {
+            const auto& op = layer.shape->operators[i];
+            const auto prefix = "shape.operators[" + std::to_string(i) + "].";
+            if (op.morph_animation) add(prefix + "morph", *op.morph_animation);
+            if (op.trim_animation) add(prefix + "trim", *op.trim_animation);
+        }
+    }
+    for (std::size_t i = 0; i < layer.effects.size(); ++i)
+        if (layer.effects[i].time_curve)
+            add("effects[" + std::to_string(i) + "].time_curve", *layer.effects[i].time_curve);
+}
+
+inline void append_builtin_property_schedules(
+    std::vector<LayerRateReport::PropertySchedule>& out,
+    const LayerPlan& layer, TemporalRateClass layer_rate,
+    Frame first, Frame end, Frame duration) {
+    const auto has_prefix = [&out](std::string_view prefix) {
+        return std::any_of(out.begin(), out.end(), [prefix](const auto& item) {
+            return std::string_view{item.path}.starts_with(prefix);
+        });
+    };
+    const auto add_static = [&out](const char* path) {
+        LayerRateReport::PropertySchedule property;
+        property.path = path;
+        property.rate = TemporalRateClass::Static;
+        out.push_back(std::move(property));
+    };
+    const auto add_cue = [&out, first, end, duration](const char* path) {
+        LayerRateReport::PropertySchedule property;
+        property.path = path;
+        property.rate = TemporalRateClass::Cue;
+        if (first < end) {
+            append_event(property.eval_frames, first, property.eval_frames_complete);
+            if (end < duration)
+                append_event(property.eval_frames, end, property.eval_frames_complete);
+        }
+        property.eval_frame_count = property.eval_frames.size();
+        out.push_back(std::move(property));
+    };
+    if (!has_prefix("animation.position") && !has_prefix("follow_path."))
+        add_static("transform.position");
+    if (!has_prefix("animation.scale")) add_static("transform.scale");
+    if (!has_prefix("animation.rotation")) add_static("transform.rotation");
+    if (!has_prefix("animation.opacity")) add_static("opacity");
+    if (layer.start_frame || layer.duration_frames)
+        add_cue("visibility.active");
+    else
+        add_static("visibility.active");
+
+    LayerRateReport::PropertySchedule content;
+    content.path = "content";
+    content.rate = (layer.type == LayerType::Video || layer.type == LayerType::Particles)
+        ? TemporalRateClass::PerFrame : TemporalRateClass::Static;
+    if (content.rate == TemporalRateClass::PerFrame) {
+        content.eval_frame_count = range_count(first, end);
+        if (content.eval_frame_count <= kMaxReportedFrames)
+            append_range(content.eval_frames, first, end, content.eval_frames_complete);
+        else
+            content.eval_frames_complete = false;
+        if (!content.eval_frames_complete) content.eval_frames.clear();
+    }
+    (void)layer_rate;
+    out.push_back(std::move(content));
+}
+
 inline void append_layer_keys(std::vector<Frame>& out, const LayerPlan& layer,
                               Frame duration, bool& complete) {
     const auto [first, end] = active_interval(layer, duration);
-    const auto add = [&](const AnimationTrackPlan& t) { append_track_keys(out, t, first, end, complete); };
+    const auto add = [&](const AnimationTrackPlan& t) { append_track_schedule(out, t, first, end, complete); };
     if (layer.animation) for (const auto& t : layer.animation->tracks) add(t);
     if (layer.fill_gradient_animation) append_gradient_keys(out, *layer.fill_gradient_animation, first, end, complete);
     for (const auto& a : layer.text_animators) {
@@ -205,9 +388,6 @@ inline void append_layer_keys(std::vector<Frame>& out, const LayerPlan& layer,
     if (layer.follow_path) add(layer.follow_path->progress);
     if (layer.time_remap && layer.time_remap->animation) add(*layer.time_remap->animation);
     if (layer.shape) {
-        if (layer.shape->fill_color_animation) add(*layer.shape->fill_color_animation);
-        if (layer.shape->fill_opacity_animation) add(*layer.shape->fill_opacity_animation);
-        if (layer.shape->fill_gradient_animation) append_gradient_keys(out, *layer.shape->fill_gradient_animation, first, end, complete);
         for (const auto& s : layer.shape->imported_subpaths) {
             for (const auto* t : {&s.fill_color_animation, &s.fill_opacity_animation,
                                   &s.stroke_color_animation, &s.stroke_opacity_animation,
@@ -253,6 +433,22 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
     for (const auto& t : tracks) for (const auto& key : t.keyframes)
         if (key.frame >= first && key.frame < end) append_event(out, key.frame, complete);
 }
+[[nodiscard]] inline const char* camera_property_name(CameraPropertyPlan property) noexcept {
+    switch (property) {
+        case CameraPropertyPlan::PositionX: return "position_x";
+        case CameraPropertyPlan::PositionY: return "position_y";
+        case CameraPropertyPlan::PositionZ: return "position_z";
+        case CameraPropertyPlan::RotationX: return "rotation_x";
+        case CameraPropertyPlan::RotationY: return "rotation_y";
+        case CameraPropertyPlan::RotationZ: return "rotation_z";
+        case CameraPropertyPlan::FovDeg: return "fov_deg";
+        case CameraPropertyPlan::Zoom: return "zoom";
+        case CameraPropertyPlan::FocusDistance: return "focus_distance";
+        case CameraPropertyPlan::Aperture: return "aperture";
+        case CameraPropertyPlan::MaxBlur: return "max_blur";
+    }
+    return "unknown";
+}
 } // namespace temporal_rate_detail
 
 [[nodiscard]] inline const char* temporal_rate_class_name(TemporalRateClass rate) noexcept {
@@ -297,11 +493,28 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
         LayerRateReport item;
         item.layer_id = layer.id;
         const auto [first, end] = active_interval(layer, duration);
+        append_property_schedules(item.properties, layer, first, end);
         auto facts = inspect_layer(layer);
         const bool camera_affects = layer.enable_3d || layer.type == LayerType::Mesh;
+        if (camera_affects && plan.camera_animation) {
+            for (const auto& track : *plan.camera_animation) {
+                if (track.keyframes.size() < 2) continue;
+                LayerRateReport::PropertySchedule property;
+                property.path = std::string{"camera."} + camera_property_name(track.property);
+                property.rate = TemporalRateClass::PerFrame;
+                property.eval_frame_count = range_count(first, end);
+                if (property.eval_frame_count <= kMaxReportedFrames)
+                    append_range(property.eval_frames, first, end,
+                                 property.eval_frames_complete);
+                else
+                    property.eval_frames_complete = false;
+                if (!property.eval_frames_complete) property.eval_frames.clear();
+                item.properties.push_back(std::move(property));
+            }
+        }
         if (camera_affects && (camera_shake_active || camera_per_frame))
             facts.animated = facts.per_frame = true;
-        else if (camera_affects && camera_animated) facts.animated = true;
+        else if (camera_affects && camera_animated) facts.animated = facts.per_frame = true;
         const bool subframe =
             (plan.temporal_motion_blur && active_motion_blur(*plan.temporal_motion_blur)) ||
             (layer.motion_blur && active_motion_blur(*layer.motion_blur));
@@ -311,17 +524,27 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
         else if (facts.animated) item.rate = TemporalRateClass::KeyframeInterval;
         else if (layer.start_frame || layer.duration_frames) item.rate = TemporalRateClass::Cue;
 
-        if (item.rate == TemporalRateClass::PerFrame || item.rate == TemporalRateClass::Subframe ||
-            item.rate == TemporalRateClass::Cue) {
+        if (item.rate == TemporalRateClass::PerFrame || item.rate == TemporalRateClass::Subframe) {
             item.eval_frame_count = range_count(first, end);
-            append_range(item.eval_frames, first, end, item.eval_frames_complete);
+            if (item.eval_frame_count <= kMaxReportedFrames)
+                append_range(item.eval_frames, first, end, item.eval_frames_complete);
+            else
+                item.eval_frames_complete = false;
+        } else if (item.rate == TemporalRateClass::Cue) {
+            // A cue changes activity at its half-open interval boundaries.
+            // The layer need not be reevaluated for every frame while its
+            // static content remains active; the end event invalidates the
+            // previous composite when the layer becomes inactive.
+            if (first < end) {
+                append_event(item.eval_frames, first, item.eval_frames_complete);
+                if (end < duration)
+                    append_event(item.eval_frames, end, item.eval_frames_complete);
+            }
         } else if (item.rate == TemporalRateClass::KeyframeInterval) {
             append_layer_keys(item.eval_frames, layer, duration, item.eval_frames_complete);
             if (camera_affects && plan.camera_animation)
                 append_camera_keys(item.eval_frames, *plan.camera_animation, first, end,
                                    item.eval_frames_complete);
-            if (layer.start_frame || layer.duration_frames)
-                append_range(item.eval_frames, first, end, item.eval_frames_complete);
         }
         std::sort(item.eval_frames.begin(), item.eval_frames.end());
         item.eval_frames.erase(std::unique(item.eval_frames.begin(), item.eval_frames.end()),
@@ -330,8 +553,11 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
             item.eval_frames.resize(kMaxReportedFrames);
             item.eval_frames_complete = false;
         }
-        if (item.rate == TemporalRateClass::KeyframeInterval)
+        if (item.rate == TemporalRateClass::Cue ||
+            item.rate == TemporalRateClass::KeyframeInterval)
             item.eval_frame_count = static_cast<std::uint64_t>(item.eval_frames.size());
+        append_builtin_property_schedules(
+            item.properties, layer, item.rate, first, end, duration);
         if (item.rate == TemporalRateClass::Static || item.rate == TemporalRateClass::Cue) ++skippable;
         report.layers.push_back(std::move(item));
     }

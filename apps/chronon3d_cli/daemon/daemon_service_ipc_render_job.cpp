@@ -8,12 +8,16 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/job/render_job_request.hpp>
 
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace chronon3d::cli {
 
@@ -31,6 +35,17 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
             } catch (const std::exception& e) {
                 return ipc::Reply{ipc::Status::BadRequest,
                                   std::string{"RENDER_JOB parse failed: "} + e.what()};
+            }
+            return handle_render_job_request(std::move(job_request), std::move(job_id));
+}
+
+ipc::Reply DaemonService::handle_render_job_request(
+    runtime::job::RenderJobRequest job_request, std::string job_id,
+    bool batch_member) {
+            std::shared_lock<std::shared_mutex> single_job_guard;
+            if (!batch_member) {
+                single_job_guard = std::shared_lock<std::shared_mutex>(
+                    m_render_batch_domain_mutex);
             }
             if (!job_id.empty() && !begin_job_status(job_id)) {
                 return ipc::Reply{ipc::Status::BadRequest,
@@ -144,6 +159,13 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
             }
             video_execution->reservation = std::move(reservation);
             video_execution->video_runtimes = m_video_runtimes;
+            {
+                std::lock_guard lock(m_video_render_states_mutex);
+                if (const auto it = m_video_render_states.find(reserved_device);
+                    it != m_video_render_states.end()) {
+                    video_execution->persistent_render_state = it->second;
+                }
+            }
 
             // Warm renderer is runtime state of ONE execution authority, not a
             // second dispatcher: null on the Direct-YUV path is a normal job.
@@ -159,7 +181,7 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
                 auto& dispatcher = render_job_dispatcher();
                 if (dispatcher) {
                     reply = dispatcher(resolved, std::move(warm_renderer),
-                                      std::move(video_execution));
+                                      video_execution);
                 } else {
                     reply = ipc::Reply{ipc::Status::NotFound,
                                       "RENDER_JOB unavailable: render group not compiled"};
@@ -168,6 +190,12 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
                 spdlog::error("[daemon] RENDER_JOB dispatcher exception: {}", e.what());
                 reply = ipc::Reply{ipc::Status::Error,
                                   std::string{"RENDER_JOB failed: "} + e.what()};
+            }
+
+            if (video_execution->persistent_render_state) {
+                std::lock_guard lock(m_video_render_states_mutex);
+                m_video_render_states.insert_or_assign(
+                    reserved_device, video_execution->persistent_render_state);
             }
 
             // Release execution context and reservation to return credits immediately
@@ -181,6 +209,65 @@ ipc::Reply DaemonService::handle_render_job_payload(const std::string& payload) 
                 reply.message);
 
             return reply;
+}
+
+ipc::Reply DaemonService::ipc_render_batch(const std::string& payload) {
+    constexpr std::size_t kMaxBatchJobs = 64;
+    std::vector<std::pair<runtime::job::RenderJobRequest, std::string>> jobs;
+    try {
+        const auto request = nlohmann::json::parse(payload);
+        if (!request.is_object() || request.size() != 1 ||
+            !request.contains("jobs") || !request.at("jobs").is_array()) {
+            return ipc::Reply{ipc::Status::BadRequest,
+                "RENDER_BATCH payload must be {\"jobs\":[render-job, ...]}"};
+        }
+        const auto& encoded_jobs = request.at("jobs");
+        if (encoded_jobs.empty() || encoded_jobs.size() > kMaxBatchJobs) {
+            return ipc::Reply{ipc::Status::BadRequest,
+                "RENDER_BATCH jobs must contain between 1 and 64 entries"};
+        }
+        jobs.reserve(encoded_jobs.size());
+        std::unordered_map<std::string, bool> seen_job_ids;
+        for (std::size_t i = 0; i < encoded_jobs.size(); ++i) {
+            auto decoded = decode_render_job_payload(encoded_jobs[i]);
+            if (!decoded.job_id.empty() &&
+                !seen_job_ids.emplace(decoded.job_id, true).second) {
+                return ipc::Reply{ipc::Status::BadRequest,
+                    "RENDER_BATCH contains duplicate job_id '" + decoded.job_id + "'"};
+            }
+            jobs.emplace_back(std::move(decoded.request), std::move(decoded.job_id));
+        }
+    } catch (const std::exception& e) {
+        return ipc::Reply{ipc::Status::BadRequest,
+            std::string{"RENDER_BATCH parse failed: "} + e.what()};
+    }
+
+    // Once admitted, the sequence is one render-domain transaction: a
+    // standalone RENDER_JOB waits until all batch outputs finish, so device
+    // and renderer warm state stays useful across adjacent jobs.
+    std::unique_lock<std::shared_mutex> batch_guard(m_render_batch_domain_mutex);
+    nlohmann::json results = nlohmann::json::array();
+    bool all_ok = true;
+    for (std::size_t i = 0; i < jobs.size(); ++i) {
+        ipc::Reply reply;
+        try {
+            reply = handle_render_job_request(
+                std::move(jobs[i].first), std::move(jobs[i].second), true);
+        } catch (const std::exception& e) {
+            reply = ipc::Reply{ipc::Status::Error,
+                std::string{"RENDER_BATCH job failed: "} + e.what()};
+        } catch (...) {
+            reply = ipc::Reply{ipc::Status::Error,
+                "RENDER_BATCH job failed with an unknown exception"};
+        }
+        all_ok = all_ok && reply.status == ipc::Status::Ok;
+        results.push_back({
+            {"index", i},
+            {"status", reply.status == ipc::Status::Ok ? "ok" : "error"},
+            {"message", std::move(reply.message)}});
+    }
+    return ipc::Reply{all_ok ? ipc::Status::Ok : ipc::Status::Error,
+        nlohmann::json{{"results", std::move(results)}}.dump()};
 }
 
 } // namespace chronon3d::cli

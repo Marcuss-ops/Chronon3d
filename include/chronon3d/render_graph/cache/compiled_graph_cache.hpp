@@ -45,6 +45,10 @@ public:
     /// Drop the cached graph.
     void reset();
 
+    /// Drop run-time baked outputs while retaining the compiled graph. Job
+    /// boundaries call this after source assets/settings may have changed.
+    void reset_static_bakes() noexcept;
+
 private:
     std::unique_ptr<CompiledFrameGraph> m_cached;
     int m_cached_width{0};

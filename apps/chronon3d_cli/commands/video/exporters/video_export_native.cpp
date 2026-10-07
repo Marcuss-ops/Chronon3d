@@ -36,7 +36,8 @@ PipeExportResult render_and_encode_native(
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes,
     runtime::DeviceScheduler* device_scheduler,
-    std::shared_ptr<media::VideoJobExecutionContext> execution)
+    std::shared_ptr<media::VideoJobExecutionContext> execution,
+    std::shared_ptr<SoftwareRenderer> warm_renderer)
 {
     const auto wall_t0 = profiling::now();
     const auto setup_t0 = profiling::now();
@@ -50,7 +51,8 @@ PipeExportResult render_and_encode_native(
 
     auto session = setup_pipe_export_session(
         registry, compiled, settings, opts, start, end, cpu_budget,
-        std::move(video_runtimes), device_scheduler, std::move(execution));
+        std::move(video_runtimes), device_scheduler, std::move(execution),
+        std::move(warm_renderer));
     if (!session || !session->encoder ||
         (!session->renderer_ptr() && !session->direct_yuv_selected()) ||
         (session->direct_yuv_session && session->direct_yuv_session->required_but_unavailable)) {
@@ -77,6 +79,7 @@ PipeExportResult render_and_encode_native(
             warmup_pipe_pool(*session);
         }
         warmup_pipe_slots(*session);
+        session->full_graph_session->execution_slots.reset_job_state();
     } else {
         spdlog::info("[direct-yuv] bypassed generic warmup_pipe_renderer and 273MB warmup_pipe_pool");
     }

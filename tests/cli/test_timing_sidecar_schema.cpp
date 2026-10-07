@@ -296,6 +296,9 @@ TEST_CASE("timing sidecar emits optional temporal analysis when supplied") {
     report.skippable_node_fraction = 0.5;
     report.layers.push_back({"opening", chronon3d::render_plan::TemporalRateClass::Cue,
                              {chronon3d::Frame{2}, chronon3d::Frame{3}}, 2, true});
+    report.layers.back().properties.push_back({"animation.opacity",
+        chronon3d::render_plan::TemporalRateClass::KeyframeInterval,
+        {chronon3d::Frame{2}, chronon3d::Frame{3}}, 2, true});
     timings.temporal_rate_analysis = report;
     nlohmann::json job = nlohmann::json::object();
     chronon3d::cli::pipe_timing_detail::serialize_job_section(job, timings);
@@ -307,7 +310,12 @@ TEST_CASE("timing sidecar emits optional temporal analysis when supplied") {
     CHECK(layer.at("eval_frames") == nlohmann::json::array({2, 3}));
     CHECK(layer.at("eval_frame_count") == 2);
     CHECK(layer.at("eval_frames_complete") == true);
-    CHECK(keys_of(job) == std::set<std::string>(frozen_job_keys()).insert("temporal_rate_analysis").first);
+    REQUIRE(layer.at("properties").size() == 1);
+    CHECK(layer.at("properties").at(0).at("path") == "animation.opacity");
+    CHECK(layer.at("properties").at(0).at("eval_frames") == nlohmann::json::array({2, 3}));
+    auto expected_job_keys = frozen_job_keys();
+    expected_job_keys.insert("temporal_rate_analysis");
+    CHECK(keys_of(job) == expected_job_keys);
 }
 
 TEST_CASE("timing sidecar v3 effect usage is additive and empty when unmeasured") {

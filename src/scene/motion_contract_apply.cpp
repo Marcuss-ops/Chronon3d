@@ -101,6 +101,7 @@ void consume(const chronon_layer_state* states, std::size_t count,
         unpack_row_major(state.clip_from_local, layer->matrix);
         layer->opacity = std::clamp(state.opacity, 0.0f, 1.0f);
         layer->active = state.visible != 0u;
+        layer->dirty = true;
         ++counts.applied;
         if (state.visible == 0u) {
             ++counts.deactivated;

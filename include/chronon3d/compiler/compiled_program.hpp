@@ -4,6 +4,7 @@
 #include <chronon3d/compiler/compiled_pass.hpp>
 #include <chronon3d/compiler/compiled_resource.hpp>
 #include <chronon3d/compiler/compiled_layer.hpp>
+#include <chronon3d/compiler/temporal_update_schedule.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 
@@ -89,6 +90,7 @@ struct CompiledProgramData {
     std::vector<TextProgram> texts;
     std::vector<std::string> text_values;
     std::vector<ParameterProgram> parameters;
+    TemporalUpdateSchedule temporal_schedule;
     ProgramFingerprint fingerprint_data;
 };
 
@@ -115,6 +117,7 @@ public:
     [[nodiscard]] const std::vector<TextProgram>& texts() const noexcept;
     [[nodiscard]] const std::vector<std::string>& text_values() const noexcept;
     [[nodiscard]] const std::vector<ParameterProgram>& parameters() const noexcept;
+    [[nodiscard]] const TemporalUpdateSchedule& temporal_schedule() const noexcept;
     [[nodiscard]] const ProgramFingerprint& fingerprint_data() const noexcept;
 
     [[nodiscard]] std::uint64_t fingerprint() const noexcept { return data_->fingerprint_data.digest; }

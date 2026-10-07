@@ -9,6 +9,13 @@
 
 namespace chronon3d::media {
 
+/// Opaque-to-media, process-persistent render resources owned by a CLI/daemon
+/// execution authority. Concrete renderers may attach slot pools and scratch
+/// arenas here without making the media runtime depend on renderer internals.
+struct PersistentVideoRenderState {
+    virtual ~PersistentVideoRenderState() = default;
+};
+
 /// Host-selected placement and persistent per-device video runtime.
 /// Export setup consumes the reservation; it never performs a second reserve.
 struct VideoJobExecutionContext {
@@ -19,6 +26,7 @@ struct VideoJobExecutionContext {
     runtime::DeviceScheduler* device_scheduler{nullptr};
     std::optional<runtime::DeviceReservation> reservation;
     std::shared_ptr<VideoRuntimeRegistry> video_runtimes;
+    std::shared_ptr<PersistentVideoRenderState> persistent_render_state;
     runtime::DeviceId device_id{0};
     std::uint32_t physical_device_index{0};
     std::int32_t cuda_device_ordinal{-1};
