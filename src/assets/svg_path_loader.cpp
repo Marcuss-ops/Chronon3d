@@ -1297,7 +1297,7 @@ SvgDocumentLoadResult load_svg_document_file(
             }
         }
         style.stroke.color.a *= style.stroke_opacity;
-        if (style.fill && style.fill->type == FillType::Solid) style.fill->solid.a *= style.fill_opacity;
+        if (style.fill && is_solid_fill(*style.fill)) style.fill->solid.a *= style.fill_opacity;
         path.path.fill = style.fill.value_or(Fill{.enabled = false});
         path.path.stroke = style.stroke;
         path.path.opacity = style.opacity;

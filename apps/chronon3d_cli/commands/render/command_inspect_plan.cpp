@@ -3,6 +3,9 @@
 #include "render_plan_inspection.hpp"
 #include "render_plan_preparation.hpp"
 
+#include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/temporal_rate_analysis.hpp>
+
 #include <CLI/CLI.hpp>
 #include <nlohmann/json.hpp>
 
@@ -167,6 +170,64 @@ nlohmann::json inspection_to_json(const ResolvedRenderPlanInspection& i) {
     return js;
 }
 
+nlohmann::json temporal_rate_to_json(
+    const chronon3d::render_plan::TemporalRateReport& report) {
+    nlohmann::json layers = nlohmann::json::array();
+    for (const auto& layer : report.layers) {
+        nlohmann::json frames = nlohmann::json::array();
+        for (const auto frame : layer.eval_frames) frames.push_back(frame.integral());
+        layers.push_back({
+            {"layer_id", layer.layer_id},
+            {"class", chronon3d::render_plan::temporal_rate_class_name(layer.rate)},
+            {"eval_frames", std::move(frames)},
+            {"eval_frame_count", layer.eval_frame_count},
+            {"eval_frames_complete", layer.eval_frames_complete},
+        });
+    }
+    return {{"skippable_node_fraction", report.skippable_node_fraction},
+            {"layers", std::move(layers)}};
+}
+
+std::string temporal_rate_to_text(
+    const chronon3d::render_plan::TemporalRateReport& report) {
+    std::ostringstream out;
+    out << "Temporal rates\n"
+        << "  skippable node fraction " << report.skippable_node_fraction << '\n';
+    for (const auto& layer : report.layers) {
+        out << "  " << layer.layer_id << "  "
+            << chronon3d::render_plan::temporal_rate_class_name(layer.rate)
+            << "  eval frames=" << layer.eval_frame_count;
+        if (!layer.eval_frames_complete) out << " (truncated)";
+        out << "  [";
+        for (std::size_t i = 0; i < layer.eval_frames.size(); ++i) {
+            if (i != 0) out << ',';
+            out << layer.eval_frames[i].integral();
+        }
+        out << "]\n";
+    }
+    return out.str();
+}
+
+chronon3d::render_plan::TemporalRateReport analyze_temporal_rate_document(
+    const nlohmann::json& source) {
+    const nlohmann::json* plan_json = &source;
+    if (source.is_object() && source.contains("render_plan")) {
+        plan_json = &source.at("render_plan");
+    } else if (source.is_object() && source.contains("job") &&
+               source.at("job").is_object() && source.at("job").contains("render_plan")) {
+        plan_json = &source.at("job").at("render_plan");
+    }
+    if (!plan_json->is_object())
+        throw std::runtime_error("input must be a render-plan JSON object or contain render_plan");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(*plan_json);
+    if (!decoded) {
+        const auto& error = decoded.error();
+        const auto where = error.path.empty() ? std::string{} : error.path + ": ";
+        throw std::runtime_error(where + error.message);
+    }
+    return chronon3d::render_plan::analyze_temporal_rates(decoded.value());
+}
+
 std::string inspection_to_text(const ResolvedRenderPlanInspection& i) {
     std::ostringstream out;
     out << "Job\n"
@@ -320,6 +381,25 @@ std::string inspection_to_text(const ResolvedRenderPlanInspection& i) {
 } // namespace
 
 int command_inspect_plan(const InspectPlanArgs& args) {
+    if (args.report_temporal_rates) {
+        try {
+            std::ifstream input(args.plan_file);
+            if (!input) throw std::runtime_error("cannot open render plan: " + args.plan_file);
+            const auto source = nlohmann::json::parse(input);
+            const auto report = analyze_temporal_rate_document(source);
+            if (args.json) std::cout << temporal_rate_to_json(report).dump(2) << '\n';
+            else std::cout << temporal_rate_to_text(report);
+            return 0;
+        } catch (const std::exception& error) {
+            if (args.json) {
+                std::cout << nlohmann::json{{"error", "TemporalRateAnalysisError"},
+                    {"path", args.plan_file}, {"message", error.what()}, {"status", "FAIL"}}.dump(2) << '\n';
+            } else {
+                std::cerr << "inspect: " << args.plan_file << ": " << error.what() << '\n';
+            }
+            return 1;
+        }
+    }
     RenderPlanPreparationOptions options;
     options.input = args.plan_file;
     options.assets_root = args.assets_root;
@@ -360,6 +440,8 @@ void register_inspect_plan_command(CLI::App& app, CliContext& ctx) {
                     "Asset root for render-plan resolution");
     cmd->add_flag("--json,!--no-json", state->json,
                   "Emit machine-readable JSON (default: human text)");
+    cmd->add_flag("--report-temporal-rates", state->report_temporal_rates,
+                  "Report temporal evaluation classes without preparing assets or rendering");
     cmd->callback([state, &ctx]() {
         ctx.exit_code = command_inspect_plan(*state);
     });

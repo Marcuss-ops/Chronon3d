@@ -282,6 +282,34 @@ TEST_CASE("A5 sidecar: the job section key set is frozen") {
     CHECK(keys_of(job) == frozen_job_keys());
 }
 
+TEST_CASE("timing sidecar preserves frozen job keys when temporal analysis is absent") {
+    const JobTimings timings;
+    nlohmann::json job = nlohmann::json::object();
+    chronon3d::cli::pipe_timing_detail::serialize_job_section(job, timings);
+    CHECK_FALSE(job.contains("temporal_rate_analysis"));
+    CHECK(keys_of(job) == frozen_job_keys());
+}
+
+TEST_CASE("timing sidecar emits optional temporal analysis when supplied") {
+    JobTimings timings;
+    chronon3d::render_plan::TemporalRateReport report;
+    report.skippable_node_fraction = 0.5;
+    report.layers.push_back({"opening", chronon3d::render_plan::TemporalRateClass::Cue,
+                             {chronon3d::Frame{2}, chronon3d::Frame{3}}, 2, true});
+    timings.temporal_rate_analysis = report;
+    nlohmann::json job = nlohmann::json::object();
+    chronon3d::cli::pipe_timing_detail::serialize_job_section(job, timings);
+    CHECK(job.at("temporal_rate_analysis").at("skippable_node_fraction") == 0.5);
+    REQUIRE(job.at("temporal_rate_analysis").at("layers").size() == 1);
+    const auto& layer = job.at("temporal_rate_analysis").at("layers").at(0);
+    CHECK(layer.at("layer_id") == "opening");
+    CHECK(layer.at("class") == "cue");
+    CHECK(layer.at("eval_frames") == nlohmann::json::array({2, 3}));
+    CHECK(layer.at("eval_frame_count") == 2);
+    CHECK(layer.at("eval_frames_complete") == true);
+    CHECK(keys_of(job) == std::set<std::string>(frozen_job_keys()).insert("temporal_rate_analysis").first);
+}
+
 TEST_CASE("timing sidecar v3 effect usage is additive and empty when unmeasured") {
     JobTimings timings;
     timings.effect_usage["effect.color.vignette"] = {7u, 0u};

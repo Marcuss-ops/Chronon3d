@@ -968,13 +968,15 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.color.g == doctest::Approx(1.0f));
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.color.a == doctest::Approx(0.5f));
     CHECK_FALSE(evaluated->scene.layers()[0].nodes[1].shape.path().stroke.enabled);
-    CHECK(evaluated->scene.layers()[0].nodes[2].shape.path().fill.type == FillType::LinearGradient);
+    CHECK(evaluated->scene.layers()[0].nodes[2].shape.path().fill.gradient.type ==
+          graphics::GradientType::Linear);
     REQUIRE(evaluated->scene.layers()[0].nodes[2].shape.path().fill.gradient.color_stops.size() == 2);
     CHECK(evaluated->scene.layers()[0].nodes[2].shape.path().fill.gradient.color_stops[0].color.r == doctest::Approx(1.0f));
     CHECK(evaluated->scene.layers()[0].nodes[2].shape.path().fill.gradient.color_stops[1].color.a == doctest::Approx(0.5f));
     CHECK(evaluated->scene.layers()[0].nodes[2].shape.path().fill.gradient.start.x == doctest::Approx(2.0f));
     CHECK(evaluated->scene.layers()[0].nodes[2].shape.path().fill.gradient.start.y == doctest::Approx(28.0f));
-    CHECK(evaluated->scene.layers()[0].nodes[3].shape.path().fill.type == FillType::RadialGradient);
+    CHECK(evaluated->scene.layers()[0].nodes[3].shape.path().fill.gradient.type ==
+          graphics::GradientType::Radial);
     CHECK(evaluated->scene.layers()[0].nodes[3].shape.path().fill.gradient.center.x == doctest::Approx(36.0f));
     CHECK(evaluated->scene.layers()[0].nodes[4].shape.path().commands[1].p0.x == doctest::Approx(9.0f));
     CHECK(evaluated->scene.layers()[0].nodes[4].shape.path().commands[1].p0.y == doctest::Approx(6.0f));
