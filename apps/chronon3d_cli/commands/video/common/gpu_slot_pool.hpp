@@ -159,6 +159,22 @@ public:
         }
     }
 
+    /// Start a new output on the retained pool after the prior output has
+    /// drained. Surface allocations stay attached to slots; frame history and
+    /// encoder ownership are scoped to one output and must not leak forward.
+    void reset_job_state() noexcept {
+        if (slots_.busy_count() != 0) {
+            spdlog::error(
+                "[gpu_slot_pool] refusing job reset with {} busy slot(s)",
+                slots_.busy_count());
+            return;
+        }
+        last_completed_surface_.store(
+            runtime::kInvalidRenderSurfaceHandle, std::memory_order_release);
+        last_surface_owned_by_encoder_.store(
+            runtime::kInvalidRenderSurfaceHandle, std::memory_order_release);
+    }
+
     void close() noexcept {
         {
             std::lock_guard lock(mutex_);

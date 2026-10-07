@@ -235,6 +235,9 @@ void SoftwareRenderer::reset_frame_value_cache() {
     if (m_execution_context.scratch.node_cache) {
         m_execution_context.scratch.node_cache->clear();
     }
+    if (m_execution_context.scratch.graph_cache) {
+        m_execution_context.scratch.graph_cache->reset_static_bakes();
+    }
     m_session.reset_frame_values();
 }
 

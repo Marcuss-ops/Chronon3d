@@ -371,7 +371,30 @@ void compute_static_bake_islands(CompiledFrameGraph& compiled) {
         if (is_maximal_root) {
             StaticSubgraphBakePass bake;
             bake.root_node = node_id;
-            bake.static_fingerprint = node_info.static_key.digest();
+            std::vector<bool> in_island(compiled.nodes.size(), false);
+            std::vector<GraphNodeId> pending{node_id};
+            while (!pending.empty()) {
+                const auto member = pending.back();
+                pending.pop_back();
+                if (member >= compiled.nodes.size() || in_island[member] ||
+                    !is_node_static[member]) continue;
+                in_island[member] = true;
+                for (const auto input : compiled.nodes[member].inputs) {
+                    if (input < is_node_static.size() && is_node_static[input])
+                        pending.push_back(input);
+                }
+            }
+            for (GraphNodeId member = 0; member < in_island.size(); ++member)
+                if (in_island[member]) bake.members.push_back(member);
+            // Stable node ids and graph structure form a deterministic bake
+            // identity even when a node did not provide a specialised key.
+            std::uint64_t fingerprint = 1469598103934665603ull;
+            for (const auto member : bake.members) {
+                const auto stable = compiled.nodes[member].stable_node_id;
+                fingerprint ^= stable.value;
+                fingerprint *= 1099511628211ull;
+            }
+            bake.static_fingerprint = fingerprint ? fingerprint : 1;
             bake.is_baked = false;
             compiled.program.static_bakes.push_back(bake);
         }
@@ -421,6 +444,7 @@ void build_compiled_frame_program(CompiledFrameGraph& compiled) {
     compiled.program.rebuild_layer_batch_index(compiled.nodes.size());
     compute_has_fused_passes(compiled);
     compute_static_bake_islands(compiled);
+    compiled.program.rebuild_static_bake_index(compiled.nodes.size());
     compute_fully_recorded(compiled);
 }
 } // namespace

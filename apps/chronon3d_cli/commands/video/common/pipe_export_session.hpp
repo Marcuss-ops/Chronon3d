@@ -13,6 +13,7 @@
 #include <chronon3d/runtime/render_preparation.hpp>
 #include "gpu_slot_pool.hpp"
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/direct_yuv_program.hpp>
 #include <spdlog/spdlog.h>
@@ -38,7 +39,7 @@ struct DirectYuvSession {
     bool required_but_unavailable{false};
 };
 
-struct FullGraphSession {
+struct FullGraphSession : media::PersistentVideoRenderState {
     // B2 (TICKET-100X-PERF-WAVES): 6 in-flight frame slots instead of 3 so the
     // render loop stays ~2 submissions ahead of the GPU. This matches the
     // Vulkan submission ring depth and kills the per-frame batch-drain stall
@@ -63,6 +64,10 @@ struct FullGraphSession {
     runtime::RenderSurfaceRegistry* surface_registry{nullptr};
     runtime::GpuSlotPool execution_slots;
     std::unique_ptr<TripleBufferArena> triple_arena;
+    std::uint32_t canvas_width{0};
+    std::uint32_t canvas_height{0};
+    std::string surface_contract_key;
+    bool persistent_across_jobs{false};
 
     FullGraphSession()
         : execution_slots(configured_gpu_encode_slot_capacity()) {}
@@ -103,7 +108,7 @@ struct FullGraphSession {
 struct PipeExportSession {
     std::unique_ptr<IVideoEncoder> encoder;
 
-    std::unique_ptr<FullGraphSession> full_graph_session;
+    std::shared_ptr<FullGraphSession> full_graph_session;
     std::unique_ptr<DirectYuvSession> direct_yuv_session;
 
     std::shared_ptr<::chronon3d::media::NativeVideoFrameDecoder> native_decoder;

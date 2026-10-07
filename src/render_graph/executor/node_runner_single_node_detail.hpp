@@ -26,6 +26,19 @@ void execute_single_node(
                 1, std::memory_order_relaxed);
         }
     };
+    const auto retain_static_bake = [&]() {
+        if (id >= state.static_bake_root_index.size()) return;
+        const auto bake_index = state.static_bake_root_index[id];
+        if (bake_index >= compiled.program.static_bakes.size()) return;
+        const auto& bake = compiled.program.static_bakes[bake_index];
+        if (!bake.runtime || !state.temp[id]) return;
+        std::lock_guard lock(bake.runtime->mutex);
+        if (!bake.runtime->baked_surface) {
+            bake.runtime->baked_surface = state.temp[id];
+            bake.runtime->resolved_key_digest = state.resolved_key_digest[id];
+            bake.runtime->resolved_bbox = state.resolved_bboxes[id];
+        }
+    };
 
     // Typed programs own frame activity.  A graph binding is the stable
     // bridge from a render-graph node to the compiler layer id; do not consult
@@ -48,6 +61,26 @@ void execute_single_node(
             state, id, ctx, parent_pool,
             SkipReason::EarlyExit,
             graph.node(id).name());
+        return;
+    }
+
+    if (id < state.static_bake_member_skip.size() &&
+        state.static_bake_member_skip[id]) {
+        const auto bake_index = id < state.static_bake_root_index.size()
+            ? state.static_bake_root_index[id] : UINT32_MAX;
+        if (bake_index < compiled.program.static_bakes.size()) {
+            const auto& bake = compiled.program.static_bakes[bake_index];
+            std::lock_guard lock(bake.runtime->mutex);
+            state.temp[id] = bake.runtime->baked_surface;
+            state.resolved_key_digest[id] = bake.runtime->resolved_key_digest;
+            state.resolved_frame_dependent[id] = 0;
+            state.resolved_cache_hit[id] = 1;
+            state.resolved_bboxes[id] = bake.runtime->resolved_bbox;
+            record_node_executed();
+        } else {
+            commit_transparent_skip(state, id, ctx, parent_pool,
+                                    SkipReason::StaticBaked, node.name());
+        }
         return;
     }
 
@@ -163,6 +196,7 @@ void execute_single_node(
 
     if (cache_hit_fast_path) {
         commit_node_state(state, id, cache_eval, predicted_bbox);
+        retain_static_bake();
         record_node_executed();
         return;
     }
@@ -369,4 +403,5 @@ void execute_single_node(
     }
 
     commit_node_state(state, id, cache_eval, predicted_bbox);
+    retain_static_bake();
 }

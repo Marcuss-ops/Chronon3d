@@ -565,7 +565,8 @@ int render_and_encode_ffmpeg(
     const FfmpegExportOptions& opts,
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoJobExecutionContext> execution,
-    std::chrono::steady_clock::time_point* sidecar_written_at) {
+    std::chrono::steady_clock::time_point* sidecar_written_at,
+    std::shared_ptr<SoftwareRenderer> warm_renderer) {
     if (opts.output.output.empty()) {
         spdlog::error("[video] No output path specified.");
         return 1;
@@ -781,7 +782,8 @@ int render_and_encode_ffmpeg(
         settings, start, end, render_opts, cpu_budget,
         std::move(video_runtimes),
         device_scheduler,
-        std::move(execution));
+        std::move(execution),
+        std::move(warm_renderer));
     if (sidecar_written_at) *sidecar_written_at = result.sidecar_written_at;
     return result.return_code;
 }

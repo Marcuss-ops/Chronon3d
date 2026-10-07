@@ -69,6 +69,8 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         sampled.id = layer.id;
         sampled.kind = layer.kind;
         sampled.text_index = 0;
+        sampled.dirty = program.temporal_schedule().dirty(
+            layer.id, frame_number);
 
         const auto start = layer.start_frame;
         const auto end = start + layer.duration_frames;

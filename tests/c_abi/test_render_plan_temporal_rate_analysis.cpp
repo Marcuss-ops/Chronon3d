@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_plan/temporal_rate_analysis.hpp>
 
+#include <cstddef>
 #include <vector>
 
 using namespace chronon3d;
@@ -46,8 +47,12 @@ TEST_CASE("Temporal rate analysis classifies all five required rates") {
     CHECK(report.layers[1].eval_frames == std::vector<Frame>{
         Frame{3}, Frame{4}, Frame{5}, Frame{6}});
     CHECK(report.layers[2].rate == TemporalRateClass::KeyframeInterval);
-    CHECK(report.layers[2].eval_frames ==
-          std::vector<Frame>{Frame{1}, Frame{5}, Frame{10}});
+    CHECK(report.layers[2].eval_frames == std::vector<Frame>{
+        Frame{1}, Frame{2}, Frame{3}, Frame{4}, Frame{5},
+        Frame{6}, Frame{7}, Frame{8}, Frame{9}, Frame{10}});
+    REQUIRE(report.layers[2].properties.size() >= 5);
+    CHECK(report.layers[2].properties[0].path == "animation.position_x");
+    CHECK(report.layers[2].properties[0].eval_frames == report.layers[2].eval_frames);
     CHECK(report.layers[3].rate == TemporalRateClass::PerFrame);
     CHECK(report.layers[3].eval_frames.size() == 12);
     CHECK(report.layers[3].eval_frames.front() == Frame{0});
@@ -65,9 +70,9 @@ TEST_CASE("Temporal rate precedence selects per-frame and subframe work") {
     CHECK(report.layers[0].rate == TemporalRateClass::PerFrame);
     plan.temporal_motion_blur = MotionBlurPlan{180.0f, 8};
     report = analyze_temporal_rates(plan);
-    for (const auto& layer : report.layers) {
-        CHECK(layer.rate == TemporalRateClass::Subframe);
-        CHECK(layer.eval_frames.size() == 12);
+    for (std::size_t i = 0; i < report.layers.size(); ++i) {
+        CHECK(report.layers[i].rate == TemporalRateClass::Subframe);
+        CHECK(report.layers[i].eval_frames.size() == (i == 1 ? 4 : 12));
     }
     CHECK(report.skippable_node_fraction == 0.0);
     plan.temporal_motion_blur = MotionBlurPlan{0.0f, 8};
@@ -85,8 +90,7 @@ TEST_CASE("Temporal cue interval uses clipped half-open bounds") {
     plan.layers.push_back(cue);
     auto report = analyze_temporal_rates(plan);
     CHECK(report.layers[0].rate == TemporalRateClass::Cue);
-    CHECK(report.layers[0].eval_frames == std::vector<Frame>{
-        Frame{0}, Frame{1}, Frame{2}, Frame{3}, Frame{4}, Frame{5}, Frame{6}, Frame{7}});
+    CHECK(report.layers[0].eval_frames == std::vector<Frame>{Frame{0}});
     plan.layers[0].start_frame = Frame{8};
     report = analyze_temporal_rates(plan);
     CHECK(report.layers[0].rate == TemporalRateClass::Cue);
@@ -103,8 +107,25 @@ TEST_CASE("Temporal rate analysis clips keyed eval frames to layer visibility") 
     plan.layers[2].start_frame = Frame{4};
     plan.layers[2].duration_frames = Frame{5};
     const auto report = analyze_temporal_rates(plan);
-    CHECK(report.layers[2].eval_frames == std::vector<Frame>{Frame{5}});
-    CHECK(report.layers[2].eval_frame_count == 1);
+    CHECK(report.layers[2].eval_frames == std::vector<Frame>{
+        Frame{4}, Frame{5}, Frame{6}, Frame{7}, Frame{8}});
+    CHECK(report.layers[2].eval_frame_count == 5);
+}
+
+TEST_CASE("Temporal property schedule treats hold segments as boundary updates") {
+    RenderPlan plan;
+    plan.canvas.duration = Frame{8};
+    LayerPlan layer;
+    layer.id = "held";
+    AnimationTrackPlan track;
+    track.property = "opacity";
+    track.keyframes = {{Frame{1}, {0.0f}, std::string{"hold"}},
+                       {Frame{4}, {1.0f}}};
+    layer.animation = AnimationPlan{{track}};
+    plan.layers.push_back(layer);
+    const auto report = analyze_temporal_rates(plan);
+    REQUIRE(report.layers[0].properties.size() >= 5);
+    CHECK(report.layers[0].properties[0].eval_frames == std::vector<Frame>{Frame{1}, Frame{4}});
 }
 
 TEST_CASE("Temporal rate analysis bounds large event lists without losing exact counts") {
@@ -171,22 +192,22 @@ TEST_CASE("Temporal rate report owns layer identifiers independently of plan lif
     CHECK(report.layers[0].layer_id == "owned-layer-id");
 }
 
-TEST_CASE("Temporal interval merge is bounded and preserves exact per-frame count") {
+TEST_CASE("Temporal per-frame schedule is bounded and preserves exact frame count") {
     RenderPlan plan;
     plan.canvas.duration = Frame{1'000'001};
     LayerPlan layer;
-    layer.id = "cued";
-    layer.type = LayerType::Image;
+    layer.id = "evolving";
+    layer.type = LayerType::Shape;
     layer.start_frame = Frame{0};
     layer.duration_frames = Frame{1'000'001};
-    AnimationTrackPlan track;
-    track.keyframes = {{Frame{0}, {0.0f}}, {Frame{10}, {1.0f}}};
-    layer.animation = AnimationPlan{{track}};
+    LayerPlan::EffectPlan effect;
+    effect.evolution = 0.25f;
+    layer.effects.push_back(effect);
     plan.layers.push_back(layer);
     const auto report = analyze_temporal_rates(plan);
-    CHECK(report.layers[0].rate == TemporalRateClass::KeyframeInterval);
-    CHECK(report.layers[0].eval_frames.size() == 1'000'000);
-    CHECK(report.layers[0].eval_frame_count == 1'000'000);
+    CHECK(report.layers[0].rate == TemporalRateClass::PerFrame);
+    CHECK(report.layers[0].eval_frames.empty());
+    CHECK(report.layers[0].eval_frame_count == 1'000'001);
     CHECK_FALSE(report.layers[0].eval_frames_complete);
 }
 
@@ -212,7 +233,9 @@ TEST_CASE("Temporal rate analysis covers all layer-local animated sources") {
     shape.shape = ShapeContentPlan{};
     AnimationTrackPlan paint;
     paint.keyframes = {{Frame{0}, {0.0f}}, {Frame{4}, {1.0f}}};
-    shape.shape->fill_color_animation = paint;
+    ImportedSubpathPlan animated_subpath;
+    animated_subpath.fill_color_animation = paint;
+    shape.shape->imported_subpaths.push_back(animated_subpath);
     CHECK(classify(shape) == TemporalRateClass::KeyframeInterval);
 
     LayerPlan subpath;
@@ -224,7 +247,7 @@ TEST_CASE("Temporal rate analysis covers all layer-local animated sources") {
     CHECK(classify(subpath) == TemporalRateClass::KeyframeInterval);
 }
 
-TEST_CASE("Temporal rate analysis ignores camera time on flat layers and clips 3D keys") {
+TEST_CASE("Temporal rate analysis ignores camera time on flat layers and clips 3D evaluation") {
     RenderPlan plan;
     plan.canvas.duration = Frame{12};
     LayerPlan flat;
@@ -241,7 +264,7 @@ TEST_CASE("Temporal rate analysis ignores camera time on flat layers and clips 3
             {{Frame{0}, {0.0f}}, {Frame{8}, {1.0f}}}}};
     auto report = analyze_temporal_rates(plan);
     CHECK(report.layers[0].rate == TemporalRateClass::Static);
-    CHECK(report.layers[1].rate == TemporalRateClass::KeyframeInterval);
+    CHECK(report.layers[1].rate == TemporalRateClass::PerFrame);
     CHECK(report.layers[1].eval_frames == std::vector<Frame>{Frame{4}, Frame{5}, Frame{6}, Frame{7}});
 }
 

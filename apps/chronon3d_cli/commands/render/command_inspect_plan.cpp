@@ -176,12 +176,23 @@ nlohmann::json temporal_rate_to_json(
     for (const auto& layer : report.layers) {
         nlohmann::json frames = nlohmann::json::array();
         for (const auto frame : layer.eval_frames) frames.push_back(frame.integral());
+        nlohmann::json properties = nlohmann::json::array();
+        for (const auto& property : layer.properties) {
+            nlohmann::json property_frames = nlohmann::json::array();
+            for (const auto frame : property.eval_frames) property_frames.push_back(frame.integral());
+            properties.push_back({{"path", property.path},
+                {"class", chronon3d::render_plan::temporal_rate_class_name(property.rate)},
+                {"eval_frames", std::move(property_frames)},
+                {"eval_frame_count", property.eval_frame_count},
+                {"eval_frames_complete", property.eval_frames_complete}});
+        }
         layers.push_back({
             {"layer_id", layer.layer_id},
             {"class", chronon3d::render_plan::temporal_rate_class_name(layer.rate)},
             {"eval_frames", std::move(frames)},
             {"eval_frame_count", layer.eval_frame_count},
             {"eval_frames_complete", layer.eval_frames_complete},
+            {"properties", std::move(properties)},
         });
     }
     return {{"skippable_node_fraction", report.skippable_node_fraction},
@@ -204,6 +215,13 @@ std::string temporal_rate_to_text(
             out << layer.eval_frames[i].integral();
         }
         out << "]\n";
+        for (const auto& property : layer.properties) {
+            out << "    " << property.path << "  "
+                << chronon3d::render_plan::temporal_rate_class_name(property.rate)
+                << "  eval frames=" << property.eval_frame_count;
+            if (!property.eval_frames_complete) out << " (incomplete)";
+            out << '\n';
+        }
     }
     return out.str();
 }

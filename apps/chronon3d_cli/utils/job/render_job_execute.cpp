@@ -207,7 +207,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     opts,
                     job.execution.cpu_budget,
                     std::move(execution),
-                    &sidecar_written_at);
+                    &sidecar_written_at,
+                    std::move(warm_renderer));
             } catch (const std::exception& error) {
                 return make_render_job_error(
                     RenderJobErrorCode::RenderFailed,

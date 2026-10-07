@@ -66,6 +66,28 @@ std::shared_ptr<Framebuffer> execute_internal(
     state.resolved_frame_dependent.assign(node_count, 0);
     state.resolved_cache_hit.assign(node_count, 0);
     state.resolved_bboxes.resize(node_count);
+    state.static_bake_member_skip.assign(node_count, 0);
+    state.static_bake_root_index.assign(node_count, UINT32_MAX);
+    std::vector<std::uint32_t> bake_membership(node_count, 0);
+    std::vector<std::uint32_t> ready_membership(node_count, 0);
+    for (std::uint32_t i = 0; i < compiled.program.static_bakes.size(); ++i) {
+        const auto& bake = compiled.program.static_bakes[i];
+        if (bake.root_node < node_count) state.static_bake_root_index[bake.root_node] = i;
+        bool ready = false;
+        if (bake.runtime) {
+            std::lock_guard lock(bake.runtime->mutex);
+            ready = static_cast<bool>(bake.runtime->baked_surface);
+        }
+        for (const auto member : bake.members) {
+            if (member >= node_count) continue;
+            ++bake_membership[member];
+            if (ready) ++ready_membership[member];
+        }
+    }
+    for (std::size_t i = 0; i < node_count; ++i) {
+        state.static_bake_member_skip[i] = bake_membership[i] != 0 &&
+            bake_membership[i] == ready_membership[i];
+    }
 
     const auto& resource_table = compiled.resource_table();
     state.physical_slots.resize(resource_table.physical_slot_count);

@@ -40,7 +40,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes,
     runtime::DeviceScheduler* device_scheduler,
-    std::shared_ptr<media::VideoJobExecutionContext> execution)
+    std::shared_ptr<media::VideoJobExecutionContext> execution,
+    std::shared_ptr<SoftwareRenderer> warm_renderer)
 {
     constexpr size_t kArenaPoolCount = kCpuVideoPipelineDepth;
     auto session = std::make_unique<PipeExportSession>(kCpuVideoPipelineDepth);
@@ -316,18 +317,63 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     if (session->direct_yuv_selected()) {
         spdlog::info("[direct-yuv] skipped SoftwareRenderer and RuntimeContext construction");
     } else {
-        session->full_graph_session = std::make_unique<FullGraphSession>();
-        Config renderer_cfg = Config::from_environment(cpu_budget);
-        if (direct_yuv_requested) {
-            renderer_cfg.set_backend_preference(graph::BackendPreference::Software);
-            spdlog::info("[direct-yuv] RequireDirectYuv active: bypassed Vulkan backend initialization");
-        } else {
-            renderer_cfg.set_backend_preference(opts.backend_preference);
+        const bool retain_native_nvenc_state = execution &&
+            is_native_encoder_transport(session->opts.encoder.encoder_backend) &&
+            hardware_nvenc_requested(session->opts.encoder.hardware_encoder);
+        const std::string surface_contract =
+            std::to_string(session->canvas_width) + "x" +
+            std::to_string(session->canvas_height) + "|" +
+            session->opts.pipe.pipe_pixfmt + "|" +
+            session->opts.encoder.codec + "|" +
+            session->opts.encoder.hardware_encoder;
+        auto retained_state = retain_native_nvenc_state
+            ? std::dynamic_pointer_cast<FullGraphSession>(
+                  execution->persistent_render_state)
+            : std::shared_ptr<FullGraphSession>{};
+        if (retained_state &&
+            retained_state->surface_contract_key != surface_contract) {
+            // Slot surfaces are tied to the canvas/pixel contract. Replacing
+            // the state releases the prior pool after this job drops its last
+            // reference instead of feeding incompatible surfaces to NVENC.
+            retained_state.reset();
+            execution->persistent_render_state.reset();
         }
-        renderer_cfg.set_gpu_hot_path_mode(opts.gpu_hot_path_mode);
-        session->full_graph_session->renderer = create_renderer(
-            registry, settings, std::move(renderer_cfg), session->opts.assets_root,
-            &session->engine_init_ms, &session->backend_init_ms);
+        session->full_graph_session = retained_state
+            ? std::move(retained_state)
+            : std::make_shared<FullGraphSession>();
+        auto& full_graph = *session->full_graph_session;
+        full_graph.canvas_width = static_cast<std::uint32_t>(session->canvas_width);
+        full_graph.canvas_height = static_cast<std::uint32_t>(session->canvas_height);
+        full_graph.surface_contract_key = surface_contract;
+        full_graph.persistent_across_jobs = retain_native_nvenc_state;
+        if (retain_native_nvenc_state) {
+            execution->persistent_render_state = session->full_graph_session;
+        }
+        if (warm_renderer) {
+            // The daemon owns one renderer per device for its full lifetime.
+            // Reuse its graph/pipeline/font/framebuffer caches for video too;
+            // only temporal frame values and job-specific settings reset.
+            warm_renderer->reset_frame_value_cache();
+            warm_renderer->reset_temporal_history();
+            warm_renderer->set_settings(settings);
+            if (session->opts.assets_root) {
+                warm_renderer->execution_context().text.assets->mount(
+                    *session->opts.assets_root);
+            }
+            full_graph.renderer = std::move(warm_renderer);
+        } else {
+            Config renderer_cfg = Config::from_environment(cpu_budget);
+            if (direct_yuv_requested) {
+                renderer_cfg.set_backend_preference(graph::BackendPreference::Software);
+                spdlog::info("[direct-yuv] RequireDirectYuv active: bypassed Vulkan backend initialization");
+            } else {
+                renderer_cfg.set_backend_preference(opts.backend_preference);
+            }
+            renderer_cfg.set_gpu_hot_path_mode(opts.gpu_hot_path_mode);
+            full_graph.renderer = create_renderer(
+                registry, settings, std::move(renderer_cfg), session->opts.assets_root,
+                &session->engine_init_ms, &session->backend_init_ms);
+        }
     }
     const auto renderer_t1 = profiling::now();
 
@@ -391,12 +437,15 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     if (!session->direct_yuv_selected()) {
-        const auto arena_t0 = profiling::now();
-        const size_t arena_size = compute_pipe_arena_size(
-            compiled.composition->width(), compiled.composition->height());
-        session->full_graph_session->triple_arena =
-            std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
-        session->prepare_breakdown.triple_arena_alloc_ms = profiling::duration_ms(arena_t0, profiling::now());
+        if (!session->full_graph_session->triple_arena) {
+            const auto arena_t0 = profiling::now();
+            const size_t arena_size = compute_pipe_arena_size(
+                compiled.composition->width(), compiled.composition->height());
+            session->full_graph_session->triple_arena =
+                std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
+            session->prepare_breakdown.triple_arena_alloc_ms =
+                profiling::duration_ms(arena_t0, profiling::now());
+        }
     }
 
     auto sink_ctx = std::unique_ptr<EncoderSinkContext>(new EncoderSinkContext{
