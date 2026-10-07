@@ -8,6 +8,7 @@
 #include <chronon3d/render_graph/compiler/compiled_template_program.hpp>
 
 #include <algorithm>  // std::max
+#include <chronon3d/core/hash/hash_builder.hpp>
 
 namespace chronon3d::graph {
 

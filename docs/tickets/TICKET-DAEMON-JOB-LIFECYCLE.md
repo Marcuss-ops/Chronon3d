@@ -5,6 +5,28 @@ race-free, e l'allocator telemetry contract è atterrato; restano la misura GPU
 multi-shape, la decisione runtime sul mutex, il batch one-runtime/one-pool e
 il ~1 s intermittente del percorso di produzione.
 Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
+
+## Implementazione verificabile locale — static island / temporal / batch
+
+- `CompiledTemplateProgram.temporal.dependency_fingerprint` identifica in modo
+  deterministico nodi (stable id), classi temporali, cache policy e archi
+  compilati; non rappresenta una schedule per singola proprietà, cue o intervallo.
+  I sampler canonici `SampleTime`/`TemporalSampleKey` e i boundary cue `[start,end)`
+  restano le sole autorità di valutazione.
+- Le regioni statiche sono esplicitamente candidate, non pixel baked: `prepare()`
+  lascia vuote mask e risultati bake, così il GraphExecutor non sostituisce nodi
+  con skip trasparenti. Il piano memoria non accredita più superfici non prodotte.
+- `VariantBatch` resta il solo batch di varianti già disponibile: una chiamata
+  render master, riuso/scale o recompose e submit sequenziale; non è il batch
+  whole-video daemon `1 preparation → N output`.
+- Verifica richiesta in questo checkout: architecture gate PASS 206/206.
+  La build fresca del target temporal a `-j8` ha superato il timeout host di 600 s;
+  il tentativo di ripresa a `-j8` è stato interrotto al rilevamento di un altro
+  build `-j16` concorrente per non superare il limite globale (267/368 azioni).
+  Non viene registrata come PASS e il test binario aggiornato non è disponibile.
+  Pixel parity GPU, ownership di bake surface e batch daemon whole-video restano
+  OPEN/NOT RUN; mutex e admission non sono stati modificati.
+
 Origine: misure 2026-09-16 sulla matrice overlay 10×10 e sul probe a due job.
 
 ---

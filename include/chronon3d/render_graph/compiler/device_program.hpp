@@ -49,6 +49,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <chronon3d/cache/compiled_artifact_cache.hpp>
 #include <chronon3d/render_graph/compiler/bit_exact_contract.hpp>
@@ -114,10 +115,37 @@ enum class LoweringStatus : std::uint8_t {
     UnsupportedTarget = 3,
 };
 
+struct LoweringResult;
+
+class DeviceProgram {
+public:
+    [[nodiscard]] const DeviceProgramKey& key() const noexcept { return key_; }
+    [[nodiscard]] std::span<const std::uint8_t> payload() const noexcept { return payload_; }
+    [[nodiscard]] const determinism::FusionCertification& certification() const noexcept {
+        return certification_;
+    }
+    [[nodiscard]] bool valid() const noexcept {
+        return key_.pixel_program_fingerprint != 0 && !payload_.empty() &&
+               (key_.determinism_class == determinism::DeterminismClass::Approximate ||
+                certification_.bound_to(key_.pixel_program_fingerprint)) &&
+               certification_.permits(key_.determinism_class);
+    }
+
+private:
+    DeviceProgramKey key_;
+    std::vector<std::uint8_t> payload_;
+    determinism::FusionCertification certification_;
+
+    friend LoweringResult lower_to_cpu(const PixelProgram&) noexcept;
+    friend bool execute_lowered_cpu(const DeviceProgram&, float*, const float*,
+                                    std::size_t) noexcept;
+};
+
 struct LoweringResult {
     LoweringStatus status{LoweringStatus::Ok};
     std::string diagnostic;
     std::vector<std::uint8_t> payload;
+    DeviceProgram device_program;
 
     [[nodiscard]] bool ok() const noexcept {
         return status == LoweringStatus::Ok;
@@ -130,9 +158,16 @@ struct LoweringResult {
 // execute_lowered_cpu() and which is cacheable through CompiledArtifactCache.
 [[nodiscard]] LoweringResult lower_to_cpu(const PixelProgram& program) noexcept;
 
-// Execute a CPU-lowered payload. Returns false on corrupt payload or null
-// pointers. BitExact certification is encoded in the payload header, so
-// execution remains fail-closed even when the caller forgets to check.
+// Execute a CPU-lowered DeviceProgram. The complete comparison evidence is
+// retained beside the payload; the payload alone cannot assert BitExact.
+[[nodiscard]] bool execute_lowered_cpu(
+    const DeviceProgram& program,
+    float* dst_rgba,
+    const float* src_rgba,
+    std::size_t pixels) noexcept;
+
+// Raw payload execution is limited to Approximate programs because it lacks
+// the certificate attached to DeviceProgram.
 [[nodiscard]] bool execute_lowered_cpu(
     std::span<const std::uint8_t> payload,
     float* dst_rgba,

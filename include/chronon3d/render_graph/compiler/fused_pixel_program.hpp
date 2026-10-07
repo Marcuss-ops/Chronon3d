@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -72,8 +73,29 @@ struct FusedPixelProgram {
     std::size_t bytes_per_pixel{16};
     std::size_t pixel_count{0};
 
+    [[nodiscard]] std::uint64_t fingerprint() const noexcept {
+        std::uint64_t value = 1469598103934665603ULL;
+        const auto mix = [&value](std::uint64_t part) {
+            for (unsigned byte = 0; byte < 8; ++byte) {
+                value ^= static_cast<std::uint8_t>(part >> (byte * 8U));
+                value *= 1099511628211ULL;
+            }
+        };
+        mix(1); mix(static_cast<std::uint64_t>(determinism_contract.required));
+        mix(static_cast<std::uint64_t>(operations.size()));
+        for (const auto& operation : operations) {
+            mix(static_cast<std::uint64_t>(operation.kind));
+            for (const auto parameter : operation.params)
+                mix(std::bit_cast<std::uint32_t>(parameter));
+            mix(operation.blend_mode);
+        }
+        return value;
+    }
+
     [[nodiscard]] bool certified_for_execution() const noexcept {
         return guards.structural_pass() &&
+               (determinism_contract.required == determinism::DeterminismClass::Approximate ||
+                certification.bound_to(fingerprint())) &&
                certification.permits(determinism_contract.required);
     }
 

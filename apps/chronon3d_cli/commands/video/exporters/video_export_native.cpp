@@ -7,6 +7,8 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/telemetry/frame_timing_summary.hpp>
+#include <chronon3d/effects/effect_catalog_data.hpp>
+#include <chronon3d/effects/effect_type.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -303,6 +305,19 @@ PipeExportResult render_and_encode_native(
 
     // Phase 5 — project the backend's GPU telemetry counters.
     project_backend_gpu_counters(*session, timings);
+    if (session->renderer_ptr()) {
+        const auto& usage = session->renderer_ptr()->session().effect_usage();
+        for (std::size_t index = 1; index < usage.by_type.size(); ++index) {
+            const auto native = usage.by_type[index].native_frames.load(
+                std::memory_order_relaxed);
+            const auto rejected = usage.by_type[index].admission_rejected_frames.load(
+                std::memory_order_relaxed);
+            if (native == 0 && rejected == 0) continue;
+            const auto effect = static_cast<effects::EffectType>(index);
+            const auto& entry = effects::catalog_entry(effect);
+            timings.effect_usage[std::string(entry.id)] = {native, rejected};
+        }
+    }
 
     // Phase 6 — job-lifecycle accounting (exclusive wall + breakdowns).
     account_exclusive_wall_timeline(

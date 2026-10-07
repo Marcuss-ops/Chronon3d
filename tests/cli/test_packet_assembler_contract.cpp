@@ -1756,6 +1756,27 @@ TEST_CASE("VariantBatch shares preparation and chooses scale or recompose") {
     CHECK(recompose.executions[1].recompose_layout);
 }
 
+TEST_CASE("VariantBatch stops submitting after the first output failure") {
+    const std::vector<chronon3d::cli::OutputVariant> variants{
+        {1920, 1080, "nv12", "h264"}, {1280, 720, "nv12", "h264"},
+        {960, 540, "nv12", "h264"}};
+    const auto plan = chronon3d::cli::plan_variant_batch(variants);
+    int render_calls = 0;
+    std::vector<std::size_t> submitted;
+    const bool ok = chronon3d::cli::execute_variant_batch<int>(
+        plan,
+        [&](std::size_t) { ++render_calls; return 3; },
+        [](int master, std::size_t) { return master; },
+        [](int master, std::size_t) { return master; },
+        [&](std::size_t index, int) {
+            submitted.push_back(index);
+            return index != 1;
+        });
+    CHECK_FALSE(ok);
+    CHECK(render_calls == 1);
+    CHECK(submitted == std::vector<std::size_t>{0, 1});
+}
+
 TEST_CASE("VariantBatch renders one master and submits deterministic variants") {
     const std::vector<chronon3d::cli::OutputVariant> variants{
         {1920, 1080, "nv12", "h264"}, {1280, 720, "nv12", "h264"}};

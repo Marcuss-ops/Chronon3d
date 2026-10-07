@@ -27,6 +27,8 @@ classify_temporal(const CompiledFrameGraph& compiled) {
         }
     }
 
+    result.dependency_fingerprint =
+        temporal_dependency_fingerprint(compiled, result);
     return result;
 }
 
@@ -73,7 +75,7 @@ std::vector<StaticBakeRegion> bake_maximal_static_islands(
         auto& region = regions[i];
         region.bake_id     = static_cast<std::uint32_t>(i);
         region.fingerprint = region_fingerprint(region.members, compiled);
-        region.is_baked    = !region.members.empty();
+        region.is_baked    = false;  // discovery produces candidates, not pixels
     }
 
     return regions;
