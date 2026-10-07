@@ -192,9 +192,11 @@ TEST_CASE("PixelProgram v2: comparison harness binds same inputs/frame/slot and 
     CHECK(program.certification.bit_exact());
     CHECK(program.certification.reference_sha256.size() == 64);
     CHECK(program.certification.reference_sha256 == program.certification.fused_sha256);
+    float expected[16]; std::copy(std::begin(dst_before), std::end(dst_before), expected);
+    REQUIRE(program.execute_unfused_reference(expected, source, 4));
     float out[16]; std::copy(std::begin(dst_before), std::end(dst_before), out);
     CHECK(program.execute(out, source, 4));
-    CHECK(std::equal(std::begin(out), std::end(out), std::begin(dst_reference)));
+    CHECK(std::equal(std::begin(out), std::end(out), std::begin(expected)));
 }
 
 TEST_CASE("PixelProgram v2: 1 ULP-equivalent evidence never passes BitExact") {
@@ -297,21 +299,24 @@ TEST_CASE("lower_to_cpu: certified program lowers and executes") {
     CHECK(pp::execute_lowered_cpu(r.device_program, dst, src, 1));
     CHECK_FALSE(pp::execute_lowered_cpu(r.payload, dst, src, 1)); // raw payload has no BitExact evidence
     auto tampered = r.device_program;
-    CHECK_FALSE(pp::execute_lowered_cpu(tampered, dst, src, 1));
+    CHECK(pp::execute_lowered_cpu(tampered, dst, src, 1)); // copied compiled artifacts remain executable
     CHECK(r.device_program.valid());
 }
 
-TEST_CASE("lower_to_cpu: pointwise v2 program remains fail-closed until stack payload ABI exists") {
+TEST_CASE("lower_to_cpu: pointwise v2 stack lowers and executes") {
     pp::PixelProgram program;
     const std::array ops{pp::PixelProgramOp::brightness(0.1f),
                          pp::PixelProgramOp::invert(0.2f)};
     REQUIRE(pp::make_pointwise_stack(program, ops, 1));
     program.certification = bound_cert(program);
     const auto result = pp::lower_to_cpu(program);
-    CHECK(result.status == pp::LoweringStatus::UnsupportedTarget);
-    CHECK(result.payload.empty());
-    CHECK(result.device_program.payload().empty());
-    CHECK_FALSE(result.device_program.valid());
+    REQUIRE(result.ok());
+    CHECK_FALSE(result.payload.empty());
+    CHECK(result.device_program.valid());
+    float dst[4]{0.1f, 0.2f, 0.3f, 1.0f};
+    const float src[4]{0.2f, 0.4f, 0.6f, 1.0f};
+    CHECK(pp::execute_lowered_cpu(result.device_program, dst, src, 1));
+    CHECK(dst[0] != 0.1f);
 }
 
 TEST_CASE("lower_to_cpu: invalid program is rejected") {

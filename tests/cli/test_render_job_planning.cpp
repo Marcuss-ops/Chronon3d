@@ -2,6 +2,7 @@
 
 #include "commands.hpp"
 #include "daemon/daemon_render_job_payload.hpp"
+#include "daemon/daemon_service_ipc_protocol.hpp"
 #include "daemon/daemon_service_job_admission.hpp"
 #include "utils/job/output_lane_pixel_truth.hpp"
 #include "utils/job/render_job.hpp"
@@ -925,6 +926,19 @@ TEST_CASE("decode_render_job_payload rejects malformed wire JSON") {
         cli::decode_render_job_payload(
             R"({"plan_path":"plan.json","execution_requirements":"nope","output_spec":{}})"),
         std::exception);
+}
+
+TEST_CASE("decode_render_batch_payload validates the full batch at IPC ingress") {
+    const auto jobs = cli::decode_render_batch_payload(
+        R"({"jobs":[{"job_id":"first"},{"job_id":"second"}]})");
+    REQUIRE(jobs.size() == 2);
+    CHECK(jobs[0].job_id == "first");
+    CHECK(jobs[1].job_id == "second");
+    CHECK_THROWS_AS(static_cast<void>(cli::decode_render_batch_payload(
+                        R"({"jobs":[{"job_id":"same"},{"job_id":"same"}]})")),
+                    std::runtime_error);
+    CHECK_THROWS_AS(static_cast<void>(cli::decode_render_batch_payload(R"({"jobs":[]})")),
+                    std::runtime_error);
 }
 
 TEST_CASE("normalize_render_job validates the pipe pixel format against the canonical vocabulary") {

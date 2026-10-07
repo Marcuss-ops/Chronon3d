@@ -37,11 +37,12 @@ Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
 
 ### Aggiornamento 2026-10-07 — rate analysis locale
 
-- `TemporalRateAnalysis` produce ora una classe per layer (`Static`, `Cue`,
+- `TemporalRateAnalysis` produce una classe per layer (`Static`, `Cue`,
   `KeyframeInterval`, `PerFrame`, `Subframe`), frame valutabili limitati e
-  schedule per proprietà nell'ispezione CLI e nella sidecar. I segmenti lineari
-  enumerano i frame intermedi, `hold` e i cue emettono i confini; rimane un
-  report consultivo, non uno schedule eseguito dal prepared runtime.
+  schedule per proprietà. Il report CLI/sidecar è consultivo; il corrispondente
+  `TemporalUpdateSchedule` compilato viene invece consumato dallo sampler e da
+  `SceneRefresh`. I segmenti lineari enumerano i frame intermedi, `hold` e i
+  cue emettono i confini.
 - La correzione cue-boundary è compilata in `chronon3d_c_abi_tests`; il target
   completo `chronon3d_dev_fast` e i target `chronon3d_c_abi_tests` e
   `chronon3d_cli_tests` sono stati compilati/linkati con `-j12` nel profilo
@@ -54,6 +55,31 @@ Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
 - PixelProgram SPIR-V/GPU lowering rimane non implementato. La build conferma
   solo compilazione/link; pixel parity GPU, esecuzione test e benchmark batch
   restano da raccogliere.
+
+### Chiusura implementativa locale — 2026-10-07
+
+- **Voci 2–4 (temporal, static bake, batch runtime): implementazione presente.**
+  Lo schedule temporale è collegato a sampler/refresh; `GraphExecutor` conserva
+  l'output della chiusura statica dopo il primo render e ne riusa la superficie
+  persistente; IPC `RENDER_BATCH` serializza l'intera sequenza mentre renderer e
+  cache per-device restano caldi tra gli output. I test GPU multi-shape, la
+  calibrazione allocator e la decisione sul mutex restano criteri distinti di
+  certificazione. Il codec context e il muxer restano per-output.
+- Il decode `RENDER_BATCH` ora vive nel protocol codec: validazione batch e
+  decode dei singoli job avvengono prima del lock e dell'esecuzione. Il parsing
+  JSON testuale è condiviso con `RENDER_JOB`; il gate architetturale passa
+  206/206 il 2026-10-07.
+- **Voce 6 (PixelProgram CPU fusion): implementazione presente.** Il payload
+  `DeviceProgram` CPU v2 ora serializza e ricostruisce stack pointwise completi,
+  preservando fingerprint, determinism class e gate di certificazione. Il test
+  `chronon3d_pixel_program_tests` passa 24/24 casi e 96/96 assert il 2026-10-07.
+  La GPU lowering SPIR-V resta esplicitamente non implementata; non è stata
+  richiesta né dichiarata come certificata su questo host.
+- Una build ampia di `chronon3d_dev_fast` si è fermata durante `ranlib` con
+  `No space left on device` (3.1 GB lib statiche, 3.2 GB liberi). Il target
+  isolato PixelProgram ha compilato, linkato ed eseguito con successo. Le unità
+  IPC e il relativo test batch compilano; il binario CLI completo non è stato
+  rilinkato (2.3 GB liberi dopo la compilazione).
 
 ### Aggiornamento 2026-10-07 — runtime batch persistente
 

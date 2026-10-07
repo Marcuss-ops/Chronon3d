@@ -26,8 +26,8 @@
 //             └─ device capability   (future: sm_86, rdna3, …)
 //
 // v1 lowering set:
-//   - CpuSimd  — the current FusedPixelProgram CPU kernel path, now reachable
-//                through the canonical boundary. Implemented in this patch.
+//   - CpuSimd  — the certified PixelProgram v2 stack interpreter/payload path.
+//                Backend execution remains behind the compiled artifact API.
 //   - SPIR-V   — reserved (ACTIVE only after PixelProgram v1 + SLANG ENTRY GATE).
 //   - PTX      — reserved (ACTIVE only after SPIR-V lowering is certified).
 //
@@ -40,8 +40,8 @@
 //     WBH certification baseline exists
 //     DeterminismClass implemented (BitExact / DeterministicWithinPlatform / Approximate)
 //     single synchronization authority
-//     PixelProgram v1 frozen  ← this patch
-//     one reference PixelProgram corpus  ← corpus in tests/render_graph/compiler/test_pixel_program.cpp
+//     PixelProgram v2 frozen  ← current IR version
+//     one reference PixelProgram corpus  ← tests/render_graph/compiler/test_pixel_program.cpp
 //     ProgramFingerprint includes IR version / compiler version / target / specialization / determinism class
 
 #include <cstdint>
