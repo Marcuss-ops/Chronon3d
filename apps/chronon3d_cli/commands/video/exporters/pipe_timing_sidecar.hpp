@@ -324,6 +324,10 @@ struct InternalEncoderProfiling {
 struct EffectUsageMetric {
     std::uint64_t native_frames{0};
     std::uint64_t admission_rejected_frames{0};
+    std::uint64_t software_dispatches{0};
+    std::uint64_t software_cpu_time_ns{0};
+    std::uint64_t fallback_count{0};
+    std::uint64_t fallback_cpu_time_ns{0};
 };
 
 struct JobTimings {

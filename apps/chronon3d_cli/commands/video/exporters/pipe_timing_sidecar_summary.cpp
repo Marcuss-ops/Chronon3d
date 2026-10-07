@@ -310,6 +310,10 @@ void serialize_job_section(nlohmann::json& job,
         effect_usage[effect] = {
             {"native_frames", counts.native_frames},
             {"admission_rejected_frames", counts.admission_rejected_frames},
+            {"software_dispatches", counts.software_dispatches},
+            {"effect_time_ns", counts.software_cpu_time_ns},
+            {"fallback_count", counts.fallback_count},
+            {"fallback_effect_time_ns", counts.fallback_cpu_time_ns},
         };
     }
     if (timings.temporal_rate_analysis) {

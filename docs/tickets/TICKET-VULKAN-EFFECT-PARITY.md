@@ -2,13 +2,7 @@
 
 ## Stato
 
-OPEN — software exposes 47 effect types; strict Vulkan has native dispatch
-routes for 23 effect types (Blur, Glow, Bloom, Tint, Brightness, Contrast,
-Saturation, HueRotate, Invert, Exposure, TemperatureTint, LiftGammaGain, Offset,
-Noise, Checkerboard, Fill, Levels, Threshold, Keying, Vignette, Mosaic, ChromaticAberration,
-Echo) and explicitly rejects DropShadow. All remaining 24 types are unsupported on this capability
-surface and fail closed. No CPU fallback
-is allowed for a strict GPU request.
+OPEN — the catalog exposes 47 effect types; the executable capability table declares 24 strict-native routes (including Sharpen) and 23 unsupported types. All unsupported types fail closed and no CPU fallback is allowed for a strict GPU request. Current-checkout GPU hardware visibility does not substitute for rerunning parity on this SHA.
 
 ## Obiettivo
 
@@ -60,7 +54,7 @@ the full software/GPU effect corpus passes on the same SHA.
 
 ## Acceptance gates
 
-- [ ] Compile-time/test census accounts for every `EffectType` exactly once.
+- [x] Compile-time/test census accounts for every catalog `EffectType` exactly once (47 rows; 24 native / 23 unsupported in `test_effect_gpu_capability.cpp`).
 - [ ] Each wave has parameter-boundary tests and software/Vulkan pixel parity
   fixtures for transparent, opaque, clipped, edge and ROI cases as applicable.
 - [ ] Multi-effect stacks preserve authored order and parity.
@@ -283,6 +277,20 @@ test also includes Checkerboard and passes 130 assertions. Current native
 census is 23/47 with 24 effects explicitly unsupported. Local CTest passes the
 backend registry and render-graph suites (1/1 each); hardware certification
 remains open.
+
+## Telemetry prerequisites — 2026-10-07
+
+The previous effect-usage sidecar recorded only native and strict-admission
+counts; legacy sidecars in this checkout contain no per-effect observations, so
+no frequency-based priority can be inferred from them. The active dispatch path
+now records software dispatch count, measured processor CPU nanoseconds, and
+separate fallback count/time when a native-surface backend was attempted and
+software subsequently ran. Fused color stages receive invocation and fallback
+counts; their individual runtime remains unmeasured because the pipeline is
+executed as one fused batch. Strict-native admission rejection remains distinct
+from an executed CPU fallback. After fresh sidecars are collected, rank by
+fallback count, frequency, then measured CPU fallback time; do not infer the
+“top five” before that data exists.
 
 ## Demolition debt
 

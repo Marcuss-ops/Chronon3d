@@ -265,12 +265,44 @@ TEST_CASE("Effect usage counters remain per-session and reset at the job boundar
               std::memory_order_relaxed) == 1);
     CHECK(first.effect_usage().by_type[echo].admission_rejected_frames.load(
               std::memory_order_relaxed) == 1);
+    first.effect_usage().record_software_dispatch(
+        chronon3d::effects::EffectType::Echo, true);
+    first.effect_usage().record_software_cpu_time(
+        chronon3d::effects::EffectType::Echo, 4200, true);
+    CHECK(first.effect_usage().by_type[echo].software_dispatches.load(
+              std::memory_order_relaxed) == 1);
+    CHECK(first.effect_usage().by_type[echo].fallback_count.load(
+              std::memory_order_relaxed) == 1);
+    CHECK(first.effect_usage().by_type[echo].software_cpu_time_ns.load(
+              std::memory_order_relaxed) == 4200);
+    CHECK(first.effect_usage().by_type[echo].fallback_cpu_time_ns.load(
+              std::memory_order_relaxed) == 4200);
+    first.effect_usage().record_software_dispatch(
+        chronon3d::effects::EffectType::Echo, false);
+    first.effect_usage().record_software_cpu_time(
+        chronon3d::effects::EffectType::Echo, 1800, false);
+    CHECK(first.effect_usage().by_type[echo].software_dispatches.load(
+              std::memory_order_relaxed) == 2);
+    CHECK(first.effect_usage().by_type[echo].fallback_count.load(
+              std::memory_order_relaxed) == 1);
+    CHECK(first.effect_usage().by_type[echo].software_cpu_time_ns.load(
+              std::memory_order_relaxed) == 6000);
+    CHECK(first.effect_usage().by_type[echo].fallback_cpu_time_ns.load(
+              std::memory_order_relaxed) == 4200);
     CHECK(second.effect_usage().by_type[vignette].native_frames.load(
               std::memory_order_relaxed) == 0);
     first.reset_job();
     CHECK(first.effect_usage().by_type[vignette].native_frames.load(
               std::memory_order_relaxed) == 0);
     CHECK(first.effect_usage().by_type[echo].admission_rejected_frames.load(
+              std::memory_order_relaxed) == 0);
+    CHECK(first.effect_usage().by_type[echo].software_dispatches.load(
+              std::memory_order_relaxed) == 0);
+    CHECK(first.effect_usage().by_type[echo].software_cpu_time_ns.load(
+              std::memory_order_relaxed) == 0);
+    CHECK(first.effect_usage().by_type[echo].fallback_count.load(
+              std::memory_order_relaxed) == 0);
+    CHECK(first.effect_usage().by_type[echo].fallback_cpu_time_ns.load(
               std::memory_order_relaxed) == 0);
 }
 

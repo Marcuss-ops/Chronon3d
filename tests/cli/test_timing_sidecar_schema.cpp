@@ -168,7 +168,7 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     timings.encoder_settings.async_depth = 3;
     timings.gpu.gpu_readback_bytes = 8192u;
     timings.gpu.nvenc_frames = 100u;
-    timings.effect_usage["effect.color.curves"] = {3u, 1u};
+    timings.effect_usage["effect.color.curves"] = {3u, 1u, 4u, 5000000u, 1u, 2000000u};
     timings.gpu.cuda_composite_frames = 42u;
     timings.gpu.upload_breakdown["text_atlas"] = 999u;
     timings.prepare.asset_preflight_ms = 4.5;
@@ -198,6 +198,10 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("gpu").at("gpu_readback_bytes") == 8192u);
     CHECK(job.at("effect_usage").at("effect.color.curves").at("native_frames") == 3u);
     CHECK(job.at("effect_usage").at("effect.color.curves").at("admission_rejected_frames") == 1u);
+    CHECK(job.at("effect_usage").at("effect.color.curves").at("software_dispatches") == 4u);
+    CHECK(job.at("effect_usage").at("effect.color.curves").at("effect_time_ns") == 5000000u);
+    CHECK(job.at("effect_usage").at("effect.color.curves").at("fallback_count") == 1u);
+    CHECK(job.at("effect_usage").at("effect.color.curves").at("fallback_effect_time_ns") == 2000000u);
     CHECK(job.at("gpu").at("nvenc_frames") == 100u);
     CHECK(job.at("gpu").at("cuda_composite_frames") == 42u);
     CHECK(job.at("gpu").at("upload_breakdown").at("text_atlas") == 999u);
@@ -320,7 +324,7 @@ TEST_CASE("timing sidecar emits optional temporal analysis when supplied") {
 
 TEST_CASE("timing sidecar v3 effect usage is additive and empty when unmeasured") {
     JobTimings timings;
-    timings.effect_usage["effect.color.vignette"] = {7u, 0u};
+    timings.effect_usage["effect.color.vignette"] = {7u, 0u, 0u, 0u, 0u, 0u};
     nlohmann::json job = nlohmann::json::object();
     chronon3d::cli::pipe_timing_detail::serialize_job_section(job, timings);
     CHECK(job.at("effect_usage").at("effect.color.vignette").at("native_frames") == 7u);

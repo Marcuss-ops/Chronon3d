@@ -512,7 +512,8 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
                 item.properties.push_back(std::move(property));
             }
         }
-        if (camera_affects && (camera_shake_active || camera_per_frame))
+        if (camera_affects && (camera_shake_active || camera_per_frame ||
+                               (layer.enable_3d && camera_animated)))
             facts.animated = facts.per_frame = true;
         else if (camera_affects && camera_animated) facts.animated = facts.per_frame = true;
         const bool subframe =
@@ -524,7 +525,13 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
         else if (facts.animated) item.rate = TemporalRateClass::KeyframeInterval;
         else if (layer.start_frame || layer.duration_frames) item.rate = TemporalRateClass::Cue;
 
-        if (item.rate == TemporalRateClass::PerFrame || item.rate == TemporalRateClass::Subframe) {
+        if (item.rate == TemporalRateClass::Subframe) {
+            // Temporal shutter samples are scheduled against the composition
+            // timeline, including frames where a layer is transparent/inactive.
+            item.eval_frame_count = range_count(Frame{0}, duration);
+            append_range(item.eval_frames, Frame{0}, duration,
+                         item.eval_frames_complete);
+        } else if (item.rate == TemporalRateClass::PerFrame) {
             item.eval_frame_count = range_count(first, end);
             if (item.eval_frame_count <= kMaxReportedFrames)
                 append_range(item.eval_frames, first, end, item.eval_frames_complete);
@@ -541,11 +548,22 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
                     append_event(item.eval_frames, end, item.eval_frames_complete);
             }
         } else if (item.rate == TemporalRateClass::KeyframeInterval) {
-            append_layer_keys(item.eval_frames, layer, duration, item.eval_frames_complete);
-            if (camera_affects && plan.camera_animation)
-                append_camera_keys(item.eval_frames, *plan.camera_animation, first, end,
-                                   item.eval_frames_complete);
+            const auto active_count = range_count(first, end);
+            if (active_count > kMaxReportedFrames) {
+                append_range(item.eval_frames, first, end,
+                             item.eval_frames_complete);
+            } else {
+                append_layer_keys(item.eval_frames, layer, duration,
+                                  item.eval_frames_complete);
+                if (camera_affects && plan.camera_animation)
+                    append_camera_keys(item.eval_frames, *plan.camera_animation,
+                                       first, end, item.eval_frames_complete);
+                if (camera_affects && camera_animated)
+                    append_range(item.eval_frames, first, end,
+                                 item.eval_frames_complete);
+            }
         }
+
         std::sort(item.eval_frames.begin(), item.eval_frames.end());
         item.eval_frames.erase(std::unique(item.eval_frames.begin(), item.eval_frames.end()),
                                item.eval_frames.end());
