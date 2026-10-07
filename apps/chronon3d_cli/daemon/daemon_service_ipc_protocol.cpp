@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 namespace chronon3d::cli {
@@ -151,6 +152,10 @@ void reject_unknown_render_job_keys(const nlohmann::json& request) {
     throw std::runtime_error(message);
 }
 
+[[nodiscard]] nlohmann::json parse_ipc_payload(std::string_view payload) {
+    return nlohmann::json::parse(payload.begin(), payload.end());
+}
+
 } // namespace
 
 PlanDimensions extract_plan_dimensions(
@@ -189,7 +194,36 @@ PlanDimensions extract_plan_dimensions(
 
 DecodedRenderJobPayload decode_render_job_payload(
     const std::string& payload) {
-    return decode_render_job_payload(nlohmann::json::parse(payload));
+    return decode_render_job_payload(parse_ipc_payload(payload));
+}
+
+std::vector<DecodedRenderJobPayload> decode_render_batch_payload(
+    const std::string& payload) {
+    constexpr std::size_t kMaxBatchJobs = 64;
+    const auto request = parse_ipc_payload(payload);
+    if (!request.is_object() || request.size() != 1 ||
+        !request.contains("jobs") || !request.at("jobs").is_array()) {
+        throw std::runtime_error(
+            "RENDER_BATCH payload must be {\"jobs\":[render-job, ...]}");
+    }
+    const auto& encoded_jobs = request.at("jobs");
+    if (encoded_jobs.empty() || encoded_jobs.size() > kMaxBatchJobs) {
+        throw std::runtime_error(
+            "RENDER_BATCH jobs must contain between 1 and 64 entries");
+    }
+    std::vector<DecodedRenderJobPayload> jobs;
+    jobs.reserve(encoded_jobs.size());
+    std::unordered_set<std::string> seen_job_ids;
+    for (const auto& encoded : encoded_jobs) {
+        auto decoded = decode_render_job_payload(encoded);
+        if (!decoded.job_id.empty() &&
+            !seen_job_ids.emplace(decoded.job_id).second) {
+            throw std::runtime_error(
+                "RENDER_BATCH contains duplicate job_id '" + decoded.job_id + "'");
+        }
+        jobs.push_back(std::move(decoded));
+    }
+    return jobs;
 }
 
 DecodedRenderJobPayload decode_render_job_payload(
