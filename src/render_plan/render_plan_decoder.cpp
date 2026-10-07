@@ -1,5 +1,6 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_validator.hpp>
+#include <chronon3d/render_plan/animation_property_registry.hpp>
 
 #include "render_plan_decoder_detail.hpp"
 
@@ -128,6 +129,31 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         return PlanDecodeError{"variables", error.what(), "invalid_render_variables", "render-plan-variables"};
     }
     const auto& resolved_root = resolved.plan;
+    // Check the canonical layer-track inventory before JSON Schema so callers
+    // get the registered property's actionable diagnostic instead of only an
+    // enum mismatch from the structural validator.
+    if (resolved_root.is_object() && resolved_root.contains("layers") &&
+        resolved_root.at("layers").is_array()) {
+        for (std::size_t layer_index = 0; layer_index < resolved_root.at("layers").size(); ++layer_index) {
+            const auto& layer = resolved_root.at("layers")[layer_index];
+            if (!layer.is_object() || !layer.contains("animation") ||
+                !layer.at("animation").is_object() || !layer.at("animation").contains("tracks") ||
+                !layer.at("animation").at("tracks").is_array()) continue;
+            const auto& tracks = layer.at("animation").at("tracks");
+            for (std::size_t track_index = 0; track_index < tracks.size(); ++track_index) {
+                const auto& track = tracks[track_index];
+                if (!track.is_object() || !track.contains("property") ||
+                    !track.at("property").is_string()) continue;
+                const auto property = track.at("property").get<std::string>();
+                if (find_animation_property(property)) continue;
+                std::string message = "unregistered property '" + property + "'";
+                if (const auto nearest = nearest_animation_property_name(property); !nearest.empty())
+                    message += "; did you mean '" + std::string{nearest} + "'?";
+                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].animation.tracks[" +
+                    std::to_string(track_index) + "].property", std::move(message)};
+            }
+        }
+    }
     const auto validation = validate_render_plan(resolved_root);
     if (!validation.ok())
         return PlanDecodeError{"", validation.format()};

@@ -167,6 +167,7 @@ struct PathOperatorPlan {
     std::vector<ShapePathCommandPlan> morph_target;
     float morph_progress{0.0f};
     std::optional<AnimationTrackPlan> morph_animation;
+    std::vector<std::vector<ShapePathCommandPlan>> morph_keyframe_targets;
     // Trim Paths: visible arc-length window [trim_start, trim_end] shifted by
     // trim_offset (all fractions of the subpath length; the window wraps).
     float trim_start{0.0f};
@@ -175,13 +176,47 @@ struct PathOperatorPlan {
     std::optional<AnimationTrackPlan> trim_animation;
 };
 
+struct GradientKeyframePlan {
+    Frame frame{0};
+    graphics::GradientDefinition value;
+};
+
+struct GradientAnimationPlan {
+    std::vector<GradientKeyframePlan> keyframes;
+    std::string easing{"linear"};
+    std::optional<std::array<float, 4>> bezier_curve;
+};
+
 struct ImportedSubpathPlan {
     std::vector<ShapePathCommandPlan> path;
     std::optional<std::array<float, 4>> fill_color;
+    std::optional<AnimationTrackPlan> fill_color_animation;
+    std::optional<AnimationTrackPlan> fill_opacity_animation;
     std::optional<graphics::GradientDefinition> fill_gradient;
+    std::optional<GradientAnimationPlan> fill_gradient_animation;
     std::optional<StrokeStyle> stroke;
+    std::optional<AnimationTrackPlan> stroke_color_animation;
+    std::optional<AnimationTrackPlan> stroke_opacity_animation;
+    std::optional<AnimationTrackPlan> stroke_width_animation;
+    std::optional<AnimationTrackPlan> svg_opacity_animation;
+    std::optional<AnimationTrackPlan> svg_translation_animation;
+    std::optional<AnimationTrackPlan> svg_scale_animation;
+    std::optional<AnimationTrackPlan> svg_rotation_animation;
     std::vector<ShapePathCommandPlan> morph_target;
     std::optional<AnimationTrackPlan> morph_animation;
+    std::vector<std::vector<ShapePathCommandPlan>> morph_keyframe_targets;
+    struct GroupTransformPlan {
+        std::array<float, 2> position{0.0f, 0.0f};
+        std::array<float, 2> anchor{0.0f, 0.0f};
+        std::array<float, 2> scale{1.0f, 1.0f};
+        float rotation_degrees{0.0f};
+        float opacity{1.0f};
+        std::optional<AnimationTrackPlan> position_animation;
+        std::optional<AnimationTrackPlan> scale_animation;
+        std::optional<AnimationTrackPlan> rotation_animation;
+        std::optional<AnimationTrackPlan> opacity_animation;
+    };
+    std::optional<GroupTransformPlan> lottie_group_transform;
 };
 
 struct DeviceFramePlan {
@@ -324,22 +359,6 @@ struct LayerStylePlan {
     std::optional<BackdropBlurStyle> backdrop;
     std::optional<GlowStyle> glow;
     std::optional<BackgroundStyle> background;
-};
-
-// Generic concrete property track. `property` names engine properties only;
-// editorial ids (preset/unit/role/profile) are intentionally not representable.
-struct GradientKeyframePlan {
-    Frame frame{0};
-    graphics::GradientDefinition value;
-};
-
-// A complete fill gradient is sampled as one typed value per keyframe. Gradient
-// type and spread are invariant within a track; stop ramps and geometry are
-// interpolated between keys.
-struct GradientAnimationPlan {
-    std::vector<GradientKeyframePlan> keyframes;
-    std::string easing{"linear"};
-    std::optional<std::array<float, 4>> bezier_curve;
 };
 
 struct AnimationPlan {

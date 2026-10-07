@@ -89,7 +89,7 @@ TEST_CASE("decode gate accepts the full registered family on a shape layer") {
     auto source = render_plan_test::base_plan(nlohmann::json::array({
         render_plan_test::shape_layer({
             {"type", "rect"},
-            {"fill_color", {1.0, 0.0, 0.0, 1.0}},
+            {"fill", {1.0, 0.0, 0.0, 1.0}},
             {"stroke", {{"color", "#FF0000"}, {"width", 2.0}}}
         })
     }));

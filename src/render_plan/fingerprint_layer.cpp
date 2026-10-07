@@ -241,6 +241,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             add_optional(out, subpath.fill_gradient, [](auto& writer, const auto& gradient) {
                 add_gradient(writer, gradient);
             });
+            add_optional(out, subpath.fill_gradient_animation,
+                [](auto& writer, const GradientAnimationPlan& animation) {
+                    add_gradient_animation(writer, animation);
+                });
             add_optional(out, subpath.stroke, [](auto& writer, const StrokeStyle& stroke) {
                 add_optional(writer, stroke.width, [](auto& nested, float value) {
                     nested.add_float(value);

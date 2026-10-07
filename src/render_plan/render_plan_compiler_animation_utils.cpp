@@ -338,13 +338,10 @@ graphics::GradientDefinition interpolate_authored_gradient(
 
 }  // namespace
 
-std::optional<graphics::GradientDefinition> fill_gradient_at(
-    const LayerPlan& layer, double frame) {
-    if (!layer.shape || !layer.shape->gradient) return std::nullopt;
-    const auto& base = *layer.shape->gradient;
-    if (!layer.fill_gradient_animation || layer.fill_gradient_animation->keyframes.empty())
-        return base;
-    const auto& track = *layer.fill_gradient_animation;
+graphics::GradientDefinition gradient_animation_at(
+    const graphics::GradientDefinition& base,
+    const GradientAnimationPlan& track, double frame) {
+    if (track.keyframes.empty()) return base;
     std::vector<const GradientKeyframePlan*> keys;
     keys.reserve(track.keyframes.size());
     for (const auto& key : track.keyframes) keys.push_back(&key);
@@ -373,6 +370,14 @@ std::optional<graphics::GradientDefinition> fill_gradient_at(
         if (frame < end) return interpolate(keys[index - 1]->value, keys[index]->value, start, end);
     }
     return keys.back()->value;
+}
+
+std::optional<graphics::GradientDefinition> fill_gradient_at(
+    const LayerPlan& layer, double frame) {
+    if (!layer.shape || !layer.shape->gradient) return std::nullopt;
+    if (!layer.fill_gradient_animation) return *layer.shape->gradient;
+    return gradient_animation_at(*layer.shape->gradient,
+                                 *layer.fill_gradient_animation, frame);
 }
 
 std::optional<chronon3d::camera_v1::CameraDescriptor>

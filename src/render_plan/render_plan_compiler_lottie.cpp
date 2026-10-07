@@ -48,9 +48,12 @@ std::optional<std::string> expand_static_lottie(
             return std::string("supported Lottie requires one shape layer and a version field");
         const auto& layer = doc["layers"][0];
         if (layer.value("ty", -1) != 4 || layer.value("ddd", 0) != 0 ||
-            layer.contains("masksProperties") || layer.contains("ef") ||
+            layer.contains("ef") ||
             layer.contains("tt") || layer.contains("tm") || layer.contains("exp"))
-            return std::string("Lottie layer type, masks, effects, expressions, or time remap are unsupported");
+            return std::string("Lottie layer type, effects, expressions, or time remap are unsupported");
+        if (layer.contains("masksProperties") &&
+            (!layer["masksProperties"].is_array() || layer["masksProperties"].size() > 16))
+            return std::string("Lottie masks must be an array with at most 16 entries");
         float anchor_x = 0.0f, anchor_y = 0.0f;
         if (auto error = decode_lottie_layer_transform(
                 layer_plan, layer, anchor_x, anchor_y)) return error;
@@ -58,7 +61,13 @@ std::optional<std::string> expand_static_lottie(
             layer["shapes"].size() > 256)
             return std::string("Lottie shape list is missing or exceeds 256 items");
         struct Affine2D { float a{1}, b{0}, c{0}, d{1}, x{0}, y{0}; };
-        struct GeometryEntry { const json* item{}; Affine2D transform{}; float opacity{1.0f}; };
+        using GroupTransformPlan = ImportedSubpathPlan::GroupTransformPlan;
+        struct GeometryEntry {
+            const json* item{};
+            Affine2D transform{};
+            float opacity{1.0f};
+            std::optional<GroupTransformPlan> group_animation;
+        };
         const auto compose = [](const Affine2D& parent, const Affine2D& child) {
             return Affine2D{
                 parent.a * child.a + parent.c * child.b,
@@ -69,28 +78,71 @@ std::optional<std::string> expand_static_lottie(
                 parent.b * child.x + parent.d * child.y + parent.y};
         };
         const auto group_transform = [&](const json& item, Affine2D& result,
-                                         float& group_opacity) {
+                                         float& group_opacity,
+                                         std::optional<GroupTransformPlan>& animation) {
             std::vector<float> gp, ga, gs, gr, go;
             bool ap{}, aa{}, as{}, ar{}, ao{};
-            if (!lottie_read_transform_property(item, "p", gp, ap) || ap ||
+            if (!lottie_read_transform_property(item, "p", gp, ap) ||
                 !lottie_read_transform_property(item, "a", ga, aa) || aa ||
-                !lottie_read_transform_property(item, "s", gs, as) || as ||
-                !lottie_read_transform_property(item, "r", gr, ar) || ar ||
-                !lottie_read_transform_property(item, "o", go, ao) || ao ||
-                gp.size() < 2 || gp.size() > 3 || ga.size() < 2 || ga.size() > 3 ||
-                gs.size() < 2 || gs.size() > 3 || gr.size() != 1 || go.size() != 1 ||
-                go[0] < 0.0f || go[0] > 100.0f) return false;
-            const float sx = gs[0] / 100.0f;
-            const float sy = gs[1] / 100.0f;
-            const float angle = gr[0] * 0.01745329251994329577f;
+                !lottie_read_transform_property(item, "s", gs, as) ||
+                !lottie_read_transform_property(item, "r", gr, ar) ||
+                !lottie_read_transform_property(item, "o", go, ao) ||
+                (!ap && (gp.size() != 2 && gp.size() != 3)) ||
+                ga.size() < 2 || ga.size() > 3 ||
+                (!as && (gs.size() != 2 && gs.size() != 3)) ||
+                (!ar && gr.size() != 1) || (!ao && go.size() != 1) ||
+                (!ao && (go[0] < 0.0f || go[0] > 100.0f))) return false;
+            const auto component = [](const std::vector<float>& values, std::size_t index, float fallback) {
+                return index < values.size() ? values[index] : fallback;
+            };
+            const float px = component(gp, 0, 0.0f), py = component(gp, 1, 0.0f);
+            const float ax = component(ga, 0, 0.0f), ay = component(ga, 1, 0.0f);
+            const float sx = component(gs, 0, 100.0f) / 100.0f;
+            const float sy = component(gs, 1, 100.0f) / 100.0f;
+            const float rotation = component(gr, 0, 0.0f);
+            const float angle = rotation * 0.01745329251994329577f;
             const float cosine = std::cos(angle), sine = std::sin(angle);
             result.a = cosine * sx;
             result.b = sine * sx;
             result.c = -sine * sy;
             result.d = cosine * sy;
-            result.x = gp[0] - result.a * ga[0] - result.c * ga[1];
-            result.y = gp[1] - result.b * ga[0] - result.d * ga[1];
-            group_opacity = go[0] / 100.0f;
+            result.x = px - result.a * ax - result.c * ay;
+            result.y = py - result.b * ax - result.d * ay;
+            group_opacity = component(go, 0, 100.0f) / 100.0f;
+            if (ap || as || ar || ao) {
+                GroupTransformPlan plan;
+                plan.position = {px, py}; plan.anchor = {ax, ay};
+                plan.scale = {sx, sy}; plan.rotation_degrees = rotation;
+                plan.opacity = group_opacity;
+                const auto decode = [&](const char* name, const char* property, float divisor,
+                                        std::optional<AnimationTrackPlan>& destination,
+                                        std::size_t dimensions) {
+                    AnimationTrackPlan track;
+                    if (!lottie_decode_transform_track(item, name, property, divisor, track) ||
+                        std::any_of(track.keyframes.begin(), track.keyframes.end(),
+                            [dimensions](const auto& key) { return key.value.size() != dimensions; }))
+                        return false;
+                    destination = std::move(track);
+                    return true;
+                };
+                if ((ap && !decode("p", "lottie_group_position", 1.0f,
+                                   plan.position_animation, 2)) ||
+                    (as && !decode("s", "lottie_group_scale", 100.0f,
+                                   plan.scale_animation, 2)) ||
+                    (ar && !decode("r", "lottie_group_rotation", 1.0f,
+                                   plan.rotation_animation, 1)) ||
+                    (ao && !decode("o", "lottie_group_opacity", 100.0f,
+                                   plan.opacity_animation, 1))) return false;
+                const auto uniform_scale = [](const std::vector<float>& values) {
+                    return std::abs(values[0] - values[1]) <= 1e-5f;
+                };
+                if ((!as && std::abs(sx - sy) > 1e-5f) ||
+                    (as && std::any_of(plan.scale_animation->keyframes.begin(),
+                        plan.scale_animation->keyframes.end(), [&](const auto& key) {
+                            return !uniform_scale(key.value);
+                        }))) return false;
+                animation = std::move(plan);
+            }
             const std::array<float, 6> values{
                 result.a, result.b, result.c, result.d, result.x, result.y};
             return std::all_of(values.begin(), values.end(), [](float v) {
@@ -102,9 +154,11 @@ std::optional<std::string> expand_static_lottie(
         std::vector<const json*> strokes;
         std::vector<const json*> path_operators;
         std::size_t shape_item_count = 0;
-        std::function<bool(const json&, const Affine2D&, float, std::size_t)> collect_shapes;
+        std::function<bool(const json&, const Affine2D&, float,
+                           const std::optional<GroupTransformPlan>&, std::size_t)> collect_shapes;
         collect_shapes = [&](const json& item, const Affine2D& parent_transform,
                              float parent_opacity,
+                             const std::optional<GroupTransformPlan>& parent_animation,
                              std::size_t depth) {
             if (!item.is_object() || item.contains("exp") || depth > 16 ||
                 ++shape_item_count > 256) return false;
@@ -113,30 +167,42 @@ std::optional<std::string> expand_static_lottie(
                 if (!item.contains("it") || !item["it"].is_array()) return false;
                 Affine2D local;
                 float local_opacity = 1.0f;
+                std::optional<GroupTransformPlan> local_animation;
                 bool found_transform = false;
                 for (const auto& child : item["it"]) {
                     if (child.is_object() && child.value("ty", std::string{}) == "tr") {
-                        if (found_transform || !group_transform(child, local, local_opacity)) return false;
+                        if (found_transform || !group_transform(child, local, local_opacity, local_animation)) return false;
                         found_transform = true;
                     }
                 }
-                const auto combined = found_transform
+                if (local_animation && (parent_animation ||
+                    std::abs(parent_transform.a - 1.0f) > 1e-6f ||
+                    std::abs(parent_transform.d - 1.0f) > 1e-6f ||
+                    std::abs(parent_transform.b) > 1e-6f ||
+                    std::abs(parent_transform.c) > 1e-6f ||
+                    std::abs(parent_transform.x) > 1e-6f ||
+                    std::abs(parent_transform.y) > 1e-6f ||
+                    std::abs(parent_opacity - 1.0f) > 1e-6f)) return false;
+                const auto combined = found_transform && !local_animation
                     ? compose(parent_transform, local) : parent_transform;
-                const float combined_opacity = parent_opacity * local_opacity;
+                const float combined_opacity = parent_opacity *
+                    (local_animation ? 1.0f : local_opacity);
+                const auto combined_animation = local_animation ? local_animation : parent_animation;
                 for (const auto& child : item["it"]) {
                     if (child.is_object() && child.value("ty", std::string{}) == "tr") continue;
-                    if (!collect_shapes(child, combined, combined_opacity, depth + 1)) return false;
+                    if (!collect_shapes(child, combined, combined_opacity,
+                                        combined_animation, depth + 1)) return false;
                 }
                 return true;
             }
             if (type == "sh" || type == "el" || type == "rc") {
-                geometry_shapes.push_back({&item, parent_transform, parent_opacity});
+                geometry_shapes.push_back({&item, parent_transform, parent_opacity, parent_animation});
                 return true;
             }
             if (type == "fl" || type == "gf") { fills.push_back(&item); return true; }
             if (type == "st") { strokes.push_back(&item); return true; }
             if (type == "rp" || type == "rd" || type == "zz" ||
-                type == "op" || type == "pb") {
+                type == "op" || type == "pb" || type == "tm") {
                 path_operators.push_back(&item);
                 return true;
             }
@@ -145,7 +211,7 @@ std::optional<std::string> expand_static_lottie(
         };
         const Affine2D identity;
         for (const auto& item : layer["shapes"])
-            if (!collect_shapes(item, identity, 1.0f, 0))
+            if (!collect_shapes(item, identity, 1.0f, std::nullopt, 0))
                 return std::string("Lottie group structure, transform, or shape item is unsupported");
         if (geometry_shapes.empty())
             return std::string("Lottie shape geometry is missing");
@@ -153,7 +219,64 @@ std::optional<std::string> expand_static_lottie(
         for (const auto* raw_operator : path_operators) {
             const auto kind = raw_operator->value("ty", std::string{});
             PathOperatorPlan operation;
-            if (kind == "rd") {
+            if (kind == "tm") {
+                operation.kind = PathOperatorKindPlan::Trim;
+                float start_percent = 0.0f;
+                float end_percent = 100.0f;
+                float offset_degrees = 0.0f;
+                const std::array<std::pair<const char*, float*>, 3> fields{{
+                    {"s", &start_percent}, {"e", &end_percent}, {"o", &offset_degrees}}};
+                std::array<std::optional<AnimationTrackPlan>, 3> animated;
+                for (std::size_t field_index = 0; field_index < fields.size(); ++field_index) {
+                    const auto [name, value] = fields[field_index];
+                    if (!lottie_static_scalar_property(*raw_operator, name, *value)) {
+                        AnimationTrackPlan track;
+                        const float divisor = field_index == 2 ? 360.0f : 100.0f;
+                        if (!lottie_decode_transform_track(*raw_operator, name, "trim", divisor, track))
+                            return std::string("Lottie Trim Paths properties must be bounded scalar values or keyframes");
+                        for (const auto& key : track.keyframes) {
+                            if (key.value.size() != 1 ||
+                                (field_index < 2 && (key.value[0] < 0.0f || key.value[0] > 1.0f)) ||
+                                (field_index == 2 && std::abs(key.value[0]) > 1000000.0f))
+                                return std::string("Lottie Trim Paths keyframes are outside supported bounds");
+                        }
+                        animated[field_index] = std::move(track);
+                    }
+                }
+                if (start_percent < 0.0f || start_percent > 100.0f ||
+                    end_percent < 0.0f || end_percent > 100.0f ||
+                    std::abs(offset_degrees) > 360000000.0f)
+                    return std::string("Lottie Trim Paths values are outside supported bounds");
+                operation.trim_start = start_percent / 100.0f;
+                operation.trim_end = end_percent / 100.0f;
+                operation.trim_offset = offset_degrees / 360.0f;
+                const auto reference = std::find_if(animated.begin(), animated.end(),
+                    [](const auto& track) { return track.has_value(); });
+                if (reference != animated.end()) {
+                    auto combined = **reference;
+                    for (auto& key : combined.keyframes) {
+                        key.value = {operation.trim_start, operation.trim_end, operation.trim_offset};
+                    }
+                    for (std::size_t field_index = 0; field_index < animated.size(); ++field_index) {
+                        if (!animated[field_index]) continue;
+                        const auto& source = animated[field_index]->keyframes;
+                        if (source.size() != combined.keyframes.size())
+                            return std::string("Lottie Trim Paths tracks must share keyframe timing");
+                        for (std::size_t key_index = 0; key_index < source.size(); ++key_index) {
+                            auto& target = combined.keyframes[key_index];
+                            if (source[key_index].frame.value != target.frame.value ||
+                                source[key_index].interpolation != target.interpolation ||
+                                source[key_index].bezier_curve != target.bezier_curve)
+                                return std::string("Lottie Trim Paths tracks must share keyframe timing and easing");
+                            target.value[field_index] = source[key_index].value.front();
+                        }
+                    }
+                    operation.trim_animation = std::move(combined);
+                }
+                const auto mode = raw_operator->value("m", 1);
+                if (mode != 1)
+                    return std::string("Lottie Trim Paths currently supports simultaneous mode only");
+            } else if (kind == "rd") {
                 if (!lottie_static_scalar_property(*raw_operator, "r", operation.radius) ||
                     operation.radius < 0.0f)
                     return std::string("Lottie round-corners radius must be static and non-negative");
@@ -223,6 +346,142 @@ std::optional<std::string> expand_static_lottie(
             }
             return true;
         };
+        if (layer.contains("masksProperties")) {
+            layer_plan.masks.clear();
+            std::size_t total_mask_path_commands = 0;
+            for (const auto& raw_mask : layer["masksProperties"]) {
+                if (!raw_mask.is_object() || !raw_mask.contains("mode") ||
+                    !raw_mask["mode"].is_string() || !raw_mask.contains("pt") ||
+                    !raw_mask["pt"].is_object() || !raw_mask["pt"].contains("a") ||
+                    !raw_mask["pt"]["a"].is_number_integer() ||
+                    (raw_mask["pt"]["a"].get<int>() != 0 && raw_mask["pt"]["a"].get<int>() != 1) ||
+                    !raw_mask["pt"].contains("k") ||
+                    (raw_mask.contains("inv") && !raw_mask["inv"].is_boolean()))
+                    return std::string("Lottie masks require static or two-keyframe path geometry");
+                LayerPlan::PathMaskPlan mask;
+                const auto mode = raw_mask["mode"].get<std::string>();
+                if (mode == "a") mask.mode = "add";
+                else if (mode == "s") mask.mode = "subtract";
+                else if (mode == "i") mask.mode = "intersect";
+                else return std::string("Lottie mask mode must be add, subtract, or intersect");
+                mask.type = "path";
+                mask.inverted = raw_mask.value("inv", false);
+                const auto decode_mask_geometry = [&](const json& geometry,
+                    std::vector<ShapePathCommandPlan>& commands) -> bool {
+                    if (!geometry.is_object() || !geometry.contains("v") ||
+                        !geometry.contains("i") || !geometry.contains("o") ||
+                        !geometry["v"].is_array() || geometry["v"].size() < 2 ||
+                        geometry["v"].size() > 65535 || !geometry["i"].is_array() ||
+                        !geometry["o"].is_array() || geometry["i"].size() != geometry["v"].size() ||
+                        geometry["o"].size() != geometry["v"].size() ||
+                        (geometry.contains("c") && !geometry["c"].is_boolean())) return false;
+                    for (std::size_t vertex_index = 0; vertex_index < geometry["v"].size(); ++vertex_index) {
+                        std::array<float, 2> vertex{}, incoming{}, outgoing{};
+                        if (!point(geometry["v"][vertex_index], vertex) ||
+                            !point(geometry["i"][vertex_index], incoming) ||
+                            !point(geometry["o"][vertex_index], outgoing)) return false;
+                        vertex[0] -= anchor_x; vertex[1] -= anchor_y;
+                        if (vertex_index == 0) {
+                            commands.push_back({ShapePathCommandTypePlan::MoveTo, vertex});
+                            continue;
+                        }
+                        std::array<float, 2> prior{}, prior_out{};
+                        if (!point(geometry["v"][vertex_index - 1], prior) ||
+                            !point(geometry["o"][vertex_index - 1], prior_out)) return false;
+                        prior[0] -= anchor_x; prior[1] -= anchor_y;
+                        const std::array<float, 2> c1{prior[0] + prior_out[0], prior[1] + prior_out[1]};
+                        const std::array<float, 2> c2{vertex[0] + incoming[0], vertex[1] + incoming[1]};
+                        commands.push_back({ShapePathCommandTypePlan::CubicTo, vertex,
+                            {std::round(c1[0] * 10000.0f) / 10000.0f,
+                             std::round(c1[1] * 10000.0f) / 10000.0f},
+                            {std::round(c2[0] * 10000.0f) / 10000.0f,
+                             std::round(c2[1] * 10000.0f) / 10000.0f}});
+                    }
+                    if (geometry.value("c", false))
+                        commands.push_back({ShapePathCommandTypePlan::Close});
+                    return true;
+                };
+                const auto& raw_path = raw_mask["pt"]["k"];
+                if (raw_mask["pt"]["a"].get<int>() == 0) {
+                    if (!decode_mask_geometry(raw_path, mask.path))
+                        return std::string("Lottie mask path vertex and tangent arrays are invalid");
+                } else {
+                    const auto shape_value = [](const json& value) -> const json* {
+                        if (!value.is_array() || value.size() != 1 || !value[0].is_object()) return nullptr;
+                        return &value[0];
+                    };
+                    if (!raw_path.is_array() || raw_path.size() != 2 ||
+                        !raw_path[0].is_object() || !raw_path[1].is_object() ||
+                        !raw_path[0].contains("t") || !raw_path[1].contains("t") ||
+                        !raw_path[0]["t"].is_number() || !raw_path[1]["t"].is_number() ||
+                        !raw_path[0].contains("s"))
+                        return std::string("Lottie animated mask path requires exactly two keyframes");
+                    const auto* source_geometry = shape_value(raw_path[0]["s"]);
+                    const auto* target_geometry = raw_path[0].contains("e")
+                        ? shape_value(raw_path[0]["e"])
+                        : raw_path[1].contains("s") ? shape_value(raw_path[1]["s"]) : nullptr;
+                    if (!source_geometry || !target_geometry ||
+                        !decode_mask_geometry(*source_geometry, mask.path) ||
+                        !decode_mask_geometry(*target_geometry, mask.morph_target) ||
+                        mask.path.size() != mask.morph_target.size() ||
+                        raw_path[0].contains("o") || raw_path[1].contains("i"))
+                        return std::string("Lottie animated mask paths require matching topology and linear/hold timing");
+                    const double first_time = raw_path[0]["t"].get<double>();
+                    const double last_time = raw_path[1]["t"].get<double>();
+                    if (!std::isfinite(first_time) || !std::isfinite(last_time) || first_time < 0.0 ||
+                        last_time <= first_time || last_time > 1000000.0 ||
+                        std::floor(first_time) != first_time || std::floor(last_time) != last_time)
+                        return std::string("Lottie mask keyframe times must be increasing integral frames");
+                    AnimationTrackPlan progress;
+                    progress.property = "mask_morph";
+                    AnimationKeyframePlan from;
+                    from.frame = Frame{static_cast<std::int64_t>(first_time)};
+                    from.value = {0.0f};
+                    from.interpolation = raw_path[0].value("h", 0) == 1 ? "hold" : "linear";
+                    AnimationKeyframePlan to;
+                    to.frame = Frame{static_cast<std::int64_t>(last_time)};
+                    to.value = {1.0f};
+                    progress.keyframes = {std::move(from), std::move(to)};
+                    mask.morph_animation = std::move(progress);
+                }
+                const std::size_t mask_commands = mask.path.size() + mask.morph_target.size();
+                if (mask_commands > 65536 - total_mask_path_commands)
+                    return std::string("Lottie total mask path command limit exceeded");
+                total_mask_path_commands += mask_commands;
+                float opacity_percent = 100.0f;
+                if (raw_mask.contains("o") &&
+                    !lottie_static_scalar_property(raw_mask, "o", opacity_percent)) {
+                    AnimationTrackPlan track;
+                    if (!lottie_decode_transform_track(raw_mask, "o", "opacity", 100.0f, track) ||
+                        std::any_of(track.keyframes.begin(), track.keyframes.end(),
+                            [](const auto& key) {
+                                return key.value.size() != 1 || key.value[0] < 0.0f || key.value[0] > 1.0f;
+                            }))
+                        return std::string("Lottie mask opacity must be bounded and static or animated");
+                    mask.opacity_track = std::move(track);
+                    opacity_percent = mask.opacity_track->keyframes.front().value.front() * 100.0f;
+                }
+                if (opacity_percent < 0.0f || opacity_percent > 100.0f)
+                    return std::string("Lottie mask opacity must be within [0,100]");
+                mask.opacity = opacity_percent / 100.0f;
+                if (raw_mask.contains("f")) {
+                    std::vector<float> feather;
+                    bool animated_feather = false;
+                    if (!lottie_read_transform_property(raw_mask, "f", feather, animated_feather) ||
+                        animated_feather || (feather.size() != 1 && feather.size() != 2) ||
+                        (feather.size() == 2 && std::abs(feather[0] - feather[1]) > 1e-5f))
+                        return std::string("Lottie mask feather must be a static scalar or uniform Vec2");
+                    mask.feather = feather.front();
+                }
+                if (raw_mask.contains("x") &&
+                    !lottie_static_scalar_property(raw_mask, "x", mask.expansion))
+                    return std::string("Lottie mask expansion must be a static scalar value");
+                if (!std::isfinite(mask.feather) || !std::isfinite(mask.expansion) ||
+                    std::abs(mask.feather) > 1000000.0f || std::abs(mask.expansion) > 1000000.0f)
+                    return std::string("Lottie mask feather/expansion exceeds supported bounds");
+                layer_plan.masks.push_back(std::move(mask));
+            }
+        }
         std::size_t total_vertices = 0;
         std::optional<PathOperatorPlan> imported_morph;
         std::vector<std::size_t> geometry_command_starts;
@@ -319,51 +578,63 @@ std::optional<std::string> expand_static_lottie(
           }
           if (!path_shape->contains("ks") || !(*path_shape)["ks"].contains("k"))
               return std::string("Lottie path geometry is missing");
-          // L4 bounded morph: a single authored interval lowers to the native
-          // Morph operator. More complex keyframing remains fail-closed until
-          // the plan contract can represent piecewise morph targets.
           json animated_source;
-          json animated_target;
+          std::vector<json> animated_targets;
           AnimationTrackPlan morph_progress;
           bool has_animated_morph = false;
           const json* geometry_data_ptr = &(*path_shape)["ks"]["k"];
           const auto& raw_geometry = *geometry_data_ptr;
           if ((*path_shape)["ks"].value("a", 0) == 1) {
               const auto& keys = raw_geometry;
-              if (!keys.is_array() || keys.size() != 2 || !keys[0].is_object() ||
-                  !keys[1].is_object() || !keys[0].contains("t") || !keys[1].contains("t") ||
-                  !keys[0]["t"].is_number() || !keys[1]["t"].is_number() ||
-                  !keys[0].contains("s") || !keys[1].contains("s"))
-                  return std::string("Lottie L4 supports exactly two bounded path keyframes");
+              if (!keys.is_array() || keys.size() < 2 || keys.size() > 256)
+                  return std::string("Lottie L4 path morph requires 2 to 256 bounded keyframes");
               const auto shape_value = [](const json& value) -> const json* {
                   if (!value.is_array() || value.size() != 1 || !value[0].is_object()) return nullptr;
                   return &value[0];
               };
+              if (!keys[0].is_object() || !keys[0].contains("s"))
+                  return std::string("Lottie L4 first path keyframe is missing its source geometry");
               const auto* from = shape_value(keys[0]["s"]);
-              const auto* to = keys[0].contains("e") ? shape_value(keys[0]["e"]) : shape_value(keys[1]["s"]);
-              if (!from || !to || !from->contains("v") || !from->contains("i") || !from->contains("o") ||
-                  !to->contains("v") || !to->contains("i") || !to->contains("o"))
+              if (!from || !from->contains("v") || !from->contains("i") || !from->contains("o"))
                   return std::string("Lottie L4 path keyframe payload is malformed");
               animated_source = *from;
-              animated_target = *to;
               geometry_data_ptr = &animated_source;
-              const double first_time = keys[0]["t"].get<double>();
-              const double last_time = keys[1]["t"].get<double>();
-              if (!std::isfinite(first_time) || !std::isfinite(last_time) || first_time < 0.0 ||
-                  last_time <= first_time || last_time > 1000000.0 ||
-                  std::floor(first_time) != first_time || std::floor(last_time) != last_time)
-                  return std::string("Lottie L4 path keyframe times must be increasing integral frames");
-              if (keys[0].contains("o") || keys[1].contains("i"))
-                  return std::string("Lottie L4 currently accepts linear or hold morph interpolation only");
+              std::vector<std::int64_t> key_times;
+              key_times.reserve(keys.size());
+              for (std::size_t key_index = 0; key_index < keys.size(); ++key_index) {
+                  const auto& key = keys[key_index];
+                  if (!key.is_object() || !key.contains("t") || !key["t"].is_number())
+                      return std::string("Lottie L4 path keyframe time is malformed");
+                  const double time = key["t"].get<double>();
+                  if (!std::isfinite(time) || time < 0.0 || time > 1000000.0 ||
+                      std::floor(time) != time ||
+                      (key_index > 0 && time <= static_cast<double>(key_times.back())))
+                      return std::string("Lottie L4 path keyframe times must be increasing integral frames");
+                  key_times.push_back(static_cast<std::int64_t>(time));
+                  if (key_index + 1 == keys.size()) continue;
+                  const auto* target = key.contains("e") ? shape_value(key["e"]) :
+                      (keys[key_index + 1].contains("s") ? shape_value(keys[key_index + 1]["s"]) : nullptr);
+                  if (!target || !target->contains("v") || !target->contains("i") || !target->contains("o"))
+                      return std::string("Lottie L4 path keyframe target geometry is malformed");
+                  if (!target->at("v").is_array() || target->at("v").size() != from->at("v").size() ||
+                      !target->at("i").is_array() || !target->at("o").is_array() ||
+                      target->at("i").size() != from->at("i").size() ||
+                      target->at("o").size() != from->at("o").size() ||
+                      target->value("c", false) != from->value("c", false))
+                      return std::string("Lottie L4 morph keyframes must keep matching path topology");
+                  animated_targets.push_back(*target);
+                  if (key.contains("o") || keys[key_index + 1].contains("i"))
+                      return std::string("Lottie L4 currently accepts linear or hold morph interpolation only");
+              }
               morph_progress.property = "morph_progress";
-              AnimationKeyframePlan from_key;
-              from_key.frame = Frame{static_cast<std::int64_t>(first_time)};
-              from_key.value = {0.0f};
-              from_key.interpolation = keys[0].value("h", 0) == 1 ? "hold" : "linear";
-              AnimationKeyframePlan to_key;
-              to_key.frame = Frame{static_cast<std::int64_t>(last_time)};
-              to_key.value = {1.0f};
-              morph_progress.keyframes = {from_key, to_key};
+              for (std::size_t key_index = 0; key_index < keys.size(); ++key_index) {
+                  AnimationKeyframePlan key;
+                  key.frame = Frame{key_times[key_index]};
+                  key.value = {static_cast<float>(key_index)};
+                  key.interpolation = key_index + 1 < keys.size() && keys[key_index].value("h", 0) == 1
+                      ? "hold" : "linear";
+                  morph_progress.keyframes.push_back(std::move(key));
+              }
               has_animated_morph = true;
           }
           const auto& geometry_data = *geometry_data_ptr;
@@ -407,35 +678,35 @@ std::optional<std::string> expand_static_lottie(
           if (has_animated_morph) {
               if (geometry_shapes.size() != 1 || !path_operators.empty())
                   return std::string("Lottie L4 morph requires exactly one geometry path");
-              if (!animated_target["v"].is_array() || animated_target["v"].size() != geometry_data["v"].size() ||
-                  !animated_target["i"].is_array() || !animated_target["o"].is_array() ||
-                  animated_target["i"].size() != animated_target["v"].size() ||
-                  animated_target["o"].size() != animated_target["v"].size())
-                  return std::string("Lottie L4 morph endpoints must have matching bounded topology");
               PathOperatorPlan morph;
               morph.kind = PathOperatorKindPlan::Morph;
               morph.morph_animation = std::move(morph_progress);
-              for (std::size_t i = 0; i < animated_target["v"].size(); ++i) {
+              const auto decode_morph_target = [&](const json& target_geometry,
+                                                   std::vector<ShapePathCommandPlan>& output) -> bool {
+                for (std::size_t i = 0; i < target_geometry["v"].size(); ++i) {
                   std::array<float, 2> vertex{}, incoming{}, outgoing{};
-                  if (!point(animated_target["v"][i], vertex) || !point(animated_target["i"][i], incoming) ||
-                      !point(animated_target["o"][i], outgoing))
-                      return std::string("Lottie L4 morph endpoint has invalid coordinates");
-                  if (i == 0) {
-                      morph.morph_target.push_back({ShapePathCommandTypePlan::MoveTo, vertex});
-                      continue;
-                  }
+                  if (!point(target_geometry["v"][i], vertex) || !point(target_geometry["i"][i], incoming) ||
+                      !point(target_geometry["o"][i], outgoing)) return false;
+                  if (i == 0) { output.push_back({ShapePathCommandTypePlan::MoveTo, vertex}); continue; }
                   std::array<float, 2> prior{}, prior_out{};
-                  if (!point(animated_target["v"][i - 1], prior) || !point(animated_target["o"][i - 1], prior_out))
-                      return std::string("Lottie L4 morph endpoint has invalid tangent");
-                  morph.morph_target.push_back({ShapePathCommandTypePlan::CubicTo, vertex,
-                      {std::round((prior[0] + prior_out[0]) * 10000.0f) / 10000.0f,
-                       std::round((prior[1] + prior_out[1]) * 10000.0f) / 10000.0f},
-                      {std::round((vertex[0] + incoming[0]) * 10000.0f) / 10000.0f,
-                       std::round((vertex[1] + incoming[1]) * 10000.0f) / 10000.0f}});
+                  if (!point(target_geometry["v"][i - 1], prior) || !point(target_geometry["o"][i - 1], prior_out)) return false;
+                  output.push_back({ShapePathCommandTypePlan::CubicTo, vertex,
+                    {std::round((prior[0] + prior_out[0]) * 10000.0f) / 10000.0f,
+                     std::round((prior[1] + prior_out[1]) * 10000.0f) / 10000.0f},
+                    {std::round((vertex[0] + incoming[0]) * 10000.0f) / 10000.0f,
+                     std::round((vertex[1] + incoming[1]) * 10000.0f) / 10000.0f}});
+                }
+                if (target_geometry.value("c", false)) output.push_back({ShapePathCommandTypePlan::Close});
+                return true;
+              };
+              for (const auto& target_geometry : animated_targets) {
+                std::vector<ShapePathCommandPlan> target_path;
+                if (!decode_morph_target(target_geometry, target_path))
+                    return std::string("Lottie L4 morph keyframe has invalid coordinates or tangents");
+                morph.morph_keyframe_targets.push_back(std::move(target_path));
               }
-              if (animated_target.value("c", false))
-                  morph.morph_target.push_back({ShapePathCommandTypePlan::Close});
-              for (auto& command : morph.morph_target) {
+              morph.morph_target = morph.morph_keyframe_targets.back();
+              for (auto& target_path : morph.morph_keyframe_targets) for (auto& command : target_path) {
                   const auto transform_point = [&](std::array<float, 2>& p) {
                       const float x = p[0], y = p[1];
                       p = {geometry_entry.transform.a*x + geometry_entry.transform.c*y + geometry_entry.transform.x,
@@ -445,6 +716,7 @@ std::optional<std::string> expand_static_lottie(
                   if (command.type == ShapePathCommandTypePlan::CubicTo || command.type == ShapePathCommandTypePlan::QuadraticTo) transform_point(command.control1);
                   if (command.type == ShapePathCommandTypePlan::CubicTo) transform_point(command.control2);
               }
+              morph.morph_target = morph.morph_keyframe_targets.back();
               imported_morph = std::move(morph);
           }
           apply_geometry_transform(geometry_command_starts.back(), geometry_entry.transform);
@@ -458,12 +730,16 @@ std::optional<std::string> expand_static_lottie(
                 command.control2[0] -= anchor_x; command.control2[1] -= anchor_y;
             }
             if (imported_morph) {
-                for (auto& command : imported_morph->morph_target) {
+                const auto offset_path = [&](auto& path) {
+                  for (auto& command : path) {
                     if (command.type == ShapePathCommandTypePlan::Close) continue;
                     command.point[0] -= anchor_x; command.point[1] -= anchor_y;
                     command.control1[0] -= anchor_x; command.control1[1] -= anchor_y;
                     command.control2[0] -= anchor_x; command.control2[1] -= anchor_y;
-                }
+                  }
+                };
+                offset_path(imported_morph->morph_target);
+                for (auto& path : imported_morph->morph_keyframe_targets) offset_path(path);
             }
         }
         if (fills.size() != 1 && fills.size() != geometry_shapes.size())
@@ -473,21 +749,68 @@ std::optional<std::string> expand_static_lottie(
         if (fills.empty() && strokes.empty())
             return std::string("Lottie static geometry requires a solid fill or stroke");
 
+        struct SolidPaint {
+            std::array<float, 4> color{};
+            std::optional<AnimationTrackPlan> color_animation;
+            std::optional<AnimationTrackPlan> opacity_animation;
+        };
         const auto decode_lottie_color = [&](const json& style,
-                                             std::array<float, 4>& color) -> bool {
+                                             SolidPaint& paint,
+                                             std::string_view color_property,
+                                             std::string_view opacity_property) -> bool {
             if (style.value("r", 1) != 1 || !style.contains("c") ||
                 !style["c"].is_object() || !style["c"].contains("k")) return false;
-            const auto& value = style["c"]["k"];
-            if (!value.is_array() || value.size() != 4) return false;
-            float opacity = 100.0f;
-            if (style.contains("o") && !lottie_static_scalar_property(style, "o", opacity)) return false;
-            if (opacity < 0.0f || opacity > 100.0f) return false;
-            for (std::size_t i = 0; i < 4; ++i) {
-                if (!value[i].is_number()) return false;
-                color[i] = value[i].get<float>();
-                if (!std::isfinite(color[i]) || color[i] < 0.0f || color[i] > 1.0f) return false;
+            std::array<float, 4> first_color{};
+            const auto decode_rgba = [](const json& value, std::array<float, 4>& color) {
+                if (!value.is_array() || value.size() != 4) return false;
+                for (std::size_t i = 0; i < 4; ++i) {
+                    if (!value[i].is_number()) return false;
+                    color[i] = value[i].get<float>();
+                    if (!std::isfinite(color[i]) || color[i] < 0.0f || color[i] > 1.0f)
+                        return false;
+                }
+                return true;
+            };
+            const auto& color_property_json = style["c"];
+            if (color_property_json.value("a", 0) == 1) {
+                AnimationTrackPlan track;
+                const std::string property_name{color_property};
+                if (!lottie_decode_transform_track(style, "c", property_name.c_str(), 1.0f, track) ||
+                    track.keyframes.empty()) return false;
+                for (const auto& key : track.keyframes) {
+                    if (key.value.size() != 4 || std::any_of(key.value.begin(), key.value.end(),
+                            [](float component) {
+                                return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                            })) return false;
+                }
+                std::copy_n(track.keyframes.front().value.begin(), 4, first_color.begin());
+                paint.color_animation = std::move(track);
+            } else if (!decode_rgba(color_property_json["k"], first_color)) {
+                return false;
             }
-            color[3] *= opacity / 100.0f;
+            float opacity = 100.0f;
+            if (style.contains("o")) {
+                if (!lottie_static_scalar_property(style, "o", opacity)) {
+                    AnimationTrackPlan track;
+                    const std::string property_name{opacity_property};
+                    if (!lottie_decode_transform_track(style, "o", property_name.c_str(), 100.0f, track) ||
+                        track.keyframes.empty()) return false;
+                    for (const auto& key : track.keyframes)
+                        if (key.value.size() != 1 || key.value[0] < 0.0f || key.value[0] > 1.0f)
+                            return false;
+                    opacity = 100.0f;
+                    paint.opacity_animation = std::move(track);
+                }
+            }
+            if (opacity < 0.0f || opacity > 100.0f) return false;
+            if (!paint.opacity_animation) {
+                first_color[3] *= opacity / 100.0f;
+                if (paint.color_animation) {
+                    for (auto& key : paint.color_animation->keyframes)
+                        key.value[3] *= opacity / 100.0f;
+                }
+            }
+            paint.color = first_color;
             return true;
         };
         const auto decode_lottie_gradient = [&](const json& style,
@@ -550,35 +873,49 @@ std::optional<std::string> expand_static_lottie(
             gradient.opacity_stops = std::move(opacity_stops);
             return true;
         };
-        std::vector<std::optional<std::array<float, 4>>> fill_colors;
+        std::vector<std::optional<SolidPaint>> fill_paints;
         std::vector<std::optional<graphics::GradientDefinition>> fill_gradients;
         for (const auto* fill : fills) {
             if (fill->value("ty", std::string{}) == "gf") {
                 graphics::GradientDefinition gradient;
                 if (!decode_lottie_gradient(*fill, gradient))
                     return std::string("Lottie gradient fill is malformed or unsupported");
-                fill_colors.push_back(std::nullopt);
+                fill_paints.push_back(std::nullopt);
                 fill_gradients.push_back(std::move(gradient));
             } else {
-                std::array<float, 4> color{};
-                if (!decode_lottie_color(*fill, color))
-                    return std::string("Lottie fill must be static finite RGBA in RGB color space");
-                fill_colors.push_back(color);
+                SolidPaint paint;
+                if (!decode_lottie_color(*fill, paint, "lottie_fill_color", "lottie_fill_opacity"))
+                    return std::string("Lottie fill must have bounded RGBA color/opacity values or keyframes");
+                fill_paints.push_back(std::move(paint));
                 fill_gradients.push_back(std::nullopt);
             }
         }
         std::vector<std::optional<StrokeStyle>> stroke_styles;
+        std::vector<std::optional<AnimationTrackPlan>> stroke_color_tracks;
+        std::vector<std::optional<AnimationTrackPlan>> stroke_opacity_tracks;
+        std::vector<std::optional<AnimationTrackPlan>> stroke_width_tracks;
         for (const auto* stroke : strokes) {
-            std::array<float, 4> color{};
+            SolidPaint paint;
             float width = 0.0f;
-            if (!decode_lottie_color(*stroke, color) ||
-                !lottie_static_scalar_property(*stroke, "w", width) || width < 0.0f ||
+            std::optional<AnimationTrackPlan> width_animation;
+            if (!decode_lottie_color(*stroke, paint, "lottie_stroke_color", "lottie_stroke_opacity"))
+                return std::string("Lottie stroke color/opacity values or keyframes are unsupported");
+            if (!lottie_static_scalar_property(*stroke, "w", width)) {
+                AnimationTrackPlan track;
+                if (!lottie_decode_transform_track(*stroke, "w", "lottie_stroke_width", 1.0f, track) ||
+                    track.keyframes.empty() || std::any_of(track.keyframes.begin(), track.keyframes.end(),
+                        [](const auto& key) { return key.value.size() != 1 || key.value[0] < 0.0f; }))
+                    return std::string("Lottie stroke width must be bounded and static or animated");
+                width = track.keyframes.front().value.front();
+                width_animation = std::move(track);
+            }
+            if (width < 0.0f ||
                 stroke->value("lc", 1) != 1 || stroke->value("lj", 1) != 1 ||
                 stroke->value("ml", 4.0f) != 4.0f)
-                return std::string("Lottie stroke supports bounded static color/opacity/width with default cap/join");
+                return std::string("Lottie stroke requires bounded color/opacity/width values and default cap/join");
             StrokeStyle style;
             style.width = width;
-            style.solid_color = color;
+            style.solid_color = paint.color;
             if (stroke->contains("d")) {
                 if (!(*stroke)["d"].is_array() || (*stroke)["d"].size() > 128)
                     return std::string("Lottie stroke dash list is malformed or exceeds 128 entries");
@@ -597,6 +934,9 @@ std::optional<std::string> expand_static_lottie(
                     return std::string("Lottie stroke dash list has no dash or gap entries");
             }
             stroke_styles.push_back(std::move(style));
+            stroke_color_tracks.push_back(std::move(paint.color_animation));
+            stroke_opacity_tracks.push_back(std::move(paint.opacity_animation));
+            stroke_width_tracks.push_back(std::move(width_animation));
         }
         shape.imported_subpaths.clear();
         shape.imported_subpaths.reserve(geometry_shapes.size());
@@ -607,11 +947,19 @@ std::optional<std::string> expand_static_lottie(
             ImportedSubpathPlan imported;
             imported.path.assign(shape.path.begin() + static_cast<std::ptrdiff_t>(begin),
                                  shape.path.begin() + static_cast<std::ptrdiff_t>(end));
-            if (!fill_colors.empty()) {
+            imported.lottie_group_transform = geometry_shapes[index].group_animation;
+            if (!fill_paints.empty()) {
                 const auto fill_index = fills.size() == 1 ? 0 : index;
-                if (fill_colors[fill_index]) {
-                    imported.fill_color = *fill_colors[fill_index];
+                if (fill_paints[fill_index]) {
+                    auto& paint = *fill_paints[fill_index];
+                    imported.fill_color = paint.color;
                     (*imported.fill_color)[3] *= geometry_shapes[index].opacity;
+                    imported.fill_color_animation = paint.color_animation;
+                    if (imported.fill_color_animation) {
+                        for (auto& key : imported.fill_color_animation->keyframes)
+                            key.value[3] *= geometry_shapes[index].opacity;
+                    }
+                    imported.fill_opacity_animation = paint.opacity_animation;
                 }
                 if (fill_gradients[fill_index]) {
                     imported.fill_gradient = *fill_gradients[fill_index];
@@ -645,7 +993,10 @@ std::optional<std::string> expand_static_lottie(
                 }
             }
             if (!stroke_styles.empty()) {
-                imported.stroke = *stroke_styles[strokes.size() == 1 ? 0 : index];
+                const auto stroke_index = strokes.size() == 1 ? 0 : index;
+                imported.stroke = *stroke_styles[stroke_index];
+                imported.stroke_color_animation = stroke_color_tracks[stroke_index];
+                imported.stroke_opacity_animation = stroke_opacity_tracks[stroke_index];
                 const auto& matrix = geometry_shapes[index].transform;
                 const float x_scale = std::hypot(matrix.a, matrix.b);
                 const float y_scale = std::hypot(matrix.c, matrix.d);
@@ -657,15 +1008,31 @@ std::optional<std::string> expand_static_lottie(
                 imported.stroke->dash_offset *= x_scale;
                 if (imported.stroke->solid_color)
                     (*imported.stroke->solid_color)[3] *= geometry_shapes[index].opacity;
+                imported.stroke_width_animation = stroke_width_tracks[stroke_index];
+                if (imported.stroke_width_animation) {
+                    for (auto& key : imported.stroke_width_animation->keyframes)
+                        key.value[0] *= x_scale;
+                }
+                if (imported.stroke_color_animation) {
+                    for (auto& key : imported.stroke_color_animation->keyframes)
+                        key.value[3] *= geometry_shapes[index].opacity;
+                }
             }
             if (imported_morph && index == 0) {
                 imported.morph_target = imported_morph->morph_target;
                 imported.morph_animation = imported_morph->morph_animation;
+                imported.morph_keyframe_targets = imported_morph->morph_keyframe_targets;
             }
             shape.imported_subpaths.push_back(std::move(imported));
         }
         shape.path.clear();
-        if (!shape.operators.empty()) {
+        const bool has_trim_operator = std::any_of(shape.operators.begin(), shape.operators.end(),
+            [](const PathOperatorPlan& operation) {
+                return operation.kind == PathOperatorKindPlan::Trim;
+            });
+        if (has_trim_operator && shape.operators.size() != 1)
+            return std::string("Lottie Trim Paths currently requires a single isolated path operator");
+        if (!shape.operators.empty() && !has_trim_operator) {
             std::vector<chronon3d::PathOperatorSpec> specs;
             specs.reserve(shape.operators.size());
             for (const auto& operation : shape.operators) {
@@ -772,7 +1139,7 @@ std::optional<std::string> expand_static_lottie(
                 }
             }
             shape.imported_subpaths = std::move(expanded_subpaths);
-            shape.operators.clear();
+            if (!has_trim_operator) shape.operators.clear();
         }
         return std::nullopt;
     } catch (const std::exception& error) {
