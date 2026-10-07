@@ -305,6 +305,13 @@ void serialize_job_section(nlohmann::json& job,
         enc_settings["requested_preset"] = nullptr;
     }
 
+    auto& effect_usage = job["effect_usage"] = nlohmann::json::object();
+    for (const auto& [effect, counts] : timings.effect_usage) {
+        effect_usage[effect] = {
+            {"native_frames", counts.native_frames},
+            {"admission_rejected_frames", counts.admission_rejected_frames},
+        };
+    }
     auto& gpu = job["gpu"];
     const auto put_gpu = [&gpu](const char* key, const std::optional<double>& value) {
         put_optional(gpu, key, value);

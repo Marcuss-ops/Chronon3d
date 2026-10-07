@@ -12,8 +12,8 @@
 
 namespace chronon3d::cli::pipe_timing {
 
-inline constexpr const char* kTimingSidecarSchema = "chronon3d.frame-timing.v2";
-inline constexpr int kTimingSidecarVersion = 2;
+inline constexpr const char* kTimingSidecarSchema = "chronon3d.frame-timing.v3";
+inline constexpr int kTimingSidecarVersion = 3;
 
 struct CacheMetrics {
     std::optional<double> node_lookup_ms;
@@ -320,6 +320,11 @@ struct InternalEncoderProfiling {
     std::optional<double> cpu_wait_ms;
 };
 
+struct EffectUsageMetric {
+    std::uint64_t native_frames{0};
+    std::uint64_t admission_rejected_frames{0};
+};
+
 struct JobTimings {
     std::optional<double> process_wall_ms;
     std::optional<std::string> measurement_kind;
@@ -369,6 +374,7 @@ struct JobTimings {
     PipelineMetrics pipeline;
     AppliedEncoderSettings encoder_settings;
     GpuMetrics gpu;
+    std::map<std::string, EffectUsageMetric> effect_usage;
     RuntimeMetrics runtime;
     CpuBreakdownMetrics cpu_breakdown;
     HardwareMetrics hardware;

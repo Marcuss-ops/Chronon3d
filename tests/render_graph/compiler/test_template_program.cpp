@@ -18,6 +18,8 @@
 #include <chronon3d/render_graph/compiler/parameter_ring.hpp>
 #include <chronon3d/render_graph/compiler/command_replay.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
+#include <chronon3d/animation/transition/transition_progress_sampler.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -41,17 +43,20 @@ CompiledFrameGraph build_synthetic_compiled_graph() {
     g.nodes[0].id = 0;
     g.nodes[0].kind = RenderGraphNodeKind::Source;
     g.nodes[0].layer_id = "layer_image";
+    g.nodes[0].stable_node_id = StableNodeId{10};
     g.nodes[0].shape_type = 7;  // ShapeType::Image
     g.nodes[0].binding_meta.active = true;
 
     g.nodes[1].id = 1;
     g.nodes[1].kind = RenderGraphNodeKind::TextRun;
     g.nodes[1].layer_id = "layer_text";
+    g.nodes[1].stable_node_id = StableNodeId{20};
     g.nodes[1].binding_meta.active = true;
 
     g.nodes[2].id = 2;
     g.nodes[2].kind = RenderGraphNodeKind::Transform;
     g.nodes[2].layer_id = "layer_xform";
+    g.nodes[2].stable_node_id = StableNodeId{30};
     g.nodes[2].inputs = {0, 1};  // ← topological edge for propagation
     g.nodes[2].binding_meta.active = false;
 
@@ -195,7 +200,7 @@ TEST_CASE("CompiledTemplateProgram: static regions (maximal island bake) + GPU b
     REQUIRE(prog.static_regions.size() == 1);
     CHECK(prog.static_regions[0].root == 0);
     CHECK(prog.static_regions[0].members == std::vector<GraphNodeId>{0});
-    CHECK(prog.static_regions[0].is_baked);
+    CHECK_FALSE(prog.static_regions[0].is_baked);
     CHECK(prog.static_regions[0].fingerprint != 0);
     // bake_id is the region index (BakedResourceId resolved at runtime).
     CHECK(prog.static_regions[0].bake_id == 0);
@@ -223,6 +228,9 @@ TEST_CASE("Fase B: classify_temporal propagates worst-class through inputs") {
     CHECK(prog.temporal.classification(2) == TemporalClass::ContentDynamic);
     CHECK(prog.temporal.static_count == 1);
     CHECK(prog.temporal.total_count == 3);
+    CHECK(prog.temporal.fingerprint_valid());
+    CHECK(prog.temporal.dependency_fingerprint ==
+          classify_temporal(*prog.compiled).dependency_fingerprint);
 }
 
 TEST_CASE("Fase B: is_static / is_dynamic / to_string helpers") {
@@ -271,6 +279,8 @@ TEST_CASE("Fase B: bake_maximal_static_islands splits at dynamic separators") {
     CHECK(regions[0].bake_id == 0);
     CHECK(regions[1].bake_id == 1);
     CHECK(regions[0].fingerprint != regions[1].fingerprint);
+    CHECK_FALSE(regions[0].is_baked);
+    CHECK_FALSE(regions[1].is_baked);
 }
 
 // ── Fase D: parameter ring ────────────────────────────────────────────────
@@ -320,6 +330,8 @@ TEST_CASE("Fase C: analyze_physical_resources mirrors alloc plan") {
     CHECK(plan.sized_slots.size() >= 1);
     CHECK(plan.slot_count >= 1);
     CHECK(plan.peak_transient_bytes > 0);
+    CHECK(plan.baked_surface_count == 0);
+    CHECK(plan.baked_surface_bytes == 0);
 }
 
 TEST_CASE("Fase C: build_device_memory_plan computes estimated peak") {
@@ -389,6 +401,68 @@ TEST_CASE("Fase D: compile_template_program populates param_ring") {
     CHECK(prog.param_ring.slot_count == 3);
     CHECK(prog.param_ring.total_bytes == 48);
     CHECK(prog.param_ring.entries.size() == 2);
+}
+
+TEST_CASE("Fase B: dependency classification is independent of requested seek order") {
+    auto graph = build_synthetic_compiled_graph();
+    const auto compiled = compile_template_program(std::move(graph));
+    const auto& frame_graph = *compiled.compiled;
+
+    const auto forward = classify_temporal(frame_graph);
+    const auto reverse_seek = classify_temporal(frame_graph);
+    REQUIRE(forward.per_node.size() == reverse_seek.per_node.size());
+    CHECK(forward.dependency_fingerprint == reverse_seek.dependency_fingerprint);
+    for (std::size_t i = 0; i < forward.per_node.size(); ++i) {
+        CHECK(forward.per_node[i].classification ==
+              reverse_seek.per_node[i].classification);
+    }
+
+    const FrameRate rate{30000, 1001};
+    const auto start = SampleTime::from_frame(12.0, rate);
+    const auto end = SampleTime::from_frame(13.0, rate);
+    const EasingCurve linear{Easing::Linear};
+    const auto q1 = make_temporal_key(SampleTime::from_frame(12.25, rate), 8);
+    const auto q2 = make_temporal_key(SampleTime::from_frame(12.75, rate), 8);
+    const auto sample_after_seek = sample_transition(
+        SampleTime::from_frame(12.25, rate), start, end, linear);
+    const auto sample_direct = sample_transition(
+        SampleTime::from_frame(12.25, rate), start, end, linear);
+    CHECK(q1 != q2);
+    CHECK(sample_after_seek.linear_progress == sample_direct.linear_progress);
+    CHECK(sample_after_seek.eased_progress == sample_direct.eased_progress);
+    CHECK(q1 == make_temporal_key(SampleTime::from_frame(12.25, rate), 8));
+}
+
+TEST_CASE("Fase B: temporal dependency fingerprint is stable and edge-sensitive") {
+    auto graph_a = build_synthetic_compiled_graph();
+    auto graph_b = build_synthetic_compiled_graph();
+
+    const auto first = classify_temporal(graph_a);
+    const auto repeated = classify_temporal(graph_b);
+    REQUIRE(first.fingerprint_valid());
+    CHECK(first.dependency_fingerprint == repeated.dependency_fingerprint);
+
+    graph_b.nodes[2].inputs = {0};
+    const auto changed_edges = classify_temporal(graph_b);
+    CHECK(changed_edges.dependency_fingerprint != first.dependency_fingerprint);
+
+    graph_b = build_synthetic_compiled_graph();
+    graph_b.nodes[0].stable_node_id = StableNodeId{0xabc};
+    const auto changed_identity = classify_temporal(graph_b);
+    CHECK(changed_identity.dependency_fingerprint != first.dependency_fingerprint);
+}
+
+TEST_CASE("Fase B prepare leaves static candidates executable without baked pixels") {
+    auto graph = build_synthetic_compiled_graph();
+    auto program = compile_template_program(std::move(graph));
+    const auto prepared = prepare(program);
+
+    REQUIRE(prepared.valid);
+    CHECK(prepared.interior_node_skip.empty());
+    CHECK(prepared.baked_regions.empty());
+    CHECK(prepared.skipped_interior_nodes == 0);
+    REQUIRE(program.static_regions.size() == 1);
+    CHECK_FALSE(program.static_regions.front().is_baked);
 }
 
 TEST_CASE("Fase B: merge_contiguous_static_regions is deterministic no-op in Fase B") {

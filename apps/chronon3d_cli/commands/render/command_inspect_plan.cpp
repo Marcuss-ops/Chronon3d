@@ -6,6 +6,7 @@
 #include <CLI/CLI.hpp>
 #include <nlohmann/json.hpp>
 
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <sstream>
