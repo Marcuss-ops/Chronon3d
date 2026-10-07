@@ -194,6 +194,12 @@ struct Fill {
     }
 };
 
+/// Compat predicate so callers outside this header never name the legacy
+/// `FillType` enumerator directly (see TICKET-SHAPE-FILL-COMPAT).
+[[nodiscard]] inline constexpr bool is_solid_fill(const Fill& fill) noexcept {
+    return fill.type == FillType::Solid;
+}
+
 [[nodiscard]] inline Color sample_fill_at(const Fill& fill, const Vec2& point) {
     if (fill.type == FillType::Field2D && fill.field) {
         const float value = fill.field_grid

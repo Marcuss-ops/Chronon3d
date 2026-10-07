@@ -2,6 +2,7 @@
 
 #include <chronon3d/runtime/telemetry/frame_timing_summary.hpp>
 #include <chronon3d/runtime/render_preparation.hpp>
+#include <chronon3d/render_plan/temporal_rate_analysis.hpp>
 #include "../common/pipe_startup_breakdown.hpp"
 
 #include <cstdint>
@@ -375,6 +376,7 @@ struct JobTimings {
     AppliedEncoderSettings encoder_settings;
     GpuMetrics gpu;
     std::map<std::string, EffectUsageMetric> effect_usage;
+    std::optional<chronon3d::render_plan::TemporalRateReport> temporal_rate_analysis;
     RuntimeMetrics runtime;
     CpuBreakdownMetrics cpu_breakdown;
     HardwareMetrics hardware;

@@ -23,6 +23,7 @@ set(_chronon3d_c_abi_links
 set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_animation_property_registry.cpp
     c_abi/test_render_plan_decoder.cpp
+    c_abi/test_render_plan_temporal_rate_analysis.cpp
     c_abi/test_render_plan_spring_bake.cpp
     c_abi/test_render_plan_shape_path_generator.cpp
     c_abi/test_render_plan_inline_mesh.cpp
