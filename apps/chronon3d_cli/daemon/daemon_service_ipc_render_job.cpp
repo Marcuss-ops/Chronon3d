@@ -15,7 +15,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -212,29 +211,11 @@ ipc::Reply DaemonService::handle_render_job_request(
 }
 
 ipc::Reply DaemonService::ipc_render_batch(const std::string& payload) {
-    constexpr std::size_t kMaxBatchJobs = 64;
     std::vector<std::pair<runtime::job::RenderJobRequest, std::string>> jobs;
     try {
-        const auto request = nlohmann::json::parse(payload);
-        if (!request.is_object() || request.size() != 1 ||
-            !request.contains("jobs") || !request.at("jobs").is_array()) {
-            return ipc::Reply{ipc::Status::BadRequest,
-                "RENDER_BATCH payload must be {\"jobs\":[render-job, ...]}"};
-        }
-        const auto& encoded_jobs = request.at("jobs");
-        if (encoded_jobs.empty() || encoded_jobs.size() > kMaxBatchJobs) {
-            return ipc::Reply{ipc::Status::BadRequest,
-                "RENDER_BATCH jobs must contain between 1 and 64 entries"};
-        }
-        jobs.reserve(encoded_jobs.size());
-        std::unordered_map<std::string, bool> seen_job_ids;
-        for (std::size_t i = 0; i < encoded_jobs.size(); ++i) {
-            auto decoded = decode_render_job_payload(encoded_jobs[i]);
-            if (!decoded.job_id.empty() &&
-                !seen_job_ids.emplace(decoded.job_id, true).second) {
-                return ipc::Reply{ipc::Status::BadRequest,
-                    "RENDER_BATCH contains duplicate job_id '" + decoded.job_id + "'"};
-            }
+        auto decoded_jobs = decode_render_batch_payload(payload);
+        jobs.reserve(decoded_jobs.size());
+        for (auto& decoded : decoded_jobs) {
             jobs.emplace_back(std::move(decoded.request), std::move(decoded.job_id));
         }
     } catch (const std::exception& e) {

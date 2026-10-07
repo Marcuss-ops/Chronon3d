@@ -14,9 +14,9 @@ namespace chronon3d::graph::pixel {
 namespace {
 
 constexpr std::array<std::uint8_t, 4> kCpuPayloadMagic = {'C', 'P', 'I', 'X'};
-constexpr std::uint32_t kCpuPayloadVersion = 1;
-constexpr std::size_t kCpuPayloadSize =
-    4 + 4 + 4 + 4 + 12 * sizeof(float) + sizeof(float) + 1 + 3;
+constexpr std::uint32_t kCpuPayloadVersion = 2;
+constexpr std::size_t kCpuPayloadHeaderSize = 4 + 4 + 4 + 4 + 4 + 4 + 4 + 4;
+constexpr std::size_t kCpuPayloadOpSize = 1 + 1 + 24 * sizeof(float);
 
 [[nodiscard]] std::uint32_t read_u32_le(const std::uint8_t* p) noexcept {
     return static_cast<std::uint32_t>(p[0]) |
@@ -53,7 +53,7 @@ void write_u32_le(std::uint8_t* p, std::uint32_t v) noexcept {
 [[nodiscard]] std::vector<std::uint8_t> encode_cpu_payload(
     const PixelProgram& program) {
     std::vector<std::uint8_t> out;
-    out.resize(kCpuPayloadSize, 0);
+    out.resize(kCpuPayloadHeaderSize + program.ops.size() * kCpuPayloadOpSize, 0);
     std::uint8_t* p = out.data();
     std::memcpy(p, kCpuPayloadMagic.data(), 4);
     p += 4;
@@ -63,17 +63,16 @@ void write_u32_le(std::uint8_t* p, std::uint32_t v) noexcept {
     p += 4;
     write_u32_le(p, program.abi_version);
     p += 4;
-    // ops[0] ColorMatrix params[12]
-    std::memcpy(p, program.ops[0].params.data(), 12 * sizeof(float));
-    p += 12 * sizeof(float);
-    // ops[1] Opacity params[0]
-    const float alpha = program.ops[1].params[0];
-    std::memcpy(p, &alpha, sizeof(float));
-    p += sizeof(float);
-    p[0] = program.ops[2].blend_mode;
-    p[1] = static_cast<std::uint8_t>(program.determinism_contract.required);
-    p[2] = program.certification.bit_exact() ? 1 : 0;
-    p[3] = 0;
+    write_u32_le(p, static_cast<std::uint32_t>(program.ops.size())); p += 4;
+    write_u32_le(p, program.frame_width); p += 4;
+    write_u32_le(p, program.frame_height); p += 4;
+    write_u32_le(p, static_cast<std::uint32_t>(program.determinism_contract.required)); p += 4;
+    for (const auto& op : program.ops) {
+        *p++ = static_cast<std::uint8_t>(op.kind);
+        *p++ = op.blend_mode;
+        std::memcpy(p, op.params.data(), op.params.size() * sizeof(float));
+        p += op.params.size() * sizeof(float);
+    }
     return out;
 }
 
@@ -85,7 +84,7 @@ void write_u32_le(std::uint8_t* p, std::uint32_t v) noexcept {
     const float* src_rgba,
     std::size_t pixels) {
     if (!dst_rgba || !src_rgba || pixels == 0) return false;
-    if (payload.size() != kCpuPayloadSize) return false;
+    if (payload.size() < kCpuPayloadHeaderSize) return false;
     const std::uint8_t* p = payload.data();
     if (std::memcmp(p, kCpuPayloadMagic.data(), 4) != 0) return false;
     p += 4;
@@ -98,22 +97,14 @@ void write_u32_le(std::uint8_t* p, std::uint32_t v) noexcept {
     if (ir_version != kPixelProgramIrVersion) return false;
     if (abi_version != kPixelProgramAbiVersion) return false;
 
-    std::array<float, 12> cm{};
-    std::memcpy(cm.data(), p, 12 * sizeof(float));
-    p += 12 * sizeof(float);
-    float alpha{};
-    std::memcpy(&alpha, p, sizeof(float));
-    p += sizeof(float);
-    const std::uint8_t blend_mode = p[0];
-    const std::uint8_t det_raw = p[1];
-    const std::uint8_t certified_flag = p[2];
-    if (blend_mode != 0) return false;
-    if (!(alpha >= 0.0f && alpha <= 1.0f)) return false;
-    if (det_raw > 2) return false;
+    const std::uint32_t op_count = read_u32_le(p); p += 4;
+    const std::uint32_t width = read_u32_le(p); p += 4;
+    const std::uint32_t height = read_u32_le(p); p += 4;
+    const std::uint32_t det_raw = read_u32_le(p); p += 4;
+    if (op_count == 0 || op_count > 256 || det_raw > 2 ||
+        payload.size() != kCpuPayloadHeaderSize +
+            static_cast<std::size_t>(op_count) * kCpuPayloadOpSize) return false;
     const auto required = static_cast<determinism::DeterminismClass>(det_raw);
-    if (certified_flag > 1 ||
-        (required == determinism::DeterminismClass::BitExact && certified_flag == 0))
-        return false;
 
     // Raw payloads have no attached evidence, so they are executable only
     // under the explicitly non-certifying Approximate contract.
@@ -129,8 +120,21 @@ void write_u32_le(std::uint8_t* p, std::uint32_t v) noexcept {
         return false;
     }
 
-    PixelProgram program = make_pilot_program(cm, alpha, blend_mode, pixels);
+    PixelProgram program;
+    program.pixel_count = pixels;
+    program.frame_width = width;
+    program.frame_height = height;
     program.determinism_contract.required = required;
+    program.ops.reserve(op_count);
+    for (std::uint32_t i = 0; i < op_count; ++i) {
+        PixelProgramOp op;
+        op.kind = static_cast<PixelProgramOpKind>(*p++);
+        op.blend_mode = *p++;
+        std::memcpy(op.params.data(), p, op.params.size() * sizeof(float));
+        p += op.params.size() * sizeof(float);
+        program.ops.push_back(op);
+    }
+    if (!program.is_valid()) return false;
     if (expected_fingerprint && program.fingerprint() != *expected_fingerprint)
         return false;
     program.certification = certification;
@@ -223,14 +227,11 @@ LoweringResult lower_to_cpu(const PixelProgram& program) noexcept {
         return {LoweringStatus::UncertifiedBitExact,
                 "BitExact PixelProgram requires an exact FusionCertification", {}};
     }
-    if (!is_canonical_pilot_triple(program)) {
-        return {LoweringStatus::UnsupportedTarget,
-                "CPU DeviceProgram payload ABI currently supports only the v1 pilot triple; v2 stack lowering remains fail-closed", {}};
-    }
     LoweringResult result;
     result.status = LoweringStatus::Ok;
     result.payload = encode_cpu_payload(program);
-    result.device_program.key_ = make_device_program_key(program, DeviceTarget::CpuSimd);
+    result.device_program.key_ = make_device_program_key(
+        program, DeviceTarget::CpuSimd, "cpu-payload-v2");
     result.device_program.payload_ = result.payload;
     result.device_program.certification_ = program.certification;
     return result;
