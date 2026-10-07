@@ -308,16 +308,30 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             for (const auto& element : imported.elements) {
                 if (!std::isfinite(element.opacity) || element.opacity < 0.0f ||
                     element.opacity > 1.0f ||
-                    (element.fill && element.fill->enabled && element.fill->type != FillType::Solid) ||
+                    (element.fill && element.fill->enabled && element.fill->type != FillType::Solid &&
+                     element.fill->type != FillType::LinearGradient && element.fill->type != FillType::RadialGradient) ||
                     element.stroke.gradient)
                     return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                         "SVG opacity must be in [0,1]; only solid path paints are supported",
                         "svg_unsupported_style", "render-plan-svg"};
                 ImportedSubpathPlan subpath;
                 if (element.fill && element.fill->enabled) {
-                    auto color = element.fill->solid;
-                    color.a *= element.opacity;
-                    subpath.fill_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
+                    if (element.fill->type != FillType::Solid &&
+                        std::any_of(element.animations.begin(), element.animations.end(), [](const auto& animation) {
+                            return animation.kind == assets::SvgAnimationKind::FillColor;
+                        }))
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "SVG fill color animation requires a solid fill",
+                            "svg_unsupported_style", "render-plan-svg"};
+                    if (element.fill->type == FillType::Solid) {
+                        auto color = element.fill->solid;
+                        color.a *= element.opacity;
+                        subpath.fill_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
+                    } else {
+                        subpath.fill_gradient = element.fill->gradient;
+                        for (auto& stop : subpath.fill_gradient->color_stops)
+                            stop.color.a *= element.opacity;
+                    }
                 }
                 if (element.stroke.enabled) {
                     StrokeStyle stroke;
@@ -326,6 +340,123 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     color.a *= element.opacity;
                     stroke.solid_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
                     subpath.stroke = std::move(stroke);
+                }
+                const double svg_fps = plan.canvas.fps.fps();
+                const auto frame_at_time = [&](float seconds) -> std::optional<std::int64_t> {
+                    const double frame = static_cast<double>(seconds) * svg_fps;
+                    const double rounded = std::round(frame);
+                    if (!std::isfinite(frame) || std::abs(frame - rounded) > 1e-5 ||
+                        rounded < 0.0 || rounded > 1000000.0) return std::nullopt;
+                    return static_cast<std::int64_t>(rounded);
+                };
+                for (const auto& svg_animation : element.animations) {
+                    const auto first_frame = frame_at_time(svg_animation.begin_seconds);
+                    const auto last_frame = frame_at_time(
+                        svg_animation.begin_seconds + svg_animation.duration_seconds);
+                    if (!first_frame || !last_frame || *last_frame <= *first_frame)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "SVG animation times must map exactly to integral composition frames",
+                            "svg_animation_timing_unsupported", "render-plan-svg"};
+                    AnimationTrackPlan track;
+                    switch (svg_animation.kind) {
+                        case assets::SvgAnimationKind::Opacity: track.property = "svg_opacity"; break;
+                        case assets::SvgAnimationKind::Translate: track.property = "svg_translation"; break;
+                        case assets::SvgAnimationKind::Scale: track.property = "svg_scale"; break;
+                        case assets::SvgAnimationKind::Rotate: track.property = "svg_rotation"; break;
+                        case assets::SvgAnimationKind::FillColor: track.property = "fill_color"; break;
+                        case assets::SvgAnimationKind::StrokeColor: track.property = "stroke_color"; break;
+                        case assets::SvgAnimationKind::StrokeWidth: track.property = "stroke_width"; break;
+                        case assets::SvgAnimationKind::FillOpacity: track.property = "fill_opacity"; break;
+                        case assets::SvgAnimationKind::StrokeOpacity: track.property = "stroke_opacity"; break;
+                    }
+                    AnimationKeyframePlan from;
+                    from.frame = Frame{*first_frame};
+                    from.value.assign(svg_animation.from.begin(),
+                        svg_animation.from.begin() + svg_animation.components);
+                    from.interpolation = svg_animation.discrete ? "hold" : "linear";
+                    AnimationKeyframePlan to;
+                    to.frame = Frame{*last_frame};
+                    to.value.assign(svg_animation.to.begin(),
+                        svg_animation.to.begin() + svg_animation.components);
+                    track.keyframes = {std::move(from), std::move(to)};
+                    std::optional<AnimationTrackPlan>* destination = nullptr;
+                    switch (svg_animation.kind) {
+                        case assets::SvgAnimationKind::Opacity: destination = &subpath.svg_opacity_animation; break;
+                        case assets::SvgAnimationKind::Translate: destination = &subpath.svg_translation_animation; break;
+                        case assets::SvgAnimationKind::Scale: destination = &subpath.svg_scale_animation; break;
+                        case assets::SvgAnimationKind::Rotate: destination = &subpath.svg_rotation_animation; break;
+                        case assets::SvgAnimationKind::FillColor: destination = &subpath.fill_color_animation; break;
+                        case assets::SvgAnimationKind::StrokeColor: destination = &subpath.stroke_color_animation; break;
+                        case assets::SvgAnimationKind::StrokeWidth: destination = &subpath.stroke_width_animation; break;
+                        case assets::SvgAnimationKind::FillOpacity: destination = &subpath.fill_opacity_animation; break;
+                        case assets::SvgAnimationKind::StrokeOpacity: destination = &subpath.stroke_opacity_animation; break;
+                    }
+                    if (*destination)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "SVG path has multiple animations targeting the same property",
+                            "svg_animation_conflict", "render-plan-svg"};
+                    *destination = std::move(track);
+                }
+                if (!element.gradient_animation.empty()) {
+                    if (!subpath.fill_gradient)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "SVG gradient animation requires a gradient fill",
+                            "svg_unsupported_style", "render-plan-svg"};
+                    GradientAnimationPlan track;
+                    track.easing = element.gradient_animation_discrete ? "hold" : "linear";
+                    std::int64_t previous_frame = -1;
+                    for (const auto& key : element.gradient_animation) {
+                        const auto frame = frame_at_time(key.seconds);
+                        if (!frame || *frame <= previous_frame)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                                "SVG gradient animation times must map to unique integral composition frames",
+                                "svg_animation_timing_unsupported", "render-plan-svg"};
+                        previous_frame = *frame;
+                        track.keyframes.push_back({Frame{*frame}, key.gradient});
+                    }
+                    subpath.fill_gradient_animation = std::move(track);
+                }
+                if (element.morph_animation) {
+                    const auto& morph = *element.morph_animation;
+                    if (morph.paths.size() < 2 || morph.paths.size() != morph.key_times.size())
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "SVG path morph has inconsistent keyframe geometry", "svg_morph_invalid", "render-plan-svg"};
+                    AnimationTrackPlan progress;
+                    progress.property = "morph_path_progress";
+                    std::int64_t previous_frame = -1;
+                    for (std::size_t morph_index = 0; morph_index < morph.paths.size(); ++morph_index) {
+                        const auto frame = frame_at_time(morph.duration_seconds * morph.key_times[morph_index]);
+                        if (!frame || *frame <= previous_frame)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                                "SVG path morph times must map to unique integral composition frames",
+                                "svg_animation_timing_unsupported", "render-plan-svg"};
+                        previous_frame = *frame;
+                        AnimationKeyframePlan key;
+                        key.frame = Frame{*frame};
+                        key.value = {static_cast<float>(morph_index)};
+                        key.interpolation = morph.discrete ? "hold" : "linear";
+                        progress.keyframes.push_back(std::move(key));
+                        if (morph_index == 0) continue;
+                        std::vector<ShapePathCommandPlan> target;
+                        target.reserve(morph.paths[morph_index].commands.size());
+                        for (const auto& command : morph.paths[morph_index].commands) {
+                            ShapePathCommandPlan lowered;
+                            const auto point = [&](Vec2 value, std::array<float, 2>& out) {
+                                out = {std::round(value.x * 10000.0f) / 10000.0f,
+                                       std::round(value.y * 10000.0f) / 10000.0f};
+                            };
+                            switch (command.type) {
+                                case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; point(command.p0, lowered.point); break;
+                                case PathCommandType::LineTo: lowered.type = ShapePathCommandTypePlan::LineTo; point(command.p0, lowered.point); break;
+                                case PathCommandType::QuadraticTo: lowered.type = ShapePathCommandTypePlan::QuadraticTo; point(command.p0, lowered.point); point(command.p1, lowered.control1); break;
+                                case PathCommandType::CubicTo: lowered.type = ShapePathCommandTypePlan::CubicTo; point(command.p0, lowered.point); point(command.p1, lowered.control1); point(command.p2, lowered.control2); break;
+                                case PathCommandType::Close: lowered.type = ShapePathCommandTypePlan::Close; break;
+                            }
+                            target.push_back(lowered);
+                        }
+                        subpath.morph_keyframe_targets.push_back(std::move(target));
+                    }
+                    subpath.morph_animation = std::move(progress);
                 }
                 for (const auto& command : element.path.commands) {
                     ShapePathCommandPlan lowered;
@@ -350,6 +481,34 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     ++total_commands;
                 }
                 shape.imported_subpaths.push_back(std::move(subpath));
+            }
+            if (imported.vector_mask) {
+                if (layer.path_mask || !layer.masks.empty())
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG vector clip/mask cannot be combined with a render-plan layer mask",
+                        "svg_mask_conflict", "render-plan-svg"};
+                LayerPlan::PathMaskPlan mask;
+                mask.type = "path";
+                mask.mode = "add";
+                for (const auto& command : imported.vector_mask->commands) {
+                    ShapePathCommandPlan lowered;
+                    const auto lower_point = [&](Vec2 point, std::array<float, 2>& destination) {
+                        if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+                            std::abs(point.x) > 100000.0f || std::abs(point.y) > 100000.0f)
+                            throw std::runtime_error("SVG mask coordinate exceeds finite resource bounds");
+                        destination = {std::round(point.x * 10000.0f) / 10000.0f,
+                                       std::round(point.y * 10000.0f) / 10000.0f};
+                    };
+                    switch (command.type) {
+                        case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; lower_point(command.p0, lowered.point); break;
+                        case PathCommandType::LineTo: lowered.type = ShapePathCommandTypePlan::LineTo; lower_point(command.p0, lowered.point); break;
+                        case PathCommandType::QuadraticTo: lowered.type = ShapePathCommandTypePlan::QuadraticTo; lower_point(command.p0, lowered.point); lower_point(command.p1, lowered.control1); break;
+                        case PathCommandType::CubicTo: lowered.type = ShapePathCommandTypePlan::CubicTo; lower_point(command.p0, lowered.point); lower_point(command.p1, lowered.control1); lower_point(command.p2, lowered.control2); break;
+                        case PathCommandType::Close: lowered.type = ShapePathCommandTypePlan::Close; break;
+                    }
+                    mask.path.push_back(lowered);
+                }
+                layer.path_mask = std::move(mask);
             }
         }
 #else

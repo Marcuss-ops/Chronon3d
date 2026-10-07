@@ -26,6 +26,7 @@ struct SvgPathLoadResult {
 struct SvgDocumentLoadResult {
     std::vector<PathShape> paths;
     std::vector<SvgStyledElement> elements;
+    std::optional<PathShape> vector_mask;
     bool ok{false};
     std::string error;
 };

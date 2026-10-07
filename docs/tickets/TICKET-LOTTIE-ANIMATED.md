@@ -2,12 +2,18 @@
 
 ## Stato
 
-DEFERRED — L1 animated layer transforms, L2 bounded static group transforms,
-L3 static gradients, dashed strokes, and baked static operators, plus bounded
+IN PROGRESS — L1 animated layer transforms, L2 bounded static group transforms,
+L3 static gradients, dashed strokes, baked static operators, and bounded
 two-keyframe L4 morphs lower through existing plans. The CLI MP4 frame-hash gate
-and broader piecewise morph support remain open. Do not extend the importer
-until Chronon3D same-SHA CI is green and a product requirement calls for that
-support.
+is complete. L5 adds animated Trim Paths through the native trim animation
+track; focused C ABI coverage and a CLI MP4 frame-hash gate now pass. L4 now
+supports piecewise morphs with multiple matching-topology keyframes. L6 adds
+animated solid fill/stroke color, opacity, and stroke width through native
+imported-path property tracks. L8 now lowers bounded group position, uniform
+scale, rotation, and opacity tracks through imported-path sampling.
+L9 now lowers bounded static path masks with add/subtract/intersect mode,
+inversion, static feather/expansion and animated opacity; L10 lowers two-keyframe
+matching-topology mask path morphs through Chronon's existing mask Morph track.
 
 ## Contratto
 
@@ -28,11 +34,31 @@ support.
   entries into the existing gradient and stroke payloads. Static Bodymovin
   repeater, round-corners, zig-zag, offset-path, and pucker/bloat operators are
   baked during lowering with a 256-copy and 4,096-output-path bound.
-- L4 accepts one geometry path with exactly two integral-frame shape keyframes,
-  matching vertex/tangent topology, and linear or hold interpolation. It lowers
-  to the existing animated Morph path operator; extra keyframes, temporal
-  Bezier handles, multi-path morphing, and incompatible topology fail closed.
-- Animated anchors, split dimensions, expressions, masks, text, precompositions,
+- L4 accepts one geometry path with 2 to 256 integral-frame shape keyframes,
+  matching vertex/tangent/closure topology, and per-segment linear or hold
+  interpolation. It lowers to the existing animated Morph path operator;
+  temporal Bezier handles, multi-path morphing, and incompatible topology fail
+  closed.
+- L5 accepts Lottie `tm` Trim Paths with static or animated start, end, and
+  offset. Animated properties share integral keyframe times and easing, and
+  lower into the existing native `trim_animation` track. Values convert from
+  Lottie percent/degrees to Chronon normalized fractions. Simultaneous mode is
+  supported when Trim Paths is the only path operator; individual-path mode and
+  operator combinations fail closed.
+- L6 accepts animated solid fill/stroke RGBA color and opacity plus stroke
+  width, lowering to the existing sampled imported-path paint fields. Keyframes
+  retain native timing/easing; malformed or unsupported values fail closed.
+- L8 accepts animated group position, uniform scale, rotation and opacity. A
+  single animated group may contain static nested groups; animated groups below
+  transformed/opaque ancestors or another animated group fail closed because
+  those matrix stacks are not flattened into lossy component tracks.
+- L9 accepts up to 16 static Lottie path masks with add, subtract or intersect
+  mode, inversion, static scalar/uniform-Vec2 feather, static expansion, and
+  static or animated opacity.
+- L10 accepts exactly two integral-frame mask path keyframes with matching
+  vertex/tangent/closure topology and linear or hold interpolation. Multi-
+  keyframe mask morphs and temporal Bezier easing fail closed.
+- Animated anchors, split dimensions, expressions, unsupported mask paths, text, precompositions,
   3D layers, unsupported shape-level transforms and unsupported interpolation
   fail closed with a Lottie lowering diagnostic.
 - Input remains limited to 10 MiB; emitted commands remain limited to 65,536
@@ -62,12 +88,32 @@ support.
 - [x] Focused Lottie C ABI/render-plan tests pass (software scene evaluation).
 - [x] Focused L4 two-keyframe morph test passes and verifies distinct evaluated
   endpoint geometry.
+- [x] Focused L4 multi-keyframe morph test verifies intermediate values across
+  two segments and the final endpoint.
+- [x] Focused L8 group test verifies animated translation, scale, rotation,
+  opacity and stroke-width sampling at start, intermediate and final frames
+  (Lottie-focused C ABI: 9/9 cases, 166/166 assertions).
+- [x] L9 focused C ABI test verifies static mask path conversion, subtract mode,
+  uniform Vec2 feather, expansion, and animated opacity at start, intermediate
+  and final frames.
+- [x] L10 focused mask test verifies intermediate morph geometry and rejects
+  incompatible mask topology (Lottie-focused C ABI: 9/9 cases, 173/173
+  assertions).
+- [x] Complete C ABI suite with SVG enabled passes after the Lottie importer
+  work and SVG extensions (246/246 cases, 6296/6296 assertions;
+  `build/chronon/linux-fast-dev/tests/chronon3d_c_abi_tests`).
 - [x] CLI software fixture and frame-hash gate pass.
+- [x] L5 animated Trim Paths fixture verifies lowering, unit conversion,
+  interpolation preservation, and unsupported mode/timing diagnostics.
+- [x] CLI software MP4 fixture renders animated Trim Paths with distinct
+  frame hashes: frame 0 `a1ff5f59…`, frame 30 `c6bb7aba…`.
+- [x] Focused L6 test checks animated fill color/opacity and stroke width at an
+  intermediate frame and endpoint (C ABI: 1 case, 17 assertions).
 
 ## Demolition debt
 
-- **Status:** DEFERRED — retain the bounded importer; no further Lottie scope
-  until Chronon3D same-SHA CI is green and a product requirement is recorded.
+- **Status:** IN PROGRESS — retain bounded lowering; L5 gates are complete and
+  broader importer scope remains deferred behind a separate requirement.
 - **Owner:** Chronon3D render-plan maintainers.
 - **Reason:** Bodymovin documents must lower into Chronon's canonical plan.
 - **Exit condition:** remove only if Bodymovin import is retired or replaced by

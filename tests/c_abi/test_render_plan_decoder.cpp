@@ -2166,7 +2166,9 @@ TEST_CASE("render plan decodes bounded ordered mask stacks and fingerprints ever
     CHECK(changed->content_fingerprint != fingerprint);
 
     source["layers"][0]["masks"][0]["mode"] = "subtract";
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    const auto leading_subtract = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(leading_subtract.has_value());
+    CHECK(leading_subtract->content_fingerprint != fingerprint);
     source["layers"][0].erase("masks");
     source["layers"][0]["masks"] = nlohmann::json::array({
         {{"type", "ellipse"}, {"mode", "add"}, {"size", {-2, 4}}}});
@@ -2937,12 +2939,13 @@ TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
          render_plan::ShapeContentTypePlan::DeviceFrame}
     };
     for (const auto& test : cases) {
-        INFO("shape content: " << test.name);
+        INFO("shape content: " << std::string{test.name});
         auto layer = render_plan_test::shape_layer(test.shape);
         auto input = render_plan_test::base_plan({layer});
         const auto decoded = render_plan::decode_render_plan(input);
         if (!decoded) INFO(decoded.error().message);
-        REQUIRE(decoded);
+        const std::string decode_error = decoded.has_value() ? std::string{} : decoded.error().message;
+        REQUIRE_MESSAGE(decoded.has_value(), decode_error);
         REQUIRE(decoded->layers.size() == 1);
         REQUIRE(decoded->layers[0].shape);
         CHECK(decoded->layers[0].shape->type == test.expected);
@@ -3025,7 +3028,8 @@ TEST_CASE("V3 GradientMesh fill decodes with bounded nodes and fingerprints ever
 
     auto field_conflict = input;
     field_conflict["layers"][0]["shape"]["fill"] = {
-        {"type", "field"}, {"field", {{"generator", "perlin"}}}};
+        {"type", "mesh"}, {"mesh", {{"nodes", nodes}}},
+        {"field", {{"generator", "perlin"}}}};
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(field_conflict));
 }
 

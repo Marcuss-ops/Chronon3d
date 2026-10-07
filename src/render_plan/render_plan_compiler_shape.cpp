@@ -195,6 +195,66 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
         case ShapeContentTypePlan::Grid:
         case ShapeContentTypePlan::DotGrid: {
             if (!shape.imported_subpaths.empty()) {
+                const auto sample_rgba = [&](const AnimationTrackPlan& track,
+                                             Color base_color) {
+                    AnimatedValue<Color> value{base_color};
+                    for (const auto& key : track.keyframes) {
+                        if (key.value.size() != 4 || std::any_of(key.value.begin(), key.value.end(),
+                                [](float component) {
+                                    return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                                }))
+                            throw std::runtime_error("imported paint color keyframes require bounded RGBA values");
+                        value.add_keyframe(key.frame,
+                            Color{key.value[0], key.value[1], key.value[2], key.value[3]},
+                            detail::animation_keyframe_easing(track, key));
+                    }
+                    value.compute_roving();
+                    value.compute_auto_beziers();
+                    return value.evaluate(ctx.effective_frame());
+                };
+                const auto sample_opacity = [&](const AnimationTrackPlan& track) {
+                    const float base = track.keyframes.empty() || track.keyframes.front().value.size() != 1
+                        ? 1.0f : track.keyframes.front().value.front();
+                    AnimatedValue<float> value{base};
+                    for (const auto& key : track.keyframes) {
+                        if (key.value.size() != 1 || !std::isfinite(key.value[0]) ||
+                            key.value[0] < 0.0f || key.value[0] > 1.0f)
+                            throw std::runtime_error("imported paint opacity keyframes require scalar values in [0, 1]");
+                        value.add_keyframe(key.frame, key.value[0],
+                            detail::animation_keyframe_easing(track, key));
+                    }
+                    value.compute_roving();
+                    value.compute_auto_beziers();
+                    return value.evaluate(ctx.effective_frame());
+                };
+                const auto sample_vec2 = [&](const AnimationTrackPlan& track, Vec2 base) {
+                    AnimatedValue<float> x{base.x}, y{base.y};
+                    for (const auto& key : track.keyframes) {
+                        if (key.value.size() != 2 ||
+                            !std::isfinite(key.value[0]) || !std::isfinite(key.value[1]))
+                            throw std::runtime_error("imported transform keyframes require finite Vec2 values");
+                        const auto easing = detail::animation_keyframe_easing(track, key);
+                        x.add_keyframe(key.frame, key.value[0], easing);
+                        y.add_keyframe(key.frame, key.value[1], easing);
+                    }
+                    x.compute_roving(); x.compute_auto_beziers();
+                    y.compute_roving(); y.compute_auto_beziers();
+                    return Vec2{x.evaluate(ctx.effective_frame()), y.evaluate(ctx.effective_frame())};
+                };
+                const auto sample_scalar = [&](const AnimationTrackPlan& track) {
+                    if (track.keyframes.empty() || track.keyframes.front().value.size() != 1)
+                        throw std::runtime_error("imported scalar animation has no valid keyframes");
+                    AnimatedValue<float> value{track.keyframes.front().value.front()};
+                    for (const auto& key : track.keyframes) {
+                        if (key.value.size() != 1 || !std::isfinite(key.value[0]))
+                            throw std::runtime_error("imported scalar keyframes require finite values");
+                        value.add_keyframe(key.frame, key.value.front(),
+                            detail::animation_keyframe_easing(track, key));
+                    }
+                    value.compute_roving();
+                    value.compute_auto_beziers();
+                    return value.evaluate(ctx.effective_frame());
+                };
                 for (std::size_t path_index = 0;
                      path_index < shape.imported_subpaths.size(); ++path_index) {
                     const auto& source = shape.imported_subpaths[path_index];
@@ -215,9 +275,15 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                                 break;
                         }
                     }
+                    std::vector<std::vector<ShapePathCommandPlan>> legacy_morph_target;
+                    if (source.morph_keyframe_targets.empty() && !source.morph_target.empty())
+                        legacy_morph_target.push_back(source.morph_target);
+                    const auto& morph_targets = source.morph_keyframe_targets.empty()
+                        ? legacy_morph_target : source.morph_keyframe_targets;
                     if (source.morph_animation &&
                         source.morph_animation->keyframes.size() >= 2 &&
-                        source.morph_target.size() == imported_path.commands.size()) {
+                        !morph_targets.empty() &&
+                        morph_targets.front().size() == imported_path.commands.size()) {
                         AnimatedValue<float> progress{0.0f};
                         for (const auto& key : source.morph_animation->keyframes) {
                             if (key.value.size() != 1)
@@ -225,42 +291,200 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                             progress.add_keyframe(key.frame, key.value.front(),
                                 detail::animation_keyframe_easing(*source.morph_animation, key));
                         }
+                        const float morph_position = std::clamp(
+                            progress.evaluate(ctx.effective_frame()), 0.0f,
+                            static_cast<float>(morph_targets.size()));
+                        const auto target_index = std::min(
+                            static_cast<std::size_t>(morph_position), morph_targets.size() - 1);
                         const float amount = std::clamp(
-                            progress.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
+                            morph_position - static_cast<float>(target_index), 0.0f, 1.0f);
                         for (std::size_t command_index = 0;
                              command_index < imported_path.commands.size(); ++command_index) {
-                            const auto& target = source.morph_target[command_index];
+                            const auto& target = morph_targets[target_index][command_index];
                             auto& command = imported_path.commands[command_index];
+                            const auto& from = target_index == 0
+                                ? source.path[command_index]
+                                : morph_targets[target_index - 1][command_index];
+                            const Vec2 from_point{from.point[0], from.point[1]};
+                            const Vec2 from_c1{from.control1[0], from.control1[1]};
+                            const Vec2 from_c2{from.control2[0], from.control2[1]};
                             const Vec2 target_point{target.point[0], target.point[1]};
                             const Vec2 target_c1{target.control1[0], target.control1[1]};
                             const Vec2 target_c2{target.control2[0], target.control2[1]};
-                            command.p0 = glm::mix(command.p0, target_point, amount);
-                            command.p1 = glm::mix(command.p1, target_c1, amount);
-                            command.p2 = glm::mix(command.p2, target_c2, amount);
+                            command.p0 = glm::mix(from_point, target_point, amount);
+                            command.p1 = glm::mix(from_c1, target_c1, amount);
+                            command.p2 = glm::mix(from_c2, target_c2, amount);
                         }
                     }
+                    Vec2 lottie_group_position{0.0f, 0.0f};
+                    Vec2 lottie_group_scale{1.0f, 1.0f};
+                    Vec2 lottie_group_anchor{0.0f, 0.0f};
+                    float lottie_group_rotation = 0.0f;
+                    float lottie_group_opacity = 1.0f;
+                    if (source.lottie_group_transform) {
+                        const auto& group = *source.lottie_group_transform;
+                        lottie_group_position = group.position_animation
+                            ? sample_vec2(*group.position_animation,
+                                Vec2{group.position[0], group.position[1]})
+                            : Vec2{group.position[0], group.position[1]};
+                        lottie_group_scale = group.scale_animation
+                            ? sample_vec2(*group.scale_animation, Vec2{group.scale[0], group.scale[1]})
+                            : Vec2{group.scale[0], group.scale[1]};
+                        lottie_group_anchor = {group.anchor[0], group.anchor[1]};
+                        lottie_group_rotation = group.rotation_animation
+                            ? sample_scalar(*group.rotation_animation) * 0.01745329251994329577f
+                            : group.rotation_degrees * 0.01745329251994329577f;
+                        lottie_group_opacity = group.opacity_animation
+                            ? sample_opacity(*group.opacity_animation) : group.opacity;
+                        if (std::abs(lottie_group_scale.x - lottie_group_scale.y) > 1e-5f ||
+                            lottie_group_opacity < 0.0f || lottie_group_opacity > 1.0f)
+                            throw std::runtime_error("animated Lottie groups require uniform scale and opacity in [0,1]");
+                        const float cosine = std::cos(lottie_group_rotation);
+                        const float sine = std::sin(lottie_group_rotation);
+                        const auto transform_point = [&](Vec2 point) {
+                            const float x = (point.x - lottie_group_anchor.x) * lottie_group_scale.x;
+                            const float y = (point.y - lottie_group_anchor.y) * lottie_group_scale.y;
+                            return Vec2{cosine * x - sine * y + lottie_group_position.x,
+                                        sine * x + cosine * y + lottie_group_position.y};
+                        };
+                        for (auto& command : imported_path.commands) {
+                            if (command.type == PathCommandType::Close) continue;
+                            command.p0 = transform_point(command.p0);
+                            if (command.type == PathCommandType::QuadraticTo ||
+                                command.type == PathCommandType::CubicTo)
+                                command.p1 = transform_point(command.p1);
+                            if (command.type == PathCommandType::CubicTo)
+                                command.p2 = transform_point(command.p2);
+                        }
+                    }
+                    Vec2 svg_scale{1.0f, 1.0f};
+                    if (source.svg_scale_animation || source.svg_rotation_animation ||
+                        source.svg_translation_animation) {
+                        svg_scale = source.svg_scale_animation
+                            ? sample_vec2(*source.svg_scale_animation, Vec2{1.0f, 1.0f})
+                            : Vec2{1.0f, 1.0f};
+                        const float angle = source.svg_rotation_animation
+                            ? sample_scalar(*source.svg_rotation_animation) * 0.01745329251994329577f : 0.0f;
+                        const float cosine = std::cos(angle), sine = std::sin(angle);
+                        const Vec2 translation = source.svg_translation_animation
+                            ? sample_vec2(*source.svg_translation_animation, Vec2{0.0f, 0.0f})
+                            : Vec2{0.0f, 0.0f};
+                        const auto transform_point = [&](Vec2 point) {
+                            const float x = point.x * svg_scale.x, y = point.y * svg_scale.y;
+                            return Vec2{cosine * x - sine * y + translation.x,
+                                        sine * x + cosine * y + translation.y};
+                        };
+                        for (auto& command : imported_path.commands) {
+                            if (command.type == PathCommandType::Close) continue;
+                            command.p0 = transform_point(command.p0);
+                            if (command.type == PathCommandType::QuadraticTo ||
+                                command.type == PathCommandType::CubicTo)
+                                command.p1 = transform_point(command.p1);
+                            if (command.type == PathCommandType::CubicTo)
+                                command.p2 = transform_point(command.p2);
+                        }
+                    }
+                    const float svg_opacity = source.svg_opacity_animation
+                        ? sample_opacity(*source.svg_opacity_animation) : 1.0f;
                     if (source.fill_color) {
                         const auto& rgba = *source.fill_color;
-                        imported_path.fill = Fill::solid_color(
-                            Color{rgba[0], rgba[1], rgba[2], rgba[3]});
+                        Color fill_color{rgba[0], rgba[1], rgba[2], rgba[3]};
+                        if (source.fill_color_animation)
+                            fill_color = sample_rgba(*source.fill_color_animation, fill_color);
+                        if (source.fill_opacity_animation)
+                            fill_color.a *= sample_opacity(*source.fill_opacity_animation);
+                        fill_color.a *= svg_opacity;
+                        fill_color.a *= lottie_group_opacity;
+                        imported_path.fill = Fill::solid_color(fill_color);
                     } else if (source.fill_gradient) {
                         imported_path.fill.enabled = true;
                         imported_path.fill.type = fill_type_for_gradient(
                             source.fill_gradient->type);
-                        imported_path.fill.gradient = *source.fill_gradient;
+                        auto gradient = source.fill_gradient_animation
+                            ? detail::gradient_animation_at(*source.fill_gradient,
+                                *source.fill_gradient_animation, ctx.effective_frame())
+                            : *source.fill_gradient;
+                        if (source.lottie_group_transform) {
+                            const float cosine = std::cos(lottie_group_rotation);
+                            const float sine = std::sin(lottie_group_rotation);
+                            const auto transform_point = [&](Vec2 point) {
+                                const float x = (point.x - lottie_group_anchor.x) * lottie_group_scale.x;
+                                const float y = (point.y - lottie_group_anchor.y) * lottie_group_scale.y;
+                                return Vec2{cosine * x - sine * y + lottie_group_position.x,
+                                            sine * x + cosine * y + lottie_group_position.y};
+                            };
+                            if (gradient.type == graphics::GradientType::Linear) {
+                                gradient.start = transform_point(gradient.start);
+                                gradient.end = transform_point(gradient.end);
+                            } else if (gradient.type == graphics::GradientType::Radial) {
+                                gradient.center = transform_point(gradient.center);
+                                gradient.radius *= std::abs(lottie_group_scale.x);
+                            }
+                            for (auto& stop : gradient.color_stops)
+                                stop.color.a *= lottie_group_opacity;
+                            for (auto& stop : gradient.opacity_stops)
+                                stop.opacity *= lottie_group_opacity;
+                        }
+                        imported_path.fill.gradient = std::move(gradient);
                     } else {
                         imported_path.fill.enabled = false;
                     }
                     if (source.stroke && source.stroke->solid_color) {
                         const auto& rgba = *source.stroke->solid_color;
+                        Color stroke_color{rgba[0], rgba[1], rgba[2], rgba[3]};
+                        if (source.stroke_color_animation)
+                            stroke_color = sample_rgba(*source.stroke_color_animation, stroke_color);
+                        if (source.stroke_opacity_animation)
+                            stroke_color.a *= sample_opacity(*source.stroke_opacity_animation);
+                        stroke_color.a *= svg_opacity;
+                        stroke_color.a *= lottie_group_opacity;
+                        float stroke_width = source.stroke->width.value_or(1.0f);
+                        stroke_width *= std::abs(svg_scale.x) * std::abs(lottie_group_scale.x);
+                        if (source.stroke_width_animation)
+                            stroke_width = detail::evaluate_scalar_track(
+                                *source.stroke_width_animation, ctx.effective_frame(),
+                                stroke_width, plan.canvas.fps);
                         auto imported_stroke = graphics::StrokeStyle::solid(
-                            Color{rgba[0], rgba[1], rgba[2], rgba[3]},
-                            source.stroke->width.value_or(1.0f));
+                            stroke_color,
+                            stroke_width);
                         imported_stroke.dash_array = source.stroke->dash_array;
-                        imported_stroke.dash_offset = source.stroke->dash_offset;
+                        for (auto& dash : imported_stroke.dash_array)
+                            dash *= std::abs(lottie_group_scale.x);
+                        imported_stroke.dash_offset = source.stroke->dash_offset *
+                            std::abs(lottie_group_scale.x);
                         imported_path.stroke = imported_stroke.to_path_stroke();
                     } else {
                         imported_path.stroke.enabled = false;
+                    }
+                    for (const auto& operation : shape.operators) {
+                        if (operation.kind != PathOperatorKindPlan::Trim)
+                            throw std::runtime_error("imported animated paths only support Trim Paths operators");
+                        TrimPathParams trim{operation.trim_start, operation.trim_end,
+                                            operation.trim_offset};
+                        if (operation.trim_animation) {
+                            AnimatedValue<float> start{operation.trim_start};
+                            AnimatedValue<float> end{operation.trim_end};
+                            AnimatedValue<float> offset{operation.trim_offset};
+                            for (const auto& key : operation.trim_animation->keyframes) {
+                                const auto easing = detail::animation_keyframe_easing(
+                                    *operation.trim_animation, key);
+                                if (!key.value.empty()) start.add_keyframe(key.frame, key.value[0], easing);
+                                if (key.value.size() > 1) end.add_keyframe(key.frame, key.value[1], easing);
+                                if (key.value.size() > 2) offset.add_keyframe(key.frame, key.value[2], easing);
+                            }
+                            trim.start = std::clamp(start.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
+                            trim.end = std::clamp(end.evaluate(ctx.effective_frame()), trim.start, 1.0f);
+                            trim.offset = offset.evaluate(ctx.effective_frame());
+                        }
+                        PathShape path_to_trim;
+                        path_to_trim.commands = imported_path.commands;
+                        path_to_trim.stroke = imported_path.stroke;
+                        path_to_trim.fill = imported_path.fill;
+                        path_to_trim.closed = imported_path.closed;
+                        const auto trimmed = apply_path_operators(path_to_trim,
+                            {{PathOperatorKind::Trim, trim, 0}});
+                        imported_path.commands = trimmed.front().commands;
+                        imported_path.closed = trimmed.front().closed;
                     }
                     builder.path("svg_path_" + std::to_string(path_index),
                                  std::move(imported_path));
