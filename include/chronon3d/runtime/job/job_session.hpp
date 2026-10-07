@@ -95,6 +95,10 @@ inline constexpr std::size_t kEffectTypeCount = 48;
 struct AtomicEffectUsagePair {
     std::atomic<std::uint64_t> native_frames{0};
     std::atomic<std::uint64_t> admission_rejected_frames{0};
+    std::atomic<std::uint64_t> software_dispatches{0};
+    std::atomic<std::uint64_t> software_cpu_time_ns{0};
+    std::atomic<std::uint64_t> fallback_count{0};
+    std::atomic<std::uint64_t> fallback_cpu_time_ns{0};
 };
 struct EffectUsageCounters {
     std::array<AtomicEffectUsagePair, kEffectTypeCount> by_type{};
@@ -110,6 +114,18 @@ struct EffectUsageCounters {
             by_type[index].admission_rejected_frames.store(
                 other.by_type[index].admission_rejected_frames.load(
                     std::memory_order_relaxed), std::memory_order_relaxed);
+            by_type[index].software_dispatches.store(
+                other.by_type[index].software_dispatches.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            by_type[index].software_cpu_time_ns.store(
+                other.by_type[index].software_cpu_time_ns.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            by_type[index].fallback_count.store(
+                other.by_type[index].fallback_count.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            by_type[index].fallback_cpu_time_ns.store(
+                other.by_type[index].fallback_cpu_time_ns.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
         }
     }
     EffectUsageCounters& operator=(EffectUsageCounters&& other) noexcept {
@@ -121,6 +137,18 @@ struct EffectUsageCounters {
             by_type[index].admission_rejected_frames.store(
                 other.by_type[index].admission_rejected_frames.load(
                     std::memory_order_relaxed), std::memory_order_relaxed);
+            by_type[index].software_dispatches.store(
+                other.by_type[index].software_dispatches.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            by_type[index].software_cpu_time_ns.store(
+                other.by_type[index].software_cpu_time_ns.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            by_type[index].fallback_count.store(
+                other.by_type[index].fallback_count.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+            by_type[index].fallback_cpu_time_ns.store(
+                other.by_type[index].fallback_cpu_time_ns.load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
         }
         return *this;
     }
@@ -136,10 +164,33 @@ struct EffectUsageCounters {
             by_type[index].admission_rejected_frames.fetch_add(
                 1, std::memory_order_relaxed);
     }
+    void record_software_dispatch(effects::EffectType type, bool fallback) noexcept {
+        const auto index = static_cast<std::size_t>(type);
+        if (index >= by_type.size()) return;
+        by_type[index].software_dispatches.fetch_add(1, std::memory_order_relaxed);
+        if (fallback)
+            by_type[index].fallback_count.fetch_add(1, std::memory_order_relaxed);
+    }
+    void record_software_cpu_time(effects::EffectType type,
+                                  std::uint64_t cpu_time_ns,
+                                  bool fallback) noexcept {
+        const auto index = static_cast<std::size_t>(type);
+        if (index < by_type.size()) {
+            by_type[index].software_cpu_time_ns.fetch_add(cpu_time_ns,
+                                                           std::memory_order_relaxed);
+            if (fallback)
+                by_type[index].fallback_cpu_time_ns.fetch_add(
+                    cpu_time_ns, std::memory_order_relaxed);
+        }
+    }
     void reset() noexcept {
         for (auto& pair : by_type) {
             pair.native_frames.store(0, std::memory_order_relaxed);
             pair.admission_rejected_frames.store(0, std::memory_order_relaxed);
+            pair.software_dispatches.store(0, std::memory_order_relaxed);
+            pair.software_cpu_time_ns.store(0, std::memory_order_relaxed);
+            pair.fallback_count.store(0, std::memory_order_relaxed);
+            pair.fallback_cpu_time_ns.store(0, std::memory_order_relaxed);
         }
     }
 };

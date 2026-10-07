@@ -228,23 +228,41 @@ TEST_CASE("Temporal rate analysis covers all layer-local animated sources") {
     counter.text_counter = TextCounterPlan{};
     CHECK(classify(counter) == TemporalRateClass::PerFrame);
 
+    AnimationTrackPlan paint;
+    paint.keyframes = {{Frame{0}, {0.0f}}, {Frame{4}, {1.0f}}};
+
     LayerPlan shape;
     shape.type = LayerType::Shape;
     shape.shape = ShapeContentPlan{};
-    AnimationTrackPlan paint;
-    paint.keyframes = {{Frame{0}, {0.0f}}, {Frame{4}, {1.0f}}};
-    ImportedSubpathPlan animated_subpath;
-    animated_subpath.fill_color_animation = paint;
-    shape.shape->imported_subpaths.push_back(animated_subpath);
+    ImportedSubpathPlan imported;
+    imported.fill_color_animation = paint;
+    imported.stroke_width_animation = paint;
+    shape.shape->imported_subpaths.push_back(imported);
     CHECK(classify(shape) == TemporalRateClass::KeyframeInterval);
 
-    LayerPlan subpath;
-    subpath.type = LayerType::Shape;
-    subpath.shape = ShapeContentPlan{};
-    ImportedSubpathPlan imported;
-    imported.stroke_width_animation = paint;
-    subpath.shape->imported_subpaths.push_back(imported);
-    CHECK(classify(subpath) == TemporalRateClass::KeyframeInterval);
+    LayerPlan gradient_shape;
+    gradient_shape.type = LayerType::Shape;
+    gradient_shape.shape = ShapeContentPlan{};
+    ImportedSubpathPlan gradient_subpath;
+    GradientAnimationPlan gradient;
+    gradient.keyframes = {{Frame{0}, {}}, {Frame{4}, {}}};
+    gradient_subpath.fill_gradient_animation = gradient;
+    gradient_shape.shape->imported_subpaths.push_back(gradient_subpath);
+    CHECK(classify(gradient_shape) == TemporalRateClass::KeyframeInterval);
+
+    LayerPlan operator_shape;
+    operator_shape.type = LayerType::Shape;
+    operator_shape.shape = ShapeContentPlan{};
+    PathOperatorPlan morph;
+    morph.morph_animation = paint;
+    operator_shape.shape->operators.push_back(morph);
+    CHECK(classify(operator_shape) == TemporalRateClass::KeyframeInterval);
+
+    LayerPlan layer_paint_shape;
+    layer_paint_shape.type = LayerType::Shape;
+    layer_paint_shape.fill_gradient_animation = GradientAnimationPlan{
+        {{Frame{1}, {}}, {Frame{5}, {}}}, "linear", std::nullopt};
+    CHECK(classify(layer_paint_shape) == TemporalRateClass::KeyframeInterval);
 }
 
 TEST_CASE("Temporal rate analysis ignores camera time on flat layers and clips 3D evaluation") {

@@ -315,10 +315,21 @@ PipeExportResult render_and_encode_native(
                 std::memory_order_relaxed);
             const auto rejected = usage.by_type[index].admission_rejected_frames.load(
                 std::memory_order_relaxed);
-            if (native == 0 && rejected == 0) continue;
+            const auto software = usage.by_type[index].software_dispatches.load(
+                std::memory_order_relaxed);
+            const auto cpu_time_ns = usage.by_type[index].software_cpu_time_ns.load(
+                std::memory_order_relaxed);
+            const auto fallback = usage.by_type[index].fallback_count.load(
+                std::memory_order_relaxed);
+            const auto fallback_cpu_time_ns =
+                usage.by_type[index].fallback_cpu_time_ns.load(
+                    std::memory_order_relaxed);
+            if (native == 0 && rejected == 0 && software == 0 && fallback == 0) continue;
             const auto effect = static_cast<effects::EffectType>(index);
             const auto& entry = effects::catalog_entry(effect);
-            timings.effect_usage[std::string(entry.id)] = {native, rejected};
+            timings.effect_usage[std::string(entry.id)] = {
+                native, rejected, software, cpu_time_ns, fallback,
+                fallback_cpu_time_ns};
         }
     }
 
