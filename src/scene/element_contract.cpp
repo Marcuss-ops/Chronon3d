@@ -63,6 +63,7 @@ namespace {
             element->opacity = state.opacity;
             element->blur = state.blur;
             element->active = state.visible != 0;
+            layer->dirty = true;
             ++report.applied;
         }
     }

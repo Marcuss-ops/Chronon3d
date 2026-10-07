@@ -2,6 +2,7 @@
 
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/media/render_to_media.hpp>
@@ -14,6 +15,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -138,8 +140,16 @@ struct CompiledOperation {
 struct StaticSubgraphBakePass {
     GraphNodeId root_node{k_invalid_node};
     std::uint64_t static_fingerprint{0};
+    std::vector<GraphNodeId> members;
     bool is_baked{false};
     std::uint32_t persistent_surface_handle{0};
+    struct RuntimeState {
+        mutable std::mutex mutex;
+        CachedFB baked_surface;
+        std::uint64_t resolved_key_digest{0};
+        std::optional<raster::BBox> resolved_bbox;
+    };
+    std::shared_ptr<RuntimeState> runtime{std::make_shared<RuntimeState>()};
 };
 
 struct CompiledLayerInstance {
@@ -169,6 +179,9 @@ struct CompiledFrameProgram {
     // batch list to rediscover a structural node→batch relationship.
     std::vector<std::uint32_t> layer_batch_index_by_node;
     std::vector<StaticSubgraphBakePass> static_bakes;
+    /// Dense root lookup and membership mask emitted with the bake plan.
+    std::vector<std::uint32_t> static_bake_index_by_node;
+    std::vector<bool> static_bake_member_nodes;
     std::vector<CompiledLayerBatch> layer_batches;
     PassQueryArena query_arena;
     bool has_prepared_parameters{false};
@@ -213,6 +226,31 @@ struct CompiledFrameProgram {
                     throw std::runtime_error("CompiledFrameProgram contains overlapping fused batches");
                 }
                 layer_batch_index_by_node[node] = i;
+            }
+        }
+    }
+
+    void rebuild_static_bake_index(std::size_t node_count) {
+        static_bake_index_by_node.assign(node_count, kInvalidLayerBatchIndex);
+        static_bake_member_nodes.assign(node_count, false);
+        for (std::uint32_t i = 0; i < static_bakes.size(); ++i) {
+            const auto& bake = static_bakes[i];
+            if (bake.root_node >= node_count || !bake.runtime) {
+                throw std::runtime_error(
+                    "CompiledFrameProgram static bake has an invalid root/runtime");
+            }
+            if (static_bake_index_by_node[bake.root_node] !=
+                kInvalidLayerBatchIndex) {
+                throw std::runtime_error(
+                    "CompiledFrameProgram contains duplicate static bake roots");
+            }
+            static_bake_index_by_node[bake.root_node] = i;
+            for (const auto node : bake.members) {
+                if (node >= node_count) {
+                    throw std::runtime_error(
+                        "CompiledFrameProgram static bake member is out of range");
+                }
+                static_bake_member_nodes[node] = true;
             }
         }
     }

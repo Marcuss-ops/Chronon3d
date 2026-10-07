@@ -30,7 +30,8 @@ namespace chronon3d::cli {
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes = nullptr,
     runtime::DeviceScheduler* device_scheduler = nullptr,
-    std::shared_ptr<media::VideoJobExecutionContext> execution = nullptr);
+    std::shared_ptr<media::VideoJobExecutionContext> execution = nullptr,
+    std::shared_ptr<SoftwareRenderer> warm_renderer = nullptr);
 
 /// Phase 5: Pre-warm the framebuffer pool (separate from warmup_pipe_renderer).
 void warmup_pipe_pool(PipeExportSession& session);
@@ -73,6 +74,7 @@ void warmup_pipe_slots(PipeExportSession& session);
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes = nullptr,
     runtime::DeviceScheduler* device_scheduler = nullptr,
-    std::shared_ptr<media::VideoJobExecutionContext> execution = nullptr);
+    std::shared_ptr<media::VideoJobExecutionContext> execution = nullptr,
+    std::shared_ptr<SoftwareRenderer> warm_renderer = nullptr);
 
 } // namespace chronon3d::cli

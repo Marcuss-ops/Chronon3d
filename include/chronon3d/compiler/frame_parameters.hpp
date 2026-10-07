@@ -84,6 +84,9 @@ struct SampledLayerParameters {
     Mat4 matrix{1.0f};
     float opacity{1.0f};
     bool active{false};
+    /// True when the compiler's temporal dependency schedule invalidates this
+    /// layer's graph payload at the sampled time (or when runtime overlays do).
+    bool dirty{true};
     double local_time_frame{0.0};
     std::uint32_t text_index{0};
     SampledLayerPayload payload{};

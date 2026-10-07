@@ -100,6 +100,8 @@ struct DaemonOptions {
  *                                 normalized once; dispatched as
  *                                 NormalizedRenderJob; optional `job_id`
  *                                 enables lifecycle lookup)
+ *   RENDER_BATCH   <json>         Render 1–64 RENDER_JOB objects sequentially
+ *                                 on this daemon, returning one result each
  *   GET_JOB_STATUS <job-id>       Return prepared/running/completed/failed
  *                                 status for a tracked RENDER_JOB
  *   STATUS                        Engine statistics
@@ -137,6 +139,12 @@ private:
     ipc::Reply ipc_prepare_plan(const std::string& comp_id);
     ipc::Reply ipc_render_overlay(const std::string& args);
     ipc::Reply handle_render_job_payload(const std::string& payload);
+    /// Shared execution path for an already decoded request. The batch
+    /// handler uses it to preserve the one-decode/one-normalize contract.
+    ipc::Reply handle_render_job_request(
+        runtime::job::RenderJobRequest request, std::string job_id,
+        bool batch_member = false);
+    ipc::Reply ipc_render_batch(const std::string& payload);
     ipc::Reply ipc_status();
     ipc::Reply ipc_get_job_status(const std::string& job_id);
     ipc::Reply ipc_assemble_segments(const std::string& payload);
@@ -157,6 +165,11 @@ private:
     // Resolution chain: DeviceScheduler → DeviceReservation → device() →
     // VideoRuntimeRegistry::get_or_create(device).
     std::shared_ptr<media::VideoRuntimeRegistry> m_video_runtimes;
+    // Native FullGraph video slots/surfaces and scratch arena are retained per
+    // device beside the renderer. Batch admission guarantees single-job use.
+    std::unordered_map<runtime::DeviceId,
+        std::shared_ptr<media::PersistentVideoRenderState>> m_video_render_states;
+    mutable std::mutex m_video_render_states_mutex;
     // ── Per-domain IPC state (audit N2) ────────────────────────────────
     // One mutex per fact. A single global mutex made a full compile block
     // STATUS / PREFETCH / RENDER_OVERLAY, and made a disk write block the
@@ -201,6 +214,10 @@ private:
     // monolithic and FullGraph jobs. The IPC path chooses the side from the
     // same RenderPolicyDecision used for VRAM admission.
     mutable std::shared_mutex m_render_job_mutex;
+    // RENDER_BATCH owns this domain exclusively for its entire ordered
+    // sequence. Single jobs take the shared side, preventing interleaving
+    // while retaining the existing policy-controlled GPU admission below.
+    mutable std::shared_mutex m_render_batch_domain_mutex;
     // Dynamic VRAM-credit admission domain for RENDER_JOB.
     // Concurrency is governed dynamically by DeviceScheduler based on
     // VRAM credits and render job slots (default: 2 concurrent jobs).

@@ -34,4 +34,16 @@ void CompiledGraphCache::reset() {
     m_cached_height = 0;
 }
 
+void CompiledGraphCache::reset_static_bakes() noexcept {
+    if (!m_cached) return;
+    for (auto& bake : m_cached->program.static_bakes) {
+        if (!bake.runtime) continue;
+        std::lock_guard lock(bake.runtime->mutex);
+        bake.runtime->baked_surface.reset();
+        bake.runtime->resolved_key_digest = 0;
+        bake.runtime->resolved_bbox.reset();
+        bake.is_baked = false;
+    }
+}
+
 } // namespace chronon3d::graph

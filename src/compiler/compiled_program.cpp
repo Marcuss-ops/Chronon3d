@@ -25,6 +25,7 @@ const std::vector<CurveKeyframeProgram>& CompiledProgram::curve_keyframes() cons
 const std::vector<TextProgram>& CompiledProgram::texts() const noexcept { return data_->texts; }
 const std::vector<std::string>& CompiledProgram::text_values() const noexcept { return data_->text_values; }
 const std::vector<ParameterProgram>& CompiledProgram::parameters() const noexcept { return data_->parameters; }
+const TemporalUpdateSchedule& CompiledProgram::temporal_schedule() const noexcept { return data_->temporal_schedule; }
 const ProgramFingerprint& CompiledProgram::fingerprint_data() const noexcept { return data_->fingerprint_data; }
 
 }  // namespace chronon3d::compiler

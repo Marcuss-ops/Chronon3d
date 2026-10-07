@@ -30,6 +30,11 @@
 //                                            "execution_requirements",
 //                                            "output_spec"}; replies JSON
 //                                            {"status":"ok","output":"..."}
+//   RENDER_BATCH    <json>                    render an ordered array of
+//                                            RENDER_JOB payload objects while
+//                                            retaining this daemon's device,
+//                                            renderer and asset runtimes;
+//                                            replies with per-job outcomes
 //   GET_JOB_STATUS <job-id>                 inspect one RENDER_JOB lifecycle
 //
 // RENDER_JOB range parity: first/last are honored ONLY when range_enabled is
@@ -90,6 +95,7 @@ enum class Command : std::uint32_t {
     RenderJob     = 6,   ///< payload: JSON render-plan request (full parity fields)
     AssembleSegments = 7, ///< payload: JSON {input_paths, output_path}
     GetJobStatus  = 8,   ///< payload: daemon job_id → JSON lifecycle snapshot
+    RenderBatch   = 9,   ///< payload: JSON {jobs:[RENDER_JOB payload, ...]}
 };
 
 enum class Status : std::uint32_t {

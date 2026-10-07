@@ -302,6 +302,21 @@ SceneRefreshResult refresh_compiled_graph_payloads(
         }
         const auto& graph_node = compiled.graph.node(node_id);
 
+        // The immutable compiler program supplied the dirty decision through
+        // FrameParameterBlock. Static and unchanged cue/keyframe layers keep
+        // their prior node payload; their activity flag is still consumed by
+        // GraphExecutor on every frame. An unbound or missing layer stays on
+        // the conservative refresh path.
+        if (ctx.frame_parameters &&
+            compiled.nodes[node_id].binding_meta.has_binding()) {
+            const auto layer_index =
+                compiled.nodes[node_id].binding_meta.layer_index;
+            if (layer_index < ctx.frame_parameters->layers.size() &&
+                !ctx.frame_parameters->layers[layer_index].dirty) {
+                continue;
+            }
+        }
+
         switch (graph_node.kind()) {
             case RenderGraphNodeKind::Source:
                 if (const auto* source_node = dynamic_cast<const SourceNode*>(&graph_node)) {

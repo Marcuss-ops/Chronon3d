@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -37,6 +38,7 @@ namespace chronon3d::cli {
     const FfmpegExportOptions& opts,
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoJobExecutionContext> execution = {},
-    std::chrono::steady_clock::time_point* sidecar_written_at = nullptr);
+    std::chrono::steady_clock::time_point* sidecar_written_at = nullptr,
+    std::shared_ptr<SoftwareRenderer> warm_renderer = {});
 
 } // namespace chronon3d::cli

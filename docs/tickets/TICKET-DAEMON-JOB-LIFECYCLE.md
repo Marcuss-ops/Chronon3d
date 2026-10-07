@@ -1,31 +1,73 @@
 # TICKET-DAEMON-JOB-LIFECYCLE — il renderer non è lento: lo è il ciclo di vita del job
 
-Stato: **OPEN** — la sincronizzazione di lifecycle/admission è ora RAII e
-race-free, e l'allocator telemetry contract è atterrato; restano la misura GPU
-multi-shape, la decisione runtime sul mutex, il batch one-runtime/one-pool e
-il ~1 s intermittente del percorso di produzione.
+Stato: **OPEN** — temporal schedule, bake delle static island e IPC
+`RENDER_BATCH` sono ora collegati al runtime e compilano; restano la misura GPU
+multi-shape, la decisione runtime sul mutex e il riuso del lifecycle encoder
+tra job nel batch.
 Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
 
 ## Implementazione verificabile locale — static island / temporal / batch
 
-- `CompiledTemplateProgram.temporal.dependency_fingerprint` identifica in modo
-  deterministico nodi (stable id), classi temporali, cache policy e archi
-  compilati; non rappresenta una schedule per singola proprietà, cue o intervallo.
-  I sampler canonici `SampleTime`/`TemporalSampleKey` e i boundary cue `[start,end)`
-  restano le sole autorità di valutazione.
-- Le regioni statiche sono esplicitamente candidate, non pixel baked: `prepare()`
-  lascia vuote mask e risultati bake, così il GraphExecutor non sostituisce nodi
-  con skip trasparenti. Il piano memoria non accredita più superfici non prodotte.
-- `VariantBatch` resta il solo batch di varianti già disponibile: una chiamata
-  render master, riuso/scale o recompose e submit sequenziale; non è il batch
-  whole-video daemon `1 preparation → N output`.
-- Verifica richiesta in questo checkout: architecture gate PASS 206/206.
+- `CompiledProgram` possiede uno `TemporalUpdateSchedule` per nodo e proprietà;
+  lo sampler scrive il dirty bit e `SceneRefresh` salta il refresh dei binding
+  invariati. Cue e keyframe conservano i propri eventi/intervalli; contenuto video
+  e particle sono per-frame.
+- `CompiledFrameProgram` emette le isole statiche, le loro chiusure e una
+  superficie persistente al root. Dopo il primo render, l'executor riusa il root
+  e salta i membri quando tutte le isole sovrapposte sono pronte; al confine del
+  job il renderer invalida i bake runtime senza buttare il grafo compilato.
+  Nessuna cache viene accreditata prima che il root abbia prodotto una superficie.
+- IPC `RENDER_BATCH` decodifica e valida fino a 64 richieste prima di avviarle,
+  quindi le esegue in ordine sul daemon e riusa renderer caldo e runtime registry.
+  Un gate esclusivo impedisce a un RENDER_JOB singolo di inserirsi tra due
+  elementi del batch. Il percorso video riceve ora lo stesso renderer per-device
+  del daemon e conserva graph/pipeline/font cache tra job, azzerando lo stato
+  temporale. Per export FullGraph NVENC, il daemon conserva anche
+  `GpuSlotPool`, superfici importabili e `TripleBufferArena` per device e
+  contratto canvas/pixel; il pool viene drenato per job e ricreato se cambia il
+  contratto. Codec context e muxer restano per-output.
+- Evidenza locale precedente (supersata dall'aggiornamento 2026-10-07):
+  architecture gate PASS 206/206.
   La build fresca del target temporal a `-j8` ha superato il timeout host di 600 s;
   il tentativo di ripresa a `-j8` è stato interrotto al rilevamento di un altro
   build `-j16` concorrente per non superare il limite globale (267/368 azioni).
   Non viene registrata come PASS e il test binario aggiornato non è disponibile.
-  Pixel parity GPU, ownership di bake surface e batch daemon whole-video restano
-  OPEN/NOT RUN; mutex e admission non sono stati modificati.
+  Quella build e quelle verifiche sono superate dai risultati runtime riportati
+  sotto; pixel parity GPU e benchmark di throughput restano OPEN/NOT RUN.
+
+### Aggiornamento 2026-10-07 — rate analysis locale
+
+- `TemporalRateAnalysis` produce ora una classe per layer (`Static`, `Cue`,
+  `KeyframeInterval`, `PerFrame`, `Subframe`), frame valutabili limitati e
+  schedule per proprietà nell'ispezione CLI e nella sidecar. I segmenti lineari
+  enumerano i frame intermedi, `hold` e i cue emettono i confini; rimane un
+  report consultivo, non uno schedule eseguito dal prepared runtime.
+- La correzione cue-boundary è compilata in `chronon3d_c_abi_tests`; il target
+  completo `chronon3d_dev_fast` e i target `chronon3d_c_abi_tests` e
+  `chronon3d_cli_tests` sono stati compilati/linkati con `-j12` nel profilo
+  `linux-fast-dev`. I test non sono stati eseguiti in questo aggiornamento.
+  Con `linux-video-test`, il serializer della sidecar e il relativo test schema
+  compilano come translation unit; il binario video completo non è stato linkato.
+- È stato aggiunto un planner/esecutore per-frame del Variant DAG con fingerprint
+  distinti per base visiva, layout e audio; non è ancora collegato al percorso
+  whole-video exporter e non è accreditato come batch whole-video.
+- PixelProgram SPIR-V/GPU lowering rimane non implementato. La build conferma
+  solo compilazione/link; pixel parity GPU, esecuzione test e benchmark batch
+  restano da raccogliere.
+
+### Aggiornamento 2026-10-07 — runtime batch persistente
+
+- `RENDER_BATCH` ora possiede il render-domain gate per l'intera sequenza; i
+  render singoli prendono il lato condiviso e attendono la fine del batch.
+- Il `warm_renderer` daemon, prima usato dai render still ma ignorato dal
+  percorso video, viene inoltrato fino a `setup_pipe_export_session`; gli export
+  FullGraph riusano il renderer, le graph/pipeline/font cache e il runtime CUDA
+  per-device. Frame values e temporal history vengono ripuliti a ogni job.
+- La build `cmake --build build/chronon/linux-fast-dev -j12 --target
+  chronon3d_dev_fast chronon3d_c_abi_tests chronon3d_cli_tests` è PASS; i test
+  non sono stati eseguiti. Il codec context FFmpeg/NVENC e il muxer restano
+  scoped al singolo file di output; la persistenza del runtime hardware non
+  equivale a mantenere aperto lo stesso encoder per output indipendenti.
 
 Origine: misure 2026-09-16 sulla matrice overlay 10×10 e sul probe a due job.
 

@@ -41,6 +41,8 @@ struct ExecutionState {
         std::vector<char> resolved_cache_hit;
         std::vector<std::optional<raster::BBox>> resolved_bboxes;
         std::vector<OwnedFB> physical_slots;
+        std::vector<char> static_bake_member_skip;
+        std::vector<std::uint32_t> static_bake_root_index;
     };
     std::unique_ptr<LocalStorage> owned_storage;
 
@@ -50,6 +52,8 @@ struct ExecutionState {
     std::vector<char>& resolved_cache_hit;
     std::vector<std::optional<raster::BBox>>& resolved_bboxes;
     std::vector<OwnedFB>& physical_slots;
+    std::vector<char>& static_bake_member_skip;
+    std::vector<std::uint32_t>& static_bake_root_index;
 
     CachedFB shared_transparent;
 
@@ -66,6 +70,8 @@ struct ExecutionState {
           resolved_cache_hit(workspace.resolved_cache_hit),
           resolved_bboxes(workspace.resolved_bboxes),
           physical_slots(workspace.physical_slots),
+          static_bake_member_skip(workspace.static_bake_member_skip),
+          static_bake_root_index(workspace.static_bake_root_index),
           node_memory_tracker(tracker) {}
 
     // Standalone execution state whose vectors live in internally-owned
@@ -83,6 +89,8 @@ struct ExecutionState {
           resolved_cache_hit(owned_storage->resolved_cache_hit),
           resolved_bboxes(owned_storage->resolved_bboxes),
           physical_slots(owned_storage->physical_slots),
+          static_bake_member_skip(owned_storage->static_bake_member_skip),
+          static_bake_root_index(owned_storage->static_bake_root_index),
           node_memory_tracker(tracker) {}
 };
 
