@@ -306,7 +306,7 @@ TEST_CASE("SVG styles parse colors, inline declarations and group inheritance") 
 }
 
 TEST_CASE("SVG importer rejects unsupported render tags explicitly") {
-    for (const auto* tag : {"text", "image", "use"}) {
+    for (const auto* tag : {"text", "image"}) {
         const std::string filename = "temp_test_unsupported.svg";
         { std::ofstream out(filename); out << "<svg><" << tag << "/></svg>"; }
         const auto result = load_svg_document_file(filename);
@@ -314,6 +314,12 @@ TEST_CASE("SVG importer rejects unsupported render tags explicitly") {
         CHECK_FALSE(result.ok);
         CHECK(result.error.find(std::string("non supportata: <") + tag + ">") != std::string::npos);
     }
+    const std::string filename = "temp_test_invalid_svg_use.svg";
+    { std::ofstream out(filename); out << "<svg><use/></svg>"; }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    CHECK_FALSE(result.ok);
+    CHECK(result.error.find("local #id references") != std::string::npos);
 }
 
 TEST_CASE("SVG importer rejects excessive XML nodes before geometry lowering") {

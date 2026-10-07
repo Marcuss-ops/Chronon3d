@@ -221,11 +221,8 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 throw std::runtime_error("grid shapes require a stroke");
             shape.path = make_grid_path(layer.size[0], layer.size[1],
                 raw_shape.value("spacing", 16.0f));
-        } else if (shape.type == ShapeContentTypePlan::DotGrid) {                    if (!raw_shape.contains("fill"))
-                        throw std::runtime_error("dot_grid shapes require a fill");
-                    if (!shape.fill_color)
-                        throw std::runtime_error("dot_grid fill must be a solid RGBA color");
-                    const float spacing = raw_shape.value("spacing", 16.0f);
+        } else if (shape.type == ShapeContentTypePlan::DotGrid) {
+            const float spacing = raw_shape.value("spacing", 16.0f);
             const float radius = raw_shape.value("dot_radius", spacing * 0.12f);
             shape.path = make_dot_grid_path(layer.size[0], layer.size[1], spacing, radius);
         } else if (shape.type == ShapeContentTypePlan::DeviceFrame) {
@@ -682,6 +679,8 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             throw std::runtime_error("gradient fill cannot be combined with Field2D or Gradient Mesh");
         if (shape.gradient_mesh && shape.field)
             throw std::runtime_error("Gradient Mesh cannot be combined with Field2D");
+        if (shape.type == ShapeContentTypePlan::DotGrid && !shape.fill_color)
+            throw std::runtime_error("dot_grid shapes require a solid RGBA fill");
         if (shape.gradient) {
             const auto valid_stop = [](float position, float alpha) {
                 return std::isfinite(position) && position >= 0.0f && position <= 1.0f &&

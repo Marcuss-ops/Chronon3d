@@ -102,6 +102,9 @@ motion_blur_params_at(const LayerPlan& layer, double frame, FrameRate fps,
     const LayerPlan& layer, double frame, chronon3d::Color base, FrameRate fps);
 [[nodiscard]] std::optional<graphics::GradientDefinition> fill_gradient_at(
     const LayerPlan& layer, double frame);
+[[nodiscard]] graphics::GradientDefinition gradient_animation_at(
+    const graphics::GradientDefinition& base,
+    const GradientAnimationPlan& track, double frame);
 [[nodiscard]] chronon3d::TemporalCurve1D make_effect_time_curve(const AnimationTrackPlan& track);
 
 }  // namespace chronon3d::render_plan::detail

@@ -2678,7 +2678,12 @@
             "additionalProperties": false,
             "required": ["position", "color"],
             "properties": {
-              "position": {"$ref": "#/$defs/point"},
+              "position": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {"type": "number", "minimum": 0, "maximum": 1}
+              },
               "color": {"$ref": "#/$defs/rgba"},
               "weight": {"type": "number", "minimum": 0.0001, "maximum": 1000, "default": 1}
             }
@@ -2844,6 +2849,25 @@
     "stroke": {
       "type": "object",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"required": ["brush"]},
+          "then": {
+            "anyOf": [
+              {"required": ["width"], "properties": {"width": {"exclusiveMinimum": 0}}},
+              {"properties": {"brush": {"required": ["size"], "properties": {"size": {"exclusiveMinimum": 0}}}}}
+            ]
+          }
+        },
+        {
+          "if": {"required": ["brush"]},
+          "then": {"not": {"required": ["gradient"]}}
+        },
+        {
+          "if": {"required": ["brush"]},
+          "then": {"not": {"anyOf": [{"required": ["taper_start"]}, {"required": ["taper_end"]}]}}
+        }
+      ],
       "properties": {
         "color": {
           "oneOf": [
@@ -2910,6 +2934,48 @@
           "minimum": 0,
           "maximum": 1,
           "default": 1
+        },
+        "brush": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "size": {"type": "number", "minimum": 0, "maximum": 1024},
+            "hardness": {"type": "number", "minimum": 0, "maximum": 1},
+            "opacity": {"type": "number", "minimum": 0, "maximum": 1},
+            "flow": {"type": "number", "minimum": 0, "maximum": 1},
+            "spacing": {"type": "number", "minimum": 0.01, "maximum": 1},
+            "roundness": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+            "angle": {"type": "number"},
+            "taper_start": {"type": "number", "minimum": 0, "maximum": 1},
+            "taper_end": {"type": "number", "minimum": 0, "maximum": 1},
+            "pressure_width": {"type": "number", "minimum": 0, "maximum": 4},
+            "pressure_opacity": {"type": "number", "minimum": 0, "maximum": 4},
+            "opacity_start": {"type": "number", "minimum": 0, "maximum": 1},
+            "opacity_end": {"type": "number", "minimum": 0, "maximum": 1},
+            "bleed_radius": {"type": "number", "minimum": 0, "maximum": 1},
+            "edge_density": {"type": "number", "minimum": 0, "maximum": 4},
+            "scatter": {"type": "number", "minimum": 0, "maximum": 1},
+            "edge_noise": {"type": "number", "minimum": 0, "maximum": 1},
+            "angle_jitter": {"type": "number", "minimum": 0, "maximum": 1},
+            "edge_softness": {"type": "number", "minimum": 0, "maximum": 1},
+            "grain": {"type": "number", "minimum": 0, "maximum": 1},
+            "grain_scale": {"type": "number", "exclusiveMinimum": 0, "maximum": 4096},
+            "width_jitter": {"type": "number", "minimum": 0, "maximum": 1},
+            "opacity_jitter": {"type": "number", "minimum": 0, "maximum": 1},
+            "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+            "texture": {"$ref": "#/$defs/field2d"},
+            "along_path_gradient": {"$ref": "#/$defs/gradient"},
+            "pressure_curve": {
+              "type": "array",
+              "maxItems": 256,
+              "items": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {"type": "number", "minimum": 0, "maximum": 1}
+              }
+            }
+          }
         },
         "gradient": {
           "$ref": "#/$defs/gradient"
@@ -3810,6 +3876,58 @@
               "required": [
                 "path"
               ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"type": {"enum": ["rect", "rounded_rect", "ellipse", "device_frame"]}},
+            "required": ["type"]
+          },
+          "then": {"properties": {"stroke": {"not": {"required": ["brush"]}}}}
+        },
+        {
+          "if": {"anyOf": [{"required": ["asset"]}, {"required": ["lottie"]}]},
+          "then": {"properties": {"stroke": {"not": {"required": ["brush"]}}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {"enum": ["star", "polygon", "arrow", "dot_grid"]}
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "stroke": {
+                "not": {
+                  "anyOf": [
+                    {"required": ["taper_start"]}, {"required": ["taper_end"]},
+                    {"required": ["brush"], "properties": {"brush": {"anyOf": [{"required": ["taper_start"]}, {"required": ["taper_end"]}]}}}
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {"const": "path"},
+              "path": {"contains": {"properties": {"type": {"const": "close"}}, "required": ["type"]}}
+            },
+            "required": ["type", "path"]
+          },
+          "then": {
+            "properties": {
+              "stroke": {
+                "not": {
+                  "anyOf": [
+                    {"required": ["taper_start"]}, {"required": ["taper_end"]},
+                    {"required": ["brush"], "properties": {"brush": {"anyOf": [{"required": ["taper_start"]}, {"required": ["taper_end"]}]}}}
+                  ]
+                }
+              }
             }
           }
         }
