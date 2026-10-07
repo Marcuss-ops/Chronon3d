@@ -218,6 +218,10 @@ NodeExecResult EffectStackNode::execute(
                         ctx, one_effect, *result, native_clip, current_source,
                         current_source_framebuffer);
                     break;
+                case effects::EffectType::Sharpen:
+                    stage_handled = native_effects::try_native_full_frame_sharpen(
+                        ctx, one_effect, *result, native_clip, current_source);
+                    break;
                 case effects::EffectType::Glow:
                 case effects::EffectType::Bloom:
                     stage_handled = native_effects::try_native_full_frame_glow_or_bloom(
@@ -274,6 +278,9 @@ NodeExecResult EffectStackNode::execute(
             // The native glow entry point owns its capability guard. Unsupported
             // backends fall through to their registered software processor.
             if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_sharpen(
+                    ctx, active_effects, *result, native_clip, native_source);
+            }            if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_glow_or_bloom(
                     ctx, active_effects, *result, native_clip, native_source,
                     native_source_available ? inputs[0].get() : nullptr);

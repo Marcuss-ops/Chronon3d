@@ -519,8 +519,24 @@ graph::RenderOpResult VulkanBackend::blur_surface(
 #endif
 }
 
-graph::RenderOpResult VulkanBackend::glow_surfaces(
+graph::RenderOpResult VulkanBackend::sharpen_combine_surface(
     runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle blurred, float amount, float threshold) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 3> touched{destination, source, blurred};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->sharpen_combine(destination, source, blurred, amount, threshold);
+    });
+#else
+    (void)destination; (void)source; (void)blurred; (void)amount; (void)threshold;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::sharpen_combine_surface: Vulkan support is disabled"));
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::glow_surfaces(    runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
     runtime::RenderSurfaceHandle scratch_horizontal,
     runtime::RenderSurfaceHandle scratch_vertical,

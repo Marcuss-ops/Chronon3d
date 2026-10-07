@@ -8,6 +8,7 @@
 #include "transform_comp_spv.hpp"
 #include "affine_transform_comp_spv.hpp"
 #include "blur_comp_spv.hpp"
+#include "sharpen_comp_spv.hpp"
 #include "bloom_threshold_comp_spv.hpp"
 #include "glow_prepare_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
@@ -174,6 +175,7 @@ namespace chronon3d::backends::vulkan {
         CHRONON_HASH_SHADER(transform);
         CHRONON_HASH_SHADER(affine_transform);
         CHRONON_HASH_SHADER(blur);
+        CHRONON_HASH_SHADER(sharpen);
         CHRONON_HASH_SHADER(bloom_threshold);
         CHRONON_HASH_SHADER(color_adjust);
         CHRONON_HASH_SHADER(color_matrix);
@@ -299,6 +301,29 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::Blur, blur_pipeline, "Blur");
         if (debug_context) debug_context->set_pipeline_name(blur_pipeline, "Chronon3D.Pipeline.Blur");
+
+        const VkShaderModuleCreateInfo sharpen_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_sharpen_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_sharpen_comp_spv)};
+        VkShaderModule sharpen_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &sharpen_shader_info, nullptr, &sharpen_shader),
+              "vkCreateShaderModule(sharpen)");
+        const VkPipelineShaderStageCreateInfo sharpen_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            sharpen_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo sharpen_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            sharpen_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline sharpen_pipeline = VK_NULL_HANDLE;
+        const VkResult sharpen_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &sharpen_pipeline_info, nullptr, &sharpen_pipeline);
+        vkDestroyShaderModule(device, sharpen_shader, nullptr);
+        check(sharpen_result, "vkCreateComputePipelines(sharpen)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::Sharpen, sharpen_pipeline, "Sharpen");
+        if (debug_context) debug_context->set_pipeline_name(sharpen_pipeline, "Chronon3D.Pipeline.Sharpen");
 
         const VkShaderModuleCreateInfo bloom_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
