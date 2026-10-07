@@ -1,0 +1,31 @@
+#version 450
+
+// Sharpen combine pass (unsharp mask): destination = source +
+// amount * masked(source - blurred), alpha preserved from source.
+// The blurred input must come from the certified separable box-filter route
+// (the same two-pass branch the CPU oracle uses for radius <= 10), so this
+// pointwise combine is the only new arithmetic under parity.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+layout(binding = 2, rgba32f) uniform readonly image2D blurred_image;
+
+layout(push_constant) uniform SharpenParams {
+    float amount;
+    float threshold;
+} params;
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec4 center = imageLoad(source_image, pixel);
+    vec4 blurred = imageLoad(blurred_image, pixel);
+    vec3 delta = center.rgb - blurred.rgb;
+    if (length(delta) < params.threshold) delta = vec3(0.0);
+    vec3 out_rgb = center.rgb + params.amount * delta;
+    imageStore(destination_image, pixel,
+               vec4(max(out_rgb, vec3(0.0)), clamp(center.a, 0.0, 1.0)));
+}

@@ -386,4 +386,101 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     return true;
 }
 
+// Native Sharpen is an unsharp mask over the certified separable box-filter
+// route: the blurred surface is produced by the same four box passes the
+// native blur certification covers (radius 0..10, full frame), then a single
+// pointwise combine applies amount/threshold exactly like the CPU oracle.
+// Partial clips fail closed to the software processor.
+bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
+                                   const EffectStack& effect_stack,
+                                   Framebuffer& result,
+                                   const std::optional<raster::BBox>& clip,
+                                   runtime::RenderSurfaceHandle borrowed_source) {
+    if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
+        effect_stack.size() != 1) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled || instance.effect_type != effects::EffectType::Sharpen) return false;
+    const auto* params = std::get_if<SharpenParams>(&instance.params);
+    // Mirrors the CPU oracle gates, restricted to the certified blur branch:
+    // radius (0, 10] stays on SeparableFullRes, nonzero amount, finite
+    // threshold. amount == 0 is the CPU identity fast path.
+    if (!params || !std::isfinite(params->amount) || params->amount == 0.0f ||
+        std::abs(params->amount) > 4.0f || !std::isfinite(params->radius) ||
+        params->radius <= 0.0f || params->radius > 10.0f ||
+        !std::isfinite(params->threshold) || params->threshold < 0.0f ||
+        params->threshold > 1.0f) {
+        return false;
+    }
+    const auto desc = native_surface_desc(result.width(), result.height());
+    const bool has_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool has_result_surface =
+        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+        ctx.backend->is_native_surface_valid(result.surface_handle());
+    if (!has_borrowed && !has_result_surface) {
+        return false;
+    }
+    const auto source = has_borrowed ? borrowed_source : result.surface_handle();
+    const auto scratch_a = ctx.surface_registry->create(desc);
+    const auto scratch_b = ctx.surface_registry->create(desc);
+    const auto blurred = ctx.surface_registry->create(desc);
+    const auto destination = ctx.surface_registry->create(desc);
+    if (scratch_a == runtime::kInvalidRenderSurfaceHandle ||
+        scratch_b == runtime::kInvalidRenderSurfaceHandle ||
+        blurred == runtime::kInvalidRenderSurfaceHandle ||
+        destination == runtime::kInvalidRenderSurfaceHandle) {
+        if (scratch_a != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(scratch_a);
+        if (scratch_b != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(scratch_b);
+        if (blurred != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(blurred);
+        if (destination != runtime::kInvalidRenderSurfaceHandle) ctx.surface_registry->release(destination);
+        return false;
+    }
+    const auto release_scratch = [&] {
+        (void)ctx.backend->release_surface(scratch_a);
+        (void)ctx.backend->release_surface(scratch_b);
+        (void)ctx.backend->release_surface(blurred);
+        ctx.surface_registry->release(scratch_a);
+        ctx.surface_registry->release(scratch_b);
+        ctx.surface_registry->release(blurred);
+    };
+    const int rounded = std::max(1, static_cast<int>(std::round(params->radius)));
+    const double r_plus = static_cast<double>(rounded) * rounded + rounded;
+    const int box_radius = std::max(1, static_cast<int>(std::round(
+        0.5 * (std::sqrt(1.0 + 6.0 * r_plus) - 1.0))));
+    const float box = static_cast<float>(box_radius);
+    const auto created = ctx.backend->create_surface(scratch_a, desc).ok()
+        ? ctx.backend->create_surface(scratch_b, desc)
+        : RenderOpResult(RenderOpOutcome{});
+    const auto ready = created.ok() ? ctx.backend->create_surface(blurred, desc) : created;
+    const auto dst_ready = ready.ok() ? ctx.backend->create_surface(destination, desc) : ready;
+    if (!dst_ready.ok()) {
+        release_scratch();
+        ctx.surface_registry->release(destination);
+        return false;
+    }
+    const auto blurred_ok = ctx.backend->blur_surface(scratch_a, source, box, true, true).ok()
+        ? ctx.backend->blur_surface(scratch_b, scratch_a, box, false, true)
+        : RenderOpResult(RenderOpOutcome{});
+    const auto blurred_done = blurred_ok.ok()
+        ? ctx.backend->blur_surface(scratch_a, scratch_b, box, true, true)
+        : blurred_ok;
+    const auto blurred_final = blurred_done.ok()
+        ? ctx.backend->blur_surface(blurred, scratch_a, box, false, true)
+        : blurred_done;
+    const auto combined = blurred_final.ok()
+        ? ctx.backend->sharpen_combine_surface(destination, source, blurred,
+                                               params->amount, params->threshold)
+        : blurred_final;
+    if (!combined.ok()) {
+        release_scratch();
+        (void)ctx.backend->release_surface(destination);
+        ctx.surface_registry->release(destination);
+        return false;
+    }
+    release_scratch();
+    result.set_surface_handle(destination);
+    return true;
+}
+
 } // namespace native_effects

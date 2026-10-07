@@ -559,6 +559,19 @@ public:
             "RenderBackend::blur_surface: native surfaces are not supported"));
     }
 
+    /// Pointwise unsharp-mask combine for native surfaces: destination =
+    /// source + amount * masked(source - blurred), alpha from source. The
+    /// blurred input must come from the certified separable box-filter route.
+    virtual RenderOpResult sharpen_combine_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*blurred*/,
+        float /*amount*/, float /*threshold*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::sharpen_combine_surface: native surfaces are not supported"));
+    }
+
     /// Execute the canonical glow sequence using caller-planned scratch
     /// surfaces. Implementations should record the complete sequence as one
     /// backend submission when the native backend supports command batching.
