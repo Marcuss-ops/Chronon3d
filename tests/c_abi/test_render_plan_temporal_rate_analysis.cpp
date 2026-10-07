@@ -171,6 +171,80 @@ TEST_CASE("Temporal rate report owns layer identifiers independently of plan lif
     CHECK(report.layers[0].layer_id == "owned-layer-id");
 }
 
+TEST_CASE("Temporal interval merge is bounded and preserves exact per-frame count") {
+    RenderPlan plan;
+    plan.canvas.duration = Frame{1'000'001};
+    LayerPlan layer;
+    layer.id = "cued";
+    layer.type = LayerType::Image;
+    layer.start_frame = Frame{0};
+    layer.duration_frames = Frame{1'000'001};
+    AnimationTrackPlan track;
+    track.keyframes = {{Frame{0}, {0.0f}}, {Frame{10}, {1.0f}}};
+    layer.animation = AnimationPlan{{track}};
+    plan.layers.push_back(layer);
+    const auto report = analyze_temporal_rates(plan);
+    CHECK(report.layers[0].rate == TemporalRateClass::KeyframeInterval);
+    CHECK(report.layers[0].eval_frames.size() == 1'000'000);
+    CHECK(report.layers[0].eval_frame_count == 1'000'000);
+    CHECK_FALSE(report.layers[0].eval_frames_complete);
+}
+
+TEST_CASE("Temporal rate analysis covers all layer-local animated sources") {
+    const auto classify = [](LayerPlan layer) {
+        RenderPlan plan;
+        plan.canvas.duration = Frame{8};
+        plan.layers.push_back(std::move(layer));
+        return analyze_temporal_rates(plan).layers[0].rate;
+    };
+    LayerPlan transition;
+    transition.type = LayerType::Image;
+    transition.transition_in = TransitionPlan{};
+    CHECK(classify(transition) == TemporalRateClass::PerFrame);
+
+    LayerPlan counter;
+    counter.type = LayerType::Text;
+    counter.text_counter = TextCounterPlan{};
+    CHECK(classify(counter) == TemporalRateClass::PerFrame);
+
+    LayerPlan shape;
+    shape.type = LayerType::Shape;
+    shape.shape = ShapeContentPlan{};
+    AnimationTrackPlan paint;
+    paint.keyframes = {{Frame{0}, {0.0f}}, {Frame{4}, {1.0f}}};
+    shape.shape->fill_color_animation = paint;
+    CHECK(classify(shape) == TemporalRateClass::KeyframeInterval);
+
+    LayerPlan subpath;
+    subpath.type = LayerType::Shape;
+    subpath.shape = ShapeContentPlan{};
+    ImportedSubpathPlan imported;
+    imported.stroke_width_animation = paint;
+    subpath.shape->imported_subpaths.push_back(imported);
+    CHECK(classify(subpath) == TemporalRateClass::KeyframeInterval);
+}
+
+TEST_CASE("Temporal rate analysis ignores camera time on flat layers and clips 3D keys") {
+    RenderPlan plan;
+    plan.canvas.duration = Frame{12};
+    LayerPlan flat;
+    flat.id = "flat";
+    flat.type = LayerType::Image;
+    LayerPlan three_d;
+    three_d.id = "3d";
+    three_d.type = LayerType::Mesh;
+    three_d.start_frame = Frame{4};
+    three_d.duration_frames = Frame{4};
+    plan.layers = {flat, three_d};
+    plan.camera_animation = std::vector<CameraTrackPlan>{
+        CameraTrackPlan{CameraPropertyPlan::PositionX,
+            {{Frame{0}, {0.0f}}, {Frame{8}, {1.0f}}}}};
+    auto report = analyze_temporal_rates(plan);
+    CHECK(report.layers[0].rate == TemporalRateClass::Static);
+    CHECK(report.layers[1].rate == TemporalRateClass::KeyframeInterval);
+    CHECK(report.layers[1].eval_frames == std::vector<Frame>{Frame{4}, Frame{5}, Frame{6}, Frame{7}});
+}
+
 TEST_CASE("Temporal rate analysis is deterministic and does not mutate RenderPlan") {
     const auto plan = five_rates();
     const auto before = plan.layers[2].animation->tracks[0].keyframes;

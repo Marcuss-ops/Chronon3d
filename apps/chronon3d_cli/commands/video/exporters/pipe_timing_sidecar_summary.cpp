@@ -312,6 +312,25 @@ void serialize_job_section(nlohmann::json& job,
             {"admission_rejected_frames", counts.admission_rejected_frames},
         };
     }
+    if (timings.temporal_rate_analysis) {
+        const auto& report = *timings.temporal_rate_analysis;
+        nlohmann::json layers = nlohmann::json::array();
+        for (const auto& layer : report.layers) {
+            nlohmann::json frames = nlohmann::json::array();
+            for (const auto frame : layer.eval_frames) frames.push_back(frame.integral());
+            layers.push_back({
+                {"layer_id", layer.layer_id},
+                {"class", chronon3d::render_plan::temporal_rate_class_name(layer.rate)},
+                {"eval_frames", std::move(frames)},
+                {"eval_frame_count", layer.eval_frame_count},
+                {"eval_frames_complete", layer.eval_frames_complete},
+            });
+        }
+        job["temporal_rate_analysis"] = {
+            {"skippable_node_fraction", report.skippable_node_fraction},
+            {"layers", std::move(layers)},
+        };
+    }
     auto& gpu = job["gpu"];
     const auto put_gpu = [&gpu](const char* key, const std::optional<double>& value) {
         put_optional(gpu, key, value);

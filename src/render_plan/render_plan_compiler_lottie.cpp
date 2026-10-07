@@ -264,7 +264,7 @@ std::optional<std::string> expand_static_lottie(
                             return std::string("Lottie Trim Paths tracks must share keyframe timing");
                         for (std::size_t key_index = 0; key_index < source.size(); ++key_index) {
                             auto& target = combined.keyframes[key_index];
-                            if (source[key_index].frame.value != target.frame.value ||
+                            if (source[key_index].frame.integral() != target.frame.integral() ||
                                 source[key_index].interpolation != target.interpolation ||
                                 source[key_index].bezier_curve != target.bezier_curve)
                                 return std::string("Lottie Trim Paths tracks must share keyframe timing and easing");
