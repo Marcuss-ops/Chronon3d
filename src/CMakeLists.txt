@@ -86,6 +86,9 @@ add_subdirectory(extension)
 add_subdirectory(backends/software)
 add_subdirectory(scene)
 add_subdirectory(timeline)
+if(CHRONON3D_ENABLE_GEO)
+    add_subdirectory(geo)
+endif()
 add_subdirectory(animations)
 if(CHRONON3D_ENABLE_TEXT)
     add_subdirectory(text)
@@ -145,6 +148,13 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     nlohmann_json_schema_validator::validator)
 
 chronon3d_expose_registered_objects_to_build_interface(chronon3d_pipeline)
+# Exposed geo objects need their Clipper2 / nlohmann link dependencies on the
+# consumer side too (object sources do not carry link interfaces).
+if(CHRONON3D_ENABLE_GEO)
+    target_link_libraries(chronon3d_pipeline INTERFACE
+        Clipper2::Clipper2
+        nlohmann_json::nlohmann_json)
+endif()
 
 if(CHRONON3D_ENABLE_VULKAN AND CHRONON3D_ENABLE_CUDA_INTEROP
    AND CHRONON3D_ENABLE_NATIVE_FFMPEG

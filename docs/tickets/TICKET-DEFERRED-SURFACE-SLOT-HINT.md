@@ -1,6 +1,20 @@
 # TICKET-DEFERRED-SURFACE-SLOT-HINT — exact ownership slot for deferred surface releases
 
-**Stato:** OPEN (deliberate conservative implementation; audit pending)
+**Stato:** IMPLEMENTED 2026-10-08 (exact owner mask), build/test pending final pass
+
+**Update 2026-10-08:** the audit is done and the hint is replaced by an exact
+per-handle owner mask. `Impl::resolve_image` (the single choke point for every
+recorded reference, 48 call sites) records the frame-batch slot in
+`VulkanSurfaceAuthority::recording_slot_masks`. `defer_surface_release` carries
+that mask, and `flush_deferred_surface_releases` releases only when every slot in
+the mask is retired (not in flight and not being recorded). Transient retirement
+keeps a binding that another busy slot still references. Found and fixed during
+the audit: a guessed slot could free a physical image that an older in-flight
+submission still read, because `release_surface_now` prunes after the erase.
+Tests: `tests/backends/test_vulkan_surface_materializer.cpp` (exact mask, gate,
+no-free-while-in-flight, overflow carries masks). The 22/22 surface suite passed
+in an earlier build; the final build verifies the post-change state. Drain-wait
+regression on the corpus remains a GPU measurement, not run here.
 **Owner:** working session (repo owner + agent)
 **Created:** 2026-09-28
 **Baseline:** `main@52bce4ac2` (local `main`; not pushed)

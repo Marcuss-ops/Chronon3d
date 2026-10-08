@@ -10,4 +10,9 @@
 # The retired value was regenerated on 2026-08-27 for the pre-retirement
 # contract; see docs/tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md for the evidence
 # (including why this changed in 00be928ab without the golden being updated).
-fnv1a64=0x65304b41dbf40d8f
+#
+# 2026-10-08 — regenerated after the PixelProgram CPU fusion and fusion-path
+# stabilization commits (159d38775, 46ba63654); previous value 0x65304b41dbf40d8f.
+# The new value is stable across repeated runs of the fixture.
+# Review: pending — reproducible; correctness of the 2026-10-08 fusion output not yet reviewed.
+fnv1a64=0x1ec334584fada888

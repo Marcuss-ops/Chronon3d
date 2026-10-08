@@ -634,6 +634,107 @@ TEST_CASE("nested leases on one slot are reference counted") {
     CHECK_FALSE(authority.slot_pinned(2));
 }
 
+TEST_CASE("recording slots are carried as an exact per-handle mask") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    constexpr runtime::RenderSurfaceHandle handle{0xD0E001u};
+
+    CHECK(authority.recording_slot_mask(handle) == 0);
+    authority.note_recording_slot(handle, 2);
+    authority.note_recording_slot(handle, 4);
+    authority.note_recording_slot(handle, 2); // idempotent
+    CHECK(authority.recording_slot_mask(handle) ==
+          (frame_slot_bit(2) | frame_slot_bit(4)));
+
+    // Out-of-ring slots and the invalid handle are never recorded.
+    authority.note_recording_slot(handle, VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner>::kFrameBatchSlotCount);
+    authority.note_recording_slot(runtime::kInvalidRenderSurfaceHandle, 1);
+    CHECK(authority.recording_slot_mask(handle) ==
+          (frame_slot_bit(2) | frame_slot_bit(4)));
+    CHECK(authority.recording_slot_mask(runtime::kInvalidRenderSurfaceHandle) == 0);
+
+    // A release carries the mask it was queued with, not a single guessed slot.
+    const auto mask = authority.recording_slot_mask(handle);
+    authority.enqueue_deferred_release({handle, 4, 9, mask});
+    REQUIRE(authority.deferred_surface_releases.size() == 1);
+    CHECK(authority.deferred_surface_releases.front().slot_mask == mask);
+    CHECK(authority.deferred_surface_releases.front().slot == 4);
+
+    authority.forget_recording_slots(handle);
+    CHECK(authority.recording_slot_mask(handle) == 0);
+}
+
+TEST_CASE("a release waits for every recorded slot, never a single guess") {
+    std::array<bool, 6> busy{};
+    const auto mask = static_cast<std::uint8_t>(frame_slot_bit(2) | frame_slot_bit(4));
+
+    // Idle ring: retired.
+    CHECK(recording_slots_retired(mask, std::span<const bool>(busy)));
+
+    // The recorded slot 4 is in flight while the guessed/latest slot 2 is idle:
+    // the release must wait.
+    busy[4] = true;
+    CHECK_FALSE(recording_slots_retired(mask, std::span<const bool>(busy)));
+
+    // A busy slot outside the mask does not gate this release.
+    busy = {};
+    busy[0] = true;
+    CHECK(recording_slots_retired(mask, std::span<const bool>(busy)));
+
+    // Never-recorded handles (mask 0) are not gated by the ring at all.
+    busy = {};
+    busy[3] = true;
+    CHECK(recording_slots_retired(0, std::span<const bool>(busy)));
+}
+
+TEST_CASE("a surface referenced by an in-flight slot is never freed") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+    constexpr runtime::RenderSurfaceHandle handle{0xD0E002u};
+    const auto desc = test_desc();
+    authority.bind(handle, 7, desc);
+
+    // The handle was referenced by slot 1 (retired) and slot 3 (in flight).
+    authority.record_frame_slot_transient(1, handle);
+    authority.record_frame_slot_transient(3, handle);
+    authority.note_recording_slot(handle, 1);
+    authority.note_recording_slot(handle, 3);
+
+    std::array<bool, 6> busy{};
+    busy[3] = true;
+    CHECK(authority.retire_frame_slot_transients(1, std::span<const bool>(busy)) == 0);
+    CHECK(authority.bound_slot(handle) == 7);
+    CHECK(authority.binding_count() == 1);
+    CHECK(owner.destroy_count == 0);
+    CHECK(authority.recording_slot_mask(handle) == frame_slot_bit(3));
+
+    // Slot 3 completes: now the last reference is gone and the binding releases.
+    busy = {};
+    CHECK(authority.retire_frame_slot_transients(3, std::span<const bool>(busy)) == 1);
+    CHECK(authority.binding_count() == 0);
+    CHECK(authority.recording_slot_mask(handle) == 0);
+    CHECK(owner.destroy_count == 0); // warm pool retains the image
+}
+
+TEST_CASE("deferred releases keep their masks through the overflow path") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    constexpr runtime::RenderSurfaceHandle first{0xD0E003u};
+    constexpr runtime::RenderSurfaceHandle second{0xD0E004u};
+    constexpr runtime::RenderSurfaceHandle third{0xD0E005u};
+
+    authority.enqueue_deferred_release({first, 0, 1, frame_slot_bit(0)});
+    authority.enqueue_deferred_release({second, 2, 1, frame_slot_bit(2)});
+    CHECK_FALSE(authority.note_overflow_if_needed(2));
+    authority.enqueue_deferred_release({third, 5, 1, frame_slot_bit(5) | frame_slot_bit(1)});
+
+    CHECK(authority.note_overflow_if_needed(2));
+    CHECK(authority.overflow_wait_count == 1);
+    REQUIRE(authority.deferred_surface_releases.size() == 3);
+    CHECK(authority.deferred_surface_releases[2].slot_mask ==
+          (frame_slot_bit(5) | frame_slot_bit(1)));
+    CHECK(authority.pending_release_high_water == 3);
+}
+
 } // TEST_SUITE
 
 } // namespace chronon3d::backends::vulkan

@@ -20,6 +20,8 @@ struct OutputVariant {
     std::string base_visual_fingerprint{};
     std::string layout_fingerprint{};
     std::string audio_fingerprint{};
+    /// Optional per-output audio source. Empty keeps the job's shared audio.
+    std::string audio_source{};
 };
 
 enum class VariantReuseMode : std::uint8_t {
