@@ -129,6 +129,11 @@ struct GpuMetrics {
     std::optional<std::uint64_t> frame_batch_drain_wait_us;
     std::optional<std::uint64_t> deferred_release_flush_count;
     std::optional<std::uint64_t> deferred_release_drain_wait_us;
+    std::optional<std::uint64_t> pending_release_high_water;
+    std::optional<std::uint64_t> retained_bindings_high_water;
+    std::optional<std::uint64_t> release_delay_frames;
+    std::optional<std::uint64_t> release_delay_frames_high_water;
+    std::optional<std::uint64_t> overflow_wait_count;
     std::optional<std::uint64_t> frame_slot_wait_count;
     std::optional<std::uint64_t> frame_slot_wait_us;
     std::optional<std::uint64_t> vulkan_cuda_export_fence_wait_count;

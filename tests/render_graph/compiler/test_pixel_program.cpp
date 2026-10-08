@@ -181,14 +181,15 @@ TEST_CASE("PixelProgram v2: comparison harness binds same inputs/frame/slot and 
     const std::array ops{pp::PixelProgramOp::brightness(0.05f),
                          pp::PixelProgramOp::invert(0.2f)};
     REQUIRE(pp::make_pointwise_stack(program, ops, 4));
-    float dst_reference[16]{0.1f,0.2f,0.3f,0.8f, 0.3f,0.1f,0.2f,0.6f,
-                            0.2f,0.4f,0.1f,0.9f, 0.5f,0.2f,0.1f,1.0f};
     const float dst_before[16]{0.1f,0.2f,0.3f,0.8f, 0.3f,0.1f,0.2f,0.6f,
                                0.2f,0.4f,0.1f,0.9f, 0.5f,0.2f,0.1f,1.0f};
     const float source[16]{0.4f,0.3f,0.2f,0.8f, 0.2f,0.5f,0.1f,0.5f,
                            0.1f,0.2f,0.6f,0.7f, 0.2f,0.3f,0.5f,0.9f};
+    float dst_reference[16];
+    std::copy(std::begin(dst_before), std::end(dst_before), dst_reference);
+    REQUIRE(program.execute_unfused_reference(dst_reference, source, 4));
     pp::FusionCertificationInputs inputs{"plan-12", "asset-34", "cpu-test", "sha-test", 17, 2};
-    REQUIRE(pp::certify_fusion(program, dst_reference, source, 4, inputs));
+    REQUIRE(pp::certify_fusion(program, dst_before, source, 4, inputs));
     CHECK(program.certification.bit_exact());
     CHECK(program.certification.reference_sha256.size() == 64);
     CHECK(program.certification.reference_sha256 == program.certification.fused_sha256);
@@ -298,8 +299,11 @@ TEST_CASE("lower_to_cpu: certified program lowers and executes") {
     const float src[4]{0.8f, 0.6f, 0.4f, 0.5f};
     CHECK(pp::execute_lowered_cpu(r.device_program, dst, src, 1));
     CHECK_FALSE(pp::execute_lowered_cpu(r.payload, dst, src, 1)); // raw payload has no BitExact evidence
-    auto tampered = r.device_program;
-    CHECK(pp::execute_lowered_cpu(tampered, dst, src, 1)); // copied compiled artifacts remain executable
+    auto copied = r.device_program;
+    CHECK(copied.valid());
+    float copied_dst[4]{0.1f, 0.2f, 0.3f, 0.4f};
+    CHECK(pp::execute_lowered_cpu(copied, copied_dst, src, 1));
+    CHECK(std::equal(std::begin(dst), std::end(dst), std::begin(copied_dst)));
     CHECK(r.device_program.valid());
 }
 

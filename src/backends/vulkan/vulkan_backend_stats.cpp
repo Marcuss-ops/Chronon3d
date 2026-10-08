@@ -71,6 +71,12 @@ VulkanBackendStats VulkanBackend::stats() const noexcept {
         s.physical_surfaces_live = m_impl->surfaces.physical_count();
         s.surface_bindings_live = m_impl->surfaces.binding_count();
         s.deferred_surface_release_count = m_impl->surfaces.deferred_release_count();
+        s.pending_release_high_water = m_impl->surfaces.pending_release_high_water;
+        s.retained_bindings_high_water = m_impl->surfaces.retained_bindings_high_water;
+        s.release_delay_frames = m_impl->surfaces.release_delay_frames;
+        s.release_delay_frames_high_water =
+            m_impl->surfaces.release_delay_frames_high_water;
+        s.overflow_wait_count = m_impl->surfaces.overflow_wait_count;
     }
     {
         std::lock_guard lock(m_impl->submission_ring.mutex);
@@ -119,12 +125,23 @@ void VulkanBackend::export_gpu_telemetry_counters(
         std::size_t physical{0};
         std::size_t bindings{0};
         std::size_t deferred{0};
+        std::uint64_t pending_high_water{0};
+        std::uint64_t retained_high_water{0};
+        std::uint64_t release_delay_frames{0};
+        std::uint64_t release_delay_frames_high_water{0};
+        std::uint64_t overflow_waits{0};
     } surface_counts;
     {
         std::lock_guard lock(m_impl->surfaces.mutex);
         surface_counts.physical = m_impl->surfaces.physical_count();
         surface_counts.bindings = m_impl->surfaces.binding_count();
         surface_counts.deferred = m_impl->surfaces.deferred_release_count();
+        surface_counts.pending_high_water = m_impl->surfaces.pending_release_high_water;
+        surface_counts.retained_high_water = m_impl->surfaces.retained_bindings_high_water;
+        surface_counts.release_delay_frames = m_impl->surfaces.release_delay_frames;
+        surface_counts.release_delay_frames_high_water =
+            m_impl->surfaces.release_delay_frames_high_water;
+        surface_counts.overflow_waits = m_impl->surfaces.overflow_wait_count;
     }
     out.emplace_back("gpu_submissions", m_impl->stats.submissions);
     out.emplace_back("passes_executed", m_impl->stats.passes_executed);
@@ -163,6 +180,12 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("physical_surfaces_live", surface_counts.physical);
     out.emplace_back("surface_bindings_live", surface_counts.bindings);
     out.emplace_back("deferred_surface_release_count", surface_counts.deferred);
+    out.emplace_back("pending_release_high_water", surface_counts.pending_high_water);
+    out.emplace_back("retained_bindings_high_water", surface_counts.retained_high_water);
+    out.emplace_back("release_delay_frames", surface_counts.release_delay_frames);
+    out.emplace_back("release_delay_frames_high_water",
+                     surface_counts.release_delay_frames_high_water);
+    out.emplace_back("overflow_wait_count", surface_counts.overflow_waits);
     out.emplace_back("deferred_release_flush_count", m_impl->stats.deferred_release_flush_count);
     out.emplace_back("deferred_release_drain_wait_us", m_impl->stats.deferred_release_drain_wait_us);
     out.emplace_back("gpu_submit_cpu_us", m_impl->stats.gpu_submit_cpu_us);

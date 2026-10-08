@@ -98,6 +98,7 @@ TEST_CASE("compiled binding preserves caller-selected physical slot") {
     CHECK(authority.next_slot == 99);
     CHECK(authority.physical_count() == 1);
     CHECK(owner.make_count == 1);
+    CHECK(authority.retained_bindings_high_water == 1);
     CHECK(image.width == desc.width);
     CHECK(image.height == desc.height);
 }
@@ -122,6 +123,51 @@ TEST_CASE("materialization changes backing storage but never placement") {
     CHECK(authority.next_slot == 41);
     CHECK(owner.make_count == 2);
     CHECK(owner.destroy_count == 1);
+}
+
+TEST_CASE("surface lifecycle high-water counters track enqueue and binding peaks") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle first{0xC3D305u};
+    constexpr runtime::RenderSurfaceHandle second{0xC3D306u};
+    const auto desc = test_desc();
+    authority.bind(first, 1, desc);
+    authority.bind(second, 2, desc);
+    CHECK(authority.retained_bindings_high_water == 2);
+
+    // A deferred release queue peak is cumulative high-water, not the current
+    // queue depth; draining it later must not erase the observation.
+    authority.enqueue_deferred_release({first, 0});
+    authority.enqueue_deferred_release({second, 1});
+    CHECK(authority.deferred_release_count() == 2);
+    CHECK(authority.pending_release_high_water == 2);
+    authority.deferred_surface_releases.clear();
+    CHECK(authority.deferred_release_count() == 0);
+    CHECK(authority.pending_release_high_water == 2);
+
+    authority.note_release_delay(10, 10);
+    authority.note_release_delay(7, 10);
+    authority.note_release_delay(12, 10); // Defensive: impossible future request.
+    CHECK(authority.release_delay_frames == 3);
+    CHECK(authority.release_delay_frames_high_water == 3);
+    authority.note_release_delay(1, 10);
+    CHECK(authority.release_delay_frames == 12);
+    CHECK(authority.release_delay_frames_high_water == 9);
+
+    // Removing a binding likewise cannot lower its historical high-water.
+    authority.surface_bindings.erase(second);
+    CHECK(authority.binding_count() == 1);
+    CHECK(authority.retained_bindings_high_water == 2);
+
+    CHECK_FALSE(authority.note_overflow_if_needed(2));
+    authority.enqueue_deferred_release({first, 0});
+    authority.enqueue_deferred_release({second, 1});
+    authority.enqueue_deferred_release({first, 2});
+    CHECK(authority.note_overflow_if_needed(2));
+    CHECK(authority.note_overflow_if_needed(1));
+    CHECK(authority.overflow_wait_count == 2);
 }
 
 TEST_CASE("compiled placement rejects an initialized slot collision") {
