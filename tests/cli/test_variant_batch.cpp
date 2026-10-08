@@ -40,6 +40,18 @@ TEST_CASE("Variant DAG shares base, layout, and audio stages by fingerprint") {
     CHECK(submitted == std::vector<std::size_t>{0, 1, 2});
 }
 
+TEST_CASE("Variant DAG separates base sources for distinct declared visual fingerprints") {
+    using chronon3d::cli::OutputVariant;
+    const std::vector<OutputVariant> variants{
+        {1920, 1080, "nv12", "h264", "it.mp4", "visual-it", "layout", "audio-it", "it.wav"},
+        {1920, 1080, "nv12", "h264", "en.mp4", "visual-en", "layout", "audio-en", "en.wav"}};
+    const auto plan = chronon3d::cli::plan_variant_dag(variants);
+    REQUIRE(plan.outputs.size() == 2);
+    // Distinct visual content must not be fanned out from variant 0's base.
+    CHECK(plan.outputs[1].base_source_index == 1);
+    CHECK(plan.outputs[1].base_key != plan.outputs[0].base_key);
+}
+
 TEST_CASE("Variant DAG fails closed on empty stage fingerprints") {
     const std::vector<chronon3d::cli::OutputVariant> variants{
         {1920, 1080, "nv12", "h264"}, {1920, 1080, "nv12", "h264"}};

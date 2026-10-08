@@ -22,6 +22,7 @@ set(_chronon3d_shaders
     layer_batch
     text_tile_bin
     text_tile_raster
+    pixel_program_pointwise
 )
 
 foreach(_shader ${_chronon3d_shaders})
@@ -60,6 +61,7 @@ set(_chronon3d_shader_abi_prefixes
     layer_batch:LayerBatch
     text_tile_bin:TextTileBin
     text_tile_raster:TextTileRaster
+    pixel_program_pointwise:PixelProgramPointwise
 )
 
 set(_chronon3d_shader_abi_headers "")

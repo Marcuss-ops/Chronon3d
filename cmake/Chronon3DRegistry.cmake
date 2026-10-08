@@ -68,6 +68,7 @@ set(CHRONON3D_REGISTRY_OBJECT_LIBS
     chronon3d_ipc                           # CHRONON3D_ENABLE_IPC
     chronon3d_media_video                   # CHRONON3D_ENABLE_VIDEO
     chronon3d_text_core                     # CHRONON3D_ENABLE_TEXT
+    chronon3d_geo                           # CHRONON3D_ENABLE_GEO
 )
 
 # INTERFACE / STATIC / aggregate libraries. These are not OBJECT targets and

@@ -543,6 +543,9 @@ struct VulkanBackend::Impl {
     void record_slot_transient_surface(std::size_t slot,
                                        runtime::RenderSurfaceHandle handle);
     void retire_frame_slot_transient_surfaces(std::size_t slot);
+    // Frame-batch slots that must not be released or retired yet: those with a
+    // submission in flight, plus the slot currently being recorded.
+    std::array<bool, FrameBatchState::kSlotCount> frame_slot_busy_flags() const;
     // Shared frame-transient drain used by both cleanup paths; the caller
     // performs its own pre-drain (blocking wait vs non-blocking fence poll).
     void release_frame_transient_handles(
