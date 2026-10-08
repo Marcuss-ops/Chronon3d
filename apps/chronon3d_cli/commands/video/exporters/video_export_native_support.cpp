@@ -126,6 +126,16 @@ void project_backend_gpu_counters(
             timings.gpu.deferred_release_flush_count = value;
         } else if (name == "deferred_release_drain_wait_us") {
             timings.gpu.deferred_release_drain_wait_us = value;
+        } else if (name == "pending_release_high_water") {
+            timings.gpu.pending_release_high_water = value;
+        } else if (name == "retained_bindings_high_water") {
+            timings.gpu.retained_bindings_high_water = value;
+        } else if (name == "release_delay_frames") {
+            timings.gpu.release_delay_frames = value;
+        } else if (name == "release_delay_frames_high_water") {
+            timings.gpu.release_delay_frames_high_water = value;
+        } else if (name == "overflow_wait_count") {
+            timings.gpu.overflow_wait_count = value;
         } else if (name == "frame_slot_wait_count") {
             timings.gpu.frame_slot_wait_count = value;
         } else if (name == "frame_slot_wait_us") {

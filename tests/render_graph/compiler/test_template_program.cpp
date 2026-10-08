@@ -258,9 +258,11 @@ TEST_CASE("Fase B: bake_maximal_static_islands splits at dynamic separators") {
     g.nodes[0].id = 0;
     g.nodes[0].kind = RenderGraphNodeKind::Source;
     g.nodes[0].shape_type = 7;  // Image → static
+    g.nodes[0].stable_node_id = StableNodeId{10};
     g.nodes[1].id = 1;
     g.nodes[1].kind = RenderGraphNodeKind::Source;
     g.nodes[1].shape_type = 7;  // Image → static
+    g.nodes[1].stable_node_id = StableNodeId{20};
     g.nodes[2].id = 2;
     g.nodes[2].kind = RenderGraphNodeKind::Effect;
     g.nodes[2].inputs = {0, 1};  // dynamic composite
@@ -417,20 +419,23 @@ TEST_CASE("Fase B: dependency classification is independent of requested seek or
               reverse_seek.per_node[i].classification);
     }
 
-    const FrameRate rate{30000, 1001};
-    const auto start = SampleTime::from_frame(12.0, rate);
-    const auto end = SampleTime::from_frame(13.0, rate);
-    const EasingCurve linear{Easing::Linear};
-    const auto q1 = make_temporal_key(SampleTime::from_frame(12.25, rate), 8);
-    const auto q2 = make_temporal_key(SampleTime::from_frame(12.75, rate), 8);
-    const auto sample_after_seek = sample_transition(
-        SampleTime::from_frame(12.25, rate), start, end, linear);
-    const auto sample_direct = sample_transition(
-        SampleTime::from_frame(12.25, rate), start, end, linear);
+    const chronon3d::FrameRate rate{30000, 1001};
+    const auto start = chronon3d::SampleTime::from_frame(12.0, rate);
+    const auto end = chronon3d::SampleTime::from_frame(13.0, rate);
+    const chronon3d::EasingCurve linear{chronon3d::Easing::Linear};
+    const auto q1 = chronon3d::make_temporal_key(
+        chronon3d::SampleTime::from_frame(12.25, rate), 8);
+    const auto q2 = chronon3d::make_temporal_key(
+        chronon3d::SampleTime::from_frame(12.75, rate), 8);
+    const auto sample_after_seek = chronon3d::sample_transition(
+        chronon3d::SampleTime::from_frame(12.25, rate), start, end, linear);
+    const auto sample_direct = chronon3d::sample_transition(
+        chronon3d::SampleTime::from_frame(12.25, rate), start, end, linear);
     CHECK(q1 != q2);
     CHECK(sample_after_seek.linear_progress == sample_direct.linear_progress);
     CHECK(sample_after_seek.eased_progress == sample_direct.eased_progress);
-    CHECK(q1 == make_temporal_key(SampleTime::from_frame(12.25, rate), 8));
+    CHECK(q1 == chronon3d::make_temporal_key(
+        chronon3d::SampleTime::from_frame(12.25, rate), 8));
 }
 
 TEST_CASE("Fase B: temporal dependency fingerprint is stable and edge-sensitive") {

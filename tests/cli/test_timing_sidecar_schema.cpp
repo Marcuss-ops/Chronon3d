@@ -167,6 +167,11 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     timings.encoder_settings.preset = "p4";
     timings.encoder_settings.async_depth = 3;
     timings.gpu.gpu_readback_bytes = 8192u;
+    timings.gpu.pending_release_high_water = 12u;
+    timings.gpu.retained_bindings_high_water = 8u;
+    timings.gpu.release_delay_frames = 10u;
+    timings.gpu.release_delay_frames_high_water = 4u;
+    timings.gpu.overflow_wait_count = 3u;
     timings.gpu.nvenc_frames = 100u;
     timings.effect_usage["effect.color.curves"] = {3u, 1u, 4u, 5000000u, 1u, 2000000u};
     timings.gpu.cuda_composite_frames = 42u;
@@ -196,6 +201,11 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("encoder_settings").at("preset") == "p4");
     CHECK(job.at("encoder_settings").at("async_depth") == 3);
     CHECK(job.at("gpu").at("gpu_readback_bytes") == 8192u);
+    CHECK(job.at("gpu").at("pending_release_high_water") == 12u);
+    CHECK(job.at("gpu").at("retained_bindings_high_water") == 8u);
+    CHECK(job.at("gpu").at("release_delay_frames") == 10u);
+    CHECK(job.at("gpu").at("release_delay_frames_high_water") == 4u);
+    CHECK(job.at("gpu").at("overflow_wait_count") == 3u);
     CHECK(job.at("effect_usage").at("effect.color.curves").at("native_frames") == 3u);
     CHECK(job.at("effect_usage").at("effect.color.curves").at("admission_rejected_frames") == 1u);
     CHECK(job.at("effect_usage").at("effect.color.curves").at("software_dispatches") == 4u);
@@ -278,6 +288,9 @@ TEST_CASE("A5 sidecar: the job section key set is frozen") {
     for (const char* key : {"encoder_backend", "decoder_backend",
                             "effective_backend", "gpu_readback_bytes",
                             "nvenc_frames", "cuda_composite_frames",
+                            "pending_release_high_water",
+                            "retained_bindings_high_water", "release_delay_frames",
+                            "release_delay_frames_high_water", "overflow_wait_count",
                             "upload_breakdown"}) {
         CHECK(job.at("gpu").contains(key));
     }

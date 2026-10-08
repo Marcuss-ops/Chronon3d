@@ -100,8 +100,18 @@ public:
     struct DeferredSurfaceRelease {
         runtime::RenderSurfaceHandle handle{runtime::kInvalidRenderSurfaceHandle};
         std::size_t slot{0};
+        std::uint64_t requested_frame_index{0};
     };
     std::vector<DeferredSurfaceRelease> deferred_surface_releases{};
+    // Surface-lifecycle peaks are guarded by `mutex`, like the containers
+    // they describe. `retained_bindings_high_water` counts live logical
+    // handle→slot bindings (including planned aliases); the pending peak counts
+    // queued deferred releases, not cumulative releases.
+    std::uint64_t pending_release_high_water{0};
+    std::uint64_t retained_bindings_high_water{0};
+    std::uint64_t release_delay_frames{0};
+    std::uint64_t release_delay_frames_high_water{0};
+    std::uint64_t overflow_wait_count{0};
     std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles{};
     static constexpr std::size_t kFrameBatchSlotCount = 6;
     std::array<std::vector<runtime::RenderSurfaceHandle>, kFrameBatchSlotCount>
@@ -177,6 +187,37 @@ public:
 
     [[nodiscard]] std::size_t deferred_release_count() const noexcept {
         return deferred_surface_releases.size();
+    }
+
+    void enqueue_deferred_release(DeferredSurfaceRelease release) {
+        deferred_surface_releases.push_back(release);
+        pending_release_high_water = std::max(
+            pending_release_high_water,
+            static_cast<std::uint64_t>(deferred_surface_releases.size()));
+    }
+
+    void note_binding_created() noexcept {
+        retained_bindings_high_water = std::max(
+            retained_bindings_high_water,
+            static_cast<std::uint64_t>(surface_bindings.size()));
+    }
+
+    void note_release_delay(std::uint64_t requested_frame_index,
+                            std::uint64_t released_frame_index) noexcept {
+        if (released_frame_index < requested_frame_index) return;
+        const auto delay = released_frame_index - requested_frame_index;
+        release_delay_frames = delay >
+                std::numeric_limits<std::uint64_t>::max() - release_delay_frames
+            ? std::numeric_limits<std::uint64_t>::max()
+            : release_delay_frames + delay;
+        release_delay_frames_high_water = std::max(
+            release_delay_frames_high_water, delay);
+    }
+
+    [[nodiscard]] bool note_overflow_if_needed(std::size_t capacity) noexcept {
+        if (deferred_surface_releases.size() <= capacity) return false;
+        ++overflow_wait_count;
+        return true;
     }
 
     // ── Generation token (lock-free reads) ───────────────────────────────
@@ -596,6 +637,7 @@ protected:
         physical.desc = desc;
         physical.image.text_atlas_encoding = desc.text_atlas_encoding;
         surface_bindings[handle] = slot;
+        note_binding_created();
         bump_slot_token(slot);
         return physical.image;
     }
