@@ -27,8 +27,19 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) const {
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
+    const auto expand_card_bounds = [&](raster::BBox bounds) {
+        if (!m_card3d_material || !m_card3d_material->enabled) return bounds;
+        const i32 pad = static_cast<i32>(std::ceil(std::max(0.0f,
+            m_card3d_material->thickness_px +
+            std::max(m_card3d_material->rim_light_intensity > 0.0f ? 2.0f : 0.0f,
+                     m_card3d_material->edge_highlight_intensity > 0.0f ? 2.0f : 0.0f)))) + 2;
+        return raster::BBox{
+            std::max(0, bounds.x0 - pad), std::max(0, bounds.y0 - pad),
+            std::min(ctx.frame_input.width, bounds.x1 + pad),
+            std::min(ctx.frame_input.height, bounds.y1 + pad)};
+    };
 
-    if (get_transform_type() == TransformType::PureTranslation &&
+    if (!m_card3d_material && get_transform_type() == TransformType::PureTranslation &&
         !input_bboxes.empty() && input_bboxes[0].has_value()) {
         const auto& in_box = *input_bboxes[0];
         const i32 src_w = std::max(1, in_box.x1 - in_box.x0);
@@ -41,7 +52,7 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         const i32 x1 = std::clamp(x0 + src_w + 2, 0, ctx.frame_input.width);
         const i32 y1 = std::clamp(y0 + src_h + 2, 0, ctx.frame_input.height);
 
-        return raster::BBox{x0, y0, x1, y1};
+        return expand_card_bounds(raster::BBox{x0, y0, x1, y1});
     }
 
     const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
@@ -101,9 +112,11 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         return std::nullopt;
     }
 
-    return detail::clip_transform_bounds(
+    auto bounds = detail::clip_transform_bounds(
         min_x, min_y, max_x, max_y,
         0, 0, ctx.frame_input.width, ctx.frame_input.height, std::nullopt);
+    if (!bounds) return std::nullopt;
+    return expand_card_bounds(*bounds);
 }
 
 } // namespace chronon3d::graph

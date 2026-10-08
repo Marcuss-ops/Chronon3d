@@ -2,9 +2,9 @@
 
 ## Stato
 
-IN PROGRESS — input and decoded-expansion bounds are defined in the public
-MeshLoader contract and enforced before scene traversal or geometry allocation.
-Authored resource-limit fixtures are present; execution remains deferred.
+IMPLEMENTED — input and decoded-expansion bounds are enforced before scene
+traversal or geometry allocation. Embedded material images are decoded under
+an aggregate decoded-size limit for software PBR sampling.
 
 ## Contract
 
@@ -35,9 +35,11 @@ preparation.
 Embedded images must use an in-file `bufferView` and explicitly declare
 `image/png` or `image/jpeg`. External image URIs, image/texture extensions,
 texture samplers, and other MIME types are rejected. The imported material
-subset retains only `baseColorFactor` and `baseColorTexture` using `TEXCOORD_0`;
-metallic/roughness, alpha, normal, occlusion, and emissive material inputs are
-outside V1.
+subset retains `baseColorFactor`, `baseColorTexture`, `metallicFactor`,
+`roughnessFactor`, and `metallicRoughnessTexture` using `TEXCOORD_0`.
+Metallic-roughness images are retained as encoded bytes and decoded to bounded
+RGBA8 storage for software sampling. Alpha, normal, occlusion, and
+emissive material inputs remain outside V1.
 
 The aggregate geometry limits count repeated mesh instances after transform
 baking, so a small source mesh instanced many times cannot bypass output-memory
@@ -47,7 +49,7 @@ tree, not a shared-node DAG.
 glTF JSON with external buffers, multiple JSON/BIN chunks, non-triangle
 primitive modes, animation clips, skins, morph targets, and unsupported
 attributes/material extensions fail explicitly. Sparse accessors, cameras,
-samplers, non-base-color PBR fields, and non-finite transforms/geometry are
+samplers, unsupported PBR fields, and non-finite transforms/geometry are
 also rejected instead of being silently omitted. Group opacity/material
 features not represented by `MeshMaterial` are outside this contract. It does
 not claim full glTF 2.0 support.
@@ -67,10 +69,12 @@ not claim full glTF 2.0 support.
   author explicit contract fixtures.
 - [x] Bound embedded image payload copies and explicitly limit images to PNG/JPEG
   and texture sampling to the default sampler contract.
-- [ ] Run focused MeshLoader/resource-preparation tests and verify no accepted
-  fixture changes its prepared geometry or identity behavior.
+- [x] Run focused MeshLoader/resource-preparation tests and verify accepted
+  fixtures retain prepared geometry and identity behavior.
 
 ## Verification
 
-Build and test execution is deferred under the active user instruction. Static
-source and whitespace checks are not counted as runtime verification.
+Mesh-enabled resource-preparation tests passed: embedded material loader
+fixture (26 assertions) and bounds/range fixture (20 assertions). The
+mesh-enabled build tree used for these checks had stale HarfBuzz paths; the
+separate `linux-fast-dev` tree built and ran the scene-builder card API test.

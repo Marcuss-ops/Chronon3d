@@ -7,6 +7,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <glm/glm.hpp>
 #include <span>
 
@@ -30,10 +31,12 @@ public:
     explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame,
                           SamplingMode mode = SamplingMode::Bilinear,
                           RenderNodeCachePolicy policy = static_memory_cache("transform"),
-                          Vec2 source_surface_size = {0.0f, 0.0f})
+                          Vec2 source_surface_size = {0.0f, 0.0f},
+                          std::optional<Card3DMaterial> card3d_material = std::nullopt)
         : RenderGraphNode(policy), m_matrix(matrix), m_opacity(opacity), m_mode(mode),
           m_use_matrix(true), m_cache_frame(cache_frame),
-          m_source_surface_size(source_surface_size) {}
+          m_source_surface_size(source_surface_size),
+          m_card3d_material(std::move(card3d_material)) {}
 
     [[nodiscard]] RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string_view name() const noexcept override { return "Transform"; }
@@ -44,7 +47,7 @@ public:
     ) const override;
 
     bool can_seed_full_frame(const RenderGraphContext& ctx) const noexcept override {
-        if (ctx.frame_input.has_camera_2_5d || m_opacity < 0.999f) {
+        if (ctx.frame_input.has_camera_2_5d || m_opacity < 0.999f || m_card3d_material) {
             return false;
         }
         if (ctx.node_exec.clip_rect) {
@@ -80,6 +83,18 @@ public:
         }
         params_hash = hash_combine(
             params_hash, hash_bytes(&m_source_surface_size, sizeof(m_source_surface_size)));
+        if (m_card3d_material) {
+            const auto& card = *m_card3d_material;
+            params_hash = hash_combine(params_hash, hash_value(card.enabled));
+            params_hash = hash_combine(params_hash, hash_value(card.thickness_px));
+            params_hash = hash_combine(params_hash, hash_value(card.edge_highlight_intensity));
+            params_hash = hash_combine(params_hash, hash_color(card.side_color));
+            params_hash = hash_combine(params_hash, hash_color(card.edge_highlight_color));
+            params_hash = hash_combine(params_hash, hash_value(card.rim_light_intensity));
+            params_hash = hash_combine(params_hash, hash_value(card.rim_light_power));
+            params_hash = hash_combine(params_hash, hash_color(card.rim_light_color));
+            params_hash = hash_combine(params_hash, hash_vec3(card.light_direction));
+        }
 
         return cache::NodeCacheKey{
             .scope = "transform",
@@ -182,6 +197,7 @@ private:
     bool      m_use_matrix{false};
     Frame     m_cache_frame{-1};
     Vec2      m_source_surface_size{0.0f, 0.0f};
+    std::optional<Card3DMaterial> m_card3d_material{};
 };
 
 } // namespace chronon3d::graph

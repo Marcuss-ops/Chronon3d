@@ -4,6 +4,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <chronon3d/backends/software/rasterizers/card3d_material_rasterizer.hpp>
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
@@ -19,6 +20,7 @@
 #include "transform_internal.hpp"
 
 #include "transform_geometry_detail.hpp"
+#include <chronon3d/rendering/projected_card.hpp>
 
 namespace chronon3d::graph {
 NodeExecResult TransformNode::execute(
@@ -62,7 +64,8 @@ NodeExecResult TransformNode::execute(
             "native transform input promotion failed"});
     }
     // ── Identity fast-path (uses cached analysis) ──────────────────────
-    const bool is_identity = get_transform_type() == TransformType::Identity;
+    const bool is_identity = !m_card3d_material &&
+        get_transform_type() == TransformType::Identity;
 
     // A native projected layer must still pass through the affine surface
     // kernel at the neutral pose.  The legacy identity copy path only knows
@@ -232,6 +235,33 @@ NodeExecResult TransformNode::execute(
     const i32 y0 = clipped_bounds->y0;
     const i32 y1 = clipped_bounds->y1;
 
+    const auto draw_card_frame = [&]() {
+        if (!m_card3d_material || !m_card3d_material->enabled) return;
+        if (ctx.policy.require_native_gpu ||
+            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle) return;
+        const std::array<Vec2, 4> source_corners{{
+            {x_min_src, y_min_src}, {x_max_src, y_min_src},
+            {x_max_src, y_max_src}, {x_min_src, y_max_src}}};
+        rendering::ProjectedCard card;
+        card.visible = true;
+        for (usize i = 0; i < source_corners.size(); ++i) {
+            const Vec4 projected = pixel_model * Vec4(source_corners[i], 0.0f, 1.0f);
+            if (!(projected.w > 1e-6f) || !std::isfinite(projected.w)) {
+                card.visible = false;
+                break;
+            }
+            card.corners[i] = {
+                projected.x / projected.w - static_cast<f32>(result->origin_x()),
+                projected.y / projected.w - static_cast<f32>(result->origin_y()),
+                0.0f};
+        }
+        if (card.visible) {
+            chronon3d::renderer::render_card3d(
+                *result, card, *m_card3d_material, opacity, {},
+                /*draw_front_face=*/false);
+        }
+    };
+
     const uint64_t area = (x1 > x0 && y1 > y0)
         ? static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0)
         : 0;
@@ -251,7 +281,7 @@ NodeExecResult TransformNode::execute(
         std::abs(H[1][0]) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f && std::abs(H[1][2]) < 1e-6f &&
         std::abs(H[2][2] - 1.0f) < 1e-6f;
 
-    if (is_pure_translation) {
+    if (is_pure_translation && !m_card3d_material) {
         const f32 tx = H[2][0];
         const f32 ty = H[2][1];
         const bool is_integer_translation =
@@ -341,7 +371,7 @@ NodeExecResult TransformNode::execute(
     // native affine compositor and, in strict GPU mode, failing the frame.
     const bool is_affine = std::abs(H[0][2]) < 1e-9f && std::abs(H[1][2]) < 1e-9f;
 
-    if (is_affine && std::abs(H[0][1]) < 1e-6f && std::abs(H[1][0]) < 1e-6f &&
+    if (!m_card3d_material && is_affine && std::abs(H[0][1]) < 1e-6f && std::abs(H[1][0]) < 1e-6f &&
         std::abs(H[0][0] - 1.0f) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f) {
         const float tx = H[2][0];
         const float ty = H[2][1];
@@ -360,11 +390,13 @@ NodeExecResult TransformNode::execute(
     // homography is the same mapping used by execute_*_rows; the Vulkan
     // affine kernel consumes an optional denominator so 2.5D tilt/rotation
     // stays on GPU instead of falling through to a CPU readback.
-    const auto affine_native_path = detail::resolve_transform_execution_path(
-        ctx.policy.require_native_gpu,
-        input->surface_handle() != runtime::kInvalidRenderSurfaceHandle,
-        ctx.backend != nullptr,
-        ctx.surface_registry != nullptr);
+    const auto affine_native_path = m_card3d_material
+        ? detail::TransformExecutionPath::Software
+        : detail::resolve_transform_execution_path(
+            ctx.policy.require_native_gpu,
+            input->surface_handle() != runtime::kInvalidRenderSurfaceHandle,
+            ctx.backend != nullptr,
+            ctx.surface_registry != nullptr);
     if (affine_native_path == detail::TransformExecutionPath::NativeSurface) {
         runtime::SurfaceAffineTransform transform{};
         runtime::set_canvas_source_mapping(
@@ -462,7 +494,9 @@ NodeExecResult TransformNode::execute(
         return NodeExecResult(NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,
             std::string(name()),
-            "native affine/projective transform failed"});
+            m_card3d_material
+                ? "Card3DMaterial projected frame requires the software renderer"
+                : "native affine/projective transform failed"});
     }
 
     // General path: affine or projective, row-based
@@ -584,6 +618,7 @@ NodeExecResult TransformNode::execute(
                      ascii_grid);
     }
 
+    draw_card_frame();
     return NodeExecResult{std::move(result)};
 }
 

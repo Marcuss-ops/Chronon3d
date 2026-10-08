@@ -229,9 +229,18 @@
           "light": {
             "type": "object", "additionalProperties": false,
             "properties": {
+              "kind": { "enum": ["point", "spot", "directional"] },
               "radius": { "type": "number", "exclusiveMinimum": 0 },
               "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
-              "intensity": { "type": "number", "minimum": 0, "maximum": 16 }
+              "intensity": { "type": "number", "minimum": 0, "maximum": 16 },
+              "range": { "type": "number", "minimum": 0, "maximum": 1000000 },
+              "decay": { "type": "number", "minimum": 0, "maximum": 8 },
+              "direction": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+              "angle_deg": { "type": "number", "exclusiveMinimum": 0, "maximum": 180 },
+              "penumbra": { "type": "number", "minimum": 0, "maximum": 1 },
+              "casts_shadow": { "type": "boolean" },
+              "shadow_blur": { "type": "number", "minimum": 0, "maximum": 128 },
+              "shadow_bias": { "type": "number", "minimum": 0, "maximum": 64 }
             }
           },
           "inline_mesh": {
@@ -382,7 +391,8 @@
                         "position", "position_x", "position_y", "position_z",
                         "scale", "scale_x", "scale_y", "scale_z",
                         "rotation", "rotation_x", "rotation_y", "rotation_z",
-                        "opacity", "blur", "stroke_dash_offset"
+                        "opacity", "blur", "stroke_dash_offset",
+                        "light_intensity", "light_color"
                       ]
                     },
                     "easing": {

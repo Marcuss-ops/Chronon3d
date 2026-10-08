@@ -437,3 +437,28 @@ TEST_CASE("CameraProjectionResolver: perspective_scale = focal / depth") {
     // Actual perspective_scale should be close to expected (within 10%)
     CHECK(std::abs(result.perspective_scale - expected_ps) / expected_ps < 0.1f);
 }
+
+TEST_CASE("Camera lens shift moves the principal point consistently across projectors") {
+    auto cam = make_test_camera();
+    cam.lens_shift = {0.1f, -0.05f};
+    const auto viewport = make_test_viewport();
+    const Vec3 center_world{0.0f, 0.0f, 0.0f};
+    const auto point = camera_math::project_world_point(cam, center_world, viewport);
+    REQUIRE(point.visible);
+    CHECK(point.centered.x == doctest::Approx(192.0f));
+    CHECK(point.centered.y == doctest::Approx(-54.0f));
+    CHECK(point.screen.x == doctest::Approx(1152.0f));
+    CHECK(point.screen.y == doctest::Approx(486.0f));
+
+    auto input = make_input(cam, viewport);
+    const auto projected = CameraProjectionResolver::project_layer(input);
+    REQUIRE(projected.visible);
+    const Vec2 centroid = compute_centroid(projected.corners, projected.corner_count);
+    CHECK(centroid.x == doctest::Approx(192.0f));
+    CHECK(centroid.y == doctest::Approx(-54.0f));
+
+    const auto matrix = build_projection_matrix(cam, Mat4(1.0f), viewport.width, viewport.height);
+    const Vec4 clip = matrix * Vec4(center_world, 1.0f);
+    CHECK(clip.x / clip.w == doctest::Approx(192.0f));
+    CHECK(clip.y / clip.w == doctest::Approx(-54.0f));
+}

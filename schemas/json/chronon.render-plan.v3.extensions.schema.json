@@ -4363,6 +4363,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "kind": { "enum": ["point", "spot", "directional"] },
               "radius": {
                 "type": "number",
                 "exclusiveMinimum": 0
@@ -4375,7 +4376,15 @@
                 "type": "number",
                 "minimum": 0,
                 "maximum": 16
-              }
+              },
+              "range": { "type": "number", "minimum": 0, "maximum": 1000000 },
+              "decay": { "type": "number", "minimum": 0, "maximum": 8 },
+              "direction": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+              "angle_deg": { "type": "number", "exclusiveMinimum": 0, "maximum": 180 },
+              "penumbra": { "type": "number", "minimum": 0, "maximum": 1 },
+              "casts_shadow": { "type": "boolean" },
+              "shadow_blur": { "type": "number", "minimum": 0, "maximum": 128 },
+              "shadow_bias": { "type": "number", "minimum": 0, "maximum": 64 }
             }
           },
           "inline_mesh": {
@@ -5050,7 +5059,8 @@
                               "stroke_color",
                               "shadow_0_color",
                               "shadow_1_color",
-                              "shadow_2_color"
+                              "shadow_2_color",
+                              "light_color"
                             ]
                           }
                         },
@@ -5114,7 +5124,9 @@
                         "shadow_2_blur",
                         "shadow_2_offset_x",
                         "shadow_2_offset_y",
-                        "shadow_2_color"
+                        "shadow_2_color",
+                        "light_intensity",
+                        "light_color"
                       ]
                     },
                     "easing": {

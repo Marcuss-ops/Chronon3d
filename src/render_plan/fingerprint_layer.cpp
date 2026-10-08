@@ -413,9 +413,18 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         add_gradient(out, particles.color_ramp);
     }
     if (layer.light) {
+        out.add_enum(layer.light->kind);
         out.add_float(layer.light->radius);
         for (const auto component : layer.light->color) out.add_float(component);
         out.add_float(layer.light->intensity);
+        out.add_float(layer.light->range);
+        out.add_float(layer.light->decay);
+        for (const auto component : layer.light->direction) out.add_float(component);
+        out.add_float(layer.light->angle_deg);
+        out.add_float(layer.light->penumbra);
+        out.add_bool(layer.light->casts_shadow);
+        out.add_float(layer.light->shadow_blur);
+        out.add_float(layer.light->shadow_bias);
     }
     if (layer.path_mask) {
         out.add_bool(true);

@@ -8,7 +8,7 @@
 //
 // Every projection path in Chronon3D MUST go through this contract so that:
 //   - Y sign        → screen Y increases downward (origin top-left)
-//   - Viewport      → viewport center is ALWAYS added by the contract
+//   - Viewport      → viewport center plus the authored lens_shift is added
 //   - Depth         → positive Z = in front of camera (LH system)
 //   - FOV / Zoom    → `focal_xy_from_camera()` is the single source of truth
 //                     (returns per-axis focal x and y; the legacy scalar
@@ -256,7 +256,7 @@ inline CameraSpacePoint world_to_camera_space(
 //   │    screen.y   = centered.y + viewport.height / 2                │
 //   │                                                                 │
 //   │ 2. Viewport centre: ALWAYS added in screen coordinates.         │
-//   │    screen = centered + (viewport.width/2, viewport.height/2)    │
+//   │    screen = centered + lens_shift + (viewport.width/2, viewport.height/2) │
 //   │                                                                 │
 //   │ 3. Validity/coord separation (TICKET-035):                      │
 //   │    visible == false  ⇒  centered = screen = {0,0},              │
@@ -303,8 +303,8 @@ inline ProjectedPoint project_world_point(
 
     // Center coordinates: per-axis scale (X and Y independent).
     out.centered = {
-        cam.position.x * scale_x,
-        -cam.position.y * scale_y      // Y sign: inverted (screen Y down)
+        cam.position.x * scale_x + camera.get_lens_shift().x * viewport.width,
+        -cam.position.y * scale_y + camera.get_lens_shift().y * viewport.height
     };
 
     // Screen coordinates: viewport centre added.

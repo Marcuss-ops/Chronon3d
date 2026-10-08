@@ -20,6 +20,14 @@ if(CHRONON3D_ENABLE_SVG)
 endif()
 add_library(chronon3d_assets OBJECT ${CHRONON3D_ASSET_SOURCES})
 set_target_properties(chronon3d_assets PROPERTIES UNITY_BUILD OFF)
+if(CHRONON3D_ENABLE_MESH)
+    # The GLB loader and public Mesh::optimize() contract are feature gated.
+    # Keep both the compile definition and optimizer dependency on the asset
+    # target's public interface so SDK consumers and tests see the same ABI.
+    target_compile_definitions(chronon3d_assets PUBLIC CHRONON3D_ENABLE_MESH=1)
+    target_link_libraries(chronon3d_assets PUBLIC meshoptimizer::meshoptimizer)
+    target_include_directories(chronon3d_assets PRIVATE ${Stb_INCLUDE_DIR})
+endif()
 
 # Use the platform's optimized SHA-256 implementation for artifact hashing
 # when OpenSSL is available.  The source retains a small portable fallback so
