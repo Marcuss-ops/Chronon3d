@@ -61,6 +61,22 @@ TEST_CASE("render_plan: minimal valid plan passes") {
     CHECK(result.issues.empty());
 }
 
+TEST_CASE("render_plan: CPU light kinds and shadow fields satisfy the schema") {
+    auto plan = make_minimal_valid_plan();
+    plan["layers"] = json::array({{
+        {"id", "key"}, {"type", "light"}, {"position", {100, 80}},
+        {"light", {{"kind", "spot"}, {"radius", 240}, {"range", 320},
+                    {"decay", 2}, {"direction", {1, 0, 0}},
+                    {"angle_deg", 55}, {"penumbra", 0.2},
+                    {"intensity", 1.5}, {"color", "#FF8040"},
+                    {"casts_shadow", true}, {"shadow_blur", 12},
+                    {"shadow_bias", 0.5}}}
+    }});
+    CHECK(validate_render_plan(plan).ok());
+    plan["layers"][0]["light"]["kind"] = "area";
+    check_schema_violation(validate_render_plan(plan));
+}
+
 TEST_CASE("render_plan: extra root-level field is rejected by schema authority") {
     auto plan = make_minimal_valid_plan();
     plan["totally_extra_field"] = "drift";

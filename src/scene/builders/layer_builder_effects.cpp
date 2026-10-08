@@ -114,6 +114,11 @@ LayerBuilder& LayerBuilder::material(Material2_5D value) {
 }
 
 LayerBuilder& LayerBuilder::card3d_material(Card3DMaterial value) {
+    // Card material shadow switches are the author-facing defaults for this
+    // layer. Mirror them into the canonical lighting material consumed by
+    // the graph shadow pass instead of leaving the card's flags inert.
+    m_layer.material().casts_shadows = value.casts_shadows && value.cast_shadow;
+    m_layer.material().accepts_shadows = value.accepts_shadows && value.receive_shadow;
     m_layer.card3d_material() = value;
     return *this;
 }

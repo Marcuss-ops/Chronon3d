@@ -144,6 +144,7 @@ struct Layer {
     TrackMatte  track_matte{};
     std::unique_ptr<Material2_5D> m_material{};
     std::unique_ptr<Card3DMaterial> m_card3d_material{};
+    bool m_card3d_material_configured{false};
     LayerTransitionSpec transition_in{};
     LayerTransitionSpec transition_out{};
     std::pmr::vector<RenderNode> nodes;
@@ -166,8 +167,9 @@ struct Layer {
     const EffectStack& effects()     const { return *m_effects; }
     Material2_5D&      material()          { return *m_material; }
     const Material2_5D& material()   const { return *m_material; }
-    Card3DMaterial&    card3d_material()   { return *m_card3d_material; }
+    Card3DMaterial&    card3d_material()   { m_card3d_material_configured = true; return *m_card3d_material; }
     const Card3DMaterial& card3d_material() const { return *m_card3d_material; }
+    [[nodiscard]] bool has_card3d_material() const noexcept { return m_card3d_material_configured; }
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource());
     ~Layer();

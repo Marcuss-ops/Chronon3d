@@ -45,6 +45,27 @@ TEST_CASE("Card3DMaterial rasterizer: disabled material draws nothing") {
     CHECK(count_nonzero_pixels(fb) == 0);
 }
 
+TEST_CASE("Card3D projected frame overlays edges without replacing source face") {
+    Framebuffer fb(120, 100);
+    const Color source{0.08f, 0.22f, 0.75f, 1.0f};
+    for (int y = 0; y < fb.height(); ++y)
+        for (int x = 0; x < fb.width(); ++x)
+            fb.set_pixel(x, y, source);
+
+    rendering::ProjectedCard card;
+    card.visible = true;
+    card.corners[0] = {20.0f, 20.0f, 0.0f};
+    card.corners[1] = {80.0f, 20.0f, 0.0f};
+    card.corners[2] = {80.0f, 70.0f, 0.0f};
+    card.corners[3] = {20.0f, 70.0f, 0.0f};
+    auto material = default_material();
+    material.side_color = {0.8f, 0.1f, 0.05f, 1.0f};
+    render_card3d(fb, card, material, 1.0f, {}, false);
+
+    CHECK(fb.get_pixel(50, 45) == source);
+    CHECK(fb.get_pixel(85, 45) != source);
+}
+
 TEST_CASE("Card3DMaterial rasterizer: draws front face") {
     Framebuffer fb(200, 200);
     fb.clear(Color::transparent());

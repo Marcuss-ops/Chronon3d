@@ -371,9 +371,19 @@ struct MotionBlurPlan {
 };
 
 struct LightLayerPlan {
+    enum class Kind : std::uint8_t { Point, Spot, Directional };
+    Kind kind{Kind::Point};
     float radius{256.0f};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
     float intensity{1.0f};
+    float range{0.0f};
+    float decay{1.0f};
+    std::array<float, 3> direction{1.0f, 0.0f, 0.0f};
+    float angle_deg{45.0f};
+    float penumbra{0.0f};
+    bool casts_shadow{false};
+    float shadow_blur{8.0f};
+    float shadow_bias{0.0f};
 };
 
 enum class TrackMatteTypePlan : std::uint8_t {

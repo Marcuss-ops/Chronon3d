@@ -26,6 +26,7 @@
 #include "../../src/render_plan/audio_react_baker.hpp"
 
 #include <chrono>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <tuple>
@@ -2326,6 +2327,31 @@ TEST_CASE("render plan materializes deterministic particle shapes per frame") {
         CHECK(first_nodes[index].world_transform.position.y ==
               repeated_nodes[index].world_transform.position.y);
     }
+
+    // Opaque normal-blend particles share one path node while retaining one
+    // closed contour per stable particle sample.
+    RenderPlan batch_plan;
+    batch_plan.job_id = "particle-batch";
+    batch_plan.canvas = plan.canvas;
+    LayerPlan batch_layer;
+    batch_layer.id = "opaque-dust";
+    batch_layer.type = LayerType::Particles;
+    emitter.color_ramp = {};
+    batch_layer.particle_emitter = emitter;
+    batch_plan.layers.push_back(std::move(batch_layer));
+    const auto batch_prepared = compile_render_plan(batch_plan, resolver);
+    REQUIRE(batch_prepared);
+    const auto batch_frame = evaluate(
+        batch_prepared->compiled_composition, CompositionEvaluateContext{}, Frame{12});
+    REQUIRE(batch_frame);
+    REQUIRE(batch_frame->scene.layers().size() == 1);
+    REQUIRE(batch_frame->scene.layers()[0].nodes.size() == 1);
+    const auto& batch_path = batch_frame->scene.layers()[0].nodes[0].shape.path();
+    CHECK(batch_frame->scene.layers()[0].nodes[0].shape.type() == ShapeType::Path);
+    CHECK(std::count_if(batch_path.commands.begin(), batch_path.commands.end(),
+        [](const auto& command) { return command.type == PathCommandType::Close; }) ==
+        emitter.count);
+    CHECK(batch_path.commands.size() <= emitter.count * 65);
 }
 
 TEST_CASE("render plan compiles radial light into a screen-space gradient circle") {
@@ -2354,6 +2380,132 @@ TEST_CASE("render plan compiles radial light into a screen-space gradient circle
     REQUIRE(evaluated->scene.layers().size() == 1);
     REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.type() == ShapeType::Circle);
+}
+
+TEST_CASE("render plan lowers point spot and directional lights on the CPU path") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "cpu-light-kinds";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{24, 1}, .duration = Frame{1}};
+    for (const auto kind : {LightLayerPlan::Kind::Point,
+                            LightLayerPlan::Kind::Spot,
+                            LightLayerPlan::Kind::Directional}) {
+        LayerPlan layer;
+        layer.id = kind == LightLayerPlan::Kind::Point ? "point" :
+                   kind == LightLayerPlan::Kind::Spot ? "spot" : "directional";
+        layer.type = LayerType::Light;
+        LightLayerPlan light;
+        light.kind = kind;
+        light.radius = 80.0f;
+        light.range = 100.0f;
+        light.decay = 2.0f;
+        light.angle_deg = 50.0f;
+        layer.light = light;
+        layer.blend_mode = BlendMode::Screen;
+        plan.layers.push_back(std::move(layer));
+    }
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 3);
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.type() == ShapeType::Circle);
+    CHECK(evaluated->scene.layers()[1].nodes[0].shape.type() == ShapeType::Path);
+    CHECK(evaluated->scene.layers()[2].nodes[0].shape.type() == ShapeType::Rect);
+}
+
+TEST_CASE("RenderPlan lights project blurred shadows onto earlier receiver layers") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "cpu-light-shadow";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{24, 1}, .duration = Frame{1}};
+    LayerPlan caster;
+    caster.id = "caster";
+    caster.type = LayerType::Color;
+    caster.color = {0.8f, 0.4f, 0.2f, 1.0f};
+    caster.position = {80.0f, 40.0f, 20.0f};
+    caster.position_dimensions = 3;
+    plan.layers.push_back(caster);
+    LayerPlan no_shadow_caster = caster;
+    no_shadow_caster.id = "shadow-opt-out";
+    no_shadow_caster.position[0] = 140.0f;
+    no_shadow_caster.casts_shadows = false;
+    plan.layers.push_back(std::move(no_shadow_caster));
+    LayerPlan light_layer;
+    light_layer.id = "shadow-light";
+    light_layer.type = LayerType::Light;
+    light_layer.position = {20.0f, 10.0f, 100.0f};
+    light_layer.position_dimensions = 3;
+    LightLayerPlan light;
+    light.kind = LightLayerPlan::Kind::Point;
+    light.casts_shadow = true;
+    light.shadow_blur = 7.0f;
+    light.shadow_bias = 0.5f;
+    light_layer.light = light;
+    plan.layers.push_back(std::move(light_layer));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 3);
+    const auto& effects = evaluated->scene.layers()[0].effects();
+    REQUIRE(effects.size() == 1);
+    const auto* shadow = std::get_if<DropShadowParams>(&effects[0].params);
+    REQUIRE(shadow);
+    CHECK(shadow->radius == doctest::Approx(7.0f));
+    CHECK(shadow->offset.x > 0.0f);
+    CHECK(shadow->offset.y > 0.0f);
+    CHECK(evaluated->scene.layers()[1].effects().empty());
+}
+
+TEST_CASE("RenderPlan light intensity and color tracks sample on requested frames") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "animated-render-plan-light";
+    plan.canvas = {.width = 320, .height = 180,
+                   .fps = FrameRate{24, 1}, .duration = Frame{24}};
+    LayerPlan layer;
+    layer.id = "animated-light";
+    layer.type = LayerType::Light;
+    LightLayerPlan light;
+    light.intensity = 1.0f;
+    light.color = {1.0f, 1.0f, 1.0f, 1.0f};
+    layer.light = light;
+    layer.animation = AnimationPlan{{
+        AnimationTrackPlan{.property = "light_intensity",
+            .keyframes = {{Frame{0}, {0.5f}}, {Frame{23}, {1.5f}}}},
+        AnimationTrackPlan{.property = "light_color",
+            .keyframes = {{Frame{0}, {1.0f, 0.4f, 0.2f, 1.0f}},
+                          {Frame{23}, {0.2f, 0.5f, 1.0f, 1.0f}}}}}};
+    layer.blend_mode = BlendMode::Screen;
+    plan.layers.push_back(std::move(layer));
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto start = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    const auto end = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{23});
+    REQUIRE(start);
+    REQUIRE(end);
+    const auto& start_color = start->scene.layers()[0].nodes[0].color;
+    const auto& end_color = end->scene.layers()[0].nodes[0].color;
+    CHECK(start_color.r == doctest::Approx(0.5f));
+    CHECK(start_color.g == doctest::Approx(0.2f));
+    CHECK(start_color.b == doctest::Approx(0.1f));
+    CHECK(end_color.r == doctest::Approx(0.3f));
+    CHECK(end_color.g == doctest::Approx(0.75f));
+    CHECK(end_color.b == doctest::Approx(1.5f));
 }
 
 TEST_CASE("render plan lowers fractal noise to the generate effect stack") {

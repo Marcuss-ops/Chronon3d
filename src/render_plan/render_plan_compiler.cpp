@@ -210,6 +210,47 @@ void materialize_media_background_cards(RenderPlan& plan) {
     }
     plan.layers = std::move(expanded);
 }
+
+// A light's projected CPU shadow is lowered onto every earlier layer that
+// accepts shadows. The existing drop-shadow effect owns alpha extraction,
+// blur and premultiplied compositing, so this pass only derives its projected
+// offset and parameters from the light/caster pair.
+void materialize_light_shadows(RenderPlan& plan) {
+    for (std::size_t light_index = 0; light_index < plan.layers.size(); ++light_index) {
+        const auto& light_layer = plan.layers[light_index];
+        if (light_layer.type != LayerType::Light || !light_layer.light ||
+            !light_layer.light->casts_shadow)
+            continue;
+        const auto& light = *light_layer.light;
+        for (std::size_t caster_index = 0; caster_index < light_index; ++caster_index) {
+            auto& caster = plan.layers[caster_index];
+            if (caster.type == LayerType::Light || caster.type == LayerType::Adjustment ||
+                (caster.casts_shadows && !*caster.casts_shadows) ||
+                (caster.accepts_shadows && !*caster.accepts_shadows))
+                continue;
+            const float dx = light.kind == LightLayerPlan::Kind::Directional
+                ? light.direction[0] : caster.position[0] - light_layer.position[0];
+            const float dy = light.kind == LightLayerPlan::Kind::Directional
+                ? light.direction[1] : caster.position[1] - light_layer.position[1];
+            const float distance = std::hypot(dx, dy);
+            const float depth = std::abs(caster.position[2] - light_layer.position[2]);
+            const float planar_projection = light.kind == LightLayerPlan::Kind::Directional
+                ? light.radius * 0.15f
+                : std::min(light.range > 0.0f ? light.range : light.radius, distance) * 0.25f;
+            const float projection = std::max(depth, planar_projection) + light.shadow_bias;
+            const float nx = distance > 1e-5f ? dx / distance : 0.0f;
+            const float ny = distance > 1e-5f ? dy / distance :
+                (light.kind == LightLayerPlan::Kind::Directional ? 0.0f : 1.0f);
+            LayerPlan::EffectPlan shadow;
+            shadow.kind = LayerPlan::EffectKindPlan::DropShadow;
+            shadow.radius = light.shadow_blur;
+            shadow.offset = {nx * projection, ny * projection};
+            shadow.effect_color = {0.0f, 0.0f, 0.0f,
+                std::clamp(light.intensity * 0.45f, 0.0f, 1.0f)};
+            caster.effects.push_back(std::move(shadow));
+        }
+    }
+}
 } // namespace
 
 Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
@@ -221,6 +262,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         auto expanded_plan = input_plan;
         auto& plan = expanded_plan;
         materialize_media_background_cards(plan);
+        materialize_light_shadows(plan);
         detail::bake_audio_react_plan(plan, resolver);
         for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
             auto& layer = plan.layers[layer_index];
