@@ -154,8 +154,6 @@ FusionStats fuse_color_opacity_blend(
     std::vector<FusedPixelProgram>& out_programs) {
     FusionStats stats;
     const auto candidates = find_candidate_triples(graph);
-    stats.passes_before_fusion = candidates.size() * 3;
-    stats.passes_after_fusion = candidates.size() * 3;
 
     const auto frame_input = ctx.frame_input;
     const std::size_t pixel_count =
@@ -195,16 +193,12 @@ FusionStats fuse_color_opacity_blend(
         program.pixel_count = pixel_count;
         program.bytes_per_pixel = 16;
 
-        // Candidate descriptors are emitted, but uncertified BitExact fusion
-        // does not claim reduced pass count or byte savings.
+        // Candidate descriptors are emitted for inspection only. They are
+        // neither persisted into the compiled graph nor consumed by an
+        // executor, so discovery must not report fused passes or savings.
         out_programs.push_back(std::move(program));
     }
 
-    emit_fusion_counters(
-        ctx.node_exec.counters,
-        stats.passes_before_fusion,
-        stats.passes_after_fusion,
-        stats.bytes_saved_by_fusion);
     return stats;
 }
 

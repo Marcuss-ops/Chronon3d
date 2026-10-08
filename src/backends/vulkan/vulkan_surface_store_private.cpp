@@ -195,7 +195,7 @@ namespace chronon3d::backends::vulkan {
 
         // Bounded capacity: fallback wait if accumulated deferred releases exceed cap
         static constexpr std::size_t kOverflowCap = 2 * FrameBatchState::kSlotCount;
-        if (surfaces.deferred_surface_releases.size() > kOverflowCap) {
+        if (surfaces.note_overflow_if_needed(kOverflowCap)) {
             wait_for_pending();
         }
 
@@ -205,7 +205,7 @@ namespace chronon3d::backends::vulkan {
 
         for (const auto& item : pending) {
             if (item.slot < FrameBatchState::kSlotCount && frame_batch.in_flight[item.slot]) {
-                surfaces.deferred_surface_releases.push_back(item);
+                surfaces.enqueue_deferred_release(item);
                 continue;
             }
             if (surface_lifecycle_diag_enabled()) {
@@ -216,6 +216,8 @@ namespace chronon3d::backends::vulkan {
             if (binding == surfaces.surface_bindings.end()) continue;
             const auto slot = binding->second;
             if (surfaces.surface_bindings.erase(item.handle) == 0) continue;
+            surfaces.note_release_delay(item.requested_frame_index,
+                                         active_frame_index);
             surfaces.unplanned_surface_handles.erase(item.handle);
             if (surfaces.surface_bindings.empty()) {
                 surfaces.reclaim_unused_transient_slots();

@@ -20,7 +20,8 @@ void VulkanBackend::Impl::defer_surface_release(runtime::RenderSurfaceHandle han
     // instead would be wrong because physical slots are aliased across
     // frames. Do not tighten this without an aliasing audit.
     const std::size_t slot = frame_batch.next_slot;
-    surfaces.deferred_surface_releases.push_back({handle, slot});
+    surfaces.enqueue_deferred_release(
+        {handle, slot, active_frame_index});
 }
 
 bool VulkanBackend::Impl::surface_valid(runtime::RenderSurfaceHandle handle) const noexcept {

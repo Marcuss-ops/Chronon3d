@@ -5,7 +5,11 @@
 
 #include <chronon3d/render_graph/compiler/bit_exact_contract.hpp>
 #include <chronon3d/render_graph/compiler/fused_pixel_program.hpp>
+#include <chronon3d/render_graph/nodes/adjustment_node.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/simd/detail/scalar_kernels.hpp>
+#include <chronon3d/simd/kernel_resolver.hpp>
 
 namespace cg = chronon3d::graph::fusion;
 namespace cd = chronon3d::graph::determinism;
@@ -100,4 +104,43 @@ TEST_CASE("FusionStats: default construct is zero") {
     CHECK(stats.passes_before_fusion == 0);
     CHECK(stats.passes_after_fusion == 0);
     CHECK(stats.bytes_saved_by_fusion == 0);
+}
+
+TEST_CASE("Pixel fusion discovery does not report execution or savings") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+    RenderGraph graph;
+    auto root = graph.add_node(std::make_unique<EffectStackNode>(
+        EffectStack{}, no_cache("fusion-test")));
+    EffectStack color_stack;
+    color_stack.emplace_back(effects::EffectDescriptor{.id = "color_matrix"}, BrightnessParams{0.1f});
+    auto color = graph.add_node(std::make_unique<AdjustmentNode>(
+        std::move(color_stack), no_cache("fusion-test")));
+    EffectStack opacity_stack;
+    opacity_stack.emplace_back(effects::EffectDescriptor{.id = "opacity"}, BrightnessParams{0.2f});
+    auto opacity = graph.add_node(std::make_unique<AdjustmentNode>(
+        std::move(opacity_stack), no_cache("fusion-test")));
+    EffectStack blend_stack;
+    blend_stack.emplace_back(effects::EffectDescriptor{.id = "blend"}, BrightnessParams{0.3f});
+    auto blend = graph.add_node(std::make_unique<AdjustmentNode>(
+        std::move(blend_stack), no_cache("fusion-test")));
+    graph.connect(root, color);
+    graph.connect(color, opacity);
+    graph.connect(opacity, blend);
+    graph.set_output(blend);
+
+    RenderGraphContext context;
+    context.frame_input.width = 16;
+    context.frame_input.height = 16;
+    std::vector<cg::FusedPixelProgram> candidates;
+    const auto capabilities = cs::detect_cpu_capabilities();
+    const auto& kernels = cs::resolve_pixel_kernels(capabilities);
+    const auto stats = cg::fuse_color_opacity_blend(graph, context, kernels, candidates);
+
+    CHECK(candidates.size() == 1);
+    CHECK(stats.passes_before_fusion == 0);
+    CHECK(stats.passes_after_fusion == 0);
+    CHECK(stats.bytes_saved_by_fusion == 0);
+    CHECK(graph.live_count() == 4);
+    CHECK_FALSE(candidates.front().certified_for_execution());
 }

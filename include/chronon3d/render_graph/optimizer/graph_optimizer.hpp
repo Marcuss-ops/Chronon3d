@@ -42,13 +42,11 @@ struct OptimizationResult {
 
     size_t static_bakes      = 0;   // subgraphs eligible for static bake
 
-    // TICKET-FUSION-PASS-COMPILER-V1: pixel-fusion pass counters.
-    // The FusionStats struct is the canonical aggregator for
-    // passes_before_fusion / passes_after_fusion / bytes_saved_by_fusion
-    // (emitted via --stats-json per F3.1 user-spec verbatim).
-    // For OptimizationResult we surface the most-relevant scalars:
-    size_t pixel_fusions     = 0;   // # of 3-node triples that fused
-    size_t pixel_fusion_bytes_saved = 0;  // bytes saved by all fusions
+    // Experimental PixelProgram discovery counters. Candidates are not
+    // executable fusion until the compiled graph persists a certified program
+    // and the executor consumes it; therefore these remain zero today.
+    size_t pixel_fusions     = 0;   // # of certified, executed pixel fusions
+    size_t pixel_fusion_bytes_saved = 0;  // measured savings from executed fusions
 };
 
 // ── Main optimization entry point ───────────────────────────────────────

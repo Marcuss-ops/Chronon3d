@@ -100,6 +100,7 @@ void VulkanBackend::Impl::create_cuda_external_surface(
     }
     physical.desc = desc;
     surfaces.surface_bindings.emplace(handle, slot);
+    surfaces.note_binding_created();
     surfaces.unplanned_surface_handles.insert(handle);
     ++stats.surface_creations;
 }

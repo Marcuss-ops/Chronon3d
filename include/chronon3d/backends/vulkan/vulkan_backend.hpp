@@ -50,6 +50,11 @@ struct VulkanBackendStats {
     std::uint64_t physical_surfaces_live{0};
     std::uint64_t surface_bindings_live{0};
     std::uint64_t deferred_surface_release_count{0};
+    std::uint64_t pending_release_high_water{0};
+    std::uint64_t retained_bindings_high_water{0};
+    std::uint64_t release_delay_frames{0};
+    std::uint64_t release_delay_frames_high_water{0};
+    std::uint64_t overflow_wait_count{0};
     std::uint64_t deferred_release_flush_count{0};
     std::uint64_t deferred_release_drain_wait_us{0};
     std::uint64_t physical_surfaces_peak{0};
