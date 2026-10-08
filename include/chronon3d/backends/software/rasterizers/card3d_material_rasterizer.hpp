@@ -20,7 +20,8 @@ void render_card3d(
     const rendering::ProjectedCard& card,
     const Card3DMaterial& material,
     float opacity = 1.0f,
-    std::span<float> depth_buffer = {}
+    std::span<float> depth_buffer = {},
+    bool draw_front_face = true
 );
 
 struct Card3DRenderParams {

@@ -61,14 +61,44 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             throw std::runtime_error("light is only valid for light layers");
         const auto& raw = value.at("light");
         LightLayerPlan light;
+        const auto kind = raw.value("kind", std::string{"point"});
+        if (kind == "point") light.kind = LightLayerPlan::Kind::Point;
+        else if (kind == "spot") light.kind = LightLayerPlan::Kind::Spot;
+        else if (kind == "directional") light.kind = LightLayerPlan::Kind::Directional;
+        else throw std::runtime_error("light.kind must be point, spot, or directional");
         light.radius = raw.value("radius", light.radius);
         light.intensity = raw.value("intensity", light.intensity);
+        light.range = raw.value("range", light.range);
+        light.decay = raw.value("decay", light.decay);
+        if (raw.contains("direction")) {
+            const auto& direction = raw.at("direction");
+            if (!direction.is_array() || direction.size() != 3)
+                throw std::runtime_error("light.direction must contain three numbers");
+            for (std::size_t component = 0; component < 3; ++component)
+                light.direction[component] = direction.at(component).get<float>();
+        }
+        light.angle_deg = raw.value("angle_deg", light.angle_deg);
+        light.penumbra = raw.value("penumbra", light.penumbra);
+        light.casts_shadow = raw.value("casts_shadow", light.casts_shadow);
+        light.shadow_blur = raw.value("shadow_blur", light.shadow_blur);
+        light.shadow_bias = raw.value("shadow_bias", light.shadow_bias);
         const auto color = parse_hex_color(raw.value("color", std::string{"#FFFFFF"}));
         if (!color) throw std::runtime_error("light.color must be a #RRGGBB or #RRGGBBAA color");
         light.color = {color->r, color->g, color->b, color->a};
         if (!std::isfinite(light.radius) || light.radius <= 0.0f ||
-            !std::isfinite(light.intensity) || light.intensity < 0.0f || light.intensity > 16.0f)
-            throw std::runtime_error("light radius must be positive and intensity must be in [0, 16]");
+            !std::isfinite(light.intensity) || light.intensity < 0.0f || light.intensity > 16.0f ||
+            !std::isfinite(light.range) || light.range < 0.0f || light.range > 1000000.0f ||
+            !std::isfinite(light.decay) || light.decay < 0.0f || light.decay > 8.0f ||
+            !std::all_of(light.direction.begin(), light.direction.end(),
+                [](float component) { return std::isfinite(component); }) ||
+            std::hypot(std::hypot(light.direction[0], light.direction[1]), light.direction[2]) < 1e-6f ||
+            (light.kind == LightLayerPlan::Kind::Spot &&
+             std::hypot(light.direction[0], light.direction[1]) < 1e-6f) ||
+            !std::isfinite(light.angle_deg) || light.angle_deg <= 0.0f || light.angle_deg > 180.0f ||
+            !std::isfinite(light.penumbra) || light.penumbra < 0.0f || light.penumbra > 1.0f ||
+            !std::isfinite(light.shadow_blur) || light.shadow_blur < 0.0f || light.shadow_blur > 128.0f ||
+            !std::isfinite(light.shadow_bias) || light.shadow_bias < 0.0f || light.shadow_bias > 64.0f)
+            throw std::runtime_error("light values are outside supported ranges");
         layer.light = light;
         if (!value.contains("blend_mode")) layer.blend_mode = BlendMode::Screen;
     }
@@ -322,16 +352,6 @@ LayerPlan decode_layer(const nlohmann::json& value) {
 
     decode_layer_masks(layer, value);
     decode_layer_effects(layer, value);
-    if (layer.type == LayerType::Mesh) {
-        for (const auto& effect : layer.effects) {
-            const auto& id = effect.canonical_effect_id;
-            if (id != chronon3d::effects::ids::ColorTint &&
-                id != chronon3d::effects::ids::LightGlow &&
-                id != chronon3d::effects::ids::LightBloom &&
-                id != chronon3d::effects::ids::GenerateNoise)
-                throw std::runtime_error("mesh layers support only color.tint, light.glow, light.bloom, and generate.noise effects");
-        }
-    }
     decode_background_look(layer, value);
     if (value.contains("backdrop_filter")) {
         const auto& raw_bf = value.at("backdrop_filter");
@@ -620,6 +640,26 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             throw std::runtime_error("auto_orient requires a position track spanning at least two frames");
     }
     if (layer.animation) {
+        std::unordered_set<std::string> light_track_properties;
+        for (const auto& track : layer.animation->tracks) {
+            if (track.property != "light_intensity" && track.property != "light_color") continue;
+            if (layer.type != LayerType::Light || !layer.light)
+                throw std::runtime_error(track.property + " animation requires a light layer");
+            if (!light_track_properties.insert(track.property).second)
+                throw std::runtime_error("layer has duplicate " + track.property + " animation tracks");
+            for (const auto& key : track.keyframes) {
+                if (track.property == "light_intensity") {
+                    if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                        key.value.front() < 0.0f || key.value.front() > 16.0f)
+                        throw std::runtime_error("light_intensity keyframes must be finite scalars in [0, 16]");
+                } else if (key.value.size() != 4 || std::any_of(key.value.begin(), key.value.end(),
+                        [](float component) {
+                            return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                        })) {
+                    throw std::runtime_error("light_color keyframes must be finite RGBA values in [0, 1]");
+                }
+            }
+        }
         for (auto& track : layer.animation->tracks) {
             if (track.property != "fill_color") continue;
             std::stable_sort(track.keyframes.begin(), track.keyframes.end(),

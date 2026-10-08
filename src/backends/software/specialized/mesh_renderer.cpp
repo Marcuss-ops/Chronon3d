@@ -2,6 +2,7 @@
 #include "../rasterizers/line_rasterizer.hpp"
 #include "../rasterizers/scanline_rasterizer.hpp"
 #include <chronon3d/geometry/mesh.hpp>
+#include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/rendering/lighting_eval.hpp>
 #include <algorithm>
 #include <array>
@@ -31,7 +32,10 @@ struct StackPolygon {
 
 struct LitVertex {
     ViewVertex view_position;
-    Color color;
+    Vec3 world_position;
+    Vec3 normal;
+    Vec2 uv;
+    Color base_color;
 };
 
 struct LitStackPolygon {
@@ -80,11 +84,15 @@ bool clip_lit_polygon(LitStackPolygon& polygon, const auto& signed_distance) {
     std::array<LitVertex, kMaxClipVerts> clipped;
     usize clipped_size = 0;
     const auto interpolate = [](const LitVertex& a, const LitVertex& b, float t) {
-        return LitVertex{a.view_position + t * (b.view_position - a.view_position),
-            Color{a.color.r + t * (b.color.r - a.color.r),
-                  a.color.g + t * (b.color.g - a.color.g),
-                  a.color.b + t * (b.color.b - a.color.b),
-                  a.color.a + t * (b.color.a - a.color.a)}};
+        return LitVertex{
+            a.view_position + t * (b.view_position - a.view_position),
+            a.world_position + t * (b.world_position - a.world_position),
+            a.normal + t * (b.normal - a.normal),
+            a.uv + t * (b.uv - a.uv),
+            Color{a.base_color.r + t * (b.base_color.r - a.base_color.r),
+                  a.base_color.g + t * (b.base_color.g - a.base_color.g),
+                  a.base_color.b + t * (b.base_color.b - a.base_color.b),
+                  a.base_color.a + t * (b.base_color.a - a.base_color.a)}};
     };
     for (usize i = 0; i < polygon.size; ++i) {
         const auto& a = polygon.verts[i];
@@ -166,7 +174,12 @@ void render_clipped_triangle(
 void render_clipped_lit_triangle(
     Framebuffer& fb, const std::array<LitVertex, 3>& triangle,
     const Mat4& projection, std::span<float> depth_buffer,
-    float near_plane, float far_plane) {
+    float near_plane, float far_plane,
+    const rendering::LightContext& light,
+    const Material2_5D& source_material,
+    const rendering::RimLight* rim,
+    float roughness_factor, float metallic_factor,
+    const assets::MeshImage* roughness_map) {
     LitStackPolygon polygon;
     for (usize i = 0; i < 3; ++i) polygon.verts[i] = triangle[i];
     polygon.size = 3;
@@ -175,7 +188,6 @@ void render_clipped_lit_triangle(
     if (polygon.size < 3) return;
 
     std::array<Vec3, kMaxClipVerts> projected;
-    std::array<Color, kMaxClipVerts> colors;
     for (usize i = 0; i < polygon.size; ++i) {
         const auto& vertex = polygon.verts[i];
         const float depth = -vertex.view_position.z;
@@ -187,12 +199,87 @@ void render_clipped_lit_triangle(
         projected[i] = {(ndc.x + 1.0f) * 0.5f * static_cast<float>(fb.width()),
                         (1.0f - (ndc.y + 1.0f) * 0.5f) * static_cast<float>(fb.height()),
                         1.0f / depth};
-        colors[i] = vertex.color;
     }
+    const auto sample_roughness = [&](Vec2 uv) {
+        if (!roughness_map || roughness_map->decoded_rgba.empty() ||
+            roughness_map->decoded_width == 0 || roughness_map->decoded_height == 0)
+            return 1.0f;
+        const float u = uv.x - std::floor(uv.x);
+        const float v = uv.y - std::floor(uv.y);
+        const float px = u * static_cast<float>(roughness_map->decoded_width - 1);
+        const float py = v * static_cast<float>(roughness_map->decoded_height - 1);
+        const auto x0 = static_cast<std::uint32_t>(std::floor(px));
+        const auto y0 = static_cast<std::uint32_t>(std::floor(py));
+        const auto x1 = std::min(x0 + 1, roughness_map->decoded_width - 1);
+        const auto y1 = std::min(y0 + 1, roughness_map->decoded_height - 1);
+        const float tx = px - static_cast<float>(x0), ty = py - static_cast<float>(y0);
+        const auto green = [&](std::uint32_t x, std::uint32_t y) {
+            const auto index = (static_cast<std::size_t>(y) * roughness_map->decoded_width + x) * 4 + 1;
+            return static_cast<float>(roughness_map->decoded_rgba[index]) / 255.0f;
+        };
+        const float top = green(x0, y0) + tx * (green(x1, y0) - green(x0, y0));
+        const float bottom = green(x0, y1) + tx * (green(x1, y1) - green(x0, y1));
+        return top + ty * (bottom - top);
+    };
+    const auto edge = [](const Vec2& a, const Vec2& b, const Vec2& p) {
+        return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+    };
     for (usize i = 1; i + 1 < polygon.size; ++i) {
-        const std::array<Vec3, 3> positions{projected[0], projected[i], projected[i + 1]};
-        const std::array<Color, 3> triangle_colors{colors[0], colors[i], colors[i + 1]};
-        fill_triangle_perspective_gradient(fb, positions, triangle_colors, depth_buffer);
+        const std::array<usize, 3> ids{0, i, i + 1};
+        const Vec2 a{projected[ids[0]].x, projected[ids[0]].y};
+        const Vec2 b{projected[ids[1]].x, projected[ids[1]].y};
+        const Vec2 c{projected[ids[2]].x, projected[ids[2]].y};
+        const float area = edge(a, b, c);
+        if (std::abs(area) < 1e-6f) continue;
+        const int x0 = std::max(0, static_cast<int>(std::ceil(std::min({a.x, b.x, c.x}))));
+        const int x1 = std::min(fb.width() - 1, static_cast<int>(std::floor(std::max({a.x, b.x, c.x}))));
+        const int y0 = std::max(0, static_cast<int>(std::ceil(std::min({a.y, b.y, c.y}))));
+        const int y1 = std::min(fb.height() - 1, static_cast<int>(std::floor(std::max({a.y, b.y, c.y}))));
+        for (int y = y0; y <= y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x <= x1; ++x) {
+                const Vec2 p{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f};
+                const float w0 = edge(b, c, p) / area;
+                const float w1 = edge(c, a, p) / area;
+                const float w2 = edge(a, b, p) / area;
+                if (w0 < -1e-5f || w1 < -1e-5f || w2 < -1e-5f) continue;
+                const float z0 = projected[ids[0]].z, z1 = projected[ids[1]].z, z2 = projected[ids[2]].z;
+                const float inv_depth = w0 * z0 + w1 * z1 + w2 * z2;
+                if (!(inv_depth > 0.0f)) continue;
+                const float depth = 1.0f / inv_depth;
+                const auto depth_index = static_cast<std::size_t>(y) * fb.width() + x;
+                const bool use_depth = depth_buffer.size() == static_cast<std::size_t>(fb.width()) * fb.height();
+                if (use_depth && depth_buffer[depth_index] > 0.0f && depth >= depth_buffer[depth_index]) continue;
+                const float q0 = w0 * z0 / inv_depth, q1 = w1 * z1 / inv_depth, q2 = w2 * z2 / inv_depth;
+                const auto& v0 = polygon.verts[ids[0]];
+                const auto& v1 = polygon.verts[ids[1]];
+                const auto& v2 = polygon.verts[ids[2]];
+                const Vec3 normal = rendering::safe_normalize(q0 * v0.normal + q1 * v1.normal + q2 * v2.normal);
+                const Vec2 uv = q0 * v0.uv + q1 * v1.uv + q2 * v2.uv;
+                const Color base{
+                    q0 * v0.base_color.r + q1 * v1.base_color.r + q2 * v2.base_color.r,
+                    q0 * v0.base_color.g + q1 * v1.base_color.g + q2 * v2.base_color.g,
+                    q0 * v0.base_color.b + q1 * v1.base_color.b + q2 * v2.base_color.b,
+                    q0 * v0.base_color.a + q1 * v1.base_color.a + q2 * v2.base_color.a};
+                Material2_5D material = source_material;
+                if (roughness_factor >= 0.0f) {
+                    const float roughness = std::clamp(
+                        roughness_factor * sample_roughness(uv), 0.04f, 1.0f);
+                    material.shininess = std::clamp(2.0f / (roughness * roughness) - 2.0f, 1.0f, 256.0f);
+                    material.specular *= 0.04f * (1.0f - metallic_factor) + metallic_factor;
+                }
+                const Color src = rendering::evaluate_lighting(base, normal, light, material, rim);
+                if (src.a <= 0.0f || !std::isfinite(src.r) || !std::isfinite(src.g) ||
+                    !std::isfinite(src.b) || !std::isfinite(src.a)) continue;
+                if (use_depth) depth_buffer[depth_index] = depth;
+                Color& dst = row[x];
+                const float inverse_alpha = 1.0f - src.a;
+                dst.r = src.r + dst.r * inverse_alpha;
+                dst.g = src.g + dst.g * inverse_alpha;
+                dst.b = src.b + dst.b * inverse_alpha;
+                dst.a = src.a + dst.a * inverse_alpha;
+            }
+        }
     }
 }
 
@@ -261,7 +348,8 @@ void render_mesh_filled_lit(
     const Mat4& view, const Mat4& proj, const Color& color,
     std::span<float> depth_buffer, const rendering::LightContext& light,
     const rendering::RimLight& rim, const RenderNode::InlineMeshMaterial& source_material,
-    f32 near_plane, f32 far_plane)
+    f32 near_plane, f32 far_plane, f32 roughness_factor,
+    f32 metallic_factor, const assets::MeshImage* metallic_roughness)
 {
     const auto& vertices = mesh.vertices();
     const auto& indices = mesh.indices();
@@ -301,14 +389,14 @@ void render_mesh_filled_lit(
             const Vec3 input_normal = vertices[id].normal;
             const Vec3 normal = glm::dot(input_normal, input_normal) > 1e-8f
                 ? rendering::transform_normal(model, input_normal) : face_normal;
-            Color lit = glm::dot(input_normal, input_normal) > 1e-8f
-                ? rendering::evaluate_lighting(base, normal, light, material,
-                    active_rim.enabled ? &active_rim : nullptr)
-                : base;
-            lit.a *= 1.0f;
-            triangle[corner] = {view_model * Vec4(vertices[id].position, 1.0f), lit};
+            triangle[corner] = {
+                view_model * Vec4(vertices[id].position, 1.0f),
+                world_position(id), normal, vertices[id].uv, base};
         }
-        render_clipped_lit_triangle(fb, triangle, proj, depth_buffer, near_plane, far_plane);
+        render_clipped_lit_triangle(fb, triangle, proj, depth_buffer,
+            near_plane, far_plane, light, material,
+            active_rim.enabled ? &active_rim : nullptr,
+            roughness_factor, metallic_factor, metallic_roughness);
     }
 }
 
