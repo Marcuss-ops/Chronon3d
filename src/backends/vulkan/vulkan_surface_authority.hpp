@@ -22,6 +22,27 @@
 
 namespace chronon3d::backends::vulkan {
 
+// Exact frame-batch slot ownership (TICKET-DEFERRED-SURFACE-SLOT-HINT). Bit i
+// of a mask is frame-batch slot i. A handle's mask is the set of slots whose
+// recorded commands resolved it since its last release.
+inline constexpr std::uint8_t frame_slot_bit(std::size_t slot) noexcept {
+    return static_cast<std::uint8_t>(1u << slot);
+}
+
+// True when no slot named in `mask` is still busy. `busy` is indexed by
+// frame-batch slot; slots beyond its extent count as idle. A slot is busy while
+// its submission is in flight or while it is being recorded.
+inline bool recording_slots_retired(std::uint8_t mask,
+                                    std::span<const bool> busy) noexcept {
+    for (std::size_t slot = 0; slot < 8; ++slot) {
+        if ((mask & frame_slot_bit(slot)) != 0 && slot < busy.size() &&
+            busy[slot]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Sole authority for Vulkan-native surface binding/materialization state and
 // physical-slot selection. Planned bindings are exact: the authority never
 // silently substitutes another slot. Dynamic slot selection is confined to
@@ -99,10 +120,19 @@ public:
 #endif
     struct DeferredSurfaceRelease {
         runtime::RenderSurfaceHandle handle{runtime::kInvalidRenderSurfaceHandle};
+        // Most recent owning slot (highest set bit of slot_mask); diagnostic.
         std::size_t slot{0};
         std::uint64_t requested_frame_index{0};
+        // Exact set of frame-batch slots that referenced `handle` since its last
+        // release. The release waits until every slot named here is retired.
+        std::uint8_t slot_mask{0};
     };
     std::vector<DeferredSurfaceRelease> deferred_surface_releases{};
+    // Per-handle recording-slot masks (see frame_slot_bit). Written only on the
+    // recording path, which holds the submission domain, and read by the
+    // release/retire paths, which hold both domains.
+    std::unordered_map<runtime::RenderSurfaceHandle, std::uint8_t>
+        recording_slot_masks{};
     // Surface-lifecycle peaks are guarded by `mutex`, like the containers
     // they describe. `retained_bindings_high_water` counts live logical
     // handle→slot bindings (including planned aliases); the pending peak counts
@@ -187,6 +217,26 @@ public:
 
     [[nodiscard]] std::size_t deferred_release_count() const noexcept {
         return deferred_surface_releases.size();
+    }
+
+    /// Record that the frame-batch slot ``slot`` referenced ``handle``.
+    void note_recording_slot(runtime::RenderSurfaceHandle handle,
+                             std::size_t slot) {
+        if (handle == runtime::kInvalidRenderSurfaceHandle ||
+            slot >= kFrameBatchSlotCount) {
+            return;
+        }
+        recording_slot_masks[handle] |= frame_slot_bit(slot);
+    }
+
+    [[nodiscard]] std::uint8_t recording_slot_mask(
+        runtime::RenderSurfaceHandle handle) const noexcept {
+        const auto it = recording_slot_masks.find(handle);
+        return it == recording_slot_masks.end() ? std::uint8_t{0} : it->second;
+    }
+
+    void forget_recording_slots(runtime::RenderSurfaceHandle handle) {
+        recording_slot_masks.erase(handle);
     }
 
     void enqueue_deferred_release(DeferredSurfaceRelease release) {
@@ -516,7 +566,8 @@ public:
     /// of bindings released so the caller can account for them.  Handles that
     /// were never recorded for this slot — host surfaces, another slot's
     /// transients, persistent assets — are never touched.
-    std::size_t retire_frame_slot_transients(std::size_t slot) {
+    std::size_t retire_frame_slot_transients(
+        std::size_t slot, std::span<const bool> busy = {}) {
         if (slot >= kFrameBatchSlotCount) return 0;
         auto& list = frame_slot_transient_handles[slot];
         const bool had_records = !list.empty();
@@ -524,9 +575,19 @@ public:
         for (const auto handle : list) {
             const auto binding = surface_bindings.find(handle);
             if (binding == surface_bindings.end()) continue;
+            // Exact ownership: this slot's reference is gone, but a handle can
+            // also be recorded into a slot that is still busy. Keep the binding
+            // then; that slot's own retirement releases it.
+            const auto mask_it = recording_slot_masks.find(handle);
+            if (mask_it != recording_slot_masks.end()) {
+                mask_it->second = static_cast<std::uint8_t>(
+                    mask_it->second & ~frame_slot_bit(slot));
+                if (!recording_slots_retired(mask_it->second, busy)) continue;
+            }
             const auto phys_slot = binding->second;
             surface_bindings.erase(binding);
             unplanned_surface_handles.erase(handle);
+            forget_recording_slots(handle);
             const auto it = physical_surfaces.find(phys_slot);
             if (it != physical_surfaces.end() && !slot_in_use(phys_slot)) {
                 it->second.image.initialized = false;

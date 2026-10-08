@@ -2,6 +2,7 @@
 #include "utils/process_start.hpp"
 
 #include "../../../utils/video/encoder_config_resolution.hpp"
+#include "../../../utils/video/variant_batch.hpp"
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
@@ -166,6 +167,26 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
                           "native surface fanout is not yet supported");
             return session;
         }
+        // Visual fingerprint gate. The fan-out renders ONE master, so a variant
+        // whose declared base visual fingerprint differs from variant 0 would
+        // silently receive the master's pixels. Refuse that; separate renders for
+        // distinct visual content are not wired yet. Undeclared fingerprints can
+        // not be verified, so they keep the shared-master behaviour with a warning.
+        const auto variant_dag = plan_variant_dag(session->opts.variants);
+        const auto& master_variant = session->opts.variants.front();
+        for (std::size_t index = 1; index < session->opts.variants.size(); ++index) {
+            if (variant_dag.outputs[index].base_source_index == 0) continue;
+            const auto& variant = session->opts.variants[index];
+            if (!master_variant.base_visual_fingerprint.empty() &&
+                !variant.base_visual_fingerprint.empty()) {
+                spdlog::error("[video] SIMO variant {} declares visual fingerprint '{}' distinct from variant 0 ('{}'); separate renders are required and are not supported by the shared-master fan-out",
+                              index, variant.base_visual_fingerprint,
+                              master_variant.base_visual_fingerprint);
+                return session;
+            }
+            spdlog::warn("[video] SIMO variant {} base fingerprint is not verifiable against variant 0; assuming it shares the master's rendered content", index);
+        }
+
         std::vector<VariantFanoutEncoder::Child> children;
         children.reserve(session->opts.variants.size());
         for (std::size_t index = 0; index < session->opts.variants.size(); ++index) {
@@ -179,6 +200,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             child_opts.output.output = variant.output.empty()
                 ? session->opts.output.output + ".variant" + std::to_string(index)
                 : variant.output;
+            // Per-output audio: each variant muxes its own track when it
+            // declares one; the shared job audio is the default.
+            if (!variant.audio_source.empty()) {
+                child_opts.audio_source_path = variant.audio_source;
+            }
             if (!variant.codec.empty()) child_opts.encoder.codec = variant.codec;
             if (!variant.pixel_format.empty()) child_opts.pipe.pipe_pixfmt = variant.pixel_format;
             const auto child_codec = child_opts.encoder.codec == "auto"

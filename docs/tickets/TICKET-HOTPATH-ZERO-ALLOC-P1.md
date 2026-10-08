@@ -145,6 +145,8 @@ nei cloni) cambia il contratto di visibilità degli errori scritti dai cloni
 verso il parent (invariante P0-1). Meccanica ma sensibile: **differita** con
 questo approccio documentato per la prossima wave.
 
+> **Aggiornamento 2026-10-08:** D2 è **stale**. `ctx.frame_error` è già un puntatore raw (nessun `make_shared` nel percorso per frame; verificato con grep). Non esiste più un'allocazione da rimuovere; la voce resta solo come storico.
+
 ### D3 — Per-node context clone (`clone_for_node_execution`)
 
 La copia per-value di `FrameInput` (camera stack POD, centinaia di byte) resta:
@@ -178,7 +180,13 @@ eseguite, quindi il ticket non può essere dichiarato `DONE`.
 
 ## Stato di chiusura
 
-- **Stato:** `VERIFY` (non `DONE`).
+- **Stato:** `VERIFY` (non `DONE`) → test list verified 2026-10-08 on `linux-fast-dev`:
+  `chronon3d_backend_registry_tests` 19/19 (includes `test_node_memory_tracker`),
+  `chronon3d_compositor_tests` 70/70, `chronon3d_render_job_contract_tests` 23/23,
+  `chronon3d_render_graph_tests` 421/421 (run from the repo root; the golden
+  fingerprint was regenerated for the fusion contract), and the motion-blur cases
+  in `chronon3d_renderer_core_tests` 8/8. D2/D3 remain deferred by design, so the
+  ticket is still not `DONE` until its ADR-level items are closed.
 - **Prerequisiti:** eseguire il preset `linux-fast-dev` e verificare i target
   `backend_registry`, `compositor`, `render_job_contract`, `render_graph`,
   `test_node_memory_tracker` e `test_motion_blur_integration` sullo stesso SHA.

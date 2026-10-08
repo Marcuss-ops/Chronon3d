@@ -61,6 +61,18 @@ target_compile_definitions(chronon3d_vulkan_surface_materializer_tests
     PRIVATE CHRONON3D_ENABLE_VULKAN)
 
 chronon3d_add_test_suite(
+    NAME chronon3d_pixel_program_pointwise_encoder_tests
+    TIER UNIT
+    SOURCES backends/test_pixel_program_pointwise_encoder.cpp
+    LINK_TARGETS doctest::doctest)
+
+chronon3d_add_test_suite(
+    NAME chronon3d_roughen_edges_kernel_tests
+    TIER UNIT
+    SOURCES backends/test_roughen_edges_kernel.cpp
+    LINK_TARGETS doctest::doctest)
+
+chronon3d_add_test_suite(
     NAME chronon3d_vulkan_interop_generation_tests
     TIER UNIT
     SOURCES backends/test_vulkan_interop_generation.cpp

@@ -236,6 +236,63 @@ class FastPlateSampler:
             self._scratch[(w, h)] = bufs
         return bufs[slot]
 
+    def _sample_subpixel_level(self, z: int, anchor_px: tuple[float, float],
+                               source_per_output_pixel: float,
+                               width: int, height: int) -> np.ndarray | None:
+        """Sample a prepared plate at continuous coordinates to avoid 1 px camera judder."""
+        x_extent = width / (2.0 * source_per_output_pixel) + 2.0
+        y_extent = height / (2.0 * source_per_output_pixel) + 2.0
+        for origin_x, origin_y, plate in self.plates.get(z, ()):
+            left = anchor_px[0] - x_extent
+            top = anchor_px[1] - y_extent
+            right = anchor_px[0] + x_extent
+            bottom = anchor_px[1] + y_extent
+            if (left < origin_x + 1 or top < origin_y + 1 or
+                    right >= origin_x + plate.shape[1] - 1 or
+                    bottom >= origin_y + plate.shape[0] - 1):
+                continue
+
+            out_x = np.arange(width, dtype=np.float32)[None, :]
+            out_y = np.arange(height, dtype=np.float32)[:, None]
+            map_x = np.broadcast_to(
+                anchor_px[0] + (out_x - (width - 1) / 2.0) / source_per_output_pixel - origin_x,
+                (height, width),
+            ).copy()
+            map_y = np.broadcast_to(
+                anchor_px[1] + (out_y - (height - 1) / 2.0) / source_per_output_pixel - origin_y,
+                (height, width),
+            ).copy()
+            return cv2.remap(plate, map_x, map_y, cv2.INTER_LINEAR,
+                             borderMode=cv2.BORDER_REPLICATE)
+        return None
+
+    def sample_subpixel(self, lat: float, lon: float, zoom: float,
+                        width: int | None = None,
+                        height: int | None = None) -> np.ndarray:
+        """Like sample(), but keep fractional camera movement through source remapping."""
+        from dynamic_tile_pyramid import latlon_to_global_px
+
+        W = self.W if width is None else int(width)
+        H = self.H if height is None else int(height)
+        z_lo = int(math.floor(zoom))
+        t = zoom - z_lo
+        alpha = t * t * (3.0 - 2.0 * t)
+        if not (self.z_min <= z_lo <= self.z_max):
+            return self.sample(lat, lon, zoom, W, H)
+
+        lo = self._sample_subpixel_level(z_lo, latlon_to_global_px(lat, lon, z_lo),
+                                         2.0 ** t, W, H)
+        if lo is None:
+            return self.sample(lat, lon, zoom, W, H)
+        if alpha <= 0.001 or z_lo + 1 > self.z_max:
+            return lo
+
+        hi = self._sample_subpixel_level(z_lo + 1, latlon_to_global_px(lat, lon, z_lo + 1),
+                                         2.0 ** (t - 1.0), W, H)
+        if hi is None:
+            return self.sample(lat, lon, zoom, W, H)
+        return cv2.addWeighted(lo, 1.0 - alpha, hi, alpha, 0.0)
+
     def sample(self, lat: float, lon: float, zoom: float,
                width: int | None = None, height: int | None = None) -> np.ndarray:
         """The engine's sample_continuous, fed from prepared plates."""

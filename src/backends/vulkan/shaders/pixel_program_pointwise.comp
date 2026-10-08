@@ -1,0 +1,128 @@
+#version 450
+
+// pixel_program_pointwise.comp — one dispatch for a fused pointwise
+// PixelProgram stack. A single generic interpreter runs any encoded op table,
+// so no pipeline is compiled per program.
+//
+// Mirrors apply_op() in src/compiler/graph_compiler/pixel_program.cpp:
+//   * buffers hold premultiplied RGBA float pixels;
+//   * ops are applied in order, per pixel, exactly like the CPU reference;
+//   * kinds are PixelProgramOpKind values (see pixel_program.hpp):
+//       0 ColorMatrix, 1 Opacity, 3 Vignette, 7 Brightness, 8 Contrast,
+//       9 Saturation, 10 Exposure, 11 Tint, 12 Invert.
+//   * unsupported kinds are rejected by the host encoder, never reached here.
+//
+// Op layout (std430, 112 bytes): header.x = kind; params[0..5] hold the 24
+// float params of PixelProgramOp in order (params[i >> 2][i & 3]).
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer SourcePixels {
+    vec4 src[];
+};
+
+layout(std430, binding = 1) writeonly buffer DestinationPixels {
+    vec4 dst[];
+};
+
+struct PointwiseOp {
+    uvec4 header;
+    vec4 params[6];
+};
+
+layout(std430, binding = 2) readonly buffer PointwiseOps {
+    PointwiseOp ops[];
+};
+
+layout(push_constant) uniform PointwiseParams {
+    uint pixel_count;
+    uint op_count;
+    uint frame_width;
+    uint frame_height;
+} pc;
+
+float op_param(uint op, uint index) {
+    return ops[op].params[index >> 2u][index & 3u];
+}
+
+void main() {
+    uint pixel = gl_GlobalInvocationID.x;
+    if (pixel >= pc.pixel_count) return;
+
+    vec4 c = src[pixel];
+    for (uint k = 0u; k < pc.op_count; ++k) {
+        uint kind = ops[k].header.x;
+        if (kind == 0u) {
+            // ColorMatrix: rows (p0..p3), (p4..p7), (p8..p11); alpha untouched.
+            vec4 s = c;
+            c.r = op_param(k, 0u) * s.r + op_param(k, 1u) * s.g +
+                  op_param(k, 2u) * s.b + op_param(k, 3u) * s.a;
+            c.g = op_param(k, 4u) * s.r + op_param(k, 5u) * s.g +
+                  op_param(k, 6u) * s.b + op_param(k, 7u) * s.a;
+            c.b = op_param(k, 8u) * s.r + op_param(k, 9u) * s.g +
+                  op_param(k, 10u) * s.b + op_param(k, 11u) * s.a;
+        } else if (kind == 1u) {
+            // Opacity: scales every premultiplied channel, alpha included.
+            c *= op_param(k, 0u);
+        } else if (kind == 3u) {
+            // Vignette: needs the frame extent (the host checks it).
+            if (c.a > 0.0 && op_param(k, 2u) > 0.0) {
+                float width = float(pc.frame_width);
+                float height = float(pc.frame_height);
+                float dx = float(pixel % pc.frame_width) - width * 0.5;
+                float dy = float(pixel / pc.frame_width) - height * 0.5;
+                float diagonal = sqrt(width * width + height * height);
+                float inner = op_param(k, 0u) * diagonal * 0.5;
+                float outer = inner + op_param(k, 1u) * diagonal * 0.5;
+                float inverse_range = 1.0 / max(1.0, outer - inner);
+                float amount = clamp((sqrt(dx * dx + dy * dy) - inner) *
+                                     inverse_range, 0.0, 1.0);
+                amount = amount * amount * (3.0 - 2.0 * amount);
+                float t = amount * op_param(k, 2u);
+                c.r = c.r * (1.0 - t) + op_param(k, 3u) * t;
+                c.g = c.g * (1.0 - t) + op_param(k, 4u) * t;
+                c.b = c.b * (1.0 - t) + op_param(k, 5u) * t;
+            }
+        } else if (kind == 7u) {
+            // Brightness (straight-alpha add, clamped to [0,1]).
+            if (c.a > 0.0 && op_param(k, 0u) != 0.0) {
+                c.rgb = clamp(c.rgb + op_param(k, 0u), vec3(0.0), vec3(1.0));
+            }
+        } else if (kind == 8u) {
+            // Contrast around mid-grey, clamped to [0,1].
+            if (c.a > 0.0 && op_param(k, 0u) != 1.0) {
+                c.rgb = clamp((c.rgb - 0.5) * op_param(k, 0u) + 0.5,
+                              vec3(0.0), vec3(1.0));
+            }
+        } else if (kind == 9u) {
+            // Saturation toward Rec.709 luma, clamped to [0,1].
+            if (c.a > 0.0 && op_param(k, 0u) != 1.0) {
+                float luma = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+                c.rgb = clamp(vec3(luma) + op_param(k, 0u) * (c.rgb - vec3(luma)),
+                              vec3(0.0), vec3(1.0));
+            }
+        } else if (kind == 10u) {
+            // Exposure: straight-colour gain of exp2(stops), then premultiply.
+            if (c.a > 0.0 && op_param(k, 0u) != 0.0) {
+                vec3 straight = c.rgb / c.a;
+                straight *= exp2(op_param(k, 0u));
+                c.rgb = straight * c.a;
+            }
+        } else if (kind == 11u) {
+            // Tint: lerp toward the tint colour by amount.
+            if (c.a > 0.0 && op_param(k, 3u) > 0.0) {
+                float amount = op_param(k, 3u);
+                c.r = c.r * (1.0 - amount) + op_param(k, 0u) * amount;
+                c.g = c.g * (1.0 - amount) + op_param(k, 1u) * amount;
+                c.b = c.b * (1.0 - amount) + op_param(k, 2u) * amount;
+            }
+        } else if (kind == 12u) {
+            // Invert, blended by amount.
+            if (c.a > 0.0 && op_param(k, 0u) > 0.0) {
+                float amount = op_param(k, 0u);
+                c.rgb = c.rgb + amount * (1.0 - 2.0 * c.rgb);
+            }
+        }
+    }
+    dst[pixel] = c;
+}

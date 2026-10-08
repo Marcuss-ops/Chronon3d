@@ -157,6 +157,9 @@ TEST_CASE("FrameGraphCompiler - compiled frame program is deterministic (golden)
     REQUIRE_FALSE(expected.empty());
     std::ostringstream rendered;
     rendered << "0x" << std::hex << std::setw(16) << std::setfill('0') << first_hash;
+    // Report the computed fingerprint on failure so a deliberate contract change
+    // can be recorded in the golden without re-running a debugger.
+    INFO("expected golden=", expected, " computed=", rendered.str());
     CHECK(rendered.str() == expected);
     // Guard against a vacuous normalization: the program must actually carry
     // the fused batch work this fixture is designed to produce.

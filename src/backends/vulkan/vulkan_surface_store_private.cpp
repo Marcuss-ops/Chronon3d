@@ -30,6 +30,13 @@ namespace chronon3d::backends::vulkan {
 
     VulkanBackend::Impl::Image& VulkanBackend::Impl::resolve_image(
         runtime::RenderSurfaceHandle handle) {
+        // Every recorded command resolves its surfaces here, so this is the one
+        // place that captures which frame-batch slot references a handle. The
+        // recording path holds the submission domain, which orders this write
+        // against the release/retire readers (both hold both domains).
+        if (frame_batch.active && frame_batch.next_slot < FrameBatchState::kSlotCount) {
+            surfaces.note_recording_slot(handle, frame_batch.next_slot);
+        }
         // Audit N4: during recording this thread holds no store lock, so the
         // image comes from the recording lease, which pins the slot against
         // erase/re-materialization. A recording op that reaches a surface it
@@ -160,6 +167,7 @@ namespace chronon3d::backends::vulkan {
         const auto slot = binding->second;
         wait_for_pending();
         if (surfaces.surface_bindings.erase(handle) == 0) return;
+        surfaces.forget_recording_slots(handle);
         // Retain surfaces.physical_surfaces[slot] so subsequent ensure_surface calls
         // can reuse the allocated physical surface without re-allocating memory!
         surfaces.unplanned_surface_handles.erase(handle);
@@ -203,8 +211,12 @@ namespace chronon3d::backends::vulkan {
         surfaces.deferred_surface_releases.clear();
         surfaces.deferred_surface_releases.reserve(pending.size());
 
+        const auto busy = frame_slot_busy_flags();
         for (const auto& item : pending) {
-            if (item.slot < FrameBatchState::kSlotCount && frame_batch.in_flight[item.slot]) {
+            // Gate on every slot that referenced the handle, not on one guess:
+            // a release while any of them is in flight could free an image
+            // that submission still reads.
+            if (!recording_slots_retired(item.slot_mask, busy)) {
                 surfaces.enqueue_deferred_release(item);
                 continue;
             }
@@ -216,6 +228,7 @@ namespace chronon3d::backends::vulkan {
             if (binding == surfaces.surface_bindings.end()) continue;
             const auto slot = binding->second;
             if (surfaces.surface_bindings.erase(item.handle) == 0) continue;
+            surfaces.forget_recording_slots(item.handle);
             surfaces.note_release_delay(item.requested_frame_index,
                                          active_frame_index);
             surfaces.unplanned_surface_handles.erase(item.handle);
@@ -239,7 +252,9 @@ namespace chronon3d::backends::vulkan {
     }
 
     void VulkanBackend::Impl::retire_frame_slot_transient_surfaces(std::size_t slot) {
-        const std::size_t released = surfaces.retire_frame_slot_transients(slot);
+        const auto busy = frame_slot_busy_flags();
+        const std::size_t released = surfaces.retire_frame_slot_transients(
+            slot, std::span<const bool>(busy));
         if (released == 0) return;
         if (surface_lifecycle_diag_enabled()) {
             spdlog::info("[surface-lifecycle] retire slot={} handles={}",
@@ -275,6 +290,7 @@ namespace chronon3d::backends::vulkan {
             const auto slot = binding->second;
             surfaces.surface_bindings.erase(binding);
             surfaces.unplanned_surface_handles.erase(handle);
+            surfaces.forget_recording_slots(handle);
             const auto it = surfaces.physical_surfaces.find(slot);
             if (it != surfaces.physical_surfaces.end() &&
                 !surfaces.slot_in_use(slot)) {
@@ -628,6 +644,7 @@ void VulkanBackend::Impl::VulkanSurfaceStore::destroy_all(
     surface_bindings.clear();
     planned_alias_groups.clear();
     deferred_surface_releases.clear();
+    recording_slot_masks.clear();
     unplanned_surface_handles.clear();
     for (auto& handles : frame_slot_transient_handles) {
         handles.clear();

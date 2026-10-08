@@ -13,61 +13,14 @@ namespace chronon3d::effects {
 // (Exposure, Levels, Curves, Fill, Noise, Offset, DirectionalBlur, RadialBlur,
 // Stroke).
 
+// Generated from effect_catalog.def: one enumerator per CHRONON_EFFECT entry,
+// with the same numeric value as the catalog's `val`. Adding an effect is one
+// catalog line; this enum is never hand-edited.
 enum class EffectType : uint8_t {
-    Unknown         = 0,
-
-    // ── Core effects (existing) ──
-    Blur            = 1,
-    Tint            = 2,
-    Brightness      = 3,
-    Contrast        = 4,
-    DropShadow      = 5,
-    Glow            = 6,
-    Bloom           = 7,
-    Fake3DWave      = 8,
-    Saturation      = 9,
-    HueRotate       = 10,
-    Invert          = 11,
-    Vignette        = 12,
-
-    // ── Future effects (reserved by A1, implemented by follow-up agents) ──
-    Exposure        = 13,
-    Levels          = 14,
-    Curves          = 15,
-    Fill            = 16,
-    Noise           = 17,
-    Offset          = 18,
-    DirectionalBlur = 19,
-    RadialBlur      = 20,
-    Stroke          = 21,
-    FractalNoise    = 22,
-    Checkerboard    = 23,
-    FourColorGradient = 24,
-    LightRays       = 25,
-    Lut3D           = 26,
-    Echo            = 27,
-    Keying          = 28,
-    Threshold       = 29,
-    Mosaic          = 30,
-
-    // ── Warp family (AE distortion parity) ──
-    CornerPin       = 31,
-    Twirl           = 32,
-    Bulge           = 33,
-    MeshWarp        = 34,
-    Sharpen         = 35,
-    TurbulentDisplace = 36,
-    WaveWarp        = 37,
-    Ripple          = 38,
-    DisplacementMap = 39,
-    ChromaticAberration = 40,
-    Halftone = 41,
-    LensDistortion = 42,
-    LuminanceResponse = 43,
-    FoldWarp = 44,
-    CreaseShading = 45,
-    TemperatureTint = 46,
-    LiftGammaGain = 47,
+    Unknown = 0,
+#define CHRONON_EFFECT(val, enum_name, ...) enum_name = val,
+#include "effect_catalog.def"
+#undef CHRONON_EFFECT
 };
 
 // ── effect_type_for<T> primary template ─────────────────────────────────────

@@ -16,5 +16,6 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/layer_builder_masks.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/text_run_builder.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_api.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/shape_texture_fill.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/scene_builder.cpp
 )

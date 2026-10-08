@@ -12,16 +12,31 @@ void VulkanBackend::Impl::destroy_surface_images() noexcept {
 
 void VulkanBackend::Impl::defer_surface_release(runtime::RenderSurfaceHandle handle) {
     ++stats.deferred_surface_release_count;
-    // Deliberately conservative slot hint: next_slot is the slot the current
-    // or upcoming batch records into, so a handle whose real owner is an
-    // older slot may wait one extra slot rotation before it is released.
-    // A stale hint can only delay a release (the flush re-checks the hinted
-    // slot and re-queues while it is in flight); reusing the binding slot
-    // instead would be wrong because physical slots are aliased across
-    // frames. Do not tighten this without an aliasing audit.
-    const std::size_t slot = frame_batch.next_slot;
+    // Exact owner set: every frame-batch slot whose recorded commands resolved
+    // this handle since its last release (captured in resolve_image). A handle
+    // that was never recorded falls back to the slot being recorded now, which
+    // can only delay the release, never free early.
+    std::uint8_t mask = surfaces.recording_slot_mask(handle);
+    if (mask == 0 && frame_batch.next_slot < FrameBatchState::kSlotCount) {
+        mask = frame_slot_bit(frame_batch.next_slot);
+    }
+    std::size_t slot = 0;
+    for (std::size_t i = 0; i < FrameBatchState::kSlotCount; ++i) {
+        if ((mask & frame_slot_bit(i)) != 0) slot = i;
+    }
     surfaces.enqueue_deferred_release(
-        {handle, slot, active_frame_index});
+        {handle, slot, active_frame_index, mask});
+}
+
+std::array<bool, VulkanBackend::Impl::FrameBatchState::kSlotCount>
+VulkanBackend::Impl::frame_slot_busy_flags() const {
+    auto busy = frame_batch.in_flight;
+    if (frame_batch.active && frame_batch.next_slot < FrameBatchState::kSlotCount) {
+        // The slot being recorded has no fence yet, but its commands still
+        // reference the surfaces it resolved.
+        busy[frame_batch.next_slot] = true;
+    }
+    return busy;
 }
 
 bool VulkanBackend::Impl::surface_valid(runtime::RenderSurfaceHandle handle) const noexcept {
