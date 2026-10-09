@@ -337,6 +337,7 @@ struct EffectUsageMetric {
 
 struct JobTimings {
     std::optional<double> process_wall_ms;
+    std::optional<double> daemon_admission_wait_ms;
     std::optional<std::string> measurement_kind;
     // Canonical execution path string: "direct_yuv" | "full_graph" |
     // "full_graph_native" | "bitstream_copy" | "smart_gop_copy". Determined by the exporter from

@@ -64,7 +64,8 @@ void VulkanBackend::Impl::fill_rect(runtime::RenderSurfaceHandle destination,
         write_fill_rect_descriptors(descriptors, dst_image);
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image});
-        record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1, color);
+        record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1,
+                         color, Vec4{-1.0f, 0.0f, 0.0f, 0.0f});
         dst_image.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;
@@ -92,7 +93,7 @@ void VulkanBackend::Impl::initialize_transparent_surface(
     record_fill_rect(cmd, descriptors, dst_image, 0, 0,
                      static_cast<std::int32_t>(dst_image.width),
                      static_cast<std::int32_t>(dst_image.height),
-                     Color::transparent());
+                     Color::transparent(), Vec4{-1.0f, 0.0f, 0.0f, 0.0f});
     dst_image.initialized = true;
     // The initialization dispatch is intentionally outside the compiled
     // pass stream. Publish its shader writes explicitly before the first
@@ -346,8 +347,8 @@ void VulkanBackend::Impl::transform_affine(
 void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle source,
                                float radius, bool horizontal, bool box_kernel) {
-    if (!(radius >= 0.0f) || radius > 32.0f) {
-        throw std::invalid_argument("Vulkan blur radius must be within [0, 32]");
+    if (!(radius >= 0.0f) || radius > 128.0f) {
+        throw std::invalid_argument("Vulkan blur radius must be within [0, 128]");
     }
     auto& dst_image = resolve_image(destination);
     auto& src_image = resolve_image(source);
@@ -410,8 +411,8 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle scratch_vertical,
                                float radius, float intensity,
                                const Color& tint) {
-    if (!(radius >= 0.0f) || radius > 64.0f) {
-        throw std::invalid_argument("Vulkan glow radius must be within [0, 64]");
+    if (!(radius >= 0.0f) || radius > 96.0f) {
+        throw std::invalid_argument("Vulkan glow radius must be within [0, 96]");
     }
     auto& dst = resolve_image(destination);
     auto& src_image = resolve_image(source);
@@ -419,8 +420,9 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
     auto& vertical = resolve_image(scratch_vertical);
     if (!src_image.initialized || !dst.initialized ||
         src_image.width != dst.width || src_image.height != dst.height ||
-        horizontal.width != src_image.width || horizontal.height != src_image.height ||
-        vertical.width != src_image.width || vertical.height != src_image.height) {
+        horizontal.width != vertical.width || horizontal.height != vertical.height ||
+        horizontal.width <= 0 || horizontal.height <= 0 ||
+        horizontal.width > src_image.width || horizontal.height > src_image.height) {
         throw std::invalid_argument("Vulkan glow surfaces have incompatible dimensions");
     }
     if (radius < 0.5f || intensity <= 0.0f) return;
@@ -460,7 +462,12 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
         };
         emit_resource_transition(cmd, horizontal.image, writable_to_readable);
 
-        const float sigma = std::max(0.5f, radius / 3.0f);
+        const float scale_x = static_cast<float>(src_image.width) /
+                              static_cast<float>(horizontal.width);
+        const float scale_y = static_cast<float>(src_image.height) /
+                              static_cast<float>(horizontal.height);
+        const float sigma = std::max(
+            0.5f, radius / (3.0f * std::max(scale_x, scale_y)));
         record_blur(cmd, horizontal_blur_descriptor, vertical, horizontal,
                     sigma, true, false, true);
         vertical.initialized = true;

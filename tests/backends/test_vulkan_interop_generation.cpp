@@ -33,3 +33,13 @@ TEST_CASE("InteropGeneration survives bridge recreation through shared ownership
     CHECK(recreated_bridge_authority->next_vulkan_to_cuda() == 2);
     CHECK(authority->vulkan_to_cuda() == 2);
 }
+
+TEST_CASE("InteropGeneration gives CUDA the queued Vulkan signal for each frame") {
+    auto generation = std::make_shared<InteropGeneration>();
+
+    CHECK(generation->reserve_vulkan_to_cuda_signal() == 1);
+    CHECK(generation->reserve_vulkan_to_cuda_signal() == 2);
+    CHECK(generation->take_next_vulkan_to_cuda_wait() == 1);
+    CHECK(generation->take_next_vulkan_to_cuda_wait() == 2);
+    CHECK(generation->take_next_vulkan_to_cuda_wait() == std::nullopt);
+}

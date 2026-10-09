@@ -108,6 +108,16 @@ public:
     }
 };
 
+class SoftwareRoughenEdgesEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<RoughenEdgesParams>(&params);
+        if (!p) throw std::runtime_error("RoughenEdges processor received invalid parameters");
+        apply_roughen_edges(fb, *p, context.time_seconds, context.clip);
+    }
+};
+
 class SoftwareTurbulentDisplaceEffectProcessor final : public EffectProcessor { public:
     void apply(Framebuffer& fb,const EffectParams& params,const effects::EffectExecutionContext& ctx) override {
         const auto* p=std::get_if<TurbulentDisplaceParams>(&params); if(!p) throw std::runtime_error("TurbulentDisplace processor received invalid parameters");
@@ -161,6 +171,10 @@ std::unique_ptr<EffectProcessor> create_bulge_effect_processor() {
 std::unique_ptr<EffectProcessor> create_mesh_warp_effect_processor() {
     return std::make_unique<SoftwareMeshWarpEffectProcessor>();
 };
+
+std::unique_ptr<EffectProcessor> create_roughen_edges_effect_processor() {
+    return std::make_unique<SoftwareRoughenEdgesEffectProcessor>();
+}
 
 std::unique_ptr<EffectProcessor> create_turbulent_displace_effect_processor() { return std::make_unique<SoftwareTurbulentDisplaceEffectProcessor>(); }
 

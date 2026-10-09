@@ -5,6 +5,8 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <cstdlib>
+
 namespace chronon3d::backends::vulkan {
 
 // Resolve timestamp queries only after the slot fence has signaled. No
@@ -164,6 +166,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         } else {
             frame_batch.submitted_pass_counts[slot] = 0;
         }
+        emit_cuda_surface_releases(frame_batch.command_buffers[slot]);
         check(vkEndCommandBuffer(frame_batch.command_buffers[slot]),
               "vkEndCommandBuffer(frame batch)");
         const auto signal_value = ++next_timeline_value;
@@ -189,16 +192,24 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             if (it == surfaces.physical_surfaces.end()) continue;
             auto& image = it->second.image;
             wait_semaphores.push_back(image.cuda_to_vulkan);
-            wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+            // Gate transfer clears/copies as well as compute on the CUDA
+            // ownership token before rewriting an imported encoder surface.
+            wait_stages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
             wait_values.push_back(image.cuda_timeline
                 ? image.interop_generation->cuda_to_vulkan() : 0);
             signal_semaphores.push_back(image.vulkan_to_cuda);
             const auto value = image.cuda_timeline
-                ? image.interop_generation->next_vulkan_to_cuda() : 0;
+                ? image.interop_generation->reserve_vulkan_to_cuda_signal() : 0;
             signal_values.push_back(value);
             image.last_vulkan_to_cuda_value = value;
             image.cuda_export_fence_slot = slot;
             image.cuda_export_standalone_fence = false;
+            if (std::getenv("CHRONON3D_CUDA_INTEROP_DIAG")) {
+                spdlog::info("[cuda-interop-diag] frame={} slot={} surface={} lane=decode c2v_wait={} v2c_signal={} timeline={}",
+                    active_frame_index, slot, physical_slot,
+                    image.cuda_timeline ? image.interop_generation->cuda_to_vulkan() : 0,
+                    value, image.cuda_timeline);
+            }
         }
         for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
             // A reused surface is already waiting on CUDA completion above;
@@ -210,11 +221,16 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             auto& image = it->second.image;
             signal_semaphores.push_back(image.vulkan_to_cuda);
             const auto value = image.cuda_timeline
-                ? image.interop_generation->next_vulkan_to_cuda() : 0;
+                ? image.interop_generation->reserve_vulkan_to_cuda_signal() : 0;
             signal_values.push_back(value);
             image.last_vulkan_to_cuda_value = value;
             image.cuda_export_fence_slot = slot;
             image.cuda_export_standalone_fence = false;
+            if (std::getenv("CHRONON3D_CUDA_INTEROP_DIAG")) {
+                spdlog::info("[cuda-interop-diag] frame={} slot={} surface={} lane=encode v2c_signal={} timeline={}",
+                    active_frame_index, slot, physical_slot, value,
+                    image.cuda_timeline);
+            }
         }
 #endif
         const VkTimelineSemaphoreSubmitInfo timeline_submit{

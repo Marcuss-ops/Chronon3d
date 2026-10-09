@@ -132,6 +132,13 @@ void VulkanBackend::begin_frame_batch_unlocked() {
 #ifdef CHRONON3D_ENABLE_VULKAN
     // Caller holds the surface and submission domain locks. No re-entry.
     m_impl->require_healthy();
+    // Diagnostic mode drains every prior Vulkan/CUDA submission before the
+    // next frame. It distinguishes cross-frame ownership hazards from a bad
+    // command recorded by an individual frame without changing the default
+    // asynchronous ring behavior.
+    if (std::getenv("CHRONON3D_VULKAN_SINGLE_FLIGHT") != nullptr) {
+        m_impl->wait_for_pending();
+    }
     auto& batch = m_impl->frame_batch;
     if (batch.active) {
         throw std::logic_error(

@@ -554,11 +554,24 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                         }
                     }
                     const auto& dispatch_effect = animated_effect ? *animated_effect : effect;
+                    std::optional<EffectParams> time_evolved_effect;
+                    if (const auto* roughen = std::get_if<RoughenEdgesParams>(&dispatch_effect);
+                        roughen && roughen->evolution_speed != 0.0f) {
+                        time_evolved_effect.emplace(dispatch_effect);
+                        auto& sampled = std::get<RoughenEdgesParams>(*time_evolved_effect);
+                        sampled.evolution += sampled.evolution_speed *
+                            static_cast<float>(ctx.effective_frame() /
+                                (static_cast<double>(plan.canvas.fps.numerator) /
+                                 plan.canvas.fps.denominator));
+                        sampled.evolution_speed = 0.0f;
+                    }
+                    const auto& frame_effect = time_evolved_effect
+                        ? *time_evolved_effect : dispatch_effect;
                     std::visit([&](const auto& params) {
                         using T = std::decay_t<decltype(params)>;
                         if constexpr (!std::is_same_v<T, std::monostate>)
                             builder.effect(params,time_control,time_curve,duration_seconds,composition_fps);
-                    }, dispatch_effect);
+                    }, frame_effect);
                 }
                 if (const auto motion_blur = detail::motion_blur_params_at(
                         layer, ctx.effective_frame(), plan.canvas.fps,

@@ -612,6 +612,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             case LayerPlan::EffectKindPlan::Sharpen: {
                 out.add_float(effect.amount); out.add_float(effect.radius); out.add_float(effect.threshold);
             } break;
+            case LayerPlan::EffectKindPlan::RoughenEdges: {
+                out.add_float(effect.amount); out.add_float(effect.roughen_scale);
+                out.add_uint64(effect.roughen_complexity); out.add_float(effect.warp_evolution);
+                out.add_float(effect.warp_speed); out.add_uint64(effect.roughen_seed);
+            } break;
             case LayerPlan::EffectKindPlan::TurbulentDisplace: {
                 out.add_float(effect.amount); out.add_float(effect.warp_size); out.add_float(effect.warp_evolution);
                 out.add_float(effect.warp_speed); out.add_uint64(effect.warp_complexity);

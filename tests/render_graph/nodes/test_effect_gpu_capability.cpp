@@ -21,8 +21,8 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
 
     const auto* shadow = graph::gpu_effect_capability(EffectType::DropShadow);
     REQUIRE(shadow != nullptr);
-    CHECK(shadow->route == GpuEffectRoute::Unsupported);
-    CHECK(shadow->diagnostic.find("not implemented") != std::string_view::npos);
+    CHECK(shadow->route == GpuEffectRoute::NativeZeroReadback);
+    CHECK(shadow->diagnostic.find("alpha-mask") != std::string_view::npos);
 
     const auto* bloom = graph::gpu_effect_capability(EffectType::Bloom);
     REQUIRE(bloom != nullptr);
@@ -106,5 +106,5 @@ TEST_CASE("strict GPU effect capability census covers every catalog effect once"
     std::size_t native = 0;
     for (const auto& row : graph::kGpuEffectCapabilityRows)
         if (row.route == graph::GpuEffectRoute::NativeZeroReadback) ++native;
-    CHECK(native == 24);
+    CHECK(native == 25);
 }

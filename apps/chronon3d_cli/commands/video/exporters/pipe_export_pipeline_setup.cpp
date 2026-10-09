@@ -428,6 +428,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // anchor and keep the process-start semantics unchanged.
     const bool has_job_anchor = execution &&
         execution->job_started_at != std::chrono::steady_clock::time_point{};
+    session->daemon_admission_wait_ms = execution
+        ? execution->daemon_admission_wait_ms : 0.0;
     session->warm_process = has_job_anchor;
     session->job_started_at =
         has_job_anchor ? execution->job_started_at : process_start_time();

@@ -9,7 +9,8 @@
 //
 // Primitive kinds (params.shape.x):
 //   0 rectangle, 1 rounded rectangle, 2 ellipse, 3 line segment,
-//   4 even-odd polygon (params.vertices), 5 analytic grid background
+//   4 even-odd polygon (params.vertices), 5 analytic grid background,
+//   6 rounded rectangle with a native linear gradient
 //   (GridBackgroundShape semantics, mirrors the software
 //   render_grid_background_kernel).
 //
@@ -125,6 +126,13 @@ void main() {
     if (pixel.x < params.rect.x || pixel.x >= params.rect.z ||
         pixel.y < params.rect.y || pixel.y >= params.rect.w) return;
 
+    // Surface initialization is a replacement, not source-over. Blending a
+    // transparent color leaves recycled/uninitialized image contents intact.
+    if (params.shape.x < -0.5) {
+        imageStore(dst_image, pixel, params.color);
+        return;
+    }
+
     vec2 p = vec2(pixel) + vec2(0.5);
     vec2 min_corner = vec2(params.rect.xy);
     vec2 max_corner = vec2(params.rect.zw);
@@ -234,7 +242,33 @@ void main() {
         }
         return;
     }
-    if (params.shape.x > 7.5 && params.shape.x < 8.5) {
+    if (params.shape.x > 5.5 && params.shape.x < 6.5) {
+        float radius = clamp(params.shape.y, 0.0, min(size.x, size.y) * 0.5);
+        if (radius > 0.0 && sd_rounded_rect(p, center, size * 0.5, radius) > 0.0)
+            return;
+        vec2 axis = params.line.zw - params.line.xy;
+        float denom = dot(axis, axis);
+        float t = denom > 1e-8 ? dot(p - params.line.xy, axis) / denom : 0.0;
+        int count = clamp(int(params.shape.w + 0.5), 2, 3);
+        float stop0 = params.vertices[0].x;
+        float stop1 = params.vertices[2].y;
+        float stop2 = params.vertices[5].x;
+        vec4 c0 = vec4(params.vertices[0].y, params.vertices[1].x,
+                       params.vertices[1].y, params.vertices[2].x);
+        vec4 c1 = vec4(params.vertices[3].x, params.vertices[3].y,
+                       params.vertices[4].x, params.vertices[4].y);
+        vec4 c2 = vec4(params.vertices[5].y, params.vertices[6].x,
+                       params.vertices[6].y, params.vertices[7].x);
+        vec4 source;
+        if (t <= stop0) source = c0;
+        else if (t >= (count == 2 ? stop1 : stop2)) source = count == 2 ? c1 : c2;
+        else if (count == 2) source = mix(c0, c1, clamp((t-stop0)/max(stop1-stop0,1e-6),0.0,1.0));
+        else if (t <= stop1) source = mix(c0, c1, clamp((t-stop0)/max(stop1-stop0,1e-6),0.0,1.0));
+        else source = mix(c1, c2, clamp((t-stop1)/max(stop2-stop1,1e-6),0.0,1.0));
+        vec4 destination = imageLoad(dst_image, pixel);
+        imageStore(dst_image, pixel, source + destination * (1.0 - source.a));
+        return;
+    } else if (params.shape.x > 7.5 && params.shape.x < 8.5) {
         // Dashed path rasterization. CPU computes dash intervals and uploads
         // every run to one storage buffer. A pixel uses the first covered run
         // and first covered segment, matching software's path order exactly.
@@ -431,5 +465,7 @@ void main() {
             if (distance(local, corner_center) > radius) return;
         }
     }
-    imageStore(dst_image, pixel, params.color);
+    vec4 destination = imageLoad(dst_image, pixel);
+    imageStore(dst_image, pixel,
+               params.color + destination * (1.0 - params.color.a));
 }

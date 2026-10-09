@@ -226,6 +226,7 @@ void serialize_job_section(nlohmann::json& job,
         put_optional(job, key, value);
     };
     put_ms("process_wall_ms", timings.process_wall_ms);
+    put_ms("daemon_admission_wait_ms", timings.daemon_admission_wait_ms);
     if (timings.measurement_kind) job["measurement_kind"] = *timings.measurement_kind;
     else job["measurement_kind"] = nullptr;
     job["execution_path"] = timings.execution_path.value_or("unknown");

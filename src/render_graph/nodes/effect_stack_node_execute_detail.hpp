@@ -3,9 +3,25 @@ NodeExecResult EffectStackNode::execute(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
+    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+        spdlog::info("[native-effect-stack-diag] name={} effects={} inputs={} input_surface={} input_cpu={}",
+            name(), m_effects.size(), inputs.size(),
+            !inputs.empty() && inputs[0] ? inputs[0]->surface_handle()
+                : runtime::kInvalidRenderSurfaceHandle,
+            !inputs.empty() && inputs[0] && inputs[0]->data() != nullptr);
+    }
     if (inputs.empty() || !inputs[0]) {
         auto empty = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
-        empty->clear(Color::transparent());
+        if (ctx.policy.require_native_gpu) {
+            if (!ensure_empty_native_surface(ctx, *empty)) {
+                return NodeExecResult(NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    std::string(name()),
+                    "native empty effect-stack output promotion failed"});
+            }
+        } else {
+            empty->clear(Color::transparent());
+        }
         return NodeExecResult{std::move(empty)};
     }
 
@@ -221,6 +237,11 @@ NodeExecResult EffectStackNode::execute(
                         ctx, one_effect, *result, native_clip, current_source,
                         current_source_framebuffer);
                     break;
+                case effects::EffectType::DropShadow:
+                    stage_handled = native_effects::try_native_full_frame_drop_shadow(
+                        ctx, one_effect, *result, native_clip, current_source,
+                        current_source_framebuffer);
+                    break;
                 case effects::EffectType::Sharpen:
                     stage_handled = native_effects::try_native_full_frame_sharpen(
                         ctx, one_effect, *result, native_clip, current_source);
@@ -281,6 +302,11 @@ NodeExecResult EffectStackNode::execute(
                 gpu_only_input ? inputs[0]->surface_handle()
                                : runtime::kInvalidRenderSurfaceHandle,
                 gpu_only_input ? inputs[0].get() : nullptr);
+            if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_drop_shadow(
+                    ctx, active_effects, *result, native_clip, native_source,
+                    native_source_available ? inputs[0].get() : nullptr);
+            }
             // The native glow entry point owns its capability guard. Unsupported
             // backends fall through to their registered software processor.
             if (!native_handled) {

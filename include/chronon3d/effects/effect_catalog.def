@@ -29,9 +29,9 @@ CHRONON_EFFECT(
     "Gaussian Blur",
     EffectCategory::Blur, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify,
-    DirtyPolicy::Expand, BoundsPolicy::Expand,
-    false, false
-)
+    DirtyPolicy::Expand,    BoundsPolicy::Expand, false, false)
+
+
 
 CHRONON_EFFECT(
     2, Tint, TintParams, ids::ColorTint,
@@ -65,27 +65,27 @@ CHRONON_EFFECT(
     "Drop Shadow",
     EffectCategory::Light, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify,
-    DirtyPolicy::Expand, BoundsPolicy::Expand,
-    false, false
-)
+    DirtyPolicy::Expand,    BoundsPolicy::Expand, false, false)
+
+
 
 CHRONON_EFFECT(
     6, Glow, GlowParams, ids::LightGlow,
     "Glow",
     EffectCategory::Light, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify,
-    DirtyPolicy::Expand, BoundsPolicy::Expand,
-    false, false
-)
+    DirtyPolicy::Expand,    BoundsPolicy::Expand, false, false)
+
+
 
 CHRONON_EFFECT(
     7, Bloom, BloomParams, ids::LightBloom,
     "Bloom",
     EffectCategory::Light, EffectStage::Adjustment,
     EffectDomain::Spatial, AlphaPolicy::MayModify,
-    DirtyPolicy::Expand, BoundsPolicy::Expand,
-    false, false
-)
+    DirtyPolicy::Expand,    BoundsPolicy::Expand, false, false)
+
+
 
 CHRONON_EFFECT(
     8, Fake3DWave, Fake3DWaveParams, ids::DistortFake3DWave,
@@ -188,9 +188,9 @@ CHRONON_EFFECT(
     "Directional Blur",
     EffectCategory::Blur, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify,
-    DirtyPolicy::Expand, BoundsPolicy::Expand,
-    false, false
-)
+    DirtyPolicy::Expand,    BoundsPolicy::Expand, false, false)
+
+
 
 // ── A6: Radial Blur ──
 
@@ -210,9 +210,9 @@ CHRONON_EFFECT(
     "Stroke",
     EffectCategory::Stylize, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify,
-    DirtyPolicy::Expand, BoundsPolicy::Expand,
-    false, false
-)
+    DirtyPolicy::Expand,    BoundsPolicy::Expand, false, false)
+
+
 
 // ── Tier 2: generated fractal noise ──
 CHRONON_EFFECT(
@@ -389,3 +389,8 @@ CHRONON_EFFECT(47, LiftGammaGain, LiftGammaGainParams, ids::ColorLiftGammaGain,
     "Lift Gamma Gain", EffectCategory::Color, EffectStage::Adjustment,
     EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
     BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(48, RoughenEdges, RoughenEdgesParams, ids::StylizeRoughenEdges,
+    "Roughen Edges", EffectCategory::Stylize, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Expand,
+    BoundsPolicy::Expand, false, false)

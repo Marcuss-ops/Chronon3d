@@ -82,6 +82,43 @@ runtime::SurfaceDesc test_desc(std::uint32_t width = 32,
 
 TEST_SUITE("VulkanSurfaceMaterializer") {
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+TEST_CASE("CUDA handoffs remain pending until their own surface is recorded") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    authority.cuda_pending_surfaces.insert(11);
+    authority.cuda_pending_surfaces.insert(12);
+
+    CHECK_FALSE(authority.acquire_pending_cuda_surface(10));
+    CHECK(authority.cuda_ready_surfaces.empty());
+    CHECK(authority.acquire_pending_cuda_surface(11));
+    CHECK_FALSE(authority.acquire_pending_cuda_surface(11));
+    CHECK(authority.cuda_ready_surfaces.size() == 1);
+    CHECK(authority.cuda_ready_surfaces.contains(11));
+    CHECK(authority.cuda_pending_surfaces.contains(12));
+
+    // Submitting another ring slot must not enqueue a spurious V2C frame
+    // signal for slot 12 or discard its unconsumed CUDA ownership token.
+    authority.cuda_ready_surfaces.clear();
+    CHECK(authority.acquire_pending_cuda_surface(12));
+    CHECK(authority.cuda_pending_surfaces.empty());
+    CHECK(authority.cuda_ready_surfaces.contains(12));
+}
+#endif
+
+TEST_CASE("global transient cleanup preserves every in-flight surface") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    constexpr runtime::RenderSurfaceHandle pending{901}, complete{902};
+    authority.note_recording_slot(pending, 1);
+    authority.note_recording_slot(pending, 5);
+    authority.note_recording_slot(complete, 2);
+    std::array<bool, 6> busy{};
+    busy[5] = true;
+    CHECK_FALSE(authority.can_retire_surface(pending, busy));
+    CHECK(authority.can_retire_surface(complete, busy));
+    busy[5] = false;
+    CHECK(authority.can_retire_surface(pending, busy));
+}
+
 TEST_CASE("compiled binding preserves caller-selected physical slot") {
     VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
     FakeSurfaceOwner owner;

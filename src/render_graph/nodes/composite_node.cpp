@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <optional>
@@ -684,6 +685,12 @@ NodeExecResult CompositeNode::execute(
             try_native_affine_composite(ctx, *result, *top, clip);
         if (ctx.policy.require_native_gpu &&
             !native_composite && !native_dimension_composite) {
+            if (std::getenv("CHRONON3D_PATH_DIAG"))
+                spdlog::error("[native-residency-diag] frame={} bottom={}x{} origin={},{} handle={} cpu={} top={}x{} origin={},{} handle={} cpu={} opaque={}",
+                    static_cast<int>(ctx.frame_input.frame), result->width(), result->height(),
+                    result->origin_x(), result->origin_y(), result->surface_handle(),
+                    result->data() != nullptr, top->width(), top->height(), top->origin_x(),
+                    top->origin_y(), top->surface_handle(), top->data() != nullptr, top->is_opaque());
             spdlog::error(
                 "[native-residency] CompositeNode cannot keep frame {} on GPU "
                 "(destination={} source={})",

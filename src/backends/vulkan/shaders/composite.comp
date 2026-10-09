@@ -32,7 +32,25 @@ void main() {
     if (pixel.x >= size.x || pixel.y >= size.y) return;
     if (float(pixel.x) < params.clip_rect.x || float(pixel.y) < params.clip_rect.y ||
         float(pixel.x) >= params.clip_rect.z || float(pixel.y) >= params.clip_rect.w) return;
-    vec4 src = imageLoad(src_image, pixel);
+    vec4 src;
+    if (params.blend_mode == 8 && any(notEqual(imageSize(src_image), size))) {
+        vec2 source_coordinate = (vec2(pixel) + vec2(0.5)) *
+            vec2(imageSize(src_image)) / vec2(size);
+        vec2 sample_pos = source_coordinate - vec2(0.5);
+        ivec2 p0 = ivec2(floor(sample_pos));
+        ivec2 p1 = p0 + ivec2(1);
+        vec2 fraction = fract(sample_pos);
+        ivec2 source_size = imageSize(src_image);
+        p0 = clamp(p0, ivec2(0), source_size - ivec2(1));
+        p1 = clamp(p1, ivec2(0), source_size - ivec2(1));
+        vec4 top = mix(imageLoad(src_image, ivec2(p0.x, p0.y)),
+                       imageLoad(src_image, ivec2(p1.x, p0.y)), fraction.x);
+        vec4 bottom = mix(imageLoad(src_image, ivec2(p0.x, p1.y)),
+                          imageLoad(src_image, ivec2(p1.x, p1.y)), fraction.x);
+        src = mix(top, bottom, fraction.y);
+    } else {
+        src = imageLoad(src_image, pixel);
+    }
     vec4 dst = imageLoad(dst_image, pixel);
     vec4 result;
     if (params.blend_mode == 2) result = src;

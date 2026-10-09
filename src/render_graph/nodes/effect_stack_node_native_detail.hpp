@@ -18,8 +18,11 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
                                 const std::optional<raster::BBox>& clip,
                                 runtime::RenderSurfaceHandle existing_source,
                                 const Framebuffer* existing_source_framebuffer) {
-    if (!clip_covers_result(clip, result) || !ctx.backend ||
-        !ctx.backend->supports_native_surfaces() || !ctx.surface_registry ||
+    // DropShadow's software oracle intentionally ignores the executor clip:
+    // EffectStackNode has already expanded the input ROI for the halo.
+    (void)clip;
+    if (!ctx.backend || !ctx.backend->supports_native_surfaces() ||
+        !ctx.surface_registry ||
         effect_stack.size() != 1) {
         return false;
     }
@@ -33,7 +36,7 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
     const float radius = glow_params ? glow_params->radius : bloom_params->radius;
     const float intensity = glow_params ? glow_params->intensity : bloom_params->intensity;
     const bool valid_params = std::isfinite(radius) && std::isfinite(intensity) &&
-        radius >= 0.0f && radius <= 64.0f && intensity >= 0.0f && intensity <= 4.0f &&
+        radius >= 0.0f && radius <= 96.0f && intensity >= 0.0f && intensity <= 4.0f &&
         (!bloom_params || (std::isfinite(bloom_params->threshold) &&
                            bloom_params->threshold >= 0.0f && bloom_params->threshold <= 1.0f &&
                            radius <= 10.0f)) &&
@@ -46,6 +49,10 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
     }
 
     const auto desc = native_surface_desc(result.width(), result.height());
+    // Preserve the software halo oracle at every authored radius. The device
+    // loss was premature surface retirement, not full-resolution filtering;
+    // downsampling here changed the approved effect rather than fixing it.
+    const auto scratch_desc = desc;
     // AUDIT F10 — zero-copy when the framebuffer storage is tightly packed (the
     // common case for graph-owned "result" buffers): only a stride-padded
     // framebuffer now pays a full-frame pack. The uploader copies into its
@@ -69,8 +76,8 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
         ? existing_source
         : ctx.surface_registry->create(desc);
     const auto output = ctx.surface_registry->create(desc);
-    const auto horizontal = ctx.surface_registry->create(desc);
-    const auto vertical = ctx.surface_registry->create(desc);
+    const auto horizontal = ctx.surface_registry->create(scratch_desc);
+    const auto vertical = ctx.surface_registry->create(scratch_desc);
     if (source == runtime::kInvalidRenderSurfaceHandle ||
         output == runtime::kInvalidRenderSurfaceHandle ||
         horizontal == runtime::kInvalidRenderSurfaceHandle ||
@@ -126,10 +133,10 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
         }
     }
     const auto create_horizontal = upload_output.ok()
-        ? ctx.backend->create_surface(horizontal, desc)
+        ? ctx.backend->create_surface(horizontal, scratch_desc)
         : upload_output;
     const auto create_vertical = create_horizontal.ok()
-        ? ctx.backend->create_surface(vertical, desc)
+        ? ctx.backend->create_surface(vertical, scratch_desc)
         : create_horizontal;
     if (!create_vertical.ok()) {
         spdlog::error("[native-glow] surface setup failed: {}",
@@ -176,6 +183,141 @@ bool try_native_full_frame_glow(RenderGraphContext& ctx,
     return try_native_full_frame_glow_or_bloom(
         ctx, effect_stack, result, clip, existing_source,
         existing_source_framebuffer);
+}
+
+// Native drop shadow keeps the two authored alpha silhouettes on Vulkan:
+// offset + blur the contact and ambient maps, combine them, then composite the
+// original source over the shadow. Radius 32 is the current image-motion
+// catalog maximum; its ambient lobe reaches 64 pixels.
+bool try_native_full_frame_drop_shadow(
+    RenderGraphContext& ctx, const EffectStack& effect_stack,
+    Framebuffer& result, const std::optional<raster::BBox>& clip,
+    runtime::RenderSurfaceHandle borrowed_source,
+    const Framebuffer* borrowed_source_framebuffer = nullptr) {
+    (void)clip;
+    if (!ctx.backend || !ctx.backend->supports_native_surfaces() || !ctx.surface_registry ||
+        effect_stack.size() != 1) return false;
+    const auto& instance = effect_stack[0];
+    const auto* params = std::get_if<DropShadowParams>(&instance.params);
+    if (!instance.enabled || instance.effect_type != effects::EffectType::DropShadow ||
+        !params || !std::isfinite(params->radius) || params->radius < 0.0f ||
+        params->radius > 32.0f || !std::isfinite(params->offset.x) ||
+        !std::isfinite(params->offset.y) || std::abs(params->offset.x) > 100000.0f ||
+        std::abs(params->offset.y) > 100000.0f ||
+        !std::isfinite(params->color.r) || !std::isfinite(params->color.g) ||
+        !std::isfinite(params->color.b) || !std::isfinite(params->color.a) ||
+        params->color.a < 0.0f || params->color.a > 1.0f) return false;
+
+    const auto desc = native_surface_desc(result.width(), result.height());
+    const bool source_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool source_needs_expansion = source_borrowed && borrowed_source_framebuffer &&
+        (borrowed_source_framebuffer->width() != result.width() ||
+         borrowed_source_framebuffer->height() != result.height() ||
+         borrowed_source_framebuffer->origin_x() != result.origin_x() ||
+         borrowed_source_framebuffer->origin_y() != result.origin_y());
+    auto source = source_borrowed ? borrowed_source : result.surface_handle();
+    if (source == runtime::kInvalidRenderSurfaceHandle) return false;
+    if (source_needs_expansion) {
+        const auto expanded = ctx.surface_registry->create(desc);
+        if (expanded == runtime::kInvalidRenderSurfaceHandle ||
+            !ctx.backend->create_surface(expanded, desc).ok()) {
+            if (expanded != runtime::kInvalidRenderSurfaceHandle)
+                ctx.surface_registry->release(expanded);
+            return false;
+        }
+        auto expand_op = ctx.backend->initialize_transparent_surface(expanded);
+        if (expand_op.ok()) {
+            const int offset_x = borrowed_source_framebuffer->origin_x() - result.origin_x();
+            const int offset_y = borrowed_source_framebuffer->origin_y() - result.origin_y();
+            expand_op = ctx.backend->transform_surface(expanded, source, offset_x, offset_y, 1.0f);
+        }
+        if (!expand_op.ok()) {
+            (void)ctx.backend->release_surface(expanded);
+            ctx.surface_registry->release(expanded);
+            return false;
+        }
+        source = expanded;
+    }
+
+    std::array<runtime::RenderSurfaceHandle, 9> scratch{};
+    for (auto& handle : scratch) {
+        handle = ctx.surface_registry->create(desc);
+        if (handle == runtime::kInvalidRenderSurfaceHandle) {
+            for (auto allocated : scratch) {
+                if (allocated != runtime::kInvalidRenderSurfaceHandle)
+                    ctx.surface_registry->release(allocated);
+            }
+            return false;
+        }
+    }
+    const auto [solid, mask, contact_shift, contact_h, contact_v,
+                ambient_shift, ambient_h, ambient_v, output] = scratch;
+    const auto cleanup = [&] {
+        if (source_needs_expansion) {
+            (void)ctx.backend->release_surface(source);
+            ctx.surface_registry->release(source);
+        }
+        for (auto handle : scratch) {
+            (void)ctx.backend->release_surface(handle);
+            ctx.surface_registry->release(handle);
+        }
+    };
+    for (auto handle : scratch) {
+        if (!ctx.backend->create_surface(handle, desc).ok()) {
+            cleanup();
+            return false;
+        }
+    }
+
+    const float contact_radius = std::max(1.0f, params->radius * 0.45f);
+    const float ambient_radius = std::max(contact_radius + 4.0f,
+                                           params->radius * 2.0f);
+    const int ox = static_cast<int>(std::round(params->offset.x));
+    const int oy = static_cast<int>(std::round(params->offset.y));
+    const int ambient_x = static_cast<int>(std::round(static_cast<float>(ox) * 1.65f));
+    const int ambient_y = static_cast<int>(std::round(static_cast<float>(oy) * 1.65f));
+    const chronon3d::Color premultiplied(
+        params->color.r * params->color.a,
+        params->color.g * params->color.a,
+        params->color.b * params->color.a,
+        params->color.a);
+    auto op = ctx.backend->fill_rect_surface(
+        solid, 0, 0, result.width(), result.height(), premultiplied);
+    if (op.ok()) op = ctx.backend->matte_surface(mask, solid, source, false, false);
+    if (op.ok()) op = ctx.backend->initialize_transparent_surface(contact_shift);
+    if (op.ok()) op = ctx.backend->transform_surface(
+        contact_shift, mask, ox, oy, 0.85f);
+    if (op.ok()) op = ctx.backend->blur_surface(
+        contact_h, contact_shift, contact_radius, true, true);
+    if (op.ok()) op = ctx.backend->blur_surface(
+        contact_v, contact_h, contact_radius, false, true);
+    if (op.ok()) op = ctx.backend->initialize_transparent_surface(ambient_shift);
+    if (op.ok()) op = ctx.backend->transform_surface(
+        ambient_shift, mask, ambient_x, ambient_y, 0.30f);
+    if (op.ok()) op = ctx.backend->blur_surface(
+        ambient_h, ambient_shift, ambient_radius, true, true);
+    if (op.ok()) op = ctx.backend->blur_surface(
+        ambient_v, ambient_h, ambient_radius, false, true);
+    // Both lobes use the same straight color; source-over combines their
+    // coverage without touching or reading pixels back to the host.
+    if (op.ok()) op = ctx.backend->composite_surfaces(
+        ambient_v, contact_v, BlendMode::Normal, CompositeOperator::SourceOver);
+    if (op.ok()) op = ctx.backend->copy_surface(output, ambient_v);
+    if (op.ok()) op = ctx.backend->composite_surfaces(
+        output, source, BlendMode::Normal, CompositeOperator::SourceOver);
+    if (!op.ok()) {
+        spdlog::error("[native-drop-shadow] Vulkan pass failed: {}",
+                      op.error().message);
+        cleanup();
+        return false;
+    }
+    for (auto handle : scratch) {
+        if (handle == output) continue;
+        (void)ctx.backend->release_surface(handle);
+        ctx.surface_registry->release(handle);
+    }
+    result.set_surface_handle(output);
+    return true;
 }
 
 bool try_native_full_frame_tint(RenderGraphContext& ctx,
@@ -262,11 +404,11 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
     const auto& instance = effect_stack[0];
     if (!instance.enabled || instance.effect_type != effects::EffectType::Blur) return false;
     const auto* params = std::get_if<BlurParams>(&instance.params);
-    // The software processor changes to downsampled strategies above 10 px;
-    // this native route currently certifies the full-resolution two-pass
-    // box-filter branch only.
+    // The authored blur radius is bounded to 64. Its two-pass-equivalent
+    // box kernel can be wider, so the backend validates the derived radius
+    // separately instead of rejecting it before native dispatch.
     if (!params || !std::isfinite(params->radius) ||
-        params->radius < 0.0f || params->radius > 10.0f) {
+        params->radius < 0.0f || params->radius > 128.0f) {
         return false;
     }
     const auto desc = native_surface_desc(result.width(), result.height());

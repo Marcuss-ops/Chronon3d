@@ -115,7 +115,17 @@ public:
                        std::unordered_set<runtime::RenderSurfaceHandle>>
         planned_alias_groups{};
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    // CUDA releases stay pending until the surface is actually referenced by
+    // Vulkan. Only acquired surfaces participate in the current submission.
+    std::unordered_set<std::size_t> cuda_pending_surfaces{};
     std::unordered_set<std::size_t> cuda_ready_surfaces{};
+
+    bool acquire_pending_cuda_surface(std::size_t slot) {
+        if (!cuda_pending_surfaces.contains(slot)) return false;
+        cuda_ready_surfaces.insert(slot);
+        cuda_pending_surfaces.erase(slot);
+        return true;
+    }
     std::unordered_set<std::size_t> cuda_export_ready_surfaces{};
 #endif
     struct DeferredSurfaceRelease {
@@ -233,6 +243,11 @@ public:
         runtime::RenderSurfaceHandle handle) const noexcept {
         const auto it = recording_slot_masks.find(handle);
         return it == recording_slot_masks.end() ? std::uint8_t{0} : it->second;
+    }
+
+    [[nodiscard]] bool can_retire_surface(
+        runtime::RenderSurfaceHandle handle, std::span<const bool> busy) const noexcept {
+        return recording_slots_retired(recording_slot_mask(handle), busy);
     }
 
     void forget_recording_slots(runtime::RenderSurfaceHandle handle) {
