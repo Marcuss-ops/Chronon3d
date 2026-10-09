@@ -368,16 +368,17 @@ graph::RenderOpResult VulkanBackend::fill_solid_shape_surface(
     runtime::RenderSurfaceHandle destination,
     std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
     const Vec4& shape, const Vec4& line, const Color& color,
-    const std::array<Vec2, 8>& vertices) {
+    const std::array<Vec2, 8>& vertices,
+    std::span<const std::uint32_t> mask_words) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->fill_solid_shape(destination, x0, y0, x1, y1,
-                                 shape, line, color, vertices);
+                                 shape, line, color, vertices, mask_words);
     });
 #else
     (void)destination; (void)x0; (void)y0; (void)x1; (void)y1;
-    (void)shape; (void)line; (void)color; (void)vertices;
+    (void)shape; (void)line; (void)color; (void)vertices; (void)mask_words;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::fill_solid_shape_surface: Vulkan support is disabled"));

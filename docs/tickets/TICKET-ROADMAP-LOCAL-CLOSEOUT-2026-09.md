@@ -68,8 +68,17 @@ stroke opacity, uniform scales 0.75x, 1x, 1.25x and 2x, anisotropic scales
 1.25x0.75 and 0.75x2, rotations 0.37 and -0.29 radians, and an anisotropic
 rotated transform. Coverage is computed in inverse-transformed local
 coordinates using the same inverse matrix coefficients as the CPU rasterizer;
-the local Vulkan test passes 1,769,836 assertions on llvmpipe. Shear, masks and
-per-corner rounded-rectangle strokes remain unsupported and fail closed.
+the local Vulkan test passes 1,769,836 assertions on llvmpipe.
+
+**2026-10-08 update:** closed-shape solid strokes now accept any invertible
+affine transform, including shear. The shader evaluates the stroke in
+inverse-transformed local coordinates, which is the same contract as the
+software hit test, so shear is exact. The bounding-box extent `w * hypot(M_col)`
+is a correct bound for a Euclidean local offset under any affine map. Test
+`Vulkan closed-shape strokes match software pixels under shear` (three
+alignments, 36,879 pixel assertions) passes; the previous rejection test was
+replaced because it encoded the old contract. Fill-only shear still fails
+closed, and masks remain unsupported and fail closed.
 
 The nine shape/alignment combinations in `test_vulkan_debug_context.cpp` use
 the certified solid-stroke subset. On 2026-10-04, `chronon3d_vulkan_debug_context_tests`

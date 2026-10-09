@@ -339,6 +339,35 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             "MTSDF text route has no resident glyphs"));
     }
 
+    const auto pages_are_bound = [&](
+        const runtime::GpuPreparedTextRun& candidate) {
+        return std::all_of(candidate.batches.begin(), candidate.batches.end(),
+            [&](const runtime::GpuPreparedTextRun::Batch& batch) {
+                return batch.page != runtime::kInvalidRenderSurfaceHandle &&
+                    ctx.surface_registry->lookup(batch.page).has_value() &&
+                    ctx.backend->is_native_surface_valid(batch.page);
+            });
+    };
+    if (!pages_are_bound(*prepared)) {
+        // The daemon keeps text caches alive across render jobs, while each
+        // job may retire/recreate the Vulkan bindings behind their numeric
+        // page handles. Drop both cached layout batches and atlas residency,
+        // then rebuild the GPU atlas against the current surface registry.
+        spdlog::warn(
+            "[text-cache] invalidating prepared MTSDF pages after backend surface retirement");
+        ctx.gpu_text_prepared_cache->clear();
+        ctx.gpu_glyph_atlas->clear();
+        auto rebuilt = prepare_mtsdf_text_run(
+            *ctx.gpu_glyph_atlas, ctx.asset_resolver, shape);
+        if (!rebuilt || !rebuilt->ready || !pages_are_bound(*rebuilt)) {
+            return graph::RenderOpResult(graph::make_render_backend_error(
+                graph::RenderBackendErrorCode::UnsupportedCapability,
+                "MTSDF text route could not rebuild retired GPU atlas pages"));
+        }
+        ctx.gpu_text_prepared_cache->store(*shape.layout, rebuilt);
+        prepared = std::move(rebuilt);
+    }
+
     const auto& layout = *shape.layout;
     constexpr std::uint16_t kRangePx = text::kCanonicalMtsdfProfile.distance_range_px;
 

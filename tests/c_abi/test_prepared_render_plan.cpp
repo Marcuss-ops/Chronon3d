@@ -2356,6 +2356,67 @@ TEST_CASE("render plan compiles radial light into a screen-space gradient circle
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.type() == ShapeType::Circle);
 }
 
+TEST_CASE("render plan lowers point spot and directional lights to per-pixel scene sources") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    assets::AssetResolver resolver;
+    for (const auto kind : {LightKindPlan::Point, LightKindPlan::Spot, LightKindPlan::Directional}) {
+        RenderPlan plan;
+        plan.job_id = "unrendered-light-kind";
+        plan.canvas = {.width = 64, .height = 64,
+                       .fps = FrameRate{24, 1}, .duration = Frame{1}};
+        LayerPlan layer;
+        layer.id = "key-light";
+        layer.type = LayerType::Light;
+        layer.position = {32.0f, 32.0f, 0.0f};
+        layer.position_dimensions = 2;
+        LightLayerPlan light;
+        light.kind = kind;
+        layer.light = light;
+        plan.layers.push_back(std::move(layer));
+        // Non-radial lights are sources: no glow geometry, one per-pixel source.
+        const auto prepared = compile_render_plan(plan, resolver);
+        REQUIRE(prepared);
+        const auto evaluated = evaluate(
+            prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+        REQUIRE(evaluated);
+        CHECK(evaluated->scene.layers()[0].nodes.empty());
+        REQUIRE(evaluated->scene.light_context().point_lights.size() == 1);
+        // Default radius (256) is used as the height of a 2D light.
+        CHECK(evaluated->scene.light_context().point_lights[0].position.z == doctest::Approx(256.0f));
+    }
+}
+
+TEST_CASE("render plan 2D point light defaults its height to the light radius") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    assets::AssetResolver resolver;
+    RenderPlan plan;
+    plan.job_id = "point-light-height";
+    plan.canvas = {.width = 128, .height = 96,
+                   .fps = FrameRate{24, 1}, .duration = Frame{1}};
+    LayerPlan layer;
+    layer.id = "key";
+    layer.type = LayerType::Light;
+    layer.position = {40.0f, 30.0f, 0.0f};
+    layer.position_dimensions = 2;
+    LightLayerPlan light;
+    light.kind = LightKindPlan::Point;
+    light.radius = 90.0f;
+    layer.light = light;
+    plan.layers.push_back(std::move(layer));
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(
+        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.light_context().point_lights.size() == 1);
+    const auto& source = evaluated->scene.light_context().point_lights[0];
+    CHECK(source.position.x == doctest::Approx(40.0f));
+    CHECK(source.position.y == doctest::Approx(30.0f));
+    CHECK(source.position.z == doctest::Approx(90.0f));
+}
+
 TEST_CASE("render plan lowers fractal noise to the generate effect stack") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;

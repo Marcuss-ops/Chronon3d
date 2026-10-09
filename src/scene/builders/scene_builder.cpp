@@ -60,6 +60,11 @@ SceneBuilder& SceneBuilder::directional_light(Vec3 direction, Color color, f32 i
     return *this;
 }
 
+SceneBuilder& SceneBuilder::point_light_source(rendering::PointLightSource source) {
+    scene_.light_context().point_lights.push_back(source);
+    return *this;
+}
+
 SceneBuilder& SceneBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
     scene_.add_node(m_shape_registry->create_node(
         id,

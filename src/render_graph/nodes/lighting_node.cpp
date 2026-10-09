@@ -14,8 +14,16 @@ NodeExecResult LightingNode::execute(
         return ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
     }
 
-    if (!ctx.frame_input.light_context.enabled || !m_material.accepts_lights) {
+    const auto& light_context = ctx.frame_input.light_context;
+    const bool per_pixel_lights = light_context.has_point_lights();
+    if ((!light_context.enabled && !per_pixel_lights) || !m_material.accepts_lights) {
         return ctx.acquire_owned_fb(*inputs[0]);
+    }
+    if (per_pixel_lights && !inputs[0]->data() && !ctx.policy.require_native_gpu) {
+        return NodeExecResult(NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            std::string(name()),
+            "per-pixel point lights require CPU pixel backing"});
     }
 
     const Vec3 normal_world = rendering::transform_normal(
@@ -28,8 +36,10 @@ NodeExecResult LightingNode::execute(
         Color{1.0f, 1.0f, 1.0f, 1.0f}, normal_world,
         ctx.frame_input.light_context, m_material);
 
+    // A constant multiplier is only exact for a flat scene light. Per-pixel
+    // point lights vary across the layer, so they force the CPU path.
     const bool native_input =
-        ctx.policy.require_native_gpu && ctx.backend && ctx.surface_registry &&
+        !per_pixel_lights && ctx.policy.require_native_gpu && ctx.backend && ctx.surface_registry &&
         inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         ctx.backend->is_native_surface_valid(inputs[0]->surface_handle());
     if (native_input) {
@@ -65,12 +75,22 @@ NodeExecResult LightingNode::execute(
     }
 
     auto result = ctx.acquire_owned_fb(*inputs[0]);
+    // Framebuffer pixels are canvas pixels; the pixel centre sits at +0.5 and the
+    // layer depth is the translation z of its world matrix.
+    const f32 layer_z = m_world_matrix[3][2];
     for (i32 y = 0; y < result->height(); ++y) {
         Color* row = result->pixels_row(y);
+        const f32 pixel_y = static_cast<f32>(result->origin_y() + y) + 0.5f;
         for (i32 x = 0; x < result->width(); ++x) {
             if (row[x].a <= 0.0f) continue;
-            row[x] = rendering::evaluate_lighting(
-                row[x], normal_world, ctx.frame_input.light_context, m_material);
+            if (per_pixel_lights) {
+                const Vec3 pixel{static_cast<f32>(result->origin_x() + x) + 0.5f, pixel_y, layer_z};
+                row[x] = rendering::evaluate_lighting_at(
+                    row[x], normal_world, pixel, light_context, m_material);
+            } else {
+                row[x] = rendering::evaluate_lighting(
+                    row[x], normal_world, light_context, m_material);
+            }
         }
     }
     return NodeExecResult{std::move(result)};

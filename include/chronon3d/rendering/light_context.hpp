@@ -7,6 +7,8 @@
 #include <glm/glm.hpp>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <vector>
 
 namespace chronon3d::rendering {
 
@@ -18,6 +20,23 @@ namespace chronon3d::rendering {
     const f32 inv = 1.0f / std::sqrt(len2);
     return {v.x * inv, v.y * inv, v.z * inv};
 }
+
+enum class PointLightKind : std::uint8_t { Point, Spot, Directional };
+
+// A per-pixel light source. Positions and radius are in canvas pixels; `z` is
+// the height above the 2.5D plane, so a light must sit above a layer (z > 0)
+// to light it. `color` is already multiplied by the layer intensity.
+struct PointLightSource {
+    PointLightKind kind{PointLightKind::Point};
+    Vec3 position{0.0f, 0.0f, 0.0f};
+    Vec3 direction{0.0f, 0.0f, -1.0f}; // Spot axis / Directional travel direction
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    f32 radius{256.0f};  // falloff scale in canvas pixels
+    f32 range{0.0f};     // hard cutoff in canvas pixels; 0 = unbounded
+    f32 decay{1.0f};
+    f32 angle{0.78539816339744830962f}; // spot half-angle, radians
+    f32 penumbra{0.0f};  // spot edge softness in [0, 1]
+};
 
 // Simple directional light for 2.5D rendering.
 // Default matches the historical k_box_light / k_light_dir used in FakeBox3D
@@ -32,8 +51,12 @@ struct LightContext {
     Color directional_color{1.0f, 1.0f, 1.0f, 1.0f};
     f32  diffuse{0.80f};
     ShadowSettings shadows{};
+    // Per-pixel lights from light layers. Independent of `enabled`: a scene
+    // with only point lights is lit by those lights alone.
+    std::vector<PointLightSource> point_lights{};
 
     [[nodiscard]] bool empty() const { return !ambient_enabled && !directional_enabled; }
+    [[nodiscard]] bool has_point_lights() const { return !point_lights.empty(); }
 
     void enable(bool value = true) { enabled = value; }
 

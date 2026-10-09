@@ -215,7 +215,21 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
         if (handle == ctx.policy.native_video_encode_surface) {
-            return true;
+            // Framebuffer pools can retain an old numeric handle after the
+            // daemon retires and recreates its NVENC slot. The handle value
+            // alone does not prove that the Vulkan binding survived; only
+            // reuse the encode target while both owners still agree.
+            if (ctx.surface_registry->lookup(handle) &&
+                ctx.backend->is_native_surface_valid(handle)) {
+                return true;
+            }
+            if (native_surface_promotion_diag_enabled()) {
+                spdlog::warn(
+                    "[native-surface] stale encode handle {} on pooled framebuffer; "
+                    "promoting a fresh transient surface",
+                    handle);
+            }
+            framebuffer.clear_surface_handle();
         }
         if (ctx.surface_registry->lookup(handle) &&
             ctx.backend->is_native_surface_valid(handle)) {

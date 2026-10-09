@@ -445,7 +445,8 @@ struct VulkanBackend::Impl {
     void bind_descriptors(const Image& destination, const Image& source);
     void write_descriptors(VkDescriptorSet set,
                            const Image& destination, const Image& source);
-    void write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination);
+    void write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination,
+                                     VkBuffer geometry_buffer = VK_NULL_HANDLE);
     void write_dashed_path_descriptors(VkDescriptorSet set, const Image& destination,
                                        VkBuffer geometry_buffer);
     void bind_fill_rect_descriptors(const Image& destination);
@@ -671,7 +672,8 @@ struct VulkanBackend::Impl {
                           std::int32_t x1, std::int32_t y1,
                           const Vec4& shape, const Vec4& line,
                           const Color& color,
-                          const std::array<Vec2, 8>& vertices = {});
+                          const std::array<Vec2, 8>& vertices = {},
+                          std::span<const std::uint32_t> mask_words = {});
     void fill_dashed_path(runtime::RenderSurfaceHandle destination,
                           std::int32_t x0, std::int32_t y0,
                           std::int32_t x1, std::int32_t y1,

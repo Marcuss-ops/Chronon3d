@@ -370,10 +370,34 @@ struct MotionBlurPlan {
     std::uint32_t samples{12};
 };
 
+/// Light kinds. `Radial` is the historical screen-space glow (default, output
+/// unchanged). `Point`, `Spot` and `Directional` are real light sources; their
+/// shading and cast shadows are implemented by the lighting slices of
+/// TICKET-LIGHTS-SHADOWS-PARTICLES. Until a kind is rendered the compiler
+/// rejects it explicitly rather than drawing the glow in its place.
+enum class LightKindPlan : std::uint8_t { Radial, Point, Spot, Directional };
+
 struct LightLayerPlan {
     float radius{256.0f};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
     float intensity{1.0f};
+    LightKindPlan kind{LightKindPlan::Radial};
+    /// Direction the light travels (Spot, Directional). Need not be unit length;
+    /// the decoder rejects the zero vector.
+    std::array<float, 3> direction{0.0f, 0.0f, -1.0f};
+    /// Distance at which Point/Spot contribution reaches zero. 0 = unbounded.
+    float range{0.0f};
+    /// Falloff exponent: contribution ~ 1 / (1 + (d / radius)^decay).
+    float decay{1.0f};
+    /// Spot half-angle in radians, (0, pi].
+    float angle{0.78539816339744830962f};
+    /// Spot edge softness in [0, 1].
+    float penumbra{0.0f};
+    bool cast_shadow{false};
+    /// Shadow blur radius in pixels, >= 0.
+    float shadow_radius{1.0f};
+    /// Depth bias that prevents self-shadowing, >= 0.
+    float shadow_bias{0.0f};
 };
 
 enum class TrackMatteTypePlan : std::uint8_t {

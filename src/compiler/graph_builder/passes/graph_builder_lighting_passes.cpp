@@ -25,7 +25,7 @@ void append_lighting_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outpu
     if (!item.projected) {
         return;
     }
-    if (!ctx.frame_input.light_context.enabled) {
+    if (!ctx.frame_input.light_context.enabled && !ctx.frame_input.light_context.has_point_lights()) {
         return;
     }
     if (item.native_3d) {

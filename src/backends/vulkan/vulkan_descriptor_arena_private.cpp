@@ -40,12 +40,14 @@ void VulkanBackend::Impl::write_descriptors(VkDescriptorSet set,
 }
 
 void VulkanBackend::Impl::write_fill_rect_descriptors(
-    VkDescriptorSet set, const Image& destination) {
-    ensure_path_geometry_buffer(sizeof(std::uint32_t), 0);
+    VkDescriptorSet set, const Image& destination, VkBuffer geometry_buffer) {
+    if (geometry_buffer == VK_NULL_HANDLE) {
+        ensure_path_geometry_buffer(sizeof(std::uint32_t), 0);
+        geometry_buffer = path_geometry_buffers[0].buffer;
+    }
     const VkDescriptorImageInfo dst_info{
         VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
-    const VkDescriptorBufferInfo geometry_info{path_geometry_buffers[0].buffer, 0,
-                                                VK_WHOLE_SIZE};
+    const VkDescriptorBufferInfo geometry_info{geometry_buffer, 0, VK_WHOLE_SIZE};
     const VkWriteDescriptorSet writes[] = {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},

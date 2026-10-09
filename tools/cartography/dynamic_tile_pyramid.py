@@ -245,9 +245,13 @@ class DynamicTilePyramid:
 
         url = self.url_template.format(z=z, x=x, y=y)
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (ChrononDynamicPyramid/2.0)"})
-        for attempt in range(3):
+        last_error = "invalid or empty tile response"
+        # Tile endpoints occasionally return transient 502s under concurrent
+        # exact-coverage prefetch. Give those requests a few more bounded
+        # chances before marking the plate incomplete.
+        for attempt in range(7):
             try:
-                with urllib.request.urlopen(req, timeout=6) as resp:
+                with urllib.request.urlopen(req, timeout=10) as resp:
                     raw = resp.read()
                     img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
                     if img is not None and img.shape == (256, 256, 3):
@@ -261,13 +265,48 @@ class DynamicTilePyramid:
                         self.record_telemetry("tile_bytes_downloaded", len(raw))
                         self.record_telemetry("tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
                         return (z, x, y), img
-            except Exception:
-                time.sleep(0.1)
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                if attempt < 6:
+                    time.sleep(min(2.0, 0.2 * (2 ** attempt)))
+
+        # Esri occasionally returns 502 for a few tiles while the primary
+        # hostname is busy. The same ArcGIS service is exposed on this
+        # alternate hostname; retry it before substituting a visual fallback.
+        if url.startswith("https://server.arcgisonline.com/"):
+            alternate_url = url.replace(
+                "https://server.arcgisonline.com/",
+                "https://services.arcgisonline.com/", 1)
+            alternate_req = urllib.request.Request(
+                alternate_url,
+                headers={"User-Agent": "Mozilla/5.0 (ChrononDynamicPyramid/2.0)"})
+            for attempt in range(3):
+                try:
+                    with urllib.request.urlopen(alternate_req, timeout=10) as resp:
+                        raw = resp.read()
+                    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+                    if img is not None and img.shape == (256, 256, 3):
+                        with self._cache_io_lock:
+                            tile_path.parent.mkdir(parents=True, exist_ok=True)
+                            temporary_path = tile_path.with_name(
+                                f"{tile_path.name}.{os.getpid()}.{get_ident()}.tmp")
+                            temporary_path.write_bytes(raw)
+                            os.replace(temporary_path, tile_path)
+                        self.record_telemetry("tile_network_fetches")
+                        self.record_telemetry("tile_bytes_downloaded", len(raw))
+                        self.record_telemetry(
+                            "tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
+                        return (z, x, y), img
+                except Exception as exc:
+                    last_error = f"alternate {type(exc).__name__}: {exc}"
+                    if attempt < 2:
+                        time.sleep(0.5 * (attempt + 1))
 
         # Fallback dark tone if network unavailable
         self.fallback_tile_count += 1
         self.record_telemetry("tile_fallbacks")
         self.record_telemetry("tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
+        print(f"[DynamicTilePyramid] tile fetch failed z={z} x={x} y={y}: {last_error}", flush=True)
         fallback = np.full((256, 256, 3), (25, 30, 40), dtype=np.uint8)
         return (z, x, y), fallback
 
