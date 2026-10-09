@@ -509,6 +509,8 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         ? ctx.backend->copy_surface(source, output, local_clip)
         : blurred_vertical;
     if (!clipped_result.ok()) {
+        spdlog::error("[native-blur] radius={} derived_box_radius={} failed: {}",
+                      params->radius, box_radius, clipped_result.error().message);
         cleanup();
         return false;
     }

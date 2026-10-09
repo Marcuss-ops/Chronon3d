@@ -256,6 +256,11 @@ NodeExecResult EffectStackNode::execute(
                     stage_handled = native_effects::try_native_full_frame_tint(
                         ctx, one_effect, *result, local_clip, current_source);
                     break;
+                case effects::EffectType::ChromaticAberration:
+                    stage_handled = native_effects::try_native_full_frame_chromatic(
+                        ctx, one_effect, *result, local_clip, current_source,
+                        current_source_framebuffer);
+                    break;
                 case effects::EffectType::Echo:
                     stage_handled = native_effects::try_native_echo(
                         ctx, effect, *current_source_framebuffer, *result,

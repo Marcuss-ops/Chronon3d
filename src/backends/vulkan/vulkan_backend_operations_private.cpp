@@ -347,8 +347,8 @@ void VulkanBackend::Impl::transform_affine(
 void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle source,
                                float radius, bool horizontal, bool box_kernel) {
-    if (!(radius >= 0.0f) || radius > 128.0f) {
-        throw std::invalid_argument("Vulkan blur radius must be within [0, 128]");
+    if (!(radius >= 0.0f) || radius > 192.0f) {
+        throw std::invalid_argument("Vulkan blur radius must be within [0, 192]");
     }
     auto& dst_image = resolve_image(destination);
     auto& src_image = resolve_image(source);
