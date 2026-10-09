@@ -1,5 +1,13 @@
 # TICKET-DAEMON-JOB-LIFECYCLE — il renderer non è lento: lo è il ciclo di vita del job
 
+**Aggiornamento 2026-10-08 — calibrazione VRAM** (`RenderingGen/multilingual_overlays_v1/evidence/vram_calibration_suite_2026-10-08.json`, `complete=true`, 3 shape × 3 run, artefatti identici e device coerente in tutte le ripetizioni):
+
+- overlay 1080p: picco device 9854 MiB, attribuito al daemon 4940 MiB;
+- video-source 1080p: picco device 8828 MiB, attribuito 3956 MiB;
+- overlay 4K: picco device 14536 MiB, attribuito 9621 MiB.
+
+**Decisione:** `m_render_job_mutex` **resta**. Due job 4K concorrenti (~2 × 9.6 GB attribuiti) superano i 16 GB della RTX A4000; la rimozione richiede prima un controllo di budget VRAM in ammissione, non ancora implementato. La matrice 2026-10-08 sostituisce quella del 2026-09-17, i cui piani non sono più caricabili (vedi commento nel manifest).
+
 Stato: **OPEN** — temporal schedule, bake delle static island e IPC
 `RENDER_BATCH` sono ora collegati al runtime e compilano; restano la misura GPU
 multi-shape, la decisione runtime sul mutex e il riuso del lifecycle encoder

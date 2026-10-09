@@ -231,7 +231,16 @@
             "properties": {
               "radius": { "type": "number", "exclusiveMinimum": 0 },
               "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$" },
-              "intensity": { "type": "number", "minimum": 0, "maximum": 16 }
+              "intensity": { "type": "number", "minimum": 0, "maximum": 16 },
+              "kind": { "type": "string", "enum": ["radial", "point", "spot", "directional"] },
+              "direction": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+              "range": { "type": "number", "minimum": 0, "maximum": 1000000 },
+              "decay": { "type": "number", "minimum": 0, "maximum": 8 },
+              "angle": { "type": "number", "exclusiveMinimum": 0, "maximum": 3.141592653589793 },
+              "penumbra": { "type": "number", "minimum": 0, "maximum": 1 },
+              "cast_shadow": { "type": "boolean" },
+              "shadow_radius": { "type": "number", "minimum": 0, "maximum": 512 },
+              "shadow_bias": { "type": "number", "minimum": 0, "maximum": 16 }
             }
           },
           "inline_mesh": {

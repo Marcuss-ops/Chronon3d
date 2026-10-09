@@ -77,11 +77,11 @@ void execute_single_node(
             state.resolved_cache_hit[id] = 1;
             state.resolved_bboxes[id] = bake.runtime->resolved_bbox;
             record_node_executed();
-        } else {
-            commit_transparent_skip(state, id, ctx, parent_pool,
-                                    SkipReason::StaticBaked, node.name());
+            return;
         }
-        return;
+        // A member that is not a bake root has no baked surface of its own.
+        // Publishing a null skip here starves consumers outside the bake (a
+        // Composite then reads no input), so it executes normally instead.
     }
 
     if (id < compiled.program.interior_node_skip.size() &&

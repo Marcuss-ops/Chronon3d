@@ -1,0 +1,31 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "direct-yuv-cert-nv12",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 16
+  },
+  "layers": [
+    {
+      "id": "nv12_background",
+      "type": "video",
+      "source": "tools/fixtures/calibration-source-1080p.mp4",
+      "size": [
+        1920,
+        1080
+      ],
+      "fit": "stretch",
+      "start_frame": 0,
+      "duration_frames": 16
+    }
+  ],
+  "output": {
+    "path": ".tmp/direct-yuv-cert/nv12-output.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

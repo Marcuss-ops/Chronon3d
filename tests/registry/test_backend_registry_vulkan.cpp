@@ -25,6 +25,7 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
+#include <chronon3d/scene/model/layer/mask.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
@@ -202,44 +203,173 @@ TEST_CASE("Vulkan solid closed-shape strokes match software alignment pixels") {
     }
 }
 
-TEST_CASE("Vulkan closed-shape strokes reject sheared transforms") {
+TEST_CASE("Vulkan closed-shape strokes match software pixels under shear") {
     using namespace chronon3d;
     using namespace chronon3d::backends::vulkan;
 
     VulkanBackend backend;
-    constexpr int width = 48;
-    constexpr int height = 32;
+    constexpr int width = 64;
+    constexpr int height = 48;
     constexpr std::array alignments{
         StrokeAlignment::Inside, StrokeAlignment::Center,
         StrokeAlignment::Outside};
-    const auto desc = runtime::SurfaceDesc::make(
-        width, height, runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::FrameTransient, runtime::ColorMetadata{});
-    constexpr runtime::RenderSurfaceHandle handle = 0xC3D2F0u;
-    REQUIRE(backend.create_surface(handle, desc).ok());
+    runtime::RenderSurfaceHandle handle = 0xC3D200u;
 
-    RenderNode node;
-    node.shape.set_type(ShapeType::Rect);
-    node.shape.rect().size = {24.0f, 16.0f};
-    node.shape.rect().stroke.enabled = true;
-    node.shape.rect().stroke.width = 3.0f;
-    node.shape.rect().stroke.color = Color{1.0f, 0.0f, 0.0f, 1.0f};
-    RenderState state;
-    state.matrix = Mat4{1.0f};
-    state.matrix[1][0] = 0.28f;
-    state.matrix[3][0] = 8.0f;
-    state.matrix[3][1] = 6.0f;
-
-    Framebuffer target(width, height);
-    target.set_surface_handle(handle);
     for (const auto alignment : alignments) {
+        RenderNode node;
+        node.shape.set_type(ShapeType::Rect);
+        node.shape.rect().size = {24.0f, 16.0f};
+        node.shape.rect().stroke.enabled = true;
+        node.shape.rect().stroke.width = 3.0f;
+        node.shape.rect().stroke.color = Color{0.9f, 0.18f, 0.34f, 0.8f};
         node.shape.rect().stroke.alignment = alignment;
-        const auto result = backend.draw_node(target, node, state, Camera{}, width, height);
-        CHECK_FALSE(result.ok());
-        CHECK(result.error().code == graph::RenderBackendErrorCode::UnsupportedCapability);
+        node.color = Color{0.16f, 0.28f, 0.52f, 0.72f};
+
+        // Shear in both axes plus a non-uniform scale: a general invertible
+        // affine, not a rotation or axis-aligned scale.
+        RenderState state;
+        state.matrix = Mat4{1.0f};
+        state.matrix[0][0] = 1.0f;
+        state.matrix[1][0] = 0.31f;
+        state.matrix[0][1] = -0.18f;
+        state.matrix[1][1] = 0.9f;
+        state.matrix[3][0] = 22.0f;
+        state.matrix[3][1] = 15.0f;
+
+        Framebuffer expected(width, height);
+        Color background = Color{0.08f, 0.12f, 0.2f, 0.7f}.to_linear();
+        background.r *= background.a;
+        background.g *= background.a;
+        background.b *= background.a;
+        expected.clear(background);
+        const Color linear_fill = node.color.to_linear();
+
+        const auto desc = runtime::SurfaceDesc::make(
+            width, height, runtime::PixelFormat::Rgba32Float,
+            runtime::ResourceUsage::Generic,
+            runtime::LifetimeClass::FrameTransient, runtime::ColorMetadata{});
+        REQUIRE(backend.create_surface(handle, desc).ok());
+        std::vector<float> initial(static_cast<std::size_t>(width * height * 4));
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x) {
+                const Color pixel = expected.get_pixel(x, y);
+                const auto i = static_cast<std::size_t>((y * width + x) * 4);
+                initial[i] = pixel.r; initial[i + 1] = pixel.g;
+                initial[i + 2] = pixel.b; initial[i + 3] = pixel.a;
+            }
+        renderer::draw_transformed_shape(
+            expected, node.shape, state.matrix, linear_fill, 0.0f,
+            &state, nullptr, node.corner_radius);
+        REQUIRE(backend.upload_surface(handle, desc, initial).ok());
+        Framebuffer actual(width, height);
+        actual.set_surface_handle(handle);
+        const auto drawn = backend.draw_node(actual, node, state, Camera{}, width, height);
+        REQUIRE(drawn.ok());
+        std::vector<float> pixels(initial.size());
+        REQUIRE(backend.download_surface(handle, pixels).ok());
+        INFO("sheared stroke alignment=" << static_cast<int>(alignment));
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x) {
+                const Color pixel = expected.get_pixel(x, y);
+                const float wanted[] = {pixel.r, pixel.g, pixel.b, pixel.a};
+                const auto i = static_cast<std::size_t>((y * width + x) * 4);
+                for (int channel = 0; channel < 4; ++channel) {
+                    INFO("x=" << x << " y=" << y << " channel=" << channel);
+                    CHECK(pixels[i + static_cast<std::size_t>(channel)] ==
+                          doctest::Approx(wanted[channel]).epsilon(2.0e-6));
+                }
+            }
+        REQUIRE(backend.release_surface(handle).ok());
+        ++handle;
     }
-    REQUIRE(backend.release_surface(handle).ok());
+}
+
+TEST_CASE("Vulkan closed-shape strokes match software pixels under layer masks") {
+    using namespace chronon3d;
+    using namespace chronon3d::backends::vulkan;
+
+    VulkanBackend backend;
+    constexpr int width = 64;
+    constexpr int height = 48;
+    constexpr std::array alignments{
+        StrokeAlignment::Inside, StrokeAlignment::Center,
+        StrokeAlignment::Outside};
+    runtime::RenderSurfaceHandle handle = 0xC3D280u;
+
+    for (const auto alignment : alignments) {
+        RenderNode node;
+        node.shape.set_type(ShapeType::Rect);
+        node.shape.rect().size = {34.0f, 26.0f};
+        node.shape.rect().stroke.enabled = true;
+        node.shape.rect().stroke.width = 4.0f;
+        node.shape.rect().stroke.color = Color{0.9f, 0.18f, 0.34f, 0.75f};
+        node.shape.rect().stroke.alignment = alignment;
+        node.color = Color{0.16f, 0.28f, 0.52f, 0.72f};
+
+        Mask mask;
+        mask.type = MaskType::Rect;
+        mask.size = {22.0f, 15.0f};
+        mask.feather = 2.0f;
+        mask.opacity = 0.8f;
+        RenderState state;
+        state.matrix = Mat4{1.0f};
+        state.matrix[0][0] = 1.0f;
+        state.matrix[1][0] = 0.24f;
+        state.matrix[0][1] = -0.12f;
+        state.matrix[1][1] = 0.95f;
+        state.matrix[3][0] = 16.0f;
+        state.matrix[3][1] = 10.0f;
+        state.layer_inv_matrix = glm::inverse(state.matrix);
+        state.mask = &mask;
+        state.clip_rect = raster::BBox{12, 8, 54, 40};
+        ensure_mask_alpha_cache(state, width, height);
+
+        Framebuffer expected(width, height);
+        Color background = Color{0.08f, 0.12f, 0.2f, 0.7f}.to_linear();
+        background.r *= background.a;
+        background.g *= background.a;
+        background.b *= background.a;
+        expected.clear(background);
+        const Color linear_fill = node.color.to_linear();
+
+        const auto desc = runtime::SurfaceDesc::make(
+            width, height, runtime::PixelFormat::Rgba32Float,
+            runtime::ResourceUsage::Generic,
+            runtime::LifetimeClass::FrameTransient, runtime::ColorMetadata{});
+        REQUIRE(backend.create_surface(handle, desc).ok());
+        std::vector<float> initial(static_cast<std::size_t>(width * height * 4));
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x) {
+                const Color pixel = expected.get_pixel(x, y);
+                const auto i = static_cast<std::size_t>((y * width + x) * 4);
+                initial[i] = pixel.r; initial[i + 1] = pixel.g;
+                initial[i + 2] = pixel.b; initial[i + 3] = pixel.a;
+            }
+        renderer::draw_transformed_shape(
+            expected, node.shape, state.matrix, linear_fill, 0.0f,
+            &state, nullptr, node.corner_radius);
+        REQUIRE(backend.upload_surface(handle, desc, initial).ok());
+        Framebuffer actual(width, height);
+        actual.set_surface_handle(handle);
+        const auto drawn = backend.draw_node(actual, node, state, Camera{}, width, height);
+        REQUIRE(drawn.ok());
+        std::vector<float> pixels(initial.size());
+        REQUIRE(backend.download_surface(handle, pixels).ok());
+        INFO("masked stroke alignment=" << static_cast<int>(alignment));
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x) {
+                const Color pixel = expected.get_pixel(x, y);
+                const float wanted[] = {pixel.r, pixel.g, pixel.b, pixel.a};
+                const auto i = static_cast<std::size_t>((y * width + x) * 4);
+                for (int channel = 0; channel < 4; ++channel) {
+                    INFO("x=" << x << " y=" << y << " channel=" << channel);
+                    CHECK(pixels[i + static_cast<std::size_t>(channel)] ==
+                          doctest::Approx(wanted[channel]).epsilon(2.0e-6));
+                }
+            }
+        REQUIRE(backend.release_surface(handle).ok());
+        ++handle;
+    }
 }
 
 TEST_CASE("Vulkan per-corner rounded strokes match software pixels") {

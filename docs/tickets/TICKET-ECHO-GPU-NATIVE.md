@@ -14,6 +14,10 @@ fully written by the source transform, and composed/output surfaces are fully
 written by copy operations, removing three redundant full-frame clear passes.
 The trail clear remains necessary because weighted taps accumulate into it.
 
+## Local GPU evidence (2026-10-08)
+
+`chronon3d_backend_registry_tests` from `linux-video-fast-dev` (Vulkan ON): 95/95 pass with the default device; the Echo cases (including `JobSession stores frame-addressed Vulkan Echo surfaces without readback`, `EffectStackNode composes Echo, brightness and chroma key over time`, and `Strict Vulkan rejects Echo without a native temporal surface history`) pass again with `VK_ICD_FILENAMES` pinned to the NVIDIA RTX A4000 ICD. Working tree had unrelated uncommitted changes, so this is not a same-SHA result.
+
 ## Exit criteria
 
 - [x] Add native dispatch and job-owned history for Vulkan/GPU-only surfaces;
