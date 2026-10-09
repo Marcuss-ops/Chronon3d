@@ -18,24 +18,27 @@ foreach(definition IN LISTS CHRONON3D_TEST_DEFINITIONS)
     include("${path}")
 endforeach()
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/manifests/test_aggregates.cmake)
-
-# Geo core (ADR-034): standalone main, no doctest. Compiles the geo object
-# library directly so the test does not depend on the aggregate pipeline.
+# Geo core (ADR-034): standalone main, no doctest. Registers through the
+# canonical suite helper so the recursive test-registration gate stays green;
+# it must run before the aggregates snapshot CHRONON3D_ALL_TEST_TARGETS. The
+# suite still compiles the geo object library directly and links only the
+# geo dependencies, so it does not depend on the aggregate pipeline.
 if(CHRONON3D_ENABLE_GEO)
-    add_executable(chronon3d_geo_core_test
-        geo/geo_core_test.cpp
-        $<TARGET_OBJECTS:chronon3d_geo>
+    chronon3d_add_test_suite(
+        NAME chronon3d_geo_core_test
+        TIER UNIT
+        NO_PIPELINE
+        NO_DOCTEST
+        LINK_TARGETS
+            Clipper2::Clipper2
+            nlohmann_json::nlohmann_json
+        SOURCES
+            geo/geo_core_test.cpp
+            $<TARGET_OBJECTS:chronon3d_geo>
     )
-    target_link_libraries(chronon3d_geo_core_test PRIVATE
-        Clipper2::Clipper2
-        nlohmann_json::nlohmann_json
-    )
-    target_include_directories(chronon3d_geo_core_test PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    add_test(NAME chronon3d_geo_core_test COMMAND chronon3d_geo_core_test)
 endif()
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/manifests/test_aggregates.cmake)
 
 # Report-driven performance contract test. It is intentionally separate from
 # the C++ benchmark binaries: the gate is pure stdlib Python and must remain

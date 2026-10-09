@@ -10,7 +10,7 @@ set(_CHRONON3D_TIER_DEFAULT_LINKS_SDK "chronon3d_sdk")
 function(chronon3d_add_test_suite)
     cmake_parse_arguments(
         ARG
-        "NO_PIPELINE"
+        "NO_PIPELINE;NO_DOCTEST"
         "NAME;TIER"
         "SOURCES;LINK_TARGETS;EXTRA_LINK_TARGETS;LABELS"
         ${ARGN}
@@ -40,7 +40,7 @@ function(chronon3d_add_test_suite)
 
     if(NOT ARG_LINK_TARGETS)
         set(ARG_LINK_TARGETS "${_CHRONON3D_TIER_DEFAULT_LINKS_${ARG_TIER}}")
-    else()
+    elseif(NOT ARG_NO_PIPELINE)
         message(AUTHOR_WARNING
             "chronon3d_add_test_suite: LINK_TARGETS override on '${ARG_NAME}' "
             "(tier='${ARG_TIER}'); prefer EXTRA_LINK_TARGETS for additive dependencies")
@@ -61,7 +61,13 @@ function(chronon3d_add_test_suite)
         endif()
     endif()
 
-    add_executable(${ARG_NAME} ${TEST_MAIN} ${ARG_SOURCES})
+    if(ARG_NO_DOCTEST)
+        # Standalone-main suites (ADR-034 style) bring their own entry point;
+        # the shared doctest main would collide with it at link time.
+        add_executable(${ARG_NAME} ${ARG_SOURCES})
+    else()
+        add_executable(${ARG_NAME} ${TEST_MAIN} ${ARG_SOURCES})
+    endif()
 
     # Test files commonly contain same-named local fixtures; keep test
     # executables out of the project-wide unity build at the suite boundary.
@@ -69,8 +75,10 @@ function(chronon3d_add_test_suite)
 
     target_link_libraries(${ARG_NAME} PRIVATE
         ${ARG_LINK_TARGETS}
-        doctest::doctest
     )
+    if(NOT ARG_NO_DOCTEST)
+        target_link_libraries(${ARG_NAME} PRIVATE doctest::doctest)
+    endif()
 
     target_include_directories(${ARG_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}
