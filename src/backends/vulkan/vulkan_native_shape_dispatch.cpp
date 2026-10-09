@@ -435,7 +435,9 @@ bool try_native_solid_rect(
          type != ShapeType::Circle && type != ShapeType::Line) ||
         (type != ShapeType::Line &&
          node.fill.type != FillType::Solid && node.fill.enabled) ||
-        graph::native_promotion::has_active_mask(state) ||
+        (graph::native_promotion::has_active_mask(state) &&
+         (type == ShapeType::Line || (type != ShapeType::Circle &&
+          type != ShapeType::Rect && type != ShapeType::RoundedRect))) ||
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         return false;
     }
@@ -484,9 +486,19 @@ bool try_native_solid_rect(
         shape_params = Vec4{3.0f, width, 0.0f, 0.0f};
         shape_color = line.stroke.color;
     }
-    // The local-space SDF supports rotation with axis scaling. Keep shear,
-    // projected transforms and ordinary fills on their existing fail-closed
-    // paths until their pixel coverage contracts are certified.
+    const bool fill_only_circle = type == ShapeType::Circle && !has_stroke;
+    const bool has_mask = graph::native_promotion::has_active_mask(state);
+    // Native mask coverage is currently supported only for closed solid strokes.
+    // Fill-only primitives, paths and lines remain fail-closed under a mask.
+    if (has_mask && !has_stroke) return false;
+    // Solid strokes are evaluated by the shader in inverse-transformed local
+    // coordinates (the same contract as the software hit test), so any
+    // invertible affine transform, including shear, is exact. Fill-only shapes
+    // keep the orthogonal-only contract, and projected transforms fail closed.
+    const float affine_det = state.matrix[0][0] * state.matrix[1][1] -
+                             state.matrix[0][1] * state.matrix[1][0];
+    const bool invertible_affine = std::isfinite(affine_det) &&
+                                   std::abs(affine_det) > 1e-6f;
     const float basis_x = std::hypot(state.matrix[0][0], state.matrix[0][1]);
     const float basis_y = std::hypot(state.matrix[1][0], state.matrix[1][1]);
     const float basis_dot = state.matrix[0][0] * state.matrix[1][0] +
@@ -495,7 +507,21 @@ bool try_native_solid_rect(
         std::isfinite(basis_y) && std::isfinite(basis_dot) &&
         basis_x > 1e-6f && basis_y > 1e-6f &&
         std::abs(basis_dot) <= 1e-5f * basis_x * basis_y;
-    if (!is_line && (!has_stroke || !orthogonal_affine ||
+    const bool fill_circle_transform_supported = [&] {
+        if (!fill_only_circle) return true;
+        const bool uniform_scale = std::abs(basis_x - basis_y) <=
+            1e-5f * std::max(basis_x, basis_y);
+        const bool axis_aligned =
+            (std::abs(state.matrix[0][1]) <= 1e-5f &&
+             std::abs(state.matrix[1][0]) <= 1e-5f) ||
+            (std::abs(state.matrix[0][0]) <= 1e-5f &&
+             std::abs(state.matrix[1][1]) <= 1e-5f);
+        return uniform_scale || axis_aligned;
+    }();
+    if (!is_line && ((!has_stroke && !fill_only_circle) ||
+                     (!has_stroke && !orthogonal_affine) ||
+                     (has_stroke && !invertible_affine) ||
+                     !fill_circle_transform_supported ||
                      graph::native_promotion::is_projected(state))) {
         return false;
     }
@@ -536,6 +562,15 @@ bool try_native_solid_rect(
     float geom_min_y = std::min({c00.y, c10.y, c01.y, c11.y});
     float geom_max_x = std::max({c00.x, c10.x, c01.x, c11.x});
     float geom_max_y = std::max({c00.y, c10.y, c01.y, c11.y});
+
+    // The SDF kernel's fill-only circle branch consumes independent screen
+    // radii. Preserve an axis-aligned non-uniform scale as an ellipse; a
+    // uniformly scaled rotated circle remains a circle and needs no special
+    // bounds correction.
+    if (fill_only_circle) {
+        shape_params.y = node.shape.circle().radius * basis_x;
+        shape_params.z = node.shape.circle().radius * basis_y;
+    }
 
     std::array<Vec2, 8> vertices{};
     if (has_stroke) {
@@ -618,9 +653,34 @@ bool try_native_solid_rect(
     }
     if (x0 >= x1 || y0 >= y1) return true;
 
+    std::vector<std::uint32_t> mask_words;
+    if (has_mask) {
+        ensure_mask_alpha_cache(state, framebuffer.width(), framebuffer.height());
+        if (!state.mask_alpha_cache || x1 <= x0 || y1 <= y0) return false;
+        const auto mask_width = static_cast<std::uint32_t>(x1 - x0);
+        const auto mask_height = static_cast<std::uint32_t>(y1 - y0);
+        const std::uint64_t coverage_count =
+            static_cast<std::uint64_t>(mask_width) * mask_height;
+        if (coverage_count > std::numeric_limits<std::size_t>::max() - 4U)
+            return false;
+        mask_words.resize(4U + static_cast<std::size_t>(coverage_count));
+        mask_words[0] = static_cast<std::uint32_t>(x0);
+        mask_words[1] = static_cast<std::uint32_t>(y0);
+        mask_words[2] = mask_width;
+        mask_words[3] = mask_height;
+        std::size_t cursor = 4U;
+        for (std::int32_t y = y0; y < y1; ++y) {
+            for (std::int32_t x = x0; x < x1; ++x) {
+                mask_words[cursor++] =
+                    state.mask_alpha_cache->get_pixel(x, y).a > 0.5f ? 1U : 0U;
+            }
+        }
+        shape_params.w = 1.0f;
+    }
+
     return backend.fill_solid_shape_surface(
         framebuffer.surface_handle(), x0, y0, x1, y1,
-        shape_params, line_params, fill_premul, vertices).ok();
+        shape_params, line_params, fill_premul, vertices, mask_words).ok();
 }
 
 void sync_gpu_to_cpu(VulkanBackend& backend, Framebuffer& fb) {
@@ -631,6 +691,9 @@ void sync_gpu_to_cpu(VulkanBackend& backend, Framebuffer& fb) {
     const auto w = fb.width();
     const auto h = fb.height();
     if (w <= 0 || h <= 0) return;
+    if (!fb.ensure_cpu_storage()) {
+        throw std::runtime_error("Vulkan CPU fallback readback has no framebuffer storage");
+    }
 
     if (fb.stride() == w) {
         std::span<float> dst(reinterpret_cast<float*>(fb.data()), static_cast<std::size_t>(w) * h * 4);

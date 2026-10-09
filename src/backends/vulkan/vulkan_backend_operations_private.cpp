@@ -108,16 +108,50 @@ void VulkanBackend::Impl::fill_solid_shape(
     std::int32_t x1, std::int32_t y1,
     const Vec4& shape, const Vec4& line,
     const Color& color,
-    const std::array<Vec2, 8>& vertices) {
+    const std::array<Vec2, 8>& vertices,
+    std::span<const std::uint32_t> mask_words) {
     auto& dst_image = resolve_image(destination);
     if (dst_image.width == 0 || dst_image.height == 0) {
         throw std::invalid_argument("Vulkan shape fill references an empty surface");
     }
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
-        write_fill_rect_descriptors(descriptors, dst_image);
+        VkBuffer geometry_buffer = VK_NULL_HANDLE;
+        VkDeviceSize geometry_bytes = 0;
+        if (!mask_words.empty()) {
+            if (mask_words.size() > std::numeric_limits<std::size_t>::max() / sizeof(std::uint32_t))
+                throw std::length_error("Vulkan shape mask size overflow");
+            geometry_bytes = static_cast<VkDeviceSize>(mask_words.size() * sizeof(std::uint32_t));
+            VkPhysicalDeviceProperties properties{};
+            vkGetPhysicalDeviceProperties(physical_device, &properties);
+            if (geometry_bytes > properties.limits.maxStorageBufferRange)
+                throw std::length_error("Vulkan shape mask exceeds maxStorageBufferRange");
+            if (frame_batch.pass_count >= kPathGeometryPassesPerSlot)
+                throw std::logic_error("Vulkan shape mask pass capacity exhausted");
+            const std::size_t buffer_slot = 1U + frame_batch.next_slot * kPathGeometryPassesPerSlot +
+                                            frame_batch.pass_count;
+            ensure_path_geometry_buffer(geometry_bytes, buffer_slot);
+            auto& geometry = path_geometry_buffers[buffer_slot];
+            if (!geometry.mapped)
+                throw std::logic_error("Vulkan shape mask buffer is not mapped");
+            std::memcpy(geometry.mapped, mask_words.data(), static_cast<std::size_t>(geometry_bytes));
+            geometry_buffer = geometry.buffer;
+        }
+        write_fill_rect_descriptors(descriptors, dst_image, geometry_buffer);
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image});
+        if (geometry_buffer != VK_NULL_HANDLE) {
+            const std::size_t buffer_slot = 1U + frame_batch.next_slot * kPathGeometryPassesPerSlot +
+                                            frame_batch.pass_count;
+            const auto& geometry = path_geometry_buffers[buffer_slot];
+            const VkBufferMemoryBarrier2KHR upload_barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
+                VK_PIPELINE_STAGE_2_HOST_BIT_KHR, VK_ACCESS_2_HOST_WRITE_BIT_KHR,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR, VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                geometry.buffer, 0, geometry_bytes};
+            emit_buffer_barriers2(cmd, std::span<const VkBufferMemoryBarrier2KHR>{&upload_barrier, 1});
+        }
         record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1,
                          color, shape, line, vertices);
         dst_image.initialized = true;

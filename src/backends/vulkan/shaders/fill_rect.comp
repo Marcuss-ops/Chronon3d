@@ -147,6 +147,20 @@ void main() {
         vec2 geomMin = vec2(0.0);
         vec2 geomMax = params.vertices[0];
         vec4 strokePm = params.line; // premultiplied RGBA
+        // Layer mask (params.shape.w > 0.5): binding 4 stores header
+        // {origin_x, origin_y, width, height}, then one 0/1 uint per pixel.
+        // Coverage is precomputed with the CPU mask cache contract (> 0.5).
+        if (params.shape.w > 0.5) {
+            int mask_x = int(dashed_path.words[0]);
+            int mask_y = int(dashed_path.words[1]);
+            int mask_width = int(dashed_path.words[2]);
+            int mask_height = int(dashed_path.words[3]);
+            ivec2 local_pixel = pixel - ivec2(mask_x, mask_y);
+            if (local_pixel.x < 0 || local_pixel.y < 0 ||
+                local_pixel.x >= mask_width || local_pixel.y >= mask_height) return;
+            uint mask_index = 4u + uint(local_pixel.y) * uint(mask_width) + uint(local_pixel.x);
+            if (dashed_path.words[mask_index] == 0u) return;
+        }
         float w = params.vertices[4].x;
         int align = int(params.vertices[4].y + 0.5); // 0 Inside, 1 Center, 2 Outside
         w = max(w, 0.0);

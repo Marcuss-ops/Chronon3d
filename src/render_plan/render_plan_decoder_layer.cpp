@@ -69,6 +69,47 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         if (!std::isfinite(light.radius) || light.radius <= 0.0f ||
             !std::isfinite(light.intensity) || light.intensity < 0.0f || light.intensity > 16.0f)
             throw std::runtime_error("light radius must be positive and intensity must be in [0, 16]");
+        if (raw.contains("kind")) {
+            const auto kind_name = raw.at("kind").get<std::string>();
+            if (kind_name == "radial") light.kind = LightKindPlan::Radial;
+            else if (kind_name == "point") light.kind = LightKindPlan::Point;
+            else if (kind_name == "spot") light.kind = LightKindPlan::Spot;
+            else if (kind_name == "directional") light.kind = LightKindPlan::Directional;
+            else throw std::runtime_error("light.kind must be radial, point, spot, or directional");
+        }
+        if (raw.contains("direction")) {
+            const auto& direction = raw.at("direction");
+            if (!direction.is_array() || direction.size() != 3)
+                throw std::runtime_error("light.direction must contain three numbers");
+            for (std::size_t i = 0; i < 3; ++i) light.direction[i] = direction.at(i).get<float>();
+        }
+        light.range = raw.value("range", light.range);
+        light.decay = raw.value("decay", light.decay);
+        light.angle = raw.value("angle", light.angle);
+        light.penumbra = raw.value("penumbra", light.penumbra);
+        light.cast_shadow = raw.value("cast_shadow", light.cast_shadow);
+        light.shadow_radius = raw.value("shadow_radius", light.shadow_radius);
+        light.shadow_bias = raw.value("shadow_bias", light.shadow_bias);
+        const bool direction_finite = std::all_of(light.direction.begin(), light.direction.end(),
+            [](float component) { return std::isfinite(component); });
+        const float direction_len2 = light.direction[0] * light.direction[0] +
+            light.direction[1] * light.direction[1] + light.direction[2] * light.direction[2];
+        if (!direction_finite || (light.kind != LightKindPlan::Radial && !(direction_len2 > 0.0f)))
+            throw std::runtime_error("light.direction must be finite and non-zero for spot and directional lights");
+        if (!std::isfinite(light.range) || light.range < 0.0f || light.range > 1000000.0f)
+            throw std::runtime_error("light.range must be finite and in [0, 1000000]; 0 means unbounded");
+        if (!std::isfinite(light.decay) || light.decay < 0.0f || light.decay > 8.0f)
+            throw std::runtime_error("light.decay must be finite and in [0, 8]");
+        if (!std::isfinite(light.angle) || light.angle <= 0.0f || light.angle > 3.14159265358979323846f)
+            throw std::runtime_error("light.angle must be finite and in (0, pi] radians");
+        if (!std::isfinite(light.penumbra) || light.penumbra < 0.0f || light.penumbra > 1.0f)
+            throw std::runtime_error("light.penumbra must be finite and in [0, 1]");
+        if (!std::isfinite(light.shadow_radius) || light.shadow_radius < 0.0f || light.shadow_radius > 512.0f)
+            throw std::runtime_error("light.shadow_radius must be finite and in [0, 512]");
+        if (!std::isfinite(light.shadow_bias) || light.shadow_bias < 0.0f || light.shadow_bias > 16.0f)
+            throw std::runtime_error("light.shadow_bias must be finite and in [0, 16]");
+        if (light.cast_shadow && light.kind == LightKindPlan::Radial)
+            throw std::runtime_error("light.cast_shadow requires a point, spot, or directional light");
         layer.light = light;
         if (!value.contains("blend_mode")) layer.blend_mode = BlendMode::Screen;
     }

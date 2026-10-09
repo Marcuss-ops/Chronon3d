@@ -21,6 +21,10 @@ framehash canaries match both the registered software processor golden and
 fixed expected hashes on the local Vulkan device. This is not same-SHA
 GPU-hardware certification.
 
+## Local GPU evidence (2026-10-08)
+
+`chronon3d_backend_registry_tests` built from `linux-video-fast-dev` (CHRONON3D_ENABLE_VULKAN=ON): 95/95 test cases pass with the default device; the 8 keying/echo-related cases pass again with `VK_ICD_FILENAMES` pinned to the NVIDIA ICD (RTX A4000, Vulkan 1.4). Working tree had unrelated uncommitted changes, so this is not a same-SHA result.
+
 ## Exit criteria
 
 - [x] Implement native GPU luma/chroma processing with linear-light,
@@ -29,7 +33,7 @@ GPU-hardware certification.
   spill reduction, matte controls and clipped rendering.
 - [x] Add luma/chroma GPU framehash canaries and advertise the capability
   through backend resolution.
-- [ ] Run same-SHA GPU-hardware certification.
+- [ ] Run same-SHA GPU-hardware certification (local NVIDIA evidence recorded above; CI blocked by billing).
 
 ## Status
 

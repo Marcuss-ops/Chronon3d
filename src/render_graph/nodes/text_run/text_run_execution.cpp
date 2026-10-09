@@ -281,6 +281,15 @@ graph::RenderOpResult render_text_run_item(
                 ? local_shape.layout->units.glyph_to_word.size() : 0u,
             local_shape.layout ? local_shape.layout->font.font_path : "",
             local_shape.layout ? local_shape.layout->font_size : 0.0f);
+        // TEMP-DIAGNOSTIC: per-glyph resolved opacity/fill alpha.
+        {
+            std::string ops;
+            for (const auto& g : local_shape.glyphs)
+                ops += std::to_string(g.opacity) + "/"
+                     + std::to_string(g.fill.a) + " ";
+            spdlog::info("[text-diag] frame={} glyph_op/fill_a: {}",
+                ctx.frame_input.frame.integral(), ops);
+        }
     }
     if (!local_shape.layout) {
         return graph::RenderOpResult(graph::make_render_backend_error(

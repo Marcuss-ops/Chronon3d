@@ -62,9 +62,24 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
             slot.backend = &backend;
             return true;
         }
-        reason = "recyclable slot has stale or incompatible native surfaces";
-        (void)slot.transition_interop_state(runtime::InteropFrameState::Recyclable);
-        return false;
+        // A daemon may reuse its execution-slot pool for the next render job
+        // after the prior Vulkan/CUDA session has been torn down. In that
+        // case the registry can still describe a surface whose backend
+        // resource is no longer valid. Retire both handles and rebuild the
+        // slot for this job instead of making every following GPU overlay
+        // fail on a stale cache entry.
+        const auto old_native = slot.native_surface;
+        const auto old_source = slot.source_surface;
+        if (old_native != runtime::kInvalidRenderSurfaceHandle) {
+            (void)backend.release_surface(old_native);
+            (void)registry.release(old_native);
+        }
+        if (old_source != runtime::kInvalidRenderSurfaceHandle && old_source != old_native) {
+            (void)backend.release_surface(old_source);
+            (void)registry.release(old_source);
+        }
+        slot.native_surface = runtime::kInvalidRenderSurfaceHandle;
+        slot.source_surface = runtime::kInvalidRenderSurfaceHandle;
     }
 
     const auto encode = registry.create(desc);

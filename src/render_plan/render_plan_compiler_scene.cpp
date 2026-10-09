@@ -36,6 +36,8 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
         configure_scene_camera_and_lighting(
             scene, plan, has_3d_layer, plan_camera, ctx);
 
+        // Point/spot/directional sources are scene-level, not layer geometry.
+        std::vector<rendering::PointLightSource> point_sources;
         for (std::size_t index = 0; index < plan.layers.size(); ++index) {
             const auto& layer = plan.layers[index];
             const auto author_layer = [&](LayerBuilder& builder) {
@@ -279,6 +281,32 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                             light.color[1] * light.intensity,
                             light.color[2] * light.intensity,
                             light.color[3]};
+                        if (light.kind != LightKindPlan::Radial) {
+                            // Point, spot and directional lights are sources, not
+                            // geometry: they shade the lit layers per pixel and draw nothing.
+                            rendering::PointLightSource source;
+                            source.kind = light.kind == LightKindPlan::Point ? rendering::PointLightKind::Point
+                                : light.kind == LightKindPlan::Spot ? rendering::PointLightKind::Spot
+                                : rendering::PointLightKind::Directional;
+                            const float default_x = static_cast<float>(plan.canvas.width) * 0.5f;
+                            const float default_y = static_cast<float>(plan.canvas.height) * 0.5f;
+                            source.position = Vec3{
+                                layer.position_dimensions >= 2 ? layer.position[0] : default_x,
+                                layer.position_dimensions >= 2 ? layer.position[1] : default_y,
+                                // A 2D light has no height: default to its radius so it
+                                // lights the plane below it instead of grazing it at z=0.
+                                layer.position_dimensions >= 3 ? layer.position[2] : light.radius};
+                            source.direction = Vec3{light.direction[0], light.direction[1], light.direction[2]};
+                            source.color = color;
+                            source.radius = light.radius;
+                            source.range = light.range;
+                            source.decay = light.decay;
+                            source.angle = light.angle;
+                            source.penumbra = light.penumbra;
+                            point_sources.push_back(source);
+                            builder.accepts_lights(false).accepts_shadows(false);
+                            break;
+                        }
                         CircleParams params;
                         params.radius = light.radius;
                         params.color = color;
@@ -716,6 +744,7 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                 scene.screen_layer(layer.id, author_layer);
             else scene.layer(layer.id, author_layer);
         }
+        for (const auto& source : point_sources) scene.point_light_source(source);
         return scene.build();
         
     };

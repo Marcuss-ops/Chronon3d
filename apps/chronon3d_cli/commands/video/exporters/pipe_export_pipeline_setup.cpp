@@ -379,8 +379,13 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             // The daemon owns one renderer per device for its full lifetime.
             // Reuse its graph/pipeline/font/framebuffer caches for video too;
             // only temporal frame values and job-specific settings reset.
+            // Telemetry counters are also renderer-owned, so reset them at
+            // this job boundary. Otherwise a later clip's receipt reports the
+            // process-total NVENC/Vulkan frame counts and strict per-job gates
+            // reject a valid render after the first clip.
             warm_renderer->reset_frame_value_cache();
             warm_renderer->reset_temporal_history();
+            warm_renderer->reset_counters();
             warm_renderer->set_settings(settings);
             if (session->opts.assets_root) {
                 warm_renderer->execution_context().text.assets->mount(

@@ -44,8 +44,10 @@ TEST_CASE("Temporal rate analysis classifies all five required rates") {
     CHECK(report.layers[0].rate == TemporalRateClass::Static);
     CHECK(report.layers[0].eval_frames.empty());
     CHECK(report.layers[1].rate == TemporalRateClass::Cue);
-    CHECK(report.layers[1].eval_frames == std::vector<Frame>{
-        Frame{3}, Frame{4}, Frame{5}, Frame{6}});
+    // A cue changes activity only at its half-open boundaries (see
+    // analyze_temporal_rates): start at 3, end at 7. Per-frame re-evaluation
+    // of a cue is not scheduled.
+    CHECK(report.layers[1].eval_frames == std::vector<Frame>{Frame{3}, Frame{7}});
     CHECK(report.layers[2].rate == TemporalRateClass::KeyframeInterval);
     CHECK(report.layers[2].eval_frames == std::vector<Frame>{
         Frame{1}, Frame{2}, Frame{3}, Frame{4}, Frame{5},
@@ -72,7 +74,9 @@ TEST_CASE("Temporal rate precedence selects per-frame and subframe work") {
     report = analyze_temporal_rates(plan);
     for (std::size_t i = 0; i < report.layers.size(); ++i) {
         CHECK(report.layers[i].rate == TemporalRateClass::Subframe);
-        CHECK(report.layers[i].eval_frames.size() == (i == 1 ? 4 : 12));
+        // Subframe shutter samples are scheduled against the full composition
+        // timeline for every layer, including cues.
+        CHECK(report.layers[i].eval_frames.size() == 12);
     }
     CHECK(report.skippable_node_fraction == 0.0);
     plan.temporal_motion_blur = MotionBlurPlan{0.0f, 8};

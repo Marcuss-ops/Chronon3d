@@ -428,7 +428,8 @@ public:
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, const Vec4& shape,
         const Vec4& line, const Color&,
-        const std::array<Vec2, 8>& vertices = {});
+        const std::array<Vec2, 8>& vertices = {},
+        std::span<const std::uint32_t> mask_words = {});
     graph::RenderOpResult fill_dashed_path_surface(
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, float, const Color&,

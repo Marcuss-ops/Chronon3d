@@ -1,0 +1,80 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "vram-calibration-4k-overlay",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 48
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "color",
+      "color": [
+        0.008,
+        0.014,
+        0.032,
+        1.0
+      ],
+      "size": [
+        3840,
+        2160
+      ],
+      "start_frame": 0,
+      "duration_frames": 48
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "text": "CHRONON 4K",
+      "size": [
+        3000,
+        520
+      ],
+      "position": [
+        1920,
+        960
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 240,
+        "fill": "#F2F7FF",
+        "glow": {
+          "color": "#62A8FF",
+          "intensity": 0.28,
+          "radius": 28
+        }
+      },
+      "start_frame": 0,
+      "duration_frames": 48
+    },
+    {
+      "id": "subtitle",
+      "type": "text",
+      "text": "VRAM CALIBRATION SHAPE · 3840 × 2160",
+      "size": [
+        3000,
+        180
+      ],
+      "position": [
+        1920,
+        1320
+      ],
+      "style": {
+        "font": "assets/fonts/Inter-Regular.ttf",
+        "font_size": 72,
+        "fill": "#9CB8DE"
+      },
+      "start_frame": 0,
+      "duration_frames": 48
+    }
+  ],
+  "output": {
+    "path": ".tmp/vram-calibration-4k-overlay.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}

@@ -1273,6 +1273,79 @@ TEST_CASE("render plan decodes screen-space radial light layers") {
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
 }
 
+TEST_CASE("render plan decodes point, spot and directional light kinds and fingerprints each field") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":24,"fps_den":1,"duration_frames":24},
+      "layers":[{"id":"key","type":"light","position":[320,180,-200],"enable_3d":true,
+        "light":{"kind":"spot","radius":240,"color":"#FFE0C0","intensity":2.0,
+          "direction":[0,0,1],"range":900,"decay":2,"angle":0.6,"penumbra":0.25,
+          "cast_shadow":true,"shadow_radius":6,"shadow_bias":0.02}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->layers[0].light.has_value());
+    const auto& light = *plan->layers[0].light;
+    CHECK(light.kind == chronon3d::render_plan::LightKindPlan::Spot);
+    CHECK(light.direction[2] == doctest::Approx(1.0f));
+    CHECK(light.range == doctest::Approx(900.0f));
+    CHECK(light.decay == doctest::Approx(2.0f));
+    CHECK(light.angle == doctest::Approx(0.6f));
+    CHECK(light.penumbra == doctest::Approx(0.25f));
+    CHECK(light.cast_shadow);
+    CHECK(light.shadow_radius == doctest::Approx(6.0f));
+    CHECK(light.shadow_bias == doctest::Approx(0.02f));
+
+    // Every new field is part of the content fingerprint, so a cache entry for
+    // one light can never be reused for another.
+    const auto base = plan->content_fingerprint;
+    const std::vector<std::pair<const char*, nlohmann::json>> edits{
+        {"range", 800.0}, {"decay", 1.0}, {"angle", 0.7}, {"penumbra", 0.5},
+        {"cast_shadow", false}, {"shadow_radius", 2.0}, {"shadow_bias", 0.0},
+        {"kind", "point"}};
+    for (const auto& [field, value] : edits) {
+        auto changed = source;
+        changed["layers"][0]["light"][field] = value;
+        const auto decoded = chronon3d::render_plan::decode_render_plan(changed);
+        REQUIRE(decoded.has_value());
+        CHECK_MESSAGE(decoded->content_fingerprint != base,
+                      "light field '" << field << "' must change the fingerprint");
+    }
+    auto changed_direction = source;
+    changed_direction["layers"][0]["light"]["direction"] = nlohmann::json::array({1, 0, 0});
+    const auto direction_plan = chronon3d::render_plan::decode_render_plan(changed_direction);
+    REQUIRE(direction_plan.has_value());
+    CHECK(direction_plan->content_fingerprint != base);
+}
+
+TEST_CASE("render plan rejects invalid light kind parameters") {
+    const auto base = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":24,"fps_den":1,"duration_frames":8},
+      "layers":[{"id":"l","type":"light","position":[32,32,0],"enable_3d":true,
+        "light":{"kind":"directional","radius":32,"color":"#FFFFFF","intensity":1.0,
+          "direction":[0,0,-1]}}],
+      "output":{"path":"out.png"}})JSON");
+    REQUIRE(chronon3d::render_plan::decode_render_plan(base).has_value());
+
+    const auto rejects = [&](auto mutate) {
+        auto broken = base;
+        mutate(broken["layers"][0]["light"]);
+        return !chronon3d::render_plan::decode_render_plan(broken).has_value();
+    };
+    CHECK(rejects([](auto& light) { light["kind"] = "area"; }));
+    CHECK(rejects([](auto& light) { light["direction"] = nlohmann::json::array({0, 0, 0}); }));
+    CHECK(rejects([](auto& light) { light["direction"] = nlohmann::json::array({0, 0}); }));
+    CHECK(rejects([](auto& light) { light["angle"] = 0.0; }));
+    CHECK(rejects([](auto& light) { light["angle"] = 4.0; }));
+    CHECK(rejects([](auto& light) { light["penumbra"] = 1.5; }));
+    CHECK(rejects([](auto& light) { light["decay"] = -1.0; }));
+    CHECK(rejects([](auto& light) { light["range"] = -5.0; }));
+    CHECK(rejects([](auto& light) { light["shadow_radius"] = -1.0; }));
+    CHECK(rejects([](auto& light) { light["shadow_bias"] = 99.0; }));
+    CHECK(rejects([](auto& light) { light["kind"] = "radial"; light["cast_shadow"] = true; }));
+}
+
 TEST_CASE("render plan decodes deterministic noise and procedural background effects") {
     const auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,

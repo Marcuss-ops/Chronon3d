@@ -249,7 +249,7 @@ TEST_CASE("VulkanBackend records native rounded-rect and circle nodes") {
     backend->begin_frame_batch();
     backend->draw_node(framebuffer, rect, state, camera, 96, 64);
     backend->draw_node(framebuffer, rounded, state, camera, 96, 64);
-    backend->draw_node(framebuffer, circle, state, camera, 96, 64);
+    REQUIRE(backend->draw_node(framebuffer, circle, state, camera, 96, 64).ok());
     constexpr std::array alignments{
         StrokeAlignment::Inside, StrokeAlignment::Center,
         StrokeAlignment::Outside};

@@ -416,6 +416,15 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_float(layer.light->radius);
         for (const auto component : layer.light->color) out.add_float(component);
         out.add_float(layer.light->intensity);
+        out.add_enum(layer.light->kind);
+        for (const auto component : layer.light->direction) out.add_float(component);
+        out.add_float(layer.light->range);
+        out.add_float(layer.light->decay);
+        out.add_float(layer.light->angle);
+        out.add_float(layer.light->penumbra);
+        out.add_bool(layer.light->cast_shadow);
+        out.add_float(layer.light->shadow_radius);
+        out.add_float(layer.light->shadow_bias);
     }
     if (layer.path_mask) {
         out.add_bool(true);

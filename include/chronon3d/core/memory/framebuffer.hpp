@@ -261,6 +261,27 @@ public:
         return m_owns_pixels ? m_pixels.data() : m_external_pixels;
     }
 
+    // GPU-only graph surfaces normally avoid a CPU pixel allocation. A
+    // backend fallback that must read pixels on the CPU can materialize the
+    // backing storage immediately before readback instead of constructing a
+    // non-empty span over a null data pointer.
+    [[nodiscard]] bool ensure_cpu_storage() {
+        if (m_owns_pixels) {
+            if (m_pixels.empty()) {
+                m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height);
+                framebuffer_increment_allocations(size_bytes());
+            }
+            return m_pixels.data() != nullptr;
+        }
+        if (m_external_pixels) return true;
+        m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height);
+        m_owns_pixels = true;
+        m_external_pixels = nullptr;
+        m_content_cleared = false;
+        framebuffer_increment_allocations(size_bytes());
+        return m_pixels.data() != nullptr;
+    }
+
     [[nodiscard]] const Color* data() const {
         return m_owns_pixels ? m_pixels.data() : m_external_pixels;
     }
