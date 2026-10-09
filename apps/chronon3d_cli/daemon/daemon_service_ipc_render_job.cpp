@@ -142,6 +142,7 @@ ipc::Reply DaemonService::handle_render_job_request(
             }
 
             auto reservation = admission.take_reservation();
+            const auto daemon_admission_wait_ms = admission.wait_ms();
             update_job_status(job_id, JobState::Running, "rendering");
             const auto reserved_device = reservation.device();
             spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={}, vram_est={}MB)",
@@ -151,6 +152,7 @@ ipc::Reply DaemonService::handle_render_job_request(
             // Per-job wall anchor for the exclusive-wall timeline: startup is
             // measured from THIS request, never from daemon boot.
             video_execution->job_started_at = profiling::now();
+            video_execution->daemon_admission_wait_ms = daemon_admission_wait_ms;
             video_execution->device_id = reserved_device;
             if (const auto caps = m_device_scheduler.capability_snapshot(reserved_device)) {
                 video_execution->cuda_device_ordinal = caps->cuda_device_ordinal;

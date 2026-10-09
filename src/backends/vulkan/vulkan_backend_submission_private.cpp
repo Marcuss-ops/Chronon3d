@@ -67,6 +67,7 @@ void VulkanBackend::Impl::wait_for_pending() {
 }
 
 std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
+    emit_cuda_surface_releases(command_buffer);
     check(vkEndCommandBuffer(command_buffer), "vkEndCommandBuffer");
     const auto signal_value = ++next_timeline_value;
     // HOT-PATH TAX (TICKET-HOTPATH-ZERO-ALLOC-P1): the four vectors below
@@ -92,12 +93,14 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
         if (it == surfaces.physical_surfaces.end()) continue;
         auto& image = it->second.image;
         wait_semaphores.push_back(image.cuda_to_vulkan);
-        wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        // Reused encoder surfaces can be cleared/copied by transfer before
+        // compute; the external ownership acquire covers both stages.
+        wait_stages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
         wait_values.push_back(image.cuda_timeline
             ? image.interop_generation->cuda_to_vulkan() : 0);
         signal_semaphores.push_back(image.vulkan_to_cuda);
         const auto value = image.cuda_timeline
-            ? image.interop_generation->next_vulkan_to_cuda() : 0;
+            ? image.interop_generation->reserve_vulkan_to_cuda_signal() : 0;
         signal_values.push_back(value);
         image.last_vulkan_to_cuda_value = value;
         image.cuda_export_fence_slot.reset();
@@ -110,7 +113,7 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
         auto& image = it->second.image;
         signal_semaphores.push_back(image.vulkan_to_cuda);
         const auto value = image.cuda_timeline
-            ? image.interop_generation->next_vulkan_to_cuda() : 0;
+            ? image.interop_generation->reserve_vulkan_to_cuda_signal() : 0;
         signal_values.push_back(value);
         image.last_vulkan_to_cuda_value = value;
         image.cuda_export_fence_slot.reset();

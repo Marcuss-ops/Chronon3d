@@ -51,6 +51,7 @@ public:
         return m_decision;
     }
     [[nodiscard]] runtime::DeviceReservation take_reservation() noexcept;
+    [[nodiscard]] double wait_ms() const noexcept { return m_wait_ms; }
 
 private:
     std::unique_lock<std::shared_mutex> m_exclusive_lock;
@@ -62,6 +63,7 @@ private:
     bool m_admitted{false};
     const char* m_failure_reason{"device resources saturated or admission timed out"};
     RenderPolicyDecision m_decision{};
+    double m_wait_ms{0.0};
 };
 
 } // namespace chronon3d::cli

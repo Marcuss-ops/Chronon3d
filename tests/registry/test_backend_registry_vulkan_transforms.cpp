@@ -186,6 +186,41 @@ TEST_CASE("Vulkan native affine transform matches inverse mapping") {
     CHECK(output[(3 * 4 + 3) * 4] == doctest::Approx(0.0f));
 }
 
+TEST_CASE("Vulkan native affine transform rotates an image without a CPU fallback") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    const runtime::SurfaceDesc desc{
+        2, 2, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> source{
+        1.0f, 0.0f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 1.0f,  1.0f, 1.0f, 0.0f, 1.0f};
+    std::vector<float> output(16, -1.0f);
+    runtime::SurfaceAffineTransform transform{};
+    // Inverse quarter-turn about the 2x2 image centre. For a destination
+    // pixel centre (x+0.5,y+0.5), sample (y+0.5, 1.5-x).
+    runtime::set_canvas_source_mapping(
+        transform, 0.0f, 1.0f, 0.0f,
+        -1.0f, 0.0f, 2.0f,
+        runtime::RectF{0.0f, 0.0f, 2.0f, 2.0f});
+    transform.bilinear = 0;
+
+    REQUIRE(backend.create_surface(0xC3D301u, desc).ok());
+    REQUIRE(backend.create_surface(0xC3D302u, desc).ok());
+    REQUIRE(backend.upload_surface(0xC3D301u, desc, source).ok());
+    REQUIRE(backend.initialize_transparent_surface(0xC3D302u).ok());
+    REQUIRE(backend.transform_surface_affine(0xC3D302u, 0xC3D301u, transform).ok());
+    REQUIRE(backend.download_surface(0xC3D302u, output).ok());
+    const std::array<std::size_t, 4> source_pixel_for_destination{2, 0, 3, 1};
+    for (std::size_t destination_pixel = 0; destination_pixel < 4; ++destination_pixel) {
+        for (std::size_t channel = 0; channel < 4; ++channel) {
+            CHECK(output[destination_pixel * 4 + channel] ==
+                  doctest::Approx(source[source_pixel_for_destination[destination_pixel] * 4 + channel]));
+        }
+    }
+}
+
 TEST_CASE("Vulkan affine bilinear sampling replicates a tight-surface edge like software") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     const chronon3d::runtime::SurfaceDesc source_desc{
@@ -491,6 +526,21 @@ TEST_CASE("Vulkan separable blur stays on device across two passes") {
     CHECK(output[center + 0] < 1.0f);
     CHECK(output[neighbor + 0] > 0.0f);
     CHECK(output[neighbor + 0] < output[center + 0]);
+}
+
+TEST_CASE("Vulkan transparent initialization replaces recycled opaque pixels") {
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const chronon3d::runtime::SurfaceDesc desc{
+        8, 8, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    std::vector<float> opaque(8 * 8 * 4, 1.0f);
+    std::vector<float> output(opaque.size(), -1.0f);
+    REQUIRE(backend.create_surface(415, desc).ok());
+    REQUIRE(backend.upload_surface(415, desc, opaque).ok());
+    REQUIRE(backend.initialize_transparent_surface(415).ok());
+    REQUIRE(backend.download_surface(415, output).ok());
+    for (const auto component : output) CHECK(component == 0.0f);
 }
 
 TEST_CASE("Vulkan glow sequence preserves source and composites halo behind it") {

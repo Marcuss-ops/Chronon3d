@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 
 namespace chronon3d::graph {
@@ -226,6 +227,17 @@ NodeExecResult SourceNode::execute(
                     m_name,
                     ctx.frame_input.sample_time.integral_frame());
             }
+            // Invisible sources still participate in graph composites. A
+            // strict GPU graph needs their transparent result represented by
+            // a real native surface; returning the cleared CPU-pool framebuffer
+            // here leaves a handle-less, backing-less input for CompositeNode.
+            if (native_surface_backend && ctx.surface_registry &&
+                !ensure_empty_native_surface(ctx, *fb)) {
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    m_name,
+                    "failed to materialize transparent native source surface"};
+            }
             fb->set_opaque(false);
             return NodeExecResult{std::move(fb)};
         }
@@ -276,6 +288,11 @@ NodeExecResult SourceNode::execute(
                     draw_result.error().message}};
             }
         }
+        if (std::getenv("CHRONON3D_PATH_DIAG"))
+            spdlog::info("[native-source-diag] frame={} node={} shape_type={} surface={} cpu={} opaque={} size={}x{}",
+                static_cast<int>(ctx.frame_input.frame), m_name,
+                static_cast<int>(m_node.shape.type()), fb->surface_handle(),
+                fb->data() != nullptr, fb->is_opaque(), fb->width(), fb->height());
         // A fully opaque source becomes translucent when the layer opacity
         // is animated below one; keep the metadata truthful so CompositeNode
         // cannot take the opaque fast path and replace the background.

@@ -6715,6 +6715,49 @@
                   ],
                   "properties": {
                     "type": {
+                      "const": "roughen_edges"
+                    },
+                    "time": {
+                      "$ref": "#/$defs/effect_time"
+                    },
+                    "amount": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "scale": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 1024
+                    },
+                    "complexity": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4
+                    },
+                    "evolution": {
+                      "type": "number"
+                    },
+                    "evolution_speed": {
+                      "type": "number",
+                      "minimum": -1000,
+                      "maximum": 1000
+                    },
+                    "seed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
                       "const": "turbulent_displace"
                     },
                     "time": {

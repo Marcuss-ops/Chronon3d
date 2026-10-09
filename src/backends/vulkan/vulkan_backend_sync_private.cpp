@@ -420,6 +420,80 @@ void VulkanBackend::Impl::emit_command_batch_boundary() {
     }
 }
 
+void VulkanBackend::Impl::emit_cuda_surface_ownership_transfer(
+    VkCommandBuffer command, std::size_t physical_slot, bool acquire) {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    const auto it = surfaces.physical_surfaces.find(physical_slot);
+    if (it == surfaces.physical_surfaces.end() ||
+        !it->second.image.exportable ||
+        it->second.image.image == VK_NULL_HANDLE) {
+        throw std::logic_error(
+            "CUDA surface ownership transfer references a non-exportable image");
+    }
+    const auto& image = it->second.image;
+    const VkImageMemoryBarrier2KHR barrier{
+        VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+        nullptr,
+        acquire ? VK_PIPELINE_STAGE_2_NONE_KHR
+                : (VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR |
+                   VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR),
+        acquire ? 0
+                : (VK_ACCESS_2_SHADER_READ_BIT_KHR |
+                   VK_ACCESS_2_SHADER_WRITE_BIT_KHR |
+                   VK_ACCESS_2_TRANSFER_READ_BIT_KHR |
+                   VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR),
+        acquire ? (VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR |
+                   VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR)
+                : VK_PIPELINE_STAGE_2_NONE_KHR,
+        acquire ? (VK_ACCESS_2_SHADER_READ_BIT_KHR |
+                   VK_ACCESS_2_SHADER_WRITE_BIT_KHR |
+                   VK_ACCESS_2_TRANSFER_READ_BIT_KHR |
+                   VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR)
+                : 0,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+        acquire ? VK_QUEUE_FAMILY_EXTERNAL : queue_family,
+        acquire ? queue_family : VK_QUEUE_FAMILY_EXTERNAL,
+        image.image,
+        {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
+    const VkDependencyInfoKHR dependency{
+        VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR, nullptr, 0, 0, nullptr,
+        0, nullptr, 1, &barrier};
+    require_pipeline_barrier2(device)(command, &dependency);
+    ++stats.barriers_emitted;
+#else
+    (void)command;
+    (void)physical_slot;
+    (void)acquire;
+#endif
+}
+
+void VulkanBackend::Impl::acquire_cuda_surface_for_recording(
+    VkCommandBuffer command, std::size_t physical_slot) {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    if (surfaces.acquire_pending_cuda_surface(physical_slot)) {
+        emit_cuda_surface_ownership_transfer(command, physical_slot, true);
+    }
+#else
+    (void)command;
+    (void)physical_slot;
+#endif
+}
+
+void VulkanBackend::Impl::emit_cuda_surface_releases(VkCommandBuffer command) {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
+        emit_cuda_surface_ownership_transfer(command, physical_slot, false);
+    }
+    for (const auto physical_slot : surfaces.cuda_export_ready_surfaces) {
+        if (surfaces.cuda_ready_surfaces.contains(physical_slot)) continue;
+        emit_cuda_surface_ownership_transfer(command, physical_slot, false);
+    }
+#else
+    (void)command;
+#endif
+}
+
 void VulkanBackend::Impl::transition(VkCommandBuffer command,
                                      VkImage image,
                                      VkImageLayout old_layout,

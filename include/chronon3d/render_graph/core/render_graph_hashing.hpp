@@ -412,6 +412,16 @@ private:
                 seed=hash_combine(seed,hash_value(p->threshold));
             } break;
         }
+        case RoughenEdges: {
+            if (auto* p = std::get_if<RoughenEdgesParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->amount));
+                seed = hash_combine(seed, hash_value(p->scale));
+                seed = hash_combine(seed, hash_value(p->complexity));
+                seed = hash_combine(seed, hash_value(p->evolution));
+                seed = hash_combine(seed, hash_value(p->seed));
+            }
+            break;
+        }
         case TurbulentDisplace: {
             if(auto* p=std::get_if<TurbulentDisplaceParams>(&e.params)) {
                 seed=hash_combine(seed,hash_value(p->amount)); seed=hash_combine(seed,hash_value(p->size));

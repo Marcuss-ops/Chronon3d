@@ -130,7 +130,7 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
         image.path.empty() ||
         image.crop.flip_x ||
         native_promotion::has_active_mask(state) ||
-        !native_promotion::is_axis_aligned_affine(state)) {
+        native_promotion::is_projected(state)) {
         if (native_surface_promotion_diag_enabled()) {
         spdlog::info("[native_image_diag] rejected before cache: runtime={} image_cache={} gpu_cache={} backend={} surfaces={} path={} radius={:.1f} mask={} affine={}",
                      static_cast<const void*>(ctx.runtime),
@@ -289,60 +289,77 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
         src_handle = acquired.handle;
     }
 
-    // SourceNode's state matrix maps ImageShape local units. The placement
-    // maps the selected source rectangle into the authored image box first.
-    const float sx = state.matrix[0][0] * placement.dst_rect.size.x / source_size.x;
-    const float sy = state.matrix[1][1] * placement.dst_rect.size.y / source_size.y;
-    // The authored box origin is the matrix translation plus the placement's
-    // destination offset.  `Transform::to_mat4()` is
-    // `T(position) * R * S * T(-anchor)`, so the anchor is ALREADY baked into
-    // `state.matrix`: subtracting it a second time shifted every natively
-    // drawn image by -anchor (half the canvas for a full-frame plate), and the
-    // affine clip then kept only the top-left quadrant of the destination.
-    // The canonical CPU image renderer consumes the same matrix and applies no
-    // anchor subtraction, so this is the reference behaviour.
-    //
-    // Rounded pre-crop rebase: the promoted buffer starts at the integer crop
-    // origin, so the destination mapping shifts by scale * integer origin and
-    // the source origin drops its integer part. Sampling positions are
-    // unchanged (crop pixel (i,j) IS original (src_x+i, src_y+j)).
-    float tx = state.matrix[3][0] +
-               state.matrix[0][0] * placement.dst_rect.origin.x;
-    float ty = state.matrix[3][1] +
-               state.matrix[1][1] * placement.dst_rect.origin.y;
-    if (image.radius > 0.0f) {
-        tx += sx * static_cast<float>(round_src_x);
-        ty += sy * static_cast<float>(round_src_y);
-    }
-    if (std::abs(sx) < 1e-6f || std::abs(sy) < 1e-6f) {
+    // SourceNode's state matrix maps ImageShape local units. The media
+    // placement maps the selected source rectangle into the authored image
+    // box first. Invert the complete 2D affine basis so native image sampling
+    // also handles in-plane rotations and shears without involving CPU pixels.
+    const float a00 = state.matrix[0][0];
+    const float a01 = state.matrix[1][0];
+    const float a10 = state.matrix[0][1];
+    const float a11 = state.matrix[1][1];
+    const float determinant = a00 * a11 - a01 * a10;
+    if (!std::isfinite(determinant) || std::abs(determinant) < 1e-6f) {
         release_native_surface(ctx, fb);
         return false;
     }
-
+    const float inv00 = a11 / determinant;
+    const float inv01 = -a01 / determinant;
+    const float inv10 = -a10 / determinant;
+    const float inv11 = a00 / determinant;
+    const float source_per_local_x = source_size.x / placement.dst_rect.size.x;
+    const float source_per_local_y = source_size.y / placement.dst_rect.size.y;
+    const float translate_x = state.matrix[3][0];
+    const float translate_y = state.matrix[3][1];
+    const float origin_x = placement.dst_rect.origin.x;
+    const float origin_y = placement.dst_rect.origin.y;
+    // Transform::to_mat4() is T(position)*R*S*T(-anchor), so the anchor is
+    // already in the matrix. Do not subtract it a second time. For rounded
+    // pre-crops, source_origin has been rebased by the crop's integer origin;
+    // the destination geometry and inverse mapping therefore stay unchanged.
+    const float source_offset_x = source_origin.x - source_per_local_x *
+        (inv00 * translate_x + inv01 * translate_y + origin_x);
+    const float source_offset_y = source_origin.y - source_per_local_y *
+        (inv10 * translate_x + inv11 * translate_y + origin_y);
     runtime::SurfaceAffineTransform transform{};
     runtime::set_canvas_source_mapping(
         transform,
-        1.0f / sx, 0.0f, source_origin.x - tx / sx,
-        0.0f, 1.0f / sy, source_origin.y - ty / sy,
+        source_per_local_x * inv00, source_per_local_x * inv01, source_offset_x,
+        source_per_local_y * inv10, source_per_local_y * inv11, source_offset_y,
         runtime::RectF{source_origin.x, source_origin.y,
                        source_origin.x + source_size.x,
                        source_origin.y + source_size.y});
+
+    // Compute a conservative device dispatch rectangle from all four corners
+    // of the placed image. This is the rotated/sheared affine hull; clipping
+    // remains in canvas coordinates and the sampler performs exact coverage.
+    const auto placed_corner = [&](float x, float y) {
+        return Vec2{translate_x + a00 * x + a01 * y,
+                    translate_y + a10 * x + a11 * y};
+    };
+    const Vec2 c00 = placed_corner(origin_x, origin_y);
+    const Vec2 c10 = placed_corner(origin_x + placement.dst_rect.size.x, origin_y);
+    const Vec2 c01 = placed_corner(origin_x, origin_y + placement.dst_rect.size.y);
+    const Vec2 c11 = placed_corner(origin_x + placement.dst_rect.size.x,
+                                   origin_y + placement.dst_rect.size.y);
+    const float dst_x0 = std::min({c00.x, c10.x, c01.x, c11.x});
+    const float dst_y0 = std::min({c00.y, c10.y, c01.y, c11.y});
+    const float dst_x1 = std::max({c00.x, c10.x, c01.x, c11.x});
+    const float dst_y1 = std::max({c00.y, c10.y, c01.y, c11.y});
+    const auto img_x0 = static_cast<std::int32_t>(std::floor(dst_x0));
+    const auto img_y0 = static_cast<std::int32_t>(std::floor(dst_y0));
+    const auto img_x1 = static_cast<std::int32_t>(std::ceil(dst_x1));
+    const auto img_y1 = static_cast<std::int32_t>(std::ceil(dst_y1));
     transform.opacity = image.opacity * state.opacity;
     transform.bilinear = 1u;
     transform.destination_origin_x = fb.origin_x();
     transform.destination_origin_y = fb.origin_y();
-    const float dst_x0 = tx;
-    const float dst_y0 = ty;
-    const float dst_x1 = tx + sx * source_size.x;
-    const float dst_y1 = ty + sy * source_size.y;
-
-    const auto img_x0 = static_cast<std::int32_t>(std::floor(std::min(dst_x0, dst_x1)));
-    const auto img_y0 = static_cast<std::int32_t>(std::floor(std::min(dst_y0, dst_y1)));
-    const auto img_x1 = static_cast<std::int32_t>(std::ceil(std::max(dst_x0, dst_x1)));
-    const auto img_y1 = static_cast<std::int32_t>(std::ceil(std::max(dst_y0, dst_y1)));
     if (native_surface_promotion_diag_enabled()) {
-        spdlog::info("[native_image_bounds] dst=[{:.1f},{:.1f} -> {:.1f},{:.1f}] img=[{},{} -> {},{}] sx={:.3f} sy={:.3f} tx={:.1f} ty={:.1f}",
-                     dst_x0, dst_y0, dst_x1, dst_y1, img_x0, img_y0, img_x1, img_y1, sx, sy, tx, ty);
+        spdlog::info(
+            "[native_image_bounds] dst=[{:.1f},{:.1f} -> {:.1f},{:.1f}] "
+            "img=[{},{} -> {},{}] affine=[{:.3f},{:.3f};{:.3f},{:.3f}] "
+            "translate=({:.1f},{:.1f})",
+            dst_x0, dst_y0, dst_x1, dst_y1, img_x0, img_y0, img_x1, img_y1,
+            a00, a01, a10, a11, translate_x, translate_y);
     }
 
     std::int32_t effective_clip_x0 = img_x0;

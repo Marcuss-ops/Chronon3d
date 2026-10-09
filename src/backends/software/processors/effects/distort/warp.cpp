@@ -1,5 +1,6 @@
 #include "warp.hpp"
 #include "../generate/fractal_noise.hpp"
+#include "roughen_edges_kernel.hpp"
 
 #include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <algorithm>
@@ -217,6 +218,50 @@ void apply_mesh_warp(Framebuffer& fb, const MeshWarpParams& params,
             const float sx = static_cast<float>(x) + 0.5f - displacement.x * w;
             const float sy = static_cast<float>(y) + 0.5f - displacement.y * h;
             row[x] = ctx.sampler.bilinear(sx, sy);
+        }
+    }
+}
+
+void apply_roughen_edges(Framebuffer& fb, const RoughenEdgesParams& p, float time_seconds,
+                         const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(p.amount) || p.amount < 0.0f || p.amount > 64.0f ||
+        !std::isfinite(p.scale) || p.scale <= 0.0f || p.scale > 1024.0f ||
+        p.complexity < 1 || p.complexity > 4 || !std::isfinite(p.evolution) ||
+        !std::isfinite(p.evolution_speed) || !std::isfinite(time_seconds))
+        throw std::invalid_argument("roughen edges parameters are invalid");
+    const int width = fb.width();
+    const int height = fb.height();
+    int x0 = 0, y0 = 0, x1 = width, y1 = height;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, width);
+        y0 = std::clamp(clip->y0, 0, height);
+        x1 = std::clamp(clip->x1, 0, width);
+        y1 = std::clamp(clip->y1, 0, height);
+    }
+    if (x0 >= x1 || y0 >= y1 || p.amount == 0.0f) return;
+
+    const std::size_t count = static_cast<std::size_t>(width) *
+                              static_cast<std::size_t>(height) * 4;
+    std::vector<float> pixels(count);
+    for (int y = 0; y < height; ++y) {
+        const Color* row = fb.pixels_row(y);
+        for (int x = 0; x < width; ++x) {
+            const std::size_t i = (static_cast<std::size_t>(y) * width + x) * 4;
+            pixels[i] = row[x].r;
+            pixels[i + 1] = row[x].g;
+            pixels[i + 2] = row[x].b;
+            pixels[i + 3] = row[x].a;
+        }
+    }
+    effects::distort::roughen_edges_rgba(pixels, width, height,
+        effects::distort::RoughenEdgesKernelParams{
+            .amount = p.amount, .scale = p.scale, .octaves = p.complexity,
+            .evolution = p.evolution + p.evolution_speed * time_seconds, .seed = p.seed});
+    for (int y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (int x = x0; x < x1; ++x) {
+            const std::size_t i = (static_cast<std::size_t>(y) * width + x) * 4;
+            row[x] = Color{pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]};
         }
     }
 }

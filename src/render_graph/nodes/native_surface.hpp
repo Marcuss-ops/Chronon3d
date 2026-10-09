@@ -93,6 +93,9 @@ inline bool ensure_native_surface(
     RenderGraphContext& ctx, Framebuffer& framebuffer,
     std::string_view promotion_reason = "unspecified",
     bool synchronous_upload = false) {
+    runtime::RenderSurfaceHandle stale_handle = runtime::kInvalidRenderSurfaceHandle;
+    bool stale_handle_in_registry = false;
+    bool stale_handle_backend_valid = false;
     if (!ctx.backend || !ctx.surface_registry || !ctx.backend->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
@@ -124,15 +127,17 @@ inline bool ensure_native_surface(
         // operation failed with "surface handle is not bound to a physical
         // slot".  Treat either side being stale as a cache miss and rebuild
         // the native surface before issuing a command.
-        if (ctx.surface_registry->lookup(handle) &&
-            ctx.backend->is_native_surface_valid(handle)) {
+        stale_handle_in_registry = ctx.surface_registry->lookup(handle).has_value();
+        stale_handle_backend_valid = ctx.backend->is_native_surface_valid(handle);
+        if (stale_handle_in_registry && stale_handle_backend_valid) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->native_surface_reuse_count.fetch_add(
                     1, std::memory_order_relaxed);
             }
             return true;
         }
-        if (ctx.surface_registry->lookup(handle)) {
+        stale_handle = handle;
+        if (stale_handle_in_registry) {
             (void)ctx.surface_registry->release(handle);
         }
         // A previous job or frame may have reclaimed the backend surface while
@@ -141,7 +146,10 @@ inline bool ensure_native_surface(
     }
 
     if (!framebuffer.data()) {
-        spdlog::error("[native-surface] cannot upload from framebuffer without CPU pixel backing");
+        spdlog::error(
+            "[native-surface] cannot upload from framebuffer without CPU pixel backing: reason={} stale_handle={} registry_entry={} backend_valid={} size={}x{}",
+            promotion_reason, stale_handle, stale_handle_in_registry,
+            stale_handle_backend_valid, framebuffer.width(), framebuffer.height());
         return false;
     }
 

@@ -58,6 +58,7 @@ inline constexpr std::string_view DistortBulge     = "distort.bulge";
 inline constexpr std::string_view DistortMeshWarp  = "distort.mesh_warp";
 inline constexpr std::string_view StylizeSharpen = "sharpen";
 inline constexpr std::string_view DistortTurbulentDisplace = "distort.turbulent_displace";
+inline constexpr std::string_view StylizeRoughenEdges = "stylize.roughen_edges";
 inline constexpr std::string_view DistortWaveWarp = "distort.wave_warp";
 inline constexpr std::string_view DistortRipple = "distort.ripple";
 inline constexpr std::string_view DistortDisplacementMap = "distort.displacement_map";

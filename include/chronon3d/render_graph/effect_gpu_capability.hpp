@@ -27,8 +27,10 @@ struct NativeRoute {
 
 // Effects with a certified native Vulkan implementation.  Everything else in
 // the catalog is Unsupported and fails closed under strict native-GPU policy.
-inline constexpr std::array<NativeRoute, 24> kNativeRoutes{{
+inline constexpr std::array<NativeRoute, 25> kNativeRoutes{{
     {effects::EffectType::Blur, "Vulkan separable blur dispatch"},
+    {effects::EffectType::DropShadow,
+     "Vulkan alpha-mask, offset, dual-blur and source-over shadow dispatch"},
     {effects::EffectType::Sharpen,
      "Vulkan separable blur plus pointwise unsharp-mask combine dispatch"},
     {effects::EffectType::Glow, "Vulkan glow dispatch"},
@@ -65,10 +67,6 @@ inline constexpr std::array<NativeRoute, 24> kNativeRoutes{{
     for (const auto& native : kNativeRoutes)
         if (native.effect == effect)
             return {effect, GpuEffectRoute::NativeZeroReadback, native.diagnostic};
-    if (effect == effects::EffectType::DropShadow)
-        return {effect, GpuEffectRoute::Unsupported,
-                "Vulkan drop-shadow kernel is not implemented (software uses "
-                "box/downsampled blur with no matching native kernel)"};
     return {effect, GpuEffectRoute::Unsupported,
             "Vulkan native kernel for this effect is not implemented"};
 }

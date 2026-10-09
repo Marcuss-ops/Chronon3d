@@ -203,7 +203,11 @@ VulkanBackend::Impl::Image* VulkanBackend::Impl::leased_image(runtime::RenderSur
     }
     std::lock_guard pin_lock(recording_leases_mutex);
     const auto it = recording_leases.find(handle);
-    return it == recording_leases.end() ? nullptr : it->second.first.image;
+    if (it == recording_leases.end()) return nullptr;
+    if (frame_batch.active)
+        acquire_cuda_surface_for_recording(active_command_buffer(),
+                                           it->second.first.slot);
+    return it->second.first.image;
 }
 
 bool VulkanBackend::Impl::revalidate_recording_leases() const {

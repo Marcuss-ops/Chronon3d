@@ -39,6 +39,40 @@ TEST_CASE("V3 flow and grid layouts decode with bounded contracts and fingerprin
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
 }
 
+TEST_CASE("V3 roughen edges effect decodes, fingerprints, and rejects invalid bounds") {
+    auto source = render_plan_test::base_plan(nlohmann::json::array({
+        render_plan_test::shape_layer({{"type", "rect"}})
+    }));
+    source["layers"][0]["effects"] = nlohmann::json::array({{
+        {"type", "roughen_edges"}, {"amount", 3.0}, {"scale", 6.0},
+        {"complexity", 3}, {"evolution", 1.25}, {"evolution_speed", 0.5},
+        {"seed", 17}
+    }});
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].effects.size() == 1);
+    const auto& effect = decoded->layers[0].effects[0];
+    CHECK(effect.kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::RoughenEdges);
+    CHECK(effect.amount == doctest::Approx(3.0f));
+    CHECK(effect.roughen_scale == doctest::Approx(6.0f));
+    CHECK(effect.roughen_complexity == 3);
+    CHECK(effect.roughen_seed == 17);
+    auto changed = source;
+    changed["layers"][0]["effects"][0]["seed"] = 18;
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(changed_plan->content_fingerprint != decoded->content_fingerprint);
+    for (const auto& invalid_value : {nlohmann::json(65.0), nlohmann::json(-0.1)}) {
+        auto invalid = source;
+        invalid["layers"][0]["effects"][0]["amount"] = invalid_value;
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
+    }
+    auto invalid_complexity = source;
+    invalid_complexity["layers"][0]["effects"][0]["complexity"] = 5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_complexity));
+}
+
 TEST_CASE("V3 camera shake is bounded, seeded, and part of plan identity") {
     auto source = render_plan_test::base_plan(nlohmann::json::array({
         {{"id", "camera-layer"}, {"type", "color"}, {"color", {0, 0, 0, 1}}}

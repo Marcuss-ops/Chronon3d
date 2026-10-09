@@ -69,6 +69,10 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     memory_desc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
     memory_desc.handle.fd = info.fd;
     memory_desc.size = info.allocation_size;
+    // VulkanMemoryManager allocates every exported image with dedicated
+    // memory. CUDA must import that same allocation contract; omitting the
+    // flag lets the driver interpret the tiled image as a suballocation.
+    memory_desc.flags = CUDA_EXTERNAL_MEMORY_DEDICATED;
     CUresult result = cuImportExternalMemory(&m_memory, &memory_desc);
     check_cuda(result, "cuImportExternalMemory(surface)");
     (void)descriptors.release(0);  // CUDA owns the imported memory FD.
@@ -82,6 +86,7 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     array_desc.arrayDesc.Format = info.cuda_array_format == 2
             ? CU_AD_FORMAT_UNSIGNED_INT8 : CU_AD_FORMAT_FLOAT;
     array_desc.arrayDesc.NumChannels = 4;
+    array_desc.arrayDesc.Flags = CUDA_ARRAY3D_SURFACE_LDST;
     try {
         check_cuda(cuExternalMemoryGetMappedMipmappedArray(
                        &m_mipmapped, m_memory, &array_desc),
@@ -132,6 +137,11 @@ void CudaVulkanSurfaceBridge::wait_for_vulkan(CUstream stream) {
     make_current();
     const auto signal_value = m_wait_vulkan_fence
         ? m_wait_vulkan_fence() : (m_timeline ? m_generation->vulkan_to_cuda() : 0);
+    if (std::getenv("CHRONON3D_CUDA_INTEROP_DIAG")) {
+        spdlog::info("[cuda-interop-diag] cuda_wait sem={} value={} timeline={} stream={}",
+            static_cast<void*>(m_vulkan_to_cuda), signal_value, m_timeline,
+            static_cast<void*>(stream ? stream : m_stream));
+    }
     CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS params{};
     if (m_timeline) {
         params.params.fence.value = signal_value;
@@ -154,6 +164,12 @@ void CudaVulkanSurfaceBridge::signal_for_vulkan(CUstream stream) {
     CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS params{};
     if (m_timeline) {
         params.params.fence.value = m_generation->next_cuda_to_vulkan();
+    }
+    if (std::getenv("CHRONON3D_CUDA_INTEROP_DIAG")) {
+        spdlog::info("[cuda-interop-diag] cuda_signal sem={} value={} timeline={} stream={}",
+            static_cast<void*>(m_cuda_to_vulkan),
+            m_timeline ? params.params.fence.value : 0, m_timeline,
+            static_cast<void*>(stream ? stream : m_stream));
     }
     check_cuda(cuSignalExternalSemaphoresAsync(
                    &m_cuda_to_vulkan, &params, 1, stream ? stream : m_stream),

@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
 #include "../builder/evaluated_layer_placement.hpp"
 #include "detail/preflight_bbox.hpp"
+#include "native_surface.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -237,6 +238,18 @@ NodeExecResult MultiSourceNode::execute(
     }
 
     auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
+    // A MultiSourceNode shares one framebuffer across its regular and text-run
+    // items. In strict GPU mode this framebuffer must be materialized before
+    // the first draw: otherwise native path/shape dispatch rejects the empty
+    // handle, the legacy path leaves a CPU-only result, and the following
+    // CompositeNode cannot preserve GPU residency.
+    if (ctx.backend->supports_native_surfaces() && ctx.surface_registry &&
+        !ensure_empty_native_surface(ctx, *fb)) {
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            m_name,
+            "failed to materialize native multi-source surface"}};
+    }
 
     // ── text_run items are dispatched to `RenderBackend::draw_text_run`
     // instead of the generic `RenderBackend::draw_node` because the
@@ -276,6 +289,10 @@ NodeExecResult MultiSourceNode::execute(
                         "backend does not support draw_text_run"
                     }};
                 }
+    if (std::getenv("CHRONON3D_PATH_DIAG"))
+        spdlog::info("[native-multisource-diag] node={} surface_support={} registry={} surface={} cpu={} items={}",
+            m_name, ctx.backend->supports_native_surfaces(), ctx.surface_registry != nullptr,
+            fb->surface_handle(), fb->data() != nullptr, m_items.size());
 
                 // 2.5D-aware placement: if camera is active, project
                 // the item matrix; otherwise the source pass already

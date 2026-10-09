@@ -38,6 +38,7 @@ std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind) {
         case K::Bulge: return DistortBulge;
         case K::MeshWarp: return DistortMeshWarp;
         case K::Sharpen: return StylizeSharpen;
+        case K::RoughenEdges: return StylizeRoughenEdges;
         case K::TurbulentDisplace: return DistortTurbulentDisplace;
         case K::WaveWarp: return DistortWaveWarp;
         case K::Ripple: return DistortRipple;
@@ -66,7 +67,8 @@ LayerPlan::EffectKindPlan decode_effect_kind(std::string_view name) {
         {"bloom", K::Bloom}, {"glow", K::Glow}, {"noise", K::Noise},
         {"fractal_noise", K::FractalNoise}, {"corner_pin", K::CornerPin},
         {"twirl", K::Twirl}, {"bulge", K::Bulge}, {"mesh_warp", K::MeshWarp},
-        {"sharpen", K::Sharpen}, {"turbulent_displace", K::TurbulentDisplace},
+        {"sharpen", K::Sharpen}, {"roughen_edges", K::RoughenEdges},
+        {"turbulent_displace", K::TurbulentDisplace},
         {"wave_warp", K::WaveWarp}, {"ripple", K::Ripple},
         {"displacement_map", K::DisplacementMap}, {"light_rays", K::LightRays},
         {"chromatic_aberration", K::ChromaticAberration}, {"chromatic", K::ChromaticAberration},
@@ -494,6 +496,22 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.radius) || effect.radius <= 0.0f || effect.radius > 64.0f ||
                     !std::isfinite(effect.threshold) || effect.threshold < 0.0f || effect.threshold > 1.0f)
                     throw std::runtime_error("Invalid sharpen parameters");
+            } break;
+            case LayerPlan::EffectKindPlan::RoughenEdges: {
+                effect.kind = LayerPlan::EffectKindPlan::RoughenEdges;
+                effect.amount = raw_effect.value("amount", 0.0f);
+                effect.roughen_scale = raw_effect.value("scale", 8.0f);
+                effect.roughen_complexity = raw_effect.value("complexity", 1U);
+                effect.warp_evolution = raw_effect.value("evolution", 0.0f);
+                effect.warp_speed = raw_effect.value("evolution_speed", 0.0f);
+                effect.roughen_seed = raw_effect.value("seed", 0U);
+                effect.roughen_is_animated = effect.warp_speed != 0.0f;
+                if (!std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 64.0f ||
+                    !std::isfinite(effect.roughen_scale) || effect.roughen_scale <= 0.0f || effect.roughen_scale > 1024.0f ||
+                    effect.roughen_complexity < 1 || effect.roughen_complexity > 4 ||
+                    !std::isfinite(effect.warp_evolution) || std::abs(effect.warp_evolution) > 100000.0f ||
+                    !std::isfinite(effect.warp_speed) || std::abs(effect.warp_speed) > 1000.0f)
+                    throw std::runtime_error("Roughen Edges parameters are outside supported finite ranges");
             } break;
             case LayerPlan::EffectKindPlan::TurbulentDisplace: {
                 effect.kind = LayerPlan::EffectKindPlan::TurbulentDisplace;

@@ -578,7 +578,7 @@ struct LayerPlan {
     };
     std::optional<PathMaskPlan> path_mask;
     std::vector<PathMaskPlan> masks;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -587,6 +587,10 @@ struct LayerPlan {
         std::vector<ParamValue> canonical_params;
         std::string asset;
         float amount{1.0f};
+        float roughen_scale{8.0f};
+        std::uint32_t roughen_complexity{1};
+        std::uint32_t roughen_seed{0};
+        bool roughen_is_animated{false};
         std::uint32_t echoes{3};
         float decay{0.5f};
         std::uint32_t time_offset_frames{1};

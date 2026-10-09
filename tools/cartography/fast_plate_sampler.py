@@ -52,6 +52,72 @@ class FastPlateSampler:
         # aggregates the per-block deltas into a run total; 0 means every
         # frame took the fast path.
         self.fallback_count = 0
+        self.opencl_plates = None
+
+    def prepare_opencl(self) -> int:
+        """Upload prepared map plates once so per-frame crops stay on GPU."""
+        if not cv2.ocl.useOpenCL():
+            raise RuntimeError("OpenCL must be active before uploading map plates")
+        uploaded = {}
+        total_bytes = 0
+        for zoom, entries in self.plates.items():
+            gpu_entries = []
+            for left, top, plate in entries:
+                gpu_plate = cv2.UMat(np.ascontiguousarray(plate))
+                gpu_entries.append((left, top, gpu_plate, plate.shape[1], plate.shape[0]))
+                total_bytes += int(plate.nbytes)
+            uploaded[zoom] = gpu_entries
+        self.opencl_plates = uploaded
+        return total_bytes
+
+    def sample_opencl(self, lat: float, lon: float, zoom: float,
+                      width: int | None = None,
+                      height: int | None = None):
+        """Sample prepared map plates with OpenCV's OpenCL GPU kernels.
+
+        Geographic coordinate math and tile preparation stay on the host; the
+        full-resolution resampling and fractional zoom blend run as UMat work
+        on the selected OpenCL device.
+        """
+        from dynamic_tile_pyramid import latlon_to_global_px
+
+        if not cv2.ocl.haveOpenCL():
+            raise RuntimeError("OpenCL GPU map rendering is unavailable")
+        cv2.ocl.setUseOpenCL(True)
+        if not cv2.ocl.useOpenCL():
+            raise RuntimeError("OpenCV did not activate the OpenCL map renderer")
+        W = self.W if width is None else int(width)
+        H = self.H if height is None else int(height)
+        z_lo = int(math.floor(zoom))
+        t = zoom - z_lo
+        alpha = t * t * (3.0 - 2.0 * t)
+        if not (self.z_min <= z_lo <= self.z_max):
+            raise RuntimeError(f"OpenCL map sample zoom {zoom:.3f} leaves prepared plates")
+
+        if self.opencl_plates is None:
+            raise RuntimeError("OpenCL map plates were not uploaded")
+
+        def resize_level(z: int, scale: float):
+            w = int(round(W / scale)) + 4
+            h = int(round(H / scale)) + 4
+            anchor_px = latlon_to_global_px(lat, lon, z)
+            crop = None
+            for origin_x, origin_y, plate, plate_w, plate_h in self.opencl_plates.get(z, ()):
+                x0 = int(round(anchor_px[0] - origin_x - w / 2))
+                y0 = int(round(anchor_px[1] - origin_y - h / 2))
+                if x0 >= 0 and y0 >= 0 and x0 + w <= plate_w \
+                        and y0 + h <= plate_h:
+                    crop = cv2.UMat(plate, (x0, y0, w, h))
+                    break
+            if crop is None:
+                raise RuntimeError(f"OpenCL map sample has no prepared plate at zoom {z}")
+            return cv2.resize(crop, (W, H), interpolation=cv2.INTER_LINEAR)
+
+        lo = resize_level(z_lo, 2.0 ** t)
+        if alpha <= 0.001 or z_lo + 1 > self.z_max:
+            return lo
+        hi = resize_level(z_lo + 1, 2.0 ** (t - 1.0))
+        return cv2.addWeighted(lo, 1.0 - alpha, hi, alpha, 0.0)
 
     # -- the one-time cost ---------------------------------------------------
     MAX_PLATE_W = 9000   # ~145 MB per level; beyond this the union plate of

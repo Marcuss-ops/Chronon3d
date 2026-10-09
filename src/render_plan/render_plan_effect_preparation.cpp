@@ -159,6 +159,15 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             prepared_effects[index].emplace_back(SharpenParams{
             .amount = effect.amount, .radius = effect.radius, .threshold = effect.threshold});
         } break;
+        case LayerPlan::EffectKindPlan::RoughenEdges: {
+            prepared_effects[index].emplace_back(RoughenEdgesParams{
+            .amount = effect.amount,
+            .scale = effect.roughen_scale,
+            .complexity = effect.roughen_complexity,
+            .evolution = effect.warp_evolution,
+            .evolution_speed = effect.roughen_is_animated ? 1.0f : 0.0f,
+            .seed = effect.roughen_seed});
+        } break;
         case LayerPlan::EffectKindPlan::TurbulentDisplace: {
             prepared_effects[index].emplace_back(TurbulentDisplaceParams{
             .amount=effect.amount,.size=effect.warp_size,.evolution=effect.warp_evolution,

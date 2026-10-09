@@ -213,6 +213,7 @@ PipeExportResult render_and_encode_native(
     // for a persistent daemon it is the RENDER_JOB arrival, so the recorded
     // pre-job gap can never be daemon uptime.
     timings.process_wall_ms = profiling::duration_ms(session->job_started_at, wall_t0);
+    timings.daemon_admission_wait_ms = session->daemon_admission_wait_ms;
     timings.measurement_kind = chronon3d::cli::startup_measurement_kind_name(
         session->warm_process
             ? chronon3d::cli::StartupMeasurementKind::WarmProcess

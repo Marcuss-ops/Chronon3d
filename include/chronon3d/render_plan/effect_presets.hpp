@@ -36,7 +36,193 @@ inline void lens_blur(LayerPlan& layer, float radius = 8.0f) {
     layer.effects.push_back(std::move(effect));
 }
 
-/// Add bounded horizontal scanline bands using the existing square WaveWarp.
+/// Add canonical organic alpha-boundary perturbation; unlike turbulent
+/// displacement this leaves non-boundary RGB/alpha pixels untouched.
+inline void roughen_edges(LayerPlan& layer, float amount = 2.0f,
+                          float scale = 8.0f, std::uint32_t complexity = 2,
+                          float evolution = 0.0f, std::uint32_t seed = 0) {
+    if (!std::isfinite(amount) || amount < 0.0f || amount > 64.0f ||
+        !std::isfinite(scale) || scale <= 0.0f || scale > 1024.0f ||
+        complexity < 1 || complexity > 4 || !std::isfinite(evolution) ||
+        std::abs(evolution) > 100000.0f)
+        throw std::invalid_argument("roughen edges parameters are outside supported bounds");
+    LayerPlan::EffectPlan effect;
+    effect.kind = LayerPlan::EffectKindPlan::RoughenEdges;
+    effect.amount = amount;
+    effect.roughen_scale = scale;
+    effect.roughen_complexity = complexity;
+    effect.warp_evolution = evolution;
+    effect.roughen_seed = seed;
+    layer.effects.push_back(std::move(effect));
+}
+
+/// Duplicate a source layer and add an ellipse mask plus Gaussian blur. The
+/// returned plan is an overlay: render it above the untouched source so the
+/// feathered focus region is blurred while the unmasked source remains visible.
+[[nodiscard]] inline LayerPlan masked_lens_blur(
+    const LayerPlan& source, Vec2 canvas_size, float radius = 12.0f,
+    Vec2 center = Vec2{0.5f, 0.5f}, Vec2 size = Vec2{0.55f, 0.70f},
+    float feather = 48.0f, std::string suffix = "_lens_blur") {
+    if (source.id.empty() || suffix.empty() || suffix.size() > 64 ||
+        !std::isfinite(canvas_size.x) || !std::isfinite(canvas_size.y) ||
+        canvas_size.x <= 0.0f || canvas_size.y <= 0.0f ||
+        !std::isfinite(radius) || radius < 0.0f || radius > 256.0f ||
+        !std::isfinite(center.x) || !std::isfinite(center.y) ||
+        center.x < 0.0f || center.x > 1.0f || center.y < 0.0f || center.y > 1.0f ||
+        !std::isfinite(size.x) || !std::isfinite(size.y) ||
+        size.x <= 0.0f || size.x > 1.0f || size.y <= 0.0f || size.y > 1.0f ||
+        !std::isfinite(feather) || feather < 0.0f || feather > 1000000.0f)
+        throw std::invalid_argument("masked lens blur parameters are outside supported bounds");
+    LayerPlan overlay = source;
+    overlay.id += suffix;
+    overlay.masks.clear();
+    overlay.path_mask.reset();
+    LayerPlan::PathMaskPlan focus;
+    focus.type = "ellipse";
+    focus.mode = "add";
+    focus.position = {(center.x - 0.5f) * canvas_size.x,
+                      (center.y - 0.5f) * canvas_size.y};
+    focus.size = {size.x * canvas_size.x, size.y * canvas_size.y};
+    focus.feather = feather;
+    overlay.masks.push_back(std::move(focus));
+    LayerPlan::EffectPlan blur;
+    blur.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+    blur.radius = radius;
+    overlay.effects.push_back(std::move(blur));
+    return overlay;
+}
+
+struct TextureLayerSpec {
+    std::string id;
+    std::string asset;
+    float opacity{1.0f};
+    BlendMode blend{BlendMode::SoftLight};
+    float grain{0.0f};
+    float contrast{1.0f};
+    float saturation{1.0f};
+    std::uint32_t seed{0};
+};
+
+/// Lower a texture asset to a regular image layer with canonical blend and
+/// grading effects. The layer remains editable by all normal RenderPlan tools.
+class TextureLayerComposer {
+public:
+    [[nodiscard]] static LayerPlan compose(const TextureLayerSpec& spec,
+                                           Vec2 canvas_size) {
+        if (spec.id.empty() || spec.id.size() > 256 || spec.asset.empty() ||
+            spec.asset.size() > 4096 || !std::isfinite(canvas_size.x) ||
+            !std::isfinite(canvas_size.y) || canvas_size.x <= 0.0f ||
+            canvas_size.y <= 0.0f || canvas_size.x > 1000000.0f ||
+            canvas_size.y > 1000000.0f || !std::isfinite(spec.opacity) ||
+            spec.opacity < 0.0f || spec.opacity > 1.0f ||
+            !std::isfinite(spec.grain) || spec.grain < 0.0f || spec.grain > 1.0f ||
+            !std::isfinite(spec.contrast) || spec.contrast < 0.0f || spec.contrast > 4.0f ||
+            !std::isfinite(spec.saturation) || spec.saturation < 0.0f || spec.saturation > 4.0f)
+            throw std::invalid_argument("texture layer composer inputs are outside supported bounds");
+        LayerPlan layer;
+        layer.id = spec.id;
+        layer.type = LayerType::Image;
+        layer.asset = spec.asset;
+        layer.size = {canvas_size.x, canvas_size.y};
+        layer.size_dimensions = 2;
+        layer.position = {canvas_size.x * 0.5f, canvas_size.y * 0.5f, 0.0f};
+        layer.position_dimensions = 2;
+        layer.blend_mode = spec.blend;
+        layer.opacity = spec.opacity;
+        if (spec.contrast != 1.0f) {
+            LayerPlan::EffectPlan effect;
+            effect.kind = LayerPlan::EffectKindPlan::Catalog;
+            effect.canonical_effect_id = "color.contrast";
+            effect.canonical_params.push_back({"value", spec.contrast});
+            layer.effects.push_back(std::move(effect));
+        }
+        if (spec.saturation != 1.0f) {
+            LayerPlan::EffectPlan effect;
+            effect.kind = LayerPlan::EffectKindPlan::Catalog;
+            effect.canonical_effect_id = "color.saturation";
+            effect.canonical_params.push_back({"value", spec.saturation});
+            layer.effects.push_back(std::move(effect));
+        }
+        if (spec.grain > 0.0f) {
+            LayerPlan::EffectPlan effect;
+            effect.kind = LayerPlan::EffectKindPlan::Noise;
+            effect.amount = spec.grain;
+            effect.seed = spec.seed;
+            effect.rgb_noise = true;
+            layer.effects.push_back(std::move(effect));
+        }
+        return layer;
+    }
+};
+
+struct DocumentaryDepthLookProfile {
+    float texture_opacity{0.32f};
+    float grain{0.08f};
+    float edge_roughness{1.5f};
+    float chromatic_aberration{0.75f};
+    float vignette{0.28f};
+    float focus_blur{0.0f};
+    float focus_feather{120.0f};
+    std::uint32_t seed{23};
+};
+
+/// Compose a deterministic depth treatment from texture plates, foreground
+/// grading, an optional feathered blur overlay and the foreground itself. The
+/// returned order is painter order; move the optional blur overlay above the
+/// clean source when extracting or inserting layers into an existing plan.
+class DocumentaryDepthLook {
+public:
+    [[nodiscard]] static std::vector<LayerPlan> compose(
+        LayerPlan foreground, std::vector<TextureLayerSpec> textures,
+        Vec2 canvas_size, const DocumentaryDepthLookProfile& profile = {}) {
+        if (foreground.id.empty() || textures.size() > 12 ||
+            !std::isfinite(profile.texture_opacity) || profile.texture_opacity < 0.0f ||
+            profile.texture_opacity > 1.0f || !std::isfinite(profile.grain) ||
+            profile.grain < 0.0f || profile.grain > 1.0f ||
+            !std::isfinite(profile.edge_roughness) || profile.edge_roughness < 0.0f ||
+            profile.edge_roughness > 64.0f ||
+            !std::isfinite(profile.chromatic_aberration) ||
+            profile.chromatic_aberration < 0.0f || profile.chromatic_aberration > 16.0f ||
+            !std::isfinite(profile.vignette) || profile.vignette < 0.0f || profile.vignette > 1.0f ||
+            !std::isfinite(profile.focus_blur) || profile.focus_blur < 0.0f || profile.focus_blur > 256.0f ||
+            !std::isfinite(profile.focus_feather) || profile.focus_feather < 0.0f ||
+            profile.focus_feather > 1000000.0f)
+            throw std::invalid_argument("documentary depth look settings are outside supported bounds");
+        std::vector<LayerPlan> layers;
+        layers.reserve(textures.size() + 2);
+        for (auto& texture : textures) {
+            texture.opacity *= profile.texture_opacity;
+            texture.seed ^= profile.seed;
+            layers.push_back(TextureLayerComposer::compose(texture, canvas_size));
+        }
+        if (profile.vignette > 0.0f) {
+            LayerPlan::EffectPlan vignette;
+            vignette.kind = LayerPlan::EffectKindPlan::Vignette;
+            vignette.amount = profile.vignette;
+            vignette.radius = 0.72f;
+            vignette.softness = 0.55f;
+            foreground.effects.push_back(std::move(vignette));
+        }
+        roughen_edges(foreground, profile.edge_roughness, 8.0f, 2, 0.0f, profile.seed);
+        if (profile.grain > 0.0f) {
+            LayerPlan::EffectPlan grain;
+            grain.kind = LayerPlan::EffectKindPlan::Noise;
+            grain.amount = profile.grain;
+            grain.seed = profile.seed;
+            grain.rgb_noise = true;
+            foreground.effects.push_back(std::move(grain));
+        }
+        if (profile.chromatic_aberration > 0.0f)
+            rgb_split(foreground, profile.chromatic_aberration);
+        layers.push_back(foreground);
+        if (profile.focus_blur > 0.0f)
+            layers.push_back(masked_lens_blur(foreground, canvas_size, profile.focus_blur,
+                Vec2{0.5f, 0.48f}, Vec2{0.55f, 0.70f}, profile.focus_feather,
+                "_documentary_focus_blur"));
+        return layers;
+    }
+};
+
 inline void scanlines(LayerPlan& layer, float intensity = 0.02f,
                       float spacing = 0.035f) {
     if (!std::isfinite(intensity) || intensity < 0.0f || intensity > 0.25f ||

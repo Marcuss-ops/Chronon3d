@@ -163,38 +163,20 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
         image_it->second.image.width, image_it->second.image.height,
         is_u8 ? 2u : 1u, image_it->second.image.cuda_timeline,
         image_it->second.image.interop_generation};
-    const auto physical_slot = binding->second;
-    exported.wait_vulkan_fence = [impl = const_cast<Impl*>(this), physical_slot] {
-        Impl::DomainLock lock(*impl, Impl::LockDomain::Dual);
-        const auto physical = impl->surfaces.physical_surfaces.find(physical_slot);
-        if (physical == impl->surfaces.physical_surfaces.end()) return std::uint64_t{0};
-        const auto& image = physical->second.image;
-        if (image.cuda_export_standalone_fence) {
-            if (impl->pending_timeline_value == 0) return image.last_vulkan_to_cuda_value;
-            const VkFence fence = impl->fence;
-            const auto started = profiling::now();
-            check(vkWaitForFences(impl->device, 1, &fence, VK_TRUE, UINT64_MAX),
-                  "vkWaitForFences(CUDA export standalone)");
-            if (auto* counters = profiling::g_current_counters) {
-                counters->vulkan_cuda_export_fence_wait_count.fetch_add(1, std::memory_order_relaxed);
-                counters->vulkan_cuda_export_fence_wait_us.fetch_add(
-                    static_cast<std::uint64_t>(profiling::elapsed_us(started)), std::memory_order_relaxed);
-            }
-            return image.last_vulkan_to_cuda_value;
+    // A per-surface FIFO preserves the signal value associated with the frame
+    // being consumed. Reading the generation's latest counter here can select
+    // a future frame whose Vulkan submission is itself waiting for CUDA to
+    // release this surface, creating a cross-API wait cycle.
+    const auto generation = image_it->second.image.interop_generation;
+    const bool timeline_semaphores = image_it->second.image.cuda_timeline;
+    exported.wait_vulkan_fence = [generation, timeline_semaphores] {
+        if (!timeline_semaphores || !generation) return std::uint64_t{0};
+        const auto value = generation->take_next_vulkan_to_cuda_wait();
+        if (!value) {
+            throw std::logic_error(
+                "CUDA requested a Vulkan surface wait without a queued frame signal");
         }
-        const auto slot = image.cuda_export_fence_slot;
-        if (!slot || *slot >= Impl::FrameBatchState::kSlotCount ||
-            !impl->frame_batch.in_flight[*slot]) return image.last_vulkan_to_cuda_value;
-        const VkFence fence = impl->frame_batch.fences[*slot];
-        const auto started = profiling::now();
-        check(vkWaitForFences(impl->device, 1, &fence, VK_TRUE, UINT64_MAX),
-              "vkWaitForFences(CUDA export slot)");
-        if (auto* counters = profiling::g_current_counters) {
-            counters->vulkan_cuda_export_fence_wait_count.fetch_add(1, std::memory_order_relaxed);
-            counters->vulkan_cuda_export_fence_wait_us.fetch_add(
-                static_cast<std::uint64_t>(profiling::elapsed_us(started)), std::memory_order_relaxed);
-        }
-        return image.last_vulkan_to_cuda_value;
+        return *value;
     };
     // std::function assignment above can allocate and throw: ownership must
     // not escape until the complete handoff has been constructed.
@@ -213,7 +195,7 @@ void VulkanBackend::Impl::prepare_cuda_surface_for_vulkan(
         throw std::invalid_argument("surface is not a CUDA external surface");
     }
     it->second.image.initialized = true;
-    surfaces.cuda_ready_surfaces.insert(slot);
+    surfaces.cuda_pending_surfaces.insert(slot);
 }
 
 void VulkanBackend::Impl::copy_surface_to_cuda_encoder(
@@ -253,6 +235,9 @@ void VulkanBackend::Impl::copy_surface_to_cuda_encoder(
     if (!record_in_frame_batch) begin_command_buffer();
     const VkCommandBuffer command = record_in_frame_batch
         ? active_command_buffer() : command_buffer;
+    acquire_cuda_surface_for_recording(command, source_slot);
+    if (destination_slot != source_slot)
+        acquire_cuda_surface_for_recording(command, destination_slot);
 
     if (source_slot == destination_slot) {
         // Z3 direct encode-surface binding: source IS destination.
