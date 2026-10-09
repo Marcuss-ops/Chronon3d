@@ -17,8 +17,11 @@ typedef struct CUctx_st *CUcontext;
 #include <atomic>
 #include <array>
 #include <chrono>
+#include <deque>
 #include <cstdint>
 #include <functional>
+#include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -165,12 +168,29 @@ struct VulkanDeviceInfo {
 struct InteropGeneration {
     std::atomic<std::uint64_t> vulkan_to_cuda_value{0};
     std::atomic<std::uint64_t> cuda_to_vulkan_value{0};
+    std::mutex vulkan_wait_mutex{};
+    std::deque<std::uint64_t> pending_vulkan_to_cuda_waits{};
 
     [[nodiscard]] std::uint64_t next_vulkan_to_cuda() noexcept {
         return vulkan_to_cuda_value.fetch_add(1, std::memory_order_relaxed) + 1;
     }
     [[nodiscard]] std::uint64_t next_cuda_to_vulkan() noexcept {
         return cuda_to_vulkan_value.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+    [[nodiscard]] std::uint64_t reserve_vulkan_to_cuda_signal() {
+        std::lock_guard lock(vulkan_wait_mutex);
+        const auto value =
+            vulkan_to_cuda_value.fetch_add(1, std::memory_order_relaxed) + 1;
+        pending_vulkan_to_cuda_waits.push_back(value);
+        return value;
+    }
+    [[nodiscard]] std::optional<std::uint64_t>
+    take_next_vulkan_to_cuda_wait() {
+        std::lock_guard lock(vulkan_wait_mutex);
+        if (pending_vulkan_to_cuda_waits.empty()) return std::nullopt;
+        const auto value = pending_vulkan_to_cuda_waits.front();
+        pending_vulkan_to_cuda_waits.pop_front();
+        return value;
     }
     [[nodiscard]] std::uint64_t vulkan_to_cuda() const noexcept {
         return vulkan_to_cuda_value.load(std::memory_order_relaxed);

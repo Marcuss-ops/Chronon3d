@@ -25,6 +25,18 @@ bool try_native_path_stroke(
     VulkanBackend& backend, Framebuffer& framebuffer,
     const RenderNode& node, const RenderState& state);
 
+std::vector<Vec2> simplify_flattened_contour(const std::vector<Vec2>& contour) {
+    std::vector<Vec2> result;
+    result.reserve(contour.size());
+    for (const Vec2 point : contour) {
+        if (result.empty() || glm::length(point - result.back()) > 1e-4f)
+            result.push_back(point);
+    }
+    if (result.size() > 1 && glm::length(result.front() - result.back()) <= 1e-4f)
+        result.pop_back();
+    return result;
+}
+
 bool try_native_path_fill(
     VulkanBackend& backend, Framebuffer& framebuffer,
     const RenderNode& node, const RenderState& state) {
@@ -33,77 +45,38 @@ bool try_native_path_fill(
         return false;
     }
     const auto& path = node.shape.path();
+    if (std::getenv("CHRONON3D_PATH_DIAG"))
+        spdlog::info("[native-path-fill-diag] node={} fill={} fill_type={} stroke={} brush={} commands={} operators={} projected={}",
+            node.name, path.fill.enabled, static_cast<int>(path.fill.type),
+            path.stroke.enabled, path.stroke.brush.has_value(), path.commands.size(),
+            path.operators.size(), graph::native_promotion::is_projected(state));
     if (path.stroke.brush.has_value()) return false;
     if (path.stroke.taper_start != 1.0f || path.stroke.taper_end != 1.0f)
         return false;
     if (!path.fill.enabled || path.fill.type != FillType::Solid ||
-        (path.stroke.enabled && (path.stroke.dash_array.empty() ||
-            path.stroke.width <= 0.0f || path.stroke.trim_start != 0.0f ||
-            path.stroke.trim_end != 1.0f || path.stroke.gradient.has_value() ||
-            path.stroke.cap != LineCap::Butt)) || path.commands.empty() ||
-        graph::native_promotion::has_active_mask(state) ||
-        graph::native_promotion::is_projected(state)) {
+        (path.stroke.enabled && (path.stroke.width <= 0.0f ||
+            path.stroke.trim_start != 0.0f || path.stroke.trim_end != 1.0f ||
+            path.stroke.gradient.has_value() || path.stroke.cap != LineCap::Butt)) ||
+        path.commands.empty() || graph::native_promotion::has_active_mask(state)) {
         return false;
     }
-    // fill_path_surface writes the solid polygon directly. Until it is
-    // source-over composited, only opaque fill content can be promoted.
-    if (path.fill.solid.a < 1.0f || state.opacity < 1.0f) return false;
-
-    std::vector<Vec2> vertices;
-    vertices.reserve(8);
-    Vec2 current{0.0f};
-    bool have_current = false;
-    bool closed = false;
-    bool valid = true;
-    for (const auto& command : path.commands) {
-        switch (command.type) {
-        case PathCommandType::MoveTo:
-            if (have_current || closed) valid = false;
-            current = command.p0;
-            if (vertices.size() >= 8) valid = false;
-            else vertices.push_back(current);
-            have_current = true;
-            break;
-        case PathCommandType::LineTo:
-            if (!have_current || closed || vertices.size() >= 8) {
-                valid = false;
-                break;
-            }
-            vertices.push_back(command.p0);
-            current = command.p0;
-            break;
-        case PathCommandType::Close:
-            if (!have_current || vertices.size() < 3 || closed) valid = false;
-            closed = true;
-            break;
-        case PathCommandType::CubicTo:
-        case PathCommandType::QuadraticTo:
-            valid = false;
-            break;
-        }
-    }
-    if (!valid || !closed || vertices.size() < 3 || vertices.size() > 8) return false;
-
-    if (path.stroke.enabled && !path.stroke.dash_array.empty()) {
-        if (path.stroke.width <= 0.0f || path.stroke.cap != LineCap::Butt ||
-            path.stroke.trim_start != 0.0f || path.stroke.trim_end != 1.0f ||
-            path.stroke.gradient.has_value() || !std::isfinite(path.stroke.dash_offset))
-            return false;
-        float pattern_length = 0.0f;
-        for (const float length : path.stroke.dash_array) {
-            if (!std::isfinite(length) || length < 0.0f) return false;
-            pattern_length += length;
-        }
-        if (path.stroke.dash_array.size() % 2U != 0U) pattern_length *= 2.0f;
-        if (!std::isfinite(pattern_length) || pattern_length <= 1.0e-5f ||
-            !std::isfinite(path.stroke.dash_offset)) return false;
-    }
-
-    const auto transform = [&state](Vec2 point) {
-        const Vec4 transformed = state.matrix * Vec4(point, 0.0f, 1.0f);
-        return Vec2{transformed.x, transformed.y};
+    const auto contours = math::flatten_path(path);
+    if (contours.size() != 1) return false;
+    auto polygon = simplify_flattened_contour(contours.front());
+    if (polygon.size() < 3 || polygon.size() > 8)
+        return false;
+    std::vector<Vec2> vertices = std::move(polygon);
+    const auto transform = [&state](Vec2 point, Vec2& out) {
+        const Vec4 projected = state.matrix * Vec4(point, 0.0f, 1.0f);
+        if (!std::isfinite(projected.w) || std::abs(projected.w) < 1e-6f) return false;
+        out = Vec2{projected.x / projected.w, projected.y / projected.w};
+        return std::isfinite(out.x) && std::isfinite(out.y);
     };
-    for (auto& vertex : vertices) vertex = transform(vertex);
+    for (auto& vertex : vertices) {
+        Vec2 result;
+        if (!transform(vertex, result)) return false;
+        vertex = result;
+    }
 
     float min_x = vertices.front().x;
     float min_y = vertices.front().y;
@@ -204,6 +177,11 @@ bool try_native_path_stroke(
         framebuffer.surface_handle() == runtime::kInvalidRenderSurfaceHandle)
         return false;
     const auto& path = node.shape.path();
+    if (std::getenv("CHRONON3D_PATH_DIAG"))
+        spdlog::info("[native-path-stroke-entry] node={} stroke={} brush={} width={} cap={} fill={} fill_type={} operators={} projected={}",
+            node.name, path.stroke.enabled, path.stroke.brush.has_value(), path.stroke.width,
+            static_cast<int>(path.stroke.cap), path.fill.enabled, static_cast<int>(path.fill.type),
+            path.operators.size(), graph::native_promotion::is_projected(state));
     // Brush profiles currently have software semantics only; never promote
     // them to the native Vulkan stroke path until pixel parity is certified.
     if (path.stroke.brush.has_value()) return false;
@@ -220,17 +198,16 @@ bool try_native_path_stroke(
     }
     const bool visible_solid_fill = path.fill.enabled &&
         path.fill.type == FillType::Solid && path.fill.solid.a > 0.0f;
-    if ((visible_solid_fill && (path.stroke.dash_array.empty() ||
-                                path.fill.type != FillType::Solid)) ||
-        !path.stroke.enabled || path.stroke.width <= 0.0f ||
+    if (!path.stroke.enabled || path.stroke.width <= 0.0f ||
         path.stroke.gradient.has_value() || path.stroke.cap != LineCap::Butt ||
-        graph::native_promotion::has_active_mask(state) ||
-        graph::native_promotion::is_projected(state))
+        graph::native_promotion::has_active_mask(state))
         return false;
 
     const auto transform = [&state](Vec2 point) {
         const Vec4 p = state.matrix * Vec4(point, 0.0f, 1.0f);
-        return Vec2{p.x, p.y};
+        if (!std::isfinite(p.w) || std::abs(p.w) < 1e-6f)
+            return Vec2{std::numeric_limits<float>::quiet_NaN()};
+        return Vec2{p.x / p.w, p.y / p.w};
     };
     const float width = path.stroke.width;
     bool alpha_zero = false;
@@ -240,6 +217,12 @@ bool try_native_path_stroke(
 
     const auto contours = math::flatten_path(path);
     if (contours.empty()) return false;
+    if (path_diag) {
+        std::size_t flattened_points = 0;
+        for (const auto& contour : contours) flattened_points += contour.size();
+        spdlog::info("[native-path-geometry-diag] node={} contours={} points={} width={} fill_visible={}",
+            node.name, contours.size(), flattened_points, width, visible_solid_fill);
+    }
 
     const bool full_trim = path.stroke.trim_start == 0.0f &&
                            path.stroke.trim_end == 1.0f;
@@ -282,33 +265,15 @@ bool try_native_path_stroke(
     std::uint32_t fill_vertex_count = 0;
     const bool has_fill = visible_solid_fill;
     if (has_fill) {
-        if (pattern_length <= 1.0e-5f) return false;
-        std::vector<Vec2> polygon;
-        bool have_move = false, closed = false;
-        for (const auto& command : path.commands) {
-            switch (command.type) {
-            case PathCommandType::MoveTo:
-                if (have_move || closed || polygon.size() >= fill_vertices.size()) return false;
-                polygon.push_back(command.p0);
-                have_move = true;
-                break;
-            case PathCommandType::LineTo:
-                if (!have_move || closed || polygon.size() >= fill_vertices.size()) return false;
-                polygon.push_back(command.p0);
-                break;
-            case PathCommandType::Close:
-                if (!have_move || closed || polygon.size() < 3) return false;
-                closed = true;
-                break;
-            case PathCommandType::CubicTo:
-            case PathCommandType::QuadraticTo:
-                return false;
-            }
-        }
-        if (!closed || contours.size() != 1) return false;
+        if (contours.size() != 1) return false;
+        const auto polygon = simplify_flattened_contour(contours.front());
+        if (polygon.size() < 3 || polygon.size() > fill_vertices.size()) return false;
         fill_vertex_count = static_cast<std::uint32_t>(polygon.size());
-        for (std::size_t i = 0; i < polygon.size(); ++i)
+        for (std::size_t i = 0; i < polygon.size(); ++i) {
             fill_vertices[i] = transform(polygon[i]);
+            if (!std::isfinite(fill_vertices[i].x) || !std::isfinite(fill_vertices[i].y))
+                return false;
+        }
     }
 
     std::vector<std::vector<Vec2>> runs;
@@ -367,6 +332,17 @@ bool try_native_path_stroke(
     if (!graph::native_promotion::intersect_clip(
             state.clip_rect, framebuffer.width(), framebuffer.height(),
             x0, y0, x1, y1)) return true;
+
+    if (path_diag) {
+        std::size_t max_run_points = 0;
+        for (const auto run_length : run_lengths)
+            max_run_points = std::max(max_run_points, static_cast<std::size_t>(run_length));
+        spdlog::info("[native-path-dispatch-diag] node={} runs={} points={} max_run_points={} rect={}x{} work_items={}",
+            node.name, run_lengths.size(), points.size(), max_run_points,
+            x1 - x0, y1 - y0,
+            static_cast<std::uint64_t>(std::max(0, x1 - x0)) *
+                static_cast<std::uint64_t>(std::max(0, y1 - y0)));
+    }
 
     // The shader selects the first covered run per pixel and blends once;
     // overlapping curve joins and translucent dashes therefore retain the
@@ -431,10 +407,18 @@ bool try_native_solid_rect(
     VulkanBackend& backend, Framebuffer& framebuffer,
     const RenderNode& node, const RenderState& state) {
     const auto type = node.shape.type();
+    const bool native_linear_gradient = node.fill.enabled &&
+        node.fill.type == FillType::LinearGradient &&
+        node.fill.gradient.type == graphics::GradientType::Linear &&
+        node.fill.gradient.color_stops.size() >= 2 &&
+        node.fill.gradient.color_stops.size() <= 3 &&
+        node.fill.gradient.opacity_stops.empty() &&
+        node.fill.gradient.spread == graphics::GradientSpread::Pad;
     if ((type != ShapeType::Rect && type != ShapeType::RoundedRect &&
          type != ShapeType::Circle && type != ShapeType::Line) ||
-        (type != ShapeType::Line &&
+        (type != ShapeType::Line && !native_linear_gradient &&
          node.fill.type != FillType::Solid && node.fill.enabled) ||
+        (native_linear_gradient && (type == ShapeType::Circle || type == ShapeType::Line)) ||
         (graph::native_promotion::has_active_mask(state) &&
          (type == ShapeType::Line || (type != ShapeType::Circle &&
           type != ShapeType::Rect && type != ShapeType::RoundedRect))) ||
@@ -518,7 +502,9 @@ bool try_native_solid_rect(
              std::abs(state.matrix[1][1]) <= 1e-5f);
         return uniform_scale || axis_aligned;
     }();
-    if (!is_line && ((!has_stroke && !fill_only_circle) ||
+    const bool fill_only_closed_shape = fill_only_circle ||
+        type == ShapeType::Rect || type == ShapeType::RoundedRect;
+    if (!is_line && ((!has_stroke && !fill_only_closed_shape) ||
                      (!has_stroke && !orthogonal_affine) ||
                      (has_stroke && !invertible_affine) ||
                      !fill_circle_transform_supported ||
@@ -538,7 +524,7 @@ bool try_native_solid_rect(
 
     // Resolve the fill color exactly as the software shape processor does.
     bool fill_alpha_zero = false;
-    const Color fill_premul = graph::native_promotion::premultiply(
+    Color fill_premul = graph::native_promotion::premultiply(
         shape_color, state.opacity, &fill_alpha_zero);
     Color stroke_premul{0.0f, 0.0f, 0.0f, 0.0f};
     if (has_stroke) {
@@ -573,6 +559,50 @@ bool try_native_solid_rect(
     }
 
     std::array<Vec2, 8> vertices{};
+    if (native_linear_gradient) {
+        if (has_stroke || graph::native_promotion::is_projected(state) ||
+            !orthogonal_affine || has_mask) return false;
+        const auto& gradient = node.fill.gradient;
+        const auto project = [&state](Vec2 p, Vec2& result) {
+            const Vec4 clip = state.matrix * Vec4(p, 0.0f, 1.0f);
+            if (!std::isfinite(clip.x) || !std::isfinite(clip.y) ||
+                !std::isfinite(clip.w) || std::abs(clip.w) < 1e-6f) return false;
+            result = Vec2{clip.x / clip.w, clip.y / clip.w};
+            return std::isfinite(result.x) && std::isfinite(result.y);
+        };
+        Vec2 start, end;
+        if (!project(gradient.start * size, start) ||
+            !project(gradient.end * size, end)) return false;
+        line_params = Vec4{start.x, start.y, end.x, end.y};
+        shape_params = Vec4{6.0f, 0.0f, 0.0f,
+                            static_cast<float>(gradient.color_stops.size())};
+        std::array<float, 16> packed{};
+        for (std::size_t i = 0; i < gradient.color_stops.size(); ++i) {
+            const auto& stop = gradient.color_stops[i];
+            if (!std::isfinite(stop.position) || stop.position < 0.0f ||
+                stop.position > 1.0f || (i > 0 && stop.position < gradient.color_stops[i - 1].position))
+                return false;
+            bool stop_alpha_zero = false;
+            const Color pm = graph::native_promotion::premultiply(
+                stop.color, state.opacity, &stop_alpha_zero);
+            const std::size_t base = i * 5;
+            packed[base] = stop.position;
+            packed[base + 1] = pm.r;
+            packed[base + 2] = pm.g;
+            packed[base + 3] = pm.b;
+            packed[base + 4] = pm.a;
+        }
+        for (std::size_t i = 0; i < packed.size(); ++i)
+            vertices[i / 2][i % 2] = packed[i];
+        // Native shader kind 6 uses rounded-rect SDF with one uniform radius.
+        if (type == ShapeType::RoundedRect) {
+            shape_params.y = node.shape.rounded_rect().radius * basis_x;
+        } else if (node.corner_radius > 0.0f) {
+            shape_params.y = node.corner_radius * basis_x;
+        }
+        fill_premul = Color{0.0f, 0.0f, 0.0f, 0.0f};
+        fill_alpha_zero = false;
+    }
     if (has_stroke) {
         const float sx = std::hypot(state.matrix[0][0], state.matrix[1][0]);
         const float sy = std::hypot(state.matrix[0][1], state.matrix[1][1]);
@@ -599,6 +629,9 @@ bool try_native_solid_rect(
             alignment == StrokeAlignment::Center ? 1.0f : 2.0f;
         vertices[4] = Vec2{stroke_ptr->width, shader_alignment};
         vertices[7].y = 1.0f;
+        // In the stroke ABI shape.w is the mask-present flag, not the
+        // bottom corner radius used by the fill-only ABI.
+        shape_params.w = 0.0f;
         if (type == ShapeType::RoundedRect &&
             node.shape.rounded_rect().corner_radius) {
             const auto& radii = *node.shape.rounded_rect().corner_radius;
@@ -770,6 +803,16 @@ void VulkanBackend::apply_per_pixel_dof(
 graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const RenderNode& node,
                                                const RenderState& state, const Camera& camera,
                                                int width, int height) {
+    const bool path_diag = std::getenv("CHRONON3D_PATH_DIAG") != nullptr;
+    if (path_diag && node.shape.type() == ShapeType::Path)
+        spdlog::info("[native-path-dispatch] node={} handle={} backend_valid={} cpu_data={} fill={} stroke={} brush={} projected={}",
+            node.name, framebuffer.surface_handle(),
+            framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+                is_native_surface_valid(framebuffer.surface_handle()),
+            framebuffer.data() != nullptr, node.shape.path().fill.enabled,
+            node.shape.path().stroke.enabled,
+            node.shape.path().stroke.brush.has_value(),
+            graph::native_promotion::is_projected(state));
     const auto completed_native_draw = [&framebuffer] {
         framebuffer.mark_gpu_authoritative();
         return graph::RenderOpResult(graph::RenderOpOutcome{1});
@@ -778,6 +821,9 @@ graph::RenderOpResult VulkanBackend::draw_node(Framebuffer& framebuffer, const R
     if (try_native_path_fill(*this, framebuffer, node, state)) return completed_native_draw();
     if (try_native_path_stroke(*this, framebuffer, node, state)) return completed_native_draw();
     if (try_native_solid_rect(*this, framebuffer, node, state)) return completed_native_draw();
+
+    if (path_diag && node.shape.type() == ShapeType::Path)
+        spdlog::warn("[native-path-dispatch] native path routes rejected node={}", node.name);
 
     if (m_fallback_backend) {
         sync_gpu_to_cpu(*this, framebuffer);

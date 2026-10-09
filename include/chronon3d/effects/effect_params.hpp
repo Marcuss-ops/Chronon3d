@@ -351,6 +351,14 @@ struct MeshWarpParams {
 };
 
 struct SharpenParams { float amount{0.0f}; float radius{1.0f}; float threshold{0.0f}; };
+struct RoughenEdgesParams {
+    float amount{0.0f};       // maximum boundary displacement in pixels [0, 64]
+    float scale{8.0f};         // noise cell size in pixels (0, 1024]
+    std::uint32_t complexity{1}; // fBm octave count [1, 4]
+    float evolution{0.0f};     // deterministic noise phase
+    float evolution_speed{0.0f}; // phase units per second
+    std::uint32_t seed{0};
+};
 struct TurbulentDisplaceParams {
     float amount{0.1f}, size{0.1f}, evolution{0.0f}, evolution_speed{0.0f};
     std::uint32_t complexity{2}; sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
@@ -448,7 +456,7 @@ using EffectParams = std::variant<
     TwirlParams,
     BulgeParams,
     MeshWarpParams,
-    SharpenParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
+    SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
     LiftGammaGainParams

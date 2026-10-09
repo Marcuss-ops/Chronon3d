@@ -27,6 +27,9 @@
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/text/text_run_geometry.hpp>
+#include "native_surface.hpp"
+#include <spdlog/spdlog.h>
+#include <cstdlib>
 // Private definition needed by the per-session warn-once helper below.
 #include "../executor/text_bbox_reporter.hpp"
 
@@ -105,13 +108,31 @@ NodeExecResult TextRunNode::execute(
 
     // ── 0. Defensive: missing shape (source-pass only emits when set). ──
     if (!m_shape) {
-        return NodeExecResult{
-            ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true)};
+        auto empty = ctx.acquire_owned_fb(
+            ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
+        if (ctx.backend && ctx.surface_registry &&
+            ctx.backend->supports_native_surfaces() &&
+            !ensure_empty_native_surface(ctx, *empty)) {
+            return NodeExecResult{NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                m_name,
+                "failed to materialize empty native text surface"}};
+        }
+        return NodeExecResult{std::move(empty)};
     }
 
     if (m_cache_policy.reusable_across_frames() && m_cached_result &&
         !ctx.frame_input.has_camera_2_5d) {
-        return NodeExecResult{ctx.acquire_owned_fb(*m_cached_result)};
+        auto cached = ctx.acquire_owned_fb(*m_cached_result);
+        if (ctx.backend && ctx.surface_registry &&
+            ctx.backend->supports_native_surfaces() &&
+            !ensure_native_surface(ctx, *cached, "TextRunNode.cache")) {
+            return NodeExecResult{NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                m_name,
+                "failed to promote cached text surface to GPU"}};
+        }
+        return NodeExecResult{std::move(cached)};
     }
 
     // ── 1. Acquire the producer surface. Projected TextRuns render into
@@ -145,6 +166,18 @@ NodeExecResult TextRunNode::execute(
         ? ctx.framebuffer_pool->acquire_owned_exact(
               surface_width, surface_height, /*clear=*/true)
         : ctx.acquire_owned_fb(surface_width, surface_height, /*clear=*/true);
+    if (ctx.backend && ctx.surface_registry &&
+        ctx.backend->supports_native_surfaces() &&
+        !ensure_empty_native_surface(ctx, *fb)) {
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            m_name,
+            "failed to materialize native text surface"}};
+    }
+    if (std::getenv("CHRONON3D_PATH_DIAG"))
+        spdlog::info("[native-textrun-diag] node={} shape={} surface={} cpu={} opacity={}",
+            m_name, static_cast<bool>(m_shape), fb->surface_handle(),
+            fb->data() != nullptr, m_opacity_override.value_or(m_render_ref.world_transform.opacity));
 
     // ── 2. Validate pre-dispatch invariants. ──
     auto* backend = ctx.backend;

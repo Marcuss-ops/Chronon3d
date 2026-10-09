@@ -27,6 +27,12 @@ void execute_single_node(
         }
     };
     const auto retain_static_bake = [&]() {
+        // Native-video graph outputs use FrameTransient Vulkan surfaces.
+        // Retaining one in the cross-frame static-bake cache leaves a stale
+        // handle after the frame slot retires it. Keep static baking for
+        // software and non-video paths, where the framebuffer storage can
+        // safely outlive this execution.
+        if (ctx.backend && ctx.backend->supports_native_video_surface()) return;
         if (id >= state.static_bake_root_index.size()) return;
         const auto bake_index = state.static_bake_root_index[id];
         if (bake_index >= compiled.program.static_bakes.size()) return;
@@ -355,6 +361,12 @@ void execute_single_node(
         &compiled.nodes[id].stable_node_id,
         local_nodes_executed
     );
+    if (std::getenv("CHRONON3D_PATH_DIAG") && cache_eval.result)
+        spdlog::info("[native-graph-node-diag] frame={} node_id={} node={} kind={} surface={} cpu={} opaque={} size={}x{}",
+            static_cast<int>(ctx.frame_input.frame), id,
+            node.name(), to_string(node.kind()), cache_eval.result->surface_handle(),
+            cache_eval.result->data() != nullptr, cache_eval.result->is_opaque(),
+            cache_eval.result->width(), cache_eval.result->height());
     if (state.node_memory_tracker && cache_eval.result) {
         node_memory_scope->set_live_bytes(cache_eval.result->size_bytes());
         if (cache_eval.cache_status != CacheEvaluationStatus::Hit) {

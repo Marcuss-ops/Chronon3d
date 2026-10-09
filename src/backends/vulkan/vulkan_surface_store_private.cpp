@@ -46,7 +46,12 @@ namespace chronon3d::backends::vulkan {
         // Outside a recording window the caller owns the store lock (all other
         // call sites are under surfaces.mutex, e.g. download_surface) and reads
         // the store directly, even while plan-wide leases are pinned.
-        if (!recording_resolve_context()) return surfaces.resolve(handle);
+        if (!recording_resolve_context()) {
+            if (frame_batch.active)
+                acquire_cuda_surface_for_recording(active_command_buffer(),
+                                                   bound_slot(handle));
+            return surfaces.resolve(handle);
+        }
         if (auto* leased = leased_image(handle)) return *leased;
         throw std::logic_error(
             "Vulkan recording resolved an unpinned surface " +
@@ -271,11 +276,13 @@ namespace chronon3d::backends::vulkan {
         auto& handles = transient_release_scratch_;
         handles.clear();
         handles.reserve(surfaces.surface_bindings.size());
+        const auto busy = frame_slot_busy_flags();
         for (const auto& [handle, slot] : surfaces.surface_bindings) {
             const auto it = surfaces.physical_surfaces.find(slot);
             if (it != surfaces.physical_surfaces.end() &&
                 it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
                 !surfaces.unplanned_surface_handles.contains(handle) &&
+                surfaces.can_retire_surface(handle, busy) &&
                 std::find(protected_handles.begin(), protected_handles.end(), handle) ==
                     protected_handles.end()) {
                 handles.push_back(handle);
@@ -650,6 +657,7 @@ void VulkanBackend::Impl::VulkanSurfaceStore::destroy_all(
         handles.clear();
     }
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    cuda_pending_surfaces.clear();
     cuda_ready_surfaces.clear();
     cuda_export_ready_surfaces.clear();
 #endif

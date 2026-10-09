@@ -74,7 +74,13 @@ std::shared_ptr<Framebuffer> execute_internal(
         const auto& bake = compiled.program.static_bakes[i];
         if (bake.root_node < node_count) state.static_bake_root_index[bake.root_node] = i;
         bool ready = false;
-        if (bake.runtime) {
+        // Vulkan framebuffers in native-video exports carry FrameTransient
+        // surfaces. A compiled static bake can outlive the frame that created
+        // that surface, so do not publish or consume its cached framebuffer in
+        // this route; the static graph nodes are cheap GPU work and must be
+        // evaluated again against surfaces valid for the current frame.
+        if (bake.runtime &&
+            !(ctx.backend && ctx.backend->supports_native_video_surface())) {
             std::lock_guard lock(bake.runtime->mutex);
             ready = static_cast<bool>(bake.runtime->baked_surface);
         }

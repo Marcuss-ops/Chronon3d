@@ -468,6 +468,78 @@ TEST_CASE("Premium Effects V1: Execution on Framebuffer (LensDistortion, FoldWar
 TEST_CASE("Premium Effects V1: Presets and Recipes composition") {
     LayerPlan layer;
 
+    SUBCASE("roughen edges and masked lens blur lower to canonical RenderPlan primitives") {
+        LayerPlan source;
+        source.id = "archive-photo";
+        source.type = LayerType::Image;
+        source.asset = "archive.jpg";
+        source.size = {1920.0f, 1080.0f};
+        source.size_dimensions = 2;
+        roughen_edges(source, 3.0f, 6.0f, 3, 1.25f, 17);
+        REQUIRE(source.effects.size() == 1);
+        CHECK(source.effects[0].kind == LayerPlan::EffectKindPlan::RoughenEdges);
+        CHECK(source.effects[0].amount == doctest::Approx(3.0f));
+        CHECK(source.effects[0].roughen_scale == doctest::Approx(6.0f));
+        CHECK(source.effects[0].roughen_complexity == 3);
+        CHECK_THROWS_AS(roughen_edges(source, 65.0f), std::invalid_argument);
+
+        const auto overlay = masked_lens_blur(source, {1920.0f, 1080.0f}, 14.0f,
+            {0.5f, 0.45f}, {0.6f, 0.7f}, 80.0f);
+        CHECK(overlay.id == "archive-photo_lens_blur");
+        REQUIRE(overlay.masks.size() == 1);
+        CHECK(overlay.masks[0].type == "ellipse");
+        CHECK(overlay.masks[0].size[0] == doctest::Approx(1152.0f));
+        CHECK(overlay.masks[0].size[1] == doctest::Approx(756.0f));
+        CHECK(overlay.masks[0].feather == doctest::Approx(80.0f));
+        REQUIRE(overlay.effects.size() == 2);
+        CHECK(overlay.effects.back().kind == LayerPlan::EffectKindPlan::GaussianBlur);
+        CHECK(overlay.effects.back().radius == doctest::Approx(14.0f));
+        CHECK_THROWS_AS(masked_lens_blur(source, {1920.0f, 1080.0f}, 300.0f),
+                        std::invalid_argument);
+    }
+
+    SUBCASE("texture layers and documentary depth recipe compose existing effects") {
+        TextureLayerSpec texture;
+        texture.id = "paper-grain";
+        texture.asset = "paper.png";
+        texture.opacity = 0.7f;
+        texture.blend = BlendMode::SoftLight;
+        texture.grain = 0.1f;
+        texture.contrast = 1.3f;
+        texture.saturation = 0.8f;
+        texture.seed = 41;
+        const auto plate = TextureLayerComposer::compose(texture, {1280.0f, 720.0f});
+        CHECK(plate.type == LayerType::Image);
+        CHECK(plate.blend_mode == BlendMode::SoftLight);
+        CHECK(plate.opacity == doctest::Approx(0.7f));
+        REQUIRE(plate.effects.size() == 3);
+        CHECK(plate.effects[0].canonical_effect_id == "color.contrast");
+        CHECK(plate.effects[1].canonical_effect_id == "color.saturation");
+        CHECK(plate.effects[2].kind == LayerPlan::EffectKindPlan::Noise);
+
+        LayerPlan foreground;
+        foreground.id = "hero";
+        foreground.type = LayerType::Image;
+        foreground.asset = "hero.png";
+        DocumentaryDepthLookProfile profile;
+        profile.focus_blur = 9.0f;
+        profile.seed = 77;
+        const auto look = DocumentaryDepthLook::compose(
+            foreground, {texture}, {1280.0f, 720.0f}, profile);
+        REQUIRE(look.size() == 3);
+        CHECK(look.front().id == "paper-grain");
+        CHECK(look[1].id == "hero");
+        CHECK(look[1].effects.size() == 4);
+        CHECK(look[1].effects[0].kind == LayerPlan::EffectKindPlan::Vignette);
+        CHECK(look[1].effects[1].kind == LayerPlan::EffectKindPlan::RoughenEdges);
+        CHECK(look.back().id == "hero_documentary_focus_blur");
+        REQUIRE(look.back().masks.size() == 1);
+        CHECK(look.back().effects.back().kind == LayerPlan::EffectKindPlan::GaussianBlur);
+        CHECK_THROWS_AS(TextureLayerComposer::compose(
+            TextureLayerSpec{.id = "", .asset = "paper.png"}, {1280.0f, 720.0f}),
+            std::invalid_argument);
+    }
+
     SUBCASE("CRT recipe populates canonical primitives stack") {
         effect_presets::crt(layer);
         REQUIRE(layer.effects.size() >= 4);

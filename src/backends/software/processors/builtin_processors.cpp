@@ -69,6 +69,7 @@ std::unique_ptr<EffectProcessor> create_twirl_effect_processor();
 std::unique_ptr<EffectProcessor> create_bulge_effect_processor();
 std::unique_ptr<EffectProcessor> create_mesh_warp_effect_processor();
 std::unique_ptr<EffectProcessor> create_sharpen_effect_processor();
+std::unique_ptr<EffectProcessor> create_roughen_edges_effect_processor();
 std::unique_ptr<EffectProcessor> create_turbulent_displace_effect_processor();
 std::unique_ptr<EffectProcessor> create_wave_warp_effect_processor();
 std::unique_ptr<EffectProcessor> create_ripple_effect_processor();
@@ -101,6 +102,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     // Effects
     registry.register_effect_processor<BlurParams>(create_blur_effect_processor());
     registry.register_effect_processor<SharpenParams>(create_sharpen_effect_processor());
+    registry.register_effect_processor<RoughenEdgesParams>(create_roughen_edges_effect_processor());
     registry.register_effect_processor<TurbulentDisplaceParams>(create_turbulent_displace_effect_processor());
     registry.register_effect_processor<WaveWarpParams>(create_wave_warp_effect_processor());
     registry.register_effect_processor<RippleParams>(create_ripple_effect_processor());

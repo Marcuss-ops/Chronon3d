@@ -161,6 +161,7 @@ struct PipeExportSession {
     /// `process_start_time()` alone, so a long-lived daemon cannot report
     /// its uptime as per-job startup.
     std::chrono::steady_clock::time_point job_started_at{};
+    double daemon_admission_wait_ms{0.0};
     /// True when this export runs inside a persistent daemon (an explicit
     /// job anchor was supplied): the sidecar measurement_kind is then
     /// "warm_process" instead of the CLI default "cold_process".

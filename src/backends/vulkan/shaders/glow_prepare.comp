@@ -15,7 +15,18 @@ void main() {
     ivec2 size = imageSize(destination_image);
     if (pixel.x >= size.x || pixel.y >= size.y) return;
 
-    vec4 source = imageLoad(source_image, pixel);
+    ivec2 source_size = imageSize(source_image);
+    ivec2 begin = pixel * source_size / size;
+    ivec2 end = (pixel + ivec2(1)) * source_size / size;
+    vec4 source = vec4(0.0);
+    float sample_count = 0.0;
+    for (int y = begin.y; y < end.y; ++y) {
+        for (int x = begin.x; x < end.x; ++x) {
+            source += imageLoad(source_image, ivec2(x, y));
+            sample_count += 1.0;
+        }
+    }
+    source /= max(sample_count, 1.0);
     float amount = clamp(source.a, 0.0, 1.0) * params.intensity;
     imageStore(destination_image, pixel, params.tint * amount);
 }

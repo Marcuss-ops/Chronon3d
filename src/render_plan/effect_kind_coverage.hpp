@@ -26,6 +26,7 @@ inline constexpr std::array kEffectKindCoverage{
     EffectKind::Bulge,
     EffectKind::MeshWarp,
     EffectKind::Sharpen,
+    EffectKind::RoughenEdges,
     EffectKind::TurbulentDisplace,
     EffectKind::WaveWarp,
     EffectKind::Ripple,

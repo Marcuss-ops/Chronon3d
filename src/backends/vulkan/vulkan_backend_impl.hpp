@@ -480,6 +480,12 @@ struct VulkanBackend::Impl {
     void emit_unplanned_compute_sync(
         VkCommandBuffer command,
         std::initializer_list<const Image*> images);
+    void emit_cuda_surface_ownership_transfer(VkCommandBuffer command,
+                                             std::size_t physical_slot,
+                                             bool acquire);
+    void acquire_cuda_surface_for_recording(VkCommandBuffer command,
+                                            std::size_t physical_slot);
+    void emit_cuda_surface_releases(VkCommandBuffer command);
     void emit_pass_sync(VkCommandBuffer command,
                         std::initializer_list<const Image*> images);
     void emit_buffer_barriers2(

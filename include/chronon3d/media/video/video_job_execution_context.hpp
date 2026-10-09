@@ -36,6 +36,7 @@ struct VideoJobExecutionContext {
     /// single-shot invocations leave it at the default epoch and keep the
     /// process-start anchor.
     std::chrono::steady_clock::time_point job_started_at{};
+    double daemon_admission_wait_ms{0.0};
 };
 
 } // namespace chronon3d::media
