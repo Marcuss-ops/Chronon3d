@@ -195,6 +195,77 @@ void VulkanBackend::Impl::record_composite(
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void VulkanBackend::Impl::record_radial_blur(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& destination, const Image& source,
+                      float center_x_px, float center_y_px,
+                      float amount, int tap_count) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::RadialBlur)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float center_x_px;
+            float center_y_px;
+            float amount;
+            std::int32_t tap_count;
+        } params{center_x_px, center_y_px, amount, tap_count};
+        static_assert(sizeof(params) == 16, "RadialBlur push must be 16 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void VulkanBackend::Impl::record_warp_bulk(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& destination, const Image& source,
+                      const graph::WarpBulkParams& bulk) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::WarpBulk)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        static_assert(sizeof(bulk) == 128, "WarpBulk push must be 128 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(bulk), &bulk);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void VulkanBackend::Impl::record_generate_bulk(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& destination, const Image& source,
+                      const graph::GenerateBulkParams& bulk) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::GenerateBulk)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        static_assert(sizeof(bulk) == 120, "GenerateBulk push must be 120 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(bulk), &bulk);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void VulkanBackend::Impl::record_lut_bulk(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& destination, const Image& source,
+                      const graph::LutBulkParams& bulk) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::LutBulk)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        static_assert(sizeof(bulk) == 64, "LutBulk push must be 64 bytes");
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(bulk), &bulk);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
     void VulkanBackend::Impl::record_sharpen_combine(VkCommandBuffer command,
                       VkDescriptorSet descriptors,
                       const Image& destination, const Image& source,

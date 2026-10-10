@@ -192,6 +192,41 @@ struct NativeColorTransform {
     bool straight_alpha{false};  ///< unpremultiply -> op -> premultiply
 };
 
+/// Parameters for the native bulk warp kernel (warp_bulk.comp).
+/// Push layout is exactly 128 bytes: int mode, int edge_mode, float p[30].
+/// Per-mode packing is documented in the shader header; the lowering helper
+/// is the sole producer. Certified windows are bounded per mode.
+struct WarpBulkParams {
+    int mode{0};
+    int edge_mode{0};  ///< 0 = Transparent, 1 = Clamp
+    float p[30]{};
+};
+static_assert(sizeof(WarpBulkParams) == 128, "WarpBulkParams must be 128 bytes");
+
+/// Parameters for the native bulk generator kernel (generate_bulk.comp).
+/// Push layout is 120 bytes: int mode, int flags, 7x vec4 (a0..a3, b0..b2).
+struct GenerateBulkParams {
+    int mode{0};
+    int flags{0};  ///< color_mode / blend selector depending on mode
+    float a[16]{};
+    float b[12]{};
+};
+static_assert(sizeof(GenerateBulkParams) == 120, "GenerateBulkParams must be 120 bytes");
+
+/// Parameters for the native bulk LUT kernel (lut_bulk.comp).
+/// Push layout is 64 bytes: mode, amount, 2x pad, dmin vec4, dmax vec4,
+/// meta ivec4 (x = lut dim, y = curve flags bitmask).
+struct LutBulkParams {
+    int mode{0};
+    float amount{1.0f};
+    float pad0{0.0f};
+    float pad1{0.0f};
+    float dmin[4]{0.0f, 0.0f, 0.0f, 0.0f};
+    float dmax[4]{1.0f, 1.0f, 1.0f, 0.0f};
+    int meta[4]{0, 0, 0, 0};
+};
+static_assert(sizeof(LutBulkParams) == 64, "LutBulkParams must be 64 bytes");
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RenderBackend
 // ═══════════════════════════════════════════════════════════════════════════
@@ -571,6 +606,54 @@ public:
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::directional_blur_surface: native surfaces are not supported"));
+    }
+
+    /// Zoom+spin box-tap blur around a pixel center for native surfaces,
+    /// matching the software RadialBlur processor (Clamp-edge bilinear, raw
+    /// premultiplied accumulation, center-pixel identity). Certified for
+    /// amount in (0, 8] and tap_count in [2, 64]; centroid-stable inputs.
+    virtual RenderOpResult radial_blur_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        float /*center_x_px*/, float /*center_y_px*/,
+        float /*amount*/, int /*tap_count*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::radial_blur_surface: native surfaces are not supported"));
+    }
+
+    /// Bulk spatial-warp dispatch (warp_bulk.comp). The aux surface carries
+    /// the displacement map for mode 12 and is ignored otherwise.
+    virtual RenderOpResult warp_bulk_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*aux*/,
+        const WarpBulkParams& /*params*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::warp_bulk_surface: native surfaces are not supported"));
+    }
+
+    /// Bulk generator/stylize dispatch (generate_bulk.comp).
+    virtual RenderOpResult generate_bulk_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        const GenerateBulkParams& /*params*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::generate_bulk_surface: native surfaces are not supported"));
+    }
+
+    /// Bulk LUT dispatch (lut_bulk.comp). The aux surface carries the baked
+    /// Curves tables (mode 0) or the flattened Lut3D table (mode 1).
+    virtual RenderOpResult lut_bulk_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*aux*/,
+        const LutBulkParams& /*params*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::lut_bulk_surface: native surfaces are not supported"));
     }
 
     /// Pointwise unsharp-mask combine for native surfaces: destination =

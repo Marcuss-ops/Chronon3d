@@ -326,6 +326,98 @@ namespace chronon3d::backends::vulkan {
                 GpuKernelId::DirectionalBlur, directional_blur_pipeline, "DirectionalBlur");
         if (debug_context) debug_context->set_pipeline_name(directional_blur_pipeline, "Chronon3D.Pipeline.DirectionalBlur");
 
+        const VkShaderModuleCreateInfo radial_blur_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_radial_blur_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_radial_blur_comp_spv)};
+        VkShaderModule radial_blur_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &radial_blur_shader_info, nullptr, &radial_blur_shader),
+              "vkCreateShaderModule(radial_blur)");
+        const VkPipelineShaderStageCreateInfo radial_blur_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            radial_blur_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo radial_blur_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            radial_blur_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline radial_blur_pipeline = VK_NULL_HANDLE;
+        const VkResult radial_blur_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &radial_blur_pipeline_info, nullptr, &radial_blur_pipeline);
+        vkDestroyShaderModule(device, radial_blur_shader, nullptr);
+        check(radial_blur_result, "vkCreateComputePipelines(radial_blur)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::RadialBlur, radial_blur_pipeline, "RadialBlur");
+        if (debug_context) debug_context->set_pipeline_name(radial_blur_pipeline, "Chronon3D.Pipeline.RadialBlur");
+
+        const VkShaderModuleCreateInfo warp_bulk_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_warp_bulk_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_warp_bulk_comp_spv)};
+        VkShaderModule warp_bulk_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &warp_bulk_shader_info, nullptr, &warp_bulk_shader),
+              "vkCreateShaderModule(warp_bulk)");
+        const VkPipelineShaderStageCreateInfo warp_bulk_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            warp_bulk_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo warp_bulk_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            warp_bulk_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline warp_bulk_pipeline = VK_NULL_HANDLE;
+        const VkResult warp_bulk_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &warp_bulk_pipeline_info, nullptr, &warp_bulk_pipeline);
+        vkDestroyShaderModule(device, warp_bulk_shader, nullptr);
+        check(warp_bulk_result, "vkCreateComputePipelines(warp_bulk)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::WarpBulk, warp_bulk_pipeline, "WarpBulk");
+        if (debug_context) debug_context->set_pipeline_name(warp_bulk_pipeline, "Chronon3D.Pipeline.WarpBulk");
+
+        const VkShaderModuleCreateInfo generate_bulk_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_generate_bulk_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_generate_bulk_comp_spv)};
+        VkShaderModule generate_bulk_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &generate_bulk_shader_info, nullptr, &generate_bulk_shader),
+              "vkCreateShaderModule(generate_bulk)");
+        const VkPipelineShaderStageCreateInfo generate_bulk_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            generate_bulk_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo generate_bulk_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            generate_bulk_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline generate_bulk_pipeline = VK_NULL_HANDLE;
+        const VkResult generate_bulk_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &generate_bulk_pipeline_info, nullptr, &generate_bulk_pipeline);
+        vkDestroyShaderModule(device, generate_bulk_shader, nullptr);
+        check(generate_bulk_result, "vkCreateComputePipelines(generate_bulk)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::GenerateBulk, generate_bulk_pipeline, "GenerateBulk");
+        if (debug_context) debug_context->set_pipeline_name(generate_bulk_pipeline, "Chronon3D.Pipeline.GenerateBulk");
+
+        const VkShaderModuleCreateInfo lut_bulk_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_lut_bulk_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_lut_bulk_comp_spv)};
+        VkShaderModule lut_bulk_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &lut_bulk_shader_info, nullptr, &lut_bulk_shader),
+              "vkCreateShaderModule(lut_bulk)");
+        const VkPipelineShaderStageCreateInfo lut_bulk_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            lut_bulk_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo lut_bulk_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            lut_bulk_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline lut_bulk_pipeline = VK_NULL_HANDLE;
+        const VkResult lut_bulk_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &lut_bulk_pipeline_info, nullptr, &lut_bulk_pipeline);
+        vkDestroyShaderModule(device, lut_bulk_shader, nullptr);
+        check(lut_bulk_result, "vkCreateComputePipelines(lut_bulk)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::LutBulk, lut_bulk_pipeline, "LutBulk");
+        if (debug_context) debug_context->set_pipeline_name(lut_bulk_pipeline, "Chronon3D.Pipeline.LutBulk");
+
         const VkShaderModuleCreateInfo sharpen_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
             shaders::chronon3d_sharpen_comp_spv_size,

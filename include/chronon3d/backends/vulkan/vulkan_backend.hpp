@@ -477,6 +477,18 @@ public:
     graph::RenderOpResult directional_blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, float, int) override;
+    graph::RenderOpResult radial_blur_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        float, float, float, int) override;
+    graph::RenderOpResult warp_bulk_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, const graph::WarpBulkParams&) override;
+    graph::RenderOpResult generate_bulk_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        const graph::GenerateBulkParams&) override;
+    graph::RenderOpResult lut_bulk_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, const graph::LutBulkParams&) override;
     graph::RenderOpResult sharpen_combine_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, float, float) override;
