@@ -26,11 +26,11 @@ TEST_CASE("animation property registry is a duplicate-free bounded inventory") {
         REQUIRE(names.insert(row.name).second);
         REQUIRE(!row.name.empty());
     }
-    // Declared census: 29 named properties + 15 explicit shadow rows
+    // Declared census: 30 named properties + 15 explicit shadow rows
     // (shadow_<0..2> x <opacity|blur|offset_x|offset_y|color>). Growing the
     // table is a contract change: bump this bound deliberately, never by
     // accident.
-    REQUIRE(chronon3d::render_plan::kAnimationPropertyTable.size() == 44);
+    REQUIRE(chronon3d::render_plan::kAnimationPropertyTable.size() == 45);
 }
 
 TEST_CASE("registered scalar and articulated layer tracks still decode") {

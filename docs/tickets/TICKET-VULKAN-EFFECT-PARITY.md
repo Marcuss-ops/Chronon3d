@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN — the catalog exposes 48 effect types; the executable capability table declares 26 strict-native routes (including DropShadow and DirectionalBlur) and 22 unsupported types. All unsupported types fail closed and no CPU fallback is allowed for a strict GPU request. Current-checkout GPU hardware visibility does not substitute for rerunning parity on this SHA.
+CLOSED for the catalog-wide implementation/parity scope recorded below and in `docs/CURRENT_STATUS.md`: the executable capability authority `include/chronon3d/render_graph/effect_gpu_capability.hpp` declares 48 strict-native routes over 48 catalog types (0 unsupported types). This supersedes the old 26/48 census; parameter/input bounds still fail closed. A source census is not a fresh test run, and historical GPU evidence does not certify later worktree changes or replace remote same-SHA CI.
 
 ## Obiettivo
 

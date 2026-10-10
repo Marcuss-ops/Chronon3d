@@ -293,6 +293,7 @@ SceneRefreshResult refresh_compiled_graph_payloads(
     // same typed object and retain its capacities.  The live graph remains
     // untouched until the commit loop below.
     compiled.refresh_scratch.resize(compiled.graph.size());
+    std::vector<bool> refresh_pending(compiled.graph.size(), false);
 
     for (size_t id = 0; id < compiled.graph.size(); ++id) {
         const auto node_id = static_cast<GraphNodeId>(id);
@@ -317,6 +318,7 @@ SceneRefreshResult refresh_compiled_graph_payloads(
             }
         }
 
+        refresh_pending[node_id] = true;
         switch (graph_node.kind()) {
             case RenderGraphNodeKind::Source:
                 if (const auto* source_node = dynamic_cast<const SourceNode*>(&graph_node)) {
@@ -466,7 +468,7 @@ SceneRefreshResult refresh_compiled_graph_payloads(
         const auto node_id = static_cast<GraphNodeId>(id);
         if (!compiled.graph.has_node(node_id) ||
             node_id >= compiled.nodes.size() || !compiled.nodes[node_id].reachable ||
-            !compiled.refresh_scratch[node_id]) {
+            !refresh_pending[node_id] || !compiled.refresh_scratch[node_id]) {
             continue;
         }
         const auto& original_info = compiled.nodes[node_id];
@@ -527,6 +529,29 @@ SceneRefreshResult refresh_compiled_graph_payloads(
         }
     }
 
+    // A static island is frame-invariant, not invariant across authored
+    // payload changes. Topology reuse may refresh its source/effect/transform
+    // keys while retaining the same node ids. Invalidate the retained root
+    // whenever a member's content identity changes, after patch validation
+    // but before publishing any refreshed nodes.
+    for (auto& bake : compiled.program.static_bakes) {
+        if (!bake.runtime) continue;
+        const bool changed = std::any_of(
+            bake.members.begin(), bake.members.end(), [&](GraphNodeId member) {
+                return member < compiled.refresh_scratch.size() &&
+                    refresh_pending[member] && compiled.refresh_scratch[member] &&
+                    compiled.graph.has_node(member) &&
+                    compiled.graph.node(member).cache_key(ctx).digest() !=
+                        compiled.refresh_scratch[member]->cache_key(ctx).digest();
+            });
+        if (!changed) continue;
+        std::lock_guard lock(bake.runtime->mutex);
+        bake.runtime->baked_surface.reset();
+        bake.runtime->resolved_key_digest = 0;
+        bake.runtime->resolved_bbox.reset();
+        bake.is_baked = false;
+    }
+
     // ── 6. Commit the complete patch ────────────────────────────────────
     // No refresh helper runs here.  Swap each prepared node into the graph;
     // the displaced node becomes the spare for the next frame.  Unique_ptr
@@ -536,7 +561,7 @@ SceneRefreshResult refresh_compiled_graph_payloads(
         const auto node_id = static_cast<GraphNodeId>(id);
         if (!compiled.graph.has_node(node_id) ||
             node_id >= compiled.nodes.size() || !compiled.nodes[node_id].reachable ||
-            !compiled.refresh_scratch[node_id]) {
+            !refresh_pending[node_id] || !compiled.refresh_scratch[node_id]) {
             continue;
         }
         compiled.refresh_scratch[node_id] =

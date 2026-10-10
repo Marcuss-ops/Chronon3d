@@ -5086,6 +5086,28 @@
                     },
                     {
                       "if": {
+                        "properties": {"property": {"const": "light_direction"}},
+                        "required": ["property"]
+                      },
+                      "then": {
+                        "properties": {
+                          "keyframes": {
+                            "items": {
+                              "properties": {
+                                "value": {
+                                  "type": "array",
+                                  "minItems": 3,
+                                  "maxItems": 3,
+                                  "items": {"type": "number"}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "if": {
                         "properties": {
                           "property": {
                             "enum": [
@@ -5160,7 +5182,8 @@
                         "shadow_2_offset_y",
                         "shadow_2_color",
                         "light_intensity",
-                        "light_color"
+                        "light_color",
+                        "light_direction"
                       ]
                     },
                     "easing": {

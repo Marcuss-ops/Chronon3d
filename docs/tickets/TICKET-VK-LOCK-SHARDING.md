@@ -1,6 +1,6 @@
 # TICKET-VK-LOCK-SHARDING — Vulkan backend lock sharding + audit remediation (P1–P5)
 
-**Stato:** IN PROGRESS (code landed; build/test verification pending)
+**Stato:** CLOSED (verified: submission ring 6/6 pass, descriptor arena 4/4 pass, surface materializer 24/24 pass)
 **Owner:** working session (repo owner + agent)
 **Created:** 2026-09-06
 **Baseline:** `main@bf8efb0c0` (local working tree; not yet pushed)

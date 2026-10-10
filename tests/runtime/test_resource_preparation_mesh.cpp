@@ -45,8 +45,10 @@ void append_f32(std::vector<std::byte>& bytes, float value) {
     append_u32(bytes, raw);
 }
 
-std::filesystem::path write_triangle_glb() {
-    const std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":193}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36},{"buffer":0,"byteOffset":72,"byteLength":24},{"buffer":0,"byteOffset":96,"byteLength":6},{"buffer":0,"byteOffset":104,"byteLength":89}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":3,"type":"VEC2"},{"bufferView":3,"componentType":5123,"count":3,"type":"SCALAR"}],"images":[{"bufferView":4,"mimeType":"image/png"}],"textures":[{"source":0}],"materials":[{"name":"red","pbrMetallicRoughness":{"baseColorFactor":[1.0,0.25,0.5,0.75],"baseColorTexture":{"index":0},"metallicFactor":0.2,"roughnessFactor":0.35,"metallicRoughnessTexture":{"index":0}}}],"meshes":[{"name":"triangle","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}]})";
+std::filesystem::path write_triangle_glb(std::string_view additional_member = {}) {
+    std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":193}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36},{"buffer":0,"byteOffset":72,"byteLength":24},{"buffer":0,"byteOffset":96,"byteLength":6},{"buffer":0,"byteOffset":104,"byteLength":89}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":3,"type":"VEC2"},{"bufferView":3,"componentType":5123,"count":3,"type":"SCALAR"}],"images":[{"bufferView":4,"mimeType":"image/png"}],"textures":[{"source":0}],"materials":[{"name":"red","pbrMetallicRoughness":{"baseColorFactor":[1.0,0.25,0.5,0.75],"baseColorTexture":{"index":0},"metallicFactor":0.2,"roughnessFactor":0.35,"metallicRoughnessTexture":{"index":0}}}],"meshes":[{"name":"triangle","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}]})";
+    if (!additional_member.empty())
+        json.insert(json.find("\"buffers\""), additional_member);
     static constexpr std::uint8_t png_payload[] = {
         0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,
         0x00,0x00,0x00,0x08,0x00,0x00,0x00,0x08,0x08,0x02,0x00,0x00,0x00,0x4b,0x6d,0x29,0xdc,
@@ -258,17 +260,10 @@ TEST_CASE("MeshLoader rejects a primitive material index outside the prepared ma
 TEST_CASE("MeshLoader rejects animated and skinned GLB data instead of silently treating it as static") {
     for (const auto& unsupported_member : {std::string{"\"animations\":[{}],"},
                                            std::string{"\"skins\":[{}],"}}) {
-        const auto path = write_triangle_glb();
-        std::ifstream input(path, std::ios::binary);
-        std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-        const auto insert_at = bytes.find("\"buffers\"");
-        REQUIRE(insert_at != std::string::npos);
-        bytes.insert(insert_at, unsupported_member);
-        std::ofstream output(path, std::ios::binary | std::ios::trunc);
-        REQUIRE(output.good());
-        output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-        REQUIRE(output.good());
-        output.close();
+        // Build a structurally valid GLB with the unsupported JSON member.
+        // Mutating encoded bytes would invalidate total/chunk lengths before
+        // the loader can reach the static-mesh semantic rejection.
+        const auto path = write_triangle_glb(unsupported_member);
 
         chronon3d::assets::AssetResolver resolver;
         resolver.mount(path.parent_path());

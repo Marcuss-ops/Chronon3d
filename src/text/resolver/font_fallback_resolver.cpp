@@ -98,9 +98,14 @@ namespace {
         }
     }
     // Deterministic fallback: directory_iterator order is filesystem-dependent.
-    // Sort by path so the same content yields the same stack across machines
-    // (BitExact contract — cluster fallback must be reproducible).
+    // Dedicated Noto script fonts take precedence over general display fonts,
+    // followed by deterministic path order (BitExact contract).
     std::sort(specs.begin(), specs.end(), [](const FontSpec& a, const FontSpec& b) {
+        const bool a_noto = a.font_path.find("Noto") != std::string::npos;
+        const bool b_noto = b.font_path.find("Noto") != std::string::npos;
+        if (a_noto != b_noto) {
+            return a_noto > b_noto;
+        }
         return a.font_path < b.font_path;
     });
     return specs;

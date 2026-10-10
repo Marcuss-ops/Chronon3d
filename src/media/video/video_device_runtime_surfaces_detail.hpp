@@ -63,9 +63,11 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
             encode_desc->desc.width == desc.width &&
             encode_desc->desc.height == desc.height &&
             encode_desc->desc.format == desc.format &&
+            encode_desc->desc.residency == desc.residency &&
             source_desc->desc.width == desc.width &&
             source_desc->desc.height == desc.height &&
             source_desc->desc.format == desc.format &&
+            source_desc->desc.residency == desc.residency &&
             slot.source_surface == slot.native_surface &&
             // The encode destination must remain bound in the backend across
             // the asynchronous NVENC ring.
