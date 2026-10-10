@@ -564,6 +564,32 @@ chronon3d::LayerTransitionSpec compile_transition(const TransitionPlan& plan, Fr
     return spec;
 }
 
+chronon3d::Vec3 light_direction_at(const LayerPlan& layer, double frame, FrameRate fps) {
+    const auto& direction = layer.light->direction;
+    chronon3d::AnimatedValue<chronon3d::Vec3> animated{
+        chronon3d::Vec3{direction[0], direction[1], direction[2]}};
+    const AnimationTrackPlan* found = nullptr;
+    if (layer.animation) for (const auto& track : layer.animation->tracks) {
+        if (track.property != "light_direction") continue;
+        if (found) throw std::runtime_error("layer has duplicate light_direction tracks");
+        found = &track;
+        for (const auto& key : track.keyframes) {
+            if (key.value.size() != 3)
+                throw std::runtime_error("light_direction keyframes require three components");
+            add_animation_keyframe(animated, track, key,
+                chronon3d::Vec3{key.value[0], key.value[1], key.value[2]}, fps);
+        }
+    }
+    animated.compute_roving();
+    animated.compute_auto_beziers();
+    const auto result = animated.evaluate(chronon3d::SampleTime::from_frame(frame, fps));
+    const float length_squared = glm::dot(result, result);
+    if (!std::isfinite(result.x) || !std::isfinite(result.y) || !std::isfinite(result.z) ||
+        !std::isfinite(length_squared) || length_squared <= 1.0e-8f)
+        throw std::runtime_error("animated light_direction must be finite and non-zero");
+    return result;
+}
+
 float evaluate_scalar_track(const AnimationTrackPlan& track, double frame,
                             float base, FrameRate fps) {
     chronon3d::AnimatedValue<float> animated{base};

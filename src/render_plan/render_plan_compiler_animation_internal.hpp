@@ -131,9 +131,9 @@ float scalar_value(const AnimationKeyframePlan& key, std::string_view property) 
 }
 
 bool is_per_frame_paint_property(std::string_view property) {
-    static constexpr std::array<std::string_view, 6> direct{
+    static constexpr std::array<std::string_view, 7> direct{
         "stroke_dash_offset", "stroke_width", "stroke_color", "fill_color",
-        "light_intensity", "light_color"};
+        "light_intensity", "light_color", "light_direction"};
     if (std::find(direct.begin(), direct.end(), property) != direct.end()) return true;
     if (!property.starts_with("shadow_")) return false;
     const auto suffix = property.find('_', 7);

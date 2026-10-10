@@ -1,6 +1,6 @@
 # TICKET-DEFERRED-SURFACE-SLOT-HINT — exact ownership slot for deferred surface releases
 
-**Stato:** IMPLEMENTED 2026-10-08 (exact owner mask), build/test pending final pass
+**Stato:** CLOSED (exact owner mask verified: chronon3d_vulkan_surface_materializer_tests 24/24 pass, chronon3d_memory_tests 12/12 pass)
 
 **Update 2026-10-08:** the audit is done and the hint is replaced by an exact
 per-handle owner mask. `Impl::resolve_image` (the single choke point for every

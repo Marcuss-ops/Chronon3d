@@ -2495,6 +2495,85 @@ TEST_CASE("RenderPlan lights project blurred caster shadows into the composite")
     CHECK(evaluated->scene.layers()[1].effects().empty());
 }
 
+TEST_CASE("RenderPlan source lights sample position and direction with deterministic random access") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    for (const auto kind : {LightKindPlan::Point, LightKindPlan::Spot, LightKindPlan::Directional}) {
+        RenderPlan plan;
+        plan.canvas = {.width = 320, .height = 180,
+                       .fps = FrameRate{24, 1}, .duration = Frame{24}};
+        LayerPlan layer;
+        layer.id = "moving-light";
+        layer.type = LayerType::Light;
+        layer.position = {40.0f, 30.0f, 100.0f};
+        layer.position_dimensions = 3;
+        layer.light = LightLayerPlan{};
+        layer.light->kind = kind;
+        layer.animation = AnimationPlan{{
+            AnimationTrackPlan{.property = "position_x",
+                .keyframes = {{Frame{0}, {0.0f}}, {Frame{20}, {80.0f}}}},
+            AnimationTrackPlan{.property = "light_direction",
+                .keyframes = {{Frame{0}, {0.0f, 0.0f, -1.0f}},
+                              {Frame{20}, {1.0f, 0.0f, -1.0f}}}}}};
+        plan.layers.push_back(layer);
+        assets::AssetResolver resolver;
+        const auto prepared = compile_render_plan(plan, resolver);
+        REQUIRE(prepared);
+        for (const int frame : {20, 0, 10, 0, 20}) {
+            const auto sampled = evaluate(prepared->compiled_composition,
+                CompositionEvaluateContext{}, Frame{frame});
+            REQUIRE(sampled);
+            const auto& lights = sampled->scene.light_context().point_lights;
+            REQUIRE(lights.size() == 1);
+            CHECK(lights[0].position.x == doctest::Approx(40.0f + 4.0f * frame));
+            CHECK(lights[0].position.y == doctest::Approx(30.0f));
+            CHECK(lights[0].position.z == doctest::Approx(100.0f));
+            CHECK(lights[0].direction.x == doctest::Approx(frame / 20.0f));
+            CHECK(lights[0].direction.z == doctest::Approx(-1.0f));
+        }
+        // A vector position track is absolute, not an underscore-axis offset.
+        plan.layers[0].animation->tracks[0] = AnimationTrackPlan{
+            .property = "position",
+            .keyframes = {{Frame{0}, {10.0f, 20.0f}}, {Frame{20}, {30.0f, 40.0f}}}};
+        const auto vector_prepared = compile_render_plan(plan, resolver);
+        REQUIRE(vector_prepared);
+        const auto midpoint = evaluate(vector_prepared->compiled_composition,
+            CompositionEvaluateContext{}, Frame{10});
+        REQUIRE(midpoint);
+        const auto& position = midpoint->scene.light_context().point_lights[0].position;
+        CHECK(position.x == doctest::Approx(20.0f));
+        CHECK(position.y == doctest::Approx(30.0f));
+        CHECK(position.z == doctest::Approx(100.0f));
+    }
+}
+
+TEST_CASE("RenderPlan light direction rejects an interpolated zero vector") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.canvas = {.width = 64, .height = 64,
+                   .fps = FrameRate{24, 1}, .duration = Frame{24}};
+    LayerPlan layer;
+    layer.id = "opposite-directions";
+    layer.type = LayerType::Light;
+    layer.light = LightLayerPlan{};
+    layer.light->kind = LightKindPlan::Directional;
+    layer.animation = AnimationPlan{{AnimationTrackPlan{
+        .property = "light_direction",
+        .keyframes = {{Frame{0}, {0.0f, 0.0f, -1.0f}},
+                      {Frame{20}, {0.0f, 0.0f, 1.0f}}}}}};
+    plan.layers.push_back(layer);
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver);
+    REQUIRE(prepared);
+    const auto midpoint = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{10});
+    REQUIRE_FALSE(midpoint);
+    CHECK(midpoint.error().message.find("finite and non-zero") != std::string::npos);
+    CHECK(evaluate(prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0}));
+    CHECK(evaluate(prepared->compiled_composition, CompositionEvaluateContext{}, Frame{20}));
+}
+
 TEST_CASE("RenderPlan light intensity and color tracks sample on requested frames") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;

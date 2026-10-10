@@ -27,9 +27,11 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
                             int canvas_width,
                             int canvas_height,
                             FrameRate fps,
-                            const FollowPathEvaluators* precompiled_follow_path) {
+                            const FollowPathEvaluators* precompiled_follow_path,
+                            std::optional<chronon3d::Vec3> source_position = std::nullopt) {
     if (!layer.animation && !layer.follow_path) return;
-    chronon3d::Vec3 base_position{layer.position[0], layer.position[1], layer.position[2]};
+    chronon3d::Vec3 base_position = source_position.value_or(
+        chronon3d::Vec3{layer.position[0], layer.position[1], layer.position[2]});
     if ((layer.type == LayerType::Text || layer.type == LayerType::Shape ||
          layer.type == LayerType::Particles || layer.type == LayerType::Light) &&
         layer.position_dimensions >= 2) {
@@ -514,6 +516,22 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
 }
 
 }  // namespace
+
+chronon3d::Vec3 light_position_at(const LayerPlan& layer, double frame,
+                                  chronon3d::Vec3 base, FrameRate fps) {
+    // Reuse the canonical transform authoring sampler: vector positions are
+    // absolute and underscore components are offsets. A zero-sized canvas
+    // leaves light-source coordinates in canvas pixels, not layer space.
+    chronon3d::LayerBuilder builder(layer.id,
+        chronon3d::SampleTime::from_frame(frame, fps));
+    builder.position(base);
+    apply_animation_tracks(builder, layer, 0, 0, fps, nullptr, base);
+    const auto result = builder.position_anim().evaluate(
+        chronon3d::SampleTime::from_frame(frame, fps));
+    if (!std::isfinite(result.x) || !std::isfinite(result.y) || !std::isfinite(result.z))
+        throw std::runtime_error("animated light position must be finite");
+    return result;
+}
 
 void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                             const LayerPlan& layer,

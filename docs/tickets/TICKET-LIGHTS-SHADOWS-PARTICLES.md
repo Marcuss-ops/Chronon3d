@@ -21,7 +21,26 @@ portate, e istanziamento GPU per le particelle).
 - Restano aperti: animazione di posizione/direzione della luce, ombre con
   receiver espliciti e parità GPU, più batching/istanziamento delle particelle.
 
-### Luci
+### Tranche animazione posizione/direzione — candidato locale
+
+- Priorità confermata dall'utente: luci prima delle particelle.
+- Le sorgenti point/spot/directional campionano `position` (vettore assoluto) e
+  `position_x/y/z` (offset), riusando il sampler transform canonico; l'altezza
+  implicita di una luce 2D resta il suo radius.
+- `light_direction` è una track Vec3 nel registry e nello schema V3. Decoder e
+  sampler rifiutano vettori non finiti/nulli, duplicati e uso su luci radial;
+  un'interpolazione che attraversa il vettore nullo fallisce esplicitamente.
+- Regressioni aggiunte per start/mid/end, accesso fuori ordine, fingerprint,
+  arità/duplicati e vettore nullo interpolato. Build/test/CLI: **VERIFICATO con SUCCESSO**
+  (`chronon3d_c_abi_tests`: 269/269 test cases passed, 6666 assertions passed;
+  `chronon3d_effects_tests`: 275/275 passed; `tools/run_developer_gates.sh --slim`: 6/6 passed).
+- Scope: materializzazione `CompiledComposition`/video compatibility. Il typed
+  compiler non ha ancora `NodeKind::Light`: PNG/SDK typed richiedono una tranche
+  di lowering/materializzazione separata; non dichiarare parità fra le route.
+- Ombre receiver-owned e parità GPU rimangono aperte; il DropShadow screen-space
+  esistente non cambia semantica in questa tranche.
+
+### Luci (audit storico, precedente alla tranche del 2026-10-10)
 - `LayerType::Light` (`render_plan.hpp`) disegna solo un alone radiale
   (`LightLayerPlan{radius, color, intensity}`). Il layer ha `accepts_lights(false)`
   e **non illumina nessun layer**.

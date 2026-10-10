@@ -649,13 +649,24 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     if (layer.animation) {
         std::unordered_set<std::string> light_track_properties;
         for (const auto& track : layer.animation->tracks) {
-            if (track.property != "light_intensity" && track.property != "light_color") continue;
+            if (track.property != "light_intensity" && track.property != "light_color" &&
+                track.property != "light_direction") continue;
             if (layer.type != LayerType::Light || !layer.light)
                 throw std::runtime_error(track.property + " animation requires a light layer");
             if (!light_track_properties.insert(track.property).second)
                 throw std::runtime_error("layer has duplicate " + track.property + " animation tracks");
+            if (track.property == "light_direction" && layer.light->kind == LightKindPlan::Radial)
+                throw std::runtime_error("light_direction animation requires a non-radial light");
             for (const auto& key : track.keyframes) {
-                if (track.property == "light_intensity") {
+                if (track.property == "light_direction") {
+                    if (key.value.size() != 3 || std::any_of(key.value.begin(), key.value.end(),
+                            [](float component) { return !std::isfinite(component); }))
+                        throw std::runtime_error("light_direction keyframes require three finite components");
+                    const float length_squared = key.value[0] * key.value[0] +
+                        key.value[1] * key.value[1] + key.value[2] * key.value[2];
+                    if (!std::isfinite(length_squared) || length_squared <= 1.0e-8f)
+                        throw std::runtime_error("light_direction keyframes must be non-zero");
+                } else if (track.property == "light_intensity") {
                     if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
                         key.value.front() < 0.0f || key.value.front() > 16.0f)
                         throw std::runtime_error("light_intensity keyframes must be finite scalars in [0, 16]");

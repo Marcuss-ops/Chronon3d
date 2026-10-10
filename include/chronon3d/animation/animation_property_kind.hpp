@@ -43,6 +43,7 @@ enum class AnimationPropertyKind : std::uint8_t {
     CharacterOffset,
     LightIntensity,
     LightColor,
+    LightDirection,
 };
 
 [[nodiscard]] inline AnimationPropertyKind animation_property_kind(std::string_view name) {
@@ -71,6 +72,7 @@ enum class AnimationPropertyKind : std::uint8_t {
         {"character_offset", Kind::CharacterOffset},
         {"light_intensity", Kind::LightIntensity},
         {"light_color", Kind::LightColor},
+        {"light_direction", Kind::LightDirection},
     };
     const auto found = kinds.find(name);
     return found == kinds.end() ? Kind::Unknown : found->second;
