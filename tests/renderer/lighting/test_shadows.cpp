@@ -28,7 +28,7 @@ Composition make_shadow_scene(bool casts, bool accepts,
         .duration = 1
     }, [casts, accepts, light_dir](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.camera().enable(true).position({0, 0, -800}).zoom(800).look_at({0, 0, 0});
+        s.camera_descriptor(chronon3d::camera().enabled(true).position({0, 0, -800}).zoom(800).point_of_interest({0, 0, 0}).build());
         s.ambient_light(Color{1, 1, 1, 1}, 0.15f);
         s.directional_light(light_dir, Color{1, 1, 1, 1}, 0.85f);
 
@@ -148,7 +148,7 @@ TEST_CASE("Shadow: near-zero light.y is clamped and does not crash or produce Na
         .name = "ShadowNearZeroY", .width = 320, .height = 240, .duration = 1
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.camera().enable(true).position({0, 0, -800}).zoom(800).look_at({0, 0, 0});
+        s.camera_descriptor(chronon3d::camera().enabled(true).position({0, 0, -800}).zoom(800).point_of_interest({0, 0, 0}).build());
         s.ambient_light(Color{1,1,1,1}, 0.15f);
         s.directional_light({1.0f, 0.0001f, 0.0f}, Color{1,1,1,1}, 0.85f);
         s.layer("floor", [](LayerBuilder& l) {

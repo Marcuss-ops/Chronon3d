@@ -3,6 +3,7 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include "../camera/camera_v1/camera_program_sources.hpp"
+#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
@@ -32,8 +33,29 @@ SceneBuilder& SceneBuilder::camera_pose(const camera_v1::PoseTracksSource& sourc
     eval_context.viewport_width = m_width;
     eval_context.viewport_height = m_height;
 
-    set_camera(camera_v1::eval_pose_tracks(
+    scene_.set_camera_2_5d(camera_v1::eval_pose_tracks(
         descriptor.base, source, eval_context));
+    return *this;
+}
+
+SceneBuilder& SceneBuilder::camera_descriptor(camera_v1::CameraDescriptor descriptor) {
+    camera_v1::CameraEvalContext eval_context;
+    eval_context.frame = current_integer_frame();
+    eval_context.sample_time = current_time_;
+    eval_context.viewport_width = m_width;
+    eval_context.viewport_height = m_height;
+    auto evaluated = camera_v1::evaluate_camera_descriptor(descriptor, eval_context);
+    if (const auto* target = std::get_if<camera_v1::LookAtLayer>(&descriptor.orientation)) {
+        evaluated.target_name = std::pmr::string{target->target, scene_.resource()};
+        evaluated.point_of_interest_enabled = true;
+    }
+    scene_.set_default_camera_descriptor(std::move(descriptor));
+    scene_.set_camera_2_5d(std::move(evaluated));
+    return *this;
+}
+
+SceneBuilder& SceneBuilder::set_evaluated_camera(Camera2_5D camera) {
+    scene_.set_camera_2_5d(std::move(camera));
     return *this;
 }
 

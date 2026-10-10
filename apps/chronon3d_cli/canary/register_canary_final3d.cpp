@@ -96,7 +96,7 @@ namespace {
                 const f32 distance = id == "camera_push"
                     ? canary_lerp(1120.0f, 880.0f, canary_smoothstep(t))
                     : (id == "light_pulse" ? 1010.0f : 1000.0f);
-                scene.camera().set(canary_orbit_camera(yaw, canary_lerp(4.0f, -4.0f, t), distance));
+                scene.camera_descriptor(canary_orbit_camera(yaw, canary_lerp(4.0f, -4.0f, t), distance));
                 return scene.build();
             });
     }

@@ -30,7 +30,7 @@ Composition make_extrusion_canary() {
                         .height = 64, .duration = 1},
         [mesh = std::move(mesh)](const FrameContext& context) {
             SceneBuilder scene(context);
-            scene.camera().enable(true).position({0, 0, -80}).zoom(80).look_at({0, 0, 0});
+            scene.camera_descriptor(chronon3d::camera().enabled(true).position({0, 0, -80}).zoom(80).point_of_interest({0, 0, 0}).build());
             scene.layer("extrusion", [mesh](LayerBuilder& layer) {
                 layer.enable_3d().fill(Color{1, 1, 1, 1}).inline_mesh(mesh);
             });

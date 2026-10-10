@@ -16,6 +16,7 @@
 // ============================================================================
 
 #include <cstdint>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 
 namespace chronon3d::tracing {
 
@@ -39,12 +40,7 @@ inline constexpr TraceJobId kInvalidTraceJobId = 0;
     // splitmix64 finalizer: cheap, avalanche-y, collision-resistant enough
     // for flow correlation across thousands of frames.
     std::uint64_t x = job_id * 0x9E3779B97F4A7C15ULL + frame_id;
-    x ^= x >> 30;
-    x *= 0xBF58476D1CE4E5B9ULL;
-    x ^= x >> 27;
-    x *= 0x94D049BB133111EBULL;
-    x ^= x >> 31;
-    return x;
+    return core::hash::splitmix64_finalize(x);
 }
 
 } // namespace chronon3d::tracing

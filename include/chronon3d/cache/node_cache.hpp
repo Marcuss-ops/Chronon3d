@@ -111,12 +111,10 @@ struct NodeCacheKey {
 // consumers should NOT depend on the stability of these 3 symbols.
 // =============================================================================
 
-/// Standard boost::hash_combine mixer (matches `HashBuilder::mix` recipe in
-/// `chronon3d/core/hash/hash_builder.hpp`). Inlined here so callers can blend
-/// an external digest into an existing `NodeCacheKey::params_hash` without
-/// pulling in `render_graph_hashing.hpp` transitively.
+/// Blend an external digest into an existing `NodeCacheKey::params_hash`
+/// without pulling in `render_graph_hashing.hpp` transitively.
 inline u64 mix_params_hash(u64 seed, u64 value) noexcept {
-    return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
+    return core::hash::hash_combine(seed, value);
 }
 
 /// Compute a deterministic u64 digest of the evaluated Camera2_5D state.

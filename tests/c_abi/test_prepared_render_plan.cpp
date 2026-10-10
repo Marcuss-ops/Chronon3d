@@ -2443,7 +2443,7 @@ TEST_CASE("render plan 2D point light defaults its height to the light radius") 
     CHECK(source.position.z == doctest::Approx(90.0f));
 }
 
-TEST_CASE("RenderPlan lights project blurred shadows onto earlier receiver layers") {
+TEST_CASE("RenderPlan lights project blurred caster shadows into the composite") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
     RenderPlan plan;
@@ -2456,6 +2456,9 @@ TEST_CASE("RenderPlan lights project blurred shadows onto earlier receiver layer
     caster.color = {0.8f, 0.4f, 0.2f, 1.0f};
     caster.position = {80.0f, 40.0f, 20.0f};
     caster.position_dimensions = 3;
+    // Casting and receiving are independent material policies. A caster that
+    // opts out of receiving shadows still projects its own silhouette.
+    caster.accepts_shadows = false;
     plan.layers.push_back(caster);
     LayerPlan no_shadow_caster = caster;
     no_shadow_caster.id = "shadow-opt-out";

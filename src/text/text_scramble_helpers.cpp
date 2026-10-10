@@ -6,6 +6,7 @@
 // All 7 helpers are in namespace chronon3d::text_internal.
 
 #include "text_scramble_helpers.hpp"
+#include <chronon3d/core/hash/hash_primitives.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -17,11 +18,8 @@ namespace chronon3d::text_internal {
 
 u64 scramble_hash(u64 seed, u64 index) noexcept {
     u64 x = seed;
-    x ^= index + 0x9e3779b97f4a7c15ULL + (x << 6) + (x >> 2);
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-    x = x ^ (x >> 31);
-    return x;
+    x = core::hash::hash_combine(x, index);
+    return core::hash::splitmix64_finalize(x);
 }
 
 f32 scramble_float(u64 seed, u64 index, u64 frame_val) noexcept {

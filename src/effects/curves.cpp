@@ -1,6 +1,7 @@
 // ── curves.cpp — Curve LUT implementation ─────────────────────────────────
 
 #include <chronon3d/effects/curves.hpp>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -12,20 +13,14 @@ namespace chronon3d {
 // Hash helper
 // =============================================================================
 
-// Simple hash combiner (splitmix64-inspired)
-static uint64_t hash_combine(uint64_t seed, uint64_t v) {
-    seed ^= v + 0x9E3779B97F4A7C15ULL + (seed << 6) + (seed >> 2);
-    return seed;
-}
-
 uint64_t hash_curve_points(const std::vector<CurvePoint>& points) {
     uint64_t h = 0;
     for (const auto& pt : points) {
         // bit_cast<float→uint32_t> requires same size; promote to uint64_t for combining
         const uint64_t xi = static_cast<uint64_t>(std::bit_cast<uint32_t>(pt.x));
         const uint64_t yi = static_cast<uint64_t>(std::bit_cast<uint32_t>(pt.y));
-        h = hash_combine(h, xi);
-        h = hash_combine(h, yi);
+        h = core::hash::hash_combine(h, xi);
+        h = core::hash::hash_combine(h, yi);
     }
     return h;
 }

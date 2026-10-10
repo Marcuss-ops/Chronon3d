@@ -47,7 +47,7 @@ namespace {
                     l.text("text", canary_element_text("CHRONON", mode));
                 });
 
-                scene.camera().set(moving
+                scene.camera_descriptor(moving
                     ? canary_orbit_camera(
                         canary_lerp(-8.0f, 8.0f, canary_progress(ctx)), 0.0f, 1000.0f)
                     : canary_orbit_camera(0.0f, 0.0f, 1000.0f));
@@ -71,7 +71,7 @@ namespace {
                         Color{1.0f, 0.86f, 0.86f, 1.0f}, Vec2{1600.0f, 360.0f}));
                 });
 
-                scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
+                scene.camera_descriptor(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
                 return scene.build();
             });
     }

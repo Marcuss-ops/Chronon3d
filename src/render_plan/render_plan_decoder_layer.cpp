@@ -1,4 +1,6 @@
 #include "render_plan_decoder_detail.hpp"
+#include "easing_contract.hpp"
+#include "json_vector.hpp"
 #include <chronon3d/render_plan/animation_property_registry.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
@@ -123,10 +125,9 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         params.count = raw.at("count").get<u32>();
         params.seed = raw.at("seed").get<u32>();
         const auto read_vec2 = [](const nlohmann::json& object, const char* key) {
-            const auto& input = object.at(key);
-            if (!input.is_array() || input.size() != 2)
-                throw std::runtime_error(std::string("particle_emitter.") + key + " must have two numbers");
-            const Vec2 result{input[0].get<float>(), input[1].get<float>()};
+            const auto input = decode_json_vector<2>(object.at(key),
+                std::string("particle_emitter.") + key + " must have two numbers");
+            const Vec2 result{input[0], input[1]};
             if (!std::isfinite(result.x) || !std::isfinite(result.y))
                 throw std::runtime_error(std::string("particle_emitter.") + key + " must be finite");
             return result;
@@ -318,16 +319,11 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         target.decimals = counter.value("decimals", 0);
         target.prefix = counter.value("prefix", std::string{});
         target.suffix = counter.value("suffix", std::string{});
-        static constexpr std::array<std::string_view, 23> easings{
-            "linear", "in_quad", "out_quad", "in_out_quad", "in_cubic", "out_cubic",
-            "in_out_cubic", "in_expo", "out_expo", "in_out_expo", "in_sine", "out_sine",
-            "in_out_sine", "in_back", "out_back", "in_out_back", "in_elastic", "out_elastic",
-            "in_out_elastic", "in_bounce", "out_bounce", "in_out_bounce", "smoothstep"};
         if (!std::isfinite(target.from) || !std::isfinite(target.to) ||
             std::abs(target.from) > 1.0e12f || std::abs(target.to) > 1.0e12f ||
             target.start_frame.integral() < 0 || target.start_frame.integral() > 1000000 ||
             target.duration_frames.integral() < 1 || target.duration_frames.integral() > 1000000 ||
-            std::find(easings.begin(), easings.end(), target.easing) == easings.end() ||
+            !is_counter_easing(target.easing) ||
             (target.format != "plain" && target.format != "currency" &&
              target.format != "percent" && target.format != "compact") ||
             target.decimals < 0 || target.decimals > 6 || target.prefix.size() > 32 ||

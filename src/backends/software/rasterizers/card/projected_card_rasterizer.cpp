@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
+#include "triangle_scanline.hpp"
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <algorithm>
@@ -106,47 +107,15 @@ static void fill_triangle_depth(
 
 // Old scanline fill without depth (used when no depth buffer provided)
 static void fill_triangle_flat(Framebuffer& fb, Vec2 v0, Vec2 v1, Vec2 v2, const Color& color) {
-    if (v0.y > v1.y) std::swap(v0, v1);
-    if (v1.y > v2.y) std::swap(v1, v2);
-    if (v0.y > v1.y) std::swap(v0, v1);
-
-    const int y0 = std::max(0, static_cast<int>(std::ceil(v0.y)));
-    const int y2 = std::min(fb.height() - 1, static_cast<int>(std::floor(v2.y)));
-    if (y0 > y2) return;
-
-    const float h = v2.y - v0.y;
-    if (h < 0.5f) return;
-
-    for (int y = y0; y <= y2; ++y) {
-        const float t_full = (static_cast<float>(y) - v0.y) / h;
-        const float x_long = v0.x + (v2.x - v0.x) * t_full;
-
-        float x_short;
-        if (static_cast<float>(y) < v1.y) {
-            const float seg = v1.y - v0.y;
-            x_short = (seg > 0.5f) ? v0.x + (v1.x - v0.x) * ((static_cast<float>(y) - v0.y) / seg) : v1.x;
-        } else {
-            const float seg = v2.y - v1.y;
-            x_short = (seg > 0.5f) ? v1.x + (v2.x - v1.x) * ((static_cast<float>(y) - v1.y) / seg) : v2.x;
-        }
-
-        const int x0 = std::max(0, static_cast<int>(std::ceil(std::min(x_long, x_short))));
-        const int x1 = std::min(fb.width() - 1, static_cast<int>(std::floor(std::max(x_long, x_short))));
-
-        Color* row = fb.pixels_row(y);
-        for (int x = x0; x <= x1; ++x) {
-            Color& dst = row[x];
-            if (std::isnan(color.r) || std::isnan(color.g) || std::isnan(color.b) || std::isnan(color.a) ||
-                std::isinf(color.r) || std::isinf(color.g) || std::isinf(color.b) || std::isinf(color.a)) {
-                continue;
-            }
-            const float inv_a = 1.0f - color.a;
-            dst.r = color.r + dst.r * inv_a;
-            dst.g = color.g + dst.g * inv_a;
-            dst.b = color.b + dst.b * inv_a;
-            dst.a = color.a + dst.a * inv_a;
-        }
-    }
+    if (color.a <= 0.0f || !std::isfinite(color.r) || !std::isfinite(color.g) ||
+        !std::isfinite(color.b) || !std::isfinite(color.a)) return;
+    detail::for_each_card_triangle_pixel(fb, {v0, v1, v2}, [&](Color& dst) {
+        const float inv_a = 1.0f - color.a;
+        dst.r = color.r + dst.r * inv_a;
+        dst.g = color.g + dst.g * inv_a;
+        dst.b = color.b + dst.b * inv_a;
+        dst.a = color.a + dst.a * inv_a;
+    });
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────

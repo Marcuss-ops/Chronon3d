@@ -7,7 +7,6 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/builders/camera_api.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/node_handle.hpp>
 #include <chronon3d/scene/model/core/clip_transition.hpp>
@@ -15,6 +14,7 @@
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/scene/camera/camera_descriptor_builder.hpp>
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/rendering/light_context.hpp>
@@ -51,7 +51,7 @@ class SequenceBuilder;  // forward decl — Sequence V2 facade (sequence_builder
 //                                          precomp_layer /
 //                                          video_layer / null_layer)
 //     detail/scene_builder_sequences.inl  (sequence)
-//     scene_builder_inline.inl             (edit_camera + member bodies)
+//     scene_builder_inline.inl             (member bodies)
 //
 // These are bottom-included at the bottom of this header (mirrors the
 // existing Phase-3.3 split). Bodies in .inl files marked `inline` for
@@ -78,7 +78,10 @@ class SceneBuilder {
     SceneBuilder& font_engine(FontEngine* engine);
     [[nodiscard]] FontEngine* font_engine() const;
 
-    [[nodiscard]] CameraApi camera();
+    /// Set the camera through the canonical V1 descriptor and evaluator.
+    SceneBuilder& camera_descriptor(camera_v1::CameraDescriptor descriptor);
+    /// Runtime-only evaluated camera injection used by the render-plan adapter.
+    SceneBuilder& set_evaluated_camera(Camera2_5D camera);
 
     /// Set camera from the canonical V1 pose source at the current time.
     SceneBuilder& camera_pose(const camera_v1::PoseTracksSource& cam);
@@ -183,15 +186,9 @@ class SceneBuilder {
         Scene& target_scene,
         registry::ShapeRegistry* shape_reg);
 
-    friend class CameraApi;
     friend class SequenceBuilder;  // Sequence V2: access scene_ for nested merge
 
   private:
-    void set_camera(Camera2_5D camera);
-
-    template <typename Fn>
-    void edit_camera(Fn&& fn);
-
     [[nodiscard]] Frame current_integer_frame() const;
 
     /// Keep every authored layer in the scene and merge its manifest.
@@ -270,8 +267,7 @@ inline SeriesBuilder SceneBuilder::series(const std::string& name) {
 //                                       (Phase-3.3)
 //   * scene_builder_sequences.inl    — templated sequence() body
 //                                       (Phase-3.3)
-//   * scene_builder_inline.inl       — edit_camera() friend-of-CameraApi
-//                                       helper and non-template member bodies
+//   * scene_builder_inline.inl       — non-template member bodies
 //
 // Non-template bodies are marked `inline` in their .inl so ODR is satisfied
 // when this header is included in multiple TUs. Templates are implicitly

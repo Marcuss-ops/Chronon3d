@@ -25,7 +25,7 @@ Composition make_two_card_scene(bool enable_lights, bool accept_lights, f32 rota
         .duration = 1
     }, [=](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.camera().enable(true).position({0, 0, -1000}).zoom(1000).look_at({0, 0, 0});
+        s.camera_descriptor(chronon3d::camera().enabled(true).position({0, 0, -1000}).zoom(1000).point_of_interest({0, 0, 0}).build());
         if (enable_lights) {
             s.ambient_light(Color{1, 1, 1, 1}, 0.15f);
             s.directional_light({0, 0, -1}, Color{1, 1, 1, 1}, 0.85f);
@@ -66,7 +66,7 @@ Composition make_parented_card_scene(f32 parent_y, bool enable_lights = true) {
         .duration = 1
     }, [=](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.camera().enable(true).position({0, 0, -1000}).zoom(1000).look_at({0, 0, 0});
+        s.camera_descriptor(chronon3d::camera().enabled(true).position({0, 0, -1000}).zoom(1000).point_of_interest({0, 0, 0}).build());
         if (enable_lights) {
             s.ambient_light(Color{1, 1, 1, 1}, 0.15f);
             s.directional_light({0, 0, -1}, Color{1, 1, 1, 1}, 0.85f);

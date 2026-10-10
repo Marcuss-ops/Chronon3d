@@ -152,6 +152,12 @@ TEST_CASE("Curves: tiny change in point produces different hash") {
     CHECK(ha != hb);
 }
 
+TEST_CASE("Curves: hash keeps canonical hash_combine digest") {
+    const std::vector<CurvePoint> points = {
+        {0.0f, 0.0f}, {0.5f, 0.5f}, {1.0f, 1.0f}};
+    CHECK(hash_curve_points(points) == 0xcb96cbad0e0f3f1bULL);
+}
+
 // =============================================================================
 // 6. Cache (sezione 6.6)
 // =============================================================================

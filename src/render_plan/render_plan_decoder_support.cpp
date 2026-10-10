@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include "json_vector.hpp"
 #include "enum_mapping.hpp"
 
 #include <nlohmann/json.hpp>
@@ -81,10 +82,9 @@ graphics::GradientDefinition decode_gradient_definition(
     const auto read_vec2 = [](const nlohmann::json& object,
                               const char* key, Vec2& output) {
         if (!object.contains(key)) return;
-        const auto& raw = object.at(key);
-        if (!raw.is_array() || raw.size() != 2)
-            throw std::runtime_error(std::string("gradient.") + key + " must have two numbers");
-        output = {raw[0].get<float>(), raw[1].get<float>()};
+        const auto raw = decode_json_vector<2>(object.at(key),
+            std::string("gradient.") + key + " must have two numbers");
+        output = {raw[0], raw[1]};
         if (!std::isfinite(output.x) || !std::isfinite(output.y))
             throw std::runtime_error(std::string("gradient.") + key + " must be finite");
     };
@@ -222,10 +222,8 @@ CameraPlan decode_camera(const nlohmann::json& value) {
     const auto read_vec3 = [](const nlohmann::json& object, const char* key,
                               std::array<float, 3>& result) {
         if (!object.contains(key)) return;
-        const auto& array = object.at(key);
-        if (!array.is_array() || array.size() != 3)
-            throw std::runtime_error(std::string("camera.") + key + " must contain exactly 3 numbers");
-        for (std::size_t i = 0; i < 3; ++i) result[i] = array.at(i).get<float>();
+        result = decode_json_vector<3>(object.at(key),
+            std::string("camera.") + key + " must contain exactly 3 numbers");
     };
     read_vec3(value, "position", camera.position);
     read_vec3(value, "rotation_deg", camera.rotation_deg);

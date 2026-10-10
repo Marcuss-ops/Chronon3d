@@ -225,8 +225,7 @@ void materialize_light_shadows(RenderPlan& plan) {
         for (std::size_t caster_index = 0; caster_index < light_index; ++caster_index) {
             auto& caster = plan.layers[caster_index];
             if (caster.type == LayerType::Light || caster.type == LayerType::Adjustment ||
-                (caster.casts_shadows && !*caster.casts_shadows) ||
-                (caster.accepts_shadows && !*caster.accepts_shadows))
+                (caster.casts_shadows && !*caster.casts_shadows))
                 continue;
             const float dx = light.kind == LightKindPlan::Directional
                 ? light.direction[0] : caster.position[0] - light_layer.position[0];

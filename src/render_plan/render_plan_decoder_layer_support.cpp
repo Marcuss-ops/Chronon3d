@@ -1,10 +1,10 @@
 #include "render_plan_decoder_detail.hpp"
+#include "easing_contract.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
 #include <nlohmann/json.hpp>
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -49,13 +49,7 @@ LayerPlan::StaggerPlan decode_stagger(const nlohmann::json& raw) {
         plan.track_property.empty() || plan.track_property.size() > 128)
         throw std::runtime_error("layout stagger has invalid delay, order, or track_property");
     if (!plan.easing.empty()) {
-        static constexpr std::array<std::string_view, 22> easings{
-            "linear", "in_quad", "out_quad", "in_out_quad", "in_cubic", "out_cubic",
-            "in_out_cubic", "in_expo", "out_expo", "in_out_expo", "in_sine", "out_sine",
-            "in_out_sine", "in_back", "out_back", "in_out_back", "in_elastic", "out_elastic",
-            "in_out_elastic", "in_bounce", "out_bounce", "in_out_bounce"};
-        if (std::find(easings.begin(), easings.end(), plan.easing) == easings.end() &&
-            plan.easing != "smoothstep" && plan.easing != "hold" && plan.easing != "bezier")
+        if (!is_stagger_easing(plan.easing))
             throw std::runtime_error("layout stagger has an unsupported easing");
     }
     return plan;

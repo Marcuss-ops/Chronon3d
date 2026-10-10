@@ -30,16 +30,16 @@ Composition make_dof_scene(bool far_bar) {
     return composition({.width = 256, .height = 256, .duration = 1},
         [far_bar](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera().enable(true)
+            s.camera_descriptor(camera().enabled(true)
                 .position({0.0f, 0.0f, -1000.0f})
                 .zoom(1000.0f)
-                .look_at({0.0f, 0.0f, 0.0f})
+                .point_of_interest({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                 .enabled = true,
                 .focus_z = 0.0f,
                 .aperture = 0.05f,
                 .max_blur = 24.0f
-            });
+            }).build());
             s.layer("bg", [](LayerBuilder& l) {
                 l.fill(Color{0.05f, 0.07f, 0.10f, 1.0f});
             });
@@ -61,16 +61,16 @@ Composition make_sparse_dof_scene() {
     return composition({.width = 128, .height = 128, .duration = 1},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera().enable(true)
+            s.camera_descriptor(camera().enabled(true)
                 .position({0.0f, 0.0f, -1000.0f})
                 .zoom(1000.0f)
-                .look_at({0.0f, 0.0f, 0.0f})
+                .point_of_interest({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                 .enabled = true,
                 .focus_z = 0.0f,
                 .aperture = 0.05f,
                 .max_blur = 24.0f
-            });
+            }).build());
             s.layer("sparse", [](LayerBuilder& l) {
                 l.enable_3d(true).position({0.0f, 0.0f, -800.0f});
                 l.rect("box", {
@@ -87,16 +87,16 @@ Composition make_focused_dof_scene() {
     return composition({.width = 128, .height = 128, .duration = 1},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera().enable(true)
+            s.camera_descriptor(camera().enabled(true)
                 .position({0.0f, 0.0f, -500.0f})
                 .zoom(1000.0f)
-                .look_at({0.0f, 0.0f, 0.0f})
+                .point_of_interest({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                     .enabled = true,
                     .focus_z = 0.0f,
                     .aperture = 0.05f,
                     .max_blur = 24.0f
-                });
+                }).build());
             s.layer("focused", [](LayerBuilder& l) {
                 l.enable_3d(true).position({0.0f, 0.0f, 0.0f});
                 l.rect("box", {
@@ -113,13 +113,13 @@ Composition make_two_source_dof_scene(bool distant) {
     return composition({.width = 128, .height = 128, .duration = 1},
         [distant](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera().enable(true)
+            s.camera_descriptor(camera().enabled(true)
                 .position({0.0f, 0.0f, -1000.0f})
                 .zoom(1000.0f)
-                .look_at({0.0f, 0.0f, 0.0f})
+                .point_of_interest({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                     .enabled = true, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 24.0f});
+                    .aperture = 0.05f, .max_blur = 24.0f}).build());
             s.layer("source_a", [distant](LayerBuilder& l) {
                 l.enable_3d(true).position(distant
                     ? Vec3{-20.0f, -20.0f, -600.0f}
@@ -142,13 +142,13 @@ Composition make_alpha_dof_scene(float opacity) {
     return composition({.width = 64, .height = 64, .duration = 1},
         [opacity](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera().enable(true)
+            s.camera_descriptor(camera().enabled(true)
                 .position({0.0f, 0.0f, -1000.0f})
                 .zoom(1000.0f)
-                .look_at({0.0f, 0.0f, 0.0f})
+                .point_of_interest({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                     .enabled = true, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 16.0f});
+                    .aperture = 0.05f, .max_blur = 16.0f}).build());
             s.layer("alpha_source", [opacity](LayerBuilder& l) {
                 l.enable_3d(true).position({0.0f, 0.0f, -800.0f}).opacity(opacity);
                 l.rect("box", {.size = {12.0f, 12.0f},
@@ -164,12 +164,12 @@ Composition make_position_animation_dof_scene() {
             const float frame = static_cast<float>(ctx.frame());
             const float x = -10.0f + 20.0f * (frame / 299.0f);
             SceneBuilder s(ctx);
-            s.camera().enable(true)
+            s.camera_descriptor(camera().enabled(true)
                 .position({0.0f, 0.0f, -1000.0f}).zoom(1000.0f)
-                .look_at({0.0f, 0.0f, 0.0f})
+                .point_of_interest({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                     .enabled = true, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 24.0f});
+                    .aperture = 0.05f, .max_blur = 24.0f}).build());
             s.layer("moving", [x](LayerBuilder& l) {
                 l.enable_3d(true).position({x, 0.0f, -800.0f});
                 l.rect("box", {.size = {12.0f, 12.0f},
@@ -185,12 +185,12 @@ Composition make_z_animation_dof_scene() {
             const float frame = static_cast<float>(ctx.frame());
             const float z = -800.0f * (frame / 299.0f);
             SceneBuilder s(ctx);
-            s.camera().enable(true)
+            s.camera_descriptor(camera().enabled(true)
                 .position({0.0f, 0.0f, -1000.0f}).zoom(1000.0f)
-                .look_at({0.0f, 0.0f, 0.0f})
+                .point_of_interest({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                     .enabled = true, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 24.0f});
+                    .aperture = 0.05f, .max_blur = 24.0f}).build());
             s.layer("z_moving", [z](LayerBuilder& l) {
                 l.enable_3d(true).position({0.0f, 0.0f, z});
                 l.rect("box", {.size = {8.0f, 8.0f},

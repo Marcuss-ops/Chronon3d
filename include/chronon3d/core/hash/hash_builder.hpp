@@ -19,21 +19,17 @@
 #include <type_traits>
 #include <xxhash.h>
 
+#include <chronon3d/core/hash/hash_primitives.hpp>
 #include <chronon3d/core/types/frame.hpp>
 
 namespace chronon3d::core::hash {
 
 // ── Canonical digest primitives (Cat-3 single seat) ──────────────────────
-// The mixing formula and the XXH64 byte/string digests are defined ONCE,
-// here.  Domain spellings (graph::hash_combine/hash_bytes/hash_string in
+// The mixing formula is defined once in hash_primitives.hpp and the XXH64
+// byte/string digests here. Domain spellings (graph::hash_combine/hash_bytes/hash_string in
 // render_graph_hashing.hpp, text::detail::hcombine/hbytes/hstring in
 // src/text/hash_helpers.hpp) delegate to these, so every cache-key digest
 // shares one primitive implementation.
-
-/// Standard boost::hash_combine mixing formula.
-[[nodiscard]] inline uint64_t hash_combine(uint64_t seed, uint64_t value) {
-    return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6U) + (seed >> 2U));
-}
 
 /// Deterministic raw-bytes digest (XXH64).
 [[nodiscard]] inline uint64_t hash_bytes(const void* data, std::size_t size) {
