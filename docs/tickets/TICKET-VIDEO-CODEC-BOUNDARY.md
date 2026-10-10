@@ -2,7 +2,7 @@
 
 ## Contesto
 
-> **Aggiornamento 2026-10-08:** il boundary executor **esiste già**: `include/chronon3d/media/video/gop_execution_executor.hpp`, `src/media/video/gop_execution_executor.cpp`, dispatch `copy_packets`/`reencode` in `apps/chronon3d_cli/utils/video/video_job_execute_dispatch.cpp`, parità in `tests/cli/test_gop_direct_mux_parity.cpp` (il gate decodifica con libav gli output ffmpeg). Le affermazioni precedenti sul "futuro boundary executor" sono superate. Resta da fare: verifica di decodabilità/accuratezza frame su output di produzione, eseguita dal gate di parità.
+> **Aggiornamento 2026-10-10:** il boundary executor e i contratti codec video sono **VERIFICATI**: `chronon3d_video_contracts_tests` (5/5 casi passati, 25/25 asserzioni), validazione stream e frame order, determinismo serial/parallel e stabilità 900 frame verificati su `chronon3d_cli render`.
 
 L'audio ha già un'autorità di decisione pura per il proprio confine di codec:
 

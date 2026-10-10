@@ -122,7 +122,12 @@ std::optional<RenderRequest> make_render_request(
     request.video_settings = args.video_settings;
     if (!args.pipe_pixfmt_explicit) request.video_settings.pipe_pixfmt.clear();
 
-    const auto range = parse_frames(args.frames);
+    const auto range_res = parse_frames_safe(args.frames);
+    if (args.frames_explicit && !range_res.ok) {
+        spdlog::error("[cli] Invalid --frames range '{}': {}", args.frames, range_res.error);
+        return std::nullopt;
+    }
+    const auto range = range_res.value;
     request.frame_step = Frame{range.step};
 
     // A range that the user EXPLICITLY requested (--frames/--frame present)
