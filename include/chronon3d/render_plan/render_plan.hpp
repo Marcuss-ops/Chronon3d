@@ -722,17 +722,19 @@ struct LayerPlan {
     std::size_t rotation_dimensions{0};
     float skew_angle_deg{0.0f};
     float skew_axis_deg{0.0f};
-    // Route this layer through Chronon's camera-backed 2.5D/3D projection.
-    // The flag is explicit so a plan cannot accidentally carry X/Y rotation
-    // while still being treated as a flat screen-space overlay.
+    // Spatial contract: ordinary layers stay in the flat canvas plane. Set
+    // this flag to route a planar image/shape through the scene camera, making
+    // its Z position and X/Y rotations meaningful (2.5D). Mesh layers are
+    // camera-backed by their kind and do not need this flag. This switch does
+    // not mean “arbitrary 3D geometry”; that is represented by Mesh.
     bool enable_3d{false};
     // Mesh shadow participation is opt-in in the wire contract. Absence keeps
     // the historical compiler behavior and therefore old fingerprints stable.
     std::optional<bool> casts_shadows;
     std::optional<bool> accepts_shadows;
-    // Keep a layer pinned to the output canvas while a scene camera is active.
-    // Render-plan backgrounds commonly need this so transparent projected
-    // layers reveal the authored background instead of the camera clear color.
+    // Keep a layer pinned to output-canvas coordinates while a scene camera
+    // is active. This is independent of enable_3d and is for screen overlays
+    // such as backgrounds or HUD elements.
     bool screen_space{false};
     // Pixel insets [top, right, bottom, left] for title/action-safe layout.
     std::optional<std::array<float, 4>> safe_insets;

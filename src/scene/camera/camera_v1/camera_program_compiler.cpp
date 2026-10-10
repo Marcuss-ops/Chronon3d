@@ -32,6 +32,9 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
+#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
+#include <stdexcept>
 #include "camera_builtin_presets.hpp"
 
 #include <cmath>
@@ -40,6 +43,19 @@
 #include <variant>
 
 namespace chronon3d::camera_v1 {
+
+Camera2_5D evaluate_camera_descriptor(const CameraDescriptor& descriptor,
+                                      const CameraEvalContext& context) {
+    auto compiled = compile_camera(descriptor);
+    if (!compiled)
+        throw std::invalid_argument("invalid camera descriptor: " + compiled.error().message);
+    CameraSession session;
+    auto evaluated = compiled.value().evaluate(context, session);
+    if (!evaluated)
+        throw std::invalid_argument("camera descriptor evaluation failed: " +
+                                    evaluated.error().message);
+    return std::move(evaluated.value().camera);
+}
 
 // CAM-02: 3-arg compile_camera() is the canonical implementation.  The
 // 2-arg public overload (declared in camera_program_compiler.hpp) is an

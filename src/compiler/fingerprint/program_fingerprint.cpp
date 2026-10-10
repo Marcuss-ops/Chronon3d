@@ -11,6 +11,7 @@
 // different fact (topology/IR shape, not content identity).
 
 #include "../compiler_stages.hpp"
+#include <chronon3d/core/hash/hash_builder.hpp>
 
 #include <cstdint>
 
@@ -18,12 +19,7 @@ namespace chronon3d::compiler::stages {
 
 std::uint64_t fingerprint(const render_plan::RenderPlan& plan, const CompiledProgramData& program) {
     std::uint64_t value = plan.content_fingerprint ^ 0x9e3779b97f4a7c15ULL;
-    const auto mix = [](std::uint64_t x) {
-        x += 0x9e3779b97f4a7c15ULL;
-        x = (x ^ (x >> 30U)) * 0xbf58476d1ce4e5b9ULL;
-        x = (x ^ (x >> 27U)) * 0x94d049bb133111ebULL;
-        return x ^ (x >> 31U);
-    };
+    const auto mix = [](std::uint64_t x) { return core::hash::splitmix64(x); };
     const auto combine = [&value, &mix](std::size_t count) {
         value = mix(value ^ mix(static_cast<std::uint64_t>(count)));
     };

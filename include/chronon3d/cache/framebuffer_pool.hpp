@@ -17,6 +17,7 @@
 // =============================================================================
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <atomic>
 #include <array>
@@ -50,8 +51,8 @@ struct FramebufferPoolKey {
 struct FramebufferPoolKeyHash {
     size_t operator()(const FramebufferPoolKey& k) const noexcept {
         size_t seed = 1469598103934665603ULL;
-        seed ^= static_cast<size_t>(k.width) + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-        seed ^= static_cast<size_t>(k.height) + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+        seed = static_cast<size_t>(core::hash::hash_combine(seed, static_cast<size_t>(k.width)));
+        seed = static_cast<size_t>(core::hash::hash_combine(seed, static_cast<size_t>(k.height)));
         return seed;
     }
 };

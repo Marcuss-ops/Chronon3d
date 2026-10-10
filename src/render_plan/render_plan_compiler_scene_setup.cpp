@@ -1,4 +1,5 @@
 #include "render_plan_compiler_detail.hpp"
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include "../scene/camera/camera_v1/camera_program_sources.hpp"
@@ -7,18 +8,11 @@
 #include <utility>
 namespace chronon3d::render_plan::detail {
 namespace {
-std::uint64_t shake_mix64(std::uint64_t value) noexcept {
-    value += 0x9e3779b97f4a7c15ULL;
-    value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
-    value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
-    return value ^ (value >> 31U);
-}
-
 double shake_value_noise(double sample, std::uint32_t seed, std::uint32_t channel) noexcept {
     const auto cell = static_cast<std::int64_t>(std::floor(sample));
     const double fraction = sample - static_cast<double>(cell);
     const auto value_at = [seed, channel](std::int64_t index) {
-        const auto bits = shake_mix64(static_cast<std::uint64_t>(index) ^
+        const auto bits = chronon3d::core::hash::splitmix64(static_cast<std::uint64_t>(index) ^
             (static_cast<std::uint64_t>(seed) << 32U) ^ channel);
         return static_cast<double>(bits >> 11U) * (1.0 / 9007199254740992.0) * 2.0 - 1.0;
     };
@@ -66,7 +60,16 @@ void configure_scene_camera_and_lighting(
             // tracked on the layers themselves and must not keep the
             // camera in the per-frame animated-camera path.
             camera.is_animated = false;
-            scene.camera().set(camera);
+            chronon3d::camera_v1::CameraDescriptor descriptor;
+            descriptor.id = "render_plan.implicit_camera";
+            descriptor.base.position = camera.position;
+            descriptor.base.point_of_interest_enabled = true;
+            descriptor.base.point_of_interest = camera.point_of_interest;
+            chronon3d::camera_v1::ZoomProjection zoom;
+            zoom.zoom.set(camera.zoom);
+            descriptor.base.projection = zoom;
+            descriptor.orientation = chronon3d::camera_v1::LookAtPoint{camera.point_of_interest};
+            scene.camera_descriptor(std::move(descriptor));
         }
         // The canonical CLI executor builds this scene callback directly
         // and does not pass through Composition::evaluate(), which is the
@@ -113,7 +116,7 @@ void configure_scene_camera_and_lighting(
                     evaluated_camera.is_animated = true;
                 }
             }
-            scene.camera().set(std::move(evaluated_camera));
+            scene.set_evaluated_camera(std::move(evaluated_camera));
         }
 
 }

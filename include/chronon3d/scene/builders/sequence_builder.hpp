@@ -118,7 +118,10 @@ public:
 
     // ── Camera (delegate to SceneBuilder) ────────────────────────────
 
-    [[nodiscard]] CameraApi camera() { return m_builder.camera(); }
+    SequenceBuilder& camera_descriptor(camera_v1::CameraDescriptor descriptor) {
+        m_builder.camera_descriptor(std::move(descriptor));
+        return *this;
+    }
 
     SequenceBuilder& camera_pose(const camera_v1::PoseTracksSource& cam) {
         m_builder.camera_pose(cam);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 #include <chronon3d/cache/framebuffer_copy.hpp>
 #include <span>
 #include <algorithm>
@@ -190,21 +191,18 @@ private:
         i32 canvas_height,
         bool modular_coordinates
     ) const {
-        auto mix = [](std::uint64_t seed, std::uint64_t value) {
-            seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-            return seed;
-        };
-
         std::uint64_t seed = hash_mask(m_mask);
-        seed = mix(seed, static_cast<std::uint64_t>(width));
-        seed = mix(seed, static_cast<std::uint64_t>(height));
-        seed = mix(seed, static_cast<std::uint64_t>(origin_x));
-        seed = mix(seed, static_cast<std::uint64_t>(origin_y));
-        seed = mix(seed, static_cast<std::uint64_t>(canvas_width));
-        seed = mix(seed, static_cast<std::uint64_t>(canvas_height));
-        seed = mix(seed, static_cast<std::uint64_t>(modular_coordinates));
-        seed = mix(seed, static_cast<std::uint64_t>(m_source_surface_coordinates));
-        seed = mix(seed, static_cast<std::uint64_t>(m_cache_frame >= 0 ? m_cache_frame : -1));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(width));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(height));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(origin_x));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(origin_y));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(canvas_width));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(canvas_height));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(modular_coordinates));
+        seed = core::hash::hash_combine(
+            seed, static_cast<std::uint64_t>(m_source_surface_coordinates));
+        seed = core::hash::hash_combine(
+            seed, static_cast<std::uint64_t>(m_cache_frame >= 0 ? m_cache_frame : -1));
         return seed;
     }
 

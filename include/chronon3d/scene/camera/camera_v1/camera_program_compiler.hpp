@@ -123,4 +123,9 @@ compile_camera(const CameraDescriptor& descriptor,
     return compile_camera(descriptor, catalog, ctx);
 }
 
+/// Compile and evaluate a descriptor at one sample for static scene adapters.
+/// Render loops should retain CameraProgram and CameraSession instead.
+[[nodiscard]] Camera2_5D evaluate_camera_descriptor(
+    const CameraDescriptor& descriptor, const CameraEvalContext& context);
+
 } // namespace chronon3d::camera_v1

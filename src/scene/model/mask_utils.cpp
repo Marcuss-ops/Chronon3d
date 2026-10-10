@@ -1,4 +1,5 @@
 #include <chronon3d/scene/model/core/mask_utils.hpp>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/path_utils.hpp>
@@ -222,63 +223,59 @@ bool mask_contains_local_point(const Mask& mask, Vec2 local) {
 }
 
 std::uint64_t hash_mask_cache_key(const Mask& mask, const Mat4& layer_inv_matrix, i32 width, i32 height) {
-    auto mix = [](std::uint64_t seed, std::uint64_t value) {
-        seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-        return seed;
-    };
     auto hv = [](auto value) -> std::uint64_t {
         return static_cast<std::uint64_t>(std::hash<std::decay_t<decltype(value)>>{}(value));
     };
 
     std::uint64_t seed = 0;
-    seed = mix(seed, static_cast<std::uint64_t>(mask.type));
-    seed = mix(seed, static_cast<std::uint64_t>(mask.initial_mode));
-    seed = mix(seed, hv(mask.pos.x));
-    seed = mix(seed, hv(mask.pos.y));
-    seed = mix(seed, hv(mask.pos.z));
-    seed = mix(seed, hv(mask.size.x));
-    seed = mix(seed, hv(mask.size.y));
-    seed = mix(seed, hv(mask.radius));
-    seed = mix(seed, hv(mask.feather));
-    seed = mix(seed, hv(mask.expansion));
-    seed = mix(seed, hv(mask.opacity));
-    seed = mix(seed, static_cast<std::uint64_t>(mask.inverted));
-    seed = mix(seed, std::hash<std::string>{}(mask.text_source));
-    seed = mix(seed, mask.field.has_value());
-    if (mask.field) seed = mix(seed, graphics::field2d_fingerprint(*mask.field));
-    seed = mix(seed, static_cast<std::uint64_t>(mask.path.size()));
+    seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(mask.type));
+    seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(mask.initial_mode));
+    seed = core::hash::hash_combine(seed, hv(mask.pos.x));
+    seed = core::hash::hash_combine(seed, hv(mask.pos.y));
+    seed = core::hash::hash_combine(seed, hv(mask.pos.z));
+    seed = core::hash::hash_combine(seed, hv(mask.size.x));
+    seed = core::hash::hash_combine(seed, hv(mask.size.y));
+    seed = core::hash::hash_combine(seed, hv(mask.radius));
+    seed = core::hash::hash_combine(seed, hv(mask.feather));
+    seed = core::hash::hash_combine(seed, hv(mask.expansion));
+    seed = core::hash::hash_combine(seed, hv(mask.opacity));
+    seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(mask.inverted));
+    seed = core::hash::hash_combine(seed, std::hash<std::string>{}(mask.text_source));
+    seed = core::hash::hash_combine(seed, mask.field.has_value());
+    if (mask.field) seed = core::hash::hash_combine(seed, graphics::field2d_fingerprint(*mask.field));
+    seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(mask.path.size()));
     for (const auto& command : mask.path) {
-        seed = mix(seed, static_cast<std::uint64_t>(command.type));
-        seed = mix(seed, hv(command.p0.x)); seed = mix(seed, hv(command.p0.y));
-        seed = mix(seed, hv(command.p1.x)); seed = mix(seed, hv(command.p1.y));
-        seed = mix(seed, hv(command.p2.x)); seed = mix(seed, hv(command.p2.y));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(command.type));
+        seed = core::hash::hash_combine(seed, hv(command.p0.x)); seed = core::hash::hash_combine(seed, hv(command.p0.y));
+        seed = core::hash::hash_combine(seed, hv(command.p1.x)); seed = core::hash::hash_combine(seed, hv(command.p1.y));
+        seed = core::hash::hash_combine(seed, hv(command.p2.x)); seed = core::hash::hash_combine(seed, hv(command.p2.y));
     }
-    seed = mix(seed, static_cast<std::uint64_t>(mask.operations.size()));
+    seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(mask.operations.size()));
     for (const auto& operation : mask.operations) {
-        seed = mix(seed, static_cast<std::uint64_t>(operation.mode));
-        seed = mix(seed, static_cast<std::uint64_t>(operation.type));
-        seed = mix(seed, hv(operation.pos.x)); seed = mix(seed, hv(operation.pos.y));
-        seed = mix(seed, hv(operation.pos.z));
-        seed = mix(seed, hv(operation.size.x)); seed = mix(seed, hv(operation.size.y));
-        seed = mix(seed, hv(operation.radius)); seed = mix(seed, hv(operation.feather));
-        seed = mix(seed, hv(operation.expansion)); seed = mix(seed, hv(operation.opacity));
-        seed = mix(seed, operation.field.has_value());
-        if (operation.field) seed = mix(seed, graphics::field2d_fingerprint(*operation.field));
-        seed = mix(seed, static_cast<std::uint64_t>(operation.inverted));
-        seed = mix(seed, std::hash<std::string>{}(operation.text_source));
-        seed = mix(seed, static_cast<std::uint64_t>(operation.path.size()));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(operation.mode));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(operation.type));
+        seed = core::hash::hash_combine(seed, hv(operation.pos.x)); seed = core::hash::hash_combine(seed, hv(operation.pos.y));
+        seed = core::hash::hash_combine(seed, hv(operation.pos.z));
+        seed = core::hash::hash_combine(seed, hv(operation.size.x)); seed = core::hash::hash_combine(seed, hv(operation.size.y));
+        seed = core::hash::hash_combine(seed, hv(operation.radius)); seed = core::hash::hash_combine(seed, hv(operation.feather));
+        seed = core::hash::hash_combine(seed, hv(operation.expansion)); seed = core::hash::hash_combine(seed, hv(operation.opacity));
+        seed = core::hash::hash_combine(seed, operation.field.has_value());
+        if (operation.field) seed = core::hash::hash_combine(seed, graphics::field2d_fingerprint(*operation.field));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(operation.inverted));
+        seed = core::hash::hash_combine(seed, std::hash<std::string>{}(operation.text_source));
+        seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(operation.path.size()));
         for (const auto& command : operation.path) {
-            seed = mix(seed, static_cast<std::uint64_t>(command.type));
-            seed = mix(seed, hv(command.p0.x)); seed = mix(seed, hv(command.p0.y));
-            seed = mix(seed, hv(command.p1.x)); seed = mix(seed, hv(command.p1.y));
-            seed = mix(seed, hv(command.p2.x)); seed = mix(seed, hv(command.p2.y));
+            seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(command.type));
+            seed = core::hash::hash_combine(seed, hv(command.p0.x)); seed = core::hash::hash_combine(seed, hv(command.p0.y));
+            seed = core::hash::hash_combine(seed, hv(command.p1.x)); seed = core::hash::hash_combine(seed, hv(command.p1.y));
+            seed = core::hash::hash_combine(seed, hv(command.p2.x)); seed = core::hash::hash_combine(seed, hv(command.p2.y));
         }
     }
-    seed = mix(seed, static_cast<std::uint64_t>(width));
-    seed = mix(seed, static_cast<std::uint64_t>(height));
+    seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(width));
+    seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(height));
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
-            seed = mix(seed, hv(layer_inv_matrix[i][j]));
+            seed = core::hash::hash_combine(seed, hv(layer_inv_matrix[i][j]));
         }
     }
     return seed;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 
 #include <algorithm>
 #include <array>
@@ -225,10 +226,7 @@ private:
         std::uint64_t value = static_cast<std::uint64_t>(seed_value) ^
             (static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)) << 32) ^
             static_cast<std::uint32_t>(y);
-        value += 0x9e3779b97f4a7c15ULL;
-        value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        value = (value ^ (value >> 27)) * 0x94d049bb133111ebULL;
-        value ^= value >> 31;
+        value = core::hash::splitmix64(value);
         return static_cast<std::uint32_t>(value >> 32);
     }
 

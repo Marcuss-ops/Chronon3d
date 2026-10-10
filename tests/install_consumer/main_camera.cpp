@@ -6,7 +6,7 @@
 // Mirrors the user-spec example exactly:
 //
 //   auto descriptor = camera()
-//       .position({0, 0, -1200}).look_at({0, 0, 0})
+//       .position({0, 0, -1200}).point_of_interest({0, 0, 0})
 //       .lens(PhysicalLens{.focal_length_mm = 50.0f, .sensor_width_mm = 36.0f})
 //       .build();
 //   composition.default_camera_descriptor(descriptor);
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
     auto descriptor = c3d::camera()
         .id("p3h_consumer_perspective")
         .position({0.0f, 0.0f, -1200.0f})
-        .look_at({0.0f, 0.0f, 0.0f})
+        .point_of_interest({0.0f, 0.0f, 0.0f})
         .lens(c3d::PhysicalLens{
             .focal_length_mm = 50.0f,
             .f_stop          = 2.8f,

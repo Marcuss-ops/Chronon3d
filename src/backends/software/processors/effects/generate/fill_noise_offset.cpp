@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 #include "fill_noise_offset.hpp"
+#include <chronon3d/core/hash/hash_primitives.hpp>
 #include <chronon3d/effects/color_contract.hpp>
 #include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <algorithm>
@@ -72,14 +73,7 @@ namespace {
     h = h * 0xBF58476D1CE4E5B9ULL + static_cast<uint64_t>(seed);
     h = h * 0x94D049BB133111EBULL + static_cast<uint64_t>(frame);
 
-    // SplitMix64 finalizer
-    h ^= h >> 30;
-    h *= 0xBF58476D1CE4E5B9ULL;
-    h ^= h >> 27;
-    h *= 0x94D049BB133111EBULL;
-    h ^= h >> 31;
-
-    return static_cast<uint32_t>(h);
+    return static_cast<uint32_t>(core::hash::splitmix64_finalize(h));
 }
 
 /// Convert a hash to a float in [-1, 1].

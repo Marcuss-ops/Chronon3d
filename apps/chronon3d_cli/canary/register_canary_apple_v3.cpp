@@ -208,7 +208,7 @@ namespace {
                     l.effect(GlowPresets::canary_black());
                 });
 
-                scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
+                scene.camera_descriptor(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
                 return scene.build();
             });
     }

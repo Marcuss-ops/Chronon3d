@@ -12,13 +12,13 @@
 // .inl files (layers / sequences / camera). Included from the bottom of
 // the public header `include/chronon3d/scene/builders/scene_builder.hpp`
 // AFTER the class is fully declared; bodies below therefore have full
-// access to SceneBuilder's private members and friends (CameraApi).
+// member definitions for SceneBuilder.
 //
 // `inline` keyword on every non-template body is required: the header is
 // included by many TUs (composition pipeline, content, tests, presets),
 // and inline-functions-with-external-linkage resolve to a single image
 // definition. Templates are implicitly inline by definition so no extra
-// keyword is needed on `edit_camera`.
+// keyword is needed on these member definitions.
 //
 // IMPORTANT — DO NOT introduce new public symbols here. This file is a
 // pure body relocation; the public API surface remains identical to the
@@ -95,13 +95,6 @@ inline FontEngine* SceneBuilder::font_engine() const {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Camera façade
-// ═══════════════════════════════════════════════════════════════════════════
-
-inline CameraApi SceneBuilder::camera() {
-    return CameraApi(*this);
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Lighting + post
 // ═══════════════════════════════════════════════════════════════════════════
@@ -128,19 +121,8 @@ inline SampleTime SceneBuilder::sample_time() const {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Private helpers (SceneBuilder self-access)
+// Private helpers
 // ═══════════════════════════════════════════════════════════════════════════
-
-inline void SceneBuilder::set_camera(Camera2_5D camera) {
-    scene_.set_camera_2_5d(std::move(camera));
-}
-
-template <typename Fn>
-void SceneBuilder::edit_camera(Fn&& fn) {
-    auto cam = scene_.camera_2_5d();
-    std::forward<Fn>(fn)(cam);
-    scene_.set_camera_2_5d(cam);
-}
 
 inline Frame SceneBuilder::current_integer_frame() const {
     return Frame{static_cast<i64>(std::floor(current_time_.frame))};

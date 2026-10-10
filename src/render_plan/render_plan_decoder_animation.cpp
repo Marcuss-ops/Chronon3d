@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include "easing_contract.hpp"
 #include "audio_react_contract.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
 
@@ -226,18 +227,7 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
             throw std::runtime_error("audio_react requires a supported scalar animation property");
         track.audio_react = std::move(driver);
     }
-    if (track.easing != "linear" && track.easing != "in_quad" && track.easing != "out_quad" &&
-        track.easing != "in_out_quad" && track.easing != "in_cubic" &&
-        track.easing != "out_cubic" && track.easing != "in_out_cubic" &&
-        track.easing != "in_expo" && track.easing != "out_expo" &&
-        track.easing != "in_out_expo" && track.easing != "in_sine" &&
-        track.easing != "out_sine" && track.easing != "in_out_sine" &&
-        track.easing != "in_back" && track.easing != "out_back" &&
-        track.easing != "in_out_back" && track.easing != "in_elastic" &&
-        track.easing != "out_elastic" && track.easing != "in_out_elastic" &&
-        track.easing != "in_bounce" && track.easing != "out_bounce" &&
-        track.easing != "in_out_bounce" && track.easing != "smoothstep" &&
-        track.easing != "hold" && track.easing != "bezier" && track.easing != "spring")
+    if (!is_animation_easing(track.easing))
         throw std::runtime_error("unsupported animation easing: " + track.easing);
     if (value.contains("spring")) track.spring = decode_spring(value.at("spring"), "animation track spring");
     if (track.easing != "spring" && track.spring)
@@ -262,15 +252,8 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
                 throw std::runtime_error("easing_xy requires exactly two easing names");
             key.easing_xy = std::array<std::string, 2>{
                 easing_xy[0].get<std::string>(), easing_xy[1].get<std::string>()};
-            static const std::array<std::string_view, 22> axis_easings{
-                "linear", "in_quad", "out_quad", "in_out_quad", "in_cubic",
-                "out_cubic", "in_out_cubic", "in_expo", "out_expo", "in_out_expo",
-                "in_sine", "out_sine", "in_out_sine", "in_back", "out_back",
-                "in_out_back", "in_elastic", "out_elastic", "in_out_elastic",
-                "in_bounce", "out_bounce", "in_out_bounce"};
             for (const auto& easing : *key.easing_xy)
-                if (std::find(axis_easings.begin(), axis_easings.end(), easing) == axis_easings.end() &&
-                    easing != "smoothstep" && easing != "hold")
+                if (!is_axis_easing(easing))
                     throw std::runtime_error("unsupported per-axis animation easing: " + easing);
             if (track.property != "position" || key.value.size() != 2 || key.easing ||
                 key.interpolation || key.bezier_curve || key.temporal_in_dx ||
@@ -299,19 +282,7 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
             throw std::runtime_error("temporal_in_dx must be non-positive");
         if (key.temporal_out_dx && *key.temporal_out_dx < 0.0f)
             throw std::runtime_error("temporal_out_dx must be non-negative");
-        if (key.easing && *key.easing != "linear" && *key.easing != "in_quad" &&
-            *key.easing != "out_quad" && *key.easing != "in_out_quad" &&
-            *key.easing != "in_cubic" && *key.easing != "out_cubic" &&
-            *key.easing != "in_out_cubic" && *key.easing != "in_expo" &&
-            *key.easing != "out_expo" && *key.easing != "in_out_expo" &&
-            *key.easing != "in_sine" && *key.easing != "out_sine" &&
-            *key.easing != "in_out_sine" && *key.easing != "in_back" &&
-            *key.easing != "out_back" && *key.easing != "in_out_back" &&
-            *key.easing != "in_elastic" && *key.easing != "out_elastic" &&
-            *key.easing != "in_out_elastic" && *key.easing != "in_bounce" &&
-            *key.easing != "out_bounce" && *key.easing != "in_out_bounce" &&
-            *key.easing != "smoothstep" && *key.easing != "hold" &&
-            *key.easing != "bezier" && *key.easing != "spring")
+        if (key.easing && !is_animation_easing(*key.easing))
             throw std::runtime_error("unsupported per-key animation easing: " + *key.easing);
         if (key.spring && key.easing != "spring" && track.easing != "spring")
             throw std::runtime_error("per-key spring config requires easing='spring'");

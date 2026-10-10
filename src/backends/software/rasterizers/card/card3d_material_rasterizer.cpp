@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/rasterizers/card3d_material_rasterizer.hpp>
+#include "triangle_scanline.hpp"
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/rendering/lighting_eval.hpp>
 #include "../scanline_rasterizer.hpp"
@@ -164,49 +165,15 @@ void render_card3d(
 namespace {
 
 void fill_triangle(Framebuffer& fb, Vec2 v0, Vec2 v1, Vec2 v2, const Color& color) {
-    if (color.a <= 0.0f) return;
-    if (std::isnan(color.r) || std::isnan(color.g) || std::isnan(color.b) || std::isnan(color.a) ||
-        std::isinf(color.r) || std::isinf(color.g) || std::isinf(color.b) || std::isinf(color.a)) {
-        return;
-    }
-
-    if (v0.y > v1.y) std::swap(v0, v1);
-    if (v1.y > v2.y) std::swap(v1, v2);
-    if (v0.y > v1.y) std::swap(v0, v1);
-
-    const int y0 = std::max(0, static_cast<int>(std::ceil(v0.y)));
-    const int y2 = std::min(fb.height() - 1, static_cast<int>(std::floor(v2.y)));
-    if (y0 > y2) return;
-
-    const float h = v2.y - v0.y;
-    if (h < 0.5f) return;
-
-    for (int y = y0; y <= y2; ++y) {
-        const float t_full = (static_cast<float>(y) - v0.y) / h;
-        const float x_long = v0.x + (v2.x - v0.x) * t_full;
-
-        float x_short;
-        if (static_cast<float>(y) < v1.y) {
-            const float seg = v1.y - v0.y;
-            x_short = (seg > 0.5f) ? v0.x + (v1.x - v0.x) * ((static_cast<float>(y) - v0.y) / seg) : v1.x;
-        } else {
-            const float seg = v2.y - v1.y;
-            x_short = (seg > 0.5f) ? v1.x + (v2.x - v1.x) * ((static_cast<float>(y) - v1.y) / seg) : v2.x;
-        }
-
-        const int x_start = std::max(0, static_cast<int>(std::ceil(std::min(x_long, x_short))));
-        const int x_end   = std::min(fb.width() - 1, static_cast<int>(std::floor(std::max(x_long, x_short))));
-
-        Color* row = fb.pixels_row(y);
-        for (int x = x_start; x <= x_end; ++x) {
-            Color& dst = row[x];
-            const float inv_a = 1.0f - color.a;
-            dst.r = color.r * color.a + dst.r * inv_a;
-            dst.g = color.g * color.a + dst.g * inv_a;
-            dst.b = color.b * color.a + dst.b * inv_a;
-            dst.a = color.a + dst.a * inv_a;
-        }
-    }
+    if (color.a <= 0.0f || !std::isfinite(color.r) || !std::isfinite(color.g) ||
+        !std::isfinite(color.b) || !std::isfinite(color.a)) return;
+    detail::for_each_card_triangle_pixel(fb, {v0, v1, v2}, [&](Color& dst) {
+        const float inv_a = 1.0f - color.a;
+        dst.r = color.r * color.a + dst.r * inv_a;
+        dst.g = color.g * color.a + dst.g * inv_a;
+        dst.b = color.b * color.a + dst.b * inv_a;
+        dst.a = color.a + dst.a * inv_a;
+    });
 }
 
 void fill_quad(Framebuffer& fb, const Vec2& p0, const Vec2& p1, const Vec2& p2, const Vec2& p3, const Color& color) {

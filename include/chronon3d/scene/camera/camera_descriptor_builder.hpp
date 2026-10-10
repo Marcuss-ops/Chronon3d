@@ -73,14 +73,14 @@ struct PhysicalLens {
 // ── CameraDescriptorBuilder — fluent value-typed builder ────────────────
 class CameraDescriptorBuilder {
 public:
-    CameraDescriptorBuilder() = default;
+    CameraDescriptorBuilder() { desc_.id = "camera.default"; }
 
     CameraDescriptorBuilder& id(std::string s) {
         desc_.id = std::move(s);
         return *this;
     }
 
-    CameraDescriptorBuilder& enabled(bool e) noexcept {
+    CameraDescriptorBuilder& enabled(bool e = true) noexcept {
         desc_.base.enabled = e;
         return *this;
     }
@@ -88,6 +88,48 @@ public:
     /// Camera world-space position (scene units).
     CameraDescriptorBuilder& position(Vec3 v) noexcept {
         desc_.base.position = v;
+        return *this;
+    }
+
+    CameraDescriptorBuilder& rotation(Vec3 v) noexcept {
+        desc_.base.rotation = v;
+        desc_.base.orientation = glm::quat(glm::radians(v));
+        return *this;
+    }
+
+    CameraDescriptorBuilder& zoom(f32 value) noexcept {
+        camera_v1::ZoomProjection projection;
+        projection.zoom.set(value);
+        desc_.base.projection = projection;
+        return *this;
+    }
+
+    CameraDescriptorBuilder& fov(f32 value) noexcept {
+        camera_v1::FovProjection projection;
+        projection.fov_deg.set(value);
+        desc_.base.projection = projection;
+        return *this;
+    }
+
+    CameraDescriptorBuilder& parent(std::string name) {
+        desc_.base.parent_name = std::move(name);
+        return *this;
+    }
+
+    CameraDescriptorBuilder& target(std::string name) {
+        desc_.orientation = camera_v1::LookAtLayer{std::move(name)};
+        return *this;
+    }
+
+    /// Store a world-space point of interest without changing orientation.
+    CameraDescriptorBuilder& point_of_interest(Vec3 value) noexcept {
+        desc_.base.point_of_interest_enabled = true;
+        desc_.base.point_of_interest = value;
+        return *this;
+    }
+
+    CameraDescriptorBuilder& dof(DepthOfFieldSettings value) noexcept {
+        desc_.base.dof = value;
         return *this;
     }
 
