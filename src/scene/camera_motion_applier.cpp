@@ -55,7 +55,7 @@ void apply_camera_motion(SceneBuilder& s,
         cam.zoom = idle_base.zoom + p.idle.zoom_amplitude * wave;
     }
 
-    s.camera().set(cam);
+    s.set_evaluated_camera(std::move(cam));
 }
 
 } // namespace chronon3d::animation

@@ -85,7 +85,7 @@ namespace {
                         Color{1.0f, 0.035f, 0.035f, 1.0f}, Vec2{180.0f, 260.0f}));
                 });
 
-                scene.camera().set(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
+                scene.camera_descriptor(canary_orbit_camera(0.0f, 0.0f, 1000.0f));
                 return scene.build();
             });
     }
@@ -131,7 +131,7 @@ namespace {
                 const f32 yaw = canary_lerp(-10.0f, 10.0f, canary_smoothstep(t));
                 const f32 pitch = canary_lerp(4.0f, -3.0f, canary_smoothstep(t));
                 const f32 distance = canary_lerp(1050.0f, 960.0f, canary_smoothstep(t));
-                scene.camera().set(canary_orbit_camera(yaw, pitch, distance));
+                scene.camera_descriptor(canary_orbit_camera(yaw, pitch, distance));
 
                 return scene.build();
             });

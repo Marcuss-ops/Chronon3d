@@ -67,6 +67,45 @@ TEST_CASE("SceneBuilder lighting API stores scene lights") {
     CHECK(scene.light_context().directional_color.g == doctest::Approx(0.9f));
 }
 
+TEST_CASE("SceneBuilder evaluates the canonical camera descriptor") {
+    camera_v1::CameraDescriptor camera;
+    camera.id = "scene-builder-camera";
+    camera.base.position = {12.0f, -8.0f, -900.0f};
+    camera.base.rotation = {4.0f, 7.0f, -2.0f};
+    camera_v1::FovProjection fov;
+    fov.fov_deg.set(62.0f);
+    camera.base.projection = fov;
+    camera.base.point_of_interest_enabled = true;
+    camera.base.point_of_interest = {3.0f, 5.0f, 0.0f};
+    camera.orientation = camera_v1::LookAtPoint{{3.0f, 5.0f, 0.0f}};
+    SceneBuilder builder;
+    builder.camera_descriptor(camera);
+    const Scene scene = builder.build();
+
+    REQUIRE(scene.default_camera_descriptor().has_value());
+    const auto& descriptor = *scene.default_camera_descriptor();
+    CHECK(descriptor.base.enabled);
+    CHECK(descriptor.base.position.x == doctest::Approx(12.0f));
+    CHECK(descriptor.base.position.y == doctest::Approx(-8.0f));
+    CHECK(descriptor.base.rotation.x == doctest::Approx(4.0f));
+    REQUIRE(std::holds_alternative<camera_v1::FovProjection>(descriptor.base.projection));
+    CHECK(std::get<camera_v1::FovProjection>(descriptor.base.projection).fov_deg.evaluate(0.0)
+          == doctest::Approx(62.0f));
+    CHECK(std::holds_alternative<camera_v1::LookAtPoint>(descriptor.orientation));
+}
+
+TEST_CASE("SceneBuilder pose tracks remain the canonical descriptor source") {
+    camera_v1::PoseTracksSource pose;
+    pose.position = AnimatedValue<Vec3>{Vec3{2.0f, 3.0f, -800.0f}};
+    SceneBuilder builder;
+    builder.camera_pose(pose);
+    const Scene scene = builder.build();
+
+    REQUIRE(scene.default_camera_descriptor().has_value());
+    CHECK(std::holds_alternative<camera_v1::PoseTracksSource>(
+        scene.default_camera_descriptor()->source));
+}
+
 TEST_CASE("LayerBuilder accepts_lights toggles material") {
     auto scene = SceneBuilder{}
         .layer("card", [](LayerBuilder& l) {

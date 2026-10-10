@@ -125,7 +125,8 @@ Camera2_5D roll_reveal(float t, float max_roll_deg, float zoom) {
 
 void apply_dolly_pitch_sweep(SceneBuilder& s, LayerBuilder& l, int duration) {
     // Configure static camera
-    s.camera().enable(true).position({0.0f, 0.0f, -1000.0f}).zoom(1000.0f);
+    s.camera_descriptor(camera().enabled(true).position({0.0f, 0.0f, -1000.0f})
+        .zoom(1000.0f).build());
 
     // Configure layer animations
     l.enable_3d();

@@ -12,7 +12,7 @@
 //
 // Usage:
 //   const float t = ctx.frame_input.frame / float(ctx.duration - 1);
-//   s.camera().set(camera_motion::orbit(t, {.radius=220, .target={0,0,0}}));
+//   s.set_evaluated_camera(camera_motion::orbit(t, {.radius=220, .target={0,0,0}}));
 
 namespace chronon3d {
     class SceneBuilder;

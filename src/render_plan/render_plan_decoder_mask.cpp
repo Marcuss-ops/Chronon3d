@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include "json_vector.hpp"
 #include <chronon3d/scene/model/shape/path_operator.hpp>
 
 #include <nlohmann/json.hpp>
@@ -96,10 +97,9 @@ LayerPlan::PathMaskPlan decode_mask_plan(const nlohmann::json& raw) {
     const auto read_vec2 = [&](const char* key, std::array<float, 2>& output,
                                bool strictly_positive) {
         if (!raw.contains(key)) return;
-        const auto& value = raw.at(key);
-        if (!value.is_array() || value.size() != 2)
-            throw std::runtime_error(std::string("mask ") + key + " requires [x, y]");
-        output = {value[0].get<float>(), value[1].get<float>()};
+        const auto value = decode_json_vector<2>(raw.at(key),
+            std::string("mask ") + key + " requires [x, y]");
+        output = value;
         for (const float component : output)
             if (!std::isfinite(component) || (strictly_positive ? component <= 0.0f : std::abs(component) > 1000000.0f))
                 throw std::runtime_error(std::string("mask ") + key + " values are outside supported bounds");

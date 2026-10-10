@@ -1,4 +1,6 @@
 #include "render_plan_decoder_detail.hpp"
+#include "easing_contract.hpp"
+#include <chronon3d/core/hash/hash_builder.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -90,12 +92,6 @@ std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& laye
                                      layers[i].stagger_group)) return error;
         }
     }
-    const auto splitmix64 = [](std::uint64_t value) {
-        value += 0x9e3779b97f4a7c15ULL;
-        value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        value = (value ^ (value >> 27)) * 0x94d049bb133111ebULL;
-        return value ^ (value >> 31);
-    };
     for (const auto& [key, group] : groups) {
         (void)key;
         if (!group.stagger || group.stagger->per_item_frames == 0) continue;
@@ -115,7 +111,7 @@ std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& laye
         } else if (stagger.order == "random") {
             std::uint64_t state = stagger.seed;
             for (std::size_t i = order.size(); i > 1; --i) {
-                state = splitmix64(state);
+                state = chronon3d::core::hash::splitmix64(state);
                 const auto j = static_cast<std::size_t>(state % i);
                 std::swap(order[i - 1], order[j]);
             }
@@ -271,15 +267,7 @@ void validate_per_key_timing(const nlohmann::json& value, bool keyframes,
                 throw std::runtime_error("roving and auto_bezier cannot be combined on a keyframe");
             if (interpolation == "auto_bezier" && key.value("roving", false))
                 throw std::runtime_error("roving and auto_bezier cannot be combined on a keyframe");
-            if (!easing.empty() && easing != "linear" && easing != "in_quad" &&
-                easing != "out_quad" && easing != "in_out_quad" && easing != "in_cubic" &&
-                easing != "out_cubic" && easing != "in_out_cubic" && easing != "in_expo" &&
-                easing != "out_expo" && easing != "in_out_expo" && easing != "in_sine" &&
-                easing != "out_sine" && easing != "in_out_sine" && easing != "in_back" &&
-                easing != "out_back" && easing != "in_out_back" && easing != "in_elastic" &&
-                easing != "out_elastic" && easing != "in_out_elastic" && easing != "in_bounce" &&
-                easing != "out_bounce" && easing != "in_out_bounce" && easing != "smoothstep" &&
-                easing != "hold" && easing != "bezier" && easing != "spring")
+            if (!easing.empty() && !is_animation_easing(easing))
                 throw std::runtime_error("unsupported per-key animation easing: " + easing);
             if (has_curve) {
                 const auto& curve = key.at("bezier_curve");

@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
     auto descriptor = c3d::camera()
         .id("p3h_full_camera")
         .position({0.0f, 0.0f, -1200.0f})
-        .look_at({0.0f, 0.0f, 0.0f})
+        .point_of_interest({0.0f, 0.0f, 0.0f})
         .lens(c3d::PhysicalLens{
             .focal_length_mm  = 50.0f,
             .f_stop           = 2.8f,

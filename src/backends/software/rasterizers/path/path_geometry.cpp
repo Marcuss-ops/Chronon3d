@@ -1,6 +1,7 @@
 #include "path_geometry.hpp"
 
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 #include <chronon3d/math/path_utils.hpp>
 #include <glm/glm.hpp>
 
@@ -26,8 +27,7 @@ cache::LruCache<PathCacheKey, detail::SharedContours> g_flatten_cache(
 } // namespace
 
 PathCacheKey path_cache_hash_combine(PathCacheKey seed, PathCacheKey value) {
-    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-    return seed;
+    return core::hash::hash_combine(seed, value);
 }
 
 PathCacheKey path_cache_hash_path(const PathShape& path) {

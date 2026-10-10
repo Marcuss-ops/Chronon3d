@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -23,21 +24,16 @@ namespace chronon3d::scene::utils {
 
 namespace detail {
 
-inline u64 mix_hash(u64 seed, u64 value) {
-    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-    return seed;
-}
-
 inline u64 hash_float(f32 value) {
     return static_cast<u64>(std::bit_cast<std::uint32_t>(value));
 }
 
 inline u64 hash_color(const Color& c) {
     u64 seed = 0;
-    seed = mix_hash(seed, hash_float(c.r));
-    seed = mix_hash(seed, hash_float(c.g));
-    seed = mix_hash(seed, hash_float(c.b));
-    seed = mix_hash(seed, hash_float(c.a));
+    seed = core::hash::hash_combine(seed, hash_float(c.r));
+    seed = core::hash::hash_combine(seed, hash_float(c.g));
+    seed = core::hash::hash_combine(seed, hash_float(c.b));
+    seed = core::hash::hash_combine(seed, hash_float(c.a));
     return seed;
 }
 
@@ -50,14 +46,14 @@ inline std::filesystem::path cache_path(f32 W, f32 H, const DarkGridBgParams& p)
     // Bump when rasterization semantics change.  Parameter hashing alone
     // cannot invalidate PNGs produced by an older algorithm.
     constexpr u64 kCacheSchema = 2;
-    seed = mix_hash(seed, kCacheSchema);
-    seed = mix_hash(seed, hash_float(W));
-    seed = mix_hash(seed, hash_float(H));
-    seed = mix_hash(seed, hash_color(p.bg_color));
-    seed = mix_hash(seed, hash_color(p.grid_color));
-    seed = mix_hash(seed, hash_float(p.spacing));
-    seed = mix_hash(seed, hash_float(p.extent));
-    seed = mix_hash(seed, static_cast<u64>(p.centered));
+    seed = core::hash::hash_combine(seed, kCacheSchema);
+    seed = core::hash::hash_combine(seed, hash_float(W));
+    seed = core::hash::hash_combine(seed, hash_float(H));
+    seed = core::hash::hash_combine(seed, hash_color(p.bg_color));
+    seed = core::hash::hash_combine(seed, hash_color(p.grid_color));
+    seed = core::hash::hash_combine(seed, hash_float(p.spacing));
+    seed = core::hash::hash_combine(seed, hash_float(p.extent));
+    seed = core::hash::hash_combine(seed, static_cast<u64>(p.centered));
 
     std::ostringstream oss;
     oss << std::hex << seed << ".png";

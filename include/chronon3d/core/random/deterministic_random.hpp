@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <xxhash.h>
+#include <chronon3d/core/hash/hash_primitives.hpp>
 
 namespace chronon3d::random {
 
@@ -25,10 +26,8 @@ struct Seed {
 
 [[nodiscard]] inline f32 unit(Seed seed, u64 index = 0) noexcept {
     u64 x = seed.value;
-    x ^= index + 0x9e3779b97f4a7c15ULL + (x << 6) + (x >> 2);
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-    x ^= (x >> 31);
+    x = core::hash::hash_combine(x, index);
+    x = core::hash::splitmix64_finalize(x);
     return static_cast<f32>(static_cast<u32>(x >> 40))
          / static_cast<f32>(1ULL << 24);
 }

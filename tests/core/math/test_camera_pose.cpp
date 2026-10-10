@@ -48,10 +48,7 @@ TEST_CASE("Camera tilt helpers update individual axes") {
 
 TEST_CASE("SceneBuilder exposes camera tilt helpers") {
     SceneBuilder s;
-    s.camera().enable()
-     .tilt(12.0f)
-     .pan(-8.0f)
-     .roll(3.5f);
+    s.camera_descriptor(camera().enabled().rotation({12.0f, -8.0f, 3.5f}).build());
 
     auto scene = s.build();
     const auto cam = scene.camera_2_5d();

@@ -48,7 +48,7 @@ chronon3d_add_test_suite(
         chronon3d_sdk_impl
         chronon3d_pipeline
         chronon3d_runtime
-    SOURCES ${CORE_TEST_SOURCES}
+    SOURCES ${CORE_TEST_SOURCES} core/test_hash_primitives.cpp
 )
 if(CHRONON3D_ENABLE_MESH)
     target_compile_definitions(chronon3d_core_tests PRIVATE CHRONON3D_ENABLE_MESH=1)

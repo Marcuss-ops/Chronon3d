@@ -5,6 +5,22 @@ portate, e istanziamento GPU per le particelle).
 
 ## Audit di partenza (2026-10-08)
 
+### Avanzamento verificato (2026-10-10)
+
+- I layer RenderPlan `point`, `spot` e `directional` vengono compilati in
+  `PointLightSource` sul `LightContext` di scena; il nodo lighting li valuta
+  per pixel. Il tipo `radial` conserva l'alone storico. Intensità e colore
+  hanno tracce animate per frame.
+- Il compiler materializza le ombre richieste come `DropShadow` CPU sul
+  caster. Questa è una proiezione screen-space approssimata, non una shadow
+  map né un sistema di receiver indipendenti. `casts_shadows` controlla il
+  caster; `accepts_shadows` non deve sopprimere l'ombra propria del caster.
+- Test già presenti in `test_prepared_render_plan.cpp` coprono il lowering
+  delle tre sorgenti, altezza predefinita, animazione e ombre; i test renderer
+  coprono i calcoli closed-form e i casi spot/point.
+- Restano aperti: animazione di posizione/direzione della luce, ombre con
+  receiver espliciti e parità GPU, più batching/istanziamento delle particelle.
+
 ### Luci
 - `LayerType::Light` (`render_plan.hpp`) disegna solo un alone radiale
   (`LightLayerPlan{radius, color, intensity}`). Il layer ha `accepts_lights(false)`

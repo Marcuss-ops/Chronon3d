@@ -12,7 +12,7 @@ camera evaluator to remove.
 
 The relevant production boundaries are:
 
-- authoring and CLI mapping: `scene/builders/camera_api.cpp` and the CLI
+- authoring and CLI mapping: `scene/camera/camera_descriptor_builder.hpp` and the CLI
   command/mapping layer;
 - canonical evaluation: `scene/camera/camera_v1/camera_program_*.cpp` and
   `camera_session_cache.cpp`;

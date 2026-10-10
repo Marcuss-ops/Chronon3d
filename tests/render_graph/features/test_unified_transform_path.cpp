@@ -238,11 +238,8 @@ TEST_CASE("Unified compositing: z order beats paint order") {
         SceneBuilder s(ctx);
 
         s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
-        s.camera().set({
-            .enabled = true,
-            .position = {0.0f, 0.0f, -800.0f},
-            .zoom = 800.0f
-        });
+        s.camera_descriptor(camera().enabled(true).position({0.0f, 0.0f, -800.0f})
+            .zoom(800.0f).build());
 
         s.layer("blue_far", [](LayerBuilder& l) {
             l.enable_3d();
@@ -290,11 +287,8 @@ TEST_CASE("Unified FakeBox3D: front face matches Rect in shared composition") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.camera().set({
-            .enabled = true,
-            .position = {0.0f, 0.0f, -800.0f},
-            .zoom = 800.0f
-        });
+        s.camera_descriptor(camera().enabled(true).position({0.0f, 0.0f, -800.0f})
+            .zoom(800.0f).build());
 
         s.layer("ref_rect", [](LayerBuilder& l) {
             l.enable_3d();

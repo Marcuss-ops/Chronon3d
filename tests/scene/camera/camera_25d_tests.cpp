@@ -79,16 +79,8 @@ std::shared_ptr<Framebuffer> render_with_camera_pose(
         // Full ambient light so 3D content is fully visible (tests are about projection, not lighting)
         s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
 
-        // Build the camera via the canonical fluent chain.
-        // Aggregate-init s.camera().set({...}) silently zeroes omitted
-        // projection_mode/fov_deg fields, leading to NaN focal lengths and
-        // black pixels in earlier harnesses. Fluent is field-safe. Note that
-        // s.camera() returns by value, so the call must be chained in-place.
-        if (cam_enabled) {
-            s.camera().enable().position(cam_pos).zoom(cam_zoom);
-        } else {
-            s.camera().position(cam_pos).zoom(cam_zoom);
-        }
+        s.camera_descriptor(camera().enabled(cam_enabled).position(cam_pos)
+            .zoom(cam_zoom).build());
 
         s.layer("test_layer", [=](LayerBuilder& l) {
             if (layer_3d) {
@@ -203,7 +195,7 @@ TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before render
         // Full ambient light — depth sorting test is about Z-ordering, not lighting
         s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
 
-        s.camera().enable().position({0, 0, -1000}).zoom(1000.0f);
+        s.camera_descriptor(camera().enabled().position({0, 0, -1000}).zoom(1000.0f).build());
 
         // Far layer: blue, placed at Z = 500
         s.layer("far_blue", [](LayerBuilder& l) {

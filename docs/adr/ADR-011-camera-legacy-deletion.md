@@ -2,13 +2,17 @@
 
 | Field | Value |
 |---|---|
-| **Status** | 📋 Documented (F2.3 design recorded; deletion pending dedicated F2.3.X workstream) |
+| **Status** | Implemented — `SceneBuilder::camera()` / `CameraApi` authoring retired; descriptor authoring is canonical (2026-10-10) |
 | **Date** | 2026-06-23 |
 | **Deciders** | F2.3.1 owner (chronon3d camera authorship maintainers) |
 | **Tags** | `camera`, `canonicalisation`, `F2.3`, `deletion`, `SDK-surface`, `legacy-retire` |
 | **Related** | [ADR-008 — render-engine-renderer-ptr](./ADR-008-render-engine-renderer-ptr-return.md), [ADR-010 — boundary-gate-semantic-extension](./ADR-010-boundary-gate-semantic-extension.md), `docs/camera-plan/01-CANONICAL_CAMERA_ARCHITECTURE.md`, TICKET-029/033/034 (camera_v1 rot history), TICKET-035 (rich Camera2_5D field + PIMPL re-light), AGENTS.md §"Piano operativo canonico" + §"Regole di lavoro", `tools/check_camera_architecture.sh` gates `[1/6]`+`[2/6]` |
 
 ## Context
+
+> Historical context: the inventories and match counts below describe the tree
+> when this ADR was written. The implementation close-out at the end records
+> which targets were retired and what remains independent of this migration.
 
 Chronon3d's camera model has accumulated legacy surface during the camera_v1 canonicalisation (TICKET-033 layer-payload + TICKET-034 default-camera-on-composition + TICKET-029 rot-closure).  After those merges the canonical authoring + runtime surface is:
 
@@ -77,11 +81,13 @@ Execute F2.3 — the canonicalisation close-out — on a dedicated F2.3.X workst
 * **Migrate math contract**: `include/chronon3d/math/camera_2_5d_projection.hpp:49` (test helper), `include/chronon3d/math/camera_projection_contract.hpp:93-113` (rules mirroring legacy `focal_from_camera`).
 * **Synthetic-test fixture mass-rewrite**: `tests/core/math/test_projector_2_5d.cpp`, `tests/core/math/test_camera_2_5d_projection.cpp`, `tests/core/math/test_camera_projection_resolver.cpp`, `tests/core/math/test_camera_projection_geometry_safety.cpp`, `tests/renderer/camera/test_lens_model.cpp`, `tests/scene/camera/test_catmull_rom_path.cpp`, `tests/scene/camera/test_camera_program_compiled.cpp`, `tests/scene/camera/test_camera_projection_contract.cpp`, `tests/scene/camera/camera_25d_tests.cpp`, `tests/scene/camera/test_camera_motion_path.cpp`, `tests/scene/camera/test_camera_descriptor_adapters.cpp`, `tests/renderer/perf/test_motion_blur_integration.cpp` — every `cam.projection_mode = ...` assignment + every `CHECK(cam.projection_mode == ...)` assertion rewrites to `camera_v1::Lens` discriminated assertions.
 
-### Decision 6. Migration sequencing (separate workstream)
+### Decision 6. Sequenza proposta — SUPERATA (2026-10-10)
 
-Per AGENTS.md's "no mixed refactors" rule, the code rotation is split into distinct phases on distinct branches:
+Il piano seguente era la proposta iniziale, non è più una sequenza da eseguire:
+la migrazione e le rimozioni indicate sono registrate in
+[`Implementation close-out`](#implementation-close-out-2026-10-10).
 
-* **Phase 1 (this ADR)**: `p2/f2.3.1-adr-camera-legacy-deletion` (this branch) writes this ADR doc + INDEX entry.  **NO CODE**.
+* **Phase 1 (this ADR)**: `p2/f2.3.1-adr-camera-legacy-deletion` writes this ADR doc + INDEX entry.  **NO CODE**.
 * **Phase 2 (call-site dry-run)**: new branch `p2/f2.3.2-...-call-site-migration` — for each deletion target, replace usages with `camera_v1::*` equivalents via a content-preserving mechanical pass.  Build + tests should pass on this branch even before deletion commits.
 * **Phase 3 (declaration deletion)**: branch `p2/f2.3.3-...-declaration-deletion` — remove the named files + struct declarations.  Build fails loudly for any leftover consumer; iterate until clean.
 * **Phase 4 (boundary-gate promotion)**: branch `p2/f2.3.4-...-gate-promotion` — once items 1–5 land, gate `[14/14]` flips ADVISORY → BLOCKING per ADR-010; `tools/check_camera_architecture.sh` gates `[1/6]`+`[2/6]` drop sanctioned bridge exemptions; the gate becomes "zero usages" pure.
@@ -108,15 +114,39 @@ Per AGENTS.md's "no mixed refactors" rule, the code rotation is split into disti
 * `animation::AnimatedXxx` remains the generalised animation API; only `AnimatedCamera2_5D` disappears.
 * Golden-image test fixtures regenerate and need re-baselining.
 
-## Migration path
+## Implementation close-out (2026-10-10)
 
-This ADR documents the F2.3 design; the actual code rotation is a separate F2.3.X workstream per `Decision 6`.  The contract for each deletion branch:
+The five deletion targets in Decisions 1–5 have been removed from the
+Chronon3D production/public surface: no `AnimatedCamera2_5D`, Chronon3D
+`CameraRig`, `CameraShotProfile`, descriptor adapter, or
+`Camera2_5D::projection_mode` declaration remains in `include/`, `src/`, or
+`apps/`. The camera architecture scans remain active as regression guards;
+their current run passes as part of the 206/206 architecture rules.
 
-* **Header rotation order** (Phase 3): `animated_camera_2_5d.hpp`, `camera_rig.hpp`, `camera_shot_profile.hpp`, `camera_descriptor_adapters.{hpp,cpp}` are DELETED first; their consumers then fail to compile, driving the call-site migration list (Phase 2).
-* **Fixture/test rotation**: `tests/scene/camera_rig_tests.cpp`, `tests/renderer/camera/test_camera_rig.cpp`, `tests/scene/camera/test_camera_descriptor_adapters.cpp`, `tests/renderer/camera/test_animated_camera.cpp` delete; behaviour parity is now exercised only via `camera_v1` tests.  <!-- drift-allow: stale-ref -->
-* **Content/ rotation**: `content/2d5/compositions/*` `CameraShotProfile` + `CameraRig` usages → `camera_v1::CameraDescriptor` direct; no adapter.
-* **Boundary gate `[14/14]` rotation**: after items 1–5 land, gate `[14/14]` transitions ADVISORY → BLOCKING per ADR-010.
-* **Boundary gate `tools/check_camera_architecture.sh` `[1/6]`+`[2/6]`**: sanctioned exemption lines drop after F2.3 closes; gates become pure "zero usages" without bridge exemption.
+The fluent `SceneBuilder::camera()` / `CameraApi` authoring surface and its
+`edit_camera()` runtime mutator have been deleted. Builder call sites now submit
+`CameraDescriptor` values through `camera_descriptor()` or tracked poses through
+`camera_pose()`. `Camera2_5D` remains evaluated runtime state; the render-plan
+adapter has an explicitly named runtime injection for already evaluated cameras.
+Camera V1 product certification is still tracked separately in
+`CURRENT_STATUS.md`.
+
+## Migrazione — completata
+
+La sequenza F2.3.X descritta nella proposta iniziale è superata: i cinque
+target di rimozione sono già assenti dalla superficie di produzione/pubblica,
+e i call-site authoring sono migrati. È stata inoltre eliminata la superficie
+`SceneBuilder::camera()` / `CameraApi` e il mutatore `edit_camera()`; i builder
+usano `camera_descriptor()` e `camera_pose()`. Il piano storico sopra resta
+come contesto della decisione, non come TODO eseguibile.
+
+## Prossimi TODO
+
+1. Certificare Camera V1 sullo stesso SHA della baseline; aggiornare
+   `CURRENT_STATUS.md` solo con l'esito osservato.
+2. Verificare che i contratti di projection, pose 2.5D e consumer di rendering
+   siano coperti dalla suite Camera V1; aprire una scheda specifica solo per
+   eventuali gap riproducibili.
 
 ## Alternatives considered
 
