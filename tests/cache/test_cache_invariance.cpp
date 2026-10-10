@@ -278,6 +278,10 @@ TEST_CASE("Cache invariance: 8 input dimensions produce distinct keys (or distin
         REQUIRE(fb != nullptr);
         u64 h = test::framebuffer_hash(*fb);
         u64 misses_after = renderer->counters()->cache_misses.load();
+        auto cold_renderer = make_cached_renderer();
+        auto cold_variant = cold_renderer->render(build_comp(s), Frame{0});
+        REQUIRE(cold_variant != nullptr);
+        CHECK(h == test::framebuffer_hash(*cold_variant));
         INFO("font dim: hash_base=" << hash_base << " hash=" << h
              << " misses=" << misses_before << "→" << misses_after);
         CHECK(h != hash_base);

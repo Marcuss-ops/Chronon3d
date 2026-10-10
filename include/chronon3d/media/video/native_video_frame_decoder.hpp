@@ -50,6 +50,18 @@ struct NativeDecoderTestOptions {
     // Native decode imports NV12/P010 into a float4 RGBA CUDA/Vulkan view;
     // this is the explicit RGBA interop lane, never a YUV encode surface.
     desc.kind = runtime::ResourceKind::Color;
+    // VulkanCudaFrameImporter materializes this as external memory and
+    // CUDA writes the converted RGBA image. Preserve its external allocation
+    // contract when graph binding revisits the descriptor, or ensure_surface
+    // can silently rematerialize it as ordinary device-local memory.
+    desc.residency = runtime::ResourceResidency{
+        .domain = runtime::MemoryDomain::Vulkan,
+        .device = 0,
+        .exportable = true,
+        .importable = true,
+        .decoder_compatible = true,
+        .encoder_compatible = false,
+    };
     return desc;
 }
 

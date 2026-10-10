@@ -358,13 +358,14 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                                 : rendering::PointLightKind::Directional;
                             const float default_x = static_cast<float>(plan.canvas.width) * 0.5f;
                             const float default_y = static_cast<float>(plan.canvas.height) * 0.5f;
-                            source.position = Vec3{
+                            source.position = detail::light_position_at(layer, ctx.effective_frame(), Vec3{
                                 layer.position_dimensions >= 2 ? layer.position[0] : default_x,
                                 layer.position_dimensions >= 2 ? layer.position[1] : default_y,
                                 // A 2D light has no height: default to its radius so it
                                 // lights the plane below it instead of grazing it at z=0.
-                                layer.position_dimensions >= 3 ? layer.position[2] : light.radius};
-                            source.direction = Vec3{light.direction[0], light.direction[1], light.direction[2]};
+                                layer.position_dimensions >= 3 ? layer.position[2] : light.radius}, plan.canvas.fps);
+                            source.direction = detail::light_direction_at(
+                                layer, ctx.effective_frame(), plan.canvas.fps);
                             source.color = color;
                             source.radius = light.radius;
                             source.range = light.range;

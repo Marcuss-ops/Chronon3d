@@ -42,7 +42,7 @@ const std::set<std::string>& frozen_job_keys() {
         "process_wall_ms", "measurement_kind", "execution_path",
         "execution_reason", "execution_downgrade_count",
         "surface_handoff_path", "job_wall_ms", "engine_init_ms",
-        "backend_init_ms", "plan_read_ms", "plan_parse_ms", "plan_validate_ms",
+        "backend_init_ms", "daemon_admission_wait_ms", "plan_read_ms", "plan_parse_ms", "plan_validate_ms",
         "plan_compile_ms", "graph_compile_ms", "prepare_ms",
         "render_loop_wall_ms", "encoder_finalize_ms", "mux_finalize_ms",
         "output_finalize_ms", "validation_ms", "ffprobe_ms", "sha256_ms",

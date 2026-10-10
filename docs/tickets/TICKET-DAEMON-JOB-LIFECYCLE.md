@@ -6,7 +6,7 @@
 - video-source 1080p: picco device 8828 MiB, attribuito 3956 MiB;
 - overlay 4K: picco device 14536 MiB, attribuito 9621 MiB.
 
-**Decisione:** `m_render_job_mutex` **resta**. Due job 4K concorrenti (~2 × 9.6 GB attribuiti) superano i 16 GB della RTX A4000; la rimozione richiede prima un controllo di budget VRAM in ammissione, non ancora implementato. La matrice 2026-10-08 sostituisce quella del 2026-09-17, i cui piani non sono più caricabili (vedi commento nel manifest).
+**Decisione:** `m_render_job_mutex` **resta**. Due job 4K concorrenti (~2 × 9.6 GB attribuiti) superano i 16 GB della RTX A4000. Il codice corrente ha già admission VRAM e un lock shared/exclusive (`daemon_render_concurrency.hpp`, `RenderJobAdmissionContext` in `daemon_service_ipc_render_job.cpp`): chunk DirectYUV disgiunti approvati dalla policy possono sovrapporsi, mentre monolitici/FullGraph restano esclusivi. Il residuo è certificare modello, isolamento e overlap sulle shape rappresentative, non implementare da zero admission o rimuovere globalmente il mutex. La matrice 2026-10-08 sostituisce quella del 2026-09-17, i cui piani non sono più caricabili (vedi commento nel manifest).
 
 Stato: **OPEN** — temporal schedule, bake delle static island e IPC
 `RENDER_BATCH` sono ora collegati al runtime e compilano; restano la misura GPU

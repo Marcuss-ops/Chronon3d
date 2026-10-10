@@ -1360,6 +1360,40 @@ TEST_CASE("render plan decodes screen-space radial light layers") {
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(spot).has_value());
 }
 
+TEST_CASE("light_direction tracks decode and reject invalid vectors and layer kinds") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":24,"fps_den":1,"duration_frames":24},
+      "layers":[{"id":"key","type":"light","light":{"kind":"spot"},
+        "animation":{"tracks":[{"property":"light_direction","keyframes":[
+          {"frame":0,"value":[0,0,-1]},{"frame":20,"value":[1,0,-1]}]}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto valid = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(valid);
+    auto changed = source;
+    changed["layers"][0]["animation"]["tracks"][0]["keyframes"][1]["value"] = {0, 1, -1};
+    const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(changed_plan->content_fingerprint != valid->content_fingerprint);
+    for (const auto& invalid : {nlohmann::json::array({0, 0}),
+                                nlohmann::json::array({0, 0, 0})}) {
+        changed = source;
+        changed["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["value"] = invalid;
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed));
+    }
+    changed = source;
+    changed["layers"][0]["light"]["kind"] = "radial";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed));
+    changed = source;
+    changed["layers"][0]["animation"]["tracks"].push_back(
+        changed["layers"][0]["animation"]["tracks"][0]);
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed));
+    changed = source;
+    changed["layers"][0]["type"] = "color";
+    changed["layers"][0].erase("light");
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed));
+}
+
 TEST_CASE("render plan decodes point, spot and directional light kinds and fingerprints each field") {
     const auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,

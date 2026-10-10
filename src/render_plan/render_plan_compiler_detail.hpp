@@ -84,6 +84,10 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
 [[nodiscard]] std::optional<chronon3d::DirectionalBlurParams>
 motion_blur_params_at(const LayerPlan& layer, double frame, FrameRate fps,
                       const FollowPathEvaluators* precompiled_follow_path = nullptr);
+[[nodiscard]] chronon3d::Vec3 light_position_at(
+    const LayerPlan& layer, double frame, chronon3d::Vec3 base, FrameRate fps);
+[[nodiscard]] chronon3d::Vec3 light_direction_at(
+    const LayerPlan& layer, double frame, FrameRate fps);
 [[nodiscard]] float evaluate_scalar_track(
     const AnimationTrackPlan& track, double frame, float base, FrameRate fps);
 [[nodiscard]] std::optional<float> stroke_dash_offset_at(
