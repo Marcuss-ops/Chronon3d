@@ -6,6 +6,7 @@
 // ============================================================================
 
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/effects/curves.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/effect_gpu_capability.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
@@ -24,6 +25,7 @@ namespace chronon3d::graph {
 #include "effect_stack_node_native_detail.hpp"
 #include "effect_stack_node_native_color_detail.hpp"
 #include "effect_stack_node_native_echo_detail.hpp"
+#include "effect_stack_node_native_bulk_detail.hpp"
 #include "effect_stack_node_bbox_detail.hpp"
 #include "effect_stack_node_execute_detail.hpp"
 

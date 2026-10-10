@@ -108,8 +108,8 @@ void main() {
         if (params.flags == 1) {
             imageStore(destination_image, pixel, vec4(
                 fractal_channel(px, py, seed, octaves, frequency, contrast, brightness, amplitude),
-                fractal_channel(px, py, seed + 0x68BC21EBul, octaves, frequency, contrast, brightness, amplitude),
-                fractal_channel(px, py, seed + 0x02E5BE93ul, octaves, frequency, contrast, brightness, amplitude),
+                fractal_channel(px, py, seed + 0x68BC21EBu, octaves, frequency, contrast, brightness, amplitude),
+                fractal_channel(px, py, seed + 0x02E5BE93u, octaves, frequency, contrast, brightness, amplitude),
                 1.0));
         } else {
             float v = fractal_channel(px, py, seed, octaves, frequency, contrast, brightness, amplitude);
@@ -123,8 +123,8 @@ void main() {
     if (mode == 1) {
         float nx = (float(pixel.x) + 0.5) / w;
         float ny = (float(pixel.y) + 0.5) / h;
-        float smooth = params.b2.x;
-        float regularizer = max(smooth * smooth, 1.0e-8);
+        float smth = params.b2.x;
+        float regularizer = max(smth * smth, 1.0e-8);
         vec2 pts[4];
         pts[0] = params.b0.xy; pts[1] = params.b0.zw;
         pts[2] = params.b1.xy; pts[3] = params.b1.zw;

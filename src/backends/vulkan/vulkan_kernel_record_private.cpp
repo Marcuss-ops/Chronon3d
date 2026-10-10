@@ -242,7 +242,7 @@ void VulkanBackend::Impl::record_composite(
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::GenerateBulk)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
-        static_assert(sizeof(bulk) == 120, "GenerateBulk push must be 120 bytes");
+        static_assert(sizeof(bulk) == 128, "GenerateBulk push must be 128 bytes");
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(bulk), &bulk);
         vkCmdDispatch(command, (destination.width + 15) / 16,

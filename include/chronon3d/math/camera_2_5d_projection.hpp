@@ -11,8 +11,9 @@
 /// every projection path in Chronon3D uses the same sign, centre, depth,
 /// and FOV/zoom conventions.
 ///
-/// Backward-compatible wrappers are provided for `focal_length_from_fov()`,
-/// `get_camera_view_matrix()`, and `project_world_point_2_5d()`.
+/// Backward-compatible wrappers are provided for `focal_length_from_fov()`
+/// and `get_camera_view_matrix()`; single-point projection goes through the
+/// contract's `project_world_point()` directly.
 // ============================================================================
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -54,42 +55,6 @@ inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
 /// Delegates to camera_projection_contract.
 inline Mat4 get_camera_view_matrix(const CameraProjectionSource& camera) {
     return camera_math::view_matrix_for_camera(camera);
-}
-
-/// Delegates to camera_projection_contract.
-/// Now delegates to CameraProjectionResolver for unified math.
-inline bool project_world_point_2_5d(
-    const CameraProjectionSource& camera,
-    const Mat4& view,
-    bool use_view_matrix,
-    f32 focal,
-    const Vec3& world,
-    Vec2& screen,
-    f32& depth
-) {
-    // For single-point projection we use the contract directly
-    // (cheaper than building a full resolver input).
-    if (use_view_matrix) {
-        Vec4 cam_pos = view * Vec4(world, 1.0f);
-        depth = cam_pos.z;
-        if (depth <= 0.0f) return false;
-        // Contract Y sign: inverted
-        screen.x = cam_pos.x * focal / depth;
-        screen.y = -cam_pos.y * focal / depth;
-        return true;
-    }
-
-    // Translation-only path (no view matrix)
-    Vec4 cam_pos{0.0f, 0.0f, 0.0f, 1.0f};
-    cam_pos.x = world.x - camera.get_position().x;
-    cam_pos.y = world.y - camera.get_position().y;
-    cam_pos.z = world.z - camera.get_position().z;
-    depth = cam_pos.z;
-    if (depth <= 0.0f) return false;
-
-    screen.x = cam_pos.x * focal / depth;
-    screen.y = -cam_pos.y * focal / depth;  // Contract Y sign: inverted
-    return true;
 }
 
 // NOTE: build_perspective_matrix(f32) was REMOVED in fix #1 (post-FASE-17

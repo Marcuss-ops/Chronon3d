@@ -47,6 +47,45 @@ compiler/runtime and final video-plan contracts replace older entry points.
 
 - **Status:** `ACTIVE`
 
+### FASE C26 — re-census 2026-10-10 (formal debt review, no code changed)
+
+- **C20 bridge — ACTIVE (confirmed):** `compatibility_composition` still 9 refs
+  (`render_engine.cpp:53,68-70`, `render_engine_prepared_batch_detail.hpp:10,22`,
+  `render_engine_prepared_job_core_detail.hpp:31,37`,
+  `render_engine_api_detail.hpp:222` — line drifted from :174, same adapter).
+  `render_compatibility*` still present in 5 TUs. No typed
+  `SceneFunction → CompiledProgram` lowering exists. Stays open.
+- **C21 frame-0 guard — FATTO (re-verified):** zero `Composition`-sampling
+  conversions under `src/timeline/` + `include/chronon3d/timeline/`.
+- **C22 equivalence corpus — APERTO (sole blocker):** the 8-case plan
+  (animated transform, opacity, text, camera, visibility, frame-varying
+  callbacks, assets, batch ordering) is still the gate. Nothing to close
+  until the frame-by-frame hash corpus is green.
+- **C23 delete — APERTO, blocked on C22.** Removal scope unchanged.
+- **C24 — FATTO (principle holds, symbols renamed):** the compatibility path
+  still synchronises via mutexes (`evaluation/render/encoder_wait_mutex` in
+  `render_pipeline_batch.cpp`), intentionally unpolished. No SPSC work spent.
+- **C25 — NOT YET (blocked on C23).** Untouched per plan.
+- **Resolver helper — REMOVED (re-verified):** zero `resolve_legacy_internal`
+  symbols in `src/`, `include/`, `tests/`. Formally closed, no action.
+- **Software `runtime()` — callers REMOVED (re-verified, zero call sites);
+  header boundary stays PARTIAL with narrowed scope:** the two remaining
+  runtime includes are `software_render_session.hpp →
+  runtime/job/job_session.hpp` (embeds `runtime::JobSession common` **by
+  value** per the "Spostare e separare runtime::JobSession" §8.5 design, so
+  decoupling needs a redesign, not an include cut) and `render_settings.hpp →
+  runtime/render_surface_handle.hpp`. TU-level includes
+  (`software_backend.cpp`, `effect_stack.cpp`,
+  `software_renderer_dispatch.cpp`, `software_processor_services.hpp`) are
+  implementation detail, not public surface. Exit work is now exactly: decide
+  the `JobSession`-by-value redesign or accept the coupling by design.
+- **Formal closure recorded 2026-10-10:** resolver section CLOSED, software
+  accessor CLOSED, C21/C24 re-affirmed FATTO. Remaining open debt is
+  C20/C22/C23/C25 (single chain blocked on the C22 corpus) plus the narrowed
+  software header decision. No status was advanced without its gate.
+
+- **Status:** `ACTIVE` (narrowed: C22 corpus + header-design decision)
+
 ## Legacy video resolver helper
 
 - **Owner:** media/video execution migration.

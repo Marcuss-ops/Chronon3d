@@ -11,11 +11,13 @@
 //   - center pixel (|dx|,|dy| < 0.001) forwards source tap-for-tap
 // Certified window: full frame only, finite center in [0,1], amount in
 // (0, 8], taps in [2, 64]. amount <= 0 and samples <= 1 are CPU identity
-// fast paths forwarded without dispatch. The centroid-recenter pass is
-// certified for centroid-stable inputs (symmetric content where the source
-// alpha centroid coincides with the blur center within 1e-3, or shifts
-// below 1e-3); asymmetric inputs with large recenters fail closed at
-// lowering time via the host-side source centroid check.
+// fast paths forwarded without dispatch. The software processor applies a
+// centroid-recenter pass to asymmetric inputs (centroid shift above 1e-3
+// with the source centroid off the blur center); the native route has no
+// pixel readback so it cannot reproduce that pass. Native certification
+// therefore covers centroid-stable inputs only: symmetric content whose
+// source alpha centroid coincides with the blur center within 1e-3, or
+// inputs whose blur shift stays below 1e-3 (e.g. constant images).
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
