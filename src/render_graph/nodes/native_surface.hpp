@@ -47,13 +47,30 @@ inline bool native_surface_promotion_diag_enabled() noexcept {
 
 /// Build the canonical Rgba32Float / Storage / FrameTransient surface
 /// description used by every native full-frame effect/composite fast-path.
-inline runtime::SurfaceDesc native_surface_desc(i32 width, i32 height) {
-    return runtime::SurfaceDesc::make(
+inline runtime::SurfaceDesc native_surface_desc(const RenderGraphContext& ctx,
+                                               i32 width, i32 height) {
+    auto desc = runtime::SurfaceDesc::make(
         static_cast<std::uint32_t>(width),
         static_cast<std::uint32_t>(height),
         runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::FrameTransient);
+    // Native surfaces that participate in a strict Vulkan→CUDA/NVENC video
+    // graph must be allocated from exportable Vulkan memory. The encode path
+    // later imports the final graph surface into CUDA; a generic device-local
+    // allocation fails only at export time, after the whole render graph ran.
+    if (ctx.policy.is_gpu_native_required() ||
+        ctx.policy.native_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
+        desc.residency = runtime::ResourceResidency{
+            .domain = runtime::MemoryDomain::Vulkan,
+            .device = 0,
+            .exportable = true,
+            .importable = false,
+            .decoder_compatible = false,
+            .encoder_compatible = true,
+        };
+    }
+    return desc;
 }
 
 /// Pack a framebuffer's pixels into a tightly-packed RGBA float buffer in
@@ -106,7 +123,7 @@ inline bool ensure_native_surface(
             if (!framebuffer.data()) {
                 return true;
             }
-            const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
+            const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height());
             std::vector<float> packed;
             const auto pixels = framebuffer_rgba_view(framebuffer, packed);
             runtime::UploadTicket upload_ticket{};
@@ -153,7 +170,7 @@ inline bool ensure_native_surface(
         return false;
     }
 
-    const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
+    const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height());
     // A strict native-video job can still contain a small CPU-authored
     // overlay (for example a decoded watermark or a legacy text fallback).
     // Rejecting promotion here makes CompositeNode fail closed even though
@@ -255,7 +272,7 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
         }
         framebuffer.clear_surface_handle();
     }
-    const auto desc = native_surface_desc(framebuffer.width(), framebuffer.height());
+    const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height());
     const auto handle = ctx.surface_registry->create(desc);
     if (handle == runtime::kInvalidRenderSurfaceHandle) {
         spdlog::error("[native-surface] registry rejected empty {}x{} surface", framebuffer.width(), framebuffer.height());

@@ -48,7 +48,7 @@ bool try_native_full_frame_glow_or_bloom(RenderGraphContext& ctx,
         return false;
     }
 
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     // Preserve the software halo oracle at every authored radius. The device
     // loss was premature surface retirement, not full-resolution filtering;
     // downsampling here changed the approved effect rather than fixing it.
@@ -208,7 +208,7 @@ bool try_native_full_frame_drop_shadow(
         !std::isfinite(params->color.b) || !std::isfinite(params->color.a) ||
         params->color.a < 0.0f || params->color.a > 1.0f) return false;
 
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const bool source_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
     const bool source_needs_expansion = source_borrowed && borrowed_source_framebuffer &&
         (borrowed_source_framebuffer->width() != result.width() ||
@@ -339,7 +339,7 @@ bool try_native_full_frame_tint(RenderGraphContext& ctx,
         return false;
     }
 
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     // AUDIT F10 — zero-copy tight-storage path (see the glow fast-path above).
     std::vector<float> packed_rgba;
     const bool source_is_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
@@ -411,7 +411,7 @@ bool try_native_full_frame_blur(RenderGraphContext& ctx,
         params->radius < 0.0f || params->radius > 128.0f) {
         return false;
     }
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const bool source_is_borrowed =
         borrowed_source != runtime::kInvalidRenderSurfaceHandle;
     const bool source_needs_expansion = source_is_borrowed && borrowed_source_framebuffer &&
@@ -557,7 +557,7 @@ bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
         params->threshold > 1.0f) {
         return false;
     }
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const bool has_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
     const bool has_result_surface =
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
@@ -676,7 +676,7 @@ bool try_native_full_frame_directional_blur(RenderGraphContext& ctx,
     const float dir_y = std::sin(radians);
     if (!std::isfinite(dir_x) || !std::isfinite(dir_y)) return false;
     const auto source = has_borrowed ? borrowed_source : result.surface_handle();
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const auto destination = ctx.surface_registry->create(desc);
     if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
     const auto created = ctx.backend->create_surface(destination, desc);

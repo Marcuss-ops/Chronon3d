@@ -525,7 +525,8 @@ struct VulkanBackend::Impl {
 
     static bool surface_compatible(const runtime::SurfaceDesc& a,
                                    const runtime::SurfaceDesc& b) {
-        return a.width == b.width && a.height == b.height && a.format == b.format;
+        return a.width == b.width && a.height == b.height && a.format == b.format &&
+               a.residency == b.residency;
     }
 
     // DEMOLISHED (P1.4): preallocate_plan_surfaces removed — the surface

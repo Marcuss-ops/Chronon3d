@@ -45,7 +45,7 @@ inline runtime::RenderSurfaceHandle bulk_alloc_destination(RenderGraphContext& c
         ctx.backend->is_native_surface_valid(result.surface_handle());
     if (!has_borrowed && !has_result_surface) return runtime::kInvalidRenderSurfaceHandle;
     source_out = has_borrowed ? borrowed_source : result.surface_handle();
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const auto destination = ctx.surface_registry->create(desc);
     if (destination == runtime::kInvalidRenderSurfaceHandle) return destination;
     if (!ctx.backend->create_surface(destination, desc).ok()) {
@@ -75,7 +75,7 @@ inline bool bulk_true_forward(RenderGraphContext& ctx, Framebuffer& result,
 inline runtime::RenderSurfaceHandle bulk_upload_aux(RenderGraphContext& ctx,
                                                int w, int h,
                                                std::span<const float> rgba) {
-    const auto desc = native_surface_desc(w, h);
+    const auto desc = native_surface_desc(ctx, w, h);
     const auto aux = ctx.surface_registry->create(desc);
     if (aux == runtime::kInvalidRenderSurfaceHandle) return aux;
     if (!ctx.backend->create_surface(aux, desc).ok()) {
