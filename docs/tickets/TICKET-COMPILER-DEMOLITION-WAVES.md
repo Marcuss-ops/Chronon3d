@@ -1,7 +1,8 @@
 # Compiler Demolition Waves — Wave 1–4
 
-Status: `ACTIVE` (verified against `be14cbd86`; Waves 1/2/3/4 execution
-demolition remains open)
+Status: `CLOSED` (re-verified against `2c921aa3b` on 2026-10-10; Waves
+1/2/3/4 execution demolition complete — compat shims remain only as
+public-API adapters, not executor payload)
 
 Obiettivo: lasciare una sola authority per execution, job normalization,
 compiler output e graph lowering, senza introdurre una seconda pipeline
@@ -29,9 +30,15 @@ sono coerenti.
 - [x] Wave 3 — `ProgramMetadata` owns the output contract, prepared-asset
   manifest, request/content digests and admission budget; its public header
   no longer includes a `render_plan/*` header.
-- [ ] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
+- [x] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
   programs di `CompiledProgram`, senza materializzare `PreparedRenderPlan` /
-  `CompiledComposition` come payload dell’executor.
+  `CompiledComposition` come payload dell’executor (verified 2026-10-10
+  against `2c921aa3b`: `RenderPipeline::render()` richiede `CompiledProgram`,
+  campiona via `TypedProgramSampler::sample_into` + `SceneMaterializer`,
+  cache per `fingerprint()`; nessun `PreparedRenderPlan`/`CompiledComposition`
+  in `job_session`/`frame_execution`; `typed_program_sampler` zero riferimenti
+  al bridge; `render_compiled_composition` resta solo adapter compat per
+  prepared-job legacy e SDK file methods).
 - [x] Wave 3.1 — il payload dello slot non possiede più
   `EvaluatedCompositionFrame`: scene e camera frame-local sono possedute dal
   lease come stato tipizzato separato.
@@ -97,10 +104,12 @@ sono coerenti.
   request parity, targeted render-graph tests e build `linux-fast-dev`.
 - Removal scope: legacy CLI adapter, public graph facade, obsolete CMake
   sources/targets e compatibility payload non più referenziati.
-- Status: `ACTIVE` for the remaining Wave 1/2/3 compatibility payloads and
-  execution callers; Wave 4 graph facade demolition/caller census is closed.
-  The metadata evacuation is complete, but the bridge itself remains `ACTIVE`
-  until execution no longer materializes a `CompiledComposition`.
+- Status: `CLOSED` 2026-10-10 (verified `2c921aa3b`). Wave 1/2/3/4 payloads
+  gone from the production execution path; Wave 4 graph facade
+  demolition/caller census was already closed. Remaining
+  `render_compiled_composition` / `render_compatibility*` entrypoints are
+  public-API compat adapters (legacy prepared jobs, SDK file methods), not
+  executor payload — removal would break API compat and is out of scope.
 
 ## Verified residual census — `be14cbd86` + delta 2026-09-09
 
