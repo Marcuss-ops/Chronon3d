@@ -87,10 +87,20 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
         REQUIRE(row != nullptr);
         CHECK(row->route == GpuEffectRoute::NativeZeroReadback);
     }
-    for (const auto type : {EffectType::Curves, EffectType::Lut3D}) {
+    for (const auto type : {EffectType::Fake3DWave, EffectType::RadialBlur,
+                            EffectType::Stroke, EffectType::FractalNoise,
+                            EffectType::FourColorGradient, EffectType::LightRays,
+                            EffectType::Lut3D, EffectType::Curves,
+                            EffectType::CornerPin, EffectType::Twirl,
+                            EffectType::Bulge, EffectType::MeshWarp,
+                            EffectType::TurbulentDisplace, EffectType::WaveWarp,
+                            EffectType::Ripple, EffectType::DisplacementMap,
+                            EffectType::Halftone, EffectType::LensDistortion,
+                            EffectType::LuminanceResponse, EffectType::FoldWarp,
+                            EffectType::CreaseShading, EffectType::RoughenEdges}) {
         const auto* row = graph::gpu_effect_capability(type);
         REQUIRE(row != nullptr);
-        CHECK(row->route == GpuEffectRoute::Unsupported);
+        CHECK(row->route == GpuEffectRoute::NativeZeroReadback);
     }
 
     CHECK(graph::gpu_effect_capability(EffectType::Unknown) == nullptr);
@@ -110,5 +120,5 @@ TEST_CASE("strict GPU effect capability census covers every catalog effect once"
     std::size_t native = 0;
     for (const auto& row : graph::kGpuEffectCapabilityRows)
         if (row.route == graph::GpuEffectRoute::NativeZeroReadback) ++native;
-    CHECK(native == 26);
+    CHECK(native == 48);
 }

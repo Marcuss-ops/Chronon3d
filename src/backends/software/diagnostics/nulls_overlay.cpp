@@ -6,6 +6,7 @@
 #include "internal/helpers.hpp"
 #include "../rasterizers/line_rasterizer.hpp"
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <chronon3d/math/camera_projection_contract.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
@@ -20,17 +21,15 @@ void draw_null_overlay(Framebuffer& fb, const Scene& scene, const Camera2_5D& ca
         if (!camera.enabled) {
             return Vec2(world_pos.x, world_pos.y);
         }
-        Mat4 view = camera.view_matrix();
-        f32 focal = camera.zoom;
-        if (camera.optics_mode == CameraOpticsMode::FieldOfView) {
-            focal = h / (2.0f * std::tan(glm::radians(camera.fov_deg) * 0.5f));
+        // Single projection authority: the renderer contract owns optics mode,
+        // focal, lens shift and visibility. The world-xy fallback on invisible
+        // points preserves the previous overlay behaviour.
+        const auto projected = camera_math::project_world_point(
+            camera, world_pos, camera_math::Viewport2D{w, h});
+        if (!projected.visible) {
+            return Vec2(world_pos.x, world_pos.y);
         }
-        Vec2 screen;
-        f32 depth;
-        if (project_world_point_2_5d(camera, view, true, focal, world_pos, screen, depth)) {
-            return Vec2(screen.x + w * 0.5f, screen.y + h * 0.5f);
-        }
-        return Vec2(world_pos.x, world_pos.y);
+        return Vec2(projected.screen.x, projected.screen.y);
     };
 
     // Draw parent-child connections

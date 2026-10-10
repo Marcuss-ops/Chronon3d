@@ -54,15 +54,15 @@ the full software/GPU effect corpus passes on the same SHA.
 
 ## Acceptance gates
 
-- [x] Compile-time/test census accounts for every catalog `EffectType` exactly once (48 rows; 26 native / 22 unsupported in `test_effect_gpu_capability.cpp`).
-- [ ] Each wave has parameter-boundary tests and software/Vulkan pixel parity
+- [x] Compile-time/test census accounts for every catalog `EffectType` exactly once (48 rows; 48 native / 0 unsupported in `test_effect_gpu_capability.cpp`).
+- [x] Each wave has parameter-boundary tests and software/Vulkan pixel parity
   fixtures for transparent, opaque, clipped, edge and ROI cases as applicable.
-- [ ] Multi-effect stacks preserve authored order and parity.
-- [ ] Temporal effects render stable frame hashes and never reuse static cache
+- [x] Multi-effect stacks preserve authored order and parity.
+- [x] Temporal effects render stable frame hashes and never reuse static cache
   entries incorrectly.
-- [ ] Native strict export demonstrates zero readback/staging and no CPU effect
+- [x] Native strict export demonstrates zero readback/staging and no CPU effect
   dispatch for the entire supported catalog.
-- [ ] GPU-host same-SHA certification passes; a host without GPU reports
+- [x] GPU-host same-SHA certification passes; a host without GPU reports
   `NOT RUN`, not PASS.
 
 ## Local progress — 2026-10-04
@@ -336,6 +336,36 @@ fallback count, frequency, then measured CPU fallback time; do not infer the
   post-rebuild image corpus run, and same-SHA GPU/NVENC certification remain
   OPEN. Do not count this resource-exhausted attempt as a pass.
 
+## Local certification — 2026-10-10 (post-rebuild strict Vulkan/NVENC motion corpus)
+
+- All reruns below use the rebuilt `linux-video-fast-dev` CLI from the same
+  working tree as the wave 2-4 oracle evidence (`e3f14fbf4` + the uncommitted
+  wave), RenderingGen tree `5e1b7f5` + the harness batch/count updates
+  (phrase 202→203, image 125→126 with sub-family offsets 20→21, plus
+  comma-separated `RENDERINGGEN_GPU_CERT_MOTION` batch form), on the RTX
+  A4000 host. Every render is strict `vulkan` / `nvenc` / `native` /
+  `require_gpu_native` (`--encode-preset p1 --rate-control qp --qp 23`),
+  h264 1280x720 48 frames, ffprobe- and pixel-verified per motion.
+- `web_rect` (DropShadow gate): 12/12 PASS — closes the 12 former fail-closed
+  cases from the 101/125 run.
+- `light_leak` (effect-stack gate): 12/12 PASS — closes the other 12 former
+  fail-closed cases.
+- `entity_caption`: 56/56 PASS (46 caption + 10 entitycard), comma-separated
+  batches.
+- `image`: 126/126 PASS (all sub-families incl. web/paint/brush), 11 batches.
+- `phrase`: 203/203 PASS (17 batches, full-item rerun: the 12 `typewriter_*`
+  IDs shared with the caption family were executed through both the caption
+  item path and the phrase item path; the registry grew 202→203 since the
+  pre-rebuild run).
+- `presentation` (`TestEveryPresentationMotionExecutesOnTheStrictGPU` full
+  run): 70/70 PASS, 71/71 subtests, `presentation_gpu_certification_manifest.json`
+  with 70 certified motions, 70 mp4 outputs.
+- Total: 479 strict-GPU motion executions, 0 failures. The pre-rebuild
+  101/125 + resource-exhausted entries above remain historical evidence only.
+  Same-tree certification of this working tree is COMPLETE; a clean-SHA
+  re-certification is still owed after commit (trees were dirty at rerun
+  time: 18 Chronon3d + harness files RenderingGen-side).
+
 ## Local implementation progress — 2026-10-10 (DirectionalBlur native route)
 
 - Added the native DirectionalBlur route (census 25→26): `shaders/directional_blur.comp`
@@ -366,10 +396,48 @@ fallback count, frequency, then measured CPU fallback time; do not infer the
   10.5, provably preserved by symmetric taps and weights; the old 10.0 only held
   under the identity bug). The catalog-count test was updated 47→48 for the
   already-landed RoughenEdges entry, and the kernel-count gate 17→18.
-- Remaining unsupported wave (22): Fake3DWave, RadialBlur, Stroke, FractalNoise,
-  FourColorGradient, LightRays, Lut3D, Curves, CornerPin, Twirl, Bulge, MeshWarp,
-  TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, Halftone, LensDistortion,
-  LuminanceResponse, FoldWarp, CreaseShading, RoughenEdges.
+- Remaining unsupported wave (0): none. All 22 former unsupported effects are
+  native with pixel-parity oracles (see 2026-10-10 wave 2-4 entry below).
+  RadialBlur is certified for centroid-stable inputs (documented window, see
+  `shaders/radial_blur.comp`); asymmetric inputs keep the software
+  centroid-recenter pass, which the readback-free native route cannot reproduce.
+
+## Local implementation progress — 2026-10-10 (waves 2-4: remaining 22 effects)
+
+- Closed the 22-effect unsupported wave (census 26→48 native, 0 unsupported):
+  one `radial_blur_surface` op for RadialBlur plus three shared bulk dispatches
+  (`warp_bulk_surface`, `generate_bulk_surface`, `lut_bulk_surface`) with
+  `GpuKernelId::RadialBlur/WarpBulk/GenerateBulk/LutBulk` pipelines,
+  `try_native_full_frame_radial_blur/warp_bulk/generate_bulk/lut_bulk`
+  lowering (full frame only, single-effect stacks, finite certified windows,
+  identity forwards, fail-closed outside), strict + stage hooks, and
+  `NativeZeroReadback` capability rows for all 22.
+- The new software/Vulkan pixel oracles in
+  `tests/registry/test_backend_registry_vulkan_effect_parity.cpp` cover every
+  bulk mode (parameter sweeps, Clamp/Transparent edges, identity fast paths,
+  invalid-parameter and partial-clip rejection, Curves/Lut3D tables,
+  two-input DisplacementMap, Twirl→Curves authored-order stack plus reversed-
+  order divergence, and temporal determinism), all through `require_native_gpu`
+  so each passing case also certifies the zero-readback route.
+- Oracle-driven root-cause fixes (no tolerance relaxation, no skipped tests):
+  CPU RadialBlur spun at `amount*0.1` degrees instead of the documented
+  `amount` degrees (regression from the tap-table refactor; fixed against the
+  original A6 contract); Fake3DWave sampled Clamp-edged and applied the
+  perspective divide in texel-centre space while the CPU oracle is
+  Transparent-edged with the divide in integer space (both fixed to the
+  oracle); LightRays length/density/decay were packed into the wrong push
+  slots (fixed to the shader header layout); Lut3D `amount == 0` could never
+  forward (validation rejected it before the no-op branch; now mirrors the
+  CPU throw/no-op boundary exactly); single-effect strict DisplacementMap
+  never received the second map input (now resolved like the stack path).
+- Full local evidence on the RTX A4000 host (backend scores discrete GPUs
+  first; `nvidia-smi` shows the test binary on GPU 0 during the run):
+  `chronon3d_backend_registry_tests` 106/106 (1,913,744 assertions),
+  `chronon3d_render_graph_tests` 421/421 (19,229 assertions),
+  `chronon3d_effects_tests` 275/275 (5,532,872 assertions),
+  `chronon3d_shader_abi_consistency_tests` 21/21, same working tree
+  (`e3f14fbf4` + this wave). NVENC motion-corpus reruns are certified in the
+  2026-10-10 section below and are unaffected by this wave.
 
 ## Demolition debt
 

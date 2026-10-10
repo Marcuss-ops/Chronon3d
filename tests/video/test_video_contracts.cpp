@@ -123,6 +123,21 @@ CliRunResult cli_invoke(const std::string& cmd) {
 }
 
 // ── §14/§17/§19 cli video invocation helper ─────────────────────────────
+// Canonical CLI is now `render COMP --frames A-B --fps F -o OUT` (the legacy
+// `video COMP --start/--end` subcommand was removed; `--ffmpeg-mode png` is
+// unsupported, only `pipe` remains). `end_frame` stays exclusive to preserve
+// the original contract (15..30 → 15 frames), mapped to inclusive --frames.
+std::string repo_assets_root() {
+    // CTest runs with cwd == source root (relative cli_bin resolves there).
+    // Search upward for the canonical asset marker so --assets-root is absolute.
+    fs::path dir = fs::current_path();
+    for (int i = 0; i < 6; ++i) {
+        if (fs::exists(dir / "assets/images/checker.png")) return dir.string();
+        if (!dir.has_parent_path()) break;
+        dir = dir.parent_path();
+    }
+    return fs::current_path().string();
+}
 std::string cli_video_cmd(const std::string& cli_bin,
                           const std::string& composition,
                           int start_frame, int end_frame, int fps,
@@ -130,12 +145,14 @@ std::string cli_video_cmd(const std::string& cli_bin,
                           const std::string& extra_env = "") {
     std::ostringstream cmd;
     if (!extra_env.empty()) cmd << extra_env << " ";
-    cmd << cli_bin << " video " << composition
-        << " --start " << start_frame
-        << " --end " << end_frame
+    // end exclusive → inclusive frames; inverted range (B) stays inverted so
+    // the CLI rejects it with exit != 0.
+    const int inclusive_end = (end_frame >= start_frame) ? (end_frame - 1) : end_frame;
+    cmd << cli_bin << " render " << composition
+        << " --frames " << start_frame << "-" << inclusive_end
         << " --fps " << fps
-        << " --output " << output_path
-        << " --ffmpeg-mode png --keep-frames 2>&1";
+        << " -o " << output_path
+        << " --ffmpeg-mode pipe --assets-root " << repo_assets_root() << " 2>&1";
     return cmd.str();
 }
 
@@ -287,24 +304,27 @@ TEST_CASE("VideoContracts_§17.Serial_vs_Parallel_60RawPNG_ByteExact") {
     fs::remove_all(dir1, ec); fs::remove_all(dir2, ec);
     fs::create_directories(dir1); fs::create_directories(dir2);
 
-    auto r1 = cli_invoke(cli_video_cmd(cli_bin, "Motion3DGlowOrbit",
-                                       0, 60, 30, dir1 + "/video.mp4",
-                                       "CHRONON3D_THREADS=1"));
+    // Pipe mode streams directly to the encoder (no PNG intermediates), so the
+    // byte-exact determinism contract is pinned on the pre-encode raw sink.
+    const std::string raw1 = dir1 + "/video.raw";
+    const std::string raw2 = dir2 + "/video.raw";
+    std::ostringstream c1, c2;
+    c1 << "CHRONON3D_THREADS=1 " << cli_bin << " render Motion3DGlowOrbit"
+       << " --frames 0-59 --fps 30 -o " << raw1
+       << " --video-sink raw --assets-root " << repo_assets_root() << " 2>&1";
+    c2 << "CHRONON3D_THREADS=8 " << cli_bin << " render Motion3DGlowOrbit"
+       << " --frames 0-59 --fps 30 -o " << raw2
+       << " --video-sink raw --assets-root " << repo_assets_root() << " 2>&1";
+    auto r1 = cli_invoke(c1.str());
     REQUIRE(r1.exit_code == 0);
-    auto r2 = cli_invoke(cli_video_cmd(cli_bin, "Motion3DGlowOrbit",
-                                       0, 60, 30, dir2 + "/video.mp4",
-                                       "CHRONON3D_THREADS=8"));
+    auto r2 = cli_invoke(c2.str());
     REQUIRE(r2.exit_code == 0);
-
-    auto frames1 = list_frames(dir1, "frame_");
-    auto frames2 = list_frames(dir2, "frame_");
-    REQUIRE(frames1.size() == 60);
-    REQUIRE(frames1.size() == frames2.size());
-    for (size_t i = 0; i < frames1.size(); ++i) {
-        const std::string cmp_cmd = "cmp -s " + frames1[i] + " " + frames2[i];
-        const int cmp_exit = std::system(cmp_cmd.c_str());
-        CHECK(cmp_exit == 0);
-    }
+    REQUIRE(fs::exists(raw1));
+    REQUIRE(fs::exists(raw2));
+    CHECK(fs::file_size(raw1) > 0);
+    CHECK(fs::file_size(raw1) == fs::file_size(raw2));
+    const std::string cmp_cmd = "cmp -s " + raw1 + " " + raw2;
+    CHECK(std::system(cmp_cmd.c_str()) == 0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -322,8 +342,8 @@ TEST_CASE("VideoContracts_§18.EncoderFailure_NoMP4_NoPartialLeftover") {
     TempPath tmp(out);
     std::ostringstream cmd;
     cmd << "PATH=/nonexistent " << cli_bin
-        << " video Motion3DGlowOrbit --start 0 --end 60 --fps 30"
-        << " --output " << out << " 2>&1";
+        << " render Motion3DGlowOrbit --frames 0-59 --fps 30"
+        << " -o " << out << " --ffmpeg-mode pipe --assets-root " << repo_assets_root() << " 2>&1";
     auto r = cli_invoke(cmd.str());
     CHECK(r.exit_code  != 0);
     CHECK_FALSE(fs::exists(out));
@@ -347,9 +367,9 @@ TEST_CASE("VideoContracts_§19.Long_900Frame_NoLeak_NoSlowdown_NoBlack") {
 
     std::ostringstream cmd;
     cmd << "/usr/bin/time -v -o " << time_log << " "
-        << cli_bin << " video Motion3DGlowOrbit"
-        << " --start 0 --end 900 --fps 30 --output " << out
-        << " --ffmpeg-mode png --keep-frames 2>&1";
+        << cli_bin << " render Motion3DGlowOrbit"
+        << " --frames 0-899 --fps 30 -o " << out
+        << " --ffmpeg-mode pipe --assets-root " << repo_assets_root() << " 2>&1";
     auto r = cli_invoke(cmd.str());
     REQUIRE(r.exit_code == 0);
     REQUIRE(fs::exists(out));

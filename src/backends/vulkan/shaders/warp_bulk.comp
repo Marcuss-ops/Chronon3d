@@ -22,7 +22,7 @@
 //   10 RoughenEdges: p = (amount,scale,octaves,evol,seed).
 //   11 Stroke: p = (color.r,color.g,color.b,mode,outer_r,inner_r).
 //     (stroke color alpha is unused, matching the CPU compose).
-//   12 DisplacementMap via aux: p = (intensity_x,intensity_y,channel,_).
+//   12 DisplacementMap via aux: p = (ix,iy,channel,_), p[3..4] = map origin
 // Sampling matches sampling::Sampler2D bilinear in texel-center convention
 // with Transparent (OOB -> vec4(0)) or Clamp edges (edge_mode 0/1).
 // Certified windows are bounded per mode; anything outside fails closed at
@@ -365,7 +365,9 @@ void main() {
             float shade = clamp((1.0 + max(0.0, dep) * highlight)
                                 * (1.0 - max(0.0, -dep) * side_dark), 0.0, 1.0);
             float cx = w * 0.5;
-            float src_x = ((px - cx) / scale_x) + cx - dx;
+            // CPU samples ((x - cx) / scale_x) + cx - dx + 0.5 (integer x,
+            // texel-center +0.5 applied AFTER the perspective divide).
+            float src_x = ((float(pixel.x) - cx) / scale_x) + cx - dx + 0.5;
             vec4 c = sample_src(vec2(src_x, py), size);
             if (c.a <= 0.0) { imageStore(destination_image, pixel, vec4(0.0)); return; }
             imageStore(destination_image, pixel, vec4(c.rgb * shade, c.a));
@@ -383,7 +385,8 @@ void main() {
             float shade = clamp((1.0 + max(0.0, dep) * highlight)
                                 * (1.0 - max(0.0, -dep) * side_dark), 0.0, 1.0);
             float cy = h * 0.5;
-            float src_y = ((py - cy) / scale_y) + cy - dy;
+            // CPU samples ((y - cy) / scale_y) + cy - dy + 0.5 (see above).
+            float src_y = ((float(pixel.y) - cy) / scale_y) + cy - dy + 0.5;
             vec4 c = sample_src(vec2(px, src_y), size);
             if (c.a <= 0.0) { imageStore(destination_image, pixel, vec4(0.0)); return; }
             imageStore(destination_image, pixel, vec4(c.rgb * shade, c.a));
@@ -463,8 +466,9 @@ void main() {
     if (mode == 12) {
         float ix = params.p[0], iy = params.p[1];
         int channel = int(params.p[2] + 0.5);
+        vec2 morigin = vec2(params.p[3], params.p[4]);
         ivec2 aux_size = imageSize(aux_image);
-        vec4 m = sample_aux_clamp(vec2(px, py), aux_size);
+        vec4 m = sample_aux_clamp(vec2(px + morigin.x, py + morigin.y), aux_size);
         float ch = 0.2126 * m.r + 0.7152 * m.g + 0.0722 * m.b;
         if (channel == 1) ch = m.r;
         else if (channel == 2) ch = m.g;

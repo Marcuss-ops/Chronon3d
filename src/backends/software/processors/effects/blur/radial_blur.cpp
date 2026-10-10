@@ -97,10 +97,13 @@ void apply_radial_blur(
     scratch.ensure_size(w, h);
     auto& taps = scratch.radial_taps;
     if (scratch.radial_samples != samples ||
-        scratch.radial_amount != blur_scale) {
-        build_radial_taps(blur_scale, samples, taps);
+        scratch.radial_amount != amount) {
+        // Contract: spin angle is u * amount degrees (see the original A6
+        // algorithm doc and the native radial_blur.comp header). Only the
+        // zoom extent uses blur_scale = amount * 0.1.
+        build_radial_taps(amount, samples, taps);
         scratch.radial_samples = samples;
-        scratch.radial_amount = blur_scale;
+        scratch.radial_amount = amount;
     }
 
     Framebuffer* temp = scratch.framebuffer.get();
