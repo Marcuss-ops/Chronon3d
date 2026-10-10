@@ -247,41 +247,32 @@ TEST_CASE("Camera2_5D projection: rotated camera still keeps front layers visibl
 }
 
 TEST_CASE("Camera2_5D projection: direct point projection keeps X and Y orientation") {
+    // Routed through the single projection authority (the renderer contract);
+    // the legacy project_world_point_2_5d helper was removed.
     Camera2_5D cam;
     cam.position = {0.0f, 0.0f, 0.0f};
     cam.zoom = 1000.0f;
 
-    Mat4 view = Mat4(1.0f);
+    const camera_math::Viewport2D viewport{1280.0f, 720.0f};
 
-    Vec2 screen{};
-    f32 depth{};
+    const auto center = camera_math::project_world_point(
+        cam, Vec3{0.0f, 0.0f, 1000.0f}, viewport);
+    CHECK(center.visible);
+    CHECK(center.depth == doctest::Approx(1000.0f));
+    CHECK(center.screen.x == doctest::Approx(640.0f));
+    CHECK(center.screen.y == doctest::Approx(360.0f));
 
-    bool ok_center = project_world_point_2_5d(
-        cam, view, false, 1000.0f,
-        Vec3{0.0f, 0.0f, 1000.0f},
-        screen, depth
-    );
-    CHECK(ok_center);
-    CHECK(screen.x == doctest::Approx(0.0f));
-    CHECK(screen.y == doctest::Approx(0.0f));
+    const auto right = camera_math::project_world_point(
+        cam, Vec3{100.0f, 0.0f, 1000.0f}, viewport);
+    CHECK(right.visible);
+    CHECK(right.screen.x > 640.0f);
 
-    bool ok_right = project_world_point_2_5d(
-        cam, view, false, 1000.0f,
-        Vec3{100.0f, 0.0f, 1000.0f},
-        screen, depth
-    );
-    CHECK(ok_right);
-    CHECK(screen.x > 0.0f);
-
-    bool ok_up = project_world_point_2_5d(
-        cam, view, false, 1000.0f,
-        Vec3{0.0f, 100.0f, 1000.0f},
-        screen, depth
-    );
-    CHECK(ok_up);
+    const auto up = camera_math::project_world_point(
+        cam, Vec3{0.0f, 100.0f, 1000.0f}, viewport);
+    CHECK(up.visible);
     // Contract Y sign: inverted — a point above camera centre (world Y > 0)
-    // projects to a negative screen Y (above centre in screen coordinates).
-    CHECK(screen.y < 0.0f);
+    // projects above centre in screen coordinates.
+    CHECK(up.screen.y < 360.0f);
 }
 
 // Regression lock for ADR-015 Decision 1 — producer-side screen-space TRS

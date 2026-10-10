@@ -250,6 +250,57 @@ NodeExecResult EffectStackNode::execute(
                     stage_handled = native_effects::try_native_full_frame_directional_blur(
                         ctx, one_effect, *result, native_clip, current_source);
                     break;
+                case effects::EffectType::RadialBlur:
+                    stage_handled = native_effects::try_native_full_frame_radial_blur(
+                        ctx, one_effect, *result, native_clip, current_source);
+                    break;
+                case effects::EffectType::Fake3DWave:
+                case effects::EffectType::CornerPin:
+                case effects::EffectType::Twirl:
+                case effects::EffectType::Bulge:
+                case effects::EffectType::MeshWarp:
+                case effects::EffectType::TurbulentDisplace:
+                case effects::EffectType::WaveWarp:
+                case effects::EffectType::Ripple:
+                case effects::EffectType::LensDistortion:
+                case effects::EffectType::FoldWarp:
+                case effects::EffectType::RoughenEdges:
+                case effects::EffectType::Stroke:
+                case effects::EffectType::DisplacementMap: {
+                    runtime::RenderSurfaceHandle map_source =
+                        runtime::kInvalidRenderSurfaceHandle;
+                    const Framebuffer* map_fb = nullptr;
+                    if (effect.effect_type == effects::EffectType::DisplacementMap &&
+                        inputs.size() > 1 && inputs[1]) {
+                        map_source = inputs[1]->surface_handle();
+                        if (map_source == runtime::kInvalidRenderSurfaceHandle ||
+                            !ctx.backend->is_native_surface_valid(map_source)) {
+                            map_source = runtime::kInvalidRenderSurfaceHandle;
+                            if (ensure_native_surface(ctx, *inputs[1]))
+                                map_source = inputs[1]->surface_handle();
+                        }
+                        if (map_source != runtime::kInvalidRenderSurfaceHandle)
+                            map_fb = inputs[1].get();
+                    }
+                    stage_handled = native_effects::try_native_full_frame_warp_bulk(
+                        ctx, one_effect, *result, native_clip, current_source,
+                        map_source, map_fb, current_source_framebuffer);
+                    break;
+                }
+                case effects::EffectType::FractalNoise:
+                case effects::EffectType::FourColorGradient:
+                case effects::EffectType::LightRays:
+                case effects::EffectType::Halftone:
+                case effects::EffectType::LuminanceResponse:
+                case effects::EffectType::CreaseShading:
+                    stage_handled = native_effects::try_native_full_frame_generate_bulk(
+                        ctx, one_effect, *result, local_clip, current_source);
+                    break;
+                case effects::EffectType::Curves:
+                case effects::EffectType::Lut3D:
+                    stage_handled = native_effects::try_native_full_frame_lut_bulk(
+                        ctx, one_effect, *result, local_clip, current_source);
+                    break;
                 case effects::EffectType::Glow:
                 case effects::EffectType::Bloom:
                     stage_handled = native_effects::try_native_full_frame_glow_or_bloom(
@@ -325,7 +376,45 @@ NodeExecResult EffectStackNode::execute(
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_directional_blur(
                     ctx, active_effects, *result, native_clip, native_source);
-            }            if (!native_handled) {
+            }
+            if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_radial_blur(
+                    ctx, active_effects, *result, native_clip, native_source);
+            }
+            if (!native_handled) {
+                // Single-effect DisplacementMap needs the resolved map layer
+                // from the second input, mirroring the strict-stack path.
+                runtime::RenderSurfaceHandle single_map_source =
+                    runtime::kInvalidRenderSurfaceHandle;
+                const Framebuffer* single_map_fb = nullptr;
+                if (active_effects.size() == 1 &&
+                    active_effects[0].effect_type ==
+                        effects::EffectType::DisplacementMap &&
+                    inputs.size() > 1 && inputs[1]) {
+                    single_map_source = inputs[1]->surface_handle();
+                    if (single_map_source == runtime::kInvalidRenderSurfaceHandle ||
+                        !ctx.backend->is_native_surface_valid(single_map_source)) {
+                        single_map_source = runtime::kInvalidRenderSurfaceHandle;
+                        if (ensure_native_surface(ctx, *inputs[1]))
+                            single_map_source = inputs[1]->surface_handle();
+                    }
+                    if (single_map_source != runtime::kInvalidRenderSurfaceHandle)
+                        single_map_fb = inputs[1].get();
+                }
+                native_handled = native_effects::try_native_full_frame_warp_bulk(
+                    ctx, active_effects, *result, native_clip, native_source,
+                    single_map_source, single_map_fb,
+                    native_source_available ? inputs[0].get() : nullptr);
+            }
+            if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_generate_bulk(
+                    ctx, active_effects, *result, local_clip, native_source);
+            }
+            if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_lut_bulk(
+                    ctx, active_effects, *result, local_clip, native_source);
+            }
+            if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_glow_or_bloom(
                     ctx, active_effects, *result, native_clip, native_source,
                     native_source_available ? inputs[0].get() : nullptr);

@@ -204,14 +204,17 @@ struct WarpBulkParams {
 static_assert(sizeof(WarpBulkParams) == 128, "WarpBulkParams must be 128 bytes");
 
 /// Parameters for the native bulk generator kernel (generate_bulk.comp).
-/// Push layout is 120 bytes: int mode, int flags, 7x vec4 (a0..a3, b0..b2).
+/// Push layout is 128 bytes: int mode, int flags, 8B pad (std430 vec4 alignment),
+/// 7x vec4 (a0..a3, b0..b2). The pad is explicit so the CPU struct matches the
+/// SPIR-V push block byte-for-byte.
 struct GenerateBulkParams {
     int mode{0};
     int flags{0};  ///< color_mode / blend selector depending on mode
+    int _pad[2]{0, 0};
     float a[16]{};
     float b[12]{};
 };
-static_assert(sizeof(GenerateBulkParams) == 120, "GenerateBulkParams must be 120 bytes");
+static_assert(sizeof(GenerateBulkParams) == 128, "GenerateBulkParams must be 128 bytes");
 
 /// Parameters for the native bulk LUT kernel (lut_bulk.comp).
 /// Push layout is 64 bytes: mode, amount, 2x pad, dmin vec4, dmax vec4,
