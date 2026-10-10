@@ -24,6 +24,7 @@
 #include "transform_comp_spv.hpp"
 #include "affine_transform_comp_spv.hpp"
 #include "blur_comp_spv.hpp"
+#include "directional_blur_comp_spv.hpp"
 #include "sharpen_comp_spv.hpp"
 #include "color_adjust_comp_spv.hpp"
 #include "color_matrix_comp_spv.hpp"
@@ -40,6 +41,7 @@
 #include "transform_abi.hpp"
 #include "affine_transform_abi.hpp"
 #include "blur_abi.hpp"
+#include "directional_blur_abi.hpp"
 #include "sharpen_abi.hpp"
 #include "color_adjust_abi.hpp"
 #include "chromatic_aberration_abi.hpp"
@@ -178,6 +180,12 @@ TEST_CASE("affine_transform shader ABI") {
 
 TEST_CASE("blur shader ABI") {
     auto abi = REFLECT_SHADER(chronon3d_blur_comp_spv);
+    REQUIRE(find_binding(abi, 0, 0) != nullptr);
+    REQUIRE(find_binding(abi, 0, 1) != nullptr);
+}
+
+TEST_CASE("directional_blur shader ABI") {
+    auto abi = REFLECT_SHADER(chronon3d_directional_blur_comp_spv);
     REQUIRE(find_binding(abi, 0, 0) != nullptr);
     REQUIRE(find_binding(abi, 0, 1) != nullptr);
 }

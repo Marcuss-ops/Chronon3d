@@ -46,6 +46,7 @@ std::unique_ptr<EffectProcessor> create_vignette_effect_processor();
 std::unique_ptr<EffectProcessor> create_mosaic_effect_processor();
 std::unique_ptr<EffectProcessor> create_keying_effect_processor();
 std::unique_ptr<EffectProcessor> create_drop_shadow_effect_processor();
+std::unique_ptr<EffectProcessor> create_directional_blur_effect_processor();
 } // namespace chronon3d::renderer
 
 namespace {
@@ -82,8 +83,11 @@ std::vector<float> software_oracle(renderer::EffectProcessor& processor,
                                    const std::optional<raster::BBox>& clip,
                                    int origin_x = 0, int origin_y = 0,
                                    EffectScratchResources* scratch = nullptr,
-                                   Frame frame = Frame{}) {
-    auto fb = make_source(origin_x, origin_y);
+                                   Frame frame = Frame{},
+                                   const Framebuffer* source_override = nullptr) {
+    auto fb = source_override
+        ? std::make_shared<Framebuffer>(*source_override)
+        : make_source(origin_x, origin_y);
     effects::EffectExecutionContext ctx{};
     ctx.clip = clip;
     ctx.effect_scratch = scratch;
@@ -107,7 +111,8 @@ struct VulkanRun {
 VulkanRun vulkan_strict(const EffectParams& params,
                         const std::optional<raster::BBox>& clip,
                         int origin_x = 0, int origin_y = 0,
-                        Frame frame = Frame{}) {
+                        Frame frame = Frame{},
+                        const Framebuffer* source_override = nullptr) {
     backends::vulkan::VulkanBackend backend;
     runtime::RenderSurfaceRegistry surfaces;
     RenderGraphContext ctx;
@@ -119,7 +124,9 @@ VulkanRun vulkan_strict(const EffectParams& params,
     ctx.policy.require_native_gpu = true;
     ctx.node_exec.clip_rect = clip;
 
-    auto source = make_source(origin_x, origin_y);
+    auto source = source_override
+        ? std::make_shared<Framebuffer>(*source_override)
+        : make_source(origin_x, origin_y);
     EffectStack effects;
     effects::EffectInstance inst;
     inst.params = params;
@@ -976,15 +983,85 @@ TEST_CASE("Strict Vulkan composes spatial blur before a color stage") {
     }
 }
 
-TEST_CASE("Strict Vulkan still fails closed for non-native effects") {
-    const auto run = vulkan_strict(
-        DropShadowParams{.offset = {2.0f, 2.0f}, .color = Color{0, 0, 0, 0.5f}, .radius = 3.0f},
+TEST_CASE("Strict Vulkan DropShadow matches software and invalid parameters fail closed") {
+    auto drop_shadow = renderer::create_drop_shadow_effect_processor();
+    const std::array<DropShadowParams, 4> cases{{
+        {.offset = {0.0f, 0.0f}, .color = Color{0.0f, 0.0f, 0.0f, 0.5f}, .radius = 0.0f},
+        {.offset = {2.0f, 2.0f}, .color = Color{0.2f, 0.1f, 0.0f, 0.5f}, .radius = 0.5f},
+        {.offset = {-2.4f, 1.6f}, .color = Color{0.0f, 0.0f, 0.0f, 0.5f}, .radius = 3.0f},
+        {.offset = {1.5f, -2.5f}, .color = Color{0.1f, 0.3f, 0.2f, 0.65f}, .radius = 5.0f},
+    }};
+    auto shadow_source = std::make_shared<Framebuffer>(kW, kH);
+    shadow_source->clear(Color::transparent());
+    for (int y = 0; y < kH; ++y)
+        for (int x = 1; x < kW; ++x) {
+            const float alpha = y == 1 ? 0.5f : (y == 3 ? 0.25f : 1.0f);
+            shadow_source->set_pixel(x, y, Color{
+                0.13f * static_cast<float>(x) * alpha,
+                0.17f * static_cast<float>(y + 1) * alpha,
+                0.09f * static_cast<float>(x + y) * alpha, alpha});
+        }
+    const std::optional<raster::BBox> partial_clip{raster::BBox{2, 1, 6, 3}};
+    for (std::size_t case_index = 0; case_index < cases.size(); ++case_index) {
+        const auto& params = cases[case_index];
+        const auto clip = case_index == 3 ? partial_clip : std::nullopt;
+        CAPTURE(case_index);
+        CAPTURE(params.offset.x);
+        CAPTURE(params.offset.y);
+        CAPTURE(params.radius);
+        const auto expected = software_oracle(
+            *drop_shadow, params, clip, 0, 0, nullptr, Frame{}, shadow_source.get());
+        const auto actual = vulkan_strict(
+            params, clip, 0, 0, Frame{}, shadow_source.get());
+        INFO("strict Vulkan error: " << actual.error);
+        REQUIRE(actual.ok);
+        REQUIRE(actual.pixels.size() == expected.size());
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            CHECK(actual.pixels[i] == doctest::Approx(expected[i]).epsilon(kTolerance));
+    }
+
+    const auto oversized_shadow = vulkan_strict(
+        DropShadowParams{.offset = {2.0f, 2.0f}, .color = Color{0, 0, 0, 0.5f}, .radius = 32.1f},
         std::nullopt);
-    CHECK_FALSE(run.ok);
-    CHECK(run.error.find("drop-shadow") != std::string::npos);
+    CHECK_FALSE(oversized_shadow.ok);
 
     const auto nan_run = vulkan_strict(BrightnessParams{.value = std::nanf("")}, std::nullopt);
     CHECK_FALSE(nan_run.ok);
+}
+
+TEST_CASE("Strict Vulkan DirectionalBlur matches software and invalid parameters fail closed") {
+    auto directional = renderer::create_directional_blur_effect_processor();
+    // The motion processors require a scratch area, as the engine always provides.
+    EffectScratchResources scratch;
+    const std::array<DirectionalBlurParams, 6> cases{{
+        {.angle = 0.0f, .length = 3.5f, .samples = 0},
+        {.angle = 90.0f, .length = 5.0f, .samples = 0},
+        {.angle = 37.0f, .length = 7.25f, .samples = 0},
+        {.angle = 180.0f, .length = 8.0f, .samples = 5},
+        {.angle = -45.0f, .length = 16.0f, .samples = 0},
+        {.angle = 123.0f, .length = 64.0f, .samples = 0},
+    }};
+    for (std::size_t case_index = 0; case_index < cases.size(); ++case_index) {
+        CAPTURE(case_index);
+        CAPTURE(cases[case_index].angle);
+        CAPTURE(cases[case_index].length);
+        CAPTURE(cases[case_index].samples);
+        check_parity(*directional, cases[case_index], std::nullopt, 0, 0, &scratch);
+    }
+
+    // Length zero is the CPU identity fast path: strict native forwards input.
+    check_parity(*directional, DirectionalBlurParams{.angle = 30.0f, .length = 0.0f, .samples = 0},
+                 std::nullopt, 0, 0, &scratch);
+
+    // Certified window is length (0, 64] with taps in [2, 64]; outside fails closed.
+    CHECK_FALSE(vulkan_strict(DirectionalBlurParams{.angle = 0.0f, .length = 65.0f, .samples = 0}, std::nullopt).ok);
+    CHECK_FALSE(vulkan_strict(DirectionalBlurParams{.angle = 0.0f, .length = 8.0f, .samples = 65}, std::nullopt).ok);
+    CHECK_FALSE(vulkan_strict(DirectionalBlurParams{.angle = std::nanf(""), .length = 8.0f, .samples = 0}, std::nullopt).ok);
+    CHECK_FALSE(vulkan_strict(DirectionalBlurParams{.angle = 0.0f, .length = std::nanf(""), .samples = 0}, std::nullopt).ok);
+
+    // Partial clips are not certified: fail closed to the software processor.
+    const std::optional<raster::BBox> partial_clip{raster::BBox{2, 1, 6, 3}};
+    CHECK_FALSE(vulkan_strict(DirectionalBlurParams{.angle = 20.0f, .length = 6.0f, .samples = 0}, partial_clip).ok);
 }
 
 TEST_CASE("Strict Vulkan rejects Echo without a native temporal surface history") {

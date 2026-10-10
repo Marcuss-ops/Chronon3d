@@ -2,6 +2,7 @@
 
 #ifdef CHRONON3D_ENABLE_MESH
 #include <nlohmann/json.hpp>
+#include <stb_image.h>
 
 #include <algorithm>
 #include <cmath>

@@ -115,6 +115,8 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
     h.mix_bool(desc.base.enabled);
     h.mix_vec3(desc.base.position);
     h.mix_vec3(desc.base.rotation);
+    h.mix_f32(desc.base.lens_shift.x);
+    h.mix_f32(desc.base.lens_shift.y);
     h.mix_bool(desc.base.point_of_interest_enabled);
     h.mix_vec3(desc.base.point_of_interest);
     h.mix_str(desc.base.parent_name);

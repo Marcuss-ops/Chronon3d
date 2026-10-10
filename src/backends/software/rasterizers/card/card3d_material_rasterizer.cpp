@@ -30,9 +30,10 @@ void render_card3d(
     const rendering::ProjectedCard& card,
     const Card3DMaterial& material,
     float opacity,
-    std::span<float> depth_buffer
+    std::span<float> depth_buffer,
+    bool draw_front_face
 ) {
-    if (!card.visible || opacity <= 0.0f) return;
+    if (!material.enabled || !card.visible || opacity <= 0.0f) return;
 
     const Vec3& TL = card.corners[0];
     const Vec3& TR = card.corners[1];
@@ -82,11 +83,13 @@ void render_card3d(
         material.front_bottom_color.with_alpha(material.front_bottom_color.a * opacity),
         material.front_bottom_color.with_alpha(material.front_bottom_color.a * opacity),
     };
-    if (use_depth) {
-        fill_gradient_quad(fb, card.corners, gc, depth_buffer);
-    } else {
-        const Vec2 corners2d[4] = {{TL.x, TL.y}, {TR.x, TR.y}, {BR.x, BR.y}, {BL.x, BL.y}};
-        fill_gradient_quad(fb, corners2d, gc);
+    if (draw_front_face) {
+        if (use_depth) {
+            fill_gradient_quad(fb, card.corners, gc, depth_buffer);
+        } else {
+            const Vec2 corners2d[4] = {{TL.x, TL.y}, {TR.x, TR.y}, {BR.x, BR.y}, {BL.x, BL.y}};
+            fill_gradient_quad(fb, corners2d, gc);
+        }
     }
 
     // ── Edge highlight ──────────────────────────────────────────────────

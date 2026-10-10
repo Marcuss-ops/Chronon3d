@@ -199,7 +199,10 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
                                                      cache_frame,
                                                      SamplingMode::Bilinear,
                                                      is_static ? static_memory_cache("transform") : frame_variant_cache("transform"),
-                                                     placement.surface_size);
+                                                     placement.surface_size,
+                                                     item.projected && layer.has_card3d_material()
+                                                         ? std::optional<Card3DMaterial>{layer.card3d_material()}
+                                                         : std::nullopt);
 
     // PR2-cleanup: TransformNode carries its policy in `m_cache_policy` (ctor-time).
     {

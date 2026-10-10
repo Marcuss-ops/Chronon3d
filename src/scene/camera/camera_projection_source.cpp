@@ -31,6 +31,10 @@ f32 CameraProjectionSource::get_fov_deg() const {
     return m_cam->fov_deg;
 }
 
+Vec2 CameraProjectionSource::get_lens_shift() const {
+    return m_cam->lens_shift;
+}
+
 CameraOpticsMode CameraProjectionSource::get_optics_mode() const {
     return m_cam->optics_mode;
 }

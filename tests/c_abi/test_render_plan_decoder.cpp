@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/render_plan/render_plan.hpp>
+#include "../../src/render_plan/light_attenuation.hpp"
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/scene/path_sampling.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
@@ -1305,6 +1306,58 @@ TEST_CASE("render plan decodes screen-space radial light layers") {
     CHECK(plan->content_fingerprint != changed_plan->content_fingerprint);
     changed["layers"][0]["light"]["radius"] = 0;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+
+    auto spot = source;
+    spot["layers"][0]["light"] = {
+        {"kind", "spot"}, {"radius", 240}, {"color", "#FF8040"},
+        {"intensity", 1.5}, {"range", 320}, {"decay", 2},
+        {"direction", {0.0, 1.0, 0.0}},
+        {"angle", 0.9599}, {"penumbra", 0.2}, {"cast_shadow", true},
+        {"shadow_radius", 12}, {"shadow_bias", 0.5}};
+    const auto spot_plan = chronon3d::render_plan::decode_render_plan(spot);
+    REQUIRE(spot_plan.has_value());
+    const auto& spot_light = *spot_plan->layers[0].light;
+    CHECK(spot_light.kind == chronon3d::render_plan::LightKindPlan::Spot);
+    CHECK(spot_light.range == doctest::Approx(320.0f));
+    CHECK(spot_light.decay == doctest::Approx(2.0f));
+    CHECK(spot_light.direction[1] == doctest::Approx(1.0f));
+    CHECK(chronon3d::render_plan::light_range_attenuation(spot_light, 0.0f) ==
+          doctest::Approx(1.0f));
+    CHECK(chronon3d::render_plan::light_range_attenuation(spot_light, 160.0f) ==
+          doctest::Approx(0.25f));
+    CHECK(chronon3d::render_plan::light_range_attenuation(spot_light, 320.0f) ==
+          doctest::Approx(0.0f));
+    CHECK(spot_light.cast_shadow);
+    CHECK(spot_plan->content_fingerprint != plan->content_fingerprint);
+    spot["layers"][0]["light"]["decay"] = 9;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(spot).has_value());
+
+    spot["layers"][0]["light"]["decay"] = 2;
+    spot["layers"][0]["animation"] = nlohmann::json::parse(R"JSON({
+      "tracks": [
+        {"property":"light_intensity","keyframes":[
+          {"frame":0,"value":0.5},{"frame":23,"value":1.5}]},
+        {"property":"light_color","keyframes":[
+          {"frame":0,"value":[1.0,0.4,0.2,1.0]},
+          {"frame":23,"value":[0.2,0.5,1.0,1.0]}]}
+      ]
+    })JSON");
+    const auto animated_spot = chronon3d::render_plan::decode_render_plan(spot);
+    const std::string animation_error = animated_spot.has_value()
+        ? std::string{} : animated_spot.error().path + ": " + animated_spot.error().message;
+    INFO(animation_error);
+    REQUIRE(animated_spot.has_value());
+    REQUIRE(animated_spot->layers[0].animation.has_value());
+    CHECK(animated_spot->layers[0].animation->tracks.size() == 2);
+    spot["layers"][0]["animation"]["tracks"][0]["property"] = "unknown_light_property";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(spot).has_value());
+    spot["layers"][0]["animation"]["tracks"][0]["property"] = "light_intensity";
+    spot["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["value"] = 17;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(spot).has_value());
+    spot["layers"][0]["animation"]["tracks"][0]["keyframes"][0]["value"] = 0.5;
+    spot["layers"][0]["animation"]["tracks"].push_back(
+        spot["layers"][0]["animation"]["tracks"][0]);
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(spot).has_value());
 }
 
 TEST_CASE("render plan decodes point, spot and directional light kinds and fingerprints each field") {

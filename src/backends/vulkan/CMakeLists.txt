@@ -9,6 +9,11 @@ set(_chronon3d_shaders
     transform
     affine_transform
     blur
+    directional_blur
+    radial_blur
+    warp_bulk
+    generate_bulk
+    lut_bulk
     sharpen
     bloom_threshold
     glow_prepare
@@ -48,6 +53,11 @@ set(_chronon3d_shader_abi_prefixes
     transform:Transform
     affine_transform:AffineTransform
     blur:Blur
+    directional_blur:DirectionalBlur
+    radial_blur:RadialBlur
+    warp_bulk:WarpBulk
+    generate_bulk:GenerateBulk
+    lut_bulk:LutBulk
     sharpen:Sharpen
     bloom_threshold:BloomThreshold
     glow_prepare:GlowPrepare

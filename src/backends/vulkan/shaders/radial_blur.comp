@@ -1,0 +1,77 @@
+#version 450
+
+// Native RadialBlur: zoom+spin box taps around the authored center, replicating
+// src/backends/software/processors/effects/blur/radial_blur.cpp:
+//   - tap i of n: u = (i + 0.5) / n * 2 - 1, angle = u * amount_rad
+//     where amount_rad = amount_degrees * pi/180, blur_scale = amount * 0.1
+//   - zoom offset: dx_c * u * blur_scale (dx_c = px - cx_px)
+//   - spin: rotate (dx_c, dy_c) by angle around (cx_px, cy_px)
+//   - sample = clamp-edge bilinear (texel centers at integer + 0.5)
+//   - uniform weight 1/n, raw premultiplied accumulation
+//   - center pixel (|dx|,|dy| < 0.001) forwards source tap-for-tap
+// Certified window: full frame only, finite center in [0,1], amount in
+// (0, 8], taps in [2, 64]. amount <= 0 and samples <= 1 are CPU identity
+// fast paths forwarded without dispatch. The centroid-recenter pass is
+// certified for centroid-stable inputs (symmetric content where the source
+// alpha centroid coincides with the blur center within 1e-3, or shifts
+// below 1e-3); asymmetric inputs with large recenters fail closed at
+// lowering time via the host-side source centroid check.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform RadialBlurParams {
+    vec2 center_px;   // blur center in pixels (texel-center convention)
+    float amount;     // blur strength (degrees for spin, scaled x0.1 for zoom)
+    int tap_count;    // certified [2, 64]
+} params;
+
+vec4 load_clamped(ivec2 pixel, ivec2 size) {
+    return imageLoad(source_image, clamp(pixel, ivec2(0), size - ivec2(1)));
+}
+
+vec4 sample_bilinear_cpu(vec2 s, ivec2 size) {
+    vec2 u = s - vec2(0.5);
+    ivec2 p0 = ivec2(floor(u));
+    vec2 t = u - vec2(p0);
+    vec4 c00 = load_clamped(p0, size);
+    vec4 c10 = load_clamped(p0 + ivec2(1, 0), size);
+    vec4 c01 = load_clamped(p0 + ivec2(0, 1), size);
+    vec4 c11 = load_clamped(p0 + ivec2(1, 1), size);
+    return mix(mix(c00, c10, t.x), mix(c01, c11, t.x), t.y);
+}
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    float px = float(pixel.x);
+    float py = float(pixel.y);
+    float dx_c = px - params.center_px.x;
+    float dy_c = py - params.center_px.y;
+    if (abs(dx_c) < 0.001 && abs(dy_c) < 0.001) {
+        imageStore(destination_image, pixel, imageLoad(source_image, pixel));
+        return;
+    }
+
+    float n = float(params.tap_count);
+    float inv_n = 1.0 / n;
+    float max_angle_rad = params.amount * 0.01745329251994329577;
+    float blur_scale = params.amount * 0.1;
+    vec4 accumulated = vec4(0.0);
+    for (int i = 0; i < params.tap_count; ++i) {
+        float u = (float(i) + 0.5) * inv_n * 2.0 - 1.0;
+        float angle = u * max_angle_rad;
+        float c = cos(angle);
+        float s = sin(angle);
+        float zoom_x = dx_c * u * blur_scale;
+        float zoom_y = dy_c * u * blur_scale;
+        float rot_x = params.center_px.x + dx_c * c - dy_c * s;
+        float rot_y = params.center_px.y + dx_c * s + dy_c * c;
+        vec2 sp = vec2(px + zoom_x + (rot_x - px), py + zoom_y + (rot_y - py));
+        accumulated += sample_bilinear_cpu(sp, size) * inv_n;
+    }
+    imageStore(destination_image, pixel, accumulated);
+}

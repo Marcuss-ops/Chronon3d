@@ -23,6 +23,7 @@ using namespace chronon3d;
 using namespace chronon3d::graphics;
 using namespace chronon3d::effects;
 using namespace chronon3d::render_plan;
+using namespace chronon3d::render_plan::effect_presets;
 using namespace chronon3d::renderer;
 
 TEST_CASE("Premium Effects V1: Field2D transform and combined operators") {
@@ -261,7 +262,14 @@ TEST_CASE("Premium Effects V1: BrushProfile primitive authority") {
         profile.pressure_opacity = 1.0f;
         profile.pressure_curve = {{0.0f, 0.0f}, {1.0f, 1.0f}};
         CHECK(profile.pressure_at(0.5f) == doctest::Approx(0.5f));
+        // Center alpha = shape(1) * opacity(1) * pressure^1 (0.5) * taper(1) = 0.5.
+        // Pressure enters once via pressure_alpha; width factor keeps d=0 at 0.
         CHECK(profile.sample_alpha(0.0f, 0.5f, Vec2{0, 0}, profile.pressure_at(0.5f)) ==
+              doctest::Approx(0.5f));
+        // Combined opacity * pressure still multiplies: 0.5 * 0.5 = 0.25.
+        BrushProfile half = profile;
+        half.opacity = 0.5f;
+        CHECK(half.sample_alpha(0.0f, 0.5f, Vec2{0, 0}, half.pressure_at(0.5f)) ==
               doctest::Approx(0.25f));
     }
 

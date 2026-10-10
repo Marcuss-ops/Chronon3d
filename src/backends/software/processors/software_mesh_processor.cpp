@@ -60,15 +60,36 @@ public:
             for (const auto& part : mesh_shape.prepared->parts) {
                 if (!part.geometry) continue;
                 Color color = node_color;
+                float roughness_factor = -1.0f;
+                float metallic_factor = 0.0f;
+                const assets::MeshImage* metallic_roughness = nullptr;
+                RenderNode::InlineMeshMaterial material;
+                material.specular = 1.0f;
                 if (part.material_index &&
                     *part.material_index < mesh_shape.prepared->materials.size()) {
-                    const Color material = mesh_shape.prepared->materials[*part.material_index].base_color_factor.to_linear();
-                    color = Color{node_color.r * material.r, node_color.g * material.g,
-                                  node_color.b * material.b, node_color.a * material.a};
+                    const auto& prepared_material = mesh_shape.prepared->materials[*part.material_index];
+                    const Color factor = prepared_material.base_color_factor.to_linear();
+                    color = Color{node_color.r * factor.r, node_color.g * factor.g,
+                                  node_color.b * factor.b, node_color.a * factor.a};
+                    roughness_factor = prepared_material.roughness_factor;
+                    metallic_factor = prepared_material.metallic_factor;
+                    if (prepared_material.metallic_roughness_texture_index &&
+                        *prepared_material.metallic_roughness_texture_index < mesh_shape.prepared->images.size()) {
+                        metallic_roughness = &mesh_shape.prepared->images[
+                            *prepared_material.metallic_roughness_texture_index];
+                    }
                 }
-                chronon3d::renderer::render_mesh_filled(
-                    fb, *part.geometry, state.matrix, view, projection, color,
-                    depth_buffer, camera.near_plane, camera.far_plane);
+                if (state.light_context.enabled) {
+                    chronon3d::renderer::render_mesh_filled_lit(
+                        fb, *part.geometry, state.matrix, view, projection, color,
+                        depth_buffer, state.light_context, state.rim_light, material,
+                        camera.near_plane, camera.far_plane,
+                        roughness_factor, metallic_factor, metallic_roughness);
+                } else {
+                    chronon3d::renderer::render_mesh_filled(
+                        fb, *part.geometry, state.matrix, view, projection, color,
+                        depth_buffer, camera.near_plane, camera.far_plane);
+                }
             }
         }
     }

@@ -363,16 +363,6 @@ LayerPlan decode_layer(const nlohmann::json& value) {
 
     decode_layer_masks(layer, value);
     decode_layer_effects(layer, value);
-    if (layer.type == LayerType::Mesh) {
-        for (const auto& effect : layer.effects) {
-            const auto& id = effect.canonical_effect_id;
-            if (id != chronon3d::effects::ids::ColorTint &&
-                id != chronon3d::effects::ids::LightGlow &&
-                id != chronon3d::effects::ids::LightBloom &&
-                id != chronon3d::effects::ids::GenerateNoise)
-                throw std::runtime_error("mesh layers support only color.tint, light.glow, light.bloom, and generate.noise effects");
-        }
-    }
     decode_background_look(layer, value);
     if (value.contains("backdrop_filter")) {
         const auto& raw_bf = value.at("backdrop_filter");
@@ -661,6 +651,26 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             throw std::runtime_error("auto_orient requires a position track spanning at least two frames");
     }
     if (layer.animation) {
+        std::unordered_set<std::string> light_track_properties;
+        for (const auto& track : layer.animation->tracks) {
+            if (track.property != "light_intensity" && track.property != "light_color") continue;
+            if (layer.type != LayerType::Light || !layer.light)
+                throw std::runtime_error(track.property + " animation requires a light layer");
+            if (!light_track_properties.insert(track.property).second)
+                throw std::runtime_error("layer has duplicate " + track.property + " animation tracks");
+            for (const auto& key : track.keyframes) {
+                if (track.property == "light_intensity") {
+                    if (key.value.size() != 1 || !std::isfinite(key.value.front()) ||
+                        key.value.front() < 0.0f || key.value.front() > 16.0f)
+                        throw std::runtime_error("light_intensity keyframes must be finite scalars in [0, 16]");
+                } else if (key.value.size() != 4 || std::any_of(key.value.begin(), key.value.end(),
+                        [](float component) {
+                            return !std::isfinite(component) || component < 0.0f || component > 1.0f;
+                        })) {
+                    throw std::runtime_error("light_color keyframes must be finite RGBA values in [0, 1]");
+                }
+            }
+        }
         for (auto& track : layer.animation->tracks) {
             if (track.property != "fill_color") continue;
             std::stable_sort(track.keyframes.begin(), track.keyframes.end(),

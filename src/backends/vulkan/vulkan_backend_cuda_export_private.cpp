@@ -172,11 +172,13 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
     exported.wait_vulkan_fence = [generation, timeline_semaphores] {
         if (!timeline_semaphores || !generation) return std::uint64_t{0};
         const auto value = generation->take_next_vulkan_to_cuda_wait();
-        if (!value) {
-            throw std::logic_error(
-                "CUDA requested a Vulkan surface wait without a queued frame signal");
-        }
-        return *value;
+        // An exported surface may reach CUDA before its first Vulkan producer
+        // submission (for example, a freshly allocated native encode target).
+        // Timeline semaphores start at zero, so waiting for value zero is a
+        // no-op. Keep the per-surface FIFO when a producer did signal; never
+        // substitute the latest generation counter, which can point at a
+        // future frame and create a Vulkan/CUDA wait cycle.
+        return value.value_or(0);
     };
     // std::function assignment above can allocate and throw: ownership must
     // not escape until the complete handoff has been constructed.

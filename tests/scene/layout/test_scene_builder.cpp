@@ -83,6 +83,25 @@ TEST_CASE("LayerBuilder accepts_lights toggles material") {
     CHECK(scene.layers()[0].material().ambient_multiplier == doctest::Approx(0.5f));
 }
 
+TEST_CASE("LayerBuilder configures projected card material and shadow participation") {
+    Card3DMaterial card = Card3DMaterial::premium_card();
+    card.cast_shadow = false;
+    card.receive_shadow = false;
+    auto scene = SceneBuilder{}
+        .layer("card", [card](LayerBuilder& l) {
+            l.card3d_material(card);
+            l.rect("fill", {.size = {100, 100}, .color = Color::white(), .pos = {0, 0, 0}});
+        })
+        .build();
+
+    REQUIRE(scene.layers().size() == 1);
+    const Layer& layer = scene.layers()[0];
+    CHECK(layer.has_card3d_material());
+    CHECK(layer.card3d_material().thickness_px == doctest::Approx(card.thickness_px));
+    CHECK_FALSE(layer.material().casts_shadows);
+    CHECK_FALSE(layer.material().accepts_shadows);
+}
+
 TEST_CASE("SceneBuilder generic shape API creates rect") {
     auto scene = SceneBuilder{}
         .shape(registry::shape_ids::Rect, "box", RectParams{

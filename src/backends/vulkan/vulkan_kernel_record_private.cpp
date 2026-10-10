@@ -46,11 +46,13 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
 
 } // namespace
 
-    void VulkanBackend::Impl::record_composite(VkCommandBuffer command, VkDescriptorSet descriptors,
-                          const Image& destination, const Image& source,
-                          std::int32_t blend_mode, float source_scale,
-                          const float tint[4],
-                          const std::optional<raster::BBox>& clip) {
+void VulkanBackend::Impl::record_composite(
+        VkCommandBuffer command, VkDescriptorSet descriptors,
+        const Image& destination, const Image& source,
+        std::int32_t blend_mode, float source_scale,
+        const float tint[4],
+        const std::optional<raster::BBox>& clip,
+        bool premultiplied_source_over) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Composite)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -64,10 +66,13 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
             float tint[4];
             float clip_rect[4];
             std::int32_t dispatch_origin[2];
+            std::int32_t premultiplied_source_over;
+            std::int32_t push_padding;
         } params{blend_mode, source_scale, {0.0f, 0.0f},
                  {tint[0], tint[1], tint[2], tint[3]},
                  {0.0f, 0.0f, static_cast<float>(destination.width),
-                  static_cast<float>(destination.height)}, {0, 0}};
+                  static_cast<float>(destination.height)}, {0, 0},
+                 premultiplied_source_over ? 1 : 0, 0};
         if (clip) {
             params.clip_rect[0] = static_cast<float>(std::max(0, clip->x0));
             params.clip_rect[1] = static_cast<float>(std::max(0, clip->y0));
@@ -162,6 +167,27 @@ void emit_buffer_barrier2(VkDevice device, VkCommandBuffer command, VkBuffer buf
             std::int32_t box_kernel;
         } params{radius, horizontal ? 1 : 0,
                  box_kernel ? 1 : (glow_kernel ? 2 : 0)};
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(params), &params);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+    }
+
+    void VulkanBackend::Impl::record_directional_blur(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& destination, const Image& source,
+                      float dir_x, float dir_y, float length, int tap_count) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::DirectionalBlur)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        struct PushConstants {
+            float dir_x;
+            float dir_y;
+            float length;
+            std::int32_t tap_count;
+        } params{dir_x, dir_y, length, tap_count};
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,

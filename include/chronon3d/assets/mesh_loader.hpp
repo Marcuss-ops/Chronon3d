@@ -81,6 +81,11 @@ struct MeshPart {
 struct MeshImage {
     std::string mime_type;
     std::vector<std::byte> payload;
+    std::uint32_t decoded_width{0};
+    std::uint32_t decoded_height{0};
+    /// Decoded RGBA8 used by software material sampling when the image is
+    /// referenced as glTF metallic-roughness data.
+    std::vector<std::uint8_t> decoded_rgba;
 };
 
 /// V1 base material converted from glTF PBR data into Chronon-native types.
@@ -89,6 +94,12 @@ struct MeshMaterial {
     std::string name;
     Color base_color_factor{1.0f, 1.0f, 1.0f, 1.0f};
     std::optional<std::uint32_t> base_color_texture_index;
+    /// glTF metallic-roughness PBR factors; roughness uses 1=rough, 0=smooth.
+    float metallic_factor{1.0f};
+    float roughness_factor{1.0f};
+    /// Index into PreparedMeshSource::images. glTF stores roughness in G and
+    /// metallic in B; the software renderer currently retains but does not sample it.
+    std::optional<std::uint32_t> metallic_roughness_texture_index;
 };
 
 /// Immutable geometry produced at the AssetResolver → MeshLoader boundary.

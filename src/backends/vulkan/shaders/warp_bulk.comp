@@ -1,0 +1,482 @@
+#version 450
+
+// warp_bulk.comp — one dispatch for the spatial warp family.
+// Push layout is exactly 128 bytes (Vulkan minimum guaranteed):
+//   int mode; int edge_mode; float p[30];
+// Per-mode packing is documented below and mirrored by the C++ WarpBulkParams
+// (static_assert sizeof == 128). Modes replicate the software processors in
+// src/backends/software/processors/effects/distort/warp.cpp and
+// src/backends/software/effects/effect_wave.cpp tap-for-tap:
+//   0 CornerPin: p[0..7] = TL,TR,BR,BL in pixels.
+//   1 Twirl: p = (cx,cy,radius_px,angle_rad,falloff).
+//   2 Bulge: p = (cx,cy,radius_px,amount).
+//   3 MeshWarp (<=3x3): p[0]=cols,p[1]=rows,p[2]=smoothness,
+//     p[3..20] = 9 grid offsets xy row-major (only cols*rows used).
+//   4 TurbulentDisplace: p = (amount,size,evol_combined,complexity).
+//   5 WaveWarp: p = (type,dirx,diry,amplitude,wavelength,phase_combined).
+//   6 Ripple: p = (cx,cy,radius,wave_speed,width,wave_height,damping,time).
+//   7 LensDistortion: p = (curvature,cx,cy,scale).
+//   8 FoldWarp: p = (axis,position,amount,radius,falloff,perspective).
+//   9 Fake3DWave no-shadow: p = (amp,freq,speed,depth,phase,slices,axis,
+//     persp,highlight,side_dark,time).
+//   10 RoughenEdges: p = (amount,scale,octaves,evol,seed).
+//   11 Stroke: p = (color.r,color.g,color.b,mode,outer_r,inner_r).
+//     (stroke color alpha is unused, matching the CPU compose).
+//   12 DisplacementMap via aux: p = (intensity_x,intensity_y,channel,_).
+// Sampling matches sampling::Sampler2D bilinear in texel-center convention
+// with Transparent (OOB -> vec4(0)) or Clamp edges (edge_mode 0/1).
+// Certified windows are bounded per mode; anything outside fails closed at
+// lowering time and never dispatches.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+layout(binding = 2, rgba32f) uniform readonly image2D aux_image;
+
+layout(push_constant) uniform WarpBulkParams {
+    int mode;
+    int edge_mode;      // 0 = Transparent, 1 = Clamp
+    float p[30];
+} params;
+
+const float kGeomEpsilon = 1.0e-6;
+const float kTau = 6.2831853071795864769;
+
+vec4 fetch_src(ivec2 q, ivec2 size) {
+    if (params.edge_mode == 1) {
+        return imageLoad(source_image, clamp(q, ivec2(0), size - ivec2(1)));
+    }
+    if (q.x < 0 || q.y < 0 || q.x >= size.x || q.y >= size.y) return vec4(0.0);
+    return imageLoad(source_image, q);
+}
+
+vec4 sample_src(vec2 s, ivec2 size) {
+    vec2 u = s - vec2(0.5);
+    ivec2 p0 = ivec2(floor(u));
+    vec2 t = u - vec2(p0);
+    vec4 c00 = fetch_src(p0, size);
+    vec4 c10 = fetch_src(p0 + ivec2(1, 0), size);
+    vec4 c01 = fetch_src(p0 + ivec2(0, 1), size);
+    vec4 c11 = fetch_src(p0 + ivec2(1, 1), size);
+    return mix(mix(c00, c10, t.x), mix(c01, c11, t.x), t.y);
+}
+
+vec4 sample_aux_clamp(vec2 s, ivec2 size) {
+    vec2 u = s - vec2(0.5);
+    ivec2 p0 = ivec2(floor(u));
+    vec2 t = u - vec2(p0);
+    vec4 c00 = imageLoad(aux_image, clamp(p0, ivec2(0), size - ivec2(1)));
+    vec4 c10 = imageLoad(aux_image, clamp(p0 + ivec2(1, 0), ivec2(0), size - ivec2(1)));
+    vec4 c01 = imageLoad(aux_image, clamp(p0 + ivec2(0, 1), ivec2(0), size - ivec2(1)));
+    vec4 c11 = imageLoad(aux_image, clamp(p0 + ivec2(1, 1), ivec2(0), size - ivec2(1)));
+    return mix(mix(c00, c10, t.x), mix(c01, c11, t.x), t.y);
+}
+
+float hash_noise(int n, uint seed) {
+    uint x = uint(n) + seed;
+    x ^= (x << 13u);
+    x ^= (x >> 17u);
+    x ^= (x << 5u);
+    return float(x % 10000u) / 5000.0 - 1.0;
+}
+
+float lattice_noise(int x, int y, uint seed) {
+    uint index = uint(x) + uint(y) * 0x9E3779B9u;
+    return hash_noise(int(index), seed);
+}
+
+float smooth_value_noise(float x, float y, uint seed) {
+    int ix = int(floor(x));
+    int iy = int(floor(y));
+    float fx = x - float(ix);
+    float fy = y - float(iy);
+    float sx = fx * fx * (3.0 - 2.0 * fx);
+    float sy = fy * fy * (3.0 - 2.0 * fy);
+    float a = mix(lattice_noise(ix, iy, seed), lattice_noise(ix + 1, iy, seed), sx);
+    float b = mix(lattice_noise(ix, iy + 1, seed), lattice_noise(ix + 1, iy + 1, seed), sx);
+    return mix(a, b, sy);
+}
+
+uint roughen_hash(int x, int y, uint seed) {
+    uint h = seed ^ (uint(x) * 0x27d4eb2du) ^ (uint(y) * 0x165667b1u);
+    h ^= (h >> 15u); h *= 0x2c1b3c6du;
+    h ^= (h >> 12u); h *= 0x297a2d39u;
+    h ^= (h >> 15u);
+    return h;
+}
+
+float roughen_value(float x, float y, uint seed) {
+    float fx = floor(x);
+    float fy = floor(y);
+    int ix = int(fx);
+    int iy = int(fy);
+    float tx = x - fx;
+    float ty = y - fy;
+    tx = tx * tx * (3.0 - 2.0 * tx);
+    ty = ty * ty * (3.0 - 2.0 * ty);
+    float v00 = float(roughen_hash(ix, iy, seed)) * (2.0 / 4294967295.0) - 1.0;
+    float v10 = float(roughen_hash(ix + 1, iy, seed)) * (2.0 / 4294967295.0) - 1.0;
+    float v01 = float(roughen_hash(ix, iy + 1, seed)) * (2.0 / 4294967295.0) - 1.0;
+    float v11 = float(roughen_hash(ix + 1, iy + 1, seed)) * (2.0 / 4294967295.0) - 1.0;
+    return mix(mix(v00, v10, tx), mix(v01, v11, tx), ty);
+}
+
+float roughen_fbm(float x, float y, uint octaves, uint seed) {
+    float sum = 0.0;
+    float amp = 1.0;
+    float norm = 0.0;
+    float freq = 1.0;
+    for (uint o = 0u; o < octaves; ++o) {
+        sum += amp * roughen_value(x * freq, y * freq, seed + o);
+        norm += amp;
+        amp *= 0.5;
+        freq *= 2.0;
+    }
+    return norm > 0.0 ? sum / norm : 0.0;
+}
+
+float cross2(vec2 a, vec2 b) { return a.x * b.y - a.y * b.x; }
+
+bool inverse_bilinear(vec2 q, vec2 a, vec2 b, vec2 c, vec2 d,
+                      out float out_u, out float out_v) {
+    vec2 e = b - a;
+    vec2 f = d - a;
+    vec2 g = a - b + c - d;
+    vec2 hh = q - a;
+    float k2 = cross2(g, f);
+    float k1 = cross2(e, f) + cross2(hh, g);
+    float k0 = cross2(hh, e);
+    float v = 0.0;
+    if (abs(k2) < kGeomEpsilon) {
+        if (abs(k1) < kGeomEpsilon) return false;
+        v = -k0 / k1;
+    } else {
+        float w = k1 * k1 - 4.0 * k0 * k2;
+        if (w < 0.0) return false;
+        float root = sqrt(w);
+        v = (-k1 - root) / (2.0 * k2);
+        if (v < 0.0 || v > 1.0) {
+            v = (-k1 + root) / (2.0 * k2);
+            if (v < 0.0 || v > 1.0) return false;
+        }
+    }
+    float u = 0.0;
+    float denom_u = e.x + v * g.x;
+    float denom_v = e.y + v * g.y;
+    if (abs(denom_u) > kGeomEpsilon) u = (hh.x - f.x * v) / denom_u;
+    else if (abs(denom_v) > kGeomEpsilon) u = (hh.y - f.y * v) / denom_v;
+    else return false;
+    if (u < 0.0 || u > 1.0) return false;
+    out_u = u;
+    out_v = v;
+    return true;
+}
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+    float w = float(size.x);
+    float h = float(size.y);
+    float px = float(pixel.x) + 0.5;
+    float py = float(pixel.y) + 0.5;
+    int mode = params.mode;
+
+    if (mode == 0) {
+        vec2 a = vec2(params.p[0], params.p[1]);
+        vec2 b = vec2(params.p[2], params.p[3]);
+        vec2 c = vec2(params.p[4], params.p[5]);
+        vec2 d = vec2(params.p[6], params.p[7]);
+        float u, v;
+        if (!inverse_bilinear(vec2(px, py), a, b, c, d, u, v)) {
+            imageStore(destination_image, pixel, vec4(0.0));
+            return;
+        }
+        imageStore(destination_image, pixel, sample_src(vec2(u * w, v * h), size));
+        return;
+    }
+
+    if (mode == 1) {
+        float cx = params.p[0], cy = params.p[1], radius_px = params.p[2];
+        float angle_rad = params.p[3], falloff = params.p[4];
+        float dx = px - cx, dy = py - cy;
+        float dist = sqrt(dx * dx + dy * dy);
+        float theta = 0.0;
+        if (dist < radius_px && dist > kGeomEpsilon) {
+            float t = 1.0 - dist / radius_px;
+            theta = angle_rad * pow(t, falloff);
+        }
+        float ct = cos(-theta), st = sin(-theta);
+        imageStore(destination_image, pixel,
+                   sample_src(vec2(dx * ct - dy * st + cx, dx * st + dy * ct + cy), size));
+        return;
+    }
+
+    if (mode == 2) {
+        float cx = params.p[0], cy = params.p[1], radius_px = params.p[2];
+        float amount = params.p[3];
+        float dx = px - cx, dy = py - cy;
+        float dist = sqrt(dx * dx + dy * dy);
+        float sc = 1.0;
+        if (dist < radius_px && dist > kGeomEpsilon) {
+            float t = 1.0 - dist / radius_px;
+            sc = 1.0 + amount * t;
+        }
+        float inv = (sc > kGeomEpsilon) ? 1.0 / sc : 0.0;
+        imageStore(destination_image, pixel,
+                   sample_src(vec2(dx * inv + cx, dy * inv + cy), size));
+        return;
+    }
+
+    if (mode == 3) {
+        int cols = int(params.p[0] + 0.5);
+        int rows = int(params.p[1] + 0.5);
+        float s = params.p[2];
+        float u = px / w * float(cols - 1);
+        float v = py / h * float(rows - 1);
+        int gx = clamp(int(floor(u)), 0, cols - 2);
+        int gy = clamp(int(floor(v)), 0, rows - 2);
+        float fu = clamp(u - float(gx), 0.0, 1.0);
+        float fv = clamp(v - float(gy), 0.0, 1.0);
+        fu = fu + ((fu * fu * (3.0 - 2.0 * fu)) - fu) * s;
+        fv = fv + ((fv * fv * (3.0 - 2.0 * fv)) - fv) * s;
+        int base = 3 + (gy * cols + gx) * 2;
+        vec2 d00 = vec2(params.p[base], params.p[base + 1]);
+        vec2 d10 = vec2(params.p[base + 2], params.p[base + 3]);
+        int base2 = 3 + ((gy + 1) * cols + gx) * 2;
+        vec2 d01 = vec2(params.p[base2], params.p[base2 + 1]);
+        vec2 d11 = vec2(params.p[base2 + 2], params.p[base2 + 3]);
+        vec2 top = mix(d00, d10, fu);
+        vec2 bottom = mix(d01, d11, fu);
+        vec2 disp = mix(top, bottom, fv);
+        imageStore(destination_image, pixel,
+                   sample_src(vec2(px - disp.x * w, py - disp.y * h), size));
+        return;
+    }
+
+    if (mode == 4) {
+        float amount = params.p[0], sz = params.p[1], evol = params.p[2];
+        uint complexity = uint(params.p[3] + 0.5);
+        float nx = px * sz + evol, ny = py * sz;
+        float vx = 0.0, vy = 0.0, amp = 0.5, freq = 1.0, total = 0.0;
+        for (uint o = 0u; o < complexity; ++o) {
+            vx += smooth_value_noise(nx * freq, ny * freq, o) * amp;
+            vy += smooth_value_noise(nx * freq + 37.2, ny * freq - 11.8, o + 53u) * amp;
+            total += amp; amp *= 0.5; freq *= 2.0;
+        }
+        float sc = amount * min(w, h);
+        imageStore(destination_image, pixel,
+                   sample_src(vec2(px - vx / total * sc, py - vy / total * sc), size));
+        return;
+    }
+
+    if (mode == 5) {
+        int wtype = int(params.p[0] + 0.5);
+        vec2 d = vec2(params.p[1], params.p[2]);
+        float amplitude = params.p[3];
+        float wavelength = params.p[4], phase = params.p[5];
+        float theta = kTau * ((px / w) * d.x + (py / h) * d.y) / wavelength + phase;
+        float wave = sin(theta);
+        if (wtype == 1) wave = 2.0 / 3.14159265358979323846 * asin(clamp(wave, -1.0, 1.0));
+        else if (wtype == 2) wave = wave < 0.0 ? -1.0 : 1.0;
+        else if (wtype == 3) wave = 2.0 * (theta / kTau - floor(theta / kTau + 0.5));
+        float disp = wave * amplitude * min(w, h);
+        imageStore(destination_image, pixel,
+                   sample_src(vec2(px - d.x * disp, py - d.y * disp), size));
+        return;
+    }
+
+    if (mode == 6) {
+        float cx = params.p[0], cy = params.p[1], radius = params.p[2];
+        float wave_speed = params.p[3], width = params.p[4];
+        float wave_height = params.p[5], damping = params.p[6];
+        float time = params.p[7];
+        float dx = px - cx, dy = py - cy;
+        float m = min(w, h);
+        float r = sqrt(dx * dx + dy * dy), rn = r / m;
+        float envelope = max(0.0, 1.0 - rn / radius);
+        float disp = wave_height * m * sin(kTau * rn / width - wave_speed * time)
+                     * exp(-damping * rn) * envelope;
+        float inv = r > 1.0e-6 ? 1.0 / r : 0.0;
+        imageStore(destination_image, pixel,
+                   sample_src(vec2(px - dx * inv * disp, py - dy * inv * disp), size));
+        return;
+    }
+
+    if (mode == 7) {
+        float k = params.p[0];
+        vec2 center_px = vec2(params.p[1], params.p[2]);
+        float s = params.p[3];
+        float diag = length(vec2(w, h)) * 0.5;
+        float inv_diag = diag > 1.0e-5 ? 1.0 / diag : 1.0;
+        vec2 d = (vec2(px, py) - center_px) * inv_diag;
+        float r2 = dot(d, d);
+        float factor = (1.0 + k * r2) / s;
+        vec2 src_pos = center_px + d * (factor * diag);
+        imageStore(destination_image, pixel, sample_src(src_pos, size));
+        return;
+    }
+
+    if (mode == 8) {
+        int axis = int(params.p[0] + 0.5);
+        float position = params.p[1], amount = params.p[2], radius = params.p[3];
+        float falloff = params.p[4], persp = params.p[5];
+        bool is_horiz = (axis == 1);
+        float crease_px = is_horiz ? position * h : position * w;
+        float radius_px = max(is_horiz ? radius * h : radius * w, 1.0);
+        float coord = is_horiz ? py : px;
+        float cross = is_horiz ? px : py;
+        float dist = coord - crease_px;
+        float abs_dist = abs(dist);
+        if (abs_dist < radius_px) {
+            float t = abs_dist / radius_px;
+            float weight = pow(1.0 - t, falloff);
+            float sign = dist >= 0.0 ? 1.0 : -1.0;
+            coord += sign * (weight * amount * radius_px * 0.5);
+            float cross_center = is_horiz ? w * 0.5 : h * 0.5;
+            float cross_offset = cross - cross_center;
+            cross = cross_center + cross_offset * (1.0 - weight * persp * abs(amount));
+        }
+        vec2 sp = is_horiz ? vec2(cross, coord) : vec2(coord, cross);
+        imageStore(destination_image, pixel, sample_src(sp, size));
+        return;
+    }
+
+    if (mode == 9) {
+        float amp = params.p[0], freq = params.p[1], speed = params.p[2], depth = params.p[3];
+        float phase = params.p[4];
+        int slices = int(params.p[5] + 0.5);
+        int axis = int(params.p[6] + 0.5);
+        float persp = params.p[7];
+        float highlight = params.p[8], side_dark = params.p[9], time = params.p[10];
+        if (axis == 0) {
+            // Exact CPU slice assignment: slice s owns rows y with
+            // (s*h)/slices <= y < ((s+1)*h)/slices (integer division).
+            int y = pixel.y;
+            int s = clamp((y * slices) / size.y, 0, slices - 1);
+            while (s > 0 && y < (s * size.y) / slices) --s;
+            while (s < slices - 1 && y >= ((s + 1) * size.y) / slices) ++s;
+            float norm = (float(s) + 0.5) / float(slices);
+            float angle = time * speed + norm * freq * kTau + phase;
+            float wave = sin(angle);
+            float dep = cos(angle);
+            float dx = wave * amp;
+            float scale_x = max(0.1, 1.0 + dep * depth * persp / 100.0);
+            float shade = clamp((1.0 + max(0.0, dep) * highlight)
+                                * (1.0 - max(0.0, -dep) * side_dark), 0.0, 1.0);
+            float cx = w * 0.5;
+            float src_x = ((px - cx) / scale_x) + cx - dx;
+            vec4 c = sample_src(vec2(src_x, py), size);
+            if (c.a <= 0.0) { imageStore(destination_image, pixel, vec4(0.0)); return; }
+            imageStore(destination_image, pixel, vec4(c.rgb * shade, c.a));
+        } else {
+            int x = pixel.x;
+            int s = clamp((x * slices) / size.x, 0, slices - 1);
+            while (s > 0 && x < (s * size.x) / slices) --s;
+            while (s < slices - 1 && x >= ((s + 1) * size.x) / slices) ++s;
+            float norm = (float(s) + 0.5) / float(slices);
+            float angle = time * speed + norm * freq * kTau + phase;
+            float wave = sin(angle);
+            float dep = cos(angle);
+            float dy = wave * amp;
+            float scale_y = max(0.1, 1.0 + dep * depth * persp / 100.0);
+            float shade = clamp((1.0 + max(0.0, dep) * highlight)
+                                * (1.0 - max(0.0, -dep) * side_dark), 0.0, 1.0);
+            float cy = h * 0.5;
+            float src_y = ((py - cy) / scale_y) + cy - dy;
+            vec4 c = sample_src(vec2(px, src_y), size);
+            if (c.a <= 0.0) { imageStore(destination_image, pixel, vec4(0.0)); return; }
+            imageStore(destination_image, pixel, vec4(c.rgb * shade, c.a));
+        }
+        return;
+    }
+
+    if (mode == 10) {
+        float amount = params.p[0], sc = params.p[1];
+        uint octaves = uint(params.p[2] + 0.5);
+        float evol = params.p[3];
+        uint seed = uint(params.p[4] + 0.5);
+        vec4 center = imageLoad(source_image, pixel);
+        float ax = imageLoad(source_image, clamp(pixel + ivec2(-1, 0), ivec2(0), size - ivec2(1))).a;
+        float bx = imageLoad(source_image, clamp(pixel + ivec2(1, 0), ivec2(0), size - ivec2(1))).a;
+        float ay = imageLoad(source_image, clamp(pixel + ivec2(0, -1), ivec2(0), size - ivec2(1))).a;
+        float by = imageLoad(source_image, clamp(pixel + ivec2(0, 1), ivec2(0), size - ivec2(1))).a;
+        bool boundary = abs(ax - center.a) > 1.0e-4 || abs(bx - center.a) > 1.0e-4 ||
+                        abs(ay - center.a) > 1.0e-4 || abs(by - center.a) > 1.0e-4;
+        if (!boundary) { imageStore(destination_image, pixel, center); return; }
+        float fx = float(pixel.x) / sc;
+        float fy = float(pixel.y) / sc;
+        float dx = amount * roughen_fbm(fx + evol, fy, octaves, seed);
+        float dy = amount * roughen_fbm(fx, fy + 1000.0 + evol, octaves, seed + 101u);
+        ivec2 sp = clamp(ivec2(int(round(float(pixel.x) + dx)), int(round(float(pixel.y) + dy))),
+                         ivec2(0), size - ivec2(1));
+        imageStore(destination_image, pixel, imageLoad(source_image, sp));
+        return;
+    }
+
+    if (mode == 11) {
+        vec3 scol = vec3(params.p[0], params.p[1], params.p[2]);
+        int smode = int(params.p[3] + 0.5);
+        int outer_r = int(params.p[4] + 0.5);
+        int inner_r = int(params.p[5] + 0.5);
+        vec4 src_px = imageLoad(source_image, pixel);
+        float src_a = src_px.a;
+        float dil_a = src_a;
+        if (outer_r > 0) {
+            dil_a = 0.0;
+            for (int oy = -outer_r; oy <= outer_r; ++oy)
+                for (int ox = -outer_r; ox <= outer_r; ++ox) {
+                    ivec2 q = clamp(pixel + ivec2(ox, oy), ivec2(0), size - ivec2(1));
+                    dil_a = max(dil_a, imageLoad(source_image, q).a);
+                }
+        }
+        float ero_a = src_a;
+        if (inner_r > 0) {
+            ero_a = 1.0;
+            for (int oy = -inner_r; oy <= inner_r; ++oy)
+                for (int ox = -inner_r; ox <= inner_r; ++ox) {
+                    ivec2 q = pixel + ivec2(ox, oy);
+                    float v;
+                    if (q.x < 0 || q.y < 0 || q.x >= size.x || q.y >= size.y) v = 0.0;
+                    else v = imageLoad(source_image, q).a;
+                    ero_a = min(ero_a, v);
+                }
+        }
+        float stroke_a;
+        if (smode == 0) stroke_a = dil_a - src_a;
+        else if (smode == 1) stroke_a = src_a - ero_a;
+        else stroke_a = min(dil_a - src_a, src_a - ero_a);
+        stroke_a = clamp(stroke_a, 0.0, 1.0);
+        if (smode == 1) {
+            imageStore(destination_image, pixel, vec4(scol * stroke_a, stroke_a));
+        } else if (stroke_a > 0.0) {
+            float t = stroke_a;
+            vec3 rgb = src_px.rgb * (1.0 - t) + scol * t;
+            float a = src_a + (1.0 - src_a) * t;
+            imageStore(destination_image, pixel, vec4(rgb, a));
+        } else {
+            imageStore(destination_image, pixel, src_px);
+        }
+        return;
+    }
+
+    if (mode == 12) {
+        float ix = params.p[0], iy = params.p[1];
+        int channel = int(params.p[2] + 0.5);
+        ivec2 aux_size = imageSize(aux_image);
+        vec4 m = sample_aux_clamp(vec2(px, py), aux_size);
+        float ch = 0.2126 * m.r + 0.7152 * m.g + 0.0722 * m.b;
+        if (channel == 1) ch = m.r;
+        else if (channel == 2) ch = m.g;
+        else if (channel == 3) ch = m.b;
+        else if (channel == 4) ch = m.a;
+        float sc = min(w, h);
+        float dx = (ch - 0.5) * ix * sc;
+        float dy = (ch - 0.5) * iy * sc;
+        imageStore(destination_image, pixel,
+                   sample_src(vec2(px - dx, py - dy), size));
+        return;
+    }
+
+    imageStore(destination_image, pixel, imageLoad(source_image, pixel));
+}

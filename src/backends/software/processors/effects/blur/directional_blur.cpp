@@ -37,7 +37,7 @@ static void generate_taps(float angle_degrees, float length, int samples,
                           std::vector<float>& taps)
 {
     taps.clear();
-    if (length <= 0.0f || samples <= 1) {
+    if (length <= 0.0f) {
         // Identity: single tap at origin with weight 1.0
         taps = {0.0f, 0.0f, 1.0f};
         return;
@@ -47,8 +47,11 @@ static void generate_taps(float angle_degrees, float length, int samples,
     const float cos_a = std::cos(angle_rad);
     const float sin_a = std::sin(angle_rad);
 
-    // Use samples if provided (> 1), else auto-derive from length.
-    const int n = (samples > 1) ? samples : std::max(2, static_cast<int>(std::ceil(length / 2.0f)));
+    // samples == 1 is the pinned single-tap identity. samples <= 0
+    // auto-derives from length, exactly like the axis fast paths below.
+    const int n = (samples == 1) ? 1
+        : (samples > 1) ? samples
+                        : std::max(2, static_cast<int>(std::ceil(length / 2.0f)));
 
     taps.reserve(static_cast<std::size_t>(n) * 3u);
 
@@ -109,6 +112,8 @@ static void apply_directional_blur_horizontal(
     scratch.ensure_size(w, h);
     Framebuffer* temp = scratch.framebuffer.get();
     temp->blit(fb, 0, 0);
+    // Documented contract: bilinear taps with Clamp edges.
+    const sampling::Sampler2D sampler(*temp, sampling::EdgeMode::Clamp);
 
     for (int y = y0; y < y1; ++y) {
         Color* dst_row = fb.pixels_row(y);
@@ -118,7 +123,7 @@ static void apply_directional_blur_horizontal(
                 const float u = (static_cast<float>(s) + 0.5f) * inv_n;
                 const float sx = static_cast<float>(x) - half_len + u * length;
                 const float sy = static_cast<float>(y);
-                const Color c = temp->sample_bilinear(sx, sy);
+                const Color c = sampler.bilinear(sx, sy);
                 r += c.r * inv_n;
                 g += c.g * inv_n;
                 b += c.b * inv_n;
@@ -154,6 +159,8 @@ static void apply_directional_blur_vertical(
     scratch.ensure_size(w, h);
     Framebuffer* temp = scratch.framebuffer.get();
     temp->blit(fb, 0, 0);
+    // Documented contract: bilinear taps with Clamp edges.
+    const sampling::Sampler2D sampler(*temp, sampling::EdgeMode::Clamp);
 
     for (int y = y0; y < y1; ++y) {
         Color* dst_row = fb.pixels_row(y);
@@ -163,7 +170,7 @@ static void apply_directional_blur_vertical(
                 const float u = (static_cast<float>(s) + 0.5f) * inv_n;
                 const float sx = static_cast<float>(x);
                 const float sy = static_cast<float>(y) - half_len + u * length;
-                const Color c = temp->sample_bilinear(sx, sy);
+                const Color c = sampler.bilinear(sx, sy);
                 r += c.r * inv_n;
                 g += c.g * inv_n;
                 b += c.b * inv_n;
@@ -221,6 +228,8 @@ void apply_directional_blur(
     scratch.ensure_size(w, h);
     Framebuffer* temp = scratch.framebuffer.get();
     temp->blit(fb, 0, 0);
+    // Documented contract: bilinear taps with Clamp edges.
+    const sampling::Sampler2D sampler(*temp, sampling::EdgeMode::Clamp);
 
     for (int y = y0; y < y1; ++y) {
         Color* dst_row = fb.pixels_row(y);
@@ -229,7 +238,7 @@ void apply_directional_blur(
             for (std::size_t tap = 0; tap + 2 < taps.size(); tap += 3) {
                 const float sx = static_cast<float>(x) + taps[tap];
                 const float sy = static_cast<float>(y) + taps[tap + 1];
-                const Color c = temp->sample_bilinear(sx, sy);
+                const Color c = sampler.bilinear(sx, sy);
                 r += c.r * taps[tap + 2];
                 g += c.g * taps[tap + 2];
                 b += c.b * taps[tap + 2];

@@ -367,8 +367,8 @@ struct CameraProjectionResolver {
 
             // Centred screen coords with Y inversion
             out.corners[i] = {
-                cp.x * ps_x,    // centred X (per-axis scale)
-                -cp.y * ps_y,   // centred Y (INVERTED -- Y-down convention)
+                cp.x * ps_x + input.camera.lens_shift.x * input.viewport.width,
+                -cp.y * ps_y + input.camera.lens_shift.y * input.viewport.height,
                 safe_z          // camera-space depth
             };
             out.uvs[i] = clipped_uvs[i];

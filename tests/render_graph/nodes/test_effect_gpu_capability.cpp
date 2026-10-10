@@ -68,6 +68,10 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
     REQUIRE(checkerboard != nullptr);
     CHECK(checkerboard->route == GpuEffectRoute::NativeZeroReadback);
 
+    const auto* directional_blur = graph::gpu_effect_capability(EffectType::DirectionalBlur);
+    REQUIRE(directional_blur != nullptr);
+    CHECK(directional_blur->route == GpuEffectRoute::NativeZeroReadback);
+
     for (const auto type : {EffectType::Brightness, EffectType::Contrast,
                             EffectType::Saturation, EffectType::HueRotate,
                             EffectType::Invert, EffectType::Exposure,
@@ -106,5 +110,5 @@ TEST_CASE("strict GPU effect capability census covers every catalog effect once"
     std::size_t native = 0;
     for (const auto& row : graph::kGpuEffectCapabilityRows)
         if (row.route == graph::GpuEffectRoute::NativeZeroReadback) ++native;
-    CHECK(native == 25);
+    CHECK(native == 26);
 }

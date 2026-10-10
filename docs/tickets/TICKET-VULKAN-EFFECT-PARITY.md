@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN — the catalog exposes 47 effect types; the executable capability table declares 24 strict-native routes (including Sharpen) and 23 unsupported types. All unsupported types fail closed and no CPU fallback is allowed for a strict GPU request. Current-checkout GPU hardware visibility does not substitute for rerunning parity on this SHA.
+OPEN — the catalog exposes 48 effect types; the executable capability table declares 26 strict-native routes (including DropShadow and DirectionalBlur) and 22 unsupported types. All unsupported types fail closed and no CPU fallback is allowed for a strict GPU request. Current-checkout GPU hardware visibility does not substitute for rerunning parity on this SHA.
 
 ## Obiettivo
 
@@ -54,7 +54,7 @@ the full software/GPU effect corpus passes on the same SHA.
 
 ## Acceptance gates
 
-- [x] Compile-time/test census accounts for every catalog `EffectType` exactly once (47 rows; 24 native / 23 unsupported in `test_effect_gpu_capability.cpp`).
+- [x] Compile-time/test census accounts for every catalog `EffectType` exactly once (48 rows; 26 native / 22 unsupported in `test_effect_gpu_capability.cpp`).
 - [ ] Each wave has parameter-boundary tests and software/Vulkan pixel parity
   fixtures for transparent, opaque, clipped, edge and ROI cases as applicable.
 - [ ] Multi-effect stacks preserve authored order and parity.
@@ -292,7 +292,87 @@ from an executed CPU fallback. After fresh sidecars are collected, rank by
 fallback count, frequency, then measured CPU fallback time; do not infer the
 “top five” before that data exists.
 
+## Local implementation progress — 2026-10-09 (DropShadow alpha parity)
+
+- Corrected the software DropShadow compositor to treat framebuffer RGB and
+  both blurred shadow lobes as premultiplied linear RGBA: contact is composited
+  over ambient, then the original content over the shadow. The previous
+  component-wise `max` plus straight-alpha `blend_normal` path combined the
+  lobes incorrectly and multiplied premultiplied content RGB a second time.
+- The Vulkan composite route now has an explicit premultiplied source-over
+  mode for ordinary Normal composites; replace copies and weighted Echo
+  composites keep their distinct contracts. This is used by the existing
+  native DropShadow stages and avoids host readback/software fallback.
+- Expanded the strict software/Vulkan oracle with transparent and fractional
+  alpha content, varied RGB, integer/fractional and negative offsets, radii
+  0/0.5/3/5, and a partial-clip case. The final post-edit focused run passed:
+  1 case, 522 assertions; radius 32.1 and non-finite input continue to fail
+  closed. The comparator tolerance was not relaxed.
+- Build of `chronon3d_backend_registry_tests` succeeded. The later full
+  `chronon3d_backend_registry_tests` CTest run did **not** pass: 97/98 cases
+  passed, while `GPU readiness gate certifies the 7-point checklist` failed
+  allocating a 1920x1080 Vulkan surface (`backend.create_surface(...).ok()`
+  false). At that time `nvidia-smi` showed only 195 MiB free of 16,376 MiB;
+  an unrelated Ollama model server and a persistent Vulkan render daemon
+  occupied the device. Neither process was stopped. The independent
+  `chronon3d_vulkan_interop_generation_tests` passed (1/1). Re-run the full
+  registry CTest when the GPU host has adequate free memory.
+- The same-SHA strict Vulkan/NVENC motion run available before the final
+  DropShadow rebuild recorded 101/125 image motions passed and 24 rejected:
+  the 12 `web_rect_*` cases failed closed on the missing DropShadow route,
+  and 12 `lightleak_*` cases failed closed on their effect stack. This run is
+  historical evidence for why DropShadow was implemented, **not** certification
+  of the rebuilt commit. Phrase (202/202), entity-caption (56/56), and
+  presentation (70 outputs) completed successfully in their recorded runs,
+  but they likewise predate the final DropShadow test edit and must not be used
+  as same-SHA certification.
+- A bounded `web_rect` GPU rerun against the rebuilt CLI could not complete in
+  the shared host environment: surface allocations returned
+  `VK_ERROR_OUT_OF_DEVICE_MEMORY` and the render failed at `ClearNode`. At the
+  time the device had only 229 MiB free of 16,376 MiB, with the persistent
+  daemon and unrelated Ollama workload still resident; do not interpret this as
+  an effect-parity result.
+  Consequently the web_rect and light-leak strict runtime gates, a full
+  post-rebuild image corpus run, and same-SHA GPU/NVENC certification remain
+  OPEN. Do not count this resource-exhausted attempt as a pass.
+
+## Local implementation progress — 2026-10-10 (DirectionalBlur native route)
+
+- Added the native DirectionalBlur route (census 25→26): `shaders/directional_blur.comp`
+  (uniform box taps along the host-computed unit direction, Clamp-edge bilinear
+  matching `sampling::Sampler2D`, raw premultiplied accumulation),
+  `GpuKernelId::DirectionalBlur` pipeline, `directional_blur_surface` backend op,
+  and `try_native_full_frame_directional_blur` lowering (full frame only, finite
+  angle, length in (0, 64], taps in [2, 64]; length 0 and samples 1 forward the
+  input untouched; partial clips fail closed). Strict and non-strict
+  EffectStackNode hooks are wired; the capability row advertises
+  `NativeZeroReadback`.
+- The strict software/Vulkan oracle covers angles 0/37/90/180/−45/123 degrees,
+  fractional lengths, explicit and auto-derived tap counts, the length-0 and
+  samples-1 identity forwards, transparent/fractional-alpha/HDR content, and
+  fail-closed rejection (length 65, samples 65, non-finite angle/length,
+  partial clip). Full local evidence on llvmpipe: `chronon3d_backend_registry_tests`
+  99/99 (1,913,600 assertions), `chronon3d_render_graph_tests` 421/421 (19,189 assertions,
+  including the 26-native census), `chronon3d_effects_tests` 275/275 (5,532,872 assertions),
+  `chronon3d_shader_abi_consistency_tests` 17/17. Same-SHA GPU-hardware
+  certification remains pending (remote runner billing blocker).
+- Two CPU defects were fixed as the cause of oracle mismatches, both against the
+  documented contract: `generate_taps` ignored auto-derive for non-cardinal angles
+  (`samples <= 1` returned identity instead of `max(2, ceil(length/2))`, while the
+  header and the axis fast paths define 0 as auto; `samples == 1` remains the pinned
+  single-tap identity), and all three blur paths sampled transparent out-of-bounds
+  instead of the documented Clamp edges (now via `sampling::Sampler2D`). The
+  centroid test expectation was corrected to the true invariant (texel-centre
+  10.5, provably preserved by symmetric taps and weights; the old 10.0 only held
+  under the identity bug). The catalog-count test was updated 47→48 for the
+  already-landed RoughenEdges entry, and the kernel-count gate 17→18.
+- Remaining unsupported wave (22): Fake3DWave, RadialBlur, Stroke, FractalNoise,
+  FourColorGradient, LightRays, Lut3D, Curves, CornerPin, Twirl, Bulge, MeshWarp,
+  TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, Halftone, LensDistortion,
+  LuminanceResponse, FoldWarp, CreaseShading, RoughenEdges.
+
 ## Demolition debt
+
 
 - **Owner:** render-graph and Vulkan backend maintainers.
 - **Reason:** native GPU support is incomplete while software is the broader

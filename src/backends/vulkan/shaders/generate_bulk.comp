@@ -1,0 +1,289 @@
+#version 450
+
+// generate_bulk.comp — one dispatch for generator and pointwise stylize effects.
+// Modes replicate the software processors tap-for-tap:
+//   0 FractalNoise (procedural fBm value noise, no field),
+//   1 FourColorGradient (inverse-distance weighting),
+//   2 LightRays (radial integration toward origin, Transparent edges),
+//   3 Halftone (rotated cellular ink dots),
+//   4 LuminanceResponse without blur (radius <= 0.5 certified; larger radii
+//     fail closed at lowering time),
+//   5 CreaseShading (fold-crease darken/lighten multiply-add).
+// All color math is premultiplied linear RGBA like the CPU reference.
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform GenerateBulkParams {
+    int mode;
+    int flags;        // color_mode / blend / extra selector
+    vec4 a0;
+    vec4 a1;
+    vec4 a2;
+    vec4 a3;
+    vec4 b0;
+    vec4 b1;
+    vec4 b2;
+} params;
+
+float hash_noise(int n, uint seed) {
+    uint x = uint(n) + seed;
+    x ^= (x << 13u);
+    x ^= (x >> 17u);
+    x ^= (x << 5u);
+    return float(x % 10000u) / 5000.0 - 1.0;
+}
+
+float lattice_noise(int x, int y, uint seed) {
+    uint index = uint(x) + uint(y) * 0x9E3779B9u;
+    return hash_noise(int(index), seed);
+}
+
+float smooth_value_noise(float x, float y, uint seed) {
+    int ix = int(floor(x));
+    int iy = int(floor(y));
+    float fx = x - float(ix);
+    float fy = y - float(iy);
+    float sx = fx * fx * (3.0 - 2.0 * fx);
+    float sy = fy * fy * (3.0 - 2.0 * fy);
+    float a = mix(lattice_noise(ix, iy, seed), lattice_noise(ix + 1, iy, seed), sx);
+    float b = mix(lattice_noise(ix, iy + 1, seed), lattice_noise(ix + 1, iy + 1, seed), sx);
+    return mix(a, b, sy);
+}
+
+float fractal_channel(float px, float py, uint seed, uint octaves,
+                      float frequency, float contrast, float brightness, float amplitude) {
+    uint oct = clamp(octaves, 1u, 16u);
+    float freq = max(frequency, 0.0);
+    float amp = 1.0;
+    float sum = 0.0;
+    float weight = 0.0;
+    for (uint o = 0u; o < oct; ++o) {
+        sum += smooth_value_noise(px * freq, py * freq,
+                                  seed + uint(o) * 0x9E3779B9u) * amp;
+        weight += amp;
+        freq *= 2.0;
+        amp *= 0.5;
+    }
+    float value = weight > 0.0 ? sum / weight : 0.0;
+    value = (value * contrast + brightness) * amplitude;
+    return clamp(value * 0.5 + 0.5, 0.0, 1.0);
+}
+
+vec4 fetch_transparent(ivec2 p, ivec2 size) {
+    if (p.x < 0 || p.y < 0 || p.x >= size.x || p.y >= size.y) return vec4(0.0);
+    return imageLoad(source_image, p);
+}
+
+vec4 sample_transparent(vec2 s, ivec2 size) {
+    vec2 u = s - vec2(0.5);
+    ivec2 p0 = ivec2(floor(u));
+    vec2 t = u - vec2(p0);
+    vec4 c00 = fetch_transparent(p0, size);
+    vec4 c10 = fetch_transparent(p0 + ivec2(1, 0), size);
+    vec4 c01 = fetch_transparent(p0 + ivec2(0, 1), size);
+    vec4 c11 = fetch_transparent(p0 + ivec2(1, 1), size);
+    return mix(mix(c00, c10, t.x), mix(c01, c11, t.x), t.y);
+}
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+    float w = float(size.x);
+    float h = float(size.y);
+    int mode = params.mode;
+
+    // ── 0 FractalNoise: a0=(seed,octaves,frequency,amplitude),
+    //     a1=(evolution_combined,contrast,brightness,_), flags=color_mode ──
+    if (mode == 0) {
+        uint seed = uint(params.a0.x + 0.5);
+        uint octaves = uint(params.a0.y + 0.5);
+        float frequency = params.a0.z, amplitude = params.a0.w;
+        float drift = params.a1.x;
+        float contrast = params.a1.y, brightness = params.a1.z;
+        float px = float(pixel.x) + drift;
+        float py = float(pixel.y) + drift * 0.6180339;
+        if (params.flags == 1) {
+            imageStore(destination_image, pixel, vec4(
+                fractal_channel(px, py, seed, octaves, frequency, contrast, brightness, amplitude),
+                fractal_channel(px, py, seed + 0x68BC21EBul, octaves, frequency, contrast, brightness, amplitude),
+                fractal_channel(px, py, seed + 0x02E5BE93ul, octaves, frequency, contrast, brightness, amplitude),
+                1.0));
+        } else {
+            float v = fractal_channel(px, py, seed, octaves, frequency, contrast, brightness, amplitude);
+            imageStore(destination_image, pixel, vec4(v, v, v, 1.0));
+        }
+        return;
+    }
+
+    // ── 1 FourColorGradient: a0..a3 = straight colors RGBA,
+    //     b0..b1 = points (xy pairs), b2.x = blend_smoothness ────────────
+    if (mode == 1) {
+        float nx = (float(pixel.x) + 0.5) / w;
+        float ny = (float(pixel.y) + 0.5) / h;
+        float smooth = params.b2.x;
+        float regularizer = max(smooth * smooth, 1.0e-8);
+        vec2 pts[4];
+        pts[0] = params.b0.xy; pts[1] = params.b0.zw;
+        pts[2] = params.b1.xy; pts[3] = params.b1.zw;
+        vec4 cols[4];
+        cols[0] = params.a0; cols[1] = params.a1;
+        cols[2] = params.a2; cols[3] = params.a3;
+        float weights[4];
+        weights[0] = 0.0; weights[1] = 0.0; weights[2] = 0.0; weights[3] = 0.0;
+        float total = 0.0;
+        bool exact = false;
+        int exact_i = 0;
+        for (int i = 0; i < 4; ++i) {
+            float dx = nx - pts[i].x;
+            float dy = ny - pts[i].y;
+            float d2 = dx * dx + dy * dy;
+            if (d2 <= 1.0e-12) { exact = true; exact_i = i; total = 1.0; break; }
+            weights[i] = 1.0 / (d2 + regularizer);
+            total += weights[i];
+        }
+        // Host-linear blend of straight colors, then premultiply by the
+        // blended alpha exactly like color::premultiply_rgb.
+        if (exact) {
+            vec4 c = cols[exact_i];
+            imageStore(destination_image, pixel, vec4(c.rgb * c.a, c.a));
+        } else {
+            vec3 rgb = vec3(0.0);
+            float a = 0.0;
+            rgb += cols[0].rgb * (weights[0] / total);
+            rgb += cols[1].rgb * (weights[1] / total);
+            rgb += cols[2].rgb * (weights[2] / total);
+            rgb += cols[3].rgb * (weights[3] / total);
+            a += cols[0].a * (weights[0] / total);
+            a += cols[1].a * (weights[1] / total);
+            a += cols[2].a * (weights[2] / total);
+            a += cols[3].a * (weights[3] / total);
+            imageStore(destination_image, pixel, vec4(rgb * a, a));
+        }
+        return;
+    }
+
+    // ── 2 LightRays: a0=(origin_px), a1=(length,density,decay,_),
+    //     a2=(color.rgb,ray_alpha_scale=color.a) ──────────────────────────
+    if (mode == 2) {
+        float origin_x = params.a0.x, origin_y = params.a0.y;
+        float max_length = params.a1.x, density = params.a1.y, decay = params.a1.z;
+        vec3 ray_color = params.a2.xyz;
+        float color_a = params.a2.w;
+        float px = float(pixel.x) + 0.5;
+        float py = float(pixel.y) + 0.5;
+        float dx = px - origin_x, dy = py - origin_y;
+        float distance = sqrt(dx * dx + dy * dy);
+        vec4 original = imageLoad(source_image, pixel);
+        if (distance <= 1.0e-6 || distance > max_length) {
+            imageStore(destination_image, pixel, original);
+            return;
+        }
+        int steps = clamp(int(ceil(distance * (1.0 / 12.0))) + 1, 2, 64);
+        float accumulated = 0.0;
+        for (int i = 0; i < steps; ++i) {
+            float t = float(i) / float(steps - 1);
+            vec4 s = sample_transparent(vec2(origin_x + dx * t, origin_y + dy * t), size);
+            float inv_a = s.a > 1.0e-8 ? 1.0 / s.a : 0.0;
+            vec3 straight = s.rgb * inv_a;
+            float luminance = max(0.0, (0.2126 * straight.r + 0.7152 * straight.g
+                                        + 0.0722 * straight.b) * s.a);
+            accumulated += luminance * pow(decay, (distance * t) / 8.0);
+        }
+        float energy = clamp(accumulated * density * 4.0 / float(steps), 0.0, 1.0);
+        if (energy <= 0.0) { imageStore(destination_image, pixel, original); return; }
+        float ray_alpha = energy * clamp(color_a, 0.0, 1.0);
+        imageStore(destination_image, pixel, vec4(
+            original.r + ray_color.r * ray_alpha,
+            original.g + ray_color.g * ray_alpha,
+            original.b + ray_color.b * ray_alpha,
+            original.a + ray_alpha * (1.0 - original.a)));
+        return;
+    }
+
+    // ── 3 Halftone: a0=(cell,cos,sin,_), a1=(amount,_,_,_) ───────────────
+    if (mode == 3) {
+        float cell = params.a0.x, cs = params.a0.y, sn = params.a0.z;
+        float amount = params.a1.x;
+        float rx = cs * float(pixel.x) + sn * float(pixel.y);
+        float ry = -sn * float(pixel.x) + cs * float(pixel.y);
+        float cx = (floor(rx / cell) + 0.5) * cell;
+        float cy = (floor(ry / cell) + 0.5) * cell;
+        ivec2 sq = ivec2(int(round(cs * cx - sn * cy)), int(round(sn * cx + cs * cy)));
+        sq = clamp(sq, ivec2(0), size - ivec2(1));
+        vec4 sc = imageLoad(source_image, sq);
+        float luma = 1.0;
+        if (sc.a > 1.0e-8) {
+            luma = clamp((0.2126 * sc.r + 0.7152 * sc.g + 0.0722 * sc.b) / sc.a, 0.0, 1.0);
+        }
+        float radius = sqrt(max(0.0, 1.0 - luma)) * cell * 0.5 * amount;
+        float dx = rx - cx, dy = ry - cy;
+        float ink = (dx * dx + dy * dy < radius * radius) ? 0.0 : 1.0;
+        vec4 original = imageLoad(source_image, pixel);
+        imageStore(destination_image, pixel,
+                   vec4(original.a * ink, original.a * ink, original.a * ink, original.a));
+        return;
+    }
+
+    // ── 4 LuminanceResponse no-blur: a0=(threshold,softness,intensity,blend),
+    //     a1=(tint.rgb,_) ────────────────────────────────────────────────
+    if (mode == 4) {
+        float thresh = params.a0.x, soft = max(params.a0.y, 1.0e-4);
+        float intensity = params.a0.z;
+        int blend = int(params.a0.w + 0.5);
+        vec3 tint = params.a1.xyz;
+        vec4 c = imageLoad(source_image, pixel);
+        if (c.a <= 1.0e-5) { imageStore(destination_image, pixel, c); return; }
+        float inv_a = 1.0 / c.a;
+        float luma = 0.2126 * c.r * inv_a + 0.7152 * c.g * inv_a + 0.0722 * c.b * inv_a;
+        vec4 d = c;
+        if (luma > (thresh - soft)) {
+            float t = clamp((luma - (thresh - soft)) / (soft * 2.0), 0.0, 1.0);
+            float ramp = t * t * (3.0 - 2.0 * t);
+            float gain = ramp * intensity;
+            vec3 bcol = vec3(tint.r * gain * c.a, tint.g * gain * c.a, tint.b * gain * c.a);
+            float ba = c.a * ramp;
+            if (blend == 0) {
+                d = vec4(clamp(c.rgb + bcol, vec3(0.0), vec3(1.0)), c.a);
+            } else if (blend == 1) {
+                d = vec4(clamp(c.rgb + bcol - c.rgb * bcol, vec3(0.0), vec3(1.0)), c.a);
+            } else {
+                float inv_ba = 1.0 - ba;
+                d = vec4(bcol + c.rgb * inv_ba, ba + c.a * inv_ba);
+            }
+        }
+        imageStore(destination_image, pixel, d);
+        return;
+    }
+
+    // ── 5 CreaseShading: a0=(axis,crease_px,width_px,_),
+    //     a1=(dark,light,softness,_) ─────────────────────────────────────
+    if (mode == 5) {
+        int axis = int(params.a0.x + 0.5);
+        float crease_px = params.a0.y, width_px = params.a0.z;
+        float dark_side = params.a1.x, light_side = params.a1.y, softness = params.a1.z;
+        float coord = (axis == 1) ? (float(pixel.y) + 0.5) : (float(pixel.x) + 0.5);
+        float dist = coord - crease_px;
+        float abs_dist = abs(dist);
+        vec4 c = imageLoad(source_image, pixel);
+        if (abs_dist < width_px) {
+            float t = abs_dist / width_px;
+            float s = clamp(softness, 0.01, 1.0);
+            float falloff = clamp((1.0 - t) / s, 0.0, 1.0);
+            float smooth_factor = falloff * falloff * (3.0 - 2.0 * falloff);
+            if (dist < 0.0) {
+                float factor = 1.0 - dark_side * smooth_factor;
+                c = vec4(c.rgb * factor, c.a);
+            } else {
+                float factor = light_side * smooth_factor * c.a;
+                c = vec4(clamp(c.rgb + vec3(factor), vec3(0.0), vec3(1.0)), c.a);
+            }
+        }
+        imageStore(destination_image, pixel, c);
+        return;
+    }
+
+    imageStore(destination_image, pixel, imageLoad(source_image, pixel));
+}

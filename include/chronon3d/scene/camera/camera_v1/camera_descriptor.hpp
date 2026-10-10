@@ -128,6 +128,10 @@ struct CameraBaseSpec {
 
     ProjectionSpec projection{ZoomProjection{AnimatedValue<float>{1000.0f}}};
 
+    // Viewport-relative principal-point shift. Positive X moves right and
+    // positive Y moves down; {0,0} preserves centered projection.
+    Vec2 lens_shift{0.0f, 0.0f};
+
     LensModel               lens{50.0f, 2.8f, 450.0f, 36.0f, 24.0f, GateFit::Fill};
     DepthOfFieldSettings    dof{};
     MotionBlurSettings      motion_blur{};

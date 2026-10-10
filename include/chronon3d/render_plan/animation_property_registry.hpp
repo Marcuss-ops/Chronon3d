@@ -39,6 +39,8 @@ enum class AnimationPropertyId : std::uint8_t {
     Tracking,
     BaselineShift,
     CharacterOffset,
+    LightIntensity,
+    LightColor,
     Anchor,
     BackgroundColor,
     BackgroundPaddingEm,
@@ -98,6 +100,8 @@ inline constexpr std::array<AnimationPropertyRow,
         CHRONON_ANIMATION_PROPERTY(Tracking, "tracking", 1)
         CHRONON_ANIMATION_PROPERTY(BaselineShift, "baseline_shift", 1)
         CHRONON_ANIMATION_PROPERTY(CharacterOffset, "character_offset", 1)
+        CHRONON_ANIMATION_PROPERTY(LightIntensity, "light_intensity", 1)
+        CHRONON_ANIMATION_PROPERTY(LightColor, "light_color", 4)
         CHRONON_ANIMATION_PROPERTY(Anchor, "anchor", 0)
         CHRONON_ANIMATION_PROPERTY(BackgroundColor, "background_color", 4)
         CHRONON_ANIMATION_PROPERTY(BackgroundPaddingEm, "background_padding_em", 1)

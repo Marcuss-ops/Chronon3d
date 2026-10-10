@@ -559,6 +559,20 @@ public:
             "RenderBackend::blur_surface: native surfaces are not supported"));
     }
 
+    /// Uniform box-tap blur along a unit direction for native surfaces.
+    /// destination[p] = average of tap_count bilinear samples spanning
+    /// [-length/2, +length/2] along (dir_x, dir_y), matching the software
+    /// DirectionalBlur processor (transparent out-of-bounds, raw premultiplied
+    /// accumulation). Certified for length in (0, 64] and tap_count in [2, 64].
+    virtual RenderOpResult directional_blur_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        float /*dir_x*/, float /*dir_y*/, float /*length*/, int /*tap_count*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::directional_blur_surface: native surfaces are not supported"));
+    }
+
     /// Pointwise unsharp-mask combine for native surfaces: destination =
     /// source + amount * masked(source - blurred), alpha from source. The
     /// blurred input must come from the certified separable box-filter route.
