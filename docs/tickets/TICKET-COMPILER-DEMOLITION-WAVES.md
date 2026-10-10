@@ -1,8 +1,8 @@
 # Compiler Demolition Waves — Wave 1–4
 
-Status: `CLOSED` (re-verified against `2c921aa3b` on 2026-10-10; Waves
-1/2/3/4 execution demolition complete — compat shims remain only as
-public-API adapters, not executor payload)
+Status: `ACTIVE` (re-verified `d72a4efc2` on 2026-10-10: the 4 snapshot
+residuals are gone, but the compat execution path is still load-bearing —
+Wave 3 demolition NOT complete, previous close was premature)
 
 Obiettivo: lasciare una sola authority per execution, job normalization,
 compiler output e graph lowering, senza introdurre una seconda pipeline
@@ -30,15 +30,18 @@ sono coerenti.
 - [x] Wave 3 — `ProgramMetadata` owns the output contract, prepared-asset
   manifest, request/content digests and admission budget; its public header
   no longer includes a `render_plan/*` header.
-- [x] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
+- [ ] Wave 3 — il render-plan runtime esegue direttamente topology e parameter
   programs di `CompiledProgram`, senza materializzare `PreparedRenderPlan` /
-  `CompiledComposition` come payload dell’executor (verified 2026-10-10
-  against `2c921aa3b`: `RenderPipeline::render()` richiede `CompiledProgram`,
-  campiona via `TypedProgramSampler::sample_into` + `SceneMaterializer`,
-  cache per `fingerprint()`; nessun `PreparedRenderPlan`/`CompiledComposition`
-  in `job_session`/`frame_execution`; `typed_program_sampler` zero riferimenti
-  al bridge; `render_compiled_composition` resta solo adapter compat per
-  prepared-job legacy e SDK file methods).
+  `CompiledComposition` come payload dell’executor. BLOCCATO 2026-10-10:
+  `compiler::compile` accetta solo `RenderPlan`/`RenderJobSource`, nessun
+  lowering `Composition`→`CompiledProgram` esiste; restano live
+  `RenderEngine::render/prepare(Composition)`,
+  `SoftwareRenderer::render(Composition)`, il video exporter FFmpeg
+  (`pipe_export_stages.cpp` chiama diretto
+  `graph::render_compiled_composition_frame_temporal`; `render_plan_preparation`
+  costruisce `video_compatibility_view` per output non-PNG), SDK file methods
+  e 3 test. Rimuovere codice qui richiede prima il bridge + build
+  `linux-fast-dev` come equivalence gate.
 - [x] Wave 3.1 — il payload dello slot non possiede più
   `EvaluatedCompositionFrame`: scene e camera frame-local sono possedute dal
   lease come stato tipizzato separato.
@@ -104,12 +107,18 @@ sono coerenti.
   request parity, targeted render-graph tests e build `linux-fast-dev`.
 - Removal scope: legacy CLI adapter, public graph facade, obsolete CMake
   sources/targets e compatibility payload non più referenziati.
-- Status: `CLOSED` 2026-10-10 (verified `2c921aa3b`). Wave 1/2/3/4 payloads
-  gone from the production execution path; Wave 4 graph facade
-  demolition/caller census was already closed. Remaining
-  `render_compiled_composition` / `render_compatibility*` entrypoints are
-  public-API compat adapters (legacy prepared jobs, SDK file methods), not
-  executor payload — removal would break API compat and is out of scope.
+- Status: `ACTIVE` 2026-10-10 (correction of premature close). The 4
+  `be14cbd86` snapshot residuals are verified gone (`compiler.cpp` clean,
+  no `chronon3d_render_plan` link, `program_sampler.cpp` deleted,
+  `typed_program_sampler` bridge-free, session/execution payloads clean).
+  What remains is NOT deletable as-is: the compat path is load-bearing via
+  the `Composition` object model (no `Composition`→`CompiledProgram` lowering
+  exists) and the FFmpeg video exporter (takes `CompiledComposition`).
+  Removal scope for the real Wave 3: build the lowering, migrate
+  `RenderEngine`/`SoftwareRenderer`/CLI exporter/SDK/tests, then delete
+  `render_compiled_composition_frame*`, `render_compatibility*`,
+  `make_video_compatibility_view` and `compatibility_composition` plumbing —
+  with `build linux-fast-dev` as equivalence gate.
 
 ## Verified residual census — `be14cbd86` + delta 2026-09-09
 
