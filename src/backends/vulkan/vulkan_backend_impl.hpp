@@ -587,7 +587,8 @@ struct VulkanBackend::Impl {
                           const Image& destination, const Image& source,
                           std::int32_t blend_mode, float source_scale,
                           const float tint[4],
-                          const std::optional<raster::BBox>& clip = std::nullopt);
+                          const std::optional<raster::BBox>& clip = std::nullopt,
+                          bool premultiplied_source_over = false);
     void record_transform(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination, const Image& source,
                           int offset_x, int offset_y, float opacity);
@@ -598,6 +599,9 @@ struct VulkanBackend::Impl {
                      const Image& destination, const Image& source,
                      float radius, bool horizontal, bool box_kernel = false,
                      bool glow_kernel = false);
+    void record_directional_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                 const Image& destination, const Image& source,
+                                 float dir_x, float dir_y, float length, int tap_count);
     void record_sharpen_combine(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& destination, const Image& source,
                                 const Image& blurred, float amount, float threshold);
@@ -705,6 +709,9 @@ struct VulkanBackend::Impl {
     void blur(runtime::RenderSurfaceHandle destination,
               runtime::RenderSurfaceHandle source, float radius, bool horizontal,
               bool box_kernel = false);
+    void directional_blur(runtime::RenderSurfaceHandle destination,
+                          runtime::RenderSurfaceHandle source,
+                          float dir_x, float dir_y, float length, int tap_count);
     void sharpen_combine(runtime::RenderSurfaceHandle destination,
                          runtime::RenderSurfaceHandle source,
                          runtime::RenderSurfaceHandle blurred,

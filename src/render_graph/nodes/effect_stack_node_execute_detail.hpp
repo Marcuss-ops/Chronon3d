@@ -246,6 +246,10 @@ NodeExecResult EffectStackNode::execute(
                     stage_handled = native_effects::try_native_full_frame_sharpen(
                         ctx, one_effect, *result, native_clip, current_source);
                     break;
+                case effects::EffectType::DirectionalBlur:
+                    stage_handled = native_effects::try_native_full_frame_directional_blur(
+                        ctx, one_effect, *result, native_clip, current_source);
+                    break;
                 case effects::EffectType::Glow:
                 case effects::EffectType::Bloom:
                     stage_handled = native_effects::try_native_full_frame_glow_or_bloom(
@@ -316,6 +320,10 @@ NodeExecResult EffectStackNode::execute(
             // backends fall through to their registered software processor.
             if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_sharpen(
+                    ctx, active_effects, *result, native_clip, native_source);
+            }
+            if (!native_handled) {
+                native_handled = native_effects::try_native_full_frame_directional_blur(
                     ctx, active_effects, *result, native_clip, native_source);
             }            if (!native_handled) {
                 native_handled = native_effects::try_native_full_frame_glow_or_bloom(

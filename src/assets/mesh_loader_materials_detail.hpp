@@ -1,6 +1,7 @@
 void decode_materials_and_images(const json& document,
                                  const std::vector<std::byte>& binary,
                                  PreparedMeshSource& prepared) {
+    std::size_t decoded_rgba_total = 0;
     if (document.contains("textures") &&
         (!document.at("textures").is_array() ||
          document.at("textures").size() > kMeshLoaderV1MaxTextures))
@@ -77,7 +78,9 @@ void decode_materials_and_images(const json& document,
             if (!pbr.is_object())
                 throw std::runtime_error("GLB pbrMetallicRoughness must be an object");
             for (auto it = pbr.begin(); it != pbr.end(); ++it) {
-                if (it.key() != "baseColorFactor" && it.key() != "baseColorTexture")
+                if (it.key() != "baseColorFactor" && it.key() != "baseColorTexture" &&
+                    it.key() != "metallicFactor" && it.key() != "roughnessFactor" &&
+                    it.key() != "metallicRoughnessTexture")
                     throw std::runtime_error("GLB PBR property is not supported: " + it.key());
             }
             if (pbr.contains("baseColorFactor")) {
@@ -95,6 +98,15 @@ void decode_materials_and_images(const json& document,
                         throw std::runtime_error("GLB baseColorFactor channels must be finite in [0,1]");
                 }
             }
+            const auto read_pbr_factor = [&](const char* key, float fallback) {
+                if (!pbr.contains(key)) return fallback;
+                const float value = pbr.at(key).get<float>();
+                if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
+                    throw std::runtime_error(std::string("GLB ") + key + " must be finite in [0,1]");
+                return value;
+            };
+            converted.metallic_factor = read_pbr_factor("metallicFactor", 1.0f);
+            converted.roughness_factor = read_pbr_factor("roughnessFactor", 1.0f);
             if (pbr.contains("baseColorTexture")) {
                 const auto& texture_info = pbr.at("baseColorTexture");
                 if (!texture_info.is_object() || texture_info.contains("extensions") ||
@@ -112,6 +124,50 @@ void decode_materials_and_images(const json& document,
                 if (image_index < 0 || static_cast<std::size_t>(image_index) >= prepared.images.size())
                     throw std::runtime_error("GLB baseColorTexture source is out of range");
                 converted.base_color_texture_index = static_cast<std::uint32_t>(image_index);
+            }
+            if (pbr.contains("metallicRoughnessTexture")) {
+                const auto& texture_info = pbr.at("metallicRoughnessTexture");
+                if (!texture_info.is_object() || texture_info.contains("extensions") ||
+                    texture_info.value("texCoord", 0) != 0)
+                    throw std::runtime_error("GLB metallicRoughnessTexture supports only TEXCOORD_0 without extensions");
+                for (auto it = texture_info.begin(); it != texture_info.end(); ++it) {
+                    if (it.key() != "index" && it.key() != "texCoord" && it.key() != "extras")
+                        throw std::runtime_error("GLB metallicRoughnessTexture property is not supported: " + it.key());
+                }
+                const auto texture_index = texture_info.at("index").get<int>();
+                if (texture_index < 0 || !document.contains("textures") ||
+                    static_cast<std::size_t>(texture_index) >= document.at("textures").size())
+                    throw std::runtime_error("GLB metallicRoughnessTexture index is out of range");
+                const auto image_index = document.at("textures").at(texture_index).at("source").get<int>();
+                if (image_index < 0 || static_cast<std::size_t>(image_index) >= prepared.images.size())
+                    throw std::runtime_error("GLB metallicRoughnessTexture source is out of range");
+                auto& image = prepared.images[static_cast<std::size_t>(image_index)];
+                if (image.decoded_rgba.empty()) {
+                    if (image.payload.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+                        throw std::runtime_error("GLB metallic-roughness image exceeds decoder size limit");
+                    int width = 0, height = 0, source_channels = 0;
+                    auto* pixels = stbi_load_from_memory(
+                        reinterpret_cast<const stbi_uc*>(image.payload.data()),
+                        static_cast<int>(image.payload.size()),
+                        &width, &height, &source_channels, 4);
+                    if (!pixels || width <= 0 || height <= 0) {
+                        if (pixels) stbi_image_free(pixels);
+                        throw std::runtime_error("GLB metallic-roughness image failed to decode");
+                    }
+                    const auto pixel_count = static_cast<std::size_t>(width) *
+                        static_cast<std::size_t>(height);
+                    if (pixel_count > kMeshLoaderV1MaxGlbBytes / 4 - decoded_rgba_total / 4) {
+                        stbi_image_free(pixels);
+                        throw std::runtime_error("decoded metallic-roughness images exceed the 64 MiB V1 limit");
+                    }
+                    const auto rgba_bytes = pixel_count * 4;
+                    image.decoded_width = static_cast<std::uint32_t>(width);
+                    image.decoded_height = static_cast<std::uint32_t>(height);
+                    image.decoded_rgba.assign(pixels, pixels + rgba_bytes);
+                    decoded_rgba_total += rgba_bytes;
+                    stbi_image_free(pixels);
+                }
+                converted.metallic_roughness_texture_index = static_cast<std::uint32_t>(image_index);
             }
             prepared.materials.push_back(std::move(converted));
         }

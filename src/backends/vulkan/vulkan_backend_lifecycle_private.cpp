@@ -8,6 +8,7 @@
 #include "transform_comp_spv.hpp"
 #include "affine_transform_comp_spv.hpp"
 #include "blur_comp_spv.hpp"
+#include "directional_blur_comp_spv.hpp"
 #include "sharpen_comp_spv.hpp"
 #include "bloom_threshold_comp_spv.hpp"
 #include "glow_prepare_comp_spv.hpp"
@@ -301,6 +302,29 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::Blur, blur_pipeline, "Blur");
         if (debug_context) debug_context->set_pipeline_name(blur_pipeline, "Chronon3D.Pipeline.Blur");
+
+        const VkShaderModuleCreateInfo directional_blur_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_directional_blur_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_directional_blur_comp_spv)};
+        VkShaderModule directional_blur_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &directional_blur_shader_info, nullptr, &directional_blur_shader),
+              "vkCreateShaderModule(directional_blur)");
+        const VkPipelineShaderStageCreateInfo directional_blur_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            directional_blur_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo directional_blur_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            directional_blur_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline directional_blur_pipeline = VK_NULL_HANDLE;
+        const VkResult directional_blur_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &directional_blur_pipeline_info, nullptr, &directional_blur_pipeline);
+        vkDestroyShaderModule(device, directional_blur_shader, nullptr);
+        check(directional_blur_result, "vkCreateComputePipelines(directional_blur)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::DirectionalBlur, directional_blur_pipeline, "DirectionalBlur");
+        if (debug_context) debug_context->set_pipeline_name(directional_blur_pipeline, "Chronon3D.Pipeline.DirectionalBlur");
 
         const VkShaderModuleCreateInfo sharpen_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

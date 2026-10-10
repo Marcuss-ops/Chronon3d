@@ -55,6 +55,7 @@ Layer::Layer(const Layer& other)
       track_matte(other.track_matte),
       m_material(std::make_unique<Material2_5D>(*other.m_material)),
       m_card3d_material(std::make_unique<Card3DMaterial>(*other.m_card3d_material)),
+      m_card3d_material_configured(other.m_card3d_material_configured),
       transition_in(other.transition_in),
       transition_out(other.transition_out),
       asset_manifest(other.asset_manifest),
@@ -98,6 +99,7 @@ Layer& Layer::operator=(const Layer& other) {
     track_matte = other.track_matte;
     *m_material = *other.m_material;
     *m_card3d_material = *other.m_card3d_material;
+    m_card3d_material_configured = other.m_card3d_material_configured;
     transition_in = other.transition_in;
     transition_out = other.transition_out;
     asset_manifest = other.asset_manifest;
@@ -136,6 +138,26 @@ uint64_t Layer::get_static_hash() const {
     h = hash_combine(h, static_cast<u64>(blend_mode));
     h = hash_combine(h, hash_mask(mask));
     h = hash_combine(h, hash_effect_stack(*m_effects));
+    if (m_card3d_material_configured) {
+        h = hash_combine(h, 1);
+        const auto& material = *m_card3d_material;
+        h = hash_combine(h, hash_value(material.enabled));
+        h = hash_combine(h, hash_value(material.thickness_px));
+        h = hash_combine(h, hash_value(material.corner_radius));
+        h = hash_combine(h, hash_color(material.front_top_color));
+        h = hash_combine(h, hash_color(material.front_bottom_color));
+        h = hash_combine(h, hash_color(material.side_color));
+        h = hash_combine(h, hash_value(material.edge_highlight_intensity));
+        h = hash_combine(h, hash_color(material.edge_highlight_color));
+        h = hash_combine(h, hash_value(material.rim_light_intensity));
+        h = hash_combine(h, hash_value(material.rim_light_power));
+        h = hash_combine(h, hash_color(material.rim_light_color));
+        h = hash_combine(h, hash_vec3(material.light_direction));
+        h = hash_combine(h, hash_value(material.cast_shadow));
+        h = hash_combine(h, hash_value(material.receive_shadow));
+        h = hash_combine(h, hash_value(material.casts_shadows));
+        h = hash_combine(h, hash_value(material.accepts_shadows));
+    }
     if (backdrop_blur) {
         h = hash_combine(h, hash_bytes(&backdrop_blur->blur, sizeof(float)));
         h = hash_combine(h, hash_bytes(&backdrop_blur->brightness, sizeof(float)));

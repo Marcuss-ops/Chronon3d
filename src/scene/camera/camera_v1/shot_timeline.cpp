@@ -71,6 +71,7 @@ Camera2_5D blend_camera_fields(float t, const Camera2_5D& from, const Camera2_5D
     out.rotation = slerp_rotation(from.rotation, to.rotation, t);
     out.fov_deg  = glm::mix(from.fov_deg, to.fov_deg, t);
     out.zoom     = glm::mix(from.zoom, to.zoom, t);
+    out.lens_shift = glm::mix(from.lens_shift, to.lens_shift, t);
     out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
 
     if (from.point_of_interest_enabled && to.point_of_interest_enabled) {

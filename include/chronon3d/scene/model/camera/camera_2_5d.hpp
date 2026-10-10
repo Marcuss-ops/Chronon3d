@@ -117,6 +117,11 @@ struct Camera2_5D {
     // 35° ≈ telephoto (less distortion), 70° ≈ wide angle (more parallax).
     f32 fov_deg{50.0f};
 
+    // Principal-point offset as a fraction of viewport dimensions.
+    // {0,0} is centered; positive X moves right and positive Y moves down.
+    // Values may exceed half the viewport to support off-screen framing.
+    Vec2 lens_shift{0.0f, 0.0f};
+
     // Hierarchy
     std::pmr::string parent_name;
     std::pmr::string target_name; // If set, POI is resolved from this layer's world position

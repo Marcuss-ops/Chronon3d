@@ -373,8 +373,8 @@ struct MotionBlurPlan {
 /// Light kinds. `Radial` is the historical screen-space glow (default, output
 /// unchanged). `Point`, `Spot` and `Directional` are real light sources; their
 /// shading and cast shadows are implemented by the lighting slices of
-/// TICKET-LIGHTS-SHADOWS-PARTICLES. Until a kind is rendered the compiler
-/// rejects it explicitly rather than drawing the glow in its place.
+/// TICKET-LIGHTS-SHADOWS-PARTICLES. The compiler rejects unsupported light
+/// behavior explicitly rather than drawing the glow in its place.
 enum class LightKindPlan : std::uint8_t { Radial, Point, Spot, Directional };
 
 struct LightLayerPlan {

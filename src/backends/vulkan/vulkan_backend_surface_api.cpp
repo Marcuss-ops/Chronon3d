@@ -520,6 +520,23 @@ graph::RenderOpResult VulkanBackend::blur_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::directional_blur_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    float dir_x, float dir_y, float length, int tap_count) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->directional_blur(destination, source, dir_x, dir_y, length, tap_count);
+    });
+#else
+    (void)destination; (void)source; (void)dir_x; (void)dir_y; (void)length; (void)tap_count;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::directional_blur_surface: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::sharpen_combine_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
