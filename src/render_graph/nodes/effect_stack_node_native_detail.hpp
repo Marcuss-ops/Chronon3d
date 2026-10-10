@@ -627,4 +627,72 @@ bool try_native_full_frame_sharpen(RenderGraphContext& ctx,
     return true;
 }
 
+// Native DirectionalBlur is a single-pass uniform box-tap blur along the
+// authored direction, matching the software processor tap-for-tap
+// (generate_taps formula, Clamp-edge bilinear, uniform 1/n weights).
+// samples == 1 is the pinned single-tap identity and forwards like length 0.
+// Certified window: full frame only (partial clips fail closed to software),
+// finite angle, length in (0, 64], tap count in [2, 64] where taps =
+// explicit samples when > 1 else max(2, ceil(length / 2)). Length <= 0 is the
+// CPU identity fast path and is forwarded without dispatch. The unit
+// direction is computed on the host so the shader performs no trigonometry.
+bool try_native_full_frame_directional_blur(RenderGraphContext& ctx,
+                                            const EffectStack& effect_stack,
+                                            Framebuffer& result,
+                                            const std::optional<raster::BBox>& clip,
+                                            runtime::RenderSurfaceHandle borrowed_source) {
+    if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
+        effect_stack.size() != 1) {
+        return false;
+    }
+    const auto& instance = effect_stack[0];
+    if (!instance.enabled || instance.effect_type != effects::EffectType::DirectionalBlur) return false;
+    const auto* params = std::get_if<DirectionalBlurParams>(&instance.params);
+    if (!params || !std::isfinite(params->angle)) return false;
+    const bool has_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
+    const bool has_result_surface =
+        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+        ctx.backend->is_native_surface_valid(result.surface_handle());
+    if (!has_borrowed && !has_result_surface) return false;
+    if (!(params->length > 0.0f)) {
+        if (!std::isfinite(params->length)) return false;
+        // CPU identity fast path: forward the input surface untouched.
+        if (has_borrowed) result.set_surface_handle(borrowed_source);
+        return true;
+    }
+    if (params->length > 64.0f) return false;
+    if (params->samples == 1) {
+        // Pinned CPU identity: single center tap.
+        if (has_borrowed) result.set_surface_handle(borrowed_source);
+        return true;
+    }
+    const int taps = (params->samples > 1)
+        ? params->samples
+        : std::max(2, static_cast<int>(std::ceil(params->length / 2.0f)));
+    if (taps < 2 || taps > 64) return false;
+    if (params->samples < 0 || params->samples > 64) return false;
+    const float radians = params->angle * (3.14159265358979323846f / 180.0f);
+    const float dir_x = std::cos(radians);
+    const float dir_y = std::sin(radians);
+    if (!std::isfinite(dir_x) || !std::isfinite(dir_y)) return false;
+    const auto source = has_borrowed ? borrowed_source : result.surface_handle();
+    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto destination = ctx.surface_registry->create(desc);
+    if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
+    const auto created = ctx.backend->create_surface(destination, desc);
+    if (!created.ok()) {
+        ctx.surface_registry->release(destination);
+        return false;
+    }
+    const auto dispatched = ctx.backend->directional_blur_surface(
+        destination, source, dir_x, dir_y, params->length, taps);
+    if (!dispatched.ok()) {
+        (void)ctx.backend->release_surface(destination);
+        ctx.surface_registry->release(destination);
+        return false;
+    }
+    result.set_surface_handle(destination);
+    return true;
+}
+
 } // namespace native_effects

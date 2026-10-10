@@ -55,6 +55,7 @@ EvaluatedCameraSource CameraProgram::evaluate_compiled_source(const CameraEvalCo
             Camera2_5D cam;
             cam.enabled = base.enabled;
             cam.is_animated = true;
+            cam.lens_shift = base.lens_shift;
 
             // Base rotation (may be overridden by the orientation stage later).
             cam.rotation = base.rotation;
@@ -101,6 +102,7 @@ EvaluatedCameraSource CameraProgram::evaluate_compiled_source(const CameraEvalCo
         cam.dof = base.dof;
         cam.motion_blur = base.motion_blur;
         cam.parent_name = base.parent_name;
+        cam.lens_shift = base.lens_shift;
         // sample_at() already evaluated the projection (zoom) channel; do NOT
         // re-apply the static base projection or we would clobber the
         // animated zoom.  The adapter always uses ZoomProjection, so the
@@ -121,6 +123,7 @@ EvaluatedCameraSource CameraProgram::evaluate_compiled_source(const CameraEvalCo
     cam.dof = base.dof;
     cam.motion_blur = base.motion_blur;
     cam.parent_name = base.parent_name;
+    cam.lens_shift = base.lens_shift;
     cam.point_of_interest = base.point_of_interest;
     cam.point_of_interest_enabled = base.point_of_interest_enabled;
 

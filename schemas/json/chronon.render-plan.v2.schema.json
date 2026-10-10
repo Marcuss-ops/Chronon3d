@@ -391,7 +391,8 @@
                         "position", "position_x", "position_y", "position_z",
                         "scale", "scale_x", "scale_y", "scale_z",
                         "rotation", "rotation_x", "rotation_y", "rotation_z",
-                        "opacity", "blur", "stroke_dash_offset"
+                        "opacity", "blur", "stroke_dash_offset",
+                        "light_intensity", "light_color"
                       ]
                     },
                     "easing": {

@@ -46,7 +46,7 @@ struct NativeDecoderTestOptions {
     std::uint32_t width, std::uint32_t height) noexcept {
     auto desc = runtime::SurfaceDesc::make(
         width, height, runtime::PixelFormat::Rgba32Float,
-        runtime::ResourceUsage::Storage, runtime::LifetimeClass::JobPersistent);
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::PipelineSlot);
     // Native decode imports NV12/P010 into a float4 RGBA CUDA/Vulkan view;
     // this is the explicit RGBA interop lane, never a YUV encode surface.
     desc.kind = runtime::ResourceKind::Color;

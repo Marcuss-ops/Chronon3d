@@ -1,5 +1,6 @@
 #include "render_plan_compiler_detail.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
+#include "light_attenuation.hpp"
 #include <chronon3d/effects/effect_param_animation.hpp>
 #include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/animation/core/animated_value.hpp>
@@ -250,6 +251,55 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                         if (!sampled.ok())
                             throw std::runtime_error("particle sampling failed: " + sampled.error);
                         builder.accepts_lights(false).accepts_shadows(false);
+                        // Opaque, normal-blend particles can share path nodes
+                        // while retaining their authored color order. Runs of
+                        // equal paint become one path with multiple contours;
+                        // translucent, additive and sprite particles retain
+                        // individual nodes because batching would change their
+                        // compositing or sampling semantics.
+                        const bool opaque_cpu_batch =
+                            resolved_particle_sprite_paths[index].empty() &&
+                            layer.particle_emitter->blend_mode == BlendMode::Normal &&
+                            std::all_of(sampled.particles.begin(), sampled.particles.end(),
+                                [](const auto& particle) { return particle.color.a >= 1.0f; });
+                        if (opaque_cpu_batch && !sampled.particles.empty()) {
+                            std::optional<PathParams> batch;
+                            Color batch_color{};
+                            const auto flush_batch = [&] {
+                                if (batch && !batch->commands.empty())
+                                    builder.path("particle_batch", std::move(*batch));
+                                batch.reset();
+                            };
+                            constexpr float tau = 6.2831853071795864769f;
+                            for (const auto& particle : sampled.particles) {
+                                const auto& color = particle.color;
+                                if (!batch || color.r != batch_color.r || color.g != batch_color.g ||
+                                    color.b != batch_color.b || color.a != batch_color.a) {
+                                    flush_batch();
+                                    batch.emplace();
+                                    batch->fill = Fill::solid_color(color);
+                                    batch->fill_rule = PathFillRule::NonZero;
+                                    batch->stroke.enabled = false;
+                                    batch_color = color;
+                                }
+                                const float radius = particle.size * 0.5f;
+                                if (radius <= 0.0f) continue;
+                                const std::size_t segments = radius <= 4.0f ? 16U :
+                                    (radius <= 20.0f ? 32U : 64U);
+                                const Vec2 center{particle.position.x, particle.position.y};
+                                for (std::size_t segment = 0; segment < segments; ++segment) {
+                                    const float angle = tau * static_cast<float>(segment) /
+                                        static_cast<float>(segments);
+                                    const Vec2 point = center + Vec2{
+                                        std::cos(angle) * radius, std::sin(angle) * radius};
+                                    if (segment == 0) batch->commands.push_back(PathCommand::move_to(point));
+                                    else batch->commands.push_back(PathCommand::line_to(point));
+                                }
+                                batch->commands.push_back(PathCommand::close());
+                            }
+                            flush_batch();
+                            break;
+                        }
                         for (const auto& particle : sampled.particles) {
                             if (!resolved_particle_sprite_paths[index].empty()) {
                                 ImageParams sprite;
@@ -276,11 +326,29 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                         if (!layer.light)
                             throw std::runtime_error("light layer '" + layer.id + "' has no light payload");
                         const auto& light = *layer.light;
+                        float intensity = light.intensity;
+                        Color light_color{light.color[0], light.color[1], light.color[2], light.color[3]};
+                        if (layer.animation) {
+                            if (const auto track = std::find_if(layer.animation->tracks.begin(),
+                                    layer.animation->tracks.end(), [](const auto& value) {
+                                        return value.property == "light_intensity";
+                                    }); track != layer.animation->tracks.end()) {
+                                intensity = detail::evaluate_scalar_track(*track,
+                                    static_cast<double>(ctx.effective_frame()), light.intensity,
+                                    plan.canvas.fps);
+                            }
+                            if (const auto animated = detail::shadow_color_at(layer, "light_color",
+                                    static_cast<double>(ctx.effective_frame()), light_color,
+                                    plan.canvas.fps))
+                                light_color = *animated;
+                        }
+                        if (!std::isfinite(intensity) || intensity < 0.0f || intensity > 16.0f)
+                            throw std::runtime_error("animated light_intensity must be in [0, 16]");
                         const Color color{
-                            light.color[0] * light.intensity,
-                            light.color[1] * light.intensity,
-                            light.color[2] * light.intensity,
-                            light.color[3]};
+                            light_color.r * intensity,
+                            light_color.g * intensity,
+                            light_color.b * intensity,
+                            light_color.a};
                         if (light.kind != LightKindPlan::Radial) {
                             // Point, spot and directional lights are sources, not
                             // geometry: they shade the lit layers per pixel and draw nothing.

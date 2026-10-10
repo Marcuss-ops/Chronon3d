@@ -123,6 +123,12 @@ TEST_CASE("DirectionalBlur: centroid unchanged for central impulse") {
     fb.clear(Color::transparent());
     fb.set_pixel(10, 10, Color{1.0f, 1.0f, 1.0f, 1.0f});
 
+    // A single texel impulse occupies [10, 11) x [10, 11): it is symmetric
+    // about the texel centre (10.5, 10.5), not the texel corner (10, 10).
+    // The symmetric uniform taps and the symmetric bilinear weights preserve
+    // that centre, so the blurred centroid is (10.5, 10.5). Expecting (10, 10)
+    // only holds for the identity path (e.g. the samples=0 auto-derive bug
+    // that silently skipped non-cardinal blurs); it discriminates real blur.
     apply_directional_blur(fb, 45.0f, 4.0f, g_effect_scratch);
 
     // Compute centroid
@@ -139,8 +145,8 @@ TEST_CASE("DirectionalBlur: centroid unchanged for central impulse") {
     float cx = sum_ax / sum_a;
     float cy = sum_ay / sum_a;
 
-    CHECK(cx == doctest::Approx(10.0f).epsilon(kBlurEpsilon));
-    CHECK(cy == doctest::Approx(10.0f).epsilon(kBlurEpsilon));
+    CHECK(cx == doctest::Approx(10.5f).epsilon(kBlurEpsilon));
+    CHECK(cy == doctest::Approx(10.5f).epsilon(kBlurEpsilon));
 }
 
 // =============================================================================

@@ -5093,7 +5093,8 @@
                               "stroke_color",
                               "shadow_0_color",
                               "shadow_1_color",
-                              "shadow_2_color"
+                              "shadow_2_color",
+                              "light_color"
                             ]
                           }
                         },
@@ -5157,7 +5158,9 @@
                         "shadow_2_blur",
                         "shadow_2_offset_x",
                         "shadow_2_offset_y",
-                        "shadow_2_color"
+                        "shadow_2_color",
+                        "light_intensity",
+                        "light_color"
                       ]
                     },
                     "easing": {

@@ -83,14 +83,15 @@ TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") 
     CHECK(desc.format == chronon3d::runtime::PixelFormat::Rgba32Float);
     CHECK(desc.kind == chronon3d::runtime::ResourceKind::Color);
     CHECK(desc.usage == chronon3d::runtime::ResourceUsage::Storage);
-    // JobPersistent, not FrameTransient: the only production consumer of this
-    // desc keeps a SLOT RING of imported surfaces and reuses each slot across
-    // frames (`src/backends/vulkan/vulkan_cuda_frame_importer.cpp`, the
-    // `slots_[next_slot_++ % slots_.size()]` reuse below), releasing it only
-    // when the slot itself is invalidated. A per-frame-transient declaration
-    // would let the frame-slot retirement recycle a surface the CUDA importer
-    // still samples.
-    CHECK(desc.lifetime == chronon3d::runtime::LifetimeClass::JobPersistent);
+    // PipelineSlot, not JobPersistent: the importer keeps a SLOT RING of
+    // imported surfaces and reuses each slot across frames within one decoder
+    // session (`slots_[next_slot_++ % slots_.size()]`). The surfaces are
+    // released when that session ends; JobPersistent would make Vulkan's
+    // shared backend retain their physical images after the handles are gone,
+    // accumulating one ring per job in the long-lived daemon. FrameTransient
+    // would be too short because frame-slot retirement could recycle a surface
+    // while the CUDA importer still owns the ring slot.
+    CHECK(desc.lifetime == chronon3d::runtime::LifetimeClass::PipelineSlot);
     // float4 write view must fit exactly inside the external allocation.
     CHECK(desc.bytes == static_cast<std::size_t>(width) * height * 16);
     CHECK(desc.bytes ==

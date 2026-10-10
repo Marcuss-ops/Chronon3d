@@ -35,6 +35,16 @@ inline Mat4 build_perspective_matrix(const camera_math::FocalPx& focal_xy) {
     return proj;
 }
 
+inline Mat4 build_perspective_matrix(const camera_math::FocalPx& focal_xy,
+                                     Vec2 lens_shift, Vec2 viewport) {
+    Mat4 proj = build_perspective_matrix(focal_xy);
+    // Homogeneous z terms add the viewport-relative principal point after
+    // perspective division, in parity with CameraProjectionResolver.
+    proj[2][0] = lens_shift.x * viewport.x;
+    proj[2][1] = lens_shift.y * viewport.y;
+    return proj;
+}
+
 // ============================================================================
 // CameraProjectionResolver::build_projection_matrix
 //
@@ -48,7 +58,8 @@ inline Mat4 build_projection_matrix(
     const camera_math::FocalPx focal_xy = camera_math::focal_xy_from_camera(
         camera, viewport_width, viewport_height);
     const Mat4 view = camera_math::view_matrix_for_camera(camera);
-    return build_perspective_matrix(focal_xy) * view * world_transform;
+    return build_perspective_matrix(focal_xy, camera.get_lens_shift(),
+                                    {viewport_width, viewport_height}) * view * world_transform;
 }
 
 } // namespace chronon3d

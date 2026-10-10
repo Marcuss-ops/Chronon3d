@@ -1,0 +1,55 @@
+#version 450
+
+// Native DirectionalBlur: uniform box taps along a unit direction, replicating
+// the software processor in
+// src/backends/software/processors/effects/blur/directional_blur.cpp exactly:
+//   - tap s of n: u = (s + 0.5) / n, offset = dir * (-length/2 + u * length)
+//   - bilinear sampling with Clamp edges (matches sampling::Sampler2D in
+//     Clamp mode: texel centers at integer + 0.5, i.e. u = s - 0.5, floor,
+//     then lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty), each integer
+//     corner clamped into the canvas)
+//   - raw premultiplied RGBA accumulation with uniform weight 1/n
+// The unit direction is computed on the host (cos/sin of the authored angle)
+// so the shader performs no trigonometry and matches every CPU fast path
+// (horizontal/vertical/generic evaluate the same formula).
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D source_image;
+
+layout(push_constant) uniform DirectionalBlurParams {
+    vec2 direction;   // host-computed unit (cos, sin) of the blur angle
+    float blur_length; // full blur extent in pixels, certified (0, 64]
+    int tap_count;    // certified [2, 64]
+} params;
+
+vec4 load_clamped(ivec2 pixel, ivec2 size) {
+    return imageLoad(source_image, clamp(pixel, ivec2(0), size - ivec2(1)));
+}
+
+vec4 sample_bilinear_cpu(vec2 s, ivec2 size) {
+    vec2 u = s - vec2(0.5);
+    ivec2 p0 = ivec2(floor(u));
+    vec2 t = u - vec2(p0);
+    vec4 c00 = load_clamped(p0, size);
+    vec4 c10 = load_clamped(p0 + ivec2(1, 0), size);
+    vec4 c01 = load_clamped(p0 + ivec2(0, 1), size);
+    vec4 c11 = load_clamped(p0 + ivec2(1, 1), size);
+    return mix(mix(c00, c10, t.x), mix(c01, c11, t.x), t.y);
+}
+
+void main() {
+    ivec2 size = imageSize(destination_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    float inv_n = 1.0 / float(params.tap_count);
+    float half_len = params.blur_length * 0.5;
+    vec4 accumulated = vec4(0.0);
+    for (int s = 0; s < params.tap_count; ++s) {
+        float u = (float(s) + 0.5) * inv_n;
+        vec2 sp = vec2(pixel) + params.direction * (-half_len + u * params.blur_length);
+        accumulated += sample_bilinear_cpu(sp, size) * inv_n;
+    }
+    imageStore(destination_image, pixel, accumulated);
+}

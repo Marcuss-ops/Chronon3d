@@ -12,6 +12,8 @@ layout(push_constant) uniform CompositeParams {
     // offsets used by VulkanBackend::record_composite.
     vec4 clip_rect;
     ivec2 dispatch_origin;
+    int premultiplied_source_over;
+    int push_padding;
 } params;
 
 vec4 blend_separable(vec4 src, vec4 dst, int mode) {
@@ -62,6 +64,12 @@ void main() {
     else if (params.blend_mode == 7) {
         vec4 weighted = src * clamp(params.source_scale, 0.0, 1.0);
         result = weighted + dst * (1.0 - clamp(weighted.a, 0.0, 1.0));
+    }
+    else if (params.premultiplied_source_over != 0) {
+        float source_alpha = clamp(src.a, 0.0, 1.0);
+        float destination_alpha = clamp(dst.a, 0.0, 1.0);
+        result.rgb = src.rgb + dst.rgb * (1.0 - source_alpha);
+        result.a = source_alpha + destination_alpha * (1.0 - source_alpha);
     }
     else if (params.blend_mode == 8) {
         // Glow behind the original image: original OVER blurred glow.

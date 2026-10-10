@@ -620,6 +620,36 @@ TEST_CASE("retiring one frame slot leaves another slot's transients bound") {
     CHECK(authority.surface_bindings.count(slot1_handle) == 0);
 }
 
+TEST_CASE("released pipeline slots are reclaimed while job-persistent images survive") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    auto pipeline_desc = test_desc();
+    pipeline_desc.lifetime = runtime::LifetimeClass::PipelineSlot;
+    auto persistent_desc = test_desc();
+    persistent_desc.lifetime = runtime::LifetimeClass::JobPersistent;
+
+    constexpr std::size_t kReleasedPipelineSlots = 12;
+    for (std::size_t slot = 0; slot < kReleasedPipelineSlots; ++slot) {
+        const auto handle = static_cast<runtime::RenderSurfaceHandle>(0xC3F200u + slot);
+        authority.bind(handle, slot, pipeline_desc);
+        authority.surface_bindings.erase(handle); // owner released its session ring slot
+    }
+    constexpr runtime::RenderSurfaceHandle cached_asset{0xC3F300u};
+    authority.bind(cached_asset, 100, persistent_desc);
+
+    authority.prune_unused_slots(
+        VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner>::kMaxRetainedTransientSlots);
+
+    CHECK(authority.physical_count() ==
+          VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner>::kMaxRetainedTransientSlots + 1);
+    CHECK(authority.surface_bindings.contains(cached_asset));
+    CHECK(authority.physical_surfaces.contains(100));
+    CHECK(owner.destroy_count == kReleasedPipelineSlots -
+          VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner>::kMaxRetainedTransientSlots);
+}
+
 TEST_CASE("retirement keeps the transient warm pool bounded") {
     VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
     FakeSurfaceOwner owner;

@@ -405,7 +405,7 @@ TEST_CASE("V3 decoder accepts a primitive descriptor and rejects mixed geometry"
     CHECK(extruded->layers[0].inline_mesh->indices.size() == 48);
 }
 
-TEST_CASE("mesh layers accept the certified bounded post effects") {
+TEST_CASE("mesh layers accept the same post effects as other rasterized layers") {
     auto supported = base_mesh_plan();
     supported["layers"][0]["effects"] = Json::array({Json{
         {"type", "catalog"}, {"effect_id", "color.tint"},
@@ -416,9 +416,15 @@ TEST_CASE("mesh layers accept the certified bounded post effects") {
     REQUIRE(decoded->layers[0].effects.size() == 1);
     CHECK(decoded->layers[0].effects[0].canonical_effect_id == "color.tint");
 
-    auto unsupported = supported;
-    unsupported["layers"][0]["effects"][0]["effect_id"] = "blur.gaussian";
-    CHECK_FALSE(decode_render_plan(unsupported));
+    auto generic_post_effect = supported;
+    generic_post_effect["layers"][0]["effects"][0]["effect_id"] = "blur.gaussian";
+    generic_post_effect["layers"][0]["effects"][0]["params"] = Json::array({Json{
+        {"param", "radius"}, {"value", 12.0}
+    }});
+    const auto generic_decoded = decode_render_plan(generic_post_effect);
+    if (!generic_decoded) INFO(generic_decoded.error().message);
+    REQUIRE(generic_decoded);
+    CHECK(generic_decoded->layers[0].effects[0].canonical_effect_id == "blur.gaussian");
 }
 
 TEST_CASE("mesh shadow participation is explicit and fingerprinted") {

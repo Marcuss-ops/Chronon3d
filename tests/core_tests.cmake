@@ -50,6 +50,9 @@ chronon3d_add_test_suite(
         chronon3d_runtime
     SOURCES ${CORE_TEST_SOURCES}
 )
+if(CHRONON3D_ENABLE_MESH)
+    target_compile_definitions(chronon3d_core_tests PRIVATE CHRONON3D_ENABLE_MESH=1)
+endif()
 
 if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
     target_sources(chronon3d_core_tests PRIVATE

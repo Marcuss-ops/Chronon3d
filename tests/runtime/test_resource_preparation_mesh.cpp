@@ -46,7 +46,14 @@ void append_f32(std::vector<std::byte>& bytes, float value) {
 }
 
 std::filesystem::path write_triangle_glb() {
-    const std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":108}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36},{"buffer":0,"byteOffset":72,"byteLength":24},{"buffer":0,"byteOffset":96,"byteLength":6},{"buffer":0,"byteOffset":104,"byteLength":4}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":3,"type":"VEC2"},{"bufferView":3,"componentType":5123,"count":3,"type":"SCALAR"}],"images":[{"bufferView":4,"mimeType":"image/png"}],"textures":[{"source":0}],"materials":[{"name":"red","pbrMetallicRoughness":{"baseColorFactor":[1.0,0.25,0.5,0.75],"baseColorTexture":{"index":0}}}],"meshes":[{"name":"triangle","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}]})";
+    const std::string json = R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":193}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":36},{"buffer":0,"byteOffset":72,"byteLength":24},{"buffer":0,"byteOffset":96,"byteLength":6},{"buffer":0,"byteOffset":104,"byteLength":89}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":3,"type":"VEC2"},{"bufferView":3,"componentType":5123,"count":3,"type":"SCALAR"}],"images":[{"bufferView":4,"mimeType":"image/png"}],"textures":[{"source":0}],"materials":[{"name":"red","pbrMetallicRoughness":{"baseColorFactor":[1.0,0.25,0.5,0.75],"baseColorTexture":{"index":0},"metallicFactor":0.2,"roughnessFactor":0.35,"metallicRoughnessTexture":{"index":0}}}],"meshes":[{"name":"triangle","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}]})";
+    static constexpr std::uint8_t png_payload[] = {
+        0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,
+        0x00,0x00,0x00,0x08,0x00,0x00,0x00,0x08,0x08,0x02,0x00,0x00,0x00,0x4b,0x6d,0x29,0xdc,
+        0x00,0x00,0x00,0x20,0x49,0x44,0x41,0x54,0x78,0xda,0x63,0xfc,0xcf,0x80,0x00,0x8c,0x48,
+        0x1c,0x26,0x06,0x1c,0x80,0x74,0x09,0x46,0x06,0x06,0x84,0xc1,0xff,0xff,0x33,0xd2,0xc2,
+        0x0e,0x00,0x94,0x43,0x05,0x0c,0x42,0x9e,0x5e,0x54,0x00,0x00,0x00,0x00,0x49,0x45,0x4e,
+        0x44,0xae,0x42,0x60,0x82};
     std::vector<std::byte> bin;
     for (const auto& point : std::array<std::array<float, 3>, 3>{{{{0, 0, 0}}, {{1, 0, 0}}, {{0, 1, 0}}}})
         for (float component : point) append_f32(bin, component);
@@ -60,7 +67,8 @@ std::filesystem::path write_triangle_glb() {
         bin.push_back(static_cast<std::byte>((index >> 8U) & 0xffU));
     }
     bin.resize(104, std::byte{0});
-    bin.insert(bin.end(), {std::byte{0x89}, std::byte{'P'}, std::byte{'N'}, std::byte{'G'}});
+    for (const auto byte : png_payload) bin.push_back(static_cast<std::byte>(byte));
+    bin.resize(196, std::byte{0});
 
     std::vector<std::byte> file;
     append_u32(file, 0x46546C67U); append_u32(file, 2U);
@@ -170,11 +178,18 @@ TEST_CASE("MeshLoader prepares a self-contained GLB and reuses identity cache") 
     CHECK(first.value()->materials[0].base_color_factor == (chronon3d::Color{1.0f, 0.25f, 0.5f, 0.75f}));
     REQUIRE(first.value()->materials[0].base_color_texture_index.has_value());
     CHECK(*first.value()->materials[0].base_color_texture_index == 0);
+    CHECK(first.value()->materials[0].metallic_factor == doctest::Approx(0.2f));
+    CHECK(first.value()->materials[0].roughness_factor == doctest::Approx(0.35f));
+    REQUIRE(first.value()->materials[0].metallic_roughness_texture_index.has_value());
+    CHECK(*first.value()->materials[0].metallic_roughness_texture_index == 0);
     REQUIRE(first.value()->parts[0].material_index.has_value());
     CHECK(*first.value()->parts[0].material_index == 0);
     REQUIRE(first.value()->images.size() == 1);
     CHECK(first.value()->images[0].mime_type == "image/png");
-    CHECK(first.value()->images[0].payload.size() == 4);
+    CHECK(first.value()->images[0].payload.size() == 89);
+    CHECK(first.value()->images[0].decoded_width == 8);
+    CHECK(first.value()->images[0].decoded_height == 8);
+    CHECK(first.value()->images[0].decoded_rgba.size() == 8 * 8 * 4);
     CHECK(cache.size() == 1);
 
     const auto second = chronon3d::assets::MeshLoader::load(ref, resolver, &cache);
@@ -347,8 +362,11 @@ TEST_CASE("MeshLoader bounds GLB JSON expansion and scene node arrays") {
         R"({"asset":{"version":"2.0"},"meshes":[],"buffers":[{"byteLength":4,"uri":"mesh.bin"}]})",
         "external-buffer", "external GLB buffers");
     reject_document(
-        R"({"asset":{"version":"2.0"},"materials":[{"pbrMetallicRoughness":{"metallicFactor":0.5}}],"meshes":[],"buffers":[{"byteLength":4}]})",
+        R"({"asset":{"version":"2.0"},"materials":[{"pbrMetallicRoughness":{"emissiveFactor":[1,1,1]}}],"meshes":[],"buffers":[{"byteLength":4}]})",
         "material-contract", "PBR property is not supported");
+    reject_document(
+        R"({"asset":{"version":"2.0"},"materials":[{"pbrMetallicRoughness":{"roughnessFactor":1.2}}],"meshes":[],"buffers":[{"byteLength":4}]})",
+        "roughness-factor-range", "must be finite in [0,1]");
     reject_document(
         R"({"asset":{"version":"2.0"},"buffers":[{"byteLength":4}],"bufferViews":[{"buffer":0,"byteLength":4}],"images":[{"bufferView":0,"mimeType":"image/webp"}],"meshes":[]})",
         "image-mime-contract", "only image/png and image/jpeg");

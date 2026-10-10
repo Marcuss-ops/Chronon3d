@@ -36,13 +36,16 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
     const std::int32_t blend_mode = replace ? 2 : weighted_source_over ? 7 :
         (mode == BlendMode::Add ? 1 : mode == BlendMode::Multiply ? 3 :
          mode == BlendMode::Screen ? 4 : mode == BlendMode::Overlay ? 5 : 0);
+    const bool premultiplied_source_over =
+        !replace && !weighted_source_over && mode == BlendMode::Normal;
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst_image, &src_image});
         record_composite(cmd, descriptors, dst_image, src_image,
-                         blend_mode, source_scale, kIdentityTint, clip);
+                         blend_mode, source_scale, kIdentityTint, clip,
+                         premultiplied_source_over);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;
@@ -370,6 +373,38 @@ void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
         return;
     }
     throw std::logic_error("Vulkan blur requires an active frame batch");
+}
+
+void VulkanBackend::Impl::directional_blur(runtime::RenderSurfaceHandle destination,
+                                            runtime::RenderSurfaceHandle source,
+                                            float dir_x, float dir_y,
+                                            float length, int tap_count) {
+    if (!std::isfinite(dir_x) || !std::isfinite(dir_y) ||
+        !(length > 0.0f) || length > 64.0f ||
+        tap_count < 2 || tap_count > 64) {
+        throw std::invalid_argument(
+            "Vulkan directional blur parameters are outside supported ranges");
+    }
+    auto& dst_image = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    if (!src_image.initialized ||
+        dst_image.width != src_image.width ||
+        dst_image.height != src_image.height) {
+        throw std::invalid_argument("Vulkan directional blur references incompatible surfaces");
+    }
+    if (frame_batch.active) {
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_descriptors(descriptors, dst_image, src_image);
+        const auto cmd = active_command_buffer();
+        emit_pass_sync(cmd, {&dst_image, &src_image});
+        record_directional_blur(cmd, descriptors, dst_image, src_image,
+                                dir_x, dir_y, length, tap_count);
+        dst_image.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+        return;
+    }
+    throw std::logic_error("Vulkan directional blur requires an active frame batch");
 }
 
 void VulkanBackend::Impl::sharpen_combine(runtime::RenderSurfaceHandle destination,

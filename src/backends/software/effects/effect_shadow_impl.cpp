@@ -114,14 +114,27 @@ void apply_shadow_effect(
         for (i32 x = 0; x < roi_w; ++x) {
             const i32 dx = x + x_min_pad;
             if (dx < 0 || dx >= w) continue;
-            Color shadow_px{
-                std::max(contact_row[x].r, ambient_row[x].r),
-                std::max(contact_row[x].g, ambient_row[x].g),
-                std::max(contact_row[x].b, ambient_row[x].b),
-                std::max(contact_row[x].a, ambient_row[x].a),
+            const Color contact = contact_row[x];
+            const Color ambient = ambient_row[x];
+            // Both lobes and the source framebuffer use premultiplied linear
+            // RGBA. Composite contact over ambient, then the original content
+            // over that shadow; blend_normal expects straight-alpha source RGB
+            // and would multiply already-premultiplied source pixels twice.
+            const float contact_alpha = std::clamp(contact.a, 0.0f, 1.0f);
+            const Color shadow_px{
+                contact.r + ambient.r * (1.0f - contact_alpha),
+                contact.g + ambient.g * (1.0f - contact_alpha),
+                contact.b + ambient.b * (1.0f - contact_alpha),
+                contact_alpha + ambient.a * (1.0f - contact_alpha),
             };
             if (shadow_px.a <= 0.0f) continue;
-            fb_row[dx] = compositor::blend(fb_row[dx], shadow_px, BlendMode::Normal);
+            const float content_alpha = std::clamp(fb_row[dx].a, 0.0f, 1.0f);
+            fb_row[dx] = {
+                fb_row[dx].r + shadow_px.r * (1.0f - content_alpha),
+                fb_row[dx].g + shadow_px.g * (1.0f - content_alpha),
+                fb_row[dx].b + shadow_px.b * (1.0f - content_alpha),
+                content_alpha + shadow_px.a * (1.0f - content_alpha),
+            };
         }
     }
 }
