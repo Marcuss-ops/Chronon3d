@@ -310,12 +310,8 @@ NodeExecResult TransformNode::execute(
                 runtime::RenderSurfaceHandle handle = terminal_destination
                     ? terminal_encode_surface
                     : runtime::kInvalidRenderSurfaceHandle;
-                const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
-                    static_cast<std::uint32_t>(result->width()),
-                    static_cast<std::uint32_t>(result->height()),
-                    runtime::PixelFormat::Rgba32Float,
-                    runtime::ResourceUsage::Storage,
-                    runtime::LifetimeClass::FrameTransient);
+                const runtime::SurfaceDesc desc = native_surface_desc(
+                    ctx, result->width(), result->height());
                 const auto created = [&]() {
                     if (terminal_destination) return RenderOpResult{RenderOpOutcome{}};
                     handle = ctx.surface_registry->create(desc);
@@ -443,12 +439,8 @@ NodeExecResult TransformNode::execute(
         runtime::RenderSurfaceHandle handle = terminal_destination
             ? terminal_encode_surface
             : runtime::kInvalidRenderSurfaceHandle;
-        const runtime::SurfaceDesc desc = runtime::SurfaceDesc::make(
-            static_cast<std::uint32_t>(result->width()),
-            static_cast<std::uint32_t>(result->height()),
-            runtime::PixelFormat::Rgba32Float,
-            runtime::ResourceUsage::Storage,
-            runtime::LifetimeClass::FrameTransient);
+        const runtime::SurfaceDesc desc = native_surface_desc(
+            ctx, result->width(), result->height());
         const auto created = [&]() {
             if (terminal_destination) return RenderOpResult{RenderOpOutcome{}};
             handle = ctx.surface_registry->create(desc);

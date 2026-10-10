@@ -30,7 +30,7 @@ inline bool try_native_echo(
 
     const auto width = ctx.frame_input.width;
     const auto height = ctx.frame_input.height;
-    const auto desc = native_surface_desc(width, height);
+    const auto desc = native_surface_desc(ctx, width, height);
     const auto keep_frames = static_cast<std::size_t>(params->echoes) *
         static_cast<std::size_t>(params->time_offset_frames) + 1U;
     if (!job.reserve_native_echo_history(history_key, desc.tight_bytes(), keep_frames))

@@ -450,12 +450,15 @@ public:
         const auto binding = surface_bindings.find(handle);
         if (binding != surface_bindings.end()) {
             auto& physical = physical_surfaces.at(binding->second);
+            const bool exportable = desc.residency.exportable ||
+                                    desc.residency.encoder_compatible;
             if (physical.image.image == VK_NULL_HANDLE ||
                 physical.image.width != desc.width ||
                 physical.image.height != desc.height ||
-                physical.desc.format != desc.format) {
+                physical.desc.format != desc.format ||
+                physical.image.exportable != exportable) {
                 require_not_leased(binding->second, "re-materialize");
-                materializer_.materialize(physical.image, desc);
+                materializer_.materialize(physical.image, desc, exportable);
                 bump_slot_token(binding->second);
                 physical.desc = desc;
             }
@@ -704,11 +707,14 @@ protected:
         // plan_preallocated was always false.  Lazy materialization below is
         // the only path.
 
+        const bool exportable = desc.residency.exportable ||
+                                desc.residency.encoder_compatible;
         if (physical.image.image == VK_NULL_HANDLE ||
             physical.image.width != desc.width ||
             physical.image.height != desc.height ||
-            physical.desc.format != desc.format) {
-            materializer_.materialize(physical.image, desc);
+            physical.desc.format != desc.format ||
+            physical.image.exportable != exportable) {
+            materializer_.materialize(physical.image, desc, exportable);
         }
         physical.desc = desc;
         physical.image.text_atlas_encoding = desc.text_atlas_encoding;

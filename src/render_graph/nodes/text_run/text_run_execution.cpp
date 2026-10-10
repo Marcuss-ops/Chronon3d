@@ -77,7 +77,7 @@ namespace {
         profiling::GpuUploadProducer::Text);
     const auto uploaded = backend.upload_surface_region(
         framebuffer.surface_handle(),
-        native_surface_desc(framebuffer.width(), framebuffer.height()),
+        native_surface_desc(ctx, framebuffer.width(), framebuffer.height()),
         local_x0, local_y0, width, height, rgba);
     if (!uploaded.ok()) {
         release_native_surface(ctx, framebuffer);
