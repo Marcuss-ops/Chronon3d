@@ -220,7 +220,7 @@ runtime::RenderSurfaceHandle NativeSourceResidency::ensure_native_source(
             (void)ctx_.surface_registry->release(handle);
         }
         handle = persistent_source;
-        const auto desc = native_surface_desc(framebuffer->width(), framebuffer->height());
+        const auto desc = native_surface_desc(ctx_, framebuffer->width(), framebuffer->height());
         // The encoder-owned source handle can be bound before its
         // first upload. Ensure its Vulkan image exists, then populate
         // it from the CPU framebuffer instead of treating the bound

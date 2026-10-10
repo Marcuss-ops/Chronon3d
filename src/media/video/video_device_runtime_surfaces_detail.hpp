@@ -28,6 +28,18 @@ bool VideoDeviceRuntime::acquire_slot_surfaces(
         width, height, runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
         runtime::LifetimeClass::PipelineSlot);
+    // This ring surface is both the render graph's terminal video output and
+    // the CUDA/NVENC handoff. Preserve that contract in the registry
+    // descriptor as well as the Vulkan image allocation so graph binding
+    // cannot rematerialize the external image as device-local memory.
+    desc.residency = runtime::ResourceResidency{
+        .domain = runtime::MemoryDomain::Vulkan,
+        .device = 0,
+        .exportable = true,
+        .importable = false,
+        .decoder_compatible = false,
+        .encoder_compatible = true,
+    };
     // This is the persistent FullGraph encode backing. DirectYUV owns a
     // separate NV12/P010 contract and never enters this pool.
     desc.kind = runtime::ResourceKind::Color;

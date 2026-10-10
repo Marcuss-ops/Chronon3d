@@ -339,7 +339,7 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
             ctx.frame_input.frame.integral(), 0)));
     if (!lowering) return false;
 
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const bool source_is_borrowed =
         borrowed_source != runtime::kInvalidRenderSurfaceHandle;
     const bool source_needs_expansion = source_is_borrowed && borrowed_source_framebuffer &&
@@ -464,7 +464,7 @@ bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
         p->offset_mode != ChromaticOffsetMode::Radial &&
         p->offset_mode != ChromaticOffsetMode::Velocity) return false;
 
-    const auto desc = native_surface_desc(result.width(), result.height());
+    const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const bool source_is_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
     const bool source_needs_expansion = source_is_borrowed && borrowed_source_framebuffer &&
         (borrowed_source_framebuffer->width() != result.width() ||

@@ -50,7 +50,7 @@ bool try_native_matte(RenderGraphContext& ctx,
         return false;
     }
 
-    const auto desc = native_surface_desc(target.width(), target.height());
+    const auto desc = native_surface_desc(ctx, target.width(), target.height());
     // AUDIT F10 — two full-frame packs per frame on the matte path became two
     // zero-copy views: framebuffer_rgba_view() only allocates for a
     // stride-padded framebuffer, which is not the graph-owned case here.
