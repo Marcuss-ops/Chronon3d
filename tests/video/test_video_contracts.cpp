@@ -97,7 +97,11 @@ bool gnu_time_v_available() {
 // ── RAII temp-path (canonical via pipe_export_session.hpp:163) ────────
 struct TempPath {
     std::string path;
-    explicit TempPath(const std::string& p) : path(p) {}
+    explicit TempPath(const std::string& p) : path(p) {
+        std::error_code ec;
+        fs::remove(path, ec);
+        fs::remove(path + ".partial", ec);
+    }
     ~TempPath() noexcept {
         std::error_code ec;
         fs::remove(path, ec);
@@ -190,16 +194,22 @@ MemorySample parse_time_v_stderr(const std::string& path) {
     std::ifstream is(path);
     std::string line;
     std::regex rss_re(R"(Maximum resident set size \(kbytes\):\s+(\d+))");
-    std::regex wall_re(
+    std::regex wall_re_hms(
         R"(Elapsed \(wall clock\) time \(h:mm:ss or m:ss\):\s+(\d+):(\d+):(\d+)\.(\d+))");
+    std::regex wall_re_ms(
+        R"(Elapsed \(wall clock\) time \(h:mm:ss or m:ss\):\s+(\d+):(\d+)\.(\d+))");
     while (std::getline(is, line)) {
         std::smatch m;
         if (std::regex_search(line, m, rss_re)) s.rss_kb = std::stol(m[1].str());
-        if (std::regex_search(line, m, wall_re)) {
+        if (std::regex_search(line, m, wall_re_hms)) {
             int hh = std::stoi(m[1].str());
             int mm = std::stoi(m[2].str());
             double ss = std::stod(m[3].str() + "." + m[4].str());
             s.elapsed_seconds = hh * 3600 + mm * 60 + ss;
+        } else if (std::regex_search(line, m, wall_re_ms)) {
+            int mm = std::stoi(m[1].str());
+            double ss = std::stod(m[2].str() + "." + m[3].str());
+            s.elapsed_seconds = mm * 60 + ss;
         }
     }
     return s;
@@ -309,10 +319,10 @@ TEST_CASE("VideoContracts_§17.Serial_vs_Parallel_60RawPNG_ByteExact") {
     const std::string raw1 = dir1 + "/video.raw";
     const std::string raw2 = dir2 + "/video.raw";
     std::ostringstream c1, c2;
-    c1 << "CHRONON3D_THREADS=1 " << cli_bin << " render Motion3DGlowOrbit"
+    c1 << "CHRONON3D_THREADS=1 " << cli_bin << " render DarkGridBackground"
        << " --frames 0-59 --fps 30 -o " << raw1
        << " --video-sink raw --assets-root " << repo_assets_root() << " 2>&1";
-    c2 << "CHRONON3D_THREADS=8 " << cli_bin << " render Motion3DGlowOrbit"
+    c2 << "CHRONON3D_THREADS=8 " << cli_bin << " render DarkGridBackground"
        << " --frames 0-59 --fps 30 -o " << raw2
        << " --video-sink raw --assets-root " << repo_assets_root() << " 2>&1";
     auto r1 = cli_invoke(c1.str());
@@ -338,10 +348,10 @@ TEST_CASE("VideoContracts_§18.EncoderFailure_NoMP4_NoPartialLeftover") {
     if (cli_bin.empty()) {
         MESSAGE("§18 requires chronon3d_cli — graceful skip"); return;
     }
-    const std::string out = "/tmp/chronon_video_contracts_18_fail.mp4";
+    const std::string out = "/nonexistent_sandbox_dir/chronon_video_contracts_18_fail.mp4";
     TempPath tmp(out);
     std::ostringstream cmd;
-    cmd << "PATH=/nonexistent " << cli_bin
+    cmd << cli_bin
         << " render Motion3DGlowOrbit --frames 0-59 --fps 30"
         << " -o " << out << " --ffmpeg-mode pipe --assets-root " << repo_assets_root() << " 2>&1";
     auto r = cli_invoke(cmd.str());

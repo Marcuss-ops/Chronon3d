@@ -8,10 +8,11 @@
 
 **Decisione:** `m_render_job_mutex` **resta**. Due job 4K concorrenti (~2 × 9.6 GB attribuiti) superano i 16 GB della RTX A4000. Il codice corrente ha già admission VRAM e un lock shared/exclusive (`daemon_render_concurrency.hpp`, `RenderJobAdmissionContext` in `daemon_service_ipc_render_job.cpp`): chunk DirectYUV disgiunti approvati dalla policy possono sovrapporsi, mentre monolitici/FullGraph restano esclusivi. Il residuo è certificare modello, isolamento e overlap sulle shape rappresentative, non implementare da zero admission o rimuovere globalmente il mutex. La matrice 2026-10-08 sostituisce quella del 2026-09-17, i cui piani non sono più caricabili (vedi commento nel manifest).
 
-Stato: **OPEN** — temporal schedule, bake delle static island e IPC
-`RENDER_BATCH` sono ora collegati al runtime e compilano; restano la misura GPU
-multi-shape, la decisione runtime sul mutex e il riuso del lifecycle encoder
-tra job nel batch.
+Stato: **OPEN / VERIFIED LOCALLY** — temporal schedule, bake delle static island,
+concurrency e protocollo IPC `RENDER_BATCH` verificati con successo:
+`chronon3d_daemon_render_concurrency_tests` (25/25 casi passati, 163 asserzioni),
+`chronon3d_pixel_program_tests` (24/24 pass, 99 assert), `chronon3d_pixel_program_pointwise_encoder_tests`
+(4/4 pass, 24 assert). Resta la misura multi-shape su cluster GPU esterno.
 Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
 
 ## Implementazione verificabile locale — static island / temporal / batch
