@@ -407,6 +407,132 @@ void VulkanBackend::Impl::directional_blur(runtime::RenderSurfaceHandle destinat
     throw std::logic_error("Vulkan directional blur requires an active frame batch");
 }
 
+void VulkanBackend::Impl::radial_blur(runtime::RenderSurfaceHandle destination,
+                                       runtime::RenderSurfaceHandle source,
+                                       float center_x_px, float center_y_px,
+                                       float amount, int tap_count) {
+    if (!std::isfinite(center_x_px) || !std::isfinite(center_y_px) ||
+        !(amount > 0.0f) || amount > 8.0f ||
+        tap_count < 2 || tap_count > 64) {
+        throw std::invalid_argument(
+            "Vulkan radial blur parameters are outside supported ranges");
+    }
+    auto& dst_image = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    if (!src_image.initialized ||
+        dst_image.width != src_image.width ||
+        dst_image.height != src_image.height) {
+        throw std::invalid_argument("Vulkan radial blur references incompatible surfaces");
+    }
+    if (frame_batch.active) {
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_descriptors(descriptors, dst_image, src_image);
+        const auto cmd = active_command_buffer();
+        emit_pass_sync(cmd, {&dst_image, &src_image});
+        record_radial_blur(cmd, descriptors, dst_image, src_image,
+                           center_x_px, center_y_px, amount, tap_count);
+        dst_image.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+        return;
+    }
+    throw std::logic_error("Vulkan radial blur requires an active frame batch");
+}
+
+void VulkanBackend::Impl::warp_bulk(runtime::RenderSurfaceHandle destination,
+                                    runtime::RenderSurfaceHandle source,
+                                    runtime::RenderSurfaceHandle aux,
+                                    const graph::WarpBulkParams& params) {
+    if (params.mode < 0 || params.mode > 12 ||
+        (params.edge_mode != 0 && params.edge_mode != 1)) {
+        throw std::invalid_argument(
+            "Vulkan warp bulk parameters are outside supported ranges");
+    }
+    auto& dst_image = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    if (!src_image.initialized ||
+        dst_image.width != src_image.width ||
+        dst_image.height != src_image.height) {
+        throw std::invalid_argument("Vulkan warp bulk references incompatible surfaces");
+    }
+    const bool needs_aux = (params.mode == 12);
+    auto& aux_image = needs_aux ? resolve_image(aux) : src_image;
+    if (needs_aux && !aux_image.initialized) {
+        throw std::invalid_argument("Vulkan warp bulk displacement mode requires an aux surface");
+    }
+    if (frame_batch.active) {
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_matte_descriptors(descriptors, dst_image, src_image, aux_image);
+        const auto cmd = active_command_buffer();
+        if (needs_aux) emit_pass_sync(cmd, {&dst_image, &src_image, &aux_image});
+        else emit_pass_sync(cmd, {&dst_image, &src_image});
+        record_warp_bulk(cmd, descriptors, dst_image, src_image, params);
+        dst_image.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+        return;
+    }
+    throw std::logic_error("Vulkan warp bulk requires an active frame batch");
+}
+
+void VulkanBackend::Impl::generate_bulk(runtime::RenderSurfaceHandle destination,
+                                        runtime::RenderSurfaceHandle source,
+                                        const graph::GenerateBulkParams& params) {
+    if (params.mode < 0 || params.mode > 5) {
+        throw std::invalid_argument(
+            "Vulkan generate bulk parameters are outside supported ranges");
+    }
+    auto& dst_image = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    if (!src_image.initialized ||
+        dst_image.width != src_image.width ||
+        dst_image.height != src_image.height) {
+        throw std::invalid_argument("Vulkan generate bulk references incompatible surfaces");
+    }
+    if (frame_batch.active) {
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_descriptors(descriptors, dst_image, src_image);
+        const auto cmd = active_command_buffer();
+        emit_pass_sync(cmd, {&dst_image, &src_image});
+        record_generate_bulk(cmd, descriptors, dst_image, src_image, params);
+        dst_image.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+        return;
+    }
+    throw std::logic_error("Vulkan generate bulk requires an active frame batch");
+}
+
+void VulkanBackend::Impl::lut_bulk(runtime::RenderSurfaceHandle destination,
+                                   runtime::RenderSurfaceHandle source,
+                                   runtime::RenderSurfaceHandle aux,
+                                   const graph::LutBulkParams& params) {
+    if (params.mode < 0 || params.mode > 1) {
+        throw std::invalid_argument(
+            "Vulkan lut bulk parameters are outside supported ranges");
+    }
+    auto& dst_image = resolve_image(destination);
+    auto& src_image = resolve_image(source);
+    auto& aux_image = resolve_image(aux);
+    if (!src_image.initialized || !aux_image.initialized ||
+        dst_image.width != src_image.width ||
+        dst_image.height != src_image.height) {
+        throw std::invalid_argument("Vulkan lut bulk references incompatible surfaces");
+    }
+    if (frame_batch.active) {
+        const auto descriptors = allocate_pass_descriptor_set();
+        write_matte_descriptors(descriptors, dst_image, src_image, aux_image);
+        const auto cmd = active_command_buffer();
+        emit_pass_sync(cmd, {&dst_image, &src_image, &aux_image});
+        record_lut_bulk(cmd, descriptors, dst_image, src_image, params);
+        dst_image.initialized = true;
+        ++frame_batch.pass_count;
+        ++stats.passes_executed;
+        return;
+    }
+    throw std::logic_error("Vulkan lut bulk requires an active frame batch");
+}
+
 void VulkanBackend::Impl::sharpen_combine(runtime::RenderSurfaceHandle destination,
                                           runtime::RenderSurfaceHandle source,
                                           runtime::RenderSurfaceHandle blurred,

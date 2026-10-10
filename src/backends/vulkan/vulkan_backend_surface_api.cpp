@@ -537,6 +537,76 @@ graph::RenderOpResult VulkanBackend::directional_blur_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::radial_blur_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    float center_x_px, float center_y_px, float amount, int tap_count) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->radial_blur(destination, source, center_x_px, center_y_px, amount, tap_count);
+    });
+#else
+    (void)destination; (void)source; (void)center_x_px; (void)center_y_px; (void)amount; (void)tap_count;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::radial_blur_surface: Vulkan support is disabled"));
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::warp_bulk_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle aux,
+    const graph::WarpBulkParams& params) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 3> touched{destination, source, aux};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->warp_bulk(destination, source, aux, params);
+    });
+#else
+    (void)destination; (void)source; (void)aux; (void)params;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::warp_bulk_surface: Vulkan support is disabled"));
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::generate_bulk_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const graph::GenerateBulkParams& params) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->generate_bulk(destination, source, params);
+    });
+#else
+    (void)destination; (void)source; (void)params;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::generate_bulk_surface: Vulkan support is disabled"));
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::lut_bulk_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle aux,
+    const graph::LutBulkParams& params) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 3> touched{destination, source, aux};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->lut_bulk(destination, source, aux, params);
+    });
+#else
+    (void)destination; (void)source; (void)aux; (void)params;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::lut_bulk_surface: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::sharpen_combine_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,
