@@ -602,6 +602,19 @@ struct VulkanBackend::Impl {
     void record_directional_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  const Image& destination, const Image& source,
                                  float dir_x, float dir_y, float length, int tap_count);
+    void record_radial_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
+                            const Image& destination, const Image& source,
+                            float center_x_px, float center_y_px,
+                            float amount, int tap_count);
+    void record_warp_bulk(VkCommandBuffer command, VkDescriptorSet descriptors,
+                          const Image& destination, const Image& source,
+                          const graph::WarpBulkParams& params);
+    void record_generate_bulk(VkCommandBuffer command, VkDescriptorSet descriptors,
+                              const Image& destination, const Image& source,
+                              const graph::GenerateBulkParams& params);
+    void record_lut_bulk(VkCommandBuffer command, VkDescriptorSet descriptors,
+                         const Image& destination, const Image& source,
+                         const graph::LutBulkParams& params);
     void record_sharpen_combine(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& destination, const Image& source,
                                 const Image& blurred, float amount, float threshold);
@@ -712,6 +725,21 @@ struct VulkanBackend::Impl {
     void directional_blur(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle source,
                           float dir_x, float dir_y, float length, int tap_count);
+    void radial_blur(runtime::RenderSurfaceHandle destination,
+                     runtime::RenderSurfaceHandle source,
+                     float center_x_px, float center_y_px,
+                     float amount, int tap_count);
+    void warp_bulk(runtime::RenderSurfaceHandle destination,
+                   runtime::RenderSurfaceHandle source,
+                   runtime::RenderSurfaceHandle aux,
+                   const graph::WarpBulkParams& params);
+    void generate_bulk(runtime::RenderSurfaceHandle destination,
+                       runtime::RenderSurfaceHandle source,
+                       const graph::GenerateBulkParams& params);
+    void lut_bulk(runtime::RenderSurfaceHandle destination,
+                  runtime::RenderSurfaceHandle source,
+                  runtime::RenderSurfaceHandle aux,
+                  const graph::LutBulkParams& params);
     void sharpen_combine(runtime::RenderSurfaceHandle destination,
                          runtime::RenderSurfaceHandle source,
                          runtime::RenderSurfaceHandle blurred,
