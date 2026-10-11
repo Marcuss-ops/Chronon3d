@@ -1247,6 +1247,7 @@ TEST_CASE("render plan decodes and fingerprints deterministic particle emitters"
         "count":200,"seed":4728,"emitter_size":[640,360],
         "velocity_min":[-8,-20],"velocity_max":[8,-4],
         "lifetime":[3,8],"size":[2,14],"gravity":1.5,"turbulence":0.35,
+        "environment":true,"depth_range":[0.2,0.8],"bokeh":true,
         "blend_mode":"add",
         "color_ramp":[{"position":0,"color":[0.6,0.5,0.4,0]},
                        {"position":1,"color":[0.8,0.7,0.6,1]}]}}],
@@ -1259,6 +1260,10 @@ TEST_CASE("render plan decodes and fingerprints deterministic particle emitters"
     REQUIRE(plan->layers[0].particle_emitter.has_value());
     CHECK(plan->layers[0].particle_emitter->count == 200);
     CHECK(plan->layers[0].particle_emitter->seed == 4728);
+    CHECK(plan->layers[0].particle_emitter->environment);
+    CHECK(plan->layers[0].particle_emitter->depth_min == doctest::Approx(0.2f));
+    CHECK(plan->layers[0].particle_emitter->depth_max == doctest::Approx(0.8f));
+    CHECK(plan->layers[0].particle_emitter->bokeh);
     CHECK(plan->layers[0].particle_emitter->blend_mode == chronon3d::BlendMode::Add);
     REQUIRE(plan->layers[0].particle_emitter->color_ramp.color_stops.size() == 2);
 
@@ -1267,6 +1272,12 @@ TEST_CASE("render plan decodes and fingerprints deterministic particle emitters"
     const auto changed_plan = chronon3d::render_plan::decode_render_plan(changed);
     REQUIRE(changed_plan.has_value());
     CHECK(plan->content_fingerprint != changed_plan->content_fingerprint);
+
+    changed = source;
+    changed["layers"][0]["particle_emitter"]["depth_range"] = {0.3, 0.8};
+    const auto changed_depth = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(changed_depth.has_value());
+    CHECK(plan->content_fingerprint != changed_depth->content_fingerprint);
 
     changed = source;
     changed["layers"][0]["particle_emitter"]["blend_mode"] = "screen";
@@ -1278,6 +1289,13 @@ TEST_CASE("render plan decodes and fingerprints deterministic particle emitters"
 
     changed = source;
     changed["layers"][0]["particle_emitter"]["velocity_max"][0] = -9;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+
+    changed = source;
+    changed["layers"][0]["particle_emitter"]["count"] = 4097;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
+    changed = source;
+    changed["layers"][0]["particle_emitter"]["depth_range"] = {0.9, 0.2};
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(changed).has_value());
 }
 

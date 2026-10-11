@@ -40,6 +40,11 @@ struct ParticleEmitterParams {
     f32 rotation_min{0.0f}, rotation_max{0.0f};
     f32 angular_velocity_min{0.0f}, angular_velocity_max{0.0f};
     BlendMode blend_mode{BlendMode::Normal};
+    // Environment emitters use bounded canonical per-frame state and a
+    // normalized fake depth for scale, opacity, and camera DoF.
+    bool environment{false};
+    f32 depth_min{0.0f}, depth_max{1.0f};
+    bool bokeh{false};
 };
 
 struct ParticleSample {
@@ -53,6 +58,7 @@ struct ParticleSample {
     f32 rotation{0.0f};
     f32 angular_velocity{0.0f};
     f32 sprite_scale{1.0f};
+    f32 depth{0.0f};
 };
 
 struct ParticleSampleResult {
@@ -92,7 +98,8 @@ namespace detail {
         !std::isfinite(params.gravity) || !std::isfinite(params.turbulence) ||
         !std::isfinite(params.sprite_scale_min) || !std::isfinite(params.sprite_scale_max) ||
         !std::isfinite(params.rotation_min) || !std::isfinite(params.rotation_max) ||
-        !std::isfinite(params.angular_velocity_min) || !std::isfinite(params.angular_velocity_max))
+        !std::isfinite(params.angular_velocity_min) || !std::isfinite(params.angular_velocity_max) ||
+        !std::isfinite(params.depth_min) || !std::isfinite(params.depth_max))
         return "particle parameters must be finite";
     if (params.emitter_size.x < 0.0f || params.emitter_size.y < 0.0f ||
         params.lifetime_min <= 0.0f || params.lifetime_max < params.lifetime_min ||
@@ -101,8 +108,13 @@ namespace detail {
         params.rotation_max < params.rotation_min ||
         params.angular_velocity_max < params.angular_velocity_min ||
         params.velocity_max.x < params.velocity_min.x ||
-        params.velocity_max.y < params.velocity_min.y || params.turbulence < 0.0f)
+        params.velocity_max.y < params.velocity_min.y || params.turbulence < 0.0f ||
+        params.depth_min < 0.0f || params.depth_max > 1.0f || params.depth_max < params.depth_min)
         return "particle ranges must be ordered and non-negative where required";
+    if (params.environment && params.count > 4096U)
+        return "environment particle count exceeds the 4,096 particle budget";
+    if (params.environment && static_cast<std::uint64_t>(params.count) * sizeof(ParticleSample) > 64ULL * 1024ULL * 1024ULL)
+        return "environment particle state exceeds the 64 MiB per-frame budget";
     if (params.shape == EmitterShape::Path && params.path_id.empty())
         return "path emitter requires a path id";
     if (params.shape == EmitterShape::Path && !params.path_points.empty() && params.path_points.size() < 2)
@@ -187,19 +199,25 @@ namespace detail {
         const f32 size = random::range(seed,
             detail::particle_random_index(index, cycle, 8U),
             params.size_min, params.size_max);
+        const f32 depth = random::range(seed,
+            detail::particle_random_index(index, cycle, 12U),
+            params.depth_min, params.depth_max);
         const f32 rotation = random::range(seed, detail::particle_random_index(index, cycle, 9U), params.rotation_min, params.rotation_max);
         const f32 angular_velocity = random::range(seed, detail::particle_random_index(index, cycle, 10U), params.angular_velocity_min, params.angular_velocity_max);
         const f32 sprite_scale = random::range(seed, detail::particle_random_index(index, cycle, 11U), params.sprite_scale_min, params.sprite_scale_max);
-        const Color color = params.color_ramp.color_stops.empty()
+        Color color = params.color_ramp.color_stops.empty()
             ? Color{1.0f, 1.0f, 1.0f, 1.0f}
             : graphics::sample_gradient(params.color_ramp, life_fraction);
+        const f32 depth_scale = params.bokeh ? (1.35f - depth * 0.7f) : 1.0f;
+        if (params.bokeh) color.a *= 1.0f - depth * 0.35f;
         if (!detail::finite_vec2(position) || !detail::finite_vec2(velocity) ||
             !std::isfinite(size) || !std::isfinite(rotation) || !std::isfinite(angular_velocity) ||
-            !std::isfinite(sprite_scale) || !detail::finite_color(color))
+            !std::isfinite(sprite_scale) || !std::isfinite(depth) ||
+            !std::isfinite(depth_scale) || !detail::finite_color(color))
             return fail("particle integration produced a non-finite sample");
         result.particles.push_back(ParticleSample{
-            index, position, velocity, color, size, age, life_fraction,
-            rotation + angular_velocity*age, angular_velocity, sprite_scale});
+            index, position, velocity, color, size * depth_scale, age, life_fraction,
+            rotation + angular_velocity*age, angular_velocity, sprite_scale, depth});
     }
     return result;
 }

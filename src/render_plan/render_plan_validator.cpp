@@ -240,7 +240,8 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         if (layer.contains("particle_emitter") && layer["particle_emitter"].is_object()) {
             auto& emitter = layer["particle_emitter"];
             for (const auto* key : {"shape", "path_id", "path_points", "sprite_asset",
-                                    "sprite_scale", "rotation", "angular_velocity"})
+                                    "sprite_scale", "rotation", "angular_velocity",
+                                    "environment", "depth_range", "bokeh"})
                 emitter.erase(key);
         }
         if (layer.contains("style") && layer["style"].is_object()) {

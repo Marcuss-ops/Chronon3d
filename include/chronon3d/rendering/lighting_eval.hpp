@@ -179,6 +179,9 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(s.decay));
     seed = hash_combine(seed, hash_value(s.angle));
     seed = hash_combine(seed, hash_value(s.penumbra));
+    seed = hash_combine(seed, hash_value(s.casts_shadow));
+    seed = hash_combine(seed, hash_value(s.shadow_radius));
+    seed = hash_combine(seed, hash_value(s.shadow_bias));
     return seed;
 }
 
