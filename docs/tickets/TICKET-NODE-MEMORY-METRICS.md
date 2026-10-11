@@ -386,6 +386,12 @@ events` passed **1/1 case, 11/11 assertions**. It reads actual records from
 clear and copy graphs and validates all eight additive fields. This confirms
 local CPU event wiring, not per-node measurements for the B00-B11 corpus.
 
+### Corpus availability confirmation — 2026-10-11
+
+The workspace owner confirmed that the required B00-B11 content pack is not
+available in this workspace. The remaining corpus and 11/11 baseline
+acceptance cannot be run from the current checkout; the ticket stays OPEN.
+
   → ADR-026 forward-point come pre-requisito impegment di implementation.
 - AGENTS.md §"INFO-level diagnostic style" → il nuovo gate deve
   seguire `[INFO] check_node_memory_metrics: ...` su PASS addizionale
