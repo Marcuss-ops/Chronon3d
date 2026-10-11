@@ -1,6 +1,6 @@
 # TICKET-LIGHTS-SHADOWS-PARTICLES — luci reali, ombre portate, particelle veloci
 
-Stato: **OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
+Stato: **PARTIAL — OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
 portate, e istanziamento GPU per le particelle).
 
 ## Audit di partenza (2026-10-08)
@@ -20,6 +20,20 @@ portate, e istanziamento GPU per le particelle).
   coprono i calcoli closed-form e i casi spot/point.
 - Restano aperti: animazione di posizione/direzione della luce, ombre con
   receiver espliciti e parità GPU, più batching/istanziamento delle particelle.
+
+### Implementazione locale (2026-10-11)
+
+- Le opzioni `cast_shadow`, `shadow_radius` e `shadow_bias` delle luci point,
+  spot e directional vengono propagate nel `LightContext` e incluse nel suo
+  hash. Il compiler non aggiunge più `DropShadow` statici al layer caster.
+- Il graph genera ombre per receiver che accettano ombre e caster che le
+  proiettano. Le sorgenti point/spot rispettano range e cono spot; raggio e bias
+  sono passati al `ShadowNode`.
+- Questo percorso usa ancora `ShadowNode`, che richiede superfici CPU in strict
+  GPU mode: la parità Vulkan e il fail-closed verificato sono ancora aperti.
+- Le particelle ambiente condividono ora il limite 4096/64 MiB del ticket
+  cinematico. Non è stato introdotto un draw instanziato: C1 per-draw, C2
+  benchmark e C3 Vulkan restano aperti.
 
 ### Tranche animazione posizione/direzione — candidato locale
 

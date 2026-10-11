@@ -2443,7 +2443,7 @@ TEST_CASE("render plan 2D point light defaults its height to the light radius") 
     CHECK(source.position.z == doctest::Approx(90.0f));
 }
 
-TEST_CASE("RenderPlan lights project blurred caster shadows into the composite") {
+TEST_CASE("RenderPlan forwards per-light shadow settings to scene lighting") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
     RenderPlan plan;
@@ -2485,13 +2485,12 @@ TEST_CASE("RenderPlan lights project blurred caster shadows into the composite")
         prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
     REQUIRE(evaluated);
     REQUIRE(evaluated->scene.layers().size() == 3);
-    const auto& effects = evaluated->scene.layers()[0].effects();
-    REQUIRE(effects.size() == 1);
-    const auto* shadow = std::get_if<DropShadowParams>(&effects[0].params);
-    REQUIRE(shadow);
-    CHECK(shadow->radius == doctest::Approx(7.0f));
-    CHECK(shadow->offset.x > 0.0f);
-    CHECK(shadow->offset.y > 0.0f);
+    const auto& lights = evaluated->scene.light_context().point_lights;
+    REQUIRE(lights.size() == 1);
+    CHECK(lights[0].casts_shadow);
+    CHECK(lights[0].shadow_radius == doctest::Approx(7.0f));
+    CHECK(lights[0].shadow_bias == doctest::Approx(0.5f));
+    CHECK(evaluated->scene.layers()[0].effects().empty());
     CHECK(evaluated->scene.layers()[1].effects().empty());
 }
 

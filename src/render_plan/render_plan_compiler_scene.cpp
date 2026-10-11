@@ -43,6 +43,10 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
             const auto& layer = plan.layers[index];
             const auto author_layer = [&](LayerBuilder& builder) {
                 builder.font_engine(font_engine.get());
+                if (layer.type != LayerType::Light && layer.type != LayerType::Adjustment) {
+                    if (layer.casts_shadows) builder.casts_shadows(*layer.casts_shadows);
+                    if (layer.accepts_shadows) builder.accepts_shadows(*layer.accepts_shadows);
+                }
                 if (layer.flow_layout) {
                     const auto& p=*layer.flow_layout; LayoutFlow flow;
                     flow.group_id=p.group_id; flow.main_axis=p.axis=="column"?Axis::Column:Axis::Row;
@@ -305,7 +309,8 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                                 ImageParams sprite;
                                 sprite.asset_path=resolved_particle_sprite_paths[index];
                                 sprite.size=Vec2{particle.size*particle.sprite_scale,particle.size*particle.sprite_scale};
-                                sprite.pos=Vec3{particle.position.x,particle.position.y,0.0f};
+                                sprite.pos=Vec3{particle.position.x,particle.position.y,
+                                    layer.particle_emitter->environment ? (1.0f - particle.depth) * 100.0f : 0.0f};
                                 sprite.opacity=particle.color.a;
                                 sprite.tint=Color{particle.color.r,particle.color.g,particle.color.b,1.0f};
                                 sprite.rotation_radians=particle.rotation;
@@ -316,7 +321,15 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                             params.radius = particle.size * 0.5f;
                             params.color = particle.color;
                             params.fill = graphics::FillStyle::solid(particle.color);
-                            params.pos = Vec3{particle.position.x, particle.position.y, 0.0f};
+                            if (layer.particle_emitter->bokeh) {
+                                const Color transparent{particle.color.r, particle.color.g,
+                                                         particle.color.b, 0.0f};
+                                params.fill = graphics::FillStyle::radial(
+                                    {0.5f, 0.5f}, 0.5f,
+                                    {{0.0f, particle.color}, {1.0f, transparent}});
+                            }
+                            params.pos = Vec3{particle.position.x, particle.position.y,
+                                layer.particle_emitter->environment ? (1.0f - particle.depth) * 100.0f : 0.0f};
                             builder.circle("particle_" + std::to_string(particle.index),
                                            std::move(params));
                         }
@@ -372,6 +385,9 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                             source.decay = light.decay;
                             source.angle = light.angle;
                             source.penumbra = light.penumbra;
+                            source.casts_shadow = light.cast_shadow;
+                            source.shadow_radius = light.shadow_radius;
+                            source.shadow_bias = light.shadow_bias;
                             point_sources.push_back(source);
                             builder.accepts_lights(false).accepts_shadows(false);
                             break;

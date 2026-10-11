@@ -28,13 +28,15 @@ public:
                f32 caster_world_z,
                f32 receiver_world_z,
                Vec3 light_direction,
-               rendering::ShadowSettings settings)
+               rendering::ShadowSettings settings,
+               f32 depth_bias = 0.0f)
         : RenderGraphNode(frame_variant_cache("shadow"))
         , m_caster_name(std::move(caster_name))
         , m_caster_world_z(caster_world_z)
         , m_receiver_world_z(receiver_world_z)
         , m_light_dir(light_direction)
-        , m_settings(settings) {}
+        , m_settings(settings)
+        , m_depth_bias(depth_bias) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Effect; }
     std::string_view name() const noexcept override { return "Shadow"; }
@@ -45,6 +47,7 @@ public:
         h = hash_combine(h, hash_value(m_caster_world_z));
         h = hash_combine(h, hash_value(m_receiver_world_z));
         h = hash_combine(h, hash_vec3(m_light_dir));
+        h = hash_combine(h, hash_value(m_depth_bias));
         h = hash_combine(h, hash_value(m_settings.opacity));
         h = hash_combine(h, hash_value(m_settings.blur_radius));
         h = hash_combine(h, hash_value(m_settings.px_per_unit));
@@ -78,7 +81,9 @@ public:
             return bbox;
         }
 
-        const float dz = m_caster_world_z - m_receiver_world_z;
+        const float raw_dz = m_caster_world_z - m_receiver_world_z;
+        const float dz = raw_dz == 0.0f ? m_depth_bias :
+            std::copysign(std::abs(raw_dz) + m_depth_bias, raw_dz);
         const float depth = std::abs(dz);
         const float depth_blur_factor_b = m_settings.depth_aware ? m_settings.blur_per_z : 0.0030f;
         const float depth_blur_scale = 1.0f + depth * depth_blur_factor_b;
@@ -135,7 +140,9 @@ public:
         }
 
         // Screen-space offset: dz = caster_z - receiver_z, then project along light XZ.
-        const float dz = m_caster_world_z - m_receiver_world_z;
+        const float raw_dz = m_caster_world_z - m_receiver_world_z;
+        const float dz = raw_dz == 0.0f ? m_depth_bias :
+            std::copysign(std::abs(raw_dz) + m_depth_bias, raw_dz);
         const float depth = std::abs(dz);
         const float depth_blur_factor = m_settings.depth_aware ? m_settings.blur_per_z : 0.0030f;
         const float depth_falloff_factor = m_settings.depth_aware ? m_settings.opacity_falloff : 0.0025f;
@@ -218,11 +225,12 @@ public:
                                                f32 caster_world_z,
                                                f32 receiver_world_z,
                                                Vec3 light_direction,
-                                               rendering::ShadowSettings settings)
+                                               rendering::ShadowSettings settings,
+                                               f32 depth_bias = 0.0f)
     {
         return std::make_unique<ShadowNode>(
             std::move(caster_name), caster_world_z, receiver_world_z,
-            light_direction, settings);
+            light_direction, settings, depth_bias);
     }
 
 private:
@@ -231,6 +239,7 @@ private:
     f32 m_receiver_world_z;
     Vec3 m_light_dir;
     rendering::ShadowSettings m_settings;
+    f32 m_depth_bias{0.0f};
 };
 
 } // namespace chronon3d::graph

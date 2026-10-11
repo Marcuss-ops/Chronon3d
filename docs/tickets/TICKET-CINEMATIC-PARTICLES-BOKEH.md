@@ -2,10 +2,9 @@
 
 ## Scope
 
-Define a deterministic environment-particle contract for ambient dust and
-defocused bokeh before adding a render-plan decoder or backend implementation.
-This ticket is deliberately a contract gate; `particle_emitter` is currently
-accepted only by the shape/layer parser paths that already lower it.
+Add a bounded deterministic environment-particle mode with depth-driven bokeh.
+The existing `particle_emitter` lowering is extended for software rendering;
+native Vulkan parity remains a promotion gate.
 
 ## Proposed bounded contract
 
@@ -35,7 +34,19 @@ accepted only by the shape/layer parser paths that already lower it.
 - Vulkan parity is tested on a Vulkan host before native promotion; otherwise
   the capability remains fail closed.
 
-## Status
+## Implementation status (2026-10-11)
 
-`CONTRACT PROPOSED` — implementation has not started. Owner: Chronon3D scene
-and backend maintainers. No new dependency or compatibility bridge is planned.
+`PARTIAL — SOFTWARE PATH IMPLEMENTED; GPU PARITY OPEN`.
+
+- Emitter fields `environment`, `depth_range`, and `bokeh` are decoded in the
+  V3 RenderPlan schema and validated. Environment emitters cap at 4096 samples
+  and 64 MiB canonical sample state; ordinary emitters retain their existing
+  limit.
+- Depth is stateless and derived from seed/index/frame. Bokeh changes particle
+  size and opacity, and environment depth adds deterministic scene placement.
+- The V3 fingerprint includes the new fields while legacy plans retain their
+  existing fingerprint bytes. V2 projection strips the V3-only fields.
+- Software/Vulkan byte parity, a full-budget golden, clipping golden, random
+  access worker-count parity, and native Vulkan fail-closed behavior still need
+  implementation and verification. Do not mark this ticket complete until
+  those gates pass on the required hosts.
