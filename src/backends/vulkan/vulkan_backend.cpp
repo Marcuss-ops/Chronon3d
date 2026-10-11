@@ -387,6 +387,7 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
             // overwrite host content before its first consumer.
             auto& carrier_slots = m_impl->plan_carrier_slots_scratch_;
             carrier_slots.clear();
+            carrier_slots.reserve(carriers.size());
             for (const auto allocation_index : carriers) {
                 const auto handle = resources.allocations[allocation_index].surface;
                 const auto binding = store.surface_bindings.find(handle);

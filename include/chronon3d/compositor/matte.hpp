@@ -60,8 +60,8 @@ namespace chronon3d::simd {
 /// `target` and `matte` point to premultiplied Color arrays of length pixel_count.
 /// Each target pixel is multiplied by the alpha of the corresponding matte pixel.
 void apply_alpha_matte_premul(
-    Color* __restrict__ target,
-    const Color* __restrict__ matte,
+    Color* CHRONON3D_RESTRICT target,
+    const Color* CHRONON3D_RESTRICT matte,
     int pixel_count,
     bool inverted
 );
@@ -69,8 +69,8 @@ void apply_alpha_matte_premul(
 /// Apply luma matte coverage to a contiguous run of target pixels.
 /// Uses the weighted luma of the premultiplied matte pixel directly.
 void apply_luma_matte_premul(
-    Color* __restrict__ target,
-    const Color* __restrict__ matte,
+    Color* CHRONON3D_RESTRICT target,
+    const Color* CHRONON3D_RESTRICT matte,
     int pixel_count,
     bool inverted
 );

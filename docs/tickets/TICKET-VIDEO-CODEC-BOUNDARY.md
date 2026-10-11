@@ -1,5 +1,8 @@
 # TICKET-VIDEO-CODEC-BOUNDARY — the codec boundary gets one decision language
 
+Status: OPEN — local codec contract and CLI suite are verified; boundary
+re-encode and per-layer semantics remain open.
+
 ## Contesto
 
 > **Aggiornamento 2026-10-10:** il boundary executor e i contratti codec video sono **VERIFICATI**: `chronon3d_video_contracts_tests` (5/5 casi passati, 25/25 asserzioni), validazione stream e frame order, determinismo serial/parallel e stabilità 900 frame verificati su `chronon3d_cli render`.
@@ -76,6 +79,18 @@ Questo è il passo 3 del §3 di
 | Il ponte non produce mai un copy non provato | `availability=false` ⇒ `FullReencode` (unit test) |
 | `codec_path` è coerente col piano finale | copy provato ⇒ `CopyPackets`; downgrade/composizione ⇒ `FullReencode` (unit test) |
 | Nessun gate di correttezza esistente regredisce | suite `chronon3d_cli_tests` verde; arch gate verde |
+
+## Re-run mirato — 2026-10-11
+
+Il binario `build/chronon/linux-video-test/tests/chronon3d_cli_tests` è stato
+ricostruito dopo le modifiche locali a `video_job_execute_dispatch.cpp` e
+`test_packet_assembler_contract.cpp`. La suite completa ha terminato con exit
+0: **251/251 casi e 5486/5486 asserzioni passati**. Il filtro
+`--test-case='*PacketAssembler*'` è stato inoltre rieseguito: **3/3 casi e 6/6
+asserzioni**. Anche `python3 tools/check_architecture.py` è passato: **206/206
+regole**. Il checkout era sporco su `e8e06f5b3`; è evidenza CPU sul tree locale,
+non certificazione same-SHA pulita o GPU. I follow-up elencati sotto restano
+aperti.
 
 ## Cosa NON è coperto (follow-up dichiarato)
 

@@ -460,20 +460,20 @@ void apply_luma_matte_premul(std::span<Color> target, std::span<const Color> mat
     apply_luma_matte_premul_dispatch(reinterpret_cast<float*>(target.data()), reinterpret_cast<const float*>(matte.data()), pixel_count, inverted);
 }
 
-void premultiply_alpha_rgba8(uint32_t* __restrict__ dst, const uint8_t* __restrict__ src, int pixel_count) {
+void premultiply_alpha_rgba8(uint32_t* CHRONON3D_RESTRICT dst, const uint8_t* CHRONON3D_RESTRICT src, int pixel_count) {
     premultiply_alpha_rgba8_dispatch(dst, src, pixel_count);
 }
 
-void bl_image_prgb32_to_color_row(Color* __restrict__ dst,
-                                   const uint32_t* __restrict__ src,
+void bl_image_prgb32_to_color_row(Color* CHRONON3D_RESTRICT dst,
+                                   const uint32_t* CHRONON3D_RESTRICT src,
                                    int pixel_count) {
     if (pixel_count <= 0) return;
     bl_image_prgb32_to_color_row_dispatch(
         reinterpret_cast<float*>(dst), src, pixel_count);
 }
 
-void color_to_prgb32_row(uint32_t* __restrict__ dst,
-                          const Color* __restrict__ src,
+void color_to_prgb32_row(uint32_t* CHRONON3D_RESTRICT dst,
+                          const Color* CHRONON3D_RESTRICT src,
                           int pixel_count) {
     if (pixel_count <= 0) return;
     color_to_prgb32_row_dispatch(

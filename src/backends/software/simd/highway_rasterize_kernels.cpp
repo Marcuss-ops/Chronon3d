@@ -63,7 +63,7 @@ namespace chronon3d::simd {
 
 HWY_EXPORT(rasterize_rect_simd_impl);
 
-void rasterize_rect_simd(Color* __restrict__ row, const float* __restrict__ lp_h_start, const float* __restrict__ col0, int pixel_count, float rect_w, float rect_h, float spread, const Color& color) {
+void rasterize_rect_simd(Color* CHRONON3D_RESTRICT row, const float* CHRONON3D_RESTRICT lp_h_start, const float* CHRONON3D_RESTRICT col0, int pixel_count, float rect_w, float rect_h, float spread, const Color& color) {
     HWY_DYNAMIC_DISPATCH(rasterize_rect_simd_impl)(reinterpret_cast<float*>(row), lp_h_start, col0, pixel_count, rect_w, rect_h, spread, reinterpret_cast<const float*>(&color));
 }
 

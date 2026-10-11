@@ -120,3 +120,23 @@ Aggiungere un loader per `chronon.json` che:
   standalone template/binary contract is absent, so the build-produced project
   executable cannot be tested from this checkout. No external render or GPU
   certification is claimed.
+
+## Local CPU re-run — 2026-10-11
+
+The current `linux-video-test` CLI test binary ran both project-dispatch cases:
+`chronon.json project dispatch preserves subprocess arguments` and
+`chronon.json project dispatch reports missing build and rejects path names`.
+Result: **2/2 cases and 11/11 assertions passed**. This reconfirms the manifest
+dispatch and fail-closed diagnostics with the current local test binary; it
+does not satisfy the remaining real-template integration gate above.
+
+## Revalidation of the template dependency — 2026-10-11
+
+The current `chronon3d_cli --help` lists no `create` subcommand;
+`chronon3d_cli create --help` prints the root help, and the tracked checkout
+contains neither `templates/basic/chronon.json` nor `templates/basic/src/root.cpp`.
+Thus there is no product path in this checkout that can generate the project
+whose binary the loader is meant to dispatch to. The subprocess contract is
+verified, but closing the real-template gate requires restoring or selecting a
+supported project-template command as part of the parent CLI starter-template
+scope; a fabricated fixture would only repeat the existing subprocess test.

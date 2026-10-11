@@ -317,3 +317,13 @@ Resta aperto, e sono i criteri di accettazione della decisione:
   architecture gate passes against this extraction, including Wave9's canonical
   decode/normalization boundaries. This is host-free code verification only;
   allocator calibration and the 3–5 GPU shape suite in §5 remain NOT RUN here.
+
+## Current CPU IPC re-run — 2026-10-11
+
+The current `linux-video-test` CLI binary passed
+`daemon socket survives a rejected render job and accepts the next one`:
+**1/1 case, 29/29 assertions**. The test deliberately logs a deterministic
+`UnsupportedCapability` rejection, then verifies the daemon accepts a
+subsequent request; the expected error log is not a test failure. This covers
+IPC lifecycle recovery only; the external multi-shape VRAM/concurrency suite
+remains open.

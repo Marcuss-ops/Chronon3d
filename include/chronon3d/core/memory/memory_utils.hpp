@@ -8,8 +8,18 @@
 #include <type_traits>
 #include <utility>
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 #include <chronon3d/core/types/types.hpp>
 
@@ -20,6 +30,7 @@ namespace chronon3d::memory {
 enum class AllocationBackend : u8 {
     MmapHuge,
     MmapStandard,
+    WinVirtualAlloc,
     Malloc,
 };
 
@@ -66,10 +77,16 @@ struct MemoryBlock {
         if (!data) return;
 
         switch (backend) {
+#if defined(_WIN32)
+        case AllocationBackend::WinVirtualAlloc:
+            (void)::VirtualFree(data, 0, MEM_RELEASE);
+            break;
+#else
         case AllocationBackend::MmapHuge:
         case AllocationBackend::MmapStandard:
             ::munmap(data, size);
             break;
+#endif
         case AllocationBackend::Malloc:
         default:
             std::free(data);
@@ -86,17 +103,20 @@ struct MemoryBlock {
 /**
  * @brief Allocates memory, preferring huge pages.
  *
- * Tries (in order):
- *   1. mmap(MAP_HUGETLB)      → backend = MmapHuge
- *   2. mmap (standard pages)  → backend = MmapStandard
- *   3. (Windows) VirtualAlloc → backend = VirtualAlloc
- *   4. std::malloc            → backend = Malloc
+ * Tries huge and standard mmap pages on POSIX, VirtualAlloc on Windows, then
+ * falls back to std::malloc.
  *
  * Returns an empty MemoryBlock (data == nullptr) on failure.
  */
 inline MemoryBlock allocate_memory_block(std::size_t size) {
     if (size == 0) return {};
 
+#if defined(_WIN32)
+    if (void* ptr = ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT,
+                                   PAGE_READWRITE)) {
+        return MemoryBlock(ptr, size, AllocationBackend::WinVirtualAlloc);
+    }
+#else
     constexpr std::size_t huge_page_size = static_cast<std::size_t>(2) * 1024 * 1024;
     const std::size_t aligned_size =
         (size + huge_page_size - 1) & ~(huge_page_size - 1);
@@ -116,6 +136,7 @@ inline MemoryBlock allocate_memory_block(std::size_t size) {
             return MemoryBlock(ptr, size, AllocationBackend::MmapStandard);
         }
     }
+#endif
 
     void* ptr = std::malloc(size);
     if (!ptr) return {};
@@ -125,11 +146,20 @@ inline MemoryBlock allocate_memory_block(std::size_t size) {
 inline void free_memory_block(void* ptr, std::size_t size, AllocationBackend backend) noexcept {
     if (!ptr) return;
 
+#if defined(_WIN32)
+    (void)size;
+#endif
     switch (backend) {
+#if defined(_WIN32)
+    case AllocationBackend::WinVirtualAlloc:
+        (void)::VirtualFree(ptr, 0, MEM_RELEASE);
+        return;
+#else
     case AllocationBackend::MmapHuge:
     case AllocationBackend::MmapStandard:
         ::munmap(ptr, size);
         return;
+#endif
     case AllocationBackend::Malloc:
     default:
         std::free(ptr);

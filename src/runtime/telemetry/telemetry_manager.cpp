@@ -261,7 +261,11 @@ std::string TelemetryManager::get_current_iso_time() {
     const auto now = std::chrono::system_clock::now();
     const std::time_t now_time = std::chrono::system_clock::to_time_t(now);
     std::tm tm_buf;
+#if defined(_WIN32)
+    gmtime_s(&tm_buf, &now_time);
+#else
     gmtime_r(&now_time, &tm_buf);
+#endif
     std::ostringstream oss;
     oss << std::put_time(&tm_buf, "%Y-%m-%dT%H:%M:%SZ");
     return oss.str();

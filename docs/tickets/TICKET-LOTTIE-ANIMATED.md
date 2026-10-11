@@ -122,3 +122,11 @@ matching-topology mask path morphs through Chronon's existing mask Morph track.
   for the supported fixture corpus.
 - **Removal scope:** `render_plan_compiler_lottie.cpp`, its resolver integration,
   and Lottie-specific tests and diagnostics.
+
+## Local focused-test refresh — 2026-10-11
+
+Re-ran `.tmp/chronon-builds/linux-fast-dev/tests/chronon3d_c_abi_tests
+--test-case='*Lottie*'`: **9/9 cases and 173/173 assertions passed**. The binary
+was newer than the maintained Lottie test sources; the worktree is dirty, so
+this is local CPU evidence, not clean-SHA CI. The separate CLI frame-hash gates
+remain the evidence for rendered MP4 output.

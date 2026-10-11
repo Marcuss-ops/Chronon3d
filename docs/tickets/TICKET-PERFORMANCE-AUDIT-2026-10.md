@@ -1,6 +1,7 @@
 # Performance audit — October 2026
 
-Status: ACTIVE. Scope: local Chronon3d worktree; preserve all pre-existing changes.
+Status: OPEN — local Chronon3d worktree audit; remaining same-SHA CI, corpus,
+benchmark and native hardware gates are still pending.
 
 ## Goal
 
@@ -22,7 +23,8 @@ No push/deployment is part of this work.
       and publishes complete files atomically under concurrent writers.
 - [ ] Reduce binding scratch allocations without changing carrier lifetime,
       collisions, placement or output; record representative before/after data.
-- [ ] Evaluate dirty coalescing/effect scratch and adopt only validated changes.
+- [x] Evaluate dirty-region coalescing; no algorithm change adopted without representative runtime evidence.
+- [x] Verify software effect scratch does not create framebuffer allocations after warm-up.
 - [ ] Measure available native CLI lifecycle/handoff and verify output frames and
       zero-copy counters; do not remove fences or admission guards by inference.
 - [ ] Rebuild final touched targets and run relevant C++/architecture/tool gates.
@@ -216,3 +218,73 @@ The same-SHA remote CI runs still have no
 executed steps, and hardware certification remains outstanding. No performance
 speedup is claimed without representative before/after measurement. This ticket
 stays ACTIVE.
+
+## CPU verification — 2026-10-11
+
+- `chronon3d_core_tests` was rebuilt in `linux-fast-dev`; the focused
+  `PreparedRenderJob effect scratch prevents steady-state framebuffer
+  allocations` case passes **37/37 assertions**. It compares a rendered
+  `RadialBlur` scene with its no-effect baseline, then checks that both
+  `framebuffer_allocations` and `framebuffer_bytes_allocated` remain unchanged
+  for 30 frames after two warm-up frames.
+- `chronon3d_effects_tests` was rebuilt and its registered CTest passes **1/1**.
+- The preset has `CHRONON3D_ENABLE_VULKAN=OFF`; these checks certify the CPU
+  software route only. Dirty-region coalescing, representative before/after
+  binding-scratch measurements, current same-SHA CI and the native GPU lanes
+  remain open.
+
+## Vulkan carrier binding measurement — 2026-10-11
+
+- `plan_carrier_slots_scratch_` now reserves `carriers.size()` before collecting
+  the known carrier slots. On the first multi-carrier plan this replaces
+  repeated vector growth with one capacity allocation; retained capacity means
+  later bindings reuse it. Carrier ordering, slot assignment and lifetime logic
+  are unchanged.
+- Added a two-initialized-carrier alias regression case. It verifies that the
+  planner aliases input/output, then executes the two-pass transform 64 times
+  and checks output pixels each time. It passes 327/327 assertions.
+- Before/after binding-only benchmark, five process runs × 64 iterations each:
+  baseline median **35.39 µs/call**, reserved median **34.32 µs/call**. Individual
+  runs overlap substantially; this is not evidence of a measurable speedup.
+  The change is retained for the bounded first-use allocation reduction, not
+  for a claimed latency gain.
+- Both versions ran on Vulkan `llvmpipe` (`PHYSICAL_DEVICE_TYPE_CPU`), so this
+  validates Vulkan behavior and CPU-driver timing only; NVIDIA hardware
+  certification remains open. The checklist item remains open pending a
+  representative hardware run and final audit gates.
+
+## Dirty-region coalescing review — 2026-10-11
+
+- `ExecutionResolver::coalesce_dirty_regions()` scans the tile grid, reduces
+  each dirty row to its first/last dirty tile, then merges adjacent rows only
+  when their horizontal bounds match. The focused regression passes **1/1 case,
+  9/9 assertions** and checks the merged rectangle bounds.
+- Merging rows with shifted spans could lower region count but would expand the
+  bounding boxes and render clean tiles. No representative frame/tile timing
+  data in this worktree supports that tradeoff, so the current algorithm is
+  retained. This closes the review decision only; it makes no performance claim
+  and does not close the ticket's separate lifecycle, hardware, or final-gate
+  criteria.
+
+## Current worktree architecture gate — 2026-10-11
+
+`python3 tools/check_architecture.py` completed on the current dirty worktree:
+**206/206 architecture rules PASS**. This is a current local gate result; it
+does not substitute for the remaining C++ suites, GPU/CI evidence, or clean-SHA
+certification.
+
+## Native CLI lifecycle gate attempt — 2026-10-11
+
+- The available `linux-fast-dev` CLI can render `DarkGridBackground` to a
+  1920×1080 PNG, but its execution report records build commit `96afb456c`,
+  while the current checkout is `e8e06f5b3`. That run is stale and is excluded
+  from current-SHA evidence. The still-image route also warns that it is not a
+  text pixel-truth surface.
+- The `linux-video-test` CLI target is not built. Building it failed while
+  archiving `libchronon3d_cli_core.a` with `No space left on device`; a retry
+  with `-j1` failed at the same archive step, so parallel disk pressure was not
+  the cause. The failed archiver left a 1.0 GiB partial archive that is not a
+  valid build result. The filesystem reports 2.9 GiB free and the existing
+  fast-dev build tree uses 29 GiB. No pre-existing build artifacts were
+  removed. Native video lifecycle, output-frame, and zero-copy-counter gates
+  therefore remain NOT RUN on the current SHA.

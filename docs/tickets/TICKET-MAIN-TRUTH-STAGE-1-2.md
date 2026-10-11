@@ -5,6 +5,21 @@
 **Data:** 2026-09-04  
 **Baseline censita:** `main@eb56a6f6c59e6d5ae3eefa1f1cbd69e3ee1f58d1`
 
+## Update 2026-10-11 — current main still cannot dispatch runners
+
+Fetched and fast-forwarded local `main` to `e8e06f5b315f4ffe39e6819e926dcfc1156b8408`.
+GitHub Actions run [38118149793](https://github.com/Marcuss-ops/Chronon3d/actions/runs/38118149793)
+for that exact SHA failed across all 19 jobs in 4 seconds; every job has
+`steps: []`. This confirms the failure remains before runner allocation and
+provides no source-level test result. Resolving runner billing/spending limits
+still requires GitHub owner access.
+
+Latest scheduled recheck: [Chronon Nightly run 38129454332](https://github.com/Marcuss-ops/Chronon3d/actions/runs/38129454332)
+on the same SHA failed at 2026-10-11 09:44 UTC. Its six non-skipped jobs all
+have `steps: []`; the ASan+UBSAN job was skipped. This is a second workflow
+lane with no runner execution, not a code/test verdict. No source-level result
+is available until Actions can allocate runners.
+
 ## Update 2026-10-05 — runner dispatch remains blocked
 
 Fetched `main@b67a750e6` and queried the latest Actions runs for that exact

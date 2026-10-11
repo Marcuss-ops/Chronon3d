@@ -221,6 +221,68 @@ TEST_CASE("Vulkan repeated plan binding preserves pixels across large and small 
                   << " total_us=" << binding_us << " mean_us=" << binding_us / iterations << '\n';
 }
 
+TEST_CASE("Vulkan plan binding preserves two initialized aliased carriers") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    const SurfaceDesc desc{4, 4, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient, 0};
+    const ResourceDesc resource{4, 4, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient,
+        4 * 4 * 4 * sizeof(float)};
+    constexpr RenderSurfaceHandle input = 11001;
+    constexpr RenderSurfaceHandle scratch = 11002;
+    constexpr RenderSurfaceHandle output = 11003;
+    std::vector<float> source(4 * 4 * 4, 0.0f);
+    std::vector<float> previous_output(source.size(), 0.0f);
+    source[0] = 0.35f;
+    source[3] = 1.0f;
+    previous_output[0] = 0.9f;
+    previous_output[3] = 1.0f;
+    REQUIRE(backend.create_surface(input, desc).ok());
+    REQUIRE(backend.create_surface(scratch, desc).ok());
+    REQUIRE(backend.create_surface(output, desc).ok());
+    REQUIRE(backend.upload_surface(input, desc, source).ok());
+    REQUIRE(backend.upload_surface(output, desc, previous_output).ok());
+
+    GpuCommandPlanner planner;
+    planner.declare_surface(input, resource);
+    planner.declare_surface(scratch, resource);
+    planner.declare_surface(output, resource);
+    planner.transform(TransformPass{scratch, input, 0, 0, 1.0f});
+    planner.transform(TransformPass{output, scratch, 0, 0, 1.0f});
+    const auto plan = planner.build();
+    const auto planned_slot = [&](RenderSurfaceHandle handle) {
+        for (const auto& allocation : plan.resources.allocations) {
+            if (allocation.surface == handle) return allocation.physical_slot;
+        }
+        return std::numeric_limits<std::size_t>::max();
+    };
+    REQUIRE(planned_slot(input) != std::numeric_limits<std::size_t>::max());
+    REQUIRE(planned_slot(input) == planned_slot(output));
+
+    double binding_us = 0.0;
+    constexpr int iterations = 64;
+    for (int iteration = 0; iteration < iterations; ++iteration) {
+        const auto started = std::chrono::steady_clock::now();
+        backend.begin_plan_batch(plan);
+        binding_us += std::chrono::duration<double, std::micro>(
+            std::chrono::steady_clock::now() - started).count();
+        REQUIRE(backend.transform_surface(scratch, input, 0, 0, 1.0f).ok());
+        REQUIRE(backend.transform_surface(output, scratch, 0, 0, 1.0f).ok());
+        backend.end_frame_batch();
+
+        std::vector<float> rendered(source.size(), 0.0f);
+        REQUIRE(backend.download_surface(output, rendered).ok());
+        CHECK(rendered[0] == doctest::Approx(source[0]).epsilon(1e-4f));
+        CHECK(rendered[3] == doctest::Approx(source[3]).epsilon(1e-4f));
+    }
+    if (std::getenv("CHRONON3D_BINDING_BENCH")) {
+        std::cout << "[binding-carrier-bench] iterations=" << iterations
+                  << " total_us=" << binding_us
+                  << " mean_us=" << binding_us / iterations << '\n';
+    }
+}
+
 TEST_CASE("command plan executor dispatches passes through the canonical backend API") {
     using namespace chronon3d::runtime;
     chronon3d::backends::vulkan::VulkanBackend backend;

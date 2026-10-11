@@ -50,3 +50,15 @@ native Vulkan parity remains a promotion gate.
   access worker-count parity, and native Vulkan fail-closed behavior still need
   implementation and verification. Do not mark this ticket complete until
   those gates pass on the required hosts.
+
+### CPU sampler boundary re-run — 2026-10-11
+
+The maintained `tests/scene/shapes/test_particles_sampling.cpp` source was
+compiled as a standalone doctest binary against the checkout's xxhash library.
+All **7/7 cases and 77,169/77,169 assertions** passed. The environment/bokeh
+case now covers the accepted 4,096-particle boundary, checks the calculated
+sample-state size against 64 MiB, and exercises empty emitters, bounded depth,
+and deterministic random access across an intervening timestamp; 4,097 remains
+rejected. This is sampler-level CPU evidence, not a rendered golden:
+empty/full-budget/clipped pixel coverage, worker-count output parity, and
+Vulkan parity remain open.

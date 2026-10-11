@@ -1,8 +1,6 @@
 # TICKET-GPU-BASELINE-CORPUS — Official GPU baseline runner
 
-## Stato
-
-IMPLEMENTED / MANIFEST-LOCKED / HOST-CERTIFICATION-PENDING (2026-09-11)
+Stato: IMPLEMENTED / MANIFEST-LOCKED / HOST-CERTIFICATION-PENDING (2026-09-11)
 
 ## Contract
 
@@ -63,3 +61,13 @@ sidecar because this checkout is configured with
 module. The runner records this as `command_failed_before_sidecar` with the
 exit code and log path, rather than misclassifying it as a wall-time
 attribution failure. This is a host/content-pack gate, not a baseline result.
+
+## CPU contract re-run — 2026-10-11
+
+- `python3 tests/test_gpu_corpus_manifest.py` passed. It verifies the manifest
+  ID, all 17 unique case IDs, the B00–B11 and GPU_TEXT_01–05 ordering, and
+  non-empty scene/category fields.
+- `bash tools/benchmark_gpu_baseline.sh --help` returned the documented CLI
+  options without starting a render.
+- These checks verify the corpus definition and runner interface only. The
+  full corpus still needs its external content pack and an actual GPU host.

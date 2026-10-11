@@ -166,4 +166,43 @@ TEST_CASE("environment particles keep bounded deterministic depth and bokeh") {
     params.count = 4097;
     CHECK(chronon3d::validate_particle_emitter(params) ==
           "environment particle count exceeds the 4,096 particle budget");
+
+    params.count = 4096;
+    const auto full_budget = chronon3d::sample_particles(params, 3.25);
+    const auto intervening_frame = chronon3d::sample_particles(params, 1.5);
+    const auto full_budget_again = chronon3d::sample_particles(params, 3.25);
+    REQUIRE(full_budget.ok());
+    REQUIRE(intervening_frame.ok());
+    REQUIRE(full_budget_again.ok());
+    REQUIRE(full_budget.particles.size() == 4096);
+    REQUIRE(intervening_frame.particles.size() == full_budget.particles.size());
+    CHECK(full_budget.particles.size() * sizeof(chronon3d::ParticleSample) <=
+          64ULL * 1024ULL * 1024ULL);
+    for (std::size_t index = 0; index < full_budget.particles.size(); ++index) {
+        const auto& a = full_budget.particles[index];
+        const auto& b = full_budget_again.particles[index];
+        CHECK(a.index == b.index);
+        CHECK(a.position.x == b.position.x);
+        CHECK(a.position.y == b.position.y);
+        CHECK(a.velocity.x == b.velocity.x);
+        CHECK(a.velocity.y == b.velocity.y);
+        CHECK(a.color.r == b.color.r);
+        CHECK(a.color.g == b.color.g);
+        CHECK(a.color.b == b.color.b);
+        CHECK(a.size == b.size);
+        CHECK(a.color.a == b.color.a);
+        CHECK(a.age_seconds == b.age_seconds);
+        CHECK(a.life_fraction == b.life_fraction);
+        CHECK(a.rotation == b.rotation);
+        CHECK(a.angular_velocity == b.angular_velocity);
+        CHECK(a.sprite_scale == b.sprite_scale);
+        CHECK(a.depth == b.depth);
+        CHECK(a.depth >= params.depth_min);
+        CHECK(a.depth <= params.depth_max);
+    }
+
+    params.count = 0;
+    const auto empty = chronon3d::sample_particles(params, 3.25);
+    REQUIRE(empty.ok());
+    CHECK(empty.particles.empty());
 }

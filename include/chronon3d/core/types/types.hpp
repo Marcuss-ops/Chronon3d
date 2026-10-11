@@ -3,6 +3,14 @@
 #include <cstdint>
 #include <cstddef>
 
+#if defined(_MSC_VER)
+#define CHRONON3D_RESTRICT __restrict
+#elif defined(__GNUC__) || defined(__clang__)
+#define CHRONON3D_RESTRICT __restrict__
+#else
+#define CHRONON3D_RESTRICT
+#endif
+
 namespace chronon3d {
 
 // Floating point types
