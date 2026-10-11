@@ -1,6 +1,7 @@
 # TICKET-NODE-MEMORY-METRICS — Per-nodo memory accounting + gate CI
 
-**Stato**: OPEN — implementation and local CPU gates landed; representative
+**Stato**: OPEN — per-node framebuffer/event metrics and local CPU gates landed;
+general heap/scratch allocation coverage is deferred to PMR hooks; representative
 corpus and 11/11 baseline certification pending
 **Priorità**: P1 (audit gap: nessun tracking per-nodo di memory hot-path metrics nei
 5 nodi più caldi; gate CI inesistente)
@@ -22,8 +23,11 @@ hot-path** richieste:
 - `bytes_read` / `bytes_written` (memcpy + sampling bytes)
 - `framebuffer_copies` (memcpy tra fbs)
 - `framebuffer_clears` (counter clear espliciti, es. nei ClearNode)
-- `allocations` (heap alloc in steady-state; deve essere **0**)
-- `temporary_buffers` (scratch buffer per-node creates)
+- `allocations` (deve essere **0** nel report post-warmup; l'implementazione
+  corrente conta eventi di allocazione del backing store `Framebuffer`, non
+  tutte le allocazioni heap C++)
+- `temporary_buffers` (l'implementazione corrente attribuisce il framebuffer
+  risultato del nodo e i relativi live bytes; non conta ogni scratch interno)
 
 Risultato: regressione di hot-path memory (es. un CompositeNode che
 reintroduce un heap alloc, o un TextRunNode che ricrea un vector mid-frame)
@@ -42,6 +46,19 @@ Ma **non** traccia: `allocations`, `temporary_buffers`, `bytes_read`,
 `bytes_written`, `framebuffer_copies`, `framebuffer_clears`. La
 categorizzazione esistente è per-kind e non per-node; una regression
 localizzata (es. solo CompositeNode) non viene isolata.
+
+### Precisazione sulla copertura delle allocazioni
+
+L'implementazione di questa scheda è un accounting per-node degli eventi
+Framebuffer e del ciclo di vita delle superfici risultato, non un hook globale
+per l'heap C++. `framebuffer_increment_allocations()` emette l'evento
+`NodeMemoryEvent::Allocation`; `ScopedNodeMemory::record_allocation()` esiste,
+ma non ha call-site di produzione nel checkout. Inoltre `node_runner` passa la
+dimensione del risultato a `set_live_bytes()`, che contribuisce a
+`temporary_buffers`. Il gate `check_node_memory_metrics.sh` quindi può
+certificare **zero allocazioni backing-store Framebuffer nelle frame misurate**;
+non dimostra zero `new`/`std::vector`/PMR allocazioni arbitrarie. Il tracking
+heap generale resta il forward-point `TICKET-PMR-HOOKS-PER-NODE`.
 
 ## Evidenza (machine-verified 2026-07-13)
 
@@ -353,6 +370,21 @@ assertions; the detailed telemetry integration test passed 1/1 case and 11/11
 assertions. It reads actual emitted node records for clear and copy graphs and
 checks all eight additive fields. This verifies local counter/event wiring,
 not corpus coverage.
+
+### Gate self-test re-run — 2026-10-11
+
+`bash tests/ci/test_check_node_memory_metrics_selftest.sh` passed. It exercised
+the clean report (`GATE_PASS`), allocating report (`GATE_FAIL` as expected),
+and missing-report path (`GATE_FAIL` as expected), then emitted
+`SELFTEST_PASS: clean, allocating, and missing-report paths verified`. This is
+CPU gate evidence only; the representative B00-B11 corpus remains unavailable
+in this checkout and is still required for ticket acceptance.
+
+The executor telemetry regression was also rebuilt and rerun on
+`linux-fast-dev`: `NodeMemoryMetrics are emitted on detailed node telemetry
+events` passed **1/1 case, 11/11 assertions**. It reads actual records from
+clear and copy graphs and validates all eight additive fields. This confirms
+local CPU event wiring, not per-node measurements for the B00-B11 corpus.
 
   → ADR-026 forward-point come pre-requisito impegment di implementation.
 - AGENTS.md §"INFO-level diagnostic style" → il nuovo gate deve

@@ -1,6 +1,6 @@
 | **TICKET-125 — Engine certification aggregator (Tests 10-16 core subset)** | |
 | --- | --- |
-| **Stato** | PARTIAL (catalog landed; per-test runtime verification deferred to working build host per F2/TICKET-INFRA-F2-DIVERGENCE blocker) |
+| **Stato** | OPEN (six-row catalog exists; multiple current gate/file references are absent or stale; see 2026-10-11 artifact audit below) |
 | **Priorità** | P0 (catalog coordination under the 11/11 canonical gate baseline `main@7eb5c2ba`) |
 | **Problema** | I deliverable di ENGINE CERTIFICATION (Tests 10-16 core subset: determinism, fix cronograph, SSoT audit, indexing, scaling, sunset registry) sono distribuiti su commit/changelog/tickets eterogenei senza un indice unico che garantisca tracciabilità per push iterativo (Rule #5 SHA-triple). Manca un aggregatore canonico che dichiari per ogni test: deliverable osservabile, PASS/FAIL criterion eseguibile come `bash` one-liner on working build host, stato corrente osservabile, forward-pointed ticket per gap onesti. |
 | **Evidenza** | AGENTS.md §"Test 8 — Test 18" specifiche verbatim sparse + `docs/CHANGELOG.md` prepended entries (Test 10 GATE-WIRED+selftest+PARTIAL VPS / Test 11 GATE-WIRED+§honesty PARTIAL / Test 12 GATE-WIRED+EXERCISABLE on VPS / Test 14 GATE-WIRED+selftest+PARTIAL VPS / Test 16 REGISTRY-COMPLETE) + `docs/FOLLOWUP_TICKETS.md` §Open Blockers rows per i forward-pointed (TICKET-INFRA-F2-DIVERGENCE P0 + TICKET-SUNSET-VERIFY P0) + `docs/CURRENT_STATUS.md` §Stato per area rows post-§Hygiene. |
@@ -8,7 +8,23 @@
 | **Confine** | Pure `docs/` artifact (no SDK API surface; no source code modifications; no `include/chronon3d/` edits per Cat-3 anti-duplication). Aggregatore read-only: no live runtime verification on this VPS; per-test runtime eseguibile solo on working build host con `cmake --build` + golden tests + `bash` one-liner per row. **PRODUCT VALIDATION (Tests 8, 9, 15, 17, 18) NON appartiene a questo ticket**: vive in PipelineGen (`../refactored/docs/product-validation/PRODUCT-VALIDATION-AGGREGATOR.md`). Il core non deve sapere cosa sia una founder dashboard. |
 | **Soluzione accettabile** | Index table 6 righe con colonne: `#` / `Test scope` / `Deliverable (file / gate)` / `PASS criterion (osservabile)` / `FAIL criterion (osservabile)` / `Stato corrente`. Ogni PASS/FAIL criterion è una `bash` one-liner che termina in `exit 0` o `exit 1` su working build host (no stime percentuali per AGENTS.md §honesty "non segnare verde una suite che restituisce failure"). |
 | **Criteri di accettazione** | 1) 6 righe presenti (Tests 10, 11, 12, 13, 14, 16); 2) ogni riga ha un bash one-liner eseguibile; 3) ogni riga ha uno `Stato corrente` ∈ {PASS, FAIL, PARTIAL, NOT RUN, BLOCKED, PLANNED, DONE, OPEN, HARNESS-COMPLETE, GATE-WIRED, REGISTRY-COMPLETE, TABLE-COMPLETE, EVIDENCE-GAP, NOT-YET-OPENED}; 4) nessuna stima percentile; 5) §Forward-pointed tickets section per i ticket aperti (Test 13); 6) §Product validation pointer section per Tests 8/9/15/17/18 (PipelineGen); 7) §Cat-5 alignment section per i 4 doc (CHANGELOG/FOLLOWUP/CURRENT_STATUS/TICKET-125); 8) §honesty annotation §honesty PARTIAL cert in tutte le righe macchina-verifiable-only-on-build-host. |
-| **Push iterativo cadence** | **Desired**: commit + push iterativo on `main` per ogni test refinement cycle. **Reality**: push ancora bloccato da F2 (`TICKET-INFRA-F2-DIVERGENCE (P0)` §Open Blocker; LOCAL_AHEAD=4 / REMOTE_AHEAD=10). **Expected outcome**: PARTIAL cert on local main finché F2 non risolto. Cadenza: per-test refinement cycles deferrati a next session per AGENTS.md §"Fare PR piccole e mirate" (ogni test = proprio atomic commit). |
+| **Push iterativo cadence** | Il checkout locale `main` è allineato a `origin/main` su `e8e06f5b3`; le note di stato locali sono modifiche non committate. La CI GitHub sullo SHA remoto non alloca runner (vedi [MAIN-TRUTH](TICKET-MAIN-TRUTH-STAGE-1-2.md), run 38118149793). Nessun risultato locale sostituisce quella certificazione; nessun push è stato eseguito. |
+
+## Current artifact audit — 2026-10-11
+
+HEAD `e8e06f5b315f4ffe39e6819e926dcfc1156b8408` still contains the six-row
+index, but several executable/file references below are stale in this checkout.
+`tools/check_determinism.sh` exists; the other listed Test 11/12/14 scripts,
+the Test 11 JSONL log, Test 13 ticket and camera gates, Test 14 self-test, and
+`docs/FEATURE_SUNSET.md` are absent. `docs/CHANGELOG.md` is also absent, so the
+four-document Cat-5 alignment criterion is not currently satisfiable as
+written. Test 10's full render sweep was not run. The prior table labels for
+these missing artifacts are historical claims, not current verification.
+
+**Verdict:** TICKET-125 remains OPEN. The index shape is present, but current
+gate commands and linked artifacts must be reconciled with the repository's
+actual certification workflow before the catalog can be treated as executable
+or closed. This audit does not infer that missing checks passed.
 
 # Dual-executor verdict
 
@@ -32,7 +48,7 @@ solo contratto dati backend-neutral.
 |---|---|---|---|---|---|
 | 10 | Determinismo brutale | `tools/check_determinism.sh` + `tests/tools/selftest_check_determinism.sh` | `bash tools/check_determinism.sh` exits 0 + emits `GATE_PASS: determinism` + all 140 RGBA sha256 hashes resolve to ONE canonical hash across 7 configs × 20 renders (1T/2T/8T Debug Cold + 1T Debug Warm + 1T Release Cold + 2 AXIS-DUP) | exit 1 OR >1 distinct hash | GATE-WIRED + selftest PASS + PARTIAL on env-blocked VPS (selftest fully exercisable; full 140-render sweep deferred to working host per §honesty) |
 | 11 | Cronometro del fix | `tools/check_fix_cronograph.sh` + `docs/fix_cronograph_log.jsonl` (append-only fix log) | `bash tools/check_fix_cronograph.sh` exits 0 + emits `GATE_PASS: fix_cronograph`; rolling-mean of last 5 entries: `repro_m<30 AND rca_m<120 AND (test_m+fix_m)<1440` AND NOT (latest entry has `new_tickets>=10 AND adapters>=4 AND verified!="yes"`) | exit 1 OR any rolling-mean target breached OR catastrophic envelope conjunction TRUE | GATE-WIRED + PARTIAL §honesty (2 demonstration JSONL entries with `verified="PARTIAL"` recorded: glow-clipped text_glow.cpp use_geo_transform branch 12m/85m/18m/22m/10m + text-shifted-400px overlay_diagnostic_panels.cpp metrics panel 15m/40m/20m/15m/5m) |
-| 12 | Audit single source of truth | `tools/check_single_source_of_truth.sh` wired as gate [24/24] in `tools/check_architecture_boundaries.sh` | `bash tools/check_single_source_of_truth.sh` exits 0 + emits `GATE_PASS: 8/8 concepts + 4/4 specific patterns`; 0 entries in VIOLATIONS bash array; Concept 2 (TextPlacement) count ≤ 200 known-rot cap; Concept 5 (Composition) count ≤ 2 known-rot cap | exit 1 OR VIOLATIONS non-empty OR cap exceeded | GATE-WIRED + EXERCISABLE on this VPS (static analysis tool — no `chronon3d_cli` runtime required); 12/12 audits clean at HEAD per 2026-07-12 verification |
+| 12 | Audit single source of truth / architecture invariants | Current canonical gate: `python3 tools/check_architecture.py`, registered by `tools/gates/manifest.sh`; historical `tools/check_single_source_of_truth.sh` is absent | `python3 tools/check_architecture.py` exits 0 and emits `GATE_PASS: N/N architecture rule(s) PASSED`; the current checkout must pass every registered rule | nonzero exit or any `[FAIL]` rule | PARTIAL: current replacement gate passed 206/206 locally on 2026-10-11; the former dedicated 8-concept/4-pattern gate is no longer present, so its exact criterion is not independently verified |
 | 13 | Camera brutal / camera certification | `docs/tickets/TICKET-TEST-13-CORE.md` + `tools/check_camera_architecture.sh` + `tools/verify_camera_functional_linux.sh` | Entrambi i gate exit 0, camera golden statico/animato disponibile, sanitizer clean e output deterministico sullo stesso SHA | exit 1, golden mismatch, sanitizer finding, non-determinismo o prerequisito mancante | OPEN (slot distinto da Test 11; contratto canonico in TICKET-TEST-13-CORE) |
 | 14 | Scalabilità lineare | `tools/check_linear_scaling.sh` + `tests/tools/selftest_check_linear_scaling.sh` | `bash tools/check_linear_scaling.sh` exits 0 + emits `GATE_PASS: linear_scaling`; 4 N-dims (1/10/50/100) × 5 invariants = 20 measurements all within soft tolerance bands: `time_superlinear@N≤1.5×(N=10)/2.5×(N=100)`, `ram_superlinear@N≤2×baseline`, `cache_bounded@N≤5×baseline`, `error_rate≤1%`, `throughput_non_collapse@100≥25%×throughput@50+≥4××throughput@1` | exit 1 OR any invariant breached | GATE-WIRED + selftest PASS + PARTIAL on env-blocked VPS (selftest fully exercisable; full 161-render sweep deferred to working host per §honesty) |
 | 16 | Registro sunset feature | `docs/FEATURE_SUNSET.md` (regola "Tre Non" + scadenza 30gg) | `rg -c '^## ' docs/FEATURE_SUNSET.md` ≥ 3 sections (header + 3-non rule + scadenza) + ≥ 5 entries with `DEFERRED-VERIFY` status | Section count < 3 OR DEFERRED entries < 5 | REGISTRY-COMPLETE (cycle 1: 5 DEFERRED-VERIFY candidati content/common/ + content/ae_parity/ + content/text_placement/ + content/backgrounds/ + content/examples/; zero eliminazioni concrete — forward-pointed a TICKET-SUNSET-VERIFY P0) |
@@ -86,3 +102,18 @@ Forward-pointed product-validation tickets (TICKET-TEST-9-PILOT-7GG, TICKET-TEST
 - TICKET-INFRA-F2-DIVERGENCE (`docs/FOLLOWUP_TICKETS.md` §Open Blockers P0) — pre-requisito per push iterativo Rule #5
 - Product validation aggregator: `../refactored/docs/product-validation/PRODUCT-VALIDATION-AGGREGATOR.md` (PipelineGen)
 - Executor ownership and profiling verdict: `docs/EXECUTOR_OWNERSHIP.md`
+
+## Checkout re-audit — 2026-10-11
+
+- `tools/check_single_source_of_truth.sh` and
+  `tools/check_architecture_boundaries.sh` do not exist in the current
+  checkout. The canonical gate manifest instead registers
+  `check_architecture.py`.
+- `python3 tools/check_architecture.py` passed **206/206** architecture rules
+  on this checkout. This is CPU/static evidence and does not certify the
+  historical dedicated 8-concept/4-pattern gate or same-SHA GitHub CI.
+- Re-run on 2026-10-11 confirmed 206/206; the text-header fan-out gate also
+  passed (19/22 consumers, zero direct Unicode utility consumers). Recorded
+  with dirty-worktree scope in [`CPU-ONLY-EVIDENCE.md`](../evidence/CPU-ONLY-EVIDENCE.md).
+- The historical baseline remains unverified on the current integration SHA;
+  no GPU is required for this local static gate.

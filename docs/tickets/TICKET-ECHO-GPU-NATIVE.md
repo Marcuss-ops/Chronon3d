@@ -1,5 +1,8 @@
 # Echo effect: native GPU support
 
+Status: OPEN — local native-route parity is covered; same-SHA GPU host
+certification remains open.
+
 ## Current behavior
 
 Strict Vulkan stores frame-addressed native copies in job-owned history and
@@ -17,6 +20,16 @@ The trail clear remains necessary because weighted taps accumulate into it.
 ## Local GPU evidence (2026-10-08)
 
 `chronon3d_backend_registry_tests` from `linux-video-fast-dev` (Vulkan ON): 95/95 pass with the default device; the Echo cases (including `JobSession stores frame-addressed Vulkan Echo surfaces without readback`, `EffectStackNode composes Echo, brightness and chroma key over time`, and `Strict Vulkan rejects Echo without a native temporal surface history`) pass again with `VK_ICD_FILENAMES` pinned to the NVIDIA RTX A4000 ICD. Working tree had unrelated uncommitted changes, so this is not a same-SHA result.
+
+## Current Vulkan software re-run (2026-10-11)
+
+`vulkaninfo --summary` reports `PHYSICAL_DEVICE_TYPE_CPU` and
+`llvmpipe (LLVM 21.1.8, 256 bits)`. On the current
+`linux-video-test` `chronon3d_backend_registry_tests` binary,
+`--test-case='*Echo*'` passed **4/4 cases and 215/215 assertions**, including
+frame-addressed history, ordered effect composition and strict-mode rejection
+without native history. This is current local software-Vulkan evidence only;
+it does not satisfy the GPU-host same-SHA certification below.
 
 ## Exit criteria
 

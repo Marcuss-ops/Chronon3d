@@ -67,8 +67,15 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                 // of the scene lighting pass (which otherwise grays light
                 // product imagery and its transparent edge pixels).
                 if ((layer.type == LayerType::Image || layer.type == LayerType::Shape ||
-                     layer.type == LayerType::Mesh) && layer.enable_3d)
-                    builder.accepts_lights(false).accepts_shadows(false);
+                     layer.type == LayerType::Mesh) && layer.enable_3d) {
+                    builder.accepts_lights(false);
+                    // 2.5D image/shape/mesh layers stay unlit by default, but
+                    // an explicit shadow receiver opt-in must survive this
+                    // policy. Keep the historical default (off) when the
+                    // RenderPlan omits the flag.
+                    if (!layer.accepts_shadows.value_or(false))
+                        builder.accepts_shadows(false);
+                }
                 switch (layer.type) {
                     case LayerType::Image: {
                         ImageParams params;

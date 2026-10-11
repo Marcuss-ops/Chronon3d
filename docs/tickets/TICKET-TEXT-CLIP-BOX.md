@@ -3,7 +3,10 @@
 **Stato:** OPEN (product policy clarified 2026-09-24; renderer enforcement remains open)
 **Priorità:** P3 — non blocking
 **Owner:** text domain
-**Reference test:** `tests/text/test_text_clip_oversized.cpp` (authored-size `CHECK`; pixel-containment `WARN` while renderer clipping remains open)
+**Reference test:** `tests/text/test_text_clip_oversized.cpp` (sets authored
+`font_size=200`; checks that ink is visible and overflows the box; pixel
+containment is `WARN` while renderer clipping remains open. It does not assert
+the effective font size after layout.)
 
 ## Semantica della limitation (machine-verified)
 
@@ -20,8 +23,10 @@ Conseguenza osservabile:
   `[text-vis] CLIP_DROPS_INK node=<layer_id>`.
 - Il warning è `spdlog::warn` diagnostic-only (dedup per `(node_id, kind)` via `WarnOnceDeduper`);
   in produzione non esiste segnale strutturato.
-- `tests/text/test_text_clip_oversized.cpp` verifies that Clip does not auto-fit the authored font;
-  the pixel containment assertions remain `WARN` until renderer clipping is implemented.
+- `tests/text/test_text_clip_oversized.cpp` supplies `font_size=200` for a 200×100
+  box and observes visible ink outside it. The source does not currently assert
+  the effective font size after layout; pixel containment remains `WARN` until
+  renderer clipping is implemented.
 
 ## Perché è una limitation, non un bug del renderer
 
@@ -47,6 +52,31 @@ flag dedicato previsto da ADR-018. Resta da implementare il taglio dei pixel al 
 - `predicted_bbox`/compositor clip prediction (root cause diverso:
   `TICKET-TEXT-CLIP-PREDICTED-BBOX`, referenziato da `TICKET-TEXT-OVERSIZED-CLIP-WARN`).
 - Qualsiasi modifica al percorso RenderingGen stabile (golden canary invariato).
+
+## Current software reproduction — 2026-10-11
+
+The `linux-video-test` target `chronon3d_text_clip_oversized_tests` built and
+ran on dirty checkout `e8e06f5b3`: **1/1 case, 4/4 hard assertions passed**.
+Its `WARN` reported the rendered alpha bbox `(895,531)-(1024,1079)` against the
+declared box ending at `y=590`; doctest therefore returned success while
+preserving this known clipping failure. The run also emitted the
+`resolve_engine: no FontEngine provided` fallback warning, so this result is a
+software-path reproduction, not a font-specific golden. The renderer clipping
+exit condition remains OPEN.
+
+## Renderer boundary audit — 2026-10-11
+
+The canonical box and policy are available on `TextRunShape::layout_spec`
+(`TextLayoutSpec::box` and `overflow`). The software text path does not consume
+that policy at its final composite: `composite_text_run()` composites the full
+scratch image through `composite_bl_image_transformed()` without passing a clip
+state. The native Vulkan text route consumes the fixed-size
+`runtime::TextRunDynamic` payload; its current shader record has no clip box or
+overflow flag. Therefore clipping only the glyph raster surface in software
+would leave Vulkan behavior divergent. A complete fix needs a shared
+transformed-box contract and enforcement in both the software composite and
+Vulkan run payload/shaders. This is a source audit, not a behavior fix; the
+ticket remains OPEN and no GPU result is claimed.
 
 ## Cross-link
 

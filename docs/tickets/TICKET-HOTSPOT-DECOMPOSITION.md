@@ -5,6 +5,21 @@ Owner: CLI/render maintainers
 Scope: orchestration boundaries, high-churn render paths, and compile-time text
 headers identified by the 2026-09 audit.
 
+## Progress snapshot — 2026-10-11 — native CPU gate
+
+- `tools/verify_cpu_only_evidence.sh` passes on the current dirty worktree:
+  A1 fail-closed export `33/33` assertions, direct software-composition export
+  `25/25`, B3 segment assembly `53/53`, CLI CTest `1/1`, architecture gate
+  `1/1`, text-header fan-out `19/22`, and `git diff --check`.
+- Building `chronon3d_cli_tests` against the installed FFmpeg 8 headers found
+  stale `FF_PROFILE_H264_*` identifiers. Production references and the two
+  packet-assembler assertions now use `AV_PROFILE_H264_*`; the full CLI test
+  target builds and passes afterward.
+- Evidence is `PASS_SAME_TREE`, not same-SHA: the worktree has unrelated and
+  pre-existing modifications. GPU/CUDA certification and GitHub same-SHA CI
+  remain `NOT_RUN`; this ticket stays active until its GPU canary and remaining
+  acceptance evidence are satisfied.
+
 ## Progress snapshot — 2026-10-02 — shared-lock contention
 
 - `NodeMemoryTracker` now partitions node records into 16 mutex shards selected
@@ -23,12 +38,13 @@ headers identified by the 2026-09 audit.
   `hold_us=3..8`; system noise is visible, but lock wait/hold remains far
   below baseline. Hold time covers only contended slot locks; the uncontended
   local route does not read the clock.
-- Validation: framebuffer-pool focused suite 21/21 cases and 33,046/33,046
-  assertions; full cache suite 146/146 cases and 997,574/997,574 assertions;
-  memory tracker suite 12/12 cases and 111/111 assertions; architecture gate
-  206/206. The shared-worker probe varied from `0/3` through `34/8` µs across
-  focused and full-suite runs, still far below its pre-change `35247/399` µs
-  baseline. `git diff --check` is clean.
+- Validation: framebuffer-pool focused suite 22/22 cases and 33,051/33,051
+  assertions on Linux CPU (2026-10-11); cross-bucket LRU suite 5/5 cases and
+  26/26 assertions. Its shared-worker probe reported `wait_us=1`, `hold_us=8`.
+  The earlier full cache suite passed 146/146 cases and 997,574/997,574
+  assertions; memory tracker passed 12/12 cases and 111/111 assertions, and
+  architecture gate passed 206/206. Prior runs of the worker probe ranged
+  from `0/3` through `34/8` µs, all far below pre-change `35247/399` µs.
 
 ## Obiettivo
 

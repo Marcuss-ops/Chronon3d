@@ -69,6 +69,16 @@ superseded by the checks above.
 
 ## Remaining — same-SHA GPU-host verification
 
+### Current local CPU re-run — 2026-10-11
+
+The current `linux-video-test` binary passed both strict mapping cases:
+`strict hot-path derives the canonical native lane unless explicit` and
+`CLI and IPC boundary map identical semantics to one normalized job` (**2/2
+cases, 297/297 assertions**). This verifies parameter derivation, explicit
+override, and CLI/IPC normalization on CPU; it does not exercise native GPU
+execution or no-feed fail-closed behavior, so the two host checks below remain
+open.
+
 Only the two on-device items cannot be checked in this checkout (no native
 video feed here):
 

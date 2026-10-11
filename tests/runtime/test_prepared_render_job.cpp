@@ -170,6 +170,62 @@ TEST_CASE("PreparedRenderJob framebuffer allocations plateau after preparation")
     CHECK(completed.pipeline_in_flight == 0);
 }
 
+TEST_CASE(
+    "PreparedRenderJob effect scratch prevents steady-state framebuffer allocations") {
+    const auto make_composition = [](bool with_blur) {
+        return chronon3d::Composition{
+            chronon3d::CompositionSpec{
+                .name = with_blur ? "prepared-render-job-effect-scratch-plateau"
+                                  : "prepared-render-job-effect-scratch-baseline",
+                .width = 64,
+                .height = 64,
+                .frame_rate = {30, 1},
+                .duration = chronon3d::Frame{64}},
+            [with_blur](const chronon3d::FrameContext& ctx) {
+                chronon3d::SceneBuilder scene(ctx.resource);
+                scene.layer("shape-layer", [with_blur](chronon3d::LayerBuilder& layer) {
+                    layer.rect("shape", {
+                        .size = {32.0f, 32.0f},
+                        .color = chronon3d::Color{0.8f, 0.25f, 0.1f, 1.0f},
+                    });
+                    if (with_blur) {
+                        layer.effect(chronon3d::RadialBlurParams{
+                            .center = {0.5f, 0.5f},
+                            .amount = 2.0f,
+                            .render_samples = 8,
+                        });
+                    }
+                });
+                return scene.build();
+            }};
+    };
+
+    const auto composition = make_composition(true);
+
+    chronon3d::RenderEngine engine;
+    auto job = engine.prepare(composition);
+    const auto effected = job.render(chronon3d::Frame{0});
+    REQUIRE(effected != nullptr);
+    REQUIRE(job.render(chronon3d::Frame{1}) != nullptr);
+    const auto warmed = job.telemetry();
+
+    chronon3d::RenderEngine baseline_engine;
+    const auto baseline = baseline_engine.render(make_composition(false),
+                                                 chronon3d::Frame{0});
+    REQUIRE(baseline != nullptr);
+    CHECK(chronon3d::test::framebuffer_hash(*effected) !=
+          chronon3d::test::framebuffer_hash(*baseline));
+
+    for (int frame = 2; frame < 32; ++frame) {
+        REQUIRE(job.render(chronon3d::Frame{frame}) != nullptr);
+    }
+
+    const auto completed = job.telemetry();
+    CHECK(completed.framebuffer_allocations == warmed.framebuffer_allocations);
+    CHECK(completed.framebuffer_bytes_allocated == warmed.framebuffer_bytes_allocated);
+    CHECK(completed.pipeline_in_flight == 0);
+}
+
 TEST_CASE("PreparedRenderJob render_frames propagates encoder failure without deadlock") {
     chronon3d::RenderEngine engine;
     auto job = engine.prepare(make_empty_composition());
