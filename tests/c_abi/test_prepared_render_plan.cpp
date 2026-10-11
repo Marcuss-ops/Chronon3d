@@ -536,17 +536,11 @@ TEST_CASE("render plan rejects out-of-contract Lottie inputs at every limit boun
         edge_documents.emplace_back("out-of-bounds coordinate",
             json{{"v", "5.7.4"}, {"layers", {layer}}});
     }
-    // 4. Non-finite coordinates (1e999 parses to inf) fail closed.
-    {
-        auto document = json::parse(
-            R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
-              "ks":{"a":{"a":0,"k":[0,0,0]},"p":{"a":0,"k":[0,0,0]},
-                "s":{"a":0,"k":[100,100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
-              "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":true,
-                "v":[[1e999,0],[10,0]],"i":[[0,0],[0,0]],"o":[[0,0],[0,0]]}}},
-                {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}}]}]})JSON");
-        edge_documents.emplace_back("non-finite coordinate", document);
-    }
+    // 4. Non-finite coordinates (e.g. 1e999) never reach lowering: the JSON
+    // parser itself throws out_of_range, so the input fails closed at the
+    // parse boundary before any plan is built.
+    CHECK_THROWS_AS(json::parse(
+        R"JSON({"v":[[1e999,0]]})JSON"), json::out_of_range);
     // 5. Non-shape layer kinds fail closed (text, image, solid).
     for (const int layer_type : {1, 2, 5}) {
         auto layer = identity_layer();
@@ -576,14 +570,14 @@ TEST_CASE("render plan rejects out-of-contract Lottie inputs at every limit boun
     }
     // 8. L4 morph with a single keyframe fails closed (needs 2-256).
     {
-        auto layer = identity_layer();
-        layer["shapes"] = json::array({
-            json{{"ty", "sh"}, {"ks", {{"a", 1}, {"k", json::array({
-                json{{"t", 0}, {"s", json::array({
-                    json{{"c", true}, {"v", {{0, 0}, {10, 0}}},
-                        {"i", {{0, 0}, {0, 0}}}, {"o", {{0, 0}, {0, 0}}}}}})}}}}}}}}});
-        edge_documents.emplace_back("single-keyframe morph",
-            json{{"v", "5.7.4"}, {"layers", {layer}}});
+        auto document = json::parse(
+            R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
+              "ks":{"a":{"a":0,"k":[0,0,0]},"p":{"a":0,"k":[0,0,0]},
+                "s":{"a":0,"k":[100,100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
+              "shapes":[{"ty":"sh","ks":{"a":1,"k":[{"t":0,
+                "s":[{"c":true,"v":[[0,0],[10,0]],
+                  "i":[[0,0],[0,0]],"o":[[0,0],[0,0]]}]}]}}]}]})JSON");
+        edge_documents.emplace_back("single-keyframe morph", document);
     }
     for (const auto& [label, document] : edge_documents) {
         { std::ofstream file(directory.path / "shapes/edge.json"); file << document.dump(); }
