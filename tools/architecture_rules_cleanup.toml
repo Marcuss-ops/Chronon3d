@@ -212,7 +212,7 @@ required_patterns = [
   'register_transition\s*\(\s*"remotion"',
 ]
 forbidden_patterns = [
-  'register_transition\s*\(\s*"(?!none"|crossfade"|slide"|zoom"|wipe_linear"|smooth_wipe"|circle_iris"|flash"|procedural_remotion"|remotion")[^"]+"',
+  'register_transition\s*\(\s*"(?!none"|crossfade"|slide"|zoom"|wipe_linear"|smooth_wipe"|circle_iris"|flash"|procedural_remotion"|remotion"|fly_under_fade")[^"]+"',
 ]
 
 [[forbidden_symbol]]

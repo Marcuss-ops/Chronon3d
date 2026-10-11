@@ -45,6 +45,7 @@
 // ==============================================================================
 #define DOCTEST_CONFIG_DISABLE_TEST_EXN_CATCH 0
 #include <doctest/doctest.h>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp>
 
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/result.hpp>
@@ -143,6 +144,39 @@ Camera2_5D eval_at(const CameraProgram& program,
 }
 
 } // namespace
+
+TEST_CASE("handheld_noise_can_wiggle_two_node_camera_aim_deterministically") {
+    CameraDescriptor desc = make_handheld_descriptor();
+    desc.base.point_of_interest_enabled = true;
+    desc.base.point_of_interest = Vec3{10.0f, 20.0f, 30.0f};
+    auto& noise = std::get<HandheldNoise>(desc.modifiers.front());
+    noise.position_amplitude = Vec3{0.0f};
+    noise.rotation_amplitude_deg = Vec3{0.0f};
+    noise.zoom_amplitude = 0.0f;
+    noise.point_of_interest_amplitude = Vec3{12.0f, 7.0f, 4.0f};
+
+    CameraProgram program = compile_or_die_program(desc);
+    CameraSession session;
+    const Camera2_5D first = eval_at(program, session, Frame{30});
+    const Camera2_5D later = eval_at(program, session, Frame{60});
+    const Camera2_5D repeated = eval_at(program, session, Frame{30});
+
+    REQUIRE(first.point_of_interest_enabled);
+    CHECK(glm::length(first.point_of_interest - Vec3{10.0f, 20.0f, 30.0f}) > 0.01f);
+    CHECK(glm::length(later.point_of_interest - first.point_of_interest) > 0.01f);
+    CHECK(glm::length(repeated.point_of_interest - first.point_of_interest) < 1e-5f);
+}
+
+TEST_CASE("camera fingerprint includes point-of-interest wiggle parameters") {
+    CameraDescriptor first = make_handheld_descriptor();
+    auto& first_noise = std::get<HandheldNoise>(first.modifiers.front());
+    first_noise.point_of_interest_amplitude = Vec3{3.0f, 4.0f, 5.0f};
+    const auto first_hash = compute_camera_descriptor_fingerprint(first);
+
+    CameraDescriptor changed = first;
+    std::get<HandheldNoise>(changed.modifiers.front()).point_of_interest_freq_hz = 8.0f;
+    CHECK(compute_camera_descriptor_fingerprint(changed) != first_hash);
+}
 
 // ════════════════════════════════════════════════════════════════════
 // [N1] Round-trip determinism — evaluate(t1), evaluate(t2),

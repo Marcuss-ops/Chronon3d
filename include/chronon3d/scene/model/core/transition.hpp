@@ -113,6 +113,14 @@ struct RemotionParams {
     float angle = 0.0f;
 };
 
+struct FlyUnderFadeParams {
+    /// Vertical travel of the camera dip in pixels: the incoming layer
+    /// starts this far below its resting position (fully transparent) and
+    /// rises into place while fading in. Mirrors the `dip_px` wire param
+    /// stamped by RenderingGen chain items (`chain_camera: fly_under_fade`).
+    float dip_px = 60.0f;
+};
+
 using LayerTransitionParameters = std::variant<
     std::monostate,
     CrossfadeParams,
@@ -123,7 +131,8 @@ using LayerTransitionParameters = std::variant<
     CircleIrisParams,
     FlashParams,
     ProceduralRemotionParams,
-    RemotionParams
+    RemotionParams,
+    FlyUnderFadeParams
 >;
 
 /// Typed descriptor for a layer reveal / exit transition.

@@ -17,7 +17,7 @@
 //
 //   canary/register_canary_motion3d.cpp        the five Motion3D measured scenes
 //   canary/register_canary_text.cpp            the Chronon text-element contract
-//   canary/register_canary_final3d.cpp         the nine Final3D production IDs
+//   canary/register_canary_final3d.cpp         the three Final3D production IDs
 //   canary/register_canary_font_baselines.cpp  the five static font/glow baselines
 //   canary/register_canary_apple_v3.cpp        the 5×5 Apple V3 choreography matrix
 //   canary/register_canary_final_cards.cpp     the typewriter and smooth-orbit cards

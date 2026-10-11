@@ -355,3 +355,97 @@ TEST_CASE("Remotion-style transitions compute noise-driven masks and colors") {
         CHECK(framebuffer_hash(*fb15) != framebuffer_hash(*fb30));
     }
 }
+
+TEST_CASE("FlyUnderFade renders dip plus fade on the CPU path") {
+    auto renderer = test::make_renderer();
+
+    LayerTransitionSpec trans_in{
+        .transition_id = "fly_under_fade",
+        .duration = 1.0, // 30 frames at 30 fps
+        .delay = 0.0,
+        .easing = Easing::Linear
+    };
+    trans_in.parameters = FlyUnderFadeParams{.dip_px = 60.0f};
+    auto comp = make_transition_comp(trans_in, {});
+
+    // Frame 0: progress 0 — fully transparent, black background shows.
+    auto fb0 = renderer.render(comp, 0);
+    REQUIRE(fb0 != nullptr);
+    CHECK(fb0->get_pixel(50, 50).r == 0.0f);
+
+    // Frame 15: progress 0.5 — content shifted down 30px at half opacity.
+    // Centre pixel shows the source row 30px above at 0.5 alpha.
+    auto fb15 = renderer.render(comp, 15);
+    REQUIRE(fb15 != nullptr);
+    CHECK(fb15->get_pixel(50, 50).r == doctest::Approx(0.5f));
+    // Top rows sample above the source frame: transparent, background shows.
+    CHECK(fb15->get_pixel(50, 10).r == 0.0f);
+
+    // Frame 30: progress 1 — settled in place, fully opaque red.
+    auto fb30 = renderer.render(comp, 30);
+    REQUIRE(fb30 != nullptr);
+    CHECK(fb30->get_pixel(50, 50).r == doctest::Approx(1.0f));
+    CHECK(fb30->get_pixel(50, 10).r == doctest::Approx(1.0f));
+}
+
+TEST_CASE("FlyUnderFade is registered NativeBlend with dip-aware native params") {
+    LayerTransitionCatalog catalog;
+    LayerTransitionCatalog::register_builtin(catalog);
+
+    CHECK(catalog.contains("fly_under_fade"));
+    CHECK(catalog.backend_capability("fly_under_fade") ==
+          LayerTransitionCatalog::BackendCapability::NativeBlend);
+    // Crossfade keeps its existing NativeBlend capability (no regression).
+    CHECK(catalog.backend_capability("crossfade") ==
+          LayerTransitionCatalog::BackendCapability::NativeBlend);
+    CHECK(catalog.backend_capability("slide") ==
+          LayerTransitionCatalog::BackendCapability::CpuOnly);
+
+    LayerTransitionSpec spec_in = spec("fly_under_fade", 1.0f);
+    spec_in.parameters = FlyUnderFadeParams{.dip_px = 60.0f};
+    auto program = catalog.resolve(spec_in);
+    REQUIRE(program != nullptr);
+
+    // Entrance at p=0.5: shifted down half the dip, half opacity —
+    // exactly what the CPU program stamps on the same frame.
+    const NativeBlendParams mid = program->native_blend_params(0.5f, false);
+    CHECK(mid.supported);
+    CHECK(mid.offset_x == 0);
+    CHECK(mid.offset_y == 30);
+    CHECK(mid.opacity == doctest::Approx(0.5f));
+
+    // Settled entrance: no offset, opaque.
+    const NativeBlendParams settled = program->native_blend_params(1.0f, false);
+    CHECK(settled.supported);
+    CHECK(settled.offset_y == 0);
+    CHECK(settled.opacity == doctest::Approx(1.0f));
+
+    // Exit mirrors: sinks while fading out.
+    const NativeBlendParams out = program->native_blend_params(0.5f, true);
+    CHECK(out.supported);
+    CHECK(out.offset_y == 30);
+    CHECK(out.opacity == doctest::Approx(0.5f));
+
+    // Crossfade native params are unchanged (offset-free opacity ramp).
+    LayerTransitionSpec cross = spec("crossfade", 1.0f);
+    cross.parameters = CrossfadeParams{};
+    auto cross_program = catalog.resolve(cross);
+    REQUIRE(cross_program != nullptr);
+    const NativeBlendParams cross_mid = cross_program->native_blend_params(0.5f, false);
+    CHECK(cross_mid.supported);
+    CHECK(cross_mid.offset_x == 0);
+    CHECK(cross_mid.offset_y == 0);
+    CHECK(cross_mid.opacity == doctest::Approx(0.5f));
+}
+
+TEST_CASE("FlyUnderFade dip participates in the transition cache key") {
+    LayerTransitionSpec a = spec("fly_under_fade", 1.0f);
+    a.parameters = FlyUnderFadeParams{.dip_px = 60.0f};
+    LayerTransitionSpec b = spec("fly_under_fade", 1.0f);
+    b.parameters = FlyUnderFadeParams{.dip_px = 120.0f};
+    CHECK(hash_layer_transition_spec(a) != hash_layer_transition_spec(b));
+
+    LayerTransitionSpec c = spec("fly_under_fade", 1.0f);
+    c.parameters = FlyUnderFadeParams{.dip_px = 60.0f};
+    CHECK(hash_layer_transition_spec(a) == hash_layer_transition_spec(c));
+}

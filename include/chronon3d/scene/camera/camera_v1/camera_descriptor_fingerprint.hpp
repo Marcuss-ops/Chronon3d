@@ -306,9 +306,11 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
                 // fingerprint hole; fixed by the explicit branch below.
                 h.mix_vec3(mod.position_amplitude);
                 h.mix_vec3(mod.rotation_amplitude_deg);
+                h.mix_vec3(mod.point_of_interest_amplitude);
                 h.mix_f32(mod.zoom_amplitude);
                 h.mix_f32(mod.position_freq_hz);
                 h.mix_f32(mod.rotation_freq_hz);
+                h.mix_f32(mod.point_of_interest_freq_hz);
                 h.mix_f32(mod.zoom_freq_hz);
                 h.mix_u32(mod.seed);
             }

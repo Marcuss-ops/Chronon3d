@@ -876,6 +876,8 @@ private:
             u64 h = hash_value(p.speed);
             h = hash_combine(h, hash_value(p.direction));
             return hash_combine(h, hash_value(p.angle));
+        } else if constexpr (std::is_same_v<T, FlyUnderFadeParams>) {
+            return hash_value(p.dip_px);
         } else {
             return hash_bytes(&p, sizeof(p));
         }
