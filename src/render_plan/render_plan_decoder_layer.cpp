@@ -145,6 +145,15 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         params.size_max = size[1].get<float>();
         params.gravity = raw.value("gravity", 0.0f);
         params.turbulence = raw.value("turbulence", 0.0f);
+        params.environment = raw.value("environment", false);
+        params.bokeh = raw.value("bokeh", false);
+        if (raw.contains("depth_range")) {
+            const auto& range = raw.at("depth_range");
+            if (!range.is_array() || range.size() != 2)
+                throw std::runtime_error("particle_emitter.depth_range must be [min, max]");
+            params.depth_min = range[0].get<float>();
+            params.depth_max = range[1].get<float>();
+        }
         const auto shape_name = raw.value("shape", std::string{"box"});
         if (shape_name == "ellipse") params.shape = EmitterShape::Ellipse;
         else if (shape_name == "edge") params.shape = EmitterShape::Edge;

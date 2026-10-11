@@ -138,3 +138,32 @@ TEST_CASE("path particle emitter samples by polyline arc length") {
     CHECK(on_short_segment>60);
     CHECK(on_short_segment<140);
 }
+
+TEST_CASE("environment particles keep bounded deterministic depth and bokeh") {
+    auto params = dust_emitter();
+    params.count = 96;
+    params.environment = true;
+    params.depth_min = 0.25f;
+    params.depth_max = 0.75f;
+    params.bokeh = true;
+    const auto first = chronon3d::sample_particles(params, 2.5);
+    const auto repeated = chronon3d::sample_particles(params, 2.5);
+    REQUIRE(first.ok());
+    REQUIRE(repeated.ok());
+    REQUIRE(first.particles.size() == repeated.particles.size());
+    for (std::size_t index = 0; index < first.particles.size(); ++index) {
+        const auto& a = first.particles[index];
+        const auto& b = repeated.particles[index];
+        CHECK(a.depth == b.depth);
+        CHECK(a.depth >= params.depth_min);
+        CHECK(a.depth <= params.depth_max);
+        CHECK(a.size == b.size);
+        CHECK(a.color.a == b.color.a);
+        CHECK(a.size >= params.size_min * 0.825f);
+        CHECK(a.size <= params.size_max * 1.175f);
+    }
+
+    params.count = 4097;
+    CHECK(chronon3d::validate_particle_emitter(params) ==
+          "environment particle count exceeds the 4,096 particle budget");
+}

@@ -408,6 +408,14 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_float(particles.rotation_min); out.add_float(particles.rotation_max);
         out.add_float(particles.angular_velocity_min); out.add_float(particles.angular_velocity_max);
         out.add_enum(particles.blend_mode);
+        if (particles.environment || particles.depth_min != 0.0f ||
+            particles.depth_max != 1.0f || particles.bokeh) {
+            out.add_bool(true);
+            out.add_bool(particles.environment);
+            out.add_float(particles.depth_min);
+            out.add_float(particles.depth_max);
+            out.add_bool(particles.bokeh);
+        }
         out.add_size(particles.path_points.size());
         for (const auto point : particles.path_points) { out.add_float(point.x); out.add_float(point.y); }
         add_gradient(out, particles.color_ramp);

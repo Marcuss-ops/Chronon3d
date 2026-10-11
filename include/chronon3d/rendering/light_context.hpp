@@ -36,6 +36,9 @@ struct PointLightSource {
     f32 decay{1.0f};
     f32 angle{0.78539816339744830962f}; // spot half-angle, radians
     f32 penumbra{0.0f};  // spot edge softness in [0, 1]
+    bool casts_shadow{false};
+    f32 shadow_radius{1.0f};
+    f32 shadow_bias{0.0f};
 };
 
 // Simple directional light for 2.5D rendering.
