@@ -477,6 +477,127 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
     }
 }
 
+TEST_CASE("render plan rejects out-of-contract Lottie inputs at every limit boundary") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    using json = nlohmann::json;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "shapes");
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"vector","type":"shape","size":[64,64],
+        "shape":{"type":"path","lottie":"shapes/edge.json"}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto identity_layer = [] {
+        return json{{"ty", 4}, {"ddd", 0},
+            {"ks", {{"a", {{"a", 0}, {"k", {0, 0, 0}}}},
+                    {"p", {{"a", 0}, {"k", {0, 0, 0}}}},
+                    {"s", {{"a", 0}, {"k", {100, 100, 100}}}},
+                    {"r", {{"a", 0}, {"k", 0}}},
+                    {"o", {{"a", 0}, {"k", 100}}}}},
+            {"shapes", json::array()}};
+    };
+    const auto static_path = [] {
+        return json{{"ty", "sh"}, {"ks", {{"a", 0}, {"k", {
+            {"c", true}, {"v", {{0, 0}, {10, 0}}},
+            {"i", {{0, 0}, {0, 0}}}, {"o", {{0, 0}, {0, 0}}}}}}}};
+    };
+    const auto solid_fill = [] {
+        return json{{"ty", "fl"}, {"r", 1}, {"c", {{"a", 0}, {"k", {1, 0, 0, 1}}}}};
+    };
+    std::vector<std::pair<std::string, json>> edge_documents;
+    // 1. Group nesting deeper than 16 levels fails closed.
+    {
+        json nested = json{{"ty", "gr"}, {"it", json::array({static_path(), solid_fill()})}};
+        for (int level = 0; level < 17; ++level)
+            nested = json{{"ty", "gr"}, {"it", json::array({nested})}};
+        auto layer = identity_layer();
+        layer["shapes"].push_back(nested);
+        edge_documents.emplace_back("deep nesting (17 levels)",
+            json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    // 2. More than 256 authored shape items fails closed.
+    {
+        auto layer = identity_layer();
+        for (int i = 0; i < 257; ++i) layer["shapes"].push_back(static_path());
+        edge_documents.emplace_back("257 shape items",
+            json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    // 3. Coordinates beyond +/-100000 fail closed.
+    {
+        auto layer = identity_layer();
+        auto far = static_path();
+        far["ks"]["k"]["v"] = json::array({{200000, 0}, {200010, 0}});
+        layer["shapes"] = json::array({far, solid_fill()});
+        edge_documents.emplace_back("out-of-bounds coordinate",
+            json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    // 4. Non-finite coordinates (1e999 parses to inf) fail closed.
+    {
+        auto document = json::parse(
+            R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
+              "ks":{"a":{"a":0,"k":[0,0,0]},"p":{"a":0,"k":[0,0,0]},
+                "s":{"a":0,"k":[100,100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
+              "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":true,
+                "v":[[1e999,0],[10,0]],"i":[[0,0],[0,0]],"o":[[0,0],[0,0]]}}},
+                {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}}]}]})JSON");
+        edge_documents.emplace_back("non-finite coordinate", document);
+    }
+    // 5. Non-shape layer kinds fail closed (text, image, solid).
+    for (const int layer_type : {1, 2, 5}) {
+        auto layer = identity_layer();
+        layer["ty"] = layer_type;
+        layer["shapes"].push_back(static_path());
+        edge_documents.emplace_back("non-shape layer ty=" + std::to_string(layer_type),
+            json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    // 6. Multiple layers fail closed (contract allows exactly one).
+    {
+        auto layer = identity_layer();
+        layer["shapes"].push_back(static_path());
+        edge_documents.emplace_back("two layers",
+            json{{"v", "5.7.4"}, {"layers", {layer, layer}}});
+    }
+    // 7. Repeater copies above 256 fail closed.
+    {
+        auto layer = identity_layer();
+        layer["shapes"] = json::array({static_path(), solid_fill(),
+            json{{"ty", "rp"}, {"c", {{"a", 0}, {"k", 300}}}},
+            json{{"ty", "tr"}, {"a", {{"a", 0}, {"k", {0, 0}}}},
+                {"p", {{"a", 0}, {"k", {0, 0}}}},
+                {"s", {{"a", 0}, {"k", {100, 100}}}},
+                {"r", {{"a", 0}, {"k", 0}}}}});
+        edge_documents.emplace_back("repeater with 300 copies",
+            json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    // 8. L4 morph with a single keyframe fails closed (needs 2-256).
+    {
+        auto layer = identity_layer();
+        layer["shapes"] = json::array({
+            json{{"ty", "sh"}, {"ks", {{"a", 1}, {"k", json::array({
+                json{{"t", 0}, {"s", json::array({
+                    json{{"c", true}, {"v", {{0, 0}, {10, 0}}},
+                        {"i", {{0, 0}, {0, 0}}}, {"o", {{0, 0}, {0, 0}}}}}})}}}}}}}}});
+        edge_documents.emplace_back("single-keyframe morph",
+            json{{"v", "5.7.4"}, {"layers", {layer}}});
+    }
+    for (const auto& [label, document] : edge_documents) {
+        { std::ofstream file(directory.path / "shapes/edge.json"); file << document.dump(); }
+        CHECK_FALSE_MESSAGE(compile_render_plan(*decoded, resolver), label);
+    }
+    // 9. Input larger than 10 MiB fails closed before parsing.
+    {
+        std::ofstream file(directory.path / "shapes/edge.json", std::ios::binary);
+        const std::string block(1024 * 1024, ' ');
+        for (int i = 0; i < 11; ++i) file << block;
+    }
+    CHECK_FALSE(compile_render_plan(*decoded, resolver));
+}
+
 TEST_CASE("render plan lowers animated Lottie group transforms through native tracks") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;

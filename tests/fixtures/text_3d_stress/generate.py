@@ -25,11 +25,51 @@ def animator(unit, props, selector_order="forward", shape="ramp_up", start=None,
         selector["start"] = {"keyframes": kf(start), "easing": "linear"}
     if end is not None:
         selector["end"] = {"keyframes": kf(end), "easing": "linear"}
-    return {"selectors": [selector], "properties": props}
+    return {"selectors": [selector], "properties": [sampled_text_track(p) for p in props]}
 
 
 def prop_track(prop, values, easing="in_out_cubic"):
     return track(prop, values, easing)
+
+
+def easing_value(name, t):
+    if name == "linear":
+        return t
+    if name == "in_out_cubic":
+        return 4 * t * t * t if t < 0.5 else 1 - ((-2 * t + 2) ** 3) / 2
+    if name == "out_cubic":
+        return 1 - (1 - t) ** 3
+    if name == "out_back":
+        c1 = 1.70158
+        c3 = c1 + 1
+        return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2
+    raise ValueError(f"unsupported text animator easing: {name}")
+
+
+def sampled_text_track(track_spec):
+    """Bake a sparse eased track to the decoder's sampled-linear contract."""
+    keys = track_spec["keyframes"]
+    easing = track_spec.get("easing", "linear")
+    first_frame = keys[0]["frame"]
+    last_frame = keys[-1]["frame"]
+    values = []
+    for frame in range(first_frame, last_frame + 1):
+        segment = next((i for i in range(len(keys) - 1)
+                        if keys[i]["frame"] <= frame <= keys[i + 1]["frame"]), None)
+        if segment is None:
+            value = keys[0]["value"] if frame < first_frame else keys[-1]["value"]
+        else:
+            a, b = keys[segment], keys[segment + 1]
+            span = b["frame"] - a["frame"]
+            t = 1.0 if span <= 0 else (frame - a["frame"]) / span
+            t = easing_value(easing, t)
+            av, bv = a["value"], b["value"]
+            if isinstance(av, list):
+                value = [x + (y - x) * t for x, y in zip(av, bv)]
+            else:
+                value = av + (bv - av) * t
+        values.append({"frame": frame, "value": value})
+    return {"property": track_spec["property"], "easing": "linear", "keyframes": values}
 
 
 def make_layer(text="MOTION", *, enable_3d=False, position=(480, 270), size=(860, 300), font_size=148,

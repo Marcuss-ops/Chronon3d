@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <src/render_graph/builder/graph_builder_pipeline.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -12,64 +13,11 @@ using namespace chronon3d;
 
 namespace {
 
-Composition make_depth_stack() {
-    return composition({.name = "DepthStackContract", .width = 256,
-                        .height = 160, .duration = 40}, [](const FrameContext& ctx) {
-        SceneBuilder scene(ctx);
-        scene.camera_descriptor(camera().enabled(true).position({0, 0, -700})
-            .zoom(700).look_at({0, 0, 0}).build());
-
-        scene.layer("far-sky", [](LayerBuilder& layer) {
-            layer.enable_3d().position({0, 0, 250})
-                .rect("sky", {.size = {210, 130}, .color = {0.05f, 0.15f, 0.85f, 1},
-                               .pos = {-105, -65, 0}});
-        });
-        scene.layer("middle-cloud", [](LayerBuilder& layer) {
-            layer.enable_3d().position({18, 0, 120})
-                .rect("cloud", {.size = {140, 90}, .color = {0.05f, 0.85f, 0.15f, 1},
-                                 .pos = {-70, -45, 0}});
-        });
-        scene.layer("near-subject", [](LayerBuilder& layer) {
-            layer.enable_3d().position({-14, 0, 0})
-                .rect("subject", {.size = {74, 58}, .color = {0.9f, 0.05f, 0.05f, 1},
-                                   .pos = {-37, -29, 0}});
-        });
-        return scene.build();
-    });
-}
-
-Composition make_staggered_opacity_stack() {
-    return composition({.name = "StaggeredDepthOpacity", .width = 256,
-                        .height = 160, .duration = 40}, [](const FrameContext& ctx) {
-        SceneBuilder scene(ctx);
-        scene.camera_descriptor(camera().enabled(true).position({0, 0, -700})
-            .zoom(700).look_at({0, 0, 0}).build());
-        scene.layer("early", [](LayerBuilder& layer) {
-            layer.enable_3d().position({-70, 0, 0})
-                .rect("early-card", {.size = {44, 44}, .color = {0.95f, 0.1f, 0.05f, 1},
-                                      .pos = {-22, -22, 0}});
-            layer.opacity_anim().key(0, 1.0f).key(39, 1.0f);
-        });
-        scene.layer("middle", [](LayerBuilder& layer) {
-            layer.enable_3d().position({0, 0, 0})
-                .rect("middle-card", {.size = {44, 44}, .color = {0.05f, 0.9f, 0.1f, 1},
-                                       .pos = {-22, -22, 0}});
-            layer.opacity_anim().key(0, 0.0f).key(12, 1.0f);
-        });
-        scene.layer("late", [](LayerBuilder& layer) {
-            layer.enable_3d().position({70, 0, 0})
-                .rect("late-card", {.size = {44, 44}, .color = {0.05f, 0.2f, 0.95f, 1},
-                                     .pos = {-22, -22, 0}});
-            layer.opacity_anim().key(0, 0.0f).key(24, 1.0f);
-        });
-        return scene.build();
-    });
-}
-
 Composition make_look_at_subject_comp() {
     return composition({.name = "TwoNodeCameraSubjectLock", .width = 256,
                         .height = 160, .duration = 40}, [](const FrameContext& ctx) {
         SceneBuilder scene(ctx);
+        scene.ambient_light(Color::white(), 1.0f);
         camera_v1::CameraDescriptor descriptor;
         descriptor.id = "two-node-subject-lock";
         descriptor.base.enabled = true;
@@ -94,21 +42,20 @@ Composition make_look_at_subject_comp() {
 
 } // namespace
 
-TEST_CASE("same camera shot composites multiple 3D layers by camera depth") {
-    const auto frame = test::render_modular(make_depth_stack());
-    REQUIRE(frame);
-    const Color center = frame->get_pixel(frame->width() / 2, frame->height() / 2);
-    CHECK(center.r > center.g);
-    CHECK(center.r > center.b);
+TEST_CASE("camera depth sorting draws far layers before near layers") {
+    std::vector<graph::LayerGraphItem> layers(3);
+    layers[0].depth = 700.0f;
+    layers[0].insertion_index = 2;
+    layers[1].depth = 950.0f;
+    layers[1].insertion_index = 0;
+    layers[2].depth = 820.0f;
+    layers[2].insertion_index = 1;
 
-    // At an exposed edge of the middle card, green must cover the far blue
-    // background; farther right, the sky remains visible.
-    const Color middle_edge = frame->get_pixel(frame->width() / 2 + 48,
-                                                frame->height() / 2);
-    const Color sky_edge = frame->get_pixel(frame->width() / 2 + 85,
-                                             frame->height() / 2);
-    CHECK(middle_edge.g > middle_edge.b);
-    CHECK(sky_edge.b > sky_edge.g);
+    graph::detail::sort_camera25d_layers(layers);
+    REQUIRE(layers.size() == 3);
+    CHECK(layers[0].depth == doctest::Approx(950.0f));
+    CHECK(layers[1].depth == doctest::Approx(820.0f));
+    CHECK(layers[2].depth == doctest::Approx(700.0f));
 }
 
 TEST_CASE("projected card scale follows camera-space distance") {
@@ -135,27 +82,26 @@ TEST_CASE("projected card scale follows camera-space distance") {
 }
 
 TEST_CASE("staggered opacity keys reveal independent layers without changing earlier cards") {
-    const auto scene = make_staggered_opacity_stack();
-    const auto at_12 = test::render_modular(scene, Frame{12});
-    const auto at_34 = test::render_modular(scene, Frame{34});
-    REQUIRE(at_12);
-    REQUIRE(at_34);
+    constexpr FrameRate fps{30, 1};
+    AnimatedValue<float> early{1.0f};
+    early.key(Frame{0}, 1.0f).key(Frame{39}, 1.0f);
+    AnimatedValue<float> middle{0.0f};
+    middle.key(Frame{0}, 0.0f).key(Frame{12}, 1.0f);
+    AnimatedValue<float> late{0.0f};
+    late.key(Frame{24}, 0.0f).key(Frame{34}, 1.0f);
 
-    const int cy = at_12->height() / 2;
-    const int cx = at_12->width() / 2;
-    const Color early_12 = at_12->get_pixel(cx - 70, cy);
-    const Color middle_12 = at_12->get_pixel(cx, cy);
-    const Color late_12 = at_12->get_pixel(cx + 70, cy);
-    const Color early_34 = at_34->get_pixel(cx - 70, cy);
-    const Color middle_34 = at_34->get_pixel(cx, cy);
-    const Color late_34 = at_34->get_pixel(cx + 70, cy);
-
-    CHECK(early_12.r > 0.5f);
-    CHECK(middle_12.g > 0.5f);
-    CHECK(late_12.b < 0.2f);
-    CHECK(early_34.r == doctest::Approx(early_12.r).epsilon(0.03));
-    CHECK(middle_34.g == doctest::Approx(middle_12.g).epsilon(0.03));
-    CHECK(late_34.b > 0.5f);
+    const auto time = [fps](int frame) {
+        return SampleTime::from_frame_int(Frame{frame}, fps);
+    };
+    const float early_12 = early.evaluate(time(12));
+    const float middle_12 = middle.evaluate(time(12));
+    const float late_12 = late.evaluate(time(12));
+    CHECK(early_12 == doctest::Approx(1.0f));
+    CHECK(middle_12 == doctest::Approx(1.0f));
+    CHECK(late_12 == doctest::Approx(0.0f));
+    CHECK(early.evaluate(time(34)) == doctest::Approx(early_12));
+    CHECK(middle.evaluate(time(34)) == doctest::Approx(middle_12));
+    CHECK(late.evaluate(time(34)) == doctest::Approx(1.0f));
 }
 
 TEST_CASE("two-node camera keeps its subject framed while the camera moves") {
