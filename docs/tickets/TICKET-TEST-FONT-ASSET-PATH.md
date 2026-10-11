@@ -1,6 +1,8 @@
 # TICKET-TEST-FONT-ASSET-PATH
 
-**Status**: WIRED (P1, macchina-verifica pending)
+**Status**: RESOLVED / SUPERSEDED — pinned asset integrity and the current
+relative Poppins path are verified; the original ShapedGlyphLine content suite
+was deliberately retired and its exact gate is no longer part of the project.
 
 ## 2026-09-05 — fixture fleet re-pinned (bootstrap v2)
 
@@ -55,6 +57,10 @@ Questo non è un fallback CWD del runtime: è una fixture test-only materializza
 
 ## Criteri di accettazione
 
+I criteri seguenti descrivono il test harness originale; dopo la rimozione
+deliberata della suite esterna, la loro disposizione è registrata nel
+re-audit checkout in fondo a questa scheda.
+
 1. Il bootstrap produce font e licenza nella checkout di verifica.
 2. Il checksum Git dei file prodotti coincide con i blob pinned.
 3. I test ShapedGlyphLine trovano `assets/fonts/Poppins-Regular.ttf` dal working directory canonico.
@@ -66,11 +72,15 @@ Questo non è un fallback CWD del runtime: è una fixture test-only materializza
 
 | Forward-point | Stato | Chiusura |
 |---|---|---|
-| `PHASE-1-FONT-ASSET-PATH-AUDIT` | PARTIAL | Inventario completo dei consumer Poppins ancora da osservare sulla macchina di verifica. |
-| `PHASE-2-FONT-ASSET-INSTALL` | WIRED | Bootstrap, checksum e CMake dependency implementati; chiude dopo test ShapedGlyphLine osservati verdi. |
-| `PHASE-3-CI-PORTABILITY` | WIRED | Preset CI e path source-relative portabile implementati; chiude dopo una run CI/WSL/VPS osservata. |
+| `PHASE-1-FONT-ASSET-PATH-AUDIT` | SUPERSEDED | La suite che originava il census è stata ritirata; il path Poppins mantenuto è verificato dal test cache e dal CTest source-root contract. |
+| `PHASE-2-FONT-ASSET-INSTALL` | RESOLVED | I 21 fixture pinned sono materializzati e verificati; il test relativo Poppins passa 5/5 asserzioni. |
+| `PHASE-3-CI-PORTABILITY` | PARTIAL (forward-pointed) | Path source-relative e CTest working directory verificati localmente; clean same-SHA certification resta in `CERT-SEQUENCE-WBH` / `MAIN-TRUTH`. |
 
-## Verifica ancora richiesta
+## Percorso di verifica storico (retirato)
+
+Questa era la procedura di accettazione quando il ticket fu aperto; il target,
+la suite e il gate sono stati successivamente rimossi. La disposizione corrente
+è riportata nel re-audit in fondo a questa scheda.
 
 ```bash
 cmake --preset linux-ci
@@ -79,8 +89,42 @@ cmake --build --preset linux-ci --target chronon3d_content_tests
   --test-case='*ShapedGlyphLine*'
 ```
 
-Lo stato resta **WIRED**, non **PASS**, finché i sette test e il gate testuale non vengono osservati verdi.
+Questo comando storico non è più eseguibile nel checkout corrente.
 
 ## Limitazione correlata
 
-Il precedente SIGABRT in `test_shaped_glyph_line_cluster_benchmark.cpp` rimane un problema separato e non deve essere nascosto dalla disponibilità del font.
+Il precedente SIGABRT era associato a una suite che è stata poi rimossa; non si
+inferisce da quel risultato un difetto nel test corpus mantenuto.
+
+## Re-audit checkout — 2026-10-11
+
+- `python3 tools/bootstrap_test_fonts.py` materialized all 21 pinned fixtures;
+  the subsequent `python3 tools/bootstrap_test_fonts.py --check` exited 0.
+  `Poppins-Regular.ttf` matches its pinned Git blob SHA. Generated assets remain
+  ignored by Git.
+- The historical acceptance path is not present in this checkout:
+  `chronon3d_content_tests` is not a target in the `linux-fast-dev` build,
+  `tools/check_text_functional_linux.sh` is absent, and no
+  `ShapedGlyphLine` test source is present under `tests/`. The current `linux-ci`
+  preset registers `chronon3d_cli` and `chronon3d_tests`, not the removed
+  content target. Git history confirms the three `tests/content/test_shaped_glyph_line*`
+  files were explicitly removed in `0e220c6e0` (`chore(tests): remove retired
+  external content suite`); restoring them would contradict that retirement.
+- Replacement evidence on the maintained path: CTest runs the current fallback
+  suite successfully (15/15 cases, 115/115 assertions); the shaping corpus
+  passes 13/13 and 116/116; and the Poppins relative-path/cache test passes
+  1/1 and 5/5. `chronon3d_add_test_suite()` sets `WORKING_DIRECTORY
+  ${CMAKE_SOURCE_DIR}`, so the registered test resolves the relative font path
+  from the source root.
+- Disposition: close the fixture-path issue as resolved and supersede its exact
+  seven-case/gate criteria with the maintained tests above. This does not claim
+  clean-SHA CI certification, which remains tracked by the separate WBH/main
+  truth tickets. No GPU is required for these font/asset checks.
+- `chronon3d_core_tests --test-case='freetype_face_cache: concurrent get_face across many threads'`
+  passed 1/1 case and 5/5 assertions from the repository root. That maintained
+  test opens the literal relative path `assets/fonts/Poppins-Regular.ttf` and
+  skips before assertions when fixtures are missing, so the nonzero assertion
+  count verifies this checkout's working-directory path resolves correctly.
+- The current shaping corpus (`ShapingCorpus:*`) passed 13/13 cases and
+  116/116 assertions. It provides multilingual cluster/advance coverage but
+  does not restore the seven retired `ShapedGlyphLine` cases.

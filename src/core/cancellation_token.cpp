@@ -1,8 +1,14 @@
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chrono>
 #include <csignal>
+#include <cstddef>
 #include <cstdio>
+#if defined(_WIN32)
+#include <fcntl.h>
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
@@ -23,13 +29,45 @@ volatile std::sig_atomic_t g_cancel_requested = 0;
 CancellationToken* g_bridge_token = nullptr;
 int g_selfpipe_write_fd = -1;
 
+int create_self_pipe(int fds[2]) noexcept {
+#if defined(_WIN32)
+    return ::_pipe(fds, 4096, _O_BINARY);
+#else
+    return ::pipe(fds);
+#endif
+}
+
+std::ptrdiff_t read_self_pipe(int fd, char* data, std::size_t size) noexcept {
+#if defined(_WIN32)
+    return ::_read(fd, data, static_cast<unsigned int>(size));
+#else
+    return ::read(fd, data, size);
+#endif
+}
+
+void write_self_pipe(int fd, const char* data, std::size_t size) noexcept {
+#if defined(_WIN32)
+    (void)::_write(fd, data, static_cast<unsigned int>(size));
+#else
+    (void)::write(fd, data, size);
+#endif
+}
+
+void close_self_pipe(int fd) noexcept {
+#if defined(_WIN32)
+    (void)::_close(fd);
+#else
+    (void)::close(fd);
+#endif
+}
+
 extern "C" void signal_handler(int) noexcept {
     g_cancel_requested = 1;  // sig_atomic_t store: async-signal-safe
     if (g_selfpipe_write_fd >= 0) {
         const char byte = 1;
-        // write() of <= PIPE_BUF bytes is async-signal-safe on POSIX.
+        // A one-byte write wakes the watcher on both POSIX and Windows.
         // EAGAIN (pipe full) is fine: the flag above already latched.
-        (void)::write(g_selfpipe_write_fd, &byte, 1);
+        write_self_pipe(g_selfpipe_write_fd, &byte, 1);
     }
 }
 
@@ -43,7 +81,7 @@ bool SignalCancellationBridge::install(CancellationToken& token) {
     }
 
     int fds[2];
-    if (::pipe(fds) != 0) {
+    if (create_self_pipe(fds) != 0) {
         m_installed.store(false, std::memory_order_release);
         spdlog::error("[cancellation] SignalCancellationBridge: pipe() failed");
         return false;
@@ -60,7 +98,7 @@ bool SignalCancellationBridge::install(CancellationToken& token) {
         while (!m_stop_requested.load(std::memory_order_acquire)) {
             // Blocking read wakes on either a signal byte or an EOF byte
             // written by restore() — no polling, no races on join.
-            ssize_t n = ::read(read_fd, drain, sizeof(drain));
+            const auto n = read_self_pipe(read_fd, drain, sizeof(drain));
             if (n <= 0) {
                 if (m_stop_requested.load(std::memory_order_acquire)) break;
                 continue;
@@ -81,7 +119,7 @@ bool SignalCancellationBridge::install(CancellationToken& token) {
                 }
             }
         }
-        ::close(read_fd);
+        close_self_pipe(read_fd);
     });
     return true;
 }
@@ -95,11 +133,10 @@ void SignalCancellationBridge::restore() noexcept {
         return;  // never installed / already restored
     }
     m_stop_requested.store(true, std::memory_order_release);
-    // Wake the watcher: EOF byte through the self-pipe (async-signal-safe
-    // write is fine here too, but this runs on a normal thread anyway).
+    // Wake the watcher with a sentinel byte (this runs on a normal thread).
     if (g_selfpipe_write_fd >= 0) {
         const char byte = 0;
-        (void)::write(g_selfpipe_write_fd, &byte, 1);
+        write_self_pipe(g_selfpipe_write_fd, &byte, 1);
     }
     if (m_watcher.joinable()) {
         m_watcher.join();
@@ -108,7 +145,7 @@ void SignalCancellationBridge::restore() noexcept {
     std::signal(SIGTERM, SIG_DFL);
     g_bridge_token = nullptr;  // handler is disarmed before the pointer drops
     if (g_selfpipe_write_fd >= 0) {
-        ::close(g_selfpipe_write_fd);
+        close_self_pipe(g_selfpipe_write_fd);
         g_selfpipe_write_fd = -1;
     }
 }

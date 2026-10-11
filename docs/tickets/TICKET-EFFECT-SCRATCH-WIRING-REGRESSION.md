@@ -1,5 +1,29 @@
 # TICKET-EFFECT-SCRATCH-WIRING-REGRESSION — processor context lost its session scratch
 
+Status: `DONE` (2026-10-11, Linux CPU same-tree evidence)
+
+## Verifica — 2026-10-11
+
+- Re-run diretto del binario corrente
+  `.tmp/chronon-builds/linux-fast-dev/tests/chronon3d_effects_tests`: **276/276
+  casi e 5.532.873/5.532.873 asserzioni PASS**, exit 0. I due messaggi
+  `[native-blur] ... native surfaces are not supported` appartengono ai test
+  del percorso nativo non supportato dal backend software; non hanno causato
+  skip o fallimenti.
+- Il target `chronon3d_effects_tests` è stato ricostruito nel preset
+  `linux-fast-dev`; CTest registrato passa `1/1` (8,08 s). La suite include i
+  test effects/context e i casi CPU di radial/directional blur, stroke e
+  offset con `EffectScratchResources`.
+- Aggiunta una regressione d'integrazione a
+  `tests/runtime/test_prepared_render_job.cpp`: il `RenderEngine` CPU renderizza
+  la stessa composizione con e senza `RadialBlur`; l'hash prova che l'effetto è
+  attivo. Dopo due frame di warm-up, 30 frame consecutivi lasciano invariati
+  `framebuffer_allocations` e `framebuffer_bytes_allocated`.
+- Build `chronon3d_core_tests` riuscita nel preset `linux-fast-dev`; il caso
+  mirato passa `37/37` assertion. La suite effetti CPU passa inoltre `1/1`
+  CTest. Il criterio di allocazione steady-state è quindi verificato sul
+  percorso software end-to-end, senza GPU.
+
 ## Contesto
 
 `SoftwareProcessorContext` espone tre workspace di sessione:
@@ -15,9 +39,9 @@ dispatcher passino **sempre** `context.effect_scratch`, così gli effetti scalar
 (radial/directional blur, stroke, offset) riusano il framebuffer di sessione e
 non allocano heap per frame.
 
-Quel contratto **non era vero**. La costruzione del contesto
-(`backends::software::internal::make_processor_context`) non assegnava nessuno
-dei tre puntatori, e nessun call-site li impostava dopo:
+Prima della correzione, quel contratto **non era vero**. La costruzione del
+contesto (`backends::software::internal::make_processor_context`) non assegnava
+nessuno dei tre puntatori, e nessun call-site li impostava dopo:
 
 ```
 make_processor_context(services, extras)   ← non tocca effect_scratch
@@ -32,7 +56,7 @@ più chiamanti già da TICKET-118.
 
 ### Impatto (produzione, non latente)
 
-Poiché `effect_scratch == nullptr` su ogni path reale:
+Poiché `effect_scratch == nullptr` su ogni path reale prima della correzione:
 
 | Path | Effetto |
 |---|---|
@@ -77,9 +101,9 @@ eliminare, ed è incompatibile con il gate di steady-state
 
 | Gate | Eval |
 |---|---|
-| `framebuffer_allocations == 0` in steady-state con effetti attivi | da rieseguire su bench (i contatori sono già presenti) |
-| Nessuna chiamata agli effetti senza scratch | garantita dal tipo (`EffectScratchResources&`) |
-| Build + suite effetti/backend | vedere log di sessione |
+| Delta di `framebuffer_allocations` e `framebuffer_bytes_allocated` dopo warm-up, con effetto attivo | PASS: invariato per 30 frame nel test d'integrazione Linux CPU; il contatore include le allocazioni precedenti al warm-up |
+| Nessuna chiamata agli effetti senza scratch | PASS: API con `EffectScratchResources&`; il test d'integrazione renderizza e verifica l'effetto attivo |
+| Build + suite effetti/runtime | PASS: `chronon3d_effects_tests` CTest 1/1; caso `PreparedRenderJob` 37/37 assertion |
 
 ## Nota di governance
 

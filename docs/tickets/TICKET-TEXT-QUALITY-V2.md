@@ -172,3 +172,35 @@ Conseguenze sul piano, in ordine:
 - `--keep-frames`/`--frames-dir` rendono la verità pre-encode parte del
   prodotto: nessun harness nuovo per il diagnostico.
 - Cronaca estesa solo qui; nei canonici al massimo una riga sintetica.
+
+## Current CPU sink-contract re-run — 2026-10-11
+
+The current `linux-video-test` CLI binary passed the contract cases
+`VideoSinkType: only the encoder and the pre-encode sink are executable` and
+`the video lane is the only pixel-truth output lane`: **2/2 cases, 11/11
+assertions**. This verifies sink selection and the pixel-truth lane contract;
+it does not run `raw_frame_to_png.py` on a real job artifact, so P0-0b's
+real-artifact measurement and the pixel-quality campaign remain open.
+
+### Raw-sink execution probe — 2026-10-11
+
+The available `linux-fast-dev` CLI advertises `--video-sink raw`, but this
+build cannot execute it. A one-frame probe against the valid, minimal
+`sdk_consumers/01_cpp_minimal/plan.json` successfully read and prepared the
+RenderPlan, then failed before rendering with
+`Video RenderJob requires the legacy compiled export view`. A second probe
+using the registered `chronon_text_full_static` legacy composition failed with
+`Video output requested but the CLI video exporter target is disabled`. Both
+probes wrote to `/tmp`; neither created an output artifact. The first plan has
+only a color layer and the second is a canary, so neither is evidence from a
+real text job and P0-0b remains open. This identifies the immediate local gate:
+the video-enabled CLI build plus a supported job input are needed before the
+raw-sink measurement can run. No GPU was involved.
+
+The configured `build/chronon/linux-video-test` cache has
+`CHRONON3D_ENABLE_VIDEO=ON`, but its CLI executable is absent. A Ninja dry-run
+for `chronon3d_cli` schedules eight steps, including relinking
+`libchronon3d_cli_render.a` (current on-disk size 3.1 GB); the filesystem has
+1.5 GB free. The link was not attempted because the known output is larger than
+available space. This is a local build-capacity blocker, distinct from the
+missing real-job plan/prepared package.
