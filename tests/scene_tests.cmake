@@ -53,6 +53,7 @@ chronon3d_add_test_suite(
         scene/test_fullscreen_rect_modular_bbox.cpp
         scene/shapes/test_path_utils.cpp
         scene/shapes/test_shape_model.cpp
+        scene/shapes/test_morph_physics_puppet.cpp
         scene/layout/test_layer_hierarchy.cpp
         ${SCENE_TEXT_TESTS}
         scene/rendering/test_render_node_factory.cpp

@@ -137,6 +137,16 @@ public:
         }
     }
 
+    [[nodiscard]] NativeBlendParams native_blend_params(float progress, bool is_out) const override {
+        const float p = std::clamp(progress, 0.0f, 1.0f);
+        NativeBlendParams params;
+        params.offset_x = 0;
+        params.offset_y = 0;
+        params.opacity = is_out ? (1.0f - p) : p;
+        params.supported = true;
+        return params;
+    }
+
     [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
         const std::optional<raster::BBox>& input_bbox,
         const RenderGraphContext& ctx
@@ -366,6 +376,70 @@ private:
     Color m_color;
 };
 
+// Fly-under dip + fade: the chain-handoff transition. The incoming layer
+// starts `dip_px` below its resting position fully transparent, then rises
+// into place while fading in (entrance) — the camera visibly passes under
+// before the next segment reveals. Exit mirrors it (sinks while fading).
+// Pixel math matches the native transform kernel exactly (nearest sample,
+// out-of-frame reads transparent, uniform opacity multiply) so CPU and
+// NativeBlend executions agree frame-for-frame on integer offsets.
+class FlyUnderFadeProgram final : public LayerTransitionProgram {
+public:
+    explicit FlyUnderFadeProgram(float dip_px) : m_dip_px(std::max(0.0f, dip_px)) {}
+
+    void execute(
+        const FramebufferRef& src,
+        Framebuffer& out,
+        float progress,
+        TransitionDirection direction,
+        bool is_out,
+        const RenderGraphContext& ctx
+    ) const override {
+        (void)direction; (void)ctx;
+        const float p = std::clamp(progress, 0.0f, 1.0f);
+        const int dip = dip_offset(p, is_out);
+        const float alpha = is_out ? (1.0f - p) : p;
+        const i32 w = src->width();
+        const i32 h = src->height();
+        for (i32 y = 0; y < h; ++y) {
+            Color* dst_row = out.pixels_row(y);
+            const i32 src_y = y - dip;
+            for (i32 x = 0; x < w; ++x) {
+                if (src_y < 0 || src_y >= h) {
+                    dst_row[x] = Color::transparent();
+                } else {
+                    dst_row[x] = src->get_pixel(x, src_y) * alpha;
+                }
+            }
+        }
+    }
+
+    [[nodiscard]] NativeBlendParams native_blend_params(float progress, bool is_out) const override {
+        const float p = std::clamp(progress, 0.0f, 1.0f);
+        NativeBlendParams params;
+        params.offset_x = 0;
+        params.offset_y = dip_offset(p, is_out);
+        params.opacity = is_out ? (1.0f - p) : p;
+        params.supported = true;
+        return params;
+    }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>&,
+        const RenderGraphContext& ctx
+    ) const override {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
+private:
+    float m_dip_px;
+
+    [[nodiscard]] int dip_offset(float p, bool is_out) const {
+        const float travel = is_out ? p : (1.0f - p);
+        return static_cast<int>(std::lround(m_dip_px * travel));
+    }
+};
+
 class ProceduralRemotionProgram final : public LayerTransitionProgram {
 public:
     explicit ProceduralRemotionProgram(const ProceduralRemotionParams& params)
@@ -513,7 +587,7 @@ LayerTransitionCatalog::BackendCapability
 LayerTransitionCatalog::backend_capability(std::string_view id) const {
     // Canonical id→capability mapping lives here, next to the registration
     // that owns the same id. Consumers must not dispatch on string ids.
-    if (id == "crossfade") {
+    if (id == "crossfade" || id == "fly_under_fade") {
         return BackendCapability::NativeBlend;
     }
     return BackendCapability::CpuOnly;
@@ -571,6 +645,11 @@ void LayerTransitionCatalog::register_builtin(LayerTransitionCatalog& catalog) {
         const RemotionParams* params = std::get_if<RemotionParams>(&spec.parameters);
         RemotionParams resolved = params ? *params : RemotionParams{};
         return std::make_unique<RemotionProgram>(resolved);
+    });
+    catalog.register_transition("fly_under_fade", [](const LayerTransitionSpec& spec) {
+        const FlyUnderFadeParams* params = std::get_if<FlyUnderFadeParams>(&spec.parameters);
+        const float dip = params ? params->dip_px : FlyUnderFadeParams{}.dip_px;
+        return std::make_unique<FlyUnderFadeProgram>(dip);
     });
 }
 

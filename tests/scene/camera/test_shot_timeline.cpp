@@ -368,10 +368,87 @@ TEST_CASE("true overlap evaluates both shots locally") {
 
     ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession tls;
-    // Frame 25 is inside the overlap; it must not crash and must return a camera.
-    auto r = resolver.evaluate(SampleTime::from_frame_int(Frame{25}, FrameRate{30, 1}), tls, FrameRate{30, 1});
-    REQUIRE(r.has_value());
-    CHECK(std::isfinite(r.value().camera.position.x));
+    // Sample the full overlap and its arrival boundary. Both shot programs
+    // contribute continuously, with no position teleport at the handoff.
+    std::vector<float> z_positions;
+    for (int frame = 19; frame <= 30; ++frame) {
+        auto result = resolver.evaluate(
+            SampleTime::from_frame_int(Frame{frame}, FrameRate{30, 1}),
+            tls, FrameRate{30, 1});
+        REQUIRE(result.has_value());
+        const float z = result.value().camera.position.z;
+        CHECK(std::isfinite(z));
+        z_positions.push_back(z);
+    }
+    REQUIRE(z_positions.size() == 12);
+    CHECK(z_positions.front() == doctest::Approx(-1000.0f));
+    CHECK(z_positions[6] == doctest::Approx(-1000.0f + 500.0f * (5.0f / 9.0f))
+              .epsilon(0.03));
+    CHECK(z_positions.back() == doctest::Approx(-500.0f));
+    for (std::size_t i = 1; i < z_positions.size(); ++i)
+        CHECK(std::abs(z_positions[i] - z_positions[i - 1]) < 60.0f);
+}
+
+TEST_CASE("velocity peak helper finds the fastest segment of a smooth handoff") {
+    auto timeline = std::make_shared<ShotTimeline>();
+    CameraShot outgoing, incoming;
+    outgoing.name = "outgoing";
+    outgoing.start_frame = 0;
+    outgoing.end_frame = 40;
+    outgoing.program = make_test_program({0.0f, 0.0f, -1000.0f});
+    outgoing.transition_out = CameraTransitionKind::SmoothBlend;
+    outgoing.transition_frames = 20;
+    incoming.name = "incoming";
+    incoming.start_frame = 40;
+    incoming.end_frame = 80;
+    incoming.program = make_test_program({0.0f, 0.0f, -500.0f});
+    REQUIRE(timeline->add_shot(std::move(outgoing)));
+    REQUIRE(timeline->add_shot(std::move(incoming)));
+
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
+    const auto peak = resolver.find_velocity_peak(0, FrameRate{30, 1});
+    REQUIRE(peak.has_value());
+    REQUIRE(peak.value().has_value());
+    CHECK(peak.value()->frame >= 31);
+    CHECK(peak.value()->frame <= 34);
+    CHECK(peak.value()->speed_units_per_frame > 0.0f);
+}
+
+TEST_CASE("velocity peak helper follows the fastest sampled segment of an eased move") {
+    CameraDescriptor moving_descriptor;
+    moving_descriptor.id = "eased-outgoing-shot";
+    moving_descriptor.base.enabled = true;
+    moving_descriptor.base.position = {0.0f, 0.0f, -1000.0f};
+    moving_descriptor.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
+    PoseTracksSource motion;
+    motion.position.set(Vec3{0.0f, 0.0f, -1000.0f});
+    motion.position.key(Frame{0}, Vec3{0.0f, 0.0f, -1000.0f}, EasingCurve{Easing::Smoothstep});
+    motion.position.key(Frame{39}, Vec3{500.0f, 0.0f, -1000.0f});
+    moving_descriptor.source = motion;
+    const auto compiled = compile_camera(moving_descriptor, nullptr);
+    REQUIRE(compiled.has_value());
+
+    auto timeline = std::make_shared<ShotTimeline>();
+    CameraShot outgoing, incoming;
+    outgoing.name = "eased-outgoing";
+    outgoing.start_frame = 0;
+    outgoing.end_frame = 40;
+    outgoing.program = std::move(compiled).value();
+    outgoing.transition_out = CameraTransitionKind::SmoothBlend;
+    outgoing.transition_frames = 20;
+    incoming.name = "incoming";
+    incoming.start_frame = 40;
+    incoming.end_frame = 80;
+    incoming.program = make_test_program({500.0f, 0.0f, -1000.0f});
+    REQUIRE(timeline->add_shot(std::move(outgoing)));
+    REQUIRE(timeline->add_shot(std::move(incoming)));
+
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
+    const auto peak = resolver.find_velocity_peak(0, FrameRate{30, 1});
+    REQUIRE(peak.has_value());
+    REQUIRE(peak.value().has_value());
+    CHECK(peak.value()->frame >= 20);
+    CHECK(peak.value()->frame <= 24);
 }
 
 // ==============================================================================

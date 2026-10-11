@@ -30,6 +30,20 @@ public:
     [[nodiscard]] virtual float evaluate(float u, float v, float progress, bool is_out) const = 0;
 };
 
+/// Native-blend execution parameters for one transition frame. Returned by
+/// LayerTransitionProgram::native_blend_params so the transition node can
+/// drive the backend surface blend without string dispatch: capability says
+/// WHETHER the program can run natively (catalog-owned), the program itself
+/// says HOW (per-frame offset + opacity for the backend transform kernel).
+/// Offsets follow the transform-kernel convention (dst = src shifted by
+/// (+dx, +dy)); out-of-frame samples read transparent.
+struct NativeBlendParams {
+    int offset_x = 0;
+    int offset_y = 0;
+    float opacity = 1.0f;
+    bool supported = false;
+};
+
 /// Executable layer transition.  Each concrete transition implements a
 /// single visual effect (crossfade, slide, wipe, iris, flash, ...).
 class LayerTransitionProgram {
@@ -51,6 +65,16 @@ public:
         bool is_out,
         const RenderGraphContext& ctx
     ) const = 0;
+
+    /// Native-blend parameters for one eased progress value. Programs whose
+    /// catalog capability is NativeBlend override this; the default reports
+    /// unsupported so the node falls back to the CPU program.
+    [[nodiscard]] virtual NativeBlendParams native_blend_params(
+        float progress, bool is_out) const {
+        (void)progress;
+        (void)is_out;
+        return NativeBlendParams{};
+    }
 
     /// Return the predicted output bounding box for this transition.
     /// The default implementation returns the input bbox unchanged.

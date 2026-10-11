@@ -168,39 +168,52 @@ NodeExecResult TransitionNode::execute(
 
     const float p = compute_progress(ctx);
 
-    // Native GPU crossfade path. Capability decision comes from the
-    // transition catalog — the single string-id authority — never from
-    // local string dispatch.
+    // Native GPU blend path. Capability decision comes from the transition
+    // catalog — the single string-id authority — and the per-frame blend
+    // parameters come from the resolved program itself, never from local
+    // string dispatch. The destination is fully produced by the kernel, so
+    // it is materialized empty (no CPU pixel backing required): a pooled
+    // output buffer without CPU data must not fail surface materialization.
     const bool native_blend_capable =
-        !ctx.transition_catalog ||
+        ctx.transition_catalog &&
         ctx.transition_catalog->backend_capability(m_spec.transition_id) ==
             LayerTransitionCatalog::BackendCapability::NativeBlend;
     if (native_blend_capable && has_native_backend &&
         (src->is_gpu_authoritative() || ctx.policy.require_native_gpu ||
          src->surface_handle() != runtime::kInvalidRenderSurfaceHandle)) {
-        const float t = m_is_out ? (1.0f - p) : p;
-        auto& mutable_src = const_cast<Framebuffer&>(*src);
-        const bool src_ready = ensure_native_surface(ctx, mutable_src, "TransitionNode.crossfade.source");
-        const bool dst_ready = ensure_native_surface(ctx, *out_fb, "TransitionNode.crossfade.destination");
-        if (!src_ready || !dst_ready) {
-            if (ctx.policy.require_native_gpu) {
-                return NodeExecutionError{
-                    RenderBackendErrorCode::ExecutionFailure,
-                    "TransitionNode",
-                    "native residency violation: crossfade transition surfaces could not be materialized"};
-            }
+        const LayerTransitionProgram& native_program = resolve_program(ctx);
+        const NativeBlendParams blend = native_program.native_blend_params(p, m_is_out);
+        if (!blend.supported) {
+            // Catalog claims NativeBlend but the program cannot express this
+            // frame natively: fall through to the CPU program below, which
+            // fails closed on GPU-authoritative input without a CPU shadow.
         } else {
-            auto res = ctx.backend->transform_surface(
-                out_fb->surface_handle(), src->surface_handle(), 0, 0, t);
-            if (res.ok()) {
-                out_fb->mark_gpu_authoritative();
-                return NodeExecResult{std::move(out_fb)};
-            }
-            if (ctx.policy.require_native_gpu) {
-                return NodeExecutionError{
-                    res.error().code,
-                    "TransitionNode",
-                    "native crossfade execution failed: " + res.error().message};
+            auto& mutable_src = const_cast<Framebuffer&>(*src);
+            const bool src_ready = ensure_native_surface(ctx, mutable_src, "TransitionNode.source");
+            const bool dst_ready = ensure_empty_native_surface(ctx, *out_fb);
+            if (!src_ready || !dst_ready) {
+                if (ctx.policy.require_native_gpu) {
+                    return NodeExecutionError{
+                        RenderBackendErrorCode::ExecutionFailure,
+                        "TransitionNode",
+                        "native residency violation: transition '" + m_spec.transition_id +
+                        "' surfaces could not be materialized"};
+                }
+            } else {
+                auto res = ctx.backend->transform_surface(
+                    out_fb->surface_handle(), src->surface_handle(),
+                    blend.offset_x, blend.offset_y, blend.opacity);
+                if (res.ok()) {
+                    out_fb->mark_gpu_authoritative();
+                    return NodeExecResult{std::move(out_fb)};
+                }
+                if (ctx.policy.require_native_gpu) {
+                    return NodeExecutionError{
+                        res.error().code,
+                        "TransitionNode",
+                        "native transition '" + m_spec.transition_id +
+                        "' execution failed: " + res.error().message};
+                }
             }
         }
     }

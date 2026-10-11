@@ -324,6 +324,7 @@ void add_transition(CanonicalPlanWriter& out, const TransitionPlan& transition) 
     out.add_float(transition.speed);
     out.add_float(transition.remotion_direction);
     out.add_float(transition.angle);
+    out.add_float(transition.dip_px);
 }
 
 void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {

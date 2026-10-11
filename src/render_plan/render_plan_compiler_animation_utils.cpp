@@ -561,6 +561,8 @@ chronon3d::LayerTransitionSpec compile_transition(const TransitionPlan& plan, Fr
             {plan.outer_color[0], plan.outer_color[1], plan.outer_color[2], plan.outer_color[3]}};
     else if (plan.kind == "remotion")
         spec.parameters = chronon3d::RemotionParams{plan.speed, plan.remotion_direction, plan.angle};
+    else if (plan.kind == "fly_under_fade")
+        spec.parameters = chronon3d::FlyUnderFadeParams{plan.dip_px};
     return spec;
 }
 

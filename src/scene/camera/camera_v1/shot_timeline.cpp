@@ -31,6 +31,7 @@
 #include <cstdio>           // std::snprintf for derive_camera_id hex
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <limits>
 #include <stdexcept>
 #include <sstream>
 
@@ -555,6 +556,55 @@ ShotTimelineResolver::evaluate(SampleTime time,
     enrich_resolve_diagnostics(enriched, shot.program, pair.idx,
                                 ctx.sample_time.seconds());
     return enriched;
+}
+
+chronon3d::Result<std::optional<CameraVelocityPeak>, CameraEvaluationError>
+ShotTimelineResolver::find_velocity_peak(std::size_t outgoing_shot_index,
+                                         FrameRate fps) const {
+    if (!timeline_ || outgoing_shot_index >= timeline_->shots().size() ||
+        outgoing_shot_index + 1 >= timeline_->shots().size())
+        return std::optional<CameraVelocityPeak>{};
+    const CameraShot& outgoing = timeline_->shots()[outgoing_shot_index];
+    if (outgoing.transition_out == CameraTransitionKind::Cut ||
+        outgoing.transition_frames <= 0)
+        return std::optional<CameraVelocityPeak>{};
+
+    const int first = std::max(outgoing.start_frame,
+                               outgoing.end_frame - outgoing.transition_frames);
+    const int last = outgoing.end_frame - 1;
+    if (last < first) return std::optional<CameraVelocityPeak>{};
+    if (last == first)
+        return std::optional<CameraVelocityPeak>{CameraVelocityPeak{first, 0.0f}};
+
+    ShotTimelineSession session;
+    std::optional<Camera2_5D> previous;
+    std::optional<CameraVelocityPeak> best;
+    const float center = (static_cast<float>(first) + static_cast<float>(last)) * 0.5f;
+    float best_center_distance = std::numeric_limits<float>::infinity();
+    for (int frame = first; frame <= last; ++frame) {
+        auto sampled = evaluate(SampleTime::from_frame_int(Frame{frame}, fps),
+                               session, fps);
+        if (!sampled) {
+            return make_camera_evaluation_error(
+                sampled.error().code,
+                "cannot locate camera velocity peak in shot '" + outgoing.name +
+                "': " + sampled.error().message);
+        }
+        if (previous) {
+            const float speed = glm::length(sampled.value().camera.position -
+                                            previous->position);
+            const float center_distance = std::abs(static_cast<float>(frame) - center);
+            constexpr float kTieEpsilon = 1e-5f;
+            if (!best || speed > best->speed_units_per_frame + kTieEpsilon ||
+                (std::abs(speed - best->speed_units_per_frame) <= kTieEpsilon &&
+                 center_distance < best_center_distance)) {
+                best = CameraVelocityPeak{frame, speed};
+                best_center_distance = center_distance;
+            }
+        }
+        previous = sampled.value().camera;
+    }
+    return best;
 }
 
 // =========================================================================
