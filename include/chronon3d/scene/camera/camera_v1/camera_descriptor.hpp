@@ -295,6 +295,10 @@ struct HandheldNoise {
     float      rotation_freq_hz{3.0f};
     float      zoom_freq_hz{1.0f};
     std::uint32_t seed{42};
+    // Optional independent shake of the two-node camera aim point. This is
+    // applied only when the evaluated camera has a point of interest.
+    Vec3       point_of_interest_amplitude{0.0f, 0.0f, 0.0f};
+    float      point_of_interest_freq_hz{4.0f};
 };
 
 /// Placeholder for future additive-track modifiers.

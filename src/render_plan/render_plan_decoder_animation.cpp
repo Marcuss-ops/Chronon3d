@@ -401,6 +401,8 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
             return std::vector<std::string>{"seed", "inner_color", "mid_color", "outer_color"};
         if (plan.kind == "remotion")
             return std::vector<std::string>{"speed", "remotion_direction", "angle"};
+        if (plan.kind == "fly_under_fade")
+            return std::vector<std::string>{"dip_px"};
         return std::vector<std::string>{};
     }();
     for (auto it = params.begin(); it != params.end(); ++it)
@@ -432,6 +434,9 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
     plan.speed = params.value("speed", plan.speed);
     plan.remotion_direction = params.value("remotion_direction", plan.remotion_direction);
     plan.angle = params.value("angle", plan.angle);
+    plan.dip_px = params.value("dip_px", plan.dip_px);
+    if (!std::isfinite(plan.dip_px) || plan.dip_px < 0.0f || plan.dip_px > 4096.0f)
+        throw std::runtime_error("transition dip_px must be finite in [0, 4096]");
     if (!std::isfinite(plan.distance) || plan.distance < 0.0f || plan.distance > 4.0f ||
         !std::isfinite(plan.zoom_amount) || plan.zoom_amount < 0.0f || plan.zoom_amount > 1.0f ||
         !std::isfinite(plan.feather) || plan.feather < 0.0f || plan.feather > 1.0f ||

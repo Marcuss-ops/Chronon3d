@@ -73,8 +73,14 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
             const Vec3 rot_off = wiggle3D(
                 hh->rotation_freq_hz, hh->rotation_amplitude_deg, t_sec,
                 hh->seed + 50u);
+            const Vec3 aim_off = wiggle3D(
+                hh->point_of_interest_freq_hz,
+                hh->point_of_interest_amplitude, t_sec, hh->seed + 100u);
             intermediate.position += pos_off;
             intermediate.rotation += rot_off;
+            if (intermediate.point_of_interest_enabled) {
+                intermediate.point_of_interest += aim_off;
+            }
             if (hh->zoom_amplitude > 0.0f) {
                 intermediate.zoom += wiggle(
                     hh->zoom_freq_hz, hh->zoom_amplitude, t_sec, hh->seed + 150u);

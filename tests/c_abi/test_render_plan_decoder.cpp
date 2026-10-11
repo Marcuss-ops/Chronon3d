@@ -1667,7 +1667,7 @@ TEST_CASE("render plan V3 decodes typed built-in layer transitions and fingerpri
 TEST_CASE("render plan V3 exposes every registered built-in layer transition") {
     const std::vector<std::string> transition_ids{
         "none", "crossfade", "slide", "zoom", "wipe_linear", "smooth_wipe",
-        "circle_iris", "flash", "procedural_remotion", "remotion"};
+        "circle_iris", "flash", "procedural_remotion", "remotion", "fly_under_fade"};
     for (const auto& id : transition_ids) {
         auto source = render_plan_test::base_plan(nlohmann::json::array({
             {{"id", "transition-layer"}, {"type", "color"},
@@ -1680,6 +1680,30 @@ TEST_CASE("render plan V3 exposes every registered built-in layer transition") {
         REQUIRE(decoded->layers[0].transition_in.has_value());
         CHECK(decoded->layers[0].transition_in->kind == id);
     }
+}
+
+TEST_CASE("render plan V3 decodes fly_under_fade dip and fingerprints it") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":30},
+      "layers":[{"id":"chain-seg","type":"color","color":[1,1,1,1],"duration_frames":30,
+        "transition_in":{"id":"fly_under_fade","kind":"fly_under_fade","duration_frames":12,"direction":"up","easing":"in_out_cubic","params":{"dip_px":60}}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = decoded ? std::string{} : decoded.error().message;
+    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
+    REQUIRE(decoded->layers[0].transition_in.has_value());
+    CHECK(decoded->layers[0].transition_in->kind == "fly_under_fade");
+    CHECK(decoded->layers[0].transition_in->dip_px == doctest::Approx(60.0f));
+    const auto original_fingerprint = decoded->content_fingerprint;
+
+    source["layers"][0]["transition_in"]["params"]["dip_px"] = 120;
+    const auto changed = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(changed.has_value());
+    CHECK(changed->content_fingerprint != original_fingerprint);
+
+    source["layers"][0]["transition_in"]["params"]["dip_px"] = -5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
 TEST_CASE("render plan V3 animates gradient stops and rejects incompatible gradient tracks") {

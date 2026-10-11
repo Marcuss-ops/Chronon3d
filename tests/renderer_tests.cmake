@@ -33,6 +33,8 @@ chronon3d_add_test_suite(
         registry/test_registries.cpp
         renderer/helpers/test_shape_path_world_bbox.cpp
         renderer/helpers/test_stroke_gradient_helpers.cpp
+        renderer/test_premium_text_material.cpp
+        renderer/test_scene_depth_stack.cpp
         renderer/mesh/test_inline_mesh_extrusion_canary.cpp
         renderer/mesh/test_mesh_roughness_map.cpp
         renderer/lighting/test_depth_aware_shadows.cpp

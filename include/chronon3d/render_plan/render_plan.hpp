@@ -505,6 +505,7 @@ struct TransitionPlan {
     float speed{1.35f};
     float remotion_direction{3.0f};
     float angle{0.0f};
+    float dip_px{60.0f};
 };
 
 struct LayerPlan {

@@ -83,6 +83,14 @@ struct CameraShot {
     int                      transition_frames{0};  // overlap frames for transition
 };
 
+/// A deterministic editorial handoff point measured from evaluated camera
+/// motion. `frame` is the sample at the end of the fastest adjacent-frame
+/// movement interval; ties (for a linear handoff) resolve toward its center.
+struct CameraVelocityPeak {
+    int frame{0};
+    float speed_units_per_frame{0.0f};
+};
+
 // =========================================================================
 // ShotTimeline validation.
 // =========================================================================
@@ -198,6 +206,12 @@ public:
     evaluate(SampleTime time,
              ShotTimelineSession& timeline_session,
              FrameRate             fps) const;
+
+    /// Offline helper for aligning a visual scene cut to the fastest camera
+    /// movement in one outgoing shot's transition window. It samples the
+    /// resolved camera once per frame; do not call from the render hot path.
+    chronon3d::Result<std::optional<CameraVelocityPeak>, CameraEvaluationError>
+    find_velocity_peak(std::size_t outgoing_shot_index, FrameRate fps) const;
 
 private:
     std::shared_ptr<CameraTransition> get_transition(CameraTransitionKind kind) const;

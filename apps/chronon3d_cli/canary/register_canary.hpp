@@ -11,9 +11,7 @@
 //                     Motion3DTextParentCamera, Motion3DSameMotion{Text,Image}
 //   text              chronon_text_full_static,
 //                     chronon_text_elements_{static,opacity,motion}
-//   final3d           logo_reveal, product_orbit, title_card_3d, camera_push,
-//                     light_pulse, macbook_product, typewriter_3d_glow,
-//                     clean_red, youtube_canary
+//   final3d           typewriter_3d_glow, clean_red, youtube_canary
 //   font baselines    black_glow_{inter,poppins,dmsans,georgia,freeserif}
 //   apple v3          black_glow_<font>_<motion>, 5 fonts × 5 motions
 //   final cards       typewriter_final_poppins,
@@ -35,7 +33,7 @@ void register_canary_motion3d_compositions(CompositionRegistry &registry);
 /// opacity + per-element motion delta) plus the plain full-run reference.
 void register_canary_text_compositions(CompositionRegistry &registry);
 
-/// The nine Final3D production composition IDs.
+/// The three Final3D production composition IDs.
 void register_canary_final3d_compositions(CompositionRegistry &registry);
 
 /// The five static font/glow baselines: one shaped word, one halo, no motion.
