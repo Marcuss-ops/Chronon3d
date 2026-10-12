@@ -120,7 +120,8 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         }
         const bool shape_layer = layer.value("type", std::string{}) == "shape";
         const bool adjustment_layer = layer.value("type", std::string{}) == "adjustment";
-        if (shape_layer || adjustment_layer) {
+        const bool null_layer = layer.value("type", std::string{}) == "null";
+        if (shape_layer || adjustment_layer || null_layer) {
             // The base V2 validator is authoritative for every common field;
             // supply only the neutral V2 layer discriminator/payload needed
             // to pass V2's closed enum and required-color condition.

@@ -43,7 +43,7 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
             const auto& layer = plan.layers[index];
             const auto author_layer = [&](LayerBuilder& builder) {
                 builder.font_engine(font_engine.get());
-                if (layer.type != LayerType::Light && layer.type != LayerType::Adjustment) {
+                if (layer.type != LayerType::Light && layer.type != LayerType::Adjustment && layer.type != LayerType::Null) {
                     if (layer.casts_shadows) builder.casts_shadows(*layer.casts_shadows);
                     if (layer.accepts_shadows) builder.accepts_shadows(*layer.accepts_shadows);
                 }
@@ -503,6 +503,9 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                         detail::apply_text_glow(builder, layer);
                         break;
                     }
+                    case LayerType::Null: {
+                        break;
+                    }
                 }
                 detail::apply_layer_primitives(
                     builder, layer, plan.canvas.width, plan.canvas.height, plan.canvas.fps,
@@ -835,7 +838,7 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
             const bool full_canvas_backdrop = has_3d_layer &&
                 layer.type != LayerType::Text &&
                 layer.type != LayerType::Shape &&
-
+                layer.type != LayerType::Null &&
                 layer.position_dimensions == 0 &&
                 (layer.size_dimensions != 2 ||
                  (layer.size[0] >= static_cast<float>(plan.canvas.width) &&
@@ -845,6 +848,8 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
             // projected 3D content, independent of the concrete media type.
             if (layer.type == LayerType::Adjustment)
                 scene.adjustment_layer(layer.id, author_layer);
+            else if (layer.type == LayerType::Null)
+                scene.null_layer(layer.id, author_layer);
             else if (layer.screen_space || full_canvas_backdrop)
                 scene.screen_layer(layer.id, author_layer);
             else scene.layer(layer.id, author_layer);

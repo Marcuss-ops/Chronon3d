@@ -46,6 +46,10 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             case render_plan::LayerType::Color: kind = NodeKind::Color; break;
             case render_plan::LayerType::Shape: kind = NodeKind::Shape; break;
             case render_plan::LayerType::Mesh: kind = NodeKind::Mesh; break;
+            case render_plan::LayerType::Null:
+            default:
+                kind = NodeKind::Unknown;
+                break;
         }
         out.nodes.push_back({i, kind, 0, 0, i});
         StaticLayerProgram lowered;
