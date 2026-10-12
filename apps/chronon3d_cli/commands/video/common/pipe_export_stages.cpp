@@ -150,6 +150,46 @@ EncodeOutcome encode_frame(
         source_surface = execution_slot->native_surface;
         execution_slot->source_surface = execution_slot->native_surface;
     }
+    // FullGraph effects may leave the result resident only on the Vulkan
+    // surface. When this job uses the CPU pipe encoder there is no native
+    // encode slot to carry that surface to the writer, so explicitly read
+    // back the final image before publishing the CPU fallback package.
+    const bool cpu_encode_lane = !execution_slot ||
+        execution_slot->native_surface == runtime::kInvalidRenderSurfaceHandle;
+    if (cpu_encode_lane && fb && !fb->data()) {
+        if (source_surface == runtime::kInvalidRenderSurfaceHandle ||
+            !ctx.backend.is_native_surface_valid(source_surface) ||
+            !fb->ensure_cpu_storage()) {
+            spdlog::error(
+                "[video] CPU pipe fallback cannot read back GPU-only frame {} "
+                "(surface={})",
+                static_cast<int>(current_frame), source_surface);
+            out.source_residency_failed = true;
+            return out;
+        }
+
+        const auto pixel_count = static_cast<std::size_t>(fb->width()) *
+                                 static_cast<std::size_t>(fb->height());
+        std::vector<float> rgba(pixel_count * 4);
+        const auto readback = ctx.backend.download_surface(
+            source_surface, std::span<float>{rgba});
+        if (!readback.ok()) {
+            spdlog::error(
+                "[video] CPU pipe fallback readback failed at frame {} "
+                "(surface={}): {}",
+                static_cast<int>(current_frame), source_surface,
+                readback.error().message);
+            out.source_residency_failed = true;
+            return out;
+        }
+        for (int y = 0; y < fb->height(); ++y) {
+            std::memcpy(
+                fb->pixels_row(y),
+                rgba.data() + static_cast<std::size_t>(y) * fb->width() * 4,
+                static_cast<std::size_t>(fb->width()) * sizeof(Color));
+        }
+        fb->mark_cpu_authoritative();
+    }
     auto* surface_registry = ctx.sw_renderer
         ? ctx.sw_renderer->execution_context().images.surfaces : nullptr;
     // When a native encode destination exists, finish_frame_encode() has

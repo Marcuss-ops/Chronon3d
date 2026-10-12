@@ -103,6 +103,27 @@ TEST_CASE("CUDA handoffs remain pending until their own surface is recorded") {
     CHECK(authority.cuda_pending_surfaces.empty());
     CHECK(authority.cuda_ready_surfaces.contains(12));
 }
+
+TEST_CASE("rematerializing a slot discards stale CUDA ownership markers") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+    constexpr runtime::RenderSurfaceHandle handle{0xC0DA001u};
+
+    auto desc = test_desc();
+    authority.ensure(handle, desc);
+    const auto slot = authority.bound_slot(handle);
+    authority.cuda_pending_surfaces.insert(slot);
+    authority.cuda_ready_surfaces.insert(slot);
+    authority.cuda_export_ready_surfaces.insert(slot);
+
+    desc.width += 16; // forces a new backing-image generation in this slot
+    authority.ensure(handle, desc);
+
+    CHECK_FALSE(authority.cuda_pending_surfaces.contains(slot));
+    CHECK_FALSE(authority.cuda_ready_surfaces.contains(slot));
+    CHECK_FALSE(authority.cuda_export_ready_surfaces.contains(slot));
+}
 #endif
 
 TEST_CASE("global transient cleanup preserves every in-flight surface") {
