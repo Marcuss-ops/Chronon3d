@@ -121,6 +121,7 @@ _ARCGIS = "https://server.arcgisonline.com/ArcGIS/rest/services"
 
 TILE_URLS = {
     "esri_sat": f"{_ARCGIS}/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}",
+    "esri_street": f"{_ARCGIS}/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}",
     "esri_topo": f"{_ARCGIS}/World_Topo_Map/MapServer/tile/{{z}}/{{y}}/{{x}}",
     "esri_natgeo": f"{_ARCGIS}/NatGeo_World_Map/MapServer/tile/{{z}}/{{y}}/{{x}}",
     "esri_ocean": f"{_ARCGIS}/Ocean/World_Ocean_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
@@ -139,6 +140,7 @@ TILE_URLS = {
 # tuple, so an unknown style can never silently degrade to the default.
 BASEMAP_STYLES = (
     "esri_sat",
+    "esri_street",
     "esri_topo",
     "esri_natgeo",
     "esri_ocean",
