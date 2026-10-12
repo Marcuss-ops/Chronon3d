@@ -458,6 +458,7 @@ public:
                 physical.desc.format != desc.format ||
                 physical.image.exportable != exportable) {
                 require_not_leased(binding->second, "re-materialize");
+                forget_cuda_slot(binding->second);
                 materializer_.materialize(physical.image, desc, exportable);
                 bump_slot_token(binding->second);
                 physical.desc = desc;
@@ -528,6 +529,7 @@ private:
                 continue;
             }
             materializer_.destroy(it->second.image);
+            forget_cuda_slot(it->first);
             bump_slot_token(it->first);
             it = physical_surfaces.erase(it);
             --unused_transient;
@@ -627,6 +629,21 @@ protected:
         materializer_.set_owner(owner_);
     }
 
+    // CUDA ownership markers belong to a physical image generation. When a
+    // slot is destroyed or rematerialized, discard every pending handoff for
+    // that generation before the slot can hold a generic (non-exportable)
+    // graph surface. Otherwise a later Vulkan recording may try to acquire a
+    // stale CUDA token from the new image.
+    void forget_cuda_slot(std::size_t slot) noexcept {
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        cuda_pending_surfaces.erase(slot);
+        cuda_ready_surfaces.erase(slot);
+        cuda_export_ready_surfaces.erase(slot);
+#else
+        (void)slot;
+#endif
+    }
+
     ImageT& bind_planned_exact(runtime::RenderSurfaceHandle handle,
                                std::size_t slot,
                                const runtime::SurfaceDesc& desc,
@@ -714,6 +731,7 @@ protected:
             physical.image.height != desc.height ||
             physical.desc.format != desc.format ||
             physical.image.exportable != exportable) {
+            forget_cuda_slot(slot);
             materializer_.materialize(physical.image, desc, exportable);
         }
         physical.desc = desc;
