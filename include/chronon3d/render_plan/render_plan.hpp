@@ -36,7 +36,7 @@ using SpringPlan = chronon3d::SpringConfig;
 inline constexpr const char* kRenderPlanSchemaV2 = "chronon.render-plan.v2";
 inline constexpr const char* kRenderPlanSchemaV3 = "chronon.render-plan.v3";
 
-enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment, Mesh };
+enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment, Mesh, Null };
 enum class ShapeContentTypePlan : std::uint8_t {
     Rect, RoundedRect, Ellipse, Line, Path,
     Star, Polygon, Arrow, Arc, Grid, DotGrid, DeviceFrame

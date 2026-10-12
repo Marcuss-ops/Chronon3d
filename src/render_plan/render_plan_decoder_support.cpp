@@ -146,7 +146,7 @@ LayerType layer_type(const std::string& value) {
         std::pair{"text"sv, LayerType::Text}, std::pair{"color"sv, LayerType::Color},
         std::pair{"shape"sv, LayerType::Shape}, std::pair{"particles"sv, LayerType::Particles},
         std::pair{"light"sv, LayerType::Light}, std::pair{"adjustment"sv, LayerType::Adjustment},
-        std::pair{"mesh"sv, LayerType::Mesh},
+        std::pair{"mesh"sv, LayerType::Mesh}, std::pair{"null"sv, LayerType::Null},
     };
     return enum_from_string(value, kValues, "unsupported primitive layer type: ");
 }

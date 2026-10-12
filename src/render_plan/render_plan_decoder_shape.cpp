@@ -887,9 +887,11 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 if (!std::isfinite(component) || component < 0.0f || component > 1.0f)
                     throw std::runtime_error("shape fill RGBA must be finite and in [0, 1]");
             }
-            // Normalize both names to the same solid paint value. The explicit
-            // shape-local fill wins over the legacy layer.color alias above.
-            layer.color = *shape.fill_color;
+            // Normalize both names to the same solid paint value for ordinary
+            // shapes. Paths keep layer.color independent: it modulates stroke
+            // opacity while shape.fill_color controls only the enclosed fill.
+            if (shape.type != ShapeContentTypePlan::Path)
+                layer.color = *shape.fill_color;
         }
         if (shape.stroke) {
             if (shape.stroke->color.empty() && shape.stroke->solid_color)
