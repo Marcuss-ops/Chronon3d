@@ -523,9 +523,11 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                     static_cast<std::uint32_t>(std::max(1.0f, std::ceil(size.x))),
                     static_cast<std::uint32_t>(std::max(1.0f, std::ceil(size.y))));
             } else if (shape.fill_color) {
-                // Path fill RGB/alpha lives in its Fill payload; node.color
-                // supplies only the layer-opacity multiplier to draw_path().
-                params.fill = Fill::solid_color(base_color);
+                // Path fill is independent from layer.color, which modulates
+                // stroke alpha in draw_path(). Do not tint stroke with fill RGBA.
+                params.fill = Fill::solid_color(Color{
+                    (*shape.fill_color)[0], (*shape.fill_color)[1],
+                    (*shape.fill_color)[2], (*shape.fill_color)[3]});
             }
             params.stroke = stroke.to_path_stroke();
             params.pos = {0.0f, 0.0f, 0.0f};

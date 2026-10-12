@@ -170,6 +170,7 @@ target_include_directories(chronon3d_camera_compiled_evaluate_tests PRIVATE ${CM
 # RenderPlan POD model before the renderer sees them; no motion solver runs in
 # the frame path. The sibling source tree is an explicit test source include.
 if(CHRONON3D_ENABLE_MOTION_ADAPTER)
+    find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
     # UNIT-tier defaults to the canonical chronon3d_pipeline object/interface
     # boundary; the adapter is additive and remains an offline test dependency.
     chronon3d_add_test_suite(
@@ -179,6 +180,37 @@ if(CHRONON3D_ENABLE_MOTION_ADAPTER)
         SOURCES scene/motion/test_offline_motion_plan_adapter.cpp
     )
     target_include_directories(chronon3d_motion_plan_adapter_tests PRIVATE
+        "${_chrononmotion_dir}/include")
+
+    # Focused V3 integration check links the canonical decoder/validator
+    # object target but retains its object-library prerequisites for decoding.
+    chronon3d_add_test_suite(
+        NAME chronon3d_motion_v3_bridge_tests
+        TIER UNIT NO_PIPELINE
+        LINK_TARGETS
+            chronon3d_render_plan
+            chronon3d_core_impl
+            chronon3d_registry
+            chronon3d_scene
+            chronon3d_graph_nodes
+            chronon3d_effects
+            chronon3d_text_core
+            chronon3d_backend_text
+            chronon3d_backend_assets
+            chronon3d_backend_image
+            chronon3d_media_execution
+            chronon3d_cache
+            chronon3d_compiler
+            chronon3d_graph
+            chronon3d_runtime
+            chronon3d_backend_software
+            chronon3d_assets
+            chronon3d_extension
+            chronon3d_animations
+            chrononmotion_chronon3d_adapter
+        SOURCES "${_chrononmotion_dir}/tests/chronon3d_v3_bridge_regression.cpp"
+    )
+    target_include_directories(chronon3d_motion_v3_bridge_tests PRIVATE
         "${_chrononmotion_dir}/include")
 endif()
 

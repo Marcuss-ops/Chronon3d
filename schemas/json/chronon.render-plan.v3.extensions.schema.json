@@ -4246,7 +4246,8 @@
               "particles",
               "light",
               "adjustment",
-              "mesh"
+              "mesh",
+              "null"
             ]
           },
           "stagger_group": {
