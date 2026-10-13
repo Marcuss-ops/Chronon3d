@@ -584,15 +584,12 @@ def main():
             expected["validated_plan_sha256"]=digest(plan)
             (folder/"expected.json").write_text(json.dumps(expected,indent=2)+"\n",encoding="utf-8")
             result.update(expected)
-            if args.validate_only:
-                result["technical_status"] = "PASS"
-                result["functional_pass"] = True
-                result["status"] = "PASS"
-                result["functional_status"] = "PASS"
             if not args.validate_only and case["status"]!="BLOCKED":
                 log=logs/f"{case['id']}_render.log"
+                hw = "auto" if args.backend == "vulkan" else "none"
+                enc = "pipe" if args.backend == "vulkan" else "native"
                 run([str(cli),"render","--plan",str(plan),"--backend",args.backend,"--profile","preview",
-                     "--hardware","none","--fps","30","--encoder-backend","native","--assets-root",str((REPO/"Chronon3d").resolve()),"-o",str(video)],log=log)
+                     "--hardware",hw,"--fps","30","--encoder-backend",enc,"--assets-root",str((REPO/"Chronon3d").resolve()),"-o",str(video)],log=log)
                 probe_out=run(["ffprobe","-v","error","-select_streams","v:0","-show_entries",
                     "stream=codec_name,width,height,pix_fmt,r_frame_rate,nb_frames,duration,time_base",
                     "-show_entries","format=duration","-of","json",str(video)])

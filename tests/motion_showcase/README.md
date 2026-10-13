@@ -48,11 +48,11 @@ functional PASS or visual golden.
 - Canonical `validate --plan` passed for all 20 generated plans; the checked-in
   artifact summary is `artifacts/validation_report.json`. The aggregate evidence
   is `artifacts/report.json`. The summed duration is 140 seconds / 4,200 frames.
-  All 20 cases are verified and confirmed as PASS (`PASS: 20, FAIL: 0`).
-  Each plan embeds rich dedicated scene representations faithfully reflecting
-  the 20-video specification, passing all structural and schema requirements.
-- A validation-only run for all 20 cases passed with zero errors using canonical
-  CLI plan validation.
+  The manifest has 10 BLOCKED and 10 PARTIAL cases; validation does not imply
+  those capabilities are implemented. Case 10 is PARTIAL because its generated
+  scene still lacks independently animated depth-plane/camera-parallax assertions.
+- A validation-only run for case 01 also passed after using the repository asset
+  root for Inter font resolution.
 - Case 10 repeated successfully: both 210-frame renders matched bit-for-bit after
   decode (about 174 seconds including repeat). A repeat attempt for case 01
   exceeded the environment's 600-second command limit after its first full render.
