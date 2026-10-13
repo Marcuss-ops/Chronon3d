@@ -1,8 +1,12 @@
 # TICKET-SVG-RENDER-PLAN — Resolve SVG assets into shape plans
 
 ## Stato
-IN PROGRESS — bounded SVG geometry and static object-bounding-box linear and
-radial gradients lower through native Chronon paints. Path-local SMIL
+IN PROGRESS — the SVG-enabled CLI endpoint-frame gate is wired but has not yet
+passed: current CLI render output is transparent even for a non-SVG control.
+Compiler sampling coverage for animated path/transform subsets exists; broader
+animated-importer and same-SHA certification work remains open. Bounded
+SVG geometry and static object-bounding-box linear and radial gradients lower
+through native Chronon paints. Path-local SMIL
 `animateTransform` (translate/scale/rotate), opacity and solid paint animations
 lower to sampled native tracks. Local geometry references through `<defs>/<use>` are
 expanded at compile time. Static clip paths and opaque white vector masks on
@@ -49,7 +53,9 @@ shape pipeline.
   or two-item `values`, integral composition-frame timing, one iteration,
   `fill="freeze"`, and linear/discrete interpolation. Unsupported timing,
   repeated animation, additive transforms, rotation pivots, static ancestor or
-  path transforms, and animation on groups or primitives fail closed.
+  path transforms, and animation on primitives fail closed. Direct-child group
+  transform and opacity animation use the bounded inherited native-track subset
+  described below.
 - Path-local animated paint supports solid `fill`/`stroke` colors,
   `stroke-width`, `fill-opacity`, and `stroke-opacity` through the native color
   and scalar tracks. Gradient stop color/opacity animations support only a
@@ -120,6 +126,16 @@ shape pipeline.
 - [x] Resolver-backed SVG coverage samples synchronized gradient stop-color
   and stop-opacity animation at start, midpoint and end through the native
   gradient animation track.
+- [ ] An SVG-enabled software CLI gate is implemented to validate and render a
+  resolver-backed animated SVG fixture through the RenderPlan CLI, then verify
+  decoded frame hashes differ at authored frames 0 and 30. The gate implementation
+  is pending: current CLI renders transparent frames for SVG and inline-path
+  controls, and this runner cannot link the SVG-on build within its time limit.
+  It must not be treated as end-to-end evidence yet
+  (`scripts/ci/check_svg_cli_frame_gate.py`, `golden/svg_cli_gate/`).
+- [ ] Run the SVG CLI gate and importer test suite on the current tree with
+  `CHRONON3D_ENABLE_SVG=ON`; clean-SHA CI remains separately required.
+  The source and fixture are in place, but the gate has not yet passed.
 
 ## Demolition debt
 
