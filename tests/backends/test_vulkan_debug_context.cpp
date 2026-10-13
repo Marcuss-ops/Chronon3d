@@ -69,6 +69,46 @@ TEST_CASE("VulkanDebugContext lifecycle and reporting") {
     ctx.shutdown();
 }
 
+TEST_CASE("VulkanDebugContext requests validation features from their layer provider") {
+    using namespace chronon3d::backends::vulkan;
+    VulkanDebugContext ctx;
+    VulkanDebugConfig cfg{};
+    cfg.enable_validation = true;
+    cfg.enable_sync_validation = true;
+
+    std::vector<const char*> layers;
+    std::vector<const char*> extensions;
+    ctx.configure_instance_requirements(layers, extensions, cfg);
+
+    CHECK(std::any_of(layers.begin(), layers.end(), [](const char* name) {
+        return std::strcmp(name, "VK_LAYER_KHRONOS_validation") == 0;
+    }));
+    const bool has_validation_features = std::any_of(
+        extensions.begin(), extensions.end(), [](const char* name) {
+            return std::strcmp(name, VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME) == 0;
+        });
+    if (has_validation_features) {
+        VkApplicationInfo app_info{
+            VK_STRUCTURE_TYPE_APPLICATION_INFO, nullptr, "Chronon3dSyncValidationTest",
+            VK_MAKE_VERSION(1, 0, 0), "Chronon3d", VK_MAKE_VERSION(1, 0, 0),
+            VK_API_VERSION_1_1};
+        const VkValidationFeatureEnableEXT feature =
+            VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT;
+        const VkValidationFeaturesEXT validation_features{
+            VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT, nullptr,
+            1, &feature, 0, nullptr};
+        VkInstanceCreateInfo instance_info{
+            VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, &validation_features, 0,
+            &app_info, static_cast<std::uint32_t>(layers.size()), layers.data(),
+            static_cast<std::uint32_t>(extensions.size()), extensions.data()};
+        VkInstance instance = VK_NULL_HANDLE;
+        REQUIRE(vkCreateInstance(&instance_info, nullptr, &instance) == VK_SUCCESS);
+        vkDestroyInstance(instance, nullptr);
+    } else {
+        WARN("VK_EXT_validation_features unavailable from loader and validation layer");
+    }
+}
+
 TEST_CASE("VulkanDebugContext attaches to a real Vulkan instance") {
     using namespace chronon3d::backends::vulkan;
     VulkanDebugContext ctx;

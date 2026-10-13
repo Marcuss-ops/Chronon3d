@@ -7,6 +7,7 @@
 
 #include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -54,7 +55,14 @@ bool try_native_affine_composite(
     OwnedFB source_copy;
     runtime::RenderSurfaceHandle source_handle = source.surface_handle();
     if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
-        source_copy = ctx.acquire_owned_fb(source);
+        // This is an input promotion, not this node's output allocation.
+        // acquire_owned_fb(source) can consume planned_physical_slot left over
+        // after a zero-copy bottom transfer. That slot may still carry the
+        // destination's handle: treating it as the source then composites the
+        // destination onto itself and releases its live registry identity.
+        source_copy = ctx.framebuffer_pool
+            ? ctx.framebuffer_pool->acquire_from(source)
+            : OwnedFB(new Framebuffer(source), PoolFbDeleter(DeleteFramebuffer{}));
         if (!ensure_native_surface(ctx, *source_copy, "CompositeNode.affine.source_copy")) {
             if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
                 release_native_surface(ctx, destination);
@@ -559,8 +567,14 @@ NodeExecResult CompositeNode::execute(
             }
             bottom_native_valid = true;
         }
+        // acquire_owned_fb may transfer the bottom's storage and native handle
+        // into result, leaving bottom as a 1x1 placeholder with handle 0. Compare
+        // against the pre-transfer handle, not the now-empty input: re-seeding
+        // from that placeholder would upload the stale CPU mirror and erase
+        // all layers already composed on the GPU.
+        const auto bottom_handle = bottom->surface_handle();
         result = ctx.acquire_owned_fb(*bottom);
-        if (native_backend && result->surface_handle() != bottom->surface_handle()) {
+        if (native_backend && result->surface_handle() != bottom_handle) {
             if (!seed_native_destination(ctx, *result, *bottom)) {
                 return NodeExecutionError{
                     RenderBackendErrorCode::ExecutionFailure,
