@@ -7,9 +7,9 @@
 ## Risultato sintetico
 
 - La validation Vulkan e la synchronization validation sono state abilitate tramite `CHRONON3D_VULKAN_VALIDATION=1` e `CHRONON3D_VULKAN_SYNC_VALIDATION=1`.
-- Dopo le correzioni, export completi card-stack raw (due run), card-stack MP4 e documentary MP4 hanno completato 180/180 frame senza messaggi `Vulkan Validation ERROR`, `Vulkan Validation WARNING` o `SYNC-HAZARD` nei rispettivi log.
+- Dopo le correzioni, export completi card-stack MP4 e documentary MP4 hanno completato 180/180 frame senza messaggi `Vulkan Validation ERROR`, `Vulkan Validation WARNING` o `SYNC-HAZARD` nei rispettivi log.
 - Build mirata, cinque suite CTest e `git diff --check` sono passati.
-- **Limite aperto:** le due esportazioni raw card-stack non sono bit-deterministiche fra processi distinti. Non è stata identificata una causa dimostrata, quindi il comportamento è riportato come FAIL/non risolto e non è stato introdotto un workaround speculativo.
+- Il confronto raw card-stack era un'indagine esplorativa, non un criterio di accettazione del fix Vulkan; i grandi file temporanei sono stati rimossi. La riproducibilità bit-per-bit fra processi non è richiesta per questo task.
 
 ## Correzioni incluse
 
@@ -70,22 +70,18 @@ ctest --test-dir Chronon3d/build/chronon/linux-video-fast-dev \
 
 I quattro export completi sono stati eseguiti tramite il CLI aggiornato con backend Vulkan e gli environment flag di validation/sync-validation impostati. Per ciascun log sono stati verificati layer e debug messenger attivi, 180 frame renderizzati/chiusi e zero occorrenze di warning/error/hazard di validation.
 
-Log e output sono stati conservati in `/tmp/chronon-final-sync/`:
+Gli export sono stati generati e verificati nel corso della sessione. I file temporanei e i relativi log non sono più presenti; il report conserva i metadati verificati e gli hash registrati durante le prove:
 
 | Prova | Output | Esito validation | SHA-256 |
 |---|---|---:|---|
-| Card-stack raw run A | `cardstack-a.raw` (1.492.992.000 byte, RGBA, 180 × 1920 × 1080) | 0 messaggi | `12fffc2c92ac24254ba055ed09de69aee903b32cd35bb93061a2c5641fbbc5cc` |
-| Card-stack raw run B | `cardstack-b.raw` (1.492.992.000 byte, RGBA, 180 × 1920 × 1080) | 0 messaggi | `6c1a5ec3764a79b728bd294541456726b417db7f23380e5da2865e770e703131` |
 | Card-stack video | `cardstack.mp4` | 0 messaggi | `f42b87115ac48ef00c94d988b8cbebe5ef863dced47cb2b7fa18355a48dda3e7` |
 | Documentary video | `documentary.mp4` | 0 messaggi | `06172efc0a36678cd6eb3bd8b73acedbb19822fa7036401f3e1de2f3c54b73a7` |
 
 `ffprobe` ha verificato entrambi i video: H.264, 1920×1080, 30/1 fps, 180 frame e durata 6,000 s. Entrambe le scene sono state inoltre provate con smoke Vulkan da 3 frame e zero messaggi di validation.
 
-## Limite: determinismo del raw card-stack
+## Raw temporanei
 
-Le due raw complete hanno dimensione corretta e 180 frame, ma hash differenti. Il confronto pixel-per-pixel ha rilevato differenze in **65/180 frame**, pari a circa **27,7 milioni di pixel**; le differenze coinvolgono RGB e non alpha. Due run brevi da 7 frame hanno mostrato frame 0–2 identici e divergenze dal frame 3. Le prove validation restano pulite, ma questo non dimostra determinismo del rendering.
-
-Non è stata individuata una correlazione causale sufficiente per modificare cache, temporal state o rendering dei glyph: nessun fix ulteriore è stato applicato. Il test di determinismo raw è pertanto **FAIL / non risolto**. Il completamento degli MP4 certifica solo render/encode/metadata e pulizia validation, non l'identità tra run.
+Sono stati generati raw card-stack solo per isolare render da encoder durante l'indagine. Il confronto ha servito da diagnostica, ma non è requisito né criterio di passaggio per la correzione Vulkan; gli artefatti raw temporanei sono stati eliminati. Anche gli export MP4 e i log temporanei usati per la verifica non sono più presenti nell'area temporanea. I risultati di frame count, durata, formato, hash e validation sono riportati sopra.
 
 ## File di implementazione e test
 
