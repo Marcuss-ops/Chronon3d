@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <path d="M 8 24 L 24 24 L 24 40 L 8 40 Z" fill="#FFD500"/>
+  <path d="M 8 24 L 24 24 L 24 40 L 8 40 Z" fill="#FFD500">
+    <animateTransform attributeName="transform" type="translate" from="0 0" to="32 0" dur="1s" fill="freeze"/>
+  </path>
+</svg>

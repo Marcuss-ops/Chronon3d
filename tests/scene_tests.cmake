@@ -204,6 +204,7 @@ if(CHRONON3D_ENABLE_MOTION_ADAPTER)
             chronon3d_graph
             chronon3d_runtime
             chronon3d_backend_software
+            chronon3d_media_video
             chronon3d_assets
             chronon3d_extension
             chronon3d_animations
