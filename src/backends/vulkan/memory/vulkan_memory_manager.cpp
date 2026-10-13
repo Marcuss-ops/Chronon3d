@@ -233,7 +233,10 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
     }
 
     result.mapped = result_info.pMappedData;
-    result.size = result_info.size;
+    // Track the logical VkBuffer extent, not VMA's underlying allocation size.
+    // vkCmdUpdateBuffer bounds are defined by VkBufferCreateInfo::size; VMA may
+    // reserve a larger aligned allocation that cannot extend that buffer.
+    result.size = buffer_info.size;
     return result;
 }
 

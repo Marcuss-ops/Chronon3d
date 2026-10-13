@@ -181,15 +181,48 @@ void VulkanBackend::Impl::execute_layer_batch(
         const auto descriptors = allocate_pass_descriptor_set();
         write_layer_batch_descriptors(descriptors, dst_image, src_image,
                                       instance_buffer);
-        if (!pass_sync_emitted) {
+        // Each resource-index group is a separate dispatch but still one
+        // logical Vulkan pass. Dispatches all read and write dst_image, so the
+        // preceding group's storage writes must be visible before the next
+        // group's imageLoad/source-over read. The plan supplies the transition
+        // at the beginning of the pass; chain intra-pass groups explicitly.
+        if (pass_sync_emitted) {
+            runtime::ResourceTransition transition_record;
+            transition_record.range =
+                runtime::image_range(runtime::ResourceAspect::Color);
+            transition_record.before = runtime::ResourceState{
+                .stages = runtime::PipelineStage::ComputeShader,
+                .access = runtime::AccessMask::ShaderRead |
+                          runtime::AccessMask::ShaderWrite,
+                .layout = runtime::ResourceLayout::General,
+                .queue = runtime::QueueClass::Compute,
+            };
+            transition_record.after = transition_record.before;
+            emit_resource_transition(cmd, dst_image.image, transition_record);
+        } else {
             emit_pass_sync(cmd, {&dst_image, &src_image});
             pass_sync_emitted = true;
         }
+
         if (instance_updated) {
             vkCmdUpdateBuffer(cmd, instance_buffer, 0, bytes, gpu_instances);
             layer_instance_hashes[instance_slot] = instance_hash;
             layer_instance_sizes[instance_slot] = bytes;
+
+            // vkCmdUpdateBuffer writes command data through the transfer stage;
+            // make that write visible to the compute shader before dispatch.
+            const VkBufferMemoryBarrier2KHR instance_barrier{
+                VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
+                VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+                VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+                instance_buffer, 0, bytes};
+            emit_buffer_barriers2(cmd, std::span<const VkBufferMemoryBarrier2KHR>(
+                &instance_barrier, 1));
         }
+
         record_layer_batch(cmd, descriptors, dst_image,
                            static_cast<std::int32_t>(count),
                            instance_buffer, instance_updated,

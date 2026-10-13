@@ -154,6 +154,21 @@ namespace chronon3d::backends::vulkan {
         vkCmdClearColorImage(command, image.image,
                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                              &clear, 1, &range);
+        // The first partial/full upload follows the clear with another transfer
+        // write to this subresource in the same command buffer. Layout remains
+        // TRANSFER_DST_OPTIMAL, so express the transfer-write dependency
+        // explicitly before vkCmdCopyBufferToImage.
+        runtime::ResourceTransition clear_to_upload;
+        clear_to_upload.range =
+            runtime::image_range(runtime::ResourceAspect::Color);
+        clear_to_upload.before = runtime::ResourceState{
+            .stages = runtime::PipelineStage::Transfer,
+            .access = runtime::AccessMask::TransferWrite,
+            .layout = runtime::ResourceLayout::TransferDestination,
+            .queue = runtime::QueueClass::Transfer,
+        };
+        clear_to_upload.after = clear_to_upload.before;
+        emit_resource_transition(command, image.image, clear_to_upload);
     }
 
     void VulkanBackend::Impl::release_surface_now(runtime::RenderSurfaceHandle handle) {
