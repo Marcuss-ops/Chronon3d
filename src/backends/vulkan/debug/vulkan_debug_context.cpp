@@ -54,7 +54,10 @@ void VulkanDebugContext::configure_instance_requirements(
         vkEnumerateInstanceLayerProperties(&layer_count, available_layers.data());
     }
 
-    // 2. Enumerate available instance extensions
+    // 2. Enumerate global instance extensions plus extensions provided by the
+    // Khronos validation layer. VK_EXT_validation_features is layer-provided
+    // on common loader installs, not a global instance extension.
+    constexpr const char* kValidationLayer = "VK_LAYER_KHRONOS_validation";
     std::uint32_t ext_count = 0;
     vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
     std::vector<VkExtensionProperties> available_exts(ext_count);
@@ -68,7 +71,6 @@ void VulkanDebugContext::configure_instance_requirements(
                 return std::strcmp(p.layerName, name) == 0;
             });
     };
-
     const auto ext_exists = [&](const char* name) {
         return std::any_of(available_exts.begin(), available_exts.end(),
             [name](const VkExtensionProperties& p) {
@@ -76,10 +78,63 @@ void VulkanDebugContext::configure_instance_requirements(
             });
     };
 
+    const auto append_layer_once = [&](const char* name) {
+        if (std::none_of(enabled_layers.begin(), enabled_layers.end(),
+                [name](const char* enabled) {
+                    return std::strcmp(enabled, name) == 0;
+                })) {
+            enabled_layers.push_back(name);
+        }
+    };
+    const auto append_extension_once = [&](const char* name) {
+        if (std::none_of(enabled_extensions.begin(), enabled_extensions.end(),
+                [name](const char* enabled) {
+                    return std::strcmp(enabled, name) == 0;
+                })) {
+            enabled_extensions.push_back(name);
+        }
+    };
+
+    const auto layer_provides_extension = [&](const char* layer_name,
+                                               const char* extension_name) {
+        std::uint32_t count = 0;
+        if (!layer_exists(layer_name) ||
+            vkEnumerateInstanceExtensionProperties(layer_name, &count, nullptr) !=
+                VK_SUCCESS || count == 0) {
+            return false;
+        }
+        std::vector<VkExtensionProperties> layer_extensions(count);
+        if (vkEnumerateInstanceExtensionProperties(
+                layer_name, &count, layer_extensions.data()) != VK_SUCCESS) {
+            return false;
+        }
+        return std::any_of(layer_extensions.begin(), layer_extensions.end(),
+            [extension_name](const VkExtensionProperties& p) {
+                return std::strcmp(p.extensionName, extension_name) == 0;
+            });
+    };
+
+    if (!ext_exists(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME) &&
+        config.enable_validation &&
+        layer_provides_extension(kValidationLayer,
+                                 VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME)) {
+        append_layer_once(kValidationLayer);
+        std::uint32_t count = 0;
+        vkEnumerateInstanceExtensionProperties(kValidationLayer, &count, nullptr);
+        if (count > 0) {
+            const auto first_new = available_exts.size();
+            available_exts.resize(first_new + count);
+            if (vkEnumerateInstanceExtensionProperties(
+                    kValidationLayer, &count,
+                    available_exts.data() + first_new) != VK_SUCCESS) {
+                available_exts.resize(first_new);
+            }
+        }
+    }
+
     if (config_.enable_validation) {
-        const char* kValidationLayer = "VK_LAYER_KHRONOS_validation";
         if (layer_exists(kValidationLayer)) {
-            enabled_layers.push_back(kValidationLayer);
+            append_layer_once(kValidationLayer);
             validation_active_ = true;
             spdlog::info("[VulkanDebugContext] Enabled validation layer: {}", kValidationLayer);
         } else {
@@ -89,7 +144,7 @@ void VulkanDebugContext::configure_instance_requirements(
 
     if (config_.enable_validation || config_.enable_debug_names) {
         if (ext_exists(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-            enabled_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            append_extension_once(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
             debug_utils_active_ = true;
             spdlog::debug("[VulkanDebugContext] Enabled extension: {}", VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
@@ -98,7 +153,7 @@ void VulkanDebugContext::configure_instance_requirements(
     if (config_.enable_validation &&
         (config_.enable_sync_validation || config_.enable_gpu_assisted) &&
         ext_exists(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME)) {
-        enabled_extensions.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
+        append_extension_once(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
     }
 }
 

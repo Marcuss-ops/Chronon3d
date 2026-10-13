@@ -81,6 +81,14 @@ target_compile_definitions(chronon3d_vulkan_interop_generation_tests
     PRIVATE CHRONON3D_ENABLE_VULKAN)
 
 chronon3d_add_test_suite(
+    NAME chronon3d_vulkan_memory_manager_tests
+    TIER INTEGRATION
+    SOURCES backends/test_vulkan_memory_manager.cpp
+    LINK_TARGETS chronon3d_pipeline Vulkan::Vulkan spdlog::spdlog)
+target_compile_definitions(chronon3d_vulkan_memory_manager_tests
+    PRIVATE CHRONON3D_ENABLE_VULKAN)
+
+chronon3d_add_test_suite(
     NAME chronon3d_vulkan_submission_ring_tests
     TIER INTEGRATION
     SOURCES backends/test_vulkan_submission_ring.cpp
