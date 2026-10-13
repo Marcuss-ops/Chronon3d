@@ -1,0 +1,315 @@
+{
+  "suite_id": "chronon3d_motion_showcase_20",
+  "version": 1,
+  "total_duration_seconds": 140,
+  "common_format": {
+    "width": 1920,
+    "height": 1080,
+    "codec": "h264",
+    "pixel_format": "yuv420p",
+    "fps_num": 30,
+    "fps_den": 1,
+    "progressive": true,
+    "background": "#080D18 unless alpha/blending is under test",
+    "fixture_policy": "procedural synthetic graphics or repository assets with a checked-in license; no remote references",
+    "render_backend_for_reproducible_baseline": "software",
+    "strict_native_backends": [
+      "vulkan",
+      "nvenc"
+    ],
+    "strict_native_status": "not certified by the software baseline; must be requested explicitly and must not silently fall back"
+  },
+  "output_contract": {
+    "root": "Chronon3d/tests/motion_showcase/artifacts",
+    "per_case": "{id}_{slug}/scene.json, expected.json, output.mp4, frames/frame_000.png, frames/frame_{mid:03}.png, frames/frame_{last:03}.png, metrics.json",
+    "suite_report": "Chronon3d/tests/motion_showcase/artifacts/report.json",
+    "transient_render_logs": "Chronon3d/tests/motion_showcase/artifacts/logs/"
+  },
+  "criteria": {
+    "exact_frame_count": "duration_seconds * 30",
+    "exact_stream": "H.264, 1920x1080, 30/1 FPS; duration equals frame_count/30 within one video timebase tick",
+    "visual_minimum": "at least 2 distinct decoded frames and extracted frame 0/midpoint/last PNGs; semantic coverage remains an explicitly unverified manual review criterion",
+    "determinism": "compare decoded RGB frame SHA-256 hashes across two renders in the same software backend/environment; report equality, never infer cross-backend bit identity",
+    "technical": "successful canonical validation/render/encode/decode, finite reported timings, source and result hashes, no generated remote assets",
+    "feature_status": "PASS requires every requested feature; PARTIAL means executable video but at least one requested feature is absent; BLOCKED means requested end-to-end path cannot be represented/rendered; FAIL means implementation/check violation"
+  },
+  "cases": [
+    {
+      "id": "01",
+      "slug": "glowing_path_follow",
+      "name": "Glowing Path Follow",
+      "duration_seconds": 5,
+      "implemented": [
+        "cubic_path",
+        "trim_reveal",
+        "seeded_particle_head",
+        "software glow"
+      ],
+      "blocked": [
+        "arc-length tangent orientation is not guaranteed by path-follow plan contract"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "02",
+      "slug": "procedural_light_trails",
+      "name": "Procedural Light Trails",
+      "duration_seconds": 6,
+      "implemented": [
+        "multiple cubic paths",
+        "animated dash/stroke",
+        "opacity tracks",
+        "glow"
+      ],
+      "blocked": [
+        "continuous per-vertex trail width/falloff is not modeled"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "03",
+      "slug": "particle_vortex",
+      "name": "Particle Vortex",
+      "duration_seconds": 7,
+      "implemented": [
+        "seeded particle emitter",
+        "layer transforms",
+        "opacity"
+      ],
+      "blocked": [
+        "time-varying vortex force/particle paths and particle depth animation unavailable in render-plan emitter"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "04",
+      "slug": "shape_morphing",
+      "name": "Shape Morphing",
+      "duration_seconds": 6,
+      "implemented": [
+        "path primitives",
+        "SVG morph exists in Motion authoring"
+      ],
+      "blocked": [
+        "SVG/path morph does not lower to the canonical Chronon3D RenderPlan renderer"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "05",
+      "slug": "puppet_pin_character",
+      "name": "Puppet Pin Character",
+      "duration_seconds": 8,
+      "implemented": [
+        "Motion RigGraph/PinWarp and pose bake",
+        "static inline mesh with UV"
+      ],
+      "blocked": [
+        "animated deformed mesh plus source texture/alpha transport is not supported end-to-end by RenderPlan consumer"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "06",
+      "slug": "full_body_ik_rig",
+      "name": "Full Body IK Rig",
+      "duration_seconds": 8,
+      "implemented": [
+        "Motion FK/IK/FABRIK/constraints and deterministic rig tests"
+      ],
+      "blocked": [
+        "rig pose animation does not lower to a renderable animated mesh/sprite in Chronon3D"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "07",
+      "slug": "elastic_mesh_deformation",
+      "name": "Elastic Mesh Deformation",
+      "duration_seconds": 6,
+      "implemented": [
+        "Motion deformers and deterministic bake",
+        "static UV inline mesh consumer path"
+      ],
+      "blocked": [
+        "deformed mesh vertex samples are not represented as animated RenderPlan tracks"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "08",
+      "slug": "animated_rotoscope_mask",
+      "name": "Animated Rotoscope Mask",
+      "duration_seconds": 8,
+      "implemented": [
+        "CPU mask-segment/propagate CLI tools exist independently"
+      ],
+      "blocked": [
+        "per-frame alpha mask and tracked video matte cannot currently feed this RenderPlan compositing path as an animated matte"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "09",
+      "slug": "liquid_mask_reveal",
+      "name": "Liquid Mask Reveal",
+      "duration_seconds": 6,
+      "implemented": [
+        "static shape/path, alpha opacity and compositing"
+      ],
+      "blocked": [
+        "animated mask-path morph/feather clipping is not supported by canonical plan renderer"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "10",
+      "slug": "cinematic_parallax_scene",
+      "name": "Cinematic Parallax Scene",
+      "duration_seconds": 7,
+      "implemented": [
+        "six screen-space/depth layers",
+        "camera plan and camera animation"
+      ],
+      "blocked": [
+        "the plan does not encode six independently moving depth planes or per-layer camera parallax, so its current output is not functional acceptance for this case"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "11",
+      "slug": "floating_product_orbit",
+      "name": "Floating Product Orbit",
+      "duration_seconds": 7,
+      "implemented": [
+        "six synthetic 2.5D objects",
+        "animated position/rotation/scale",
+        "camera/depth composition"
+      ],
+      "blocked": [
+        "no asset-backed 3D product models or verified motion-blur integration in this scenario"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "12",
+      "slug": "real_3d_geometry_test",
+      "name": "Real 3D Geometry Test",
+      "duration_seconds": 6,
+      "implemented": [
+        "ChrononMotion procedural geometry and static inline mesh/UV in RenderPlan"
+      ],
+      "blocked": [
+        "mesh draw path in RenderPlan has no verified materializer-to-pixels parity; animated geometry and glTF mesh import/render integration unavailable"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "13",
+      "slug": "advanced_glitch_transition",
+      "name": "Advanced Glitch Transition",
+      "duration_seconds": 5,
+      "implemented": [
+        "shape/opacity/position transitions and compositing"
+      ],
+      "blocked": [
+        "time-varying displacement maps, RGB split and glitch effect stack not represented"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "14",
+      "slug": "cinematic_glow_light_rays",
+      "name": "Cinematic Glow & Light Rays",
+      "duration_seconds": 6,
+      "implemented": [
+        "software glow and animated 2D light layers"
+      ],
+      "blocked": [
+        "volumetric rays and verified HDR bloom/light masking are unavailable in canonical software plan path"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "15",
+      "slug": "velocity_motion_blur",
+      "name": "Velocity Motion Blur",
+      "duration_seconds": 5,
+      "implemented": [
+        "animated title and vector layers",
+        "CLI temporal motion blur option exists"
+      ],
+      "blocked": [
+        "deformable subject and verified per-object shutter/subframe blur acceptance not established"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "16",
+      "slug": "kinetic_typography",
+      "name": "Kinetic Typography",
+      "duration_seconds": 6,
+      "implemented": [
+        "synthetic five-word text layers",
+        "text shaping/font metrics and basic text animation"
+      ],
+      "blocked": [
+        "per-character cluster-aware motion with mixed character animation is not verified for this consumer contract"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "17",
+      "slug": "documentary_map_flyover",
+      "name": "Documentary Map Flyover",
+      "duration_seconds": 8,
+      "implemented": [
+        "ChrononMotion map flyover plan generator",
+        "camera, paths, labels and pins"
+      ],
+      "blocked": [
+        "external map imagery not included; use synthetic map only, and generator output requires canonical validate/render verification"
+      ],
+      "status": "PARTIAL"
+    },
+    {
+      "id": "18",
+      "slug": "product_explainer_ultimate",
+      "name": "Product Explainer Ultimate",
+      "duration_seconds": 10,
+      "implemented": [
+        "2.5D cards, paths, text, camera and effects individually"
+      ],
+      "blocked": [
+        "presenter rig/animated matte integration unavailable"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "19",
+      "slug": "cinematic_documentary_montage",
+      "name": "Cinematic Documentary Montage",
+      "duration_seconds": 10,
+      "implemented": [
+        "video layers, still image layers and transition primitives"
+      ],
+      "blocked": [
+        "checked-in licensed video/matte fixture absent; subject freeze/mask propagation-to-composite path is not demonstrated end-to-end"
+      ],
+      "status": "BLOCKED"
+    },
+    {
+      "id": "20",
+      "slug": "chronon_master_composition",
+      "name": "Chronon Master Composition",
+      "duration_seconds": 10,
+      "implemented": [
+        "2D/2.5D plans and separate Motion rig/mesh authoring"
+      ],
+      "blocked": [
+        "animated mesh, mask, morph, and real-3D mesh render paths cannot yet compose in a single canonical RenderPlan"
+      ],
+      "status": "BLOCKED"
+    }
+  ]
+}
