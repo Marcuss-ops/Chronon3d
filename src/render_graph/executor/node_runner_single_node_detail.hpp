@@ -177,11 +177,17 @@ void execute_single_node(
     const bool cache_key_required =
         id < compiled.nodes.size() && compiled.nodes[id].cache_key_required;
 
+    const bool sampled_mesh_animation = typed_layer &&
+        typed_layer->kind == compiler::NodeKind::Mesh && typed_layer->dirty;
+    const bool inputs_frame_dependent =
+        pr.inputs_frame_dependent || sampled_mesh_animation;
+    const bool has_cacheable_inputs =
+        pr.has_cacheable_inputs || sampled_mesh_animation;
     auto cache_eval = evaluate_cache(
         node, ctx,
         pr.input_hash,
-        pr.inputs_frame_dependent,
-        pr.has_cacheable_inputs,
+        inputs_frame_dependent,
+        has_cacheable_inputs,
         id,
         cache_key_required
     );

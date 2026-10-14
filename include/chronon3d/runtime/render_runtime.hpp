@@ -338,7 +338,7 @@ public:
     // REMOVED here.  Both state engines are now per-session owned; reach
     // them via `session.scene_hasher()` / `session.program_store()`
     // (or `session.common.scene_hasher()` / `program_store()` from a
-    // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.  // drift-class: historical (WP-3 design doc retired; rationale in render_session.hpp)
+    // `SoftwareRenderSession`); rationale is documented in render_session.hpp.
 
 protected:
     // All members below are engine/process-lifetime infrastructure. Job and

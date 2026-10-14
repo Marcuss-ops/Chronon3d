@@ -296,7 +296,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 throw std::runtime_error(std::string("mesh layers cannot contain '") + key + "'");
         if (value.contains("animation") && value.at("animation").is_object() &&
             value.at("animation").contains("tracks") && !value.at("animation").at("tracks").empty())
-            throw std::runtime_error("mesh layers cannot contain per-vertex animation tracks");
+            throw std::runtime_error("mesh layers cannot contain transform tracks; use inline_mesh.animation baked samples");
     }
     if (layer.type == LayerType::Mesh && (!layer.asset.empty() || !layer.source.empty()))
         throw std::runtime_error("mesh layers use inline geometry and cannot also carry asset or source references");

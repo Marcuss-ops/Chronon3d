@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -70,6 +71,8 @@ std::unique_ptr<EffectProcessor> create_luminance_response_effect_processor();
 std::unique_ptr<EffectProcessor> create_curves_effect_processor();
 std::unique_ptr<EffectProcessor> create_lut_3d_effect_processor();
 std::unique_ptr<EffectProcessor> create_stroke_effect_processor();
+std::unique_ptr<EffectProcessor> create_noise_sampler_effect_processor();
+std::unique_ptr<EffectProcessor> create_banded_grain_effect_processor();
 } // namespace chronon3d::renderer
 
 namespace {
@@ -1509,6 +1512,56 @@ TEST_CASE("Strict Vulkan generators match software") {
     FractalNoiseParams with_field{.seed = 1};
     with_field.field = graphics::Field2D{};
     CHECK_FALSE(vulkan_strict(with_field, std::nullopt).ok);
+
+    auto sampler = renderer::create_noise_sampler_effect_processor();
+    check_parity(*sampler,
+        NoiseSamplerParams{.seed = 5, .type = NoiseSamplerType::Simplex,
+                           .octaves = 3, .frequency = 0.4f,
+                           .lacunarity = 2.0f, .gain = 0.5f,
+                           .evolution = 0.0f, .contrast = 1.2f,
+                           .brightness = 0.1f, .domain_warp = 0.5f,
+                           .remap_min = 0.1f, .remap_max = 0.9f,
+                           .quantize_steps = 8,
+                           .color_mode = NoiseSamplerColorMode::Monochrome},
+        std::nullopt);
+    check_parity(*sampler,
+        NoiseSamplerParams{.seed = 7, .type = NoiseSamplerType::Worley,
+                           .octaves = 2, .frequency = 0.3f,
+                           .color_mode = NoiseSamplerColorMode::RGB},
+        std::nullopt);
+    check_parity(*sampler,
+        NoiseSamplerParams{.seed = 9, .type = NoiseSamplerType::Ridged,
+                           .octaves = 2, .frequency = 0.2f},
+        std::nullopt);
+    check_parity(*sampler,
+        NoiseSamplerParams{.seed = 13, .type = NoiseSamplerType::Value,
+                           .octaves = 4, .frequency = 0.15f},
+        std::nullopt);
+    check_parity(*sampler,
+        NoiseSamplerParams{.seed = 17, .type = NoiseSamplerType::Blue,
+                           .octaves = 1, .frequency = 0.5f},
+        std::nullopt);
+
+    auto grain = renderer::create_banded_grain_effect_processor();
+    check_parity(*grain,
+        BandedGrainParams{.seed = 5, .intensity = 1.5f, .speed = 0.0f,
+                          .color_mode = NoiseColorMode::Monochrome,
+                          .shadow_response = 1.0f, .midtone_response = 0.5f,
+                          .highlight_response = 0.25f},
+        std::nullopt);
+    check_parity(*grain,
+        BandedGrainParams{.seed = 11, .intensity = 2.0f, .speed = 1.0f,
+                          .color_mode = NoiseColorMode::RGB,
+                          .bands = {{1.0f, 0.05f, 0}, {4.0f, 0.03f, 2}}},
+        std::nullopt);
+    BandedGrainParams too_many{.seed = 1};
+    too_many.bands = {{1.0f, 0.05f, 0}, {2.0f, 0.05f, 1}, {4.0f, 0.05f, 2},
+                      {8.0f, 0.05f, 3}, {16.0f, 0.05f, 4}, {32.0f, 0.05f, 5},
+                      {64.0f, 0.05f, 6}};
+    CHECK_FALSE(vulkan_strict(too_many, std::nullopt).ok);
+    BandedGrainParams non_finite{.seed = 1};
+    non_finite.intensity = std::numeric_limits<float>::infinity();
+    CHECK_FALSE(vulkan_strict(non_finite, std::nullopt).ok);
 
     auto gradient = renderer::create_four_color_gradient_effect_processor();
     check_parity(*gradient, FourColorGradientParams{}, std::nullopt);

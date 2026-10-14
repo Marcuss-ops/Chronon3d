@@ -54,6 +54,8 @@ struct SampledShapeParameters {
 struct SampledMeshParameters {
     const render_plan::InlineMeshPlan* inline_mesh{nullptr};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
+    std::vector<std::array<float, 3>> positions;
+    std::vector<std::array<float, 3>> normals;
 };
 
 using SampledLayerPayload = std::variant<

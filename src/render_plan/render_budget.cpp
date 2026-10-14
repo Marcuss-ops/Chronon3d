@@ -146,7 +146,27 @@ std::optional<PlanDecodeError> validate_render_budget(
                  (layer.shape || layer.particle_emitter || layer.light || !layer.text.empty() ||
                   layer.style || layer.path_mask || !layer.masks.empty() ||
                   (layer.animation && !layer.animation->tracks.empty()))))
-                return fail(prefix + ".inline_mesh", "inline meshes are mesh-only payloads; mesh layers cannot carry another content payload or per-vertex animation");
+                return fail(prefix + ".inline_mesh", "inline meshes are mesh-only payloads; mesh layers cannot carry another content payload or transform animation");
+            if (mesh.animation.size() > kInlineMeshMaxAnimationSamples)
+                return fail(prefix + ".inline_mesh.animation", "animation sample count exceeds 4096");
+            std::uint64_t animation_bytes = 0;
+            std::int64_t previous_sample_frame = -1;
+            for (const auto& sample : mesh.animation) {
+                if (sample.frame < 0 || sample.frame >= duration_value || sample.frame <= previous_sample_frame)
+                    return fail(prefix + ".inline_mesh.animation", "sample frames must be strictly increasing and inside the composition duration");
+                if (sample.positions.size() != mesh.vertices.size())
+                    return fail(prefix + ".inline_mesh.animation.positions", "sample vertex count must match the base mesh");
+                previous_sample_frame = sample.frame;
+                constexpr std::uint64_t bytesPerPosition = sizeof(std::array<float, 3>);
+                if (sample.positions.size() > (kInlineMeshMaxAggregateBytes / bytesPerPosition) ||
+                    animation_bytes > kInlineMeshMaxAggregateBytes - sample.positions.size() * bytesPerPosition)
+                    return fail(prefix + ".inline_mesh.animation", "baked animation exceeds the 64 MiB byte limit");
+                animation_bytes += sample.positions.size() * bytesPerPosition;
+                for (const auto& position : sample.positions)
+                    for (const float component : position)
+                        if (!std::isfinite(component) || std::abs(component) > 1'000'000.0f)
+                            return fail(prefix + ".inline_mesh.animation.positions", "sample positions must be finite and within [-1000000, 1000000]");
+            }
             constexpr std::uint64_t kBytesPerVertex = sizeof(InlineMeshVertex);
             constexpr std::uint64_t kBytesPerIndex = sizeof(std::uint32_t);
             const auto vertex_count = static_cast<std::uint64_t>(mesh.vertices.size());
@@ -155,9 +175,12 @@ std::optional<PlanDecodeError> validate_render_budget(
                 index_count > (kInlineMeshMaxAggregateBytes - vertex_count * kBytesPerVertex) / kBytesPerIndex)
                 return fail(prefix + ".inline_mesh", "inline mesh payload exceeds the 64 MiB aggregate byte limit");
             const std::uint64_t mesh_bytes = vertex_count * kBytesPerVertex + index_count * kBytesPerIndex;
-            if (inline_mesh_bytes > kInlineMeshMaxAggregateBytes - mesh_bytes)
-                return fail("layers[].inline_mesh", "render budget aggregate inline mesh bytes exceed 64 MiB");
-            inline_mesh_bytes += mesh_bytes;
+            if (mesh_bytes > kInlineMeshMaxAggregateBytes || animation_bytes > kInlineMeshMaxAggregateBytes - mesh_bytes)
+                return fail(prefix + ".inline_mesh", "inline mesh plus baked animation exceeds the 64 MiB payload limit");
+            const auto complete_mesh_bytes = mesh_bytes + animation_bytes;
+            if (inline_mesh_bytes > kInlineMeshMaxAggregateBytes - complete_mesh_bytes)
+                return fail("layers[].inline_mesh", "render budget aggregate inline mesh and animation bytes exceed 64 MiB");
+            inline_mesh_bytes += complete_mesh_bytes;
             for (std::size_t vertex_index = 0; vertex_index < mesh.vertices.size(); ++vertex_index) {
                 const auto& vertex = mesh.vertices[vertex_index];
                 for (const float component : vertex.position)

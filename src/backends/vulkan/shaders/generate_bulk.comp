@@ -8,7 +8,9 @@
 //   3 Halftone (rotated cellular ink dots),
 //   4 LuminanceResponse without blur (radius <= 0.5 certified; larger radii
 //     fail closed at lowering time),
-//   5 CreaseShading (fold-crease darken/lighten multiply-add).
+//   5 CreaseShading (fold-crease darken/lighten multiply-add),
+//   6 NoiseSampler (unified Simplex/Worley/Ridged/Value/Blue fBm sampler),
+//   7 BandedGrain (multi-scale hash grain with tonal luminance response).
 // All color math is premultiplied linear RGBA like the CPU reference.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
@@ -69,6 +71,180 @@ float fractal_channel(float px, float py, uint seed, uint octaves,
     float value = weight > 0.0 ? sum / weight : 0.0;
     value = (value * contrast + brightness) * amplitude;
     return clamp(value * 0.5 + 0.5, 0.0, 1.0);
+}
+
+// ── Unified NoiseSampler primitives (mirror noise_sampler.cpp tap-for-tap) ──
+uint sq3(int position, uint seed) {
+    uint mangled = uint(position);
+    mangled *= 0xB5297A4Du;
+    mangled += seed;
+    mangled ^= (mangled >> 8u);
+    mangled += 0x68E31DA4u;
+    mangled ^= (mangled << 8u);
+    mangled *= 0x1B56C4E9u;
+    mangled ^= (mangled >> 8u);
+    return mangled;
+}
+
+float ns_hash2d(int x, int y, uint seed) {
+    uint n = uint(x) + uint(y) * 0x9E3779B9u;
+    return float(sq3(int(n), seed) & 0x00FFFFFFu) * (1.0 / 16777216.0);
+}
+
+float ns_value_noise(float x, float y, uint seed) {
+    int ix = int(floor(x));
+    int iy = int(floor(y));
+    float fx = x - float(ix);
+    float fy = y - float(iy);
+    float sx = fx * fx * fx * (fx * (fx * 6.0 - 15.0) + 10.0);
+    float sy = fy * fy * fy * (fy * (fy * 6.0 - 15.0) + 10.0);
+    float a = mix(ns_hash2d(ix, iy, seed), ns_hash2d(ix + 1, iy, seed), sx);
+    float b = mix(ns_hash2d(ix, iy + 1, seed), ns_hash2d(ix + 1, iy + 1, seed), sx);
+    return mix(a, b, sy);
+}
+
+float ns_simplex_grad(int cx, int cy, uint seed, float px, float py) {
+    uint h = sq3(int(uint(cx) + uint(cy) * 0x9E3779B9u), seed) & 7u;
+    float gx = 1.0, gy = 0.0;
+    if (h == 0u) { gx = 1.0; gy = 1.0; }
+    else if (h == 1u) { gx = -1.0; gy = 1.0; }
+    else if (h == 2u) { gx = 1.0; gy = -1.0; }
+    else if (h == 3u) { gx = -1.0; gy = -1.0; }
+    else if (h == 4u) { gx = 1.0; gy = 0.0; }
+    else if (h == 5u) { gx = -1.0; gy = 0.0; }
+    else if (h == 6u) { gx = 0.0; gy = 1.0; }
+    else { gx = 0.0; gy = -1.0; }
+    return gx * px + gy * py;
+}
+
+float ns_simplex_noise(float x, float y, uint seed) {
+    const float F2 = 0.366025403784439;
+    const float G2 = 0.211324865405187;
+    float s = (x + y) * F2;
+    int i = int(floor(x + s));
+    int j = int(floor(y + s));
+    float t = float(i + j) * G2;
+    float x0 = x - (float(i) - t);
+    float y0 = y - (float(j) - t);
+    int i1 = 0, j1 = 0;
+    if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+    float x1 = x0 - float(i1) + G2;
+    float y1 = y0 - float(j1) + G2;
+    float x2 = x0 - 1.0 + 2.0 * G2;
+    float y2 = y0 - 1.0 + 2.0 * G2;
+    float n0 = 0.0, n1 = 0.0, n2 = 0.0;
+    float t0 = 0.5 - x0 * x0 - y0 * y0;
+    if (t0 > 0.0) { t0 *= t0; n0 = t0 * t0 * ns_simplex_grad(i, j, seed, x0, y0); }
+    float t1 = 0.5 - x1 * x1 - y1 * y1;
+    if (t1 > 0.0) { t1 *= t1; n1 = t1 * t1 * ns_simplex_grad(i + i1, j + j1, seed, x1, y1); }
+    float t2 = 0.5 - x2 * x2 - y2 * y2;
+    if (t2 > 0.0) { t2 *= t2; n2 = t2 * t2 * ns_simplex_grad(i + 1, j + 1, seed, x2, y2); }
+    return clamp((n0 + n1 + n2) * 35.0 * 0.5 + 0.5, 0.0, 1.0);
+}
+
+float ns_worley_noise(float x, float y, uint seed) {
+    int ix = int(floor(x));
+    int iy = int(floor(y));
+    float min_dist = 2.0;
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            int cx = ix + dx;
+            int cy = iy + dy;
+            float ox = ns_hash2d(cx, cy, seed);
+            float oy = ns_hash2d(cx, cy, seed ^ 0x68BC21EBu);
+            float px = float(cx) + ox;
+            float py = float(cy) + oy;
+            float ddx = x - px, ddy = y - py;
+            min_dist = min(min_dist, sqrt(ddx * ddx + ddy * ddy));
+        }
+    }
+    return clamp(min_dist, 0.0, 1.0);
+}
+
+float ns_blue_noise(float x, float y, uint seed) {
+    int ix = int(floor(x));
+    int iy = int(floor(y));
+    float h = ns_hash2d(ix, iy, seed);
+    float val = h + float(ix) * 0.7548776662466927 + float(iy) * 0.5698402909980532;
+    return clamp(val - floor(val), 0.0, 1.0);
+}
+
+// std::round semantics (half away from zero); the sampler quantizes
+// non-negative values, but negatives can precede the final clamp.
+float ns_round_half_away(float x) {
+    return sign(x) * floor(abs(x) + 0.5);
+}
+
+float ns_sample(float x, float y, int type, uint seed, uint octaves,
+                float frequency, float lacunarity, float gain,
+                float contrast, float brightness,
+                float remap_min, float remap_max, float quantize_steps,
+                float domain_warp, float drift) {
+    uint combined = seed;
+    float px = x + drift;
+    float py = y + drift * 0.6180339887;
+    if (domain_warp > 0.0) {
+        float warp_scale = domain_warp * 30.0;
+        float wx = ns_simplex_noise(px * 0.005 + 13.7, py * 0.005 + 4.9,
+                                    combined ^ 0x51E2D3Bu) * 2.0 - 1.0;
+        float wy = ns_simplex_noise(px * 0.005 + 8.1, py * 0.005 + 19.3,
+                                    combined ^ 0x9A48C21u) * 2.0 - 1.0;
+        px += wx * warp_scale;
+        py += wy * warp_scale;
+    }
+    uint oct = clamp(octaves, 1u, 16u);
+    float lac = (lacunarity > 0.1) ? lacunarity : 2.0;
+    float gn = (gain > 0.0 && gain <= 1.0) ? gain : 0.5;
+    float freq = max(frequency, 0.0001);
+    float amp = 1.0;
+    float sum = 0.0;
+    float total_weight = 0.0;
+    for (uint o = 0u; o < oct; ++o) {
+        uint octave_seed = combined + o * 0x9E3779B9u;
+        float samp = 0.0;
+        if (type == 0) {
+            samp = ns_simplex_noise(px * freq, py * freq, octave_seed);
+        } else if (type == 1) {
+            samp = ns_worley_noise(px * freq, py * freq, octave_seed);
+        } else if (type == 2) {
+            float s = ns_simplex_noise(px * freq, py * freq, octave_seed) * 2.0 - 1.0;
+            float ridge = 1.0 - abs(s);
+            samp = ridge * ridge;
+        } else if (type == 3) {
+            samp = ns_value_noise(px * freq, py * freq, octave_seed);
+        } else {
+            samp = ns_blue_noise(px * freq, py * freq, octave_seed);
+        }
+        sum += samp * amp;
+        total_weight += amp;
+        freq *= lac;
+        amp *= gn;
+    }
+    float value = (total_weight > 0.0) ? (sum / total_weight) : 0.0;
+    value = (value - 0.5) * contrast + 0.5 + brightness;
+    if (remap_max > remap_min) {
+        value = (value - remap_min) / (remap_max - remap_min);
+    }
+    if (quantize_steps > 0.5) {
+        value = ns_round_half_away(value * quantize_steps) / quantize_steps;
+    }
+    return clamp(value, 0.0, 1.0);
+}
+
+// ── BandedGrain band fetch: bands pack as consecutive (scale, amplitude,
+//     octave) triples across a2..b2 (see bulk case packing) ──
+vec3 grain_band(int i) {
+    if (i == 0) return vec3(params.a2.x, params.a2.y, params.a2.z);
+    if (i == 1) return vec3(params.a2.w, params.a3.x, params.a3.y);
+    if (i == 2) return vec3(params.a3.z, params.a3.w, params.b0.x);
+    if (i == 3) return vec3(params.b0.y, params.b0.z, params.b0.w);
+    if (i == 4) return vec3(params.b1.x, params.b1.y, params.b1.z);
+    return vec3(params.b1.w, params.b2.x, params.b2.y);
+}
+
+float grain_sample(int bx, int by, uint seed) {
+    uint n = uint(bx) + uint(by) * 0x9E3779B9u;
+    return float(sq3(int(n), seed) & 0x00FFFFFFu) * (1.0 / 16777216.0) - 0.5;
 }
 
 vec4 fetch_transparent(ivec2 p, ivec2 size) {
@@ -282,6 +458,98 @@ void main() {
             }
         }
         imageStore(destination_image, pixel, c);
+        return;
+    }
+
+    // ── 6 NoiseSampler: a0=(seed,octaves,frequency,type),
+    //     a1=(drift,contrast,brightness,domain_warp),
+    //     a2=(remap_min,remap_max,quantize_steps,lacunarity),
+    //     a3=(gain,_,_,_), flags=color_mode ─────────────────────────────
+    if (mode == 6) {
+        uint seed = uint(params.a0.x + 0.5);
+        uint octaves = uint(params.a0.y + 0.5);
+        float frequency = params.a0.z;
+        int type = int(params.a0.w + 0.5);
+        float drift = params.a1.x;
+        float contrast = params.a1.y, brightness = params.a1.z;
+        float domain_warp = params.a1.w;
+        float remap_min = params.a2.x, remap_max = params.a2.y;
+        float quantize_steps = params.a2.z, lacunarity = params.a2.w;
+        float gain = params.a3.x;
+        float px = float(pixel.x), py = float(pixel.y);
+        if (params.flags == 1) {
+            imageStore(destination_image, pixel, vec4(
+                ns_sample(px, py, type, seed ^ 0u, octaves, frequency,
+                          lacunarity, gain, contrast, brightness,
+                          remap_min, remap_max, quantize_steps, domain_warp, drift),
+                ns_sample(px, py, type, seed ^ 0x68BC21EBu, octaves, frequency,
+                          lacunarity, gain, contrast, brightness,
+                          remap_min, remap_max, quantize_steps, domain_warp, drift),
+                ns_sample(px, py, type, seed ^ 0x02E5BE93u, octaves, frequency,
+                          lacunarity, gain, contrast, brightness,
+                          remap_min, remap_max, quantize_steps, domain_warp, drift),
+                1.0));
+        } else {
+            float v = ns_sample(px, py, type, seed, octaves, frequency,
+                                lacunarity, gain, contrast, brightness,
+                                remap_min, remap_max, quantize_steps, domain_warp, drift);
+            imageStore(destination_image, pixel, vec4(v, v, v, 1.0));
+        }
+        return;
+    }
+
+    // ── 7 BandedGrain: a0=(seed,intensity,drift,shadow_response),
+    //     a1=(midtone_response,highlight_response,band_count,_),
+    //     a2..b2 = band (scale,amplitude,octave) triples, flags=color_mode ──
+    if (mode == 7) {
+        uint seed = uint(params.a0.x + 0.5);
+        float intensity = params.a0.y;
+        float drift = params.a0.z;
+        float shadow_resp = params.a0.w;
+        float mid_resp = params.a1.x, high_resp = params.a1.y;
+        int band_count = int(params.a1.z + 0.5);
+        vec4 c = imageLoad(source_image, pixel);
+        float luma = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+        float shadow_w = (1.0 - luma) * shadow_resp;
+        float midtone_w = (1.0 - 2.0 * abs(luma - 0.5)) * mid_resp;
+        float highlight_w = luma * high_resp;
+        float response = clamp((shadow_w + midtone_w + highlight_w) * 0.5, 0.0, 2.0);
+        if (params.flags == 1) {
+            float sum_r = 0.0, sum_g = 0.0, sum_b = 0.0;
+            for (int i = 0; i < 6; ++i) {
+                if (i >= band_count) break;
+                vec3 bp = grain_band(i);
+                float s = max(0.5, bp.x);
+                int bx = int(floor((float(pixel.x) + drift) / s));
+                int by = int(floor((float(pixel.y) + drift * 0.618) / s));
+                uint bseed = seed + uint(bp.z + 0.5) * 0x9E3779B9u;
+                sum_r += grain_sample(bx, by, bseed) * bp.y;
+                sum_g += grain_sample(bx, by, bseed ^ 0x68BC21EBu) * bp.y;
+                sum_b += grain_sample(bx, by, bseed ^ 0x02E5BE93u) * bp.y;
+            }
+            imageStore(destination_image, pixel, vec4(
+                clamp(c.r + sum_r * intensity * response, 0.0, 1.0),
+                clamp(c.g + sum_g * intensity * response, 0.0, 1.0),
+                clamp(c.b + sum_b * intensity * response, 0.0, 1.0),
+                c.a));
+        } else {
+            float sum = 0.0;
+            for (int i = 0; i < 6; ++i) {
+                if (i >= band_count) break;
+                vec3 bp = grain_band(i);
+                float s = max(0.5, bp.x);
+                int bx = int(floor((float(pixel.x) + drift) / s));
+                int by = int(floor((float(pixel.y) + drift * 0.618) / s));
+                uint bseed = seed + uint(bp.z + 0.5) * 0x9E3779B9u;
+                sum += grain_sample(bx, by, bseed) * bp.y;
+            }
+            float d = sum * intensity * response;
+            imageStore(destination_image, pixel, vec4(
+                clamp(c.r + d, 0.0, 1.0),
+                clamp(c.g + d, 0.0, 1.0),
+                clamp(c.b + d, 0.0, 1.0),
+                c.a));
+        }
         return;
     }
 

@@ -208,6 +208,8 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
             if (tracks.empty()) layer.erase("animation");
         }
         layer.erase("shape");
+        if (layer.contains("inline_mesh") && layer["inline_mesh"].is_object())
+            layer["inline_mesh"].erase("animation");
         layer.erase("inline_mesh");
         layer.erase("parent");
         layer.erase("track_matte");

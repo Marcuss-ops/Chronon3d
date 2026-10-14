@@ -591,10 +591,17 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
                 layer.position[1] + static_cast<float>(canvas_height) - sh * 0.5f,
                 layer.position[2]});
         } else if (layer.type == LayerType::Text || layer.type == LayerType::Shape) {
+            // Screen-space shapes receive the screen-layer origin in their
+            // graph placement; retain the authored primitive center-relative
+            // offset rather than converting a top-left box origin.
+            if (layer.type == LayerType::Shape && layer.screen_space) {
+                builder.position({layer.position[0], layer.position[1], layer.position[2]});
+            } else {
             builder.position({
                 layer.position[0] - static_cast<float>(canvas_width) * 0.5f,
                 layer.position[1] - static_cast<float>(canvas_height) * 0.5f,
                 layer.position[2]});
+            }
         } else {
             builder.position({layer.position[0], layer.position[1], layer.position[2]});
         }

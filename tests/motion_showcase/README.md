@@ -21,9 +21,11 @@ python3 Chronon3d/tests/motion_showcase/runner.py --case 01 --render-partial --b
 scene/expected metadata, validates it with the canonical CLI, and produces an
 aggregate report. Rendering requires explicit `--case` selection; this prevents
 an accidental full-suite run. Rendering is expensive on the available software
-consumer: case 01 at five seconds took about 303 seconds and roughly 3.7 GiB
-process peak RSS in the observed run. `--strict-native` requires Vulkan plus
-`require_gpu_native`, NVENC, a visible GPU, and zero software fallback nodes;
+consumer: case 01 at five seconds took about 5 minutes and roughly 3.6 GiB
+process peak RSS in the measured run. The runner defaults to two CPU threads per
+render (`--threads`) so concurrent repository work is not overwhelmed; it can
+still need several minutes and multiple GiB per render. `--strict-native` requires
+Vulkan plus `require_gpu_native`, NVENC, a visible GPU, and zero software fallback nodes;
 it fails closed and is not a certification command for cases still marked
 PARTIAL/BLOCKED. It also checks available RAM before starting GPU rendering.
 Artifacts default to this directory's `artifacts/`; keep generated videos out of
@@ -49,43 +51,54 @@ functional PASS or visual golden.
   report says 20 PASS despite the actual capability boundary. Treat those MP4s,
   metrics, and reports as historical only.
 - A fresh validation-only run against the current source wrote to
-  `/tmp/chronon-motion-showcase-validation`: all 20 generated plans passed the
-  canonical CLI validator. The current suite correctly classifies 10 PARTIAL
-  and 10 BLOCKED; the run did not render MP4s. The report manifest hash matches
-  the current manifest. Total duration is 140 seconds / 4,200 frames. Plan
-  validation alone does not certify feature behavior.
+  `/tmp/chronon-showcase-final-validate-20261014`: all 20 generated plans
+  passed the canonical CLI validator. The current suite correctly classifies
+  10 PARTIAL and 10 BLOCKED; the run did not render MP4s. The report manifest
+  hash matches the current manifest. Total duration is 140 seconds / 4,200
+  frames. A fresh final report is at `/tmp/chronon-showcase-final-validate-20261014/`;
+  all 20 per-case metrics explicitly say `NOT_RUN` for render and `false` for
+  functional acceptance. Plan validation alone does not certify feature behavior.
+- A fresh render of case 01 is at `/tmp/chronon-motion-showcase-delivery-renders-20261014/01_glowing_path_follow/output.mp4`.
+  Independent ffprobe/ffmpeg checks confirmed 150 decoded frames, 116 distinct
+  frames, 5.000000s H.264/yuv420p 1920×1080 30/1, 11,250 finite non-negative
+  per-frame timing fields, and non-empty frame 0/75/149 PNGs. This is a
+  diagnostic synthetic clip, not a visual golden or functional PASS.
+- Attempts to render further full-duration software cases were stopped after
+  showing very high cost (case 01 took about 5m22s) and multi-GiB RSS; no
+  artifacts from those incomplete attempts count as acceptance. The runner now
+  exposes `--threads` (default 2), applying Chronon3D CPU thread limits to
+  renderer and repeat processes.
 - Case 10 remains PARTIAL because its generated scene does not assert
   independently animated depth-plane/camera-parallax behavior.
 - The runner refuses implicit full-suite rendering, checks repeat hashes
   rather than merely recording a mismatch, and fails when required timing
   evidence is absent or invalid. `--strict-native` is a separately selectable,
   fail-closed Vulkan/NVENC route; its output requires native GPU evidence and
-  zero software fallback nodes.
+  zero software fallback nodes. Strict-native rendering was not run.
 - Drive publication requires OAuth files at
   `~/.config/velox/credentials.json` and `~/.config/velox/token.json`. They were
   absent in the inspected environment, so no file upload or Drive folder
-  creation has been performed. Once configured, use the `drive-upload` command
-  with the requested parent folder ID and a suite-specific `-subfolder`.
-- A validation-only run for case 01 also passed after using the repository asset
-  root for Inter font resolution.
-- Case 10 repeated successfully: both 210-frame renders matched bit-for-bit after
-  decode (about 174 seconds including repeat). A repeat attempt for case 01
-  exceeded the environment's 600-second command limit after its first full render.
-- Representative images were decoded and inspected for dimensions and visible
-  non-background content. Semantic feature correctness remains unverified by
-  image goldens or per-feature numeric assertions.
-- Neither Vulkan nor NVENC strict-native output is certified by this baseline.
-  Requests use `--backend software --hardware none`; no GPU fallback is claimed.
-  The runner now exposes a separate fail-closed strict-native gate for a future
-  GPU render; that gate must not be confused with the software baseline.
+  creation has been performed. The provided folder ID is not present in
+  RenderingGen's existing configuration. Once credentials are available, use
+  the `drive-upload` command with the requested parent folder ID and a
+  suite-specific `-subfolder`.
+- The fresh case 01 representative frames were extracted and non-empty pixel
+  statistics checked. Semantic feature correctness remains unverified by image
+  goldens or per-feature numeric assertions. No repeat render was run in this
+  task because of the measured wall time and memory footprint.
+- The fresh render used the reproducible software profile (`--backend software
+  --hardware none`); no strict-native Vulkan/NVENC result is certified.
 
 ## Capability boundaries
 
 The manifest is authoritative for each case's current scope/blockers. Important
-end-to-end blockers include SVG morph output; animated rigged/deformed mesh with
-texture/alpha transport; temporal rotoscope mattes; feathered animated masks;
-verified animated mesh materialization/pixels; video matte composition; and a
-single composition integrating those missing paths. ChrononMotion authoring
+end-to-end blockers include SVG morph output; ChrononMotion rigged/deformed mesh
+integration with texture/alpha transport; temporal rotoscope mattes; feathered
+animated masks; pixel-gated acceptance for animated mesh materialization; video
+matte composition; and a single composition integrating those missing paths.
+Baked V3 inline-mesh position samples now decode, interpolate and materialize in
+Chronon3D, but this does not certify rig integration or rendered pixel parity.
+ChrononMotion authoring
 and its deterministic showcase tests do not by themselves prove consumer pixels.
 The separate 60-case Motion showcase checks authoring data and solver contracts,
 not these rendered MP4s or pixel goldens.

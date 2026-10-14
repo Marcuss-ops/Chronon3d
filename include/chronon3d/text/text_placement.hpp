@@ -35,8 +35,8 @@
 // Phase A.2 migration scope (this commit):
 //   - Introduces the new `TextPlacement` struct (kind + offset bundled).
 //   - Migrates the resolver API (the canonical implementation).
-//   - Migrates `Text::place()` in the retired `include/chronon3d/authoring/text.hpp`  // drift-class: historical (authoring/text.hpp removed in text-spec migration)
-//     (the single include/ consumer of the resolver).
+//   - Migrates the former `Text::place()` API, the single include/ consumer
+//     of the resolver.
 //   - Migrates `tests/text/test_text_placement_resolver.cpp` (the only
 //     in-tree test that exercises the resolver directly).
 //

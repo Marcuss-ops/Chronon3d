@@ -288,6 +288,8 @@ NodeExecResult EffectStackNode::execute(
                     break;
                 }
                 case effects::EffectType::FractalNoise:
+                case effects::EffectType::NoiseSampler:
+                case effects::EffectType::BandedGrain:
                 case effects::EffectType::FourColorGradient:
                 case effects::EffectType::LightRays:
                 case effects::EffectType::Halftone:

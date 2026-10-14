@@ -31,8 +31,7 @@
 //      register_defaults()`. External callers (including unit tests) get
 //      the built-ins through `register_camera_v1_builtins_into(catalog)`.
 //
-// Reference: docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md  // drift-class: historical (camera-plan design docs retired)
-//            §5 (Per-job ownership enforcement).
+// Reference: §5 (Per-job ownership enforcement) of the retired camera plan.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/register_camera_v1.hpp>
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>

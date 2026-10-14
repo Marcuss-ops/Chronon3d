@@ -8,6 +8,8 @@
 #include "effects/generate/checkerboard.hpp"
 #include "effects/generate/four_color_gradient.hpp"
 #include "effects/generate/light_rays.hpp"
+#include "effects/generate/noise_sampler.hpp"
+#include "effects/generate/banded_grain.hpp"
 #include "effects/blur/directional_blur.hpp"
 #include "effects/blur/radial_blur.hpp"
 #include "effects/stroke/stroke.hpp"
@@ -484,6 +486,34 @@ std::unique_ptr<EffectProcessor> create_halftone_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_light_rays_effect_processor() {
     return std::make_unique<SoftwareLightRaysEffectProcessor>();
+}
+
+class SoftwareNoiseSamplerEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<NoiseSamplerParams>(&params);
+        if (!p) throw std::runtime_error("NoiseSampler processor received invalid parameters");
+        apply_noise_sampler(fb, *p, context.time_seconds, context.clip);
+    }
+};
+
+class SoftwareBandedGrainEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<BandedGrainParams>(&params);
+        if (!p) throw std::runtime_error("BandedGrain processor received invalid parameters");
+        apply_banded_grain(fb, *p, context.time_seconds, context.clip);
+    }
+};
+
+std::unique_ptr<EffectProcessor> create_noise_sampler_effect_processor() {
+    return std::make_unique<SoftwareNoiseSamplerEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_banded_grain_effect_processor() {
+    return std::make_unique<SoftwareBandedGrainEffectProcessor>();
 }
 
 } // namespace chronon3d::renderer

@@ -9,7 +9,8 @@
 //                         RoughenEdges, Stroke
 //   generate_bulk_surface — FractalNoise (procedural), FourColorGradient,
 //                         LightRays, Halftone, LuminanceResponse (no-blur),
-//                         CreaseShading
+//                         CreaseShading, NoiseSampler (unified multi-algorithm),
+//                         BandedGrain (multi-scale hash grain)
 //   lut_bulk_surface    — Curves (host-baked 256 tables), Lut3D (dim<=16)
 // Every helper follows the directional-blur protocol: full frame only
 // (partial clips fail closed), single-effect stacks, finite certified
@@ -587,6 +588,80 @@ bool try_native_full_frame_generate_bulk(RenderGraphContext& ctx,
         bulk.a[2] = std::max(p->width, 1.0f);
         bulk.a[4] = p->dark_side; bulk.a[5] = p->light_side;
         bulk.a[6] = p->softness;
+        break;
+    }
+    case effects::EffectType::NoiseSampler: {
+        const auto* p = std::get_if<NoiseSamplerParams>(&instance.params);
+        if (!p) return false;
+        if (!bulk_finite_list({p->frequency, p->lacunarity, p->gain,
+                          p->evolution, p->contrast, p->brightness,
+                          p->domain_warp, p->remap_min, p->remap_max}))
+            return false;
+        // Certified window mirrors evaluate_noise_sample: octaves clamp
+        // 1..16 in-shader, quantize_steps must survive the float round-trip.
+        if (p->quantize_steps > 16777216u) return false;
+        bulk.mode = 6;
+        bulk.flags = (p->color_mode == NoiseSamplerColorMode::RGB) ? 1 : 0;
+        const std::uint32_t oct = std::clamp(p->octaves, 1u, 16u);
+        bulk.a[0] = static_cast<float>(p->seed);
+        bulk.a[1] = static_cast<float>(oct);
+        bulk.a[2] = p->frequency;
+        bulk.a[3] = static_cast<float>(static_cast<std::uint8_t>(p->type));
+        bulk.a[4] = p->evolution * time;
+        bulk.a[5] = p->contrast; bulk.a[6] = p->brightness;
+        bulk.a[7] = p->domain_warp;
+        bulk.a[8] = p->remap_min; bulk.a[9] = p->remap_max;
+        bulk.a[10] = static_cast<float>(p->quantize_steps);
+        bulk.a[11] = p->lacunarity;
+        bulk.a[12] = p->gain;
+        break;
+    }
+    case effects::EffectType::BandedGrain: {
+        const auto* p = std::get_if<BandedGrainParams>(&instance.params);
+        if (!p) return false;
+        if (!bulk_finite_list({p->intensity, p->speed, p->shadow_response,
+                          p->midtone_response, p->highlight_response}))
+            return false;
+        // Certified window: bands pack as (scale, amplitude, octave) triples
+        // across a2..b2 (20 slots → 6 bands max); empty uses the CPU default
+        // 5-band set. Octaves must survive the float round-trip.
+        static constexpr GrainBand kDefaultGrainBands[] = {
+            {1.0f, 0.04f, 0}, {2.0f, 0.03f, 1}, {4.0f, 0.02f, 2},
+            {8.0f, 0.015f, 3}, {16.0f, 0.01f, 4},
+        };
+        const GrainBand* bands = p->bands.data();
+        std::size_t count = p->bands.size();
+        if (count == 0) {
+            bands = kDefaultGrainBands;
+            count = 5;
+        }
+        if (count > 6) return false;
+        for (std::size_t i = 0; i < count; ++i) {
+            if (!std::isfinite(bands[i].scale) ||
+                !std::isfinite(bands[i].amplitude) || bands[i].octave > 1024u)
+                return false;
+        }
+        bulk.mode = 7;
+        bulk.flags = (p->color_mode == NoiseColorMode::RGB) ? 1 : 0;
+        bulk.a[0] = static_cast<float>(p->seed);
+        bulk.a[1] = p->intensity;
+        bulk.a[2] = p->speed * time * 100.0f;
+        bulk.a[3] = p->shadow_response;
+        bulk.a[4] = p->midtone_response; bulk.a[5] = p->highlight_response;
+        bulk.a[6] = static_cast<float>(count);
+        // Triple packing order must match grain_band() in generate_bulk.comp.
+        float* slots[20] = {
+            &bulk.a[8], &bulk.a[9], &bulk.a[10], &bulk.a[11],
+            &bulk.a[12], &bulk.a[13], &bulk.a[14], &bulk.a[15],
+            &bulk.b[0], &bulk.b[1], &bulk.b[2], &bulk.b[3],
+            &bulk.b[4], &bulk.b[5], &bulk.b[6], &bulk.b[7],
+            &bulk.b[8], &bulk.b[9], &bulk.b[10], &bulk.b[11],
+        };
+        for (std::size_t i = 0; i < count; ++i) {
+            *slots[3 * i] = bands[i].scale;
+            *slots[3 * i + 1] = bands[i].amplitude;
+            *slots[3 * i + 2] = static_cast<float>(bands[i].octave);
+        }
         break;
     }
     default:

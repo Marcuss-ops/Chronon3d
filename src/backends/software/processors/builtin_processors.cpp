@@ -78,6 +78,8 @@ std::unique_ptr<EffectProcessor> create_lens_distortion_effect_processor();
 std::unique_ptr<EffectProcessor> create_luminance_response_effect_processor();
 std::unique_ptr<EffectProcessor> create_fold_warp_effect_processor();
 std::unique_ptr<EffectProcessor> create_crease_shading_effect_processor();
+std::unique_ptr<EffectProcessor> create_noise_sampler_effect_processor();
+std::unique_ptr<EffectProcessor> create_banded_grain_effect_processor();
 
 void register_builtin_processors(SoftwareRegistry& registry) {
     // Shapes
@@ -148,6 +150,8 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<LuminanceResponseParams>(create_luminance_response_effect_processor());
     registry.register_effect_processor<FoldWarpParams>(create_fold_warp_effect_processor());
     registry.register_effect_processor<CreaseShadingParams>(create_crease_shading_effect_processor());
+    registry.register_effect_processor<NoiseSamplerParams>(create_noise_sampler_effect_processor());
+    registry.register_effect_processor<BandedGrainParams>(create_banded_grain_effect_processor());
 }
 
 } // namespace chronon3d::renderer
