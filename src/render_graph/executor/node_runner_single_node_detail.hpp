@@ -27,12 +27,15 @@ void execute_single_node(
         }
     };
     const auto retain_static_bake = [&]() {
-        // Native-video graph outputs use FrameTransient Vulkan surfaces.
-        // Retaining one in the cross-frame static-bake cache leaves a stale
-        // handle after the frame slot retires it. Keep static baking for
-        // software and non-video paths, where the framebuffer storage can
-        // safely outlive this execution.
-        if (ctx.backend && ctx.backend->supports_native_video_surface()) return;
+        // Any backend with native GPU surfaces (all Vulkan lanes, not only
+        // the CUDA video lane) attaches FrameTransient images to its
+        // framebuffers. Retaining one in the cross-frame static-bake cache
+        // leaves a stale handle after the frame slot retires it, so the
+        // next frame serves dead GPU memory while software keeps reading
+        // the intact CPU mirror (Vulkan/serial divergence from frame 2).
+        // Keep static baking for backends without native surfaces, where
+        // the framebuffer storage can safely outlive this execution.
+        if (ctx.backend && ctx.backend->supports_native_surfaces()) return;
         if (id >= state.static_bake_root_index.size()) return;
         const auto bake_index = state.static_bake_root_index[id];
         if (bake_index >= compiled.program.static_bakes.size()) return;

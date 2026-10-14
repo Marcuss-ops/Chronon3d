@@ -15,13 +15,13 @@ namespace chronon3d::graphics {
 
 enum class Field2DGenerator : std::uint8_t {
     Perlin, Simplex, Fractal, Cellular, Grid, Checker, Dots, Stripes,
-    Rings, Linear, Radial, Conic, Burst
+    Rings, Linear, Radial, Conic, Burst, Value, Ridged
 };
 
 enum class Field2DOperatorKind : std::uint8_t {
     Remap, Threshold, Smoothstep, Invert, Warp,
     Add, Subtract, Multiply, Min, Max, Abs, Power, Clamp,
-    Translate, Scale, Rotate, Repeat, DomainWarp
+    Translate, Scale, Rotate, Repeat, DomainWarp, Quantize
 };
 
 struct Field2DOperator {
@@ -66,6 +66,7 @@ struct FieldTransform2D {
 /// Deterministic, allocation-free scalar field in normalized coordinates.
 /// All randomness is a pure function of seed and integer lattice coordinates.
 struct Field2D {
+    static constexpr const char* contract_id = "chronon.field2d.v1";
     Field2DGenerator generator{Field2DGenerator::Perlin};
     std::uint32_t seed{0};
     float frequency{4.0f};
@@ -101,7 +102,7 @@ struct Field2D {
             std::abs(point.x * frequency) > 1.0e8f ||
             std::abs(point.y * frequency) > 1.0e8f)
             return 0.0f;
-        if (generator == Field2DGenerator::Fractal &&
+        if ((generator == Field2DGenerator::Fractal || generator == Field2DGenerator::Ridged) &&
             (octaves == 0 || octaves > 16 || !std::isfinite(persistence) ||
              persistence < 0.0f || persistence > 1.0f ||
              !std::isfinite(lacunarity) || lacunarity <= 0.0f || lacunarity > 8.0f))
@@ -137,6 +138,9 @@ struct Field2D {
                 }
                 case Field2DOperatorKind::Invert:
                     value = 1.0f - value;
+                    break;
+                case Field2DOperatorKind::Quantize:
+                    value = apply_scalar_operator(value, op);
                     break;
                 case Field2DOperatorKind::Add:
                     value += op.scalar;
@@ -316,6 +320,12 @@ private:
                 return t * t * (3.0f - 2.0f * t);
             }
             case Field2DOperatorKind::Invert: return 1.0f - value;
+            case Field2DOperatorKind::Quantize: {
+                if (!std::isfinite(op.scalar) || op.scalar < 2.0f || op.scalar > 256.0f)
+                    return 0.0f;
+                const float intervals = std::floor(op.scalar) - 1.0f;
+                return std::round(std::clamp(value, 0.0f, 1.0f) * intervals) / intervals;
+            }
             case Field2DOperatorKind::Add: return value + op.scalar;
             case Field2DOperatorKind::Subtract: return value - op.scalar;
             case Field2DOperatorKind::Multiply: return value * op.scalar;
@@ -348,13 +358,19 @@ private:
                 return perlin(p, seed);
             case Field2DGenerator::Simplex:
                 return simplex(p, seed);
+            case Field2DGenerator::Value:
+                return lattice_noise(p, seed);
+            case Field2DGenerator::Ridged:
             case Field2DGenerator::Fractal: {
                 float amplitude = 1.0f, total = 0.0f, weight = 0.0f;
                 for (std::uint32_t octave = 0; octave < octaves; ++octave) {
                     if (!std::isfinite(p.x) || !std::isfinite(p.y) ||
                         std::abs(p.x) > 1.0e8f || std::abs(p.y) > 1.0e8f)
                         return 0.5f;
-                    total += (perlin(p, seed + octave * 0x9e3779b9U) - 0.5f) * amplitude;
+                    const float noise = perlin(p, seed + octave * 0x9e3779b9U);
+                    const float contribution = generator == Field2DGenerator::Ridged
+                        ? 1.0f - std::abs(2.0f * noise - 1.0f) : noise;
+                    total += (contribution - 0.5f) * amplitude;
                     weight += amplitude;
                     amplitude *= persistence;
                     p *= lacunarity;
@@ -431,6 +447,8 @@ private:
     mix(std::bit_cast<std::uint32_t>(field.transform.rotation_radians));
     mix(std::bit_cast<std::uint32_t>(field.transform.shear.x));
     mix(std::bit_cast<std::uint32_t>(field.transform.shear.y));
+    mix(std::bit_cast<std::uint32_t>(field.transform.pivot.x));
+    mix(std::bit_cast<std::uint32_t>(field.transform.pivot.y));
     for (const auto& op : field.operators) {
         mix(static_cast<std::uint8_t>(op.kind));
         mix(std::bit_cast<std::uint32_t>(op.from));

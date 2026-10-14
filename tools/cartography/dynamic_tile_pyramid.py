@@ -114,7 +114,10 @@ if cv2 is None:
     cv2 = _Cv2Shim()  # type: ignore[assignment]
 
 CHRONON3D_ROOT = Path(__file__).resolve().parents[2]
-CACHE_DIR = CHRONON3D_ROOT / "assets" / "maps" / "cache" / "pyramid"
+CACHE_DIR = Path(os.environ.get(
+    "CHRONON_MAP_TILE_CACHE_DIR",
+    str(CHRONON3D_ROOT / "assets" / "maps" / "cache" / "pyramid"),
+)).expanduser()
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 _ARCGIS = "https://server.arcgisonline.com/ArcGIS/rest/services"

@@ -1,6 +1,7 @@
 #include "graph_builder_pipeline.hpp"
 
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/text/text_run.hpp>
 
 #include <string>
@@ -40,6 +41,12 @@ bool check_static_recursive_impl(
     } else {
         bool is_local_static = true;
         if (l.kind == LayerKind::Video || l.kind == LayerKind::Precomp) {
+            is_local_static = false;
+        } else if (effect_stack_has_temporal_effect(l.effects())) {
+            // Animated grain / echo varies per frame by contract: the layer
+            // (and its composite chain) must stay frame-variant, otherwise
+            // one frame's pixels serve for all. Same canonical predicate as
+            // SceneHasher and EffectStackNode::has_temporal_effect().
             is_local_static = false;
         } else if ((!l.transition_in.transition_id.empty() && l.transition_in.transition_id != "none") ||
                    (!l.transition_out.transition_id.empty() && l.transition_out.transition_id != "none")) {

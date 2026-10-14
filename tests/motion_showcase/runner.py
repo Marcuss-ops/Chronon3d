@@ -545,7 +545,13 @@ def main():
     parser.add_argument("--render-partial",action="store_true")
     parser.add_argument("--repeat",action="store_true")
     parser.add_argument("--backend",choices=["software","vulkan"],default="software")
+    parser.add_argument("--strict-native",action="store_true",
+                        help="require Vulkan GPU-native rendering and NVENC; fail closed without fallback")
     args=parser.parse_args()
+    if args.strict_native and args.backend != "vulkan":
+        parser.error("--strict-native requires --backend vulkan")
+    if args.strict_native and args.repeat:
+        parser.error("--repeat currently compares software/native output; strict-native repeat is not supported")
     manifest=json.loads(MANIFEST_PATH.read_text(encoding="utf-8")); cases=manifest["cases"]
     if args.list:
         for c in cases: print(f"{c['id']} {c['slug']}: {c['duration_seconds']}s {c['status']} — {c['name']}")

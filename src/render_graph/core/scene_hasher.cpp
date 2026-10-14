@@ -61,6 +61,14 @@ uint64_t clip_transition_phase(const SceneClipTransition& transition, Frame fram
     return static_cast<uint64_t>(static_cast<int64_t>(frame - transition.from)) + 1;
 }
 
+// Canonical temporal-effect predicate lives in
+// <chronon3d/scene/model/core/effect_stack.hpp>
+// (effect_stack_has_temporal_effect); the local alias below only adapts it
+// to a Layer. Keep all static/dynamic classifiers in sync with it.
+[[nodiscard]] bool layer_has_temporal_effect(const Layer& layer) {
+    return effect_stack_has_temporal_effect(layer.effects());
+}
+
 } // namespace
 
 // ── Public fingerprinting methods ───────────────────────────────────────────
@@ -212,6 +220,15 @@ uint64_t SceneHasher::compute_dynamic_fingerprint(const Scene& scene, Frame fram
             h = hash_combine(h, hash_string(layer.name));
             h = hash_combine(h, static_cast<int64_t>(frame));
         }
+        // A temporal effect (animated grain, echo) also advances every
+        // output frame while topology stays unchanged — same contract as
+        // video above. Without this the combined fingerprint gates pixel
+        // reuse on identical values and one frame's grain serves for all.
+        if (layer.active_at(frame) && layer_has_temporal_effect(layer)) {
+            h = hash_combine(h, hash_string(layer.name));
+            h = hash_combine(h, hash_string("temporal_effect"));
+            h = hash_combine(h, static_cast<int64_t>(frame));
+        }
     }
     for (const auto& transition : scene.clip_transitions()) {
         h = hash_combine(h, hash_string(transition.layer_a));
@@ -335,6 +352,7 @@ bool SceneHasher::layer_animation_done_at(const Layer& layer, Frame frame) {
 bool SceneHasher::layer_is_static(const Layer& layer) {
     if (layer.kind == LayerKind::Video) return false;
     if (layer.kind == LayerKind::Precomp) return false;
+    if (layer_has_temporal_effect(layer)) return false;
     if (layer.anim_transform.is_time_dependent()) return false;
     if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
     if (layer.time_remap.time_remap.is_time_dependent()) return false;
@@ -352,6 +370,7 @@ bool SceneHasher::layer_is_static(const Layer& layer) {
 bool SceneHasher::layer_is_static_at(const Layer& layer, Frame frame) {
     if (layer.kind == LayerKind::Video) return false;
     if (layer.kind == LayerKind::Precomp) return false;
+    if (layer_has_temporal_effect(layer)) return false;
     if (layer.anim_transform.is_time_dependent() && !layer_animation_done_at(layer, frame)) {
         return false;
     }
