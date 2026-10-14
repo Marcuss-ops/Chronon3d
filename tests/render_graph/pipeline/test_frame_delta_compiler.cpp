@@ -1,10 +1,18 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 
 #include <chronon3d/runtime/dirty_history.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
+#include <tests/helpers/test_utils.hpp>
 #include <memory>
+#include <string>
 #include <type_traits>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
@@ -712,4 +720,125 @@ TEST_CASE("FrameDeltaCompiler blocks reuse for projected surfaces and missing su
     delta = FrameDeltaCompiler::compile_state(previous, current, 64, 64);
     CHECK_FALSE(delta.reuse.resolved_scene_reuse);
     CHECK(delta.reuse.reason == "missing_previous_surface");
+}
+
+namespace {
+
+chronon3d::SceneBuilder static_rect_scene() {
+    chronon3d::SceneBuilder builder;
+    builder.rect("r", {.size = {50.0f, 50.0f},
+                       .color = chronon3d::Color::red(),
+                       .pos = {0.0f, 0.0f, 0.0f}});
+    return builder;
+}
+
+std::shared_ptr<chronon3d::Framebuffer> render_one(
+    chronon3d::test::TestRenderer& renderer, chronon3d::cache::NodeCache& cache,
+    const chronon3d::Scene& scene, chronon3d::Frame frame) {
+    chronon3d::Camera camera;
+    return render_scene_via_graph(
+        renderer.backend(), cache, scene, camera, 64, 64, frame, 0.0f,
+        renderer.render_settings(), renderer.composition_registry(),
+        renderer.video_decoder(), 30.0f, {}, &renderer);
+}
+
+} // namespace
+
+TEST_CASE("native_clean_reuse_eligible accepts static scenes with a previous surface") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    auto builder = static_rect_scene();
+    const Scene scene = builder.build();
+    auto renderer = chronon3d::test::make_renderer();
+    cache::NodeCache cache;
+    REQUIRE(render_one(renderer, cache, scene, Frame{0}) != nullptr);
+
+    std::string reason;
+    CHECK(ExecutionResolver::native_clean_reuse_eligible(
+        scene, Frame{1}, 0, nullptr, &renderer, true, reason));
+    CHECK(reason == "native_clean_reuse");
+}
+
+TEST_CASE("native_clean_reuse_eligible rejects without a previous surface or history") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    auto builder = static_rect_scene();
+    const Scene scene = builder.build();
+    auto renderer = chronon3d::test::make_renderer();
+    cache::NodeCache cache;
+    REQUIRE(render_one(renderer, cache, scene, Frame{0}) != nullptr);
+
+    std::string reason;
+    CHECK_FALSE(ExecutionResolver::native_clean_reuse_eligible(
+        scene, Frame{1}, 0, nullptr, &renderer, false, reason));
+    CHECK(reason == "missing_previous_native_surface");
+
+    auto cold = chronon3d::test::make_renderer();
+    CHECK_FALSE(ExecutionResolver::native_clean_reuse_eligible(
+        scene, Frame{0}, 0, nullptr, &cold, true, reason));
+    CHECK(reason == "fingerprints_unavailable");
+}
+
+TEST_CASE("native_clean_reuse_eligible rejects changed scenes") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    auto builder = static_rect_scene();
+    const Scene scene = builder.build();
+    auto renderer = chronon3d::test::make_renderer();
+    cache::NodeCache cache;
+    REQUIRE(render_one(renderer, cache, scene, Frame{0}) != nullptr);
+
+    SceneBuilder other;
+    other.rect("r", {.size = {50.0f, 50.0f},
+                     .color = Color::red(),
+                     .pos = {0.0f, 0.0f, 0.0f}});
+    other.rect("r2", {.size = {10.0f, 10.0f},
+                      .color = Color::blue(),
+                      .pos = {60.0f, 60.0f, 0.0f}});
+    const Scene changed = other.build();
+
+    std::string reason;
+    CHECK_FALSE(ExecutionResolver::native_clean_reuse_eligible(
+        changed, Frame{1}, 0, nullptr, &renderer, true, reason));
+    CHECK(reason != "native_clean_reuse");
+}
+
+TEST_CASE("native_clean_reuse_eligible rejects transitions and temporal effects") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    SceneBuilder with_transition;
+    with_transition.rect("a", {.size = {50.0f, 50.0f},
+                               .color = Color::red(),
+                               .pos = {0.0f, 0.0f, 0.0f}});
+    with_transition.rect("b", {.size = {50.0f, 50.0f},
+                               .color = Color::blue(),
+                               .pos = {0.0f, 0.0f, 0.0f}});
+    with_transition.clip_transition("a", "b", ClipTransitionSpec{}, Frame{0}, Frame{10});
+    const Scene animated = with_transition.build();
+    auto renderer = chronon3d::test::make_renderer();
+    cache::NodeCache cache;
+    REQUIRE(render_one(renderer, cache, animated, Frame{0}) != nullptr);
+
+    std::string reason;
+    CHECK_FALSE(ExecutionResolver::native_clean_reuse_eligible(
+        animated, Frame{1}, 0, nullptr, &renderer, true, reason));
+    CHECK(reason == "frame_dependent_content");
+
+    SceneBuilder with_grain;
+    with_grain.rect("r", {.size = {50.0f, 50.0f},
+                           .color = Color::red(),
+                           .pos = {0.0f, 0.0f, 0.0f}});
+    with_grain.adjustment_layer("grain", [](chronon3d::LayerBuilder& l) {
+        l.effect(BandedGrainParams{.seed = 3, .speed = 1.0f});
+    });
+    const Scene grainy = with_grain.build();
+    auto renderer2 = chronon3d::test::make_renderer();
+    REQUIRE(render_one(renderer2, cache, grainy, Frame{0}) != nullptr);
+    CHECK_FALSE(ExecutionResolver::native_clean_reuse_eligible(
+        grainy, Frame{1}, 0, nullptr, &renderer2, true, reason));
+    CHECK(reason == "active_temporal_effect");
 }
