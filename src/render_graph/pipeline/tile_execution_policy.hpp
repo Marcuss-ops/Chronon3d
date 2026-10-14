@@ -63,6 +63,23 @@ public:
         const detail::FrameDelta&, const CopyGopEligibility&) noexcept;
     static FrameExecutionPlan resolve_early_reuse(
         const RenderGraphContext&, const Scene&, Frame, int, int, SoftwareRenderer*);
+    /// Native clean-frame reuse pre-pass (video exporter loop only).
+    /// Side-effect-free: unlike resolve_early_reuse it records no telemetry,
+    /// touches no surfaces and resolves no layers. Returns true when `frame`
+    /// is pixel-identical to the previous completed native frame, so the
+    /// exporter may skip the Vulkan render and re-submit the held encode
+    /// surface with a new PTS. Any doubt returns false (full render).
+    /// The scene camera is resolved internally with resolve_scene_camera,
+    /// the same authority the render path uses. `registry_generation`
+    /// mirrors the render path's fingerprint input (0 is valid and only
+    /// narrows the static-scene sub-path, never the resolved-scene path);
+    /// null frame parameters mean "no typed payload". `scene` must be the
+    /// frame's materialized scene (for static-topology compositions the
+    /// stable template scene).
+    [[nodiscard]] static bool native_clean_reuse_eligible(
+        const Scene&, Frame, std::uint64_t registry_generation,
+        const compiler::FrameParameterBlock*, const SoftwareRenderer*,
+        bool has_previous_native_surface, std::string& reason_out);
     [[nodiscard]] static std::vector<raster::BBox> coalesce_dirty_regions(
         const raster::TileGrid&, const raster::DirtyTileMask&);
     static FrameExecutionPlan resolve(
