@@ -378,6 +378,38 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
                 mesh.indices.push_back(static_cast<std::uint32_t>(index));
             }
         }
+        if (raw_mesh.contains("animation")) {
+            const auto& raw_animation = raw_mesh.at("animation");
+            if (!raw_animation.is_array() || raw_animation.empty() ||
+                raw_animation.size() > kInlineMeshMaxAnimationSamples)
+                throw std::runtime_error("inline_mesh.animation must contain 1..4096 baked samples");
+            std::int64_t previous_frame = -1;
+            mesh.animation.reserve(raw_animation.size());
+            for (const auto& raw_sample : raw_animation) {
+                InlineMeshFrameSamplePlan sample;
+                sample.frame = raw_sample.at("frame").get<std::int64_t>();
+                const auto& positions = raw_sample.at("positions");
+                if (sample.frame < 0 || sample.frame <= previous_frame || sample.frame > 1'000'000)
+                    throw std::runtime_error("inline_mesh.animation frames must be strictly increasing and in [0, 1000000]");
+                if (!positions.is_array() || positions.size() != mesh.vertices.size())
+                    throw std::runtime_error("inline_mesh.animation positions must match the base vertex count");
+                sample.positions.reserve(positions.size());
+                for (const auto& raw_position : positions) {
+                    std::array<float, 3> position{};
+                    if (!raw_position.is_array() || raw_position.size() != 3)
+                        throw std::runtime_error("inline_mesh.animation positions must be 3D vectors");
+                    for (std::size_t component = 0; component < position.size(); ++component) {
+                        position[component] = raw_position.at(component).get<float>();
+                        if (!std::isfinite(position[component]) ||
+                            std::abs(position[component]) > 1'000'000.0f)
+                            throw std::runtime_error("inline_mesh.animation position exceeds finite bounds");
+                    }
+                    sample.positions.push_back(position);
+                }
+                previous_frame = sample.frame;
+                mesh.animation.push_back(std::move(sample));
+            }
+        }
         if (raw_mesh.contains("material")) {
             const auto& raw_material = raw_mesh.at("material");
             InlineMeshMaterialPlan material;

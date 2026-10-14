@@ -3,7 +3,7 @@
 // ============================================================================
 // tests/deterministic/test_baseline_green.cpp
 //
-// WP-6 PR 6.8 — Baseline verde verificabile per docs/02-determinism.md.  // drift-class: historical (doc retired)
+// WP-6 PR 6.8 — Baseline verde verificabile per la suite di determinismo.
 //
 // 6 test che PASSANO OGGI e dimostrano il sottoinsieme bit-exact del
 // determinismo del renderer.  Ciascuno chiude uno dei blocchi "rimasti"
@@ -43,10 +43,7 @@
 //     (cambio di backend che sposta bit-pattern).  Insieme coprono
 //     sia rot scheduler-state che rot pipeline.
 //
-// Test lattice: 6 TEST_CASE.  Ciascuno copre un blocco specifico di
-// docs/02-determinism.md.  Lo stato di docs/02 viene aggiornato per  // drift-allow: stale-ref
-// riflettere il verdetto REALE (verde dove PASSATO, rosso dove rot
-// persiste).
+// Test lattice: 6 TEST_CASE. Each covers one specific determinism contract.
 // ============================================================================
 
 #include <chronon3d/timeline/composition.hpp>

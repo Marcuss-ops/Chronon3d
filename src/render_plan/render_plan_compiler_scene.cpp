@@ -420,13 +420,69 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                             throw std::runtime_error("mesh layer '" + layer.id + "' has no inline geometry");
                         InlineMeshParams params;
                         params.name = layer.id;
+                        params.indices = layer.inline_mesh->indices;
                         params.vertices.reserve(layer.inline_mesh->vertices.size());
-                        for (const auto& vertex : layer.inline_mesh->vertices)
-                            params.vertices.push_back(Vertex{
-                                Vec3{vertex.position[0], vertex.position[1], vertex.position[2]},
+                        const auto& samples = layer.inline_mesh->animation;
+                        const double sample_frame = std::max(0.0, ctx.effective_frame());
+                        const InlineMeshFrameSamplePlan* before = nullptr;
+                        const InlineMeshFrameSamplePlan* after = nullptr;
+                        for (const auto& sample : samples) {
+                            if (static_cast<double>(sample.frame) <= sample_frame) before = &sample;
+                            if (static_cast<double>(sample.frame) >= sample_frame) { after = &sample; break; }
+                        }
+                        for (std::size_t vertex_index = 0;
+                             vertex_index < layer.inline_mesh->vertices.size(); ++vertex_index) {
+                            const auto& vertex = layer.inline_mesh->vertices[vertex_index];
+                            Vec3 position{vertex.position[0], vertex.position[1], vertex.position[2]};
+                            if (!samples.empty() && !before && after) {
+                                position = Vec3{after->positions[vertex_index][0],
+                                    after->positions[vertex_index][1],
+                                    after->positions[vertex_index][2]};
+                            } else if (before || after) {
+                                const auto* left = before ? before : after;
+                                const auto* right = after ? after : before;
+                                const float amount = left == right ? 0.0f :
+                                    static_cast<float>((sample_frame - static_cast<double>(left->frame)) /
+                                        static_cast<double>(right->frame - left->frame));
+                                const float clamped_amount = std::clamp(amount, 0.0f, 1.0f);
+                                if (sample_frame >= static_cast<double>(samples.back().frame)) {
+                                    position = Vec3{right->positions[vertex_index][0],
+                                        right->positions[vertex_index][1], right->positions[vertex_index][2]};
+                                } else position = Vec3{
+                                    left->positions[vertex_index][0] +
+                                        (right->positions[vertex_index][0] - left->positions[vertex_index][0]) * clamped_amount,
+                                    left->positions[vertex_index][1] +
+                                        (right->positions[vertex_index][1] - left->positions[vertex_index][1]) * clamped_amount,
+                                    left->positions[vertex_index][2] +
+                                        (right->positions[vertex_index][2] - left->positions[vertex_index][2]) * clamped_amount};
+                            }
+                            params.vertices.push_back(Vertex{position,
                                 Vec3{vertex.normal[0], vertex.normal[1], vertex.normal[2]},
                                 Vec2{vertex.uv[0], vertex.uv[1]}});
-                        params.indices = layer.inline_mesh->indices;
+                        }
+                        if (!samples.empty()) {
+                            std::vector<Vec3> normals(params.vertices.size());
+                            for (std::size_t triangle = 0; triangle < params.indices.size(); triangle += 3) {
+                                const auto a = params.indices[triangle];
+                                const auto b = params.indices[triangle + 1];
+                                const auto c = params.indices[triangle + 2];
+                                const Vec3 face = glm::cross(
+                                    params.vertices[b].position - params.vertices[a].position,
+                                    params.vertices[c].position - params.vertices[a].position);
+                                normals[a] += face;
+                                normals[b] += face;
+                                normals[c] += face;
+                            }
+                            for (std::size_t vertex = 0; vertex < params.vertices.size(); ++vertex) {
+                                const float length_squared = glm::dot(
+                                    normals[vertex], normals[vertex]);
+                                if (length_squared > 1.0e-20f && std::isfinite(length_squared))
+                                    normals[vertex] /= std::sqrt(length_squared);
+                                else
+                                    normals[vertex] = Vec3{0.0f, 0.0f, 1.0f};
+                                params.vertices[vertex].normal = normals[vertex];
+                            }
+                        }
                         builder.accepts_lights(false).accepts_shadows(false);
                         builder.inline_mesh(std::move(params));
                         if (layer.casts_shadows || layer.accepts_shadows) {

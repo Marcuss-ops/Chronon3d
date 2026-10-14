@@ -271,6 +271,45 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             .light_side = effect.crease_light_side,
             .softness = effect.crease_softness});
         } break;
+        case LayerPlan::EffectKindPlan::NoiseSampler: {
+            prepared_effects[index].emplace_back(NoiseSamplerParams{
+                .seed = effect.seed,
+                .type = static_cast<NoiseSamplerType>(effect.noise_sampler_type),
+                .octaves = effect.octaves,
+                .frequency = effect.frequency,
+                .lacunarity = effect.noise_lacunarity,
+                .gain = effect.noise_gain,
+                .evolution = effect.evolution,
+                .contrast = effect.contrast,
+                .brightness = effect.brightness,
+                .domain_warp = effect.noise_domain_warp,
+                .remap_min = effect.noise_remap_min,
+                .remap_max = effect.noise_remap_max,
+                .quantize_steps = effect.noise_quantize_steps,
+                .color_mode = effect.rgb_noise ? NoiseSamplerColorMode::RGB : NoiseSamplerColorMode::Monochrome
+            });
+        } break;
+        case LayerPlan::EffectKindPlan::BandedGrain: {
+            std::vector<GrainBand> bands;
+            bands.reserve(effect.grain_bands.size());
+            for (const auto& b : effect.grain_bands) {
+                bands.push_back(GrainBand{
+                    .scale = b.scale,
+                    .amplitude = b.amplitude,
+                    .octave = b.octave
+                });
+            }
+            prepared_effects[index].emplace_back(BandedGrainParams{
+                .seed = effect.seed,
+                .intensity = effect.amount,
+                .speed = effect.warp_speed,
+                .color_mode = effect.rgb_noise ? NoiseColorMode::RGB : NoiseColorMode::Monochrome,
+                .shadow_response = effect.grain_shadow_response,
+                .midtone_response = effect.grain_midtone_response,
+                .highlight_response = effect.grain_highlight_response,
+                .bands = std::move(bands)
+            });
+        } break;
         }
         }
     }

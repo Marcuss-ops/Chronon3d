@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Reproducible Chronon3D 20-case rendered showcase suite."""
 from __future__ import annotations
-import argparse, hashlib, json, math, pathlib, resource, shutil, subprocess, sys, time
+import argparse, hashlib, json, math, os, pathlib, resource, shutil, subprocess, sys, time
+from PIL import Image
+import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parents[2]
@@ -22,9 +24,43 @@ def rgb(color):
     return [int(color[i:i+2], 16) / 255 for i in (1, 3, 5)] + [1.0]
 
 
-def run(command, cwd=REPO, log=None):
+def visual_frame_metrics(image_path, profile, frame_index):
+    image = np.asarray(Image.open(image_path).convert("RGB"), dtype=np.float32) / 255.0
+    height, width, _ = image.shape
+    x0, y0, x1, y1 = profile["roi"]
+    left, top = round(x0 * width), round(y0 * height)
+    right, bottom = round(x1 * width), round(y1 * height)
+    if left < 0 or top < 0 or right > width or bottom > height or right <= left or bottom <= top:
+        raise RuntimeError(f"visual ROI is invalid for frame {frame_index}: {profile['roi']}")
+    roi = image[top:bottom, left:right]
+    background = np.array([8, 13, 24], dtype=np.float32) / 255.0
+    delta = np.abs(roi - background)
+    mask = np.max(delta, axis=2) > (8.0 / 255.0)
+    coverage = float(mask.mean())
+    if not math.isfinite(coverage) or coverage < profile["min_subject_coverage"]:
+        raise RuntimeError(f"visual ROI coverage below minimum for frame {frame_index}: {coverage}")
+    ys, xs = np.nonzero(mask)
+    centroid = [float(xs.mean() / max(1, roi.shape[1] - 1)), float(ys.mean() / max(1, roi.shape[0] - 1))]
+    luma = roi[..., 0] * 0.2126 + roi[..., 1] * 0.7152 + roi[..., 2] * 0.0722
+    edges = np.abs(np.diff(luma, axis=0)).mean() + np.abs(np.diff(luma, axis=1)).mean()
+    return {"frame": frame_index, "roi": profile["roi"], "subject_coverage": coverage,
+            "centroid_normalized": centroid, "luma_mean": float(luma.mean()),
+            "luma_stddev": float(luma.std()), "edge_energy": float(edges),
+            "rgb_mean": [float(v) for v in roi.mean(axis=(0, 1))]}
+
+
+def compare_visual_metric(actual, reference, profile):
+    mae = abs(actual["subject_coverage"] - reference["subject_coverage"])
+    mae += sum(abs(a - b) for a, b in zip(actual["centroid_normalized"], reference["centroid_normalized"])) / 2
+    mae += sum(abs(a - b) for a, b in zip(actual["rgb_mean"], reference["rgb_mean"])) / 3
+    bad = float(mae > profile["max_mae"])
+    return {"mae": mae, "bad_pixel_fraction": bad,
+            "within_tolerance": mae <= profile["max_mae"] and bad <= profile["max_bad_pixel_fraction"]}
+
+
+def run(command, cwd=REPO, log=None, env=None):
     completed = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT, check=False)
+                               stderr=subprocess.STDOUT, check=False, env=env)
     if log:
         log.parent.mkdir(parents=True, exist_ok=True)
         log.write_text(completed.stdout, encoding="utf-8")
@@ -545,13 +581,21 @@ def main():
     parser.add_argument("--render-partial",action="store_true")
     parser.add_argument("--repeat",action="store_true")
     parser.add_argument("--backend",choices=["software","vulkan"],default="software")
+    parser.add_argument("--threads",type=int,default=2,
+                        help="limit Chronon3D renderer CPU threads per CLI process (default: 2)")
     parser.add_argument("--strict-native",action="store_true",
                         help="require Vulkan GPU-native rendering and NVENC; fail closed without fallback")
     args=parser.parse_args()
+    if args.list:
+        manifest=json.loads(MANIFEST_PATH.read_text(encoding="utf-8")); cases=manifest["cases"]
+        for c in cases: print(f"{c['id']} {c['slug']}: {c['duration_seconds']}s {c['status']} — {c['name']}")
+        return 0
     if args.strict_native and args.backend != "vulkan":
         parser.error("--strict-native requires --backend vulkan")
     if args.strict_native and args.repeat:
         parser.error("--repeat currently compares software/native output; strict-native repeat is not supported")
+    if args.threads < 1:
+        parser.error("--threads must be at least 1")
     if not args.validate_only and not args.case:
         parser.error("rendering requires at least one explicit --case to avoid accidental full-suite resource use")
     if not args.validate_only and (not shutil.which("ffmpeg") or not shutil.which("ffprobe")):
@@ -566,9 +610,6 @@ def main():
         if available_gib is not None and available_gib < 5.0:
             parser.error(f"render needs at least 5 GiB available RAM; currently {available_gib:.1f} GiB")
     manifest=json.loads(MANIFEST_PATH.read_text(encoding="utf-8")); cases=manifest["cases"]
-    if args.list:
-        for c in cases: print(f"{c['id']} {c['slug']}: {c['duration_seconds']}s {c['status']} — {c['name']}")
-        return 0
     cli=args.cli.resolve()
     if not cli.is_file(): parser.error(f"Chronon3D CLI not found: {cli}; pass --cli")
     selected=cases
@@ -579,8 +620,13 @@ def main():
     if args.render_supported: selected=[c for c in selected if c["status"]!="BLOCKED"]
     elif not args.validate_only and not args.render_partial: parser.error("choose --validate-only, --render-supported, or --render-partial")
     root=args.output_root.resolve(); root.mkdir(parents=True,exist_ok=True); logs=root/"logs"
+    git_head = run(["git", "-C", str(REPO / "Chronon3d"), "rev-parse", "HEAD"]).strip()
+    git_status = run(["git", "-C", str(REPO / "Chronon3d"), "status", "--porcelain", "--", "tests/motion_showcase"]).strip()
     report={"suite_id":manifest["suite_id"],"manifest_sha256":digest(MANIFEST_PATH),"renderer":str(cli),
-        "backend":args.backend,"environment":{"python":sys.version.split()[0],"platform":sys.platform,
+        "source":{"git_head":git_head,"working_tree_dirty":bool(git_status),
+                  "runner_sha256":digest(pathlib.Path(__file__).resolve())},
+        "backend":args.backend,"strict_native":args.strict_native,"threads":args.threads,
+        "environment":{"python":sys.version.split()[0],"platform":sys.platform,
         "ffmpeg":shutil.which("ffmpeg"),"ffprobe":shutil.which("ffprobe")},"cases":[]}
     for case in selected:
         folder=root/f"{case['id']}_{case['slug']}"; folder.mkdir(parents=True,exist_ok=True)
@@ -588,7 +634,8 @@ def main():
         plan.write_text(json.dumps(scene(case,video),indent=2)+"\n",encoding="utf-8")
         expected={"case_id":case["id"],"slug":case["slug"],"duration_seconds":case["duration_seconds"],
             "width":1920,"height":1080,"fps_num":30,"fps_den":1,"frame_count":n,
-            "requested_status":case["status"],"implemented":case["implemented"],"blocked_features":case["blocked"]}
+            "requested_status":case["status"],"implemented":case["implemented"],"blocked_features":case["blocked"],
+            "visual_acceptance":case.get("visual_acceptance") }
         (folder/"expected.json").write_text(json.dumps(expected,indent=2)+"\n",encoding="utf-8")
         result={**expected,"scene_sha256":digest(plan),"status":case["status"],
             "technical_status":"NOT_RUN","functional_pass":False,"artifacts":{"scene":str(plan),"expected":str(folder/"expected.json")}}
@@ -613,29 +660,55 @@ def main():
                      "--hardware",hw,"--fps","30","--encoder-backend",enc,"--assets-root",str((REPO/"Chronon3d").resolve()),"-o",str(video)]
                 if args.strict_native:
                     render_command.extend(["--gpu-hot-path-mode", "require_gpu_native"])
-                run(render_command,log=log)
+                render_env={**os.environ,"CHRONON3D_THREADS":str(args.threads),
+                    "CHRONON3D_CPU_RENDER_THREADS":str(args.threads),
+                    "CHRONON3D_CPU_ENCODE_THREADS":str(args.threads),
+                    "CHRONON3D_CPU_DECODE_THREADS":str(args.threads)}
+                run(render_command,log=log,env=render_env)
                 if not video.is_file() or video.stat().st_size == 0:
                     raise RuntimeError("renderer returned success without creating a non-empty MP4")
                 if args.strict_native:
                     timing_for_gate = json.loads(pathlib.Path(str(video)+".timing.json").read_text())
-                    hardware = timing_for_gate.get("hardware", {})
-                    gpu = timing_for_gate.get("gpu", {})
-                    if hardware.get("nvenc_utilization_avg", 0) <= 0 or gpu.get("software_fallback_nodes", 0) != 0:
-                        raise RuntimeError(f"strict-native evidence gate failed: hardware={hardware}, gpu={gpu}")
+                    job = timing_for_gate.get("job", {})
+                    hardware = job.get("hardware", {})
+                    gpu = job.get("gpu", {})
+                    strict_evidence = {
+                        "execution_path": job.get("execution_path"),
+                        "gpu_native_encode_frames": gpu.get("gpu_native_encode_frames", 0),
+                        "nvenc_frames": gpu.get("nvenc_frames", 0),
+                        "vulkan_frames": gpu.get("vulkan_frames", 0),
+                        "software_encode_frames": gpu.get("software_encode_frames", 0),
+                        "software_fallback_nodes": gpu.get("software_fallback_nodes", 0),
+                        "video_pipe_fallback_frames": gpu.get("video_pipe_fallback_frames", 0),
+                        "nvenc_utilization_avg": hardware.get("nvenc_utilization_avg", 0),
+                    }
+                    if (strict_evidence["execution_path"] != "full_graph_native"
+                        or strict_evidence["gpu_native_encode_frames"] != n
+                        or strict_evidence["nvenc_frames"] != n
+                        or strict_evidence["vulkan_frames"] != n
+                        or strict_evidence["software_encode_frames"] != 0
+                        or strict_evidence["software_fallback_nodes"] != 0
+                        or strict_evidence["video_pipe_fallback_frames"] != 0):
+                        raise RuntimeError(f"strict-native evidence gate failed: {strict_evidence}")
+                    result["strict_native_evidence"] = strict_evidence
                 probe_out=run(["ffprobe","-v","error","-select_streams","v:0","-show_entries",
                     "stream=codec_name,width,height,pix_fmt,r_frame_rate,nb_frames,duration,time_base",
                     "-show_entries","format=duration","-of","json",str(video)])
                 probe=json.loads(probe_out); stream=probe["streams"][0]
                 if (stream.get("codec_name")!="h264" or int(stream["width"])!=1920 or int(stream["height"])!=1080
-                    or stream["r_frame_rate"]!="30/1" or int(stream.get("nb_frames",-1))!=n):
+                    or stream.get("pix_fmt")!="yuv420p" or stream["r_frame_rate"]!="30/1"
+                    or int(stream.get("nb_frames",-1))!=n):
                     raise RuntimeError(f"stream contract mismatch: {stream}")
+                time_base_num, time_base_den = map(int, stream["time_base"].split("/"))
+                duration_tolerance = time_base_num / time_base_den
+                if abs(float(probe["format"]["duration"])-case["duration_seconds"]) > duration_tolerance:
+                    raise RuntimeError(f"duration differs from requested duration by more than one video timebase tick: {probe}")
+                if stream.get("field_order") not in (None, "progressive"):
+                    raise RuntimeError(f"expected progressive video, got field order {stream.get('field_order')}")
                 frames_dir=folder/"frames"; frames_dir.mkdir(exist_ok=True)
                 hashes_out=run(["ffmpeg","-v","error","-i",str(video),"-f","framemd5","-"])
                 hashes=[line.rsplit(",",1)[-1].strip() for line in hashes_out.splitlines() if line.strip() and not line.startswith("#")]
                 if len(hashes)!=n or len(set(hashes))<2: raise RuntimeError(f"decoded frame count/change check failed: {len(hashes)}")
-                if any(hashes[index] == hashes[index+1] for index in range(len(hashes)-1)):
-                    # Repeated hashes are evidence, not automatic failure: sparse rendered changes may legitimately hold frames.
-                    pass
                 for idx in sorted(set((0,n//2,n-1))):
                     target=frames_dir/f"frame_{idx:03}.png"
                     run(["ffmpeg","-v","error","-y","-i",str(video),"-vf",f"select=eq(n\\,{idx})","-vsync","0","-frames:v","1",str(target)])
@@ -643,8 +716,9 @@ def main():
                 repeated=None
                 if args.repeat:
                     repeat=folder/"repeat.mp4"
-                    run([str(cli),"render","--plan",str(plan),"--backend",args.backend,"--profile","preview",
-                         "--hardware","none","--fps","30","--encoder-backend","native","--assets-root",str(REPO/"Chronon3d"),"-o",str(repeat)],log=logs/f"{case['id']}_repeat.log")
+                    repeat_command=[str(cli),"render","--plan",str(plan),"--backend",args.backend,"--profile","preview",
+                         "--hardware","none","--fps","30","--encoder-backend","native","--assets-root",str(REPO/"Chronon3d"),"-o",str(repeat)]
+                    run(repeat_command,log=logs/f"{case['id']}_repeat.log",env=render_env)
                     if not repeat.is_file() or repeat.stat().st_size == 0:
                         raise RuntimeError("repeat renderer returned success without creating a non-empty MP4")
                     rh=run(["ffmpeg","-v","error","-i",str(repeat),"-f","framemd5","-"])
@@ -663,8 +737,6 @@ def main():
                         yield float(value)
                 nums=list(finite_numbers(timing))
                 if not timing or any(not math.isfinite(value) for value in nums): raise RuntimeError("missing timing sidecar or non-finite timing metric")
-                if int(probe["streams"][0].get("nb_frames", -1)) != n or abs(float(probe["format"]["duration"])-case["duration_seconds"]) > 1/30000:
-                    raise RuntimeError(f"exact duration/frame contract failed: {probe}")
                 frame_coverage=[]
                 for idx in sorted(set((0,n//2,n-1))):
                     target=frames_dir/f"frame_{idx:03}.png"
@@ -678,9 +750,31 @@ def main():
                 timing_ms=timing.get("frame_times_ms", [])
                 if not isinstance(timing_ms, list) or len(timing_ms) != n:
                     raise RuntimeError(f"timing sidecar has no exact per-frame samples: {len(timing_ms) if isinstance(timing_ms,list) else 'missing'} vs {n}")
-                if any(not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(float(value)) for value in timing_ms):
-                    raise RuntimeError("timing sidecar contains invalid per-frame samples")
+                for frame_index, sample in enumerate(timing_ms):
+                    if not isinstance(sample, dict) or not sample:
+                        raise RuntimeError(f"timing sample {frame_index} is not a non-empty per-frame metrics object")
+                    sample_numbers=list(finite_numbers(sample))
+                    if not sample_numbers or any(value < 0 for value in sample_numbers):
+                        raise RuntimeError(f"timing sample {frame_index} has no finite non-negative numeric metrics")
                 result["representative_frames"]=frame_coverage
+                profile = case.get("visual_acceptance")
+                visual_metrics = []
+                if profile:
+                    for idx in profile["frames"]:
+                        if idx < 0 or idx >= n:
+                            raise RuntimeError(f"visual acceptance frame {idx} is outside 0..{n-1}")
+                        target = frames_dir / f"visual_{idx:03}.png"
+                        run(["ffmpeg", "-y", "-v", "error", "-i", str(video), "-vf", f"select=eq(n\\,{idx})", "-frames:v", "1", str(target)])
+                        metric = visual_frame_metrics(target, profile, idx)
+                        metric["frame_sha256"] = digest(target)
+                        metric["golden_status"] = profile["golden_status"]
+                        visual_metrics.append(metric)
+                    if args.repeat and case["status"] == "PARTIAL":
+                        comparisons = [compare_visual_metric(item, item, profile) for item in visual_metrics]
+                        if not all(item["within_tolerance"] for item in comparisons):
+                            raise RuntimeError(f"visual metric self-comparison failed: {comparisons}")
+                    result["visual_acceptance"] = {"profile":profile,"frames":visual_metrics,
+                        "golden_status":"NOT_CREATED_SEMANTIC_REVIEW_REQUIRED"}
                 result["timing_values_checked"]=len(nums)
                 result.update({"status":"PARTIAL" if case["status"]!="PASS" else "PASS",
                     "technical_status":"PASS","functional_pass":False,"scope_note":"Video is a deterministic diagnostic fixture, not a visual golden or full functional certification.","probe":stream,
@@ -691,15 +785,35 @@ def main():
                     "timing":str(timing_path),"frames_dir":str(frames_dir),"probe":str(folder/"probe.json"),"render_log":str(log)}})
                 (folder/"probe.json").write_text(json.dumps(probe,indent=2)+"\n")
                 result["expected_sha256"]=digest(folder/"expected.json")
-                metric_fields=("case_id","slug","scene_sha256","probe","decoded_frame_sha256","distinct_decoded_frames","render_wall_seconds","peak_rss_kib_process","timing_values_checked","representative_frames","repeat_decoded_hashes_equal","technical_status","functional_pass","scope_note")
+                metric_fields=("case_id","slug","scene_sha256","probe","decoded_frame_sha256","distinct_decoded_frames","render_wall_seconds","peak_rss_kib_process","timing_values_checked","representative_frames","visual_acceptance","repeat_decoded_hashes_equal","technical_status","functional_pass","scope_note")
                 (folder/"metrics.json").write_text(json.dumps({key:result.get(key) for key in metric_fields},indent=2)+"\n",encoding="utf-8")
-            result["artifacts"]["metrics"]=str(folder/"metrics.json")
             (folder/"expected.json").write_text(json.dumps(expected,indent=2)+"\n",encoding="utf-8")
             result["expected_sha256"]=digest(folder/"expected.json")
+            result["artifacts"]["metrics"]=str(folder/"metrics.json")
         except Exception as exc:
             result.update({"status":"FAIL","technical_status":"FAIL","error":str(exc)})
         if result["technical_status"] == "NOT_RUN":
             result["functional_status"] = "BLOCKED" if case["status"] == "BLOCKED" else "NOT_CERTIFIED"
+        metrics_path=folder/"metrics.json"
+        if not metrics_path.is_file() or result["technical_status"] == "PASS":
+            metrics={"case_id":case["id"],"slug":case["slug"],"scene_sha256":result.get("scene_sha256"),
+                "expected_sha256":result.get("expected_sha256"),"manifest_sha256":report["manifest_sha256"],
+                "source":report["source"],"backend":args.backend,"strict_native":args.strict_native,"threads":args.threads,
+                "validation_status":"PASS" if result.get("validated_plan_sha256") else "FAIL",
+                "technical_status":result["technical_status"],
+                "probe":result.get("probe"),"decoded_frame_sha256":result.get("decoded_frame_sha256"),
+                "distinct_decoded_frames":result.get("distinct_decoded_frames"),
+                "timing_values_checked":result.get("timing_values_checked"),
+                "representative_frames":result.get("representative_frames"),
+                "visual_acceptance":result.get("visual_acceptance"),
+                "render_wall_seconds":result.get("render_wall_seconds"),
+                "peak_rss_kib_process":result.get("peak_rss_kib_process"),
+                "repeat_decoded_hashes_equal":result.get("repeat_decoded_hashes_equal"),"functional_status":result.get("functional_status",case["status"]),
+                "functional_pass":False,"rendered":result.get("technical_status")=="PASS",
+                "blocked_features":case["blocked"],"error":result.get("error"),
+                "scope_note":"Plan validation is not render acceptance; video technical checks are recorded separately."}
+            metrics_path.write_text(json.dumps(metrics,indent=2)+"\n",encoding="utf-8")
+        result["artifacts"]["metrics"]=str(metrics_path)
         report["cases"].append(result); print(f"{result['status']:7} {case['id']} {case['slug']}: {result['technical_status']}")
     report["summary"]={s:sum(c["status"]==s for c in report["cases"]) for s in ("PASS","PARTIAL","BLOCKED","FAIL")}
     report_path=root/"report.json"; report_path.write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")

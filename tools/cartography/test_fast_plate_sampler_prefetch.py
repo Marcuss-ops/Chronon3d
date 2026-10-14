@@ -67,10 +67,24 @@ class ExactPlatePrefetchTests(unittest.TestCase):
         self.assertLessEqual(float(delta.mean()), 15.0)
         self.assertEqual(len(calls), before, "sampling after prepare must not fetch tiles")
         self.assertEqual(sampler.fallback_count, 0)
+        self.assertFalse(hasattr(sampler, "allow_fallback"))
         self.assertTrue(sampler.can_sample(41.89, 12.49, 5.35, 320, 180))
         self.assertFalse(sampler.can_sample(41.89, 12.49, 7.35, 320, 180))
         self.assertEqual(pyramid.telemetry["late_tile_fetches"], 0)
         self.assertIsNotNone(original_fetch)
+
+    def test_sampling_outside_any_prepared_plate_never_calls_pyramid(self):
+        class NoFallbackPyramid:
+            def sample_continuous(self, *args):
+                raise AssertionError("per-frame pyramid renderer must not be called")
+        sampler = FastPlateSampler(NoFallbackPyramid(), 64, 48)
+        sampler.z_min, sampler.z_max = 5, 6
+        sampler.plates = {}
+        with self.assertRaisesRegex(RuntimeError, "prepared plates"):
+            sampler.sample(0, 0, 7.0)
+        with self.assertRaisesRegex(RuntimeError, "prepared subpixel plate"):
+            sampler.sample_subpixel(0, 0, 5.0)
+        self.assertEqual(sampler.fallback_count, 0)
 
     def test_prefetch_normalizes_wrapped_x_and_bounds_y(self):
         pyramid = dyn.DynamicTilePyramid()

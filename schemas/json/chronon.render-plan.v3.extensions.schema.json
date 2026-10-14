@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://chronon3d.dev/schemas/chronon.render-plan.v3.extensions.schema.json",
   "title": "Chronon3D Render Plan V3 Shape and Gradient Extensions",
-  "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out.",
+  "description": "Strict V3 extension contract. Existing V2 fields are validated against the unchanged V2 schema after extension fields are projected out. V3 inline meshes may additionally carry bounded baked deformation samples.",
   "$defs": {
     "rgb_channel_transform": {
       "type": "object",
@@ -4529,6 +4529,24 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 249999
+                }
+              },
+              "animation": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4096,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["frame", "positions"],
+                  "properties": {
+                    "frame": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                    "positions": {
+                      "type": "array", "minItems": 3, "maxItems": 250000,
+                      "items": {"type": "array", "minItems": 3, "maxItems": 3,
+                        "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}}
+                    }
+                  }
                 }
               },
               "material": {

@@ -40,9 +40,8 @@ struct TextAnimatorSpec {
     // §5.0a — compile() + §5.0e — is_valid() chain-method pair
     // ─────────────────────────────────────────────────────────────────────
     //
-    // Closes the user-spec `resolve().compile().is_valid()` gap documented
-    // in the historical changelog (docs/CHANGELOG.md, file retired) §5  // drift-class: historical (changelog retired) (gap explicitly tracked there since the
-    // MotionTimeline<T> declarator landed in the F3.A batch).  The pair
+    // Closes the user-spec `resolve().compile().is_valid()` gap tracked since the
+    // MotionTimeline<T> declarator landed in the F3.A batch. The pair
     // enables a fluent authoring pattern:
     //
     //     AuthoringSite::build_animator()
@@ -92,9 +91,7 @@ struct TextAnimatorSpec {
 // The canonical text-animation-stack is an ordered list of TextAnimatorSpec
 // entries, evaluated in sequence by `evaluate_animator_stack(...)` in
 // `include/chronon3d/text/animation/text_animator_stack.hpp`. This typedef
-// closes the canonical-contract gap documented in
-// `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`  // drift-class: historical (roadmap doc retired)
-// §"Pipeline canonica":
+// closes the canonical-contract gap in the "Pipeline canonica" authoring flow:
 //
 //     TextDocument → TextResolver → FontEngine → HarfBuzz shaping
 //     → TextLayoutEngine → TextRunLayout → GlyphInstanceState

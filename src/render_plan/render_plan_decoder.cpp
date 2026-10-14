@@ -475,6 +475,13 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         std::size_t layer_index = 0;
         for (const auto& layer_value : resolved_root.at("layers")) {
             auto layer = detail::decode_layer(layer_value);
+            if (layer.inline_mesh && !layer.inline_mesh->animation.empty()) {
+                if (plan.schema != kRenderPlanSchemaV3)
+                    throw std::runtime_error("inline_mesh.animation requires RenderPlan v3");
+                for (const auto& sample : layer.inline_mesh->animation)
+                    if (sample.frame >= plan.canvas.duration.integral())
+                        throw std::runtime_error("inline_mesh.animation frame is outside canvas duration");
+            }
             const auto transition_error = [&](const std::optional<TransitionPlan>& transition,
                                               const char* slot) -> std::optional<PlanDecodeError> {
                 if (!transition) return std::nullopt;

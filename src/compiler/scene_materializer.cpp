@@ -112,6 +112,25 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             Vec3{vertex.normal[0], vertex.normal[1], vertex.normal[2]},
                             Vec2{vertex.uv[0], vertex.uv[1]}});
                     params.indices = layer.inline_mesh->indices;
+                    if (!layer.inline_mesh->animation.empty()) {
+                        std::vector<Vec3> normals(params.vertices.size(), Vec3{0.0f});
+                        const auto& positions = layer.inline_mesh->animation.front().positions;
+                        for (std::size_t vertex = 0; vertex < params.vertices.size(); ++vertex)
+                            params.vertices[vertex].position = Vec3{positions[vertex][0], positions[vertex][1], positions[vertex][2]};
+                        for (std::size_t triangle = 0; triangle < params.indices.size(); triangle += 3) {
+                            const auto a = params.indices[triangle];
+                            const auto b = params.indices[triangle + 1];
+                            const auto c = params.indices[triangle + 2];
+                            const Vec3 face = glm::cross(params.vertices[b].position - params.vertices[a].position,
+                                                         params.vertices[c].position - params.vertices[a].position);
+                            normals[a] += face; normals[b] += face; normals[c] += face;
+                        }
+                        for (std::size_t vertex = 0; vertex < params.vertices.size(); ++vertex) {
+                            const float length2 = glm::dot(normals[vertex], normals[vertex]);
+                            params.vertices[vertex].normal = length2 > 1.0e-20f && std::isfinite(length2)
+                                ? normals[vertex] / std::sqrt(length2) : Vec3{0.0f, 0.0f, 1.0f};
+                        }
+                    }
                     builder.accepts_lights(false).accepts_shadows(false);
                     builder.inline_mesh(std::move(params));
                     auto& node = builder.last_node_handle().node();

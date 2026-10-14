@@ -74,8 +74,27 @@ def main() -> int:
             inline_mesh, layers = schema_mesh_block(schema)
         except ValueError as error:
             return fail(str(error))
-        if inline_mesh != expected:
-            return fail(f"inline_mesh schema differs in {schema.get('$id', '<unknown schema>')}")
+        if schema.get("$id", "").endswith("v2.schema.json"):
+            expected_static = {key: value for key, value in expected.items()
+                               if key != "properties"}
+            expected_static["properties"] = {key: value for key, value in
+                                              expected["properties"].items()
+                                              if key != "animation"}
+            if inline_mesh != expected_static:
+                return fail(f"static inline_mesh schema differs in {schema.get('$id', '<unknown schema>')}")
+        else:
+            actual_mesh = {key: value for key, value in inline_mesh.items()
+                           if key not in {"primitive", "material", "oneOf"}}
+            actual_mesh["properties"] = {key: value for key, value in
+                                         inline_mesh["properties"].items()
+                                         if key not in {"primitive", "material"}}
+            expected_v3 = {key: value for key, value in expected.items()
+                           if key != "required"}
+            expected_v3["properties"] = {key: value for key, value in
+                                          expected["properties"].items()
+                                          if key not in {"primitive", "material"}}
+            if actual_mesh != expected_v3:
+                return fail(f"inline_mesh schema differs in {schema.get('$id', '<unknown schema>')}")
         schema_blocks.append((schema, layers))
 
     expected_contract = {
@@ -90,13 +109,20 @@ def main() -> int:
         "position_component_abs_max": 1_000_000,
         "normal_component_abs_max": 1,
         "uv_component_abs_max": 1_000_000,
+        "maximum_animation_samples": 4096,
     }
     contract = shared.get("mesh_layer_contract", {})
     for key, value in expected_contract.items():
         if contract.get(key) != value:
             return fail(f"Motion contract {key} is {contract.get(key)!r}, expected {value!r}")
-    if shared.get("contract_version") != 1 or shared.get("type_enum_value") != "mesh":
-        return fail("shared contract version or type enum value changed without a new contract")
+    if shared.get("contract_version") != 2 or shared.get("type_enum_value") != "mesh":
+        return fail("shared contract version must be 2 for the V3 baked animation extension")
+    v3_mesh_schema = schema_blocks[1][0]["properties"]["layers"]["items"]["properties"]["inline_mesh"]
+    if expected.get("properties", {}).get("animation") != v3_mesh_schema["properties"].get("animation"):
+        return fail("V3 baked animation schema differs from the shared Motion contract")
+    v2_mesh_schema = schema_blocks[0][0]["properties"]["layers"]["items"]["properties"]["inline_mesh"]
+    if "animation" in v2_mesh_schema.get("properties", {}):
+        return fail("V2 inline_mesh must remain static; baked samples are V3-only")
     if contract.get("forbidden_fields") != ["asset", "source"]:
         return fail("mesh asset/source reference policy differs from the inline contract")
     if contract.get("inline_mesh_requires_type") != "mesh":

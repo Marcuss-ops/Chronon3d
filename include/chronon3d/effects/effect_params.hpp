@@ -416,6 +416,55 @@ struct CreaseShadingParams {
 // Aberration and Halftone structs above are the canonical (upstream) ones.
 struct VignetteEffectParams { float amount{0.5f}; float radius{0.5f}; float softness{0.5f}; Color color{0,0,0,1}; };
 
+// ── Unified NoiseSampler (2.0) ──
+enum class NoiseSamplerType : uint8_t {
+    Simplex = 0,
+    Worley  = 1,
+    Ridged  = 2,
+    Value   = 3,
+    Blue    = 4
+};
+
+enum class NoiseSamplerColorMode : uint8_t {
+    Monochrome = 0,
+    RGB        = 1
+};
+
+struct NoiseSamplerParams {
+    uint32_t seed{0};
+    NoiseSamplerType type{NoiseSamplerType::Simplex};
+    uint32_t octaves{4};
+    float frequency{0.015f};
+    float lacunarity{2.0f};
+    float gain{0.5f};
+    float evolution{0.0f};
+    float contrast{1.0f};
+    float brightness{0.0f};
+    float domain_warp{0.0f};
+    float remap_min{0.0f};
+    float remap_max{1.0f};
+    uint32_t quantize_steps{0}; // 0 = continuous
+    NoiseSamplerColorMode color_mode{NoiseSamplerColorMode::Monochrome};
+};
+
+// ── Multi-scale Banded Grain (2.0) ──
+struct GrainBand {
+    float scale{1.0f};
+    float amplitude{0.05f};
+    uint32_t octave{0};
+};
+
+struct BandedGrainParams {
+    uint32_t seed{0};
+    float intensity{1.0f};
+    float speed{0.0f};
+    NoiseColorMode color_mode{NoiseColorMode::Monochrome};
+    float shadow_response{1.0f};
+    float midtone_response{1.0f};
+    float highlight_response{1.0f};
+    std::vector<GrainBand> bands;
+};
+
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.
@@ -459,7 +508,9 @@ using EffectParams = std::variant<
     SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
-    LiftGammaGainParams
+    LiftGammaGainParams,
+    NoiseSamplerParams,
+    BandedGrainParams
 >;
 
 } // namespace chronon3d

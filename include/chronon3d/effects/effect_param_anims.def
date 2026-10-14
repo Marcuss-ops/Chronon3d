@@ -81,3 +81,11 @@ CHRONON_ANIM_PARAM(ids::LightCreaseShading, CreaseShadingParams, width, 1.0f, 25
 CHRONON_ANIM_PARAM(ids::LightCreaseShading, CreaseShadingParams, dark_side, 0.0f, 1.0f)
 CHRONON_ANIM_PARAM(ids::LightCreaseShading, CreaseShadingParams, light_side, 0.0f, 1.0f)
 CHRONON_ANIM_PARAM(ids::LightCreaseShading, CreaseShadingParams, softness, 0.0f, 1.0f)
+
+CHRONON_ANIM_PARAM(ids::GenerateNoiseSampler, NoiseSamplerParams, frequency, 0.0001f, 10.0f)
+CHRONON_ANIM_PARAM(ids::GenerateNoiseSampler, NoiseSamplerParams, evolution, -100000.0f, 100000.0f)
+CHRONON_ANIM_PARAM(ids::GenerateNoiseSampler, NoiseSamplerParams, contrast, 0.0f, 10.0f)
+CHRONON_ANIM_PARAM(ids::GenerateNoiseSampler, NoiseSamplerParams, brightness, -4.0f, 4.0f)
+CHRONON_ANIM_PARAM(ids::GenerateNoiseSampler, NoiseSamplerParams, domain_warp, 0.0f, 10.0f)
+CHRONON_ANIM_PARAM(ids::StylizeBandedGrain, BandedGrainParams, intensity, 0.0f, 10.0f)
+CHRONON_ANIM_PARAM(ids::StylizeBandedGrain, BandedGrainParams, speed, -1000.0f, 1000.0f)

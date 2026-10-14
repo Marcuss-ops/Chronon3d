@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // src/text/text_layout_cache.cpp — M1.5#4
 //
-//   Extracted from the retired src/text/text_run.cpp.  Contains:  // drift-class: historical (source file split into per-concern TUs)
+//   Split from the original text-run implementation. Contains:
 //     - TextLayoutCacheKey::digest()
 //     - TextLayoutCacheKeyHash::operator()
 //     - TextLayoutCache::Impl + all member functions

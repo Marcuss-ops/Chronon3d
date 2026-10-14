@@ -118,7 +118,7 @@ SoftwareRenderer* setup_render_graph_context(
     // debug_cfg remains nullptr and overlays are skipped -
     // the safe default for non-software backends and matches the
     // pre-existing test contract for the modern TextRun path (the
-    // retired tests/test_text_preset_registry.cpp suite).  // drift-class: historical (test retired in text-preset consolidation)
+    // removed legacy text preset suite).
     if (sw_renderer) {
         ctx.policy.debug_config = &sw_renderer->config().debug();
     }

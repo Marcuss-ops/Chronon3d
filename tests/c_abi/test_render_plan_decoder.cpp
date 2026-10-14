@@ -1839,6 +1839,40 @@ TEST_CASE("V3 rounded shape stroke can frame an image as a lower layer") {
     CHECK(frame.size[1] > media.size[1]);
 }
 
+TEST_CASE("clip global effects and grid decode as one Chronon composite") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":1280,"height":720,"fps_num":30,"fps_den":1,"duration_frames":90},
+      "layers":[
+        {"id":"source","type":"color","color":[0.1,0.2,0.3,1.0],"size":[1280,720],"position":[0,0],"start_frame":0,"duration_frames":90},
+        {"id":"clip__grid","type":"shape","size":[1280,720],"position":[0,0],"screen_space":true,"opacity":0.2,"start_frame":0,"duration_frames":90,
+         "shape":{"type":"grid","spacing":64,"stroke":{"color":"#33CCDD","width":1}}},
+        {"id":"clip__adjustment","type":"adjustment","effects":[
+          {"type":"wave_warp","amplitude":0.0125,"wavelength":0.035,"speed":0.0,"direction":[0,1],"wave_type":"square"},
+          {"type":"chromatic_aberration","red_offset":4.0,"blue_offset":-4.0},
+          {"type":"noise","amount":0.06,"size":1.0,"seed":7,"animated":true,"color_mode":"rgb"}
+        ]}
+      ],
+      "output":{"path":"out.mp4","format":"mp4","codec":"h264"}})JSON");
+    const auto plan = chronon3d::render_plan::decode_render_plan(source);
+    const std::string decode_error = plan.has_value() ? std::string{} :
+        plan.error().path + ": " + plan.error().message;
+    REQUIRE_MESSAGE(plan.has_value(), decode_error);
+    REQUIRE(plan->layers.size() == 3);
+    CHECK(plan->layers[1].id == "clip__grid");
+    CHECK(plan->layers[1].type == chronon3d::render_plan::LayerType::Shape);
+    REQUIRE(plan->layers[1].shape);
+    CHECK(plan->layers[1].shape->grid_spacing == doctest::Approx(64.0f));
+    CHECK(plan->layers[1].opacity == doctest::Approx(0.2f));
+    CHECK(plan->layers[2].id == "clip__adjustment");
+    CHECK(plan->layers[2].type == chronon3d::render_plan::LayerType::Adjustment);
+    REQUIRE(plan->layers[2].effects.size() == 3);
+    CHECK(plan->layers[2].effects[0].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::WaveWarp);
+    CHECK(plan->layers[2].effects[1].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::ChromaticAberration);
+    CHECK(plan->layers[2].effects[2].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Noise);
+    CHECK(plan->layers[2].effects[2].seed == 7);
+}
+
 TEST_CASE("render plan requires adjustment layers to own only an effect stack") {
     const auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,

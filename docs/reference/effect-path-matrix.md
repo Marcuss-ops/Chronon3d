@@ -10,10 +10,10 @@ sources. Do not edit by hand.
 | 2 | Tint | `TintParams` | yes | native | no |
 | 3 | Brightness | `BrightnessParams` | yes | native | no |
 | 4 | Contrast | `ContrastParams` | yes | native | no |
-| 5 | Drop Shadow | `DropShadowParams` | yes | unsupported | no |
+| 5 | Drop Shadow | `DropShadowParams` | yes | native | no |
 | 6 | Glow | `GlowParams` | yes | native | no |
 | 7 | Bloom | `BloomParams` | yes | native | no |
-| 8 | Fake 3D Wave | `Fake3DWaveParams` | yes | unsupported | no |
+| 8 | Fake 3D Wave | `Fake3DWaveParams` | yes | native | no |
 | 9 | Saturation | `SaturationParams` | yes | native | no |
 | 10 | Hue Rotate | `HueRotateParams` | yes | native | no |
 | 11 | Invert | `InvertParams` | yes | native | no |
@@ -23,35 +23,38 @@ sources. Do not edit by hand.
 | 16 | Fill | `FillParams` | yes | native | no |
 | 17 | Noise | `NoiseParams` | yes | native | no |
 | 18 | Offset | `OffsetParams` | yes | native | no |
-| 19 | Directional Blur | `DirectionalBlurParams` | yes | unsupported | no |
-| 20 | Radial Blur | `RadialBlurParams` | yes | unsupported | no |
-| 21 | Stroke | `StrokeParams` | yes | unsupported | no |
-| 22 | Fractal Noise | `FractalNoiseParams` | yes | unsupported | no |
+| 19 | Directional Blur | `DirectionalBlurParams` | yes | native | no |
+| 20 | Radial Blur | `RadialBlurParams` | yes | native | no |
+| 21 | Stroke | `StrokeParams` | yes | native | no |
+| 22 | Fractal Noise | `FractalNoiseParams` | yes | native | no |
 | 23 | Checkerboard | `CheckerboardParams` | yes | native | no |
-| 24 | 4-Color Gradient | `FourColorGradientParams` | yes | unsupported | no |
-| 25 | Light Rays | `LightRaysParams` | yes | unsupported | no |
-| 26 | 3D LUT | `Lut3DParams` | yes | unsupported | no |
+| 24 | 4-Color Gradient | `FourColorGradientParams` | yes | native | no |
+| 25 | Light Rays | `LightRaysParams` | yes | native | no |
+| 26 | 3D LUT | `Lut3DParams` | yes | native | no |
 | 27 | Echo | `EchoParams` | yes | native | no |
 | 28 | Luma/Chroma Key | `KeyingParams` | yes | native | no |
 | 29 | Threshold | `ThresholdParams` | yes | native | no |
 | 30 | Mosaic | `MosaicParams` | yes | native | no |
-| 15 | Curves | `CurvesParams` | yes | unsupported | no |
-| 31 | Corner Pin | `CornerPinParams` | yes | unsupported | no |
-| 32 | Twirl | `TwirlParams` | yes | unsupported | no |
-| 33 | Bulge | `BulgeParams` | yes | unsupported | no |
-| 34 | Mesh Warp | `MeshWarpParams` | yes | unsupported | no |
+| 15 | Curves | `CurvesParams` | yes | native | no |
+| 31 | Corner Pin | `CornerPinParams` | yes | native | no |
+| 32 | Twirl | `TwirlParams` | yes | native | no |
+| 33 | Bulge | `BulgeParams` | yes | native | no |
+| 34 | Mesh Warp | `MeshWarpParams` | yes | native | no |
 | 35 | Sharpen | `SharpenParams` | yes | native | no |
-| 36 | Turbulent Displace | `TurbulentDisplaceParams` | yes | unsupported | no |
-| 37 | Wave Warp | `WaveWarpParams` | yes | unsupported | no |
-| 38 | Ripple | `RippleParams` | yes | unsupported | no |
-| 39 | Displacement Map | `DisplacementMapParams` | yes | unsupported | no |
+| 36 | Turbulent Displace | `TurbulentDisplaceParams` | yes | native | no |
+| 37 | Wave Warp | `WaveWarpParams` | yes | native | no |
+| 38 | Ripple | `RippleParams` | yes | native | no |
+| 39 | Displacement Map | `DisplacementMapParams` | yes | native | no |
 | 40 | Chromatic Aberration | `ChromaticAberrationParams` | yes | native | no |
-| 41 | Halftone | `HalftoneParams` | yes | unsupported | no |
-| 42 | Lens Distortion | `LensDistortionParams` | yes | unsupported | no |
-| 43 | Luminance Response | `LuminanceResponseParams` | yes | unsupported | no |
-| 44 | Fold Warp | `FoldWarpParams` | yes | unsupported | no |
-| 45 | Crease Shading | `CreaseShadingParams` | yes | unsupported | no |
+| 41 | Halftone | `HalftoneParams` | yes | native | no |
+| 42 | Lens Distortion | `LensDistortionParams` | yes | native | no |
+| 43 | Luminance Response | `LuminanceResponseParams` | yes | native | no |
+| 44 | Fold Warp | `FoldWarpParams` | yes | native | no |
+| 45 | Crease Shading | `CreaseShadingParams` | yes | native | no |
 | 46 | Temperature and Tint | `TemperatureTintParams` | yes | native | no |
 | 47 | Lift Gamma Gain | `LiftGammaGainParams` | yes | native | no |
+| 48 | Roughen Edges | `RoughenEdgesParams` | yes | native | no |
+| 49 | Noise Sampler | `NoiseSamplerParams` | yes | native | no |
+| 50 | Banded Grain | `BandedGrainParams` | yes | native | no |
 
-Totals: 47 catalog effects, 24 with native Vulkan routes.
+Totals: 50 catalog effects, 50 with native Vulkan routes.

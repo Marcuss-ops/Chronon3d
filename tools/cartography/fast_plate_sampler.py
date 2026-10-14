@@ -10,8 +10,8 @@ just an integer crop + the same resize/blend the engine performs. Pure
 function of (anchor, zoom): deterministic, and byte-identical to the engine's
 output up to the engine's own integer quantisation of the plate origin.
 
-Falls back to pyramid.sample_continuous whenever a window would leave a
-prepared plate, so a caller can never render garbage - only slow down.
+Fails closed whenever a requested zoom/window leaves the prepared plates;
+rendering never performs an unbounded per-frame tile-engine fallback.
 """
 
 from __future__ import annotations
@@ -47,10 +47,8 @@ class FastPlateSampler:
             "plate_bytes": 0,
             "required_tile_count": 0,
         }
-        # Honest telemetry: frames a worker had to serve from the slow
-        # engine because a window left a prepared plate. The harness
-        # aggregates the per-block deltas into a run total; 0 means every
-        # frame took the fast path.
+        # Kept at zero for telemetry-schema compatibility. Missing prepared
+        # plate coverage raises immediately and can never invoke the pyramid.
         self.fallback_count = 0
         self.opencl_plates = None
 
@@ -344,19 +342,19 @@ class FastPlateSampler:
         t = zoom - z_lo
         alpha = t * t * (3.0 - 2.0 * t)
         if not (self.z_min <= z_lo <= self.z_max):
-            return self.sample(lat, lon, zoom, W, H)
+            raise RuntimeError(f"map sampler zoom {zoom:.3f} leaves prepared plates")
 
         lo = self._sample_subpixel_level(z_lo, latlon_to_global_px(lat, lon, z_lo),
                                          2.0 ** t, W, H)
         if lo is None:
-            return self.sample(lat, lon, zoom, W, H)
+            raise RuntimeError(f"map sampler has no prepared subpixel plate at zoom {z_lo}")
         if alpha <= 0.001 or z_lo + 1 > self.z_max:
             return lo
 
         hi = self._sample_subpixel_level(z_lo + 1, latlon_to_global_px(lat, lon, z_lo + 1),
                                          2.0 ** (t - 1.0), W, H)
         if hi is None:
-            return self.sample(lat, lon, zoom, W, H)
+            raise RuntimeError(f"map sampler has no prepared subpixel plate at zoom {z_lo + 1}")
         return cv2.addWeighted(lo, 1.0 - alpha, hi, alpha, 0.0)
 
     def sample(self, lat: float, lon: float, zoom: float,
@@ -372,16 +370,14 @@ class FastPlateSampler:
         scale_lo = 2.0 ** t
 
         if not (self.z_min <= z_lo <= self.z_max):
-            self.fallback_count += 1
-            return self.pyr.sample_continuous(lat, lon, zoom, W, H)
+            raise RuntimeError(f"map sampler zoom {zoom:.3f} leaves prepared plates")
 
         w_lo = int(round(W / scale_lo)) + 4
         h_lo = int(round(H / scale_lo)) + 4
         lo_px = latlon_to_global_px(lat, lon, z_lo)
         lo_crop = self._crop(z_lo, lo_px, w_lo, h_lo)
         if lo_crop is None:
-            self.fallback_count += 1
-            return self.pyr.sample_continuous(lat, lon, zoom, W, H)
+            raise RuntimeError(f"map sampler has no prepared plate at zoom {z_lo}")
         plate_lo = cv2.resize(lo_crop, (W, H), interpolation=cv2.INTER_LINEAR,
                               dst=self._scratch_buf(W, H, 0))
 
@@ -394,8 +390,7 @@ class FastPlateSampler:
         hi_px = latlon_to_global_px(lat, lon, z_lo + 1)
         hi_crop = self._crop(z_lo + 1, hi_px, w_hi, h_hi)
         if hi_crop is None:
-            self.fallback_count += 1
-            return self.pyr.sample_continuous(lat, lon, zoom, W, H)
+            raise RuntimeError(f"map sampler has no prepared plate at zoom {z_lo + 1}")
         plate_hi = cv2.resize(hi_crop, (W, H), interpolation=cv2.INTER_LINEAR,
                               dst=self._scratch_buf(W, H, 1))
         return cv2.addWeighted(plate_lo, 1.0 - alpha, plate_hi, alpha, 0.0,

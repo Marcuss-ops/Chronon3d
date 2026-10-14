@@ -554,6 +554,8 @@ struct LayerPlan {
     std::optional<MotionBlurPlan> motion_blur;
     std::optional<ShapeContentPlan> shape;
     std::optional<InlineMeshPlan> inline_mesh;
+    // V3 inline meshes can carry baked per-frame position samples while keeping
+    // immutable topology, UVs and material in InlineMeshPlan.
     std::optional<ParticleEmitterParams> particle_emitter;
     std::optional<LightLayerPlan> light;
     struct PathMaskPlan {
@@ -579,7 +581,7 @@ struct LayerPlan {
     };
     std::optional<PathMaskPlan> path_mask;
     std::vector<PathMaskPlan> masks;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading, NoiseSampler, BandedGrain };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -701,6 +703,23 @@ struct LayerPlan {
         std::array<float, 4> response_tint{1.0f, 0.35f, 0.15f, 1.0f};
         float response_intensity{1.0f};
         std::uint8_t response_blend{0}; // 0 = Screen, 1 = Add, 2 = Over
+
+        // Noise sampler (2.0)
+        std::uint8_t noise_sampler_type{0}; // 0 = Simplex, 1 = Worley, 2 = Ridged, 3 = Value, 4 = Blue
+        float noise_lacunarity{2.0f};
+        float noise_gain{0.5f};
+        float noise_domain_warp{0.0f};
+        float noise_remap_min{0.0f};
+        float noise_remap_max{1.0f};
+        std::uint32_t noise_quantize_steps{0};
+
+        // Banded grain (2.0)
+        struct GrainBandPlan {
+            float scale{1.0f};
+            float amplitude{0.05f};
+            std::uint32_t octave{0};
+        };
+        std::vector<GrainBandPlan> grain_bands;
     };
     struct EffectParamTrackPlan {
         std::string effect_id;
