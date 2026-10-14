@@ -25,7 +25,9 @@ struct VectorField2D {
     std::uint32_t seed{0};
 
     [[nodiscard]] Vec2 sample(Vec2 point, float time = 0.0f) const noexcept {
-        if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(time))
+        if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(time) ||
+            !std::isfinite(strength) || !std::isfinite(frequency) || !std::isfinite(speed) ||
+            frequency<=0.f || frequency>4096.f || std::abs(time)>1.e6f || std::abs(speed)>100.f)
             return Vec2{0.0f, 0.0f};
 
         switch (type) {
@@ -59,7 +61,8 @@ struct VectorField2D {
                 pot.frequency = frequency;
                 pot.seed = seed;
 
-                constexpr float eps = 0.005f;
+                point += Vec2{time * speed * 0.02f, -time * speed * 0.01f};
+                const float eps = 0.01f / frequency;
                 const float p_y1 = pot.sample(point + Vec2{0.0f, eps});
                 const float p_y0 = pot.sample(point - Vec2{0.0f, eps});
                 const float p_x1 = pot.sample(point + Vec2{eps, 0.0f});
