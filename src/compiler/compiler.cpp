@@ -86,8 +86,11 @@ TemporalUpdateSchedule build_temporal_update_schedule(
                 : layer.start_frame + layer.duration_frames;
             node.active_end = std::clamp<std::int64_t>(end, node.active_first, canvas_end);
         }
-        node.rate = source.eval_frames_complete
-            ? lower_temporal_rate(source.rate) : TemporalRate::PerFrame;
+        node.rate = i < plan.layers.size() && plan.layers[i].inline_mesh &&
+                !plan.layers[i].inline_mesh->animation.empty()
+            ? TemporalRate::PerFrame
+            : (source.eval_frames_complete
+                ? lower_temporal_rate(source.rate) : TemporalRate::PerFrame);
         if (node.rate == TemporalRate::Cue ||
             node.rate == TemporalRate::KeyframeInterval)
             node.frames = lower_schedule_frames(source.eval_frames);

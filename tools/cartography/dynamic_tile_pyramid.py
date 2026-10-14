@@ -130,6 +130,9 @@ TILE_URLS = {
     "esri_ocean": f"{_ARCGIS}/Ocean/World_Ocean_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
     "esri_light": f"{_ARCGIS}/Canvas/World_Light_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
     "esri_dark": f"{_ARCGIS}/Canvas/World_Dark_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
+    # Official Esri World Imagery Wayback WMTS release-addressed tile form:
+    # /MapServer/tile/{release}/{level}/{row}/{col}; set release explicitly.
+    "esri_wayback": "https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{release}/{z}/{y}/{x}",
     "osm": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     "carto_dark": "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
 }
@@ -180,9 +183,18 @@ def global_px_to_latlon(x: float, y: float, zoom: int) -> tuple[float, float]:
 
 
 class DynamicTilePyramid:
-    def __init__(self, provider: str = "esri_sat"):
+    def __init__(self, provider: str = "esri_sat", *, wayback_release: int | None = None):
+        if provider not in TILE_URLS:
+            raise ValueError(f"unsupported tile provider: {provider}")
+        if provider == "esri_wayback" and (wayback_release is None or int(wayback_release) <= 0):
+            raise ValueError("esri_wayback requires a positive wayback_release")
+        if provider != "esri_wayback" and wayback_release is not None:
+            raise ValueError("wayback_release is only valid with esri_wayback")
         self.provider = provider
-        self.url_template = TILE_URLS.get(provider, TILE_URLS["esri_sat"])
+        self.wayback_release = int(wayback_release) if wayback_release is not None else None
+        self.cache_namespace = (f"{provider}_{self.wayback_release}"
+                               if self.wayback_release is not None else provider)
+        self.url_template = TILE_URLS[provider]
         self.tile_cache = {}  # In-memory RAM cache for fast composition
         self.fallback_tile_count = 0
         self._cache_io_lock = Lock()
@@ -217,7 +229,7 @@ class DynamicTilePyramid:
             blank = np.zeros((256, 256, 3), dtype=np.uint8)
             return (z, x, y), blank
 
-        prov_cache = CACHE_DIR / self.provider / str(z) / str(x)
+        prov_cache = CACHE_DIR / self.cache_namespace / str(z) / str(x)
         prov_cache.mkdir(parents=True, exist_ok=True)
         tile_path = prov_cache / f"{y}.jpg"
 
@@ -248,7 +260,8 @@ class DynamicTilePyramid:
         else:
             self.record_telemetry("tile_disk_cache_misses")
 
-        url = self.url_template.format(z=z, x=x, y=y)
+        url = self.url_template.format(z=z, x=x, y=y,
+                                       release=self.wayback_release)
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (ChrononDynamicPyramid/2.0)"})
         last_error = "invalid or empty tile response"
         # Tile endpoints occasionally return transient 502s under concurrent

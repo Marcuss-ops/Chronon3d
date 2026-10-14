@@ -209,24 +209,16 @@ struct RenderSettings {
      *     same `CHRONON3D_FORCE_SCALAR_BLEND` macro gate as above
      *     (defined inside its own TU).
      *   * `src/backends/software/rasterizers/path/pip.cpp`
-     *     (point_in_polygon_avx2 — AVX2 PIP even-odd) — has long been
-     *     dormant-by-default: the anonymous-namespace static
-     *     `bool s_use_simd = false;` (line 16, pre-PR-6.9) means
-     *     `set_pip_mode(true)` is the *only* way to enable it, and no
-     *     production caller invokes that function at startup.  PR 6.9
-     *     makes this *explicit* in the determinism contract by
-     *     documenting that without a call to `set_pip_mode(true)` the
-     *     AVX2 path is unreachable at runtime.
+     *     (point_in_polygon_avx2 — AVX2 PIP even-odd) is dormant by default:
+     *     `set_pip_mode(true)` is the only way to enable it, and production
+     *     startup does not call it, so the AVX2 path is unreachable at runtime.
      *
-     * Root-cause for the OFF-by-default switch: the rot signature tracked
-     * by TICKET-007.q/r/s/t/u in
+     * The root cause for the OFF-by-default switch was a rot signature in
      * `tests/deterministic/gradient_determinism_tests.cpp` lines 289/314/
-     * 351/391/416 was a non-associative float-reduction in those SIMD
-     * batch paths triggered by `tbb::parallel_for` ordering changes.  A
-     * bit-exact re-enable of those 5 tests is the gating requirement for
-     * flipping the default back to `false`.  See
-     * `docs/01-baseline-green.md` §3.1 ("Test Rossi — TICKET-007 fixed  // drift-class: historical (doc retired)
-     * via WP-6 PR 6.9") for the resolved-state note.
+     *     351/391/416 was a non-associative float-reduction in those SIMD
+     *     batch paths triggered by `tbb::parallel_for` ordering changes.  A
+     *     bit-exact re-enable of those 5 tests is the gating requirement for
+     *     flipping the default back to `false`.
      *
      * The intended long-term fix is an *ordered* reduction (Kahan
      * summation OR sort-by-tile-id then sequential fold) for the AVX2

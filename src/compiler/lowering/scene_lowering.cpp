@@ -33,6 +33,21 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
                 for (const float value : vertex.uv)
                     if (!std::isfinite(value) || std::abs(value) > 1'000'000.0f) throw invalid_payload();
             }
+            if (layer.inline_mesh->animation.size() > render_plan::kInlineMeshMaxAnimationSamples)
+                throw invalid_payload();
+            std::int64_t previous_sample_frame = -1;
+            for (const auto& sample : layer.inline_mesh->animation) {
+                if (plan.schema != render_plan::kRenderPlanSchemaV3 ||
+                    sample.frame <= previous_sample_frame ||
+                    sample.frame < 0 || sample.frame >= plan.canvas.duration.integral() ||
+                    sample.positions.size() != layer.inline_mesh->vertices.size())
+                    throw invalid_payload();
+                previous_sample_frame = sample.frame;
+                for (const auto& position : sample.positions)
+                    for (const float value : position)
+                        if (!std::isfinite(value) || std::abs(value) > 1'000'000.0f)
+                            throw invalid_payload();
+            }
             for (const auto index : layer.inline_mesh->indices)
                 if (index >= layer.inline_mesh->vertices.size()) throw invalid_payload();
         } else if (layer.type == render_plan::LayerType::Mesh) {
@@ -104,6 +119,11 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.radius = layer.radius.value_or(0.0f);
         lowered.shape = layer.shape;
         lowered.inline_mesh = layer.inline_mesh;
+        if (layer.inline_mesh && !layer.inline_mesh->animation.empty()) {
+            for (std::size_t vertex = 0; vertex < lowered.inline_mesh->vertices.size(); ++vertex)
+                lowered.inline_mesh->vertices[vertex].position =
+                    layer.inline_mesh->animation.front().positions[vertex];
+        }
         if (layer.type == render_plan::LayerType::Shape && lowered.size_dimensions == 0) {
             lowered.size = {static_cast<float>(plan.canvas.width),
                             static_cast<float>(plan.canvas.height)};

@@ -478,7 +478,7 @@ void VulkanBackend::Impl::warp_bulk(runtime::RenderSurfaceHandle destination,
 void VulkanBackend::Impl::generate_bulk(runtime::RenderSurfaceHandle destination,
                                         runtime::RenderSurfaceHandle source,
                                         const graph::GenerateBulkParams& params) {
-    if (params.mode < 0 || params.mode > 5) {
+    if (params.mode < 0 || params.mode > 7) {
         throw std::invalid_argument(
             "Vulkan generate bulk parameters are outside supported ranges");
     }

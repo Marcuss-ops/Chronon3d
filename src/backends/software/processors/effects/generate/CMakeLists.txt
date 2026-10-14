@@ -9,4 +9,6 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/checkerboard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/four_color_gradient.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/light_rays.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/noise_sampler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/banded_grain.cpp
 )

@@ -41,8 +41,9 @@ json make_minimal_valid_plan() {
     };
 }
 
-void check_schema_violation(const chronon3d::render_plan::ValidationResult& result) {
-    INFO(result.format());
+void check_schema_violation(const chronon3d::render_plan::ValidationResult& result,
+                            const std::string& context = {}) {
+    INFO("context: " << context << "\n" << result.format());
     REQUIRE_FALSE(result.ok());
     REQUIRE_FALSE(result.issues.empty());
     for (const auto& issue : result.issues) {
@@ -448,19 +449,52 @@ TEST_CASE("render_plan V3 schema constrains LightRays controls and adjustment pa
          {"effects", json::array({{{"type", "noise"}}})}}
     });
     CHECK(validate_render_plan(plan).ok());
+
+    auto safe_insets = make_minimal_valid_plan();
+    safe_insets["schema"] = "chronon.render-plan.v3";
+    safe_insets["version"] = 3;
+    safe_insets["layers"][0]["safe_insets"] = {
+        {"top", 24}, {"right", 12}, {"bottom", 32}, {"left", 12}};
+    const auto accepted_insets = validate_render_plan(safe_insets);
+    INFO("accepted V3 safe_insets\n" << accepted_insets.format());
+    CHECK(accepted_insets.ok());
+
+    auto clip_composite = json::parse(R"JSON({
+
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":1280,"height":720,"fps_num":30,"fps_den":1,"duration_frames":90},
+      "layers":[
+        {"id":"source","type":"video","source":"assets/source.mp4","size":[1280,720],"fit":"cover","start_frame":0,"duration_frames":90},
+        {"id":"clip__grid","type":"shape","size":[1280,720],"position":[0,0],"screen_space":true,"opacity":0.2,"start_frame":0,"duration_frames":90,
+         "shape":{"type":"grid","spacing":64,"stroke":{"color":"#33CCDD","width":1}}},
+        {"id":"clip__adjustment","type":"adjustment","effects":[
+          {"type":"wave_warp","amplitude":0.0125,"wavelength":0.035,"speed":0.0,"direction":[0,1],"wave_type":"square"},
+          {"type":"chromatic_aberration","red_offset":4.0,"blue_offset":-4.0},
+          {"type":"noise","amount":0.06,"size":1.0,"seed":7,"animated":true,"color_mode":"rgb"}
+        ]}
+      ],
+      "output":{"path":"out.mp4","format":"mp4","codec":"h264"}
+    })JSON");
+    CHECK(validate_render_plan(clip_composite).ok());
+    auto bad_grid = clip_composite;
+    bad_grid["layers"][1]["shape"]["spacing"] = 0.0;
+    check_schema_violation(validate_render_plan(bad_grid));
+    auto bad_effect = clip_composite;
+    bad_effect["layers"][2]["effects"][0]["wavelength"] = 0;
+    check_schema_violation(validate_render_plan(bad_effect));
     for (const auto* field : {"screen_space", "enable_3d", "opacity", "blend_mode",
                               "safe_insets", "depth_role", "depth_offset", "radius",
                               "start_frame", "duration_frames", "fit", "loop",
                               "transition_in", "transition_out"}) {
         auto invalid = plan;
-        if (std::string(field) == "safe_insets") invalid["layers"][0][field] = json::object();
+        if (std::string(field) == "safe_insets") invalid["layers"][0][field] = {{"unexpected", 1}};
         else if (std::string(field) == "depth_role" || std::string(field) == "fit" ||
                  std::string(field) == "blend_mode") invalid["layers"][0][field] = "value";
         else if (std::string(field) == "transition_in" || std::string(field) == "transition_out")
             invalid["layers"][0][field] = {{"id", "none"}};
         else invalid["layers"][0][field] = 1;
-        INFO("forbidden adjustment field: " << field);
-        check_schema_violation(validate_render_plan(invalid));
+        check_schema_violation(validate_render_plan(invalid),
+                               std::string("forbidden adjustment field: ") + field);
     }
 }
 

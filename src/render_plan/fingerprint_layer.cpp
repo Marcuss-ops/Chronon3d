@@ -80,6 +80,13 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         }
         out.add_size(layer.inline_mesh->indices.size());
         for (const std::uint32_t index : layer.inline_mesh->indices) out.add_uint64(index);
+        out.add_size(layer.inline_mesh->animation.size());
+        for (const auto& sample : layer.inline_mesh->animation) {
+            out.add_i64(sample.frame);
+            out.add_size(sample.positions.size());
+            for (const auto& position : sample.positions)
+                for (const float value : position) out.add_float(value);
+        }
         add_optional(out, layer.inline_mesh->material, [](auto& writer, const InlineMeshMaterialPlan& material) {
             writer.add_float(material.diffuse);
             writer.add_float(material.specular);
@@ -702,6 +709,37 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.crease_dark_side);
                 out.add_float(effect.crease_light_side);
                 out.add_float(effect.crease_softness);
+            } break;
+            case LayerPlan::EffectKindPlan::NoiseSampler: {
+                out.add_uint64(effect.seed);
+                out.add_size(static_cast<std::size_t>(effect.noise_sampler_type));
+                out.add_uint64(effect.octaves);
+                out.add_float(effect.frequency);
+                out.add_float(effect.noise_lacunarity);
+                out.add_float(effect.noise_gain);
+                out.add_float(effect.evolution);
+                out.add_float(effect.contrast);
+                out.add_float(effect.brightness);
+                out.add_float(effect.noise_domain_warp);
+                out.add_float(effect.noise_remap_min);
+                out.add_float(effect.noise_remap_max);
+                out.add_uint64(effect.noise_quantize_steps);
+                out.add_bool(effect.rgb_noise);
+            } break;
+            case LayerPlan::EffectKindPlan::BandedGrain: {
+                out.add_uint64(effect.seed);
+                out.add_float(effect.amount);
+                out.add_float(effect.warp_speed);
+                out.add_bool(effect.rgb_noise);
+                out.add_float(effect.grain_shadow_response);
+                out.add_float(effect.grain_midtone_response);
+                out.add_float(effect.grain_highlight_response);
+                out.add_size(effect.grain_bands.size());
+                for (const auto& band : effect.grain_bands) {
+                    out.add_float(band.scale);
+                    out.add_float(band.amplitude);
+                    out.add_uint64(band.octave);
+                }
             } break;
             }
             add_optional(out,effect.posterize_fps,[](auto& w,float v){w.add_float(v);});

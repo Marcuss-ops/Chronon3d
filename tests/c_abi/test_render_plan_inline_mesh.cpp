@@ -9,11 +9,16 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include "../helpers/test_utils.hpp"
 
 #include <nlohmann/json.hpp>
 
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <string>
 
@@ -270,6 +275,135 @@ TEST_CASE("inline mesh bytes affect stable plan fingerprint and typed compiler I
     CHECK(node.inline_mesh_material->specular == doctest::Approx(0.25f));
     CHECK(scene.light_context().enabled);
     CHECK(scene.rim_light().enabled == plan.lighting_rig->rim_enabled);
+}
+
+TEST_CASE("V3 baked inline mesh animation decodes, fingerprints, interpolates and changes software pixels") {
+    auto json = base_mesh_plan();
+    json["canvas"]["duration_frames"] = 3;
+    auto& mesh = json["layers"][0]["inline_mesh"];
+    json["layers"][0]["enable_3d"] = true;
+    json["layers"][0]["casts_shadows"] = false;
+    json["layers"][0]["accepts_shadows"] = false;
+    mesh["vertices"] = Json::array({
+        {{"position", {-20.0, -20.0, -1500.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {0.0, 0.0}}},
+        {{"position", {20.0, -20.0, -1500.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {1.0, 0.0}}},
+        {{"position", {0.0, 20.0, -1500.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {0.5, 1.0}}}
+    });
+    mesh["material"] = {{"base_color", {0.2, 0.8, 0.3, 0.65}}};
+    json["lighting_rig"] = {
+        {"key_direction", {-0.2857143, 0.8571429, -0.4285714}},
+        {"key_intensity", 0.8}, {"ambient_color", {0.6, 0.65, 0.7, 1.0}},
+        {"ambient_intensity", 0.25}, {"rim_enabled", true},
+        {"rim_color", {1.0, 1.0, 1.0, 1.0}},
+        {"rim_intensity", 0.3}, {"rim_power", 2.2}
+    };
+    mesh["animation"] = Json::array({
+        {{"frame", 0}, {"positions", {{-20.0, -20.0, -1500.0}, {20.0, -20.0, -1500.0}, {0.0, 20.0, -1500.0}}}},
+        {{"frame", 2}, {"positions", {{-20.0, -20.0, -1500.0}, {20.0, -20.0, -1500.0}, {0.0, 40.0, -1500.0}}}}
+    });
+    const auto decoded = decode_render_plan(json);
+    if (!decoded) INFO(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].inline_mesh);
+    CHECK(decoded->layers[0].inline_mesh->animation.size() == 2);
+    CHECK(decoded->layers[0].inline_mesh->vertices[2].uv == std::array<float, 2>{0.5f, 1.0f});
+    REQUIRE(decoded->layers[0].inline_mesh->material);
+    REQUIRE(decoded->layers[0].inline_mesh->material->base_color);
+    CHECK((*decoded->layers[0].inline_mesh->material->base_color)[3] == doctest::Approx(0.65f));
+
+    auto changed = json;
+    changed["layers"][0]["inline_mesh"]["animation"][1]["positions"][2][1] = 400.0;
+    const auto changed_decoded = decode_render_plan(changed);
+    REQUIRE(changed_decoded);
+    CHECK(decoded->content_fingerprint != changed_decoded->content_fingerprint);
+    assets::AssetResolver sampler_resolver;
+    const auto sampled_program = compiler::compile(*decoded, sampler_resolver);
+    REQUIRE(sampled_program);
+    const auto sampled_middle = compiler::TypedProgramSampler{}.sample(*sampled_program, 1.0);
+    REQUIRE(sampled_middle.layers.size() == 1);
+    const auto* sampled_mesh = std::get_if<compiler::SampledMeshParameters>(&sampled_middle.layers[0].payload);
+    REQUIRE(sampled_mesh);
+    REQUIRE(sampled_mesh->positions.size() == 3);
+    CHECK(sampled_mesh->positions[2][1] == doctest::Approx(30.0f));
+    REQUIRE(sampled_mesh->normals.size() == 3);
+    CHECK(sampled_mesh->normals[0][2] > 0.0f);
+    CHECK(sampled_middle.layers[0].dirty);
+    CHECK(sampled_middle.layers[0].kind == compiler::NodeKind::Mesh);
+    CHECK(sampled_mesh->inline_mesh->vertices[2].uv[1] == doctest::Approx(1.0f));
+    REQUIRE(sampled_mesh->inline_mesh->material->base_color);
+    CHECK((*sampled_mesh->inline_mesh->material->base_color)[3] == doctest::Approx(0.65f));
+
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!prepared) INFO(prepared.error().message);
+    REQUIRE(prepared);
+    auto frame_context = [&](double frame) {
+        FrameContextParams params;
+        params.global_time = SampleTime::from_frame(frame, decoded->canvas.fps);
+        params.duration = decoded->canvas.duration;
+        params.width = decoded->canvas.width;
+        params.height = decoded->canvas.height;
+        return make_frame_context(params);
+    };
+    auto first_scene = prepared->composition->evaluate(frame_context(0.0));
+    auto subframe_scene = prepared->composition->evaluate(frame_context(0.5));
+    auto middle_scene = prepared->composition->evaluate(frame_context(1.0));
+    auto final_scene = prepared->composition->evaluate(frame_context(2.0));
+    const auto& first_mesh = *first_scene.layers()[0].nodes[0].shape.mesh_shape().inline_mesh;
+    const auto& subframe_mesh = *subframe_scene.layers()[0].nodes[0].shape.mesh_shape().inline_mesh;
+    const auto& middle_mesh = *middle_scene.layers()[0].nodes[0].shape.mesh_shape().inline_mesh;
+    const auto& final_mesh = *final_scene.layers()[0].nodes[0].shape.mesh_shape().inline_mesh;
+    CHECK(first_mesh.vertices()[2].position.y == doctest::Approx(20.0f));
+    CHECK(subframe_mesh.vertices()[2].position.y == doctest::Approx(25.0f));
+    CHECK(middle_mesh.vertices()[2].position.y == doctest::Approx(30.0f));
+    CHECK(final_mesh.vertices()[2].position.y == doctest::Approx(40.0f));
+    // Scene evaluation owns its sampled mesh values; evaluating another time
+    // must not mutate already returned topology or reuse stale vertices.
+    CHECK(first_mesh.vertices()[2].position.y == doctest::Approx(20.0f));
+    CHECK(subframe_mesh.vertices()[2].position.y == doctest::Approx(25.0f));
+    CHECK(middle_mesh.vertices()[2].position.y == doctest::Approx(30.0f));
+    CHECK(first_scene.layers()[0].nodes[0].shape.mesh_shape().inline_mesh !=
+          subframe_scene.layers()[0].nodes[0].shape.mesh_shape().inline_mesh);
+    CHECK(subframe_scene.layers()[0].nodes[0].shape.mesh_shape().inline_mesh !=
+          middle_scene.layers()[0].nodes[0].shape.mesh_shape().inline_mesh);
+    CHECK(middle_mesh.vertices()[2].uv.y == doctest::Approx(1.0f));
+    REQUIRE(middle_scene.layers()[0].nodes[0].inline_mesh_material);
+    CHECK(middle_scene.layers()[0].nodes[0].inline_mesh_material->base_color->a == doctest::Approx(0.65f));
+
+    const auto sampled_first = compiler::TypedProgramSampler{}.sample(*sampled_program, Frame{0});
+    const auto sampled_last = compiler::TypedProgramSampler{}.sample(*sampled_program, Frame{2});
+    const auto sampled_program_metadata = sampled_program->metadata();
+    CHECK(sampled_program_metadata.width == 64);
+    CHECK(sampled_program_metadata.height == 64);
+    const auto* sampled_first_mesh = std::get_if<compiler::SampledMeshParameters>(&sampled_first.layers[0].payload);
+    const auto* sampled_last_mesh = std::get_if<compiler::SampledMeshParameters>(&sampled_last.layers[0].payload);
+    REQUIRE(sampled_first_mesh);
+    REQUIRE(sampled_last_mesh);
+    REQUIRE(sampled_first_mesh->positions.size() == 3);
+    REQUIRE(sampled_last_mesh->positions.size() == 3);
+    CHECK(sampled_first_mesh->positions[2][1] == doctest::Approx(20.0f));
+    CHECK(sampled_last_mesh->positions[2][1] == doctest::Approx(40.0f));
+    CHECK(sampled_first.layers[0].dirty);
+    CHECK(sampled_last.layers[0].dirty);
+
+    using namespace chronon3d::test;
+    TestRenderer first_renderer;
+    TestRenderer last_renderer;
+    const auto first_pixels = first_renderer.render_program(*sampled_program, Frame{0});
+    REQUIRE(first_pixels);
+    std::size_t first_covered = 0;
+    for (int y = 0; y < first_pixels->height(); ++y)
+        for (int x = 0; x < first_pixels->width(); ++x)
+            first_covered += first_pixels->get_pixel(x, y).a > 0.01f;
+    INFO("first mesh raster coverage=" << first_covered);
+    CHECK(first_covered > 0);
+    const std::vector<std::byte> first_frame_bytes(
+        first_pixels->bytes().begin(), first_pixels->bytes().end());
+    const auto last_pixels = last_renderer.render_program(*sampled_program, Frame{2});
+    REQUIRE(last_pixels);
+    CHECK(first_frame_bytes.size() == last_pixels->bytes().size());
+    CHECK(std::memcmp(first_frame_bytes.data(), last_pixels->bytes().data(),
+                      first_frame_bytes.size()) != 0);
 }
 
 TEST_CASE("V3 parametric mesh primitives expand deterministically within the raw mesh contract") {

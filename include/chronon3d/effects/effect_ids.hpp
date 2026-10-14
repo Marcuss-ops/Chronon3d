@@ -69,4 +69,8 @@ inline constexpr std::string_view LightLuminanceResponse = "light.luminance_resp
 inline constexpr std::string_view DistortFoldWarp = "distort.fold_warp";
 inline constexpr std::string_view LightCreaseShading = "light.crease_shading";
 
+// ── Unified NoiseSampler & Banded Grain (2.0) ──
+inline constexpr std::string_view GenerateNoiseSampler = "generate.noise_sampler";
+inline constexpr std::string_view StylizeBandedGrain   = "stylize.banded_grain";
+
 } // namespace chronon3d::effects::ids

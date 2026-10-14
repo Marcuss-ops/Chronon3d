@@ -54,6 +54,10 @@ AnimationProperty property_kind(std::string_view property) {
 
 void lower_animation(const render_plan::RenderPlan& plan, CompiledProgramData& out) {
     for (std::uint32_t i = 0; i < plan.layers.size(); ++i) {
+        if (plan.layers[i].inline_mesh && !plan.layers[i].inline_mesh->animation.empty())
+            out.layers[i].has_transform_animation = true;
+    }
+    for (std::uint32_t i = 0; i < plan.layers.size(); ++i) {
         const auto& layer = plan.layers[i];
         if (layer.animation || !layer.text_animators.empty() ||
             (layer.time_remap && layer.time_remap->animation)) {

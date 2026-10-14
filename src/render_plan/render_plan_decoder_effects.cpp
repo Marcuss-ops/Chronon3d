@@ -54,6 +54,8 @@ std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind) {
         case K::LuminanceResponse: return LightLuminanceResponse;
         case K::FoldWarp: return DistortFoldWarp;
         case K::CreaseShading: return LightCreaseShading;
+        case K::NoiseSampler: return GenerateNoiseSampler;
+        case K::BandedGrain: return StylizeBandedGrain;
     }
     return {};
 }
@@ -80,6 +82,8 @@ LayerPlan::EffectKindPlan decode_effect_kind(std::string_view name) {
         {"luminance_response", K::LuminanceResponse},
         {"fold_warp", K::FoldWarp},
         {"crease_shading", K::CreaseShading},
+        {"noise_sampler", K::NoiseSampler},
+        {"banded_grain", K::BandedGrain},
     };
     const auto found = kinds.find(name);
     if (found == kinds.end()) throw std::runtime_error("unsupported layer effect type");
@@ -699,6 +703,55 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.crease_light_side) || effect.crease_light_side < 0.0f || effect.crease_light_side > 1.0f ||
                     !std::isfinite(effect.crease_softness) || effect.crease_softness < 0.0f || effect.crease_softness > 1.0f)
                     throw std::runtime_error("Crease shading parameters are non-finite or outside supported range");
+            } break;
+            case LayerPlan::EffectKindPlan::NoiseSampler: {
+                effect.kind = LayerPlan::EffectKindPlan::NoiseSampler;
+                effect.seed = raw_effect.value("seed", 0u);
+                const auto type_str = raw_effect.value("noise_type", std::string{"simplex"});
+                if (type_str == "worley" || type_str == "cellular") effect.noise_sampler_type = 1;
+                else if (type_str == "ridged") effect.noise_sampler_type = 2;
+                else if (type_str == "value") effect.noise_sampler_type = 3;
+                else if (type_str == "blue") effect.noise_sampler_type = 4;
+                else effect.noise_sampler_type = 0; // simplex
+                effect.octaves = raw_effect.value("octaves", 4u);
+                effect.frequency = raw_effect.value("frequency", 0.015f);
+                effect.noise_lacunarity = raw_effect.value("lacunarity", 2.0f);
+                effect.noise_gain = raw_effect.value("gain", 0.5f);
+                effect.evolution = raw_effect.value("evolution", 0.0f);
+                effect.contrast = raw_effect.value("contrast", 1.0f);
+                effect.brightness = raw_effect.value("brightness", 0.0f);
+                effect.noise_domain_warp = raw_effect.value("domain_warp", 0.0f);
+                effect.noise_remap_min = raw_effect.value("remap_min", 0.0f);
+                effect.noise_remap_max = raw_effect.value("remap_max", 1.0f);
+                effect.noise_quantize_steps = raw_effect.value("quantize_steps", 0u);
+                effect.rgb_noise = raw_effect.value("color_mode", std::string{"monochrome"}) == "rgb";
+                if (!std::isfinite(effect.frequency) || effect.frequency <= 0.0f ||
+                    !std::isfinite(effect.contrast) || !std::isfinite(effect.brightness) ||
+                    !std::isfinite(effect.noise_domain_warp))
+                    throw std::runtime_error("Invalid noise sampler parameters");
+            } break;
+            case LayerPlan::EffectKindPlan::BandedGrain: {
+                effect.kind = LayerPlan::EffectKindPlan::BandedGrain;
+                effect.seed = raw_effect.value("seed", 0u);
+                effect.amount = raw_effect.value("intensity", 1.0f);
+                effect.warp_speed = raw_effect.value("speed", 0.0f);
+                effect.rgb_noise = raw_effect.value("color_mode", std::string{"monochrome"}) == "rgb";
+                effect.grain_shadow_response = raw_effect.value("shadow_response", 1.0f);
+                effect.grain_midtone_response = raw_effect.value("midtone_response", 1.0f);
+                effect.grain_highlight_response = raw_effect.value("highlight_response", 1.0f);
+                if (raw_effect.contains("bands")) {
+                    for (const auto& raw_band : raw_effect.at("bands")) {
+                        LayerPlan::EffectPlan::GrainBandPlan band;
+                        const auto scale_val = raw_band.value("scale", 1.0f);
+                        band.scale = scale_val;
+                        band.amplitude = raw_band.value("amplitude", 0.05f);
+                        band.octave = raw_band.value("octave", 0u);
+                        effect.grain_bands.push_back(band);
+                    }
+                }
+                if (!std::isfinite(effect.amount) || effect.amount < 0.0f ||
+                    !std::isfinite(effect.warp_speed))
+                    throw std::runtime_error("Invalid banded grain parameters");
             } break;
             }
             layer.effects.push_back(std::move(effect));

@@ -15,20 +15,17 @@ using namespace test_text_quality;
 // canonical text pipeline produces ONE `TextRunShape` RenderNode per
 // text run regardless of stagger pattern, with per-glyph stagger
 // driven by `GlyphSelectorSpec { .unit = TextSelectorUnit::Glyph }`
-// (see the retired `tests/test_text_preset_registry.cpp`  // drift-class: historical (test retired in text-preset consolidation)
-// `character_cascade` preset Sub-cases 43 + 44).
+// (see the `character_cascade` preset sub-cases 43 + 44).
 //
 // The 2 TEST_CASE blocks below (ByGlyph positions monotonicity +
 // measure_unit_width grapheme cluster count) have been REMOVED in
-// TEXT-RET-01 because they relied on `TextAnimator` and
-// `TextAnimMode::ByGlyph` from the deleted
-// `include/chronon3d/text/text_animator.hpp` header.  // drift-class: historical (V1 header removed; see text_animator_properties.hpp)
+// TEXT-RET-01 because they relied on the removed `TextAnimator` and
+// `TextAnimMode::ByGlyph` APIs.
 //
 // Where the § 7 invariants live today (canonical equivalents):
 //   * Per-glyph staggered reveal
-//       → tests/test_text_preset_registry.cpp Sub-case 43
-//         ("character_cascade — Grapheme selector + animated end sweep").
-//       → tests/test_text_preset_registry.cpp Sub-case 44
+//       → the `character_cascade` grapheme-selector preset sub-cases.
+//       → its agent cross-link invariant
 //         ("agents cross-link invariant — 4 mandatory presets").
 //   * Inter-cluster tracking + grapheme-cluster width contracts
 //       → Below (§ 11 Inter-Token Tracking).  The canonical path
@@ -39,8 +36,7 @@ using namespace test_text_quality;
 //         (combining marks, ZWJ emoji sequences, RI flag pairs).
 //
 // No migration shim is left for the old API surface — anti-
-// duplication-guardrail from the retired `docs/ANTI_DUPLICATION_RULES.md`  // drift-class: historical (doc retired)
-// forbids a parallel text animation API.
+// duplication guardrail forbids a parallel text animation API.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 8. Integration: Wrapping Never Splits Grapheme Clusters

@@ -2,6 +2,7 @@
 
 #include "camera_change_policy.hpp"
 #include "../core/scene_fingerprint.hpp"
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
@@ -56,8 +57,14 @@ bool has_frame_dependent_content(const Scene& scene, Frame frame) {
             return !spec.transition_id.empty() && spec.transition_id != "none" &&
                    spec.duration > 0.0;
         };
+        const bool has_mesh_source = std::any_of(
+            layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
+                return node.shape.type() == ShapeType::Mesh &&
+                    static_cast<bool>(node.shape.mesh_shape().inline_mesh);
+            });
         if (has_transition(layer.transition_in) || has_transition(layer.transition_out) ||
             layer.anim_transform.is_time_dependent() ||
+            (has_mesh_source && layer.is_native_3d()) ||
             (layer.kind == LayerKind::Video && layer.video_source)) {
             return true;
         }
@@ -351,13 +358,27 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
     // compute_dirty_rect().
     plan.frame_fingerprints = compute_frame_fingerprints(
         scene, frame, ctx.registry_generation);
+    const bool typed_frame_dependent = ctx.frame_parameters &&
+        std::any_of(ctx.frame_parameters->layers.begin(),
+                    ctx.frame_parameters->layers.end(),
+                    [](const compiler::SampledLayerParameters& layer) {
+                        return layer.active && layer.dirty;
+                    });
+    if (typed_frame_dependent) {
+        // Typed payloads (including baked mesh positions) are sampled outside
+        // the immutable Scene fingerprint. Include frame identity in the pixel
+        // reuse key so a scene-static fingerprint cannot reuse prior pixels.
+        plan.frame_fingerprints.combined_fp ^=
+            (static_cast<std::uint64_t>(frame.integral()) + 1ULL) *
+            0x9e3779b97f4a7c15ULL;
+    }
 
     const bool has_surface = has_matching_previous_surface(sw_renderer, width, height);
     const bool previous_fingerprints_valid =
         history.prev_scene_fingerprint != 0 ||
         history.prev_static_scene_fingerprint != 0;
     const bool scene_is_static = previous_fingerprints_valid &&
-        scene_is_static_at(scene, frame);
+        !typed_frame_dependent && scene_is_static_at(scene, frame);
 
     detail::FrameStateSnapshot previous_state;
     previous_state.frame = history.prev_frame;

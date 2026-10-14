@@ -394,3 +394,13 @@ CHRONON_EFFECT(48, RoughenEdges, RoughenEdgesParams, ids::StylizeRoughenEdges,
     "Roughen Edges", EffectCategory::Stylize, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Expand,
     BoundsPolicy::Expand, false, false)
+
+CHRONON_EFFECT(49, NoiseSampler, NoiseSamplerParams, ids::GenerateNoiseSampler,
+    "Noise Sampler", EffectCategory::Generate, EffectStage::Generate,
+    EffectDomain::Generate, AlphaPolicy::Generate, DirtyPolicy::FullFrame,
+    BoundsPolicy::FullFrame, true, false)
+
+CHRONON_EFFECT(50, BandedGrain, BandedGrainParams, ids::StylizeBandedGrain,
+    "Banded Grain", EffectCategory::Stylize, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, true, false)
