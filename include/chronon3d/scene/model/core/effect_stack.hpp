@@ -57,4 +57,25 @@ public:
     void clear() { instances.clear(); }
 };
 
+// ── Temporal-effect predicate (canonical, single sede) ─────────────────────
+// An enabled effect whose output varies per frame by contract: Echo reads
+// history frames, animated Noise samples (seed, frame). Any layer carrying
+// such an effect is never pixel-static, even with frozen transforms and
+// topology — frame-invariant cache keys or surface reuse would freeze one
+// frame's pixels for all frames. All static/dynamic classifiers
+// (SceneHasher, builder static analysis) and cache-policy decisions
+// (EffectStackNode factory/policy, optimizer merge guard) must consult
+// this predicate; keep them in sync when a new temporal effect appears.
+[[nodiscard]] inline bool effect_stack_has_temporal_effect(const EffectStack& stack) noexcept {
+    for (const auto& effect : stack) {
+        if (!effect.enabled) continue;
+        if (effect.effect_type == effects::EffectType::Echo) return true;
+        if (effect.effect_type == effects::EffectType::Noise) {
+            const auto* noise = std::get_if<NoiseParams>(&effect.params);
+            if (noise != nullptr && noise->animated) return true;
+        }
+    }
+    return false;
+}
+
 } // namespace chronon3d

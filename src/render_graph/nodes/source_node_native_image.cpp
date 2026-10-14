@@ -11,6 +11,7 @@
 #include "source_node_native.hpp"
 
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
@@ -32,7 +33,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <limits>
 #include <string_view>
 #include <vector>
@@ -111,10 +115,29 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     }
 }
 
+/// Demolition Debt — rounded-crop pixel memo (ContentCache family via the
+/// canonical LruCache primitive; same key → same pixels, always).
+/// Owner: render-graph native image path (this TU).
+/// Reason: rounded promotion recomputed crop+coverage+convert+16MB-SHA256
+/// (~5 s) every frame for static (source, crop, radius) inputs.
+/// Exit condition: a native rounded-corner kernel exists, so the CPU
+/// pre-round path (and this memo with it) can be removed.
+/// Equivalence test: memo key binds the source content digest + integer crop
+/// + radius bits; bytes are produced by the unchanged path below.
+/// Removal scope: RoundedCropMemo + its uses in try_native_image_impl.
+/// Status: ACTIVE.
+using RoundedCropMemo =
+    cache::LruCache<std::string, std::shared_ptr<const std::vector<float>>>;
+RoundedCropMemo& rounded_crop_memo() {
+    // 256 MB weight cap ≈ 16 full-HD rounded crops; LRU-evicts beyond that.
+    static RoundedCropMemo memo(256ULL * 1024ULL * 1024ULL, 4,
+                                cache::CapacityMode::Weight);
+    return memo;
+}
+
 [[nodiscard]] bool try_native_image_impl(
     RenderGraphContext& ctx, Framebuffer& fb,
-    const RenderNode& node, const RenderState& state) {
-    const auto& image = node.shape.image();
+    const RenderNode& node, const RenderState& state) {    const auto& image = node.shape.image();
     // Native image promotion has no per-image tint path. Preserve the
     // software oracle for color-ramped particle sprites and other tinted images.
     if (image.tint.r != 1.0f || image.tint.g != 1.0f ||
@@ -145,11 +168,17 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
 
     auto& image_cache = *ctx.image_cache;
     auto& gpu_asset_cache = *ctx.gpu_asset_cache;
+    const bool image_timing = std::getenv("CHRONON3D_NATIVE_IMAGE_TIMING") != nullptr;
+    const auto t_load0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
     auto cached = image_cache.find(
         image.path, image.decode_options);
     if (!cached) {
         cached = image_cache.get_or_load(
             image.path, image.decode_options);
+    }
+    if (image_timing) {
+        spdlog::info("[native_image_timing] load_ms={:.1f} path='{}'",
+                     profiling::duration_ms(t_load0, profiling::now()), image.path);
     }
     if (!cached || !cached->fb_img || !cached->valid() || cached->gpu_rgba.empty()) {
         if (native_surface_promotion_diag_enabled()) {
@@ -162,6 +191,7 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
 
     const auto& source = *cached->fb_img;
 
+    const auto t_dest0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
     if (!ensure_empty_native_surface(ctx, fb)) {
         if (native_surface_promotion_diag_enabled()) {
             spdlog::info("[native_image_diag] rejected destination surface: fb={}x{} handle={}",
@@ -199,6 +229,7 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     int round_src_x = 0;
     int round_src_y = 0;
     std::vector<float> rounded_rgba;
+    const auto t_round0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
     if (image.radius > 0.0f) {
         const int img_w = source.width();
         const int img_h = source.height();
@@ -216,6 +247,34 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
         }
         const float scaled_radius =
             image.radius * (static_cast<float>(src_w) / placement.dst_rect.size.x);
+        // Composite memo key from static inputs only: source content digest +
+        // integer crop + radius bits + output dims. Hashing the key string
+        // costs microseconds; hashing 16 MB of pixels (as before) cost ~5 s
+        // per frame for an unchanged image. The memo bypasses crop/coverage/
+        // convert on repeats; GpuAssetCache residency is unchanged.
+        std::uint32_t radius_bits = 0;
+        static_assert(sizeof(radius_bits) == sizeof(image.radius));
+        std::memcpy(&radius_bits, &image.radius, sizeof(radius_bits));
+        char memo_key[192];
+        const int memo_key_len = std::snprintf(
+            memo_key, sizeof(memo_key), "%s|%d,%d,%d,%d|%08x",
+            cached->gpu_key.content_digest.hex().c_str(),
+            src_x, src_y, src_w, src_h,
+            radius_bits);
+        const std::string memo_key_str(
+            memo_key, memo_key_len > 0 ? static_cast<std::size_t>(memo_key_len)
+                                       : std::size_t{0});
+        const auto memo_hit = rounded_crop_memo().get(memo_key_str);
+        const auto t_crop0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
+        // Composite asset key: binds the memo identity without touching
+        // pixels, so both memo and GpuAssetCache lookups cost microseconds.
+        const auto t_key0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
+        const runtime::GpuAssetKey rounded_key{
+            assets::sha256_string(memo_key_str), runtime::PixelFormat::Rgba32Float,
+            static_cast<std::uint32_t>(src_w), static_cast<std::uint32_t>(src_h)};
+        std::shared_ptr<const std::vector<float>> memo_pixels =
+            memo_hit ? *memo_hit : nullptr;
+        if (!memo_pixels) {
         std::vector<Color> crop(static_cast<std::size_t>(src_w) * src_h);
         for (int y = 0; y < src_h; ++y) {
             const Color* src_row = source.pixels_row(src_y + y) + src_x;
@@ -223,6 +282,7 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
             std::memcpy(dst_row, src_row, static_cast<std::size_t>(src_w) * sizeof(Color));
         }
         apply_rounded_coverage_serial(crop.data(), src_w, src_h, scaled_radius);
+        const auto t_conv0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
         rounded_rgba.resize(static_cast<std::size_t>(src_w) * src_h * 4);
         for (int y = 0; y < src_h; ++y) {
             const Color* src_row = crop.data() + static_cast<std::size_t>(y) * src_w;
@@ -235,21 +295,31 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
                 dst_row[x * 4 + 3] = src_row[x].a;
             }
         }
-        const std::string_view rounded_bytes(
-            reinterpret_cast<const char*>(rounded_rgba.data()),
-            rounded_rgba.size() * sizeof(float));
-        const runtime::GpuAssetKey rounded_key{
-            assets::sha256_string(rounded_bytes), runtime::PixelFormat::Rgba32Float,
-            static_cast<std::uint32_t>(src_w), static_cast<std::uint32_t>(src_h)};
+        memo_pixels = std::make_shared<const std::vector<float>>(std::move(rounded_rgba));
+        rounded_crop_memo().put(
+            memo_key_str, memo_pixels,
+            memo_pixels->size() * sizeof(float));
+        }
+        const std::vector<float>& rounded_pixels = *memo_pixels;
+        const auto t_acqr0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
         const runtime::SurfaceDesc rounded_desc{
             rounded_key.width,
             rounded_key.height,
             rounded_key.format,
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::JobPersistent,
-            rounded_rgba.size() * sizeof(float)};
+            rounded_pixels.size() * sizeof(float)};
         const auto rounded_acquired =
-            gpu_asset_cache.acquire(rounded_key, rounded_desc, rounded_rgba);
+            gpu_asset_cache.acquire(rounded_key, rounded_desc, rounded_pixels);
+        if (image_timing) {
+            spdlog::info("[native_image_timing] key_ms={:.3f} compute_ms={:.1f} rounded_acq_ms={:.1f} memo={} hit={} sw={}x{} r={:.1f}",
+                         profiling::duration_ms(t_key0, t_crop0),
+                         memo_hit ? 0.0 : profiling::duration_ms(t_crop0, t_acqr0),
+                         profiling::duration_ms(t_acqr0, profiling::now()),
+                         memo_hit ? 1 : 0,
+                         rounded_acquired.ok() && rounded_acquired.cache_hit ? 1 : 0,
+                         src_w, src_h, image.radius);
+        }
         if (!rounded_acquired.ok()) {
             if (native_surface_promotion_diag_enabled()) {
                 spdlog::info("[native_image_diag] rejected rounded GPU asset acquire: error='{}' bytes={} size={}x{}",
@@ -265,6 +335,11 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
         source_origin.x -= static_cast<float>(src_x);
         source_origin.y -= static_cast<float>(src_y);
     } else {
+        if (image_timing) {
+            spdlog::info("[native_image_timing] rounded_ms={:.1f} radius={:.1f} path='{}'",
+                         profiling::duration_ms(t_round0, profiling::now()),
+                         image.radius, image.path);
+        }
         const auto& key = cached->gpu_key;
         const runtime::SurfaceDesc desc{
             key.width,
@@ -273,7 +348,13 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
             runtime::ResourceUsage::Storage,
             runtime::LifetimeClass::JobPersistent,
             cached->gpu_rgba.size() * sizeof(float)};
+        const auto t_acq0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
         const auto acquired = gpu_asset_cache.acquire(key, desc, cached->gpu_rgba);
+        if (image_timing) {
+            spdlog::info("[native_image_timing] acquire_ms={:.1f} hit={} path='{}'",
+                         profiling::duration_ms(t_acq0, profiling::now()),
+                         acquired.ok() && acquired.cache_hit ? 1 : 0, image.path);
+        }
         if (!acquired.ok()) {
             if (native_surface_promotion_diag_enabled()) {
                 spdlog::info("[native_image_diag] rejected GPU asset acquire: handle={} error='{}' bytes={} size={}x{}",
@@ -392,8 +473,14 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     transform.clip_rect[2] = static_cast<std::int32_t>(local_clip.x1);
     transform.clip_rect[3] = static_cast<std::int32_t>(local_clip.y1);
 
+    const auto t_affine0 = image_timing ? profiling::now() : profiling::Clock::time_point{};
     const auto result = ctx.backend->transform_surface_affine(
         fb.surface_handle(), src_handle, transform);
+    if (image_timing) {
+        spdlog::info("[native_image_timing] prep_ms={:.1f} affine_ms={:.3f} path='{}'",
+                     profiling::duration_ms(t_dest0, t_affine0),
+                     profiling::duration_ms(t_affine0, profiling::now()), image.path);
+    }
     if (!result.ok()) {
         release_native_surface(ctx, fb);
         return false;

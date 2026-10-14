@@ -50,8 +50,20 @@ TileExecutionResult execute_tile_or_fallback(
     // ExecutionResolver is the sole tile-prune authority. The coordinator
     // consumes only the immutable path and never checks dirty policy, ratio,
     // effects, or tile eligibility itself.
+    //
+    // SparseTiles is a CPU-preserve/copy path: the destination starts from
+    // the previous framebuffer's CPU rows and each dirty region is patched
+    // from a tile render's CPU mirror. Backends with native GPU surfaces
+    // (all Vulkan lanes) render tiles device-side, so those CPU mirrors are
+    // stale and the patch corrupts the dirty regions on readback. Fall
+    // through to full-frame native execution instead (counted as
+    // tile_full_fallbacks below); the Vulkan compositor still limits work
+    // internally where it can.
+    const bool native_tile_unsafe =
+        ctx.backend && ctx.backend->supports_native_surfaces();
     result.use_tile_execution =
-        execution_plan.path == FrameExecutionPath::SparseTiles;
+        execution_plan.path == FrameExecutionPath::SparseTiles &&
+        !native_tile_unsafe;
 
     if (ctx.policy.diagnostics_enabled && !result.use_tile_execution) {
         spdlog::info(
@@ -147,6 +159,19 @@ TileExecutionResult execute_tile_or_fallback(
         // before this coordinator was called. This branch only executes the
         // selected FullRgb contract; it does not inspect reasons or choose a
         // fallback policy.
+        //
+        // Native-tile fallback (see above): the resolver selected
+        // SparseTiles, but tiles cannot run on native-surface backends. Run
+        // the complete frame with all tile/dirty scoping switched off;
+        // otherwise every node keeps its dirty-region clip and everything
+        // outside the dirty bbox is left unrendered.
+        if (execution_plan.path == FrameExecutionPath::SparseTiles) {
+            ctx.policy.tile_execution_enabled = false;
+            ctx.policy.dirty_rects_enabled = false;
+            ctx.node_exec.active_tile_clip.reset();
+            ctx.node_exec.clip_rect.reset();
+            ctx.node_exec.dirty_rect.reset();
+        }
 
         // ── Traditional single-pass execution ───────────────────────────
         {

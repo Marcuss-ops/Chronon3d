@@ -1591,7 +1591,9 @@
             "linear",
             "radial",
             "conic",
-            "burst"
+            "burst",
+            "value",
+            "ridged"
           ]
         },
         "seed": {
@@ -1640,8 +1642,15 @@
                   "threshold",
                   "smoothstep",
                   "invert",
-                  "warp"
+                  "warp",
+                  "domain_warp",
+                  "quantize"
                 ]
+              },
+              "levels": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 256
               },
               "from": {
                 "type": "number",

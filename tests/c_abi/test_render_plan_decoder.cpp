@@ -3352,6 +3352,25 @@ TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinte
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_burst));
 }
 
+TEST_CASE("V3 Field2D value ridged quantization and domain warp round trip") {
+    using nlohmann::json;
+    for (const auto* generator : {"value", "ridged"}) {
+        auto layer=render_plan_test::shape_layer({{"type","rect"}});
+        layer["shape"]["fill"]={{"type","field"},{"field",{{"generator",generator},
+            {"operators",json::array({{{"kind","domain_warp"},{"amount",.2}},
+                                      {{"kind","quantize"},{"levels",4}}})}}}};
+        auto input=render_plan_test::base_plan({layer});
+        const auto decoded=chronon3d::render_plan::decode_render_plan(input);
+        REQUIRE(decoded);
+        REQUIRE(decoded->layers[0].shape->field);
+        CHECK(decoded->layers[0].shape->field->operators.back().scalar==4.f);
+        input["layers"][0]["shape"]["fill"]["field"]["operators"][1]["levels"]=1;
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(input));
+        input["layers"][0]["shape"]["fill"]["field"]["operators"][1]["levels"]=3.5;
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(input));
+    }
+}
+
 TEST_CASE("V3 Field2D can drive displacement without a layer map") {
     using nlohmann::json;
     auto layer = render_plan_test::shape_layer({{"type", "rect"}});

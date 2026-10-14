@@ -2,6 +2,7 @@
 #include <chronon3d/math/path_utils.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/graphics/field2d.hpp>
+#include <chronon3d/graphics/vector_field2d.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include "src/backends/software/rasterizers/path/path_stroke.hpp"
 #include <doctest/doctest.h>
@@ -69,7 +70,7 @@ TEST_CASE("Field2D generators and operators are deterministic and bounded") {
         Field2DGenerator::Cellular, Field2DGenerator::Grid, Field2DGenerator::Checker,
         Field2DGenerator::Dots, Field2DGenerator::Stripes, Field2DGenerator::Rings,
         Field2DGenerator::Linear, Field2DGenerator::Radial, Field2DGenerator::Conic,
-        Field2DGenerator::Burst};
+        Field2DGenerator::Burst, Field2DGenerator::Value, Field2DGenerator::Ridged};
     for (const auto generator : generators) {
         Field2D field;
         field.generator = generator;
@@ -92,6 +93,20 @@ TEST_CASE("Field2D generators and operators are deterministic and bounded") {
     linear.operators = {{.kind = Field2DOperatorKind::Threshold, .edge = 0.5f}};
     CHECK(linear.sample({0.25f, 0.9f}) == doctest::Approx(0.0f));
     CHECK(linear.sample({0.75f, 0.1f}) == doctest::Approx(1.0f));
+}
+
+TEST_CASE("Curl noise evolves continuously from the canonical scalar potential") {
+    chronon3d::graphics::VectorField2D field;
+    field.type=chronon3d::graphics::VectorFieldType::CurlNoise;
+    field.seed=12045;
+    const auto first=field.sample({.21f,.37f},0.f);
+    const auto next=field.sample({.21f,.37f},.001f);
+    const auto later=field.sample({.21f,.37f},2.f);
+    CHECK(glm::length(first-next)<.01f);
+    CHECK(glm::length(first-later)>1.e-6f);
+    CHECK(later==field.sample({.21f,.37f},2.f));
+    field.speed=std::numeric_limits<float>::infinity();
+    CHECK(field.sample({.21f,.37f},2.f)==Vec2(0.f));
 }
 
 TEST_CASE("Field2D temporal drift is deterministic under random frame access") {

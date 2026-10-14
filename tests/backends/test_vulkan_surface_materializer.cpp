@@ -24,6 +24,7 @@ struct FakeImage {
     std::uint32_t width{0};
     std::uint32_t height{0};
     bool initialized{false};
+    bool exportable{false};
     runtime::TextAtlasEncoding text_atlas_encoding{
         runtime::TextAtlasEncoding::PremultipliedRGBA};
 };

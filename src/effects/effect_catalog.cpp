@@ -2,6 +2,7 @@
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/effects/effect_catalog_data.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <ranges>
 #include <stdexcept>
@@ -17,6 +18,14 @@ std::unique_ptr<graph::RenderGraphNode> generic_effect_factory(const EffectInsta
     if (effect.effect_type == EffectType::Echo)
         return std::make_unique<graph::EffectStackNode>(
             std::move(stack), Frame{-1}, graph::frame_variant_cache("echo"));
+    // Animated film grain varies per frame (seed, frame) by contract, so a
+    // frame-invariant cache policy would freeze it after the first frame.
+    // Same precedent as Echo above: temporal output gets a frame-variant key.
+    // Predicate is canonical in <chronon3d/scene/model/core/effect_stack.hpp>.
+    if (effect_stack_has_temporal_effect(stack) &&
+        effect.effect_type != EffectType::Echo)
+        return std::make_unique<graph::EffectStackNode>(
+            std::move(stack), Frame{-1}, graph::frame_variant_cache("noise-animated"));
     return std::make_unique<graph::EffectStackNode>(std::move(stack));
 }
 

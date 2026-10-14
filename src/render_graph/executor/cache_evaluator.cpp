@@ -42,14 +42,18 @@ CacheEvalResult evaluate_cache(
                    ctx.execution_node_cache();
     cr.is_cacheable = is_cacheable;
 
-    // Native video backends attach device surfaces to framebuffers.  Keeping
-    // those framebuffers in the inter-frame NodeCache also keeps every
-    // FrameTransient Vulkan image alive until the whole job ends, eventually
-    // exhausting VRAM.  CPU layout/glyph caches remain active; only the
-    // framebuffer cache is disabled for this export path so ownership returns
-    // to FramebufferPool at the frame boundary.
+    // Any backend with native GPU surfaces (all Vulkan lanes, not only
+    // native-video exports) attaches FrameTransient images to framebuffers.
+    // Keeping those framebuffers in the inter-frame NodeCache serves surfaces
+    // retired at the previous frame boundary: the next frame reads recycled
+    // or zeroed GPU memory while software keeps reading the intact CPU
+    // mirror (Vulkan/serial divergence from the second rendered frame).
+    // It also keeps every transient image alive until the whole job ends,
+    // eventually exhausting VRAM.  CPU layout/glyph caches remain active;
+    // only the framebuffer cache is disabled for these lanes so ownership
+    // returns to FramebufferPool at the frame boundary.
     if (ctx.backend &&
-        ctx.backend->supports_native_video_surface()) {
+        ctx.backend->supports_native_surfaces()) {
         cr.use_cache = false;
     }
 
