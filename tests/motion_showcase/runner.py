@@ -552,6 +552,19 @@ def main():
         parser.error("--strict-native requires --backend vulkan")
     if args.strict_native and args.repeat:
         parser.error("--repeat currently compares software/native output; strict-native repeat is not supported")
+    if not args.validate_only and not args.case:
+        parser.error("rendering requires at least one explicit --case to avoid accidental full-suite resource use")
+    if not args.validate_only and (not shutil.which("ffmpeg") or not shutil.which("ffprobe")):
+        parser.error("render verification requires ffmpeg and ffprobe on PATH")
+    if not args.validate_only and args.backend == "vulkan" and not shutil.which("nvidia-smi"):
+        parser.error("Vulkan showcase rendering requires a visible GPU; no software fallback is allowed")
+    if not args.validate_only and args.backend == "vulkan":
+        try:
+            available_gib = int(pathlib.Path("/proc/meminfo").read_text().split("MemAvailable:")[1].split()[0]) / (1024 * 1024)
+        except (OSError, IndexError, ValueError):
+            available_gib = None
+        if available_gib is not None and available_gib < 5.0:
+            parser.error(f"render needs at least 5 GiB available RAM; currently {available_gib:.1f} GiB")
     manifest=json.loads(MANIFEST_PATH.read_text(encoding="utf-8")); cases=manifest["cases"]
     if args.list:
         for c in cases: print(f"{c['id']} {c['slug']}: {c['duration_seconds']}s {c['status']} — {c['name']}")
@@ -591,11 +604,24 @@ def main():
             (folder/"expected.json").write_text(json.dumps(expected,indent=2)+"\n",encoding="utf-8")
             result.update(expected)
             if not args.validate_only and case["status"]!="BLOCKED":
+                if args.strict_native and case["status"] != "PASS":
+                    raise RuntimeError("strict-native certification only accepts cases already marked functionally PASS")
                 log=logs/f"{case['id']}_render.log"
-                hw = "auto" if args.backend == "vulkan" else "none"
-                enc = "pipe" if args.backend == "vulkan" else "native"
-                run([str(cli),"render","--plan",str(plan),"--backend",args.backend,"--profile","preview",
-                     "--hardware",hw,"--fps","30","--encoder-backend",enc,"--assets-root",str((REPO/"Chronon3d").resolve()),"-o",str(video)],log=log)
+                hw = "nvenc" if args.strict_native else ("auto" if args.backend == "vulkan" else "none")
+                enc = "native" if args.strict_native or args.backend == "software" else "pipe"
+                render_command = [str(cli),"render","--plan",str(plan),"--backend",args.backend,"--profile","preview",
+                     "--hardware",hw,"--fps","30","--encoder-backend",enc,"--assets-root",str((REPO/"Chronon3d").resolve()),"-o",str(video)]
+                if args.strict_native:
+                    render_command.extend(["--gpu-hot-path-mode", "require_gpu_native"])
+                run(render_command,log=log)
+                if not video.is_file() or video.stat().st_size == 0:
+                    raise RuntimeError("renderer returned success without creating a non-empty MP4")
+                if args.strict_native:
+                    timing_for_gate = json.loads(pathlib.Path(str(video)+".timing.json").read_text())
+                    hardware = timing_for_gate.get("hardware", {})
+                    gpu = timing_for_gate.get("gpu", {})
+                    if hardware.get("nvenc_utilization_avg", 0) <= 0 or gpu.get("software_fallback_nodes", 0) != 0:
+                        raise RuntimeError(f"strict-native evidence gate failed: hardware={hardware}, gpu={gpu}")
                 probe_out=run(["ffprobe","-v","error","-select_streams","v:0","-show_entries",
                     "stream=codec_name,width,height,pix_fmt,r_frame_rate,nb_frames,duration,time_base",
                     "-show_entries","format=duration","-of","json",str(video)])
@@ -619,9 +645,13 @@ def main():
                     repeat=folder/"repeat.mp4"
                     run([str(cli),"render","--plan",str(plan),"--backend",args.backend,"--profile","preview",
                          "--hardware","none","--fps","30","--encoder-backend","native","--assets-root",str(REPO/"Chronon3d"),"-o",str(repeat)],log=logs/f"{case['id']}_repeat.log")
+                    if not repeat.is_file() or repeat.stat().st_size == 0:
+                        raise RuntimeError("repeat renderer returned success without creating a non-empty MP4")
                     rh=run(["ffmpeg","-v","error","-i",str(repeat),"-f","framemd5","-"])
                     rh=[line.rsplit(",",1)[-1].strip() for line in rh.splitlines() if line.strip() and not line.startswith("#")]
                     repeated=hashes==rh
+                    if not repeated:
+                        raise RuntimeError("repeat decoded frame hashes differ for same backend/environment")
                 timing_path=pathlib.Path(str(video)+".timing.json")
                 timing=json.loads(timing_path.read_text()) if timing_path.is_file() else {}
                 def finite_numbers(value):
@@ -632,7 +662,7 @@ def main():
                     elif isinstance(value, (int, float)) and not isinstance(value, bool):
                         yield float(value)
                 nums=list(finite_numbers(timing))
-                if any(not math.isfinite(value) for value in nums): raise RuntimeError("non-finite timing metric")
+                if not timing or any(not math.isfinite(value) for value in nums): raise RuntimeError("missing timing sidecar or non-finite timing metric")
                 if int(probe["streams"][0].get("nb_frames", -1)) != n or abs(float(probe["format"]["duration"])-case["duration_seconds"]) > 1/30000:
                     raise RuntimeError(f"exact duration/frame contract failed: {probe}")
                 frame_coverage=[]
@@ -648,6 +678,8 @@ def main():
                 timing_ms=timing.get("frame_times_ms", [])
                 if not isinstance(timing_ms, list) or len(timing_ms) != n:
                     raise RuntimeError(f"timing sidecar has no exact per-frame samples: {len(timing_ms) if isinstance(timing_ms,list) else 'missing'} vs {n}")
+                if any(not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(float(value)) for value in timing_ms):
+                    raise RuntimeError("timing sidecar contains invalid per-frame samples")
                 result["representative_frames"]=frame_coverage
                 result["timing_values_checked"]=len(nums)
                 result.update({"status":"PARTIAL" if case["status"]!="PASS" else "PASS",
