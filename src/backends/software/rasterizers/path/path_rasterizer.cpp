@@ -183,6 +183,50 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                          path.fill.type == FillType::Field2D ||
                          path.fill.type == FillType::GradientMesh);
 
+    // PR6: the custom fill loop below only ever flips `inside` for CLOSED
+    // contours, so a path made only of open sub-paths (stroke-only shapes
+    // such as the generated grids) can skip the whole per-pixel contour walk.
+    // A full-canvas grid made that walk pure waste: O(ROI pixels × contours).
+    const bool fill_has_closed_contour = std::any_of(
+        screen_contours.begin(), screen_contours.end(),
+        [](const PathContour& contour) { return contour.closed; });
+
+    // PR7: the custom fill walk below is O(ROI pixels × closed contours), which
+    // is catastrophic for procedural shapes that emit one small closed contour
+    // per element: `dot_grid` generates one 8-gon per dot (≈880 contours for a
+    // 1920x1080 grid at 48 px spacing), i.e. 2.07 M px × 880 contours ≈ 1.8 G
+    // point-in-polygon tests — 457 s of dispatch for a single 1080p frame.  Bin every closed
+    // contour into the scanlines its AABB can reach so a pixel only tests the
+    // contours that can actually cover it (1-3 for a dot grid, still 1 for a
+    // full-canvas rect).  Binning is exact: a pixel centre inside a polygon is
+    // always inside that polygon's AABB, so no candidate is ever dropped.
+    std::vector<std::vector<usize>> fill_row_candidates;
+    if (use_custom_fill && fill_has_closed_contour) {
+        fill_row_candidates.resize(static_cast<std::size_t>(bbox.y1 - bbox.y0));
+        for (std::size_t c_idx = 0; c_idx < screen_contours.size(); ++c_idx) {
+            const auto& contour = screen_contours[c_idx];
+            if (!contour.closed || contour.points.empty()) continue;
+            f32 min_y = contour.points.front().y;
+            f32 max_y = min_y;
+            for (const auto& point : contour.points) {
+                min_y = std::min(min_y, point.y);
+                max_y = std::max(max_y, point.y);
+            }
+            // Pixel centres sit at y + 0.5: widen to the enclosing integer
+            // rows (a row may be off by one and still be rejected by the
+            // polygon test itself, so over-inclusion is safe).
+            i32 row_lo = static_cast<i32>(std::floor(min_y - 0.5f));
+            i32 row_hi = static_cast<i32>(std::ceil(max_y - 0.5f));
+            if (row_hi < bbox.y0 || row_lo >= bbox.y1) continue;
+            row_lo = std::max(row_lo, bbox.y0);
+            row_hi = std::min(row_hi, bbox.y1 - 1);
+            for (i32 row = row_lo; row <= row_hi; ++row) {
+                fill_row_candidates[static_cast<std::size_t>(row - bbox.y0)]
+                    .push_back(static_cast<usize>(c_idx));
+            }
+        }
+    }
+
     std::optional<graphics::CompiledGradient> compiled_fill;
     if (use_custom_fill && path.fill.type != FillType::Solid &&
         path.fill.type != FillType::Field2D &&
@@ -197,6 +241,15 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     if (path.stroke.enabled) {
         prepared_strokes = prepare_stroke_contours(screen_contours, path.stroke);
     }
+
+    // PR6: conservative per-sub-path rejection radius for the custom stroke
+    // loop below.  It covers the widest tapered segment radius (taper can
+    // only scale the radius down in practice, but we clamp at 1.0 to stay
+    // safe against out-of-range taper values) plus the 1.0 px analytic-AA
+    // slack used by the round-cap / round-join distance tests, so a
+    // rejected sub-path could not have contributed coverage to that pixel.
+    const f32 stroke_aabb_pad = radius *
+        std::max({1.0f, path.stroke.taper_start, path.stroke.taper_end}) + 1.0f;
 
     // PR5: in Blend2D mode hand the prepared contours to the BL2
     // stroker.  Cap / join / anti-aliased outline coverage come from
@@ -393,28 +446,27 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
 
             const Vec2 p{static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f};
 
-            if (use_custom_fill) {
+            if (use_custom_fill && fill_has_closed_contour) {
                 bool inside = false;
                 const PipMode mode = get_pip_mode();
                 const bool prefetch = is_prefetch_enabled();
-                for (size_t c_idx = 0; c_idx < screen_contours.size(); ++c_idx) {
-                    if (prefetch && c_idx + 1 < screen_contours.size()) {
-                        chrono_prefetch(&screen_contours[c_idx + 1]);
-                        if (!screen_contours[c_idx + 1].points.empty()) {
-                            chrono_prefetch(screen_contours[c_idx + 1].points.data());
-                        }
+                // PR7: only the contours binned for this scanline can cover the
+                // pixel, so the previous full-contour walk is gone.
+                const auto& candidates =
+                    fill_row_candidates[static_cast<std::size_t>(y - bbox.y0)];
+                for (std::size_t k = 0; k < candidates.size(); ++k) {
+                    if (prefetch && k + 1 < candidates.size()) {
+                        chrono_prefetch(&screen_contours[candidates[k + 1]]);
                     }
-                    const auto& contour = screen_contours[c_idx];
-                    if (contour.closed) {
-                        bool c_inside = false;
-                        if (mode == PipMode::Simd) {
-                            c_inside = point_in_polygon_avx2(p, contour.points);
-                        } else {
-                            c_inside = point_in_polygon_even_odd(p, contour.points);
-                        }
-                        if (c_inside) {
-                            inside = !inside;
-                        }
+                    const auto& contour = screen_contours[candidates[k]];
+                    bool c_inside = false;
+                    if (mode == PipMode::Simd) {
+                        c_inside = point_in_polygon_avx2(p, contour.points);
+                    } else {
+                        c_inside = point_in_polygon_even_odd(p, contour.points);
+                    }
+                    if (c_inside) {
+                        inside = !inside;
                     }
                 }
                 if (inside) {
@@ -469,6 +521,18 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                     for (const auto& sub : stroke_contour.visible_subpaths) {
                         const auto& pts_sub = sub.points;
                         if (pts_sub.size() < 2) continue;
+
+                        // PR6: reject the whole sub-path in O(4) compares
+                        // before touching the segment/cap/join tests.  A
+                        // full-canvas path (technical grid: one sub-path per
+                        // line) previously forced every pixel of the bbox
+                        // through every sub-path — O(pixels × sub-paths).
+                        if (p.x < sub.bounds_min.x - stroke_aabb_pad ||
+                            p.x > sub.bounds_max.x + stroke_aabb_pad ||
+                            p.y < sub.bounds_min.y - stroke_aabb_pad ||
+                            p.y > sub.bounds_max.y + stroke_aabb_pad) {
+                            continue;
+                        }
 
                         const auto radius_at = [&](usize i) {
                             const f32 t = sub.total_length > kPathEpsilon

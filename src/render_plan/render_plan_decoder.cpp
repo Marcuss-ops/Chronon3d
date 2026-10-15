@@ -464,6 +464,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                 plan.camera_animation->begin(), plan.camera_animation->end(), [](const auto& track) {
                     return track.property == chronon3d::render_plan::CameraPropertyPlan::FocusDistance ||
                            track.property == chronon3d::render_plan::CameraPropertyPlan::Aperture ||
+                           track.property == chronon3d::render_plan::CameraPropertyPlan::FStop ||
                            track.property == chronon3d::render_plan::CameraPropertyPlan::MaxBlur;
                 });
             if (has_dof_animation && !plan.camera->dof_enabled)

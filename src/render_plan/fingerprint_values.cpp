@@ -329,16 +329,25 @@ void add_transition(CanonicalPlanWriter& out, const TransitionPlan& transition) 
 
 void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
     out.add_string(camera.type);
+    out.add_string(camera.node);
     for (const auto value : camera.position) out.add_float(value);
     for (const auto value : camera.rotation_deg) out.add_float(value);
+    for (const auto value : camera.target) out.add_float(value);
+    out.add_string(camera.target_name);
     out.add_float(camera.fov_deg);
     out.add_float(camera.near);
     out.add_float(camera.far);
     out.add_float(camera.zoom);
+    out.add_float(camera.focal_length_mm);
+    out.add_float(camera.f_stop);
+    out.add_size(static_cast<std::size_t>(camera.iris_blades));
     out.add_bool(camera.dof_enabled);
     out.add_float(camera.dof_focus_distance);
     out.add_float(camera.dof_aperture);
     out.add_float(camera.dof_max_blur);
+    out.add_float(camera.dof_f_stop);
+    out.add_size(static_cast<std::size_t>(camera.dof_iris_blades));
+    out.add_float(camera.dof_highlight_gain);
 }
 
 void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {

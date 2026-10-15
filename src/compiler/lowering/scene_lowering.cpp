@@ -78,12 +78,20 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.size = layer.size;
         lowered.color = layer.color;
         lowered.position = layer.position;
-        // Native phrase style positions and video box positions are authored
-        // in top-left canvas space, while the scene graph uses a canvas-centred
-        // basis. Text positions are already box centers; video positions are
-        // box origins, so video receives its half-size offset below as well.
+        // Native phrase style positions, shape positions and video box
+        // positions are authored in top-left canvas space, while the scene
+        // graph uses a canvas-centred basis. Text positions are already box
+        // centers; video positions are box origins, so video receives its
+        // half-size offset below as well. Shapes follow the same box-center
+        // convention as the legacy render-plan compiler
+        // (apply_layer_primitives converts Text/Shape identically); without
+        // this the modular resolver's canvas-center shift applies twice and
+        // every shape lands a half-canvas down-right of its authored spot.
+        // Screen-space shapes are already expressed in framebuffer
+        // coordinates and must keep their authored position.
         if ((layer.type == render_plan::LayerType::Text ||
-             layer.type == render_plan::LayerType::Video) &&
+             layer.type == render_plan::LayerType::Video ||
+             (layer.type == render_plan::LayerType::Shape && !layer.screen_space)) &&
             layer.position_dimensions >= 2) {
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;

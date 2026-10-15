@@ -1,7 +1,12 @@
 #include <chronon3d/scene/model/shape/path_operator.hpp>
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <string>
+#include <vector>
 #include <chronon3d/compiler/scene_materializer.hpp>
+#include <chronon3d/animation/animation_property_kind.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
@@ -12,6 +17,183 @@
 #include <cmath>
 
 namespace chronon3d::compiler {
+namespace {
+
+// Linear sample of a flattened scalar keyframe series, mirroring
+// TypedProgramSampler::sample_track exactly (clamped ends, linear blend).
+// Program tracks are sampled linearly at runtime, so the transferred scene
+// animation uses Linear easing to evaluate bit-identically.
+float sample_series_linear(const CurveKeyframeProgram* keys, std::size_t count,
+                           std::int64_t frame) {
+    if (keys == nullptr || count == 0) return 0.0f;
+    if (frame <= keys[0].frame) return keys[0].value;
+    if (frame >= keys[count - 1].frame) return keys[count - 1].value;
+    for (std::size_t i = 1; i < count; ++i) {
+        if (frame <= keys[i].frame) {
+            const std::int64_t span = keys[i].frame - keys[i - 1].frame;
+            const float t = span == 0 ? 0.0f
+                : static_cast<float>(frame - keys[i - 1].frame) /
+                  static_cast<float>(span);
+            return keys[i - 1].value + (keys[i].value - keys[i - 1].value) * t;
+        }
+    }
+    return keys[count - 1].value;
+}
+
+struct SeriesSlice {
+    const CurveKeyframeProgram* keys{nullptr};
+    std::size_t count{0};
+    const AnimationTrackProgram* source{nullptr};
+    [[nodiscard]] bool valid() const noexcept { return keys != nullptr && count != 0; }
+    [[nodiscard]] float at(std::int64_t frame) const {
+        return sample_series_linear(keys, count, frame);
+    }
+    // Identical curve construction to TypedProgramSampler so scene-side
+    // keyframes evaluate exactly like program-side sampling.
+    [[nodiscard]] EasingCurve curve() const {
+        if (source != nullptr && source->has_bezier) {
+            return EasingCurve::cubic_bezier(source->bezier[0], source->bezier[1],
+                                             source->bezier[2], source->bezier[3]);
+        }
+        if (source != nullptr && !source->easing.empty() && source->easing != "linear")
+            return EasingCurve{string_to_easing(source->easing)};
+        return EasingCurve{Easing::Linear};
+    }
+};
+
+// Curve of the first contributing track; single-track groups (the common
+// case) transfer exactly, multi-track groups share the first curve.
+[[nodiscard]] EasingCurve group_curve(std::initializer_list<SeriesSlice> slices) {
+    for (const auto& s : slices) {
+        if (s.valid()) return s.curve();
+    }
+    return EasingCurve{Easing::Linear};
+}
+
+// Transfer lowered program animation tracks into the scene layer's animated
+// transform so per-frame resolution (resolve_layer_hierarchy), static
+// analysis, dirty tracking and opacity evaluators all observe the authored
+// motion.  Without this the materialized scene is frozen at its static
+// baseline and 2D layer animation never reaches pixels.
+void transfer_layer_animation(const CompiledProgram& program,
+                              const StaticLayerProgram& layer,
+                              LayerBuilder& builder) {
+    if (layer.animation_program_index >= program.animations().size()) return;
+    const auto& animation = program.animations()[layer.animation_program_index];
+    const auto& all_tracks = program.animation_tracks();
+    const auto& all_keys = program.curve_keyframes();
+    const std::size_t first = animation.first_track;
+    const std::size_t last = std::min<std::size_t>(
+        first + animation.track_count, all_tracks.size());
+
+    SeriesSlice pos_abs[3], pos_off[3], scl_abs[3], rot_abs[3];
+    SeriesSlice uniform_scale, opacity;
+    auto slice_for = [&](const AnimationTrackProgram& track) -> SeriesSlice {
+        const std::size_t begin = track.first_keyframe;
+        const std::size_t end = std::min<std::size_t>(
+            begin + track.keyframe_count, all_keys.size());
+        if (end <= begin || begin >= all_keys.size()) return {};
+        return {all_keys.data() + begin, end - begin, &track};
+    };
+    for (std::size_t i = first; i < last; ++i) {
+        const auto& track = all_tracks[i];
+        const SeriesSlice slice = slice_for(track);
+        if (!slice.valid()) continue;
+        switch (track.property_kind) {
+            case AnimationProperty::PositionX: pos_abs[0] = slice; break;
+            case AnimationProperty::PositionY: pos_abs[1] = slice; break;
+            case AnimationProperty::PositionZ: pos_abs[2] = slice; break;
+            case AnimationProperty::PositionXOffset: pos_off[0] = slice; break;
+            case AnimationProperty::PositionYOffset: pos_off[1] = slice; break;
+            case AnimationProperty::PositionZOffset: pos_off[2] = slice; break;
+            case AnimationProperty::ScaleX: scl_abs[0] = slice; break;
+            case AnimationProperty::ScaleY: scl_abs[1] = slice; break;
+            case AnimationProperty::ScaleZ: scl_abs[2] = slice; break;
+            case AnimationProperty::UniformScale: uniform_scale = slice; break;
+            case AnimationProperty::RotationX: rot_abs[0] = slice; break;
+            case AnimationProperty::RotationY: rot_abs[1] = slice; break;
+            case AnimationProperty::RotationZ: rot_abs[2] = slice; break;
+            case AnimationProperty::Opacity: opacity = slice; break;
+            default: break;
+        }
+    }
+
+    auto union_frames = [](std::initializer_list<SeriesSlice> slices) {
+        std::vector<std::int64_t> frames;
+        for (const auto& s : slices) {
+            if (!s.valid()) continue;
+            for (std::size_t i = 0; i < s.count; ++i)
+                frames.push_back(s.keys[i].frame);
+        }
+        std::sort(frames.begin(), frames.end());
+        frames.erase(std::unique(frames.begin(), frames.end()), frames.end());
+        return frames;
+    };
+
+    if (pos_abs[0].valid() || pos_abs[1].valid() || pos_abs[2].valid() ||
+        pos_off[0].valid() || pos_off[1].valid() || pos_off[2].valid()) {
+        const Vec3 base{layer.position[0], layer.position[1], layer.position[2]};
+        auto& animated = builder.position_anim();
+        animated.set(base);
+        const EasingCurve curve = group_curve(
+            {pos_abs[0], pos_abs[1], pos_abs[2],
+             pos_off[0], pos_off[1], pos_off[2]});
+        for (const std::int64_t f : union_frames(
+                 {pos_abs[0], pos_abs[1], pos_abs[2],
+                  pos_off[0], pos_off[1], pos_off[2]})) {
+            Vec3 v = base;
+            if (pos_abs[0].valid()) v.x = pos_abs[0].at(f);
+            else if (pos_off[0].valid()) v.x += pos_off[0].at(f);
+            if (pos_abs[1].valid()) v.y = pos_abs[1].at(f);
+            else if (pos_off[1].valid()) v.y += pos_off[1].at(f);
+            if (pos_abs[2].valid()) v.z = pos_abs[2].at(f);
+            else if (pos_off[2].valid()) v.z += pos_off[2].at(f);
+            animated.add_keyframe(Frame{f}, v, curve);
+        }
+    }
+    if (scl_abs[0].valid() || scl_abs[1].valid() || scl_abs[2].valid() ||
+        uniform_scale.valid()) {
+        const Vec3 base{layer.scale[0], layer.scale[1], layer.scale[2]};
+        auto& animated = builder.scale_anim();
+        animated.set(base);
+        const EasingCurve curve = group_curve(
+            {scl_abs[0], scl_abs[1], scl_abs[2], uniform_scale});
+        for (const std::int64_t f : union_frames(
+                 {scl_abs[0], scl_abs[1], scl_abs[2], uniform_scale})) {
+            Vec3 v = base;
+            if (scl_abs[0].valid()) v.x = scl_abs[0].at(f);
+            else if (uniform_scale.valid()) v.x = uniform_scale.at(f);
+            if (scl_abs[1].valid()) v.y = scl_abs[1].at(f);
+            else if (uniform_scale.valid()) v.y = uniform_scale.at(f);
+            if (scl_abs[2].valid()) v.z = scl_abs[2].at(f);
+            else if (uniform_scale.valid()) v.z = uniform_scale.at(f);
+            animated.add_keyframe(Frame{f}, v, curve);
+        }
+    }
+    if (rot_abs[0].valid() || rot_abs[1].valid() || rot_abs[2].valid()) {
+        const Vec3 base{layer.rotation[0], layer.rotation[1], layer.rotation[2]};
+        auto& animated = builder.rotate_anim();
+        animated.set(base);
+        const EasingCurve curve = group_curve({rot_abs[0], rot_abs[1], rot_abs[2]});
+        for (const std::int64_t f : union_frames({rot_abs[0], rot_abs[1], rot_abs[2]})) {
+            Vec3 v = base;
+            if (rot_abs[0].valid()) v.x = rot_abs[0].at(f);
+            if (rot_abs[1].valid()) v.y = rot_abs[1].at(f);
+            if (rot_abs[2].valid()) v.z = rot_abs[2].at(f);
+            animated.add_keyframe(Frame{f}, v, curve);
+        }
+    }
+    if (opacity.valid()) {
+        auto& animated = builder.opacity_anim();
+        animated.set(layer.opacity);
+        const EasingCurve curve = opacity.curve();
+        for (std::size_t i = 0; i < opacity.count; ++i)
+            animated.add_keyframe(Frame{opacity.keys[i].frame}, opacity.keys[i].value,
+                                  curve);
+    }
+}
+
+} // namespace
 
 chronon3d::Scene SceneMaterializer::materialize_scene(
     const CompiledProgram& program, std::pmr::memory_resource* resource) const {
@@ -475,6 +657,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                 case NodeKind::Unknown:
                     break;
             }
+            transfer_layer_animation(program, layer, builder);
         });
     }
     return scene.build();

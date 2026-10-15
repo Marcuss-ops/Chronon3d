@@ -3085,6 +3085,69 @@ TEST_CASE("render plan decoder accepts camera pose and closed camera tracks") {
           chronon3d::render_plan::CameraPropertyPlan::PositionZ);
 }
 
+TEST_CASE("render plan decoder accepts two_node camera with target, lens and iris DOF") {
+    const nlohmann::json source = {
+        {"schema", "chronon.render-plan.v2"}, {"version", 2},
+        {"canvas", {{"width", 1920}, {"height", 1080}, {"fps_num", 30},
+                     {"fps_den", 1}, {"duration_frames", 90}}},
+        {"camera", {{"type", "perspective"}, {"node", "two_node"},
+                     {"position", {960, 540, -1400}}, {"rotation_deg", {0, 0, 0}},
+                     {"target", {960, 540, 0}}, {"fov_deg", 50},
+                     {"near", 1}, {"far", 10000000}, {"zoom", 1},
+                     {"focal_length_mm", 50}, {"f_stop", 2.8}, {"iris_blades", 6},
+                     {"dof", {{"enabled", true}, {"focus_distance", 1400},
+                               {"aperture", 0.02}, {"max_blur", 24},
+                               {"f_stop", 2.8}, {"iris_blades", 6},
+                               {"highlight_gain", 1.5}}}}},
+        {"camera_animation", {{"tracks", {
+            {{"property", "camera_target_x"},
+             {"keyframes", {{{"frame", 0}, {"value", 960}},
+                              {{"frame", 90}, {"value", 900}}}}},
+            {{"property", "camera_focal_length_mm"},
+             {"keyframes", {{{"frame", 0}, {"value", 50}},
+                              {{"frame", 90}, {"value", 85}}}}},
+            {{"property", "camera_f_stop"},
+             {"keyframes", {{{"frame", 0}, {"value", 2.8}},
+                              {{"frame", 90}, {"value", 4.0}}}}}}}}},
+        {"layers", {{{"id", "bg"}, {"type", "color"}, {"color", {0, 0, 0, 1}}}}},
+        {"output", {{"path", "out.png"}}}};
+
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    REQUIRE(decoded->camera);
+    CHECK(decoded->camera->node == "two_node");
+    CHECK(decoded->camera->target[0] == doctest::Approx(960.0f));
+    CHECK(decoded->camera->focal_length_mm == doctest::Approx(50.0f));
+    CHECK(decoded->camera->f_stop == doctest::Approx(2.8f));
+    CHECK(decoded->camera->iris_blades == 6);
+    CHECK(decoded->camera->dof_f_stop == doctest::Approx(2.8f));
+    CHECK(decoded->camera->dof_iris_blades == 6);
+    CHECK(decoded->camera->dof_highlight_gain == doctest::Approx(1.5f));
+    const auto descriptor = chronon3d::render_plan::detail::make_camera_descriptor(*decoded);
+    REQUIRE(descriptor);
+    CHECK(descriptor->base.point_of_interest_enabled);
+    CHECK(descriptor->base.point_of_interest.x == doctest::Approx(960.0f));
+    CHECK(descriptor->base.lens.focal_length == doctest::Approx(50.0f));
+    CHECK(descriptor->base.dof.use_physical_model);
+    CHECK(descriptor->base.dof.iris_blades == 6);
+    const auto* tracks = std::get_if<chronon3d::camera_v1::PoseTracksSource>(&descriptor->source);
+    REQUIRE(tracks);
+    CHECK(tracks->use_target);
+    REQUIRE(tracks->target_components[0].has_value());
+    REQUIRE(tracks->focal_length_mm.is_time_dependent());
+    REQUIRE(tracks->f_stop.is_time_dependent());
+    // Rejections stay fail-closed: unknown node, bad preset range, bad f-stop.
+    auto bad = source;
+    bad["camera"]["node"] = "three_node";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad));
+    bad = source;
+    bad["camera"]["focal_length_mm"] = 8;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad));
+    bad = source;
+    bad["camera_animation"]["tracks"][2]["keyframes"][0]["value"] = 0.5;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad));
+}
+
 TEST_CASE("render plan decoder accepts bounded cubic Bezier track easing and fingerprints it") {
     auto source = nlohmann::json{
         {"schema", "chronon.render-plan.v2"}, {"version", 2},

@@ -265,18 +265,20 @@ TEST_CASE("compiled_orientation_fixed — "
 }
 
 TEST_CASE("compiled_orientation_look_at_point — "
-          "LookAtPoint sets point_of_interest_enabled AND off-axis "
-          "look-at produces a non-trivial rotation") {
+          "LookAtPoint sets point_of_interest_enabled AND preserves the "
+          "base rotation (aim is applied downstream by the TwoNode "
+          "view-matrix composition, never by overwriting rotation)") {
     // Off-axis point relative to camera at (0,0,-1000).  A target along
     // the +Z axis would trivially leave rotation near identity, so we
-    // use (100, 100, 1000) to force a non-zero yaw + pitch.
+    // use (100, 100, 1000) to force a non-zero yaw + pitch in the VIEW
+    // (not in cam.rotation).
     const Vec3 kCamPos{0.0f, 0.0f, -1000.0f};
     const Vec3 kTarget{100.0f, 100.0f, 1000.0f};
 
     auto desc = make_cam01_base_desc();
     desc.source = StaticCameraSource{};
     desc.base.position = kCamPos;
-    desc.base.rotation = Vec3{0.0f, 0.0f, 0.0f};   // identity baseline
+    desc.base.rotation = Vec3{1.0f, 2.0f, 3.0f};   // authorial offsets
     desc.orientation = LookAtPoint{kTarget};
 
     auto program = compile_or_die_cam01(desc);
@@ -288,25 +290,13 @@ TEST_CASE("compiled_orientation_look_at_point — "
     CHECK(cam.point_of_interest.y == doctest::Approx(kTarget.y).epsilon(kCam01Eps));
     CHECK(cam.point_of_interest.z == doctest::Approx(kTarget.z).epsilon(kCam01Eps));
 
-    // Structural guard: off-axis look-at MUST produce a rotation whose
-    // L2 magnitude is far above float noise.  With the target
-    // (100, 100, 1000) from cam (0, 0, -1000), the look-direction
-    // pitch angle is ~atand(sqrt(20000)/2000) ≈ 4°, so total rotation
-    // magnitude should be ≫ 1° — we use 0.5° ≈ 0.0087 deg as the floor,
-    // which catches a regression where the look-at is silently skipped
-    // (rotation ≈ 0) but does NOT accept a 0.001° micro-glitch from
-    // float drift in a partially-broken implementation.
-    //
-    // UNIT: `cam.rotation` is in DEGREES for the entire camera_v1 compiled
-    // path (consistent with `PoseTracksSource::rotation` keys and
-    // `IdleOscillation::rotation_amplitude_deg`).  The threshold value is
-    // therefore also in degrees, not radians.
-    const float rot_l2 = std::sqrt(cam.rotation.x * cam.rotation.x
-                                   + cam.rotation.y * cam.rotation.y
-                                   + cam.rotation.z * cam.rotation.z);
-    CAPTURE(rot_l2);
-    constexpr float kMinLookAtRotationDeg = 0.5f;     // 0.5° in degrees
-    CHECK(rot_l2 > kMinLookAtRotationDeg);
+    // LookAt owns ONLY the aim target: the base rotation must survive
+    // untouched.  (Writing the full aim into rotation here used to
+    // double-apply it in the TwoNode view composition, mirroring the
+    // x-axis on screen.)
+    CHECK(cam.rotation.x == doctest::Approx(1.0f).epsilon(kCam01Eps));
+    CHECK(cam.rotation.y == doctest::Approx(2.0f).epsilon(kCam01Eps));
+    CHECK(cam.rotation.z == doctest::Approx(3.0f).epsilon(kCam01Eps));
 }
 
 TEST_CASE("compiled_orientation_look_at_layer_no_transforms — "

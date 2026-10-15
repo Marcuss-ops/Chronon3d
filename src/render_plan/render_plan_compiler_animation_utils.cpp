@@ -390,18 +390,50 @@ make_camera_descriptor(const RenderPlan& plan) {
     descriptor.base.enabled = true;
     descriptor.base.position = {source_plan.position[0], source_plan.position[1], source_plan.position[2]};
     descriptor.base.rotation = {source_plan.rotation_deg[0], source_plan.rotation_deg[1], source_plan.rotation_deg[2]};
-    descriptor.base.projection = chronon3d::camera_v1::FovProjection{
-        chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
+    // AE two_node: the authored target becomes the canonical point of
+    // interest, so the orientation contract locks aim while the position
+    // moves. one_node leaves POI disabled (rotation-only aim).
+    if (source_plan.node == "two_node") {
+        descriptor.base.point_of_interest_enabled = true;
+        descriptor.base.point_of_interest = {source_plan.target[0], source_plan.target[1], source_plan.target[2]};
+    }
+    if (!source_plan.target_name.empty())
+        throw std::runtime_error(
+            "camera.target_name layer resolution is not implemented: author camera.target instead");
+    descriptor.base.lens.focal_length = source_plan.focal_length_mm != 0.0f
+        ? source_plan.focal_length_mm : descriptor.base.lens.focal_length;
+    if (source_plan.f_stop != 0.0f)
+        descriptor.base.lens.f_stop = source_plan.f_stop;
+    if (source_plan.focal_length_mm != 0.0f) {
+        // Focal wins over fov_deg: the physical lens is the projection.
+        descriptor.base.projection = chronon3d::camera_v1::PhysicalLensProjection{descriptor.base.lens};
+    } else {
+        descriptor.base.projection = chronon3d::camera_v1::FovProjection{
+            chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
+    }
     descriptor.base.dof.enabled = source_plan.dof_enabled;
     descriptor.base.dof.focus_distance = source_plan.dof_focus_distance;
     descriptor.base.dof.aperture = source_plan.dof_aperture;
     descriptor.base.dof.max_blur = source_plan.dof_max_blur;
+    descriptor.base.dof.iris_blades = source_plan.dof_iris_blades != 0
+        ? source_plan.dof_iris_blades : source_plan.iris_blades;
+    descriptor.base.dof.highlight_gain = source_plan.dof_highlight_gain;
     if (source_plan.dof_enabled) {
         // RenderPlan V2's focus_distance uses the same world-space Z origin as
         // Camera2_5D's legacy blur-per-unit model. Preserve focus_z when the
         // optional newer focus-distance value is left at its default.
         descriptor.base.dof.focus_z = source_plan.dof_focus_distance;
-        descriptor.base.dof.use_physical_model = false;
+        // An authored f-stop (camera or dof level) selects the physical lens
+        // model so the renderer consumes the physical aperture; otherwise the
+        // legacy blur-per-unit path stays exactly as before.
+        const float authored_fstop = source_plan.dof_f_stop != 0.0f
+            ? source_plan.dof_f_stop : source_plan.f_stop;
+        if (authored_fstop != 0.0f) {
+            descriptor.base.lens.f_stop = authored_fstop;
+            descriptor.base.dof.use_physical_model = true;
+        } else {
+            descriptor.base.dof.use_physical_model = false;
+        }
     }
     if (source_plan.type == "orthographic") {
         // Camera2_5D has no second projection implementation: use its existing
@@ -416,8 +448,12 @@ make_camera_descriptor(const RenderPlan& plan) {
     chronon3d::camera_v1::PoseTracksSource tracks;
     tracks.position = chronon3d::AnimatedValue<chronon3d::Vec3>{descriptor.base.position};
     tracks.rotation = chronon3d::AnimatedValue<chronon3d::Vec3>{descriptor.base.rotation};
+    tracks.target = chronon3d::AnimatedValue<chronon3d::Vec3>{descriptor.base.point_of_interest};
+    tracks.use_target = descriptor.base.point_of_interest_enabled;
     tracks.fov_deg = chronon3d::AnimatedValue<float>{source_plan.fov_deg};
     tracks.zoom = chronon3d::AnimatedValue<float>{1000.0f * source_plan.zoom};
+    tracks.focal_length_mm = chronon3d::AnimatedValue<float>{0.0f};
+    tracks.f_stop = chronon3d::AnimatedValue<float>{0.0f};
     tracks.focus_distance = chronon3d::AnimatedValue<float>{source_plan.dof_focus_distance};
     tracks.aperture = chronon3d::AnimatedValue<float>{source_plan.dof_aperture};
     tracks.max_blur = chronon3d::AnimatedValue<float>{source_plan.dof_max_blur};
@@ -485,11 +521,51 @@ make_camera_descriptor(const RenderPlan& plan) {
                     add_animation_keyframe(tracks.rotation, easing_track, key, current);
                     break;
                 }
+                // Target channels stay independent per axis (same pattern as
+                // position_components): appending X, Y and Z keys to one Vec3
+                // track would let untouched components overwrite each other
+                // at duplicate frames.
+                case CameraPropertyPlan::TargetX: {
+                    if (!tracks.target_components[0])
+                        tracks.target_components[0].emplace(descriptor.base.point_of_interest.x);
+                    add_animation_keyframe(*tracks.target_components[0], easing_track, key, value);
+                    auto current = descriptor.base.point_of_interest;
+                    current.x = value;
+                    add_animation_keyframe(tracks.target, easing_track, key, current);
+                    tracks.use_target = true;
+                    break;
+                }
+                case CameraPropertyPlan::TargetY: {
+                    if (!tracks.target_components[1])
+                        tracks.target_components[1].emplace(descriptor.base.point_of_interest.y);
+                    add_animation_keyframe(*tracks.target_components[1], easing_track, key, value);
+                    auto current = descriptor.base.point_of_interest;
+                    current.y = value;
+                    add_animation_keyframe(tracks.target, easing_track, key, current);
+                    tracks.use_target = true;
+                    break;
+                }
+                case CameraPropertyPlan::TargetZ: {
+                    if (!tracks.target_components[2])
+                        tracks.target_components[2].emplace(descriptor.base.point_of_interest.z);
+                    add_animation_keyframe(*tracks.target_components[2], easing_track, key, value);
+                    auto current = descriptor.base.point_of_interest;
+                    current.z = value;
+                    add_animation_keyframe(tracks.target, easing_track, key, current);
+                    tracks.use_target = true;
+                    break;
+                }
                 case CameraPropertyPlan::FovDeg:
                     add_animation_keyframe(tracks.fov_deg, easing_track, key, value);
                     break;
                 case CameraPropertyPlan::Zoom:
                     add_animation_keyframe(tracks.zoom, easing_track, key, 1000.0f * value);
+                    break;
+                case CameraPropertyPlan::FocalLengthMM:
+                    add_animation_keyframe(tracks.focal_length_mm, easing_track, key, value);
+                    break;
+                case CameraPropertyPlan::FStop:
+                    add_animation_keyframe(tracks.f_stop, easing_track, key, value);
                     break;
                 case CameraPropertyPlan::FocusDistance:
                     add_animation_keyframe(tracks.focus_distance, easing_track, key, value);
@@ -505,8 +581,11 @@ make_camera_descriptor(const RenderPlan& plan) {
     }
     tracks.position.compute_roving(); tracks.position.compute_auto_beziers();
     tracks.rotation.compute_roving(); tracks.rotation.compute_auto_beziers();
+    tracks.target.compute_roving(); tracks.target.compute_auto_beziers();
     tracks.fov_deg.compute_roving(); tracks.fov_deg.compute_auto_beziers();
     tracks.zoom.compute_roving(); tracks.zoom.compute_auto_beziers();
+    tracks.focal_length_mm.compute_roving(); tracks.focal_length_mm.compute_auto_beziers();
+    tracks.f_stop.compute_roving(); tracks.f_stop.compute_auto_beziers();
     tracks.focus_distance.compute_roving(); tracks.focus_distance.compute_auto_beziers();
     tracks.aperture.compute_roving(); tracks.aperture.compute_auto_beziers();
     tracks.max_blur.compute_roving(); tracks.max_blur.compute_auto_beziers();
