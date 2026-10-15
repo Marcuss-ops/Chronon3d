@@ -58,15 +58,16 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
         return std::nullopt;
     }
     if (auto* lap = std::get_if<LookAtPoint>(&orient)) {
+        // LookAt owns ONLY the aim target (POI).  It must NOT write
+        // cam.rotation: the aim is applied downstream by the TwoNode
+        // view-matrix composition (lookAtLH * quat_from_euler(rotation)).
+        // Writing the full aim into rotation here used to double-apply
+        // it (mirrored x-axis on screen, e.g. 3D text reading backwards).
+        // cam.rotation keeps carrying only authorial/local offsets
+        // (base keys + modifier offsets such as HandheldNoise shake).
         Vec3 look_dir = lap->target - cam.position;
         float len = glm::length(look_dir);
         if (len > 1e-4f) {
-            look_dir = look_dir / len;
-            const Quat orientation = quat_look_along(look_dir);
-            // LookAt owns the full orientation.  Do not preserve a residual
-            // modifier roll here; roll is represented explicitly by the
-            // orientation/constraint contract.
-            cam.rotation = quat_to_camera_euler(orientation, 0.0f);
             cam.point_of_interest = lap->target;
             cam.point_of_interest_enabled = true;
         }
@@ -85,12 +86,12 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
         if (ctx.transforms) {
             auto world_pos = ctx.transforms->world_position(lal->target);
             if (world_pos) {
+                // Same contract as LookAtPoint above: POI only, never
+                // touch cam.rotation (aim comes from the TwoNode view
+                // composition downstream).
                 Vec3 look_dir = *world_pos - cam.position;
                 float len = glm::length(look_dir);
                 if (len > 1e-4f) {
-                    look_dir = look_dir / len;
-                    const Quat orientation = quat_look_along(look_dir);
-                    cam.rotation = quat_to_camera_euler(orientation, 0.0f);
                     cam.point_of_interest = *world_pos;
                     cam.point_of_interest_enabled = true;
                 }

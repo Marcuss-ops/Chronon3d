@@ -31,6 +31,13 @@ struct PreparedSubPath {
     f32 total_length{0.0f};
     bool repeated_start{false};  // closed && front≈back && size > 2
     std::size_t unique_count{0}; // effective vertex count for join loop
+    // PR6: axis-aligned bounds of `points` in screen space.  The custom
+    // stroke loop pads these by (max radius + AA slack) and rejects the
+    // sub-path per pixel in O(4) compares instead of walking every
+    // segment.  Without it a full-canvas path (technical grid) costs
+    // O(ROI pixels × sub-paths) — 35-40 s/frame for a 1920x1080 grid.
+    Vec2 bounds_min{0.0f};
+    Vec2 bounds_max{0.0f};
 };
 
 struct PreparedStrokeContour {

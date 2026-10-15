@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <chronon3d/animation/animation_property_kind.hpp>
@@ -40,6 +41,11 @@ struct AnimationTrackProgram {
     std::uint32_t keyframe_count{0};
     AnimationProperty property_kind{AnimationProperty::Unknown};
     std::string easing{"linear"};
+    // Cubic-bezier timing for easing="bezier", copied from the authored
+    // track. Samplers build the identical EasingCurve from these fields so
+    // scene-side and program-side evaluation cannot diverge.
+    std::array<float, 4> bezier{0.25f, 0.1f, 0.25f, 1.0f};
+    bool has_bezier{false};
 };
 
 struct CurveKeyframeProgram {

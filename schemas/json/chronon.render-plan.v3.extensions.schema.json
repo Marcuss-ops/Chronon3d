@@ -1228,10 +1228,15 @@
             "camera_rotation_x",
             "camera_rotation_y",
             "camera_rotation_z",
+            "camera_target_x",
+            "camera_target_y",
+            "camera_target_z",
             "camera_fov_deg",
             "camera_zoom",
+            "camera_focal_length_mm",
             "camera_focus_distance",
             "camera_aperture",
+            "camera_f_stop",
             "camera_max_blur"
           ]
         },

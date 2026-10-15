@@ -76,6 +76,8 @@ bool source_is_time_dependent(const CameraSourceSpec& source) {
                pts->target.is_time_dependent() ||
                pts->zoom.is_time_dependent() ||
                pts->fov_deg.is_time_dependent() ||
+               pts->focal_length_mm.is_time_dependent() ||
+               pts->f_stop.is_time_dependent() ||
                pts->focus_distance.is_time_dependent() ||
                pts->aperture.is_time_dependent() ||
                pts->max_blur.is_time_dependent();
@@ -142,12 +144,16 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
                       src.target.is_time_dependent() ||
                       src.zoom.is_time_dependent() ||
                       src.fov_deg.is_time_dependent() ||
+                      src.focal_length_mm.is_time_dependent() ||
+                      src.f_stop.is_time_dependent() ||
                       src.focus_distance.is_time_dependent() ||
                       src.aperture.is_time_dependent() ||
                       src.max_blur.is_time_dependent();
     for (const auto& component : src.position_components)
         cam.is_animated = cam.is_animated || (component && component->is_time_dependent());
     for (const auto& component : src.rotation_components)
+        cam.is_animated = cam.is_animated || (component && component->is_time_dependent());
+    for (const auto& component : src.target_components)
         cam.is_animated = cam.is_animated || (component && component->is_time_dependent());
 
     cam.position = src.position.evaluate(ctx.sample_time);
@@ -167,7 +173,16 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     cam.point_of_interest = src.use_target
         ? src.target.evaluate(ctx.sample_time)
         : base.point_of_interest;
-    cam.point_of_interest_enabled = src.use_target || base.point_of_interest_enabled;
+    bool target_animated = false;
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+        if (src.target_components[axis]) {
+            cam.point_of_interest[static_cast<int>(axis)] =
+                src.target_components[axis]->evaluate(ctx.sample_time);
+            target_animated = true;
+        }
+    }
+    cam.point_of_interest_enabled = src.use_target || base.point_of_interest_enabled ||
+        target_animated;
 
     apply_projection_spec(base.projection, ctx, cam);
     std::visit([&](auto&& p) {
@@ -209,6 +224,26 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
         cam.dof.aperture = src.aperture.evaluate(ctx.sample_time);
     if (src.max_blur.is_time_dependent())
         cam.dof.max_blur = src.max_blur.evaluate(ctx.sample_time);
+    // AE lens channels. A time-dependent focal length re-seats the physical
+    // lens and re-derives the vertical field of view from the gate, so a
+    // focal pull animates exactly like re-seating the static lens per frame.
+    // A time-dependent f-stop re-seats the physical aperture and, when the
+    // physical DOF model is active, the apertures the DOF path consumes.
+    if (src.focal_length_mm.is_time_dependent()) {
+        const float focal = src.focal_length_mm.evaluate(ctx.sample_time);
+        if (focal > 0.0f && cam.lens.sensor_height > 0.0f) {
+            cam.lens.focal_length = focal;
+            cam.fov_deg = 2.0f * std::atan(cam.lens.sensor_height / (2.0f * focal)) *
+                          180.0f / 3.141592653589793f;
+        }
+    }
+    if (src.f_stop.is_time_dependent()) {
+        const float fstop = src.f_stop.evaluate(ctx.sample_time);
+        // The physical DOF path reads the aperture from cam.lens.f_stop,
+        // so re-seating the lens aperture is the whole bridge.
+        if (fstop > 0.0f)
+            cam.lens.f_stop = fstop;
+    }
 
     return cam;
 }

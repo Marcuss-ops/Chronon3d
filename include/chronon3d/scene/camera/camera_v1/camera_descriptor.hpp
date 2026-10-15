@@ -182,6 +182,10 @@ struct StaticCameraSource {};
 struct PoseTracksSource {
     AnimatedValue<Vec3> position{Vec3{0.0f, 0.0f, -1000.0f}};
     AnimatedValue<Vec3> rotation{Vec3{0.0f, 0.0f, 0.0f}};
+    // Render-plan scalar channels must stay independent (same duplicate-frame
+    // hazard documented on position_components below): one Vec3 AnimatedValue
+    // cannot hold X, Y and Z keys authored at the same frame.
+    std::array<std::optional<AnimatedValue<float>>, 3> target_components{};
     // Render-plan scalar channels must stay independent. Appending X, Y and Z
     // keyframes to one Vec3 AnimatedValue creates duplicate-frame keys whose
     // untouched components overwrite each other and can snap on the final frame.
@@ -191,6 +195,12 @@ struct PoseTracksSource {
 
     AnimatedValue<float> zoom{AnimatedValue<float>{1000.0f}};
     AnimatedValue<float> fov_deg{AnimatedValue<float>{50.0f}};
+
+    // AE lens channels. 0 means "not authored": the base projection/lens
+    // wins. focal_length_mm is millimetres on the base lens gate;
+    // f_stop is the physical aperture as f/N.
+    AnimatedValue<float> focal_length_mm{AnimatedValue<float>{0.0f}};
+    AnimatedValue<float> f_stop{AnimatedValue<float>{0.0f}};
 
     // DOF channels — animated depth of field.
     // When a channel has no keyframes, eval_pose_tracks() falls back to
