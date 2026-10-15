@@ -64,6 +64,57 @@ void lower_animation(const render_plan::RenderPlan& plan, CompiledProgramData& o
             const auto first_track = static_cast<std::uint32_t>(out.animation_tracks.size());
             if (layer.animation) {
                 for (const auto& track : layer.animation->tracks) {
+                    // Vector tracks ("position" / "rotation" with 3 floats
+                    // per keyframe) are split into scalar component tracks so
+                    // every consumer (typed sampler, scene transfer, temporal
+                    // analysis) shares one scalar evaluation path. Component
+                    // names use the dotted absolute spelling.
+                    const auto vector_kind =
+                        chronon3d::animation_property_kind(track.property);
+                    const bool is_vector_track =
+                        vector_kind == chronon3d::AnimationPropertyKind::PositionVector ||
+                        vector_kind == chronon3d::AnimationPropertyKind::RotationVector;
+                    if (is_vector_track) {
+                        const char* component_names[3] = {nullptr, nullptr, nullptr};
+                        if (vector_kind == chronon3d::AnimationPropertyKind::PositionVector) {
+                            component_names[0] = "position.x";
+                            component_names[1] = "position.y";
+                            component_names[2] = "position.z";
+                        } else {
+                            component_names[0] = "rotation.x";
+                            component_names[1] = "rotation.y";
+                            component_names[2] = "rotation.z";
+                        }
+                        for (const auto& keyframe : track.keyframes) {
+                            if (keyframe.value.size() != 3)
+                                throw std::runtime_error(
+                                    "animation property '" + track.property +
+                                    "' requires 3-float keyframe values");
+                        }
+                        for (int component = 0; component < 3; ++component) {
+                            const auto first_keyframe = static_cast<std::uint32_t>(
+                                out.curve_keyframes.size());
+                            for (const auto& keyframe : track.keyframes) {
+                                out.curve_keyframes.push_back(
+                                    {keyframe.frame.integral(),
+                                     keyframe.value[static_cast<std::size_t>(component)]});
+                            }
+                            out.animation_tracks.push_back({
+                                static_cast<std::uint32_t>(out.animation_tracks.size()),
+                                component_names[component],
+                                first_keyframe,
+                                static_cast<std::uint32_t>(
+                                    out.curve_keyframes.size() - first_keyframe)});
+                            auto& stored = out.animation_tracks.back();
+                            stored.property_kind = property_kind(stored.property);
+                            stored.easing = track.easing;
+                            if (track.bezier_curve) {
+                                stored.bezier = *track.bezier_curve;
+                                stored.has_bezier = true;
+                            }
+                        }
+                        continue;
+                    }
                     const auto first_keyframe = static_cast<std::uint32_t>(out.curve_keyframes.size());
                     for (const auto& keyframe : track.keyframes) {
                         for (const float value : keyframe.value) {
@@ -77,6 +128,10 @@ void lower_animation(const render_plan::RenderPlan& plan, CompiledProgramData& o
                         static_cast<std::uint32_t>(out.curve_keyframes.size() - first_keyframe)});
                     out.animation_tracks.back().property_kind = property_kind(track.property);
                     out.animation_tracks.back().easing = track.easing;
+                    if (track.bezier_curve) {
+                        out.animation_tracks.back().bezier = *track.bezier_curve;
+                        out.animation_tracks.back().has_bezier = true;
+                    }
                 }
             }
             if (layer.time_remap && layer.time_remap->animation) {

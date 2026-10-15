@@ -25,13 +25,15 @@ CompiledConstraintResult apply_constraint_spec(
         if (session.skip_look_at_constraint_from_orientation) {
             return {in, true};
         }
+        // LookAt owns ONLY the aim target (POI) — never cam.rotation.
+        // The aim is applied downstream by the TwoNode view-matrix
+        // composition; writing it here too used to double-apply it
+        // (mirrored x-axis on screen).  cam.rotation keeps carrying
+        // only authorial/local offsets (base keys + modifier offsets).
         Vec3 look_dir = look_at->target - in.position;
         float len = glm::length(look_dir);
         if (len > 1e-4f) {
             Camera2_5D cam = in;
-            look_dir = look_dir / len;
-            const Quat orientation = quat_look_along(look_dir);
-            cam.rotation = quat_to_camera_euler(orientation, cam.rotation.z);
             cam.point_of_interest = look_at->target;
             cam.point_of_interest_enabled = true;
             return {cam, true};

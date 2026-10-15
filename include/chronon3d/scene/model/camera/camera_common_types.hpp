@@ -42,6 +42,13 @@ struct DepthOfFieldSettings {
     // Near / far bokeh separation (for future iris shape rendering).
     f32   near_bokeh_radius{0.0f};
     f32   far_bokeh_radius{0.0f};
+
+    // AE-style iris shaping. 0 blades means circular (no blade shaping);
+    // highlight_gain boosts bokeh highlights (0 = disabled).
+    // Carried through the descriptor so a future Vulkan iris renderer can
+    // consume them; the current software path still clamps by max_blur.
+    int   iris_blades{0};
+    f32   highlight_gain{0.0f};
 };
 
 } // namespace chronon3d

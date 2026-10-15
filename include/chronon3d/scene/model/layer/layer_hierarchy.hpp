@@ -30,12 +30,15 @@ Vec3 world_anchor_point(const Transform& world_transform, const Mat4& world_matr
 
 std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
     const std::pmr::vector<Layer>& layers,
-    /// Reserved for future per-frame filtering.  Currently all nodes are
-    /// resolved regardless of whether they're active at the frame, so the
-    /// hierarchy of inactive parents still contributes correct world
-    /// transforms to their active children.
-    [[maybe_unused]] Frame frame,
-    std::pmr::memory_resource* res
+    /// Frame being resolved.  Layer anim_transform tracks (when
+    /// time-dependent) are evaluated at this frame so per-frame motion
+    /// reaches world matrices; static layers keep their baked transform.
+    Frame frame,
+    std::pmr::memory_resource* res,
+    /// Frame rate for time-based animation evaluation (expressions,
+    /// quaternion tracks).  Plain keyframe tracks are frame-indexed and
+    /// insensitive to this value.
+    double fps = 30.0
 );
 
 ResolvedCamera resolve_camera_hierarchy(

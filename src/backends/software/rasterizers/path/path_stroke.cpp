@@ -242,6 +242,16 @@ std::vector<detail::PreparedStrokeContour> prepare_stroke_contours(
                 ? 0.0f : prepared.cumulative_lengths.back();
             prepared.repeated_start = repeated_start;
             prepared.unique_count = unique_count;
+            // PR6: screen-space AABB of this sub-path, consumed by the
+            // per-pixel early-out in draw_path().
+            prepared.bounds_min = prepared.points.front();
+            prepared.bounds_max = prepared.points.front();
+            for (const auto& point : prepared.points) {
+                prepared.bounds_min.x = std::min(prepared.bounds_min.x, point.x);
+                prepared.bounds_min.y = std::min(prepared.bounds_min.y, point.y);
+                prepared.bounds_max.x = std::max(prepared.bounds_max.x, point.x);
+                prepared.bounds_max.y = std::max(prepared.bounds_max.y, point.y);
+            }
             prep.visible_subpaths.push_back(std::move(prepared));
         }
 

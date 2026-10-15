@@ -1,6 +1,8 @@
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 
+#include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/scene/model/core/transition.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -39,7 +41,18 @@ float sample_track(const CompiledProgram& program,
     const auto t = span == 0.0f
         ? 0.0f
         : static_cast<float>(frame_number - static_cast<double>(left.frame)) / span;
-    return left.value + (right.value - left.value) * t;
+    // Authored easing runs here so program sampling matches the legacy
+    // render-plan compiler (keyframe_easing/track_easing). "bezier" always
+    // carries its curve (the decoder rejects a bare bezier); unknown names
+    // fall back to linear via string_to_easing.
+    EasingCurve curve{Easing::Linear};
+    if (track.has_bezier) {
+        curve = EasingCurve::cubic_bezier(track.bezier[0], track.bezier[1],
+                                          track.bezier[2], track.bezier[3]);
+    } else if (!track.easing.empty() && track.easing != "linear") {
+        curve = EasingCurve{string_to_easing(track.easing)};
+    }
+    return left.value + (right.value - left.value) * curve.apply(t);
 }
 
 }  // namespace

@@ -11,6 +11,10 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
+
+#include <cmath>
+#include <cstdint>
 
 namespace chronon3d {
 
@@ -43,7 +47,8 @@ Vec3 world_anchor_point(const Transform& world_transform, const Mat4& world_matr
 std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
     const std::pmr::vector<Layer>& layers,
     Frame frame,
-    std::pmr::memory_resource* res
+    std::pmr::memory_resource* res,
+    double fps
 ) {
     std::pmr::vector<ResolvedLayer> out(res);
     if (layers.empty()) return out;
@@ -74,6 +79,16 @@ std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
         return out;
     }
 
+    // Frame rate for time-based animation evaluation.  Plain keyframe
+    // tracks are frame-indexed; the rate only matters for expressions and
+    // time-based drivers carried by the animated transform.
+    FrameRate eval_rate{30, 1};
+    if (fps > 0.0 && std::isfinite(fps))
+        eval_rate = FrameRate{static_cast<std::int32_t>(std::lround(fps)), 1};
+    const SampleTime eval_time =
+        SampleTime::from_frame(static_cast<double>(frame.integral()), eval_rate);
+    const double eval_frame = static_cast<double>(frame.integral());
+
     // Build node views
     std::vector<HierarchyNodeView> views;
     views.reserve(layers.size());
@@ -81,8 +96,24 @@ std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
         const auto& layer = layers[i];
         HierarchyNodeView v;
         v.id = i;
-        v.local_matrix = layer.transform.to_mat4();
-        v.local_opacity = layer.transform.opacity;
+        // Time-dependent animated transforms are evaluated at the requested
+        // frame so authored motion reaches world matrices.  Only the
+        // position/rotation/scale/opacity components are taken from the
+        // evaluation: anchor/skew/blur stay on their static values so a
+        // default-valued animation can never zero authored placement.
+        // Static layers keep the exact historical behaviour below.
+        if (layer.anim_transform.is_time_dependent()) {
+            Transform animated = layer.transform;
+            animated.position = layer.anim_transform.position.evaluate(eval_frame);
+            animated.rotation = layer.anim_transform.resolve_rotation(eval_time);
+            animated.scale = layer.anim_transform.scale.evaluate(eval_frame);
+            animated.opacity = layer.anim_transform.opacity.evaluate(eval_frame);
+            v.local_matrix = animated.to_mat4();
+            v.local_opacity = animated.opacity;
+        } else {
+            v.local_matrix = layer.transform.to_mat4();
+            v.local_opacity = layer.transform.opacity;
+        }
 
         if (!layer.parent_name.empty()) {
             v.parent_declared = true;

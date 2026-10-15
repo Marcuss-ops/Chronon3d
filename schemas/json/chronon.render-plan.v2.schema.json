@@ -110,19 +110,28 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "type": { "enum": ["perspective", "orthographic"] },
+        "node": { "enum": ["one_node", "two_node"], "description": "After Effects camera rig: one_node aims by rotation only; two_node locks aim on target (point of interest). Defaults to one_node when absent." },
         "position": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
         "rotation_deg": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+        "target": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" }, "description": "Point of interest in world units. Required when node is two_node." },
+        "target_name": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Optional layer whose world position resolves the point of interest." },
         "fov_deg": { "type": "number", "minimum": 10, "maximum": 120 },
         "near": { "type": "number", "exclusiveMinimum": 0 },
         "far": { "type": "number", "exclusiveMinimum": 0 },
         "zoom": { "type": "number", "exclusiveMinimum": 0 },
+        "focal_length_mm": { "type": "number", "minimum": 12, "maximum": 200, "description": "Physical lens preset (AE 24/28/35/50/85mm family on a 36x24mm gate). Author either focal_length_mm or fov_deg; focal wins when both are present." },
+        "f_stop": { "type": "number", "minimum": 0.7, "maximum": 32, "description": "Physical aperture as f/N. Maps to LensModel.f_stop when dof.use_physical_model is true." },
+        "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12, "description": "Iris blade count for bokeh shape. 0 means circular (no blade shaping)." },
         "dof": {
           "type": "object", "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
             "focus_distance": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000 },
             "aperture": { "type": "number", "minimum": 0, "maximum": 1 },
-            "max_blur": { "type": "number", "minimum": 0, "maximum": 256 }
+            "max_blur": { "type": "number", "minimum": 0, "maximum": 256 },
+            "f_stop": { "type": "number", "minimum": 0.7, "maximum": 32 },
+            "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12 },
+            "highlight_gain": { "type": "number", "minimum": 0, "maximum": 8 }
           }
         }
       }
@@ -132,7 +141,7 @@
       "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
       "required": ["property", "keyframes"],
       "properties": {
-          "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_fov_deg", "camera_zoom", "camera_focus_distance", "camera_aperture", "camera_max_blur"] },
+          "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_target_x", "camera_target_y", "camera_target_z", "camera_fov_deg", "camera_zoom", "camera_focal_length_mm", "camera_focus_distance", "camera_aperture", "camera_f_stop", "camera_max_blur"] },
         "easing": { "$ref": "#/$defs/easing" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
         "keyframes": { "$ref": "#/$defs/keyframe_list" }

@@ -83,12 +83,13 @@ CameraDescriptor make_cam01_base_desc(std::string id_str = "cam01.test") {
 //          the math is a pure function of inputs (no global state, no
 //          cross-evaluation bleed-through).
 //   4.B.2  Canonical-order Application: LookAtPoint orientation + HandheldNoise
-//          modifier → final rotation = quat_look_along(target - modified_pos),
-//          where modified_pos = source_pos + wiggle3D_position_offset(t).  This
-//          proves the look-at is derived from the MODIFIED position (post-mods),
-//          not from the source position (pre-mods).
+//          modifier → final rotation = base.rotation + wiggle3D_rotation(t)
+//          (LookAt owns only the POI; the aim is applied downstream by the
+//          TwoNode view composition).  Position is source_pos +
+//          wiggle3D_position_offset(t), proving modifiers run before
+//          orientation in the canonical order.
 //   4.B.3  Single-Look-At Policy: LookAtPoint orientation + LookAtConstraint
-//          → constraint is silently skipped, only orientation rotates.  A
+//          → constraint is silently skipped, orientation owns the POI.  A
 //          Warning diagnostic is recorded.  Final POI is the orientation's
 //          target, never the constraint's target.
 
@@ -98,8 +99,8 @@ TEST_CASE("compiled_orientation_double_application_determinism — "
           "(math is a pure function of inputs, no double-application drift)") {
     auto desc = make_cam01_base_desc("test.t022.det");
     desc.base.position = Vec3{0.0f, 0.0f, -1000.0f};
-    // Off-axis target so any deliberate-bias would surface; LookAtPoint rotates
-    // toward (200, 50, +1500) from a source at (0, 0, -1000).
+    // Off-axis target so any deliberate-bias would surface; LookAtPoint aims
+    // at (200, 50, +1500) from a source at (0, 0, -1000).
     desc.orientation = LookAtPoint{Vec3{200.0f, 50.0f, 1500.0f}};
     desc.source = StaticCameraSource{};
 
@@ -124,15 +125,15 @@ TEST_CASE("compiled_orientation_double_application_determinism — "
 
 TEST_CASE("compiled_orientation_look_at_canonical_rotation_computation — "
           "DOC 02 / TICKET-022: with LookAtPoint orientation + a HandheldNoise "
-          "modifier, the final rotation equals the canonical computation "
-          "`quat_to_camera_euler(quat_look_along(unit(target - (base.position + "
-          "wiggle3D(t, freq, amp, seed))), 0)`.  This verifies the math is "
-          "consistent with computing the look-at from the MODIFIED position.  "
-          "[NOTE: it does NOT by itself catch a regression that re-introduces "
-          "the now-stripped pre-modifier orientation call, because the second "
-          "application (last-call-wins) is also at the modified position.  "
-          "Single-application is enforced by the simplicty of the fix itself "
-          "and by code review of the source evaluator bodies — see the closing "
+          "modifier, the final rotation equals base.rotation + the modifier's "
+          "rotation wiggle `wiggle3D(rot_freq, rot_amp, t, seed+50)`.  LookAt "
+          "owns ONLY the aim target (POI) — the aim itself is applied "
+          "downstream by the TwoNode view-matrix composition, so writing it "
+          "into rotation here too used to double-apply it (mirrored x-axis "
+          "on screen).  Position is still source + position wiggle, which "
+          "pins the modifier→orientation order.  [NOTE: single-application "
+          "is enforced by the simplicity of the fix itself and by code "
+          "review of the source evaluator bodies — see the closing "
           "block-comment in camera_program.cpp.]") {
     auto desc = make_cam01_base_desc("test.t022.canon");
     desc.base.position = Vec3{0.0f, 0.0f, -1000.0f};
@@ -157,13 +158,11 @@ TEST_CASE("compiled_orientation_look_at_canonical_rotation_computation — "
     CameraSession session;
     auto cam = eval_at_or_die_cam01(program, session, Frame{0});
 
-    // Independently compute the expected rotation via the canonical order:
-    //   1) source position from descriptor.base
-    //   2) wiggle offset at t=0 (sample_time = 0 seconds for Frame{0} @ 60fps)
-    //   3) compose modified_position = source + wiggle
-    //   4) look_dir = target - modified_position
-    //   5) expected quaternion = quat_look_along(unit(look_dir))
-    //   6) expected camera euler = quat_to_camera_euler(expected, src.rotation.z)
+    // Independently compute the expected state via the canonical order:
+    //   1) source position/rotation from descriptor.base
+    //   2) wiggle offsets at t=0 (sample_time = 0 seconds for Frame{0} @ 60fps)
+    //   3) modified_position = source + pos wiggle; final rotation =
+    //      base.rotation + rot wiggle (LookAt contributes the POI only)
     const float kHz = 4.0f;
     const Vec3 kAmp{2.0f, 1.0f, 0.5f};
     const std::uint32_t kSeed = 42u;
@@ -172,28 +171,25 @@ TEST_CASE("compiled_orientation_look_at_canonical_rotation_computation — "
     const Vec3 expected_modified =
         desc.base.position + expected_offset;
 
-    const Vec3 expected_look_dir_unnorm =
-        Vec3{100.0f, 100.0f, 1500.0f} - expected_modified;
-    const float expected_len = std::sqrt(
-        expected_look_dir_unnorm.x * expected_look_dir_unnorm.x +
-        expected_look_dir_unnorm.y * expected_look_dir_unnorm.y +
-        expected_look_dir_unnorm.z * expected_look_dir_unnorm.z);
-    const Vec3 expected_look_dir =
-        expected_look_dir_unnorm / expected_len;
+    // HandheldNoise rotation wiggle uses seed+50u (see evaluate()):
+    const Vec3 expected_rot =
+        desc.base.rotation +
+        wiggle3D(/*freq_hz=*/3.0f, Vec3{0.5f, 0.3f, 0.2f},
+                 /*t_sec=*/0.0f, kSeed + 50u);
 
-    const Quat expected_quat = quat_look_along(expected_look_dir);
-    const Vec3 expected_rot_euler =
-        quat_to_camera_euler(expected_quat, /*preserved_roll=*/0.0f);
+    // The aim target is recorded on the POI (applied downstream by the
+    // TwoNode view composition), never baked into rotation.
+    CHECK(cam.point_of_interest_enabled);
+    CHECK(cam.point_of_interest.x == doctest::Approx(100.0f).epsilon(kCam01Eps));
+    CHECK(cam.point_of_interest.y == doctest::Approx(100.0f).epsilon(kCam01Eps));
+    CHECK(cam.point_of_interest.z == doctest::Approx(1500.0f).epsilon(kCam01Eps));
 
     CAPTURE(cam.rotation.x); CAPTURE(cam.rotation.y); CAPTURE(cam.rotation.z);
-    CAPTURE(expected_rot_euler.x); CAPTURE(expected_rot_euler.y); CAPTURE(expected_rot_euler.z);
+    CAPTURE(expected_rot.x); CAPTURE(expected_rot.y); CAPTURE(expected_rot.z);
     CAPTURE(cam.position.x); CAPTURE(cam.position.y); CAPTURE(cam.position.z);
-    // Tolerance widened to 0.05° — wiggle3D output near a gimbal-lock axis can
-    // amplify float drift in quat_to_camera_euler even when both sides share the
-    // same wiggle3D call.
-    CHECK(cam.rotation.x == doctest::Approx(expected_rot_euler.x).epsilon(0.05f));
-    CHECK(cam.rotation.y == doctest::Approx(expected_rot_euler.y).epsilon(0.05f));
-    CHECK(cam.rotation.z == doctest::Approx(expected_rot_euler.z).epsilon(0.05f));
+    CHECK(cam.rotation.x == doctest::Approx(expected_rot.x).epsilon(1e-4f));
+    CHECK(cam.rotation.y == doctest::Approx(expected_rot.y).epsilon(1e-4f));
+    CHECK(cam.rotation.z == doctest::Approx(expected_rot.z).epsilon(1e-4f));
 
     // Belt-and-braces: cam.position is post-mods (source + wiggle).  Verify
     // so any future regression that re-orders modifier→orientation would
@@ -247,9 +243,7 @@ TEST_CASE("compiled_orientation_single_look_at_constraint_skipped — "
     }
     CHECK(found_single_look_at_msg);
 
-    // Rotation sanity: rotation is non-trivial (off-axis look-at).
-    const float rot_l2 = std::sqrt(res->camera.rotation.x * res->camera.rotation.x
-                                   + res->camera.rotation.y * res->camera.rotation.y
-                                   + res->camera.rotation.z * res->camera.rotation.z);
-    CHECK(rot_l2 > 0.5f);  // degrees — matches §4 floor.
+    // Rotation sanity: LookAt never writes rotation — it must still be the
+    // descriptor base (identity here).  The orientation "wins" by owning
+    // the POI (asserted above), not by rotating.
 }

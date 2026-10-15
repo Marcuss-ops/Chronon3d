@@ -204,10 +204,15 @@ CameraPropertyPlan camera_property(const std::string& value) {
         std::pair{"camera_rotation_x"sv, CameraPropertyPlan::RotationX},
         std::pair{"camera_rotation_y"sv, CameraPropertyPlan::RotationY},
         std::pair{"camera_rotation_z"sv, CameraPropertyPlan::RotationZ},
+        std::pair{"camera_target_x"sv, CameraPropertyPlan::TargetX},
+        std::pair{"camera_target_y"sv, CameraPropertyPlan::TargetY},
+        std::pair{"camera_target_z"sv, CameraPropertyPlan::TargetZ},
         std::pair{"camera_fov_deg"sv, CameraPropertyPlan::FovDeg},
         std::pair{"camera_zoom"sv, CameraPropertyPlan::Zoom},
+        std::pair{"camera_focal_length_mm"sv, CameraPropertyPlan::FocalLengthMM},
         std::pair{"camera_focus_distance"sv, CameraPropertyPlan::FocusDistance},
         std::pair{"camera_aperture"sv, CameraPropertyPlan::Aperture},
+        std::pair{"camera_f_stop"sv, CameraPropertyPlan::FStop},
         std::pair{"camera_max_blur"sv, CameraPropertyPlan::MaxBlur},
     };
     return enum_from_string(value, kValues, "unsupported camera animation property: ");
@@ -227,10 +232,18 @@ CameraPlan decode_camera(const nlohmann::json& value) {
     };
     read_vec3(value, "position", camera.position);
     read_vec3(value, "rotation_deg", camera.rotation_deg);
+    read_vec3(value, "target", camera.target);
+    camera.node = value.value("node", std::string{"one_node"});
+    if (camera.node != "one_node" && camera.node != "two_node")
+        throw std::runtime_error("camera.node must be one_node or two_node: " + camera.node);
+    camera.target_name = value.value("target_name", std::string{});
     camera.fov_deg = value.value("fov_deg", 50.0f);
     camera.near = value.value("near", 1.0f);
     camera.far = value.value("far", 10000.0f);
     camera.zoom = value.value("zoom", 1.0f);
+    camera.focal_length_mm = value.value("focal_length_mm", 0.0f);
+    camera.f_stop = value.value("f_stop", 0.0f);
+    camera.iris_blades = value.value("iris_blades", 0);
     if (value.contains("dof")) {
         const auto& raw_dof = value.at("dof");
         if (!raw_dof.is_object())
@@ -239,13 +252,36 @@ CameraPlan decode_camera(const nlohmann::json& value) {
         camera.dof_focus_distance = raw_dof.value("focus_distance", camera.dof_focus_distance);
         camera.dof_aperture = raw_dof.value("aperture", camera.dof_aperture);
         camera.dof_max_blur = raw_dof.value("max_blur", camera.dof_max_blur);
+        camera.dof_f_stop = raw_dof.value("f_stop", camera.dof_f_stop);
+        camera.dof_iris_blades = raw_dof.value("iris_blades", camera.dof_iris_blades);
+        camera.dof_highlight_gain = raw_dof.value("highlight_gain", camera.dof_highlight_gain);
         if (!std::isfinite(camera.dof_focus_distance) || camera.dof_focus_distance <= 0.0f ||
             camera.dof_focus_distance > 10000000.0f ||
             !std::isfinite(camera.dof_aperture) || camera.dof_aperture < 0.0f ||
             camera.dof_aperture > 1.0f || !std::isfinite(camera.dof_max_blur) ||
             camera.dof_max_blur < 0.0f || camera.dof_max_blur > 256.0f)
             throw std::runtime_error("camera.dof values are outside supported bounds");
+        if (!std::isfinite(camera.dof_f_stop) || camera.dof_f_stop < 0.0f ||
+            (camera.dof_f_stop != 0.0f && (camera.dof_f_stop < 0.7f || camera.dof_f_stop > 32.0f)))
+            throw std::runtime_error("camera.dof.f_stop must be 0 (not authored) or in [0.7, 32]");
+        if (camera.dof_iris_blades < 0 || camera.dof_iris_blades > 12)
+            throw std::runtime_error("camera.dof.iris_blades must be in [0, 12]");
+        if (!std::isfinite(camera.dof_highlight_gain) || camera.dof_highlight_gain < 0.0f ||
+            camera.dof_highlight_gain > 8.0f)
+            throw std::runtime_error("camera.dof.highlight_gain must be in [0, 8]");
     }
+    if (camera.node == "two_node" && camera.target_name.empty() &&
+        camera.target[0] == 0.0f && camera.target[1] == 0.0f && camera.target[2] == 0.0f &&
+        camera.position[0] == 0.0f && camera.position[1] == 0.0f && camera.position[2] == 0.0f)
+        throw std::runtime_error("camera.node two_node requires a target or target_name distinct from a degenerate origin aim");
+    if (!std::isfinite(camera.focal_length_mm) || camera.focal_length_mm < 0.0f ||
+        (camera.focal_length_mm != 0.0f && (camera.focal_length_mm < 12.0f || camera.focal_length_mm > 200.0f)))
+        throw std::runtime_error("camera.focal_length_mm must be 0 (not authored) or in [12, 200]");
+    if (!std::isfinite(camera.f_stop) || camera.f_stop < 0.0f ||
+        (camera.f_stop != 0.0f && (camera.f_stop < 0.7f || camera.f_stop > 32.0f)))
+        throw std::runtime_error("camera.f_stop must be 0 (not authored) or in [0.7, 32]");
+    if (camera.iris_blades < 0 || camera.iris_blades > 12)
+        throw std::runtime_error("camera.iris_blades must be in [0, 12]");
     if (!std::isfinite(camera.fov_deg) || camera.fov_deg < 10.0f || camera.fov_deg > 120.0f)
         throw std::runtime_error("camera.fov_deg must be finite and in [10, 120]");
     if (!std::isfinite(camera.near) || camera.near <= 0.0f)
@@ -307,6 +343,12 @@ std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value) {
             if (track.property == CameraPropertyPlan::Aperture &&
                 (scalar < 0.0f || scalar > 1.0f))
                 throw std::runtime_error("camera_aperture values must be in [0, 1]");
+            if (track.property == CameraPropertyPlan::FocalLengthMM &&
+                (scalar < 12.0f || scalar > 200.0f))
+                throw std::runtime_error("camera_focal_length_mm values must be in [12, 200]");
+            if (track.property == CameraPropertyPlan::FStop &&
+                (scalar < 0.7f || scalar > 32.0f))
+                throw std::runtime_error("camera_f_stop values must be in [0.7, 32]");
             if (track.property == CameraPropertyPlan::MaxBlur &&
                 (scalar < 0.0f || scalar > 256.0f))
                 throw std::runtime_error("camera_max_blur values must be in [0, 256]");

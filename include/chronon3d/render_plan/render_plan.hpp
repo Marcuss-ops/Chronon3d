@@ -420,16 +420,33 @@ struct TimeRemapPlan {
 // the canonical [tilt_x, pan_y, roll_z] order consumed by Camera2_5D.
 struct CameraPlan {
     std::string type{"perspective"};
+    // AE rig: "one_node" aims by rotation only; "two_node" locks aim on
+    // target (point of interest). Decoded from camera.node.
+    std::string node{"one_node"};
     std::array<float, 3> position{0.0f, 0.0f, -1000.0f};
     std::array<float, 3> rotation_deg{0.0f, 0.0f, 0.0f};
+    // Point of interest in world units. Meaningful when node == "two_node".
+    std::array<float, 3> target{0.0f, 0.0f, 0.0f};
+    // Optional layer whose world position resolves the point of interest.
+    std::string target_name;
     float fov_deg{50.0f};
     float near{1.0f};
     float far{10000.0f};
     float zoom{1.0f};
+    // Physical lens (AE 24/28/35/50/85mm family on a 36x24mm gate).
+    // focal_length_mm == 0 means "not authored": fov_deg wins.
+    float focal_length_mm{0.0f};
+    // Physical aperture as f/N. f_stop == 0 means "not authored".
+    float f_stop{0.0f};
+    // Iris blade count for bokeh shape. 0 means circular.
+    int iris_blades{0};
     bool dof_enabled{false};
     float dof_focus_distance{1000.0f};
     float dof_aperture{0.015f};
     float dof_max_blur{24.0f};
+    float dof_f_stop{0.0f};
+    int dof_iris_blades{0};
+    float dof_highlight_gain{0.0f};
 };
 
 struct CameraShakePlan {
@@ -445,7 +462,8 @@ struct CameraShakePlan {
 enum class CameraPropertyPlan : std::uint8_t {
     PositionX, PositionY, PositionZ,
     RotationX, RotationY, RotationZ,
-    FovDeg, Zoom, FocusDistance, Aperture, MaxBlur
+    TargetX, TargetY, TargetZ,
+    FovDeg, Zoom, FocalLengthMM, FocusDistance, Aperture, FStop, MaxBlur
 };
 
 struct CameraTrackPlan {
