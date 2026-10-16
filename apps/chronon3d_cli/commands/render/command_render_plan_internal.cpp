@@ -205,6 +205,8 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         options.input = normalized_job.plan_path.string();
         options.assets_root = normalized_job.assets_root.string();
         options.prepared_package = normalized_job.prepared_package_path.string();
+        options.require_video_compatibility_view =
+            video_sink_name_selects_video_lane(normalized_job.output.sink_type);
         auto preparation = prepare_render_plan(options);
         if (!preparation) {
             spdlog::error("Render plan preparation failed: {}",

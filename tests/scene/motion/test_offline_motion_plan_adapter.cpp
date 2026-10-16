@@ -629,25 +629,26 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     REQUIRE(dofCameraPlan.camera.has_value());
     CHECK(dofCameraPlan.camera->dof_enabled);
     CHECK(dofCameraPlan.camera->dof_aperture == doctest::Approx(0.035f));
-    CHECK(dofCameraPlan.camera->dof_focus_distance == doctest::Approx(425.f));
+    // Camera sits at z=-8 looking -Z, so the focal distance 425 maps to world plane 433.
+    CHECK(dofCameraPlan.camera->dof_focus_distance == doctest::Approx(433.f));
     CHECK_MESSAGE(canonicallyValid(dofCameraPlan), canonicalDiagnostic(dofCameraPlan));
     const Json emittedDof = Json::parse(renderPlanToJson(dofCameraPlan));
     REQUIRE(emittedDof["camera"].contains("dof"));
     CHECK(emittedDof["camera"]["dof"]["enabled"] == true);
     CHECK(emittedDof["camera"]["dof"]["aperture"] == doctest::Approx(0.035f));
-    CHECK(emittedDof["camera"]["dof"]["focus_distance"] == doctest::Approx(425.f));
+    CHECK(emittedDof["camera"]["dof"]["focus_distance"] == doctest::Approx(433.f));
     const auto decodedDof = chronon3d::render_plan::decode_render_plan(emittedDof);
     REQUIRE(decodedDof);
     REQUIRE(decodedDof->camera.has_value());
     CHECK(decodedDof->camera->dof_enabled);
     CHECK(decodedDof->camera->dof_aperture == doctest::Approx(0.035f));
-    CHECK(decodedDof->camera->dof_focus_distance == doctest::Approx(425.f));
+    CHECK(decodedDof->camera->dof_focus_distance == doctest::Approx(433.f));
     const auto cameraDescriptor = chronon3d::render_plan::detail::make_camera_descriptor(*decodedDof);
     REQUIRE(cameraDescriptor.has_value());
     CHECK(cameraDescriptor->base.dof.enabled);
     CHECK(cameraDescriptor->base.dof.aperture == doctest::Approx(0.035f));
-    CHECK(cameraDescriptor->base.dof.focus_distance == doctest::Approx(425.f));
-    CHECK(cameraDescriptor->base.dof.focus_z == doctest::Approx(425.f));
+    CHECK(cameraDescriptor->base.dof.focus_distance == doctest::Approx(433.f));
+    CHECK(cameraDescriptor->base.dof.focus_z == doctest::Approx(433.f));
     CHECK(cameraDescriptor->base.dof.max_blur == doctest::Approx(24.f));
 
 }
@@ -727,7 +728,13 @@ TEST_CASE("ChrononMotion baked SVG paths lower to a schema-valid V3 shape plan")
     CHECK_FALSE(plan.layers[0].animation.has_value());
     REQUIRE(plan.layers[0].shape.has_value());
     CHECK(plan.layers[0].shape->path.size() == 3);
-    CHECK_FALSE(renderPlanEmissionProblem(plan).empty()); // The Motion writer does not emit shape content.
+    // Plain V3 path shapes (no operators) are within the writer contract.
+    CHECK(renderPlanEmissionProblem(plan).empty());
+    const Json emittedPath = Json::parse(renderPlanToJson(plan));
+    const auto decodedPath = chronon3d::render_plan::decode_render_plan(emittedPath);
+    REQUIRE(decodedPath);
+    REQUIRE(decodedPath->layers[0].shape.has_value());
+    CHECK(decodedPath->layers[0].shape->path.size() == 3);
 }
 
 TEST_CASE("ChrononMotion lowering refuses transforms the plan cannot represent") {

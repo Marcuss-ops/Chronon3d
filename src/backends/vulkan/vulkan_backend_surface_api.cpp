@@ -239,6 +239,8 @@ void VulkanBackend::retire_frame_transient_surfaces() noexcept {
         // native-output synchronization. The render pipeline calls this only
         // after its readback/encode consumer has finished with the output.
         m_impl->flush_deferred_surface_releases();
+        // Readback has finished: the frame's output pins can now expire.
+        m_impl->surfaces.clear_frame_output_pins();
         m_impl->retire_completed_frame_transient_surfaces();
     }
 #endif

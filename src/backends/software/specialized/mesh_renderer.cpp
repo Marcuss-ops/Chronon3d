@@ -173,8 +173,8 @@ void render_clipped_triangle(
 
 void render_clipped_lit_triangle(
     Framebuffer& fb, const std::array<LitVertex, 3>& triangle,
-    const Mat4& projection, std::span<float> depth_buffer,
-    float near_plane, float far_plane,
+    const ProjectionContext& projection, std::span<float> depth_buffer,
+    float near_plane,
     const rendering::LightContext& light,
     const Material2_5D& source_material,
     const rendering::RimLight* rim,
@@ -183,22 +183,19 @@ void render_clipped_lit_triangle(
     LitStackPolygon polygon;
     for (usize i = 0; i < 3; ++i) polygon.verts[i] = triangle[i];
     polygon.size = 3;
-    if (!clip_lit_polygon(polygon, [near_plane](const ViewVertex& v) { return -near_plane - v.z; })) return;
-    if (!clip_lit_polygon(polygon, [far_plane](const ViewVertex& v) { return v.z + far_plane; })) return;
+    // 2.5D contract: only the near depth clips, matching ProjectionContext.
+    if (!clip_lit_polygon(polygon, [near_plane](const ViewVertex& v) { return v.z - near_plane; })) return;
     if (polygon.size < 3) return;
 
     std::array<Vec3, kMaxClipVerts> projected;
     for (usize i = 0; i < polygon.size; ++i) {
         const auto& vertex = polygon.verts[i];
-        const float depth = -vertex.view_position.z;
+        const float depth = vertex.view_position.z;
         if (!(depth > 0.0f) || !std::isfinite(depth)) return;
-        const Vec4 clip = projection * vertex.view_position;
-        if (!(clip.w > 1e-6f) || !std::isfinite(clip.w)) return;
-        const Vec2 ndc{clip.x / clip.w, clip.y / clip.w};
-        if (!std::isfinite(ndc.x) || !std::isfinite(ndc.y)) return;
-        projected[i] = {(ndc.x + 1.0f) * 0.5f * static_cast<float>(fb.width()),
-                        (1.0f - (ndc.y + 1.0f) * 0.5f) * static_cast<float>(fb.height()),
-                        1.0f / depth};
+        const Vec2 screen = projection.view_to_screen(
+            Vec3{vertex.view_position.x, vertex.view_position.y, depth});
+        if (!std::isfinite(screen.x) || !std::isfinite(screen.y)) return;
+        projected[i] = {screen.x, screen.y, 1.0f / depth};
     }
     const auto sample_roughness = [&](Vec2 uv) {
         if (!roughness_map || roughness_map->decoded_rgba.empty() ||
@@ -343,12 +340,53 @@ void render_mesh_filled(
     }
 }
 
+void render_mesh_filled_projected(
+    Framebuffer& fb, const Mesh& mesh, const Mat4& world,
+    const ProjectionContext& projection, const Color& color,
+    std::span<float> depth_buffer)
+{
+    const auto& vertices = mesh.vertices();
+    const auto& indices = mesh.indices();
+    if (vertices.empty() || indices.size() < 3) return;
+
+    // Camera-space depth is forward-positive (2.5D contract). Clip at the same
+    // near depth ProjectionContext::project_point uses, before the projection.
+    constexpr f32 kNearDepth = 0.1f;
+    for (usize i = 0; i + 2 < indices.size(); i += 3) {
+        const u32 ids[3] = {indices[i], indices[i + 1], indices[i + 2]};
+        if (ids[0] >= vertices.size() || ids[1] >= vertices.size() || ids[2] >= vertices.size()) continue;
+
+        StackPolygon polygon;
+        for (usize corner = 0; corner < 3; ++corner) {
+            const Vec4 w = world * Vec4(vertices[ids[corner]].position, 1.0f);
+            polygon.verts[corner] = projection.view * Vec4(w.x, w.y, w.z, 1.0f);
+        }
+        polygon.size = 3;
+        if (!clip_polygon(polygon, [](const ViewVertex& v) { return v.z - kNearDepth; })) continue;
+        if (polygon.size < 3) continue;
+
+        std::array<Vec3, kMaxClipVerts> projected;
+        usize projected_size = 0;
+        for (usize k = 0; k < polygon.size; ++k) {
+            const ViewVertex& v = polygon.verts[k];
+            const Vec2 screen = projection.view_to_screen(Vec3{v.x, v.y, v.z});
+            if (!std::isfinite(screen.x) || !std::isfinite(screen.y)) { projected_size = 0; break; }
+            projected[projected_size++] = {screen.x, screen.y, 1.0f / v.z};
+        }
+        // Fan triangulation keeps the clipped polygon triangle-based.
+        for (usize k = 1; k + 1 < projected_size; ++k) {
+            Vec3 triangle[3] = {projected[0], projected[k], projected[k + 1]};
+            fill_triangle_perspective(fb, triangle, color, depth_buffer);
+        }
+    }
+}
+
 void render_mesh_filled_lit(
-    Framebuffer& fb, const Mesh& mesh, const Mat4& model,
-    const Mat4& view, const Mat4& proj, const Color& color,
+    Framebuffer& fb, const Mesh& mesh, const Mat4& world,
+    const ProjectionContext& projection, const Color& color,
     std::span<float> depth_buffer, const rendering::LightContext& light,
     const rendering::RimLight& rim, const RenderNode::InlineMeshMaterial& source_material,
-    f32 near_plane, f32 far_plane, f32 roughness_factor,
+    f32 near_plane, f32 roughness_factor,
     f32 metallic_factor, const assets::MeshImage* metallic_roughness)
 {
     const auto& vertices = mesh.vertices();
@@ -370,15 +408,13 @@ void render_mesh_filled_lit(
         base.b *= tint.b;
         base.a *= tint.a;
     }
-    const Mat4 view_model = view * model;
     near_plane = std::max(near_plane, 1e-5f);
-    far_plane = std::max(far_plane, near_plane + 1e-5f);
     for (usize i = 0; i + 2 < indices.size(); i += 3) {
         const u32 ia = indices[i], ib = indices[i + 1], ic = indices[i + 2];
         if (ia >= vertices.size() || ib >= vertices.size() || ic >= vertices.size()) continue;
         const std::array<u32, 3> ids{ia, ib, ic};
         const auto world_position = [&](u32 id) {
-            const Vec4 p = model * Vec4(vertices[id].position, 1.0f);
+            const Vec4 p = world * Vec4(vertices[id].position, 1.0f);
             return std::abs(p.w) > 1e-6f ? Vec3{p.x / p.w, p.y / p.w, p.z / p.w} : Vec3{p};
         };
         const Vec3 p0 = world_position(ia), p1 = world_position(ib), p2 = world_position(ic);
@@ -388,13 +424,13 @@ void render_mesh_filled_lit(
             const u32 id = ids[corner];
             const Vec3 input_normal = vertices[id].normal;
             const Vec3 normal = glm::dot(input_normal, input_normal) > 1e-8f
-                ? rendering::transform_normal(model, input_normal) : face_normal;
+                ? rendering::transform_normal(world, input_normal) : face_normal;
             triangle[corner] = {
-                view_model * Vec4(vertices[id].position, 1.0f),
+                projection.view * Vec4(world_position(id), 1.0f),
                 world_position(id), normal, vertices[id].uv, base};
         }
-        render_clipped_lit_triangle(fb, triangle, proj, depth_buffer,
-            near_plane, far_plane, light, material,
+        render_clipped_lit_triangle(fb, triangle, projection, depth_buffer,
+            near_plane, light, material,
             active_rim.enabled ? &active_rim : nullptr,
             roughness_factor, metallic_factor, metallic_roughness);
     }
