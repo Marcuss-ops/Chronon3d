@@ -45,6 +45,13 @@ graph::RenderOpResult VulkanBackend::run_batched_surface_op(
                 *m_impl, Impl::LockDomain::Submission);
             owns_batch = !m_impl->frame_batch.active;
         }
+        static const bool batch_diag = std::getenv("CHRONON3D_VULKAN_BATCH_DIAG") != nullptr;
+        if (batch_diag) {
+            std::string handles;
+            for (const auto h : touched) handles += std::to_string(h) + " ";
+            spdlog::warn("[vk-batch-diag] op touched=[{}] path={}", handles,
+                         owns_batch ? "legacy-per-op" : "decoupled");
+        }
         if (owns_batch) {
             // Legacy per-op submit path: it drives a full batch transition
             // (begin → record → submit → deferred surface flush), which needs
