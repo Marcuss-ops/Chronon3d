@@ -152,6 +152,7 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
                 const float encoded_r = p[0] / 65535.0f;
                 const float encoded_g = p[1] / 65535.0f;
                 const float encoded_b = p[2] / 65535.0f;
+                const float alpha = p[3] / 65535.0f;
                 const auto decode = [frame](float value) {
                     switch (frame->color_trc) {
                         case AVCOL_TRC_IEC61966_2_1:
@@ -171,14 +172,14 @@ std::shared_ptr<Framebuffer> frame_to_framebuffer(
                             return color::rec709_to_linear_float(value);
                     }
                 };
-                Color linear{decode(encoded_r), decode(encoded_g), decode(encoded_b), 1.0f};
+                Color linear{decode(encoded_r), decode(encoded_g), decode(encoded_b), alpha};
 #ifdef CHRONON3D_ENABLE_OCIO
                 if (ocio_transform != nullptr) {
                     float rgb[3]{encoded_r, encoded_g, encoded_b};
                     if (!ocio_transform->apply_rgb(rgb)) {
-                        linear = {std::numeric_limits<float>::quiet_NaN(), 0, 0, 1};
+                        linear = {std::numeric_limits<float>::quiet_NaN(), 0, 0, alpha};
                     } else {
-                        linear = {rgb[0], rgb[1], rgb[2], 1.0f};
+                        linear = {rgb[0], rgb[1], rgb[2], alpha};
                     }
                 } else
 #endif

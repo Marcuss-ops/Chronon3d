@@ -355,6 +355,22 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
     const auto& tr = m_node.world_transform;
     const f32 opacity = m_opacity_override.value_or(tr.opacity);
 
+    // Image tint alpha and rounded corners can introduce transparency even
+    // when the decoded asset's own alpha channel is fully opaque.
+    if (img.tint.a < 0.999f || img.radius > 0.0f) return false;
+
+    // ImageShape::opacity describes the layer opacity, not the alpha channel
+    // of the decoded asset. Early-exit may discard every lower layer only if
+    // this image is actually opaque. Asset preparation is allowed to happen
+    // after graph construction, so an unavailable cache entry is treated
+    // conservatively and keeps the lower layers in the graph.
+    if (!ctx.image_cache) return false;
+    const auto decoded_image = ctx.image_cache->find(img.path, img.decode_options);
+    if (!decoded_image || !decoded_image->fb_img ||
+        !decoded_image->fb_img->is_opaque()) {
+        return false;
+    }
+
     if (ctx.node_exec.clip_rect) {
         const bool clip_is_full = ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
                                   ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width && ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height;

@@ -1,0 +1,2795 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "family_tree_1p4_v2",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 180
+  },
+  "output": {
+    "path": "family_tree_1p4_v2.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "shape",
+      "size": [
+        1920,
+        1080
+      ],
+      "position": [
+        960.0,
+        540.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 180,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.08235294117647059,
+          0.06666666666666667,
+          0.050980392156862744,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "parent_border",
+      "type": "shape",
+      "size": [
+        302,
+        302
+      ],
+      "position": [
+        960.0,
+        250
+      ],
+      "start_frame": 0,
+      "duration_frames": 180,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.2901960784313726,
+          0.25098039215686274,
+          0.20392156862745098,
+          1.0
+        ],
+        "corner_radius": [
+          17,
+          17,
+          17,
+          17
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.0
+              },
+              {
+                "frame": 16,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 16,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "parent_card",
+      "type": "shape",
+      "size": [
+        300,
+        300
+      ],
+      "position": [
+        960.0,
+        250
+      ],
+      "start_frame": 0,
+      "duration_frames": 180,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.10196078431372549,
+          0.09019607843137255,
+          0.0784313725490196,
+          1.0
+        ],
+        "corner_radius": [
+          16,
+          16,
+          16,
+          16
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.0
+              },
+              {
+                "frame": 16,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 16,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "parent_portrait",
+      "type": "shape",
+      "size": [
+        274,
+        186
+      ],
+      "position": [
+        960.0,
+        207.0
+      ],
+      "start_frame": 0,
+      "duration_frames": 180,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.23137254901960785,
+          0.19607843137254902,
+          0.1607843137254902,
+          1.0
+        ],
+        "corner_radius": [
+          10,
+          10,
+          10,
+          10
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 0.0
+              },
+              {
+                "frame": 16,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 16,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "parent_initials",
+      "type": "text",
+      "size": [
+        300,
+        80
+      ],
+      "position": [
+        960.0,
+        207.0
+      ],
+      "start_frame": 2,
+      "duration_frames": 178,
+      "text": "PD",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 56,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 2,
+                "value": 0.0
+              },
+              {
+                "frame": 18,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 2,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 18,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "parent_name",
+      "type": "text",
+      "size": [
+        280,
+        44
+      ],
+      "position": [
+        960.0,
+        342.0
+      ],
+      "start_frame": 6,
+      "duration_frames": 174,
+      "text": "Padre",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 34,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 6,
+                "value": 0.0
+              },
+              {
+                "frame": 22,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 6,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 22,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "parent_role",
+      "type": "text",
+      "size": [
+        280,
+        32
+      ],
+      "position": [
+        960.0,
+        378.0
+      ],
+      "start_frame": 10,
+      "duration_frames": 170,
+      "text": "Capostipite",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 24,
+        "fill": "#a89c8a"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 10,
+                "value": 0.0
+              },
+              {
+                "frame": 26,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 10,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 26,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "spine",
+      "type": "shape",
+      "size": [
+        2,
+        110
+      ],
+      "position": [
+        960.0,
+        450.0
+      ],
+      "start_frame": 24,
+      "duration_frames": 156,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale_y",
+            "keyframes": [
+              {
+                "frame": 24,
+                "value": 0.0
+              },
+              {
+                "frame": 36,
+                "value": 1.0
+              }
+            ],
+            "easing": "in_out_cubic"
+          },
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 24,
+                "value": 0.0
+              },
+              {
+                "frame": 28,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 10,
+          "intensity": 0.8,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bus",
+      "type": "shape",
+      "size": [
+        1260,
+        2
+      ],
+      "position": [
+        960.0,
+        500
+      ],
+      "start_frame": 36,
+      "duration_frames": 144,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale_x",
+            "keyframes": [
+              {
+                "frame": 36,
+                "value": 0.0
+              },
+              {
+                "frame": 60,
+                "value": 1.0
+              }
+            ],
+            "easing": "in_out_cubic"
+          },
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 36,
+                "value": 0.0
+              },
+              {
+                "frame": 40,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 20,
+          "intensity": 1.2,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "parent_node_dot",
+      "type": "shape",
+      "size": [
+        14,
+        14
+      ],
+      "position": [
+        960.0,
+        500
+      ],
+      "start_frame": 36,
+      "duration_frames": 144,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ],
+        "corner_radius": [
+          7,
+          7,
+          7,
+          7
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 36,
+                "value": 0.0
+              },
+              {
+                "frame": 44,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 36,
+                "value": [
+                  0.5,
+                  0.5,
+                  1.0
+                ]
+              },
+              {
+                "frame": 44,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 16,
+          "intensity": 1.3,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "drop_0",
+      "type": "shape",
+      "size": [
+        2,
+        80
+      ],
+      "position": [
+        330.0,
+        540.0
+      ],
+      "start_frame": 66,
+      "duration_frames": 114,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale_y",
+            "keyframes": [
+              {
+                "frame": 66,
+                "value": 0.0
+              },
+              {
+                "frame": 76,
+                "value": 1.0
+              }
+            ],
+            "easing": "in_out_cubic"
+          },
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 66,
+                "value": 0.0
+              },
+              {
+                "frame": 70,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 10,
+          "intensity": 0.8,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kid0_node_dot",
+      "type": "shape",
+      "size": [
+        14,
+        14
+      ],
+      "position": [
+        330.0,
+        500
+      ],
+      "start_frame": 66,
+      "duration_frames": 114,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ],
+        "corner_radius": [
+          7,
+          7,
+          7,
+          7
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 66,
+                "value": 0.0
+              },
+              {
+                "frame": 74,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 66,
+                "value": [
+                  0.5,
+                  0.5,
+                  1.0
+                ]
+              },
+              {
+                "frame": 74,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 16,
+          "intensity": 1.3,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kid0_border",
+      "type": "shape",
+      "size": [
+        262,
+        242
+      ],
+      "position": [
+        330.0,
+        700
+      ],
+      "start_frame": 74,
+      "duration_frames": 106,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.2901960784313726,
+          0.25098039215686274,
+          0.20392156862745098,
+          1.0
+        ],
+        "corner_radius": [
+          17,
+          17,
+          17,
+          17
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 74,
+                "value": 0.0
+              },
+              {
+                "frame": 90,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 74,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 90,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid0_card",
+      "type": "shape",
+      "size": [
+        260,
+        240
+      ],
+      "position": [
+        330.0,
+        700
+      ],
+      "start_frame": 74,
+      "duration_frames": 106,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.10196078431372549,
+          0.09019607843137255,
+          0.0784313725490196,
+          1.0
+        ],
+        "corner_radius": [
+          16,
+          16,
+          16,
+          16
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 74,
+                "value": 0.0
+              },
+              {
+                "frame": 90,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 74,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 90,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid0_portrait",
+      "type": "shape",
+      "size": [
+        234,
+        148
+      ],
+      "position": [
+        330.0,
+        668.0
+      ],
+      "start_frame": 74,
+      "duration_frames": 106,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.23137254901960785,
+          0.19607843137254902,
+          0.1607843137254902,
+          1.0
+        ],
+        "corner_radius": [
+          10,
+          10,
+          10,
+          10
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 74,
+                "value": 0.0
+              },
+              {
+                "frame": 90,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 74,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 90,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid0_initials",
+      "type": "text",
+      "size": [
+        260,
+        80
+      ],
+      "position": [
+        330.0,
+        668.0
+      ],
+      "start_frame": 76,
+      "duration_frames": 104,
+      "text": "F1",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 56,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 76,
+                "value": 0.0
+              },
+              {
+                "frame": 92,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 76,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 92,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid0_name",
+      "type": "text",
+      "size": [
+        240,
+        44
+      ],
+      "position": [
+        330.0,
+        762.0
+      ],
+      "start_frame": 80,
+      "duration_frames": 100,
+      "text": "Figlio 1",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 34,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 80,
+                "value": 0.0
+              },
+              {
+                "frame": 96,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 80,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 96,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid0_role",
+      "type": "text",
+      "size": [
+        240,
+        32
+      ],
+      "position": [
+        330.0,
+        798.0
+      ],
+      "start_frame": 84,
+      "duration_frames": 96,
+      "text": "Figlio",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 24,
+        "fill": "#a89c8a"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 84,
+                "value": 0.0
+              },
+              {
+                "frame": 100,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 84,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 100,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "drop_1",
+      "type": "shape",
+      "size": [
+        2,
+        80
+      ],
+      "position": [
+        750.0,
+        540.0
+      ],
+      "start_frame": 84,
+      "duration_frames": 96,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale_y",
+            "keyframes": [
+              {
+                "frame": 84,
+                "value": 0.0
+              },
+              {
+                "frame": 94,
+                "value": 1.0
+              }
+            ],
+            "easing": "in_out_cubic"
+          },
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 84,
+                "value": 0.0
+              },
+              {
+                "frame": 88,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 10,
+          "intensity": 0.8,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kid1_node_dot",
+      "type": "shape",
+      "size": [
+        14,
+        14
+      ],
+      "position": [
+        750.0,
+        500
+      ],
+      "start_frame": 84,
+      "duration_frames": 96,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ],
+        "corner_radius": [
+          7,
+          7,
+          7,
+          7
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 84,
+                "value": 0.0
+              },
+              {
+                "frame": 92,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 84,
+                "value": [
+                  0.5,
+                  0.5,
+                  1.0
+                ]
+              },
+              {
+                "frame": 92,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 16,
+          "intensity": 1.3,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kid1_border",
+      "type": "shape",
+      "size": [
+        262,
+        242
+      ],
+      "position": [
+        750.0,
+        700
+      ],
+      "start_frame": 92,
+      "duration_frames": 88,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.2901960784313726,
+          0.25098039215686274,
+          0.20392156862745098,
+          1.0
+        ],
+        "corner_radius": [
+          17,
+          17,
+          17,
+          17
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 92,
+                "value": 0.0
+              },
+              {
+                "frame": 108,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 92,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 108,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid1_card",
+      "type": "shape",
+      "size": [
+        260,
+        240
+      ],
+      "position": [
+        750.0,
+        700
+      ],
+      "start_frame": 92,
+      "duration_frames": 88,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.10196078431372549,
+          0.09019607843137255,
+          0.0784313725490196,
+          1.0
+        ],
+        "corner_radius": [
+          16,
+          16,
+          16,
+          16
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 92,
+                "value": 0.0
+              },
+              {
+                "frame": 108,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 92,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 108,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid1_portrait",
+      "type": "shape",
+      "size": [
+        234,
+        148
+      ],
+      "position": [
+        750.0,
+        668.0
+      ],
+      "start_frame": 92,
+      "duration_frames": 88,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.23137254901960785,
+          0.19607843137254902,
+          0.1607843137254902,
+          1.0
+        ],
+        "corner_radius": [
+          10,
+          10,
+          10,
+          10
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 92,
+                "value": 0.0
+              },
+              {
+                "frame": 108,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 92,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 108,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid1_initials",
+      "type": "text",
+      "size": [
+        260,
+        80
+      ],
+      "position": [
+        750.0,
+        668.0
+      ],
+      "start_frame": 94,
+      "duration_frames": 86,
+      "text": "F2",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 56,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 94,
+                "value": 0.0
+              },
+              {
+                "frame": 110,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 94,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 110,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid1_name",
+      "type": "text",
+      "size": [
+        240,
+        44
+      ],
+      "position": [
+        750.0,
+        762.0
+      ],
+      "start_frame": 98,
+      "duration_frames": 82,
+      "text": "Figlio 2",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 34,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 98,
+                "value": 0.0
+              },
+              {
+                "frame": 114,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 98,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 114,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid1_role",
+      "type": "text",
+      "size": [
+        240,
+        32
+      ],
+      "position": [
+        750.0,
+        798.0
+      ],
+      "start_frame": 102,
+      "duration_frames": 78,
+      "text": "Figlia",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 24,
+        "fill": "#a89c8a"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 102,
+                "value": 0.0
+              },
+              {
+                "frame": 118,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 102,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 118,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "drop_2",
+      "type": "shape",
+      "size": [
+        2,
+        80
+      ],
+      "position": [
+        1170.0,
+        540.0
+      ],
+      "start_frame": 102,
+      "duration_frames": 78,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale_y",
+            "keyframes": [
+              {
+                "frame": 102,
+                "value": 0.0
+              },
+              {
+                "frame": 112,
+                "value": 1.0
+              }
+            ],
+            "easing": "in_out_cubic"
+          },
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 102,
+                "value": 0.0
+              },
+              {
+                "frame": 106,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 10,
+          "intensity": 0.8,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kid2_node_dot",
+      "type": "shape",
+      "size": [
+        14,
+        14
+      ],
+      "position": [
+        1170.0,
+        500
+      ],
+      "start_frame": 102,
+      "duration_frames": 78,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ],
+        "corner_radius": [
+          7,
+          7,
+          7,
+          7
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 102,
+                "value": 0.0
+              },
+              {
+                "frame": 110,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 102,
+                "value": [
+                  0.5,
+                  0.5,
+                  1.0
+                ]
+              },
+              {
+                "frame": 110,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 16,
+          "intensity": 1.3,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kid2_border",
+      "type": "shape",
+      "size": [
+        262,
+        242
+      ],
+      "position": [
+        1170.0,
+        700
+      ],
+      "start_frame": 110,
+      "duration_frames": 70,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.2901960784313726,
+          0.25098039215686274,
+          0.20392156862745098,
+          1.0
+        ],
+        "corner_radius": [
+          17,
+          17,
+          17,
+          17
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 110,
+                "value": 0.0
+              },
+              {
+                "frame": 126,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 110,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 126,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid2_card",
+      "type": "shape",
+      "size": [
+        260,
+        240
+      ],
+      "position": [
+        1170.0,
+        700
+      ],
+      "start_frame": 110,
+      "duration_frames": 70,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.10196078431372549,
+          0.09019607843137255,
+          0.0784313725490196,
+          1.0
+        ],
+        "corner_radius": [
+          16,
+          16,
+          16,
+          16
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 110,
+                "value": 0.0
+              },
+              {
+                "frame": 126,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 110,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 126,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid2_portrait",
+      "type": "shape",
+      "size": [
+        234,
+        148
+      ],
+      "position": [
+        1170.0,
+        668.0
+      ],
+      "start_frame": 110,
+      "duration_frames": 70,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.23137254901960785,
+          0.19607843137254902,
+          0.1607843137254902,
+          1.0
+        ],
+        "corner_radius": [
+          10,
+          10,
+          10,
+          10
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 110,
+                "value": 0.0
+              },
+              {
+                "frame": 126,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 110,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 126,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid2_initials",
+      "type": "text",
+      "size": [
+        260,
+        80
+      ],
+      "position": [
+        1170.0,
+        668.0
+      ],
+      "start_frame": 112,
+      "duration_frames": 68,
+      "text": "F3",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 56,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 112,
+                "value": 0.0
+              },
+              {
+                "frame": 128,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 112,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 128,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid2_name",
+      "type": "text",
+      "size": [
+        240,
+        44
+      ],
+      "position": [
+        1170.0,
+        762.0
+      ],
+      "start_frame": 116,
+      "duration_frames": 64,
+      "text": "Figlio 3",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 34,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 116,
+                "value": 0.0
+              },
+              {
+                "frame": 132,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 116,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 132,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid2_role",
+      "type": "text",
+      "size": [
+        240,
+        32
+      ],
+      "position": [
+        1170.0,
+        798.0
+      ],
+      "start_frame": 120,
+      "duration_frames": 60,
+      "text": "Figlio",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 24,
+        "fill": "#a89c8a"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 120,
+                "value": 0.0
+              },
+              {
+                "frame": 136,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 120,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 136,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "drop_3",
+      "type": "shape",
+      "size": [
+        2,
+        80
+      ],
+      "position": [
+        1590.0,
+        540.0
+      ],
+      "start_frame": 120,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "scale_y",
+            "keyframes": [
+              {
+                "frame": 120,
+                "value": 0.0
+              },
+              {
+                "frame": 130,
+                "value": 1.0
+              }
+            ],
+            "easing": "in_out_cubic"
+          },
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 120,
+                "value": 0.0
+              },
+              {
+                "frame": 124,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 10,
+          "intensity": 0.8,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kid3_node_dot",
+      "type": "shape",
+      "size": [
+        14,
+        14
+      ],
+      "position": [
+        1590.0,
+        500
+      ],
+      "start_frame": 120,
+      "duration_frames": 60,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.9254901960784314,
+          0.8901960784313725,
+          0.8117647058823529,
+          1.0
+        ],
+        "corner_radius": [
+          7,
+          7,
+          7,
+          7
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 120,
+                "value": 0.0
+              },
+              {
+                "frame": 128,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 120,
+                "value": [
+                  0.5,
+                  0.5,
+                  1.0
+                ]
+              },
+              {
+                "frame": 128,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      },
+      "effects": [
+        {
+          "type": "glow",
+          "radius": 16,
+          "intensity": 1.3,
+          "color": [
+            0.8901960784313725,
+            0.7215686274509804,
+            0.4196078431372549,
+            1.0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kid3_border",
+      "type": "shape",
+      "size": [
+        262,
+        242
+      ],
+      "position": [
+        1590.0,
+        700
+      ],
+      "start_frame": 128,
+      "duration_frames": 52,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.2901960784313726,
+          0.25098039215686274,
+          0.20392156862745098,
+          1.0
+        ],
+        "corner_radius": [
+          17,
+          17,
+          17,
+          17
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 128,
+                "value": 0.0
+              },
+              {
+                "frame": 144,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 128,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 144,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid3_card",
+      "type": "shape",
+      "size": [
+        260,
+        240
+      ],
+      "position": [
+        1590.0,
+        700
+      ],
+      "start_frame": 128,
+      "duration_frames": 52,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.10196078431372549,
+          0.09019607843137255,
+          0.0784313725490196,
+          1.0
+        ],
+        "corner_radius": [
+          16,
+          16,
+          16,
+          16
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 128,
+                "value": 0.0
+              },
+              {
+                "frame": 144,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 128,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 144,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid3_portrait",
+      "type": "shape",
+      "size": [
+        234,
+        148
+      ],
+      "position": [
+        1590.0,
+        668.0
+      ],
+      "start_frame": 128,
+      "duration_frames": 52,
+      "shape": {
+        "type": "rounded_rect",
+        "fill": [
+          0.23137254901960785,
+          0.19607843137254902,
+          0.1607843137254902,
+          1.0
+        ],
+        "corner_radius": [
+          10,
+          10,
+          10,
+          10
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 128,
+                "value": 0.0
+              },
+              {
+                "frame": 144,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 128,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 144,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid3_initials",
+      "type": "text",
+      "size": [
+        260,
+        80
+      ],
+      "position": [
+        1590.0,
+        668.0
+      ],
+      "start_frame": 130,
+      "duration_frames": 50,
+      "text": "F4",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 56,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 130,
+                "value": 0.0
+              },
+              {
+                "frame": 146,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 130,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 146,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid3_name",
+      "type": "text",
+      "size": [
+        240,
+        44
+      ],
+      "position": [
+        1590.0,
+        762.0
+      ],
+      "start_frame": 134,
+      "duration_frames": 46,
+      "text": "Figlio 4",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 34,
+        "fill": "#ece3cf"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 134,
+                "value": 0.0
+              },
+              {
+                "frame": 150,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 134,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 150,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kid3_role",
+      "type": "text",
+      "size": [
+        240,
+        32
+      ],
+      "position": [
+        1590.0,
+        798.0
+      ],
+      "start_frame": 138,
+      "duration_frames": 42,
+      "text": "Figlia",
+      "style": {
+        "font": "assets/fonts/Inter-Bold.ttf",
+        "font_size": 24,
+        "fill": "#a89c8a"
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "keyframes": [
+              {
+                "frame": 138,
+                "value": 0.0
+              },
+              {
+                "frame": 154,
+                "value": 1.0
+              }
+            ],
+            "easing": "out_cubic"
+          },
+          {
+            "property": "scale",
+            "keyframes": [
+              {
+                "frame": 138,
+                "value": [
+                  0.95,
+                  0.95,
+                  1.0
+                ]
+              },
+              {
+                "frame": 154,
+                "value": [
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              }
+            ],
+            "easing": "out_cubic"
+          }
+        ]
+      }
+    }
+  ]
+}
