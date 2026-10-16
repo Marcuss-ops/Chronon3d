@@ -297,6 +297,7 @@ namespace chronon3d::backends::vulkan {
             if (it != surfaces.physical_surfaces.end() &&
                 it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
                 !surfaces.unplanned_surface_handles.contains(handle) &&
+                !surfaces.is_frame_output_pinned(handle) &&
                 surfaces.can_retire_surface(handle, busy) &&
                 std::find(protected_handles.begin(), protected_handles.end(), handle) ==
                     protected_handles.end()) {

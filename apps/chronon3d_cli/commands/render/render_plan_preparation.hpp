@@ -44,6 +44,9 @@ struct RenderPlanPreparationOptions {
     std::string json;        // inline JSON document (used when `input` is empty)
     std::string assets_root; // explicit; empty falls back to CHRONON3D_CLI_ASSETS_ROOT
     std::string prepared_package; // optional immutable overlay preparation sidecar
+    // True when the sink selects the video lane (e.g. --video-sink raw) even for
+    // still/PNG plan outputs; that lane requires the compatibility view.
+    bool require_video_compatibility_view = false;
 };
 
 struct PreparedOverlayPackageSummary {

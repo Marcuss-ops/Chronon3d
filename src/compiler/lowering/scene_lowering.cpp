@@ -87,7 +87,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         // (apply_layer_primitives converts Text/Shape identically); without
         // this the modular resolver's canvas-center shift applies twice and
         // every shape lands a half-canvas down-right of its authored spot.
-        // Screen-space shapes are already expressed in framebuffer
+        // Screen-space shapes are already expressed in output pixel
         // coordinates and must keep their authored position.
         if ((layer.type == render_plan::LayerType::Text ||
              layer.type == render_plan::LayerType::Video ||

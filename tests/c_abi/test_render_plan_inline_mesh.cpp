@@ -285,9 +285,9 @@ TEST_CASE("V3 baked inline mesh animation decodes, fingerprints, interpolates an
     json["layers"][0]["casts_shadows"] = false;
     json["layers"][0]["accepts_shadows"] = false;
     mesh["vertices"] = Json::array({
-        {{"position", {-20.0, -20.0, -1500.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {0.0, 0.0}}},
-        {{"position", {20.0, -20.0, -1500.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {1.0, 0.0}}},
-        {{"position", {0.0, 20.0, -1500.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {0.5, 1.0}}}
+        {{"position", {-20.0, -20.0, 0.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {0.0, 0.0}}},
+        {{"position", {20.0, -20.0, 0.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {1.0, 0.0}}},
+        {{"position", {0.0, 20.0, 0.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {0.5, 1.0}}}
     });
     mesh["material"] = {{"base_color", {0.2, 0.8, 0.3, 0.65}}};
     json["lighting_rig"] = {
@@ -298,8 +298,8 @@ TEST_CASE("V3 baked inline mesh animation decodes, fingerprints, interpolates an
         {"rim_intensity", 0.3}, {"rim_power", 2.2}
     };
     mesh["animation"] = Json::array({
-        {{"frame", 0}, {"positions", {{-20.0, -20.0, -1500.0}, {20.0, -20.0, -1500.0}, {0.0, 20.0, -1500.0}}}},
-        {{"frame", 2}, {"positions", {{-20.0, -20.0, -1500.0}, {20.0, -20.0, -1500.0}, {0.0, 40.0, -1500.0}}}}
+        {{"frame", 0}, {"positions", {{-20.0, -20.0, 0.0}, {20.0, -20.0, 0.0}, {0.0, 20.0, 0.0}}}},
+        {{"frame", 2}, {"positions", {{-20.0, -20.0, 0.0}, {20.0, -20.0, 0.0}, {0.0, 40.0, 0.0}}}}
     });
     const auto decoded = decode_render_plan(json);
     if (!decoded) INFO(decoded.error().message);
@@ -404,6 +404,76 @@ TEST_CASE("V3 baked inline mesh animation decodes, fingerprints, interpolates an
     CHECK(first_frame_bytes.size() == last_pixels->bytes().size());
     CHECK(std::memcmp(first_frame_bytes.data(), last_pixels->bytes().data(),
                       first_frame_bytes.size()) != 0);
+}
+
+TEST_CASE("V3 deformed inline mesh renders distinct, deterministic frames at 0, 30, 60 and 90") {
+    auto json = base_mesh_plan();
+    json["canvas"]["duration_frames"] = 91;
+    json["layers"][0]["enable_3d"] = true;
+    json["layers"][0]["casts_shadows"] = false;
+    json["layers"][0]["accepts_shadows"] = false;
+    auto& mesh = json["layers"][0]["inline_mesh"];
+    mesh["vertices"] = Json::array({
+        {{"position", {-200.0, -200.0, 0.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {0.0, 0.0}}},
+        {{"position", {200.0, -200.0, 0.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {1.0, 0.0}}},
+        {{"position", {0.0, 200.0, 0.0}}, {"normal", {0.0, 0.0, 1.0}}, {"uv", {0.5, 1.0}}}
+    });
+    mesh["material"] = {{"base_color", {0.2, 0.8, 0.3, 0.65}}};
+    json["lighting_rig"] = {
+        {"key_direction", {-0.2857143, 0.8571429, -0.4285714}},
+        {"key_intensity", 0.8}, {"ambient_color", {0.6, 0.65, 0.7, 1.0}},
+        {"ambient_intensity", 0.25}, {"rim_enabled", true},
+        {"rim_color", {1.0, 1.0, 1.0, 1.0}},
+        {"rim_intensity", 0.3}, {"rim_power", 2.2}
+    };
+    // Apex is at rest at frame 0, deforms at 30 and 60, and returns to rest at 90.
+    mesh["animation"] = Json::array({
+        {{"frame", 0}, {"positions", {{-200.0, -200.0, 0.0}, {200.0, -200.0, 0.0}, {0.0, 200.0, 0.0}}}},
+        {{"frame", 30}, {"positions", {{-200.0, -200.0, 0.0}, {200.0, -200.0, 0.0}, {0.0, 400.0, 0.0}}}},
+        {{"frame", 60}, {"positions", {{-200.0, -200.0, 0.0}, {200.0, -200.0, 0.0}, {0.0, 100.0, 0.0}}}},
+        {{"frame", 90}, {"positions", {{-200.0, -200.0, 0.0}, {200.0, -200.0, 0.0}, {0.0, 200.0, 0.0}}}}
+    });
+    const auto decoded = decode_render_plan(json);
+    if (!decoded) INFO(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].inline_mesh);
+    CHECK(decoded->layers[0].inline_mesh->animation.size() == 4);
+
+    assets::AssetResolver resolver;
+    const auto program = compiler::compile(*decoded, resolver);
+    REQUIRE(program);
+
+    using namespace chronon3d::test;
+    const auto render_bytes = [&](Frame frame) {
+        TestRenderer renderer;
+        const auto pixels = renderer.render_program(*program, frame);
+        REQUIRE(pixels);
+        std::size_t covered = 0;
+        for (int y = 0; y < pixels->height(); ++y)
+            for (int x = 0; x < pixels->width(); ++x)
+                covered += pixels->get_pixel(x, y).a > 0.01f;
+        INFO("frame " << frame.integral() << " raster coverage=" << covered);
+        CHECK(covered > 0);
+        return std::vector<std::byte>(pixels->bytes().begin(), pixels->bytes().end());
+    };
+
+    const auto frame0 = render_bytes(Frame{0});
+    const auto frame30 = render_bytes(Frame{30});
+    const auto frame60 = render_bytes(Frame{60});
+    const auto frame90 = render_bytes(Frame{90});
+    // Deformation is visible between keyframes.
+    CHECK(frame0 != frame30);
+    CHECK(frame30 != frame60);
+    CHECK(frame0 != frame60);
+    // Returning to the rest pose at 90 reproduces frame 0 exactly.
+    CHECK(frame0 == frame90);
+
+    // Random access: rendering frame 60 first, on a fresh renderer, must match
+    // the sequential render, and repeating frame 30 must be byte-identical.
+    const auto lateFrame60 = render_bytes(Frame{60});
+    const auto repeatFrame30 = render_bytes(Frame{30});
+    CHECK(lateFrame60 == frame60);
+    CHECK(repeatFrame30 == frame30);
 }
 
 TEST_CASE("V3 parametric mesh primitives expand deterministically within the raw mesh contract") {

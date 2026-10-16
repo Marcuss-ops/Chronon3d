@@ -156,6 +156,25 @@ public:
     static constexpr std::size_t kFrameBatchSlotCount = 6;
     std::array<std::vector<runtime::RenderSurfaceHandle>, kFrameBatchSlotCount>
         frame_slot_transient_handles{};
+    // Composite destinations written during the current frame. The slot
+    // retirement must not drop them before the CPU readback, which happens
+    // after the frame; they are unpinned by retire_frame_transient_surfaces().
+    std::vector<runtime::RenderSurfaceHandle> frame_output_pins{};
+
+    void pin_frame_output(runtime::RenderSurfaceHandle handle) {
+        if (handle == runtime::kInvalidRenderSurfaceHandle) return;
+        if (std::find(frame_output_pins.begin(), frame_output_pins.end(), handle) ==
+            frame_output_pins.end()) {
+            frame_output_pins.push_back(handle);
+        }
+    }
+
+    [[nodiscard]] bool is_frame_output_pinned(runtime::RenderSurfaceHandle handle) const {
+        return std::find(frame_output_pins.begin(), frame_output_pins.end(), handle) !=
+            frame_output_pins.end();
+    }
+
+    void clear_frame_output_pins() { frame_output_pins.clear(); }
     // P0/P1 hardening: compiled placement slots (bind()) are plan-local 0..N
     // but were aliased into the same size_t namespace as the backend-global
     // unplanned allocator (ensure()/next_slot).  Start the unplanned allocator
@@ -595,6 +614,7 @@ public:
         for (const auto handle : list) {
             const auto binding = surface_bindings.find(handle);
             if (binding == surface_bindings.end()) continue;
+            if (is_frame_output_pinned(handle)) continue;
             // Exact ownership: this slot's reference is gone, but a handle can
             // also be recorded into a slot that is still busy. Keep the binding
             // then; that slot's own retirement releases it.

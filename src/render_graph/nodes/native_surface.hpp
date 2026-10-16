@@ -144,15 +144,22 @@ inline bool ensure_native_surface(
         // operation failed with "surface handle is not bound to a physical
         // slot".  Treat either side being stale as a cache miss and rebuild
         // the native surface before issuing a command.
-        stale_handle_in_registry = ctx.surface_registry->lookup(handle).has_value();
+        const auto record = ctx.surface_registry->lookup(handle);
+        stale_handle_in_registry = record.has_value();
         stale_handle_backend_valid = ctx.backend->is_native_surface_valid(handle);
-        if (stale_handle_in_registry && stale_handle_backend_valid) {
+        const bool extent_matches = record &&
+            record->desc.width == static_cast<std::uint32_t>(framebuffer.width()) &&
+            record->desc.height == static_cast<std::uint32_t>(framebuffer.height());
+        if (stale_handle_in_registry && stale_handle_backend_valid && extent_matches) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->native_surface_reuse_count.fetch_add(
                     1, std::memory_order_relaxed);
             }
             return true;
         }
+        // Framebuffer pools can recycle a canvas-sized CPU buffer while its
+        // native handle still points at a cropped layer surface. Rebuild the
+        // surface when the logical and physical extents no longer agree.
         stale_handle = handle;
         if (stale_handle_in_registry) {
             (void)ctx.surface_registry->release(handle);

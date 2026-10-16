@@ -70,13 +70,11 @@ template <size_t N>
         f32 max_x = std::numeric_limits<f32>::lowest();
         f32 max_y = std::numeric_limits<f32>::lowest();
         bool any_vertex = false;
-        for (const auto& part : node.shape.mesh_shape().prepared
-                ? node.shape.mesh_shape().prepared->parts
-                : std::vector<assets::MeshPart>{}) {
-            if (!part.geometry) continue;
-            for (const auto& vertex : part.geometry->vertices()) {
+        const auto& mesh_shape = node.shape.mesh_shape();
+        const auto accumulate = [&](const auto& geometry) {
+            for (const auto& vertex : geometry.vertices()) {
                 const Vec4 clip = mvp * Vec4(vertex.position, 1.0f);
-                if (clip.w <= 1e-6f) return std::nullopt;
+                if (clip.w <= 1e-6f) return false;
                 const f32 x = (clip.x / clip.w + 1.0f) *
                     0.5f * static_cast<f32>(ctx.frame_input.width);
                 const f32 y = (1.0f - (clip.y / clip.w + 1.0f) * 0.5f) *
@@ -84,10 +82,19 @@ template <size_t N>
                 min_x = std::min(min_x, x);
                 min_y = std::min(min_y, y);
                 max_x = std::max(max_x, x);
-                max_y = std::max(max_y, y);
-                any_vertex = true;
+                max_y = std::max(max_y, y);                any_vertex = true;
+            }
+            return true;
+        };
+        if (mesh_shape.inline_mesh && !accumulate(*mesh_shape.inline_mesh)) {
+            return std::nullopt;
+        }
+        if (mesh_shape.prepared) {
+            for (const auto& part : mesh_shape.prepared->parts) {
+                if (part.geometry && !accumulate(*part.geometry)) return std::nullopt;
             }
         }
+
         if (!any_vertex) return std::nullopt;
         raster::BBox bbox{
             static_cast<i32>(std::floor(min_x - spread)),
