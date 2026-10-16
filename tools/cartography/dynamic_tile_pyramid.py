@@ -140,15 +140,12 @@ TILE_URLS = {
 # BASEMAP_STYLES is the rotation palette the production dynamic-map renderer
 # draws from: every id is an ArcGIS Online tiled basemap, so a rendered map is
 # always the same licensing posture as the historic World_Imagery default while
-# the *look* (imagery, topography, National Geographic, ocean, light/dark gray
+# the *look* (imagery, ocean, light/dark gray
 # canvas) varies from render to render. The runtime selects an id and passes it
 # as the payload's "basemap"; the renderer fails closed on anything outside this
 # tuple, so an unknown style can never silently degrade to the default.
 BASEMAP_STYLES = (
     "esri_sat",
-    "esri_street",
-    "esri_topo",
-    "esri_natgeo",
     "esri_ocean",
     "esri_light",
     "esri_dark",
