@@ -47,6 +47,7 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                          blend_mode, source_scale, kIdentityTint, clip,
                          premultiplied_source_over);
         dst_image.initialized = true;
+        surfaces.pin_frame_output(destination);
         ++frame_batch.pass_count;
         ++stats.passes_executed;
         return;

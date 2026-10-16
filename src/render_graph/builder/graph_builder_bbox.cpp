@@ -1,6 +1,7 @@
 #include "graph_builder_pipeline.hpp"
 
 #include "graph_builder_coordinates.hpp"
+#include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include "evaluated_layer_placement.hpp"
 #include "passes/graph_builder_source_pass.hpp"
 #include <chronon3d/backends/software/shape_processor.hpp>
@@ -86,8 +87,18 @@ raster::BBox compute_layer_node_union_bbox(
         }
 
         const RenderNode materialized_node = detail::materialize_mesh_node(node, ctx);
-        const raster::BBox node_bbox =
-            processor->compute_world_bbox(materialized_node.shape, matrix, 0.0f);
+        // Meshes must be perspective-projected like the software draw path;
+        // the processor's raw model-space bbox misplaces them on screen.
+        const raster::BBox node_bbox = [&]() -> raster::BBox {
+            if (materialized_node.shape.type() == ShapeType::Mesh) {
+                if (auto projected = projected_native_3d_bbox(
+                        ctx, materialized_node, matrix, 0.0f)) {
+                    return *projected;
+                }
+                return raster::BBox{0, 0, 0, 0};
+            }
+            return processor->compute_world_bbox(materialized_node.shape, matrix, 0.0f);
+        }();
         if (!node_bbox.is_empty()) {
             layer_bbox.x0 = std::min(layer_bbox.x0, node_bbox.x0);
             layer_bbox.y0 = std::min(layer_bbox.y0, node_bbox.y0);

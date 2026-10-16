@@ -313,7 +313,20 @@ void VulkanBackend::Impl::emit_plan_pass_transitions(
         // set is leased for the whole plan batch, so the transition stream no
         // longer reads the surface store while the submission ring is driven.
         const auto& physical = resolve_image(surface);
-        emit_resource_transition(command, physical.image, transition_record);
+        runtime::ResourceTransition adjusted = transition_record;
+        // A surface already written outside the compiled plan (for example a
+        // CPU fallback upload) really is in GENERAL. Declaring UNDEFINED here
+        // lets the driver discard those pixels before the pass reads them.
+        if (physical.initialized && adjusted.before.undefined()) {
+            adjusted.before = runtime::ResourceState{
+                .stages = runtime::PipelineStage::ComputeShader,
+                .access = runtime::AccessMask::ShaderRead |
+                          runtime::AccessMask::ShaderWrite,
+                .layout = runtime::ResourceLayout::General,
+                .queue = runtime::QueueClass::Compute,
+            };
+        }
+        emit_resource_transition(command, physical.image, adjusted);
     }
 }
 

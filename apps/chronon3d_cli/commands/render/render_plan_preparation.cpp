@@ -392,8 +392,9 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 		// FFmpeg video exporter still accepts CompiledComposition, so create its
 		// temporary compatibility view from the already compiled program. This
 		// call performs no second compilation.
-		if (context.decoded.output.format != render_plan::OutputFormat::Png &&
-		    context.decoded.output.format != render_plan::OutputFormat::PngSequence) {
+		if (options.require_video_compatibility_view ||
+		    (context.decoded.output.format != render_plan::OutputFormat::Png &&
+		     context.decoded.output.format != render_plan::OutputFormat::PngSequence)) {
 			auto compatibility = render_plan::make_video_compatibility_view(
 				context.decoded, resolver,
 				context.program->metadata().asset_manifest,
