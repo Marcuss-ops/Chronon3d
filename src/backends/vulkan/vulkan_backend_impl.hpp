@@ -179,6 +179,9 @@ struct VulkanBackend::Impl {
     using VulkanUploadRing = VulkanUploadAuthority;
     VulkanUploadRing uploads{};
     VulkanBufferAllocation& staging{uploads.staging};
+    // GPU→CPU readback memory has different access characteristics from the
+    // upload ring, which is written sequentially by the CPU.
+    VulkanBufferAllocation readback_staging{};
 
     // Text can contribute several upload passes per visible layer (glyph
     // surface, selector and run metadata). Keep its per-frame ring aligned
@@ -789,6 +792,7 @@ struct VulkanBackend::Impl {
                              std::span<const float> paints);
     void ensure_images(std::uint32_t width, std::uint32_t height);
     void ensure_staging(VkDeviceSize bytes);
+    void ensure_readback_staging(VkDeviceSize bytes);
     void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_layer_instance_buffer(VkDeviceSize bytes, std::size_t index);
     void ensure_path_geometry_buffer(VkDeviceSize bytes, std::size_t index);

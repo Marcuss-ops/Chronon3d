@@ -72,6 +72,37 @@ TEST_CASE("Vulkan buffer allocation reports the logical VkBuffer capacity") {
     auto buffer = manager.create_buffer(buffer_info, VulkanMemoryClass::DeviceLocal);
     CHECK(buffer.size == logical_size);
     manager.destroy_buffer(buffer);
+
+    const VkBufferCreateInfo readback_info{
+        VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, logical_size,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
+    auto readback = manager.create_buffer(
+        readback_info, VulkanMemoryClass::HostReadback);
+    CHECK(readback.size == logical_size);
+    CHECK(readback.mapped != nullptr);
+    CHECK((readback.memory_properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0);
+    CHECK((readback.memory_properties & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0);
+    VkPhysicalDeviceMemoryProperties memory_properties{};
+    vkGetPhysicalDeviceMemoryProperties(selected, &memory_properties);
+    const bool has_cached_coherent_host_memory = [&] {
+        for (std::uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
+            const auto flags = memory_properties.memoryTypes[i].propertyFlags;
+            if ((flags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+                          VK_MEMORY_PROPERTY_HOST_CACHED_BIT)) ==
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT |
+                 VK_MEMORY_PROPERTY_HOST_CACHED_BIT)) {
+                return true;
+            }
+        }
+        return false;
+    }();
+    if (has_cached_coherent_host_memory) {
+        CHECK((readback.memory_properties & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) != 0);
+    }
+    manager.destroy_buffer(readback);
     manager.shutdown();
     vkDestroyDevice(device, nullptr);
     vkDestroyInstance(instance, nullptr);

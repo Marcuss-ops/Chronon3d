@@ -121,6 +121,24 @@ void VulkanBackend::Impl::ensure_staging(VkDeviceSize bytes) {
     ++stats.staging_allocations;
 }
 
+void VulkanBackend::Impl::ensure_readback_staging(VkDeviceSize bytes) {
+    if (readback_staging.size >= bytes) return;
+    if (readback_staging.buffer != VK_NULL_HANDLE) {
+        memory_manager.destroy_buffer(readback_staging);
+    }
+    const VkBufferCreateInfo info{
+        VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
+    readback_staging = memory_manager.create_buffer(
+        info, VulkanMemoryClass::HostReadback);
+    if (debug_context) {
+        debug_context->set_buffer_name(
+            readback_staging.buffer, "Chronon3D.Buffer.Readback");
+    }
+    ++stats.staging_allocations;
+}
+
 void VulkanBackend::Impl::ensure_glyph_instance_buffer(VkDeviceSize bytes,
                                                         std::size_t index) {
     if (index >= kGlyphInstanceRingSize) index = 0;
