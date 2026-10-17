@@ -224,10 +224,19 @@ struct SvgStyleState {
 
 struct SvgGradientSpec {
     bool radial{false};
+    bool user_space{false};
     Vec2 p0{0.0f, 0.0f};
     Vec2 p1{1.0f, 0.0f};
     float radius{0.5f};
     Affine2 transform{1.0f};
+    struct TransformAnimation {
+        bool scale{false};
+        std::array<float, 2> from{0.0f, 0.0f};
+        std::array<float, 2> to{0.0f, 0.0f};
+        float duration_seconds{0.0f};
+        bool discrete{false};
+    };
+    std::optional<TransformAnimation> transform_animation;
     std::vector<graphics::GradientStop> stops;
     struct StopAnimation {
         std::size_t stop_index{0};
@@ -284,7 +293,7 @@ std::optional<Color> parse_svg_color(std::string value, Color current) {
 
 std::map<std::string, std::string> style_properties(const boost::property_tree::ptree& node) {
     std::map<std::string, std::string> values;
-    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset"}) {
+    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset"}) {
         if (auto value = node.get_optional<std::string>(std::string("<xmlattr>.") + key)) values[key] = *value;
     }
     if (auto style = node.get_optional<std::string>("<xmlattr>.style")) {
@@ -307,15 +316,16 @@ std::optional<std::string> validate_svg_subset(
     static const std::set<std::string> supported_elements{
         "svg", "g", "path", "rect", "circle", "ellipse", "line",
         "polyline", "polygon", "animate", "animateTransform", "defs",
-        "linearGradient", "radialGradient", "stop", "use", "clipPath", "mask"};
+        "linearGradient", "radialGradient", "stop", "use", "clipPath", "mask",
+        "filter", "feGaussianBlur", "feDropShadow"};
     static const std::set<std::string> supported_properties{
         "fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity",
-        "opacity", "stop-color", "stop-opacity", "clip-path", "mask",
+        "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter",
         "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
         "stroke-dasharray", "stroke-dashoffset"};
     static const std::set<std::string> unsupported_paint_attributes{
         "color", "fill-rule", "clip-rule", "paint-order",
-        "filter", "visibility", "display", "mix-blend-mode",
+        "visibility", "display", "mix-blend-mode",
         "vector-effect"};
     const auto valid_unit_interval = [](const std::string& text) {
         try {
@@ -350,6 +360,15 @@ std::optional<std::string> validate_svg_subset(
             if (!supported_elements.contains(name))
                 return "SVG element is not supported: <" + name + ">";
             if (name == "animate" || name == "animateTransform") {
+                if (parent_name == "linearGradient" || parent_name == "radialGradient") {
+                    if (name != "animateTransform" ||
+                        node.get<std::string>("<xmlattr>.attributeName", "") != "transform")
+                        return "SVG gradients support only gradientTransform animation";
+                    const auto type = node.get<std::string>("<xmlattr>.type", "");
+                    if (type != "translate" && type != "scale")
+                        return "SVG gradient transform animation supports only translate or scale";
+                    continue;
+                }
                 if (parent_name != "path" && parent_name != "g" && parent_name != "stop")
                     return "SVG animation is supported only as a direct child of <path>, <g>, or gradient <stop>";
                 if (parent_name == "g" &&
@@ -412,8 +431,16 @@ std::optional<std::string> validate_svg_subset(
                         return std::string("SVG ") + key + " supports only root, group, or path references to url(#id)";
                 }
             }
-            if (name == "clipPath" || name == "mask") {
-                if (parent_name != "defs") return "SVG clipPath and mask definitions must be children of <defs>";
+            if (const auto it = properties.find("filter"); it != properties.end()) {
+                const auto value = trim(it->second);
+                if (name != "svg")
+                    return "SVG filters need per-element compositing: the RenderPlan exposes only layer-level effects";
+                if (!value.starts_with("url(#") || !value.ends_with(')') || value.size() <= 6)
+                    return "SVG root filter supports only url(#id) references";
+            }
+            if (name == "clipPath" || name == "mask" || name == "filter") {
+                if (parent_name != "defs")
+                    return "SVG clipPath, mask and filter definitions must be children of <defs>";
             }
             if (name == "stop") {
                 if (const auto it = properties.find("stop-color"); it != properties.end() &&
@@ -527,17 +554,24 @@ std::optional<std::string> collect_svg_gradients(
             const auto id = node.get_optional<std::string>("<xmlattr>.id");
             if (!id || id->empty() || id->size() > 128 || gradients.contains(*id))
                 return "SVG gradient requires a unique bounded id";
-            if (node.get<std::string>("<xmlattr>.gradientUnits", "objectBoundingBox") != "objectBoundingBox" ||
+            const auto units = node.get<std::string>("<xmlattr>.gradientUnits", "objectBoundingBox");
+            if ((units != "objectBoundingBox" && units != "userSpaceOnUse") ||
                 node.get<std::string>("<xmlattr>.spreadMethod", "pad") != "pad" ||
                 node.get_optional<std::string>("<xmlattr>.href") ||
                 node.get_optional<std::string>("<xmlattr>.{http://www.w3.org/1999/xlink}href"))
-                return "SVG gradient supports objectBoundingBox units, pad spread, and no inheritance";
+                return "SVG gradient supports objectBoundingBox or userSpaceOnUse units, pad spread, and no inheritance";
             SvgGradientSpec gradient;
             gradient.radial = name == "radialGradient";
+            gradient.user_space = units == "userSpaceOnUse";
             if (const auto transform = node.get_optional<std::string>("<xmlattr>.gradientTransform"))
                 gradient.transform = parse_transform(*transform);
             auto coordinate = [&](const char* key, const char* fallback, float& out) {
-                return parse_svg_scalar(node.get<std::string>(std::string("<xmlattr>.") + key, fallback), 0.0f, out);
+                const auto text = node.get<std::string>(std::string("<xmlattr>.") + key, fallback);
+                // userSpaceOnUse percentages would need the viewport, which the
+                // importer does not resolve at this boundary; reject them instead
+                // of silently scaling by 1/100.
+                if (gradient.user_space && trim(text).ends_with('%')) return false;
+                return parse_svg_scalar(text, 0.0f, out);
             };
             if (gradient.radial) {
                 if (!coordinate("cx", "50%", gradient.p0.x) ||
@@ -552,6 +586,54 @@ std::optional<std::string> collect_svg_gradients(
             }
             float previous = 0.0f;
             for (const auto& [child_name, stop] : node) {
+                if (child_name == "animateTransform") {
+                    if (gradient.transform_animation)
+                        return "SVG gradients support a single gradientTransform animation";
+                    SvgGradientSpec::TransformAnimation track;
+                    track.scale = stop.get<std::string>("<xmlattr>.type", "") == "scale";
+                    if (stop.get<std::string>("<xmlattr>.fill", "freeze") != "freeze" ||
+                        stop.get<std::string>("<xmlattr>.additive", "replace") != "replace" ||
+                        stop.get<std::string>("<xmlattr>.repeatCount", "1") != "1" ||
+                        stop.get<std::string>("<xmlattr>.begin", "0s") != "0s")
+                        return "SVG gradient transform animations require one iteration, freeze, and begin=0";
+                    auto duration_text = stop.get<std::string>("<xmlattr>.dur", "");
+                    float time_scale = 1.0f;
+                    if (duration_text.ends_with("ms")) {
+                        time_scale = 0.001f;
+                        duration_text.resize(duration_text.size() - 2);
+                    } else if (duration_text.ends_with("s")) {
+                        duration_text.pop_back();
+                    }
+                    try {
+                        std::size_t used = 0;
+                        track.duration_seconds = std::stof(duration_text, &used) * time_scale;
+                        if (used != duration_text.size() || !std::isfinite(track.duration_seconds) ||
+                            track.duration_seconds <= 0.0f || track.duration_seconds > 3600.0f)
+                            return "SVG gradient transform animation duration is invalid";
+                    } catch (...) {
+                        return "SVG gradient transform animation duration is invalid";
+                    }
+                    const auto mode = stop.get<std::string>("<xmlattr>.calcMode", "linear");
+                    if (mode != "linear" && mode != "discrete")
+                        return "SVG gradient transform animation calcMode is unsupported";
+                    track.discrete = mode == "discrete";
+                    const auto parse_pair = [](const std::string& text, bool scale,
+                                               std::array<float, 2>& out) {
+                        const auto values = transform_numbers(text);
+                        if (values.empty() || values.size() > 2) return false;
+                        out = {values[0], values.size() > 1 ? values[1] : (scale ? values[0] : 0.0f)};
+                        return std::isfinite(out[0]) && std::isfinite(out[1]) &&
+                            std::abs(out[0]) <= 100000.0f && std::abs(out[1]) <= 100000.0f;
+                    };
+                    if (!parse_pair(stop.get<std::string>("<xmlattr>.from", ""), track.scale, track.from) ||
+                        !parse_pair(stop.get<std::string>("<xmlattr>.to", ""), track.scale, track.to))
+                        return "SVG gradient transform animation values are invalid";
+                    if (track.scale && (std::abs(track.from[0] - track.from[1]) > 1e-6f ||
+                                        std::abs(track.to[0] - track.to[1]) > 1e-6f))
+                        return "SVG gradient transform animation requires uniform scale";
+                    gradient.transform_animation = track;
+                    continue;
+                }
                 if (child_name != "stop") continue;
                 if (gradient.stops.size() >= 64) return "SVG gradient exceeds 64 stops";
                 float offset = 0.0f;
@@ -696,15 +778,43 @@ bool parse_svg_animation(const std::string& tag, const boost::property_tree::ptr
         else if (*attribute == "stroke-opacity") { paint_kind = SvgAnimationKind::StrokeOpacity; opacity_property = true; }
         else return false;
     }
-    if (node.get<std::string>("<xmlattr>.repeatCount", "1") != "1" ||
-        node.get<std::string>("<xmlattr>.fill", "freeze") != "freeze" ||
+    if (node.get<std::string>("<xmlattr>.fill", "freeze") != "freeze" ||
         node.get<std::string>("<xmlattr>.additive", "replace") != "replace") return false;
+    std::uint32_t repetitions = 1;
+    {
+        const auto repeat_text = trim(node.get<std::string>("<xmlattr>.repeatCount", "1"));
+        try {
+            std::size_t used = 0;
+            const auto parsed = std::stoul(repeat_text, &used);
+            if (used != repeat_text.size() || parsed == 0 || parsed > 1000) return false;
+            repetitions = static_cast<std::uint32_t>(parsed);
+        } catch (...) {
+            // `indefinite` (and anything non-numeric) stays outside the bounded
+            // subset: a plan has a finite frame timeline and no implicit loop.
+            return false;
+        }
+    }
     float duration = 0.0f, begin = 0.0f;
     if (!parse_time(node.get<std::string>("<xmlattr>.dur", ""), 0.0f, duration) ||
         !parse_time(node.get<std::string>("<xmlattr>.begin", "0s"), 0.0f, begin) || duration <= 0.0f)
         return false;
     const auto mode = node.get<std::string>("<xmlattr>.calcMode", "linear");
-    if (mode != "linear" && mode != "discrete") return false;
+    if (mode != "linear" && mode != "discrete" && mode != "spline") return false;
+    std::array<float, 4> key_splines{};
+    const bool spline = mode == "spline";
+    if (spline) {
+        // The importer samples one from/to interval per property, so exactly
+        // one keySplines entry (one interval) is representable.
+        const auto text = trim(node.get<std::string>("<xmlattr>.keySplines", ""));
+        const auto separator = text.find(';');
+        if (separator != std::string::npos) return false;
+        const auto values = transform_numbers(text);
+        if (values.size() != 4 ||
+            !std::all_of(values.begin(), values.end(), [](float value) { return std::isfinite(value); }) ||
+            values[0] < 0.0f || values[0] > 1.0f || values[2] < 0.0f || values[2] > 1.0f)
+            return false;
+        key_splines = {values[0], values[1], values[2], values[3]};
+    }
     std::vector<float> from, to;
     if (color_property) {
         std::string from_color, to_color;
@@ -754,6 +864,9 @@ bool parse_svg_animation(const std::string& tag, const boost::property_tree::ptr
     output.begin_seconds = begin;
     output.duration_seconds = duration;
     output.discrete = mode == "discrete";
+    output.spline = spline;
+    output.key_splines = key_splines;
+    output.repetitions = repetitions;
     return true;
 }
 
@@ -1078,6 +1191,72 @@ std::optional<std::string> collect_vector_mask_geometry(
     return std::nullopt;
 }
 
+std::optional<std::string> collect_svg_filter(
+    const boost::property_tree::ptree& definition,
+    const Affine2& root_transform,
+    std::vector<SvgLayerEffect>& effects) {
+    // SVG filter lengths are user units; render-plan effects are pixels. Only a
+    // uniform, non-skewed user-space scale can be folded into one radius.
+    const Vec2 origin = transform_point(root_transform, Vec2{0.0f, 0.0f});
+    const Vec2 axis_x = transform_point(root_transform, Vec2{1.0f, 0.0f}) - origin;
+    const Vec2 axis_y = transform_point(root_transform, Vec2{0.0f, 1.0f}) - origin;
+    const float scale_x = glm::length(axis_x), scale_y = glm::length(axis_y);
+    if (!std::isfinite(scale_x) || !std::isfinite(scale_y) || scale_x <= 0.0f ||
+        std::abs(scale_x - scale_y) > 1e-5f * std::max(scale_x, scale_y) ||
+        std::abs(glm::dot(axis_x, axis_y)) > 1e-5f * scale_x * scale_y)
+        return "SVG root filter requires a uniform, non-skewed user-space scale";
+    const auto parse_length = [](const std::string& text, float& out) {
+        try {
+            std::size_t used = 0;
+            out = std::stof(text, &used);
+            return used == text.size() && std::isfinite(out) && std::abs(out) <= 100000.0f;
+        } catch (...) {
+            return false;
+        }
+    };
+    const auto parse_deviation = [&](const std::string& text, float& out) {
+        const auto values = transform_numbers(text);
+        if (values.empty() || values.size() > 2) return false;
+        if (values.size() == 2 && std::abs(values[0] - values[1]) > 1e-6f) return false;
+        out = values[0];
+        return std::isfinite(out) && out >= 0.0f && out <= 100000.0f;
+    };
+    for (const auto& [name, node] : definition) {
+        if (name == "<xmlattr>" || name == "<xmlcomment>" || name == "<xmltext>") continue;
+        if (effects.size() >= 8) return "SVG root filter exceeds 8 primitives";
+        SvgLayerEffect effect;
+        if (name == "feGaussianBlur") {
+            effect.kind = SvgLayerEffect::Kind::GaussianBlur;
+            if (!parse_deviation(node.get<std::string>("<xmlattr>.stdDeviation", "0"), effect.radius))
+                return "SVG feGaussianBlur stdDeviation must be one or two equal non-negative lengths";
+            if (effect.radius <= 0.0f) return "SVG feGaussianBlur stdDeviation must be positive";
+        } else if (name == "feDropShadow") {
+            effect.kind = SvgLayerEffect::Kind::DropShadow;
+            float dx = 2.0f, dy = 2.0f;
+            if (!parse_length(trim(node.get<std::string>("<xmlattr>.dx", "2")), dx) ||
+                !parse_length(trim(node.get<std::string>("<xmlattr>.dy", "2")), dy))
+                return "SVG feDropShadow dx and dy must be finite lengths";
+            if (!parse_deviation(node.get<std::string>("<xmlattr>.stdDeviation", "2"), effect.radius))
+                return "SVG feDropShadow stdDeviation must be one or two equal non-negative lengths";
+            const auto color = parse_svg_color(
+                node.get<std::string>("<xmlattr>.flood-color", "black"), Color::black());
+            if (!color) return "SVG feDropShadow flood-color is invalid or unsupported";
+            float opacity = 1.0f;
+            if (!parse_svg_scalar(node.get<std::string>("<xmlattr>.flood-opacity", "1"), 1.0f, opacity) ||
+                opacity < 0.0f || opacity > 1.0f)
+                return "SVG feDropShadow flood-opacity must be in [0,1]";
+            effect.color = {color->r, color->g, color->b, opacity};
+            effect.offset = {dx * scale_x, dy * scale_y};
+        } else {
+            return "SVG root filter supports only feGaussianBlur and feDropShadow: <" + name + ">";
+        }
+        effect.radius *= scale_x;
+        effects.push_back(effect);
+    }
+    if (effects.empty()) return "SVG root filter requires at least one supported primitive";
+    return std::nullopt;
+}
+
 } // namespace
 
 SvgPathLoadResult parse_svg_path_data(std::string_view d, SvgPathLoadOptions options) {
@@ -1140,8 +1319,12 @@ SvgDocumentLoadResult load_svg_document_file(
         if (unsupported.starts_with("resource limit:"))
             return {.paths = {}, .elements = {}, .ok = false, .error = "SVG " + unsupported};
         const auto tag = unsupported == "CSS esterni" ? "style" : unsupported.c_str();
+        const std::string reason = unsupported == "CSS esterni"
+            ? " (nessun foglio di stile esterno: stili solo inline)"
+            : std::string(" (<") + tag +
+              "> richiede un contratto testo/font nel RenderPlan, non ancora disponibile)";
         return {.paths = {}, .elements = {}, .ok = false,
-                .error = std::string("SVG: ") + unsupported + " non supportata: <" + tag + ">"};
+                .error = std::string("SVG: ") + unsupported + " non supportata: <" + tag + ">" + reason};
     }
     if (const auto style_error = validate_svg_subset(document))
         return {.paths = {}, .elements = {}, .ok = false,
@@ -1217,6 +1400,25 @@ SvgDocumentLoadResult load_svg_document_file(
             return {.paths = {}, .elements = {}, .ok = false, .error = *mask_error};
         vector_mask = std::move(mask_geometry);
     }
+    std::vector<SvgLayerEffect> layer_effects;
+    if (const auto filter_ref = root_properties.find("filter");
+        filter_ref != root_properties.end()) {
+        std::string reference_id;
+        if (!parse_svg_gradient_reference(filter_ref->second, reference_id))
+            return {.paths = {}, .elements = {}, .ok = false,
+                    .error = "SVG root filter reference is malformed"};
+        const auto target = ids.find(reference_id);
+        if (target == ids.end() || target->second.first != "filter")
+            return {.paths = {}, .elements = {}, .ok = false,
+                    .error = "SVG root filter reference does not resolve to a filter definition"};
+        auto filter_transform_text = svg_root->get_optional<std::string>("<xmlattr>.transform");
+        Affine2 filter_transform =
+            filter_transform_text ? parse_transform(*filter_transform_text) : Affine2(1.0f);
+        if (auto viewbox = parse_viewbox_transform(*svg_root)) filter_transform = filter_transform * *viewbox;
+        if (const auto filter_error = collect_svg_filter(
+                *target->second.second, filter_transform, layer_effects))
+            return {.paths = {}, .elements = {}, .ok = false, .error = *filter_error};
+    }
     // Keep validation before collection: collect_path_data uses forgiving
     // conversions, while this pass rejects malformed style values explicitly.
     std::vector<std::pair<std::string, Affine2>> path_data;
@@ -1237,23 +1439,40 @@ SvgDocumentLoadResult load_svg_document_file(
             return !style.vector_mask_id.empty();
         });
         if (local_mask != styles.end()) {
-            if (path_data.size() != 1 || styles[0].vector_mask_id.empty())
+            // The RenderPlan carries one path mask per layer, so a clip/mask scope
+            // is representable only when it covers every emitted path with one
+            // shared reference. Distinct per-element masks stay rejected.
+            const auto& reference = styles[0];
+            const bool shared_scope = reference.vector_mask_id.empty() ||
+                std::all_of(styles.begin(), styles.end(), [&](const auto& style) {
+                    return style.vector_mask_id == reference.vector_mask_id &&
+                        style.vector_mask_is_mask == reference.vector_mask_is_mask;
+                });
+            if (reference.vector_mask_id.empty() || !shared_scope)
                 return {.paths = {}, .elements = {}, .ok = false,
-                        .error = "SVG group/path clip and mask references currently require exactly one emitted path"};
+                        .error = "SVG clip/mask must cover every emitted path in its scope; per-element clip/mask scopes are not supported"};
+            const auto shared_transform = std::all_of(
+                path_data.begin(), path_data.end(), [&](const auto& path) {
+                    for (int column = 0; column < 3; ++column)
+                        for (int row = 0; row < 3; ++row)
+                            if (std::abs(path.second[column][row] -
+                                         path_data[0].second[column][row]) > 1e-6f)
+                                return false;
+                    return true;
+                });
+            if (!shared_transform)
+                return {.paths = {}, .elements = {}, .ok = false,
+                        .error = "SVG clip/mask scope requires one shared transform for every enclosed path"};
             const auto transform_animation = [](const auto& animation) {
                 return animation.kind == SvgAnimationKind::Translate ||
                     animation.kind == SvgAnimationKind::Scale || animation.kind == SvgAnimationKind::Rotate;
             };
-            if (std::any_of(animations[0].begin(), animations[0].end(), transform_animation))
-                return {.paths = {}, .elements = {}, .ok = false,
-                        .error = "SVG local clip/mask cannot be combined with animated path/group transforms"};
-            for (const auto& style : styles)
-                if (style.vector_mask_id != styles[0].vector_mask_id ||
-                    style.vector_mask_is_mask != styles[0].vector_mask_is_mask)
+            for (const auto& animation_list : animations)
+                if (std::any_of(animation_list.begin(), animation_list.end(), transform_animation))
                     return {.paths = {}, .elements = {}, .ok = false,
-                            .error = "SVG clip/mask scopes must agree for the single emitted path"};
-            const auto target = ids.find(styles[0].vector_mask_id);
-            const std::string expected = styles[0].vector_mask_is_mask ? "mask" : "clipPath";
+                            .error = "SVG local clip/mask cannot be combined with animated path/group transforms"};
+            const auto target = ids.find(reference.vector_mask_id);
+            const std::string expected = reference.vector_mask_is_mask ? "mask" : "clipPath";
             if (target == ids.end() || target->second.first != expected)
                 return {.paths = {}, .elements = {}, .ok = false,
                         .error = "SVG path clip/mask reference does not resolve to a matching definition"};
@@ -1274,6 +1493,7 @@ SvgDocumentLoadResult load_svg_document_file(
     SvgDocumentLoadResult result;
     result.paths.reserve(path_data.size());
     result.vector_mask = vector_mask;
+    result.layer_effects = std::move(layer_effects);
     for (std::size_t index = 0; index < path_data.size(); ++index) {
         if (std::any_of(animations[index].begin(), animations[index].end(), [](const auto& animation) {
                 return animation.duration_seconds < 0.0f;
@@ -1291,6 +1511,7 @@ SvgDocumentLoadResult load_svg_document_file(
         }
         auto style = styles[index];
         std::vector<SvgGradientAnimationKeyframe> gradient_animation;
+        bool gradient_animation_discrete = false;
         apply_transform(path.path, path_data[index].second);
         if (path.path.commands.size() > kMaxCommandsPerPath)
             return {.paths = {}, .elements = {}, .ok = false,
@@ -1337,85 +1558,165 @@ SvgDocumentLoadResult load_svg_document_file(
             if (gradient_it == gradients.end())
                 return {.paths = {}, .elements = {}, .ok = false,
                         .error = "SVG fill references an unknown gradient id"};
-            float min_x = std::numeric_limits<float>::infinity();
-            float min_y = std::numeric_limits<float>::infinity();
-            float max_x = -min_x, max_y = -min_y;
-            for (const auto& command : path.path.commands) {
-                if (command.type == PathCommandType::Close) continue;
-                std::array<Vec2, 3> points{command.p0, command.p1, command.p2};
-                const std::size_t point_count = command.type == PathCommandType::CubicTo ? 3 :
-                    command.type == PathCommandType::QuadraticTo ? 2 : 1;
-                for (std::size_t point_index = 0; point_index < point_count; ++point_index) {
-                    const auto point = points[point_index];
-                    min_x = std::min(min_x, point.x); min_y = std::min(min_y, point.y);
-                    max_x = std::max(max_x, point.x); max_y = std::max(max_y, point.y);
-                }
-            }
-            const float width = max_x - min_x, height = max_y - min_y;
-            if (!(width > 0.0f) || !(height > 0.0f))
-                return {.paths = {}, .elements = {}, .ok = false,
-                        .error = "SVG objectBoundingBox gradient requires non-degenerate path bounds"};
             const auto& source = gradient_it->second;
-            const Vec2 origin = transform_point(source.transform, {0.0f, 0.0f});
-            const Vec2 axis_x = transform_point(source.transform, {1.0f, 0.0f}) - origin;
-            const Vec2 axis_y = transform_point(source.transform, {0.0f, 1.0f}) - origin;
-            const auto bbox_point = [&](Vec2 normalized) {
-                const Vec2 transformed = transform_point(source.transform, normalized);
-                return Vec2{min_x + transformed.x * width, min_y + transformed.y * height};
-            };
-            auto stops = source.stops;
-            for (auto& stop : stops) stop.color.a *= style.fill_opacity;
-            if (source.radial) {
-                if (std::abs(width - height) > 1e-4f * std::max(width, height))
+            const float stop_duration = source.animations.empty()
+                ? 0.0f : source.animations.front().duration_seconds;
+            const float transform_duration = source.transform_animation
+                ? source.transform_animation->duration_seconds : 0.0f;
+            if (stop_duration > 0.0f && transform_duration > 0.0f &&
+                std::abs(stop_duration - transform_duration) > 1e-6f)
+                return {.paths = {}, .elements = {}, .ok = false,
+                        .error = "SVG animated gradient stops and gradientTransform must share one duration"};
+            const float total_duration = std::max(stop_duration, transform_duration);
+            gradient_animation_discrete =
+                (!source.animations.empty() && source.animations.front().discrete) ||
+                (source.transform_animation && source.transform_animation->discrete);
+            float min_x = 0.0f, min_y = 0.0f, width = 0.0f, height = 0.0f;
+            if (!source.user_space) {
+                min_x = std::numeric_limits<float>::infinity();
+                min_y = std::numeric_limits<float>::infinity();
+                float max_x = -min_x, max_y = -min_y;
+                for (const auto& command : path.path.commands) {
+                    if (command.type == PathCommandType::Close) continue;
+                    std::array<Vec2, 3> points{command.p0, command.p1, command.p2};
+                    const std::size_t point_count = command.type == PathCommandType::CubicTo ? 3 :
+                        command.type == PathCommandType::QuadraticTo ? 2 : 1;
+                    for (std::size_t point_index = 0; point_index < point_count; ++point_index) {
+                        const auto point = points[point_index];
+                        min_x = std::min(min_x, point.x); min_y = std::min(min_y, point.y);
+                        max_x = std::max(max_x, point.x); max_y = std::max(max_y, point.y);
+                    }
+                }
+                width = max_x - min_x;
+                height = max_y - min_y;
+                if (!(width > 0.0f) || !(height > 0.0f))
                     return {.paths = {}, .elements = {}, .ok = false,
-                            .error = "SVG radial objectBoundingBox gradient requires a square path bound"};
-                const float sx = glm::length(axis_x), sy = glm::length(axis_y);
-                if (!std::isfinite(sx) || !std::isfinite(sy) || sx <= 0.0f ||
-                    std::abs(sx - sy) > 1e-5f * std::max(sx, sy) ||
-                    std::abs(glm::dot(axis_x, axis_y)) > 1e-5f * sx * sy)
-                    return {.paths = {}, .elements = {}, .ok = false,
-                            .error = "SVG radial gradientTransform must preserve circular geometry"};
-                const auto center = bbox_point(source.p0);
-                const float radius = source.radius * sx * width;
-                if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(radius) || radius <= 0.0f)
-                    return {.paths = {}, .elements = {}, .ok = false,
-                            .error = "SVG radial gradientTransform exceeds finite bounds"};
-                style.fill = Fill::radial(center, radius, std::move(stops));
-            } else {
+                            .error = "SVG objectBoundingBox gradient requires non-degenerate path bounds"};
+            }
+            std::string gradient_error;
+            const auto gradient_at = [&](float seconds) -> std::optional<Fill> {
+                Affine2 gradient_transform = source.transform;
+                if (source.transform_animation) {
+                    const auto& track = *source.transform_animation;
+                    const float progress = track.discrete
+                        ? (seconds >= track.duration_seconds ? 1.0f : 0.0f)
+                        : std::clamp(seconds / track.duration_seconds, 0.0f, 1.0f);
+                    const float first = track.from[0] + (track.to[0] - track.from[0]) * progress;
+                    const float second = track.from[1] + (track.to[1] - track.from[1]) * progress;
+                    const Affine2 sampled = track.scale
+                        ? Affine2(glm::vec3(first, 0.0f, 0.0f),
+                                  glm::vec3(0.0f, second, 0.0f),
+                                  glm::vec3(0.0f, 0.0f, 1.0f))
+                        : Affine2(glm::vec3(1.0f, 0.0f, 0.0f),
+                                  glm::vec3(0.0f, 1.0f, 0.0f),
+                                  glm::vec3(first, second, 1.0f));
+                    gradient_transform = gradient_transform * sampled;
+                }
+                auto stops = source.stops;
+                for (auto& stop : stops) stop.color.a *= style.fill_opacity;
+                for (const auto& animation : source.animations) {
+                    if (animation.stop_index >= stops.size()) {
+                        gradient_error = "SVG animated gradient stop index is invalid";
+                        return std::nullopt;
+                    }
+                    const float progress = animation.discrete
+                        ? (seconds >= animation.duration_seconds ? 1.0f : 0.0f)
+                        : std::clamp(seconds / animation.duration_seconds, 0.0f, 1.0f);
+                    const auto mix = [progress](float from, float to) {
+                        return from + (to - from) * progress;
+                    };
+                    auto& stop = stops[animation.stop_index];
+                    if (animation.opacity) {
+                        stop.color.a = mix(animation.from.a, animation.to.a) * style.fill_opacity;
+                    } else {
+                        stop.color.r = mix(animation.from.r, animation.to.r);
+                        stop.color.g = mix(animation.from.g, animation.to.g);
+                        stop.color.b = mix(animation.from.b, animation.to.b);
+                    }
+                }
+                if (source.user_space) {
+                    const Affine2 transform = path_data[index].second * gradient_transform;
+                    const Vec2 origin = transform_point(transform, Vec2{0.0f, 0.0f});
+                    const Vec2 axis_x = transform_point(transform, Vec2{1.0f, 0.0f}) - origin;
+                    const Vec2 axis_y = transform_point(transform, Vec2{0.0f, 1.0f}) - origin;
+                    if (source.radial) {
+                        const float sx = glm::length(axis_x), sy = glm::length(axis_y);
+                        if (!std::isfinite(sx) || !std::isfinite(sy) || sx <= 0.0f ||
+                            std::abs(sx - sy) > 1e-5f * std::max(sx, sy) ||
+                            std::abs(glm::dot(axis_x, axis_y)) > 1e-5f * sx * sy) {
+                            gradient_error = "SVG radial userSpaceOnUse gradient requires a uniform, non-skewed transform";
+                            return std::nullopt;
+                        }
+                        const Vec2 center = transform_point(transform, source.p0);
+                        const float radius = source.radius * sx;
+                        if (!std::isfinite(center.x) || !std::isfinite(center.y) ||
+                            !std::isfinite(radius) || radius <= 0.0f) {
+                            gradient_error = "SVG radial userSpaceOnUse gradient exceeds finite bounds";
+                            return std::nullopt;
+                        }
+                        return Fill::radial(center, radius, std::move(stops));
+                    }
+                    const Vec2 start = transform_point(transform, source.p0);
+                    const Vec2 end = transform_point(transform, source.p1);
+                    if (!std::isfinite(start.x) || !std::isfinite(start.y) ||
+                        !std::isfinite(end.x) || !std::isfinite(end.y) ||
+                        std::abs(start.x) > 100000.0f || std::abs(start.y) > 100000.0f ||
+                        std::abs(end.x) > 100000.0f || std::abs(end.y) > 100000.0f) {
+                        gradient_error = "SVG linear userSpaceOnUse gradient exceeds finite bounds";
+                        return std::nullopt;
+                    }
+                    return Fill::linear(start, end, std::move(stops));
+                }
+                const Vec2 origin = transform_point(gradient_transform, Vec2{0.0f, 0.0f});
+                const Vec2 axis_x = transform_point(gradient_transform, Vec2{1.0f, 0.0f}) - origin;
+                const Vec2 axis_y = transform_point(gradient_transform, Vec2{0.0f, 1.0f}) - origin;
+                const auto bbox_point = [&](Vec2 normalized) {
+                    const Vec2 transformed = transform_point(gradient_transform, normalized);
+                    return Vec2{min_x + transformed.x * width, min_y + transformed.y * height};
+                };
+                if (source.radial) {
+                    if (std::abs(width - height) > 1e-4f * std::max(width, height)) {
+                        gradient_error = "SVG radial objectBoundingBox gradient requires a square path bound";
+                        return std::nullopt;
+                    }
+                    const float sx = glm::length(axis_x), sy = glm::length(axis_y);
+                    if (!std::isfinite(sx) || !std::isfinite(sy) || sx <= 0.0f ||
+                        std::abs(sx - sy) > 1e-5f * std::max(sx, sy) ||
+                        std::abs(glm::dot(axis_x, axis_y)) > 1e-5f * sx * sy) {
+                        gradient_error = "SVG radial gradientTransform must preserve circular geometry";
+                        return std::nullopt;
+                    }
+                    const auto center = bbox_point(source.p0);
+                    const float radius = source.radius * sx * width;
+                    if (!std::isfinite(center.x) || !std::isfinite(center.y) ||
+                        !std::isfinite(radius) || radius <= 0.0f) {
+                        gradient_error = "SVG radial gradientTransform exceeds finite bounds";
+                        return std::nullopt;
+                    }
+                    return Fill::radial(center, radius, std::move(stops));
+                }
                 const auto start = bbox_point(source.p0);
                 const auto end = bbox_point(source.p1);
                 if (!std::isfinite(start.x) || !std::isfinite(start.y) ||
                     !std::isfinite(end.x) || !std::isfinite(end.y) ||
                     std::abs(start.x) > 100000.0f || std::abs(start.y) > 100000.0f ||
-                    std::abs(end.x) > 100000.0f || std::abs(end.y) > 100000.0f)
-                    return {.paths = {}, .elements = {}, .ok = false,
-                            .error = "SVG linear gradientTransform exceeds finite bounds"};
-                style.fill = Fill::linear(start, end, std::move(stops));
-            }
-            if (!source.animations.empty() && style.fill && style.fill->enabled) {
-                const std::vector<float> event_times{0.0f, source.animations.front().duration_seconds};
-                for (const float seconds : event_times) {
-                    auto gradient = style.fill->gradient;
-                    for (const auto& animation : source.animations) {
-                        if (animation.stop_index >= gradient.color_stops.size())
-                            return {.paths = {}, .elements = {}, .ok = false,
-                                    .error = "SVG animated gradient stop index is invalid"};
-                        const float progress = animation.discrete
-                            ? (seconds >= animation.duration_seconds ? 1.0f : 0.0f)
-                            : std::clamp(seconds / animation.duration_seconds, 0.0f, 1.0f);
-                        const auto mix = [progress](float from, float to) {
-                            return from + (to - from) * progress;
-                        };
-                        auto& stop = gradient.color_stops[animation.stop_index];
-                        if (animation.opacity) {
-                            stop.color.a = mix(animation.from.a, animation.to.a) * style.fill_opacity;
-                        } else {
-                            stop.color.r = mix(animation.from.r, animation.to.r);
-                            stop.color.g = mix(animation.from.g, animation.to.g);
-                            stop.color.b = mix(animation.from.b, animation.to.b);
-                        }
-                    }
-                    gradient_animation.push_back({seconds, std::move(gradient)});
+                    std::abs(end.x) > 100000.0f || std::abs(end.y) > 100000.0f) {
+                    gradient_error = "SVG linear gradientTransform exceeds finite bounds";
+                    return std::nullopt;
+                }
+                return Fill::linear(start, end, std::move(stops));
+            };
+            const auto base_fill = gradient_at(0.0f);
+            if (!base_fill)
+                return {.paths = {}, .elements = {}, .ok = false, .error = gradient_error};
+            style.fill = *base_fill;
+            if (total_duration > 0.0f) {
+                gradient_animation.clear();
+                for (const float seconds : {0.0f, total_duration}) {
+                    const auto filled = gradient_at(seconds);
+                    if (!filled)
+                        return {.paths = {}, .elements = {}, .ok = false, .error = gradient_error};
+                    gradient_animation.push_back({seconds, filled->gradient});
                 }
                 style.fill->gradient = gradient_animation.front().gradient;
             }
@@ -1428,9 +1729,7 @@ SvgDocumentLoadResult load_svg_document_file(
         result.elements.push_back(SvgStyledElement{
             path.path, style.fill, style.stroke, style.opacity, std::move(animations[index]),
             std::move(style.morph_animation), std::move(gradient_animation),
-            !style.fill_gradient_id.empty() &&
-                !gradients.at(style.fill_gradient_id).animations.empty() &&
-                gradients.at(style.fill_gradient_id).animations.front().discrete});
+            gradient_animation_discrete});
         result.paths.push_back(std::move(path.path));
     }
     result.ok = true;

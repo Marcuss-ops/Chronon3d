@@ -3786,3 +3786,262 @@ TEST_CASE("render plan flow layout reaches the runtime scene configuration") {
     REQUIRE(changed_prepared);
     CHECK(changed_prepared->fingerprint.content_digest != prepared->fingerprint.content_digest);
 }
+
+#if defined(CHRONON_TEST_ENABLE_SVG)
+TEST_CASE("render plan lowers userSpaceOnUse SVG gradients in user space") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/user-space.svg");
+        svg << R"svg(<svg><defs><linearGradient id="g" gradientUnits="userSpaceOnUse")svg"
+            << R"svg( x1="10" y1="20" x2="30" y2="20"><stop offset="0" stop-color="red")svg"
+            << R"svg(/><stop offset="1" stop-color="blue"/></linearGradient></defs>)svg"
+            << R"svg(<path d="M 0 0 L 40 0 L 40 40 Z" fill="url(#g)"/></svg>)svg";
+    }
+    const auto plan_json = nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+  "layers":[{"id":"vector","type":"shape","size":[64,64],
+    "shape":{"type":"path","asset":"art/user-space.svg"}}],
+  "output":{"path":"out.png"}})JSON");
+    auto decoded = decode_render_plan(plan_json);
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!prepared) INFO(prepared.error().message);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    const auto& gradient = evaluated->scene.layers()[0].nodes[0].shape.path().fill.gradient;
+    CHECK(gradient.type == graphics::GradientType::Linear);
+    CHECK(gradient.start.x == doctest::Approx(10.0f));
+    CHECK(gradient.start.y == doctest::Approx(20.0f));
+    CHECK(gradient.end.x == doctest::Approx(30.0f));
+    CHECK(gradient.end.y == doctest::Approx(20.0f));
+}
+
+TEST_CASE("render plan animates SVG gradientTransform through gradient keyframes") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/gradient-motion.svg");
+        svg << R"svg(<svg><defs><linearGradient id="g">)svg"
+            << R"svg(<animateTransform attributeName="transform" type="translate" from="0 0" to="0.25 0" dur="1s"/>)svg"
+            << R"svg(<stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/>)svg"
+            << R"svg(</linearGradient></defs><path d="M 0 0 L 40 0 L 40 40 Z" fill="url(#g)"/></svg>)svg";
+    }
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":31},
+  "layers":[{"id":"vector","type":"shape","size":[64,64],
+    "shape":{"type":"path","asset":"art/gradient-motion.svg"}}],
+  "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!prepared) INFO(prepared.error().message);
+    REQUIRE(prepared);
+    const auto at = [&](std::int64_t frame) {
+        const auto evaluated = evaluate(prepared->compiled_composition,
+            CompositionEvaluateContext{}, Frame{frame});
+        REQUIRE(evaluated);
+        return evaluated->scene.layers()[0].nodes[0].shape.path().fill.gradient;
+    };
+    CHECK(at(0).start.x == doctest::Approx(0.0f));
+    CHECK(at(15).start.x == doctest::Approx(5.0f));
+    CHECK(at(30).start.x == doctest::Approx(10.0f));
+    CHECK(at(30).end.x == doctest::Approx(50.0f));
+}
+
+TEST_CASE("render plan applies SVG keySplines as cubic bezier easing") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    const auto write = [&](const std::string& name, const std::string& easing) {
+        std::ofstream svg(directory.path / ("art/" + name));
+        svg << R"svg(<svg><path d="M 0 0 L 40 0 L 40 40 Z" fill="red"><animate)svg"
+            << R"svg( attributeName="opacity" from="0" to="1" dur="1s" )svg" << easing
+            << R"svg(/></path></svg>)svg";
+    };
+    write("spline.svg", R"svg(calcMode="spline" keySplines="0.42 0 1 1")svg");
+    write("linear.svg", R"svg()svg");
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto sample = [&](const std::string& asset, std::int64_t frame) {
+        auto plan_json = nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":31},
+  "layers":[{"id":"vector","type":"shape","size":[64,64],
+    "shape":{"type":"path","asset":"art/spline.svg"}}],
+  "output":{"path":"out.png"}})JSON");
+        plan_json["layers"][0]["shape"]["asset"] = asset;
+        auto decoded = decode_render_plan(plan_json);
+        REQUIRE(decoded);
+        const auto prepared = compile_render_plan(*decoded, resolver);
+        if (!prepared) INFO(prepared.error().message);
+        REQUIRE(prepared);
+        const auto evaluated = evaluate(prepared->compiled_composition,
+            CompositionEvaluateContext{}, Frame{frame});
+        REQUIRE(evaluated);
+        return evaluated->scene.layers()[0].nodes[0].fill.solid.a;
+    };
+    CHECK(sample("art/spline.svg", 0) == doctest::Approx(0.0f));
+    CHECK(sample("art/spline.svg", 30) == doctest::Approx(1.0f));
+    CHECK(sample("art/linear.svg", 15) == doctest::Approx(0.5f));
+    const auto spline_midpoint = sample("art/spline.svg", 15);
+    CHECK(spline_midpoint < 0.45f);
+    CHECK(spline_midpoint > 0.05f);
+    CHECK(std::abs(spline_midpoint - 0.5f) > 0.05f);
+}
+
+TEST_CASE("render plan expands SVG repeatCount into repeated keyframe cycles") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/repeat.svg");
+        svg << R"svg(<svg><path d="M 0 0 L 40 0 L 40 40 Z" fill="red"><animate)svg"
+            << R"svg( attributeName="opacity" from="0" to="1" dur="1s" repeatCount="2"/></path></svg>)svg";
+    }
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":61},
+  "layers":[{"id":"vector","type":"shape","size":[64,64],
+    "shape":{"type":"path","asset":"art/repeat.svg"}}],
+  "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!prepared) INFO(prepared.error().message);
+    REQUIRE(prepared);
+    const auto alpha = [&](std::int64_t frame) {
+        const auto evaluated = evaluate(prepared->compiled_composition,
+            CompositionEvaluateContext{}, Frame{frame});
+        REQUIRE(evaluated);
+        return evaluated->scene.layers()[0].nodes[0].fill.solid.a;
+    };
+    CHECK(alpha(0) == doctest::Approx(0.0f));
+    CHECK(alpha(30) == doctest::Approx(0.0f));
+    CHECK(alpha(45) == doctest::Approx(0.5f));
+    CHECK(alpha(60) == doctest::Approx(1.0f));
+}
+
+TEST_CASE("render plan lowers a group-scoped SVG clip over multiple paths") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/group-clip.svg");
+        svg << R"svg(<svg><defs><clipPath id="c"><rect x="0" y="0" width="20" height="20"/></clipPath></defs>)svg"
+            << R"svg(<g clip-path="url(#c)"><path d="M0 0L10 0L10 10Z" fill="red"/>)svg"
+            << R"svg(<path d="M12 0L18 0L18 8Z" fill="blue"/></g></svg>)svg";
+    }
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+  "layers":[{"id":"vector","type":"shape","size":[64,64],
+    "shape":{"type":"path","asset":"art/group-clip.svg"}}],
+  "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!prepared) INFO(prepared.error().message);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 2);
+    CHECK(evaluated->scene.layers()[0].mask.type == MaskType::Path);
+    CHECK_FALSE(evaluated->scene.layers()[0].mask.path.empty());
+}
+
+TEST_CASE("render plan rejects distinct per-element SVG clip scopes") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/distinct-clip.svg");
+        svg << R"svg(<svg><defs><clipPath id="a"><rect x="0" y="0" width="4" height="4"/></clipPath>)svg"
+            << R"svg(<clipPath id="b"><rect x="8" y="0" width="4" height="4"/></clipPath></defs>)svg"
+            << R"svg(<path d="M0 0L10 0L10 10Z" clip-path="url(#a)"/>)svg"
+            << R"svg(<path d="M12 0L18 0L18 8Z" clip-path="url(#b)"/></svg>)svg";
+    }
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+  "layers":[{"id":"vector","type":"shape","size":[64,64],
+    "shape":{"type":"path","asset":"art/distinct-clip.svg"}}],
+  "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE_FALSE(prepared);
+    CHECK(prepared.error().message.find("per-element clip/mask scopes") != std::string::npos);
+}
+#endif
+
+#if defined(CHRONON_TEST_ENABLE_SVG)
+TEST_CASE("render plan lowers a root SVG filter to layer effects") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/blurred.svg");
+        svg << R"svg(<svg filter="url(#f)"><defs><filter id="f">)svg"
+            << R"svg(<feGaussianBlur stdDeviation="4"/>)svg"
+            << R"svg(<feDropShadow dx="3" dy="-2" stdDeviation="1.5" flood-color="#336699" flood-opacity="0.5"/>)svg"
+            << R"svg(</filter></defs><path d="M 0 0 L 40 0 L 40 40 Z" fill="red"/></svg>)svg";
+    }
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+  "layers":[{"id":"vector","type":"shape","size":[64,64],
+    "shape":{"type":"path","asset":"art/blurred.svg"}}],
+  "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!prepared) INFO(prepared.error().message);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    const auto& effects = evaluated->scene.layers()[0].effects();
+    REQUIRE(effects.size() == 2);
+    CHECK(effects[0].effect_type == effects::EffectType::Blur);
+    CHECK(effects[1].effect_type == effects::EffectType::DropShadow);
+
+    // The imported filter participates in the content fingerprint.
+    auto second = compile_render_plan(*decoded, resolver);
+    REQUIRE(second);
+    CHECK(second->fingerprint.content_digest == prepared->fingerprint.content_digest);
+    {
+        std::ofstream svg(directory.path / "art/blurred2.svg");
+        svg << R"svg(<svg filter="url(#f)"><defs><filter id="f">)svg"
+            << R"svg(<feGaussianBlur stdDeviation="8"/>)svg"
+            << R"svg(</filter></defs><path d="M 0 0 L 40 0 L 40 40 Z" fill="red"/></svg>)svg";
+    }
+    auto changed_plan = *decoded;
+    changed_plan.layers[0].shape->svg_asset = "art/blurred2.svg";
+    const auto changed = compile_render_plan(changed_plan, resolver);
+    if (!changed) INFO(changed.error().message);
+    REQUIRE(changed);
+    CHECK(changed->fingerprint.content_digest != prepared->fingerprint.content_digest);
+}
+#endif

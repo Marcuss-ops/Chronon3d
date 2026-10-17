@@ -22,6 +22,13 @@ struct SvgAnimationSpec {
     float begin_seconds{0.0f};
     float duration_seconds{0.0f};
     bool discrete{false};
+    /// `calcMode="spline"` cubic-bezier control points, in SVG keySplines
+    /// order (x1, y1, x2, y2) for the single authored interval.
+    std::array<float, 4> key_splines{};
+    bool spline{false};
+    /// `repeatCount` iterations, expanded into repeated keyframe cycles by the
+    /// render-plan lowering. Bounded to keep the keyframe count finite.
+    std::uint32_t repetitions{1};
 };
 
 struct SvgMorphAnimationSpec {

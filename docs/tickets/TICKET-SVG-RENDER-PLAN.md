@@ -7,18 +7,22 @@ IN PROGRESS — the six base SVG/shape animation certification gate
 (plan-level `repeater` operators with keyframe tracks) sample per frame for
 native shapes and lowered Lottie paths, including the schema branch and a
 fingerprinting hook. Bounded
-SVG geometry and static object-bounding-box linear and radial gradients lower
-through native Chronon paints. Path-local SMIL
+SVG geometry and object-bounding-box or user-space linear and radial gradients
+lower through native Chronon paints, including `gradientTransform` animation baked
+into gradient keyframes. Path-local SMIL
 `animateTransform` (translate/scale/rotate), opacity and solid paint animations
-lower to sampled native tracks. Local geometry references through `<defs>/<use>` are
-expanded at compile time. Static clip paths and opaque white vector masks on
-the root, or on a single path/group scope, lower to the native path-mask plan.
-Direct-child group translate/uniform
-scale/rotate and opacity animations fan out to child path tracks. Two-keyframe
-`stop-color` and `stop-opacity` SMIL animations on gradient stops lower to native
-gradient animation tracks. Per-element clipping, complex masks, nested transform
-stacks, animated gradient coordinates and multi-keyframe gradient-stop animation
-remain open.
+lower to sampled native tracks, with `calcMode="spline"` cubic-bezier easing and
+bounded `repeatCount` expanded into repeated keyframe cycles. Local geometry
+references through `<defs>/<use>` are expanded at compile time. Static clip paths
+and opaque white vector masks on the root, or on a group scope covering every
+enclosed path, lower to the native path-mask plan. Root-level `feGaussianBlur`
+and `feDropShadow` filters lower to layer effects. Direct-child group
+translate/uniform scale/rotate and opacity animations fan out to child path
+tracks. Two-keyframe `stop-color` and `stop-opacity` SMIL animations on gradient
+stops lower to native gradient animation tracks. Per-element (distinct)
+clipping, complex masks, nested transform stacks, multi-keyframe gradient-stop
+animation, arbitrary filter graphs and SVG text remain open for the
+architectural reasons recorded below.
 
 ## Obiettivo
 Allow a render plan shape to refer to an SVG asset through the mounted
@@ -37,34 +41,45 @@ shape pipeline.
   path commands in document order. Multiple solid/gradient fill, solid stroke and
   per-element opacity are preserved as sibling path nodes; unsupported style
   semantics fail explicitly. The implemented geometry/style vocabulary is
-  limited to `svg`, `g`, path/rect/circle/ellipse/line/polyline/polygon and
-  solid colors, stroke width, numeric opacity, local `<use href="#id">`
-  references to paths/primitives/groups in `<defs>`, and `<defs>` gradients
-  referenced through `url(#id)`. Gradients currently require objectBoundingBox
-  units, pad spread, at least two ordered stops, and no inheritance. Static
-  `gradientTransform` is applied to normalized coordinates; radial transforms
-  must preserve circular geometry and radial gradients require square path bounds.
-  A root `clip-path` or `mask`, or a single-path group/path scope, can refer to
-  one path/primitive in `<defs>`; masks require explicit user-space units and
-  opaque white geometry. Mixed per-element clip scopes and richer mask paint remain
-  unsupported. Filters, dashes, alternate caps/joins, and unknown CSS style
-  declarations are rejected. Group opacity is flattened into child paint
-  alpha, so SVG isolated-group compositing is not represented.
+  limited to `svg`, `g`, path/rect/circle/ellipse/line/polyline/polygon, solid
+  colors, stroke width, cap/join/miter-limit, `stroke-dasharray` /
+  `stroke-dashoffset`, numeric opacity, local `<use href="#id">` references to
+  paths/primitives/groups in `<defs>`, and `<defs>` gradients referenced through
+  `url(#id)`. Gradients support `objectBoundingBox` and `userSpaceOnUse` units,
+  pad spread, at least two ordered stops, and no inheritance. `gradientTransform`
+  applies in the gradient's coordinate space; animated `translate`/uniform
+  `scale` transforms bake into gradient keyframes. Radial transforms must
+  preserve circular geometry and object-bounding-box radial gradients require
+  square path bounds; user-space percentages are rejected because the viewport
+  is not resolved at this boundary. A root `clip-path` or `mask`, or a group
+  scope whose reference covers every enclosed path under one shared transform,
+  lowers to the native path mask; masks require explicit user-space units and
+  opaque white geometry. Distinct per-element clip scopes and richer mask paint
+  remain unsupported. Root-level `filter` accepts `feGaussianBlur` and
+  `feDropShadow` and lowers them to layer effects (lengths scaled by the declared
+  viewport); per-element filters, filter regions and other primitives are
+  rejected. Unknown CSS style declarations are rejected.
 - Path-local `animateTransform` supports translate, scale and origin-centered
   rotation, and `<animate attributeName="opacity">` supports bounded `from` / `to`
-  or two-item `values`, integral composition-frame timing, one iteration,
-  `fill="freeze"`, and linear/discrete interpolation. Unsupported timing,
-  repeated animation, additive transforms, rotation pivots, static ancestor or
-  path transforms, and animation on primitives fail closed. Direct-child group
-  transform and opacity animation use the bounded inherited native-track subset
-  described below.
+  or two-item `values`, integral composition-frame timing, `fill="freeze"`, and
+  linear, discrete or `calcMode="spline"` (`keySplines`, single authored
+  interval mapped to per-keyframe cubic-bezier easing) interpolation. A bounded
+  integer `repeatCount` (2..1000) is expanded into repeated keyframe cycles: the
+  end value holds one frame before each boundary and the boundary frame restarts
+  from `from`. `repeatCount="indefinite"` stays rejected because a plan has a
+  finite timeline. Unsupported timing, `additive`/`accumulate="sum"`, rotation
+  pivots, static ancestor or path transforms, and animation on primitives fail
+  closed. Direct-child group transform and opacity animation use the bounded
+  inherited native-track subset described below.
 - Path-local animated paint supports solid `fill`/`stroke` colors,
   `stroke-width`, `fill-opacity`, and `stroke-opacity` through the native color
   and scalar tracks. Gradient stop color/opacity animations support only a
   synchronized two-keyframe `from`/`to` or two-item `values` pair beginning at
   zero, with one iteration and `fill="freeze"`; stop animations share duration
-  and interpolation mode. Gradient coordinates and animated transforms remain
-  static. Each path has a
+  and interpolation mode. Gradient coordinates stay authored, while
+  `<animateTransform>` inside a gradient bakes animated `translate`/uniform
+  `scale` into gradient keyframes and must share the stop-animation duration.
+  Each path has a
   bounded set of nine distinct animation entries; conflicting target tracks
   fail during compilation.
 - A `<g>` can animate transform and opacity directly; translate, uniform scale,
@@ -128,16 +143,64 @@ shape pipeline.
 - [x] Resolver-backed SVG coverage samples synchronized gradient stop-color
   and stop-opacity animation at start, midpoint and end through the native
   gradient animation track.
-- [ ] An SVG-enabled software CLI gate is implemented to validate and render a
+- [x] An SVG-enabled software CLI gate is implemented to validate and render a
   resolver-backed animated SVG fixture through the RenderPlan CLI, then verify
-  decoded frame hashes differ at authored frames 0 and 30. The gate implementation
-  is pending: current CLI renders transparent frames for SVG and inline-path
-  controls, and this runner cannot link the SVG-on build within its time limit.
-  It must not be treated as end-to-end evidence yet
-  (`scripts/ci/check_svg_cli_frame_gate.py`, `golden/svg_cli_gate/`).
-- [ ] Run the SVG CLI gate and importer test suite on the current tree with
+  decoded frame hashes differ at authored frames 0 and 30
+  (`scripts/ci/check_svg_cli_frame_gate.py`, `golden/svg_cli_gate/`). Verified
+  on the `CHRONON3D_ENABLE_SVG=ON` build: `SVG_CLI_GATE PASS`, frame 0 and 30
+  hashes differ.
+- [x] Run the SVG CLI gate and importer test suite on the current tree with
   `CHRONON3D_ENABLE_SVG=ON`; clean-SHA CI remains separately required.
-  The source and fixture are in place, but the gate has not yet passed.
+  Local run: gate passes; `chronon3d_svg_path_loader_tests` 23/23 cases and
+  `chronon3d_c_abi_tests` 293/293 cases pass. Clean-SHA CI is still outstanding.
+- [x] `userSpaceOnUse` gradients, animated `gradientTransform`, `calcMode="spline"`
+  with `keySplines`, bounded `repeatCount`, multi-path group clip/mask scopes and
+  root-level `feGaussianBlur`/`feDropShadow` filters are covered by loader and
+  resolver-backed compiler tests.
+- [x] Latest local run on the SVG-enabled tree: `chronon3d_svg_path_loader_tests`
+  36/36 cases (203 assertions), `chronon3d_c_abi_tests` 300/300 cases
+  (7720 assertions), `check_svg_cli_frame_gate.py` PASS and
+  `check_svg_motion_animations_gate.py` PASS. Clean-SHA CI still outstanding.
+- [x] Composite path-operator showcase gate (`scripts/ci/check_svg_composite_showcase_gate.py`)
+  certifies the canonical CLI render route end to end: six chained path
+  operators (trim, zig_zag, offset_path, pucker_bloat, round_corners and an
+  animated repeater). Observed run: all authored frames decode to visible RGBA
+  pixels, endpoint hashes differ, a repeat render reproduces identical frame
+  hashes (determinism), and the MP4 output is h264 128x128 with 31 frames
+  (`COMPOSITE_SHOWCASE_GATE PASS`).
+- [x] Observed motion gate details: `check_svg_motion_animations_gate.py`
+  certifies line reveal, icon morph, animated stroke, group hierarchy, mask
+  reveal, color/gradient and the animated repeater (17 PASS checks, endpoint
+  hashes differ per operator) through the SVG-enabled CLI.
+
+## Bounded out for architectural reasons
+
+These are not importer gaps; they need work outside the SVG lowering boundary.
+
+- **SVG text `<text>`/`<tspan>`/`<image>`/`<style>`.** The SVG layer lowers into
+  `ImportedSubpathPlan` geometry only. `LayerPlan::TextBinding` carries a
+  `key`/`text` pair for plan bindings, not a positioned text run, and there is no
+  font-family/layout contract from an SVG asset to the text pipeline. The loader
+  rejects these tags with an explicit message; adding text needs a text-run plan
+  element plus a font resolution contract.
+- **Isolated group compositing.** Group opacity is folded into each child's paint
+  alpha (`svg_path_loader.cpp` style inheritance, then `element.opacity` in the
+  compiler). `ImportedSubpathPlan::GroupTransformPlan` and the Lottie lowering
+  flatten group opacity the same way, and `RenderNode` has no group layer: the
+  renderer draws sibling paths into one surface, so overlapping children
+  darken twice where SVG composites the group once. Correcting this needs an
+  offscreen group node in the render graph, not an importer change.
+- **Per-element filters and clip/mask.** `LayerPlan` exposes one path mask and one
+  effect stack per layer; effects are layer post-transform stages with no
+  per-subpath equivalent. Distinct per-element references therefore fail closed
+  with typed diagnostics instead of rendering partially.
+- **Arbitrary filter graphs.** Only `feGaussianBlur` and `feDropShadow` map onto
+  existing layer effects; filter regions (`x`/`y`/`width`/`height`,
+  `filterUnits`) are ignored, and primitives such as `feBlend`/`feTurbulence`
+  have no plan representation.
+- **SMIL `additive`/`accumulate="sum"`.** The lowered tracks are absolute;
+  additive deltas would need a base-value contract per animated property.
+  `repeatCount="indefinite"` is rejected because a plan has a finite timeline.
 
 ## Demolition debt
 

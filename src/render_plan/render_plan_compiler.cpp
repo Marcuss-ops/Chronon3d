@@ -383,6 +383,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                             "SVG animation times must map exactly to integral composition frames",
                             "svg_animation_timing_unsupported", "render-plan-svg"};
+                    const auto cycle_frames = *last_frame - *first_frame;
+                    if (svg_animation.repetitions > 1 && cycle_frames < 2)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "Repeated SVG animations need at least two frames per cycle",
+                            "svg_animation_timing_unsupported", "render-plan-svg"};
                     AnimationTrackPlan track;
                     switch (svg_animation.kind) {
                         case assets::SvgAnimationKind::Opacity: track.property = "svg_opacity"; break;
@@ -395,16 +400,37 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         case assets::SvgAnimationKind::FillOpacity: track.property = "fill_opacity"; break;
                         case assets::SvgAnimationKind::StrokeOpacity: track.property = "stroke_opacity"; break;
                     }
-                    AnimationKeyframePlan from;
-                    from.frame = Frame{*first_frame};
-                    from.value.assign(svg_animation.from.begin(),
-                        svg_animation.from.begin() + svg_animation.components);
-                    from.interpolation = svg_animation.discrete ? "hold" : "linear";
-                    AnimationKeyframePlan to;
-                    to.frame = Frame{*last_frame};
-                    to.value.assign(svg_animation.to.begin(),
-                        svg_animation.to.begin() + svg_animation.components);
-                    track.keyframes = {std::move(from), std::move(to)};
+                    std::vector<AnimationKeyframePlan> keys;
+                    keys.reserve(static_cast<std::size_t>(svg_animation.repetitions) * 2);
+                    const auto make_key = [&](std::int64_t frame,
+                                              const std::array<float, 4>& values) {
+                        AnimationKeyframePlan key;
+                        key.frame = Frame{frame};
+                        key.value.assign(values.begin(),
+                            values.begin() + svg_animation.components);
+                        return key;
+                    };
+                    for (std::uint32_t cycle = 0; cycle < svg_animation.repetitions; ++cycle) {
+                        const auto cycle_start = *first_frame +
+                            static_cast<std::int64_t>(cycle) * cycle_frames;
+                        const auto cycle_end = cycle_start + cycle_frames;
+                        auto from = make_key(cycle_start, svg_animation.from);
+                        from.interpolation = svg_animation.discrete ? "hold"
+                            : (svg_animation.spline ? "bezier" : "linear");
+                        if (svg_animation.spline && !svg_animation.discrete)
+                            from.bezier_curve = svg_animation.key_splines;
+                        keys.push_back(std::move(from));
+                        const bool last_cycle =
+                            cycle + 1 == svg_animation.repetitions;
+                        // A repeat restarts at the cycle boundary, so the end
+                        // value is held one frame early; the boundary frame
+                        // itself carries the restarted `from` value.
+                        auto to = make_key(last_cycle ? cycle_end : cycle_end - 1,
+                                           svg_animation.to);
+                        to.interpolation = "linear";
+                        keys.push_back(std::move(to));
+                    }
+                    track.keyframes = std::move(keys);
                     std::optional<AnimationTrackPlan>* destination = nullptr;
                     switch (svg_animation.kind) {
                         case assets::SvgAnimationKind::Opacity: destination = &subpath.svg_opacity_animation; break;
@@ -538,6 +564,31 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     mask.path.push_back(lowered);
                 }
                 layer.path_mask = std::move(mask);
+            }
+            if (!imported.layer_effects.empty()) {
+                if (!layer.effects.empty())
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG root filter cannot be combined with render-plan layer effects",
+                        "svg_filter_conflict", "render-plan-svg"};
+                if (imported.layer_effects.size() > 8)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG root filter exceeds 8 primitives", "svg_resource_limit", "render-plan-svg"};
+                for (const auto& effect : imported.layer_effects) {
+                    LayerPlan::EffectPlan lowered;
+                    switch (effect.kind) {
+                        case assets::SvgLayerEffect::Kind::GaussianBlur:
+                            lowered.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+                            lowered.radius = effect.radius;
+                            break;
+                        case assets::SvgLayerEffect::Kind::DropShadow:
+                            lowered.kind = LayerPlan::EffectKindPlan::DropShadow;
+                            lowered.radius = effect.radius;
+                            lowered.offset = effect.offset;
+                            lowered.effect_color = effect.color;
+                            break;
+                    }
+                    layer.effects.push_back(std::move(lowered));
+                }
             }
         }
 #else
