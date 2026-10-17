@@ -40,6 +40,17 @@ inline FontSpec inter_bold_quality() {
     };
 }
 
+// The tracked file named tests/fixtures/Inter-Bold.ttf is actually Roboto
+// Bold; unlike the bundled Inter asset, it contains the `fi`/`ffi` ligatures
+// needed by tests that verify OpenType feature toggling.
+inline FontSpec ligature_quality() {
+    return FontSpec{
+        .font_path = bundled_font_path("tests/fixtures/Inter-Bold.ttf"),
+        .font_family = "Roboto",
+        .font_weight = 700,
+    };
+}
+
 inline bool require_font(FontEngine& engine, const FontSpec& spec = inter_bold_quality()) {
     if (!engine.can_load(spec)) {
         MESSAGE("Skipping: font not available (", spec.font_path, ")");
