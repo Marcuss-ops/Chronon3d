@@ -27,6 +27,12 @@ struct SvgDocumentLoadResult {
     std::vector<PathShape> paths;
     std::vector<SvgStyledElement> elements;
     std::optional<PathShape> vector_mask;
+    /// Declared SVG viewport size (explicit `width`/`height`, else the
+    /// viewBox-derived viewport). Present only when the document declares a
+    /// viewport; render-plan lowering uses it to center the document on the
+    /// layer box, and leaves dimension-less documents at their parsed
+    /// coordinates for backward compatibility.
+    std::optional<std::array<float, 2>> viewport_size;
     bool ok{false};
     std::string error;
 };

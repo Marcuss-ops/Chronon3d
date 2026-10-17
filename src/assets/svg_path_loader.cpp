@@ -1068,6 +1068,28 @@ SvgDocumentLoadResult load_svg_document_file(
         if (name == "svg") { svg_root = &node; break; }
     if (!svg_root)
         return {.paths = {}, .elements = {}, .ok = false, .error = "SVG document root <svg> is missing"};
+    // Declared viewport: explicit width/height, else the viewBox-derived
+    // viewport (the same rule parse_viewbox_transform applies).
+    std::optional<std::array<float, 2>> viewport_size;
+    if (const auto viewBox = svg_root->get_optional<std::string>("<xmlattr>.viewBox")) {
+        const auto viewBox_values = transform_numbers(*viewBox);
+        if (viewBox_values.size() == 4 && viewBox_values[2] > 0.0f && viewBox_values[3] > 0.0f) {
+            viewport_size = {
+                svg_root->get<float>("<xmlattr>.width", viewBox_values[2]),
+                svg_root->get<float>("<xmlattr>.height", viewBox_values[3])};
+        }
+    } else {
+        const auto declared_width = svg_root->get_optional<float>("<xmlattr>.width");
+        const auto declared_height = svg_root->get_optional<float>("<xmlattr>.height");
+        if (declared_width && declared_height &&
+            *declared_width > 0.0f && *declared_height > 0.0f)
+            viewport_size = {*declared_width, *declared_height};
+    }
+    if (viewport_size &&
+        (!std::isfinite((*viewport_size)[0]) || !std::isfinite((*viewport_size)[1]) ||
+         std::abs((*viewport_size)[0]) > 100000.0f || std::abs((*viewport_size)[1]) > 100000.0f))
+        return {.paths = {}, .elements = {}, .ok = false,
+                .error = "SVG viewport size exceeds finite resource bounds"};
     const auto root_properties = style_properties(*svg_root);
     const auto clip_ref = root_properties.find("clip-path");
     const auto mask_ref = root_properties.find("mask");
@@ -1310,6 +1332,7 @@ SvgDocumentLoadResult load_svg_document_file(
         result.paths.push_back(std::move(path.path));
     }
     result.ok = true;
+    result.viewport_size = viewport_size;
     return result;
 }
 

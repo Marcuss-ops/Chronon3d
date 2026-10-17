@@ -1,10 +1,12 @@
 # TICKET-SVG-RENDER-PLAN — Resolve SVG assets into shape plans
 
 ## Stato
-IN PROGRESS — the SVG-enabled CLI endpoint-frame gate is wired but has not yet
-passed: current CLI render output is transparent even for a non-SVG control.
-Compiler sampling coverage for animated path/transform subsets exists; broader
-animated-importer and same-SHA certification work remains open. Bounded
+IN PROGRESS — the six base SVG/shape animation certification gate
+(`scripts/ci/check_svg_motion_animations_gate.py`) passes end to end; c_abi
+(280 cases) and svg loader suites are green. Animated compositor repeaters
+(plan-level `repeater` operators with keyframe tracks) sample per frame for
+native shapes and lowered Lottie paths, including the schema branch and a
+fingerprinting hook. Bounded
 SVG geometry and static object-bounding-box linear and radial gradients lower
 through native Chronon paints. Path-local SMIL
 `animateTransform` (translate/scale/rotate), opacity and solid paint animations

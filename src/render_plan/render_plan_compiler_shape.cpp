@@ -456,38 +456,114 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                     } else {
                         imported_path.stroke.enabled = false;
                     }
-                    for (const auto& operation : shape.operators) {
-                        if (operation.kind != PathOperatorKindPlan::Trim)
-                            throw std::runtime_error("imported animated paths only support Trim Paths operators");
-                        TrimPathParams trim{operation.trim_start, operation.trim_end,
-                                            operation.trim_offset};
-                        if (operation.trim_animation) {
-                            AnimatedValue<float> start{operation.trim_start};
-                            AnimatedValue<float> end{operation.trim_end};
-                            AnimatedValue<float> offset{operation.trim_offset};
-                            for (const auto& key : operation.trim_animation->keyframes) {
-                                const auto easing = detail::animation_keyframe_easing(
-                                    *operation.trim_animation, key);
-                                if (!key.value.empty()) start.add_keyframe(key.frame, key.value[0], easing);
-                                if (key.value.size() > 1) end.add_keyframe(key.frame, key.value[1], easing);
-                                if (key.value.size() > 2) offset.add_keyframe(key.frame, key.value[2], easing);
-                            }
-                            trim.start = std::clamp(start.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
-                            trim.end = std::clamp(end.evaluate(ctx.effective_frame()), trim.start, 1.0f);
-                            trim.offset = offset.evaluate(ctx.effective_frame());
-                        }
-                        PathShape path_to_trim;
-                        path_to_trim.commands = imported_path.commands;
-                        path_to_trim.stroke = imported_path.stroke;
-                        path_to_trim.fill = imported_path.fill;
-                        path_to_trim.closed = imported_path.closed;
-                        const auto trimmed = apply_path_operators(path_to_trim,
-                            {{PathOperatorKind::Trim, trim, 0}});
-                        imported_path.commands = trimmed.front().commands;
-                        imported_path.closed = trimmed.front().closed;
+                    std::vector<PathShape> rendered_paths;
+                    {
+                        PathShape base;
+                        base.commands = imported_path.commands;
+                        base.stroke = imported_path.stroke;
+                        base.fill = imported_path.fill;
+                        base.closed = imported_path.closed;
+                        rendered_paths.push_back(std::move(base));
                     }
-                    builder.path("svg_path_" + std::to_string(path_index),
-                                 std::move(imported_path));
+                    for (const auto& operation : shape.operators) {
+                        if (operation.kind == PathOperatorKindPlan::Trim) {
+                            TrimPathParams trim{operation.trim_start, operation.trim_end,
+                                                operation.trim_offset};
+                            if (operation.trim_animation) {
+                                AnimatedValue<float> start{operation.trim_start};
+                                AnimatedValue<float> end{operation.trim_end};
+                                AnimatedValue<float> offset{operation.trim_offset};
+                                for (const auto& key : operation.trim_animation->keyframes) {
+                                    const auto easing = detail::animation_keyframe_easing(
+                                        *operation.trim_animation, key);
+                                    if (!key.value.empty()) start.add_keyframe(key.frame, key.value[0], easing);
+                                    if (key.value.size() > 1) end.add_keyframe(key.frame, key.value[1], easing);
+                                    if (key.value.size() > 2) offset.add_keyframe(key.frame, key.value[2], easing);
+                                }
+                                trim.start = std::clamp(start.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
+                                trim.end = std::clamp(end.evaluate(ctx.effective_frame()), trim.start, 1.0f);
+                                trim.offset = offset.evaluate(ctx.effective_frame());
+                            }
+                            for (auto& path_to_trim : rendered_paths) {
+                                const auto trimmed = apply_path_operators(path_to_trim,
+                                    {{PathOperatorKind::Trim, trim, 0}});
+                                path_to_trim.commands = std::move(trimmed.front().commands);
+                                path_to_trim.closed = trimmed.front().closed;
+                            }
+                        } else if (operation.kind == PathOperatorKindPlan::Repeater) {
+                            const auto& repeater = operation.repeater;
+                            RepeaterParams rp;
+                            rp.copies = repeater.copies;
+                            rp.position = {repeater.position[0], repeater.position[1]};
+                            rp.scale = {repeater.scale[0], repeater.scale[1]};
+                            rp.rotation_degrees = repeater.rotation_degrees;
+                            rp.anchor = {repeater.anchor[0], repeater.anchor[1]};
+                            rp.opacity_decay = repeater.opacity_decay;
+                            if (operation.repeater_animation &&
+                                !operation.repeater_animation->keyframes.empty()) {
+                                // Sampled per frame: [position_x, position_y,
+                                // scale_x, scale_y, rotation_degrees]; missing
+                                // components keep the static values.
+                                AnimatedValue<float> position_x{repeater.position[0]};
+                                AnimatedValue<float> position_y{repeater.position[1]};
+                                AnimatedValue<float> scale_x{repeater.scale[0]};
+                                AnimatedValue<float> scale_y{repeater.scale[1]};
+                                AnimatedValue<float> rotation{repeater.rotation_degrees};
+                                for (const auto& key : operation.repeater_animation->keyframes) {
+                                    const auto easing = detail::animation_keyframe_easing(
+                                        *operation.repeater_animation, key);
+                                    if (!key.value.empty() && !std::isfinite(key.value[0]))
+                                        throw std::runtime_error(
+                                            "repeater animation components must be finite");
+                                    if (!key.value.empty()) position_x.add_keyframe(key.frame, key.value[0], easing);
+                                    if (key.value.size() > 1) position_y.add_keyframe(key.frame, key.value[1], easing);
+                                    if (key.value.size() > 2) scale_x.add_keyframe(key.frame, key.value[2], easing);
+                                    if (key.value.size() > 3) scale_y.add_keyframe(key.frame, key.value[3], easing);
+                                    if (key.value.size() > 4) rotation.add_keyframe(key.frame, key.value[4], easing);
+                                }
+                                rp.position = {position_x.evaluate(ctx.effective_frame()),
+                                               position_y.evaluate(ctx.effective_frame())};
+                                const auto scale_sample_x = scale_x.evaluate(ctx.effective_frame());
+                                const auto scale_sample_y = scale_y.evaluate(ctx.effective_frame());
+                                rp.scale = {std::abs(scale_sample_x) < 1e-6f
+                                        ? std::copysign(1e-6f, scale_sample_x)
+                                        : scale_sample_x,
+                                    std::abs(scale_sample_y) < 1e-6f
+                                        ? std::copysign(1e-6f, scale_sample_y)
+                                        : scale_sample_y};
+                                rp.rotation_degrees = rotation.evaluate(ctx.effective_frame());
+                            }
+                            std::vector<PathShape> expanded;
+                            expanded.reserve(rendered_paths.size() * rp.copies);
+                            for (const auto& source : rendered_paths) {
+                                auto copies = apply_path_operators(source,
+                                    {{PathOperatorKind::Repeater, rp, operation.seed}});
+                                expanded.insert(expanded.end(), copies.begin(), copies.end());
+                            }
+                            rendered_paths = std::move(expanded);
+                        } else {
+                            throw std::runtime_error(
+                                "imported animated paths only support Trim Paths and Repeater operators");
+                        }
+                    }
+                    if (rendered_paths.size() > 4096)
+                        throw std::runtime_error(
+                            "imported path operator expansion exceeds 4096 sibling paths");
+                    for (std::size_t copy_index = 0;
+                         copy_index < rendered_paths.size(); ++copy_index) {
+                        PathParams copy_path;
+                        copy_path.color = base_color;
+                        for (const auto& command : rendered_paths[copy_index].commands)
+                            copy_path.commands.push_back(command);
+                        copy_path.stroke = rendered_paths[copy_index].stroke;
+                        copy_path.fill = rendered_paths[copy_index].fill;
+                        copy_path.closed = rendered_paths[copy_index].closed;
+                        const std::string node_name = rendered_paths.size() == 1
+                            ? "svg_path_" + std::to_string(path_index)
+                            : "svg_path_" + std::to_string(path_index) + "_copy_" +
+                                  std::to_string(copy_index);
+                        builder.path(node_name, std::move(copy_path));
+                    }
                 }
                 break;
             }
@@ -635,6 +711,44 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                 rp.rotation_degrees = repeater.rotation_degrees;
                 rp.anchor = {repeater.anchor[0], repeater.anchor[1]};
                 rp.opacity_decay = repeater.opacity_decay;
+                if (op.repeater_animation &&
+                    !op.repeater_animation->keyframes.empty()) {
+                    // Sampled per frame: [position_x, position_y, scale_x,
+                    // scale_y, rotation_degrees]; missing components keep the
+                    // static values. Copies stay static so the operator's
+                    // per-frame node count stays inside the authored bound.
+                    AnimatedValue<float> position_x{repeater.position[0]};
+                    AnimatedValue<float> position_y{repeater.position[1]};
+                    AnimatedValue<float> scale_x{repeater.scale[0]};
+                    AnimatedValue<float> scale_y{repeater.scale[1]};
+                    AnimatedValue<float> rotation{repeater.rotation_degrees};
+                    for (const auto& key : op.repeater_animation->keyframes) {
+                        const auto easing = detail::animation_keyframe_easing(
+                            *op.repeater_animation, key);
+                        if (key.value.size() > 0 && !std::isfinite(key.value[0]))
+                            throw std::runtime_error(
+                                "repeater animation components must be finite");
+                        if (key.value.size() > 0) position_x.add_keyframe(key.frame, key.value[0], easing);
+                        if (key.value.size() > 1) position_y.add_keyframe(key.frame, key.value[1], easing);
+                        if (key.value.size() > 2) scale_x.add_keyframe(key.frame, key.value[2], easing);
+                        if (key.value.size() > 3) scale_y.add_keyframe(key.frame, key.value[3], easing);
+                        if (key.value.size() > 4) rotation.add_keyframe(key.frame, key.value[4], easing);
+                    }
+                    const auto position_sample_x = position_x.evaluate(ctx.effective_frame());
+                    const auto position_sample_y = position_y.evaluate(ctx.effective_frame());
+                    const auto scale_sample_x = scale_x.evaluate(ctx.effective_frame());
+                    const auto scale_sample_y = scale_y.evaluate(ctx.effective_frame());
+                    rp.position = {position_sample_x, position_sample_y};
+                    // Degenerate scale collapses every copy to a point; keep a
+                    // tiny signed epsilon so the transform stays invertible.
+                    rp.scale = {std::abs(scale_sample_x) < 1e-6f
+                            ? std::copysign(1e-6f, scale_sample_x)
+                            : scale_sample_x,
+                        std::abs(scale_sample_y) < 1e-6f
+                            ? std::copysign(1e-6f, scale_sample_y)
+                            : scale_sample_y};
+                    rp.rotation_degrees = rotation.evaluate(ctx.effective_frame());
+                }
                 specs.push_back({PathOperatorKind::Repeater, rp, 0});
             }
         }

@@ -174,6 +174,11 @@ struct PathOperatorPlan {
     float trim_end{1.0f};
     float trim_offset{0.0f};
     std::optional<AnimationTrackPlan> trim_animation;
+    // Repeater: keyframe values are [position_x, position_y, scale_x,
+    // scale_y, rotation_degrees]; fewer components fall back to the static
+    // fields. Copies stay static so the operator keeps its bounded
+    // per-frame node count.
+    std::optional<AnimationTrackPlan> repeater_animation;
 };
 
 struct GradientKeyframePlan {
