@@ -576,6 +576,19 @@ void serialize_job_section(nlohmann::json& job,
     put_encoder("device_ms", timings.encoder.device_ms);
     put_encoder("pipe_write_cpu_ms", timings.encoder.pipe_write_cpu_ms);
     put_encoder("pipe_backpressure_wait_ms", timings.encoder.pipe_backpressure_wait_ms);
+
+    // ── Host-process footprint (per-process, sampled by the ticker) ──
+    // The resource-leak gates diff these keys across repeated jobs; a job
+    // whose ticker never published reports null so "not measured" never
+    // reads as a fabricated zero.
+    auto& process = job["process"];
+    const auto put_process_u64 = [&process](const char* key,
+                                            const std::optional<uint64_t>& value) {
+        put_optional(process, key, value);
+    };
+    put_process_u64("rss_peak_mb", timings.process.rss_peak_mb);
+    put_process_u64("cpu_user_ms", timings.process.cpu_user_ms);
+    put_process_u64("cpu_sys_ms", timings.process.cpu_sys_ms);
 }
 
 void build_summary_and_job_sections(

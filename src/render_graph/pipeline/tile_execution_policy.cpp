@@ -369,6 +369,14 @@ bool ExecutionResolver::native_clean_reuse_eligible(
         history.prev_scene_fingerprint != 0 ||
         history.prev_static_scene_fingerprint != 0;
     if (!previous_fingerprints_valid) return reject("fingerprints_unavailable");
+    // Transition/animation/video/text-animator state is sampled by frame and
+    // invisible to fingerprints. Report the descriptive reason before the
+    // generic non-static one: an animated scene is rejected either way, but
+    // the rejection must say WHY (frame-dependent content), not just that the
+    // scene was not static — the zero-copy gates diff on this reason.
+    if (has_frame_dependent_content(scene, frame)) {
+        return reject("frame_dependent_content");
+    }
     const bool scene_static = !typed_frame_dependent &&
         scene_is_static_at(scene, frame);
     if (!scene_static) return reject("not_static_scene");

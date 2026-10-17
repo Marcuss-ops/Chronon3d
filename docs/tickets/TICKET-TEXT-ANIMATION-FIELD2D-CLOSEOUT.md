@@ -39,3 +39,23 @@ checks performed for this closeout.
   Decoder mask tests pass (6 cases / 56 assertions), graph source sampling
   passes (1 case / 4 assertions), and ordered mask composition passes (1 case /
   8 assertions), including transformed source coordinates.
+
+## Triage 2026-10-17 — scale_anim centroid drift (test §9.2, albero linux-video-test)
+
+`tests/text/test_video_animation_curves.cpp` §9.2 (Scale) fallisce su
+`d01/d12 < 3.0 px`: misurato `|f0-f15| = 3.54268`, `|f0-f30| = 0`. Il raster agli
+estremi scala 1.0 (f0 e f30) è **identico al pixel**: la pipeline è
+deterministica. Il drift nasce dal pivot, non da nondeterminismo:
+
+- il testo "SCALE" è piazzato Center/Middle su (cx, cy) e scala ancore
+  al centro canvas;
+- il centroide d'inchiostro dei glifi non coincide con quello geometrico
+  (asimmetria verticale del contorno, ≈7 px a scala 1);
+- Uniform scale attorno al centro P manda il centroide da P + o a P + 1.5·o:
+  drift = 0.5·|o| = 3.54 px, sopra la soglia spec.
+
+Direzione di fix (nel motore testo, NON sull'asserzione): ancorare la scala
+all'inchiostro-centroide (o compensare o) perché la spec §9.2 verbatim valga per
+glifi asimmetrici. Le asserzioni d01/d02/d12 restano 3.0 px: non toccarle.
+Effetto zero-copy: f0 == f30 già garantito, il vino per il reuse frame-driven
+resta intatto.
