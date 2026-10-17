@@ -184,6 +184,14 @@ if(CHRONON3D_ENABLE_CUDA_INTEROP)
             PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}/include")
         target_link_libraries(chronon3d_cuda_vulkan_external_memory_probe
             PRIVATE chronon3d Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
+
+        add_executable(chronon3d_cuda_vulkan_rgba8_copy_probe
+            "${CMAKE_SOURCE_DIR}/tools/hwlab/cuda_vulkan_rgba8_copy_probe.cpp"
+            cuda_vulkan_surface_bridge.cpp)
+        target_include_directories(chronon3d_cuda_vulkan_rgba8_copy_probe
+            PRIVATE "${CHRONON3D_CUDA_INCLUDE_DIR}" "${CMAKE_SOURCE_DIR}/include")
+        target_link_libraries(chronon3d_cuda_vulkan_rgba8_copy_probe
+            PRIVATE chronon3d Vulkan::Vulkan "${CHRONON3D_CUDA_DRIVER_LIBRARY}")
     endif()
 
     if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
