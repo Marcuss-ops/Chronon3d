@@ -391,6 +391,12 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             out.add_float(repeater.rotation_degrees);
             for (const auto value : repeater.anchor) out.add_float(value);
             out.add_float(repeater.opacity_decay);
+            if (op.repeater_animation) {
+                out.add_bool(true);
+                add_track(out, *op.repeater_animation);
+            } else {
+                out.add_bool(false);
+            }
         }
     }
     if (layer.particle_emitter) {

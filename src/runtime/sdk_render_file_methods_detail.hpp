@@ -180,7 +180,30 @@ RenderEngine::render_to_file(const RenderFileRequest& request,
             // and before the (local, blocking) encoder submit.
             std::lock_guard frame_lock(m_impl->state_mutex);
             auto settings = convert_settings(m_impl->settings);
-            if (request.program != nullptr) {
+    // Imported-geometry plans (SVG assets, Lottie shape lowering) lower to
+    // per-frame scene evaluation through the compatibility composition. When a
+    // compatibility view is supplied it is the authoritative per-frame lowerer
+    // for those layers; the static numeric-program materializer has no frame
+    // animation for imported paths and would render them as empty geometry
+    // (TICKET-SVG-RENDER-PLAN P0 transparent-frame bug).
+    if (active_compiled != nullptr) {
+                const auto& meta = active_compiled->render_budget;
+                settings.render_budget.max_width = meta.max_width;
+                settings.render_budget.max_height = meta.max_height;
+                settings.render_budget.max_total_pixels = meta.max_total_pixels;
+                settings.render_budget.max_frames = meta.max_frames;
+                settings.render_budget.max_layers = meta.max_layers;
+                settings.render_budget.max_text_bytes = meta.max_text_bytes;
+                settings.render_budget.max_asset_reference_bytes = meta.max_asset_reference_bytes;
+                settings.render_budget.max_estimated_output_bytes = meta.max_estimated_output_bytes;
+                settings.render_budget.max_peak_memory_bytes = meta.max_peak_memory_bytes;
+                settings.render_budget.max_temporal_pixels = meta.max_temporal_pixels;
+                m_impl->prepared_job.reset();
+                m_impl->prepared_composition = nullptr;
+                m_impl->engine.set_settings(settings);
+                framebuffer = m_impl->engine.render_compiled(
+                    *active_compiled, chronon3d::Frame{frame});
+    } else if (request.program != nullptr) {
                 const auto& meta = request.program->metadata();
                 settings.render_budget.max_width = meta.render_budget.max_width;
                 settings.render_budget.max_height = meta.render_budget.max_height;
