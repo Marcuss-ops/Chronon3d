@@ -48,6 +48,7 @@ const std::set<std::string>& frozen_job_keys() {
         "output_finalize_ms", "validation_ms", "ffprobe_ms", "sha256_ms",
         "full_file_reread_count", "hash", "pipeline", "encoder_settings",
         "gpu", "effect_usage", "prepare", "image", "text", "encoder",
+        "process",
     };
     return keys;
 }
@@ -183,6 +184,9 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     timings.text.atlas_cache_hits = 13u;
     timings.encoder.submit_cpu_ms = 2.5;
     timings.encoder.cuda_pending_peak = 9u;
+    timings.process.rss_peak_mb = 512u;
+    timings.process.cpu_user_ms = 1234u;
+    timings.process.cpu_sys_ms = 222u;
 
     nlohmann::json job = nlohmann::json::object();
     chronon3d::cli::pipe_timing_detail::serialize_job_section(job, timings);
@@ -224,6 +228,13 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("encoder").at("cuda_pending_peak") == 9u);
     CHECK(job.at("effect_usage").is_object());
     CHECK(keys_of(job) == frozen_job_keys());
+    // The per-process footprint keys are exactly what the resource-leak gates
+    // diff across repeated jobs.
+    CHECK(keys_of(job.at("process")) ==
+          std::set<std::string>{"rss_peak_mb", "cpu_user_ms", "cpu_sys_ms"});
+    CHECK(job.at("process").at("rss_peak_mb") == 512u);
+    CHECK(job.at("process").at("cpu_user_ms") == 1234u);
+    CHECK(job.at("process").at("cpu_sys_ms") == 222u);
 
     // The derived projections the zero-copy gate reads follow from the typed
     // counters, not from a heuristic on the JSON.
@@ -263,6 +274,11 @@ TEST_CASE("A5 sidecar: an unmeasured job reports null, never a fabricated zero")
     CHECK(job.at("gpu").at("software_encode_frames") == 0u);
     CHECK(job.at("gpu").at("nvenc_frames") == 0u);
     CHECK(job.at("gpu").at("bitstream_copy_frames") == 0u);
+    // The ticker never published: per-process footprint is "not measured",
+    // which a leak gate must read as absence, not as a fabricated zero.
+    CHECK(job.at("process").at("rss_peak_mb").is_null());
+    CHECK(job.at("process").at("cpu_user_ms").is_null());
+    CHECK(job.at("process").at("cpu_sys_ms").is_null());
 }
 
 TEST_CASE("A5 sidecar: the job section key set is frozen") {
