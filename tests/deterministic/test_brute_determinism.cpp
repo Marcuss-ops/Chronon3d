@@ -77,6 +77,10 @@
 #include <thread>
 #include <vector>
 
+#ifndef CHRONON3D_SOURCE_DIR
+#define CHRONON3D_SOURCE_DIR "."
+#endif
+
 // Build-config tag (the {Debug, Release} dimension). NDEBUG is canonical
 // for release builds per C++20 [cpp.predefined].
 #ifdef NDEBUG
@@ -148,11 +152,6 @@ static std::optional<std::filesystem::path> discover_cli_binary() {
     return std::nullopt;
 }
 
-static bool ffmpeg_available() {
-    int rc = std::system("command -v ffmpeg >/dev/null 2>&1");
-    return rc == 0;
-}
-
 // Content-off presets intentionally do not register the external cinematic
 // corpus. Probe the canonical CLI catalog so §16 is scoped to the binary's
 // declared composition surface instead of asserting on a retired target.
@@ -177,16 +176,6 @@ static bool cli_has_composition(const std::filesystem::path& cli,
     std::error_code ec;
     std::filesystem::remove(probe, ec);
     return found;
-}
-
-// Run `sha256sum <file_glob>` via std::system to populate a hashes file
-// (canonical user-spec verbatim §16). Returns the exit code so the test
-// can fail-loud on non-zero (per TICKET-DOCTEST-SKIP-ROT closure lineage).
-static int sha256sum_via_system(const std::string& frames_glob,
-                                const std::string& hashes_file) {
-    std::ostringstream cmd;
-    cmd << "sha256sum " << frames_glob << " | sort -k 2 > " << hashes_file;
-    return std::system(cmd.str().c_str());
 }
 
 // ───────────────────────── SHA-256 (TU-local, FIPS 180-4 reference) ────
@@ -449,37 +438,33 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
                 "BruteDeterm-17.d is not applicable with CHRONON3D_BUILD_CONTENT=OFF");
         return;
     }
-    BRUTE_FAIL_LOUD_PRECONDITION(
-        ffmpeg_available(),
-        "ffmpeg not in PATH \u2014 install via apt install ffmpeg");
-
     const std::filesystem::path output_root = std::filesystem::temp_directory_path() / "chronon_brute_17d";
     std::error_code ec;
     std::filesystem::remove_all(output_root, ec);
+    std::filesystem::create_directories(output_root, ec);
+    REQUIRE_FALSE(ec);
 
-    // Run 3 consecutive canonical render video exports.
+    // Run three consecutive pre-encode raw exports. Comparing the raw sink's
+    // exact output bytes avoids the unsupported legacy PNG FFmpeg mode.
     for (int run = 1; run <= kCliExportCount; ++run) {
-        const auto frames_dir = output_root / ("repeat_" + std::to_string(run));
         const auto output = output_root / ("repeat_" + std::to_string(run) + ".mp4");
         std::ostringstream cmd;
-        cmd << cli.value().string()
+        cmd << "CHRONON3D_THREADS=4 \"" << cli.value().string() << '\"'
             << " render Motion3DGlowOrbit"
             << " --frames 0-60 -o " << output.string()
-            << " --ffmpeg-mode png"
-            << " --keep-frames --frames-dir " << frames_dir.string();
+            << " --video-sink raw --backend software --assets-root \""
+            << CHRONON3D_SOURCE_DIR << '\"';
         const int rc = std::system(cmd.str().c_str());
         INFO("run=" << run << " cmd=" << cmd.str() << " rc=" << rc);
         CHECK(rc == 0);
-        const std::string hashes = (output_root / ("repeat_" + std::to_string(run) + ".hashes")).string();
-        const int sha_rc = sha256sum_via_system((frames_dir / "frame_*.png").string(), hashes);
-        CHECK(sha_rc == 0);
-        CHECK(std::filesystem::exists(hashes, ec));
+        CHECK(std::filesystem::is_regular_file(output, ec));
+        CHECK_FALSE(ec);
     }
 
-    // Pair-wise cmp (NO MISMATCH expected).
-    const auto h1 = (output_root / "repeat_1.hashes").string();
-    const auto h2 = (output_root / "repeat_2.hashes").string();
-    const auto h3 = (output_root / "repeat_3.hashes").string();
+    // Pair-wise byte comparison (NO MISMATCH expected).
+    const auto h1 = (output_root / "repeat_1.mp4").string();
+    const auto h2 = (output_root / "repeat_2.mp4").string();
+    const auto h3 = (output_root / "repeat_3.mp4").string();
     {
         std::ostringstream cmd; cmd << "cmp -s " << h1 << ' ' << h2;
         const int rc = std::system(cmd.str().c_str());
@@ -492,6 +477,7 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
         INFO("cmp_1_3 cmd=" << cmd.str() << " rc=" << rc);
         CHECK(rc == 0);
     }
+    std::filesystem::remove_all(output_root, ec);
 }
 
 // ── Test 17.e — §17 MATRIX full-frame extension (NEW this chore commit) ──

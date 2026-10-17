@@ -189,9 +189,17 @@ TEST_CASE(
                         .color = chronon3d::Color{0.8f, 0.25f, 0.1f, 1.0f},
                     });
                     if (with_blur) {
+                        // Break the base rectangle's rotational symmetry so
+                        // the blur has a visible result within the cropped
+                        // layer bounds used by the render graph.
+                        layer.rect("accent", {
+                            .size = {8.0f, 8.0f},
+                            .color = chronon3d::Color{0.1f, 0.35f, 0.9f, 1.0f},
+                            .pos = {10.0f, 4.0f, 0.0f},
+                        });
                         layer.effect(chronon3d::RadialBlurParams{
                             .center = {0.5f, 0.5f},
-                            .amount = 2.0f,
+                            .amount = 15.0f,
                             .render_samples = 8,
                         });
                     }
@@ -206,6 +214,7 @@ TEST_CASE(
     auto job = engine.prepare(composition);
     const auto effected = job.render(chronon3d::Frame{0});
     REQUIRE(effected != nullptr);
+    const chronon3d::Framebuffer effected_snapshot = *effected;
     REQUIRE(job.render(chronon3d::Frame{1}) != nullptr);
     const auto warmed = job.telemetry();
 
@@ -213,7 +222,7 @@ TEST_CASE(
     const auto baseline = baseline_engine.render(make_composition(false),
                                                  chronon3d::Frame{0});
     REQUIRE(baseline != nullptr);
-    CHECK(chronon3d::test::framebuffer_hash(*effected) !=
+    CHECK(chronon3d::test::framebuffer_hash(effected_snapshot) !=
           chronon3d::test::framebuffer_hash(*baseline));
 
     for (int frame = 2; frame < 32; ++frame) {

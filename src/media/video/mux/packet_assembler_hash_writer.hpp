@@ -32,9 +32,9 @@ struct MuxAvioHashWriter {
     [[nodiscard]] bool open(const std::string& path,
                              bool request_checksum) noexcept;
 
-    // FFmpeg 6.1+ marks the write callback buffer const; older supported
+    // FFmpeg 7+ marks the write callback buffer const; older supported
     // libavformat ABIs use a mutable pointer. The sink never mutates it.
-#if LIBAVFORMAT_VERSION_MAJOR >= 60
+#if LIBAVFORMAT_VERSION_MAJOR >= 61
     static int write_packet(void* opaque, const std::uint8_t* buffer,
                             int buffer_size) noexcept;
 #else
