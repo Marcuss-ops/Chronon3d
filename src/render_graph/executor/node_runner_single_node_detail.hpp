@@ -58,6 +58,17 @@ void execute_single_node(
         typed_layer = compiler::find_layer(
             *ctx.frame_parameters, compiled.nodes[id].binding_meta.layer_index);
         if (!typed_layer || !typed_layer->active) {
+            if (native_surface_promotion_diag_enabled() &&
+                ctx.frame_input.frame <= 2) {
+                spdlog::info(
+                    "[typed-layer-skip] frame={} node_id={} name='{}' "
+                    "layer_index={} found={} active={}",
+                    static_cast<int>(ctx.frame_input.frame), id,
+                    graph.node(id).name(),
+                    compiled.nodes[id].binding_meta.layer_index,
+                    typed_layer != nullptr,
+                    typed_layer ? typed_layer->active : false);
+            }
             commit_transparent_skip(
                 state, id, ctx, parent_pool, SkipReason::EarlyExit,
                 graph.node(id).name());
@@ -66,6 +77,13 @@ void execute_single_node(
     }
 
     if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
+        if (native_surface_promotion_diag_enabled() &&
+            ctx.frame_input.frame <= 2) {
+            spdlog::info(
+                "[early-exit-skip] frame={} node_id={} name='{}' flag=1",
+                static_cast<int>(ctx.frame_input.frame), id,
+                graph.node(id).name());
+        }
         commit_transparent_skip(
             state, id, ctx, parent_pool,
             SkipReason::EarlyExit,

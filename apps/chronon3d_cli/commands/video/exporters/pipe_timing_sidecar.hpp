@@ -273,6 +273,17 @@ struct HardwareMetrics {
     std::optional<std::uint64_t> vram_total_mb;
 };
 
+/// Host-process footprint sampled by the SystemMetrics ticker from /proc.
+/// Per-process (not system-wide): process_rss_peak_mb is the monotonic peak
+/// across ticks, process_cpu_user/sys_ms are the cumulative jiffies-derived
+/// totals. Null means the ticker never published for this job (the leak
+/// gates and resource audits must treat that as "not measured", not zero).
+struct ProcessMetrics {
+    std::optional<std::uint64_t> rss_peak_mb;
+    std::optional<std::uint64_t> cpu_user_ms;
+    std::optional<std::uint64_t> cpu_sys_ms;
+};
+
 struct ExclusiveWallTimeline {
     std::optional<double> process_wall_ms;
     std::optional<double> startup_ms;
@@ -390,6 +401,7 @@ struct JobTimings {
     RuntimeMetrics runtime;
     CpuBreakdownMetrics cpu_breakdown;
     HardwareMetrics hardware;
+    ProcessMetrics process;
     chronon3d::runtime::RenderPreparationTimings prepare;
     std::optional<double> target_fps;
     std::optional<int> target_fps_num;
