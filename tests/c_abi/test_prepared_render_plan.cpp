@@ -1038,6 +1038,123 @@ TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks"
         CHECK(animated_anchor.error().code == "lottie_unsupported_or_invalid");
 }
 
+TEST_CASE("render plan animates compositor repeater transforms per frame") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "shapes");
+    {
+        std::ofstream lottie(directory.path / "shapes/repeater_source.json");
+        lottie << R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
+          "ks":{"a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[0,0]},
+            "s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
+          "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":false,
+            "v":[[0,0],[10,0]],"i":[[0,0],[0,0]],"o":[[0,0],[0,0]]}}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}}]}]})JSON";
+    }
+    const auto plan_json = nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":128,"height":128,"fps_num":30,"fps_den":1,"duration_frames":31},
+  "layers":[
+    {"id":"vector","type":"shape","size":[128,128],
+     "shape":{"type":"path","lottie":"shapes/repeater_source.json",
+       "operators":[
+         {"kind":"repeater","params":{"copies":3,"position":[10,0],"opacity_decay":1.0,
+           "animation":{"easing":"linear","keyframes":[
+             {"frame":0,"value":[0,0,1,1,0]},
+             {"frame":30,"value":[24,0,2,1,0]}]}}}
+       ]}
+    }
+  ],
+  "output":{"path":"out.png"}})JSON");
+    auto decoded = decode_render_plan(plan_json);
+    if (!decoded) {
+        std::cout << "decode failed: " << decoded.error().path << " | "
+                  << decoded.error().code << " | " << decoded.error().message
+                  << std::endl;
+        REQUIRE(decoded);
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    if (!prepared)
+        std::cout << "compile failed: " << prepared.error().path << " | "
+                  << prepared.error().code << " | " << prepared.error().message
+                  << std::endl;
+    REQUIRE(prepared);
+
+    // Copies stay static (bounded node count), but each copy's transform
+    // follows the sampled track: copy i maps p to p*scale^i + position*i.
+    const auto first = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    const auto last = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{30});
+    REQUIRE(first);
+    REQUIRE(last);
+    REQUIRE(first->scene.layers()[0].nodes.size() == 3);
+    REQUIRE(last->scene.layers()[0].nodes.size() == 3);
+    const auto& copy0_first = first->scene.layers()[0].nodes[0].shape.path();
+    const auto& copy1_first = first->scene.layers()[0].nodes[1].shape.path();
+    const auto& copy1_last = last->scene.layers()[0].nodes[1].shape.path();
+    const auto& copy2_last = last->scene.layers()[0].nodes[2].shape.path();
+    const auto& copy2_first = first->scene.layers()[0].nodes[2].shape.path();
+    // Frame 0: the track overrides the static position → copies share (0,0)
+    // offset, so all copies coincide on base coordinates (scale 1 at frame 0).
+    CHECK(copy1_first.commands[1].p0.x - copy0_first.commands[1].p0.x ==
+          doctest::Approx(0.0f));
+    CHECK(copy2_first.commands[1].p0.x == doctest::Approx(10.0f));
+    // Frame 30: position=24, scale=2 → spacing 10*(2-1)+24 then 10*2+24.
+    CHECK(copy1_last.commands[1].p0.x - copy0_first.commands[1].p0.x ==
+          doctest::Approx(10.0f * (2.0f - 1.0f) + 24.0f));
+    CHECK(copy2_last.commands[1].p0.x - copy1_last.commands[1].p0.x ==
+          doctest::Approx(10.0f * 2.0f + 24.0f));
+
+    // The rotation component rotates each successive copy about the anchor.
+    auto rotated_plan = *decoded;
+    rotated_plan.layers[0].shape->operators[0].repeater_animation =
+        AnimationTrackPlan{};
+    AnimationKeyframePlan rotated_start;
+    rotated_start.frame = Frame{0};
+    rotated_start.value = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f};
+    AnimationKeyframePlan rotated_end;
+    rotated_end.frame = Frame{30};
+    rotated_end.value = {0.0f, 0.0f, 1.0f, 1.0f, 90.0f};
+    rotated_plan.layers[0].shape->operators[0].repeater_animation->keyframes =
+        {rotated_start, rotated_end};
+    const auto rotated = compile_render_plan(rotated_plan, resolver);
+    REQUIRE(rotated);
+    const auto rotated_last = evaluate(rotated->compiled_composition,
+        CompositionEvaluateContext{}, Frame{30});
+    REQUIRE(rotated_last);
+    REQUIRE(rotated_last->scene.layers()[0].nodes.size() == 3);
+    // Copy 1: (10,0) rotated 90° about the anchor lands on (0,10).
+    CHECK(rotated_last->scene.layers()[0].nodes[1].shape.path().commands[1].p0.y ==
+          doctest::Approx(10.0f).epsilon(0.01f));
+
+    // Animating a repeater changes the content fingerprint; more than five
+    // components per keyframe fail closed at decode.
+    auto trimmed_static = *decoded;
+    trimmed_static.layers[0].shape->operators[0].repeater_animation = std::nullopt;
+    const auto static_only = compile_render_plan(trimmed_static, resolver);
+    REQUIRE(static_only);
+    CHECK(static_only->fingerprint.content_digest !=
+          prepared->fingerprint.content_digest);
+
+    auto overwide = plan_json;
+    overwide["layers"][0]["shape"]["operators"][0]["params"]["animation"]
+        ["keyframes"][0]["value"] = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 5.0f};
+    const auto rejected = decode_render_plan(overwide);
+    REQUIRE_FALSE(rejected);
+
+    // Determine the full fingerprint via evaluation again: rotated sample at a
+    // single frame must stay deterministic across evaluations.
+    const auto rotated_again = evaluate(rotated->compiled_composition,
+        CompositionEvaluateContext{}, Frame{30});
+    REQUIRE(rotated_again);
+    CHECK(rotated_again->scene.layers()[0].nodes[1].shape.path().commands[1].p0.y ==
+          rotated_last->scene.layers()[0].nodes[1].shape.path().commands[1].p0.y);
+}
+
 #if defined(CHRONON_TEST_ENABLE_SVG)
 TEST_CASE("render plan imports a resolver-backed SVG before composition compile") {
     using namespace chronon3d;
@@ -1236,6 +1353,77 @@ TEST_CASE("render plan lowers SVG opacity and translate animations into native s
     CHECK(last->scene.layers()[0].nodes[0].shape.path().stroke.color.a == doctest::Approx(0.25f));
 }
 #endif
+
+TEST_CASE("render plan lowers nested animated SVG groups as composed child tracks") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/nested.svg");
+        svg << R"svg(<svg><g>
+          <animateTransform attributeName="transform" type="translate" from="0 0" to="24 0" dur="1s" fill="freeze"/>
+          <g>
+            <animateTransform attributeName="transform" type="rotate" from="0" to="90" dur="1s" fill="freeze"/>
+            <path d="M 0 16 L 0 48" fill="none" stroke="blue" stroke-width="2"/>
+          </g>
+        </g></svg>)svg";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":31},
+      "layers":[{"id":"vector","type":"shape","size":[64,64],
+        "shape":{"type":"path","asset":"art/nested.svg"}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+
+    // The outermost rotation applies to the inner child first (bounded
+    // composed space: scale/rotate about the path origin, translation last).
+    const auto first = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    const auto middle = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{15});
+    const auto last = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{30});
+    REQUIRE(first);
+    REQUIRE(middle);
+    REQUIRE(last);
+    REQUIRE(first->scene.layers()[0].nodes.size() == 1);
+    const auto& node0 = first->scene.layers()[0].nodes[0].shape.path();
+    const auto& node_mid = middle->scene.layers()[0].nodes[0].shape.path();
+    const auto& node_last = last->scene.layers()[0].nodes[0].shape.path();
+    // Frame 0: rotation is zero, translation is zero — the path is unchanged.
+    CHECK(node0.commands[1].p0.y == doctest::Approx(48.0f));
+    CHECK(node0.commands[1].p0.x == doctest::Approx(0.0f));
+    // Frame 15: rotate 45° about the path origin (0,24 vertical midpoint origin
+    // at (0,0)) then apply the outer translate: R45·(0,48) + (12,0).
+    CHECK(node_mid.commands[1].p0.x == doctest::Approx(-48.0f * 0.70710678f + 12.0f).epsilon(0.01f));
+    CHECK(node_mid.commands[1].p0.y == doctest::Approx(48.0f * 0.70710678f).epsilon(0.01f));
+    // Frame 30: rotate 90° (x,y)→(-y,x) → (-48,0), then translate +24 x.
+    CHECK(node_last.commands[1].p0.x == doctest::Approx(-24.0f).epsilon(0.01f));
+    CHECK(node_last.commands[1].p0.y == doctest::Approx(0.0f).epsilon(0.01f));
+
+    // Nested groups that share an animation kind across levels fail closed.
+    {
+        std::ofstream svg(directory.path / "art/nested-dup.svg");
+        svg << R"svg(<svg><g>
+          <animateTransform attributeName="transform" type="translate" from="0 0" to="4 0" dur="1s" fill="freeze"/>
+          <g>
+            <animateTransform attributeName="transform" type="translate" from="0 0" to="1 0" dur="1s" fill="freeze"/>
+            <path d="M 0 0 L 10 10" fill="red"/>
+          </g>
+        </g></svg>)svg";
+    }
+    auto decoded_dup = *decoded;
+    decoded_dup.layers[0].shape->svg_asset = "art/nested-dup.svg";
+    const auto rejected = compile_render_plan(decoded_dup, resolver);
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().code == "svg_animation_conflict");
+}
 
 TEST_CASE("all text backends share one linear-domain color packer") {
     const chronon3d::Color color{0.2158605f, 0.5f, 1.0f, 0.5f};

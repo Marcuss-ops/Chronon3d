@@ -1035,7 +1035,19 @@ std::optional<std::string> expand_static_lottie(
         if (!shape.operators.empty() && !has_trim_operator) {
             std::vector<chronon3d::PathOperatorSpec> specs;
             specs.reserve(shape.operators.size());
-            for (const auto& operation : shape.operators) {
+            // Operators carrying their own keyframe tracks stay untouched: the
+            // per-frame shape compiler samples them against the effective
+            // frame, so static expansion here would freeze the animation.
+            std::vector<PathOperatorPlan> animated_operators;
+            for (auto& operation : shape.operators) {
+                const bool animated =
+                    (operation.kind == PathOperatorKindPlan::Repeater &&
+                     operation.repeater_animation &&
+                     !operation.repeater_animation->keyframes.empty());
+                if (animated) {
+                    animated_operators.push_back(std::move(operation));
+                    continue;
+                }
                 if (operation.kind == PathOperatorKindPlan::Repeater) {
                     const auto& value = operation.repeater;
                     specs.push_back({chronon3d::PathOperatorKind::Repeater,
@@ -1139,7 +1151,7 @@ std::optional<std::string> expand_static_lottie(
                 }
             }
             shape.imported_subpaths = std::move(expanded_subpaths);
-            if (!has_trim_operator) shape.operators.clear();
+            shape.operators = std::move(animated_operators);
         }
         return std::nullopt;
     } catch (const std::exception& error) {

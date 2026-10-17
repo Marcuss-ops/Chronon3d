@@ -221,6 +221,13 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     job.comp_id = std::move(request.comp_id);
     job.compiled = std::move(compiled);
     job.program = std::move(request.compiled_program);
+    // When the caller supplied an explicit compatibility composition it was
+    // prepared on purpose (imported SVG/Lottie geometry animates through
+    // per-frame scene evaluation, which only that view lowers). Prefer that
+    // view over the static numeric-program materializer so the frames are not
+    // rendered as empty, fully transparent geometry
+    // (TICKET-SVG-RENDER-PLAN P0).
+    if (job.compiled) job.program = nullptr;
         if (job.program) {
             const auto& metadata = job.program->metadata();
             job.metadata = CompositionMetadata{

@@ -392,7 +392,25 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 		// FFmpeg video exporter still accepts CompiledComposition, so create its
 		// temporary compatibility view from the already compiled program. This
 		// call performs no second compilation.
-		if (options.require_video_compatibility_view ||
+		//
+		// Shape layers that resolve imported geometry (SVG assets, Lottie shape
+		// lowering) animate through per-frame scene evaluation, which only the
+		// compatibility view performs; the static numeric-program materializer
+		// declares no imported-path payload and would render them as fully
+		// transparent frames (TICKET-SVG-RENDER-PLAN P0). Even D frames output
+		// therefore requires the compatibility view whenever such a layer is
+		// present.
+		const bool plan_has_imported_geometry = std::any_of(
+			context.decoded.layers.begin(), context.decoded.layers.end(),
+			[](const auto& layer) {
+				if (!layer.shape) return false;
+				if (layer.shape->svg_asset || layer.shape->lottie_asset) return true;
+				return std::any_of(layer.shape->operators.begin(), layer.shape->operators.end(),
+					[](const auto& op) {
+						return op.trim_animation || op.morph_animation;
+					});
+			});
+		if ((options.require_video_compatibility_view || plan_has_imported_geometry) ||
 		    (context.decoded.output.format != render_plan::OutputFormat::Png &&
 		     context.decoded.output.format != render_plan::OutputFormat::PngSequence)) {
 			auto compatibility = render_plan::make_video_compatibility_view(

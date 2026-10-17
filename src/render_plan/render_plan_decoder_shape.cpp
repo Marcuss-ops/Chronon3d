@@ -84,6 +84,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
         else if (shape_type == "dot_grid" || shape_type == "dotgrid") shape.type = ShapeContentTypePlan::DotGrid;
         else if (shape_type == "device_frame") shape.type = ShapeContentTypePlan::DeviceFrame;
         else throw std::runtime_error("unsupported shape.type: " + shape_type);
+#ifdef CHRONON3D_ENABLE_SVG
         if (raw_shape.contains("asset")) {
             if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path"))
                 throw std::runtime_error("shape.asset is only valid for path shapes and cannot be combined with path commands");
@@ -92,6 +93,13 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 std::filesystem::path(*shape.svg_asset).extension() != ".svg")
                 throw std::runtime_error("shape.asset must be a relative logical .svg path");
         }
+#else
+        if (raw_shape.contains("asset"))
+            throw std::runtime_error(
+                "shape.asset requires SVG importing, which is disabled in this build "
+                "(reconfigure with CHRONON3D_ENABLE_SVG=ON); a plan referencing an SVG "
+                "asset must not render silently transparent frames");
+#endif
         if (raw_shape.contains("lottie")) {
             if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path") ||
                 raw_shape.contains("asset"))
@@ -426,6 +434,20 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                         !std::isfinite(r.scale[0]) || !std::isfinite(r.scale[1]) ||
                         !std::isfinite(r.anchor[0]) || !std::isfinite(r.anchor[1]))
                         throw std::runtime_error("invalid repeater parameters");
+                    if (p.contains("animation")) {
+                        auto animation = decode_animation_track(p.at("animation"));
+                        for (const auto& key : animation.keyframes) {
+                            if (key.value.empty() || key.value.size() > 5)
+                                throw std::runtime_error(
+                                    "repeater animation keyframes require 1..5 values "
+                                    "[position_x, position_y, scale_x, scale_y, rotation_degrees]");
+                            for (const float component : key.value)
+                                if (!std::isfinite(component) || std::abs(component) > 1000000.0f)
+                                    throw std::runtime_error(
+                                        "repeater animation components must be finite within bounds");
+                        }
+                        decoded_op.repeater_animation = std::move(animation);
+                    }
                 } else if (kind == "round_corners") {
                     decoded_op.kind = PathOperatorKindPlan::RoundCorners;
                     decoded_op.radius = p.at("radius").get<float>();

@@ -306,6 +306,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             shape.imported_subpaths.clear();
             shape.imported_subpaths.reserve(imported.elements.size());
             std::size_t total_commands = 0;
+            // Documents that declare a viewport center that viewport on the
+            // layer box: plan path coordinates are measured from the layer
+            // anchor, so the SVG canvas (viewport origin at the box corner)
+            // shifts by half the declared viewport size. Dimension-less
+            // documents keep their parsed coordinates for backward
+            // compatibility with inline SVG snippets.
+            const Vec2 svg_center_offset = imported.viewport_size
+                ? Vec2{(*imported.viewport_size)[0] * 0.5f,
+                       (*imported.viewport_size)[1] * 0.5f}
+                : Vec2{0.0f, 0.0f};
             for (const auto& element : imported.elements) {
                 if (!std::isfinite(element.opacity) || element.opacity < 0.0f ||
                     element.opacity > 1.0f ||
@@ -330,6 +340,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         subpath.fill_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
                     } else {
                         subpath.fill_gradient = element.fill->gradient;
+                        subpath.fill_gradient->start -= svg_center_offset;
+                        subpath.fill_gradient->end -= svg_center_offset;
+                        subpath.fill_gradient->center -= svg_center_offset;
                         for (auto& stop : subpath.fill_gradient->color_stops)
                             stop.color.a *= element.opacity;
                     }
@@ -443,8 +456,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         for (const auto& command : morph.paths[morph_index].commands) {
                             ShapePathCommandPlan lowered;
                             const auto point = [&](Vec2 value, std::array<float, 2>& out) {
-                                out = {std::round(value.x * 10000.0f) / 10000.0f,
-                                       std::round(value.y * 10000.0f) / 10000.0f};
+                                const Vec2 shifted = value - svg_center_offset;
+                                out = {std::round(shifted.x * 10000.0f) / 10000.0f,
+                                       std::round(shifted.y * 10000.0f) / 10000.0f};
                             };
                             switch (command.type) {
                                 case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; point(command.p0, lowered.point); break;
@@ -463,10 +477,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     ShapePathCommandPlan lowered;
                     const auto quantize = [](float value) { return std::round(value * 10000.0f) / 10000.0f; };
                     const auto point = [&](Vec2 value, std::array<float, 2>& out) {
-                        if (!std::isfinite(value.x) || !std::isfinite(value.y) ||
-                            std::abs(value.x) > 100000.0f || std::abs(value.y) > 100000.0f)
+                        const Vec2 shifted = value - svg_center_offset;
+                        if (!std::isfinite(shifted.x) || !std::isfinite(shifted.y) ||
+                            std::abs(shifted.x) > 100000.0f || std::abs(shifted.y) > 100000.0f)
                             throw std::runtime_error("SVG coordinate exceeds finite resource bounds");
-                        out = {quantize(value.x), quantize(value.y)};
+                        out = {quantize(shifted.x), quantize(shifted.y)};
                     };
                     switch (command.type) {
                         case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; point(command.p0, lowered.point); break;
@@ -494,11 +509,12 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 for (const auto& command : imported.vector_mask->commands) {
                     ShapePathCommandPlan lowered;
                     const auto lower_point = [&](Vec2 point, std::array<float, 2>& destination) {
-                        if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
-                            std::abs(point.x) > 100000.0f || std::abs(point.y) > 100000.0f)
+                        const Vec2 shifted = point - svg_center_offset;
+                        if (!std::isfinite(shifted.x) || !std::isfinite(shifted.y) ||
+                            std::abs(shifted.x) > 100000.0f || std::abs(shifted.y) > 100000.0f)
                             throw std::runtime_error("SVG mask coordinate exceeds finite resource bounds");
-                        destination = {std::round(point.x * 10000.0f) / 10000.0f,
-                                       std::round(point.y * 10000.0f) / 10000.0f};
+                        destination = {std::round(shifted.x * 10000.0f) / 10000.0f,
+                                       std::round(shifted.y * 10000.0f) / 10000.0f};
                     };
                     switch (command.type) {
                         case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; lower_point(command.p0, lowered.point); break;
