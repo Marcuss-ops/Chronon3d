@@ -96,7 +96,7 @@ public:
         : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width),
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
-          m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
+          m_content_cleared(other.m_content_cleared.load(std::memory_order_relaxed)), m_key_digest(other.m_key_digest),
           m_content_digest(other.m_content_digest),
           m_cpu_authoritative(other.m_cpu_authoritative),
           // Native video surfaces are registry-owned GPU resources. Copies
@@ -110,7 +110,7 @@ public:
         : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width),
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
-          m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
+          m_content_cleared(other.m_content_cleared.load(std::memory_order_relaxed)), m_key_digest(other.m_key_digest),
           m_content_digest(other.m_content_digest),
           m_cpu_authoritative(other.m_cpu_authoritative),
           m_surface_handle(other.m_surface_handle) {
@@ -302,7 +302,7 @@ public:
     [[nodiscard]] bool is_opaque() const { return m_opaque; }
     void set_opaque(bool opaque) { m_opaque = opaque; }
     [[nodiscard]] bool is_content_cleared() const {
-        return m_content_cleared;
+        return m_content_cleared.load(std::memory_order_relaxed);
     }
     void set_content_cleared(bool cleared) {
         m_content_cleared = cleared;
@@ -385,7 +385,10 @@ public:
         swap(m_origin_x,         other.m_origin_x);
         swap(m_origin_y,         other.m_origin_y);
         swap(m_opaque,           other.m_opaque);
-        swap(m_content_cleared,  other.m_content_cleared);
+        const bool this_cleared = m_content_cleared.exchange(
+            other.m_content_cleared.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+        other.m_content_cleared.store(this_cleared, std::memory_order_relaxed);
         swap(m_key_digest,       other.m_key_digest);
         swap(m_content_digest,   other.m_content_digest);
         swap(m_surface_handle,   other.m_surface_handle);
@@ -442,7 +445,9 @@ private:
         m_origin_y = other.m_origin_y;
         m_opaque = other.m_opaque;
         m_owns_pixels = other.m_owns_pixels;
-        m_content_cleared = other.m_content_cleared;
+        m_content_cleared.store(
+            other.m_content_cleared.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
         m_key_digest = other.m_key_digest;
         m_content_digest = other.m_content_digest;
         // Native surfaces are registry-owned and read-only at this boundary;
@@ -497,11 +502,11 @@ private:
     i32 m_origin_x{0};
     i32 m_origin_y{0};
     bool m_opaque{false};
-    // Invariant: never mutated via data()/clear() when shared across threads.
-    // state.shared_transparent is assigned (shared_ptr copy) to multiple
-    // state.temp[id] slots in parallel but never modified — if that ever
-    // changes, this must revert to std::atomic<bool>.
-    bool m_content_cleared{false};
+    // Row-parallel raster/composite loops call data()/pixels_row() from
+    // multiple workers. These accessors invalidate this framebuffer-wide
+    // optimization flag, so it must be atomic even though the pixel rows are
+    // disjoint.
+    std::atomic<bool> m_content_cleared{false};
     bool m_owns_pixels{true};
     // F2.2/F2.3 — provenance authority. Default false: freshly-constructed
     // framebuffers (scratch, arena, node-internal) are NOT pool storage and
