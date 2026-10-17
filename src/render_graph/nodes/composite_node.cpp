@@ -472,9 +472,23 @@ NodeExecResult CompositeNode::execute(
     if (native_surface_promotion_diag_enabled()) {
         spdlog::info(
             "[composite-inputs] frame={} inputs={} in0={} in1={} "
+            "in0_extent={}x{}@{},{} in0_handle={} in0_cpu={} in0_gpu={} in0_data={} "
+            "in1_extent={}x{}@{},{} in1_handle={} in1_cpu={} in1_gpu={} in1_data={} "
             "bottom={}x{} top={}x{} mode={}",
             static_cast<int>(ctx.frame_input.frame), inputs.size(),
             in0 ? 1 : 0, in1 ? 1 : 0,
+            in0 ? in0->width() : -1, in0 ? in0->height() : -1,
+            in0 ? in0->origin_x() : 0, in0 ? in0->origin_y() : 0,
+            in0 ? static_cast<std::uint64_t>(in0->surface_handle()) : 0,
+            in0 ? in0->is_cpu_authoritative() : false,
+            in0 ? in0->is_gpu_authoritative() : false,
+            in0 && in0->data() != nullptr,
+            in1 ? in1->width() : -1, in1 ? in1->height() : -1,
+            in1 ? in1->origin_x() : 0, in1 ? in1->origin_y() : 0,
+            in1 ? static_cast<std::uint64_t>(in1->surface_handle()) : 0,
+            in1 ? in1->is_cpu_authoritative() : false,
+            in1 ? in1->is_gpu_authoritative() : false,
+            in1 && in1->data() != nullptr,
             bottom ? bottom->width() : -1, bottom ? bottom->height() : -1,
             top ? top->width() : -1, top ? top->height() : -1,
             static_cast<int>(m_mode));

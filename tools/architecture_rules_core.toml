@@ -543,8 +543,8 @@ description = "Every productive C++ source must belong to exactly one CMake targ
 
 [[cmake_ownership.allowed_multi_owner]]
 path = "src/backends/vulkan/cuda_vulkan_surface_bridge.cpp"
-owners = ["chronon3d_backend_vulkan", "chronon3d_cuda_vulkan_external_memory_probe"]
-reason = "Probe executable must exercise bridge in isolation (no whole-backend link)."
+owners = ["chronon3d_backend_vulkan", "chronon3d_cuda_vulkan_external_memory_probe", "chronon3d_cuda_vulkan_rgba8_copy_probe"]
+reason = "Probe executables must exercise the bridge in isolation (no whole-backend link)."
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GITIGNORED — enforce gitignore contract

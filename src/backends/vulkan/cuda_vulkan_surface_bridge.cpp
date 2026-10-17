@@ -48,7 +48,9 @@ CUexternalSemaphore import_semaphore(
 
 CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     const CudaExternalMemoryInfo& info, CUcontext context, CUstream stream)
-    : m_context(context), m_stream(stream), m_timeline(info.timeline_semaphores),
+    : m_context(context), m_stream(stream), m_width(info.width),
+      m_height(info.height), m_cuda_array_format(info.cuda_array_format),
+      m_timeline(info.timeline_semaphores),
       m_generation(info.generation) {
     VulkanExternalFds descriptors(info.fd, info.cuda_to_vulkan_semaphore_fd,
                                   info.vulkan_to_cuda_semaphore_fd);
@@ -181,6 +183,34 @@ void CudaVulkanSurfaceBridge::signal_for_vulkan(CUstream stream) {
         counters->cuda_vulkan_signal_submit_us.fetch_add(
             static_cast<std::uint64_t>(elapsed), std::memory_order_relaxed);
     }
+}
+
+void CudaVulkanSurfaceBridge::copy_rgba8_from_cuda(
+    CUdeviceptr source, std::size_t source_pitch, CUstream stream) {
+    constexpr std::size_t kBytesPerPixel = 4;
+    const auto row_bytes = static_cast<std::size_t>(m_width) * kBytesPerPixel;
+    if (!source || m_cuda_array_format != 2 || m_width == 0 || m_height == 0 ||
+        source_pitch < row_bytes) {
+        throw std::invalid_argument(
+            "RGBA8 CUDA handoff requires a valid device buffer, uchar4 Vulkan surface, "
+            "and source pitch >= width * 4");
+    }
+
+    make_current();
+    CUstream const ordered_stream = stream ? stream : m_stream;
+    wait_for_vulkan(ordered_stream);
+
+    CUDA_MEMCPY2D copy{};
+    copy.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+    copy.srcDevice = source;
+    copy.srcPitch = source_pitch;
+    copy.dstMemoryType = CU_MEMORYTYPE_ARRAY;
+    copy.dstArray = m_array;
+    copy.WidthInBytes = row_bytes;
+    copy.Height = m_height;
+    check_cuda(cuMemcpy2DAsync(&copy, ordered_stream),
+               "cuMemcpy2DAsync(CUDA producer -> Vulkan surface)");
+    signal_for_vulkan(ordered_stream);
 }
 
 }  // namespace chronon3d::backends::vulkan

@@ -566,7 +566,9 @@ int render_and_encode_ffmpeg(
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoJobExecutionContext> execution,
     std::chrono::steady_clock::time_point* sidecar_written_at,
-    std::shared_ptr<SoftwareRenderer> warm_renderer) {
+    std::shared_ptr<SoftwareRenderer> warm_renderer,
+    std::optional<media::VideoExecutionPlan>* resolved_execution_plan,
+    std::string* resolved_execution_reason) {
     if (opts.output.output.empty()) {
         spdlog::error("[video] No output path specified.");
         return 1;
@@ -651,6 +653,16 @@ int render_and_encode_ffmpeg(
                      static_cast<int>(decision.plan.interop),
                      static_cast<int>(decision.plan.handoff),
                      static_cast<int>(decision.codec_path));
+    }
+
+    // Report the immutable resolver output back to the canonical RenderJob
+    // result. A RenderPlan's compatibility SoftwareRenderer is not the video
+    // executor's lane and must not overwrite a Vulkan/direct-GPU receipt.
+    if (resolved_execution_plan) {
+        *resolved_execution_plan = render_opts.resolved_execution_plan;
+    }
+    if (resolved_execution_reason) {
+        *resolved_execution_reason = render_opts.resolved_execution_reason;
     }
 
     // ── Enforce the resolver validity contract ─────────────────────────────

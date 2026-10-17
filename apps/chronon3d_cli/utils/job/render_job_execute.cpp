@@ -27,7 +27,10 @@
 namespace chronon3d::cli {
 
 #ifdef CHRONON3D_ENABLE_VERIFICATION
-void write_render_job_receipt(const RenderJob& job) {
+void write_render_job_receipt(
+    const RenderJob& job,
+    std::string_view render_lane = {},
+    std::string_view lane_reason = {}) {
     if (!job.execution.report || job.output.empty() || job.program) return;
 
     verification::RenderReceiptInput input;
@@ -35,8 +38,8 @@ void write_render_job_receipt(const RenderJob& job) {
     input.git_sha = chronon3d::telemetry::TelemetryManager::get_git_commit();
     input.backend = job.video_settings.hardware_encoder == "none"
         ? "software" : "vulkan";
-    input.render_lane = input.backend;
-    input.lane_reason = "selected";
+    input.render_lane = render_lane.empty() ? input.backend : std::string{render_lane};
+    input.lane_reason = lane_reason.empty() ? "selected" : std::string{lane_reason};
     input.width = job.metadata.width;
     input.height = job.metadata.height;
     input.fps_num = job.video_settings.fps_num;
@@ -72,10 +75,23 @@ void write_render_job_receipt(const RenderJob& job) {
         chronon3d::profiling::duration_ms(build_t1, write_t1));
 }
 #else
-void write_render_job_receipt(const RenderJob&) {}
+void write_render_job_receipt(const RenderJob&, std::string_view = {}, std::string_view = {}) {}
 #endif
 
 namespace {
+
+std::string video_render_lane(const media::VideoExecutionPlan& plan) {
+    switch (plan.composite) {
+        case media::CompositePath::VulkanGraph: return "full_graph_vulkan";
+        case media::CompositePath::DirectYuv: return "direct_yuv_cuda";
+        case media::CompositePath::SoftwareGraph: return "software";
+        case media::CompositePath::None:
+            return plan.decode == media::DecodePath::PacketCopy &&
+                   plan.encode == media::EncodePath::PacketCopy
+                ? "packet_copy" : "none";
+    }
+    return "unknown";
+}
 
 /// Job-scoped Perfetto trace session (--trace <path>.pftrace).  Starts before
 /// the render; drains the in-memory RING_BUFFER into the file ONLY at job end
@@ -183,6 +199,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
 
         int rc = 0;
         std::chrono::steady_clock::time_point sidecar_written_at{};
+        std::optional<media::VideoExecutionPlan> resolved_plan;
+        std::string resolved_reason;
         if (job.video_settings.dry_run) {
             rc = dry_run_video_job(job);
         } else {
@@ -208,7 +226,9 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.execution.cpu_budget,
                     std::move(execution),
                     &sidecar_written_at,
-                    std::move(warm_renderer));
+                    std::move(warm_renderer),
+                    &resolved_plan,
+                    &resolved_reason);
             } catch (const std::exception& error) {
                 return make_render_job_error(
                     RenderJobErrorCode::RenderFailed,
@@ -231,7 +251,9 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.output + "'");
         }
 
-        write_render_job_receipt(job);
+        const std::string lane = resolved_plan
+            ? video_render_lane(*resolved_plan) : "unknown";
+        write_render_job_receipt(job, lane, resolved_reason);
         const auto receipt_t1 = chronon3d::profiling::now();
         if (sidecar_written_at != std::chrono::steady_clock::time_point{}) {
             spdlog::info(
@@ -244,6 +266,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             .mode = RenderMode::Video,
             .output = job.output,
             .frames_written = job.video_settings.dry_run ? 0 : frames,
+            .render_lane = lane,
+            .lane_reason = resolved_reason,
         };
 #else
         return make_render_job_error(

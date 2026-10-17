@@ -1,0 +1,19 @@
+{
+  "probe": "chronon3d_cuda_vulkan_rgba8_copy_probe",
+  "source": "tools/hwlab/cuda_vulkan_rgba8_copy_probe.cpp",
+  "binary": "build/chronon/linux-video-fast-dev/src/backends/vulkan/chronon3d_cuda_vulkan_rgba8_copy_probe",
+  "built_from": "e7e970d17",
+  "cuda_array_format": 2,
+  "surface": "B8G8R8A8_UNORM 64x64 STORAGE, external opaque FD, binary semaphores",
+  "resolution": {"width": 64, "height": 64},
+  "device_source_pitch": 320,
+  "pixel_comparison": {"bytes": 16384, "mismatches": 0, "readback": "host from mapped CUDA array"},
+  "second_copy": {"kind": "row-shifted source re-copy", "shift_mismatches": 0, "re_signal": "vkQueueSubmit + vkQueueWaitIdle before wait"},
+  "negative_cases": {"short_pitch_rejected": true, "float_surface_rejected": true},
+  "ownership_protocol": {"import_unsignaled": true, "vulkan_signals_before_each_cuda_wait": true},
+  "runs": 5,
+  "all_exit_zero": true,
+  "gpu": "NVIDIA RTX A4000",
+  "date": "2026-10-17",
+  "log": "rgba8-cuda-vulkan-copy-probe-e7e970d17.log"
+}

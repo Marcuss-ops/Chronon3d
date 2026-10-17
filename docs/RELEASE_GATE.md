@@ -13,6 +13,9 @@ Il release contract canonico per v0.1 è `docs/RELEASE_V0_1_CONTRACT.md`:
 
 Prima di qualsiasi release, tutti i controlli seguenti devono passare sullo **stesso commit**:
 
+Chronon3D è Linux-only. CMake interrompe la configurazione per toolchain non
+Linux; release build e certificazioni si eseguono esclusivamente su Linux.
+
 | # | Controllo | Descrizione |
 |---|---|---|
 | 1 | Build core | `cmake --build` su preset Linux con target core |

@@ -6,6 +6,10 @@ project(Chronon3d
     LANGUAGES C CXX
 )
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR "Chronon3D supports Linux only; configure with a Linux toolchain")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

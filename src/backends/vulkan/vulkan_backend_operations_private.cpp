@@ -87,6 +87,12 @@ void VulkanBackend::Impl::initialize_transparent_surface(
     if (!frame_batch.active) {
         throw std::logic_error("Vulkan transparent initialization requires an active frame batch");
     }
+    static const bool img_diag = std::getenv("CHRONON3D_VULKAN_BATCH_DIAG") != nullptr;
+    if (img_diag) {
+        std::fprintf(stderr, "[vk-img-diag] INIT handle=%llu image=%p\n",
+                     static_cast<unsigned long long>(destination),
+                     static_cast<void*>(dst_image.image));
+    }
     const auto descriptors = allocate_pass_descriptor_set();
     write_fill_rect_descriptors(descriptors, dst_image);
     const auto cmd = active_command_buffer();

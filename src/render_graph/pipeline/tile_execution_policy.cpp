@@ -369,9 +369,10 @@ bool ExecutionResolver::native_clean_reuse_eligible(
         history.prev_scene_fingerprint != 0 ||
         history.prev_static_scene_fingerprint != 0;
     if (!previous_fingerprints_valid) return reject("fingerprints_unavailable");
+    // Transition/animation/video/text-animator state is sampled by frame and
     // Report authored time-varying content precisely before the broader
-    // static-scene gate; transitions are intentionally not static, but their
-    // specific rejection reason is part of this resolver's diagnostic API.
+    // static-scene gate; transitions are intentionally not static, but the
+    // diagnostic API and zero-copy gates require the specific rejection reason.
     if (has_frame_dependent_content(scene, frame)) {
         return reject("frame_dependent_content");
     }

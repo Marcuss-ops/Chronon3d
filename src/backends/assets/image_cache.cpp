@@ -18,6 +18,14 @@ namespace chronon3d {
 
 namespace {
 
+[[nodiscard]] bool decoded_rgba_is_opaque(const std::vector<float>& rgba) noexcept {
+    if (rgba.empty() || rgba.size() % 4 != 0) return false;
+    for (std::size_t alpha = 3; alpha < rgba.size(); alpha += 4) {
+        if (rgba[alpha] < 0.999f) return false;
+    }
+    return true;
+}
+
 // Overlay images are ultimately composited into a 1920x1080 frame. Keeping a
 // very tall source portrait at its original resolution expands the cached
 // linear/GPU representations to hundreds of megabytes and defeats the LRU,
@@ -296,6 +304,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
                             }
                         }
                     });
+                entry->fb_img->set_opaque(decoded_rgba_is_opaque(entry->gpu_rgba));
 #ifdef CHRONON3D_ENABLE_OCIO
                 if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
                     entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {
@@ -478,6 +487,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
                             }
                         }
                     });
+                entry->fb_img->set_opaque(decoded_rgba_is_opaque(entry->gpu_rgba));
 #ifdef CHRONON3D_ENABLE_OCIO
                 if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
                     entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {
