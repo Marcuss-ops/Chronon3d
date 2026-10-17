@@ -284,7 +284,7 @@ std::optional<Color> parse_svg_color(std::string value, Color current) {
 
 std::map<std::string, std::string> style_properties(const boost::property_tree::ptree& node) {
     std::map<std::string, std::string> values;
-    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask"}) {
+    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset"}) {
         if (auto value = node.get_optional<std::string>(std::string("<xmlattr>.") + key)) values[key] = *value;
     }
     if (auto style = node.get_optional<std::string>("<xmlattr>.style")) {
@@ -310,10 +310,11 @@ std::optional<std::string> validate_svg_subset(
         "linearGradient", "radialGradient", "stop", "use", "clipPath", "mask"};
     static const std::set<std::string> supported_properties{
         "fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity",
-        "opacity", "stop-color", "stop-opacity", "clip-path", "mask"};
+        "opacity", "stop-color", "stop-opacity", "clip-path", "mask",
+        "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
+        "stroke-dasharray", "stroke-dashoffset"};
     static const std::set<std::string> unsupported_paint_attributes{
-        "color", "fill-rule", "clip-rule", "stroke-linecap", "stroke-linejoin",
-        "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "paint-order",
+        "color", "fill-rule", "clip-rule", "paint-order",
         "filter", "visibility", "display", "mix-blend-mode",
         "vector-effect"};
     const auto valid_unit_interval = [](const std::string& text) {
@@ -443,6 +444,59 @@ std::optional<std::string> validate_svg_subset(
             if (const auto it = properties.find("stroke-width");
                 it != properties.end() && !valid_stroke_width(trim(it->second)))
                 return "SVG stroke-width must be finite and within [0,100000]";
+            const auto valid_stroke_enum = [](const std::string& text,
+                const std::initializer_list<const char*>& options) {
+                std::string value;
+                value.reserve(text.size());
+                for (const char c : trim(text))
+                    value.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+                for (const auto* option : options)
+                    if (value == option) return true;
+                return false;
+            };
+            if (const auto it = properties.find("stroke-linecap");
+                it != properties.end() &&
+                !valid_stroke_enum(it->second, {"butt", "round", "square"}))
+                return "SVG stroke-linecap supports butt, round or square";
+            if (const auto it = properties.find("stroke-linejoin");
+                it != properties.end() &&
+                !valid_stroke_enum(it->second, {"miter", "round", "bevel"}))
+                return "SVG stroke-linejoin supports miter, round or bevel";
+            const auto valid_miter_limit = [](const std::string& text) {
+                try {
+                    std::size_t consumed = 0;
+                    const float value = std::stof(text, &consumed);
+                    return consumed == text.size() && std::isfinite(value) && value >= 1.0f;
+                } catch (...) {
+                    return false;
+                }
+            };
+            if (const auto it = properties.find("stroke-miterlimit");
+                it != properties.end() && !valid_miter_limit(trim(it->second)))
+                return "SVG stroke-miterlimit must be a finite number >= 1";
+            const auto valid_dash_list = [](const std::string& text) {
+                std::istringstream input(trim(text));
+                float dash = 0.0f;
+                std::size_t count = 0;
+                while (input >> dash) {
+                    if (!std::isfinite(dash) || dash < 0.0f) return false;
+                    if (++count > 64) return false;
+                }
+                return count > 0 && input.eof();
+            };
+            if (const auto it = properties.find("stroke-dasharray");
+                it != properties.end() && trim(it->second) != "none" &&
+                !valid_dash_list(it->second))
+                return "SVG stroke-dasharray must be none or a finite non-negative dash list";
+            if (const auto it = properties.find("stroke-dashoffset");
+                it != properties.end() && trim(it->second) != "none") {
+                std::istringstream offset_input(trim(it->second));
+                float offset = 0.0f;
+                float extra = 0.0f;
+                if (!(offset_input >> offset) || !std::isfinite(offset) || offset < 0.0f ||
+                    (offset_input >> extra))
+                    return "SVG stroke-dashoffset must be none or a finite non-negative length";
+            }
 
             if (name == "linearGradient" || name == "radialGradient" || name == "stop") continue;
             if (auto error = visit(node, name)) return error;
@@ -815,6 +869,37 @@ void collect_path_data(
         }
         if (auto it = properties.find("stroke-width"); it != properties.end()) {
             try { style.stroke.width = std::max(0.0f, std::stof(it->second)); } catch (...) {}
+        }
+        if (auto it = properties.find("stroke-linecap"); it != properties.end()) {
+            const std::string value = [] (std::string text) {
+                std::transform(text.begin(), text.end(), text.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                return text;
+            }(it->second);
+            style.stroke.cap = value == "round" ? LineCap::Round
+                : value == "square" ? LineCap::Square : LineCap::Butt;
+        }
+        if (auto it = properties.find("stroke-linejoin"); it != properties.end()) {
+            const std::string value = [] (std::string text) {
+                std::transform(text.begin(), text.end(), text.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                return text;
+            }(it->second);
+            style.stroke.join = value == "round" ? LineJoin::Round
+                : value == "bevel" ? LineJoin::Bevel : LineJoin::Miter;
+        }
+        if (auto it = properties.find("stroke-dasharray"); it != properties.end()) {
+            std::istringstream input(trim(it->second));
+            float dash = 0.0f;
+            style.stroke.dash_array.clear();
+            while (input >> dash)
+                style.stroke.dash_array.push_back(std::max(0.0f, dash));
+        }
+        if (auto it = properties.find("stroke-dashoffset"); it != properties.end()) {
+            std::istringstream input(trim(it->second));
+            float offset = 0.0f;
+            try { if (input >> offset) style.stroke.dash_offset = std::max(0.0f, offset); }
+            catch (...) {}
         }
         style.opacity *= style_number(properties, "opacity", 1.0f);
         style.fill_opacity *= style_number(properties, "fill-opacity", 1.0f);

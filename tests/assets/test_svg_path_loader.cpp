@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/assets/svg_path_loader.hpp>
 #include <fstream>
+#include <iostream>
 using namespace chronon3d;
 
 using namespace chronon3d::assets;
@@ -303,6 +304,45 @@ TEST_CASE("SVG styles parse colors, inline declarations and group inheritance") 
     CHECK(result.elements[0].stroke.enabled);
     CHECK(result.elements[0].stroke.width == doctest::Approx(2.0f));
     CHECK(result.elements[0].opacity == doctest::Approx(0.5f));
+}
+
+TEST_CASE("SVG advanced stroke parses cap, join, dash array and offset") {
+    const std::string filename = "temp_test_advanced_stroke.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><path d="M0 0L10 0L10 10"
+          style="stroke:red;stroke-width:3;stroke-linecap:round;stroke-linejoin:bevel;
+          stroke-dasharray:4 2;stroke-dashoffset:1.5"/></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    if (!result.ok) std::cout << "loader error: " << result.error << std::endl;
+    REQUIRE(result.ok);
+    REQUIRE(result.elements.size() == 1);
+    CHECK(result.elements[0].stroke.cap == LineCap::Round);
+    CHECK(result.elements[0].stroke.join == LineJoin::Bevel);
+    REQUIRE(result.elements[0].stroke.dash_array.size() == 2);
+    CHECK(result.elements[0].stroke.dash_array[0] == doctest::Approx(4.0f));
+    CHECK(result.elements[0].stroke.dash_array[1] == doctest::Approx(2.0f));
+    CHECK(result.elements[0].stroke.dash_offset == doctest::Approx(1.5f));
+}
+
+TEST_CASE("SVG advanced stroke rejects invalid enum values and dash lists") {
+    for (const auto& fragment : {
+             "stroke-linecap:square-x", "stroke-linejoin:fancy",
+             "stroke-miterlimit:0", "stroke-dasharray:3 0 4 -1",
+             "stroke-dasharray:none-such", "stroke-dashoffset:-2"}) {
+        const std::string filename = "temp_test_bad_stroke.svg";
+        {
+            std::ofstream out(filename);
+            out << "<svg><path d=\"M0 0L1 1\" style=\"stroke:red;" << fragment
+                << "\"/></svg>";
+        }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        CHECK_FALSE(result.ok);
+        CHECK(result.error.find("SVG ") != std::string::npos);
+    }
 }
 
 TEST_CASE("SVG importer rejects unsupported render tags explicitly") {

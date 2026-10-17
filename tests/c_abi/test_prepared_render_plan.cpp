@@ -1156,6 +1156,62 @@ TEST_CASE("render plan animates compositor repeater transforms per frame") {
 }
 
 #if defined(CHRONON_TEST_ENABLE_SVG)
+TEST_CASE("render plan lowers SVG advanced stroke cap, join and dash options") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/dashed.svg");
+        svg << R"svg(<svg><path d="M0 0L10 0L10 10"
+          style="stroke:red;stroke-width:3;stroke-linecap:round;stroke-linejoin:bevel;
+          stroke-dasharray:4 2;stroke-dashoffset:1.5"/></svg>)svg";
+    }
+    const auto plan_json = nlohmann::json::parse(R"JSON({
+  "schema":"chronon.render-plan.v3","version":3,
+  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+  "layers":[
+    {"id":"vector","type":"shape","size":[64,64],
+     "shape":{"type":"path","asset":"art/dashed.svg"}}
+  ],
+  "output":{"path":"out.png"}})JSON");
+    auto decoded = decode_render_plan(plan_json);
+    REQUIRE(decoded);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
+    const auto& stroke = evaluated->scene.layers()[0].nodes[0].shape.path().stroke;
+    REQUIRE(stroke.enabled);
+    CHECK(stroke.cap == LineCap::Round);
+    CHECK(stroke.join == LineJoin::Bevel);
+    REQUIRE(stroke.dash_array.size() == 2);
+    CHECK(stroke.dash_array[0] == doctest::Approx(4.0f));
+    CHECK(stroke.dash_array[1] == doctest::Approx(2.0f));
+    CHECK(stroke.dash_offset == doctest::Approx(1.5f));
+
+    // The advanced stroke vocabulary participates in the content fingerprint: a
+    // cap change alters the digest while geometry stays fixed.
+    std::filesystem::rename(directory.path / "art/dashed.svg",
+                            directory.path / "art/dashed2.svg");
+    {
+        std::ofstream svg(directory.path / "art/dashed2.svg");
+        svg << R"svg(<svg><path d="M0 0L10 0L10 10"
+          style="stroke:red;stroke-width:3;stroke-linecap:butt;stroke-linejoin:miter;
+          stroke-dasharray:4 2;stroke-dashoffset:1.5"/></svg>)svg";
+    }
+    auto changed = *decoded;
+    changed.layers[0].shape->svg_asset = "art/dashed2.svg";
+    const auto second_prepared = compile_render_plan(changed, resolver);
+    REQUIRE(second_prepared);
+    CHECK(second_prepared->fingerprint.content_digest !=
+          prepared->fingerprint.content_digest);
+}
+
 TEST_CASE("render plan imports a resolver-backed SVG before composition compile") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -1253,7 +1309,7 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
         "<svg><path d=\"M0 0L1 1\"/><g><use href=\"#shape\"/></g></svg>",
         "<svg><defs><linearGradient id=\"g\"/></defs><path d=\"M0 0L1 1\"/></svg>",
         "<svg><mask id=\"m\"><path d=\"M0 0L1 1\"/></mask></svg>",
-        "<svg><path d=\"M0 0L1 1\" stroke-linecap=\"round\"/></svg>",
+        "<svg><path d=\"M0 0L1 1\" paint-order=\"markers\"/></svg>",
         "<svg><path d=\"M0 0L1 1\" opacity=\"2\"/></svg>",
         "<svg><path d=\"M0 0L1 1\"><animate attributeName=\"opacity\" from=\"0\" to=\"1\" dur=\"1s\" repeatCount=\"indefinite\"/></path></svg>",
         "<svg><g><animate attributeName=\"fill\" from=\"red\" to=\"blue\" dur=\"1s\"/><path d=\"M0 0L1 1\"/></g></svg>",
