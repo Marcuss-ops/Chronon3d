@@ -17,6 +17,7 @@
 #include <string>
 #include <memory>
 #include <chrono>
+#include <optional>
 
 namespace chronon3d::cli {
 
@@ -39,6 +40,8 @@ namespace chronon3d::cli {
     const chronon3d::CpuBudget& cpu_budget,
     std::shared_ptr<media::VideoJobExecutionContext> execution = {},
     std::chrono::steady_clock::time_point* sidecar_written_at = nullptr,
-    std::shared_ptr<SoftwareRenderer> warm_renderer = {});
+    std::shared_ptr<SoftwareRenderer> warm_renderer = {},
+    std::optional<media::VideoExecutionPlan>* resolved_execution_plan = nullptr,
+    std::string* resolved_execution_reason = nullptr);
 
 } // namespace chronon3d::cli
