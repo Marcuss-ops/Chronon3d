@@ -129,6 +129,44 @@ FIXTURES["color_gradient"] = {
 }
 
 
+# 7. Animated repeater — copies, offset and scale keyframes on a Lottie source.
+FIXTURES["repeater"] = {
+    "files": {"shapes/repeater_source.json": json.dumps({"v": "5.7.4", "layers": [{
+        "ty": 4, "ddd": 0,
+        "ks": {"a": {"a": 0, "k": [0, 0]}, "p": {"a": 0, "k": [0, 0]},
+                "s": {"a": 0, "k": [100, 100]}, "r": {"a": 0, "k": 0},
+                "o": {"a": 0, "k": 100}},
+        "shapes": [
+            {"ty": "sh", "ks": {"a": 0, "k": {"c": True,
+                "v": [[0, 0], [8, 0], [8, 8], [0, 8]],
+                "i": [[0, 0], [0, 0], [0, 0], [0, 0]],
+                "o": [[0, 0], [0, 0], [0, 0], [0, 0]]}}},
+            {"ty": "fl", "r": 1, "c": {"a": 0, "k": [1, 0, 0, 1]}}]}]})},
+    "plan": plan("repeater", path_layer("vector", json.dumps({
+        "type": "path", "lottie": "shapes/repeater_source.json",
+        "operators": [{"kind": "repeater", "params": {
+            "copies": 3, "position": [6, 0], "opacity_decay": 1.0,
+            "animation": {"easing": "linear", "keyframes": [
+                {"frame": 0, "value": [0, 0, 1, 1, 0]},
+                {"frame": 30, "value": [12, 0, 2, 1, 0]}]}}}]}))),
+    "predicate_frames": (0, 30),
+}
+
+# 9. Nested animated groups — a child translation inside a rotating parent.
+# SVG nesting gives R(p + t); the renderer can only express R*p + t, so the
+# importer must reject this combination explicitly (negative certification).
+FIXTURES["nested_groups"] = {
+    "expect_error": "SVG animation is malformed",
+    "svg": f'<svg {SVG_NS}><g><animateTransform attributeName="transform" '
+           'type="rotate" from="0" to="45" dur="1s" fill="freeze"/>'
+           '<g><animateTransform attributeName="transform" type="translate" '
+           'from="0 0" to="16 0" dur="1s" fill="freeze"/>'
+           '<path d="M 32 32 L 40 32" stroke="#00AA00" stroke-width="4" fill="none"/>'
+           "</g></g></svg>",
+    "predicate_frames": (0, 30),
+    "predicate": "translate nested inside rotating parent is rejected, not rendered wrong",
+}
+
 def cli() -> Path:
     override = os.environ.get("CHRONON_CLI")
     if override:
@@ -172,15 +210,27 @@ def main() -> int:
                 plan_path = plan(name, path_layer("shape", payload))
             else:
                 plan_path = fixture["plan"]
+            for rel, text in fixture.get("files", {}).items():
+                (directory / rel).parent.mkdir(parents=True, exist_ok=True)
+                (directory / rel).write_text(text)
             (directory / "plan.json").write_text(plan_path)
 
             executable = cli()
             output = directory / "out_####.png"
-            subprocess.run(
+            proc = subprocess.run(
                 [str(executable), "render", "--plan", str(directory / "plan.json"),
                  "--assets-root", str(directory), "--backend", "software",
                  "--start-frame", "0", "--end-frame", "30", "--output", str(output)],
-                capture_output=True, text=True, check=True)
+                capture_output=True, text=True)
+            if "expect_error" in fixture:
+                # Unsupported combinations must be rejected explicitly, never rendered wrong.
+                log = proc.stdout + proc.stderr
+                if proc.returncode == 0 or fixture["expect_error"] not in log:
+                    raise SystemExit(f"{name}: expected explicit rejection, got exit {proc.returncode}")
+                print(f"{name}: explicitly rejected ({fixture['expect_error']})")
+                continue
+            if proc.returncode != 0:
+                raise SystemExit(f"{name}: render failed with exit {proc.returncode}: {proc.stderr}")
             frames = {}
             for frame in fixture["predicate_frames"]:
                 image = directory / f"out_{frame:04d}.png"
@@ -239,12 +289,19 @@ def main() -> int:
         checks.append((hue(grad[0], 0) > hue(grad[0], 2), "color_gradient starts red-dominant"))
         checks.append((hue(grad[30], 2) > hue(grad[30], 0), "color_gradient ends blue/green-dominant"))
 
+        rep = name_to_frames["repeater"]
+        checks.append((hashlib.sha256(rep[0]).hexdigest() != hashlib.sha256(rep[30]).hexdigest(),
+                       "repeater frames differ over time (animated copies reach the CLI)"))
+        checks.append((visible(rep[0]) and visible(rep[30]), "repeater endpoints visible"))
+        checks.append((max_col(rep[30]) > max_col(rep[0]),
+                       f"repeater copies move with keyframes (xmax {max_col(rep[0])} -> {max_col(rep[30])})"))
+
         failures = [message for ok, message in checks if not ok]
         for ok, message in checks:
             print(("  PASS  " if ok else "  FAIL  ") + message)
         if failures:
             raise SystemExit(f"SVG_MOTION_GATE FAIL: {len(failures)} predicate(s) failed")
-    print("SVG_MOTION_GATE PASS: six base animations certify end to end")
+    print("SVG_MOTION_GATE PASS: six base animations and animated repeater certify end to end")
     return 0
 
 

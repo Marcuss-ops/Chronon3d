@@ -977,6 +977,23 @@ void collect_path_data(
                     }
                     animations.back().push_back(animation);
                 }
+                // The renderer composes one translation, scale and rotation per path as
+                // R*S*p + t. That matches SVG nesting only when no translation sits inside a
+                // rotating or scaling ancestor (animation list is ordered outer -> inner), so
+                // reject that combination instead of rendering it with the wrong order.
+                bool rotated_or_scaled_ancestor = false;
+                for (const auto& animation : animations.back()) {
+                    if (animation.kind == SvgAnimationKind::Rotate ||
+                        animation.kind == SvgAnimationKind::Scale) {
+                        rotated_or_scaled_ancestor = true;
+                    } else if (animation.kind == SvgAnimationKind::Translate &&
+                               rotated_or_scaled_ancestor) {
+                        animations.back().clear();
+                        animations.back().push_back(SvgAnimationSpec{});
+                        animations.back().back().duration_seconds = -1.0f;
+                        break;
+                    }
+                }
                 const Affine2 identity(1.0f);
                 const bool has_static_transform = [&] {
                     for (int column = 0; column < 3; ++column)
