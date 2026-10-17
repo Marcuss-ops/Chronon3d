@@ -843,6 +843,9 @@ VulkanBackend::Impl::~Impl() {
         destroy_image(dst);
         destroy_image(src);
         if (staging.buffer != VK_NULL_HANDLE) memory_manager.destroy_buffer(staging);
+        if (readback_staging.buffer != VK_NULL_HANDLE) {
+            memory_manager.destroy_buffer(readback_staging);
+        }
         for (std::size_t i = 0; i < kGlyphInstanceRingSize; ++i) {
             if (glyph_instance_buffers[i].buffer != VK_NULL_HANDLE) {
                 memory_manager.destroy_buffer(glyph_instance_buffers[i]);

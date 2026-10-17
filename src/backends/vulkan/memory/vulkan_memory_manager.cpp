@@ -193,6 +193,11 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
             // invalidate requirement explicit by construction: none is needed.
             alloc_info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT |
                                VMA_ALLOCATION_CREATE_MAPPED_BIT;
+            // Prefer cached host memory for the CPU read after the transfer.
+            // Keep coherent memory required so the mapped read needs no
+            // invalidate call; VMA may fall back if cached coherent memory is
+            // unavailable on a device.
+            alloc_info.preferredFlags = VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
             alloc_info.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             break;
@@ -237,6 +242,12 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
     // vkCmdUpdateBuffer bounds are defined by VkBufferCreateInfo::size; VMA may
     // reserve a larger aligned allocation that cannot extend that buffer.
     result.size = buffer_info.size;
+    VkPhysicalDeviceMemoryProperties memory_properties{};
+    vkGetPhysicalDeviceMemoryProperties(physical_device_, &memory_properties);
+    if (result_info.memoryType < memory_properties.memoryTypeCount) {
+        result.memory_properties =
+            memory_properties.memoryTypes[result_info.memoryType].propertyFlags;
+    }
     return result;
 }
 

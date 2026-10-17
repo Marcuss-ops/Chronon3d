@@ -20,6 +20,7 @@ struct VulkanBufferAllocation {
     VmaAllocation allocation{VK_NULL_HANDLE};
     void* mapped{nullptr};
     VkDeviceSize size{0};
+    VkMemoryPropertyFlags memory_properties{0};
 };
 
 struct VulkanImageAllocation {
