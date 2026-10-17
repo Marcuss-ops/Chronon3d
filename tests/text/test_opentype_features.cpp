@@ -40,14 +40,13 @@ std::vector<std::uint32_t> glyph_ids(const PlacedGlyphRun& placed) {
 // 1. Ligatures — disabling 'liga' must prevent the "fi" ligature.
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("OpenType: liga=0 prevents fi ligature") {
+TEST_CASE("OpenType: liga=0 prevents fi ligature with a ligature-capable font") {
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    REQUIRE(require_font(engine));
-
-    const auto font = inter_bold_quality();
+    const auto font = ligature_quality();
+    REQUIRE(require_font(engine, font));
     const float size = 32.0f;
 
     TextShaping default_shaping;
@@ -65,22 +64,21 @@ TEST_CASE("OpenType: liga=0 prevents fi ligature") {
     INFO("default glyphs: ", default_run->glyphs.size(),
          " no-liga glyphs: ", no_liga_run->glyphs.size());
 
-    // With default shaping HarfBuzz applies 'liga' implicitly.  Inter-Bold
-    // contains an 'fi' ligature, so the default run should collapse the two
+    // With default shaping HarfBuzz applies 'liga' implicitly.  The fixture
+    // font contains an 'fi' ligature, so the default run should collapse the two
     // characters to a single glyph.  With liga=0 it must stay as two glyphs.
     CHECK(default_run->glyphs.size() == 1);
     CHECK(no_liga_run->glyphs.size() == 2);
     CHECK(glyph_ids(*default_run) != glyph_ids(*no_liga_run));
 }
 
-TEST_CASE("OpenType: liga=0 prevents ffi ligature") {
+TEST_CASE("OpenType: liga=0 prevents ffi ligature with a ligature-capable font") {
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    REQUIRE(require_font(engine));
-
-    const auto font = inter_bold_quality();
+    const auto font = ligature_quality();
+    REQUIRE(require_font(engine, font));
     const float size = 32.0f;
 
     TextShaping default_shaping;
@@ -206,11 +204,12 @@ TEST_CASE("OpenType: resolve_and_shape forwards features") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    REQUIRE(require_font(engine));
+    const auto font = ligature_quality();
+    REQUIRE(require_font(engine, font));
 
     TextDocument doc;
     doc.utf8 = "fi";
-    doc.defaults.font = inter_bold_quality();
+    doc.defaults.font = font;
     doc.split_paragraphs();
 
     auto default_tree = resolve_and_shape(doc, engine, 0.0f, test_repo_root() / "assets" / "fonts");
@@ -242,11 +241,12 @@ TEST_CASE("OpenType: TextLayoutSpec::features forwarded through build_text_run")
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    REQUIRE(require_font(engine));
+    const auto font = ligature_quality();
+    REQUIRE(require_font(engine, font));
 
     TextDocument doc;
     doc.utf8 = "fi";
-    doc.defaults.font = inter_bold_quality();
+    doc.defaults.font = font;
     doc.split_paragraphs();
 
     TextLayoutSpec default_layout;
@@ -280,11 +280,12 @@ TEST_CASE("OpenType: cache discriminates on features") {
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    REQUIRE(require_font(engine));
+    const auto font = ligature_quality();
+    REQUIRE(require_font(engine, font));
 
     TextDocument doc;
     doc.utf8 = "fi";
-    doc.defaults.font = inter_bold_quality();
+    doc.defaults.font = font;
     doc.split_paragraphs();
 
     TextLayoutSpec default_layout;

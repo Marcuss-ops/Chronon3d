@@ -224,16 +224,21 @@ TEST_CASE("VideoAnim.Scale_Peak_at_f15_1920x1080") {
     CHECK_FALSE(b15.empty());
     CHECK_FALSE(b30.empty());
 
-    // ── centroid distance inter-frame within 3 px (anchor = center)
-    const AlphaCentroid c0  = alpha_centroid(*fb0);
-    const AlphaCentroid c15 = alpha_centroid(*fb15);
-    const AlphaCentroid c30 = alpha_centroid(*fb30);
-    const float d01 = std::hypot(c15.x - c0.x, c15.y - c0.y);
-    const float d02 = std::hypot(c30.x - c0.x, c30.y - c0.y);
-    const float d12 = std::hypot(c30.x - c15.x, c30.y - c15.y);
-    INFO("centroid distance: |f0-f15|=", d01,
+    // Measure the visual bounds center, not the alpha-weighted centroid:
+    // scaling changes the relative pixel mass of asymmetric glyphs (for this
+    // font, the alpha centroid moves 3.54 px despite a fixed transform anchor).
+    const float center0x = 0.5f * static_cast<float>(b0.x0 + b0.x1);
+    const float center0y = 0.5f * static_cast<float>(b0.y0 + b0.y1);
+    const float center15x = 0.5f * static_cast<float>(b15.x0 + b15.x1);
+    const float center15y = 0.5f * static_cast<float>(b15.y0 + b15.y1);
+    const float center30x = 0.5f * static_cast<float>(b30.x0 + b30.x1);
+    const float center30y = 0.5f * static_cast<float>(b30.y0 + b30.y1);
+    const float d01 = std::hypot(center15x - center0x, center15y - center0y);
+    const float d02 = std::hypot(center30x - center0x, center30y - center0y);
+    const float d12 = std::hypot(center30x - center15x, center30y - center15y);
+    INFO("visual bounds center distance: |f0-f15|=", d01,
          " |f0-f30|=", d02, " |f15-f30|=", d12);
-    // Scale=1.5 still anchors at canvas center; max distance < 3 px.
+    // Scale=1.5 remains centered; allow subpixel rasterization rounding.
     CHECK(d01 < 3.0f);
     CHECK(d02 < 3.0f);
     CHECK(d12 < 3.0f);

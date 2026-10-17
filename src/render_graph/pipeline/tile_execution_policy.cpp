@@ -369,6 +369,12 @@ bool ExecutionResolver::native_clean_reuse_eligible(
         history.prev_scene_fingerprint != 0 ||
         history.prev_static_scene_fingerprint != 0;
     if (!previous_fingerprints_valid) return reject("fingerprints_unavailable");
+    // Report authored time-varying content precisely before the broader
+    // static-scene gate; transitions are intentionally not static, but their
+    // specific rejection reason is part of this resolver's diagnostic API.
+    if (has_frame_dependent_content(scene, frame)) {
+        return reject("frame_dependent_content");
+    }
     const bool scene_static = !typed_frame_dependent &&
         scene_is_static_at(scene, frame);
     if (!scene_static) return reject("not_static_scene");
@@ -411,10 +417,6 @@ bool ExecutionResolver::native_clean_reuse_eligible(
 
     // Transition/animation/video/text-animator state is sampled by frame and
     // invisible to fingerprints: same guard as the CPU surface-reuse path.
-    if (has_frame_dependent_content(scene, frame)) {
-        return reject("frame_dependent_content");
-    }
-
     // Time-evolving effects with static params (grain speed, noise evolution)
     // hash identically every frame but emit different pixels. The catalog
     // temporal flag is the authority; any active temporal instance vetoes.

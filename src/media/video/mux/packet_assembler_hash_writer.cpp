@@ -111,7 +111,7 @@ bool MuxAvioHashWriter::open(const std::string& path,
 }
 
 int MuxAvioHashWriter::write_packet(void* opaque,
-#if LIBAVFORMAT_VERSION_MAJOR >= 60
+#if LIBAVFORMAT_VERSION_MAJOR >= 61
                                     const std::uint8_t* buffer,
 #else
                                     std::uint8_t* buffer,
