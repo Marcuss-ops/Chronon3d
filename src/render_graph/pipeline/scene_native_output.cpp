@@ -92,8 +92,19 @@ void synchronize_native_output(RenderGraphContext& ctx,
             "reading back the native surface",
             static_cast<int>(ctx.frame_input.frame));
     }
-    const auto scratch = ctx.download_scratch(framebuffer->width(),
-                                              framebuffer->height());
+    // Vulkan returns tightly packed RGBA32F pixels. When the framebuffer is
+    // also tightly packed, read directly into its CPU storage and avoid the
+    // extra full-frame scratch→framebuffer copy. Padded framebuffers keep the
+    // scratch path below so the backend's packed-row contract is preserved.
+    const bool direct_readback =
+        framebuffer->stride() == framebuffer->width() &&
+        framebuffer->ensure_cpu_storage();
+    const auto scratch = direct_readback
+        ? std::span<float>(
+              reinterpret_cast<float*>(framebuffer->pixels_row(0)),
+              static_cast<std::size_t>(framebuffer->width()) *
+                  static_cast<std::size_t>(framebuffer->height()) * 4u)
+        : ctx.download_scratch(framebuffer->width(), framebuffer->height());
     const auto result = ctx.backend->download_surface(
         framebuffer->surface_handle(), scratch);
     if (!result.ok()) {
@@ -106,16 +117,15 @@ void synchronize_native_output(RenderGraphContext& ctx,
         framebuffer->clear_surface_handle();
         return;
     }
-    // Single copy authority: the download payload is packed (stride ==
-    // width), while the framebuffer may be stride-padded; copy_rows() uses
-    // each buffer's own stride so no row is shifted. Both the previously
-    // flat fast path (stride == width) and the row-wise fallback are exactly
-    // this operation.
-    FramebufferCopyAuthority::copy_rows(
-        framebuffer->pixels_row(0), framebuffer->stride(),
-        reinterpret_cast<const Color*>(scratch.data()),
-        framebuffer->width() /* packed source has no padding */,
-        framebuffer->width(), framebuffer->height());
+    if (!direct_readback) {
+        // The download payload is packed (stride == width), while the
+        // framebuffer may be stride-padded. copy_rows() respects both strides.
+        FramebufferCopyAuthority::copy_rows(
+            framebuffer->pixels_row(0), framebuffer->stride(),
+            reinterpret_cast<const Color*>(scratch.data()),
+            framebuffer->width() /* packed source has no padding */,
+            framebuffer->width(), framebuffer->height());
+    }
     if (native_surface_promotion_diag_enabled()) {
         const auto sample = reinterpret_cast<const Color*>(scratch.data())[
             static_cast<std::size_t>(std::min(300, framebuffer->height() - 1)) *
