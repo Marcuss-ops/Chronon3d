@@ -119,7 +119,11 @@ struct CudaSession {
     CudaSession() {
         if (cuInit(0) != CUDA_SUCCESS) return;
         if (cuDeviceGet(&device, 0) != CUDA_SUCCESS) return;
+#if defined(CUDA_VERSION) && CUDA_VERSION >= 13000
         if (cuCtxCreate(&context, nullptr, 0, device) != CUDA_SUCCESS) return;
+#else
+        if (cuCtxCreate(&context, 0, device) != CUDA_SUCCESS) return;
+#endif
         if (cuStreamCreate(&stream, CU_STREAM_NON_BLOCKING) != CUDA_SUCCESS) return;
         ok = true;
     }
