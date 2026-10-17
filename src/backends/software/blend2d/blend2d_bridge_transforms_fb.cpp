@@ -97,10 +97,13 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
         if (x0_st < x1_st && y0_st < y1_st) {
             const float inv_sx = 1.0f / sx;
             const float inv_sy = 1.0f / sy;
+            Color* const dst_base = dst_fb.data();
+            const auto dst_stride = static_cast<std::size_t>(dst_fb.stride());
 
             auto process_rows_st = [&](int row_begin, int row_end) {
                 for (int y = row_begin; y < row_end; ++y) {
-                    Color* dst_row = dst_fb.pixels_row(y);
+                    Color* dst_row = dst_base +
+                        static_cast<std::size_t>(y) * dst_stride;
                     const float ly = (static_cast<float>(y) + 0.5f - ty) * inv_sy;
                     if (ly < 0.0f || ly >= static_cast<float>(sh)) continue;
 
@@ -239,10 +242,12 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
     int x0, y0, x1, y1;
     detail::get_projective_bounds(model, static_cast<float>(sw), static_cast<float>(sh), dst_fb.width(), dst_fb.height(), x0, y0, x1, y1);
     if (x0 >= x1 || y0 >= y1) return;
+    Color* const dst_base = dst_fb.data();
+    const auto dst_stride = static_cast<std::size_t>(dst_fb.stride());
 
     auto process_rows = [&](int row_begin, int row_end) {
         for (int y = row_begin; y < row_end; ++y) {
-            Color* dst_row = dst_fb.pixels_row(y);
+            Color* dst_row = dst_base + static_cast<std::size_t>(y) * dst_stride;
             for (int x = x0; x < x1; ++x) {
                 if (state && !pixel_passes_mask(*state, x, y)) continue;
 
@@ -303,6 +308,8 @@ void composite_framebuffer_tiled(Framebuffer& dst_fb, const Framebuffer& src_fb,
 
     std::optional<detail::TransformInfo> transform;
     if (!simple_translation && !scale_translation) transform.emplace(model);
+    Color* const dst_base = dst_fb.data();
+    const auto dst_stride = static_cast<std::size_t>(dst_fb.stride());
 
     const auto sample = [&](float lx, float ly) {
         if (!downscale_x && !downscale_y) {
@@ -327,7 +334,8 @@ void composite_framebuffer_tiled(Framebuffer& dst_fb, const Framebuffer& src_fb,
 
     const auto process_rows = [&](int first, int last) {
         for (int y = first; y < last; ++y) {
-            Color* destination = dst_fb.pixels_row(y);
+            Color* destination = dst_base +
+                static_cast<std::size_t>(y) * dst_stride;
             for (int x = x0; x < x1; ++x) {
                 if (state && !pixel_passes_mask(*state, x, y)) continue;
                 float lx = 0.0f, ly = 0.0f;
