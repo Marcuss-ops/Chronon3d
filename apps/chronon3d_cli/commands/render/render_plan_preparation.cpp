@@ -407,7 +407,7 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 				if (layer.shape->svg_asset || layer.shape->lottie_asset) return true;
 				return std::any_of(layer.shape->operators.begin(), layer.shape->operators.end(),
 					[](const auto& op) {
-						return op.trim_animation || op.morph_animation;
+						return op.trim_animation || op.morph_animation || op.repeater_animation;
 					});
 			});
 		if ((options.require_video_compatibility_view || plan_has_imported_geometry) ||
