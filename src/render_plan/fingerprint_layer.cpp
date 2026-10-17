@@ -259,6 +259,11 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 add_optional(writer, stroke.solid_color, [](auto& nested, const auto& color) {
                     for (const auto component : color) nested.add_float(component);
                 });
+                writer.add_size(stroke.dash_array.size());
+                for (const float dash : stroke.dash_array) writer.add_float(dash);
+                writer.add_float(stroke.dash_offset);
+                writer.add_string(stroke.cap);
+                writer.add_string(stroke.join);
                 add_optional(writer, stroke.brush, [](auto& nested,
                         const graphics::BrushProfile& brush) {
                     nested.add_uint64(brush.fingerprint());

@@ -353,6 +353,18 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     auto color = element.stroke.color;
                     color.a *= element.opacity;
                     stroke.solid_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
+                    switch (element.stroke.cap) {
+                        case LineCap::Round: stroke.cap = "round"; break;
+                        case LineCap::Square: stroke.cap = "square"; break;
+                        default: stroke.cap = "butt"; break;
+                    }
+                    switch (element.stroke.join) {
+                        case LineJoin::Round: stroke.join = "round"; break;
+                        case LineJoin::Bevel: stroke.join = "bevel"; break;
+                        default: stroke.join = "miter"; break;
+                    }
+                    stroke.dash_array = element.stroke.dash_array;
+                    stroke.dash_offset = element.stroke.dash_offset;
                     subpath.stroke = std::move(stroke);
                 }
                 const double svg_fps = plan.canvas.fps.fps();

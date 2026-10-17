@@ -452,6 +452,10 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                             dash *= std::abs(lottie_group_scale.x);
                         imported_stroke.dash_offset = source.stroke->dash_offset *
                             std::abs(lottie_group_scale.x);
+                        imported_stroke.cap = source.stroke->cap == "round" ? LineCap::Round
+                            : source.stroke->cap == "square" ? LineCap::Square : LineCap::Butt;
+                        imported_stroke.join = source.stroke->join == "round" ? LineJoin::Round
+                            : source.stroke->join == "bevel" ? LineJoin::Bevel : LineJoin::Miter;
                         imported_path.stroke = imported_stroke.to_path_stroke();
                     } else {
                         imported_path.stroke.enabled = false;
