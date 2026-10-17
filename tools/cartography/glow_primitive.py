@@ -28,7 +28,36 @@ def _linear_to_srgb(value: np.ndarray) -> np.ndarray:
 
 def gaussian_halo(mask: np.ndarray, color_bgr: tuple[int, int, int],
                   sigma: float, intensity: float = 1.0) -> np.ndarray:
-    """Return a uint8 BGR halo from an 8-bit coverage mask.
+    """Same result as _gaussian_halo_dense, evaluated only where it can be non-zero.
+
+    The halo is zero beyond the coverage bounding box grown by the blur support
+    (radius + 1), so the Gaussian runs on that window alone instead of the full
+    canvas. Pins and rings cover a few hundred pixels of a 1920x1080 frame.
+    """
+    coverage = np.asarray(mask)
+    if coverage.ndim != 2 or coverage.dtype != np.uint8:
+        raise ValueError("glow mask must be a 2D uint8 coverage image")
+    if not math.isfinite(sigma) or sigma < 0.0:
+        raise ValueError("glow sigma must be finite and non-negative")
+    if not math.isfinite(intensity) or intensity < 0.0:
+        raise ValueError("glow intensity must be finite and non-negative")
+    if sigma == 0.0 or intensity == 0.0 or not np.any(coverage):
+        return np.zeros((*coverage.shape, 3), dtype=np.uint8)
+
+    radius = max(1, math.ceil(sigma * 3.0))
+    bx, by, bw, bh = cv2.boundingRect(coverage)
+    pad = radius + 1
+    y0, x0 = max(0, by - pad), max(0, bx - pad)
+    y1 = min(coverage.shape[0], by + bh + pad)
+    x1 = min(coverage.shape[1], bx + bw + pad)
+    out = np.zeros((*coverage.shape, 3), dtype=np.uint8)
+    out[y0:y1, x0:x1] = _gaussian_halo_dense(coverage[y0:y1, x0:x1], color_bgr, sigma, intensity)
+    return out
+
+
+def _gaussian_halo_dense(mask: np.ndarray, color_bgr: tuple[int, int, int],
+                         sigma: float, intensity: float = 1.0) -> np.ndarray:
+    """Return a uint8 BGR halo from an 8-bit coverage mask (reference, full extent).
 
     Alpha coverage is Gaussian-filtered separately. RGB is converted to
     linear sRGB, premultiplied by coverage, blurred, then unpremultiplied and

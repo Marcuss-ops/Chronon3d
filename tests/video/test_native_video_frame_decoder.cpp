@@ -62,6 +62,20 @@ void write_two_frame_y4m(const std::filesystem::path& path) {
     REQUIRE(output.good());
 }
 
+void write_yuva444_y4m(const std::filesystem::path& path) {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    REQUIRE(output.good());
+    output << "YUV4MPEG2 W2 H2 F30:1 Ip A1:1 C444alpha\nFRAME\n";
+    // Planes are full-resolution Y, U, V, A. The alpha samples cover
+    // transparent, quarter, half and opaque pixels in row-major order.
+    const std::array<unsigned char, 16> frame{
+        76, 76, 76, 76, 128, 128, 128, 128,
+        128, 128, 128, 128, 0, 64, 128, 255};
+    output.write(reinterpret_cast<const char*>(frame.data()),
+                 static_cast<std::streamsize>(frame.size()));
+    REQUIRE(output.good());
+}
+
 } // namespace
 
 TEST_CASE("CUDA-interop decode surface is Rgba32Float sized for float4 writes") {
@@ -215,4 +229,27 @@ TEST_CASE("NativeVideoFrameDecoder decodes independent sources concurrently") {
     CHECK(first_decoded->framebuffer->width() == 2);
     CHECK(second_decoded->framebuffer->height() == 2);
     CHECK(replay_decoded->framebuffer->height() == 2);
+}
+
+TEST_CASE("NativeVideoFrameDecoder preserves source alpha in software RGBA conversion") {
+    FixtureDirectory fixtures;
+    const auto source = fixtures.path / "alpha.y4m";
+    write_yuva444_y4m(source);
+
+    chronon3d::media::NativeVideoFrameDecoder decoder;
+    decoder.set_software_only(true);
+    decoder.set_test_options(chronon3d::media::NativeDecoderTestOptions{
+        .enable_prefetch = false,
+        .enable_swscale = true,
+        .enable_frame_cache = true});
+    const auto result = decoder.decode_frame_at(
+        source.string(), chronon3d::RationalTime{0, {1, 30}}, 2, 2);
+    const auto* decoded = chronon3d::media::decoded_frame_if(result);
+    REQUIRE(decoded != nullptr);
+    REQUIRE(decoded->framebuffer != nullptr);
+    const auto& fb = *decoded->framebuffer;
+    CHECK(fb.get_pixel(0, 0).a == doctest::Approx(0.0f).epsilon(0.01f));
+    CHECK(fb.get_pixel(1, 0).a == doctest::Approx(64.0f / 255.0f).epsilon(0.01f));
+    CHECK(fb.get_pixel(0, 1).a == doctest::Approx(128.0f / 255.0f).epsilon(0.01f));
+    CHECK(fb.get_pixel(1, 1).a == doctest::Approx(1.0f).epsilon(0.01f));
 }

@@ -5,8 +5,13 @@
 
 #include <spdlog/spdlog.h>
 
-#include <cstdlib>
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <fstream>
+#include <optional>
+#include <sstream>
+#include <unistd.h>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -19,6 +24,68 @@ extern "C" {
 #endif
 
 namespace chronon3d::cli {
+
+namespace {
+
+/// One truthful end-of-job /proc sample of the host-process footprint.
+/// VmHWM is the kernel-tracked peak RSS of THIS process (monotonic, no
+/// ticker needed); utime/stime are the process-total CPU, which for a
+/// single-job CLI process equals the job's CPU. Used only when the
+/// SystemMetrics ticker never published for the job, so the sidecar never
+/// reports fabricated zeros for an unmeasured job.
+struct ProcessFootprintSample {
+    std::uint64_t rss_peak_mb{0};
+    std::uint64_t cpu_user_ms{0};
+    std::uint64_t cpu_sys_ms{0};
+};
+
+[[nodiscard]] std::optional<ProcessFootprintSample> read_process_footprint() {
+    ProcessFootprintSample sample{};
+    // VmHWM/VmRSS (kB) from /proc/self/status.
+    if (std::ifstream status{"/proc/self/status"}) {
+        std::string line;
+        while (std::getline(status, line)) {
+            if (line.compare(0, 6, "VmHWM:") == 0) {
+                // Parse with parse-from-token; VmHWM's KB value is unsigned.
+                const char* value_begin = line.c_str() + 6;
+                const std::uint64_t kb = std::strtoull(value_begin, nullptr, 10);
+                sample.rss_peak_mb = kb / 1024ULL;
+                break;
+            }
+        }
+    }
+    if (std::ifstream stat_file{"/proc/self/stat"}) {
+        std::string buf;
+        if (std::getline(stat_file, buf) && !buf.empty()) {
+            // Fields 14/15 (1-based) are utime/stime in clock ticks. Find the
+            // end of the comm field first: it may contain spaces inside ( ).
+            const auto comm_open = buf.find('(');
+            const auto comm_close = buf.rfind(')');
+            if (comm_open != std::string::npos && comm_close != std::string::npos &&
+                comm_close > comm_open) {
+                std::istringstream fields(buf.substr(comm_close + 1));
+                std::string skip;
+                // After comm: state(1) ppid screen... utime is field 14 overall
+                // = 13th field after comm (state .. minflt, majflt...).
+                for (int i = 0; i < 11; ++i) fields >> skip;
+                std::uint64_t utime = 0, stime = 0;
+                if ((fields >> utime) && (fields >> stime)) {
+                    const long ticks = ::sysconf(_SC_CLK_TCK);
+                    const std::uint64_t ms_per_tick = 1000ULL /
+                        static_cast<std::uint64_t>(ticks > 0 ? ticks : 100);
+                    sample.cpu_user_ms = utime * ms_per_tick;
+                    sample.cpu_sys_ms = stime * ms_per_tick;
+                }
+            }
+        }
+    }
+    if (sample.rss_peak_mb == 0 && sample.cpu_user_ms == 0 && sample.cpu_sys_ms == 0) {
+        return std::nullopt;
+    }
+    return sample;
+}
+
+}  // namespace
 
 bool configure_local_device_scheduler(
     const FfmpegExportOptions& opts,
@@ -514,6 +581,23 @@ void project_render_counters(
         timings.runtime.cuda_image_cache_hit = c->cuda_image_cache_hit.load(std::memory_order_relaxed);
         timings.runtime.cuda_image_cache_miss = c->cuda_image_cache_miss.load(std::memory_order_relaxed);
         timings.gpu.software_fallback_nodes = c->gpu_text_fallback_count.load(std::memory_order_relaxed);
+        // Host-process footprint: the same counters the bottleneck report and
+        // the resource-leak gates consume, published with the timing sidecar
+        // so repeated-job leak deltas stay process-scoped and machine-readable.
+        timings.process.rss_peak_mb = c->process_rss_peak_mb.load(std::memory_order_relaxed);
+        timings.process.cpu_user_ms = c->process_cpu_user_ms.load(std::memory_order_relaxed);
+        timings.process.cpu_sys_ms = c->process_cpu_sys_ms.load(std::memory_order_relaxed);
+        if (timings.process.rss_peak_mb == 0u && timings.process.cpu_user_ms == 0u &&
+            timings.process.cpu_sys_ms == 0u) {
+            // The SystemMetrics ticker never published for this job. A one-shot
+            // /proc sample is the truthful footprint; publishing it keeps the
+            // resource-leak gates process-scoped instead of reading zeros.
+            if (const auto footprint = read_process_footprint()) {
+                timings.process.rss_peak_mb = footprint->rss_peak_mb;
+                timings.process.cpu_user_ms = footprint->cpu_user_ms;
+                timings.process.cpu_sys_ms = footprint->cpu_sys_ms;
+            }
+        }
     }
     timings.runtime.encoder_open_nvenc_ms = session.startup_breakdown.encoder_open_nvenc_ms;
 }
