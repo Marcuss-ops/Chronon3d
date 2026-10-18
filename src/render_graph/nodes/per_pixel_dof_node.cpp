@@ -304,6 +304,11 @@ NodeExecResult PerPixelDofNode::execute(
         return cloned_result();
     }
 
+    // Fail closed on authored lens shaping the blur kernels cannot render:
+    // iris blades and highlight weighting would otherwise be silently dropped
+    // and the plan would render as plain circular bokeh.
+    reject_unsupported_dof_shape(camera.dof);
+
     if (native_depth.surface) {
         // Device-local path: depth and radius live on the GPU (see
         // publish_dof_provenance_native). A mix of CPU and native depth cannot
