@@ -143,10 +143,12 @@ TILE_URLS["chronon_editorial"] = TILE_URLS["esri_light"]
 # BASEMAP_STYLES is the rotation palette the production dynamic-map renderer
 # draws from: every id is an ArcGIS Online tiled basemap, so a rendered map is
 # always the same licensing posture as the historic World_Imagery default while
-# the *look* (imagery, ocean, light/dark gray
-# canvas) varies from render to render. The runtime selects an id and passes it
+# the *look* (imagery, light gray canvas, Chronon editorial treatment)
+# varies from render to render. The runtime selects an id and passes it
 # as the payload's "basemap"; the renderer fails closed on anything outside this
 # tuple, so an unknown style can never silently degrade to the default.
+# Retired styles (esri_dark, esri_ocean) stay in TILE_URLS only as transport
+# history and are NOT selectable: is_basemap_style rejects them.
 BASEMAP_STYLES = (
     "chronon_editorial",
     "esri_sat",
