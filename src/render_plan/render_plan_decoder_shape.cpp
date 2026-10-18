@@ -418,13 +418,13 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                     (property == "fill.color" || property == "stroke.color" ? 4u : 1u);
                 std::int64_t previous_frame = -1;
                 for (const auto& key : animation.keyframes) {
-                    if (key.frame.value <= previous_frame ||
+                    if (key.frame.integral() <= previous_frame ||
                         key.value.size() != expected_components ||
                         std::any_of(key.value.begin(), key.value.end(),
                             [](float value) { return !std::isfinite(value); }))
                         throw std::runtime_error(
                             "SVG element animation keyframes must have increasing frames and finite values with the property's component count");
-                    previous_frame = key.frame.value;
+                    previous_frame = key.frame.integral();
                     if ((property == "opacity" || property == "fill.opacity" ||
                          property == "stroke.opacity") &&
                         (key.value[0] < 0.0f || key.value[0] > 1.0f))
