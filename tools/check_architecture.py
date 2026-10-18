@@ -1031,7 +1031,8 @@ class Runner:
         if not (self.root / manifest_rel).exists():
             self.fail(name, f"manifest missing: {manifest_rel}")
             return
-        manifest = json.loads(read_text(self.root / manifest_rel))
+        # vcpkg manifests may be generated with a UTF-8 BOM on Windows.
+        manifest = json.loads((self.root / manifest_rel).read_text(encoding="utf-8-sig"))
         deps: set[str] = set()
         def add_dep(entry: Any) -> None:
             if isinstance(entry, str):
