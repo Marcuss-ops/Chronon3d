@@ -192,6 +192,11 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     for (const auto& item : m_items) {
         key.params_hash = hash_combine(key.params_hash, hash_value(item.matrix));
         key.params_hash = hash_combine(key.params_hash, hash_value(item.opacity));
+        if (item.group) {
+            key.params_hash =
+                hash_combine(key.params_hash, hash_value(static_cast<std::uint64_t>(item.group->id)));
+            key.params_hash = hash_combine(key.params_hash, hash_value(item.group->opacity));
+        }
 #ifdef CHRONON3D_ENABLE_TEXT
         // text_run items also fold the per-glyph animated state of
         // the underlying TextRunShape so the cache key invalidates when
@@ -266,9 +271,134 @@ NodeExecResult MultiSourceNode::execute(
     // Regular items use draw_node() which returns void — tracked for
     // Phase C (requires coordinated API/ABI change).
 
+    //
+    // ADR-035 — SVG isolated group stage.
+    //
+    // Items tagged with `group` draw at FULL paint alpha into an own
+    // intermediate framebuffer (cleared per group). When the group ends
+    // (different group id, a non-grouped item, or the layer end) the
+    // surface composites once onto the shared layer framebuffer with the
+    // group alpha scaled by the item's placement alpha:
+    //
+    //   out.rgb   = src.rgb * g + dst.rgb * (1 - src.a * g)
+    //   out.a     = src.a * g + dst.a   * (1 - src.a * g)
+    //
+    // (both surfaces premultiplied; g = group_opacity * item alpha).
+    // Overlapping children therefore never darken each other — the group
+    // fades as one unit, matching SVG/AE isolated-group compositing.
+    //
+    // Non-grouped items keep the historical per-item draw-time alpha fold,
+    // so text and legacy shape layers are untouched by this branch.
+    //
+    bool has_group_items = false;
+    for (const auto& item : m_items)
+        if (item.group) { has_group_items = true; break; }
+    if (has_group_items && ctx.policy.is_gpu_native_required()) {
+        // V1 certifies the software lane; the native lane fails closed
+        // instead of silently falling back (zero-readback doctrine).
+        spdlog::error(
+            "[multi-source] node='{}': isolated SVG groups require the "
+            "software lane under the gpu-native policy (svg_group_native_unsupported)",
+            m_name);
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::UnsupportedCapability,
+            m_name,
+            "svg_group_native_unsupported"
+        }};
+    }
+
+    OwnedFB group_fb;
+    std::uint32_t pending_group_id = 0;
+    f32 pending_group_alpha = 0.0f;
+
+    auto blend_group_surface = [&](Framebuffer& surface, f32 group_alpha) {
+        const i32 width = ctx.frame_input.width;
+        const i32 height = ctx.frame_input.height;
+        for (i32 y = 0; y < height; ++y) {
+            for (i32 x = 0; x < width; ++x) {
+                const Color src = surface.get_pixel(x, y);
+                if (src.a <= 0.0f && group_alpha >= 1.0f) continue;
+                const Color dst = fb->get_pixel(x, y);
+                const f32 scaled_a = std::clamp(src.a * group_alpha, 0.0f, 1.0f);
+                if (scaled_a <= 0.0f) continue;
+                const f32 keep = 1.0f - scaled_a;
+                const f32 out_a = scaled_a + dst.a * keep;
+                if (out_a <= 0.0f) {
+                    fb->set_pixel(x, y, Color::transparent());
+                    continue;
+                }
+                Color out;
+                out.r = src.r * group_alpha + dst.r * keep;
+                out.g = src.g * group_alpha + dst.g * keep;
+                out.b = src.b * group_alpha + dst.b * keep;
+                out.a = out_a;
+                fb->set_pixel(x, y, out);
+            }
+        }
+    };
+    auto flush_pending_group = [&]() -> bool {
+        if (!group_fb) return true;
+        blend_group_surface(*group_fb, pending_group_alpha);
+        group_fb.reset();
+        pending_group_id = 0;
+        pending_group_alpha = 0.0f;
+        return true;
+    };
+
     for (std::size_t i = 0; i < m_items.size(); ++i) {
             const auto& item = m_items[i];
             if (!item.node) continue;
+
+            // Group bookkeeping runs before any draw target selection.
+            const std::uint32_t item_group_id = item.group ? item.group->id : 0;
+            if (item_group_id != pending_group_id) {
+                if (!flush_pending_group())
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::ExecutionFailure,
+                        m_name,
+                        "svg_group_stage_failure"
+                    }};
+            }
+            if (item.group) {
+                if (item.node->shape.type() == ShapeType::TextRun) {
+                    // Text runs and isolated SVG groups would need a
+                    // different draw route; fail closed until certified.
+                    spdlog::error(
+                        "[multi-source] node='{}': text run items cannot join "
+                        "an isolated SVG group (svg_group_text_run_unsupported)",
+                        m_name);
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::UnsupportedCapability,
+                        m_name,
+                        "svg_group_text_run_unsupported"
+                    }};
+                }
+                if (!group_fb) {
+                    if (fb->data() == nullptr) {
+                        // No CPU pixel memory: the software blend below is
+                        // impossible. Fail closed, no silent CPU fallback.
+                        spdlog::error(
+                            "[multi-source] node='{}': isolated SVG groups "
+                            "need CPU pixel access (svg_group_native_unsupported)",
+                            m_name);
+                        return NodeExecResult{NodeExecutionError{
+                            RenderBackendErrorCode::UnsupportedCapability,
+                            m_name,
+                            "svg_group_native_unsupported"
+                        }};
+                    }
+                    group_fb = ctx.acquire_owned_fb(
+                        ctx.frame_input.width, ctx.frame_input.height,
+                        /*clear=*/true);
+                    pending_group_id = item_group_id;
+                    pending_group_alpha = item.group->opacity;
+                    if (ctx.policy.diagnostics_enabled) {
+                        spdlog::info(
+                            "[multi-source] node='{}' group={} alpha={:.4f} begin",
+                            m_name, item_group_id, pending_group_alpha);
+                    }
+                }
+            }
 
 #ifdef CHRONON3D_ENABLE_TEXT
             // ── text_run branch — unified via render_text_run_item ────
@@ -367,7 +497,7 @@ NodeExecResult MultiSourceNode::execute(
             }
             state.matrix = placement->render_matrix;
 
-            state.opacity = item.opacity;
+            state.opacity = item.group ? 1.0f : item.opacity;
             if (i < ctx.node_exec.current_shape_processors.size()) {
                 state.shape_processor = ctx.node_exec.current_shape_processors[i];
                 state.processor_snapshot = ctx.node_exec.processor_snapshot;
@@ -387,11 +517,12 @@ NodeExecResult MultiSourceNode::execute(
                 state.projection  = ctx.frame_input.projection_ctx;
             }
 
+        Framebuffer* draw_target = item.group ? group_fb.get() : fb.get();
         const bool native_image = item.node->shape.type() == ShapeType::Image &&
-            detail::try_native_image(ctx, *fb, *item.node, state);
+            detail::try_native_image(ctx, *draw_target, *item.node, state);
         if (!native_image) {
             const auto draw_result = ctx.backend->draw_node(
-                *fb, *item.node, state, ctx.frame_input.camera,
+                *draw_target, *item.node, state, ctx.frame_input.camera,
                 ctx.frame_input.width, ctx.frame_input.height);
             if (!draw_result.ok()) {
                 return NodeExecResult{NodeExecutionError{
@@ -415,6 +546,13 @@ NodeExecResult MultiSourceNode::execute(
             );
         }
     }
+
+    if (!flush_pending_group())
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            m_name,
+            "svg_group_stage_failure"
+        }};
 
     fb->set_opaque(false);
     return NodeExecResult{std::move(fb)};

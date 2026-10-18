@@ -183,13 +183,11 @@ These are not importer gaps; they need work outside the SVG lowering boundary.
   font-family/layout contract from an SVG asset to the text pipeline. The loader
   rejects these tags with an explicit message; adding text needs a text-run plan
   element plus a font resolution contract.
-- **Isolated group compositing.** Group opacity is folded into each child's paint
-  alpha (`svg_path_loader.cpp` style inheritance, then `element.opacity` in the
-  compiler). `ImportedSubpathPlan::GroupTransformPlan` and the Lottie lowering
-  flatten group opacity the same way, and `RenderNode` has no group layer: the
-  renderer draws sibling paths into one surface, so overlapping children
-  darken twice where SVG composites the group once. Correcting this needs an
-  offscreen group node in the render graph, not an importer change.
+- **Isolated group compositing.** CLOSED at the software lane since
+  2026-10-17 by [TICKET-SVG-GROUP-ISOLATION](TICKET-SVG-GROUP-ISOLATION.md)
+  (ADR-035): `opacity < 1` groups lower through `svg_group` and compose once
+  on an intermediate surface inside the layer's `MultiSourceNode`; native
+  lane fails closed, Q2 nested groups stay pending on the same machinery.
 - **Per-element filters and clip/mask.** `LayerPlan` exposes one path mask and one
   effect stack per layer; effects are layer post-transform stages with no
   per-subpath equivalent. Distinct per-element references therefore fail closed

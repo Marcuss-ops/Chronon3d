@@ -567,6 +567,9 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                             : "svg_path_" + std::to_string(path_index) + "_copy_" +
                                   std::to_string(copy_index);
                         builder.path(node_name, std::move(copy_path));
+                        if (source.svg_group)
+                            builder.svg_group_isolation(
+                                source.svg_group->id, source.svg_group->opacity);
                     }
                 }
                 break;

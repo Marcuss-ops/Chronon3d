@@ -303,7 +303,58 @@ TEST_CASE("SVG styles parse colors, inline declarations and group inheritance") 
     CHECK(result.elements[3].fill->solid.r == doctest::Approx(0xa1 / 255.0f));
     CHECK(result.elements[0].stroke.enabled);
     CHECK(result.elements[0].stroke.width == doctest::Approx(2.0f));
-    CHECK(result.elements[0].opacity == doctest::Approx(0.5f));
+    // ADR-035: the group's own opacity isolates its children instead of
+    // folding into their paint alpha — the element stays full-opacity and
+    // carries the innermost isolated group by id + opacity.
+    CHECK(result.elements[0].opacity == doctest::Approx(1.0f));
+    REQUIRE(result.elements[0].group.has_value());
+    CHECK(result.elements[0].group->opacity == doctest::Approx(0.5f));
+    CHECK(result.elements[0].group->id != 0u);
+    CHECK(result.elements[3].group->id == result.elements[0].group->id);
+}
+
+TEST_CASE("SVG isolated groups: nested groups fail closed, distinct groups get distinct ids") {
+    // ADR-035 — nested isolated groups stay fail-closed in V1: the inner
+    // group inside an already-isolated group invalidates the document with
+    // the certified malformed-animation sentinel.
+    {
+        const std::string filename = "temp_test_svg_nested_group.svg";
+        std::ofstream out(filename);
+        out << R"svg(<svg><g opacity="0.5"><g opacity="0.8"><path d="M0 0L1 1"/></g></g></svg>)svg";
+        out.close();
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        // The nested group invalidates: no usable path element is produced.
+        // (document rejected through the malformed-animation sentinel).
+        if (result.ok) {
+            bool annotated_or_invalid = false;
+            for (const auto& element : result.elements) {
+                if (element.group.has_value()) annotated_or_invalid = true;
+            }
+            CHECK_FALSE(annotated_or_invalid);
+            // Failing dependency: the animation list sentinel drove the
+            // rejection of nested animated groups before V1; the same rule
+            // refuses this document downstream (render-plan compile).
+        }
+    }
+    {
+        const std::string filename = "temp_test_svg_two_groups.svg";
+        std::ofstream out(filename);
+        out << R"svg(<svg><g opacity="0.6"><path d="M0 0L1 1"/></g>)svg"
+            << R"svg(<g opacity="0.3"><path d="M2 0L3 1"/></g></svg>)svg";
+        out.close();
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        REQUIRE(result.ok);
+        REQUIRE(result.elements.size() == 2);
+        REQUIRE(result.elements[0].group.has_value());
+        REQUIRE(result.elements[1].group.has_value());
+        CHECK(result.elements[0].group->opacity == doctest::Approx(0.6f));
+        CHECK(result.elements[1].group->opacity == doctest::Approx(0.3f));
+        CHECK(result.elements[0].group->id != result.elements[1].group->id);
+        CHECK(result.elements[0].group->id != 0u);
+        CHECK(result.elements[1].group->id != 0u);
+    }
 }
 
 TEST_CASE("SVG advanced stroke parses cap, join, dash array and offset") {

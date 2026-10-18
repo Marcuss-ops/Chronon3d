@@ -1,7 +1,9 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <spdlog/spdlog.h>
+#include <optional>
 #include <span>
 #include <vector>
 #include <utility>
@@ -18,6 +20,14 @@ struct MultiSourceItem {
     const ::chronon3d::RenderNode* node{nullptr};
     Mat4 matrix;
     f32 opacity;
+    // ADR-035 — SVG isolated group of this item: rendered at full paint
+    // alpha onto a shared intermediate surface; the surface composites onto
+    // the layer framebuffer once with `group.opacity * item.opacity`.
+    struct GroupIsolationSpec {
+        std::uint32_t id{0};
+        f32 opacity{1.0f};
+    };
+    std::optional<GroupIsolationSpec> group{};
     // Projected 2D layers are camera-transformed by the layer's following
     // TransformNode.  This prevents MultiSourceNode from applying the camera
     // projection a second time when a scene camera is active. Legacy callers
