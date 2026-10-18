@@ -154,21 +154,6 @@ namespace chronon3d::backends::vulkan {
         vkCmdClearColorImage(command, image.image,
                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                              &clear, 1, &range);
-        // The first partial/full upload follows the clear with another transfer
-        // write to this subresource in the same command buffer. Layout remains
-        // TRANSFER_DST_OPTIMAL, so express the transfer-write dependency
-        // explicitly before vkCmdCopyBufferToImage.
-        runtime::ResourceTransition clear_to_upload;
-        clear_to_upload.range =
-            runtime::image_range(runtime::ResourceAspect::Color);
-        clear_to_upload.before = runtime::ResourceState{
-            .stages = runtime::PipelineStage::Transfer,
-            .access = runtime::AccessMask::TransferWrite,
-            .layout = runtime::ResourceLayout::TransferDestination,
-            .queue = runtime::QueueClass::Transfer,
-        };
-        clear_to_upload.after = clear_to_upload.before;
-        emit_resource_transition(command, image.image, clear_to_upload);
     }
 
     void VulkanBackend::Impl::release_surface_now(runtime::RenderSurfaceHandle handle) {
@@ -297,7 +282,6 @@ namespace chronon3d::backends::vulkan {
             if (it != surfaces.physical_surfaces.end() &&
                 it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
                 !surfaces.unplanned_surface_handles.contains(handle) &&
-                !surfaces.is_frame_output_pinned(handle) &&
                 surfaces.can_retire_surface(handle, busy) &&
                 std::find(protected_handles.begin(), protected_handles.end(), handle) ==
                     protected_handles.end()) {
@@ -637,21 +621,19 @@ namespace chronon3d::backends::vulkan {
             counters->cpu_pixel_readback_bytes.fetch_add(
                 static_cast<std::uint64_t>(bytes), std::memory_order_relaxed);
         }
-        ensure_readback_staging(bytes);
+        ensure_staging(bytes);
         begin_command_buffer();
         transition(command_buffer, image.image, VK_IMAGE_LAYOUT_GENERAL,
                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         const VkBufferImageCopy copy{0, image.width, image.height,
             {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {image.width, image.height, 1}};
         vkCmdCopyImageToBuffer(command_buffer, image.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                               readback_staging.buffer, 1, &copy);
+                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer, 1, &copy);
         transition(command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
         submit();
         const auto readback_start = profiling::now();
-        std::memcpy(rgba.data(), readback_staging.mapped,
-                    static_cast<std::size_t>(bytes));
+        std::memcpy(rgba.data(), staging.mapped, static_cast<std::size_t>(bytes));
         stats.readback_us += static_cast<std::uint64_t>(profiling::elapsed_us(readback_start));
     }
 

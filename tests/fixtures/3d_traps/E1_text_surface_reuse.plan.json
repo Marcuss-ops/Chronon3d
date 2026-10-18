@@ -139,7 +139,7 @@
           "id": "text_dolly_orbit_glow_title",
           "properties": [
             {
-              "easing": "linear",
+              "easing": "out_cubic",
               "keyframes": [
                 {
                   "frame": 0,
@@ -161,7 +161,7 @@
               "property": "blur"
             },
             {
-              "easing": "linear",
+              "easing": "out_cubic",
               "keyframes": [
                 {
                   "frame": 0,
@@ -187,13 +187,14 @@
             {
               "combine": "replace",
               "end": {
-                "easing": "linear",
+                "easing": "out_cubic",
                 "keyframes": [
                   {
                     "frame": 0,
                     "value": 100
                   }
-                ]
+                ],
+                "property": "end"
               },
               "exclude_spaces": true,
               "id": "text_dolly_orbit_glow_title_selector",
@@ -206,7 +207,8 @@
                     "frame": 0,
                     "value": 0
                   }
-                ]
+                ],
+                "property": "start"
               },
               "unit": "glyph"
             }
@@ -318,7 +320,7 @@
           "id": "text_dolly_orbit_glow_subtitle",
           "properties": [
             {
-              "easing": "linear",
+              "easing": "out_cubic",
               "keyframes": [
                 {
                   "frame": 12,
@@ -340,7 +342,7 @@
               "property": "blur"
             },
             {
-              "easing": "linear",
+              "easing": "out_cubic",
               "keyframes": [
                 {
                   "frame": 12,
@@ -366,13 +368,14 @@
             {
               "combine": "replace",
               "end": {
-                "easing": "linear",
+                "easing": "out_cubic",
                 "keyframes": [
                   {
                     "frame": 0,
                     "value": 100
                   }
-                ]
+                ],
+                "property": "end"
               },
               "exclude_spaces": true,
               "id": "text_dolly_orbit_glow_subtitle_selector",
@@ -385,7 +388,8 @@
                     "frame": 0,
                     "value": 0
                   }
-                ]
+                ],
+                "property": "start"
               },
               "unit": "glyph"
             }

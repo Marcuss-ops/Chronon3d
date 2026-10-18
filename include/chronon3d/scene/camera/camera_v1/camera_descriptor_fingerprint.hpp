@@ -147,8 +147,6 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
         h.mix_bool(dof.use_physical_model);
         h.mix_f32(dof.near_bokeh_radius);
         h.mix_f32(dof.far_bokeh_radius);
-        h.mix_i32(dof.iris_blades);
-        h.mix_f32(dof.highlight_gain);
     }
     {
         // TICKET-PHASE-2: full MotionBlurSettings fingerprint (was
@@ -172,15 +170,6 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
             detail::hash_animated_value(h, p.zoom);
         } else if constexpr (std::is_same_v<T, FovProjection>) {
             detail::hash_animated_value(h, p.fov_deg);
-        } else if constexpr (std::is_same_v<T, PhysicalLensProjection>) {
-            h.mix_f32(p.lens.focal_length);
-            h.mix_f32(p.lens.f_stop);
-            h.mix_f32(p.lens.close_focus);
-            h.mix_f32(p.lens.sensor_width);
-            h.mix_f32(p.lens.sensor_height);
-            h.mix_enum(p.lens.gate_fit);
-            h.mix_f32(p.lens.pixel_aspect);
-            h.mix_f32(p.lens.anamorphic_squeeze);
         }
     }, desc.base.projection);
 
@@ -196,10 +185,8 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
             detail::hash_animated_value(h, s.target);
             detail::hash_animated_value(h, s.zoom);
             detail::hash_animated_value(h, s.fov_deg);
-            detail::hash_animated_value(h, s.focal_length_mm);
             detail::hash_animated_value(h, s.focus_distance);
             detail::hash_animated_value(h, s.aperture);
-            detail::hash_animated_value(h, s.f_stop);
             detail::hash_animated_value(h, s.max_blur);
             h.mix_bool(s.use_target);
         } else if constexpr (std::is_same_v<T, OrbitMotion>) {
@@ -319,11 +306,9 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
                 // fingerprint hole; fixed by the explicit branch below.
                 h.mix_vec3(mod.position_amplitude);
                 h.mix_vec3(mod.rotation_amplitude_deg);
-                h.mix_vec3(mod.point_of_interest_amplitude);
                 h.mix_f32(mod.zoom_amplitude);
                 h.mix_f32(mod.position_freq_hz);
                 h.mix_f32(mod.rotation_freq_hz);
-                h.mix_f32(mod.point_of_interest_freq_hz);
                 h.mix_f32(mod.zoom_freq_hz);
                 h.mix_u32(mod.seed);
             }

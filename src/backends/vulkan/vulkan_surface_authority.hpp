@@ -156,25 +156,6 @@ public:
     static constexpr std::size_t kFrameBatchSlotCount = 6;
     std::array<std::vector<runtime::RenderSurfaceHandle>, kFrameBatchSlotCount>
         frame_slot_transient_handles{};
-    // Composite destinations written during the current frame. The slot
-    // retirement must not drop them before the CPU readback, which happens
-    // after the frame; they are unpinned by retire_frame_transient_surfaces().
-    std::vector<runtime::RenderSurfaceHandle> frame_output_pins{};
-
-    void pin_frame_output(runtime::RenderSurfaceHandle handle) {
-        if (handle == runtime::kInvalidRenderSurfaceHandle) return;
-        if (std::find(frame_output_pins.begin(), frame_output_pins.end(), handle) ==
-            frame_output_pins.end()) {
-            frame_output_pins.push_back(handle);
-        }
-    }
-
-    [[nodiscard]] bool is_frame_output_pinned(runtime::RenderSurfaceHandle handle) const {
-        return std::find(frame_output_pins.begin(), frame_output_pins.end(), handle) !=
-            frame_output_pins.end();
-    }
-
-    void clear_frame_output_pins() { frame_output_pins.clear(); }
     // P0/P1 hardening: compiled placement slots (bind()) are plan-local 0..N
     // but were aliased into the same size_t namespace as the backend-global
     // unplanned allocator (ensure()/next_slot).  Start the unplanned allocator
@@ -477,7 +458,6 @@ public:
                 physical.desc.format != desc.format ||
                 physical.image.exportable != exportable) {
                 require_not_leased(binding->second, "re-materialize");
-                forget_cuda_slot(binding->second);
                 materializer_.materialize(physical.image, desc, exportable);
                 bump_slot_token(binding->second);
                 physical.desc = desc;
@@ -548,7 +528,6 @@ private:
                 continue;
             }
             materializer_.destroy(it->second.image);
-            forget_cuda_slot(it->first);
             bump_slot_token(it->first);
             it = physical_surfaces.erase(it);
             --unused_transient;
@@ -614,7 +593,6 @@ public:
         for (const auto handle : list) {
             const auto binding = surface_bindings.find(handle);
             if (binding == surface_bindings.end()) continue;
-            if (is_frame_output_pinned(handle)) continue;
             // Exact ownership: this slot's reference is gone, but a handle can
             // also be recorded into a slot that is still busy. Keep the binding
             // then; that slot's own retirement releases it.
@@ -647,21 +625,6 @@ protected:
             throw std::logic_error("Vulkan surface authority has no owner");
         }
         materializer_.set_owner(owner_);
-    }
-
-    // CUDA ownership markers belong to a physical image generation. When a
-    // slot is destroyed or rematerialized, discard every pending handoff for
-    // that generation before the slot can hold a generic (non-exportable)
-    // graph surface. Otherwise a later Vulkan recording may try to acquire a
-    // stale CUDA token from the new image.
-    void forget_cuda_slot(std::size_t slot) noexcept {
-#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
-        cuda_pending_surfaces.erase(slot);
-        cuda_ready_surfaces.erase(slot);
-        cuda_export_ready_surfaces.erase(slot);
-#else
-        (void)slot;
-#endif
     }
 
     ImageT& bind_planned_exact(runtime::RenderSurfaceHandle handle,
@@ -751,7 +714,6 @@ protected:
             physical.image.height != desc.height ||
             physical.desc.format != desc.format ||
             physical.image.exportable != exportable) {
-            forget_cuda_slot(slot);
             materializer_.materialize(physical.image, desc, exportable);
         }
         physical.desc = desc;

@@ -22,15 +22,8 @@ void apply_bl2_stroke_state(BLContext& ctx, const chronon3d::PathStroke& stroke)
     // ── joins (single-join setter) ───────────────────────────────────
     switch (stroke.join) {
         case chronon3d::LineJoin::Miter:
-            // Chronon's custom renderer does not expose a miter-limit
-            // knob; the legacy path clamps via the cross-product
-            // perpendicular distance formula and silently treats very
-            // sharp corners as bevel.  BL2's `setStrokeMiterLimit`
-            // matches that semantic with a permissive default (10°)
-            // — mild miter joins stay as miters, sharp ones fall back
-            // to bevel per BL2's own miter-limit policy.
             ctx.setStrokeJoin(BL_STROKE_JOIN_MITER_CLIP);
-            ctx.setStrokeMiterLimit(10.0);
+            ctx.setStrokeMiterLimit(static_cast<double>(stroke.miter_limit));
             break;
         case chronon3d::LineJoin::Round:
             ctx.setStrokeJoin(BL_STROKE_JOIN_ROUND);

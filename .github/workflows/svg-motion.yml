@@ -1,0 +1,68 @@
+name: SVG Motion Graphics Pixel Truth
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+jobs:
+  svg-motion-pixel-truth:
+    name: Same-SHA SVG import and encoded-frame gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Verify same-SHA checkout
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Install render and native FFmpeg tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            ninja-build ccache pkg-config mono-complete ffmpeg \
+            libavcodec-dev libavformat-dev libavutil-dev \
+            libswscale-dev libswresample-dev
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.10
+
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure SVG video build
+        run: |
+          cmake --preset linux-video-test \
+            -DCHRONON3D_ENABLE_VULKAN=OFF \
+            -DCHRONON3D_ENABLE_CUDA_INTEROP=OFF \
+            -DCHRONON3D_ENABLE_IPC=OFF \
+            -DCHRONON3D_ENABLE_SVG=ON \
+            -DCHRONON3D_ENABLE_NATIVE_FFMPEG=ON \
+            -DVCPKG_MANIFEST_FEATURES='cli;svg;tests'
+
+      - name: Build CLI and focused SVG contracts
+        run: |
+          cmake --build --preset linux-video-test --target \
+            chronon3d_cli chronon3d_c_abi_tests \
+            chronon3d_svg_path_loader_tests chronon3d_renderer_core_tests
+
+      - name: Run focused SVG contracts
+        run: |
+          ctest --test-dir build/chronon/linux-video-test \
+            -R '^(chronon3d_c_abi_tests|chronon3d_svg_path_loader_tests|chronon3d_renderer_core_tests)$' \
+            --output-on-failure
+
+      - name: Render and inspect authored SVG MP4 endpoints
+        run: python3 scripts/ci/check_svg_cli_frame_gate.py

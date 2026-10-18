@@ -7,7 +7,7 @@
 //   1. Construct an A8 CoverageSurface sized (bbox.w × bbox.h).
 //   2. Build a BLPath in SCREEN space re-based to (bbox.x0, bbox.y0).
 //   3. Open a BLContext, fillAll() with α=0, setCompOp(SRC_COPY),
-//      fillStyle=BLRgba32(255), fillPath(BLPath, BL_FILL_RULE_EVEN_ODD).
+//      fillStyle=BLRgba32(255), the authored path fill rule, and fillPath(BLPath).
 //      The resulting α bytes are the analytic-AA fractional coverage.
 //   4. For each ROI pixel whose coverage > 0:
 //        a. Resolve the Chronon fill colour at the screen-space point
@@ -63,11 +63,10 @@ bool rasterize_path_fill_blend2d(
         BLContext ctx(cov.image());
         ctx.setCompOp(BL_COMP_OP_SRC_COPY);
         ctx.setFillStyle(BLRgba32(255, 255, 255, 255));
-        // Chronon's custom path renderer walks `inside = !inside` per
-        // contour, so the equivalent BL2 rule is BL_FILL_RULE_EVEN_ODD.
-        // It must be set on the context before `fillPath` — pass it as
-        // a fillPath argument has no overload (BL2 reads from context).
-        ctx.setFillRule(BL_FILL_RULE_EVEN_ODD);
+        // Keep SVG/native path fill semantics at the raster boundary. BL2 reads
+        // the rule from the context before fillPath rather than from the path.
+        ctx.setFillRule(path.fill_rule == PathFillRule::NonZero
+            ? BL_FILL_RULE_NON_ZERO : BL_FILL_RULE_EVEN_ODD);
         const BLPath bl_path = make_bl_path(
             path, model, Vec2{static_cast<f32>(bbox.x0), static_cast<f32>(bbox.y0)});
         if (!bl_path.empty()) {

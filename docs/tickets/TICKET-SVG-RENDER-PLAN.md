@@ -1,28 +1,18 @@
 # TICKET-SVG-RENDER-PLAN — Resolve SVG assets into shape plans
 
 ## Stato
-IN PROGRESS — the six base SVG/shape animation certification gate
-(`scripts/ci/check_svg_motion_animations_gate.py`) passes end to end; c_abi
-(280 cases) and svg loader suites are green. Animated compositor repeaters
-(plan-level `repeater` operators with keyframe tracks) sample per frame for
-native shapes and lowered Lottie paths, including the schema branch and a
-fingerprinting hook. Bounded
-SVG geometry and object-bounding-box or user-space linear and radial gradients
-lower through native Chronon paints, including `gradientTransform` animation baked
-into gradient keyframes. Path-local SMIL
+IN PROGRESS — bounded SVG geometry and static object-bounding-box linear and
+radial gradients lower through native Chronon paints. Path-local SMIL
 `animateTransform` (translate/scale/rotate), opacity and solid paint animations
-lower to sampled native tracks, with `calcMode="spline"` cubic-bezier easing and
-bounded `repeatCount` expanded into repeated keyframe cycles. Local geometry
-references through `<defs>/<use>` are expanded at compile time. Static clip paths
-and opaque white vector masks on the root, or on a group scope covering every
-enclosed path, lower to the native path-mask plan. Root-level `feGaussianBlur`
-and `feDropShadow` filters lower to layer effects. Direct-child group
-translate/uniform scale/rotate and opacity animations fan out to child path
-tracks. Two-keyframe `stop-color` and `stop-opacity` SMIL animations on gradient
-stops lower to native gradient animation tracks. Per-element (distinct)
-clipping, complex masks, nested transform stacks, multi-keyframe gradient-stop
-animation, arbitrary filter graphs and SVG text remain open for the
-architectural reasons recorded below.
+lower to sampled native tracks. Local geometry references through `<defs>/<use>` are
+expanded at compile time. Static clip paths and opaque white vector masks on
+the root, or on a single path/group scope, lower to the native path-mask plan.
+Direct-child group translate/uniform
+scale/rotate and opacity animations fan out to child path tracks. Two-keyframe
+`stop-color` and `stop-opacity` SMIL animations on gradient stops lower to native
+gradient animation tracks. Per-element clipping, complex masks, nested transform
+stacks, animated gradient coordinates and multi-keyframe gradient-stop animation
+remain open.
 
 ## Obiettivo
 Allow a render plan shape to refer to an SVG asset through the mounted
@@ -35,51 +25,44 @@ shape pipeline.
 - Only `.svg` assets are imported. The logical path is resolved with
   `AssetResolver::resolve_logical`; absolute paths, traversal, missing assets,
   malformed XML and unsupported SVG elements fail with typed plan diagnostics.
-- SVG `<text>` is explicitly unsupported and must fail; no font lookup or
-  implicit text conversion occurs.
+- SVG `<text>` and `<tspan>` runs are lowered to canonical Chronon text layers.
+  Font lookup uses exact bundled files under `fonts/`, currently accepting
+  `<Family>-Regular.ttf|otf` and `<Family>-Bold.ttf|otf`; missing families fail
+  with `svg_font_unresolved`. The importer does not invoke host fontconfig.
 - Supported SVG path and primitive geometry is lowered to the current shape
   path commands in document order. Multiple solid/gradient fill, solid stroke and
   per-element opacity are preserved as sibling path nodes; unsupported style
   semantics fail explicitly. The implemented geometry/style vocabulary is
-  limited to `svg`, `g`, path/rect/circle/ellipse/line/polyline/polygon, solid
-  colors, stroke width, cap/join/miter-limit, `stroke-dasharray` /
-  `stroke-dashoffset`, numeric opacity, local `<use href="#id">` references to
-  paths/primitives/groups in `<defs>`, and `<defs>` gradients referenced through
-  `url(#id)`. Gradients support `objectBoundingBox` and `userSpaceOnUse` units,
-  pad spread, at least two ordered stops, and no inheritance. `gradientTransform`
-  applies in the gradient's coordinate space; animated `translate`/uniform
-  `scale` transforms bake into gradient keyframes. Radial transforms must
-  preserve circular geometry and object-bounding-box radial gradients require
-  square path bounds; user-space percentages are rejected because the viewport
-  is not resolved at this boundary. A root `clip-path` or `mask`, or a group
-  scope whose reference covers every enclosed path under one shared transform,
-  lowers to the native path mask; masks require explicit user-space units and
-  opaque white geometry. Distinct per-element clip scopes and richer mask paint
-  remain unsupported. Root-level `filter` accepts `feGaussianBlur` and
-  `feDropShadow` and lowers them to layer effects (lengths scaled by the declared
-  viewport); per-element filters, filter regions and other primitives are
-  rejected. Unknown CSS style declarations are rejected.
+  limited to `svg`, `g`, path/rect/circle/ellipse/line/polyline/polygon and
+  solid colors, stroke width, numeric opacity, local `<use href="#id">`
+  references to paths/primitives/groups in `<defs>`, and `<defs>` gradients
+  referenced through `url(#id)`. Gradients currently require objectBoundingBox
+  units, pad spread, at least two ordered stops, and no inheritance. Static
+  `gradientTransform` is applied to normalized coordinates; radial transforms
+  must preserve circular geometry and radial gradients require square path bounds.
+  A root `clip-path` or `mask`, or a single-path group/path scope, can refer to
+  one path/primitive in `<defs>`; masks require explicit user-space units and
+  opaque white geometry. Mixed per-element clip scopes and richer mask paint remain
+  unsupported. Static filters, patterns, and unknown CSS declarations are
+  rejected. Stroke caps, joins, miter limits, and dash arrays are preserved.
+  Static `display:none` suppresses its full subtree. `visibility:hidden` and
+  `collapse` are inherited, and a descendant may restore `visibility:visible`.
+  Group opacity is flattened into child paint alpha, so SVG isolated-group
+  compositing is not represented. SVG text runs currently have limited
+  positioned-tspan fidelity; see Phase 4.
 - Path-local `animateTransform` supports translate, scale and origin-centered
   rotation, and `<animate attributeName="opacity">` supports bounded `from` / `to`
-  or two-item `values`, integral composition-frame timing, `fill="freeze"`, and
-  linear, discrete or `calcMode="spline"` (`keySplines`, single authored
-  interval mapped to per-keyframe cubic-bezier easing) interpolation. A bounded
-  integer `repeatCount` (2..1000) is expanded into repeated keyframe cycles: the
-  end value holds one frame before each boundary and the boundary frame restarts
-  from `from`. `repeatCount="indefinite"` stays rejected because a plan has a
-  finite timeline. Unsupported timing, `additive`/`accumulate="sum"`, rotation
-  pivots, static ancestor or path transforms, and animation on primitives fail
-  closed. Direct-child group transform and opacity animation use the bounded
-  inherited native-track subset described below.
+  or two-item `values`, integral composition-frame timing, one iteration,
+  `fill="freeze"`, and linear/discrete interpolation. Unsupported timing,
+  repeated animation, additive transforms, rotation pivots, static ancestor or
+  path transforms, and animation on groups or primitives fail closed.
 - Path-local animated paint supports solid `fill`/`stroke` colors,
   `stroke-width`, `fill-opacity`, and `stroke-opacity` through the native color
   and scalar tracks. Gradient stop color/opacity animations support only a
   synchronized two-keyframe `from`/`to` or two-item `values` pair beginning at
   zero, with one iteration and `fill="freeze"`; stop animations share duration
-  and interpolation mode. Gradient coordinates stay authored, while
-  `<animateTransform>` inside a gradient bakes animated `translate`/uniform
-  `scale` into gradient keyframes and must share the stop-animation duration.
-  Each path has a
+  and interpolation mode. Gradient coordinates and animated transforms remain
+  static. Each path has a
   bounded set of nine distinct animation entries; conflicting target tracks
   fail during compilation.
 - A `<g>` can animate transform and opacity directly; translate, uniform scale,
@@ -103,7 +86,8 @@ shape pipeline.
 
 - [x] Resolver-backed SVG plan decode lowers paths/primitives and retains
   multiple solid paint styles in source order;
-  missing/escaped references fail closed. Malformed and `<text>` loader tests pass.
+  missing/escaped references fail closed. Malformed SVG and text-run loader
+  tests pass.
 - [x] Geometry fixtures cover path commands, arcs, transforms, document order,
   and 1e-4 quantization.
 - [x] Resource-limit fixtures cover 8 MiB input, 100k XML nodes, 65536 path
@@ -118,17 +102,18 @@ shape pipeline.
   lowering, and rejection of text, unresolved gradients, unsupported stroke attributes, and invalid
   opacity values.
 - [x] Focused SVG importer tests pass after the current import extensions
-  (21/21 cases, 116/116 assertions), including geometry, timing, local
+  (25/25 cases, 168/168 assertions), including geometry, timing, local
   references and bounded failure behavior. The complete C ABI suite with SVG
-  enabled passes (246/246 cases, 6296/6296 assertions;
+  enabled passes (273/273 cases, 6820/6820 assertions;
   executable:
   `build/chronon/linux-fast-dev/tests/chronon3d_c_abi_tests`).
 - [x] Gradient integration coverage verifies linear/radial lowering and stop
   opacity and static normalized `gradientTransform`. Focused resolver-backed SVG
   C ABI coverage passes.
 - [x] The complete C ABI suite passes after the gradient, animated paint,
-  `<use>`, clip, mask and `gradientTransform` changes
-  (246/246 cases, 6296/6296 assertions).
+  `<use>`, clip, mask, `gradientTransform`, element addressing validation,
+  and font-metric text layout changes (273/273 cases, 6820/6820 assertions at
+  that implementation milestone).
 - [x] Sampled SVG integration coverage exercises animated fill/stroke colors,
   stroke width, fill/stroke opacity alongside transform and overall opacity.
 - [x] Resolver-backed coverage checks `<defs>` path expansion through local
@@ -143,65 +128,258 @@ shape pipeline.
 - [x] Resolver-backed SVG coverage samples synchronized gradient stop-color
   and stop-opacity animation at start, midpoint and end through the native
   gradient animation track.
-- [x] An SVG-enabled software CLI gate is implemented to validate and render a
-  resolver-backed animated SVG fixture through the RenderPlan CLI, then verify
-  decoded frame hashes differ at authored frames 0 and 30
-  (`scripts/ci/check_svg_cli_frame_gate.py`, `golden/svg_cli_gate/`). Verified
-  on the `CHRONON3D_ENABLE_SVG=ON` build: `SVG_CLI_GATE PASS`, frame 0 and 30
-  hashes differ.
-- [x] Run the SVG CLI gate and importer test suite on the current tree with
-  `CHRONON3D_ENABLE_SVG=ON`; clean-SHA CI remains separately required.
-  Local run: gate passes; `chronon3d_svg_path_loader_tests` 23/23 cases and
-  `chronon3d_c_abi_tests` 293/293 cases pass. Clean-SHA CI is still outstanding.
-- [x] `userSpaceOnUse` gradients, animated `gradientTransform`, `calcMode="spline"`
-  with `keySplines`, bounded `repeatCount`, multi-path group clip/mask scopes and
-  root-level `feGaussianBlur`/`feDropShadow` filters are covered by loader and
-  resolver-backed compiler tests.
-- [x] Latest local run on the SVG-enabled tree: `chronon3d_svg_path_loader_tests`
-  36/36 cases (203 assertions), `chronon3d_c_abi_tests` 300/300 cases
-  (7720 assertions), `check_svg_cli_frame_gate.py` PASS and
-  `check_svg_motion_animations_gate.py` PASS. Clean-SHA CI still outstanding.
-- [x] Composite path-operator showcase gate (`scripts/ci/check_svg_composite_showcase_gate.py`)
-  certifies the canonical CLI render route end to end: six chained path
-  operators (trim, zig_zag, offset_path, pucker_bloat, round_corners and an
-  animated repeater). Observed run: all authored frames decode to visible RGBA
-  pixels, endpoint hashes differ, a repeat render reproduces identical frame
-  hashes (determinism), and the MP4 output is h264 128x128 with 31 frames
-  (`COMPOSITE_SHOWCASE_GATE PASS`).
-- [x] Observed motion gate details: `check_svg_motion_animations_gate.py`
-  certifies line reveal, icon morph, animated stroke, group hierarchy, mask
-  reveal, color/gradient and the animated repeater (17 PASS checks, endpoint
-  hashes differ per operator) through the SVG-enabled CLI.
-
-## Bounded out for architectural reasons
-
-These are not importer gaps; they need work outside the SVG lowering boundary.
-
-- **SVG text `<text>`/`<tspan>`/`<image>`/`<style>`.** The SVG layer lowers into
-  `ImportedSubpathPlan` geometry only. `LayerPlan::TextBinding` carries a
-  `key`/`text` pair for plan bindings, not a positioned text run, and there is no
-  font-family/layout contract from an SVG asset to the text pipeline. The loader
-  rejects these tags with an explicit message; adding text needs a text-run plan
-  element plus a font resolution contract.
-- **Isolated group compositing.** CLOSED at the software lane since
-  2026-10-17 by [TICKET-SVG-GROUP-ISOLATION](TICKET-SVG-GROUP-ISOLATION.md)
-  (ADR-035): `opacity < 1` groups lower through `svg_group` and compose once
-  on an intermediate surface inside the layer's `MultiSourceNode`; native
-  lane fails closed, Q2 nested groups stay pending on the same machinery.
-- **Per-element filters and clip/mask.** `LayerPlan` exposes one path mask and one
-  effect stack per layer; effects are layer post-transform stages with no
-  per-subpath equivalent. Distinct per-element references therefore fail closed
-  with typed diagnostics instead of rendering partially.
-- **Arbitrary filter graphs.** Only `feGaussianBlur` and `feDropShadow` map onto
-  existing layer effects; filter regions (`x`/`y`/`width`/`height`,
-  `filterUnits`) are ignored, and primitives such as `feBlend`/`feTurbulence`
-  have no plan representation.
-- **SMIL `additive`/`accumulate="sum"`.** The lowered tracks are absolute;
-  additive deltas would need a base-value contract per animated property.
-  `repeatCount="indefinite"` is rejected because a plan has a finite timeline.
 
 ## Demolition debt
 
 - **Closed on:** source SHA recorded by the implementation and gate commits.
 - **Closure:** gradient and multi-style importer gates pass; the SVG feature
   scope remains bounded as stated above.
+
+## Chronon SVG Motion Graphics roadmap
+
+This roadmap targets a headless deterministic renderer and authored motion
+graphics. It does not add an SVG editor or a second runtime scene graph. SVG is
+parsed into a temporary import representation, then lowered into RenderPlan V3
+and the existing compiler, sampler, and renderer.
+
+### Phase 0 — Pixel-truth baseline
+
+- [x] Keep the SVG CLI gate on the encoded video route. A still/PNG-sequence
+  output is not pixel-truth for this gate.
+- [x] Render an inline control shape and a resolver-backed animated SVG in the
+  same plan; decode the MP4 and assert both color classes are visible, distinct
+  authored endpoints, and repeatable frame hashes across two renders.
+- [x] Record the tested checkout SHA, plan/SVG hashes, backend, dimensions, frame
+  rate, codec, decoder, and decoded opening/middle/ending frame hashes in the
+  showcase README. A green local run does not replace clean-SHA CI.
+
+### Phase 1 — Addressable SVG elements
+
+- [x] Preserve source element IDs and group/use ancestry in the temporary import
+  representation and the decoded RenderPlan.
+- [x] Add bounded `element_animations` bindings by target ID and canonical
+  property path. Resolve group targets to their descendants during lowering.
+- [x] Lower bindings to existing `AnimationTrackPlan` tracks; do not create a
+  second sampler or timeline.
+- [x] Cover missing IDs, duplicate IDs, ambiguous `<use>` instances, unknown
+  targets, unsupported properties, fingerprints, and sampled frame values.
+  Unsupported properties fail both JSON decoding and direct in-memory plan
+  compilation; duplicate source IDs fail SVG import before target resolution.
+
+### Phase 2 — Existing path operators
+
+- [x] Certify the currently supported path operators through decode,
+  validation, fingerprint, sampling, path-operator evaluation, and encoded
+  rendered output.
+- [x] Enable target-scoped Trim Paths and animated Repeater on imported SVG
+  elements, preserving source paint order and operator order.
+- [x] Connect target-scoped Offset Paths and Wiggle Paths on imported SVG
+  elements. Resolver-backed C ABI coverage checks the offset path coordinates,
+  deterministic seeded wiggle output, and animated group repeater together.
+- [x] Certify Trim Paths, animated Repeater, Offset Paths, and Wiggle Paths
+  through encoded MP4 output. Pixel checks verify visible operator-targeted
+  paths, compare Offset/Wiggle renders to plans with only that operator
+  removed, and check distinct endpoints plus matching repeat-render hashes.
+- [x] Extend encoded MP4 certification to Round Corners, Zig Zag, Pucker/Bloat,
+  Twist, Morph, and Merge. The gate checks operator-target pixels, renders
+  operator-removed variants, checks animated Trim/Repeater pixel changes,
+  compares opening/ending hashes, and repeats the complete render.
+- [x] Lower targeted SVG Morph through the existing path-operator evaluator
+  and shared timeline. Exact path IDs are required; topology mismatch fails at
+  evaluation. C ABI coverage samples start/mid/end and checks the mismatch.
+- [x] Lower targeted SVG Merge through the existing path-operator evaluator.
+  Its bounded semantics append compound subpaths; exact path IDs are required
+  and group targets fail. This does not claim SVG boolean or After Effects
+  Merge Paths parity.
+
+### Phase 3 — High-value SVG fidelity
+
+- [x] Implement `fill-rule`, stroke caps/joins/miter limit, and dash arrays via
+  existing path paint structures.
+- [x] Add only the CSS cascade needed by authored assets: presentation
+  attributes, `<style>` rules, classes, inheritance, and `currentColor`.
+- [x] Extend clip and mask scope only when it maps to a canonical per-element or
+  group compositing contract. Reject unsupported scopes explicitly.
+- [x] Honor static `display:none` and inherited `visibility:hidden|collapse`
+  for SVG geometry and text; allow a child to restore `visibility:visible`,
+  while a `display:none` ancestor suppresses all descendants.
+- [ ] Reuse Chronon effects when SVG filter semantics map directly; defer
+  arbitrary SVG filter graphs.
+
+### Phase 4 — SVG text and timeline
+
+- [ ] Complete SVG text parity through the existing shaping, font resolver,
+  and text renderer. The initial `<text>`/`<tspan>` lowering now creates
+  canonical Chronon text layers and resolves exact family names against
+  `fonts/<Family>-Regular|Bold.ttf|otf`; missing bundled families fail with
+  `svg_font_unresolved` rather than silently producing empty glyphs.
+- [x] Lay out sequential text and style runs with the resolved font's measured
+  advances and ascent; preserve trailing whitespace, distinguish explicit
+  `x`/`y` from inherited coordinates, apply `dx`/`dy`, and retain text element
+  identity. C ABI coverage verifies the next run starts after the measured
+  first run.
+- [x] Import solid SVG text strokes and preserve separate fill/stroke opacity
+  through RenderPlan into the canonical `TextRunShape` paint. C ABI coverage
+  verifies stroke color, width, alpha, and fill alpha after materialization.
+- [ ] Add gradient/pattern text paint and SVG text stroke dash/cap/join semantics.
+- [x] Add font-metric `dominant-baseline` support for central, middle and
+  hanging baselines, and inherited `baseline-shift` values for sub/super,
+  pixel, em and percentage inputs. The current sub/super values use bounded
+  typographic approximations.
+- [ ] Cover the remaining nested SVG text-chunk semantics, baseline table
+  values, and inherited paint across all supported text content.
+- [x] Import bounded `x`, `y`, `dx`, and `dy` coordinate lists and lower them
+  through shaped text clusters into canonical text layers. Coordinate entries
+  within one shaped cluster fail closed; text coordinate lists under rotated
+  or skewed SVG transforms fail closed until the text basis is preserved.
+- [x] Preserve nested `<tspan text-anchor>` chunk scope and measure each
+  independently anchored span with the existing font metrics during lowering.
+- [x] Lower bounded SVG `textPath` through the existing path sampler and text shaping pipeline. Local references to visible static paths in the same group coordinate scope and direct paths in `<defs>` are supported, with numeric/percentage `startOffset`, `text-anchor`, and per-cluster canonical text layers retaining the text element ID. Unsupported `method`, `spacing`, and `side` values fail closed.
+- [ ] Prefer Chronon frame tracks for authored motion. Add SMIL timing forms
+  only when real assets require them; do not pursue browser-complete SMIL.
+
+The current text lowering is an initial supported subset. Each run remains a
+separate Chronon text layer; simple sequential runs now use measured advances,
+but nested text chunks, complex baselines, and full paint
+  semantics remain open. Text layout is covered by a C ABI integration
+test, and whitespace/coordinate inheritance by the SVG loader test. Current
+`textPath` limits: targets must be static (visible paths must share the same
+group coordinate scope; paths inside `<defs>` use their own transform), only
+numeric/percentage `startOffset` and default `method=align`, `spacing=exact`,
+`side=left` are accepted, and each shaped cluster becomes an independent text
+layer. Cross-cluster script shaping is therefore not guaranteed.
+For ordinary positioned text, coordinate lists use shaped-cluster indices;
+lists that place a coordinate inside a multi-character shaped cluster are
+rejected with `svg_text_coordinate_cluster_unsupported`. TextPath coordinate
+lists remain unsupported. Text coordinate lists support translation and
+axis-aligned scale transforms; rotated and skewed scopes fail closed.
+
+### Phase 5 — Cinematic acceptance scene
+
+- [x] Author one realistic company/finance infographic SVG with stable IDs for
+  logo, nodes, arrows, connectors, and labels.
+- [x] Render a 10–15 second scene with ID-addressed reveals, an animated
+  Repeater, supported path morphs, synchronized typography, 2.5D depth, and
+  camera movement on the shared composition timeline.
+- [x] Deliver MP4, contact sheet, editable RenderPlan/source SVG, assets and
+  attribution, plus opening/middle/ending frame checks.
+- [x] Certify deterministic full-showcase reruns through the in-process FFmpeg
+  pipe encoder.
+- [ ] Run the full gate on a clean-SHA CI checkout.
+
+### Current checkout notes
+
+- The source tree has pre-existing uncommitted changes. Do not reset or stage
+  them as part of this roadmap.
+- The old CLI PNG gate reported transparent output for both SVG and an inline
+  control shape. The MP4 gate verifies the red control and yellow SVG pixels,
+  an animated cyan Trim Paths reveal, increasing magenta Repeater coverage,
+  green Offset Path and blue Wiggle Path output, and compares output with each
+  of those operators removed in isolation. It also checks distinct frame 0/10
+  hashes and identical hashes across two complete renders. The gate passed
+  locally with the isolated SVG-enabled build. Frame 0 SHA-256 is
+  `64e27e2e3feb51bb812a2749e23fc503e063dddf1cd31f9885e76d5f5553cd0a`; frame
+  10 is `fee541ecb7d8a4900307076a94b3cd8271c8ec23fce5f11e47ecc1bd98c2bbb2`.
+  Clean-SHA CI remains pending.
+- Two current-tree 1920×1080 renders through the in-process FFmpeg pipe encoder
+  were decoded and compared across all 360 frames: all RGBA frames match
+  exactly, and both MP4 files have SHA-256
+  `9bd9f2421b12ae56a69b452d6b7f2f56edc426c87aa822763f6d41db3204efbe`.
+  Independent raw-sink runs of frames 0–59 also match exactly. The previous
+  default native-encoder full renders differed only in decoded frames 7–59;
+  use `--encoder-backend pipe` for reproducible showcase output. The contact
+  sheet and review frames were regenerated from the passing run and visually
+  inspected. Clean-SHA CI remains pending.
+- Build directories from the previous checkout contain stale CMake cache paths;
+  use an isolated build directory and preserve the existing preset artifacts.
+
+### Showcase scene contract
+
+- **Subject and assets:** a fictional company growth infographic with a central
+  headquarters mark, three business nodes, connector lines, a revenue arrow,
+  numeric callout, and editable text labels. The SVG is authored in-repo with
+  stable IDs; the RenderPlan supplies the camera, typography, and timeline.
+- **Composition and camera:** 1920×1080, dark navy field, central diagram in
+  the middle two thirds, title and metric in the safe upper/lower bands. Use the
+  canonical perspective camera convention from existing RenderPlan fixtures;
+  keep graphic planes at readable depth and avoid perspective distortion.
+- **Motion and timing:** 12 seconds at 30 fps. Establish title and hub, reveal
+  connectors with targeted Trim Paths, bring in business nodes with a scoped
+  Repeater, then animate the revenue arrow and metric. End on a settled hold.
+  Camera motion is a restrained push-in on the shared composition timeline.
+- **Layers and sources:** independent SVG-backed layers for the diagram and
+  arrow, editable RenderPlan text layers for title, labels, and metric, and a
+  generated background layer. Preserve the source SVG and plan next to the MP4.
+- **Must not appear:** browser/SVG editor UI, unrequested brands or logos,
+  unreadable text, clipped objects, or a substitution for the authored diagram.
+- **Preview acceptance:** at 854×480, the first, middle, and final states must
+  show the same authored diagram, legible title and metric, visible progressive
+  connector/revenue reveals, and no missing/transparent subject. Final delivery
+  also includes decoded contact-sheet frames and repeatable endpoint hashes.
+
+### Chronon SVG animation contract
+
+Element tracks use stable imported SVG IDs (group IDs address descendants) and
+the existing animation track decoder/sampler. A path operator can optionally
+use `target` to scope it to one SVG element or group. Exact element IDs take
+precedence over group IDs; duplicate exact IDs after `<use>` expansion are an
+explicit ambiguity error. Example:
+
+```json
+{
+  "shape": {
+    "type": "path",
+    "asset": "art/company.svg",
+    "element_animations": [{
+      "target": "revenue_arrow",
+      "property": "opacity",
+      "animation": {"keyframes": [
+        {"frame": 0, "value": [0]},
+        {"frame": 24, "value": [1]}
+      ]}
+    }],
+    "operators": [{
+      "kind": "trim",
+      "target": "revenue_arrow",
+      "params": {"start": 0, "end": 1,
+        "animation": {"keyframes": [
+          {"frame": 0, "value": [0, 0]},
+          {"frame": 24, "value": [0, 1]}
+        ]}}
+    }]
+  }
+}
+```
+
+Supported element properties currently cover overall opacity, translate,
+scale, rotation, solid fill/stroke color and opacity, and stroke width. Imported
+path operators share the existing Chronon utility and can target SVG elements;
+Merge and Morph require an exact target path ID within an imported SVG asset.
+SVG merge is subpath concatenation, not a boolean geometry operation.
+
+## Verification update — 2026-10-18
+
+- Full SVG-enabled C ABI suite on the current working tree: 275/275 cases and
+  6865/6865 assertions pass (including positioned text cluster coordinates,
+  baselines, textPath, and materialized text paint checks).
+- SVG path loader suite before the display/visibility change: 28/28 cases and
+  197/197 assertions passed. The updated suite passes 30/30 cases and 205/205
+  assertions, including inherited geometry and text visibility plus descendant
+  visibility restoration.
+- Encoded CLI gate passes on the software backend. Decoded 64×64 RGBA endpoint
+  hashes: frame 0 `6b232d3f71d8ccef3a409bd3830d0aac83f18907922fd54e96ed5ca2a00fc083`,
+  frame 10 `027e5a800091544efb3437baebcdd771f6a0bae1bfe5e07d518dbfdc574c6f69`;
+  two complete gate renders match.
+- The 1920×1080, 30 fps, 12 second company-growth showcase was freshly rendered
+  from `tests/fixtures/svg_motion_showcase/scene.plan.json` and visually checked
+  at frames 12, 180 and 359. Their decoded PNG SHA-256 values are respectively
+  `348d551abda64ac270b56b9e401f65192d7fc24d1d55db9665215ff815f8bf51`,
+  `845e2ad53305420577e7157f8366c259856789658b46e66bd549fa69b86b5285`, and
+  `ea029e7f1ba2ab27cd789ede2b1f66e5dd143d527477bd54f6aea6fd7597350e`.
+  It is delivered as
+  `Chronon3D_SVG_Motion_Showcase_1080p30.mp4` with a contact sheet in the
+  requested `Altri_video` folder.
+- Remaining scope: arbitrary SVG filter graphs, nested text chunks and full
+  baseline semantics, complete text paint, coordinate lists that split a
+  shaping cluster or occur on textPath/rotated SVG scopes, broader clip/mask
+  composition and clean-SHA CI. These are not claimed complete.

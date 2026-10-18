@@ -1,8 +1,6 @@
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 
-#include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/scene/model/core/transition.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -41,18 +39,7 @@ float sample_track(const CompiledProgram& program,
     const auto t = span == 0.0f
         ? 0.0f
         : static_cast<float>(frame_number - static_cast<double>(left.frame)) / span;
-    // Authored easing runs here so program sampling matches the legacy
-    // render-plan compiler (keyframe_easing/track_easing). "bezier" always
-    // carries its curve (the decoder rejects a bare bezier); unknown names
-    // fall back to linear via string_to_easing.
-    EasingCurve curve{Easing::Linear};
-    if (track.has_bezier) {
-        curve = EasingCurve::cubic_bezier(track.bezier[0], track.bezier[1],
-                                          track.bezier[2], track.bezier[3]);
-    } else if (!track.easing.empty() && track.easing != "linear") {
-        curve = EasingCurve{string_to_easing(track.easing)};
-    }
-    return left.value + (right.value - left.value) * curve.apply(t);
+    return left.value + (right.value - left.value) * t;
 }
 
 }  // namespace
@@ -82,8 +69,8 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         sampled.id = layer.id;
         sampled.kind = layer.kind;
         sampled.text_index = 0;
-        sampled.dirty = layer.has_transform_animation ||
-            program.temporal_schedule().dirty(layer.id, frame_number);
+        sampled.dirty = program.temporal_schedule().dirty(
+            layer.id, frame_number);
 
         const auto start = layer.start_frame;
         const auto end = start + layer.duration_frames;
@@ -114,60 +101,11 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                 sampled.payload = SampledShapeParameters{
                     layer.size, layer.color, layer.opacity};
                 break;
-            case NodeKind::Mesh: {
-                SampledMeshParameters mesh;
-                mesh.inline_mesh = layer.inline_mesh ? &*layer.inline_mesh : nullptr;
-                mesh.color = layer.color;
-                if (mesh.inline_mesh) {
-                    const auto& source = *mesh.inline_mesh;
-                    const auto& samples = source.animation;
-                    if (!samples.empty()) {
-                        mesh.positions.reserve(source.vertices.size());
-                        const double sample_frame = std::max(0.0, frame_number);
-                        const render_plan::InlineMeshFrameSamplePlan* left = nullptr;
-                        const render_plan::InlineMeshFrameSamplePlan* right = nullptr;
-                        for (const auto& sample : samples) {
-                            if (static_cast<double>(sample.frame) <= sample_frame) left = &sample;
-                            if (static_cast<double>(sample.frame) >= sample_frame) { right = &sample; break; }
-                        }
-                        if (!left) left = right;
-                        if (!right) right = left;
-                        const double amount = !left || left == right ? 0.0 :
-                            std::clamp((sample_frame - static_cast<double>(left->frame)) /
-                                static_cast<double>(right->frame - left->frame), 0.0, 1.0);
-                        for (std::size_t vertex = 0; vertex < source.vertices.size(); ++vertex) {
-                            std::array<float, 3> position = source.vertices[vertex].position;
-                            if (left && right) {
-                                for (std::size_t component = 0; component < position.size(); ++component)
-                                    position[component] = static_cast<float>(left->positions[vertex][component] +
-                                        (right->positions[vertex][component] - left->positions[vertex][component]) * amount);
-                            }
-                            mesh.positions.push_back(position);
-                        }
-                        std::vector<Vec3> accumulated(mesh.positions.size(), Vec3{0.0f});
-                        for (std::size_t triangle = 0; triangle < source.indices.size(); triangle += 3) {
-                            const auto a = source.indices[triangle];
-                            const auto b = source.indices[triangle + 1];
-                            const auto c = source.indices[triangle + 2];
-                            const auto point = [&](std::uint32_t index) {
-                                const auto& p = mesh.positions[index];
-                                return Vec3{p[0], p[1], p[2]};
-                            };
-                            const Vec3 face = glm::cross(point(b) - point(a), point(c) - point(a));
-                            accumulated[a] += face; accumulated[b] += face; accumulated[c] += face;
-                        }
-                        mesh.normals.reserve(accumulated.size());
-                        for (const auto& normal : accumulated) {
-                            const float length2 = glm::dot(normal, normal);
-                            const Vec3 unit = length2 > 1.0e-20f && std::isfinite(length2)
-                                ? normal / std::sqrt(length2) : Vec3{0.0f, 0.0f, 1.0f};
-                            mesh.normals.push_back({unit.x, unit.y, unit.z});
-                        }
-                    }
-                }
-                sampled.payload = std::move(mesh);
+            case NodeKind::Mesh:
+                sampled.payload = SampledMeshParameters{
+                    layer.inline_mesh ? &*layer.inline_mesh : nullptr,
+                    layer.color};
                 break;
-            }
             case NodeKind::Unknown:
                 break;
         }

@@ -3,7 +3,6 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 
 #include <functional>
-#include <cstddef>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -53,14 +52,6 @@ public:
     /// Signals Vulkan after CUDA's compositor has finished writing the image.
     void signal_for_vulkan(CUstream stream = nullptr);
 
-    /// Copy a top-left-origin, tightly packed-or-pitched RGBA8 CUDA buffer
-    /// directly into this Vulkan surface. This is intended for GPU producers
-    /// such as a CUDA-mapped OpenGL pixel-pack buffer. The copy and both
-    /// ownership semaphores are ordered on the same CUDA stream; no host pixel
-    /// buffer is created. The Vulkan surface must use the uchar4 interop format.
-    void copy_rgba8_from_cuda(CUdeviceptr source, std::size_t source_pitch,
-                              CUstream stream = nullptr);
-
 private:
     void make_current();
     CUcontext m_context{nullptr};
@@ -71,9 +62,6 @@ private:
     CUexternalSemaphore m_cuda_to_vulkan{nullptr};
     CUexternalSemaphore m_vulkan_to_cuda{nullptr};
     CUstream m_stream{nullptr};
-    std::uint32_t m_width{0};
-    std::uint32_t m_height{0};
-    std::uint32_t m_cuda_array_format{0};
     bool m_timeline{false};
     std::shared_ptr<InteropGeneration> m_generation{};
     std::function<std::uint64_t()> m_wait_vulkan_fence{};

@@ -1,0 +1,47 @@
+#pragma once
+
+#include <cstdint>
+#include <cstddef>
+
+#if defined(_MSC_VER)
+#include <boost/multiprecision/cpp_int.hpp>
+#endif
+
+#if defined(_MSC_VER)
+#define CHRONON3D_RESTRICT __restrict
+#elif defined(__GNUC__) || defined(__clang__)
+#define CHRONON3D_RESTRICT __restrict__
+#else
+#define CHRONON3D_RESTRICT
+#endif
+
+namespace chronon3d {
+
+// Floating point types
+using f32 = float;
+using f64 = double;
+
+// Unsigned integer types
+using u8 = std::uint8_t;
+using u16 = std::uint16_t;
+using u32 = std::uint32_t;
+using u64 = std::uint64_t;
+
+// Signed integer types
+using i8 = std::int8_t;
+using i16 = std::int16_t;
+using i32 = std::int32_t;
+using i64 = std::int64_t;
+
+// MSVC does not provide the GNU/Clang __int128 extension. Keep exact wide
+// timestamp arithmetic available on Windows with Boost's fixed-width type.
+#if defined(_MSC_VER)
+using wide_int_t = boost::multiprecision::int128_t;
+#else
+using wide_int_t = __int128;
+#endif
+
+// Size types
+using usize = std::size_t;
+
+} // namespace chronon3d

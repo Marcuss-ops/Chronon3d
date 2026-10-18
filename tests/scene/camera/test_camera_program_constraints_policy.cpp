@@ -9,7 +9,8 @@
 //
 // CAM-01 / DOC 04 — Baseline test suite for the COMPILED camera path.
 //
-// Scope (the compiled camera contract):
+// Scope (per the retired docs/camera-plan/04-INTEGRATION_TESTS_AND_LEGACY_REMOVAL.md §  // drift-class: historical (camera-plan design docs retired)
+// "Test unitari compiler"):
 //
 //   ✓ Static source
 //   ✓ PoseTracksSource

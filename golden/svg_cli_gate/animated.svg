@@ -1,6 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
   <path d="M 8 24 L 24 24 L 24 40 L 8 40 Z" fill="#FFD500"/>
   <path d="M 8 24 L 24 24 L 24 40 L 8 40 Z" fill="#FFD500">
-    <animateTransform attributeName="transform" type="translate" from="0 0" to="32 0" dur="1s" fill="freeze"/>
+    <animateTransform attributeName="transform" type="translate" from="0 0" to="32 0" dur="0.3333333333333333s" fill="freeze"/>
   </path>
+  <path id="reveal" d="M 0 0 L 24 0 L 24 4 L 0 4 Z" fill="#00D9FF"/>
+  <path id="spark" d="M 8 8 L 12 8 L 12 12 L 8 12 Z" fill="#FF00FF"/>
+  <path id="offset" d="M 0 16 L 12 16 L 12 28 L 0 28 Z" fill="#00FF00"/>
+  <path id="wiggle" d="M -28 -28 L -16 -28 L -16 -16 L -28 -16 Z" fill="#0080FF"/>
+  <path id="round" d="M -12 -28 L 0 -28 L 0 -16 L -12 -16 Z" fill="#FF8000"/>
+  <path id="zigzag" d="M 4 -28 L 16 -28 L 16 -16 L 4 -16 Z" fill="#80FF00"/>
+  <path id="pucker" d="M -28 -12 L -16 -12 L -16 0 L -28 0 Z" fill="#8000FF"/>
+  <path id="twist" d="M -12 -12 L 0 -12 L 0 0 L -12 0 Z" fill="#FFFFFF"/>
+  <path id="morph" d="M -12 4 L 0 4 L 0 16 L -12 16 Z" fill="#FF4080"/>
+  <path id="merge" d="M -28 12 L -22 12 L -22 18 Z" fill="#FF8000"/>
 </svg>

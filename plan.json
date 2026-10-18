@@ -1,0 +1,11 @@
+{"schema":"chronon.render-plan.v3","version":3,"job_id":"svg_cli_gate",
+"canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":11},
+"layers":[
+{"id":"control_shape","type":"shape","position":[52,52],"size":[16,16],
+"shape":{"type":"path","fill":[1.0,0.0,0.0,1.0],"path":[
+{"type":"move_to","point":[-6,-6]},{"type":"line_to","point":[6,-6]},
+{"type":"line_to","point":[6,6]},{"type":"line_to","point":[-6,6]},
+{"type":"close"}]}},
+{"id":"animated_svg","type":"shape","position":[32,32],"size":[64,64],
+"shape":{"type":"path","asset":"animated.svg"}}],
+"output":{"path":"svg_cli_gate.mp4","format":"mp4","color_space":"srgb"}}

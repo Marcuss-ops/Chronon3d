@@ -97,8 +97,7 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
                             EffectType::Ripple, EffectType::DisplacementMap,
                             EffectType::Halftone, EffectType::LensDistortion,
                             EffectType::LuminanceResponse, EffectType::FoldWarp,
-                            EffectType::CreaseShading, EffectType::RoughenEdges,
-                            EffectType::NoiseSampler, EffectType::BandedGrain}) {
+                            EffectType::CreaseShading, EffectType::RoughenEdges}) {
         const auto* row = graph::gpu_effect_capability(type);
         REQUIRE(row != nullptr);
         CHECK(row->route == GpuEffectRoute::NativeZeroReadback);
@@ -121,5 +120,5 @@ TEST_CASE("strict GPU effect capability census covers every catalog effect once"
     std::size_t native = 0;
     for (const auto& row : graph::kGpuEffectCapabilityRows)
         if (row.route == graph::GpuEffectRoute::NativeZeroReadback) ++native;
-    CHECK(native == 50);
+    CHECK(native == 48);
 }

@@ -29,9 +29,7 @@ graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
         std::pair{"linear", graphics::Field2DGenerator::Linear},
         std::pair{"radial", graphics::Field2DGenerator::Radial},
         std::pair{"conic", graphics::Field2DGenerator::Conic},
-        std::pair{"burst", graphics::Field2DGenerator::Burst},
-        std::pair{"value", graphics::Field2DGenerator::Value},
-        std::pair{"ridged", graphics::Field2DGenerator::Ridged}};
+        std::pair{"burst", graphics::Field2DGenerator::Burst}};
     const auto found = std::find_if(generators.begin(), generators.end(),
         [&](const auto& item) { return generator == item.first; });
     if (found == generators.end()) throw std::runtime_error("field.generator is unsupported");
@@ -58,7 +56,7 @@ graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
             graphics::Field2DOperator op;
             const auto kind = entry.at("kind").get<std::string>();
             const auto reject = [&](std::initializer_list<const char*> allowed) {
-                for (const char* key : {"from", "to", "edge", "softness", "amount", "levels"})
+                for (const char* key : {"from", "to", "edge", "softness", "amount"})
                     if (entry.contains(key) && std::none_of(allowed.begin(), allowed.end(),
                         [&](const char* candidate) { return std::string_view(candidate) == key; }))
                         throw std::runtime_error("field operator contains a parameter unused by its kind");
@@ -91,15 +89,7 @@ graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
                 reject({});
                 scalar_operator_seen = true;
                 op.kind = graphics::Field2DOperatorKind::Invert;
-            } else if (kind == "quantize") {
-                reject({"levels"});
-                scalar_operator_seen = true;
-                op.kind = graphics::Field2DOperatorKind::Quantize;
-                op.scalar = entry.at("levels").get<float>();
-                if (!std::isfinite(op.scalar) || op.scalar < 2.0f || op.scalar > 256.0f ||
-                    std::floor(op.scalar) != op.scalar)
-                    throw std::runtime_error("field quantize levels must be an integer in [2, 256]");
-            } else if (kind == "warp" || kind == "domain_warp") {
+            } else if (kind == "warp") {
                 reject({"amount"});
                 if (scalar_operator_seen || warp_seen)
                     throw std::runtime_error("field warp must occur once before scalar operators");

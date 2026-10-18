@@ -36,7 +36,7 @@ using SpringPlan = chronon3d::SpringConfig;
 inline constexpr const char* kRenderPlanSchemaV2 = "chronon.render-plan.v2";
 inline constexpr const char* kRenderPlanSchemaV3 = "chronon.render-plan.v3";
 
-enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment, Mesh, Null };
+enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment, Mesh };
 enum class ShapeContentTypePlan : std::uint8_t {
     Rect, RoundedRect, Ellipse, Line, Path,
     Star, Polygon, Arrow, Arc, Grid, DotGrid, DeviceFrame
@@ -66,8 +66,10 @@ struct StrokeStyle {
     float dash_offset{0.0f};
     std::string cap{"butt"};
     std::string join{"miter"};
+    float miter_limit{10.0f};
     float taper_start{1.0f};
     float taper_end{1.0f};
+    std::optional<float> opacity;
 };
 
 struct AnimationKeyframePlan {
@@ -151,6 +153,8 @@ struct PathRepeaterPlan {
 enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph };
 struct PathOperatorPlan {
     PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
+    /// Optional SVG element/group target; empty applies to all authored paths.
+    std::string target_id;
     PathRepeaterPlan repeater{};
     float radius{0.0f};
     float size{0.0f};
@@ -174,10 +178,7 @@ struct PathOperatorPlan {
     float trim_end{1.0f};
     float trim_offset{0.0f};
     std::optional<AnimationTrackPlan> trim_animation;
-    // Repeater: keyframe values are [position_x, position_y, scale_x,
-    // scale_y, rotation_degrees]; fewer components fall back to the static
-    // fields. Copies stay static so the operator keeps its bounded
-    // per-frame node count.
+    /// Repeater keyframes: position x/y, scale x/y, rotation degrees.
     std::optional<AnimationTrackPlan> repeater_animation;
 };
 
@@ -210,14 +211,10 @@ struct ImportedSubpathPlan {
     std::vector<ShapePathCommandPlan> morph_target;
     std::optional<AnimationTrackPlan> morph_animation;
     std::vector<std::vector<ShapePathCommandPlan>> morph_keyframe_targets;
-    /// ADR-035: innermost enclosing isolated group. Children paint at full
-    /// alpha; the group stage composites the shared surface once with
-    /// `opacity`, so this must NOT be folded into fill/stroke alpha.
-    struct SvgGroupIsolationPlan {
-        std::uint32_t id{0};
-        float opacity{1.0f};
-    };
-    std::optional<SvgGroupIsolationPlan> svg_group;
+    /// Source SVG identity retained through RenderPlan lowering for addressing.
+    std::string source_id;
+    std::vector<std::string> source_group_ids;
+    ShapeFillRulePlan fill_rule{ShapeFillRulePlan::NonZero};
     struct GroupTransformPlan {
         std::array<float, 2> position{0.0f, 0.0f};
         std::array<float, 2> anchor{0.0f, 0.0f};
@@ -230,6 +227,12 @@ struct ImportedSubpathPlan {
         std::optional<AnimationTrackPlan> opacity_animation;
     };
     std::optional<GroupTransformPlan> lottie_group_transform;
+};
+
+struct SvgElementAnimationPlan {
+    std::string target_id;
+    std::string property;
+    AnimationTrackPlan animation;
 };
 
 struct DeviceFramePlan {
@@ -283,6 +286,8 @@ struct ShapeContentPlan {
     // Resolver-backed SVG/Lottie elements retain authored path/style order as
     // deterministic sibling path nodes without widening the path rasterizer.
     std::vector<ImportedSubpathPlan> imported_subpaths;
+    /// Timeline bindings resolved against SVG source ids during import lowering.
+    std::vector<SvgElementAnimationPlan> svg_element_animations;
     std::vector<PathOperatorPlan> operators;
     // ── Star / Polygon ──────────────────────────────────────────────
     std::optional<int> points; // 3..64
@@ -361,8 +366,13 @@ struct BackgroundStyle {
 // family/weight lookup or preset/profile fallback at the render-plan boundary.
 struct LayerStylePlan {
     std::string font;
+    std::string font_family;
+    int font_weight{400};
+    std::string font_style{"normal"};
+    std::string text_align{"center"};
     std::optional<float> font_size;
     std::string fill;
+    std::optional<float> fill_opacity;
     std::string text_fit_mode{"none"};
     std::optional<float> min_font_size;
     std::optional<float> max_font_size;
@@ -433,33 +443,16 @@ struct TimeRemapPlan {
 // the canonical [tilt_x, pan_y, roll_z] order consumed by Camera2_5D.
 struct CameraPlan {
     std::string type{"perspective"};
-    // AE rig: "one_node" aims by rotation only; "two_node" locks aim on
-    // target (point of interest). Decoded from camera.node.
-    std::string node{"one_node"};
     std::array<float, 3> position{0.0f, 0.0f, -1000.0f};
     std::array<float, 3> rotation_deg{0.0f, 0.0f, 0.0f};
-    // Point of interest in world units. Meaningful when node == "two_node".
-    std::array<float, 3> target{0.0f, 0.0f, 0.0f};
-    // Optional layer whose world position resolves the point of interest.
-    std::string target_name;
     float fov_deg{50.0f};
     float near{1.0f};
     float far{10000.0f};
     float zoom{1.0f};
-    // Physical lens (AE 24/28/35/50/85mm family on a 36x24mm gate).
-    // focal_length_mm == 0 means "not authored": fov_deg wins.
-    float focal_length_mm{0.0f};
-    // Physical aperture as f/N. f_stop == 0 means "not authored".
-    float f_stop{0.0f};
-    // Iris blade count for bokeh shape. 0 means circular.
-    int iris_blades{0};
     bool dof_enabled{false};
     float dof_focus_distance{1000.0f};
     float dof_aperture{0.015f};
     float dof_max_blur{24.0f};
-    float dof_f_stop{0.0f};
-    int dof_iris_blades{0};
-    float dof_highlight_gain{0.0f};
 };
 
 struct CameraShakePlan {
@@ -475,8 +468,7 @@ struct CameraShakePlan {
 enum class CameraPropertyPlan : std::uint8_t {
     PositionX, PositionY, PositionZ,
     RotationX, RotationY, RotationZ,
-    TargetX, TargetY, TargetZ,
-    FovDeg, Zoom, FocalLengthMM, FocusDistance, Aperture, FStop, MaxBlur
+    FovDeg, Zoom, FocusDistance, Aperture, MaxBlur
 };
 
 struct CameraTrackPlan {
@@ -536,7 +528,6 @@ struct TransitionPlan {
     float speed{1.35f};
     float remotion_direction{3.0f};
     float angle{0.0f};
-    float dip_px{60.0f};
 };
 
 struct LayerPlan {
@@ -585,8 +576,6 @@ struct LayerPlan {
     std::optional<MotionBlurPlan> motion_blur;
     std::optional<ShapeContentPlan> shape;
     std::optional<InlineMeshPlan> inline_mesh;
-    // V3 inline meshes can carry baked per-frame position samples while keeping
-    // immutable topology, UVs and material in InlineMeshPlan.
     std::optional<ParticleEmitterParams> particle_emitter;
     std::optional<LightLayerPlan> light;
     struct PathMaskPlan {
@@ -612,7 +601,7 @@ struct LayerPlan {
     };
     std::optional<PathMaskPlan> path_mask;
     std::vector<PathMaskPlan> masks;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading, NoiseSampler, BandedGrain };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -734,23 +723,6 @@ struct LayerPlan {
         std::array<float, 4> response_tint{1.0f, 0.35f, 0.15f, 1.0f};
         float response_intensity{1.0f};
         std::uint8_t response_blend{0}; // 0 = Screen, 1 = Add, 2 = Over
-
-        // Noise sampler (2.0)
-        std::uint8_t noise_sampler_type{0}; // 0 = Simplex, 1 = Worley, 2 = Ridged, 3 = Value, 4 = Blue
-        float noise_lacunarity{2.0f};
-        float noise_gain{0.5f};
-        float noise_domain_warp{0.0f};
-        float noise_remap_min{0.0f};
-        float noise_remap_max{1.0f};
-        std::uint32_t noise_quantize_steps{0};
-
-        // Banded grain (2.0)
-        struct GrainBandPlan {
-            float scale{1.0f};
-            float amplitude{0.05f};
-            std::uint32_t octave{0};
-        };
-        std::vector<GrainBandPlan> grain_bands;
     };
     struct EffectParamTrackPlan {
         std::string effect_id;

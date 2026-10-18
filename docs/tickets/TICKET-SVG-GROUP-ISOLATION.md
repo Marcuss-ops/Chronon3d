@@ -1,8 +1,10 @@
 # TICKET-SVG-GROUP-ISOLATION — Isolated group compositing for lowered SVG
 
 ## Stato
-PARTIAL — Q1 (software group stage) certified 2026-10-17; Q2 (nested animated
-groups) and Q3 (per-element clip scopes) remain open on the same machinery.
+PARTIAL — software group stage certified 2026-10-17; Vulkan weighted-surface
+stage and strict-native checks are implemented 2026-10-18. Hardware gate,
+performance measurements, Q2 (nested animated groups) and Q3 (per-element
+clip scopes) remain open.
 
 ## Obiettivo
 Make a lowered SVG group honor the SVG isolated-group alpha contract: the
@@ -13,10 +15,11 @@ and unlocks nested animated groups (Q2) and per-element clip scopes (Q3) on
 the same machinery.
 
 Decisione architetturale: `docs/adr/ADR-035-svg-isolated-group-compositing.md`
-(no new node kind; bounded group branch in `MultiSourceNode`; native lane
-fails closed).
+(no new node kind; bounded group branch in `MultiSourceNode`; Vulkan uses the
+existing native weighted compositor and fails closed if native execution is
+unavailable).
 
-## Contratto (V1 — software)
+## Contratto (V1 — software + Vulkan)
 
 - The SVG loader annotates each element with the innermost enclosing group
   (`SvgStyleGroupRef`: id, opacity) instead of folding the group's opacity
@@ -36,10 +39,12 @@ fails closed).
   framebuffer `out = src*g + dst*(1 - src.a*g)` (premultiplied). Groups
   flush at vector-order boundaries; non-grouped items keep the historical
   per-item draw-time fold (text and legacy shapes untouched).
-- Native fail-closed: groups under `gpu_native_required` policy, or when the
-  layer framebuffer lacks CPU pixel memory, abort with
-  `svg_group_native_unsupported`. Text runs cannot join an isolated group
-  (`svg_group_text_run_unsupported`). No silent CPU fallback exists.
+- Vulkan lane: when the backend owns native surfaces, the intermediate group
+  framebuffer is initialized on GPU and composed once with
+  `composite_surface_weighted()`. Under `gpu_native_required`, missing native
+  surfaces or compositor failure aborts the frame; there is no CPU fallback.
+  Text runs cannot join an isolated group (`svg_group_text_run_unsupported`).
+- Software lane: retains the pixelwise premultiplied source-over oracle.
 - Cache keys fold the group id and group opacity per item
   (`MultiSourceNode::cache_key()`), so frames with different group opacity
   never share a stale entry.
@@ -75,6 +80,10 @@ fails closed).
   endpoint hashes differ (0 vs 30), repeat render reproduces the mid-frame
   hash. Observed run: `SVG_GROUP_ISOLATION_GATE PASS` (5 PASS checks) on
   the SVG-enabled software CLI build.
+- [ ] Vulkan strict-native overlap oracle, animated endpoint hashes and
+  repeat-frame hash through an SVG+Vulkan CLI build. The test uses
+  `CHRONON_GPU_CLI` and fails on native-composite errors instead of accepting
+  CPU fallback.
 - [x] No regression on the existing SVG gates after the group stage:
   `check_svg_cli_frame_gate.py` PASS (endpoint hashes unchanged:
   f35d0772… / 55bf88db…) and `check_svg_motion_animations_gate.py` PASS
@@ -93,6 +102,8 @@ fails closed).
 - [ ] Composite showcase gate re-run on the video-capable build
   (`linux-video-fast-dev`) after the group stage — is being verified on
   this tree; record the result before closing.
+- [ ] Measure GPU time and peak memory for one, five and ten isolated groups
+  at 1920x1080; the current intermediate and weighted blend cover full frames.
 - [ ] Architecture gates re-run on the final tree (206 rules) before
   canonical status update.
 - [ ] Push + clean-SHA CI on the exact SHA (repo-level P0, managed in
@@ -103,9 +114,9 @@ fails closed).
 - **Nested animated groups beyond V1** and animated-group paint animations
   (fill/stroke at group level): fail closed; the native track vocabulary is
   per-path and Q2 will extend it with its own gates.
-- **Native (GPU surface) group stage**: admitted only after a
-  host-certified run; the software path is the V1 certification lane
-  (zero-readback doctrine stays).
+- **Native (GPU surface) group stage**: implemented using the existing Vulkan
+  weighted compositor; keep the strict-native hardware gate open until a
+  same-tree run passes on a real device (zero-readback doctrine stays).
 - **Blend modes between groups (`mix-blend-mode`, `isolation`)**: no plan
   vocabulary; fail closed with typed diagnostics.
 

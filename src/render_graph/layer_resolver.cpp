@@ -26,8 +26,7 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
     });
 
     tg.run([&]() {
-        result.layers = resolve_layer_hierarchy(scene.layers(), ctx.frame_input.frame, res,
-                                                  static_cast<double>(ctx.frame_input.fps));
+        result.layers = resolve_layer_hierarchy(scene.layers(), ctx.frame_input.frame, res);
     });
 
     tg.wait();

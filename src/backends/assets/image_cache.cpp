@@ -18,14 +18,6 @@ namespace chronon3d {
 
 namespace {
 
-[[nodiscard]] bool decoded_rgba_is_opaque(const std::vector<float>& rgba) noexcept {
-    if (rgba.empty() || rgba.size() % 4 != 0) return false;
-    for (std::size_t alpha = 3; alpha < rgba.size(); alpha += 4) {
-        if (rgba[alpha] < 0.999f) return false;
-    }
-    return true;
-}
-
 // Overlay images are ultimately composited into a 1920x1080 frame. Keeping a
 // very tall source portrait at its original resolution expands the cached
 // linear/GPU representations to hundreds of megabytes and defeats the LRU,
@@ -270,13 +262,6 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
             entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
             if (entry->fb_img) {
                 entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
-                // `Framebuffer::pixels_row()` routes through `data()`, which
-                // invalidates the framebuffer-wide content-cleared metadata.
-                // Calling it from every TBB row task races on that shared bool
-                // even though the pixel rows themselves are disjoint. Acquire
-                // the mutable base pointer once, before entering parallel_for.
-                Color* const fb_pixels = entry->fb_img->data();
-                const auto fb_stride = static_cast<std::size_t>(entry->fb_img->stride());
                 // Each row is independent. Parallelizing this conversion is
                 // safe because both destinations are pre-sized and indexed
                 // by row; it removes the serial sRGB->linear bottleneck while
@@ -284,8 +269,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
                 tbb::parallel_for(tbb::blocked_range<int>(0, entry->height),
                     [&](const tbb::blocked_range<int>& rows) {
                         for (int y = rows.begin(); y < rows.end(); ++y) {
-                            Color* dst_row = fb_pixels +
-                                static_cast<std::size_t>(y) * fb_stride;
+                            Color* dst_row = entry->fb_img->pixels_row(y);
                             float* gpu_row = entry->gpu_rgba.data() +
                                 static_cast<std::size_t>(y) * entry->width * 4;
                             for (int x = 0; x < entry->width; ++x) {
@@ -304,7 +288,6 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
                             }
                         }
                     });
-                entry->fb_img->set_opaque(decoded_rgba_is_opaque(entry->gpu_rgba));
 #ifdef CHRONON3D_ENABLE_OCIO
                 if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
                     entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {
@@ -487,7 +470,6 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
                             }
                         }
                     });
-                entry->fb_img->set_opaque(decoded_rgba_is_opaque(entry->gpu_rgba));
 #ifdef CHRONON3D_ENABLE_OCIO
                 if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
                     entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {

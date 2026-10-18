@@ -80,13 +80,6 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         }
         out.add_size(layer.inline_mesh->indices.size());
         for (const std::uint32_t index : layer.inline_mesh->indices) out.add_uint64(index);
-        out.add_size(layer.inline_mesh->animation.size());
-        for (const auto& sample : layer.inline_mesh->animation) {
-            out.add_i64(sample.frame);
-            out.add_size(sample.positions.size());
-            for (const auto& position : sample.positions)
-                for (const float value : position) out.add_float(value);
-        }
         add_optional(out, layer.inline_mesh->material, [](auto& writer, const InlineMeshMaterialPlan& material) {
             writer.add_float(material.diffuse);
             writer.add_float(material.specular);
@@ -212,6 +205,7 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         add_optional(out, shape.stroke, [](auto& nested, const StrokeStyle& stroke) {
             nested.add_string(stroke.color);
             add_optional(nested, stroke.width, [](auto& w, float v) { w.add_float(v); });
+            add_optional(nested, stroke.opacity, [](auto& w, float v) { w.add_float(v); });
             add_optional(nested, stroke.solid_color, [](auto& w, const auto& color) {
                 for (const auto component : color) w.add_float(component);
             });
@@ -222,6 +216,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             nested.add_float(stroke.dash_offset);
             nested.add_string(stroke.cap);
             nested.add_string(stroke.join);
+            if (stroke.miter_limit != 10.0f) {
+                nested.add_bool(true);
+                nested.add_float(stroke.miter_limit);
+            }
             nested.add_float(stroke.taper_start);
             nested.add_float(stroke.taper_end);
             add_optional(nested, stroke.gradient, [](auto& w,
@@ -256,19 +254,32 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 add_optional(writer, stroke.width, [](auto& nested, float value) {
                     nested.add_float(value);
                 });
+                add_optional(writer, stroke.opacity, [](auto& nested, float value) {
+                    nested.add_float(value);
+                });
                 add_optional(writer, stroke.solid_color, [](auto& nested, const auto& color) {
                     for (const auto component : color) nested.add_float(component);
                 });
-                writer.add_size(stroke.dash_array.size());
-                for (const float dash : stroke.dash_array) writer.add_float(dash);
-                writer.add_float(stroke.dash_offset);
-                writer.add_string(stroke.cap);
-                writer.add_string(stroke.join);
                 add_optional(writer, stroke.brush, [](auto& nested,
                         const graphics::BrushProfile& brush) {
                     nested.add_uint64(brush.fingerprint());
                 });
+                if (stroke.cap != "butt" || stroke.join != "miter" ||
+                    !stroke.dash_array.empty() || stroke.dash_offset != 0.0f ||
+                    stroke.miter_limit != 10.0f) {
+                    writer.add_bool(true);
+                    writer.add_string(stroke.cap);
+                    writer.add_string(stroke.join);
+                    writer.add_size(stroke.dash_array.size());
+                    for (const float dash : stroke.dash_array) writer.add_float(dash);
+                    writer.add_float(stroke.dash_offset);
+                    writer.add_float(stroke.miter_limit);
+                }
             });
+            if (subpath.fill_rule != ShapeFillRulePlan::NonZero) {
+                out.add_bool(true);
+                out.add_enum(subpath.fill_rule);
+            }
             out.add_size(subpath.path.size());
             for (const auto& command : subpath.path) {
                 out.add_enum(command.type);
@@ -320,6 +331,10 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_size(shape.operators.size());
         for (const auto& op : shape.operators) {
             out.add_enum(op.kind);
+            if (!op.target_id.empty()) {
+                out.add_bool(true);
+                out.add_string(op.target_id);
+            }
             if (op.kind == PathOperatorKindPlan::RoundCorners) {
                 out.add_float(op.radius);
                 continue;
@@ -399,8 +414,17 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             if (op.repeater_animation) {
                 out.add_bool(true);
                 add_track(out, *op.repeater_animation);
-            } else {
-                out.add_bool(false);
+            }
+        }
+        // Element-addressed SVG animation is additive: preserve legacy fingerprints
+        // for plans that do not author any bindings.
+        if (!shape.svg_element_animations.empty()) {
+            out.add_bool(true);
+            out.add_size(shape.svg_element_animations.size());
+            for (const auto& binding : shape.svg_element_animations) {
+                out.add_string(binding.target_id);
+                out.add_string(binding.property);
+                add_track(out, binding.animation);
             }
         }
     }
@@ -720,37 +744,6 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.crease_dark_side);
                 out.add_float(effect.crease_light_side);
                 out.add_float(effect.crease_softness);
-            } break;
-            case LayerPlan::EffectKindPlan::NoiseSampler: {
-                out.add_uint64(effect.seed);
-                out.add_size(static_cast<std::size_t>(effect.noise_sampler_type));
-                out.add_uint64(effect.octaves);
-                out.add_float(effect.frequency);
-                out.add_float(effect.noise_lacunarity);
-                out.add_float(effect.noise_gain);
-                out.add_float(effect.evolution);
-                out.add_float(effect.contrast);
-                out.add_float(effect.brightness);
-                out.add_float(effect.noise_domain_warp);
-                out.add_float(effect.noise_remap_min);
-                out.add_float(effect.noise_remap_max);
-                out.add_uint64(effect.noise_quantize_steps);
-                out.add_bool(effect.rgb_noise);
-            } break;
-            case LayerPlan::EffectKindPlan::BandedGrain: {
-                out.add_uint64(effect.seed);
-                out.add_float(effect.amount);
-                out.add_float(effect.warp_speed);
-                out.add_bool(effect.rgb_noise);
-                out.add_float(effect.grain_shadow_response);
-                out.add_float(effect.grain_midtone_response);
-                out.add_float(effect.grain_highlight_response);
-                out.add_size(effect.grain_bands.size());
-                for (const auto& band : effect.grain_bands) {
-                    out.add_float(band.scale);
-                    out.add_float(band.amplitude);
-                    out.add_uint64(band.octave);
-                }
             } break;
             }
             add_optional(out,effect.posterize_fps,[](auto& w,float v){w.add_float(v);});

@@ -28,6 +28,7 @@
 #include <chronon3d/text/animated_text_document.hpp>
 #include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_path_composer.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
 
@@ -45,6 +46,8 @@
 #include <optional>
 #include <stdexcept>
 #include <utility>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -279,6 +282,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     *lowered, "lottie_unsupported_or_invalid", "render-plan-lottie"};
         }
 #if defined(CHRONON3D_ENABLE_SVG)
+        std::vector<std::pair<chronon3d::assets::SvgTextRun, LayerPlan>> pending_svg_text_layers;
+        struct SvgTextMetrics {
+            std::string font_asset;
+            float advance{0.0f};
+            float ascent{0.0f};
+            float descent{0.0f};
+            float x_height{0.0f};
+            float line_height{0.0f};
+        };
+        std::unique_ptr<chronon3d::FontEngine> svg_text_font_engine;
         for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
             auto& layer = plan.layers[layer_index];
             if (!layer.shape || !layer.shape->svg_asset) continue;
@@ -292,30 +305,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             if (!imported.ok)
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                     imported.error, "svg_import_failed", "render-plan-svg"};
-            if (imported.elements.empty())
+            if (imported.elements.empty() && imported.text_runs.empty())
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                    "SVG contains no path geometry", "svg_empty_geometry", "render-plan-svg"};
-            if (imported.elements.size() > 4096)
+                    "SVG contains no path geometry or text", "svg_empty_geometry", "render-plan-svg"};
+            if (imported.elements.size() + imported.text_runs.size() > 4096)
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                    "SVG styled path count exceeds 4096", "svg_resource_limit", "render-plan-svg"};
+                    "SVG styled path/text run count exceeds 4096", "svg_resource_limit", "render-plan-svg"};
             auto& shape = *layer.shape;
-            if (shape.operators.size() != 0)
-                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.operators",
-                    "SVG asset paths cannot be combined with path operators",
-                    "svg_operator_conflict", "render-plan-svg"};
             shape.imported_subpaths.clear();
             shape.imported_subpaths.reserve(imported.elements.size());
             std::size_t total_commands = 0;
-            // Documents that declare a viewport center that viewport on the
-            // layer box: plan path coordinates are measured from the layer
-            // anchor, so the SVG canvas (viewport origin at the box corner)
-            // shifts by half the declared viewport size. Dimension-less
-            // documents keep their parsed coordinates for backward
-            // compatibility with inline SVG snippets.
-            const Vec2 svg_center_offset = imported.viewport_size
-                ? Vec2{(*imported.viewport_size)[0] * 0.5f,
-                       (*imported.viewport_size)[1] * 0.5f}
-                : Vec2{0.0f, 0.0f};
             for (const auto& element : imported.elements) {
                 if (!std::isfinite(element.opacity) || element.opacity < 0.0f ||
                     element.opacity > 1.0f ||
@@ -326,16 +325,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         "SVG opacity must be in [0,1]; only solid path paints are supported",
                         "svg_unsupported_style", "render-plan-svg"};
                 ImportedSubpathPlan subpath;
-                if (element.group) {
-                    if (element.group->id == 0 || element.group->opacity <= 0.0f ||
-                        element.group->opacity > 1.0f ||
-                        !std::isfinite(element.group->opacity))
-                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                            "SVG isolated group is invalid: id must be nonzero and opacity in (0,1]",
-                            "svg_unsupported_style", "render-plan-svg"};
-                    subpath.svg_group = ImportedSubpathPlan::SvgGroupIsolationPlan{
-                        element.group->id, element.group->opacity};
-                }
+                subpath.source_id = element.source_id;
+                subpath.source_group_ids = element.group_ids;
+                subpath.fill_rule = element.path.fill_rule == PathFillRule::NonZero
+                    ? ShapeFillRulePlan::NonZero : ShapeFillRulePlan::EvenOdd;
                 if (element.fill && element.fill->enabled) {
                     if (element.fill->type != FillType::Solid &&
                         std::any_of(element.animations.begin(), element.animations.end(), [](const auto& animation) {
@@ -350,9 +343,6 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         subpath.fill_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
                     } else {
                         subpath.fill_gradient = element.fill->gradient;
-                        subpath.fill_gradient->start -= svg_center_offset;
-                        subpath.fill_gradient->end -= svg_center_offset;
-                        subpath.fill_gradient->center -= svg_center_offset;
                         for (auto& stop : subpath.fill_gradient->color_stops)
                             stop.color.a *= element.opacity;
                     }
@@ -360,21 +350,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 if (element.stroke.enabled) {
                     StrokeStyle stroke;
                     stroke.width = element.stroke.width;
+                    stroke.miter_limit = element.stroke.miter_limit;
+                    stroke.cap = element.stroke.cap == LineCap::Round ? "round"
+                        : element.stroke.cap == LineCap::Square ? "square" : "butt";
+                    stroke.join = element.stroke.join == LineJoin::Round ? "round"
+                        : element.stroke.join == LineJoin::Bevel ? "bevel" : "miter";
+                    stroke.dash_array = element.stroke.dash_array;
+                    stroke.dash_offset = element.stroke.dash_offset;
                     auto color = element.stroke.color;
                     color.a *= element.opacity;
                     stroke.solid_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
-                    switch (element.stroke.cap) {
-                        case LineCap::Round: stroke.cap = "round"; break;
-                        case LineCap::Square: stroke.cap = "square"; break;
-                        default: stroke.cap = "butt"; break;
-                    }
-                    switch (element.stroke.join) {
-                        case LineJoin::Round: stroke.join = "round"; break;
-                        case LineJoin::Bevel: stroke.join = "bevel"; break;
-                        default: stroke.join = "miter"; break;
-                    }
-                    stroke.dash_array = element.stroke.dash_array;
-                    stroke.dash_offset = element.stroke.dash_offset;
                     subpath.stroke = std::move(stroke);
                 }
                 const double svg_fps = plan.canvas.fps.fps();
@@ -393,11 +378,6 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                             "SVG animation times must map exactly to integral composition frames",
                             "svg_animation_timing_unsupported", "render-plan-svg"};
-                    const auto cycle_frames = *last_frame - *first_frame;
-                    if (svg_animation.repetitions > 1 && cycle_frames < 2)
-                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                            "Repeated SVG animations need at least two frames per cycle",
-                            "svg_animation_timing_unsupported", "render-plan-svg"};
                     AnimationTrackPlan track;
                     switch (svg_animation.kind) {
                         case assets::SvgAnimationKind::Opacity: track.property = "svg_opacity"; break;
@@ -410,37 +390,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         case assets::SvgAnimationKind::FillOpacity: track.property = "fill_opacity"; break;
                         case assets::SvgAnimationKind::StrokeOpacity: track.property = "stroke_opacity"; break;
                     }
-                    std::vector<AnimationKeyframePlan> keys;
-                    keys.reserve(static_cast<std::size_t>(svg_animation.repetitions) * 2);
-                    const auto make_key = [&](std::int64_t frame,
-                                              const std::array<float, 4>& values) {
-                        AnimationKeyframePlan key;
-                        key.frame = Frame{frame};
-                        key.value.assign(values.begin(),
-                            values.begin() + svg_animation.components);
-                        return key;
-                    };
-                    for (std::uint32_t cycle = 0; cycle < svg_animation.repetitions; ++cycle) {
-                        const auto cycle_start = *first_frame +
-                            static_cast<std::int64_t>(cycle) * cycle_frames;
-                        const auto cycle_end = cycle_start + cycle_frames;
-                        auto from = make_key(cycle_start, svg_animation.from);
-                        from.interpolation = svg_animation.discrete ? "hold"
-                            : (svg_animation.spline ? "bezier" : "linear");
-                        if (svg_animation.spline && !svg_animation.discrete)
-                            from.bezier_curve = svg_animation.key_splines;
-                        keys.push_back(std::move(from));
-                        const bool last_cycle =
-                            cycle + 1 == svg_animation.repetitions;
-                        // A repeat restarts at the cycle boundary, so the end
-                        // value is held one frame early; the boundary frame
-                        // itself carries the restarted `from` value.
-                        auto to = make_key(last_cycle ? cycle_end : cycle_end - 1,
-                                           svg_animation.to);
-                        to.interpolation = "linear";
-                        keys.push_back(std::move(to));
-                    }
-                    track.keyframes = std::move(keys);
+                    AnimationKeyframePlan from;
+                    from.frame = Frame{*first_frame};
+                    from.value.assign(svg_animation.from.begin(),
+                        svg_animation.from.begin() + svg_animation.components);
+                    from.interpolation = svg_animation.discrete ? "hold" : "linear";
+                    AnimationKeyframePlan to;
+                    to.frame = Frame{*last_frame};
+                    to.value.assign(svg_animation.to.begin(),
+                        svg_animation.to.begin() + svg_animation.components);
+                    track.keyframes = {std::move(from), std::move(to)};
                     std::optional<AnimationTrackPlan>* destination = nullptr;
                     switch (svg_animation.kind) {
                         case assets::SvgAnimationKind::Opacity: destination = &subpath.svg_opacity_animation; break;
@@ -504,9 +463,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         for (const auto& command : morph.paths[morph_index].commands) {
                             ShapePathCommandPlan lowered;
                             const auto point = [&](Vec2 value, std::array<float, 2>& out) {
-                                const Vec2 shifted = value - svg_center_offset;
-                                out = {std::round(shifted.x * 10000.0f) / 10000.0f,
-                                       std::round(shifted.y * 10000.0f) / 10000.0f};
+                                out = {std::round(value.x * 10000.0f) / 10000.0f,
+                                       std::round(value.y * 10000.0f) / 10000.0f};
                             };
                             switch (command.type) {
                                 case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; point(command.p0, lowered.point); break;
@@ -525,11 +483,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     ShapePathCommandPlan lowered;
                     const auto quantize = [](float value) { return std::round(value * 10000.0f) / 10000.0f; };
                     const auto point = [&](Vec2 value, std::array<float, 2>& out) {
-                        const Vec2 shifted = value - svg_center_offset;
-                        if (!std::isfinite(shifted.x) || !std::isfinite(shifted.y) ||
-                            std::abs(shifted.x) > 100000.0f || std::abs(shifted.y) > 100000.0f)
+                        if (!std::isfinite(value.x) || !std::isfinite(value.y) ||
+                            std::abs(value.x) > 100000.0f || std::abs(value.y) > 100000.0f)
                             throw std::runtime_error("SVG coordinate exceeds finite resource bounds");
-                        out = {quantize(shifted.x), quantize(shifted.y)};
+                        out = {quantize(value.x), quantize(value.y)};
                     };
                     switch (command.type) {
                         case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; point(command.p0, lowered.point); break;
@@ -546,6 +503,528 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 }
                 shape.imported_subpaths.push_back(std::move(subpath));
             }
+            std::vector<std::size_t> current_text_layers;
+            current_text_layers.reserve(imported.text_runs.size());
+            std::vector<SvgTextMetrics> text_metrics(imported.text_runs.size());
+            std::unordered_map<std::string, float> text_anchor_advances;
+            const auto group_key_for = [&](const chronon3d::assets::SvgTextRun& run,
+                                           std::size_t index) {
+                return layer.id + "#" + (run.text_element_id.empty()
+                    ? (run.source_id.empty() ? "run_" + std::to_string(index) : run.source_id)
+                    : run.text_element_id);
+            };
+            for (std::size_t text_index = 0; text_index < imported.text_runs.size(); ++text_index) {
+                const auto& run = imported.text_runs[text_index];
+                if (run.text.empty() || run.font_family.empty() ||
+                    !std::isfinite(run.font_size) || run.font_size <= 0.0f ||
+                    !std::isfinite(run.opacity) || run.opacity < 0.0f || run.opacity > 1.0f ||
+                    !std::isfinite(run.fill_opacity) || run.fill_opacity < 0.0f || run.fill_opacity > 1.0f ||
+                    !std::isfinite(run.stroke_opacity) || run.stroke_opacity < 0.0f || run.stroke_opacity > 1.0f ||
+                    !std::isfinite(run.stroke_width) || run.stroke_width < 0.0f ||
+                    !std::isfinite(run.dx) || !std::isfinite(run.dy) ||
+                    !std::isfinite(run.baseline_shift))
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG text run has invalid content, font size, position, or opacity",
+                        "svg_text_invalid", "render-plan-svg"};
+                std::string family_file = run.font_family;
+                std::replace(family_file.begin(), family_file.end(), ' ', '-');
+                if (family_file.empty() || family_file.find_first_of("/\\:") != std::string::npos)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG font-family is not a safe bundled font name",
+                        "svg_font_unresolved", "render-plan-svg"};
+                const std::string face = run.font_weight >= 600
+                    ? (run.font_style == "normal" ? "Bold" : "BoldItalic")
+                    : (run.font_style == "normal" ? "Regular" : "Italic");
+                const std::array<std::string, 4> font_candidates{
+                    "fonts/" + family_file + "-" + face + ".ttf",
+                    "fonts/" + family_file + "-" + face + ".otf",
+                    "fonts/" + family_file + "-Regular.ttf",
+                    "fonts/" + family_file + ".ttf"};
+                std::optional<std::filesystem::path> resolved_font;
+                std::string font_asset;
+                for (const auto& candidate : font_candidates) {
+                    resolved_font = resolver.resolve_logical(std::filesystem::path(candidate));
+                    if (resolved_font) { font_asset = candidate; break; }
+                }
+                if (!resolved_font)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG font-family has no matching font asset under fonts/: " + run.font_family,
+                        "svg_font_unresolved", "render-plan-svg"};
+                if (!svg_text_font_engine)
+                    svg_text_font_engine = std::make_unique<chronon3d::FontEngine>(resolver);
+                chronon3d::FontSpec font_spec;
+                font_spec.font_path = resolved_font->string();
+                font_spec.font_family = run.font_family;
+                font_spec.font_weight = run.font_weight;
+                font_spec.font_style = run.font_style;
+                font_spec.font_size = run.font_size;
+                const float advance = svg_text_font_engine->measure_text(
+                    run.text, font_spec, run.font_size);
+                const auto metrics = svg_text_font_engine->get_font_metrics(
+                    font_spec, run.font_size);
+                if (!std::isfinite(advance) || advance < 0.0f ||
+                    !std::isfinite(metrics.ascent) || metrics.ascent <= 0.0f ||
+                    !std::isfinite(metrics.descent) || metrics.descent < 0.0f ||
+                    !std::isfinite(metrics.x_height) || metrics.x_height < 0.0f ||
+                    !std::isfinite(metrics.line_height) || metrics.line_height <= 0.0f)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG text could not be measured with its resolved font asset",
+                        "svg_font_unresolved", "render-plan-svg"};
+                text_metrics[text_index] = {font_asset, advance, metrics.ascent,
+                    metrics.descent, metrics.x_height, metrics.line_height};
+                const auto anchor_scope = run.text_anchor_scope_id.empty()
+                    ? group_key_for(run, text_index) : layer.id + "#anchor#" + run.text_anchor_scope_id;
+                text_anchor_advances[anchor_scope] += advance;
+            }
+            std::unordered_map<std::string, std::array<float, 2>> text_group_cursors;
+            std::unordered_set<std::string> started_text_anchor_scopes;
+            for (std::size_t text_index = 0; text_index < imported.text_runs.size(); ++text_index) {
+                const auto& run = imported.text_runs[text_index];
+                const auto group_key = group_key_for(run, text_index);
+                const auto cursor_it = text_group_cursors.find(group_key);
+                const bool first_run = cursor_it == text_group_cursors.end();
+                float run_x = run.x_explicit ? run.x.value_or(0.0f)
+                    : first_run ? 0.0f : cursor_it->second[0];
+                float baseline_y = run.y_explicit ? run.y.value_or(0.0f)
+                    : first_run ? 0.0f : cursor_it->second[1];
+                run_x += run.dx;
+                baseline_y += run.dy + run.baseline_shift;
+                if (run.dominant_baseline == "central")
+                    baseline_y += (text_metrics[text_index].ascent -
+                                   text_metrics[text_index].descent) * 0.5f;
+                else if (run.dominant_baseline == "middle")
+                    baseline_y += text_metrics[text_index].x_height * 0.5f;
+                else if (run.dominant_baseline == "hanging")
+                    baseline_y += text_metrics[text_index].ascent * 0.8f;
+                const auto anchor_scope = run.text_anchor_scope_id.empty()
+                    ? group_key : layer.id + "#anchor#" + run.text_anchor_scope_id;
+                const bool first_anchor_run = started_text_anchor_scopes.insert(anchor_scope).second;
+                if (first_anchor_run || run.x_explicit) {
+                    const float anchor_advance = run.x_explicit
+                        ? text_metrics[text_index].advance : text_anchor_advances[anchor_scope];
+                    if (run.text_anchor == "middle") run_x -= anchor_advance * 0.5f;
+                    else if (run.text_anchor == "end") run_x -= anchor_advance;
+                }
+                text_group_cursors[group_key] = {
+                    run_x + text_metrics[text_index].advance, baseline_y};
+                LayerPlan text_layer;
+                const std::string authored_id = run.source_id.empty()
+                    ? "run_" + std::to_string(text_index) : run.source_id;
+                text_layer.id = layer.id + "__svgtext_" + authored_id + "_" +
+                    std::to_string(text_index);
+                text_layer.type = LayerType::Text;
+                text_layer.text = run.text;
+                text_layer.position_dimensions = 3;
+                text_layer.position[0] = layer.position[0] + run_x;
+                text_layer.position[1] = layer.position[1] + baseline_y -
+                    text_metrics[text_index].ascent;
+                text_layer.position[2] = layer.position[2];
+                text_layer.size_dimensions = 2;
+                text_layer.size = {std::max(1.0f, text_metrics[text_index].advance + 1.0f),
+                    text_metrics[text_index].line_height};
+                text_layer.enable_3d = layer.enable_3d;
+                text_layer.scale = layer.scale;
+                text_layer.scale_dimensions = layer.scale_dimensions;
+                text_layer.rotation = layer.rotation;
+                text_layer.rotation_dimensions = layer.rotation_dimensions;
+                text_layer.opacity = std::clamp(run.opacity * layer.opacity.value_or(1.0f), 0.0f, 1.0f);
+                LayerStylePlan text_style;
+                text_style.font_family = run.font_family;
+                text_style.font_weight = run.font_weight;
+                text_style.font_style = run.font_style;
+                text_style.text_align = "left";
+                text_style.font_size = run.font_size;
+                text_style.fill = run.fill;
+                text_style.fill_opacity = run.fill_opacity;
+                if (run.stroke && run.stroke_width > 0.0f) {
+                    text_style.stroke = StrokeStyle{.color = *run.stroke,
+                        .width = run.stroke_width, .opacity = run.stroke_opacity};
+                }
+                text_style.text_fit_mode = "none";
+                text_layer.font = text_metrics[text_index].font_asset;
+                text_layer.style = std::move(text_style);
+                if (!run.text_path_id) {
+                    const bool has_coordinate_lists = !run.x_coordinates.empty() ||
+                        !run.y_coordinates.empty() || !run.dx_coordinates.empty() ||
+                        !run.dy_coordinates.empty();
+                    if (has_coordinate_lists) {
+                        chronon3d::FontSpec coordinate_font;
+                        coordinate_font.font_path = text_metrics[text_index].font_asset;
+                        if (const auto path = resolver.resolve_logical(coordinate_font.font_path))
+                            coordinate_font.font_path = path->string();
+                        coordinate_font.font_family = run.font_family;
+                        coordinate_font.font_weight = run.font_weight;
+                        coordinate_font.font_style = run.font_style;
+                        coordinate_font.font_size = run.font_size;
+                        const auto shaped = svg_text_font_engine->shape_text(
+                            run.text, coordinate_font, run.font_size);
+                        if (!shaped)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                                "].shape.asset", "SVG positioned text could not be shaped",
+                                "svg_text_invalid", "render-plan-svg"};
+                        const auto placed = chronon3d::resolve_placed_glyph_run(
+                            *shaped, 0.0f, run.text);
+                        float cursor_x = run_x - run.dx;
+                        float cursor_y = baseline_y - run.dy;
+                        std::size_t character_index = 0;
+                        const auto utf8_count = [](std::string_view value) {
+                            std::size_t count = 0;
+                            for (const unsigned char byte : value)
+                                if ((byte & 0xc0u) != 0x80u) ++count;
+                            return count;
+                        };
+                        for (std::size_t cluster_index = 0;
+                             cluster_index < placed.clusters.size(); ++cluster_index) {
+                            const auto& cluster = placed.clusters[cluster_index];
+                            if (cluster.byte_len == 0 ||
+                                cluster.byte_offset + cluster.byte_len > run.text.size())
+                                continue;
+                            const std::size_t cluster_characters = utf8_count(run.text.substr(
+                                cluster.byte_offset, cluster.byte_len));
+                            if (cluster_characters == 0) continue;
+                            const auto has_inner_coordinate = [&](const std::vector<float>& coordinates) {
+                                const auto first_inner = character_index + 1;
+                                const auto end = character_index + cluster_characters;
+                                return std::any_of(coordinates.begin() + std::min(first_inner, coordinates.size()),
+                                    coordinates.begin() + std::min(end, coordinates.size()),
+                                    [](float) { return true; });
+                            };
+                            if (has_inner_coordinate(run.x_coordinates) ||
+                                has_inner_coordinate(run.y_coordinates) ||
+                                has_inner_coordinate(run.dx_coordinates) ||
+                                has_inner_coordinate(run.dy_coordinates))
+                                return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                                    "].shape.asset", "SVG coordinate list splits a shaped text cluster; split the run at that character",
+                                    "svg_text_coordinate_cluster_unsupported", "render-plan-svg"};
+                            if (character_index < run.x_coordinates.size())
+                                cursor_x = run.x_coordinates[character_index];
+                            if (character_index < run.y_coordinates.size())
+                                cursor_y = run.y_coordinates[character_index];
+                            if (character_index < run.dx_coordinates.size())
+                                cursor_x += run.dx_coordinates[character_index];
+                            if (character_index < run.dy_coordinates.size())
+                                cursor_y += run.dy_coordinates[character_index];
+                            const std::string cluster_text = run.text.substr(
+                                cluster.byte_offset, cluster.byte_len);
+                            auto cluster_run = run;
+                            cluster_run.text = cluster_text;
+                            cluster_run.positioned_text_cluster = true;
+                            auto cluster_layer = text_layer;
+                            cluster_layer.id += "_cluster_" + std::to_string(cluster_index);
+                            cluster_layer.text = cluster_text;
+                            float anchored_x = cursor_x;
+                            const bool starts_positioned_chunk =
+                                character_index < run.x_coordinates.size() ||
+                                character_index < run.y_coordinates.size();
+                            if (starts_positioned_chunk) {
+                                float chunk_advance = cluster.advance;
+                                std::size_t next_character = character_index + cluster_characters;
+                                for (std::size_t next_cluster_index = cluster_index + 1;
+                                     next_cluster_index < placed.clusters.size(); ++next_cluster_index) {
+                                    const auto& next_cluster = placed.clusters[next_cluster_index];
+                                    if (next_cluster.byte_len == 0 ||
+                                        next_cluster.byte_offset + next_cluster.byte_len > run.text.size())
+                                        continue;
+                                    if (next_character < run.x_coordinates.size() ||
+                                        next_character < run.y_coordinates.size())
+                                        break;
+                                    chunk_advance += next_cluster.advance;
+                                    next_character += utf8_count(run.text.substr(
+                                        next_cluster.byte_offset, next_cluster.byte_len));
+                                }
+                                if (run.text_anchor == "middle") anchored_x -= chunk_advance * 0.5f;
+                                else if (run.text_anchor == "end") anchored_x -= chunk_advance;
+                            }
+                            cluster_layer.position[0] = layer.position[0] + anchored_x;
+                            cluster_layer.position[1] = layer.position[1] + cursor_y -
+                                text_metrics[text_index].ascent;
+                            cluster_layer.size[0] = std::max(1.0f, cluster.advance + 1.0f);
+                            current_text_layers.push_back(pending_svg_text_layers.size());
+                            pending_svg_text_layers.emplace_back(std::move(cluster_run),
+                                                                 std::move(cluster_layer));
+                            cursor_x += cluster.advance;
+                            character_index += cluster_characters;
+                        }
+                        continue;
+                    }
+                    current_text_layers.push_back(pending_svg_text_layers.size());
+                    pending_svg_text_layers.emplace_back(run, std::move(text_layer));
+                    continue;
+                }
+                if (!run.x_coordinates.empty() || !run.y_coordinates.empty() ||
+                    !run.dx_coordinates.empty() || !run.dy_coordinates.empty())
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textPath coordinate lists are not supported; position the textPath with startOffset and text-anchor",
+                        "svg_text_path_coordinate_list_unsupported", "render-plan-svg"};
+
+                const chronon3d::assets::SvgStyledElement* target_path = nullptr;
+                chronon3d::PathShape text_path_geometry;
+                std::size_t target_path_matches = 0;
+                for (const auto& element : imported.elements) {
+                    if (element.source_id == *run.text_path_id) {
+                        target_path = &element;
+                        ++target_path_matches;
+                    }
+                }
+                if (target_path_matches > 1)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textPath target is ambiguous after path expansion: " +
+                        *run.text_path_id,
+                        "svg_target_ambiguous", "render-plan-svg"};
+                if (target_path_matches == 1 && target_path) {
+                    text_path_geometry = target_path->path;
+                    if (target_path->group_ids != run.coordinate_scope_ids)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                            "].shape.asset", "SVG textPath and target path must share the same group coordinate scope",
+                            "svg_text_path_scope_invalid", "render-plan-svg"};
+                    if (target_path->morph_animation || !target_path->animations.empty())
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                            "].shape.asset", "SVG textPath target paths must be static",
+                            "svg_text_path_animated_target", "render-plan-svg"};
+                } else if (run.text_path_geometry) {
+                    text_path_geometry = *run.text_path_geometry;
+                } else {
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textPath target must resolve to path geometry: " +
+                        *run.text_path_id, "svg_target_missing", "render-plan-svg"};
+                }
+                if (text_path_geometry.commands.empty())
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textPath target path has empty geometry",
+                        "svg_text_path_invalid", "render-plan-svg"};
+
+                chronon3d::FontSpec path_font;
+                path_font.font_path = text_metrics[text_index].font_asset;
+                if (const auto path = resolver.resolve_logical(path_font.font_path))
+                    path_font.font_path = path->string();
+                path_font.font_family = run.font_family;
+                path_font.font_weight = run.font_weight;
+                path_font.font_style = run.font_style;
+                path_font.font_size = run.font_size;
+                const auto shaped = svg_text_font_engine->shape_text(
+                    run.text, path_font, run.font_size);
+                if (!shaped)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textPath text could not be shaped",
+                        "svg_text_invalid", "render-plan-svg"};
+                const auto placed = chronon3d::resolve_placed_glyph_run(
+                    *shaped, 0.0f, run.text);
+                const auto sampler = chronon3d::PathSampler::compile(text_path_geometry);
+                chronon3d::TextPathSpec path_spec;
+                const float start_offset = run.text_path_start_offset_percent
+                    ? run.text_path_start_offset * sampler.total_length() * 0.01f
+                    : run.text_path_start_offset;
+                path_spec.first_margin = start_offset + run.dx;
+                if (run.text_anchor == "middle")
+                    path_spec.first_margin -= placed.total_width * 0.5f;
+                else if (run.text_anchor == "end")
+                    path_spec.first_margin -= placed.total_width;
+                path_spec.baseline_offset = run.dy + run.baseline_shift;
+                if (run.dominant_baseline == "central")
+                    path_spec.baseline_offset += (text_metrics[text_index].ascent -
+                        text_metrics[text_index].descent) * 0.5f;
+                else if (run.dominant_baseline == "middle")
+                    path_spec.baseline_offset += text_metrics[text_index].x_height * 0.5f;
+                else if (run.dominant_baseline == "hanging")
+                    path_spec.baseline_offset += text_metrics[text_index].ascent * 0.8f;
+                path_spec.perpendicular_to_path = true;
+                const auto path_placement = chronon3d::compose_text_on_path(
+                    placed, sampler, path_spec, run.text);
+                if (path_placement.clusters.size() != placed.clusters.size())
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textPath cluster placement failed",
+                        "svg_text_invalid", "render-plan-svg"};
+                for (std::size_t cluster_index = 0;
+                     cluster_index < placed.clusters.size(); ++cluster_index) {
+                    const auto& cluster = placed.clusters[cluster_index];
+                    const auto& placement = path_placement.clusters[cluster_index];
+                    if (cluster.byte_len == 0 || cluster.byte_offset + cluster.byte_len > run.text.size())
+                        continue;
+                    if (placement.path_distance > sampler.total_length()) continue;
+                    const std::string cluster_text = run.text.substr(
+                        cluster.byte_offset, cluster.byte_len);
+                    if (cluster_text.empty()) continue;
+                    auto cluster_run = run;
+                    cluster_run.text = cluster_text;
+                    auto cluster_layer = text_layer;
+                    cluster_layer.id += "_cluster_" + std::to_string(cluster_index);
+                    cluster_layer.text = cluster_text;
+                    cluster_layer.position[0] = layer.position[0] + placement.position.x -
+                        cluster.advance * 0.5f;
+                    cluster_layer.position[1] = layer.position[1] + placement.position.y -
+                        text_metrics[text_index].ascent;
+                    cluster_layer.size[0] = std::max(1.0f, cluster.advance + 1.0f);
+                    cluster_layer.rotation[2] += placement.rotation_deg;
+                    cluster_layer.rotation_dimensions = 3;
+                    current_text_layers.push_back(pending_svg_text_layers.size());
+                    pending_svg_text_layers.emplace_back(std::move(cluster_run),
+                                                         std::move(cluster_layer));
+                }
+            }
+            for (const auto& operation : shape.operators) {
+                if (operation.target_id.empty()) continue;
+                std::size_t exact_matches = 0;
+                std::size_t group_matches = 0;
+                for (const auto& subpath : shape.imported_subpaths) {
+                    exact_matches += subpath.source_id == operation.target_id;
+                    group_matches += std::find(subpath.source_group_ids.begin(),
+                        subpath.source_group_ids.end(), operation.target_id) !=
+                        subpath.source_group_ids.end();
+                }
+                if (exact_matches > 1)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.operators", "SVG path operator target id is ambiguous after <use> expansion: " +
+                        operation.target_id, "svg_target_ambiguous", "render-plan-svg"};
+                if (exact_matches == 0 && group_matches == 0)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.operators", "SVG path operator target does not resolve: " +
+                        operation.target_id, "svg_target_missing", "render-plan-svg"};
+                if ((operation.kind == PathOperatorKindPlan::Merge ||
+                     operation.kind == PathOperatorKindPlan::Morph) && exact_matches != 1)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.operators", "SVG Merge/Morph requires an exact path element id, not a group target",
+                        "svg_target_property_invalid", "render-plan-svg"};
+            }
+            for (const auto& binding : shape.svg_element_animations) {
+                std::vector<std::size_t> exact_text_matches;
+                std::vector<std::size_t> group_text_matches;
+                for (const auto pending_index : current_text_layers) {
+                    const auto& run = pending_svg_text_layers[pending_index].first;
+                    if (run.source_id == binding.target_id)
+                        exact_text_matches.push_back(pending_index);
+                    if (std::find(run.group_ids.begin(), run.group_ids.end(), binding.target_id) !=
+                        run.group_ids.end())
+                        group_text_matches.push_back(pending_index);
+                }
+                const bool one_clustered_text_run = exact_text_matches.size() > 1 &&
+                    std::all_of(exact_text_matches.begin(), exact_text_matches.end(),
+                        [&](std::size_t index) {
+                            const auto& first = pending_svg_text_layers[exact_text_matches.front()].first;
+                            const auto& current = pending_svg_text_layers[index].first;
+                            const bool same_path = first.text_path_id &&
+                                current.text_path_id == first.text_path_id;
+                            const bool same_positioned_run = first.positioned_text_cluster &&
+                                current.positioned_text_cluster;
+                            return (same_path || same_positioned_run) &&
+                                current.source_id == first.source_id &&
+                                current.text_element_id == first.text_element_id;
+                        });
+                if (exact_text_matches.size() > 1 && !one_clustered_text_run)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.element_animations",
+                        "SVG text target id is ambiguous: " + binding.target_id,
+                        "svg_target_ambiguous", "render-plan-svg"};
+                const auto& text_matches = exact_text_matches.empty()
+                    ? group_text_matches : exact_text_matches;
+                if (!text_matches.empty()) {
+                    if (binding.property != "opacity")
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                            "].shape.element_animations",
+                            "SVG text currently supports only opacity bindings",
+                            "svg_target_property_invalid", "render-plan-svg"};
+                    for (const auto pending_index : text_matches) {
+                        auto& text_layer = pending_svg_text_layers[pending_index].second;
+                        if (!text_layer.animation) text_layer.animation = AnimationPlan{};
+                        auto track = binding.animation;
+                        track.property = "opacity";
+                        text_layer.animation->tracks.push_back(std::move(track));
+                    }
+                    continue;
+                }
+                std::vector<ImportedSubpathPlan*> exact_matches;
+                std::vector<ImportedSubpathPlan*> group_matches;
+                for (auto& subpath : shape.imported_subpaths) {
+                    if (subpath.source_id == binding.target_id)
+                        exact_matches.push_back(&subpath);
+                    if (std::find(subpath.source_group_ids.begin(),
+                                  subpath.source_group_ids.end(), binding.target_id) !=
+                        subpath.source_group_ids.end())
+                        group_matches.push_back(&subpath);
+                }
+                if (exact_matches.size() > 1) {
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.element_animations",
+                        "SVG element target id is ambiguous after <use> expansion: " + binding.target_id,
+                        "svg_target_ambiguous", "render-plan-svg"};
+                }
+                auto matches = exact_matches.empty() ? group_matches : exact_matches;
+                if (matches.empty()) {
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.element_animations",
+                        "SVG element animation target does not resolve: " + binding.target_id,
+                        "svg_target_missing", "render-plan-svg"};
+                }
+                for (auto* subpath : matches) {
+                    std::optional<AnimationTrackPlan>* destination = nullptr;
+                    std::string canonical_property;
+                    if (binding.property == "opacity") {
+                        destination = &subpath->svg_opacity_animation;
+                        canonical_property = "svg_opacity";
+                    } else if (binding.property == "transform.translate") {
+                        destination = &subpath->svg_translation_animation;
+                        canonical_property = "svg_translation";
+                    } else if (binding.property == "transform.scale") {
+                        destination = &subpath->svg_scale_animation;
+                        canonical_property = "svg_scale";
+                    } else if (binding.property == "transform.rotation") {
+                        destination = &subpath->svg_rotation_animation;
+                        canonical_property = "svg_rotation";
+                    } else if (binding.property == "fill.color") {
+                        if (!subpath->fill_color)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                                "].shape.element_animations",
+                                "SVG fill.color target requires a solid fill", "svg_target_property_invalid",
+                                "render-plan-svg"};
+                        destination = &subpath->fill_color_animation;
+                        canonical_property = "fill_color";
+                    } else if (binding.property == "fill.opacity") {
+                        if (!subpath->fill_color && !subpath->fill_gradient)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                                "].shape.element_animations",
+                                "SVG fill.opacity target requires a fill", "svg_target_property_invalid",
+                                "render-plan-svg"};
+                        destination = &subpath->fill_opacity_animation;
+                        canonical_property = "fill_opacity";
+                    } else if (binding.property == "stroke.color") {
+                        if (!subpath->stroke)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                                "].shape.element_animations",
+                                "SVG stroke.color target requires a stroke", "svg_target_property_invalid",
+                                "render-plan-svg"};
+                        destination = &subpath->stroke_color_animation;
+                        canonical_property = "stroke_color";
+                    } else if (binding.property == "stroke.opacity") {
+                        if (!subpath->stroke)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                                "].shape.element_animations",
+                                "SVG stroke.opacity target requires a stroke", "svg_target_property_invalid",
+                                "render-plan-svg"};
+                        destination = &subpath->stroke_opacity_animation;
+                        canonical_property = "stroke_opacity";
+                    } else if (binding.property == "stroke.width") {
+                        if (!subpath->stroke)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                                "].shape.element_animations",
+                                "SVG stroke.width target requires a stroke", "svg_target_property_invalid",
+                                "render-plan-svg"};
+                        destination = &subpath->stroke_width_animation;
+                        canonical_property = "stroke_width";
+                    }
+                    if (!destination)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                            "].shape.element_animations",
+                            "Unsupported SVG element animation property: " + binding.property,
+                            "svg_target_property_invalid", "render-plan-svg"};
+                    if (*destination)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                            "].shape.element_animations",
+                            "SVG target property already has an animation: " + binding.property,
+                            "svg_animation_conflict", "render-plan-svg"};
+                    auto track = binding.animation;
+                    track.property = canonical_property;
+                    *destination = std::move(track);
+                }
+            }
             if (imported.vector_mask) {
                 if (layer.path_mask || !layer.masks.empty())
                     return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
@@ -557,12 +1036,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 for (const auto& command : imported.vector_mask->commands) {
                     ShapePathCommandPlan lowered;
                     const auto lower_point = [&](Vec2 point, std::array<float, 2>& destination) {
-                        const Vec2 shifted = point - svg_center_offset;
-                        if (!std::isfinite(shifted.x) || !std::isfinite(shifted.y) ||
-                            std::abs(shifted.x) > 100000.0f || std::abs(shifted.y) > 100000.0f)
+                        if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+                            std::abs(point.x) > 100000.0f || std::abs(point.y) > 100000.0f)
                             throw std::runtime_error("SVG mask coordinate exceeds finite resource bounds");
-                        destination = {std::round(shifted.x * 10000.0f) / 10000.0f,
-                                       std::round(shifted.y * 10000.0f) / 10000.0f};
+                        destination = {std::round(point.x * 10000.0f) / 10000.0f,
+                                       std::round(point.y * 10000.0f) / 10000.0f};
                     };
                     switch (command.type) {
                         case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; lower_point(command.p0, lowered.point); break;
@@ -575,32 +1053,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 }
                 layer.path_mask = std::move(mask);
             }
-            if (!imported.layer_effects.empty()) {
-                if (!layer.effects.empty())
-                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                        "SVG root filter cannot be combined with render-plan layer effects",
-                        "svg_filter_conflict", "render-plan-svg"};
-                if (imported.layer_effects.size() > 8)
-                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                        "SVG root filter exceeds 8 primitives", "svg_resource_limit", "render-plan-svg"};
-                for (const auto& effect : imported.layer_effects) {
-                    LayerPlan::EffectPlan lowered;
-                    switch (effect.kind) {
-                        case assets::SvgLayerEffect::Kind::GaussianBlur:
-                            lowered.kind = LayerPlan::EffectKindPlan::GaussianBlur;
-                            lowered.radius = effect.radius;
-                            break;
-                        case assets::SvgLayerEffect::Kind::DropShadow:
-                            lowered.kind = LayerPlan::EffectKindPlan::DropShadow;
-                            lowered.radius = effect.radius;
-                            lowered.offset = effect.offset;
-                            lowered.effect_color = effect.color;
-                            break;
-                    }
-                    layer.effects.push_back(std::move(lowered));
-                }
-            }
         }
+        for (auto& pending : pending_svg_text_layers)
+            plan.layers.push_back(std::move(pending.second));
 #else
         for (std::size_t index = 0; index < plan.layers.size(); ++index)
             if (plan.layers[index].shape && plan.layers[index].shape->svg_asset)
@@ -707,14 +1162,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             const auto& layer = plan.layers[index];
             if (layer.type != LayerType::Text) continue;
             auto definition = detail::materialize_text(layer, canvas);
-            const auto resolved = resolver.resolve_logical(
-                std::filesystem::path(definition.style.font.font_path));
-            if (!resolved) {
-                throw std::runtime_error(
-                    "font asset was not prepared: " +
-                    definition.style.font.font_path);
+            if (!definition.style.font.font_path.empty()) {
+                const auto resolved = resolver.resolve_logical(
+                    std::filesystem::path(definition.style.font.font_path));
+                if (!resolved) {
+                    throw std::runtime_error(
+                        "font asset was not prepared: " +
+                        definition.style.font.font_path);
+                }
+                definition.style.font.font_path = resolved->string();
             }
-            definition.style.font.font_path = resolved->string();
             if (layer.text_counter) {
                 const auto& counter = layer.text_counter->counter;
                 AnimationTrackPlan value_track;

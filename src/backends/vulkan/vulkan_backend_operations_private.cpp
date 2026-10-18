@@ -47,7 +47,6 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                          blend_mode, source_scale, kIdentityTint, clip,
                          premultiplied_source_over);
         dst_image.initialized = true;
-        surfaces.pin_frame_output(destination);
         ++frame_batch.pass_count;
         ++stats.passes_executed;
         return;
@@ -86,12 +85,6 @@ void VulkanBackend::Impl::initialize_transparent_surface(
     }
     if (!frame_batch.active) {
         throw std::logic_error("Vulkan transparent initialization requires an active frame batch");
-    }
-    static const bool img_diag = std::getenv("CHRONON3D_VULKAN_BATCH_DIAG") != nullptr;
-    if (img_diag) {
-        std::fprintf(stderr, "[vk-img-diag] INIT handle=%llu image=%p\n",
-                     static_cast<unsigned long long>(destination),
-                     static_cast<void*>(dst_image.image));
     }
     const auto descriptors = allocate_pass_descriptor_set();
     write_fill_rect_descriptors(descriptors, dst_image);
@@ -531,7 +524,7 @@ void VulkanBackend::Impl::warp_bulk(runtime::RenderSurfaceHandle destination,
 void VulkanBackend::Impl::generate_bulk(runtime::RenderSurfaceHandle destination,
                                         runtime::RenderSurfaceHandle source,
                                         const graph::GenerateBulkParams& params) {
-    if (params.mode < 0 || params.mode > 7) {
+    if (params.mode < 0 || params.mode > 5) {
         throw std::invalid_argument(
             "Vulkan generate bulk parameters are outside supported ranges");
     }

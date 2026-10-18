@@ -141,9 +141,6 @@ public:
     LayerBuilder& mask_circle(CircleMaskParams params);
     LayerBuilder& mask_ellipse(EllipseMaskParams params);
     LayerBuilder& mask_path(PathMaskParams params);
-    // ADR-035 — tag the last-authored node as a member of the innermost
-    // isolated SVG group (id, opacity). The render graph's group stage
-    // composites tagged nodes once with the group alpha.
     LayerBuilder& svg_group_isolation(std::uint32_t id, f32 opacity);
     LayerBuilder& mask_composite(Mask mask);
     LayerBuilder& track_matte_alpha(std::string source_layer_name);

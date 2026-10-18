@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <g transform="translate(-960 540) scale(1 -1)">
+  <g id="connectors" fill="none" stroke="#31405d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 14">
+    <path id="line_hq_north" d="M 960 435 C 960 360 960 320 960 260"/>
+    <path id="line_hq_west" d="M 850 510 C 735 510 655 460 545 410"/>
+    <path id="line_hq_east" d="M 1070 510 C 1185 510 1265 460 1375 410"/>
+    <path id="line_hq_south" d="M 960 625 C 960 700 960 740 960 810"/>
+  </g>
+
+  <g id="headquarters" stroke="#5ce1d2" stroke-width="3">
+    <circle cx="960" cy="530" r="112" fill="#111c32"/>
+    <circle cx="960" cy="530" r="92" fill="none" stroke="#29445d" stroke-width="1.5"/>
+    <path d="M 917 550 L 960 474 L 1003 550 Z" fill="#5ce1d2" stroke="none">
+      <animate attributeName="d" values="M 917 550 L 960 474 L 1003 550 Z;M 917 550 L 1003 550 L 1003 490 Z;M 917 550 L 960 474 L 1003 550 Z" dur="1.2s" fill="freeze"/>
+    </path>
+    <path d="M 936 550 L 936 572 L 984 572 L 984 550" fill="#eaf8f5" stroke="none"/>
+    <rect x="953" y="532" width="14" height="22" rx="2" fill="#13243a" stroke="none"/>
+  </g>
+
+  <g id="north_node" fill="#111c32" stroke="#7aa7ff" stroke-width="3">
+    <circle cx="960" cy="230" r="45"/>
+    <path d="M 960 206 L 960 254 M 936 230 L 984 230" fill="none" stroke="#7aa7ff" stroke-width="3"/>
+  </g>
+  <g id="west_node" fill="#111c32" stroke="#7aa7ff" stroke-width="3">
+    <circle cx="505" cy="390" r="45"/>
+    <path d="M 483 399 L 496 383 L 508 394 L 529 370" fill="none" stroke="#5ce1d2" stroke-width="3"/>
+  </g>
+  <g id="east_node" fill="#111c32" stroke="#7aa7ff" stroke-width="3">
+    <circle cx="1415" cy="390" r="45"/>
+    <path d="M 1393 407 L 1407 390 L 1419 398 L 1437 373" fill="none" stroke="#5ce1d2" stroke-width="3"/>
+  </g>
+  <g id="south_node" fill="#111c32" stroke="#7aa7ff" stroke-width="3">
+    <circle cx="960" cy="840" r="45"/>
+    <path d="M 960 863 L 960 817 M 941 836 L 960 817 L 979 836" fill="none" stroke="#5ce1d2" stroke-width="3"/>
+  </g>
+
+  <g id="revenue_arrow" fill="none" stroke="#5ce1d2" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 620 760 C 780 710 875 720 1010 660 C 1140 602 1230 622 1340 565 C 1430 520 1490 470 1560 390"/>
+  </g>
+  <path id="revenue_arrow_head" d="M 1530 396 L 1570 378 L 1567 421 Z" fill="#5ce1d2"/>
+
+  <g id="growth_spark" transform="translate(1120 620)" fill="#f7c66a" stroke="none">
+    <path d="M 0 -8 L 2.4 -2.4 L 8 0 L 2.4 2.4 L 0 8 L -2.4 2.4 L -8 0 L -2.4 -2.4 Z"/>
+  </g>
+
+  <g id="metric_frame" fill="none" stroke="#263650" stroke-width="2">
+    <path d="M 620 900 L 1300 900"/>
+    <circle cx="620" cy="900" r="4" fill="#f7c66a" stroke="none"/>
+    <circle cx="1300" cy="900" r="4" fill="#f7c66a" stroke="none"/>
+  </g>
+  </g>
+</svg>

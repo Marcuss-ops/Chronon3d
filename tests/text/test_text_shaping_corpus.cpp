@@ -252,24 +252,23 @@ TEST_CASE("ShapingCorpus: office affine shows ligature behaviour") {
     REQUIRE(require_font(engine));
 
     auto doc = make_corpus_doc("office affine");
-    doc.defaults.font = ligature_quality();
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
 
     // Explicit ligature check: "fi" should produce fewer glyphs when
     // standard ligatures are enabled than when they are disabled.
-    const auto font = ligature_quality();
-    auto fi_liga = engine.shape_text("fi", font, 32.0f,
+    auto fi_liga = engine.shape_text("fi", inter_bold_quality(), 32.0f,
                                       TextShaping{.features = "liga=1"});
-    auto fi_no_liga = engine.shape_text("fi", font, 32.0f,
+    auto fi_no_liga = engine.shape_text("fi", inter_bold_quality(), 32.0f,
                                          TextShaping{.features = "liga=0"});
     REQUIRE(fi_liga.has_value());
     REQUIRE(fi_no_liga.has_value());
     INFO("fi liga glyphs=", fi_liga->glyphs.size(), " no-liga glyphs=", fi_no_liga->glyphs.size());
     CHECK(fi_liga->glyphs.size() < fi_no_liga->glyphs.size());
 
-    // "office affine" has 13 ASCII codepoints, including candidates for
-    // 'ff' and 'fi' ligatures. Clusters must map back to the original bytes.
+    // "office affine" contains possible 'ff' and 'fi' ligatures.
+    // The shaped glyph count should be less than or equal to the codepoint
+    // count, and clusters must map back to the original UTF-8 bytes.
     std::size_t total_glyphs = 0;
     std::size_t total_clusters = 0;
     for (const auto& p : m.paragraphs) {
@@ -280,7 +279,7 @@ TEST_CASE("ShapingCorpus: office affine shows ligature behaviour") {
     }
     CHECK(total_glyphs > 0);
     CHECK(total_clusters > 0);
-    CHECK(total_glyphs <= std::string("office affine").size());
+    CHECK(total_glyphs <= 12); // "office affine" has 12 codepoints
 
     // Verify every cluster maps back into the source text.
     check_cluster_ranges(m, doc.utf8);

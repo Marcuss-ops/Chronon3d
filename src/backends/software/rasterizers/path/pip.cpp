@@ -34,6 +34,22 @@ PipMode get_pip_mode() {
     return s_use_simd ? PipMode::Simd : PipMode::Scalar;
 }
 
+int polygon_winding_number(Vec2 p, const std::vector<Vec2>& poly) {
+    if (poly.size() < 3) return 0;
+    int winding = 0;
+    for (usize i = 0, j = poly.size() - 1; i < poly.size(); j = i++) {
+        const Vec2& a = poly[j];
+        const Vec2& b = poly[i];
+        const float side = (b.x - a.x) * (p.y - a.y) - (p.x - a.x) * (b.y - a.y);
+        if (a.y <= p.y) {
+            if (b.y > p.y && side > 0.0f) ++winding;
+        } else if (b.y <= p.y && side < 0.0f) {
+            --winding;
+        }
+    }
+    return winding;
+}
+
 bool point_in_polygon_even_odd(Vec2 p, const std::vector<Vec2>& poly) {
     if (poly.size() < 3) return false;
 

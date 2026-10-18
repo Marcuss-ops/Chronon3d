@@ -2,7 +2,6 @@
 
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <chronon3d/effects/spatial_bounds.hpp>
-#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/render_graph/nodes/native_effects.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <algorithm>
@@ -66,7 +65,9 @@ public:
     }
 
     [[nodiscard]] bool has_temporal_effect() const {
-        return effect_stack_has_temporal_effect(m_effects);
+        for (const auto& effect : m_effects)
+            if (effect.enabled && effect.effect_type == effects::EffectType::Echo) return true;
+        return false;
     }
 
     [[nodiscard]] TemporalRequirements temporal_requirements() const noexcept override {
