@@ -448,6 +448,8 @@ struct VulkanBackend::Impl {
     void bind_descriptors(const Image& destination, const Image& source);
     void write_descriptors(VkDescriptorSet set,
                            const Image& destination, const Image& source);
+    void write_dof_descriptors(VkDescriptorSet set, const Image& destination,
+                               const Image& source, const Image& depth);
     void write_fill_rect_descriptors(VkDescriptorSet set, const Image& destination,
                                      VkBuffer geometry_buffer = VK_NULL_HANDLE);
     void write_dashed_path_descriptors(VkDescriptorSet set, const Image& destination,
@@ -606,6 +608,26 @@ struct VulkanBackend::Impl {
     void record_directional_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                                  const Image& destination, const Image& source,
                                  float dir_x, float dir_y, float length, int tap_count);
+    // Push-constant layouts mirror dof_depth_stamp.comp / dof_blur.comp.
+    struct DofDepthStampPush {
+        float depth;
+        float radius;
+        std::int32_t clip_x0, clip_y0, clip_x1, clip_y1;
+        std::int32_t origin_x, origin_y;
+        std::int32_t reset;
+    };
+    struct DofBlurPush {
+        std::int32_t vertical;
+        std::int32_t roi_x0, roi_y0, roi_x1, roi_y1;
+        float max_radius;
+        std::int32_t normalize_opaque;
+    };
+    void record_dof_depth_stamp(VkCommandBuffer command, VkDescriptorSet descriptors,
+                                const Image& depth, const Image& layer,
+                                const DofDepthStampPush& push);
+    void record_dof_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
+                         const Image& destination, const Image& source,
+                         const Image& depth, const DofBlurPush& push);
     void record_radial_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                             const Image& destination, const Image& source,
                             float center_x_px, float center_y_px,
@@ -729,6 +751,13 @@ struct VulkanBackend::Impl {
     void directional_blur(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle source,
                           float dir_x, float dir_y, float length, int tap_count);
+    void dof_depth_stamp(runtime::RenderSurfaceHandle depth,
+                         runtime::RenderSurfaceHandle layer,
+                         const DofDepthStampPush& push);
+    void dof_blur(runtime::RenderSurfaceHandle destination,
+                  runtime::RenderSurfaceHandle source,
+                  runtime::RenderSurfaceHandle depth,
+                  const DofBlurPush& push);
     void radial_blur(runtime::RenderSurfaceHandle destination,
                      runtime::RenderSurfaceHandle source,
                      float center_x_px, float center_y_px,

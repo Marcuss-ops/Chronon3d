@@ -12,6 +12,9 @@ chronon3d_add_test_suite(
         compositor/test_blend_reference.cpp
         compositor/test_blend_simd_equivalence.cpp
         compositor/test_track_matte.cpp
+    UNITY_EXCLUDE_SOURCES
+        compositor/test_blend_simd_equivalence.cpp
+        compositor/test_blend_reference.cpp
 )
 target_compile_definitions(chronon3d_compositor_tests PRIVATE
     CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
@@ -54,6 +57,10 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
             deterministic/test_sequential_graph_cache.cpp
             deterministic/test_brute_determinism.cpp
             deterministic/test_text_warm_cold.cpp
+        UNITY_EXCLUDE_SOURCES
+            deterministic/test_tile_determinism.cpp
+            deterministic/test_visual_regression_scenarios.cpp
+            render_graph/executor/test_scheduler_determinism.cpp
     )
     target_compile_definitions(chronon3d_deterministic_tests PRIVATE
         CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"

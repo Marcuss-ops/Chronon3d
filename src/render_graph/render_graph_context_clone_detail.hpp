@@ -62,6 +62,10 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
         node_exec.shared_dof_source_coverage
             ? node_exec.shared_dof_source_coverage
             : const_cast<DofSourceCoverage*>(&node_exec.dof_source_coverage);
+    copy.node_exec.shared_native_dof_depth = node_exec.shared_native_dof_depth
+        ? node_exec.shared_native_dof_depth
+        : const_cast<NodeExecutionContext::NativeDofDepthState*>(
+              &node_exec.native_dof_depth);
     copy.node_exec.current_identity = node_exec.current_identity;
     copy.node_exec.planned_physical_slot = node_exec.planned_physical_slot;
     copy.node_exec.terminal_video_encode_physical_slot =

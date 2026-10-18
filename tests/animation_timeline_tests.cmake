@@ -42,4 +42,7 @@ chronon3d_add_test_suite(
         timeline/test_composition_descriptor_prepare.cpp
         timeline/test_registry_resolve.cpp
         timeline/test_compile_evaluate_dynamic.cpp
+    UNITY_EXCLUDE_SOURCES
+        timeline/test_registry_resolve.cpp
+        timeline/test_props_codec.cpp
 )

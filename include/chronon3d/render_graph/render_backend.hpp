@@ -597,6 +597,36 @@ public:
             "RenderBackend::blur_surface: native surfaces are not supported"));
     }
 
+    /// Native per-pixel DOF depth stamp.  Covered pixels of `layer` (alpha >
+    /// 0.01 inside the clip rect, origin at origin_x/origin_y) receive
+    /// (depth, radius) in `depth`; `reset` initialises uncovered pixels to
+    /// (-1, -1).  Mirrors the CPU publish_dof_provenance() rule.
+    virtual RenderOpResult dof_depth_stamp_surface(
+        runtime::RenderSurfaceHandle /*depth*/,
+        runtime::RenderSurfaceHandle /*layer*/,
+        float /*depth_z*/, float /*radius*/,
+        int /*clip_x0*/, int /*clip_y0*/, int /*clip_x1*/, int /*clip_y1*/,
+        int /*origin_x*/, int /*origin_y*/, bool /*reset*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::dof_depth_stamp_surface: native surfaces are not supported"));
+    }
+
+    /// One separable pass of the per-pixel DOF blur over the ROI, replicating
+    /// the software kernel (highway_dof_kernels.cpp).  `depth` holds the
+    /// (depth, radius) surface written by dof_depth_stamp_surface.
+    virtual RenderOpResult dof_blur_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*depth*/,
+        bool /*vertical*/,
+        int /*roi_x0*/, int /*roi_y0*/, int /*roi_x1*/, int /*roi_y1*/,
+        float /*max_radius*/, bool /*normalize_opaque*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::dof_blur_surface: native surfaces are not supported"));
+    }
+
     /// Uniform box-tap blur along a unit direction for native surfaces.
     /// destination[p] = average of tap_count bilinear samples spanning
     /// [-length/2, +length/2] along (dir_x, dir_y), matching the software

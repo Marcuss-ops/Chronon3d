@@ -414,6 +414,52 @@ void VulkanBackend::Impl::directional_blur(runtime::RenderSurfaceHandle destinat
     throw std::logic_error("Vulkan directional blur requires an active frame batch");
 }
 
+void VulkanBackend::Impl::dof_depth_stamp(runtime::RenderSurfaceHandle depth_handle,
+                                           runtime::RenderSurfaceHandle layer_handle,
+                                           const DofDepthStampPush& push) {
+    auto& depth = resolve_image(depth_handle);
+    auto& layer = resolve_image(layer_handle);
+    if (!layer.initialized) {
+        throw std::invalid_argument("Vulkan DOF depth stamp references an uninitialized layer");
+    }
+    if (!frame_batch.active) {
+        throw std::logic_error("Vulkan DOF depth stamp requires an active frame batch");
+    }
+    const auto descriptors = allocate_pass_descriptor_set();
+    write_descriptors(descriptors, depth, layer);
+    const auto cmd = active_command_buffer();
+    emit_pass_sync(cmd, {&depth, &layer});
+    record_dof_depth_stamp(cmd, descriptors, depth, layer, push);
+    depth.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
+}
+
+void VulkanBackend::Impl::dof_blur(runtime::RenderSurfaceHandle destination_handle,
+                                   runtime::RenderSurfaceHandle source_handle,
+                                   runtime::RenderSurfaceHandle depth_handle,
+                                   const DofBlurPush& push) {
+    auto& dst_image = resolve_image(destination_handle);
+    auto& src_image = resolve_image(source_handle);
+    auto& depth = resolve_image(depth_handle);
+    if (!src_image.initialized || !depth.initialized ||
+        dst_image.width != src_image.width || dst_image.height != src_image.height ||
+        depth.width != dst_image.width || depth.height != dst_image.height) {
+        throw std::invalid_argument("Vulkan DOF blur references incompatible surfaces");
+    }
+    if (!frame_batch.active) {
+        throw std::logic_error("Vulkan DOF blur requires an active frame batch");
+    }
+    const auto descriptors = allocate_pass_descriptor_set();
+    write_dof_descriptors(descriptors, dst_image, src_image, depth);
+    const auto cmd = active_command_buffer();
+    emit_pass_sync(cmd, {&dst_image, &src_image, &depth});
+    record_dof_blur(cmd, descriptors, dst_image, src_image, depth, push);
+    dst_image.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
+}
+
 void VulkanBackend::Impl::radial_blur(runtime::RenderSurfaceHandle destination,
                                        runtime::RenderSurfaceHandle source,
                                        float center_x_px, float center_y_px,

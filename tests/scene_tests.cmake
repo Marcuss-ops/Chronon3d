@@ -42,102 +42,86 @@ set(_SCENE_LINK_TARGETS
     chronon3d_backend_software
 )
 
+set(SCENE_TEST_SOURCES
+                scene/layout/test_scene_builder.cpp
+                scene/test_idle_motion_presets.cpp
+                scene/test_text_motion_presets.cpp
+                scene/test_fullscreen_rect_modular_bbox.cpp
+                scene/shapes/test_path_utils.cpp
+                scene/shapes/test_shape_model.cpp
+                scene/shapes/test_morph_physics_puppet.cpp
+                scene/layout/test_layer_hierarchy.cpp
+                ${SCENE_TEXT_TESTS}
+                scene/rendering/test_render_node_factory.cpp
+                scene/rendering/test_depth_role.cpp
+                scene/layout/test_layout_solver.cpp
+                scene/layout/test_overlay_layout_resolver.cpp
+                layout/test_layout_flow_grid.cpp
+                render_graph/pipeline/test_graph_cache.cpp
+                extension/test_graph_node_catalog.cpp
+                scene/transform_hierarchy_tests.cpp
+                scene/camera_shot_validator_tests.cpp
+                scene/camera_projection_tests.cpp
+                scene/camera_framing_tests.cpp
+                scene/camera/test_camera_registry.cpp
+                scene/camera/test_camera_program.cpp
+                scene/camera/test_camera_program_compiled.cpp
+                scene/camera/test_camera_program_compiled_metadata.cpp
+                scene/camera/test_camera_program_compiled_trajectory.cpp
+                scene/camera/test_camera_program_orient_along_path.cpp
+                scene/camera/test_camera_program_projection_orientation.cpp
+                scene/camera/test_camera_program_orientation_ticket022.cpp
+                scene/camera/test_camera_program_orbit_ticket024.cpp
+                scene/camera/test_camera_program_orbit_coherence_roll_parent.cpp
+                scene/camera/test_camera_program_constraints_policy.cpp
+                scene/camera/test_composition_default_camera.cpp
+                scene/camera/test_camera_session_checkpoint.cpp
+                scene/camera/test_camera_program_damped_history_force.cpp
+                scene/camera/test_camera_program_metadata_late_rebuild.cpp
+                scene/camera/test_camera_framing_solver.cpp
+                scene/camera/test_camera_lookat_layer_missing_transforms.cpp
+                scene/camera/test_shot_timeline.cpp
+                scene/camera/test_shot_timeline_random_access.cpp
+                scene/camera/test_camera_trajectory.cpp
+                scene/camera/test_camera_context_framerate_propagation.cpp
+                scene/camera/test_orient_along_path.cpp
+                scene/camera/test_camera_trajectory_preserves_base_fields.cpp
+                scene/camera/test_camera_stabilization.cpp
+                scene/camera/test_dof_ae_parity.cpp
+                scene/camera/golden_projection_test.cpp
+                scene/camera/test_camera_near_plane_clip.cpp
+                scene/camera/camera_25d_tests.cpp
+                scene/camera/test_camera_hierarchy.cpp
+                scene/camera/test_camera_motion_blur.cpp
+                scene/camera/test_temporal_samples_pr1.cpp
+                scene/camera/test_motion_blur_torture_pr1.cpp
+                scene/camera/test_camera_motion_path.cpp
+                scene/camera/test_catmull_rom_path.cpp
+                scene/test_scene_validator.cpp
+                scene/test_shape_texture_fill.cpp
+                scene/test_layer_order_contract.cpp
+                scene/test_layer_kind.cpp
+                scene/test_layer_content_ref.cpp
+                scene/test_joints.cpp
+                scene/test_motion_graph_prewarm.cpp
+                render_graph/builder/test_graph_snapshot.cpp
+)
+
 chronon3d_add_test_suite(
     NAME   chronon3d_scene_tests
     TIER   INTEGRATION
     LINK_TARGETS ${_SCENE_LINK_TARGETS}
-    SOURCES
-        scene/layout/test_scene_builder.cpp
-        scene/test_idle_motion_presets.cpp
-        scene/test_text_motion_presets.cpp
-        scene/test_fullscreen_rect_modular_bbox.cpp
-        scene/shapes/test_path_utils.cpp
-        scene/shapes/test_shape_model.cpp
-        scene/shapes/test_morph_physics_puppet.cpp
-        scene/layout/test_layer_hierarchy.cpp
-        ${SCENE_TEXT_TESTS}
-        scene/rendering/test_render_node_factory.cpp
-        scene/rendering/test_depth_role.cpp
-        scene/layout/test_layout_solver.cpp
-        scene/layout/test_overlay_layout_resolver.cpp
-        layout/test_layout_flow_grid.cpp
-        render_graph/pipeline/test_graph_cache.cpp
-        extension/test_graph_node_catalog.cpp
-        scene/transform_hierarchy_tests.cpp
-        scene/camera_shot_validator_tests.cpp
-        scene/camera_projection_tests.cpp
-        scene/camera_framing_tests.cpp
-        scene/camera/test_camera_registry.cpp
-        scene/camera/test_camera_program.cpp
-        scene/camera/test_camera_program_compiled.cpp   # CAM-01 / DOC 04: baseline compiled-path tests
-        # Splits of test_camera_program_compiled.cpp (each part ≤ 400 LOC):
+    SOURCES ${SCENE_TEST_SOURCES}
+    UNITY_EXCLUDE_SOURCES
+        scene/camera/test_camera_program_compiled.cpp
         scene/camera/test_camera_program_compiled_metadata.cpp
         scene/camera/test_camera_program_compiled_trajectory.cpp
-        scene/camera/test_camera_program_orient_along_path.cpp
-        scene/camera/test_camera_program_projection_orientation.cpp   # CAM-01 split: §2 projections + §3 modifier + §4 orientation
-        # Splits of test_camera_program_projection_orientation.cpp (each part ≤ 400 LOC):
-        scene/camera/test_camera_program_orientation_ticket022.cpp
+        scene/camera/test_camera_program_constraints_policy.cpp
         scene/camera/test_camera_program_orbit_ticket024.cpp
         scene/camera/test_camera_program_orbit_coherence_roll_parent.cpp
-        scene/camera/test_camera_program_constraints_policy.cpp   # CAM-01 split: §5-§10 constraints, policies, fingerprint, golden
-        scene/camera/test_composition_default_camera.cpp   # TICKET-034: CameraDescriptor as canonical default in composition settings
-        scene/camera/test_camera_session_checkpoint.cpp   # TICKET-031 — stateful constraint checkpoint + canonical pre-roll
-        # TICKET-A3-DAMPED-HISTORY (Agent3 mission DoD gate (b)) — regression
-        # lock that the presence of DampedFollowConstraint in
-        # descriptor.constraints forces CameraProgram::evaluation_dependency()
-        # to CameraEvaluationDependency::RequiresHistory, regardless of any
-        # other indicator (source variant, modifier list, other constraint
-        # types). Pairs with the force-override rule introduced in
-        # src/scene/camera/camera_v1/camera_program_compiler.cpp on the same
-        # commit.
-        scene/camera/test_camera_program_damped_history_force.cpp
-        scene/camera/test_camera_program_metadata_late_rebuild.cpp
-        scene/camera/test_camera_framing_solver.cpp
-        # TICKET-A3-LOOKAT-DIAGNOSTIC (Agent3 mission DoD gate (g)) — locks
-        # the contract that LookAtLayer orientation emits a Warning diagnostic
-        # via the canonical channel (result.diagnostics) with a stable
-        # [MissingTransforms] prefix when CameraEvalContext::transforms is
-        # null OR world_position lookup fails. Pairs with the diagnostic
-        # emission introduced in src/scene/camera/camera_v1/camera_program.cpp
-        # apply_orientation_spec_free() on the same commit.
-        scene/camera/test_camera_lookat_layer_missing_transforms.cpp
-        scene/camera/test_shot_timeline.cpp
-        # P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — random-access
-        # parity + 5 mandatory test categories + 6-field diagnostics
-        # contract probe.  Locks deterministic per-frame diagnostic
-        # surface (camera_id/shot_index/sample_time/severity/code/message)
-        # across sequential, direct, random-order, checkpoint-restore,
-        # retry, and two-render-job access patterns.
+        scene/camera/test_camera_program_orientation_ticket022.cpp
+        scene/camera/test_camera_program_projection_orientation.cpp
         scene/camera/test_shot_timeline_random_access.cpp
-        scene/camera/test_camera_trajectory.cpp
-        # TICKET-A3-CTX-FRAMERATE (Agent3 mission DoD gate (e)) — locks the
-        # public contract that camera_v1::*Context::at(Frame, FrameRate, ...)
-        # factories propagate the caller-supplied FrameRate bit-exactly into
-        # SampleTime arithmetic, with NO default-init fallback.  Pairs with
-        # the previous kTimelineFps{30,1} constexpr-removal in
-        # src/scene/camera/camera_v1/shot_timeline.cpp on the same commit.
-        scene/camera/test_camera_context_framerate_propagation.cpp
-        scene/camera/test_orient_along_path.cpp   # Agent1 DoD: 4-sub-test OrientAlongPath regression lock (Step 4)
-        scene/camera/test_camera_trajectory_preserves_base_fields.cpp   # CAM-DoD Agent1: TrajectoryMotion carry-forward (lens/DOF/motion_blur/parent/POI)
-        scene/camera/test_camera_stabilization.cpp
-        scene/camera/test_dof_ae_parity.cpp   # FASE 5 — DOF AE parity: 6 test categories (enable, rack focus, aperture, physical lens, projection independence, disabled fields)
-        scene/camera/golden_projection_test.cpp   # C7 — DOC 02 / TICKET-035 freeze: 6-mode golden projection
-        scene/camera/test_camera_near_plane_clip.cpp
-        scene/camera/camera_25d_tests.cpp
-        scene/camera/test_camera_hierarchy.cpp
-        scene/camera/test_camera_motion_blur.cpp
-        scene/camera/test_temporal_samples_pr1.cpp   # PR1 unit: temporal_samples API contract
-        scene/camera/test_motion_blur_torture_pr1.cpp   # PR1 torture: 5 mandatory end-to-end tests
-        scene/camera/test_camera_motion_path.cpp
-        scene/camera/test_catmull_rom_path.cpp
-        scene/test_scene_validator.cpp
-        scene/test_shape_texture_fill.cpp
-        scene/test_layer_order_contract.cpp
-        scene/test_layer_kind.cpp
-        scene/test_layer_content_ref.cpp   # ADR-031 P1 — (kind -> ContentRef, LayerRole) taxonomy + superset of the legacy chains
-        scene/test_joints.cpp
-        scene/test_motion_graph_prewarm.cpp
-        render_graph/builder/test_graph_snapshot.cpp
 )
 # TICKET-006: SCENE_TEXT_TESTS (test_layer_builder_animated, layout_design_kit,
 # test_text_run_builder) call into chronon3d_text_core symbols whose definitions

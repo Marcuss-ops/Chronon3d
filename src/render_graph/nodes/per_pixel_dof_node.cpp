@@ -203,6 +203,16 @@ DofActiveRegion analyze_dof_active_region(
     return region;
 }
 
+// Owns the device-local DOF depth published by compositing for this node.
+// The surface is consumed exactly once; every exit path releases it.
+struct NativeDepthLease {
+    RenderGraphContext& ctx;
+    std::shared_ptr<Framebuffer> surface;
+    ~NativeDepthLease() {
+        if (surface) release_native_surface(ctx, *surface);
+    }
+};
+
 } // namespace
 
 NodeExecResult PerPixelDofNode::execute(
@@ -268,6 +278,12 @@ NodeExecResult PerPixelDofNode::execute(
         return NodeExecResult{std::move(copy)};
     };
 
+    auto& native_state = ctx.node_exec.native_dof_state();
+    NativeDepthLease native_depth{ctx, std::move(native_state.surface)};
+    native_state.surface.reset();
+    const bool native_depth_partial = native_state.unusable;
+    if (native_depth.surface) native_state.unusable = true;
+
     const auto& camera = camera_for(ctx);
     const auto& dof_depth = ctx.node_exec.dof_depth_buffer();
     const auto& evaluated_dof = camera_space_dof_settings(camera.dof, camera);
@@ -286,6 +302,76 @@ NodeExecResult PerPixelDofNode::execute(
 
     if (!camera.dof.enabled) {
         return cloned_result();
+    }
+
+    if (native_depth.surface) {
+        // Device-local path: depth and radius live on the GPU (see
+        // publish_dof_provenance_native). A mix of CPU and native depth cannot
+        // be blurred correctly, so it is reported instead of approximated.
+        if (native_depth_partial || !ctx.backend || !ctx.surface_registry ||
+            !ctx.backend->supports_native_surfaces()) {
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "PerPixelDofNode",
+                "DOF depth is only partially device-local"};
+        }
+        const auto& coverage = ctx.node_exec.dof_sources();
+        if (!coverage.source_bbox || coverage.max_radius < kVisibleBlurThreshold) {
+            return cloned_result();
+        }
+        const i32 frame_w = ctx.frame_input.width;
+        const i32 frame_h = ctx.frame_input.height;
+        const float capped_radius = std::min(
+            coverage.max_radius, static_cast<float>(std::max(frame_w, frame_h)));
+        const i32 margin = std::max(1, static_cast<i32>(std::ceil(capped_radius)));
+        const auto& src_bbox = *coverage.source_bbox;
+        const raster::BBox roi{
+            std::max(0, src_bbox.x0 - margin),
+            std::max(0, src_bbox.y0 - margin),
+            std::min(frame_w, src_bbox.x1 + margin),
+            std::min(frame_h, src_bbox.y1 + margin)};
+        if (roi.is_empty()) {
+            return cloned_result();
+        }
+
+        auto blurred = clone_input(*inputs[0]);
+        if (!blurred || native_clone_failed) {
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "PerPixelDofNode",
+                "failed to preserve input surface residency"};
+        }
+        auto scratch = ctx.acquire_owned_fb(frame_w, frame_h, false);
+        if (!scratch || !ensure_empty_native_surface(ctx, *scratch)) {
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "PerPixelDofNode",
+                "failed to allocate native DOF scratch surface"};
+        }
+
+        const auto depth_handle = native_depth.surface->surface_handle();
+        const bool normalize_opaque = blurred->is_opaque();
+        const auto horizontal = ctx.backend->dof_blur_surface(
+            scratch->surface_handle(), blurred->surface_handle(), depth_handle,
+            false, roi.x0, roi.y0, roi.x1, roi.y1,
+            coverage.max_radius, normalize_opaque);
+        const auto vertical = horizontal.ok()
+            ? ctx.backend->dof_blur_surface(
+                  blurred->surface_handle(), scratch->surface_handle(), depth_handle,
+                  true, roi.x0, roi.y0, roi.x1, roi.y1,
+                  coverage.max_radius, normalize_opaque)
+            : horizontal;
+        release_native_surface(ctx, *scratch);
+        if (!horizontal.ok() || !vertical.ok()) {
+            spdlog::error("[PerPixelDofNode] native DOF blur failed");
+            release_native_surface(ctx, *blurred);
+            return NodeExecutionError{
+                RenderBackendErrorCode::ExecutionFailure,
+                "PerPixelDofNode",
+                "native DOF blur dispatch failed"};
+        }
+        blurred->mark_gpu_authoritative();
+        return NodeExecResult{std::move(blurred)};
     }
 
     // Check that the depth buffer was populated during compositing.

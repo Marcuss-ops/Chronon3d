@@ -28,6 +28,8 @@ set(_chronon3d_shaders
     text_tile_bin
     text_tile_raster
     pixel_program_pointwise
+    dof_depth_stamp
+    dof_blur
 )
 
 foreach(_shader ${_chronon3d_shaders})
@@ -72,6 +74,8 @@ set(_chronon3d_shader_abi_prefixes
     text_tile_bin:TextTileBin
     text_tile_raster:TextTileRaster
     pixel_program_pointwise:PixelProgramPointwise
+    dof_depth_stamp:DofDepthStamp
+    dof_blur:DofBlur
 )
 
 set(_chronon3d_shader_abi_headers "")

@@ -529,6 +529,50 @@ graph::RenderOpResult VulkanBackend::blur_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::dof_depth_stamp_surface(
+    runtime::RenderSurfaceHandle depth, runtime::RenderSurfaceHandle layer,
+    float depth_z, float radius,
+    int clip_x0, int clip_y0, int clip_x1, int clip_y1,
+    int origin_x, int origin_y, bool reset) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{depth, layer};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->dof_depth_stamp(depth, layer,
+            Impl::DofDepthStampPush{depth_z, radius, clip_x0, clip_y0, clip_x1, clip_y1,
+                                    origin_x, origin_y, reset ? 1 : 0});
+    });
+#else
+    (void)depth; (void)layer; (void)depth_z; (void)radius;
+    (void)clip_x0; (void)clip_y0; (void)clip_x1; (void)clip_y1;
+    (void)origin_x; (void)origin_y; (void)reset;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::dof_depth_stamp_surface: Vulkan support is disabled"));
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::dof_blur_surface(
+    runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle depth, bool vertical,
+    int roi_x0, int roi_y0, int roi_x1, int roi_y1,
+    float max_radius, bool normalize_opaque) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 3> touched{destination, source, depth};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->dof_blur(destination, source, depth,
+            Impl::DofBlurPush{vertical ? 1 : 0, roi_x0, roi_y0, roi_x1, roi_y1,
+                              max_radius, normalize_opaque ? 1 : 0});
+    });
+#else
+    (void)destination; (void)source; (void)depth; (void)vertical;
+    (void)roi_x0; (void)roi_y0; (void)roi_x1; (void)roi_y1;
+    (void)max_radius; (void)normalize_opaque;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::dof_blur_surface: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::directional_blur_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,

@@ -1,0 +1,49 @@
+#version 450
+
+// Native per-pixel DOF depth stamp.  Mirrors publish_dof_provenance() in
+// src/render_graph/nodes/composite_node.cpp exactly:
+//   - a pixel is covered when the layer alpha is > 0.01 and it lies inside the
+//     clip rectangle (the CPU test is row[sx].a <= 0.01 -> skip);
+//   - a covered pixel receives the layer depth and its blur radius (last
+//     writer wins, same as the CPU loop);
+//   - when reset != 0, uncovered pixels are initialised to the "no depth"
+//     sentinel (radius = -1) so the DOF kernel ignores them.
+// The depth surface stores r = camera depth, g = blur radius (< 0 = unset).
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D depth_image;
+layout(binding = 1, rgba32f) uniform readonly image2D layer_image;
+
+layout(push_constant) uniform DofDepthStampParams {
+    float depth;       // camera-space depth of the layer (> 0)
+    float radius;      // precomputed compute_dof_blur_radius(dof, lens, depth), < 0 = no depth
+    int clip_x0;
+    int clip_y0;
+    int clip_x1;
+    int clip_y1;
+    int origin_x;      // layer surface origin in frame pixels
+    int origin_y;
+    int reset;         // 1 = initialise uncovered pixels to the sentinel
+} params;
+
+void main() {
+    ivec2 size = imageSize(depth_image);
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    bool covered = false;
+    if (pixel.x >= params.clip_x0 && pixel.x < params.clip_x1 &&
+        pixel.y >= params.clip_y0 && pixel.y < params.clip_y1) {
+        ivec2 local = pixel - ivec2(params.origin_x, params.origin_y);
+        ivec2 layer_size = imageSize(layer_image);
+        if (local.x >= 0 && local.y >= 0 && local.x < layer_size.x && local.y < layer_size.y) {
+            covered = imageLoad(layer_image, local).a > 0.01;
+        }
+    }
+
+    if (covered) {
+        imageStore(depth_image, pixel, vec4(params.depth, params.radius, 0.0, 1.0));
+    } else if (params.reset != 0) {
+        imageStore(depth_image, pixel, vec4(-1.0, -1.0, 0.0, 0.0));
+    }
+}
