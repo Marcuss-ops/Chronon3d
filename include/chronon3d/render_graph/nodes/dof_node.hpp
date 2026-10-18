@@ -87,6 +87,10 @@ public:
             return ctx.acquire_owned_fb(*inputs[0]);
         }
 
+        // Fail closed on authored lens shaping the blur kernels cannot render:
+        // iris blades and highlight weighting would otherwise be silently
+        // dropped behind a plain gaussian blur.
+        reject_unsupported_dof_shape(camera_dof);
         auto result = ctx.acquire_owned_fb(*inputs[0]);
         if (ctx.backend) {
             EffectStack dof_stack;

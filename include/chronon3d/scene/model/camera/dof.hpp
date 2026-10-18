@@ -4,8 +4,36 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
+#include <string>
 
 namespace chronon3d {
+
+/// Fail closed when the authored lens shaping has no kernel support. The DOF
+/// blur kernels (software `highway_dof_kernels.cpp` and Vulkan `dof_blur.comp`)
+/// separate on the two image axes, so their support is a soft rectangle: no
+/// iris-blade polygon and no highlight weighting exists on any path. An
+/// authoring that requests `iris_blades` or `highlight_gain` would otherwise be
+/// silently ignored and render as plain circular bokeh. Call this at the render
+/// boundary of every path that applies a DOF blur so unsupported shaping fails
+/// loudly instead of silently mismatching the authored lens.
+inline void reject_unsupported_dof_shape(
+    const DepthOfFieldSettings& dof) {
+    constexpr std::string_view kAdviceView =
+        " (the separable DOF kernels support constant circular bokeh only); "
+        "remove the values from the plan or implement the shaped kernels first";
+    if (dof.iris_blades > 0) {
+        throw std::runtime_error(
+            "DOF: iris_blades " + std::to_string(dof.iris_blades) +
+            " is authored but no DOF kernel implements iris-shaped bokeh" +
+            std::string{kAdviceView});
+    }
+    if (dof.highlight_gain > 0.f) {
+        throw std::runtime_error(
+            "DOF: highlight_gain is authored but no DOF kernel implements "
+            "out-of-focus highlight weighting" + std::string{kAdviceView});
+    }
+}
 
 /// Sentinel stored in the per-pixel DOF depth plane when no visible surface
 /// contributed to a pixel. Zero is not a valid positive camera-space optical

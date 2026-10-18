@@ -18,6 +18,7 @@
 #include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
+#include <stdexcept>
 using namespace chronon3d;
 namespace ctt = chronon3d::test;
 
@@ -29,6 +30,25 @@ static Camera2_5DRuntime make_cam2_5d(float focus_z, float aperture, float max_b
     cam.dof.aperture  = aperture;
     cam.dof.max_blur  = max_blur;
     return cam;
+}
+
+TEST_CASE("PR2-Unit-DoF: authored iris/highlight shaping fails closed at the kernel boundary") {
+    DepthOfFieldSettings foundational;
+    foundational.enabled = true;
+    CHECK_NOTHROW(reject_unsupported_dof_shape(foundational));
+
+    DepthOfFieldSettings iris = foundational;
+    iris.iris_blades = 6;
+    CHECK_THROWS_AS(reject_unsupported_dof_shape(iris), std::runtime_error);
+
+    DepthOfFieldSettings highlight = foundational;
+    highlight.highlight_gain = 1.5f;
+    CHECK_THROWS_AS(reject_unsupported_dof_shape(highlight), std::runtime_error);
+
+    DepthOfFieldSettings both = foundational;
+    both.iris_blades = 6;
+    both.highlight_gain = 1.5f;
+    CHECK_THROWS_AS(reject_unsupported_dof_shape(both), std::runtime_error);
 }
 
 TEST_CASE("PR2-Unit-DoF: cache_key varies with focus_z / aperture / max_blur") {
