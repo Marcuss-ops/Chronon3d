@@ -151,8 +151,8 @@ BASEMAP_STYLES = (
 
 
 def is_basemap_style(name: str) -> bool:
-    """Report whether name is a certified rotation-palette basemap id."""
-    return name in BASEMAP_STYLES
+    """Report whether name is a certified raster or offline editorial basemap."""
+    return name in BASEMAP_STYLES or name == "chronon_editorial"
 
 MERCATOR_EQUATOR_METRES_PER_PIXEL = 156543.03392
 
