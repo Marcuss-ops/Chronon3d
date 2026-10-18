@@ -282,12 +282,24 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             const auto source_placement = evaluate_source_placement(item, node, ctx);
             const Mat4 shape_matrix = finalize_source_placement_matrix(
                 source_placement, item, node, ctx);
-            const f32 shape_opacity = source_placement.opacity;
+            f32 shape_opacity = source_placement.opacity;
 
+            // ADR-035 — grouped SVG nodes keep the combined post-composite
+            // alpha (group * placement) in the group spec and draw at full
+            // paint alpha; non-grouped items fold the placement alpha at
+            // draw time exactly as before.
+            std::optional<MultiSourceItem::GroupIsolationSpec> group;
+            if (node.svg_group) {
+                group = MultiSourceItem::GroupIsolationSpec{
+                    node.svg_group->id,
+                    node.svg_group->opacity * shape_opacity};
+                shape_opacity = 1.0f;
+            }
             items.push_back(MultiSourceItem{
                 .node = &node,
                 .matrix = shape_matrix,
                 .opacity = shape_opacity,
+                .group = std::move(group),
                 .defer_camera_projection = item.projected && !item.native_3d &&
                     !item.layer->screen_space,
                 .apply_camera_projection = !item.layer->screen_space,

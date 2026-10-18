@@ -326,6 +326,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         "SVG opacity must be in [0,1]; only solid path paints are supported",
                         "svg_unsupported_style", "render-plan-svg"};
                 ImportedSubpathPlan subpath;
+                if (element.group) {
+                    if (element.group->id == 0 || element.group->opacity <= 0.0f ||
+                        element.group->opacity > 1.0f ||
+                        !std::isfinite(element.group->opacity))
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "SVG isolated group is invalid: id must be nonzero and opacity in (0,1]",
+                            "svg_unsupported_style", "render-plan-svg"};
+                    subpath.svg_group = ImportedSubpathPlan::SvgGroupIsolationPlan{
+                        element.group->id, element.group->opacity};
+                }
                 if (element.fill && element.fill->enabled) {
                     if (element.fill->type != FillType::Solid &&
                         std::any_of(element.animations.begin(), element.animations.end(), [](const auto& animation) {

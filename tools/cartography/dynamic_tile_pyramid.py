@@ -136,6 +136,9 @@ TILE_URLS = {
     "osm": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     "carto_dark": "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
 }
+# Editorial maps use the light-gray plate, with Chronon's palette treatment
+# applied after sampling in geo_runtime.
+TILE_URLS["chronon_editorial"] = TILE_URLS["esri_light"]
 
 # BASEMAP_STYLES is the rotation palette the production dynamic-map renderer
 # draws from: every id is an ArcGIS Online tiled basemap, so a rendered map is
@@ -145,10 +148,9 @@ TILE_URLS = {
 # as the payload's "basemap"; the renderer fails closed on anything outside this
 # tuple, so an unknown style can never silently degrade to the default.
 BASEMAP_STYLES = (
+    "chronon_editorial",
     "esri_sat",
-    "esri_ocean",
     "esri_light",
-    "esri_dark",
 )
 
 

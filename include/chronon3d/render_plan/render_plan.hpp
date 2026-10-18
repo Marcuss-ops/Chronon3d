@@ -210,6 +210,14 @@ struct ImportedSubpathPlan {
     std::vector<ShapePathCommandPlan> morph_target;
     std::optional<AnimationTrackPlan> morph_animation;
     std::vector<std::vector<ShapePathCommandPlan>> morph_keyframe_targets;
+    /// ADR-035: innermost enclosing isolated group. Children paint at full
+    /// alpha; the group stage composites the shared surface once with
+    /// `opacity`, so this must NOT be folded into fill/stroke alpha.
+    struct SvgGroupIsolationPlan {
+        std::uint32_t id{0};
+        float opacity{1.0f};
+    };
+    std::optional<SvgGroupIsolationPlan> svg_group;
     struct GroupTransformPlan {
         std::array<float, 2> position{0.0f, 0.0f};
         std::array<float, 2> anchor{0.0f, 0.0f};
