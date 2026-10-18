@@ -32,6 +32,8 @@ enum class GpuKernelId : std::uint8_t {
     TextTileRaster,
     ColorMatrix,
     ChromaticAberration,
+    DofDepthStamp,
+    DofBlur,
 };
 
 class GpuKernelRegistry {

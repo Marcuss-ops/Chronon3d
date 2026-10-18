@@ -9,6 +9,8 @@
 #include "affine_transform_comp_spv.hpp"
 #include "blur_comp_spv.hpp"
 #include "directional_blur_comp_spv.hpp"
+#include "dof_blur_comp_spv.hpp"
+#include "dof_depth_stamp_comp_spv.hpp"
 #include "radial_blur_comp_spv.hpp"
 #include "warp_bulk_comp_spv.hpp"
 #include "generate_bulk_comp_spv.hpp"
@@ -352,6 +354,52 @@ namespace chronon3d::backends::vulkan {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::RadialBlur, radial_blur_pipeline, "RadialBlur");
         if (debug_context) debug_context->set_pipeline_name(radial_blur_pipeline, "Chronon3D.Pipeline.RadialBlur");
+
+        const VkShaderModuleCreateInfo dof_depth_stamp_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_dof_depth_stamp_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_dof_depth_stamp_comp_spv)};
+        VkShaderModule dof_depth_stamp_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &dof_depth_stamp_shader_info, nullptr, &dof_depth_stamp_shader),
+              "vkCreateShaderModule(dof_depth_stamp)");
+        const VkPipelineShaderStageCreateInfo dof_depth_stamp_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            dof_depth_stamp_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo dof_depth_stamp_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            dof_depth_stamp_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline dof_depth_stamp_pipeline = VK_NULL_HANDLE;
+        const VkResult dof_depth_stamp_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &dof_depth_stamp_pipeline_info, nullptr, &dof_depth_stamp_pipeline);
+        vkDestroyShaderModule(device, dof_depth_stamp_shader, nullptr);
+        check(dof_depth_stamp_result, "vkCreateComputePipelines(dof_depth_stamp)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::DofDepthStamp, dof_depth_stamp_pipeline, "DofDepthStamp");
+        if (debug_context) debug_context->set_pipeline_name(dof_depth_stamp_pipeline, "Chronon3D.Pipeline.DofDepthStamp");
+
+        const VkShaderModuleCreateInfo dof_blur_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_dof_blur_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_dof_blur_comp_spv)};
+        VkShaderModule dof_blur_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &dof_blur_shader_info, nullptr, &dof_blur_shader),
+              "vkCreateShaderModule(dof_blur)");
+        const VkPipelineShaderStageCreateInfo dof_blur_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            dof_blur_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo dof_blur_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            dof_blur_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline dof_blur_pipeline = VK_NULL_HANDLE;
+        const VkResult dof_blur_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &dof_blur_pipeline_info, nullptr, &dof_blur_pipeline);
+        vkDestroyShaderModule(device, dof_blur_shader, nullptr);
+        check(dof_blur_result, "vkCreateComputePipelines(dof_blur)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::DofBlur, dof_blur_pipeline, "DofBlur");
+        if (debug_context) debug_context->set_pipeline_name(dof_blur_pipeline, "Chronon3D.Pipeline.DofBlur");
 
         const VkShaderModuleCreateInfo warp_bulk_shader_info{
             VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,

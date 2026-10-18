@@ -49,6 +49,7 @@ chronon3d_add_test_suite(
         chronon3d_pipeline
         chronon3d_runtime
     SOURCES ${CORE_TEST_SOURCES} core/test_hash_primitives.cpp
+    UNITY_EXCLUDE_SOURCES ${CORE_TEST_UNITY_COLLISION_SOURCES}
 )
 if(CHRONON3D_ENABLE_MESH)
     target_compile_definitions(chronon3d_core_tests PRIVATE CHRONON3D_ENABLE_MESH=1)
@@ -144,6 +145,8 @@ chronon3d_add_test_suite(
         cache/test_cache_invariance.cpp
         cache/test_compiled_artifact_cache.cpp
         cache/test_image_cache_resolver_identity.cpp
+    UNITY_EXCLUDE_SOURCES
+        cache/stress/test_camera_transition_catalog_stress.cpp
 )
 if(CHRONON3D_ENABLE_VIDEO)
     target_sources(chronon3d_cache_tests PRIVATE cache/test_hash_builder.cpp)

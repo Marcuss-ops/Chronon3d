@@ -12,7 +12,7 @@ function(chronon3d_add_test_suite)
         ARG
         "NO_PIPELINE;NO_DOCTEST"
         "NAME;TIER"
-        "SOURCES;LINK_TARGETS;EXTRA_LINK_TARGETS;LABELS"
+        "SOURCES;LINK_TARGETS;EXTRA_LINK_TARGETS;LABELS;UNITY_EXCLUDE_SOURCES"
         ${ARGN}
     )
 
@@ -71,7 +71,21 @@ function(chronon3d_add_test_suite)
 
     # Test files commonly contain same-named local fixtures; keep test
     # executables out of the project-wide unity build at the suite boundary.
-    set_target_properties(${ARG_NAME} PROPERTIES UNITY_BUILD OFF)
+    # CHRONON3D_TEST_UNITY_BUILD opts a whole configure into the experiment
+    # (measured in docs/BUILD-STEP-AUDIT-2026-10-18.md); default OFF keeps the
+    # collision-proof behaviour for every regular developer and CI build.
+    if(CHRONON3D_TEST_UNITY_BUILD)
+        set_target_properties(${ARG_NAME} PROPERTIES UNITY_BUILD ON)
+        # Fixture families that share identical anonymous-namespace helpers
+        # across several sources cannot be coalesced into one unity TU;
+        # excluding them keeps every fixture in its own compilation unit.
+        foreach(_unity_exclude IN LISTS ARG_UNITY_EXCLUDE_SOURCES)
+            set_source_files_properties(${_unity_exclude}
+                PROPERTIES SKIP_UNITY_BUILD_INCLUSION TRUE)
+        endforeach()
+    else()
+        set_target_properties(${ARG_NAME} PROPERTIES UNITY_BUILD OFF)
+    endif()
 
     target_link_libraries(${ARG_NAME} PRIVATE
         ${ARG_LINK_TARGETS}

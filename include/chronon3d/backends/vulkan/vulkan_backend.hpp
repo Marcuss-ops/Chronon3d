@@ -474,6 +474,13 @@ public:
     graph::RenderOpResult blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, bool, bool) override;
+    graph::RenderOpResult dof_depth_stamp_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        float, float, int, int, int, int, int, int, bool) override;
+    graph::RenderOpResult dof_blur_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, bool, int, int, int, int,
+        float, bool) override;
     graph::RenderOpResult directional_blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, float, int) override;

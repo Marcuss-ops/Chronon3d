@@ -136,9 +136,9 @@ TILE_URLS = {
     "osm": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     "carto_dark": "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
 }
-# Editorial maps use the light-gray plate, with Chronon's palette treatment
-# applied after sampling in geo_runtime.
-TILE_URLS["chronon_editorial"] = TILE_URLS["esri_light"]
+# chronon_editorial has NO tile URL: it renders from the offline vector
+# plate (ChrononTemplate/tools/map/vector_plate_pyramid.py). Requesting it
+# from DynamicTilePyramid fails closed in __init__.
 
 # BASEMAP_STYLES is the rotation palette the production dynamic-map renderer
 # draws from: every id is an ArcGIS Online tiled basemap, so a rendered map is

@@ -6,7 +6,7 @@ using namespace chronon3d;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-static Layer make_layer(const char* name, Frame duration = 60) {
+static Layer validator_make_layer(const char* name, Frame duration = 60) {
     Layer l;
     l.name = name;
     l.duration = duration;
@@ -25,9 +25,9 @@ static Layer make_null_layer(const char* name) {
 
 TEST_CASE("SceneValidator: clean scene produces no diagnostics") {
     Scene scene;
-    scene.add_layer(make_layer("bg"));
-    scene.add_layer(make_layer("text"));
-    scene.add_layer(make_layer("icon"));
+    scene.add_layer(validator_make_layer("bg"));
+    scene.add_layer(validator_make_layer("text"));
+    scene.add_layer(validator_make_layer("icon"));
 
     SceneValidator validator;
     auto result = validator.validate(scene);
@@ -42,9 +42,9 @@ TEST_CASE("SceneValidator: clean scene produces no diagnostics") {
 
 TEST_CASE("SceneValidator: layer.duplicate_name detects identical names") {
     Scene scene;
-    scene.add_layer(make_layer("card"));
-    scene.add_layer(make_layer("bg"));
-    scene.add_layer(make_layer("card")); // duplicate
+    scene.add_layer(validator_make_layer("card"));
+    scene.add_layer(validator_make_layer("bg"));
+    scene.add_layer(validator_make_layer("card")); // duplicate
 
     SceneValidator validator;
     auto result = validator.validate(scene);
@@ -63,9 +63,9 @@ TEST_CASE("SceneValidator: layer.duplicate_name detects identical names") {
 
 TEST_CASE("SceneValidator: layer.duplicate_name triggers once per duplicate group") {
     Scene scene;
-    scene.add_layer(make_layer("x"));
-    scene.add_layer(make_layer("x")); // 1st duplicate
-    scene.add_layer(make_layer("x")); // 2nd duplicate
+    scene.add_layer(validator_make_layer("x"));
+    scene.add_layer(validator_make_layer("x")); // 1st duplicate
+    scene.add_layer(validator_make_layer("x")); // 2nd duplicate
 
     SceneValidator validator;
     auto result = validator.validate(scene);
@@ -82,7 +82,7 @@ TEST_CASE("SceneValidator: layer.duplicate_name triggers once per duplicate grou
 
 TEST_CASE("SceneValidator: layer.missing_parent detects non-existent parent") {
     Scene scene;
-    scene.add_layer(make_layer("child"));
+    scene.add_layer(validator_make_layer("child"));
     scene.layers().back().parent_name = "ghost_parent";
 
     SceneValidator validator;
@@ -102,8 +102,8 @@ TEST_CASE("SceneValidator: layer.missing_parent detects non-existent parent") {
 
 TEST_CASE("SceneValidator: layer.missing_parent passes when parent exists") {
     Scene scene;
-    scene.add_layer(make_layer("parent"));
-    scene.add_layer(make_layer("child"));
+    scene.add_layer(validator_make_layer("parent"));
+    scene.add_layer(validator_make_layer("child"));
     scene.layers().back().parent_name = "parent";
 
     SceneValidator validator;
@@ -118,8 +118,8 @@ TEST_CASE("SceneValidator: layer.missing_parent passes when parent exists") {
 
 TEST_CASE("SceneValidator: layer.zero_duration detects zero-duration normal layer") {
     Scene scene;
-    scene.add_layer(make_layer("bg", 100));
-    scene.add_layer(make_layer("ghost", 0)); // zero duration
+    scene.add_layer(validator_make_layer("bg", 100));
+    scene.add_layer(validator_make_layer("ghost", 0)); // zero duration
 
     SceneValidator validator;
     auto result = validator.validate(scene);
@@ -152,7 +152,7 @@ TEST_CASE("SceneValidator: layer.zero_duration ignores Null layers") {
 
 TEST_CASE("SceneValidator: track_matte_missing_source detects missing source layer") {
     Scene scene;
-    scene.add_layer(make_layer("fg"));
+    scene.add_layer(validator_make_layer("fg"));
 
     Layer matte_layer;
     matte_layer.name = "matte";
@@ -178,7 +178,7 @@ TEST_CASE("SceneValidator: track_matte_missing_source detects missing source lay
 
 TEST_CASE("SceneValidator: track_matte_missing_source passes when source exists") {
     Scene scene;
-    scene.add_layer(make_layer("alpha_source"));
+    scene.add_layer(validator_make_layer("alpha_source"));
 
     Layer matte_layer;
     matte_layer.name = "matte";
@@ -199,7 +199,7 @@ TEST_CASE("SceneValidator: track_matte_missing_source passes when source exists"
 
 TEST_CASE("SceneValidator: camera.missing_target detects non-existent target") {
     Scene scene;
-    scene.add_layer(make_layer("bg"));
+    scene.add_layer(validator_make_layer("bg"));
 
     Camera2_5D cam;
     cam.enabled = true;
@@ -223,7 +223,7 @@ TEST_CASE("SceneValidator: camera.missing_target detects non-existent target") {
 
 TEST_CASE("SceneValidator: camera.missing_target passes when target exists") {
     Scene scene;
-    scene.add_layer(make_layer("hero_card"));
+    scene.add_layer(validator_make_layer("hero_card"));
 
     Camera2_5D cam;
     cam.enabled = true;
@@ -240,7 +240,7 @@ TEST_CASE("SceneValidator: camera.missing_target passes when target exists") {
 
 TEST_CASE("SceneValidator: camera.missing_target skipped when camera disabled") {
     Scene scene;
-    scene.add_layer(make_layer("bg"));
+    scene.add_layer(validator_make_layer("bg"));
 
     Camera2_5D cam;
     cam.enabled = false;
@@ -259,7 +259,7 @@ TEST_CASE("SceneValidator: camera.missing_target skipped when camera disabled") 
 
 TEST_CASE("SceneValidator: layer.circular_parent detects A→A self-cycle") {
     Scene scene;
-    scene.add_layer(make_layer("self_ref"));
+    scene.add_layer(validator_make_layer("self_ref"));
     scene.layers().back().parent_name = "self_ref";
 
     SceneValidator validator;
@@ -279,10 +279,10 @@ TEST_CASE("SceneValidator: layer.circular_parent detects A→A self-cycle") {
 
 TEST_CASE("SceneValidator: layer.circular_parent detects A→B→A cycle") {
     Scene scene;
-    scene.add_layer(make_layer("layer_a"));
+    scene.add_layer(validator_make_layer("layer_a"));
     scene.layers().back().parent_name = "layer_b";
 
-    scene.add_layer(make_layer("layer_b"));
+    scene.add_layer(validator_make_layer("layer_b"));
     scene.layers().back().parent_name = "layer_a";
 
     SceneValidator validator;
@@ -304,13 +304,13 @@ TEST_CASE("SceneValidator: layer.circular_parent detects A→B→A cycle") {
 
 TEST_CASE("SceneValidator: layer.circular_parent detects A→B→C→A chain") {
     Scene scene;
-    scene.add_layer(make_layer("node_a"));
+    scene.add_layer(validator_make_layer("node_a"));
     scene.layers().back().parent_name = "node_c";
 
-    scene.add_layer(make_layer("node_b"));
+    scene.add_layer(validator_make_layer("node_b"));
     scene.layers().back().parent_name = "node_a";
 
-    scene.add_layer(make_layer("node_c"));
+    scene.add_layer(validator_make_layer("node_c"));
     scene.layers().back().parent_name = "node_b";
 
     SceneValidator validator;
@@ -328,10 +328,10 @@ TEST_CASE("SceneValidator: layer.circular_parent detects A→B→C→A chain") {
 
 TEST_CASE("SceneValidator: layer.circular_parent passes for valid hierarchy") {
     Scene scene;
-    scene.add_layer(make_layer("root"));
-    scene.add_layer(make_layer("child"));
+    scene.add_layer(validator_make_layer("root"));
+    scene.add_layer(validator_make_layer("child"));
     scene.layers().back().parent_name = "root";
-    scene.add_layer(make_layer("grandchild"));
+    scene.add_layer(validator_make_layer("grandchild"));
     scene.layers().back().parent_name = "child";
 
     SceneValidator validator;
@@ -346,9 +346,9 @@ TEST_CASE("SceneValidator: layer.circular_parent passes for valid hierarchy") {
 
 TEST_CASE("SceneValidator: catches multiple different errors at once") {
     Scene scene;
-    scene.add_layer(make_layer("dup"));  // will be duplicated
-    scene.add_layer(make_layer("dup"));  // duplicate name
-    scene.add_layer(make_layer("orphan", 0)); // zero duration
+    scene.add_layer(validator_make_layer("dup"));  // will be duplicated
+    scene.add_layer(validator_make_layer("dup"));  // duplicate name
+    scene.add_layer(validator_make_layer("orphan", 0)); // zero duration
     scene.layers().back().parent_name = "nonexistent_parent"; // missing parent
 
     SceneValidator validator;
@@ -371,8 +371,8 @@ TEST_CASE("SceneValidator: catches multiple different errors at once") {
 
 TEST_CASE("SceneValidator: to_text() produces readable output") {
     Scene scene;
-    scene.add_layer(make_layer("a"));
-    scene.add_layer(make_layer("a")); // duplicate
+    scene.add_layer(validator_make_layer("a"));
+    scene.add_layer(validator_make_layer("a")); // duplicate
 
     SceneValidator validator;
     auto result = validator.validate(scene);
@@ -388,11 +388,11 @@ TEST_CASE("SceneValidator: to_text() produces readable output") {
 TEST_CASE("SceneValidator: errors() and warnings() filter correctly") {
     Scene scene;
     // Duplicate name → Error
-    scene.add_layer(make_layer("x"));
-    scene.add_layer(make_layer("x"));
+    scene.add_layer(validator_make_layer("x"));
+    scene.add_layer(validator_make_layer("x"));
 
     // Missing parent → Warning
-    scene.add_layer(make_layer("child"));
+    scene.add_layer(validator_make_layer("child"));
     scene.layers().back().parent_name = "missing";
 
     SceneValidator validator;

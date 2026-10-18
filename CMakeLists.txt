@@ -87,6 +87,8 @@ endif()
 
 # Project options.
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
+option(CHRONON3D_TEST_UNITY_BUILD
+    "Enable unity (jumbo) build for test executables (experimental; test fixtures may collide)" OFF)
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
 option(CHRONON3D_ENABLE_MOTION_ADAPTER
     "Build the optional offline ChrononMotion3D-to-RenderPlan adapter (Motion source required)" OFF)

@@ -106,3 +106,22 @@ set(CORE_TEST_SOURCES
     runtime/test_compiled_program_execution_equivalence.cpp
     runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
 )
+
+# Sources that cannot join the CHRONON3D_TEST_UNITY_BUILD experiment: their
+# file-scope helpers collide with same-named helpers in other sources that the
+# unity batches coalesce. Each entry keeps its own TC and skips unity inclusion.
+set(CORE_TEST_UNITY_COLLISION_SOURCES
+    core/memory/test_huge_page_allocator.cpp
+    core/test_cpu_budget.cpp
+    core/test_graph_build_pass_order.cpp
+    core/timeline/test_code_first_composition.cpp
+    core/math/test_projector_2_5d.cpp
+    core/math/test_camera_projection_resolver.cpp
+    text/test_text_bounds.cpp
+    runtime/test_resource_preparation_mesh.cpp
+    text/test_auto_fit_font_size.cpp
+    text/test_draw_text_run_crossfade_stroke.cpp
+    text/test_draw_text_run_scratch_state.cpp
+    text/test_rich_text_paragraph_preservation.cpp
+    text/test_compile_text_layout_errors.cpp
+)

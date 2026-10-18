@@ -323,6 +323,20 @@ struct NodeExecutionContext {
     DofSourceCoverage dof_source_coverage;
     DofSourceCoverage* shared_dof_source_coverage{nullptr};
 
+    // Native (device-local) DOF depth surface. Compositing stamps it on GPU
+    // surfaces (RGBA32F: r = depth, g = blur radius, < 0 = unset); the DOF
+    // node consumes it and releases it. Per-node clones share the parent state.
+    struct NativeDofDepthState {
+        std::shared_ptr<Framebuffer> surface;
+        bool unusable{false};  // CPU depth was published or a GPU stamp failed
+    };
+    NativeDofDepthState native_dof_depth;
+    NativeDofDepthState* shared_native_dof_depth{nullptr};
+
+    [[nodiscard]] NativeDofDepthState& native_dof_state() noexcept {
+        return shared_native_dof_depth ? *shared_native_dof_depth : native_dof_depth;
+    }
+
     [[nodiscard]] std::vector<float>& dof_depth_buffer() noexcept {
         return shared_dof_depth ? *shared_dof_depth : dof_depth;
     }

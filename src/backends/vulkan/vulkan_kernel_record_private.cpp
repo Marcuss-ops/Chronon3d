@@ -195,6 +195,39 @@ void VulkanBackend::Impl::record_composite(
         ++stats.vk_cmd_dispatch_count;
     }
 
+    void VulkanBackend::Impl::record_dof_depth_stamp(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& depth, const Image& layer,
+                      const DofDepthStampPush& push) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::DofDepthStamp)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (depth.width + 15) / 16,
+                      (depth.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+        (void)layer;
+    }
+
+    void VulkanBackend::Impl::record_dof_blur(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& destination, const Image& source,
+                      const Image& depth, const DofBlurPush& push) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::DofBlur)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(push), &push);
+        vkCmdDispatch(command, (destination.width + 15) / 16,
+                      (destination.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+        (void)source;
+        (void)depth;
+    }
+
     void VulkanBackend::Impl::record_radial_blur(VkCommandBuffer command,
                       VkDescriptorSet descriptors,
                       const Image& destination, const Image& source,

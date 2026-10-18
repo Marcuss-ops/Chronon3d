@@ -68,9 +68,14 @@ chronon3d_add_test_suite(
     NAME chronon3d_cli_tests
     TIER SDK
     LINK_TARGETS ${_cli_tests_link_targets}
-    SOURCES ${_cli_test_sources}
-    cli/test_render_request.cpp
-    cli/test_caption_plan_expansion.cpp
+    SOURCES
+        ${_cli_test_sources}
+        cli/test_render_request.cpp
+        cli/test_caption_plan_expansion.cpp
+    UNITY_EXCLUDE_SOURCES
+        cli/test_render_job_planning.cpp
+        cli/test_nvml_sampler_lifecycle.cpp
+        cli/test_daemon_ipc_exception_boundary.cpp
 )
 
 # ── Daemon render-concurrency contract ──

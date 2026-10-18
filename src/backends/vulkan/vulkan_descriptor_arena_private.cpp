@@ -144,6 +144,26 @@ VkCommandBuffer VulkanBackend::Impl::active_command_buffer() const noexcept {
     return frame_batch.command_buffers[frame_batch.next_slot];
 }
 
+void VulkanBackend::Impl::write_dof_descriptors(VkDescriptorSet set,
+                                                const Image& destination,
+                                                const Image& source,
+                                                const Image& depth) {
+    const VkDescriptorImageInfo dst_info{
+        VK_NULL_HANDLE, destination.view, VK_IMAGE_LAYOUT_GENERAL};
+    const VkDescriptorImageInfo src_info{
+        VK_NULL_HANDLE, source.view, VK_IMAGE_LAYOUT_GENERAL};
+    const VkDescriptorImageInfo depth_info{
+        VK_NULL_HANDLE, depth.view, VK_IMAGE_LAYOUT_GENERAL};
+    const VkWriteDescriptorSet writes[] = {
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 0, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 1, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &src_info, nullptr, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, set, 2, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &depth_info, nullptr, nullptr}};
+    vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
+}
+
 VkDescriptorSet VulkanBackend::Impl::allocate_pass_descriptor_set() {
     const auto set =
         frame_batch.descriptor_allocators[frame_batch.next_slot].allocate();

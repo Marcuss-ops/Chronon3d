@@ -304,6 +304,69 @@ bool seed_native_destination(
     return true;
 }
 
+// publish_dof_provenance_native() — GPU counterpart of the CPU publish for
+// device-local layers. The depth surface is created once per frame and reset
+// to the "no depth" sentinel; each covered layer then stamps its depth on the
+// device (same last-writer-wins rule). Coverage uses the layer clip rect as a
+// conservative bbox, so the DOF ROI is a superset of the CPU one.
+void publish_dof_provenance_native(
+    RenderGraphContext& ctx, const Framebuffer& layer,
+    float camera_depth, float source_radius,
+    const std::optional<raster::BBox>& clip,
+    i32 framebuffer_width, i32 framebuffer_height) {
+    if (!ctx.backend || !ctx.surface_registry ||
+        !ctx.backend->supports_native_surfaces()) {
+        return;
+    }
+    if (layer.surface_handle() == runtime::kInvalidRenderSurfaceHandle) return;
+    auto& native = ctx.node_exec.native_dof_state();
+    if (native.unusable) return;
+    if (!native.surface) {
+        auto depth = std::make_shared<Framebuffer>(framebuffer_width, framebuffer_height);
+        bool ready = ensure_empty_native_surface(ctx, *depth);
+        // Empty clip rect + reset: every pixel becomes the "no depth" sentinel.
+        ready = ready && ctx.backend->dof_depth_stamp_surface(
+            depth->surface_handle(), layer.surface_handle(),
+            0.0f, -1.0f, 0, 0, 0, 0, 0, 0, true).ok();
+        if (!ready) {
+            release_native_surface(ctx, *depth);
+            native.unusable = true;
+            return;
+        }
+        native.surface = std::move(depth);
+    }
+
+    const i32 cx0 = std::clamp(clip ? clip->x0 : 0, 0, framebuffer_width);
+    const i32 cy0 = std::clamp(clip ? clip->y0 : 0, 0, framebuffer_height);
+    const i32 cx1 = std::clamp(clip ? clip->x1 : framebuffer_width, 0, framebuffer_width);
+    const i32 cy1 = std::clamp(clip ? clip->y1 : framebuffer_height, 0, framebuffer_height);
+    const auto stamp = ctx.backend->dof_depth_stamp_surface(
+        native.surface->surface_handle(), layer.surface_handle(),
+        camera_depth, source_radius, cx0, cy0, cx1, cy1,
+        layer.origin_x(), layer.origin_y(), false);
+    if (!stamp.ok()) {
+        release_native_surface(ctx, *native.surface);
+        native.surface.reset();
+        native.unusable = true;
+        return;
+    }
+
+    if (std::isfinite(source_radius) && source_radius >= 0.5f &&
+        cx0 < cx1 && cy0 < cy1) {
+        auto& coverage = ctx.node_exec.dof_sources();
+        if (!coverage.source_bbox) {
+            coverage.source_bbox = raster::BBox{cx0, cy0, cx1, cy1};
+        } else {
+            auto& bbox = *coverage.source_bbox;
+            bbox.x0 = std::min(bbox.x0, cx0);
+            bbox.y0 = std::min(bbox.y0, cy0);
+            bbox.x1 = std::max(bbox.x1, cx1);
+            bbox.y1 = std::max(bbox.y1, cy1);
+        }
+        coverage.max_radius = std::max(coverage.max_radius, source_radius);
+    }
+}
+
 // publish_dof_provenance() — single authority for DOF depth/coverage
 // publication. Previously this loop existed twice verbatim (pass-through
 // branch and post-blend branch); the two copies had to be kept in sync by
@@ -315,10 +378,15 @@ void publish_dof_provenance(
     const std::optional<raster::BBox>& clip,
     i32 framebuffer_width, i32 framebuffer_height) {
     auto& dof_depth = ctx.node_exec.dof_depth_buffer();
-    if (dof_depth.empty() || !surface.is_cpu_authoritative() ||
-        surface.data() == nullptr) {
+    if (dof_depth.empty()) return;
+    if (!surface.is_cpu_authoritative() || surface.data() == nullptr) {
+        publish_dof_provenance_native(ctx, surface, camera_depth, source_radius,
+                                      clip, framebuffer_width, framebuffer_height);
         return;
     }
+    // CPU depth is now authoritative for this frame: the native depth surface
+    // no longer describes every covered pixel, so it must not be consumed.
+    ctx.node_exec.native_dof_state().unusable = true;
     const i32 w = framebuffer_width;
     const i32 bx0 = clip ? clip->x0 : 0;
     const i32 by0 = clip ? clip->y0 : 0;
