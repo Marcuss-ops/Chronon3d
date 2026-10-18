@@ -51,17 +51,6 @@ void Layer3DDelegate::add_grid_plane(Layer& layer, std::string name, GridPlanePa
 
 // ── 2D Shapes ─────────────────────────────────────────────────────────
 
-LayerBuilder& LayerBuilder::svg_group_isolation(std::uint32_t id, f32 opacity) {
-    // Mirrors the pin_to contract: it retargets the last-authored node of
-    // this layer. Without a node the call is a no-op (plan validation
-    // already guarantees the id/opacity bounds).
-    if (!m_layer.nodes.empty()) {
-        m_layer.nodes.back().svg_group =
-            RenderNode::SvgGroupIsolation{id, opacity};
-    }
-    return *this;
-}
-
 LayerBuilder& LayerBuilder::rect(std::string name, RectParams p) {
     return shape(registry::shape_ids::Rect, std::move(name), std::move(p));
 }
@@ -80,6 +69,14 @@ LayerBuilder& LayerBuilder::line(std::string name, LineParams p) {
 
 LayerBuilder& LayerBuilder::path(std::string name, PathParams p) {
     return shape(registry::shape_ids::Path, std::move(name), std::move(p));
+}
+
+LayerBuilder& LayerBuilder::svg_group_isolation(std::uint32_t id, f32 opacity) {
+    if (!m_layer.nodes.empty() && id != 0 && std::isfinite(opacity) &&
+        opacity > 0.0f && opacity <= 1.0f) {
+        m_layer.nodes.back().svg_group = RenderNode::SvgGroupIsolation{id, opacity};
+    }
+    return *this;
 }
 
 LayerBuilder& LayerBuilder::arrow(std::string name, ArrowParams p) {

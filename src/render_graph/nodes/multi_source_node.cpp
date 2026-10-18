@@ -293,25 +293,41 @@ NodeExecResult MultiSourceNode::execute(
     bool has_group_items = false;
     for (const auto& item : m_items)
         if (item.group) { has_group_items = true; break; }
-    if (has_group_items && ctx.policy.is_gpu_native_required()) {
-        // V1 certifies the software lane; the native lane fails closed
-        // instead of silently falling back (zero-readback doctrine).
-        spdlog::error(
-            "[multi-source] node='{}': isolated SVG groups require the "
-            "software lane under the gpu-native policy (svg_group_native_unsupported)",
-            m_name);
+    const bool native_group_surfaces = has_group_items &&
+        ctx.backend->supports_native_surfaces() && ctx.surface_registry;
+    if (has_group_items && ctx.policy.is_gpu_native_required() &&
+        !native_group_surfaces) {
         return NodeExecResult{NodeExecutionError{
-            RenderBackendErrorCode::UnsupportedCapability,
-            m_name,
-            "svg_group_native_unsupported"
-        }};
+            RenderBackendErrorCode::UnsupportedCapability, m_name,
+            "svg_group_native_unsupported: native surface registry unavailable"}};
     }
 
     OwnedFB group_fb;
     std::uint32_t pending_group_id = 0;
     f32 pending_group_alpha = 0.0f;
 
-    auto blend_group_surface = [&](Framebuffer& surface, f32 group_alpha) {
+    std::string group_failure;
+    auto blend_group_surface = [&](Framebuffer& surface, f32 group_alpha) -> bool {
+        if (native_group_surfaces) {
+            const auto destination = fb->surface_handle();
+            const auto source = surface.surface_handle();
+            if (destination == runtime::kInvalidRenderSurfaceHandle ||
+                source == runtime::kInvalidRenderSurfaceHandle ||
+                !ctx.backend->is_native_surface_valid(destination) ||
+                !ctx.backend->is_native_surface_valid(source)) {
+                group_failure = "svg_group_native_unsupported: group surface is not GPU resident";
+                return false;
+            }
+            const auto result = ctx.backend->composite_surface_weighted(
+                destination, source, group_alpha);
+            if (!result.ok()) {
+                group_failure = "SVG isolated group native composite failed: " +
+                    result.error().message;
+                return false;
+            }
+            fb->mark_gpu_authoritative();
+            return true;
+        }
         const i32 width = ctx.frame_input.width;
         const i32 height = ctx.frame_input.height;
         for (i32 y = 0; y < height; ++y) {
@@ -335,10 +351,11 @@ NodeExecResult MultiSourceNode::execute(
                 fb->set_pixel(x, y, out);
             }
         }
+        return true;
     };
     auto flush_pending_group = [&]() -> bool {
         if (!group_fb) return true;
-        blend_group_surface(*group_fb, pending_group_alpha);
+        if (!blend_group_surface(*group_fb, pending_group_alpha)) return false;
         group_fb.reset();
         pending_group_id = 0;
         pending_group_alpha = 0.0f;
@@ -356,7 +373,7 @@ NodeExecResult MultiSourceNode::execute(
                     return NodeExecResult{NodeExecutionError{
                         RenderBackendErrorCode::ExecutionFailure,
                         m_name,
-                        "svg_group_stage_failure"
+                        group_failure.empty() ? "svg_group_stage_failure" : group_failure
                     }};
             }
             if (item.group) {
@@ -374,7 +391,7 @@ NodeExecResult MultiSourceNode::execute(
                     }};
                 }
                 if (!group_fb) {
-                    if (fb->data() == nullptr) {
+                    if (!native_group_surfaces && fb->data() == nullptr) {
                         // No CPU pixel memory: the software blend below is
                         // impossible. Fail closed, no silent CPU fallback.
                         spdlog::error(
@@ -390,6 +407,12 @@ NodeExecResult MultiSourceNode::execute(
                     group_fb = ctx.acquire_owned_fb(
                         ctx.frame_input.width, ctx.frame_input.height,
                         /*clear=*/true);
+                    if (native_group_surfaces &&
+                        !ensure_empty_native_surface(ctx, *group_fb)) {
+                        return NodeExecResult{NodeExecutionError{
+                            RenderBackendErrorCode::ExecutionFailure, m_name,
+                            "failed to create native SVG group surface"}};
+                    }
                     pending_group_id = item_group_id;
                     pending_group_alpha = item.group->opacity;
                     if (ctx.policy.diagnostics_enabled) {
@@ -551,7 +574,7 @@ NodeExecResult MultiSourceNode::execute(
         return NodeExecResult{NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,
             m_name,
-            "svg_group_stage_failure"
+            group_failure.empty() ? "svg_group_stage_failure" : group_failure
         }};
 
     fb->set_opaque(false);

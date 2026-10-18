@@ -33,21 +33,6 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
                 for (const float value : vertex.uv)
                     if (!std::isfinite(value) || std::abs(value) > 1'000'000.0f) throw invalid_payload();
             }
-            if (layer.inline_mesh->animation.size() > render_plan::kInlineMeshMaxAnimationSamples)
-                throw invalid_payload();
-            std::int64_t previous_sample_frame = -1;
-            for (const auto& sample : layer.inline_mesh->animation) {
-                if (plan.schema != render_plan::kRenderPlanSchemaV3 ||
-                    sample.frame <= previous_sample_frame ||
-                    sample.frame < 0 || sample.frame >= plan.canvas.duration.integral() ||
-                    sample.positions.size() != layer.inline_mesh->vertices.size())
-                    throw invalid_payload();
-                previous_sample_frame = sample.frame;
-                for (const auto& position : sample.positions)
-                    for (const float value : position)
-                        if (!std::isfinite(value) || std::abs(value) > 1'000'000.0f)
-                            throw invalid_payload();
-            }
             for (const auto index : layer.inline_mesh->indices)
                 if (index >= layer.inline_mesh->vertices.size()) throw invalid_payload();
         } else if (layer.type == render_plan::LayerType::Mesh) {
@@ -61,10 +46,6 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             case render_plan::LayerType::Color: kind = NodeKind::Color; break;
             case render_plan::LayerType::Shape: kind = NodeKind::Shape; break;
             case render_plan::LayerType::Mesh: kind = NodeKind::Mesh; break;
-            case render_plan::LayerType::Null:
-            default:
-                kind = NodeKind::Unknown;
-                break;
         }
         out.nodes.push_back({i, kind, 0, 0, i});
         StaticLayerProgram lowered;
@@ -78,20 +59,12 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.size = layer.size;
         lowered.color = layer.color;
         lowered.position = layer.position;
-        // Native phrase style positions, shape positions and video box
-        // positions are authored in top-left canvas space, while the scene
-        // graph uses a canvas-centred basis. Text positions are already box
-        // centers; video positions are box origins, so video receives its
-        // half-size offset below as well. Shapes follow the same box-center
-        // convention as the legacy render-plan compiler
-        // (apply_layer_primitives converts Text/Shape identically); without
-        // this the modular resolver's canvas-center shift applies twice and
-        // every shape lands a half-canvas down-right of its authored spot.
-        // Screen-space shapes are already expressed in output pixel
-        // coordinates and must keep their authored position.
+        // Native phrase style positions and video box positions are authored
+        // in top-left canvas space, while the scene graph uses a canvas-centred
+        // basis. Text positions are already box centers; video positions are
+        // box origins, so video receives its half-size offset below as well.
         if ((layer.type == render_plan::LayerType::Text ||
-             layer.type == render_plan::LayerType::Video ||
-             (layer.type == render_plan::LayerType::Shape && !layer.screen_space)) &&
+             layer.type == render_plan::LayerType::Video) &&
             layer.position_dimensions >= 2) {
             lowered.position[0] -= static_cast<float>(plan.canvas.width) * 0.5f;
             lowered.position[1] -= static_cast<float>(plan.canvas.height) * 0.5f;
@@ -127,11 +100,6 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.radius = layer.radius.value_or(0.0f);
         lowered.shape = layer.shape;
         lowered.inline_mesh = layer.inline_mesh;
-        if (layer.inline_mesh && !layer.inline_mesh->animation.empty()) {
-            for (std::size_t vertex = 0; vertex < lowered.inline_mesh->vertices.size(); ++vertex)
-                lowered.inline_mesh->vertices[vertex].position =
-                    layer.inline_mesh->animation.front().positions[vertex];
-        }
         if (layer.type == render_plan::LayerType::Shape && lowered.size_dimensions == 0) {
             lowered.size = {static_cast<float>(plan.canvas.width),
                             static_cast<float>(plan.canvas.height)};

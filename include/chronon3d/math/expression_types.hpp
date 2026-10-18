@@ -102,7 +102,7 @@ inline double wiggle_impl(double freq, double amp, double time, unsigned int see
 }
 
 // linear(t, t_min, t_max, v_min, v_max) — AE-style remapping.
-inline constexpr double linear_t(double t, double t_min, double t_max, double v_min, double v_max) {
+inline double linear_t(double t, double t_min, double t_max, double v_min, double v_max) {
     if (std::abs(t_max - t_min) < 1e-12) return v_min;
     double frac = (t - t_min) / (t_max - t_min);
     frac = std::clamp(frac, 0.0, 1.0);
@@ -110,7 +110,7 @@ inline constexpr double linear_t(double t, double t_min, double t_max, double v_
 }
 
 // ease(t, t_min, t_max, v_min, v_max) — smoothstep remapping.
-inline constexpr double ease_t(double t, double t_min, double t_max, double v_min, double v_max) {
+inline double ease_t(double t, double t_min, double t_max, double v_min, double v_max) {
     if (std::abs(t_max - t_min) < 1e-12) return v_min;
     double frac = (t - t_min) / (t_max - t_min);
     frac = std::clamp(frac, 0.0, 1.0);

@@ -296,7 +296,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
                 throw std::runtime_error(std::string("mesh layers cannot contain '") + key + "'");
         if (value.contains("animation") && value.at("animation").is_object() &&
             value.at("animation").contains("tracks") && !value.at("animation").at("tracks").empty())
-            throw std::runtime_error("mesh layers cannot contain transform tracks; use inline_mesh.animation baked samples");
+            throw std::runtime_error("mesh layers cannot contain per-vertex animation tracks");
     }
     if (layer.type == LayerType::Mesh && (!layer.asset.empty() || !layer.source.empty()))
         throw std::runtime_error("mesh layers use inline geometry and cannot also carry asset or source references");
@@ -484,11 +484,23 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         const auto& style = value.at("style");
         LayerStylePlan style_plan;
         style_plan.font = style.value("font", std::string{});
+        style_plan.font_family = style.value("font_family", std::string{});
+        style_plan.font_weight = style.value("font_weight", 400);
+        style_plan.font_style = style.value("font_style", std::string{"normal"});
+        style_plan.text_align = style.value("text_align", std::string{"center"});
         style_plan.font_size = optional_value<float>(style, "font_size");
         style_plan.fill = style.value("fill", std::string{});
+        style_plan.fill_opacity = optional_value<float>(style, "fill_opacity");
         style_plan.text_fit_mode = style.value("fit_mode", std::string{"none"});
         style_plan.min_font_size = optional_value<float>(style, "min_font_size");
         style_plan.max_font_size = optional_value<float>(style, "max_font_size");
+        if (style_plan.font_weight < 100 || style_plan.font_weight > 900 ||
+            style_plan.font_weight % 100 != 0 ||
+            (style_plan.font_style != "normal" && style_plan.font_style != "italic" &&
+             style_plan.font_style != "oblique") ||
+            (style_plan.text_align != "left" && style_plan.text_align != "center" &&
+             style_plan.text_align != "right"))
+            throw std::runtime_error("text style font weight, style, or alignment is invalid");
         if (style_plan.text_fit_mode != "none" &&
             style_plan.text_fit_mode != "shrink_only" &&
             style_plan.text_fit_mode != "grow_and_shrink")
@@ -500,6 +512,10 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             style_plan.max_font_size.value_or(160.0f) <
                 style_plan.min_font_size.value_or(12.0f))
             throw std::runtime_error("text style font size limits must be positive, finite, and ordered");
+        if (style_plan.fill_opacity &&
+            (!std::isfinite(*style_plan.fill_opacity) || *style_plan.fill_opacity < 0.0f ||
+             *style_plan.fill_opacity > 1.0f))
+            throw std::runtime_error("text style fill_opacity must be finite and in [0, 1]");
         if (style_plan.text_fit_mode != "none" && layer.type != LayerType::Text)
             throw std::runtime_error("style.fit_mode is only valid for text layers");
         if ((style_plan.min_font_size || style_plan.max_font_size) &&
@@ -510,6 +526,11 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             style_plan.stroke = StrokeStyle{stroke.value("color", std::string{}),
                                             optional_value<float>(stroke, "width"),
                                             std::nullopt, std::nullopt, std::nullopt};
+            style_plan.stroke->opacity = optional_value<float>(stroke, "opacity");
+            if (style_plan.stroke->opacity &&
+                (!std::isfinite(*style_plan.stroke->opacity) ||
+                 *style_plan.stroke->opacity < 0.0f || *style_plan.stroke->opacity > 1.0f))
+                throw std::runtime_error("text style stroke opacity must be finite and in [0, 1]");
         }
         if (style.contains("shadow") && style.contains("shadows"))
             throw std::runtime_error("style.shadow and style.shadows are mutually exclusive");

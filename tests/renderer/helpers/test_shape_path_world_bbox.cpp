@@ -113,6 +113,33 @@ TEST_CASE("software path brush rasterization paints dab endpoints into premultip
     CHECK(dabs.front().position.x <= 45.0f);
 }
 
+TEST_CASE("software path fills honor even-odd and non-zero rules") {
+    PathShape path;
+    path.commands = {
+        PathCommand::move_to({4.0f, 4.0f}), PathCommand::line_to({60.0f, 4.0f}),
+        PathCommand::line_to({60.0f, 60.0f}), PathCommand::line_to({4.0f, 60.0f}),
+        PathCommand::close(),
+        PathCommand::move_to({20.0f, 20.0f}), PathCommand::line_to({44.0f, 20.0f}),
+        PathCommand::line_to({44.0f, 44.0f}), PathCommand::line_to({20.0f, 44.0f}),
+        PathCommand::close()};
+    path.fill = Fill::solid_color(Color::white());
+    path.stroke.enabled = false;
+
+    Framebuffer even_odd(64, 64);
+    even_odd.clear(Color::transparent());
+    path.fill_rule = PathFillRule::EvenOdd;
+    renderer::draw_path(even_odd, path, Mat4(1.0f), Color::white(), nullptr);
+    CHECK(even_odd.get_pixel(32, 32).a == doctest::Approx(0.0f));
+    CHECK(even_odd.get_pixel(10, 10).a > 0.0f);
+
+    Framebuffer non_zero(64, 64);
+    non_zero.clear(Color::transparent());
+    path.fill_rule = PathFillRule::NonZero;
+    renderer::draw_path(non_zero, path, Mat4(1.0f), Color::white(), nullptr);
+    CHECK(non_zero.get_pixel(32, 32).a > 0.0f);
+    CHECK(non_zero.get_pixel(10, 10).a > 0.0f);
+}
+
 TEST_CASE("a path with no commands reports an empty bbox instead of a square") {
     Shape empty;
     empty.set_type(ShapeType::Path);

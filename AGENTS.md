@@ -251,3 +251,15 @@ Riepilogo rapido:
 - **No `ctest` su build stale**: verificare binary esiste + mtime (vedi lint rules).
 - Target di build canonicale: `build/fast` (preset `linux-fast-dev`).
 - Suite minima pre-push: backend_registry, compositor, render_job_contract, render_graph.
+
+## Scene authoring and visual verification
+
+For visual scene requests, follow this workflow before expanding code or rendering a sequence:
+
+1. Write a short scene contract: requested subject and asset type, camera view/motion, light, forbidden additions, preview format, and what needs visual approval. Treat omitted elements as absent. Never replace a requested 3D object with a photograph or digital zoom unless asked.
+2. Inspect the actual asset before choosing a fallback. Report importer support, mesh/material/texture contents, measured bounds, and orientation where available. A valid extension alone does not prove compatibility. If support is incomplete or uncertain, stop and report it; do not silently substitute geometry or imagery.
+3. Use the repository's canonical camera, projection, and transform APIs. Read their contracts and tests before changing axis signs or matrices. For black or out-of-frame output inspect pose, target, clipping range, projection, and object bounds. Exit code 0 is not visual evidence.
+4. Render one still at 854×480 (or smaller) with only the requested geometry, camera, and basic light. Inspect the PNG and correct black output, framing, missing required objects, and forbidden additions. Present it for visual approval before producing video, adding motion, or adding effects.
+5. When motion is requested, inspect frame 0, a representative middle frame, and the final frame. Compare decoded pixels/hashes and expected scene state. Identical frames fail only when the requested motion should visibly change them. Separate scene errors from renderer/cache/frame-advance errors; document diagnostic workarounds without calling them fixes.
+6. Keep visual investigations isolated. Do not change production C++, CMake, or renderer architecture to solve a composition, camera, asset, or backend issue. First make a minimal reproducible scene and identify the failing layer; then make a focused code change only for a reproduced code defect, after checking for an existing canonical implementation.
+7. Report the preview/render file, assets and importer outcome, backend, resolution, inspected frames, checks, and open limitations. Never declare success solely from a successful render command.

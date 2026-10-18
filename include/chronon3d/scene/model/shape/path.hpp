@@ -36,6 +36,7 @@ struct PathStroke {
     f32 width{1.0f};
     LineCap cap{LineCap::Butt};
     LineJoin join{LineJoin::Miter};
+    float miter_limit{10.0f};
     std::vector<f32> dash_array{};
     f32 dash_offset{0.0f};
     f32 trim_start{0.0f};

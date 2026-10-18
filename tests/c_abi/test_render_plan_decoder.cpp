@@ -1667,7 +1667,7 @@ TEST_CASE("render plan V3 decodes typed built-in layer transitions and fingerpri
 TEST_CASE("render plan V3 exposes every registered built-in layer transition") {
     const std::vector<std::string> transition_ids{
         "none", "crossfade", "slide", "zoom", "wipe_linear", "smooth_wipe",
-        "circle_iris", "flash", "procedural_remotion", "remotion", "fly_under_fade"};
+        "circle_iris", "flash", "procedural_remotion", "remotion"};
     for (const auto& id : transition_ids) {
         auto source = render_plan_test::base_plan(nlohmann::json::array({
             {{"id", "transition-layer"}, {"type", "color"},
@@ -1680,30 +1680,6 @@ TEST_CASE("render plan V3 exposes every registered built-in layer transition") {
         REQUIRE(decoded->layers[0].transition_in.has_value());
         CHECK(decoded->layers[0].transition_in->kind == id);
     }
-}
-
-TEST_CASE("render plan V3 decodes fly_under_fade dip and fingerprints it") {
-    auto source = nlohmann::json::parse(R"JSON({
-      "schema":"chronon.render-plan.v3","version":3,
-      "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":30},
-      "layers":[{"id":"chain-seg","type":"color","color":[1,1,1,1],"duration_frames":30,
-        "transition_in":{"id":"fly_under_fade","kind":"fly_under_fade","duration_frames":12,"direction":"up","easing":"in_out_cubic","params":{"dip_px":60}}}],
-      "output":{"path":"out.png"}})JSON");
-    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
-    const std::string decode_error = decoded ? std::string{} : decoded.error().message;
-    REQUIRE_MESSAGE(decoded.has_value(), decode_error);
-    REQUIRE(decoded->layers[0].transition_in.has_value());
-    CHECK(decoded->layers[0].transition_in->kind == "fly_under_fade");
-    CHECK(decoded->layers[0].transition_in->dip_px == doctest::Approx(60.0f));
-    const auto original_fingerprint = decoded->content_fingerprint;
-
-    source["layers"][0]["transition_in"]["params"]["dip_px"] = 120;
-    const auto changed = chronon3d::render_plan::decode_render_plan(source);
-    REQUIRE(changed.has_value());
-    CHECK(changed->content_fingerprint != original_fingerprint);
-
-    source["layers"][0]["transition_in"]["params"]["dip_px"] = -5;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
 TEST_CASE("render plan V3 animates gradient stops and rejects incompatible gradient tracks") {
@@ -1837,40 +1813,6 @@ TEST_CASE("V3 rounded shape stroke can frame an image as a lower layer") {
     CHECK(media.radius == doctest::Approx(22.0f));
     CHECK(frame.size[0] > media.size[0]);
     CHECK(frame.size[1] > media.size[1]);
-}
-
-TEST_CASE("clip global effects and grid decode as one Chronon composite") {
-    const auto source = nlohmann::json::parse(R"JSON({
-      "schema":"chronon.render-plan.v3","version":3,
-      "canvas":{"width":1280,"height":720,"fps_num":30,"fps_den":1,"duration_frames":90},
-      "layers":[
-        {"id":"source","type":"color","color":[0.1,0.2,0.3,1.0],"size":[1280,720],"position":[0,0],"start_frame":0,"duration_frames":90},
-        {"id":"clip__grid","type":"shape","size":[1280,720],"position":[0,0],"screen_space":true,"opacity":0.2,"start_frame":0,"duration_frames":90,
-         "shape":{"type":"grid","spacing":64,"stroke":{"color":"#33CCDD","width":1}}},
-        {"id":"clip__adjustment","type":"adjustment","effects":[
-          {"type":"wave_warp","amplitude":0.0125,"wavelength":0.035,"speed":0.0,"direction":[0,1],"wave_type":"square"},
-          {"type":"chromatic_aberration","red_offset":4.0,"blue_offset":-4.0},
-          {"type":"noise","amount":0.06,"size":1.0,"seed":7,"animated":true,"color_mode":"rgb"}
-        ]}
-      ],
-      "output":{"path":"out.mp4","format":"mp4","codec":"h264"}})JSON");
-    const auto plan = chronon3d::render_plan::decode_render_plan(source);
-    const std::string decode_error = plan.has_value() ? std::string{} :
-        plan.error().path + ": " + plan.error().message;
-    REQUIRE_MESSAGE(plan.has_value(), decode_error);
-    REQUIRE(plan->layers.size() == 3);
-    CHECK(plan->layers[1].id == "clip__grid");
-    CHECK(plan->layers[1].type == chronon3d::render_plan::LayerType::Shape);
-    REQUIRE(plan->layers[1].shape);
-    CHECK(plan->layers[1].shape->grid_spacing == doctest::Approx(64.0f));
-    CHECK(plan->layers[1].opacity == doctest::Approx(0.2f));
-    CHECK(plan->layers[2].id == "clip__adjustment");
-    CHECK(plan->layers[2].type == chronon3d::render_plan::LayerType::Adjustment);
-    REQUIRE(plan->layers[2].effects.size() == 3);
-    CHECK(plan->layers[2].effects[0].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::WaveWarp);
-    CHECK(plan->layers[2].effects[1].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::ChromaticAberration);
-    CHECK(plan->layers[2].effects[2].kind == chronon3d::render_plan::LayerPlan::EffectKindPlan::Noise);
-    CHECK(plan->layers[2].effects[2].seed == 7);
 }
 
 TEST_CASE("render plan requires adjustment layers to own only an effect stack") {
@@ -3085,69 +3027,6 @@ TEST_CASE("render plan decoder accepts camera pose and closed camera tracks") {
           chronon3d::render_plan::CameraPropertyPlan::PositionZ);
 }
 
-TEST_CASE("render plan decoder accepts two_node camera with target, lens and iris DOF") {
-    const nlohmann::json source = {
-        {"schema", "chronon.render-plan.v2"}, {"version", 2},
-        {"canvas", {{"width", 1920}, {"height", 1080}, {"fps_num", 30},
-                     {"fps_den", 1}, {"duration_frames", 90}}},
-        {"camera", {{"type", "perspective"}, {"node", "two_node"},
-                     {"position", {960, 540, -1400}}, {"rotation_deg", {0, 0, 0}},
-                     {"target", {960, 540, 0}}, {"fov_deg", 50},
-                     {"near", 1}, {"far", 10000000}, {"zoom", 1},
-                     {"focal_length_mm", 50}, {"f_stop", 2.8}, {"iris_blades", 6},
-                     {"dof", {{"enabled", true}, {"focus_distance", 1400},
-                               {"aperture", 0.02}, {"max_blur", 24},
-                               {"f_stop", 2.8}, {"iris_blades", 6},
-                               {"highlight_gain", 1.5}}}}},
-        {"camera_animation", {{"tracks", {
-            {{"property", "camera_target_x"},
-             {"keyframes", {{{"frame", 0}, {"value", 960}},
-                              {{"frame", 90}, {"value", 900}}}}},
-            {{"property", "camera_focal_length_mm"},
-             {"keyframes", {{{"frame", 0}, {"value", 50}},
-                              {{"frame", 90}, {"value", 85}}}}},
-            {{"property", "camera_f_stop"},
-             {"keyframes", {{{"frame", 0}, {"value", 2.8}},
-                              {{"frame", 90}, {"value", 4.0}}}}}}}}},
-        {"layers", {{{"id", "bg"}, {"type", "color"}, {"color", {0, 0, 0, 1}}}}},
-        {"output", {{"path", "out.png"}}}};
-
-    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
-    REQUIRE(decoded);
-    REQUIRE(decoded->camera);
-    CHECK(decoded->camera->node == "two_node");
-    CHECK(decoded->camera->target[0] == doctest::Approx(960.0f));
-    CHECK(decoded->camera->focal_length_mm == doctest::Approx(50.0f));
-    CHECK(decoded->camera->f_stop == doctest::Approx(2.8f));
-    CHECK(decoded->camera->iris_blades == 6);
-    CHECK(decoded->camera->dof_f_stop == doctest::Approx(2.8f));
-    CHECK(decoded->camera->dof_iris_blades == 6);
-    CHECK(decoded->camera->dof_highlight_gain == doctest::Approx(1.5f));
-    const auto descriptor = chronon3d::render_plan::detail::make_camera_descriptor(*decoded);
-    REQUIRE(descriptor);
-    CHECK(descriptor->base.point_of_interest_enabled);
-    CHECK(descriptor->base.point_of_interest.x == doctest::Approx(960.0f));
-    CHECK(descriptor->base.lens.focal_length == doctest::Approx(50.0f));
-    CHECK(descriptor->base.dof.use_physical_model);
-    CHECK(descriptor->base.dof.iris_blades == 6);
-    const auto* tracks = std::get_if<chronon3d::camera_v1::PoseTracksSource>(&descriptor->source);
-    REQUIRE(tracks);
-    CHECK(tracks->use_target);
-    REQUIRE(tracks->target_components[0].has_value());
-    REQUIRE(tracks->focal_length_mm.is_time_dependent());
-    REQUIRE(tracks->f_stop.is_time_dependent());
-    // Rejections stay fail-closed: unknown node, bad preset range, bad f-stop.
-    auto bad = source;
-    bad["camera"]["node"] = "three_node";
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad));
-    bad = source;
-    bad["camera"]["focal_length_mm"] = 8;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad));
-    bad = source;
-    bad["camera_animation"]["tracks"][2]["keyframes"][0]["value"] = 0.5;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad));
-}
-
 TEST_CASE("render plan decoder accepts bounded cubic Bezier track easing and fingerprints it") {
     auto source = nlohmann::json{
         {"schema", "chronon.render-plan.v2"}, {"version", 2},
@@ -3447,25 +3326,6 @@ TEST_CASE("V3 shape Field2D decoding is bounded, deterministic, and fingerprinte
     auto invalid_burst = burst;
     invalid_burst["layers"][0]["shape"]["fill"]["field"]["octaves"] = 2;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_burst));
-}
-
-TEST_CASE("V3 Field2D value ridged quantization and domain warp round trip") {
-    using nlohmann::json;
-    for (const auto* generator : {"value", "ridged"}) {
-        auto layer=render_plan_test::shape_layer({{"type","rect"}});
-        layer["shape"]["fill"]={{"type","field"},{"field",{{"generator",generator},
-            {"operators",json::array({{{"kind","domain_warp"},{"amount",.2}},
-                                      {{"kind","quantize"},{"levels",4}}})}}}};
-        auto input=render_plan_test::base_plan({layer});
-        const auto decoded=chronon3d::render_plan::decode_render_plan(input);
-        REQUIRE(decoded);
-        REQUIRE(decoded->layers[0].shape->field);
-        CHECK(decoded->layers[0].shape->field->operators.back().scalar==4.f);
-        input["layers"][0]["shape"]["fill"]["field"]["operators"][1]["levels"]=1;
-        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(input));
-        input["layers"][0]["shape"]["fill"]["field"]["operators"][1]["levels"]=3.5;
-        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(input));
-    }
 }
 
 TEST_CASE("V3 Field2D can drive displacement without a layer map") {

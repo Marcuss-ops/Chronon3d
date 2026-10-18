@@ -70,19 +70,47 @@ struct RationalTime {
         throw std::invalid_argument("ticks_per_second must be positive");
     }
     const Rational base = normalize_rational(time.time_base);
-    const __int128 scaled = static_cast<__int128>(time.value) *
-                            static_cast<__int128>(base.numerator) *
-                            static_cast<__int128>(ticks_per_second);
-    const __int128 denominator = static_cast<__int128>(base.denominator);
-    if (scaled % denominator != 0) {
+    // Cancel denominator factors before multiplying so this stays portable to
+    // MSVC, which does not provide the non-standard __int128 integer type.
+    i64 factors[] = {time.value, base.numerator, ticks_per_second};
+    i64 denominator = base.denominator;
+    const auto magnitude = [](i64 value) -> u64 {
+        return value < 0 ? static_cast<u64>(-(value + 1)) + 1u
+                         : static_cast<u64>(value);
+    };
+    for (i64& factor : factors) {
+        u64 a = magnitude(factor);
+        u64 b = static_cast<u64>(denominator);
+        while (b != 0) {
+            const u64 remainder = a % b;
+            a = b;
+            b = remainder;
+        }
+        if (a > 1u) {
+            const i64 divisor = static_cast<i64>(a);
+            factor /= divisor;
+            denominator /= divisor;
+        }
+    }
+    if (denominator != 1) {
         throw std::invalid_argument("rational time does not map exactly to target timeline");
     }
-    const __int128 result = scaled / denominator;
-    if (result < static_cast<__int128>(std::numeric_limits<i64>::min()) ||
-        result > static_cast<__int128>(std::numeric_limits<i64>::max())) {
-        throw std::overflow_error("rational time conversion overflow");
+
+    i64 result = 1;
+    for (const i64 factor : factors) {
+        if (factor == 0) {
+            result = 0;
+            break;
+        }
+        if ((factor > 0 && result > 0 && result > std::numeric_limits<i64>::max() / factor) ||
+            (factor > 0 && result < 0 && result < std::numeric_limits<i64>::min() / factor) ||
+            (factor < 0 && result > 0 && factor < std::numeric_limits<i64>::min() / result) ||
+            (factor < 0 && result < 0 && factor < std::numeric_limits<i64>::max() / result)) {
+            throw std::overflow_error("rational time conversion overflow");
+        }
+        result *= factor;
     }
-    return static_cast<i64>(result);
+    return result;
 }
 
 /// Frame-local exact time carried by the render graph. Presentation time keeps

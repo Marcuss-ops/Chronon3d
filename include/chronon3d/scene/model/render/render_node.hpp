@@ -53,10 +53,6 @@ struct RenderNode {
         std::optional<Color> base_color;
     };
     std::optional<InlineMeshMaterial> inline_mesh_material;
-    // ADR-035 — innermost isolated SVG group of this node (optional; only
-    // lowered SVG subpaths set it). MultiSourceNode draws tagged items at
-    // full paint alpha into an intermediate surface and composites that
-    // surface once with the group alpha — never per-item.
     struct SvgGroupIsolation {
         std::uint32_t id{0};
         f32 opacity{1.0f};

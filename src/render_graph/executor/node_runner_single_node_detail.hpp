@@ -27,15 +27,12 @@ void execute_single_node(
         }
     };
     const auto retain_static_bake = [&]() {
-        // Any backend with native GPU surfaces (all Vulkan lanes, not only
-        // the CUDA video lane) attaches FrameTransient images to its
-        // framebuffers. Retaining one in the cross-frame static-bake cache
-        // leaves a stale handle after the frame slot retires it, so the
-        // next frame serves dead GPU memory while software keeps reading
-        // the intact CPU mirror (Vulkan/serial divergence from frame 2).
-        // Keep static baking for backends without native surfaces, where
-        // the framebuffer storage can safely outlive this execution.
-        if (ctx.backend && ctx.backend->supports_native_surfaces()) return;
+        // Native-video graph outputs use FrameTransient Vulkan surfaces.
+        // Retaining one in the cross-frame static-bake cache leaves a stale
+        // handle after the frame slot retires it. Keep static baking for
+        // software and non-video paths, where the framebuffer storage can
+        // safely outlive this execution.
+        if (ctx.backend && ctx.backend->supports_native_video_surface()) return;
         if (id >= state.static_bake_root_index.size()) return;
         const auto bake_index = state.static_bake_root_index[id];
         if (bake_index >= compiled.program.static_bakes.size()) return;
@@ -58,17 +55,6 @@ void execute_single_node(
         typed_layer = compiler::find_layer(
             *ctx.frame_parameters, compiled.nodes[id].binding_meta.layer_index);
         if (!typed_layer || !typed_layer->active) {
-            if (native_surface_promotion_diag_enabled() &&
-                ctx.frame_input.frame <= 2) {
-                spdlog::info(
-                    "[typed-layer-skip] frame={} node_id={} name='{}' "
-                    "layer_index={} found={} active={}",
-                    static_cast<int>(ctx.frame_input.frame), id,
-                    graph.node(id).name(),
-                    compiled.nodes[id].binding_meta.layer_index,
-                    typed_layer != nullptr,
-                    typed_layer ? typed_layer->active : false);
-            }
             commit_transparent_skip(
                 state, id, ctx, parent_pool, SkipReason::EarlyExit,
                 graph.node(id).name());
@@ -77,13 +63,6 @@ void execute_single_node(
     }
 
     if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
-        if (native_surface_promotion_diag_enabled() &&
-            ctx.frame_input.frame <= 2) {
-            spdlog::info(
-                "[early-exit-skip] frame={} node_id={} name='{}' flag=1",
-                static_cast<int>(ctx.frame_input.frame), id,
-                graph.node(id).name());
-        }
         commit_transparent_skip(
             state, id, ctx, parent_pool,
             SkipReason::EarlyExit,
@@ -195,17 +174,11 @@ void execute_single_node(
     const bool cache_key_required =
         id < compiled.nodes.size() && compiled.nodes[id].cache_key_required;
 
-    const bool sampled_mesh_animation = typed_layer &&
-        typed_layer->kind == compiler::NodeKind::Mesh && typed_layer->dirty;
-    const bool inputs_frame_dependent =
-        pr.inputs_frame_dependent || sampled_mesh_animation;
-    const bool has_cacheable_inputs =
-        pr.has_cacheable_inputs || sampled_mesh_animation;
     auto cache_eval = evaluate_cache(
         node, ctx,
         pr.input_hash,
-        inputs_frame_dependent,
-        has_cacheable_inputs,
+        pr.inputs_frame_dependent,
+        pr.has_cacheable_inputs,
         id,
         cache_key_required
     );

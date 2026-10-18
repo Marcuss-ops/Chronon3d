@@ -1,7 +1,7 @@
 # ADR-035 — SVG isolated group compositing
 
 ## Stato
-ACTIVE (2026-10-17). Owner: render-plan/compiler + source-pass.
+ACTIVE (2026-10-18). Owner: render-plan/compiler + source-pass.
 
 ## Contesto
 
@@ -45,11 +45,13 @@ kind, executor o registry.**
    `ResidencyCache` per la tassonomia cache), e la superficie
    intermedia è compositata sulla fb del layer **una sola volta** con
    `alpha = group_opacity`. La fb intermedia è ripulita a inizio gruppo.
-5. **Backend** — la V1 certifica il percorso **software**. Sul percorso
-   native (`supports_native_surfaces()`), un gruppo con `opacity < 1`
-   **fallisce chiuso** con diagnostica tipizzata `svg_group_native_unsupported`:
-   nessun fallback silenzioso verso CPU, coerente con la dottrina
-   zero-readback.
+5. **Backend** — il percorso software usa l'oracolo pixel esistente. Quando
+   `supports_native_surfaces()` è vero, il gruppo usa un framebuffer GPU
+   trasparente e `composite_surface_weighted()` per comporre l'intermedio
+   sulla superficie del layer. In modalità `require_gpu_native`, superfici
+   mancanti o un errore del compositor falliscono esplicitamente; non esiste
+   fallback CPU nascosto. La parità hardware è certificata dal gate Vulkan
+   quando `CHRONON_GPU_CLI` punta a una build SVG+Vulkan.
 
 ## Perché non un nuovo GroupNode
 
@@ -91,5 +93,6 @@ verdi. **Removal scope**: rami fold in `svg_path_loader.cpp` +
 - Positive: resa letterale dell'alpha SVG; sblocca Q2 (nested groups) e Q3
   (clip per elemento su sub-layer) sulla stessa meccanica; costo runtime
   limitato a layer con gruppi isolati (zero su tutte le altre).
-- Negative/note: un framebuffer intermedia per gruppo per frame dal pool
-  (residency, nessuna nuova cache family); percorso native V1 fail-closed.
+- Negative/note: un framebuffer intermedio GPU per gruppo per frame dal pool
+  (residency, nessuna nuova cache family) e un passaggio pesato per gruppo;
+  la misurazione a 1080p con gruppi multipli resta da completare.

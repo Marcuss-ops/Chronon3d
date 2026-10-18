@@ -202,9 +202,19 @@ void add_gradient_animation(CanonicalPlanWriter& out,
 
 void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     out.add_string(style.font);
+    if (!style.font_family.empty() || style.font_weight != 400 ||
+        style.font_style != "normal" || style.text_align != "center") {
+        out.add_string("svg_text_style_v1");
+        out.add_string(style.font_family);
+        out.add_i64(style.font_weight);
+        out.add_string(style.font_style);
+        out.add_string(style.text_align);
+    }
     add_optional(out, style.font_size,
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_string(style.fill);
+    add_optional(out, style.fill_opacity,
+                 [](auto& writer, float value) { writer.add_float(value); });
     out.add_string(style.text_fit_mode);
     add_optional(out, style.min_font_size,
                  [](auto& writer, float value) { writer.add_float(value); });
@@ -215,6 +225,8 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         writer.add_string(stroke.color);
         add_optional(writer, stroke.width,
                      [](auto& nested, float value) { nested.add_float(value); });
+        add_optional(writer, stroke.opacity,
+                     [](auto& nested, float value) { nested.add_float(value); });
         add_optional(writer, stroke.trim_start,
                      [](auto& nested, float value) { nested.add_float(value); });
         add_optional(writer, stroke.trim_end,
@@ -222,8 +234,6 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         writer.add_size(stroke.dash_array.size());
         for (const float dash : stroke.dash_array) writer.add_float(dash);
         writer.add_float(stroke.dash_offset);
-        writer.add_string(stroke.cap);
-        writer.add_string(stroke.join);
         add_optional(writer, stroke.gradient,
                      [](auto& nested, const graphics::GradientDefinition& value) {
             add_gradient(nested, value);
@@ -326,30 +336,20 @@ void add_transition(CanonicalPlanWriter& out, const TransitionPlan& transition) 
     out.add_float(transition.speed);
     out.add_float(transition.remotion_direction);
     out.add_float(transition.angle);
-    out.add_float(transition.dip_px);
 }
 
 void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
     out.add_string(camera.type);
-    out.add_string(camera.node);
     for (const auto value : camera.position) out.add_float(value);
     for (const auto value : camera.rotation_deg) out.add_float(value);
-    for (const auto value : camera.target) out.add_float(value);
-    out.add_string(camera.target_name);
     out.add_float(camera.fov_deg);
     out.add_float(camera.near);
     out.add_float(camera.far);
     out.add_float(camera.zoom);
-    out.add_float(camera.focal_length_mm);
-    out.add_float(camera.f_stop);
-    out.add_size(static_cast<std::size_t>(camera.iris_blades));
     out.add_bool(camera.dof_enabled);
     out.add_float(camera.dof_focus_distance);
     out.add_float(camera.dof_aperture);
     out.add_float(camera.dof_max_blur);
-    out.add_float(camera.dof_f_stop);
-    out.add_size(static_cast<std::size_t>(camera.dof_iris_blades));
-    out.add_float(camera.dof_highlight_gain);
 }
 
 void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {

@@ -24,6 +24,7 @@ struct StrokeStyle {
 
     LineCap cap{LineCap::Butt};
     LineJoin join{LineJoin::Miter};
+    f32 miter_limit{10.0f};
     std::vector<f32> dash_array{};
     f32 dash_offset{0.0f};
     f32 trim_start{0.0f};
@@ -87,6 +88,8 @@ struct StrokeStyle {
 };
 
 inline PathStroke StrokeStyle::to_path_stroke() const {
+    if (!std::isfinite(miter_limit) || miter_limit < 1.0f || miter_limit > 1000.0f)
+        throw std::invalid_argument("path stroke miter limit must be finite and in [1, 1000]");
     if (brush && (!brush->valid() || !std::isfinite(width) || width < 0.0f ||
         (brush->size == 0.0f && width <= 0.0f)))
         throw std::invalid_argument("path brush stroke profile or base width is invalid");
@@ -103,6 +106,7 @@ inline PathStroke StrokeStyle::to_path_stroke() const {
     result.width = width;
     result.cap = cap;
     result.join = join;
+    result.miter_limit = miter_limit;
     result.dash_array = dash_array;
     result.dash_offset = dash_offset;
     result.trim_start = trim_start;

@@ -23,28 +23,11 @@ struct SvgPathLoadResult {
 ///
 /// This is deliberately a geometry-only boundary: fill, stroke, styles, and CSS
 /// are owned by the shape/style pipeline, not by the SVG XML geometry reader.
-/// Layer-level effect an SVG root filter lowers to. The RenderPlan exposes
-/// effects per layer only, so per-element `<filter>` references stay rejected.
-struct SvgLayerEffect {
-    enum class Kind { GaussianBlur, DropShadow };
-    Kind kind{Kind::GaussianBlur};
-    float radius{0.0f};
-    std::array<float, 2> offset{0.0f, 0.0f};
-    std::array<float, 4> color{0.0f, 0.0f, 0.0f, 1.0f};
-};
-
 struct SvgDocumentLoadResult {
     std::vector<PathShape> paths;
     std::vector<SvgStyledElement> elements;
+    std::vector<SvgTextRun> text_runs;
     std::optional<PathShape> vector_mask;
-    /// Root `<svg filter="url(#id)">` primitives, in document order.
-    std::vector<SvgLayerEffect> layer_effects;
-    /// Declared SVG viewport size (explicit `width`/`height`, else the
-    /// viewBox-derived viewport). Present only when the document declares a
-    /// viewport; render-plan lowering uses it to center the document on the
-    /// layer box, and leaves dimension-less documents at their parsed
-    /// coordinates for backward compatibility.
-    std::optional<std::array<float, 2>> viewport_size;
     bool ok{false};
     std::string error;
 };

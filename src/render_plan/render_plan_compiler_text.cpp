@@ -25,7 +25,7 @@ void apply_text_glow(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
 
 chronon3d::TextDefinition materialize_text(
     const LayerPlan& layer, const chronon3d::CanvasInfo& canvas) {
-    if (!layer.style || layer.font.empty() || !layer.style->font_size ||
+    if (!layer.style || (layer.font.empty() && layer.style->font_family.empty()) || !layer.style->font_size ||
         layer.style->fill.empty()) {
         throw std::runtime_error("text layer '" + layer.id +
                                  "' is missing concrete font/font_size/fill style");
@@ -35,17 +35,22 @@ chronon3d::TextDefinition materialize_text(
     definition.content.value = layer.text;
     definition.spans = layer.text_spans;
     definition.style.font.font_path = layer.font;
+    definition.style.font.font_family = layer.style->font_family;
+    definition.style.font.font_weight = layer.style->font_weight;
+    definition.style.font.font_style = layer.style->font_style;
     definition.style.font.font_size = *layer.style->font_size;
-    const auto fill = parse_hex_color(layer.style->fill);
+    auto fill = parse_hex_color(layer.style->fill);
     if (!fill)
         throw std::runtime_error("text layer '" + layer.id + "' has invalid fill color");
+    fill->a *= layer.style->fill_opacity.value_or(1.0f);
     definition.style.color = *fill;
     definition.style.paint.fill = *fill;
 
     if (layer.style->stroke) {
-        const auto stroke_color = parse_hex_color(layer.style->stroke->color);
+        auto stroke_color = parse_hex_color(layer.style->stroke->color);
         if (!stroke_color)
             throw std::runtime_error("text layer '" + layer.id + "' has invalid stroke color");
+        stroke_color->a *= layer.style->stroke->opacity.value_or(1.0f);
         definition.style.paint.stroke_enabled = true;
         definition.style.paint.stroke_color = *stroke_color;
         definition.style.paint.stroke_width = layer.style->stroke->width.value_or(1.0f);
@@ -90,7 +95,10 @@ chronon3d::TextDefinition materialize_text(
         : chronon3d::Vec2{static_cast<float>(canvas.width),
                           static_cast<float>(canvas.height)};
     definition.frame.anchor = chronon3d::TextAnchor::Center;
-    definition.frame.align = chronon3d::TextAlign::Center;
+    definition.frame.align = layer.style->text_align == "left"
+        ? chronon3d::TextAlign::Left
+        : layer.style->text_align == "right"
+            ? chronon3d::TextAlign::Right : chronon3d::TextAlign::Center;
     definition.frame.vertical_align = chronon3d::VerticalAlign::Middle;
     definition.frame.auto_fit = layer.style->text_fit_mode != "none";
     definition.frame.grow_and_shrink =

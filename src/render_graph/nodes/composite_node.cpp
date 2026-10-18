@@ -7,7 +7,6 @@
 
 #include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -55,14 +54,7 @@ bool try_native_affine_composite(
     OwnedFB source_copy;
     runtime::RenderSurfaceHandle source_handle = source.surface_handle();
     if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
-        // This is an input promotion, not this node's output allocation.
-        // acquire_owned_fb(source) can consume planned_physical_slot left over
-        // after a zero-copy bottom transfer. That slot may still carry the
-        // destination's handle: treating it as the source then composites the
-        // destination onto itself and releases its live registry identity.
-        source_copy = ctx.framebuffer_pool
-            ? ctx.framebuffer_pool->acquire_from(source)
-            : OwnedFB(new Framebuffer(source), PoolFbDeleter(DeleteFramebuffer{}));
+        source_copy = ctx.acquire_owned_fb(source);
         if (!ensure_native_surface(ctx, *source_copy, "CompositeNode.affine.source_copy")) {
             if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
                 release_native_surface(ctx, destination);
@@ -540,23 +532,9 @@ NodeExecResult CompositeNode::execute(
     if (native_surface_promotion_diag_enabled()) {
         spdlog::info(
             "[composite-inputs] frame={} inputs={} in0={} in1={} "
-            "in0_extent={}x{}@{},{} in0_handle={} in0_cpu={} in0_gpu={} in0_data={} "
-            "in1_extent={}x{}@{},{} in1_handle={} in1_cpu={} in1_gpu={} in1_data={} "
             "bottom={}x{} top={}x{} mode={}",
             static_cast<int>(ctx.frame_input.frame), inputs.size(),
             in0 ? 1 : 0, in1 ? 1 : 0,
-            in0 ? in0->width() : -1, in0 ? in0->height() : -1,
-            in0 ? in0->origin_x() : 0, in0 ? in0->origin_y() : 0,
-            in0 ? static_cast<std::uint64_t>(in0->surface_handle()) : 0,
-            in0 ? in0->is_cpu_authoritative() : false,
-            in0 ? in0->is_gpu_authoritative() : false,
-            in0 && in0->data() != nullptr,
-            in1 ? in1->width() : -1, in1 ? in1->height() : -1,
-            in1 ? in1->origin_x() : 0, in1 ? in1->origin_y() : 0,
-            in1 ? static_cast<std::uint64_t>(in1->surface_handle()) : 0,
-            in1 ? in1->is_cpu_authoritative() : false,
-            in1 ? in1->is_gpu_authoritative() : false,
-            in1 && in1->data() != nullptr,
             bottom ? bottom->width() : -1, bottom ? bottom->height() : -1,
             top ? top->width() : -1, top ? top->height() : -1,
             static_cast<int>(m_mode));
@@ -649,14 +627,8 @@ NodeExecResult CompositeNode::execute(
             }
             bottom_native_valid = true;
         }
-        // acquire_owned_fb may transfer the bottom's storage and native handle
-        // into result, leaving bottom as a 1x1 placeholder with handle 0. Compare
-        // against the pre-transfer handle, not the now-empty input: re-seeding
-        // from that placeholder would upload the stale CPU mirror and erase
-        // all layers already composed on the GPU.
-        const auto bottom_handle = bottom->surface_handle();
         result = ctx.acquire_owned_fb(*bottom);
-        if (native_backend && result->surface_handle() != bottom_handle) {
+        if (native_backend && result->surface_handle() != bottom->surface_handle()) {
             if (!seed_native_destination(ctx, *result, *bottom)) {
                 return NodeExecutionError{
                     RenderBackendErrorCode::ExecutionFailure,

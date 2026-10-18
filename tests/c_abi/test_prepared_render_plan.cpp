@@ -477,121 +477,6 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
     }
 }
 
-TEST_CASE("render plan rejects out-of-contract Lottie inputs at every limit boundary") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    using json = nlohmann::json;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "shapes");
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
-      "schema":"chronon.render-plan.v3","version":3,
-      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
-      "layers":[{"id":"vector","type":"shape","size":[64,64],
-        "shape":{"type":"path","lottie":"shapes/edge.json"}}],
-      "output":{"path":"out.png"}})JSON"));
-    REQUIRE(decoded);
-    const auto identity_layer = [] {
-        return json{{"ty", 4}, {"ddd", 0},
-            {"ks", {{"a", {{"a", 0}, {"k", {0, 0, 0}}}},
-                    {"p", {{"a", 0}, {"k", {0, 0, 0}}}},
-                    {"s", {{"a", 0}, {"k", {100, 100, 100}}}},
-                    {"r", {{"a", 0}, {"k", 0}}},
-                    {"o", {{"a", 0}, {"k", 100}}}}},
-            {"shapes", json::array()}};
-    };
-    const auto static_path = [] {
-        return json{{"ty", "sh"}, {"ks", {{"a", 0}, {"k", {
-            {"c", true}, {"v", {{0, 0}, {10, 0}}},
-            {"i", {{0, 0}, {0, 0}}}, {"o", {{0, 0}, {0, 0}}}}}}}};
-    };
-    const auto solid_fill = [] {
-        return json{{"ty", "fl"}, {"r", 1}, {"c", {{"a", 0}, {"k", {1, 0, 0, 1}}}}};
-    };
-    std::vector<std::pair<std::string, json>> edge_documents;
-    // 1. Group nesting deeper than 16 levels fails closed.
-    {
-        json nested = json{{"ty", "gr"}, {"it", json::array({static_path(), solid_fill()})}};
-        for (int level = 0; level < 17; ++level)
-            nested = json{{"ty", "gr"}, {"it", json::array({nested})}};
-        auto layer = identity_layer();
-        layer["shapes"].push_back(nested);
-        edge_documents.emplace_back("deep nesting (17 levels)",
-            json{{"v", "5.7.4"}, {"layers", {layer}}});
-    }
-    // 2. More than 256 authored shape items fails closed.
-    {
-        auto layer = identity_layer();
-        for (int i = 0; i < 257; ++i) layer["shapes"].push_back(static_path());
-        edge_documents.emplace_back("257 shape items",
-            json{{"v", "5.7.4"}, {"layers", {layer}}});
-    }
-    // 3. Coordinates beyond +/-100000 fail closed.
-    {
-        auto layer = identity_layer();
-        auto far = static_path();
-        far["ks"]["k"]["v"] = json::array({{200000, 0}, {200010, 0}});
-        layer["shapes"] = json::array({far, solid_fill()});
-        edge_documents.emplace_back("out-of-bounds coordinate",
-            json{{"v", "5.7.4"}, {"layers", {layer}}});
-    }
-    // 4. Non-finite coordinates (e.g. 1e999) never reach lowering: the JSON
-    // parser itself throws out_of_range, so the input fails closed at the
-    // parse boundary before any plan is built.
-    CHECK_THROWS_AS(json::parse(
-        R"JSON({"v":[[1e999,0]]})JSON"), json::out_of_range);
-    // 5. Non-shape layer kinds fail closed (text, image, solid).
-    for (const int layer_type : {1, 2, 5}) {
-        auto layer = identity_layer();
-        layer["ty"] = layer_type;
-        layer["shapes"].push_back(static_path());
-        edge_documents.emplace_back("non-shape layer ty=" + std::to_string(layer_type),
-            json{{"v", "5.7.4"}, {"layers", {layer}}});
-    }
-    // 6. Multiple layers fail closed (contract allows exactly one).
-    {
-        auto layer = identity_layer();
-        layer["shapes"].push_back(static_path());
-        edge_documents.emplace_back("two layers",
-            json{{"v", "5.7.4"}, {"layers", {layer, layer}}});
-    }
-    // 7. Repeater copies above 256 fail closed.
-    {
-        auto layer = identity_layer();
-        layer["shapes"] = json::array({static_path(), solid_fill(),
-            json{{"ty", "rp"}, {"c", {{"a", 0}, {"k", 300}}}},
-            json{{"ty", "tr"}, {"a", {{"a", 0}, {"k", {0, 0}}}},
-                {"p", {{"a", 0}, {"k", {0, 0}}}},
-                {"s", {{"a", 0}, {"k", {100, 100}}}},
-                {"r", {{"a", 0}, {"k", 0}}}}});
-        edge_documents.emplace_back("repeater with 300 copies",
-            json{{"v", "5.7.4"}, {"layers", {layer}}});
-    }
-    // 8. L4 morph with a single keyframe fails closed (needs 2-256).
-    {
-        auto document = json::parse(
-            R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
-              "ks":{"a":{"a":0,"k":[0,0,0]},"p":{"a":0,"k":[0,0,0]},
-                "s":{"a":0,"k":[100,100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
-              "shapes":[{"ty":"sh","ks":{"a":1,"k":[{"t":0,
-                "s":[{"c":true,"v":[[0,0],[10,0]],
-                  "i":[[0,0],[0,0]],"o":[[0,0],[0,0]]}]}]}}]}]})JSON");
-        edge_documents.emplace_back("single-keyframe morph", document);
-    }
-    for (const auto& [label, document] : edge_documents) {
-        { std::ofstream file(directory.path / "shapes/edge.json"); file << document.dump(); }
-        CHECK_FALSE_MESSAGE(compile_render_plan(*decoded, resolver), label);
-    }
-    // 9. Input larger than 10 MiB fails closed before parsing.
-    {
-        std::ofstream file(directory.path / "shapes/edge.json", std::ios::binary);
-        const std::string block(1024 * 1024, ' ');
-        for (int i = 0; i < 11; ++i) file << block;
-    }
-    CHECK_FALSE(compile_render_plan(*decoded, resolver));
-}
-
 TEST_CASE("render plan lowers animated Lottie group transforms through native tracks") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -1038,178 +923,118 @@ TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks"
         CHECK(animated_anchor.error().code == "lottie_unsupported_or_invalid");
 }
 
-TEST_CASE("render plan animates compositor repeater transforms per frame") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "shapes");
-    {
-        std::ofstream lottie(directory.path / "shapes/repeater_source.json");
-        lottie << R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
-          "ks":{"a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[0,0]},
-            "s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
-          "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":false,
-            "v":[[0,0],[10,0]],"i":[[0,0],[0,0]],"o":[[0,0],[0,0]]}}},
-            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}}]}]})JSON";
-    }
-    const auto plan_json = nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":128,"height":128,"fps_num":30,"fps_den":1,"duration_frames":31},
-  "layers":[
-    {"id":"vector","type":"shape","size":[128,128],
-     "shape":{"type":"path","lottie":"shapes/repeater_source.json",
-       "operators":[
-         {"kind":"repeater","params":{"copies":3,"position":[10,0],"opacity_decay":1.0,
-           "animation":{"easing":"linear","keyframes":[
-             {"frame":0,"value":[0,0,1,1,0]},
-             {"frame":30,"value":[24,0,2,1,0]}]}}}
-       ]}
-    }
-  ],
-  "output":{"path":"out.png"}})JSON");
-    auto decoded = decode_render_plan(plan_json);
-    if (!decoded) {
-        std::cout << "decode failed: " << decoded.error().path << " | "
-                  << decoded.error().code << " | " << decoded.error().message
-                  << std::endl;
-        REQUIRE(decoded);
-    }
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto prepared = compile_render_plan(*decoded, resolver);
-    if (!prepared)
-        std::cout << "compile failed: " << prepared.error().path << " | "
-                  << prepared.error().code << " | " << prepared.error().message
-                  << std::endl;
-    REQUIRE(prepared);
-
-    // Copies stay static (bounded node count), but each copy's transform
-    // follows the sampled track: copy i maps p to p*scale^i + position*i.
-    const auto first = evaluate(prepared->compiled_composition,
-        CompositionEvaluateContext{}, Frame{0});
-    const auto last = evaluate(prepared->compiled_composition,
-        CompositionEvaluateContext{}, Frame{30});
-    REQUIRE(first);
-    REQUIRE(last);
-    REQUIRE(first->scene.layers()[0].nodes.size() == 3);
-    REQUIRE(last->scene.layers()[0].nodes.size() == 3);
-    const auto& copy0_first = first->scene.layers()[0].nodes[0].shape.path();
-    const auto& copy1_first = first->scene.layers()[0].nodes[1].shape.path();
-    const auto& copy1_last = last->scene.layers()[0].nodes[1].shape.path();
-    const auto& copy2_last = last->scene.layers()[0].nodes[2].shape.path();
-    const auto& copy2_first = first->scene.layers()[0].nodes[2].shape.path();
-    // Frame 0: the track overrides the static position → copies share (0,0)
-    // offset, so all copies coincide on base coordinates (scale 1 at frame 0).
-    CHECK(copy1_first.commands[1].p0.x - copy0_first.commands[1].p0.x ==
-          doctest::Approx(0.0f));
-    CHECK(copy2_first.commands[1].p0.x == doctest::Approx(10.0f));
-    // Frame 30: position=24, scale=2 → spacing 10*(2-1)+24 then 10*2+24.
-    CHECK(copy1_last.commands[1].p0.x - copy0_first.commands[1].p0.x ==
-          doctest::Approx(10.0f * (2.0f - 1.0f) + 24.0f));
-    CHECK(copy2_last.commands[1].p0.x - copy1_last.commands[1].p0.x ==
-          doctest::Approx(10.0f * 2.0f + 24.0f));
-
-    // The rotation component rotates each successive copy about the anchor.
-    auto rotated_plan = *decoded;
-    rotated_plan.layers[0].shape->operators[0].repeater_animation =
-        AnimationTrackPlan{};
-    AnimationKeyframePlan rotated_start;
-    rotated_start.frame = Frame{0};
-    rotated_start.value = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f};
-    AnimationKeyframePlan rotated_end;
-    rotated_end.frame = Frame{30};
-    rotated_end.value = {0.0f, 0.0f, 1.0f, 1.0f, 90.0f};
-    rotated_plan.layers[0].shape->operators[0].repeater_animation->keyframes =
-        {rotated_start, rotated_end};
-    const auto rotated = compile_render_plan(rotated_plan, resolver);
-    REQUIRE(rotated);
-    const auto rotated_last = evaluate(rotated->compiled_composition,
-        CompositionEvaluateContext{}, Frame{30});
-    REQUIRE(rotated_last);
-    REQUIRE(rotated_last->scene.layers()[0].nodes.size() == 3);
-    // Copy 1: (10,0) rotated 90° about the anchor lands on (0,10).
-    CHECK(rotated_last->scene.layers()[0].nodes[1].shape.path().commands[1].p0.y ==
-          doctest::Approx(10.0f).epsilon(0.01f));
-
-    // Animating a repeater changes the content fingerprint; more than five
-    // components per keyframe fail closed at decode.
-    auto trimmed_static = *decoded;
-    trimmed_static.layers[0].shape->operators[0].repeater_animation = std::nullopt;
-    const auto static_only = compile_render_plan(trimmed_static, resolver);
-    REQUIRE(static_only);
-    CHECK(static_only->fingerprint.content_digest !=
-          prepared->fingerprint.content_digest);
-
-    auto overwide = plan_json;
-    overwide["layers"][0]["shape"]["operators"][0]["params"]["animation"]
-        ["keyframes"][0]["value"] = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 5.0f};
-    const auto rejected = decode_render_plan(overwide);
-    REQUIRE_FALSE(rejected);
-
-    // Determine the full fingerprint via evaluation again: rotated sample at a
-    // single frame must stay deterministic across evaluations.
-    const auto rotated_again = evaluate(rotated->compiled_composition,
-        CompositionEvaluateContext{}, Frame{30});
-    REQUIRE(rotated_again);
-    CHECK(rotated_again->scene.layers()[0].nodes[1].shape.path().commands[1].p0.y ==
-          rotated_last->scene.layers()[0].nodes[1].shape.path().commands[1].p0.y);
-}
-
 #if defined(CHRONON_TEST_ENABLE_SVG)
-TEST_CASE("render plan lowers SVG advanced stroke cap, join and dash options") {
+TEST_CASE("render plan lowers SVG text and tspan into canonical text layers") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
     FingerprintTempDir directory;
     std::filesystem::create_directories(directory.path / "art");
+    std::filesystem::create_directories(directory.path / "fonts");
+    const auto source_root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+    std::filesystem::copy_file(source_root / "assets/fonts/Inter-Regular.ttf",
+        directory.path / "fonts/Inter-Regular.ttf", std::filesystem::copy_options::overwrite_existing);
+    std::filesystem::copy_file(source_root / "assets/fonts/Inter-Bold.ttf",
+        directory.path / "fonts/Inter-Bold.ttf", std::filesystem::copy_options::overwrite_existing);
     {
-        std::ofstream svg(directory.path / "art/dashed.svg");
-        svg << R"svg(<svg><path d="M0 0L10 0L10 10"
-          style="stroke:red;stroke-width:3;stroke-linecap:round;stroke-linejoin:bevel;
-          stroke-dasharray:4 2;stroke-dashoffset:1.5"/></svg>)svg";
+        std::ofstream svg(directory.path / "art/text.svg");
+        svg << R"svg(<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80">
+          <g id="labels" font-family="Inter" font-size="22" fill="#123456">
+            <text id="headline" x="100" y="38" text-anchor="middle" dominant-baseline="middle">Hello <tspan id="accent" fill="#ff0000" font-weight="bold" baseline-shift="25%">Chronon</tspan></text>
+            <text id="central" x="100" y="38" dominant-baseline="central">Baseline</text>
+            <text id="coordinates" x="10 80 150" y="65 25 65" fill-opacity="0.5" stroke="#00ff00" stroke-width="2" stroke-opacity="0.25">ABC</text>
+          </g></svg>)svg";
     }
-    const auto plan_json = nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
-  "layers":[
-    {"id":"vector","type":"shape","size":[64,64],
-     "shape":{"type":"path","asset":"art/dashed.svg"}}
-  ],
-  "output":{"path":"out.png"}})JSON");
-    auto decoded = decode_render_plan(plan_json);
-    REQUIRE(decoded);
     assets::AssetResolver resolver;
     resolver.mount(directory.path);
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":200,"height":80,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"svg","type":"shape","size":[200,80],
+        "shape":{"type":"path","asset":"art/text.svg"}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
     const auto prepared = compile_render_plan(*decoded, resolver);
     REQUIRE(prepared);
     const auto evaluated = evaluate(prepared->compiled_composition,
-        CompositionEvaluateContext{}, Frame{0});
+                                    CompositionEvaluateContext{}, Frame{0});
     REQUIRE(evaluated);
-    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 1);
-    const auto& stroke = evaluated->scene.layers()[0].nodes[0].shape.path().stroke;
-    REQUIRE(stroke.enabled);
-    CHECK(stroke.cap == LineCap::Round);
-    CHECK(stroke.join == LineJoin::Bevel);
-    REQUIRE(stroke.dash_array.size() == 2);
-    CHECK(stroke.dash_array[0] == doctest::Approx(4.0f));
-    CHECK(stroke.dash_array[1] == doctest::Approx(2.0f));
-    CHECK(stroke.dash_offset == doctest::Approx(1.5f));
+    REQUIRE(evaluated->scene.layers().size() == 7);
+    REQUIRE(evaluated->scene.layers()[1].nodes.size() == 1);
+    REQUIRE(evaluated->scene.layers()[2].nodes.size() == 1);
+    const auto& first_text_layer = evaluated->scene.layers()[1];
+    const auto& second_text_layer = evaluated->scene.layers()[2];
+    const float first_glyph_origin = first_text_layer.transform.position.x +
+        first_text_layer.nodes[0].world_transform.position.x;
+    const float second_glyph_origin = second_text_layer.transform.position.x +
+        second_text_layer.nodes[0].world_transform.position.x;
+    CHECK(first_glyph_origin < second_glyph_origin);
+    const float first_glyph_y = first_text_layer.transform.position.y +
+        first_text_layer.nodes[0].world_transform.position.y;
+    const float second_glyph_y = second_text_layer.transform.position.y +
+        second_text_layer.nodes[0].world_transform.position.y;
+    CHECK(first_glyph_y != doctest::Approx(second_glyph_y));
+    const auto& central_text_layer = evaluated->scene.layers()[3];
+    REQUIRE(central_text_layer.nodes.size() == 1);
+    const float central_glyph_y = central_text_layer.transform.position.y +
+        central_text_layer.nodes[0].world_transform.position.y;
+    CHECK(first_glyph_y != doctest::Approx(central_glyph_y));
+    CHECK(evaluated->scene.layers()[4].transform.position.x <
+          evaluated->scene.layers()[5].transform.position.x);
+    CHECK(evaluated->scene.layers()[5].transform.position.x <
+          evaluated->scene.layers()[6].transform.position.x);
+    CHECK(evaluated->scene.layers()[4].transform.position.y !=
+          doctest::Approx(evaluated->scene.layers()[5].transform.position.y));
+    const auto styled_glyph = evaluated->scene.layers()[4].nodes[0]
+        .shape.text_run_shape_handle().value;
+    REQUIRE(styled_glyph);
+    CHECK(styled_glyph->paint.fill.a == doctest::Approx(0.5f));
+    CHECK(styled_glyph->paint.stroke_enabled);
+    CHECK(styled_glyph->paint.stroke_width == doctest::Approx(2.0f));
+    CHECK(styled_glyph->paint.stroke_color.g == doctest::Approx(1.0f));
+    CHECK(styled_glyph->paint.stroke_color.a == doctest::Approx(0.25f));
+}
 
-    // The advanced stroke vocabulary participates in the content fingerprint: a
-    // cap change alters the digest while geometry stays fixed.
-    std::filesystem::rename(directory.path / "art/dashed.svg",
-                            directory.path / "art/dashed2.svg");
+TEST_CASE("render plan lays out SVG textPath clusters on an addressable path") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    std::filesystem::create_directories(directory.path / "fonts");
+    const auto source_root = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+    std::filesystem::copy_file(source_root / "assets/fonts/Inter-Regular.ttf",
+        directory.path / "fonts/Inter-Regular.ttf", std::filesystem::copy_options::overwrite_existing);
     {
-        std::ofstream svg(directory.path / "art/dashed2.svg");
-        svg << R"svg(<svg><path d="M0 0L10 0L10 10"
-          style="stroke:red;stroke-width:3;stroke-linecap:butt;stroke-linejoin:miter;
-          stroke-dasharray:4 2;stroke-dashoffset:1.5"/></svg>)svg";
+        std::ofstream svg(directory.path / "art/text_path.svg");
+        svg << R"svg(<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80">
+          <defs><path id="route" d="M 20 40 L 180 40"/></defs>
+          <text font-family="Inter" font-size="22" fill="#ffffff">
+            <textPath id="caption" href="#route" startOffset="10">ABC</textPath>
+          </text></svg>)svg";
     }
-    auto changed = *decoded;
-    changed.layers[0].shape->svg_asset = "art/dashed2.svg";
-    const auto second_prepared = compile_render_plan(changed, resolver);
-    REQUIRE(second_prepared);
-    CHECK(second_prepared->fingerprint.content_digest !=
-          prepared->fingerprint.content_digest);
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":200,"height":80,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"svg","type":"shape","size":[200,80],"position":[0,0],
+        "shape":{"type":"path","asset":"art/text_path.svg"}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE_MESSAGE(prepared, prepared.error().code << ": " << prepared.error().message);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+                                    CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 4);
+    std::array<float, 3> glyph_x{};
+    for (std::size_t index = 0; index < glyph_x.size(); ++index) {
+        const auto& text_layer = evaluated->scene.layers()[index + 1];
+        REQUIRE(text_layer.nodes.size() == 1);
+        glyph_x[index] = text_layer.transform.position.x +
+            text_layer.nodes[0].world_transform.position.x;
+    }
+    CHECK(glyph_x[0] < glyph_x[1]);
+    CHECK(glyph_x[1] < glyph_x[2]);
 }
 
 TEST_CASE("render plan imports a resolver-backed SVG before composition compile") {
@@ -1224,7 +1049,7 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
           <linearGradient id="linear" gradientTransform="translate(0.1 0.2)"><stop offset="0" stop-color="#ff0000"><animate attributeName="stop-opacity" from="1" to="0" dur="1s"/></stop><stop offset="1" style="stop-color:blue;stop-opacity:0.5"><animate attributeName="stop-color" from="blue" to="lime" dur="1s"/></stop></linearGradient>
           <radialGradient id="radial" gradientTransform="translate(0.1 0)"><stop offset="0" stop-color="white"/><stop offset="1" stop-color="black"/></radialGradient>
           <path id="reusable" d="M 0 0 L 4 0 L 4 4 Z" fill="lime"/>
-          </defs><path d="M 0 0 L 20 0 L 20 20 Z" fill="#ff0000" stroke="#00ff00" stroke-width="2" opacity="0.5"/>
+          </defs><path d="M 0 0 L 20 0 L 20 20 Z" fill="#ff0000" stroke="#00ff00" stroke-width="2" stroke-linecap="round" stroke-linejoin="bevel" stroke-miterlimit="6" stroke-dasharray="4 2" stroke-dashoffset="1" opacity="0.5"/>
           <path d="M 24 0 L 44 0 L 44 20 Z" fill="#0000ff" stroke="none"/>
           <path d="M 0 24 L 20 24 L 20 44 Z" fill="url(#linear)"/>
           <path d="M 24 24 L 44 24 L 44 44 Z" fill="url(#radial)"/>
@@ -1240,7 +1065,7 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
       "output":{"path":"out.png"}})JSON"));
     REQUIRE(decoded);
     const auto prepared = compile_render_plan(*decoded, resolver);
-    REQUIRE(prepared);
+    REQUIRE_MESSAGE(prepared, prepared.error().code << ": " << prepared.error().message);
     CHECK(prepared->assets.assets().size() == 1);
     const auto evaluated = evaluate(prepared->compiled_composition,
                                     CompositionEvaluateContext{}, Frame{0});
@@ -1254,6 +1079,12 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     CHECK(evaluated->scene.layers()[0].nodes[0].fill.solid.a == doctest::Approx(0.5f));
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.enabled);
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.width == doctest::Approx(2.0f));
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.cap == LineCap::Round);
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.join == LineJoin::Bevel);
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.miter_limit == doctest::Approx(6.0f));
+    REQUIRE(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.dash_array.size() == 2);
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.dash_array[0] == doctest::Approx(4.0f));
+    CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.dash_offset == doctest::Approx(1.0f));
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.color.g == doctest::Approx(1.0f));
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().stroke.color.a == doctest::Approx(0.5f));
     CHECK_FALSE(evaluated->scene.layers()[0].nodes[1].shape.path().stroke.enabled);
@@ -1303,13 +1134,12 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     missing.layers[0].shape->svg_asset = "art/not-found.svg";
     CHECK_FALSE(compile_render_plan(missing, resolver));
 
-    const std::array<std::string, 15> unsupported_svg{
-        "<svg><text>no conversion</text></svg>",
+    const std::array<std::string, 14> unsupported_svg{
         "<svg><path d=\"M0 0L1 1\" fill=\"url(#gradient)\"/></svg>",
         "<svg><path d=\"M0 0L1 1\"/><g><use href=\"#shape\"/></g></svg>",
         "<svg><defs><linearGradient id=\"g\"/></defs><path d=\"M0 0L1 1\"/></svg>",
         "<svg><mask id=\"m\"><path d=\"M0 0L1 1\"/></mask></svg>",
-        "<svg><path d=\"M0 0L1 1\" paint-order=\"markers\"/></svg>",
+        "<svg><path d=\"M0 0L1 1\" paint-order=\"stroke\"/></svg>",
         "<svg><path d=\"M0 0L1 1\" opacity=\"2\"/></svg>",
         "<svg><path d=\"M0 0L1 1\"><animate attributeName=\"opacity\" from=\"0\" to=\"1\" dur=\"1s\" repeatCount=\"indefinite\"/></path></svg>",
         "<svg><g><animate attributeName=\"fill\" from=\"red\" to=\"blue\" dur=\"1s\"/><path d=\"M0 0L1 1\"/></g></svg>",
@@ -1408,78 +1238,215 @@ TEST_CASE("render plan lowers SVG opacity and translate animations into native s
     CHECK(middle->scene.layers()[0].nodes[0].shape.path().stroke.color.a == doctest::Approx(0.5625f));
     CHECK(last->scene.layers()[0].nodes[0].shape.path().stroke.color.a == doctest::Approx(0.25f));
 }
-#endif
 
-TEST_CASE("render plan lowers nested animated SVG groups as composed child tracks") {
+TEST_CASE("render plan addresses imported SVG group ids and applies path operators") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
     FingerprintTempDir directory;
     std::filesystem::create_directories(directory.path / "art");
     {
-        std::ofstream svg(directory.path / "art/nested.svg");
-        svg << R"svg(<svg><g>
-          <animateTransform attributeName="transform" type="translate" from="0 0" to="24 0" dur="1s" fill="freeze"/>
-          <g>
-            <animateTransform attributeName="transform" type="rotate" from="0" to="90" dur="1s" fill="freeze"/>
-            <path d="M 0 16 L 0 48" fill="none" stroke="blue" stroke-width="2"/>
-          </g>
-        </g></svg>)svg";
+        std::ofstream svg(directory.path / "art/group.svg");
+        svg << R"svg(<svg><g id="cluster"><path id="arrow" d="M 0 0 L 20 0" fill="red" stroke="white" stroke-width="2"/></g><path id="caption" d="M 0 12 L 8 12" fill="blue"/></svg>)svg";
     }
     assets::AssetResolver resolver;
     resolver.mount(directory.path);
-    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+    auto source = nlohmann::json::parse(R"JSON({
       "schema":"chronon.render-plan.v3","version":3,
       "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":31},
       "layers":[{"id":"vector","type":"shape","size":[64,64],
-        "shape":{"type":"path","asset":"art/nested.svg"}}],
-      "output":{"path":"out.png"}})JSON"));
-    REQUIRE(decoded);
+        "shape":{"type":"path","asset":"art/group.svg",
+          "element_animations":[{"target":"cluster","property":"opacity",
+            "animation":{"keyframes":[{"frame":0,"value":[1]},
+              {"frame":30,"value":[0.2]}]}}],
+          "operators":[{"kind":"repeater","target":"cluster","params":{"copies":2,
+            "position":[0,8],"opacity_decay":0.5,
+            "animation":{"keyframes":[{"frame":0,"value":[0,8,1,1,0]},
+              {"frame":30,"value":[20,8,1,1,0]}]}}},
+            {"kind":"offset_path","target":"arrow","params":{"amount":2,"miter_limit":4}},
+            {"kind":"wiggle_path","target":"caption","params":
+              {"amount":0.5,"frequency":0.75,"seed":1234}}]} }],
+      "output":{"path":"out.png"}})JSON");
+    auto decoded = decode_render_plan(source);
+    REQUIRE_MESSAGE(decoded, decoded.error().message);
     const auto prepared = compile_render_plan(*decoded, resolver);
     REQUIRE(prepared);
-
-    // The outermost rotation applies to the inner child first (bounded
-    // composed space: scale/rotate about the path origin, translation last).
     const auto first = evaluate(prepared->compiled_composition,
         CompositionEvaluateContext{}, Frame{0});
     const auto middle = evaluate(prepared->compiled_composition,
         CompositionEvaluateContext{}, Frame{15});
-    const auto last = evaluate(prepared->compiled_composition,
-        CompositionEvaluateContext{}, Frame{30});
-    REQUIRE(first);
-    REQUIRE(middle);
-    REQUIRE(last);
-    REQUIRE(first->scene.layers()[0].nodes.size() == 1);
-    const auto& node0 = first->scene.layers()[0].nodes[0].shape.path();
-    const auto& node_mid = middle->scene.layers()[0].nodes[0].shape.path();
-    const auto& node_last = last->scene.layers()[0].nodes[0].shape.path();
-    // Frame 0: rotation is zero, translation is zero — the path is unchanged.
-    CHECK(node0.commands[1].p0.y == doctest::Approx(48.0f));
-    CHECK(node0.commands[1].p0.x == doctest::Approx(0.0f));
-    // Frame 15: rotate 45° about the path origin (0,24 vertical midpoint origin
-    // at (0,0)) then apply the outer translate: R45·(0,48) + (12,0).
-    CHECK(node_mid.commands[1].p0.x == doctest::Approx(-48.0f * 0.70710678f + 12.0f).epsilon(0.01f));
-    CHECK(node_mid.commands[1].p0.y == doctest::Approx(48.0f * 0.70710678f).epsilon(0.01f));
-    // Frame 30: rotate 90° (x,y)→(-y,x) → (-48,0), then translate +24 x.
-    CHECK(node_last.commands[1].p0.x == doctest::Approx(-24.0f).epsilon(0.01f));
-    CHECK(node_last.commands[1].p0.y == doctest::Approx(0.0f).epsilon(0.01f));
+    REQUIRE(first); REQUIRE(middle);
+    REQUIRE(first->scene.layers()[0].nodes.size() == 3);
+    CHECK(first->scene.layers()[0].nodes[0].fill.solid.a == doctest::Approx(1.0f));
+    CHECK(first->scene.layers()[0].nodes[1].fill.solid.a == doctest::Approx(0.5f));
+    CHECK(first->scene.layers()[0].nodes[2].fill.solid.a == doctest::Approx(1.0f));
+    CHECK(first->scene.layers()[0].nodes[1].shape.path().commands[0].p0.x == doctest::Approx(0.0f));
+    CHECK(first->scene.layers()[0].nodes[0].shape.path().commands[0].p0.y == doctest::Approx(2.0f));
+    CHECK(first->scene.layers()[0].nodes[2].shape.path().commands[1].p0.y != doctest::Approx(12.0f));
+    CHECK(middle->scene.layers()[0].nodes[0].fill.solid.a == doctest::Approx(0.6f));
+    CHECK(middle->scene.layers()[0].nodes[1].fill.solid.a == doctest::Approx(0.3f));
+    CHECK(middle->scene.layers()[0].nodes[2].fill.solid.a == doctest::Approx(1.0f));
+    CHECK(middle->scene.layers()[0].nodes[1].shape.path().commands[0].p0.x == doctest::Approx(10.0f));
 
-    // Nested groups that share an animation kind across levels fail closed.
+    auto changed_binding = source;
+    changed_binding["layers"][0]["shape"]["element_animations"][0]
+        ["animation"]["keyframes"][1]["value"][0] = 0.1;
+    const auto changed_decoded = decode_render_plan(changed_binding);
+    REQUIRE(changed_decoded);
+    const auto changed_prepared = compile_render_plan(*changed_decoded, resolver);
+    REQUIRE(changed_prepared);
+    CHECK(changed_prepared->fingerprint.content_digest != prepared->fingerprint.content_digest);
+
+    auto missing_target = source;
+    missing_target["layers"][0]["shape"]["element_animations"][0]["target"] = "absent";
+    const auto unresolved = decode_render_plan(missing_target);
+    REQUIRE(unresolved);
+    const auto rejected = compile_render_plan(*unresolved, resolver);
+    CHECK_FALSE(rejected);
+    if (!rejected) CHECK(rejected.error().code == "svg_target_missing");
+
+    auto unsupported_property = source;
+    unsupported_property["layers"][0]["shape"]["element_animations"][0]["target"] = "arrow";
+    unsupported_property["layers"][0]["shape"]["element_animations"][0]["property"] = "filter.blur";
+    const auto unsupported_decoded = decode_render_plan(unsupported_property);
+    CHECK_FALSE(unsupported_decoded);
+    auto invalid_programmatic_plan = *decoded;
+    invalid_programmatic_plan.layers[0].shape->svg_element_animations[0].property = "filter.blur";
+    const auto unsupported_result = compile_render_plan(invalid_programmatic_plan, resolver);
+    CHECK_FALSE(unsupported_result);
+    if (!unsupported_result)
+        CHECK(unsupported_result.error().code == "svg_target_property_invalid");
+
+    auto missing_operator_target = source;
+    missing_operator_target["layers"][0]["shape"]["operators"][0]["target"] = "absent";
+    const auto unresolved_operator = decode_render_plan(missing_operator_target);
+    REQUIRE(unresolved_operator);
+    const auto operator_rejected = compile_render_plan(*unresolved_operator, resolver);
+    CHECK_FALSE(operator_rejected);
+    if (!operator_rejected)
+        CHECK(operator_rejected.error().code == "svg_target_missing");
+
     {
-        std::ofstream svg(directory.path / "art/nested-dup.svg");
-        svg << R"svg(<svg><g>
-          <animateTransform attributeName="transform" type="translate" from="0 0" to="4 0" dur="1s" fill="freeze"/>
-          <g>
-            <animateTransform attributeName="transform" type="translate" from="0 0" to="1 0" dur="1s" fill="freeze"/>
-            <path d="M 0 0 L 10 10" fill="red"/>
-          </g>
-        </g></svg>)svg";
+        std::ofstream svg(directory.path / "art/ambiguous.svg");
+        svg << R"svg(<svg><defs><path id="symbol" d="M0 0 L4 0" fill="red"/></defs>
+          <use id="instance_a" href="#symbol"/><use id="instance_b" href="#symbol"/></svg>)svg";
     }
-    auto decoded_dup = *decoded;
-    decoded_dup.layers[0].shape->svg_asset = "art/nested-dup.svg";
-    const auto rejected = compile_render_plan(decoded_dup, resolver);
-    REQUIRE_FALSE(rejected);
-    CHECK(rejected.error().code == "svg_animation_conflict");
+    auto ambiguous_target = source;
+    ambiguous_target["layers"][0]["shape"]["asset"] = "art/ambiguous.svg";
+    ambiguous_target["layers"][0]["shape"]["operators"] = nlohmann::json::array();
+    ambiguous_target["layers"][0]["shape"]["element_animations"][0]["target"] = "symbol";
+    const auto ambiguous_plan = decode_render_plan(ambiguous_target);
+    REQUIRE(ambiguous_plan);
+    const auto ambiguous_result = compile_render_plan(*ambiguous_plan, resolver);
+    CHECK_FALSE(ambiguous_result);
+    if (!ambiguous_result)
+        CHECK(ambiguous_result.error().code == "svg_target_ambiguous");
+
+    {
+        std::ofstream svg(directory.path / "art/duplicate.svg");
+        svg << R"svg(<svg><path id="same" d="M0 0 L4 0" fill="red"/>
+          <path id="same" d="M0 4 L4 4" fill="blue"/></svg>)svg";
+    }
+    auto duplicate_target = source;
+    duplicate_target["layers"][0]["shape"]["asset"] = "art/duplicate.svg";
+    duplicate_target["layers"][0]["shape"]["operators"] = nlohmann::json::array();
+    duplicate_target["layers"][0]["shape"]["element_animations"][0]["target"] = "same";
+    const auto duplicate_plan = decode_render_plan(duplicate_target);
+    REQUIRE(duplicate_plan);
+    const auto duplicate_result = compile_render_plan(*duplicate_plan, resolver);
+    CHECK_FALSE(duplicate_result);
+    if (!duplicate_result)
+        CHECK(duplicate_result.error().code == "svg_import_failed");
+
+    auto svg_merge = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"vector","type":"shape","size":[64,64],
+        "shape":{"type":"path","asset":"art/group.svg","operators":[
+          {"kind":"merge","target":"arrow","params":{"paths":[[
+            {"type":"move_to","point":[0,20]},
+            {"type":"line_to","point":[4,20]}]]}}]}}],
+      "output":{"path":"out.png"}})JSON");
+    const auto merge_plan = decode_render_plan(svg_merge);
+    REQUIRE(merge_plan);
+    const auto merge_result = compile_render_plan(*merge_plan, resolver);
+    REQUIRE(merge_result);
+    const auto merged = evaluate(merge_result->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(merged);
+    REQUIRE(merged->scene.layers()[0].nodes.size() == 2);
+    const auto& merged_path = merged->scene.layers()[0].nodes[0].shape.path();
+    REQUIRE(merged_path.commands.size() == 4);
+    CHECK(merged_path.commands[2].type == PathCommandType::MoveTo);
+    CHECK(merged_path.commands[2].p0.x == doctest::Approx(0.0f));
+    CHECK(merged_path.commands[2].p0.y == doctest::Approx(20.0f));
+
+    svg_merge["layers"][0]["shape"]["operators"][0]["target"] = "cluster";
+    const auto group_merge_plan = decode_render_plan(svg_merge);
+    REQUIRE(group_merge_plan);
+    const auto group_merge_result = compile_render_plan(*group_merge_plan, resolver);
+    CHECK_FALSE(group_merge_result);
+    if (!group_merge_result)
+        CHECK(group_merge_result.error().code == "svg_target_property_invalid");
 }
+
+TEST_CASE("render plan morphs a targeted imported SVG element on the shared timeline") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/morph.svg");
+        svg << R"svg(<svg width="32" height="32" viewBox="0 0 32 32">
+          <path id="morphable" d="M 2 2 L 12 2 L 12 12 Z" fill="#00D9FF"/>
+        </svg>)svg";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":11},
+      "layers":[{"id":"vector","type":"shape","position":[32,32],"size":[64,64],
+        "shape":{"type":"path","asset":"art/morph.svg","operators":[
+          {"kind":"morph","target":"morphable","params":{
+            "target":[{"type":"move_to","point":[2,2]},
+              {"type":"line_to","point":[22,2]},
+              {"type":"line_to","point":[22,12]},{"type":"close"}],
+            "progress":0,"animation":{"keyframes":[
+              {"frame":0,"value":0},{"frame":10,"value":1}]}}}]}}],
+      "output":{"path":"out.mp4","format":"mp4"}})JSON");
+    const auto decoded = decode_render_plan(source);
+    REQUIRE_MESSAGE(decoded, decoded.error().message);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    const auto first = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    const auto middle = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{5});
+    const auto last = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{10});
+    REQUIRE(first); REQUIRE(middle); REQUIRE(last);
+    REQUIRE(first->scene.layers()[0].nodes.size() == 1);
+    REQUIRE(middle->scene.layers()[0].nodes.size() == 1);
+    REQUIRE(last->scene.layers()[0].nodes.size() == 1);
+    const auto x_at = [](const auto& evaluated) {
+        return evaluated.scene.layers()[0].nodes[0].shape.path().commands[1].p0.x;
+    };
+    CHECK(x_at(middle.value()) == doctest::Approx((x_at(first.value()) + x_at(last.value())) * 0.5f));
+    CHECK(x_at(last.value()) > x_at(first.value()));
+
+    auto incompatible = source;
+    incompatible["layers"][0]["shape"]["operators"][0]["params"]["target"][1]["type"] = "cubic_to";
+    incompatible["layers"][0]["shape"]["operators"][0]["params"]["target"][1]["control1"] = {6, 2};
+    incompatible["layers"][0]["shape"]["operators"][0]["params"]["target"][1]["control2"] = {8, 2};
+    const auto incompatible_plan = decode_render_plan(incompatible);
+    REQUIRE(incompatible_plan);
+    const auto incompatible_result = compile_render_plan(*incompatible_plan, resolver);
+    REQUIRE(incompatible_result);
+    const auto incompatible_evaluation = evaluate(incompatible_result->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    CHECK_FALSE(incompatible_evaluation);
+}
+#endif
 
 TEST_CASE("all text backends share one linear-domain color packer") {
     const chronon3d::Color color{0.2158605f, 0.5f, 1.0f, 0.5f};
@@ -3786,262 +3753,3 @@ TEST_CASE("render plan flow layout reaches the runtime scene configuration") {
     REQUIRE(changed_prepared);
     CHECK(changed_prepared->fingerprint.content_digest != prepared->fingerprint.content_digest);
 }
-
-#if defined(CHRONON_TEST_ENABLE_SVG)
-TEST_CASE("render plan lowers userSpaceOnUse SVG gradients in user space") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "art");
-    {
-        std::ofstream svg(directory.path / "art/user-space.svg");
-        svg << R"svg(<svg><defs><linearGradient id="g" gradientUnits="userSpaceOnUse")svg"
-            << R"svg( x1="10" y1="20" x2="30" y2="20"><stop offset="0" stop-color="red")svg"
-            << R"svg(/><stop offset="1" stop-color="blue"/></linearGradient></defs>)svg"
-            << R"svg(<path d="M 0 0 L 40 0 L 40 40 Z" fill="url(#g)"/></svg>)svg";
-    }
-    const auto plan_json = nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
-  "layers":[{"id":"vector","type":"shape","size":[64,64],
-    "shape":{"type":"path","asset":"art/user-space.svg"}}],
-  "output":{"path":"out.png"}})JSON");
-    auto decoded = decode_render_plan(plan_json);
-    REQUIRE(decoded);
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto prepared = compile_render_plan(*decoded, resolver);
-    if (!prepared) INFO(prepared.error().message);
-    REQUIRE(prepared);
-    const auto evaluated = evaluate(prepared->compiled_composition,
-        CompositionEvaluateContext{}, Frame{0});
-    REQUIRE(evaluated);
-    const auto& gradient = evaluated->scene.layers()[0].nodes[0].shape.path().fill.gradient;
-    CHECK(gradient.type == graphics::GradientType::Linear);
-    CHECK(gradient.start.x == doctest::Approx(10.0f));
-    CHECK(gradient.start.y == doctest::Approx(20.0f));
-    CHECK(gradient.end.x == doctest::Approx(30.0f));
-    CHECK(gradient.end.y == doctest::Approx(20.0f));
-}
-
-TEST_CASE("render plan animates SVG gradientTransform through gradient keyframes") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "art");
-    {
-        std::ofstream svg(directory.path / "art/gradient-motion.svg");
-        svg << R"svg(<svg><defs><linearGradient id="g">)svg"
-            << R"svg(<animateTransform attributeName="transform" type="translate" from="0 0" to="0.25 0" dur="1s"/>)svg"
-            << R"svg(<stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/>)svg"
-            << R"svg(</linearGradient></defs><path d="M 0 0 L 40 0 L 40 40 Z" fill="url(#g)"/></svg>)svg";
-    }
-    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":31},
-  "layers":[{"id":"vector","type":"shape","size":[64,64],
-    "shape":{"type":"path","asset":"art/gradient-motion.svg"}}],
-  "output":{"path":"out.png"}})JSON"));
-    REQUIRE(decoded);
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto prepared = compile_render_plan(*decoded, resolver);
-    if (!prepared) INFO(prepared.error().message);
-    REQUIRE(prepared);
-    const auto at = [&](std::int64_t frame) {
-        const auto evaluated = evaluate(prepared->compiled_composition,
-            CompositionEvaluateContext{}, Frame{frame});
-        REQUIRE(evaluated);
-        return evaluated->scene.layers()[0].nodes[0].shape.path().fill.gradient;
-    };
-    CHECK(at(0).start.x == doctest::Approx(0.0f));
-    CHECK(at(15).start.x == doctest::Approx(5.0f));
-    CHECK(at(30).start.x == doctest::Approx(10.0f));
-    CHECK(at(30).end.x == doctest::Approx(50.0f));
-}
-
-TEST_CASE("render plan applies SVG keySplines as cubic bezier easing") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "art");
-    const auto write = [&](const std::string& name, const std::string& easing) {
-        std::ofstream svg(directory.path / ("art/" + name));
-        svg << R"svg(<svg><path d="M 0 0 L 40 0 L 40 40 Z" fill="red"><animate)svg"
-            << R"svg( attributeName="opacity" from="0" to="1" dur="1s" )svg" << easing
-            << R"svg(/></path></svg>)svg";
-    };
-    write("spline.svg", R"svg(calcMode="spline" keySplines="0.42 0 1 1")svg");
-    write("linear.svg", R"svg()svg");
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto sample = [&](const std::string& asset, std::int64_t frame) {
-        auto plan_json = nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":31},
-  "layers":[{"id":"vector","type":"shape","size":[64,64],
-    "shape":{"type":"path","asset":"art/spline.svg"}}],
-  "output":{"path":"out.png"}})JSON");
-        plan_json["layers"][0]["shape"]["asset"] = asset;
-        auto decoded = decode_render_plan(plan_json);
-        REQUIRE(decoded);
-        const auto prepared = compile_render_plan(*decoded, resolver);
-        if (!prepared) INFO(prepared.error().message);
-        REQUIRE(prepared);
-        const auto evaluated = evaluate(prepared->compiled_composition,
-            CompositionEvaluateContext{}, Frame{frame});
-        REQUIRE(evaluated);
-        return evaluated->scene.layers()[0].nodes[0].fill.solid.a;
-    };
-    CHECK(sample("art/spline.svg", 0) == doctest::Approx(0.0f));
-    CHECK(sample("art/spline.svg", 30) == doctest::Approx(1.0f));
-    CHECK(sample("art/linear.svg", 15) == doctest::Approx(0.5f));
-    const auto spline_midpoint = sample("art/spline.svg", 15);
-    CHECK(spline_midpoint < 0.45f);
-    CHECK(spline_midpoint > 0.05f);
-    CHECK(std::abs(spline_midpoint - 0.5f) > 0.05f);
-}
-
-TEST_CASE("render plan expands SVG repeatCount into repeated keyframe cycles") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "art");
-    {
-        std::ofstream svg(directory.path / "art/repeat.svg");
-        svg << R"svg(<svg><path d="M 0 0 L 40 0 L 40 40 Z" fill="red"><animate)svg"
-            << R"svg( attributeName="opacity" from="0" to="1" dur="1s" repeatCount="2"/></path></svg>)svg";
-    }
-    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":61},
-  "layers":[{"id":"vector","type":"shape","size":[64,64],
-    "shape":{"type":"path","asset":"art/repeat.svg"}}],
-  "output":{"path":"out.png"}})JSON"));
-    REQUIRE(decoded);
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto prepared = compile_render_plan(*decoded, resolver);
-    if (!prepared) INFO(prepared.error().message);
-    REQUIRE(prepared);
-    const auto alpha = [&](std::int64_t frame) {
-        const auto evaluated = evaluate(prepared->compiled_composition,
-            CompositionEvaluateContext{}, Frame{frame});
-        REQUIRE(evaluated);
-        return evaluated->scene.layers()[0].nodes[0].fill.solid.a;
-    };
-    CHECK(alpha(0) == doctest::Approx(0.0f));
-    CHECK(alpha(30) == doctest::Approx(0.0f));
-    CHECK(alpha(45) == doctest::Approx(0.5f));
-    CHECK(alpha(60) == doctest::Approx(1.0f));
-}
-
-TEST_CASE("render plan lowers a group-scoped SVG clip over multiple paths") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "art");
-    {
-        std::ofstream svg(directory.path / "art/group-clip.svg");
-        svg << R"svg(<svg><defs><clipPath id="c"><rect x="0" y="0" width="20" height="20"/></clipPath></defs>)svg"
-            << R"svg(<g clip-path="url(#c)"><path d="M0 0L10 0L10 10Z" fill="red"/>)svg"
-            << R"svg(<path d="M12 0L18 0L18 8Z" fill="blue"/></g></svg>)svg";
-    }
-    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
-  "layers":[{"id":"vector","type":"shape","size":[64,64],
-    "shape":{"type":"path","asset":"art/group-clip.svg"}}],
-  "output":{"path":"out.png"}})JSON"));
-    REQUIRE(decoded);
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto prepared = compile_render_plan(*decoded, resolver);
-    if (!prepared) INFO(prepared.error().message);
-    REQUIRE(prepared);
-    const auto evaluated = evaluate(prepared->compiled_composition,
-        CompositionEvaluateContext{}, Frame{0});
-    REQUIRE(evaluated);
-    REQUIRE(evaluated->scene.layers()[0].nodes.size() == 2);
-    CHECK(evaluated->scene.layers()[0].mask.type == MaskType::Path);
-    CHECK_FALSE(evaluated->scene.layers()[0].mask.path.empty());
-}
-
-TEST_CASE("render plan rejects distinct per-element SVG clip scopes") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "art");
-    {
-        std::ofstream svg(directory.path / "art/distinct-clip.svg");
-        svg << R"svg(<svg><defs><clipPath id="a"><rect x="0" y="0" width="4" height="4"/></clipPath>)svg"
-            << R"svg(<clipPath id="b"><rect x="8" y="0" width="4" height="4"/></clipPath></defs>)svg"
-            << R"svg(<path d="M0 0L10 0L10 10Z" clip-path="url(#a)"/>)svg"
-            << R"svg(<path d="M12 0L18 0L18 8Z" clip-path="url(#b)"/></svg>)svg";
-    }
-    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
-  "layers":[{"id":"vector","type":"shape","size":[64,64],
-    "shape":{"type":"path","asset":"art/distinct-clip.svg"}}],
-  "output":{"path":"out.png"}})JSON"));
-    REQUIRE(decoded);
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto prepared = compile_render_plan(*decoded, resolver);
-    REQUIRE_FALSE(prepared);
-    CHECK(prepared.error().message.find("per-element clip/mask scopes") != std::string::npos);
-}
-#endif
-
-#if defined(CHRONON_TEST_ENABLE_SVG)
-TEST_CASE("render plan lowers a root SVG filter to layer effects") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    FingerprintTempDir directory;
-    std::filesystem::create_directories(directory.path / "art");
-    {
-        std::ofstream svg(directory.path / "art/blurred.svg");
-        svg << R"svg(<svg filter="url(#f)"><defs><filter id="f">)svg"
-            << R"svg(<feGaussianBlur stdDeviation="4"/>)svg"
-            << R"svg(<feDropShadow dx="3" dy="-2" stdDeviation="1.5" flood-color="#336699" flood-opacity="0.5"/>)svg"
-            << R"svg(</filter></defs><path d="M 0 0 L 40 0 L 40 40 Z" fill="red"/></svg>)svg";
-    }
-    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
-  "schema":"chronon.render-plan.v3","version":3,
-  "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
-  "layers":[{"id":"vector","type":"shape","size":[64,64],
-    "shape":{"type":"path","asset":"art/blurred.svg"}}],
-  "output":{"path":"out.png"}})JSON"));
-    REQUIRE(decoded);
-    assets::AssetResolver resolver;
-    resolver.mount(directory.path);
-    const auto prepared = compile_render_plan(*decoded, resolver);
-    if (!prepared) INFO(prepared.error().message);
-    REQUIRE(prepared);
-    const auto evaluated = evaluate(prepared->compiled_composition,
-        CompositionEvaluateContext{}, Frame{0});
-    REQUIRE(evaluated);
-    const auto& effects = evaluated->scene.layers()[0].effects();
-    REQUIRE(effects.size() == 2);
-    CHECK(effects[0].effect_type == effects::EffectType::Blur);
-    CHECK(effects[1].effect_type == effects::EffectType::DropShadow);
-
-    // The imported filter participates in the content fingerprint.
-    auto second = compile_render_plan(*decoded, resolver);
-    REQUIRE(second);
-    CHECK(second->fingerprint.content_digest == prepared->fingerprint.content_digest);
-    {
-        std::ofstream svg(directory.path / "art/blurred2.svg");
-        svg << R"svg(<svg filter="url(#f)"><defs><filter id="f">)svg"
-            << R"svg(<feGaussianBlur stdDeviation="8"/>)svg"
-            << R"svg(</filter></defs><path d="M 0 0 L 40 0 L 40 40 Z" fill="red"/></svg>)svg";
-    }
-    auto changed_plan = *decoded;
-    changed_plan.layers[0].shape->svg_asset = "art/blurred2.svg";
-    const auto changed = compile_render_plan(changed_plan, resolver);
-    if (!changed) INFO(changed.error().message);
-    REQUIRE(changed);
-    CHECK(changed->fingerprint.content_digest != prepared->fingerprint.content_digest);
-}
-#endif

@@ -42,35 +42,12 @@ NodeExecResult SourceNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_TRACE_SCOPE("chronon.node", "source_render");
-    const bool sampled_mesh_animation = ctx.node_exec.sampled_layer &&
-        ctx.node_exec.sampled_layer->kind == compiler::NodeKind::Mesh &&
-        ctx.node_exec.sampled_layer->dirty;
-    if (m_cache_policy.reusable_across_frames() && !sampled_mesh_animation && m_cached_result &&
+    if (m_cache_policy.reusable_across_frames() && m_cached_result &&
         !ctx.frame_input.has_camera_2_5d &&
         (!ctx.node_exec.clip_rect || (ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
                                       ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width &&
                                       ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height))) {
         return NodeExecResult{ctx.acquire_owned_fb(*m_cached_result)};
-    }
-    // Baked V3 mesh samples are frame-local geometry inputs. Install a
-    // frame-owned mesh on the copied RenderNode so refresh/cache state never
-    // mutates immutable Scene topology or leaks a prior frame's vertex data.
-    RenderNode sampled_node = m_node;
-    if (m_node.shape.type() == ShapeType::Mesh && ctx.node_exec.sampled_layer) {
-        if (const auto* mesh = std::get_if<compiler::SampledMeshParameters>(
-                &ctx.node_exec.sampled_layer->payload);
-            mesh && mesh->inline_mesh && !mesh->positions.empty()) {
-            auto evaluated = std::make_shared<Mesh>(std::string{m_node.name});
-            for (std::size_t index = 0; index < mesh->positions.size(); ++index) {
-                const auto& authored = mesh->inline_mesh->vertices[index];
-                const auto& position = mesh->positions[index];
-                const auto& normal = mesh->normals.empty() ? authored.normal : mesh->normals[index];
-                evaluated->add_vertex(Vertex{Vec3{position[0], position[1], position[2]},
-                    Vec3{normal[0], normal[1], normal[2]}, Vec2{authored.uv[0], authored.uv[1]}});
-            }
-            for (const auto index : mesh->inline_mesh->indices) evaluated->add_index(index);
-            sampled_node.shape.mesh_shape().inline_mesh = std::move(evaluated);
-        }
     }
     const bool full_frame_seed = can_seed_full_frame(ctx);
     const Mat4 base_matrix = ctx.node_exec.sampled_layer
@@ -283,10 +260,10 @@ NodeExecResult SourceNode::execute(
         // Formatted per-frame logging is forbidden in the hot loop (P1.0).
         // Counters and stage telemetry in the render receipt remain the
         // always-on observation surface.
-        const bool native_filled = detail::try_native_rect_fill(ctx, *fb, sampled_node, state);
+        const bool native_filled = detail::try_native_rect_fill(ctx, *fb, m_node, state);
         const bool native_image = !native_filled &&
-            sampled_node.shape.type() == ShapeType::Image &&
-            detail::try_native_image(ctx, *fb, sampled_node, state);
+            m_node.shape.type() == ShapeType::Image &&
+            detail::try_native_image(ctx, *fb, m_node, state);
         if (!native_filled && !native_image) {
             // Generic Vulkan producers (circle, rounded rect, line, path)
             // also have native implementations, but unlike the rect/image
@@ -302,7 +279,7 @@ NodeExecResult SourceNode::execute(
                     "failed to materialize native source surface"};
             }
             const auto draw_result = ctx.backend->draw_node(
-                *fb, sampled_node, state, ctx.frame_input.camera,
+                *fb, m_node, state, ctx.frame_input.camera,
                 ctx.frame_input.width, ctx.frame_input.height);
             if (!draw_result.ok()) {
                 return NodeExecResult{NodeExecutionError{
@@ -323,7 +300,7 @@ NodeExecResult SourceNode::execute(
 
         // Diagnostics: only log in debug mode without full-buffer pixel scanning
     }
-    if (m_cache_policy.reusable_across_frames() && !sampled_mesh_animation && fb &&
+    if (m_cache_policy.reusable_across_frames() && fb &&
         !ctx.frame_input.has_camera_2_5d &&
         fb->surface_handle() == runtime::kInvalidRenderSurfaceHandle) {
         // A cached CPU framebuffer must not carry a frame-scoped Vulkan
@@ -354,22 +331,6 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
     const auto& img = m_node.shape.image();
     const auto& tr = m_node.world_transform;
     const f32 opacity = m_opacity_override.value_or(tr.opacity);
-
-    // Image tint alpha and rounded corners can introduce transparency even
-    // when the decoded asset's own alpha channel is fully opaque.
-    if (img.tint.a < 0.999f || img.radius > 0.0f) return false;
-
-    // ImageShape::opacity describes the layer opacity, not the alpha channel
-    // of the decoded asset. Early-exit may discard every lower layer only if
-    // this image is actually opaque. Asset preparation is allowed to happen
-    // after graph construction, so an unavailable cache entry is treated
-    // conservatively and keeps the lower layers in the graph.
-    if (!ctx.image_cache) return false;
-    const auto decoded_image = ctx.image_cache->find(img.path, img.decode_options);
-    if (!decoded_image || !decoded_image->fb_img ||
-        !decoded_image->fb_img->is_opaque()) {
-        return false;
-    }
 
     if (ctx.node_exec.clip_rect) {
         const bool clip_is_full = ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&

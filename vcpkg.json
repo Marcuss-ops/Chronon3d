@@ -1,88 +1,139 @@
-{
-  "name": "chronon3d",
-  "version": "0.1.0",
-  "builtin-baseline": "cb2981c4e03d421fa03b9bb5044cd1986180e7e4",
-  "overrides": [],
-  "dependencies": [
-    "spdlog",
-    "fmt",
-    "glm",
-    "tbb",
-    "stb",
-    "xxhash",
-    "highway",
-    "nlohmann-json",
-    "json-schema-validator",
-    "magic-enum",
-    "zstd",
-    "flatbuffers"
-  ],
-  "features": {
-    "geo": {
-      "description": "Geo polygon boolean ops and dissolve (CHRONON3D_ENABLE_GEO) — Clipper2, ADR-034",
-      "dependencies": ["clipper2"]
-    },
-    "ipc": {
-      "description": "FlatBuffers IPC boundary (CHRONON3D_ENABLE_IPC)",
-      "dependencies": []
-    },
-    "mesh": {
-      "description": "Mesh processing (CHRONON3D_ENABLE_MESH)",
-      "dependencies": ["meshoptimizer"]
-    },
-    "cli": {
-      "description": "CLI application (CHRONON3D_BUILD_CLI)",
-      "dependencies": ["cli11"]
-    },
-    "crash-handler": {
-      "description": "Crash handler with cpptrace stacktraces (CHRONON3D_ENABLE_CRASH_HANDLER)",
-      "dependencies": ["cpptrace"]
-    },
-    "dev-watch": {
-      "description": "File-system watch mode for development (CHRONON3D_ENABLE_DEV_WATCH) — efsw",
-      "dependencies": ["efsw"]
-    },
-    "blend2d": {
-      "description": "Blend2D software rendering backend (CHRONON3D_USE_BLEND2D)",
-      "dependencies": ["blend2d"]
-    },
-    "svg": {
-      "description": "SVG path/document importing (CHRONON3D_ENABLE_SVG)",
-      "dependencies": ["boost-spirit", "boost-math", "boost-property-tree"]
-    },
-    "ocio": {
-      "description": "OpenColorIO colour-management transforms (CHRONON3D_ENABLE_OCIO)",
-      "dependencies": ["opencolorio"]
-    },
-    "text": {
-      "description": "Text rendering — FreeType + HarfBuzz + FriBidi + ICU + ZLIB (CHRONON3D_ENABLE_TEXT)",
-      "dependencies": ["freetype", "harfbuzz", "fribidi", "icu", "zlib"]
-    },
-    "exr": {
-      "description": "OpenEXR image format support (CHRONON3D_ENABLE_EXR)",
-      "dependencies": ["openexr"]
-    },
-    "tests": {
-      "description": "Build tests (requires doctest)",
-      "dependencies": ["doctest"]
-    },
-    "benchmarks": {
-      "description": "Build benchmarks (requires Google Benchmark)",
-      "dependencies": ["benchmark"]
-    },
-    "tracing": {
-      "description": "Timeline tracing (CHRONON3D_ENABLE_TRACING) — Perfetto track-event backend",
-      "dependencies": ["perfetto"]
-    },
-    "vulkan": {
-      "description": "Headless Vulkan backend (CHRONON3D_ENABLE_VULKAN)",
-      "dependencies": [
-        "vulkan",
-        {"name": "spirv-tools", "features": ["tools"]},
-        "spirv-reflect",
-        "vulkan-memory-allocator"
-      ]
-    }
-  },
-  "default-features": ["cli", "blend2d", "text"]
+﻿{
+    "name":  "chronon3d",
+    "version":  "0.1.0",
+    "builtin-baseline":  "cb2981c4e03d421fa03b9bb5044cd1986180e7e4",
+    "overrides":  [
+
+                  ],
+    "dependencies":  [
+                         "spdlog",
+                         "fmt",
+                         "glm",
+                         "tbb",
+                         "stb",
+                         "xxhash",
+                         "highway",
+                         "nlohmann-json",
+                         "json-schema-validator",
+                         "magic-enum",
+                         "zstd",
+                         "flatbuffers"
+                     ],
+    "features":  {
+                     "geo":  {
+                                 "description":  "Geo polygon boolean ops and dissolve (CHRONON3D_ENABLE_GEO) — Clipper2, ADR-034",
+                                 "dependencies":  [
+                                                      "clipper2"
+                                                  ]
+                             },
+                     "ipc":  {
+                                 "description":  "FlatBuffers IPC boundary (CHRONON3D_ENABLE_IPC)",
+                                 "dependencies":  [
+
+                                                  ]
+                             },
+                     "mesh":  {
+                                  "description":  "Mesh processing (CHRONON3D_ENABLE_MESH)",
+                                  "dependencies":  [
+                                                       "meshoptimizer"
+                                                   ]
+                              },
+                     "cli":  {
+                                 "description":  "CLI application (CHRONON3D_BUILD_CLI)",
+                                 "dependencies":  [
+                                                      "cli11"
+                                                  ]
+                             },
+                     "crash-handler":  {
+                                           "description":  "Crash handler with cpptrace stacktraces (CHRONON3D_ENABLE_CRASH_HANDLER)",
+                                           "dependencies":  [
+                                                                "cpptrace"
+                                                            ]
+                                       },
+                     "dev-watch":  {
+                                       "description":  "File-system watch mode for development (CHRONON3D_ENABLE_DEV_WATCH) — efsw",
+                                       "dependencies":  [
+                                                            "efsw"
+                                                        ]
+                                   },
+                     "blend2d":  {
+                                     "description":  "Blend2D software rendering backend (CHRONON3D_USE_BLEND2D)",
+                                     "dependencies":  [
+                                                          "blend2d"
+                                                      ]
+                                 },
+                     "svg":  {
+                                 "description":  "SVG path/document importing (CHRONON3D_ENABLE_SVG)",
+                                 "dependencies":  [
+                                                      "boost-spirit",
+                                                      "boost-math",
+                                                      "boost-property-tree"
+                                                  ]
+                             },
+                     "ocio":  {
+                                  "description":  "OpenColorIO colour-management transforms (CHRONON3D_ENABLE_OCIO)",
+                                  "dependencies":  [
+                                                       "opencolorio"
+                                                   ]
+                              },
+                     "text":  {
+                                  "description":  "Text rendering — FreeType + HarfBuzz + FriBidi + ICU + ZLIB (CHRONON3D_ENABLE_TEXT)",
+                                  "dependencies":  [
+                                                       "freetype",
+                                                       "harfbuzz",
+                                                       "fribidi",
+                                                       "icu",
+                                                       "zlib"
+                                                   ]
+                              },
+                     "exr":  {
+                                 "description":  "OpenEXR image format support (CHRONON3D_ENABLE_EXR)",
+                                 "dependencies":  [
+                                                      "openexr"
+                                                  ]
+                             },
+                     "tests":  {
+                                   "description":  "Build tests (requires doctest)",
+                                   "dependencies":  [
+                                                        "doctest"
+                                                    ]
+                               },
+                     "benchmarks":  {
+                                        "description":  "Build benchmarks (requires Google Benchmark)",
+                                        "dependencies":  [
+                                                             "benchmark"
+                                                         ]
+                                    },
+                     "tracing":  {
+                                     "description":  "Timeline tracing (CHRONON3D_ENABLE_TRACING) — Perfetto track-event backend",
+                                     "dependencies":  [
+                                                          "perfetto"
+                                                      ]
+                                 },
+                     "vulkan":  {
+                                    "description":  "Headless Vulkan backend (CHRONON3D_ENABLE_VULKAN)",
+                                    "dependencies":  [
+                                                         "vulkan",
+                                                         {
+                                                             "name":  "spirv-tools",
+                                                             "features":  [
+                                                                              "tools"
+                                                                          ]
+                                                         },
+                                                         "spirv-reflect",
+                                                         "vulkan-memory-allocator",
+                                                         {
+                                                             "name":  "glslang",
+                                                             "features":  [
+                                                                              "tools"
+                                                                          ]
+                                                         }
+                                                     ]
+                                }
+                 },
+    "default-features":  [
+                             "cli",
+                             "blend2d",
+                             "text"
+                         ]
 }

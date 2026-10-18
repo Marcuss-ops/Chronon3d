@@ -1,16 +1,12 @@
 #include "tile_execution_policy.hpp"
 
 #include "camera_change_policy.hpp"
-#include "helpers.hpp"
 #include "../core/scene_fingerprint.hpp"
-#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/effects/effect_catalog_data.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <set>
 #include <utility>
 
 namespace chronon3d::graph {
@@ -60,14 +56,8 @@ bool has_frame_dependent_content(const Scene& scene, Frame frame) {
             return !spec.transition_id.empty() && spec.transition_id != "none" &&
                    spec.duration > 0.0;
         };
-        const bool has_mesh_source = std::any_of(
-            layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
-                return node.shape.type() == ShapeType::Mesh &&
-                    static_cast<bool>(node.shape.mesh_shape().inline_mesh);
-            });
         if (has_transition(layer.transition_in) || has_transition(layer.transition_out) ||
             layer.anim_transform.is_time_dependent() ||
-            (has_mesh_source && layer.is_native_3d()) ||
             (layer.kind == LayerKind::Video && layer.video_source)) {
             return true;
         }
@@ -331,118 +321,8 @@ std::vector<raster::BBox> ExecutionResolver::coalesce_dirty_regions(
     return regions;
 }
 
-bool ExecutionResolver::native_clean_reuse_eligible(
-    const Scene& scene,
-    Frame frame,
-    std::uint64_t registry_generation,
-    const compiler::FrameParameterBlock* frame_parameters,
-    const SoftwareRenderer* sw_renderer,
-    bool has_previous_native_surface,
-    std::string& reason_out) {
-    const auto reject = [&reason_out](std::string_view reason) {
-        reason_out = std::string(reason);
-        return false;
-    };
-    if (!sw_renderer) return reject("missing_renderer_runtime");
-    if (!has_previous_native_surface) return reject("missing_previous_native_surface");
-
-    // Scene-level fingerprints + camera snapshots: same authority as
-    // resolve_early_reuse, but without its telemetry/surface side effects.
-    // The camera resolves here with resolve_scene_camera, the same authority
-    // the render path wires into frame_input (scene_context_setup).
-    const Camera2_5D camera = resolve_scene_camera(scene).camera;
-    const auto& history = sw_renderer->frame_history();
-    FrameFingerprints fingerprints =
-        compute_frame_fingerprints(scene, frame, registry_generation);
-    const bool typed_frame_dependent = frame_parameters &&
-        std::any_of(frame_parameters->layers.begin(),
-                    frame_parameters->layers.end(),
-                    [](const compiler::SampledLayerParameters& layer) {
-                        return layer.active && layer.dirty;
-                    });
-    if (typed_frame_dependent) {
-        fingerprints.combined_fp ^=
-            (static_cast<std::uint64_t>(frame.integral()) + 1ULL) *
-            0x9e3779b97f4a7c15ULL;
-    }
-    const bool previous_fingerprints_valid =
-        history.prev_scene_fingerprint != 0 ||
-        history.prev_static_scene_fingerprint != 0;
-    if (!previous_fingerprints_valid) return reject("fingerprints_unavailable");
-    // Transition/animation/video/text-animator state is sampled by frame and
-    // Report authored time-varying content precisely before the broader
-    // static-scene gate; transitions are intentionally not static, but the
-    // diagnostic API and zero-copy gates require the specific rejection reason.
-    if (has_frame_dependent_content(scene, frame)) {
-        return reject("frame_dependent_content");
-    }
-    const bool scene_static = !typed_frame_dependent &&
-        scene_is_static_at(scene, frame);
-    if (!scene_static) return reject("not_static_scene");
-
-    detail::FrameStateSnapshot previous_state;
-    previous_state.frame = history.prev_frame;
-    previous_state.fingerprints = FrameFingerprints{
-        history.prev_static_scene_fingerprint,
-        history.prev_active_at_fingerprint,
-        history.prev_graph_structure_fingerprint,
-        history.prev_scene_fingerprint};
-    previous_state.fingerprints_valid = true;
-    previous_state.camera = history.prev_camera;
-    previous_state.camera_valid = history.prev_camera_valid;
-
-    detail::FrameStateSnapshot current_state;
-    current_state.frame = frame;
-    current_state.fingerprints = fingerprints;
-    current_state.fingerprints_valid = true;
-    current_state.camera = camera;
-    current_state.camera_valid = camera.enabled;
-    current_state.has_projected_surface = std::any_of(
-        scene.layers().begin(), scene.layers().end(),
-        [frame](const Layer& layer) {
-            return layer.active_at(frame) &&
-                   (layer.uses_2_5d_projection || layer.is_native_3d());
-        });
-    if (current_state.has_projected_surface) return reject("projected_surface");
-    current_state.has_previous_surface = true;
-    current_state.scene_is_static = true;
-    current_state.layer_state_complete = false;
-    previous_state.layer_state_complete = false;
-
-    const auto reuse = detail::FrameDeltaCompiler::compile_state(
-        previous_state, current_state, 1, 1);
-    if (!reuse.reuse.resolved_scene_reuse && !reuse.reuse.static_scene_reuse) {
-        return reject(reuse.reuse.reason.empty() ? "no_reuse"
-                                                 : reuse.reuse.reason);
-    }
-
-    // Transition/animation/video/text-animator state is sampled by frame and
-    // invisible to fingerprints: same guard as the CPU surface-reuse path.
-    // Time-evolving effects with static params (grain speed, noise evolution)
-    // hash identically every frame but emit different pixels. The catalog
-    // temporal flag is the authority; any active temporal instance vetoes.
-    static const auto temporal_types = [] {
-        std::set<effects::EffectType> types;
-        for (const auto& entry : effects::builtin_effect_catalog()) {
-            if (entry.temporal) types.insert(entry.type);
-        }
-        return types;
-    }();
-    for (const auto& layer : scene.layers()) {
-        if (!layer.active_at(frame)) continue;
-        for (const auto& inst : layer.effects()) {
-            if (!inst.enabled) continue;
-            if (temporal_types.count(inst.effect_type) != 0) {
-                return reject("active_temporal_effect");
-            }
-        }
-    }
-
-    reason_out = "native_clean_reuse";
-    return true;
-}
-
-FrameExecutionPlan ExecutionResolver::resolve_early_reuse(    const RenderGraphContext& ctx,
+FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
+    const RenderGraphContext& ctx,
     const Scene& scene,
     Frame frame,
     int width,
@@ -471,27 +351,13 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(    const RenderGraphC
     // compute_dirty_rect().
     plan.frame_fingerprints = compute_frame_fingerprints(
         scene, frame, ctx.registry_generation);
-    const bool typed_frame_dependent = ctx.frame_parameters &&
-        std::any_of(ctx.frame_parameters->layers.begin(),
-                    ctx.frame_parameters->layers.end(),
-                    [](const compiler::SampledLayerParameters& layer) {
-                        return layer.active && layer.dirty;
-                    });
-    if (typed_frame_dependent) {
-        // Typed payloads (including baked mesh positions) are sampled outside
-        // the immutable Scene fingerprint. Include frame identity in the pixel
-        // reuse key so a scene-static fingerprint cannot reuse prior pixels.
-        plan.frame_fingerprints.combined_fp ^=
-            (static_cast<std::uint64_t>(frame.integral()) + 1ULL) *
-            0x9e3779b97f4a7c15ULL;
-    }
 
     const bool has_surface = has_matching_previous_surface(sw_renderer, width, height);
     const bool previous_fingerprints_valid =
         history.prev_scene_fingerprint != 0 ||
         history.prev_static_scene_fingerprint != 0;
     const bool scene_is_static = previous_fingerprints_valid &&
-        !typed_frame_dependent && scene_is_static_at(scene, frame);
+        scene_is_static_at(scene, frame);
 
     detail::FrameStateSnapshot previous_state;
     previous_state.frame = history.prev_frame;

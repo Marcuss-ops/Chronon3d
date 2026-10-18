@@ -110,7 +110,7 @@ cache::ProgramArtifactKey nv12_program_key() {
         CHRONON3D_NVRTC_ARCHITECTURE,
         "NVRTC",
         nvrtc_version(),
-        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE " --std=c++17",
+        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE,
         1};
 }
 
@@ -121,9 +121,8 @@ std::string compile_nv12_ptx() {
     check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel, "chronon_nv12.cu",
                                    0, nullptr, nullptr), "nvrtcCreateProgram");
     const char* options[] = {
-        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE,
-        "--std=c++17"};
-    const nvrtcResult compile = nvrtcCompileProgram(program, 2, options);
+        "--gpu-architecture=" CHRONON3D_NVRTC_ARCHITECTURE};
+    const nvrtcResult compile = nvrtcCompileProgram(program, 1, options);
     if (compile != NVRTC_SUCCESS) {
         size_t log_size = 0;
         nvrtcGetProgramLogSize(program, &log_size);

@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <initializer_list>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -84,7 +85,6 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
         else if (shape_type == "dot_grid" || shape_type == "dotgrid") shape.type = ShapeContentTypePlan::DotGrid;
         else if (shape_type == "device_frame") shape.type = ShapeContentTypePlan::DeviceFrame;
         else throw std::runtime_error("unsupported shape.type: " + shape_type);
-#ifdef CHRONON3D_ENABLE_SVG
         if (raw_shape.contains("asset")) {
             if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path"))
                 throw std::runtime_error("shape.asset is only valid for path shapes and cannot be combined with path commands");
@@ -93,13 +93,6 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 std::filesystem::path(*shape.svg_asset).extension() != ".svg")
                 throw std::runtime_error("shape.asset must be a relative logical .svg path");
         }
-#else
-        if (raw_shape.contains("asset"))
-            throw std::runtime_error(
-                "shape.asset requires SVG importing, which is disabled in this build "
-                "(reconfigure with CHRONON3D_ENABLE_SVG=ON); a plan referencing an SVG "
-                "asset must not render silently transparent frames");
-#endif
         if (raw_shape.contains("lottie")) {
             if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path") ||
                 raw_shape.contains("asset"))
@@ -400,6 +393,56 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             if (src.contains("show_chrome")) df.show_chrome = src.at("show_chrome").get<bool>();
             shape.device_frame = std::move(df);
         }
+        if (raw_shape.contains("element_animations")) {
+            if (shape.type != ShapeContentTypePlan::Path || !shape.svg_asset)
+                throw std::runtime_error(
+                    "shape.element_animations requires an imported SVG asset");
+            std::set<std::pair<std::string, std::string>> bindings;
+            for (const auto& raw_binding : raw_shape.at("element_animations")) {
+                const auto target = raw_binding.at("target").get<std::string>();
+                const auto property = raw_binding.at("property").get<std::string>();
+                if (target.empty() || target.size() > 128 ||
+                    !bindings.emplace(target, property).second)
+                    throw std::runtime_error(
+                        "SVG element animation targets must be unique and bounded");
+                if (property != "opacity" && property != "transform.translate" &&
+                    property != "transform.scale" && property != "transform.rotation" &&
+                    property != "fill.color" && property != "fill.opacity" &&
+                    property != "stroke.color" && property != "stroke.opacity" &&
+                    property != "stroke.width")
+                    throw std::runtime_error(
+                        "unsupported SVG element animation property: " + property);
+                auto animation = decode_animation_track(raw_binding.at("animation"));
+                animation.property = property;
+                const auto expected_components = property == "transform.translate" ? 2u :
+                    (property == "fill.color" || property == "stroke.color" ? 4u : 1u);
+                std::int64_t previous_frame = -1;
+                for (const auto& key : animation.keyframes) {
+                    if (key.frame.value <= previous_frame ||
+                        key.value.size() != expected_components ||
+                        std::any_of(key.value.begin(), key.value.end(),
+                            [](float value) { return !std::isfinite(value); }))
+                        throw std::runtime_error(
+                            "SVG element animation keyframes must have increasing frames and finite values with the property's component count");
+                    previous_frame = key.frame.value;
+                    if ((property == "opacity" || property == "fill.opacity" ||
+                         property == "stroke.opacity") &&
+                        (key.value[0] < 0.0f || key.value[0] > 1.0f))
+                        throw std::runtime_error(
+                            "SVG opacity animation values must be in [0,1]");
+                    if ((property == "fill.color" || property == "stroke.color") &&
+                        std::any_of(key.value.begin(), key.value.end(),
+                            [](float value) { return value < 0.0f || value > 1.0f; }))
+                        throw std::runtime_error(
+                            "SVG color animation components must be in [0,1]");
+                    if (property == "stroke.width" && key.value[0] < 0.0f)
+                        throw std::runtime_error(
+                            "SVG stroke width animation must be non-negative");
+                }
+                shape.svg_element_animations.push_back(
+                    SvgElementAnimationPlan{target, property, std::move(animation)});
+            }
+        }
         if (raw_shape.contains("operators")) {
             const auto& raw_ops = raw_shape.at("operators");
             if (!raw_ops.is_array() || raw_ops.size() > 16)
@@ -411,6 +454,13 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 if (!p.is_object()) throw std::runtime_error("path operator params must be an object");
                 const auto kind = raw_op.at("kind").get<std::string>();
                 PathOperatorPlan decoded_op;
+                if (raw_op.contains("target")) {
+                    decoded_op.target_id = raw_op.at("target").get<std::string>();
+                    if (decoded_op.target_id.empty() || decoded_op.target_id.size() > 128)
+                        throw std::runtime_error("path operator target must be a non-empty SVG id up to 128 characters");
+                    if (!shape.svg_asset)
+                        throw std::runtime_error("path operator target is supported only for imported SVG assets");
+                }
                 if (kind == "repeater") {
                     decoded_op.kind = PathOperatorKindPlan::Repeater;
                     auto& r = decoded_op.repeater;
@@ -436,15 +486,14 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                         throw std::runtime_error("invalid repeater parameters");
                     if (p.contains("animation")) {
                         auto animation = decode_animation_track(p.at("animation"));
+                        animation.property = "repeater";
                         for (const auto& key : animation.keyframes) {
-                            if (key.value.empty() || key.value.size() > 5)
+                            if (key.value.empty() || key.value.size() > 5 ||
+                                std::any_of(key.value.begin(), key.value.end(), [](float value) {
+                                    return !std::isfinite(value) || std::abs(value) > 1000000.0f;
+                                }))
                                 throw std::runtime_error(
-                                    "repeater animation keyframes require 1..5 values "
-                                    "[position_x, position_y, scale_x, scale_y, rotation_degrees]");
-                            for (const float component : key.value)
-                                if (!std::isfinite(component) || std::abs(component) > 1000000.0f)
-                                    throw std::runtime_error(
-                                        "repeater animation components must be finite within bounds");
+                                    "repeater animation keyframes require 1..5 bounded finite values [position_x, position_y, scale_x, scale_y, rotation_degrees]");
                         }
                         decoded_op.repeater_animation = std::move(animation);
                     }
@@ -505,6 +554,9 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                         throw std::runtime_error("invalid wiggle-path parameters");
                 } else if (kind == "merge") {
                     decoded_op.kind = PathOperatorKindPlan::Merge;
+                    if (shape.svg_asset && decoded_op.target_id.empty())
+                        throw std::runtime_error(
+                            "SVG Merge Path requires an exact element target id");
                     const auto& raw_paths = p.at("paths");
                     if (!raw_paths.is_array() || raw_paths.size() > 1024)
                         throw std::runtime_error("merge paths must contain at most 1024 subpaths");
@@ -565,9 +617,16 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                     target_commands.reserve(decoded_op.morph_target.size());
                     for (const auto& command : decoded_op.morph_target)
                         target_commands.push_back(make_path_command(command));
-                    if (const auto topology_error = validate_morph_path_topology(
-                            source_commands, target_commands))
+                    if (shape.svg_asset) {
+                        if (decoded_op.target_id.empty())
+                            throw std::runtime_error(
+                                "SVG morph operators require an exact element target id");
+                        // SVG source geometry is resolved by AssetResolver during
+                        // compilation, so validate topology against that element there.
+                    } else if (const auto topology_error = validate_morph_path_topology(
+                                   source_commands, target_commands)) {
                         throw std::runtime_error(*topology_error);
+                    }
                     decoded_op.morph_progress = p.value("progress", 0.0f);
                     if (!std::isfinite(decoded_op.morph_progress) ||
                         decoded_op.morph_progress < 0.0f || decoded_op.morph_progress > 1.0f)
@@ -766,6 +825,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             }
             decoded_stroke.cap = stroke.value("cap", decoded_stroke.cap);
             decoded_stroke.join = stroke.value("join", decoded_stroke.join);
+            decoded_stroke.miter_limit = stroke.value("miter_limit", decoded_stroke.miter_limit);
             if (stroke.contains("brush")) {
                 if (shape.type != ShapeContentTypePlan::Line &&
                     shape.type != ShapeContentTypePlan::Path &&
@@ -850,6 +910,8 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                  decoded_stroke.cap != "square") ||
                 (decoded_stroke.join != "miter" && decoded_stroke.join != "round" &&
                  decoded_stroke.join != "bevel") ||
+                !std::isfinite(decoded_stroke.miter_limit) || decoded_stroke.miter_limit < 1.0f ||
+                decoded_stroke.miter_limit > 1000.0f ||
                 !std::isfinite(decoded_stroke.taper_start) || decoded_stroke.taper_start < 0.0f ||
                 decoded_stroke.taper_start > 1.0f || !std::isfinite(decoded_stroke.taper_end) ||
                 decoded_stroke.taper_end < 0.0f || decoded_stroke.taper_end > 1.0f)
@@ -909,13 +971,9 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 if (!std::isfinite(component) || component < 0.0f || component > 1.0f)
                     throw std::runtime_error("shape fill RGBA must be finite and in [0, 1]");
             }
-            // Normalize both names to the same solid paint value: for ordinary
-            // shapes the shape-local fill wins over the legacy layer.color alias.
-            // Paths are the documented exception: layer.color stays independent
-            // there because it modulates stroke opacity while shape.fill_color
-            // controls only the enclosed fill.
-            if (shape.type != ShapeContentTypePlan::Path)
-                layer.color = *shape.fill_color;
+            // Normalize both names to the same solid paint value. The explicit
+            // shape-local fill wins over the legacy layer.color alias above.
+            layer.color = *shape.fill_color;
         }
         if (shape.stroke) {
             if (shape.stroke->color.empty() && shape.stroke->solid_color)
