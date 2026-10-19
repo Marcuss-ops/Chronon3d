@@ -149,6 +149,15 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                 const auto& rl = resolved.layers[i];
                 if (rl.layer && rl.layer->active_at(frame)) {
                     raster::BBox bbox = compute_bbox_for_resolved(rl);
+                    const auto previous_layer = sw_renderer->dirty_telemetry()
+                        .previous_layers.find(std::string(rl.layer->name));
+                    const bool path_content_changed =
+                        previous_layer != sw_renderer->dirty_telemetry().previous_layers.end() &&
+                        previous_layer->second.content_hash != rl.layer->get_static_hash() &&
+                        std::any_of(rl.layer->nodes.begin(), rl.layer->nodes.end(),
+                            [](const RenderNode& node) {
+                                return node.shape.type() == ShapeType::Path;
+                            });
 
                     // A projected 2.5D layer can change its raster footprint
                     // without changing the source/layout bbox.  A partial
@@ -156,7 +165,12 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     // outside the redraw region and produce a blank frame.
                     // Keep the optimization for ordinary 2D layers, but use
                     // the conservative full-frame fallback for 2.5D.
-                    if (rl.layer->uses_2_5d_projection ||
+                    // Animated SVG paths can change their rasterized stroke
+                    // without changing the conservative source-path bounds.
+                    // A partial restore then leaves stale antialiased pixels
+                    // in the previous composite. Use a full-frame redraw only
+                    // on frames where the path layer's content actually changes.
+                    if (path_content_changed || rl.layer->uses_2_5d_projection ||
                         rl.layer->is_native_3d() ||
                         !is_safe_for_dirty_rects(*rl.layer,
                                                    chronon3d::is_motion_blur_active(settings.motion_blur),
