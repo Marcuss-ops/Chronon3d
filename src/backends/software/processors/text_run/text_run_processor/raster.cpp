@@ -23,6 +23,7 @@
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include "../../../blend2d/blend2d_bridge.hpp"
 #include "../../../blend2d/blend2d_paint.hpp"  // canonical to_bl_rgba + build_bl_gradient
+#include "../../../rasterizers/path/path_stroke.hpp"
 #include <chronon3d/core/profiling/profiling.hpp>
 // NOTE: `build_glyph_matrix` is defined in text_run_matrix.cpp (same
 // linker target).  The function lives in `chronon3d::renderer` namespace;
@@ -50,6 +51,88 @@ namespace chronon3d::renderer {
 namespace chronon3d::renderer::text_run_stages {
 
 namespace {
+
+using GlyphContour = std::pair<std::vector<Vec2>, bool>;
+
+[[nodiscard]] std::vector<GlyphContour> flatten_glyph_contours(const BLPath& path) {
+    const auto view = path.view();
+    std::vector<GlyphContour> contours;
+    std::vector<Vec2> points;
+    bool closed = false;
+    const auto flush = [&] {
+        if (points.size() >= 2) contours.emplace_back(std::move(points), closed);
+        points.clear();
+        closed = false;
+    };
+    const auto point = [&](std::size_t index) {
+        return Vec2{static_cast<float>(view.vertexData[index].x),
+                    static_cast<float>(view.vertexData[index].y)};
+    };
+    const auto append_quad = [&](Vec2 from, Vec2 control, Vec2 to) {
+        constexpr int steps = 12;
+        for (int step = 1; step <= steps; ++step) {
+            const float t = static_cast<float>(step) / steps;
+            const float u = 1.0f - t;
+            points.push_back(u * u * from + 2.0f * u * t * control + t * t * to);
+        }
+    };
+    const auto append_cubic = [&](Vec2 from, Vec2 c1, Vec2 c2, Vec2 to) {
+        constexpr int steps = 16;
+        for (int step = 1; step <= steps; ++step) {
+            const float t = static_cast<float>(step) / steps;
+            const float u = 1.0f - t;
+            points.push_back(u * u * u * from + 3.0f * u * u * t * c1 +
+                             3.0f * u * t * t * c2 + t * t * t * to);
+        }
+    };
+
+    for (std::size_t i = 0; i < view.size; ++i) {
+        const auto command = view.commandData[i];
+        if (command == BL_PATH_CMD_MOVE) {
+            flush();
+            points.push_back(point(i));
+        } else if (command == BL_PATH_CMD_ON) {
+            if (points.empty()) points.push_back(point(i));
+            else points.push_back(point(i));
+        } else if (command == BL_PATH_CMD_QUAD && i + 1 < view.size &&
+                   view.commandData[i + 1] == BL_PATH_CMD_ON && !points.empty()) {
+            append_quad(points.back(), point(i), point(i + 1));
+            ++i;
+        } else if (command == BL_PATH_CMD_CUBIC && i + 2 < view.size &&
+                   view.commandData[i + 1] == BL_PATH_CMD_CUBIC &&
+                   view.commandData[i + 2] == BL_PATH_CMD_ON && !points.empty()) {
+            append_cubic(points.back(), point(i), point(i + 1), point(i + 2));
+            i += 2;
+        } else if (command == BL_PATH_CMD_CLOSE) {
+            closed = true;
+            flush();
+        }
+    }
+    flush();
+    return contours;
+}
+
+void stroke_glyph_outline(BLContext& context, const BLPath& path,
+                          const std::vector<float>& dash_array, float dash_offset) {
+    if (dash_array.empty()) {
+        context.strokePath(path);
+        return;
+    }
+    // Blend2D's context dash setters are exposed by the bundled backend but
+    // do not affect strokePath on this build. Split the flattened glyph
+    // contours with Chronon's canonical dash sampler, then stroke each run.
+    for (const auto& [contour, closed] : flatten_glyph_contours(path)) {
+        for (const auto& dash : renderer::dash_polyline_points(
+                 contour, closed, dash_array, dash_offset)) {
+            if (dash.size() < 2) continue;
+            BLPath dashed_path;
+            dashed_path.moveTo(dash.front().x, dash.front().y);
+            for (std::size_t i = 1; i < dash.size(); ++i)
+                dashed_path.lineTo(dash[i].x, dash[i].y);
+            context.strokePath(dashed_path);
+        }
+    }
+}
 
 // PR3 — canonical to_bl_rgba pulled into text_run_stages namespace so
 // unqualified calls from inside this TU's pipeline find it.  Same pattern
@@ -295,7 +378,17 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                     }
                     ctx.setStrokeStyle(to_bl_rgba(out_stroke));
                     ctx.setStrokeWidth(stroke_width_user);
-                    ctx.strokePath(path);
+                    ctx.setStrokeCaps(shape.paint.stroke_cap == LineCap::Round
+                        ? BL_STROKE_CAP_ROUND
+                        : shape.paint.stroke_cap == LineCap::Square
+                            ? BL_STROKE_CAP_SQUARE : BL_STROKE_CAP_BUTT);
+                    ctx.setStrokeJoin(shape.paint.stroke_join == LineJoin::Round
+                        ? BL_STROKE_JOIN_ROUND
+                        : shape.paint.stroke_join == LineJoin::Bevel
+                            ? BL_STROKE_JOIN_BEVEL : BL_STROKE_JOIN_MITER_CLIP);
+                    ctx.setStrokeMiterLimit(shape.paint.stroke_miter_limit);
+                    stroke_glyph_outline(ctx, path, shape.paint.stroke_dash_array,
+                                         shape.paint.stroke_dash_offset);
                 }
             }
 #endif

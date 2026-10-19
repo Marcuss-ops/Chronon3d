@@ -234,6 +234,9 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
         writer.add_size(stroke.dash_array.size());
         for (const float dash : stroke.dash_array) writer.add_float(dash);
         writer.add_float(stroke.dash_offset);
+        writer.add_string(stroke.cap);
+        writer.add_string(stroke.join);
+        writer.add_float(stroke.miter_limit);
         add_optional(writer, stroke.gradient,
                      [](auto& nested, const graphics::GradientDefinition& value) {
             add_gradient(nested, value);

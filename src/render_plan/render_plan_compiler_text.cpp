@@ -54,6 +54,14 @@ chronon3d::TextDefinition materialize_text(
         definition.style.paint.stroke_enabled = true;
         definition.style.paint.stroke_color = *stroke_color;
         definition.style.paint.stroke_width = layer.style->stroke->width.value_or(1.0f);
+        const auto& stroke = *layer.style->stroke;
+        definition.style.paint.stroke_cap = stroke.cap == "round" ? LineCap::Round
+            : stroke.cap == "square" ? LineCap::Square : LineCap::Butt;
+        definition.style.paint.stroke_join = stroke.join == "round" ? LineJoin::Round
+            : stroke.join == "bevel" ? LineJoin::Bevel : LineJoin::Miter;
+        definition.style.paint.stroke_miter_limit = stroke.miter_limit;
+        definition.style.paint.stroke_dash_array = stroke.dash_array;
+        definition.style.paint.stroke_dash_offset = stroke.dash_offset;
     }
     const auto append_shadow = [&](const ShadowStyle& shadow_style) {
         // Keep colour alpha and shadow opacity as separate factors.  The

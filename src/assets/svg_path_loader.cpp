@@ -323,7 +323,7 @@ std::optional<Color> parse_svg_color(std::string value, Color current) {
 
 std::map<std::string, std::string> style_properties(const boost::property_tree::ptree& node) {
     std::map<std::string, std::string> values;
-    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "color", "display", "visibility", "fill-rule", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "font-family", "font-size", "font-weight", "font-style", "text-anchor", "dominant-baseline", "baseline-shift"}) {
+    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter", "color", "display", "visibility", "fill-rule", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "font-family", "font-size", "font-weight", "font-style", "text-anchor", "dominant-baseline", "baseline-shift"}) {
         if (auto value = node.get_optional<std::string>(std::string("<xmlattr>.") + key)) {
             auto normalized = trim(*value);
             std::transform(normalized.begin(), normalized.end(), normalized.begin(),
@@ -492,17 +492,16 @@ std::optional<std::string> validate_svg_subset(
         "svg", "g", "path", "rect", "circle", "ellipse", "line",
         "polyline", "polygon", "animate", "animateTransform", "defs", "style",
         "linearGradient", "radialGradient", "stop", "use", "clipPath", "mask",
-        "text", "tspan", "textPath"};
+        "filter", "feGaussianBlur", "text", "tspan", "textPath"};
     static const std::set<std::string> supported_properties{
         "fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity",
-        "opacity", "stop-color", "stop-opacity", "clip-path", "mask",
+        "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter",
         "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
         "stroke-miterlimit", "fill-rule", "color", "display", "visibility",
         "font-family", "font-size",
         "font-weight", "font-style", "text-anchor", "dominant-baseline", "baseline-shift"};
     static const std::set<std::string> unsupported_paint_attributes{
-        "clip-rule", "paint-order",
-        "filter", "mix-blend-mode",
+        "clip-rule", "paint-order", "mix-blend-mode",
         "vector-effect"};
     const auto valid_unit_interval = [](const std::string& text) {
         try {
@@ -590,10 +589,13 @@ std::optional<std::string> validate_svg_subset(
                     it->second != "start" && it->second != "middle" && it->second != "end")
                     return "SVG text-anchor supports start, middle, or end";
                 if (const auto it = properties.find("dominant-baseline"); it != properties.end() &&
-                    it->second != "auto" && it->second != "alphabetic" &&
+                    it->second != "auto" && it->second != "use-script" &&
+                    it->second != "no-change" && it->second != "reset-size" &&
+                    it->second != "ideographic" && it->second != "alphabetic" &&
                     it->second != "central" && it->second != "middle" &&
-                    it->second != "hanging")
-                    return "SVG dominant-baseline supports auto, alphabetic, central, middle, or hanging";
+                    it->second != "hanging" && it->second != "mathematical" &&
+                    it->second != "text-before-edge" && it->second != "text-after-edge")
+                    return "SVG dominant-baseline has an unsupported baseline identifier";
                 if (const auto it = properties.find("font-style"); it != properties.end() &&
                     it->second != "normal" && it->second != "italic" && it->second != "oblique")
                     return "SVG font-style supports normal, italic, or oblique";
@@ -674,9 +676,19 @@ std::optional<std::string> validate_svg_subset(
                         return std::string("SVG ") + key + " supports only root, group, or path references to url(#id)";
                 }
             }
+            if (const auto it = properties.find("filter"); it != properties.end()) {
+                if (name != "svg" || (trim(it->second) != "none" &&
+                    (!it->second.starts_with("url(#") || !it->second.ends_with(')') ||
+                     it->second.size() <= 6)))
+                    return "SVG filters currently support only a root url(#id) reference";
+            }
             if (name == "clipPath" || name == "mask") {
                 if (parent_name != "defs") return "SVG clipPath and mask definitions must be children of <defs>";
             }
+            if (name == "filter" && parent_name != "defs")
+                return "SVG filter definitions must be children of <defs>";
+            if (name == "feGaussianBlur" && parent_name != "filter")
+                return "SVG feGaussianBlur must be a direct child of <filter>";
             if (name == "stop") {
                 if (const auto it = properties.find("stop-color"); it != properties.end() &&
                     !parse_svg_color(it->second, Color::black()))
@@ -912,6 +924,83 @@ bool parse_svg_gradient_reference(const std::string& text, std::string& id) {
     if (!value.starts_with("url(#") || !value.ends_with(')') || value.size() <= 6) return false;
     id = value.substr(5, value.size() - 6);
     return !id.empty() && id.find_first_of(" \t\r\n") == std::string::npos;
+}
+
+std::optional<std::string> parse_root_gaussian_filter(
+    const boost::property_tree::ptree& filter, float& std_deviation) {
+    if (filter.get<std::string>("<xmlattr>.filterUnits", "objectBoundingBox") !=
+            "objectBoundingBox" ||
+        filter.get<std::string>("<xmlattr>.primitiveUnits", "userSpaceOnUse") !=
+            "userSpaceOnUse")
+        return "SVG root Gaussian filter supports objectBoundingBox filterUnits and userSpaceOnUse primitiveUnits";
+    if (const auto attributes = filter.get_child_optional("<xmlattr>")) {
+        for (const auto& [key, value] : *attributes) {
+            (void)value;
+            if (key != "id" && key != "filterUnits" && key != "primitiveUnits")
+                return "SVG root Gaussian filter contains an unsupported attribute: " + key;
+        }
+    }
+    for (const auto* key : {"x", "y", "width", "height", "filterRes"})
+        if (filter.get_optional<std::string>(std::string("<xmlattr>.") + key))
+            return "SVG root Gaussian filter does not support custom filter regions or filterRes";
+    std::size_t primitive_count = 0;
+    const boost::property_tree::ptree* blur = nullptr;
+    for (const auto& [name, child] : filter) {
+        if (name == "<xmlattr>" || name == "<xmlcomment>" || name == "<xmltext>") {
+            if (name == "<xmltext>" && !trim(child.data()).empty())
+                return "SVG filter definitions cannot contain text";
+            continue;
+        }
+        if (name != "feGaussianBlur")
+            return "SVG root filter supports exactly one feGaussianBlur primitive";
+        ++primitive_count;
+        blur = &child;
+    }
+    if (primitive_count != 1 || !blur)
+        return "SVG root filter supports exactly one feGaussianBlur primitive";
+    if (blur->get<std::string>("<xmlattr>.in", "SourceGraphic") != "SourceGraphic" ||
+        blur->get<std::string>("<xmlattr>.edgeMode", "none") != "none" ||
+        blur->get_optional<std::string>("<xmlattr>.result"))
+        return "SVG feGaussianBlur supports only SourceGraphic input, edgeMode=none, and no result chaining";
+    if (const auto attributes = blur->get_child_optional("<xmlattr>")) {
+        for (const auto& [key, value] : *attributes) {
+            (void)value;
+            if (key != "stdDeviation" && key != "in" && key != "edgeMode")
+                return "SVG feGaussianBlur contains an unsupported attribute: " + key;
+        }
+    }
+    for (const auto* key : {"x", "y", "width", "height"})
+        if (blur->get_optional<std::string>(std::string("<xmlattr>.") + key))
+            return "SVG feGaussianBlur does not support primitive subregions";
+    auto deviation_text = blur->get<std::string>("<xmlattr>.stdDeviation", "0");
+    std::replace(deviation_text.begin(), deviation_text.end(), ',', ' ');
+    std::istringstream values(deviation_text);
+    std::vector<float> deviations;
+    std::string token;
+    while (values >> token) {
+        try {
+            std::size_t used = 0;
+            const float value = std::stof(token, &used);
+            if (used != token.size() || !std::isfinite(value) || value < 0.0f || value > 256.0f)
+                return "SVG feGaussianBlur stdDeviation must be finite and in [0,256]";
+            deviations.push_back(value);
+        } catch (...) {
+            return "SVG feGaussianBlur stdDeviation must be finite and in [0,256]";
+        }
+        if (deviations.size() > 2)
+            return "SVG feGaussianBlur stdDeviation accepts one isotropic value or two equal axis values";
+    }
+    if (deviations.empty() || (deviations.size() == 2 &&
+        std::abs(deviations[0] - deviations[1]) > 1e-6f))
+        return "SVG feGaussianBlur stdDeviation accepts one isotropic value or two equal axis values";
+    for (const auto& [name, child] : *blur) {
+        if (name != "<xmlattr>" && name != "<xmlcomment>" && name != "<xmltext>")
+            return "SVG feGaussianBlur cannot contain child elements";
+        if (name == "<xmltext>" && !trim(child.data()).empty())
+            return "SVG feGaussianBlur cannot contain text";
+    }
+    std_deviation = deviations.front();
+    return std::nullopt;
 }
 
 float style_number(const std::map<std::string, std::string>& style, const char* key, float fallback) {
@@ -1315,6 +1404,11 @@ struct SvgTextStyleState {
     Color fill{Color::black()};
     std::optional<Color> stroke;
     float stroke_width{1.0f};
+    LineCap stroke_cap{LineCap::Butt};
+    LineJoin stroke_join{LineJoin::Miter};
+    float stroke_miter_limit{4.0f};
+    std::vector<float> stroke_dash_array;
+    float stroke_dash_offset{0.0f};
     Color current_color{Color::black()};
     float opacity{1.0f};
     float fill_opacity{1.0f};
@@ -1456,7 +1550,8 @@ void apply_svg_text_style(const boost::property_tree::ptree& node,
         state.font_style = it->second;
     if (const auto it = properties.find("text-anchor"); it != properties.end())
         state.text_anchor = it->second;
-    if (const auto it = properties.find("dominant-baseline"); it != properties.end())
+    if (const auto it = properties.find("dominant-baseline"); it != properties.end() &&
+        it->second != "no-change" && it->second != "reset-size")
         state.dominant_baseline = it->second;
     if (const auto it = properties.find("color"); it != properties.end())
         if (const auto color = parse_svg_color(it->second, state.current_color))
@@ -1493,6 +1588,28 @@ void apply_svg_text_style(const boost::property_tree::ptree& node,
             throw std::invalid_argument("SVG text stroke-width must be a finite bounded pixel value");
         }
     }
+    if (const auto it = properties.find("stroke-linecap"); it != properties.end()) {
+        state.stroke_cap = it->second == "round" ? LineCap::Round
+            : it->second == "square" ? LineCap::Square : LineCap::Butt;
+    }
+    if (const auto it = properties.find("stroke-linejoin"); it != properties.end()) {
+        state.stroke_join = it->second == "round" ? LineJoin::Round
+            : it->second == "bevel" ? LineJoin::Bevel : LineJoin::Miter;
+    }
+    if (const auto it = properties.find("stroke-miterlimit"); it != properties.end()) {
+        state.stroke_miter_limit = std::stof(it->second);
+    }
+    if (const auto it = properties.find("stroke-dasharray"); it != properties.end()) {
+        state.stroke_dash_array = trim(it->second) == "none"
+            ? std::vector<float>{} : transform_numbers(it->second);
+        if (state.stroke_dash_array.size() % 2 != 0) {
+            const auto original = state.stroke_dash_array;
+            state.stroke_dash_array.insert(state.stroke_dash_array.end(),
+                original.begin(), original.end());
+        }
+    }
+    if (const auto it = properties.find("stroke-dashoffset"); it != properties.end())
+        state.stroke_dash_offset = std::stof(it->second);
     if (const auto it = properties.find("baseline-shift"); it != properties.end()) {
         const auto shift = svg_baseline_shift(it->second, state.font_size);
         if (!shift) throw std::invalid_argument("SVG baseline-shift supports baseline, sub, super, px, em, or percent values");
@@ -1637,6 +1754,11 @@ void collect_svg_text_runs(
                     if (run_style.stroke)
                         run.stroke = svg_color_hex(*run_style.stroke);
                     run.stroke_width = run_style.stroke_width;
+                    run.stroke_cap = run_style.stroke_cap;
+                    run.stroke_join = run_style.stroke_join;
+                    run.stroke_miter_limit = run_style.stroke_miter_limit;
+                    run.stroke_dash_array = run_style.stroke_dash_array;
+                    run.stroke_dash_offset = run_style.stroke_dash_offset;
                     run.stroke_opacity = run_style.stroke
                         ? std::clamp(run_style.stroke_opacity * run_style.stroke->a, 0.0f, 1.0f)
                         : 1.0f;
@@ -1864,12 +1986,51 @@ SvgDocumentLoadResult load_svg_document_file(
     if (!svg_root)
         return {.paths = {}, .elements = {}, .ok = false, .error = "SVG document root <svg> is missing"};
     const auto root_properties = style_properties(*svg_root);
+    std::optional<float> root_gaussian_blur;
+    if (const auto filter_it = root_properties.find("filter");
+        filter_it != root_properties.end() && trim(filter_it->second) != "none") {
+        std::string filter_id;
+        if (!parse_svg_gradient_reference(filter_it->second, filter_id))
+            return {.paths = {}, .elements = {}, .ok = false,
+                    .error = "SVG root filter reference is malformed"};
+        const auto filter = ids.find(filter_id);
+        if (filter == ids.end() || filter->second.first != "filter")
+            return {.paths = {}, .elements = {}, .ok = false,
+                    .error = "SVG root filter reference does not resolve to a <filter> definition"};
+        float std_deviation = 0.0f;
+        if (const auto error = parse_root_gaussian_filter(*filter->second.second,
+                                                          std_deviation))
+            return {.paths = {}, .elements = {}, .ok = false, .error = *error};
+        const auto root_transform_text = svg_root->get_optional<std::string>("<xmlattr>.transform");
+        Affine2 root_transform = root_transform_text
+            ? parse_transform(*root_transform_text) : Affine2(1.0f);
+        if (const auto viewbox_transform = parse_viewbox_transform(*svg_root))
+            root_transform = root_transform * *viewbox_transform;
+        const auto origin = transform_point(root_transform, {0.0f, 0.0f});
+        const auto axis_x = transform_point(root_transform, {1.0f, 0.0f}) - origin;
+        const auto axis_y = transform_point(root_transform, {0.0f, 1.0f}) - origin;
+        const float scale_x = glm::length(axis_x);
+        const float scale_y = glm::length(axis_y);
+        if (!std::isfinite(scale_x) || !std::isfinite(scale_y) || scale_x <= 0.0f ||
+            std::abs(scale_x - scale_y) > 1e-5f * std::max(scale_x, scale_y) ||
+            std::abs(glm::dot(axis_x, axis_y)) > 1e-5f * scale_x * scale_y)
+            return {.paths = {}, .elements = {}, .ok = false,
+                    .error = "SVG root Gaussian filter requires an isotropic root transform"};
+        std_deviation *= scale_x;
+        if (!std::isfinite(std_deviation) || std_deviation > 256.0f)
+            return {.paths = {}, .elements = {}, .ok = false,
+                    .error = "SVG root Gaussian filter radius exceeds 256 after root scaling"};
+        root_gaussian_blur = std_deviation;
+    }
     const auto clip_ref = root_properties.find("clip-path");
     const auto mask_ref = root_properties.find("mask");
     if (clip_ref != root_properties.end() && mask_ref != root_properties.end())
         return {.paths = {}, .elements = {}, .ok = false,
                 .error = "SVG root cannot combine clip-path and mask in the bounded vector-mask subset"};
     const auto vector_ref = clip_ref != root_properties.end() ? clip_ref : mask_ref;
+    if (root_gaussian_blur && vector_ref != root_properties.end())
+        return {.paths = {}, .elements = {}, .ok = false,
+                .error = "SVG root Gaussian filter cannot be combined with a root clip-path or mask"};
     if (vector_ref != root_properties.end()) {
         std::string reference_id;
         if (!parse_svg_gradient_reference(vector_ref->second, reference_id))
@@ -1902,6 +2063,9 @@ SvgDocumentLoadResult load_svg_document_file(
         return {.paths = {}, .elements = {}, .text_runs = {}, .vector_mask = std::nullopt,
                 .ok = false, .error = error.what()};
     }
+    if (root_gaussian_blur && !text_runs.empty())
+        return {.paths = {}, .elements = {}, .ok = false,
+                .error = "SVG root Gaussian filter currently requires path-only content"};
     const bool root_mask_reference = vector_ref != root_properties.end();
     if (root_mask_reference) {
         std::string root_mask_id;
@@ -1953,6 +2117,7 @@ SvgDocumentLoadResult load_svg_document_file(
     result.paths.reserve(path_data.size());
     result.text_runs = std::move(text_runs);
     result.vector_mask = vector_mask;
+    result.root_gaussian_blur = root_gaussian_blur;
     for (std::size_t index = 0; index < path_data.size(); ++index) {
         if (std::any_of(animations[index].begin(), animations[index].end(), [](const auto& animation) {
                 return animation.duration_seconds < 0.0f;

@@ -289,6 +289,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             float ascent{0.0f};
             float descent{0.0f};
             float x_height{0.0f};
+            float cap_height{0.0f};
             float line_height{0.0f};
         };
         std::unique_ptr<chronon3d::FontEngine> svg_text_font_engine;
@@ -311,6 +312,18 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             if (imported.elements.size() + imported.text_runs.size() > 4096)
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                     "SVG styled path/text run count exceeds 4096", "svg_resource_limit", "render-plan-svg"};
+            if (imported.root_gaussian_blur) {
+                if (!std::isfinite(*imported.root_gaussian_blur) ||
+                    *imported.root_gaussian_blur < 0.0f ||
+                    *imported.root_gaussian_blur > 256.0f)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG root Gaussian blur is outside the supported radius bounds",
+                        "svg_unsupported_filter", "render-plan-svg"};
+                LayerPlan::EffectPlan native_blur;
+                native_blur.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+                native_blur.radius = *imported.root_gaussian_blur;
+                layer.effects.insert(layer.effects.begin(), std::move(native_blur));
+            }
             auto& shape = *layer.shape;
             shape.imported_subpaths.clear();
             shape.imported_subpaths.reserve(imported.elements.size());
@@ -566,12 +579,14 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     !std::isfinite(metrics.ascent) || metrics.ascent <= 0.0f ||
                     !std::isfinite(metrics.descent) || metrics.descent < 0.0f ||
                     !std::isfinite(metrics.x_height) || metrics.x_height < 0.0f ||
+                    !std::isfinite(metrics.cap_height) || metrics.cap_height < 0.0f ||
                     !std::isfinite(metrics.line_height) || metrics.line_height <= 0.0f)
                     return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                         "SVG text could not be measured with its resolved font asset",
                         "svg_font_unresolved", "render-plan-svg"};
                 text_metrics[text_index] = {font_asset, advance, metrics.ascent,
-                    metrics.descent, metrics.x_height, metrics.line_height};
+                    metrics.descent, metrics.x_height, metrics.cap_height,
+                    metrics.line_height};
                 const auto anchor_scope = run.text_anchor_scope_id.empty()
                     ? group_key_for(run, text_index) : layer.id + "#anchor#" + run.text_anchor_scope_id;
                 text_anchor_advances[anchor_scope] += advance;
@@ -596,6 +611,14 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     baseline_y += text_metrics[text_index].x_height * 0.5f;
                 else if (run.dominant_baseline == "hanging")
                     baseline_y += text_metrics[text_index].ascent * 0.8f;
+                else if (run.dominant_baseline == "ideographic")
+                    baseline_y += text_metrics[text_index].descent;
+                else if (run.dominant_baseline == "mathematical")
+                    baseline_y += text_metrics[text_index].cap_height * 0.5f;
+                else if (run.dominant_baseline == "text-before-edge")
+                    baseline_y += text_metrics[text_index].ascent;
+                else if (run.dominant_baseline == "text-after-edge")
+                    baseline_y -= text_metrics[text_index].descent;
                 const auto anchor_scope = run.text_anchor_scope_id.empty()
                     ? group_key : layer.id + "#anchor#" + run.text_anchor_scope_id;
                 const bool first_anchor_run = started_text_anchor_scopes.insert(anchor_scope).second;
@@ -638,7 +661,15 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 text_style.fill_opacity = run.fill_opacity;
                 if (run.stroke && run.stroke_width > 0.0f) {
                     text_style.stroke = StrokeStyle{.color = *run.stroke,
-                        .width = run.stroke_width, .opacity = run.stroke_opacity};
+                        .width = run.stroke_width,
+                        .dash_array = run.stroke_dash_array,
+                        .dash_offset = run.stroke_dash_offset,
+                        .cap = run.stroke_cap == LineCap::Round ? "round"
+                            : run.stroke_cap == LineCap::Square ? "square" : "butt",
+                        .join = run.stroke_join == LineJoin::Round ? "round"
+                            : run.stroke_join == LineJoin::Bevel ? "bevel" : "miter",
+                        .miter_limit = run.stroke_miter_limit,
+                        .opacity = run.stroke_opacity};
                 }
                 text_style.text_fit_mode = "none";
                 text_layer.font = text_metrics[text_index].font_asset;

@@ -941,7 +941,9 @@ TEST_CASE("render plan lowers SVG text and tspan into canonical text layers") {
           <g id="labels" font-family="Inter" font-size="22" fill="#123456">
             <text id="headline" x="100" y="38" text-anchor="middle" dominant-baseline="middle">Hello <tspan id="accent" fill="#ff0000" font-weight="bold" baseline-shift="25%">Chronon</tspan></text>
             <text id="central" x="100" y="38" dominant-baseline="central">Baseline</text>
-            <text id="coordinates" x="10 80 150" y="65 25 65" fill-opacity="0.5" stroke="#00ff00" stroke-width="2" stroke-opacity="0.25">ABC</text>
+            <text id="coordinates" x="10 80 150" y="65 25 65" fill-opacity="0.5" stroke="#00ff00" stroke-width="2" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="bevel" stroke-miterlimit="8" stroke-dasharray="2 1" stroke-dashoffset="-1">ABC</text>
+            <text id="before" x="10" y="72" dominant-baseline="text-before-edge">Top</text>
+            <text id="after" x="10" y="72" dominant-baseline="text-after-edge">Bottom</text>
           </g></svg>)svg";
     }
     assets::AssetResolver resolver;
@@ -958,7 +960,7 @@ TEST_CASE("render plan lowers SVG text and tspan into canonical text layers") {
     const auto evaluated = evaluate(prepared->compiled_composition,
                                     CompositionEvaluateContext{}, Frame{0});
     REQUIRE(evaluated);
-    REQUIRE(evaluated->scene.layers().size() == 7);
+    REQUIRE(evaluated->scene.layers().size() == 9);
     REQUIRE(evaluated->scene.layers()[1].nodes.size() == 1);
     REQUIRE(evaluated->scene.layers()[2].nodes.size() == 1);
     const auto& first_text_layer = evaluated->scene.layers()[1];
@@ -992,6 +994,19 @@ TEST_CASE("render plan lowers SVG text and tspan into canonical text layers") {
     CHECK(styled_glyph->paint.stroke_width == doctest::Approx(2.0f));
     CHECK(styled_glyph->paint.stroke_color.g == doctest::Approx(1.0f));
     CHECK(styled_glyph->paint.stroke_color.a == doctest::Approx(0.25f));
+    CHECK(styled_glyph->paint.stroke_cap == LineCap::Round);
+    CHECK(styled_glyph->paint.stroke_join == LineJoin::Bevel);
+    CHECK(styled_glyph->paint.stroke_miter_limit == doctest::Approx(8.0f));
+    REQUIRE(styled_glyph->paint.stroke_dash_array.size() == 2);
+    CHECK(styled_glyph->paint.stroke_dash_array[0] == doctest::Approx(2.0f));
+    CHECK(styled_glyph->paint.stroke_dash_offset == doctest::Approx(-1.0f));
+    REQUIRE(evaluated->scene.layers()[7].nodes.size() == 1);
+    REQUIRE(evaluated->scene.layers()[8].nodes.size() == 1);
+    const float before_edge_y = evaluated->scene.layers()[7].transform.position.y +
+        evaluated->scene.layers()[7].nodes[0].world_transform.position.y;
+    const float after_edge_y = evaluated->scene.layers()[8].transform.position.y +
+        evaluated->scene.layers()[8].nodes[0].world_transform.position.y;
+    CHECK(before_edge_y > after_edge_y);
 }
 
 TEST_CASE("render plan lays out SVG textPath clusters on an addressable path") {
@@ -1163,6 +1178,39 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
             CHECK(expected_error);
         }
     }
+}
+
+TEST_CASE("render plan lowers root SVG Gaussian blur through the native effect stack") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    std::filesystem::create_directories(directory.path / "art");
+    {
+        std::ofstream svg(directory.path / "art/blurred.svg");
+        svg << R"svg(<svg filter="url(#soften)"><defs>
+          <filter id="soften"><feGaussianBlur stdDeviation="3"/></filter>
+          </defs><path d="M8 8L56 8L56 56L8 56Z" fill="#ff0000"/></svg>)svg";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"svg","type":"shape","size":[64,64],
+        "shape":{"type":"path","asset":"art/blurred.svg"}}],
+      "output":{"path":"out.png"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    REQUIRE(prepared);
+    const auto evaluated = evaluate(prepared->compiled_composition,
+        CompositionEvaluateContext{}, Frame{0});
+    REQUIRE(evaluated);
+    REQUIRE(evaluated->scene.layers().size() == 1);
+    const auto& effects = evaluated->scene.layers()[0].effects();
+    REQUIRE(effects.size() == 1);
+    const auto* blur = std::get_if<BlurParams>(&effects[0].params);
+    REQUIRE(blur);
+    CHECK(blur->radius == doctest::Approx(3.0f));
 }
 
 TEST_CASE("render plan lowers SVG opacity and translate animations into native sampled paths") {

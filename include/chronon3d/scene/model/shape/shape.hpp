@@ -142,6 +142,11 @@ struct TextPaint {
     bool stroke_enabled{false};
     Color stroke_color{0.0f, 0.0f, 0.0f, 1.0f};
     f32 stroke_width{2.0f};
+    LineCap stroke_cap{LineCap::Butt};
+    LineJoin stroke_join{LineJoin::Miter};
+    f32 stroke_miter_limit{4.0f};
+    std::vector<f32> stroke_dash_array{};
+    f32 stroke_dash_offset{0.0f};
 
     /// Optional gradient/colour override for stroke.  When present, the
     /// stroke uses this Fill instead of `stroke_color`, enabling gradient

@@ -1,5 +1,7 @@
 #include "test_frame_graph_compiler_fixtures.hpp"
 
+#include <algorithm>
+
 // ── build_compiled_frame_program: deterministic lowering golden ─────────────
 // The staged compiler pipeline must produce an identical executable program
 // for an identical graph every time it runs. This test normalizes the whole
@@ -164,4 +166,29 @@ TEST_CASE("FrameGraphCompiler - compiled frame program is deterministic (golden)
     // Guard against a vacuous normalization: the program must actually carry
     // the fused batch work this fixture is designed to produce.
     CHECK_FALSE(normalized_first.empty());
+}
+
+TEST_CASE("FrameGraphCompiler - static bakes exclude noncacheable composites") {
+    FrameGraphCompiler compiler;
+    ValidationBackend backend(false);
+    RenderGraphContext ctx;
+    ctx.backend = &backend;
+
+    auto compiled = compiler.compile(make_determinism_fixture(), ctx);
+    REQUIRE(compiled.valid);
+    REQUIRE(std::any_of(compiled.nodes.begin(), compiled.nodes.end(),
+        [](const CompiledNodeInfo& node) {
+            return node.kind == RenderGraphNodeKind::Composite;
+        }));
+
+    for (const auto& bake : compiled.program.static_bakes) {
+        REQUIRE(bake.root_node < compiled.nodes.size());
+        CHECK(compiled.nodes[bake.root_node].kind !=
+              RenderGraphNodeKind::Composite);
+        for (const GraphNodeId member : bake.members) {
+            REQUIRE(member < compiled.nodes.size());
+            CHECK(compiled.nodes[member].kind !=
+                  RenderGraphNodeKind::Composite);
+        }
+    }
 }

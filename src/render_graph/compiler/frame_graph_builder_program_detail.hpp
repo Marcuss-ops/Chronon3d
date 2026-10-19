@@ -353,7 +353,15 @@ void compute_static_bake_islands(CompiledFrameGraph& compiled) {
                     break;
                 }
             }
-            if (node_info.cache_policy.reusable_across_frames() && all_inputs_static) {
+            // Keep this predicate aligned with evaluate_cache(): composites
+            // are explicitly frame-dependent and bypass the inter-frame node
+            // cache there, even when their declared CachePolicy is reusable.
+            // Baking one here would freeze its inputs as a cross-frame output
+            // and can reuse a stale partially composed framebuffer.
+            const bool cacheable_across_frames =
+                node_info.kind != RenderGraphNodeKind::Composite &&
+                node_info.cache_policy.reusable_across_frames();
+            if (cacheable_across_frames && all_inputs_static) {
                 is_node_static[node_id] = true;
             }
         }

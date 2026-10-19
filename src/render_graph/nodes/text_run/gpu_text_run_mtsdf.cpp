@@ -44,6 +44,11 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         shape.animated_doc ||
         shape.layout->font_spans.empty() || shape.paint.fill_style ||
         shape.paint.stroke_style || shape.material.enabled ||
+        shape.paint.stroke_cap != LineCap::Butt ||
+        shape.paint.stroke_join != LineJoin::Miter ||
+        shape.paint.stroke_miter_limit != 4.0f ||
+        !shape.paint.stroke_dash_array.empty() ||
+        shape.paint.stroke_dash_offset != 0.0f ||
         shape.shadows.size() > 1 ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
         return nullptr;
