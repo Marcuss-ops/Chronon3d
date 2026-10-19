@@ -650,6 +650,8 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(decodedDof->camera->f_stop == doctest::Approx(2.8f));
     const auto cameraDescriptor = chronon3d::render_plan::detail::make_camera_descriptor(*decodedDof);
     REQUIRE(cameraDescriptor.has_value());
+    REQUIRE(std::holds_alternative<chronon3d::camera_v1::PhysicalLensProjection>(
+        cameraDescriptor->base.projection));
     CHECK(cameraDescriptor->base.dof.enabled);
     CHECK(cameraDescriptor->base.dof.aperture == doctest::Approx(0.035f));
     CHECK(cameraDescriptor->base.dof.focus_distance == doctest::Approx(425.f));
@@ -662,7 +664,20 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     // consumes the camera-space focus_distance directly as S1.
     CHECK(cameraDescriptor->base.lens.focal_length == doctest::Approx(50.f));
     CHECK(cameraDescriptor->base.lens.f_stop == doctest::Approx(2.8f));
+    const auto& physicalProjection = std::get<chronon3d::camera_v1::PhysicalLensProjection>(
+        cameraDescriptor->base.projection);
+    CHECK(physicalProjection.lens.focal_length == doctest::Approx(50.f));
+    CHECK(physicalProjection.lens.sensor_width == doctest::Approx(35.f));
+    CHECK(physicalProjection.lens.sensor_height == doctest::Approx(35.f / (16.f / 9.f)));
+    CHECK(physicalProjection.lens.f_stop == doctest::Approx(2.8f));
     CHECK(cameraDescriptor->base.dof.use_physical_model);
+
+    auto fovOnlyPlan = *decodedDof;
+    fovOnlyPlan.camera->focal_length_mm = 0.f;
+    const auto fovOnlyDescriptor = chronon3d::render_plan::detail::make_camera_descriptor(fovOnlyPlan);
+    REQUIRE(fovOnlyDescriptor.has_value());
+    CHECK(std::holds_alternative<chronon3d::camera_v1::FovProjection>(
+        fovOnlyDescriptor->base.projection));
 
 }
 
@@ -691,7 +706,7 @@ TEST_CASE("ChrononMotion baked SVG Merge and Morph operators satisfy V3 schema")
     CHECK(merged.layers[0].shape->path.size() == 3);
     CHECK(merged.layers[0].shape->operators.front().paths.front().size() == 3);
     CHECK(merged.layers[0].shape->operators.front().paths.front()[1].point[0] == doctest::Approx(22.f));
-    CHECK_FALSE(renderPlanEmissionProblem(merged).empty()); // Shape layer plans are outside this adapter's writer contract.
+    CHECK_FALSE(renderPlanEmissionProblem(merged).empty()); // Merge operators are outside this adapter writer contract.
 
     const auto baked = bakeSvgPathMorph("M0 0 L10 0 Z", "M0 0 L20 0 Z", 0, 2);
     shape.shape->operators.clear();
@@ -707,13 +722,13 @@ TEST_CASE("ChrononMotion baked SVG Merge and Morph operators satisfy V3 schema")
     CHECK(morphed.layers[0].shape->operators.front().morph_animation->keyframes[0].value[0] == doctest::Approx(0.f));
     CHECK(morphed.layers[0].shape->operators.front().morph_animation->keyframes[1].value[0] == doctest::Approx(0.5f));
     CHECK(morphed.layers[0].shape->operators.front().morph_animation->keyframes[2].value[0] == doctest::Approx(1.f));
-    CHECK_FALSE(renderPlanEmissionProblem(morphed).empty()); // Shape layer plans are outside this adapter's writer contract.
-    // The Motion bridge deliberately refuses shape layers; decoder topology
-    // validation is exercised by the native RenderPlan decoder suite.
+    CHECK_FALSE(renderPlanEmissionProblem(morphed).empty()); // Morph operators are validated by the native decoder suite.
 
     auto unsupportedLens = CameraPose{};
     unsupportedLens.fov = 50.f;
     unsupportedLens.focalLength = 50.f;
+    CHECK(lowerCameraPose(unsupportedLens, 0.1f, 1000.f).focal_length_mm == doctest::Approx(50.f));
+    unsupportedLens.focalLength = 5.f;
     CHECK_THROWS_AS(lowerCameraPose(unsupportedLens, 0.1f, 1000.f), std::invalid_argument);
     unsupportedLens.focalLength = 0.f;
     unsupportedLens.aperture = 2.8f;
@@ -741,7 +756,7 @@ TEST_CASE("ChrononMotion baked SVG paths lower to a schema-valid V3 shape plan")
     CHECK_FALSE(plan.layers[0].animation.has_value());
     REQUIRE(plan.layers[0].shape.has_value());
     CHECK(plan.layers[0].shape->path.size() == 3);
-    CHECK_FALSE(renderPlanEmissionProblem(plan).empty()); // The Motion writer does not emit shape content.
+    CHECK(renderPlanEmissionProblem(plan).empty()); // Baked V3 path geometry is accepted by the adapter.
 }
 
 TEST_CASE("ChrononMotion lowering refuses transforms the plan cannot represent") {

@@ -392,8 +392,10 @@ make_camera_descriptor(const RenderPlan& plan) {
     descriptor.base.enabled = true;
     descriptor.base.position = {source_plan.position[0], source_plan.position[1], source_plan.position[2]};
     descriptor.base.rotation = {source_plan.rotation_deg[0], source_plan.rotation_deg[1], source_plan.rotation_deg[2]};
-    descriptor.base.projection = chronon3d::camera_v1::FovProjection{
-        chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
+    if (source_plan.focal_length_mm <= 0.0f) {
+        descriptor.base.projection = chronon3d::camera_v1::FovProjection{
+            chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
+    }
     descriptor.base.dof.enabled = source_plan.dof_enabled;
     descriptor.base.dof.focus_distance = source_plan.dof_focus_distance;
     descriptor.base.dof.aperture = source_plan.dof_aperture;
@@ -408,6 +410,20 @@ make_camera_descriptor(const RenderPlan& plan) {
         ? source_plan.dof_f_stop : source_plan.f_stop;
     if (authored_f_stop > 0.0f)
         descriptor.base.lens.f_stop = authored_f_stop;
+    // A physical focal length is the projection authority when authored,
+    // matching threepp's PerspectiveCamera::setFocalLength() behavior. Use a
+    // 35 mm horizontal gate and derive its height from the render aspect so
+    // both paths produce the same vertical field of view.
+    if (source_plan.focal_length_mm > 0.0f) {
+        auto lens = descriptor.base.lens;
+        lens.focal_length = source_plan.focal_length_mm;
+        lens.sensor_width = 35.0f;
+        const float aspect = plan.canvas.width > 0 && plan.canvas.height > 0
+            ? static_cast<float>(plan.canvas.width) / static_cast<float>(plan.canvas.height)
+            : 16.0f / 9.0f;
+        lens.sensor_height = 35.0f / aspect;
+        descriptor.base.projection = chronon3d::camera_v1::PhysicalLensProjection{lens};
+    }
     if (source_plan.dof_enabled) {
         // RenderPlan focus_distance is a camera-space distance along the
         // optical axis (S1); the legacy focus_z field is a world-Z plane, so

@@ -117,6 +117,14 @@ for spatial motion that the current native plan cannot express.
   raw-pixel verification.
   Temporary environment-gated pixel diagnostics were removed after collecting
   this evidence.
+- Additional dirty-rectangle check (2026-10-19): the multi-segment peak SVG
+  rendered in two sequential 61-frame runs differs at partial-reveal frames
+  when dirty rectangles are enabled, while the same plan is byte-identical
+  across runs with dirty rectangles disabled. The existing sampled Trim Paths
+  gate uses a simpler shape and does not cover this sequence. A conservative
+  path-content-change fallback was added to redraw the full frame only when a
+  path-bearing layer changes; its rebuild and raw repeat gate are pending
+  because the local vcpkg tree is missing the `boost_spirit` CMake package.
 
 ## Acceptance gates
 
@@ -222,6 +230,10 @@ first-eight-second scene does not certify the general idle+FX combination.
 - [ ] Verify the static-bake classifier fix with the raw-pixel 0–60-frame
   regression gate, rerun the preset without the constant-opacity workaround,
   and inspect the new encoded preview.
+- [ ] Rebuild and verify the animated-path dirty-rectangle fallback against two
+  consecutive 61/150-frame raw renders; replace the temporary
+  `EffectBoundsUnknown` attribution with a dedicated diagnostic reason if the
+  fallback is retained.
 
 ## Dependencies and limitations
 
