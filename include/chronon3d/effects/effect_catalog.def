@@ -394,3 +394,26 @@ CHRONON_EFFECT(48, RoughenEdges, RoughenEdgesParams, ids::StylizeRoughenEdges,
     "Roughen Edges", EffectCategory::Stylize, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Expand,
     BoundsPolicy::Expand, false, false)
+
+// ── Post-process FX family (V1) — shader-math contracts in
+//    docs/tickets/TICKET-POSTPROCESS-FX.md ──
+
+CHRONON_EFFECT(49, Scanlines, ScanlinesParams, ids::StylizeScanlines,
+    "Scanlines", EffectCategory::Stylize, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(50, RetroTv, RetroTvParams, ids::StylizeRetroTv,
+    "Retro TV", EffectCategory::Stylize, EffectStage::Adjustment,
+    EffectDomain::Spatial, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, true, false)
+
+CHRONON_EFFECT(51, Halation, HalationParams, ids::LightHalation,
+    "Film Halation", EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(52, AnamorphicStreak, AnamorphicStreakParams, ids::LightAnamorphicStreak,
+    "Anamorphic Streak", EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)

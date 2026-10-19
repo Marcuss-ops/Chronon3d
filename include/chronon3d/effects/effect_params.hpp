@@ -18,7 +18,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 namespace chronon3d {
@@ -416,6 +418,78 @@ struct CreaseShadingParams {
 // Aberration and Halftone structs above are the canonical (upstream) ones.
 struct VignetteEffectParams { float amount{0.5f}; float radius{0.5f}; float softness{0.5f}; Color color{0,0,0,1}; };
 
+// ── Post-process FX family (V1) ─────────────────────────────────────────────
+// See docs/tickets/TICKET-POSTPROCESS-FX.md for the shader-math contracts.
+
+// Scanlines — subtle per-pixel luminance modulation along one axis.
+// axis 0 = lines repeat along Y (classic horizontal scanlines);
+// axis 1 = lines repeat along X (vertical scanlines).
+struct ScanlinesParams {
+    std::uint8_t axis{0};      // 0 = horizontal lines (Y repeat), 1 = vertical
+    float spacing_px{2.0f};    // line pitch in pixels [1, 64]
+    float amount{0.08f};       // modulation depth [0, 1] (modern style: 0.03-0.08)
+    float phase{0.0f};         // line grid phase offset [0, 1)
+    void validate() const {
+        if (!std::isfinite(spacing_px) || spacing_px < 1.0f || spacing_px > 64.0f ||
+            !std::isfinite(amount) || amount < 0.0f || amount > 1.0f ||
+            !std::isfinite(phase) || phase < 0.0f || phase >= 1.0f || axis > 1)
+            throw std::invalid_argument("Scanlines parameters are outside the supported range");
+    }
+};
+
+// Retro TV — analog signal degradation: horizontal tape jitter (time-driven,
+// deterministic) plus chrominace smear (U/V low-pass while luma stays sharp).
+struct RetroTvParams {
+    float jitter_px{3.0f};     // max horizontal tape offset in pixels [0, 32]
+    float jitter_speed{20.0f}; // jitter waveform frequency in Hz (0, 120]
+    float smear_px{8.0f};      // chroma horizontal smear radius in pixels [0, 32]
+    float bleed_strength{0.35f}; // chroma smear blend strength [0, 1]
+    float luma_noise{0.06f};   // per-pixel luma interference noise [0, 1]
+    std::uint32_t seed{0};     // deterministic jitter/noise salt
+    void validate() const {
+        if (!std::isfinite(jitter_px) || jitter_px < 0.0f || jitter_px > 32.0f ||
+            !std::isfinite(jitter_speed) || jitter_speed < 0.0f || jitter_speed > 120.0f ||
+            !std::isfinite(smear_px) || smear_px < 0.0f || smear_px > 32.0f ||
+            !std::isfinite(bleed_strength) || bleed_strength < 0.0f || bleed_strength > 1.0f ||
+            !std::isfinite(luma_noise) || luma_noise < 0.0f || luma_noise > 1.0f)
+            throw std::invalid_argument("Retro TV parameters are outside the supported range");
+    }
+};
+
+// Film halation — warm red/orange bounce light around high-luminance
+// contours: highlight mask, blur in the warm hue, screen-mode composite.
+struct HalationParams {
+    float threshold{0.85f};    // highlight onset [0, 1]
+    float softness{0.15f};     // highlight mask feather above the threshold [0, 1]
+    float radius_px{12.0f};    // warm-blur radius in pixels [0, 64]
+    float intensity{0.50f};    // composite strength [0, 8]
+    Color tint{1.0f, 0.25f, 0.05f, 1.0f}; // anti-halation warm hue
+    void validate() const {
+        if (!std::isfinite(threshold) || threshold < 0.0f || threshold > 1.0f ||
+            !std::isfinite(softness) || softness < 0.0f || softness > 1.0f ||
+            !std::isfinite(radius_px) || radius_px < 0.0f || radius_px > 64.0f ||
+            !std::isfinite(intensity) || intensity < 0.0f || intensity > 8.0f)
+            throw std::invalid_argument("Film halation parameters are outside the supported range");
+    }
+};
+
+// Anamorphic streak — thin horizontal highlight striature (1 px vertical,
+// wide horizontal box blur) composited additively, anamorphic-lens style.
+struct AnamorphicStreakParams {
+    float threshold{0.85f};    // highlight onset [0, 1]
+    float softness{0.10f};     // highlight mask feather above the threshold [0, 1]
+    float streak_length_px{128.0f}; // horizontal blur run in pixels [0, 512]
+    float intensity{0.35f};    // composite strength [0, 8]
+    Color tint{0.55f, 0.75f, 1.0f, 1.0f}; // streak hue (cool cyan/blue)
+    void validate() const {
+        if (!std::isfinite(threshold) || threshold < 0.0f || threshold > 1.0f ||
+            !std::isfinite(softness) || softness < 0.0f || softness > 1.0f ||
+            !std::isfinite(streak_length_px) || streak_length_px < 0.0f || streak_length_px > 512.0f ||
+            !std::isfinite(intensity) || intensity < 0.0f || intensity > 8.0f)
+            throw std::invalid_argument("Anamorphic streak parameters are outside the supported range");
+    }
+};
+
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.
@@ -459,7 +533,7 @@ using EffectParams = std::variant<
     SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
-    LiftGammaGainParams
+    LiftGammaGainParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
 >;
 
 } // namespace chronon3d

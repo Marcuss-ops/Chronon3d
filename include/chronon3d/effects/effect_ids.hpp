@@ -69,4 +69,14 @@ inline constexpr std::string_view LightLuminanceResponse = "light.luminance_resp
 inline constexpr std::string_view DistortFoldWarp = "distort.fold_warp";
 inline constexpr std::string_view LightCreaseShading = "light.crease_shading";
 
+// ── Post-process FX family (V1) ──
+// Modern motion-design post-process effects: subtle TV scanlines (per-pixel
+// luma modulation), retro-TV analog signal degradation (tape jitter + chroma
+// smear), film halation (warm highlight bloom) and anamorphic streak
+// (horizontal highlight streak). See docs/tickets/TICKET-POSTPROCESS-FX.md.
+inline constexpr std::string_view StylizeScanlines = "stylize.scanlines";
+inline constexpr std::string_view StylizeRetroTv = "stylize.retro_tv";
+inline constexpr std::string_view LightHalation = "light.halation";
+inline constexpr std::string_view LightAnamorphicStreak = "light.anamorphic_streak";
+
 } // namespace chronon3d::effects::ids

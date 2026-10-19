@@ -631,7 +631,7 @@ struct LayerPlan {
     };
     std::optional<PathMaskPlan> path_mask;
     std::vector<PathMaskPlan> masks;
-    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading };
+    enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading, Scanlines, RetroTv, Halation, AnamorphicStreak };
     enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
     struct EffectPlan {
         EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -753,6 +753,34 @@ struct LayerPlan {
         std::array<float, 4> response_tint{1.0f, 0.35f, 0.15f, 1.0f};
         float response_intensity{1.0f};
         std::uint8_t response_blend{0}; // 0 = Screen, 1 = Add, 2 = Over
+
+        // Scanlines
+        std::uint8_t scanlines_axis{0};
+        float scanlines_spacing{2.0f};
+        float scanlines_amount{0.08f};
+        float scanlines_phase{0.0f};
+
+        // Retro TV
+        float retro_jitter_px{3.0f};
+        float retro_jitter_speed{20.0f};
+        float retro_smear_px{8.0f};
+        float retro_bleed{0.35f};
+        float retro_noise{0.06f};
+        std::uint32_t retro_seed{0};
+
+        // Film halation
+        float halation_threshold{0.85f};
+        float halation_softness{0.15f};
+        float halation_radius{12.0f};
+        float halation_intensity{0.50f};
+        std::array<float, 4> halation_tint{1.0f, 0.25f, 0.05f, 1.0f};
+
+        // Anamorphic streak
+        float streak_threshold{0.85f};
+        float streak_softness{0.10f};
+        float streak_length{128.0f};
+        float streak_intensity{0.35f};
+        std::array<float, 4> streak_tint{0.55f, 0.75f, 1.0f, 1.0f};
     };
     struct EffectParamTrackPlan {
         std::string effect_id;
