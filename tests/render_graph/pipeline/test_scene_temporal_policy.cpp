@@ -29,3 +29,12 @@ TEST_CASE("isolated temporal settings disable parent-frame side effects") {
     CHECK_FALSE(isolated.diagnostic_overlay_only);
     CHECK(isolated.require_native_gpu);
 }
+
+TEST_CASE("projected surfaces cannot skip the initial frame clear") {
+    using chronon3d::graph::detail::resolve_initial_clear_skip;
+
+    CHECK(resolve_initial_clear_skip(false, false) == false);
+    CHECK(resolve_initial_clear_skip(true, false) == true);
+    CHECK(resolve_initial_clear_skip(false, true) == false);
+    CHECK(resolve_initial_clear_skip(true, true) == false);
+}

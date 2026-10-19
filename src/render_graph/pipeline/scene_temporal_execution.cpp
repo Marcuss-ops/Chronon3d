@@ -341,7 +341,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         graph_result.compiled.execution_decision =
             ExecutionResolver::resolve_initial(*dirty_out.frame_delta);
     }
-    ctx.policy.skip_initial_clear = graph_result.skip_initial_clear;
+    ctx.policy.skip_initial_clear = detail::resolve_initial_clear_skip(
+        graph_result.skip_initial_clear,
+        native_residency.has_projected_surface);
+    // Projected 2.5D surfaces can move across the viewport as the camera
+    // changes. A full-frame seed is not sufficient reason to preserve the
+    // destination: pixels outside the new projected bounds would retain the
+    // previous frame. Always initialize the full-frame destination before
+    // compositing projected scenes.
     const auto t_graph1 = profiling::now();
 
     // ── 9a. Capture TextRunNode snapshots (chronon3d_cli inspect-text) ──
