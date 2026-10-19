@@ -203,6 +203,7 @@ file = "src/render_graph/transition/transition_catalog.cpp"
 required_patterns = [
   'register_transition\s*\(\s*"none"',
   'register_transition\s*\(\s*"crossfade"',
+  'register_transition\s*\(\s*"dip_to_black"',
   'register_transition\s*\(\s*"slide"',
   'register_transition\s*\(\s*"wipe_linear"',
   'register_transition\s*\(\s*"smooth_wipe"',
@@ -212,7 +213,7 @@ required_patterns = [
   'register_transition\s*\(\s*"remotion"',
 ]
 forbidden_patterns = [
-  'register_transition\s*\(\s*"(?!none"|crossfade"|slide"|zoom"|wipe_linear"|smooth_wipe"|circle_iris"|flash"|procedural_remotion"|remotion")[^"]+"',
+  'register_transition\s*\(\s*"(?!none"|crossfade"|dip_to_black"|slide"|zoom"|wipe_linear"|smooth_wipe"|circle_iris"|flash"|procedural_remotion"|remotion")[^"]+"',
 ]
 
 [[forbidden_symbol]]
