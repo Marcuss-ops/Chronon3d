@@ -128,6 +128,11 @@ void sample_gpu_run_level_animation(
 bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     if (!shape.layout || shape.animated_doc ||
         shape.paint.fill_style || shape.paint.stroke_style ||
+        shape.paint.stroke_cap != LineCap::Butt ||
+        shape.paint.stroke_join != LineJoin::Miter ||
+        shape.paint.stroke_miter_limit != 4.0f ||
+        !shape.paint.stroke_dash_array.empty() ||
+        shape.paint.stroke_dash_offset != 0.0f ||
         shape.material.enabled || shape.shadows.size() > 1 ||
         shape.glyphs.size() != shape.layout->placed.glyphs.size()) {
         return false;

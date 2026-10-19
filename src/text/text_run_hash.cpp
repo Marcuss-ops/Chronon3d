@@ -155,6 +155,12 @@ u64 hash_text_run_shape(const TextRunShape& s) {
     seed = hash_combine(seed, hash_value(s.paint.stroke_enabled));
     seed = hash_combine(seed, hash_color(s.paint.stroke_color));
     seed = hash_combine(seed, hash_value(s.paint.stroke_width));
+    seed = hash_combine(seed, hash_value(s.paint.stroke_cap));
+    seed = hash_combine(seed, hash_value(s.paint.stroke_join));
+    seed = hash_combine(seed, hash_value(s.paint.stroke_miter_limit));
+    seed = hash_combine(seed, hash_value(s.paint.stroke_dash_offset));
+    for (const auto dash : s.paint.stroke_dash_array)
+        seed = hash_combine(seed, hash_value(dash));
 
     // Shadows
     for (const auto& shadow : s.shadows) {

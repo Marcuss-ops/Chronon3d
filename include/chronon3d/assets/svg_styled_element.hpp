@@ -89,6 +89,11 @@ struct SvgTextRun {
     float fill_opacity{1.0f};
     std::optional<std::string> stroke;
     float stroke_width{1.0f};
+    LineCap stroke_cap{LineCap::Butt};
+    LineJoin stroke_join{LineJoin::Miter};
+    float stroke_miter_limit{4.0f};
+    std::vector<float> stroke_dash_array;
+    float stroke_dash_offset{0.0f};
     float stroke_opacity{1.0f};
     float opacity{1.0f};
 };

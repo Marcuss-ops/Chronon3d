@@ -305,6 +305,126 @@ TEST_CASE("SVG text and tspan runs inherit paint, font, position, and IDs") {
     CHECK(result.text_runs[1].baseline_shift == doctest::Approx(-4.5f));
 }
 
+TEST_CASE("SVG text retains cap join miter and dash stroke styling") {
+    const std::string filename = "temp_test_svg_text_stroke_style.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><g stroke="#123456" stroke-width="3"
+          stroke-linecap="round" stroke-linejoin="bevel" stroke-miterlimit="8"
+          stroke-dasharray="2 1" stroke-dashoffset="-1">
+          <text id="label">dashed</text></g></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    const auto& run = result.text_runs[0];
+    REQUIRE(run.stroke.has_value());
+    CHECK(run.stroke_width == doctest::Approx(3.0f));
+    CHECK(run.stroke_cap == LineCap::Round);
+    CHECK(run.stroke_join == LineJoin::Bevel);
+    CHECK(run.stroke_miter_limit == doctest::Approx(8.0f));
+    REQUIRE(run.stroke_dash_array.size() == 2);
+    CHECK(run.stroke_dash_array[0] == doctest::Approx(2.0f));
+    CHECK(run.stroke_dash_array[1] == doctest::Approx(1.0f));
+    CHECK(run.stroke_dash_offset == doctest::Approx(-1.0f));
+}
+
+TEST_CASE("SVG text paint inherits through nested tspans and resets after each chunk") {
+    const std::string filename = "temp_test_svg_nested_text_paint.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text id="caption" fill="#112233" stroke="#445566"
+          stroke-width="2" opacity="0.8">A<tspan id="outer" fill="#ff0000"
+          stroke-opacity="0.5" opacity="0.5">B<tspan id="inner"
+          font-size="10">C</tspan>D</tspan>E</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 5);
+    CHECK(result.text_runs[0].text == "A");
+    CHECK(result.text_runs[0].fill == "#112233");
+    CHECK(result.text_runs[0].stroke == std::optional<std::string>{"#445566"});
+    CHECK(result.text_runs[0].opacity == doctest::Approx(0.8f));
+    CHECK(result.text_runs[1].text == "B");
+    CHECK(result.text_runs[1].source_id == "outer");
+    CHECK(result.text_runs[1].fill == "#ff0000");
+    CHECK(result.text_runs[1].stroke_opacity == doctest::Approx(0.5f));
+    CHECK(result.text_runs[1].opacity == doctest::Approx(0.4f));
+    CHECK(result.text_runs[2].text == "C");
+    CHECK(result.text_runs[2].source_id == "inner");
+    CHECK(result.text_runs[2].fill == "#ff0000");
+    CHECK(result.text_runs[2].stroke == std::optional<std::string>{"#445566"});
+    CHECK(result.text_runs[2].font_size == doctest::Approx(10.0f));
+    CHECK(result.text_runs[2].opacity == doctest::Approx(0.4f));
+    CHECK(result.text_runs[3].text == "D");
+    CHECK(result.text_runs[3].source_id == "outer");
+    CHECK(result.text_runs[3].fill == "#ff0000");
+    CHECK(result.text_runs[3].opacity == doctest::Approx(0.4f));
+    CHECK(result.text_runs[4].text == "E");
+    CHECK(result.text_runs[4].fill == "#112233");
+    CHECK(result.text_runs[4].stroke_opacity == doctest::Approx(1.0f));
+    CHECK(result.text_runs[4].opacity == doctest::Approx(0.8f));
+}
+
+TEST_CASE("SVG text accepts the SVG dominant-baseline identifiers") {
+    const std::string filename = "temp_test_svg_dominant_baselines.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text font-family="Chronon Sans">)svg";
+        for (const auto* baseline : {"auto", "use-script", "no-change", "reset-size",
+                "ideographic", "alphabetic", "hanging", "mathematical", "central",
+                "middle", "text-after-edge", "text-before-edge"})
+            out << "<tspan dominant-baseline=\"" << baseline << "\">x</tspan>";
+        out << R"svg(</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 12);
+    CHECK(result.text_runs[4].dominant_baseline == "ideographic");
+    CHECK(result.text_runs[7].dominant_baseline == "mathematical");
+    CHECK(result.text_runs[10].dominant_baseline == "text-after-edge");
+    CHECK(result.text_runs[11].dominant_baseline == "text-before-edge");
+}
+
+TEST_CASE("SVG root Gaussian blur lowers only supported isotropic filters") {
+    const std::string filename = "temp_test_svg_root_blur.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg filter="url(#soften)"><defs>
+          <filter id="soften"><feGaussianBlur stdDeviation="2, 2"/></filter>
+          </defs><path d="M0 0L10 0L10 10Z"/></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.root_gaussian_blur.has_value());
+    CHECK(*result.root_gaussian_blur == doctest::Approx(2.0f));
+
+    const auto rejected = [&](const std::string& content) {
+        { std::ofstream out(filename); out << content; }
+        const auto loaded = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return loaded;
+    };
+    const auto scaled = rejected(
+        R"svg(<svg width="200" height="200" viewBox="0 0 100 100" filter="url(#f)"><defs><filter id="f"><feGaussianBlur stdDeviation="2"/></filter></defs><path d="M0 0L10 0L10 10Z"/></svg>)svg");
+    REQUIRE(scaled.ok);
+    REQUIRE(scaled.root_gaussian_blur.has_value());
+    CHECK(*scaled.root_gaussian_blur == doctest::Approx(4.0f));
+    const auto anisotropic = rejected(
+        R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur stdDeviation="2 3"/></filter></defs><path d="M0 0L1 1"/></svg>)svg");
+    CHECK_FALSE(anisotropic.ok);
+    const auto non_root = rejected(
+        R"svg(<svg><defs><filter id="f"><feGaussianBlur stdDeviation="2"/></filter></defs><path filter="url(#f)" d="M0 0L1 1"/></svg>)svg");
+    CHECK_FALSE(non_root.ok);
+    const auto arbitrary_graph = rejected(
+        R"svg(<svg filter="url(#f)"><defs><filter id="f"><feOffset dx="2"/></filter></defs><path d="M0 0L1 1"/></svg>)svg");
+    CHECK_FALSE(arbitrary_graph.ok);
+}
+
 TEST_CASE("SVG textPath preserves local path target and start offset") {
     const std::string filename = "temp_test_svg_text_path.svg";
     {

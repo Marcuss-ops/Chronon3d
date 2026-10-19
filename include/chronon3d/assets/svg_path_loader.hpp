@@ -28,6 +28,9 @@ struct SvgDocumentLoadResult {
     std::vector<SvgStyledElement> elements;
     std::vector<SvgTextRun> text_runs;
     std::optional<PathShape> vector_mask;
+    /// One root-scoped SVG Gaussian blur that maps directly to Chronon's
+    /// existing layer GaussianBlur effect. Arbitrary filter graphs are rejected.
+    std::optional<float> root_gaussian_blur;
     bool ok{false};
     std::string error;
 };

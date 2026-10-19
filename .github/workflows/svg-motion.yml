@@ -64,5 +64,12 @@ jobs:
             -R '^(chronon3d_c_abi_tests|chronon3d_svg_path_loader_tests|chronon3d_renderer_core_tests)$' \
             --output-on-failure
 
-      - name: Render and inspect authored SVG MP4 endpoints
-        run: python3 scripts/ci/check_svg_cli_frame_gate.py
+      - name: Run SVG encoded and raw-pixel gates
+        env:
+          CHRONON_CLI: ${{ github.workspace }}/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_svg_cli_frame_gate.py
+          python3 scripts/ci/check_svg_trim_sampled_raw_gate.py
+          python3 scripts/ci/check_svg_static_composite_raw_gate.py
+          python3 scripts/ci/check_svg_text_stroke_raw_gate.py

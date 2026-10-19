@@ -184,6 +184,10 @@ and the existing compiler, sampler, and renderer.
   Twist, Morph, and Merge. The gate checks operator-target pixels, renders
   operator-removed variants, checks animated Trim/Repeater pixel changes,
   compares opening/ending hashes, and repeats the complete render.
+- [x] Sample imported SVG Trim Paths at frames 0/15/30/45/60 through the
+  canonical software raw sink. Pixel coverage is empty at frame 0, grows at
+  frames 30 and 45, and holds at frame 60; two complete 61-frame renders match
+  pixel-for-pixel (`scripts/ci/check_svg_trim_sampled_raw_gate.py`).
 - [x] Lower targeted SVG Morph through the existing path-operator evaluator
   and shared timeline. Exact path IDs are required; topology mismatch fails at
   evaluation. C ABI coverage samples start/mid/end and checks the mismatch.
@@ -203,8 +207,14 @@ and the existing compiler, sampler, and renderer.
 - [x] Honor static `display:none` and inherited `visibility:hidden|collapse`
   for SVG geometry and text; allow a child to restore `visibility:visible`,
   while a `display:none` ancestor suppresses all descendants.
-- [ ] Reuse Chronon effects when SVG filter semantics map directly; defer
-  arbitrary SVG filter graphs.
+- [x] Reuse Chronon effects when SVG filter semantics map directly; defer
+  arbitrary SVG filter graphs. The importer lowers one root-level,
+  isotropic `<feGaussianBlur>` over path-only `SourceGraphic` into the existing
+  native Gaussian blur effect, including isotropic root/viewBox scaling. Unsupported
+  filter scopes, anisotropic deviation, custom regions, chaining, and other
+  primitives fail closed. Chronon's existing blur implementation is an
+  approximation of the SVG Gaussian kernel, so pixel-exact browser parity is
+  not claimed.
 
 ### Phase 4 — SVG text and timeline
 
@@ -221,13 +231,30 @@ and the existing compiler, sampler, and renderer.
 - [x] Import solid SVG text strokes and preserve separate fill/stroke opacity
   through RenderPlan into the canonical `TextRunShape` paint. C ABI coverage
   verifies stroke color, width, alpha, and fill alpha after materialization.
-- [ ] Add gradient/pattern text paint and SVG text stroke dash/cap/join semantics.
+- [x] Preserve SVG text stroke dash, cap, join, miter limit, and dash offset
+  through import, RenderPlan materialization, and the software outline raster.
+  Non-default styles select the software fallback from MTSDF; importer and C ABI
+  coverage verifies retained values. Blend2D's context dash setters are a no-op
+  in the bundled build, so text glyph contours are flattened and split with
+  Chronon's existing path dash sampler before software stroking. The raw-pixel
+  gate confirms `stroke-dasharray="1 18"` reduces visible stroke pixels from
+  2674 to 119 and repeated dashed output is identical.
+- [ ] Add gradient/pattern text paint.
 - [x] Add font-metric `dominant-baseline` support for central, middle and
   hanging baselines, and inherited `baseline-shift` values for sub/super,
   pixel, em and percentage inputs. The current sub/super values use bounded
   typographic approximations.
-- [ ] Cover the remaining nested SVG text-chunk semantics, baseline table
-  values, and inherited paint across all supported text content.
+- [x] Accept all twelve SVG 1.1 `dominant-baseline` identifiers; derive the
+  ideographic, mathematical, before-edge, and after-edge positions from the
+  resolved font's descent, cap height, and ascent. The importer regression
+  checks all identifiers; non-Latin baseline tables still need script-aware
+  font baseline data and remain part of the open text parity item.
+- [x] Apply supported inheritable text paint recursively through nested
+  `<tspan>` chunks and restore the parent's style after each child. Importer
+  coverage checks fill, stroke, stroke opacity, overall opacity, font size, and
+  source identity over three nested levels.
+- [ ] Cover the remaining nested SVG text-chunk semantics and script-aware
+  baseline table values across all supported text content.
 - [x] Import bounded `x`, `y`, `dx`, and `dy` coordinate lists and lower them
   through shaped text clusters into canonical text layers. Coordinate entries
   within one shaped cluster fail closed; text coordinate lists under rotated
@@ -235,8 +262,11 @@ and the existing compiler, sampler, and renderer.
 - [x] Preserve nested `<tspan text-anchor>` chunk scope and measure each
   independently anchored span with the existing font metrics during lowering.
 - [x] Lower bounded SVG `textPath` through the existing path sampler and text shaping pipeline. Local references to visible static paths in the same group coordinate scope and direct paths in `<defs>` are supported, with numeric/percentage `startOffset`, `text-anchor`, and per-cluster canonical text layers retaining the text element ID. Unsupported `method`, `spacing`, and `side` values fail closed.
-- [ ] Prefer Chronon frame tracks for authored motion. Add SMIL timing forms
+- [x] Prefer Chronon frame tracks for authored motion. Add SMIL timing forms
   only when real assets require them; do not pursue browser-complete SMIL.
+  Authored element motion lowers to the shared Chronon `AnimationTrackPlan`
+  timeline (Phases 1–2); the bounded SMIL forms documented above exist only
+  for imported SVG assets and are sampled on that same timeline.
 
 The current text lowering is an initial supported subset. Each run remains a
 separate Chronon text layer; simple sequential runs now use measured advances,
@@ -269,8 +299,8 @@ axis-aligned scale transforms; rotated and skewed scopes fail closed.
 
 ### Current checkout notes
 
-- The source tree has pre-existing uncommitted changes. Do not reset or stage
-  them as part of this roadmap.
+- The current working tree contains the SVG parity changes under review. Do
+  not reset or stage unrelated files as part of this roadmap.
 - The old CLI PNG gate reported transparent output for both SVG and an inline
   control shape. The MP4 gate verifies the red control and yellow SVG pixels,
   an animated cyan Trim Paths reveal, increasing magenta Repeater coverage,
@@ -290,6 +320,12 @@ axis-aligned scale transforms; rotated and skewed scopes fail closed.
   use `--encoder-backend pipe` for reproducible showcase output. The contact
   sheet and review frames were regenerated from the passing run and visually
   inspected. Clean-SHA CI remains pending.
+- Focused SVG verification passes in the isolated Linux build: both
+  `chronon3d_svg_path_loader_tests` and `chronon3d_c_abi_tests` passed after
+  adding root Gaussian blur lowering. The temporary build copy required a
+  test-only compatibility shim for the checkout's unrelated missing
+  `DepthOfFieldSettings::iris_blades` and `highlight_gain` fields; production
+  sources were not changed for that mismatch.
 - Build directories from the previous checkout contain stale CMake cache paths;
   use an isolated build directory and preserve the existing preset artifacts.
 
@@ -383,3 +419,41 @@ SVG merge is subpath concatenation, not a boolean geometry operation.
   baseline semantics, complete text paint, coordinate lists that split a
   shaping cluster or occur on textPath/rotated SVG scopes, broader clip/mask
   composition and clean-SHA CI. These are not claimed complete.
+
+## User-provided documentary SVG video acceptance — 2026-10-19
+
+The reported reference is 19.63 seconds at 30 fps (approximately 589 frames).
+Its requested peak-graph samples are 3.0/3.5/4.0/4.5/6.0 seconds and
+15.0/15.5/16.0/17.5/18.5 seconds. In the latter section, marker motion and
+overall framing/scale changes are separate requirements from path trim.
+Illustrative linked images are not pixel references. The uploaded source video
+is not present in this workspace, so reference matching and a scene preview
+approval cannot be completed from the current checkout.
+
+| Gate | Current evidence | Status for the supplied video |
+| --- | --- | --- |
+| SVG-01 static pixels | Encoded showcase plus SVG peak study verify visible imported path pixels; contact sheet is reviewed. | Generic behavior covered; reference shot still open. |
+| SVG-02 trim at f0/15/30/45/60 | `check_svg_trim_sampled_raw_gate.py` measures imported-SVG pixel coverage 0/0/67/96/96 and repeat equality. Five-second peak study additionally measures 0/216/703/1147/1590/1591/1591 at f0/15/30/45/60/90/149. | Generic trim and composed hold covered; reference shot and its 3.0–6.0s timing remain open. |
+| SVG-03 marker pixels | `svg_peak_pixel_gate.py` checks isolated and combined SVG+marker centroids; isolated maximum error is 0.735 px. It also reproduces the unguarded sequential path loss (132 pixels at f0–45, 6 at f60) and verifies workaround coverage. The 150-frame study visually confirms travel. | Marker behavior covered with workaround; the underlying cause is unconfirmed (disabling composite input-storage transfer did not change it), and target framing remains open. |
+| SVG-04 glow | `svg_peak_pixel_gate.py` compares combined renders with/without native glow: 602 changed halo pixels, 0 changed pixels at the prior marker position, and deterministic repeat. | Synthetic moving-marker behavior passes; target-video halo and alpha behavior remain open. |
+| SVG-05 transforms/pivots | Imported transform tracks and camera showcase exist. | Vehicle pivot and target shot scale/push are open. |
+| SVG-06 temporal stability | Repeat showcase output has matching decoded frame hashes. | Target-video thin-line flicker review open. |
+| SVG-07 vector plus footage | A plan-level vector/footage composition fixture exists. | Encoded compositing with the actual plate is open. |
+| SVG-08 determinism | Full 360-frame showcase reruns match decoded pixels; synthetic gate also repeats raw RGBA samples. | Generic behavior covered; target plan open. |
+| SVG-09 CPU/GPU parity | Capability-dependent Vulkan lane has not been run for this deliverable. | Open where Vulkan is supported. |
+
+The deliverable-specific scene, reference timeline, source-clip dependency,
+and remaining acceptance checklist are tracked separately in
+[`TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md`](TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md).
+
+The supplied analysis also asks for an SVG source asset with stable IDs and a
+reusable `documentary_svg_peak_v1` template that includes the observed graph
+framing and moving markers. The existing `reconstruct_peak_diagrams.py` still
+authors inline path geometry, and its peak marker is static; the existing
+showcase is a different 12-second scene. Do not treat either artifact as the
+requested preset or claim exact-video completion. Once the source clip is
+available, establish the scene contract, inspect the referenced frames, render
+and inspect the 854×480 composition preview, then implement and gate the
+video-specific preset. The SVG text stroke cap/join/miter/dash implementation
+is included in the current working tree; software rendering supports these
+styles and the MTSDF path falls back to software for non-default strokes.
