@@ -4,6 +4,7 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
+#include <chronon3d/compositor/alpha.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include "src/backends/software/effects/render_effects_processor.hpp"
 
@@ -127,6 +128,54 @@ TEST_CASE("RGB channel identity transform preserves every source component exact
             CHECK(actual.b == doctest::Approx(expected.b).epsilon(1e-6));
             CHECK(actual.a == doctest::Approx(expected.a).epsilon(1e-6));
         }
+}
+
+TEST_CASE("Blur plus chromatic aberration preserves premultiplied card edges over gray") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(9, 5);
+    for (int y = 0; y < fb.height(); ++y)
+        for (int x = 0; x < fb.width(); ++x)
+            fb.set_pixel(x, y, Color{0.f, 0.f, 0.f, 0.f});
+    for (int y = 1; y <= 3; ++y)
+        for (int x = 3; x <= 5; ++x)
+            fb.set_pixel(x, y, Color{1.f, 1.f, 1.f, 1.f});
+
+    EffectStack stack;
+    stack.emplace_back(BlurParams{.radius = 1.f});
+    stack.emplace_back(ChromaticAberrationParams{.red_offset = 1.f, .blue_offset = -1.f});
+    effects::EffectExecutionContext context;
+    apply_effect_stack(fb, stack, context, registry);
+
+    const Color gray{0.6f, 0.6f, 0.6f, 1.f};
+    const float gray_luma = 0.2126f * gray.r + 0.7152f * gray.g + 0.0722f * gray.b;
+    bool saw_transition = false;
+    for (int y = 0; y < fb.height(); ++y) {
+        for (int x = 0; x < fb.width(); ++x) {
+            const Color src = fb.get_pixel(x, y); // canonical premultiplied RGBA
+            CHECK(src.a >= 0.f);
+            CHECK(src.a <= 1.f);
+            CHECK(src.r >= 0.f);
+            CHECK(src.g >= 0.f);
+            CHECK(src.b >= 0.f);
+            CHECK(src.r <= src.a + 1e-6f);
+            CHECK(src.g <= src.a + 1e-6f);
+            CHECK(src.b <= src.a + 1e-6f);
+            saw_transition = saw_transition || (src.a > 0.f && src.a < 1.f);
+
+            // Premultiplied source-over: the exact operation performed by
+            // the compositor after the effect stack.
+            const Color composite{
+                src.r + gray.r * (1.f - src.a),
+                src.g + gray.g * (1.f - src.a),
+                src.b + gray.b * (1.f - src.a),
+                1.f};
+            const float luma = 0.2126f * composite.r + 0.7152f * composite.g +
+                               0.0722f * composite.b;
+            CHECK(luma >= gray_luma - 1e-6f);
+        }
+    }
+    CHECK(saw_transition);
 }
 
 TEST_CASE("RGB channel transform supports fractional coverage and per-channel opacity") {

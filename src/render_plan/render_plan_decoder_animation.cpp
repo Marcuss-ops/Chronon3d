@@ -397,6 +397,7 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
         if (plan.kind == "smooth_wipe") return std::vector<std::string>{"feather"};
         if (plan.kind == "circle_iris") return std::vector<std::string>{"feather", "center"};
         if (plan.kind == "flash") return std::vector<std::string>{"color"};
+        if (plan.kind == "dip_to_black") return std::vector<std::string>{"dip_px"};
         if (plan.kind == "procedural_remotion")
             return std::vector<std::string>{"seed", "inner_color", "mid_color", "outer_color"};
         if (plan.kind == "remotion")
@@ -429,12 +430,14 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
     read_color("mid_color", plan.mid_color);
     read_color("outer_color", plan.outer_color);
     plan.seed = params.value("seed", plan.seed);
+    plan.dip_px = params.value("dip_px", plan.dip_px);
     plan.speed = params.value("speed", plan.speed);
     plan.remotion_direction = params.value("remotion_direction", plan.remotion_direction);
     plan.angle = params.value("angle", plan.angle);
     if (!std::isfinite(plan.distance) || plan.distance < 0.0f || plan.distance > 4.0f ||
         !std::isfinite(plan.zoom_amount) || plan.zoom_amount < 0.0f || plan.zoom_amount > 1.0f ||
         !std::isfinite(plan.feather) || plan.feather < 0.0f || plan.feather > 1.0f ||
+        !std::isfinite(plan.dip_px) || plan.dip_px < 0.0f || plan.dip_px > 4096.0f ||
         !std::isfinite(plan.seed) || !std::isfinite(plan.speed) || plan.speed <= 0.0f ||
         !std::isfinite(plan.remotion_direction) || !std::isfinite(plan.angle))
         throw std::runtime_error("transition parameters are outside their finite supported ranges");

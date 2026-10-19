@@ -113,6 +113,12 @@ struct RemotionParams {
     float angle = 0.0f;
 };
 
+struct DipToBlackParams {
+    /// Hold width at full black, in pixels (0 = pure eased fade through
+    /// black with no hold). Validated to [0, 4096] at decode time.
+    float dip_px = 0.0f;
+};
+
 using LayerTransitionParameters = std::variant<
     std::monostate,
     CrossfadeParams,
@@ -123,7 +129,8 @@ using LayerTransitionParameters = std::variant<
     CircleIrisParams,
     FlashParams,
     ProceduralRemotionParams,
-    RemotionParams
+    RemotionParams,
+    DipToBlackParams
 >;
 
 /// Typed descriptor for a layer reveal / exit transition.

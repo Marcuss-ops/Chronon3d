@@ -1,5 +1,7 @@
 #include "render_plan_compiler_detail.hpp"
 #include "render_plan_compiler_animation_internal.hpp"
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
@@ -396,12 +398,31 @@ make_camera_descriptor(const RenderPlan& plan) {
     descriptor.base.dof.focus_distance = source_plan.dof_focus_distance;
     descriptor.base.dof.aperture = source_plan.dof_aperture;
     descriptor.base.dof.max_blur = source_plan.dof_max_blur;
+    descriptor.base.dof.iris_blades = source_plan.dof_iris_blades;
+    descriptor.base.dof.highlight_gain = source_plan.dof_highlight_gain;
+    // Physical lens authoring: the DoF-specific f-stop wins over the
+    // camera-level one when both are present.
+    if (source_plan.focal_length_mm > 0.0f)
+        descriptor.base.lens.focal_length = source_plan.focal_length_mm;
+    const float authored_f_stop = source_plan.dof_f_stop > 0.0f
+        ? source_plan.dof_f_stop : source_plan.f_stop;
+    if (authored_f_stop > 0.0f)
+        descriptor.base.lens.f_stop = authored_f_stop;
     if (source_plan.dof_enabled) {
-        // RenderPlan V2's focus_distance uses the same world-space Z origin as
-        // Camera2_5D's legacy blur-per-unit model. Preserve focus_z when the
-        // optional newer focus-distance value is left at its default.
-        descriptor.base.dof.focus_z = source_plan.dof_focus_distance;
-        descriptor.base.dof.use_physical_model = false;
+        // RenderPlan focus_distance is a camera-space distance along the
+        // optical axis (S1); the legacy focus_z field is a world-Z plane, so
+        // derive it from the base pose instead of copying across units.
+        // The physical thin-lens model is selected when the plan authors a
+        // complete lens (focal length + f-stop): it consumes focus_distance
+        // directly as S1, while the legacy path converts focus_z back.
+        const bool physical =
+            source_plan.focal_length_mm > 0.0f && authored_f_stop > 0.0f;
+        descriptor.base.dof.use_physical_model = physical;
+        chronon3d::Camera2_5D base_pose;
+        base_pose.position = descriptor.base.position;
+        base_pose.rotation = descriptor.base.rotation;
+        descriptor.base.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
+            base_pose, source_plan.dof_focus_distance);
     }
     if (source_plan.type == "orthographic") {
         // Camera2_5D has no second projection implementation: use its existing
@@ -421,6 +442,9 @@ make_camera_descriptor(const RenderPlan& plan) {
     tracks.focus_distance = chronon3d::AnimatedValue<float>{source_plan.dof_focus_distance};
     tracks.aperture = chronon3d::AnimatedValue<float>{source_plan.dof_aperture};
     tracks.max_blur = chronon3d::AnimatedValue<float>{source_plan.dof_max_blur};
+    tracks.focal_length = chronon3d::AnimatedValue<float>{source_plan.focal_length_mm};
+    tracks.f_stop = chronon3d::AnimatedValue<float>{
+        source_plan.dof_f_stop > 0.0f ? source_plan.dof_f_stop : source_plan.f_stop};
     for (const auto& track : *plan.camera_animation) {
         AnimationTrackPlan easing_track;
         easing_track.property = "camera";
@@ -500,6 +524,27 @@ make_camera_descriptor(const RenderPlan& plan) {
                 case CameraPropertyPlan::MaxBlur:
                     add_animation_keyframe(tracks.max_blur, easing_track, key, value);
                     break;
+                case CameraPropertyPlan::TargetX:
+                case CameraPropertyPlan::TargetY:
+                case CameraPropertyPlan::TargetZ: {
+                    const int axis = (track.property == CameraPropertyPlan::TargetX) ? 0
+                        : (track.property == CameraPropertyPlan::TargetY) ? 1 : 2;
+                    tracks.use_target = true;
+                    if (!tracks.target_components[axis])
+                        tracks.target_components[axis].emplace(
+                            descriptor.base.point_of_interest[axis]);
+                    add_animation_keyframe(*tracks.target_components[axis], easing_track, key, value);
+                    auto current = descriptor.base.point_of_interest;
+                    current[axis] = value;
+                    add_animation_keyframe(tracks.target, easing_track, key, current);
+                    break;
+                }
+                case CameraPropertyPlan::FocalLengthMM:
+                    add_animation_keyframe(tracks.focal_length, easing_track, key, value);
+                    break;
+                case CameraPropertyPlan::FStop:
+                    add_animation_keyframe(tracks.f_stop, easing_track, key, value);
+                    break;
             }
         }
     }
@@ -510,6 +555,11 @@ make_camera_descriptor(const RenderPlan& plan) {
     tracks.focus_distance.compute_roving(); tracks.focus_distance.compute_auto_beziers();
     tracks.aperture.compute_roving(); tracks.aperture.compute_auto_beziers();
     tracks.max_blur.compute_roving(); tracks.max_blur.compute_auto_beziers();
+    tracks.focal_length.compute_roving(); tracks.focal_length.compute_auto_beziers();
+    tracks.f_stop.compute_roving(); tracks.f_stop.compute_auto_beziers();
+    for (auto& component : tracks.target_components) {
+        if (component) { component->compute_roving(); component->compute_auto_beziers(); }
+    }
     descriptor.source = std::move(tracks);
     return descriptor;
 }
@@ -545,6 +595,7 @@ chronon3d::LayerTransitionSpec compile_transition(const TransitionPlan& plan, Fr
         ? chronon3d::TransitionDirection::None
         : chronon3d::string_to_transition_direction(plan.direction);
     if (plan.kind == "crossfade") spec.parameters = chronon3d::CrossfadeParams{};
+    else if (plan.kind == "dip_to_black") spec.parameters = chronon3d::DipToBlackParams{plan.dip_px};
     else if (plan.kind == "slide") spec.parameters = chronon3d::SlideParams{plan.distance};
     else if (plan.kind == "zoom") spec.parameters = chronon3d::ZoomParams{plan.zoom_amount};
     else if (plan.kind == "wipe_linear") spec.parameters = chronon3d::WipeLinearParams{};

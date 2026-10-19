@@ -336,6 +336,7 @@ void add_transition(CanonicalPlanWriter& out, const TransitionPlan& transition) 
     out.add_float(transition.speed);
     out.add_float(transition.remotion_direction);
     out.add_float(transition.angle);
+    out.add_float(transition.dip_px);
 }
 
 void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
@@ -350,6 +351,12 @@ void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
     out.add_float(camera.dof_focus_distance);
     out.add_float(camera.dof_aperture);
     out.add_float(camera.dof_max_blur);
+    out.add_float(camera.focal_length_mm);
+    out.add_float(camera.f_stop);
+    out.add_i64(static_cast<std::int64_t>(camera.iris_blades));
+    out.add_float(camera.dof_f_stop);
+    out.add_i64(static_cast<std::int64_t>(camera.dof_iris_blades));
+    out.add_float(camera.dof_highlight_gain);
 }
 
 void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {

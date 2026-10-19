@@ -6,6 +6,7 @@
 #include "camera_program_sources.hpp"
 
 #include <chronon3d/scene/camera/camera_v1/evaluated_projection.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
@@ -71,14 +72,21 @@ bool source_is_time_dependent(const CameraSourceSpec& source) {
         return false;
     }
     if (auto* pts = std::get_if<PoseTracksSource>(&source)) {
+        bool target_components_dependent = false;
+        for (const auto& component : pts->target_components)
+            target_components_dependent =
+                target_components_dependent || (component && component->is_time_dependent());
         return pts->position.is_time_dependent() ||
                pts->rotation.is_time_dependent() ||
                pts->target.is_time_dependent() ||
+               target_components_dependent ||
                pts->zoom.is_time_dependent() ||
                pts->fov_deg.is_time_dependent() ||
                pts->focus_distance.is_time_dependent() ||
                pts->aperture.is_time_dependent() ||
-               pts->max_blur.is_time_dependent();
+               pts->max_blur.is_time_dependent() ||
+               pts->focal_length.is_time_dependent() ||
+               pts->f_stop.is_time_dependent();
     }
     if (auto* orbit = std::get_if<OrbitMotion>(&source)) {
         return orbit->yaw.is_time_dependent() ||
@@ -144,10 +152,14 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
                       src.fov_deg.is_time_dependent() ||
                       src.focus_distance.is_time_dependent() ||
                       src.aperture.is_time_dependent() ||
-                      src.max_blur.is_time_dependent();
+                      src.max_blur.is_time_dependent() ||
+                      src.focal_length.is_time_dependent() ||
+                      src.f_stop.is_time_dependent();
     for (const auto& component : src.position_components)
         cam.is_animated = cam.is_animated || (component && component->is_time_dependent());
     for (const auto& component : src.rotation_components)
+        cam.is_animated = cam.is_animated || (component && component->is_time_dependent());
+    for (const auto& component : src.target_components)
         cam.is_animated = cam.is_animated || (component && component->is_time_dependent());
 
     cam.position = src.position.evaluate(ctx.sample_time);
@@ -167,6 +179,12 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     cam.point_of_interest = src.use_target
         ? src.target.evaluate(ctx.sample_time)
         : base.point_of_interest;
+    if (src.use_target) {
+        for (std::size_t axis = 0; axis < 3; ++axis)
+            if (src.target_components[axis])
+                cam.point_of_interest[static_cast<int>(axis)] =
+                    src.target_components[axis]->evaluate(ctx.sample_time);
+    }
     cam.point_of_interest_enabled = src.use_target || base.point_of_interest_enabled;
 
     apply_projection_spec(base.projection, ctx, cam);
@@ -195,15 +213,21 @@ Camera2_5D eval_pose_tracks(const CameraBaseSpec& base,
     cam.parent_name = base.parent_name;
 
     cam.dof = base.dof;
+    if (src.focal_length.is_time_dependent())
+        cam.lens.focal_length = src.focal_length.evaluate(ctx.sample_time);
+    if (src.f_stop.is_time_dependent())
+        cam.lens.f_stop = src.f_stop.evaluate(ctx.sample_time);
     if (src.focus_distance.is_time_dependent()) {
         cam.dof.focus_distance = src.focus_distance.evaluate(ctx.sample_time);
-        // Camera V1 authors a rack-focus channel as a focus distance.  The
-        // legacy software DOF path consumes the world-space focus_z field,
-        // so bridge the animated channel explicitly when the physical lens
-        // model is not selected.  Static legacy callers that author focus_z
-        // directly remain unchanged.
+        // Rack-focus tracks are camera-space distances (S1) along the
+        // optical axis. The legacy software DOF path consumes the world-
+        // space focus_z field, so derive it from the sampled pose instead
+        // of copying across units. The physical lens model consumes
+        // focus_distance directly and skips this bridge. Static legacy
+        // callers that author focus_z directly remain unchanged.
         if (!cam.dof.use_physical_model)
-            cam.dof.focus_z = cam.dof.focus_distance;
+            cam.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
+                cam, cam.dof.focus_distance);
     }
     if (src.aperture.is_time_dependent())
         cam.dof.aperture = src.aperture.evaluate(ctx.sample_time);

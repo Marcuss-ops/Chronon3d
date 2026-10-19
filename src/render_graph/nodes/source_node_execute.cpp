@@ -319,55 +319,14 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
     // seeding would produce stale FBs that bypass the cache-key fix.
     // TICKET-TEXT-CLEANUP-8: m_uses_2_5d_projection removed.  2.5D
     // projection is now conditioned on has_camera_2_5d globally.
-    if (!m_cache_policy.reusable_across_frames()
-        || ctx.frame_input.has_camera_2_5d) {
-        return false;
-    }
-
-    if (m_node.shape.type() != ShapeType::Image) {
-        return false;
-    }
-
-    const auto& img = m_node.shape.image();
-    const auto& tr = m_node.world_transform;
-    const f32 opacity = m_opacity_override.value_or(tr.opacity);
-
-    if (ctx.node_exec.clip_rect) {
-        const bool clip_is_full = ctx.node_exec.clip_rect->x0 <= 0 && ctx.node_exec.clip_rect->y0 <= 0 &&
-                                  ctx.node_exec.clip_rect->x1 >= ctx.frame_input.width && ctx.node_exec.clip_rect->y1 >= ctx.frame_input.height;
-        if (!clip_is_full) {
-            return false;
-        }
-    }
-
-    const bool full_size = std::abs(img.size.x - static_cast<f32>(ctx.frame_input.width)) < detail::kSeedFrameEpsilon &&
-                           std::abs(img.size.y - static_cast<f32>(ctx.frame_input.height)) < detail::kSeedFrameEpsilon;
-    const bool opaque = img.opacity >= 0.999f && opacity >= 0.999f;
-    if (!full_size || !opaque) {
-        return false;
-    }
-
-    const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
-    // TICKET-TEXT-CLEANUP-5: centering is now baked into matrix_override
-    // by the source pass / refresh.  m_centered removed.
-    const auto placement = detail::evaluate_source_payload_placement(
-        local_matrix,
-        opacity,
-        ctx,
-        false,
-        false,
-        false,
-        m_name,
-        "can_seed_full_frame");
-    if (!placement) {
-        return false;
-    }
-
-    return detail::covers_full_frame_as_rectangle(
-        placement->render_matrix,
-        static_cast<f32>(ctx.frame_input.width),
-        static_cast<f32>(ctx.frame_input.height),
-        false);
+    // ImageShape contains only the source path and global opacity. The
+    // decoded pixel alpha coverage is not available in this graph-build
+    // phase, so it cannot prove an image opaque. In particular, a full-frame
+    // PNG cutout must leave the background subtree alive for composition.
+    // Keep this optimization disabled until the asset resolver exposes a
+    // trustworthy all-opaque coverage bit.
+    (void)ctx;
+    return false;
 }
 
 } // namespace chronon3d::graph

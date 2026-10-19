@@ -32,12 +32,12 @@ static bool is_full_frame_opaque_impl(
     bool result = false;
 
     if (node.kind() == RenderGraphNodeKind::Source) {
-        const auto* multi = dynamic_cast<const MultiSourceNode*>(&node);
-        if (multi && multi->is_single_full_frame_image()) {
-            result = true;
-        } else {
-            result = node.can_seed_full_frame(ctx);
-        }
+        // A full-frame image may still contain transparent pixels (for
+        // example a subject cutout).  Only sources that explicitly guarantee
+        // opaque full-frame coverage may retire the background subtree.
+        // MultiSourceNode::is_single_full_frame_image() describes geometry and
+        // cacheability, not alpha coverage.
+        result = node.can_seed_full_frame(ctx);
     } else if (node.kind() == RenderGraphNodeKind::Transform) {
         const auto* transform = dynamic_cast<const TransformNode*>(&node);
         if (transform) {

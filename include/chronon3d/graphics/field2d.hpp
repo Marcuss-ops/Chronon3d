@@ -15,13 +15,13 @@ namespace chronon3d::graphics {
 
 enum class Field2DGenerator : std::uint8_t {
     Perlin, Simplex, Fractal, Cellular, Grid, Checker, Dots, Stripes,
-    Rings, Linear, Radial, Conic, Burst
+    Rings, Linear, Radial, Conic, Burst, Value, Ridged
 };
 
 enum class Field2DOperatorKind : std::uint8_t {
     Remap, Threshold, Smoothstep, Invert, Warp,
     Add, Subtract, Multiply, Min, Max, Abs, Power, Clamp,
-    Translate, Scale, Rotate, Repeat, DomainWarp
+    Translate, Scale, Rotate, Repeat, DomainWarp, Quantize
 };
 
 struct Field2DOperator {
@@ -162,6 +162,9 @@ struct Field2D {
                 case Field2DOperatorKind::Clamp:
                     value = std::clamp(value, op.scalar, op.scalar_b);
                     break;
+                case Field2DOperatorKind::Quantize:
+                    value = quantize_value(value, op.scalar);
+                    break;
                 case Field2DOperatorKind::Translate: {
                     point += op.vec;
                     value = base(point);
@@ -300,6 +303,13 @@ private:
         return std::clamp(0.5f + 0.5f * value, 0.0f, 1.0f);
     }
 
+    /// Snap a value in [0, 1] to `levels` evenly spaced steps (levels < 2 is a no-op).
+    [[nodiscard]] static float quantize_value(float value, float levels) noexcept {
+        if (!std::isfinite(levels) || levels < 2.0f) return value;
+        const float steps = std::floor(levels) - 1.0f;
+        return std::round(value * steps) / steps;
+    }
+
     [[nodiscard]] static float apply_scalar_operator(float value,
                                                      const Field2DOperator& op) noexcept {
         switch (op.kind) {
@@ -324,6 +334,7 @@ private:
             case Field2DOperatorKind::Abs: return std::abs(value);
             case Field2DOperatorKind::Power: return (value > 0.0f && op.scalar > 0.0f) ? std::pow(value, op.scalar) : (value <= 0.0f ? 0.0f : 1.0f);
             case Field2DOperatorKind::Clamp: return std::clamp(value, op.scalar, op.scalar_b);
+            case Field2DOperatorKind::Quantize: return quantize_value(value, op.scalar);
             case Field2DOperatorKind::Warp:
             case Field2DOperatorKind::Translate:
             case Field2DOperatorKind::Scale:
@@ -398,6 +409,10 @@ private:
                 float a = std::atan2(d.y, d.x) * (1.0f / 6.28318530718f) + 0.5f;
                 return a - std::floor(a);
             }
+            case Field2DGenerator::Value:
+                return lattice_noise(p, seed ^ 0x51ed27U);
+            case Field2DGenerator::Ridged:
+                return std::clamp(1.0f - std::abs(2.0f * perlin(p, seed) - 1.0f), 0.0f, 1.0f);
             case Field2DGenerator::Burst: {
                 const Vec2 d = point - Vec2{0.5f};
                 const float angle = std::atan2(d.y, d.x);
@@ -431,6 +446,8 @@ private:
     mix(std::bit_cast<std::uint32_t>(field.transform.rotation_radians));
     mix(std::bit_cast<std::uint32_t>(field.transform.shear.x));
     mix(std::bit_cast<std::uint32_t>(field.transform.shear.y));
+    mix(std::bit_cast<std::uint32_t>(field.transform.pivot.x));
+    mix(std::bit_cast<std::uint32_t>(field.transform.pivot.y));
     for (const auto& op : field.operators) {
         mix(static_cast<std::uint8_t>(op.kind));
         mix(std::bit_cast<std::uint32_t>(op.from));

@@ -67,6 +67,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Vulkan effect parity | CLOSED — catalog capability table has 48 rows, all 48 strict-native (0 unsupported); strict no-fallback policy holds. Same-tree evidence on the RTX A4000 host: registry 106/106, graph 421/421, effects 275/275, ABI 21/21, incl. software/Vulkan pixel oracles for all 22 former unsupported effects — [ticket](tickets/TICKET-VULKAN-EFFECT-PARITY.md) |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera V1 | PARTIAL — `SceneBuilder::camera()` / `CameraApi` authoring was removed; static cameras use `camera_descriptor()` and animated poses use `camera_pose()`; same-SHA certification remains outstanding |
+| Cinematic compositions T16–T18 | PARTIAL — actual Chronon3d T16 still rendered at 1920×1080 and pixel-checked; 150-frame T16 and integrated T17/T18 certification remain — [ticket](tickets/TICKET-CINEMATIC-COMPOSITION-CERTIFICATION.md) |
 | Render-plan audio mix | PASS (focused) — V3 clips, trim, gain automation, ducking and native mux integration; GPU/CI same-SHA certification remains separate |
 | Text Core V1 | PASS (focused) |
 | Text depth focus (text_depth_focus_v1) | PASS (unit) — `TextFocusResolver` authority + 8 preset family ids landed header-only over the canonical animator primitives; suite `chronon3d_text_focus_resolver_tests` 16/16 |

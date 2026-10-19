@@ -441,6 +441,12 @@ struct TimeRemapPlan {
 
 // Camera values are expressed in world units and degrees. rotation_deg uses
 // the canonical [tilt_x, pan_y, roll_z] order consumed by Camera2_5D.
+//
+// Depth-of-field contract: dof_focus_distance is the camera-space distance
+// along the optical axis from the camera position to the focus plane (S1 in
+// the thin-lens model, scene units, strictly positive). It is NOT a world-Z
+// coordinate: the legacy world-Z focus reference (DepthOfFieldSettings::
+// focus_z) is derived from it with the camera pose at compile/eval time.
 struct CameraPlan {
     std::string type{"perspective"};
     std::array<float, 3> position{0.0f, 0.0f, -1000.0f};
@@ -449,10 +455,22 @@ struct CameraPlan {
     float near{1.0f};
     float far{10000.0f};
     float zoom{1.0f};
+    // Physical lens authoring (0 = not authored). When focal_length_mm > 0
+    // and an f-stop is authored, the camera compiles to the physical thin-
+    // lens model; otherwise the legacy blur-per-unit model is used.
+    float focal_length_mm{0.0f};
+    float f_stop{0.0f};
+    int iris_blades{0};
     bool dof_enabled{false};
     float dof_focus_distance{1000.0f};
     float dof_aperture{0.015f};
     float dof_max_blur{24.0f};
+    // Physical DoF overrides (0 = not authored, inherit the camera-level
+    // lens value). Shaped-bokeh requests fail closed at render time (see
+    // reject_unsupported_dof_shape): no kernel implements them yet.
+    float dof_f_stop{0.0f};
+    int dof_iris_blades{0};
+    float dof_highlight_gain{0.0f};
 };
 
 struct CameraShakePlan {
@@ -468,7 +486,11 @@ struct CameraShakePlan {
 enum class CameraPropertyPlan : std::uint8_t {
     PositionX, PositionY, PositionZ,
     RotationX, RotationY, RotationZ,
-    FovDeg, Zoom, FocusDistance, Aperture, MaxBlur
+    FovDeg, Zoom, FocusDistance, Aperture, MaxBlur,
+    // Appended (never reordered): discriminants are hashed into plan
+    // fingerprints, so existing values must stay stable.
+    TargetX, TargetY, TargetZ,
+    FocalLengthMM, FStop
 };
 
 struct CameraTrackPlan {
@@ -528,6 +550,7 @@ struct TransitionPlan {
     float speed{1.35f};
     float remotion_direction{3.0f};
     float angle{0.0f};
+    float dip_px{0.0f};
 };
 
 struct LayerPlan {

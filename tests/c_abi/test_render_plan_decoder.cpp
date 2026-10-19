@@ -3791,3 +3791,60 @@ TEST_CASE("RenderPlan camera DOF channels decode and enforce their ranges") {
     invalid_aperture["camera_animation"]["tracks"][1]["keyframes"][0]["value"] = 1.1;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_aperture));
 }
+
+TEST_CASE("RenderPlan camera physical lens fields and f-stop track decode") {
+    auto source = render_plan_test::base_plan(nlohmann::json::array({{
+        {"id", "lens-background"}, {"type", "color"},
+        {"size", {320, 180}}, {"color", {0, 0, 0, 1}}
+    }}));
+    source["canvas"]["duration_frames"] = 54;
+    source["camera"] = nlohmann::json{
+        {"type", "perspective"}, {"position", {0, 0, -1000}},
+        {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}, {"near", 1}, {"far", 10000},
+        {"zoom", 1}, {"focal_length_mm", 50}, {"f_stop", 2.0}, {"iris_blades", 6},
+        {"dof", nlohmann::json{
+            {"enabled", true}, {"focus_distance", 1400}, {"aperture", 0.02}, {"max_blur", 24},
+            {"f_stop", 2.0}, {"iris_blades", 6}, {"highlight_gain", 1.5}}}};
+    const auto focal_track = nlohmann::json{{"property", "camera_focal_length_mm"},
+        {"keyframes", nlohmann::json::array({nlohmann::json{{"frame", 0}, {"value", 50.0}},
+                                              nlohmann::json{{"frame", 53}, {"value", 85.0}}})}};
+    const auto fstop_track = nlohmann::json{{"property", "camera_f_stop"},
+        {"keyframes", nlohmann::json::array({nlohmann::json{{"frame", 0}, {"value", 2.0}},
+                                              nlohmann::json{{"frame", 53}, {"value", 2.8}}})}};
+    source["camera_animation"] = nlohmann::json{
+        {"tracks", nlohmann::json::array({focal_track, fstop_track})}};
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    if (!decoded) MESSAGE(decoded.error().message);
+    REQUIRE(decoded);
+    REQUIRE(decoded->camera.has_value());
+    CHECK(decoded->camera->focal_length_mm == doctest::Approx(50.0f));
+    CHECK(decoded->camera->f_stop == doctest::Approx(2.0f));
+    CHECK(decoded->camera->iris_blades == 6);
+    CHECK(decoded->camera->dof_f_stop == doctest::Approx(2.0f));
+    CHECK(decoded->camera->dof_iris_blades == 6);
+    CHECK(decoded->camera->dof_highlight_gain == doctest::Approx(1.5f));
+    REQUIRE(decoded->camera_animation);
+    CHECK(decoded->camera_animation->size() == 2);
+    CHECK(decoded->camera_animation->at(0).property ==
+          chronon3d::render_plan::CameraPropertyPlan::FocalLengthMM);
+    CHECK(decoded->camera_animation->at(1).property ==
+          chronon3d::render_plan::CameraPropertyPlan::FStop);
+
+    // An animated f-stop is a DOF channel: it requires dof.enabled=true.
+    auto fstop_disabled = source;
+    fstop_disabled["camera"]["dof"]["enabled"] = false;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(fstop_disabled));
+    // Out-of-contract lens values fail closed on both static fields and tracks.
+    auto bad_focal = source;
+    bad_focal["camera"]["focal_length_mm"] = 8.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_focal));
+    auto bad_focal_track = source;
+    bad_focal_track["camera_animation"]["tracks"][0]["keyframes"][1]["value"] = 400.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_focal_track));
+    auto bad_fstop_track = source;
+    bad_fstop_track["camera_animation"]["tracks"][1]["keyframes"][1]["value"] = 64.0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_fstop_track));
+    auto bad_iris = source;
+    bad_iris["camera"]["dof"]["iris_blades"] = 16;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_iris));
+}

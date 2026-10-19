@@ -27,6 +27,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 
 #include <chronon3d/core/types/result.hpp>
 
@@ -162,11 +163,17 @@ TEST_CASE("FASE 5.2: Animated focus distance — rack focus") {
     def.camera->base.dof.aperture = 0.03f;
     def.camera->base.dof.max_blur = 24.0f;
 
+    // focus_distance is camera-space (S1); focus_z is the derived world-Z plane
+    // from the sampled pose, computed by the canonical helper.
+    const auto world_z = [](const Camera2_5D& cam, float depth) {
+        return chronon3d::world_z_plane_for_camera_space_depth(cam, depth);
+    };
+
     SUBCASE("frame 0 — focus at near") {
         Camera2_5D cam = eval_one(def, Frame{0});
         CHECK(cam.dof.enabled);
         CHECK(cam.dof.focus_distance == doctest::Approx(200.0f).epsilon(kDofEps));
-        CHECK(cam.dof.focus_z == doctest::Approx(200.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(world_z(cam, 200.0f)).epsilon(kDofEps));
         CHECK(cam.dof.aperture       == doctest::Approx(0.03f).epsilon(kDofEps));
         CHECK(cam.dof.max_blur       == doctest::Approx(24.0f).epsilon(kDofEps));
     }
@@ -174,27 +181,27 @@ TEST_CASE("FASE 5.2: Animated focus distance — rack focus") {
     SUBCASE("frame 60 — focus at far (keyframe peak)") {
         Camera2_5D cam = eval_one(def, Frame{60});
         CHECK(cam.dof.focus_distance == doctest::Approx(1000.0f).epsilon(kDofEps));
-        CHECK(cam.dof.focus_z == doctest::Approx(1000.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(world_z(cam, 1000.0f)).epsilon(kDofEps));
     }
 
     SUBCASE("frame 120 — focus back to near (keyframe end)") {
         Camera2_5D cam = eval_one(def, Frame{120});
         CHECK(cam.dof.focus_distance == doctest::Approx(200.0f).epsilon(kDofEps));
-        CHECK(cam.dof.focus_z == doctest::Approx(200.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(world_z(cam, 200.0f)).epsilon(kDofEps));
     }
 
     SUBCASE("frame 30 — midpoint interpolation (200→1000)") {
         Camera2_5D cam = eval_one(def, Frame{30});
         // Linear interpolation: 200 + (1000-200)/2 = 600
         CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
-        CHECK(cam.dof.focus_z == doctest::Approx(600.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(world_z(cam, 600.0f)).epsilon(kDofEps));
     }
 
     SUBCASE("frame 90 — midpoint interpolation (1000→200)") {
         Camera2_5D cam = eval_one(def, Frame{90});
         // Linear interpolation: 1000 + (200-1000)/2 = 600
         CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
-        CHECK(cam.dof.focus_z == doctest::Approx(600.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_z == doctest::Approx(world_z(cam, 600.0f)).epsilon(kDofEps));
     }
 }
 

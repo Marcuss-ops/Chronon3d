@@ -42,6 +42,13 @@ struct DepthOfFieldSettings {
     // Near / far bokeh separation (for future iris shape rendering).
     f32   near_bokeh_radius{0.0f};
     f32   far_bokeh_radius{0.0f};
+
+    // Physical lens shaping. No blur kernel implements these yet — see
+    // reject_unsupported_dof_shape() in dof.hpp, which fails closed when
+    // either is authored so shaped-bokeh requests can never render silently
+    // as plain circular bokeh.
+    int   iris_blades{0};        // polygonal iris blade count; 0 = circular bokeh
+    f32   highlight_gain{0.0f};  // out-of-focus highlight weighting; 0 = off
 };
 
 } // namespace chronon3d

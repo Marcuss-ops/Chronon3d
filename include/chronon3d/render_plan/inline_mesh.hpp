@@ -15,6 +15,10 @@ namespace chronon3d::render_plan {
 inline constexpr std::size_t kInlineMeshMaxVertices = 250'000;
 inline constexpr std::size_t kInlineMeshMaxIndices = 750'000;
 inline constexpr std::uint64_t kInlineMeshMaxAggregateBytes = 64ULL * 1024ULL * 1024ULL;
+/// Baked per-frame position tracks: at most 4096 samples, frames in
+/// [0, 1000000] strictly increasing, one position per base vertex.
+inline constexpr std::size_t kInlineMeshMaxAnimationSamples = 4096;
+inline constexpr std::int64_t kInlineMeshMaxAnimationFrame = 1'000'000;
 
 struct InlineMeshMaterialPlan {
     float diffuse{1.0f};
@@ -30,12 +34,23 @@ struct InlineMeshVertex {
     std::array<float, 2> uv{};
 };
 
+/// One baked per-frame position sample. Topology is fixed by the base mesh:
+/// `positions` must carry exactly one entry per base vertex.
+struct InlineMeshFrameSamplePlan {
+    std::int64_t frame{0};
+    std::vector<std::array<float, 3>> positions;
+};
+
 /// One static, indexed TRIANGLES primitive in mesh-local coordinates.
 struct InlineMeshPlan {
     std::vector<InlineMeshVertex> vertices;
     std::vector<std::uint32_t> indices;
     // Presence opts the mesh into lighting; omitted preserves legacy flat color.
     std::optional<InlineMeshMaterialPlan> material;
+    // Optional baked position track (V3 only). Transport + validation only:
+    // the renderer samples the base mesh; per-frame deformation rendering
+    // remains an explicitly blocked contract change.
+    std::vector<InlineMeshFrameSamplePlan> animation;
 };
 
 /// Bounded deterministic authoring descriptor. Decoding expands this into an

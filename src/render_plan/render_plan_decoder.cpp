@@ -464,7 +464,8 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                 plan.camera_animation->begin(), plan.camera_animation->end(), [](const auto& track) {
                     return track.property == chronon3d::render_plan::CameraPropertyPlan::FocusDistance ||
                            track.property == chronon3d::render_plan::CameraPropertyPlan::Aperture ||
-                           track.property == chronon3d::render_plan::CameraPropertyPlan::MaxBlur;
+                           track.property == chronon3d::render_plan::CameraPropertyPlan::MaxBlur ||
+                           track.property == chronon3d::render_plan::CameraPropertyPlan::FStop;
                 });
             if (has_dof_animation && !plan.camera->dof_enabled)
                 return PlanDecodeError{"camera_animation",
@@ -474,6 +475,12 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
 
         std::size_t layer_index = 0;
         for (const auto& layer_value : resolved_root.at("layers")) {
+            // Raw inline_mesh geometry is valid in V2 and V3; parametric primitives are V3-only.
+            if (plan.schema != kRenderPlanSchemaV3 && layer_value.is_object() &&
+                layer_value.contains("inline_mesh") && layer_value.at("inline_mesh").is_object() &&
+                layer_value.at("inline_mesh").contains("primitive"))
+                return PlanDecodeError{"inline_mesh", "inline_mesh primitive requires a V3 render plan",
+                                       "inline_mesh_primitive_requires_v3", "render-plan-decoder"};
             auto layer = detail::decode_layer(layer_value);
             const auto transition_error = [&](const std::optional<TransitionPlan>& transition,
                                               const char* slot) -> std::optional<PlanDecodeError> {

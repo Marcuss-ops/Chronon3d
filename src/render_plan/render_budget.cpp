@@ -147,14 +147,40 @@ std::optional<PlanDecodeError> validate_render_budget(
                   layer.style || layer.path_mask || !layer.masks.empty() ||
                   (layer.animation && !layer.animation->tracks.empty()))))
                 return fail(prefix + ".inline_mesh", "inline meshes are mesh-only payloads; mesh layers cannot carry another content payload or per-vertex animation");
+            if (mesh.animation.size() > kInlineMeshMaxAnimationSamples)
+                return fail(prefix + ".inline_mesh.animation", "sample count exceeds the 4096 baked mesh animation sample limit");
             constexpr std::uint64_t kBytesPerVertex = sizeof(InlineMeshVertex);
             constexpr std::uint64_t kBytesPerIndex = sizeof(std::uint32_t);
+            constexpr std::uint64_t kBytesPerPosition = sizeof(std::array<float, 3>);
             const auto vertex_count = static_cast<std::uint64_t>(mesh.vertices.size());
             const auto index_count = static_cast<std::uint64_t>(mesh.indices.size());
+            std::uint64_t animation_bytes = 0;
+            {
+                std::int64_t previous_frame = -1;
+                for (const auto& sample : mesh.animation) {
+                    if (sample.frame < 0 || sample.frame > kInlineMeshMaxAnimationFrame ||
+                        sample.frame <= previous_frame ||
+                        sample.positions.size() != mesh.vertices.size())
+                        return fail(prefix + ".inline_mesh.animation",
+                                    "samples must carry one position per base vertex with strictly increasing frames in [0, 1000000]");
+                    previous_frame = sample.frame;
+                    const auto sample_positions = static_cast<std::uint64_t>(sample.positions.size());
+                    if (sample_positions > kInlineMeshMaxAggregateBytes / kBytesPerPosition ||
+                        animation_bytes > kInlineMeshMaxAggregateBytes - sample_positions * kBytesPerPosition)
+                        return fail(prefix + ".inline_mesh.animation", "inline mesh animation exceeds the 64 MiB aggregate byte limit");
+                    animation_bytes += sample_positions * kBytesPerPosition;
+                    for (const auto& position : sample.positions)
+                        for (const float component : position)
+                            if (!std::isfinite(component) || std::abs(component) > 1'000'000.0f)
+                                return fail(prefix + ".inline_mesh.animation[].positions",
+                                            "animated positions must be finite and within [-1000000, 1000000]");
+                }
+            }
             if (vertex_count > kInlineMeshMaxAggregateBytes / kBytesPerVertex ||
                 index_count > (kInlineMeshMaxAggregateBytes - vertex_count * kBytesPerVertex) / kBytesPerIndex)
                 return fail(prefix + ".inline_mesh", "inline mesh payload exceeds the 64 MiB aggregate byte limit");
-            const std::uint64_t mesh_bytes = vertex_count * kBytesPerVertex + index_count * kBytesPerIndex;
+            const std::uint64_t mesh_bytes =
+                vertex_count * kBytesPerVertex + index_count * kBytesPerIndex + animation_bytes;
             if (inline_mesh_bytes > kInlineMeshMaxAggregateBytes - mesh_bytes)
                 return fail("layers[].inline_mesh", "render budget aggregate inline mesh bytes exceed 64 MiB");
             inline_mesh_bytes += mesh_bytes;

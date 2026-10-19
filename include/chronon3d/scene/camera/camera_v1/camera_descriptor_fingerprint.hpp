@@ -147,6 +147,8 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
         h.mix_bool(dof.use_physical_model);
         h.mix_f32(dof.near_bokeh_radius);
         h.mix_f32(dof.far_bokeh_radius);
+        h.mix_i32(dof.iris_blades);
+        h.mix_f32(dof.highlight_gain);
     }
     {
         // TICKET-PHASE-2: full MotionBlurSettings fingerprint (was
@@ -188,6 +190,12 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
             detail::hash_animated_value(h, s.focus_distance);
             detail::hash_animated_value(h, s.aperture);
             detail::hash_animated_value(h, s.max_blur);
+            detail::hash_animated_value(h, s.focal_length);
+            detail::hash_animated_value(h, s.f_stop);
+            for (const auto& component : s.target_components) {
+                h.mix_bool(component.has_value());
+                if (component) detail::hash_animated_value(h, *component);
+            }
             h.mix_bool(s.use_target);
         } else if constexpr (std::is_same_v<T, OrbitMotion>) {
             detail::hash_animated_value(h, s.target);

@@ -402,6 +402,41 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
                 throw std::runtime_error("inline_mesh.material.base_color components must be finite and in [0, 1]");
             mesh.material = material;
         }
+        if (raw_mesh.contains("animation")) {
+            const auto& raw_animation = raw_mesh.at("animation");
+            if (!raw_animation.is_array() || raw_animation.empty() ||
+                raw_animation.size() > kInlineMeshMaxAnimationSamples)
+                throw std::runtime_error("inline_mesh.animation sample count must be in [1, 4096]");
+            std::int64_t previous_frame = -1;
+            mesh.animation.reserve(raw_animation.size());
+            for (const auto& raw_sample : raw_animation) {
+                InlineMeshFrameSamplePlan sample;
+                sample.frame = raw_sample.at("frame").get<std::int64_t>();
+                if (sample.frame < 0 || sample.frame > kInlineMeshMaxAnimationFrame ||
+                    sample.frame <= previous_frame)
+                    throw std::runtime_error(
+                        "inline_mesh.animation frames must be in [0, 1000000] and strictly increasing");
+                previous_frame = sample.frame;
+                const auto& raw_positions = raw_sample.at("positions");
+                if (!raw_positions.is_array() || raw_positions.size() != mesh.vertices.size())
+                    throw std::runtime_error(
+                        "inline_mesh.animation positions must carry one entry per base vertex");
+                sample.positions.reserve(raw_positions.size());
+                for (const auto& raw_position : raw_positions) {
+                    if (!raw_position.is_array() || raw_position.size() != 3)
+                        throw std::runtime_error("inline_mesh.animation positions must be 3D vectors");
+                    std::array<float, 3> position{};
+                    for (std::size_t i = 0; i < 3; ++i) {
+                        position[i] = raw_position.at(i).get<float>();
+                        if (!std::isfinite(position[i]) || std::abs(position[i]) > 1'000'000.0f)
+                            throw std::runtime_error(
+                                "inline_mesh.animation positions are outside the finite contract range");
+                    }
+                    sample.positions.push_back(position);
+                }
+                mesh.animation.push_back(std::move(sample));
+            }
+        }
         layer.inline_mesh = std::move(mesh);
     } else if (layer.type == LayerType::Mesh) {
         throw std::runtime_error("mesh layers require inline_mesh geometry");

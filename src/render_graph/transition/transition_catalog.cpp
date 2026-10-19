@@ -146,6 +146,62 @@ public:
     }
 };
 
+// Dip-to-black: unlike crossfade (premultiplied-alpha fade), RGB is scaled
+// toward black while alpha is preserved, so the layer dips through opaque
+// black instead of dissolving. `dip_px` holds full black for a fraction of
+// the duration proportional to dip_px / 4096 (0 = pure eased fade).
+class DipToBlackProgram final : public LayerTransitionProgram {
+public:
+    explicit DipToBlackProgram(float dip_px) : m_dip_px(dip_px) {}
+
+    void execute(
+        const FramebufferRef& src,
+        Framebuffer& out,
+        float progress,
+        TransitionDirection direction,
+        bool is_out,
+        const RenderGraphContext& ctx
+    ) const override {
+        (void)direction; (void)ctx;
+        const float t = std::clamp(is_out ? (1.0f - progress) : progress, 0.0f, 1.0f);
+        const float hold = std::clamp(m_dip_px / 4096.0f, 0.0f, 1.0f) * 0.5f;
+        float envelope = t;
+        if (hold > 0.0f) {
+            // Compress the fade ramps to [0, 0.5 - hold] and [0.5 + hold, 1],
+            // holding full black between them.
+            if (t < 0.5f - hold) envelope = t / std::max(1e-6f, 0.5f - hold) * 0.5f;
+            else if (t > 0.5f + hold) envelope = 0.5f + (t - 0.5f - hold) / std::max(1e-6f, 0.5f - hold) * 0.5f;
+            else envelope = 0.0f;
+        }
+        const i32 w = src->width();
+        const i32 h = src->height();
+        for (i32 y = 0; y < h; ++y) {
+            const Color* src_row = src->pixels_row(y);
+            Color* dst_row = out.pixels_row(y);
+            for (i32 x = 0; x < w; ++x) {
+                const Color& c = src_row[x];
+                Color res;
+                res.r = c.r * envelope;
+                res.g = c.g * envelope;
+                res.b = c.b * envelope;
+                res.a = c.a;
+                dst_row[x] = res;
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& input_bbox,
+        const RenderGraphContext& ctx
+    ) const override {
+        (void)ctx;
+        return input_bbox;
+    }
+
+private:
+    float m_dip_px;
+};
+
 class SlideProgram final : public LayerTransitionProgram {
 public:
     explicit SlideProgram(float distance) : m_distance(distance) {}
@@ -533,6 +589,11 @@ void LayerTransitionCatalog::register_builtin(LayerTransitionCatalog& catalog) {
     });
     catalog.register_transition("crossfade", [](const LayerTransitionSpec&) {
         return std::make_unique<CrossfadeProgram>();
+    });
+    catalog.register_transition("dip_to_black", [](const LayerTransitionSpec& spec) {
+        const DipToBlackParams* params = std::get_if<DipToBlackParams>(&spec.parameters);
+        float dip_px = params ? params->dip_px : DipToBlackParams{}.dip_px;
+        return std::make_unique<DipToBlackProgram>(dip_px);
     });
     catalog.register_transition("slide", [](const LayerTransitionSpec& spec) {
         const SlideParams* params = std::get_if<SlideParams>(&spec.parameters);
