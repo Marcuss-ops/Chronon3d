@@ -741,6 +741,34 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 out.add_float(effect.crease_light_side);
                 out.add_float(effect.crease_softness);
             } break;
+            case LayerPlan::EffectKindPlan::Scanlines: {
+                out.add_size(static_cast<std::size_t>(effect.scanlines_axis));
+                out.add_float(effect.scanlines_spacing);
+                out.add_float(effect.scanlines_amount);
+                out.add_float(effect.scanlines_phase);
+            } break;
+            case LayerPlan::EffectKindPlan::RetroTv: {
+                out.add_float(effect.retro_jitter_px);
+                out.add_float(effect.retro_jitter_speed);
+                out.add_float(effect.retro_smear_px);
+                out.add_float(effect.retro_bleed);
+                out.add_float(effect.retro_noise);
+                out.add_uint64(effect.retro_seed);
+            } break;
+            case LayerPlan::EffectKindPlan::Halation: {
+                out.add_float(effect.halation_threshold);
+                out.add_float(effect.halation_softness);
+                out.add_float(effect.halation_radius);
+                out.add_float(effect.halation_intensity);
+                for (std::size_t c = 0; c < 4; ++c) out.add_float(effect.halation_tint[c]);
+            } break;
+            case LayerPlan::EffectKindPlan::AnamorphicStreak: {
+                out.add_float(effect.streak_threshold);
+                out.add_float(effect.streak_softness);
+                out.add_float(effect.streak_length);
+                out.add_float(effect.streak_intensity);
+                for (std::size_t c = 0; c < 4; ++c) out.add_float(effect.streak_tint[c]);
+            } break;
             }
             add_optional(out,effect.posterize_fps,[](auto& w,float v){w.add_float(v);});
             add_optional(out,effect.time_curve,[](auto& w,const AnimationTrackPlan& track){add_track(w,track);});

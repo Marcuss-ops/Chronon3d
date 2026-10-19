@@ -7,7 +7,11 @@ namespace chronon3d::graph {
 
 class ClearNode final : public RenderGraphNode {
 public:
-    ClearNode() : RenderGraphNode(static_memory_cache("clear")) {}
+    // The cleared output is subsequently mutated by compositing. Reusing the
+    // framebuffer cached from an earlier frame therefore preserves pixels
+    // from that frame in regions not overwritten by the new camera projection.
+    // Re-execute the clear node for every frame.
+    ClearNode() : RenderGraphNode(frame_variant_cache("clear")) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Output; }
     std::string_view name() const noexcept override { return "Clear"; }

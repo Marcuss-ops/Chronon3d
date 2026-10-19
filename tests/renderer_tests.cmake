@@ -150,6 +150,7 @@ chronon3d_add_test_suite(
         effects/test_warp.cpp
         effects/test_stylize.cpp
         effects/test_premium_effects_v1.cpp
+        effects/test_postprocess_fx.cpp
         effects/test_visual_accents_v1.cpp
         effects/test_curves.cpp
         effects/test_directional_blur.cpp

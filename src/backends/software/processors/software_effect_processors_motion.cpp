@@ -12,6 +12,7 @@
 #include "effects/blur/radial_blur.hpp"
 #include "effects/stroke/stroke.hpp"
 #include "effects/distort/warp.hpp"
+#include "effects/postprocess/postprocess_fx.hpp"
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
@@ -226,6 +227,46 @@ public:
     }
 };
 
+class SoftwareScanlinesEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<ScanlinesParams>(&params);
+        if (!p) throw std::runtime_error("Scanlines processor received invalid parameters");
+        apply_scanlines(fb, *p, context.clip);
+    }
+};
+
+class SoftwareRetroTvEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<RetroTvParams>(&params);
+        if (!p) throw std::runtime_error("RetroTv processor received invalid parameters");
+        apply_retro_tv(fb, *p, context.time_seconds, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareHalationEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<HalationParams>(&params);
+        if (!p) throw std::runtime_error("Halation processor received invalid parameters");
+        apply_halation(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
+class SoftwareAnamorphicStreakEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<AnamorphicStreakParams>(&params);
+        if (!p) throw std::runtime_error("AnamorphicStreak processor received invalid parameters");
+        apply_anamorphic_streak(fb, *p, *context.effect_scratch, context.clip);
+    }
+};
+
 class SoftwareLuminanceResponseEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -250,6 +291,22 @@ std::unique_ptr<EffectProcessor> create_crease_shading_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_luminance_response_effect_processor() {
     return std::make_unique<SoftwareLuminanceResponseEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_scanlines_effect_processor() {
+    return std::make_unique<SoftwareScanlinesEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_retro_tv_effect_processor() {
+    return std::make_unique<SoftwareRetroTvEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_halation_effect_processor() {
+    return std::make_unique<SoftwareHalationEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_anamorphic_streak_effect_processor() {
+    return std::make_unique<SoftwareAnamorphicStreakEffectProcessor>();
 }
 
 } // namespace chronon3d::renderer

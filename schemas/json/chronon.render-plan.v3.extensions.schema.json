@@ -118,7 +118,11 @@
             "distort.ripple",
             "distort.displacement_map",
             "stylize.chromatic_aberration",
-            "stylize.halftone"
+            "stylize.halftone",
+            "stylize.scanlines",
+            "stylize.retro_tv",
+            "light.halation",
+            "light.anamorphic_streak"
           ]
         },
         "param": {
@@ -313,7 +317,11 @@
             "distort.lens_distortion",
             "light.luminance_response",
             "distort.fold_warp",
-            "light.crease_shading"
+            "light.crease_shading",
+            "stylize.scanlines",
+            "stylize.retro_tv",
+            "light.halation",
+            "light.anamorphic_streak"
           ]
         },
         "params": {
@@ -7249,6 +7257,163 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "scanlines"
+                    },
+                    "time": {
+                      "$ref": "#/$defs/effect_time"
+                    },
+                    "axis": {
+                      "enum": [
+                        "horizontal",
+                        "vertical"
+                      ]
+                    },
+                    "spacing_px": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 64
+                    },
+                    "amount": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "phase": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 0.999
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "retro_tv"
+                    },
+                    "time": {
+                      "$ref": "#/$defs/effect_time"
+                    },
+                    "jitter_px": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 32
+                    },
+                    "jitter_speed": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 120
+                    },
+                    "smear_px": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 32
+                    },
+                    "bleed_strength": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "luma_noise": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "seed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "halation"
+                    },
+                    "time": {
+                      "$ref": "#/$defs/effect_time"
+                    },
+                    "threshold": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "softness": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "radius_px": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "intensity": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 8
+                    },
+                    "tint": {
+                      "$ref": "#/$defs/rgba_color"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "anamorphic_streak"
+                    },
+                    "time": {
+                      "$ref": "#/$defs/effect_time"
+                    },
+                    "threshold": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "softness": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "streak_length_px": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 512
+                    },
+                    "intensity": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 8
+                    },
+                    "tint": {
+                      "$ref": "#/$defs/rgba_color"
                     }
                   }
                 },

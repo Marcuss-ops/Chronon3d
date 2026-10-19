@@ -42,6 +42,10 @@ inline constexpr std::array kEffectKindCoverage{
     EffectKind::LuminanceResponse,
     EffectKind::FoldWarp,
     EffectKind::CreaseShading,
+    EffectKind::Scanlines,
+    EffectKind::RetroTv,
+    EffectKind::Halation,
+    EffectKind::AnamorphicStreak,
 };
 
 static_assert(kEffectKindCoverage.size() == magic_enum::enum_count<EffectKind>(),

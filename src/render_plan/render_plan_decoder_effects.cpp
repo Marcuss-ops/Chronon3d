@@ -54,6 +54,10 @@ std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind) {
         case K::LuminanceResponse: return LightLuminanceResponse;
         case K::FoldWarp: return DistortFoldWarp;
         case K::CreaseShading: return LightCreaseShading;
+        case K::Scanlines: return StylizeScanlines;
+        case K::RetroTv: return StylizeRetroTv;
+        case K::Halation: return LightHalation;
+        case K::AnamorphicStreak: return LightAnamorphicStreak;
     }
     return {};
 }
@@ -80,6 +84,10 @@ LayerPlan::EffectKindPlan decode_effect_kind(std::string_view name) {
         {"luminance_response", K::LuminanceResponse},
         {"fold_warp", K::FoldWarp},
         {"crease_shading", K::CreaseShading},
+        {"scanlines", K::Scanlines},
+        {"retro_tv", K::RetroTv},
+        {"halation", K::Halation},
+        {"anamorphic_streak", K::AnamorphicStreak},
     };
     const auto found = kinds.find(name);
     if (found == kinds.end()) throw std::runtime_error("unsupported layer effect type");
@@ -699,6 +707,73 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.crease_light_side) || effect.crease_light_side < 0.0f || effect.crease_light_side > 1.0f ||
                     !std::isfinite(effect.crease_softness) || effect.crease_softness < 0.0f || effect.crease_softness > 1.0f)
                     throw std::runtime_error("Crease shading parameters are non-finite or outside supported range");
+            } break;
+            case LayerPlan::EffectKindPlan::Scanlines: {
+                effect.kind = LayerPlan::EffectKindPlan::Scanlines;
+                const auto axis_str = raw_effect.value("axis", "horizontal");
+                effect.scanlines_axis = (axis_str == "vertical") ? 1 : 0;
+                effect.scanlines_spacing = raw_effect.value("spacing_px", 2.0f);
+                effect.scanlines_amount = raw_effect.value("amount", 0.08f);
+                effect.scanlines_phase = raw_effect.value("phase", 0.0f);
+                if (!std::isfinite(effect.scanlines_spacing) || effect.scanlines_spacing < 1.0f || effect.scanlines_spacing > 64.0f ||
+                    !std::isfinite(effect.scanlines_amount) || effect.scanlines_amount < 0.0f || effect.scanlines_amount > 1.0f ||
+                    !std::isfinite(effect.scanlines_phase) || effect.scanlines_phase < 0.0f || effect.scanlines_phase >= 1.0f)
+                    throw std::runtime_error("Scanline parameters are non-finite or outside supported range");
+            } break;
+            case LayerPlan::EffectKindPlan::RetroTv: {
+                effect.kind = LayerPlan::EffectKindPlan::RetroTv;
+                effect.retro_jitter_px = raw_effect.value("jitter_px", 3.0f);
+                effect.retro_jitter_speed = raw_effect.value("jitter_speed", 20.0f);
+                effect.retro_smear_px = raw_effect.value("smear_px", 8.0f);
+                effect.retro_bleed = raw_effect.value("bleed_strength", 0.35f);
+                effect.retro_noise = raw_effect.value("luma_noise", 0.06f);
+                effect.retro_seed = raw_effect.value("seed", 0u);
+                if (!std::isfinite(effect.retro_jitter_px) || effect.retro_jitter_px < 0.0f || effect.retro_jitter_px > 32.0f ||
+                    !std::isfinite(effect.retro_jitter_speed) || effect.retro_jitter_speed < 0.0f || effect.retro_jitter_speed > 120.0f ||
+                    !std::isfinite(effect.retro_smear_px) || effect.retro_smear_px < 0.0f || effect.retro_smear_px > 32.0f ||
+                    !std::isfinite(effect.retro_bleed) || effect.retro_bleed < 0.0f || effect.retro_bleed > 1.0f ||
+                    !std::isfinite(effect.retro_noise) || effect.retro_noise < 0.0f || effect.retro_noise > 1.0f)
+                    throw std::runtime_error("Retro TV parameters are non-finite or outside supported range");
+            } break;
+            case LayerPlan::EffectKindPlan::Halation: {
+                effect.kind = LayerPlan::EffectKindPlan::Halation;
+                effect.halation_threshold = raw_effect.value("threshold", 0.85f);
+                effect.halation_softness = raw_effect.value("softness", 0.15f);
+                effect.halation_radius = raw_effect.value("radius_px", 12.0f);
+                effect.halation_intensity = raw_effect.value("intensity", 0.50f);
+                if (raw_effect.contains("tint")) {
+                    const auto& tint = raw_effect.at("tint");
+                    if (tint.is_array() && tint.size() == 4) {
+                        for (std::size_t c = 0; c < 4; ++c) effect.halation_tint[c] = tint[c].get<float>();
+                    }
+                }
+                if (!std::isfinite(effect.halation_threshold) || effect.halation_threshold < 0.0f || effect.halation_threshold > 1.0f ||
+                    !std::isfinite(effect.halation_softness) || effect.halation_softness < 0.0f || effect.halation_softness > 1.0f ||
+                    !std::isfinite(effect.halation_radius) || effect.halation_radius < 0.0f || effect.halation_radius > 64.0f ||
+                    !std::isfinite(effect.halation_intensity) || effect.halation_intensity < 0.0f || effect.halation_intensity > 8.0f ||
+                    !std::isfinite(effect.halation_tint[0]) || !std::isfinite(effect.halation_tint[1]) ||
+                    !std::isfinite(effect.halation_tint[2]) || !std::isfinite(effect.halation_tint[3]))
+                    throw std::runtime_error("Film halation parameters are non-finite or outside supported range");
+            } break;
+            case LayerPlan::EffectKindPlan::AnamorphicStreak: {
+                effect.kind = LayerPlan::EffectKindPlan::AnamorphicStreak;
+                effect.streak_threshold = raw_effect.value("threshold", 0.85f);
+                effect.streak_softness = raw_effect.value("softness", 0.10f);
+                effect.streak_length = raw_effect.value("streak_length_px", 128.0f);
+                effect.streak_intensity = raw_effect.value("intensity", 0.35f);
+                if (raw_effect.contains("tint")) {
+                    const auto& tint = raw_effect.at("tint");
+                    if (tint.is_array() && tint.size() == 4) {
+                        for (std::size_t c = 0; c < 4; ++c) effect.streak_tint[c] = tint[c].get<float>();
+                    }
+                }
+                if (!std::isfinite(effect.streak_threshold) || effect.streak_threshold < 0.0f || effect.streak_threshold > 1.0f ||
+                    !std::isfinite(effect.streak_softness) || effect.streak_softness < 0.0f || effect.streak_softness > 1.0f ||
+                    !std::isfinite(effect.streak_length) || effect.streak_length < 0.0f || effect.streak_length > 512.0f ||
+                    !std::isfinite(effect.streak_intensity) || effect.streak_intensity < 0.0f || effect.streak_intensity > 8.0f ||
+                    !std::isfinite(effect.streak_tint[0]) || !std::isfinite(effect.streak_tint[1]) ||
+                    !std::isfinite(effect.streak_tint[2]) || !std::isfinite(effect.streak_tint[3]))
+                    throw std::runtime_error("Anamorphic streak parameters are non-finite or outside supported range");
             } break;
             }
             layer.effects.push_back(std::move(effect));

@@ -266,7 +266,10 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
                      layer.name.c_str(), layer_output, current);
     }
 
-    const bool is_static = layer.cache_static || item.is_static;
+    // A projected layer may be static in authored world space while its
+    // screen-space composite changes with the camera every frame. Keep the
+    // composite frame-variant, matching the projected TransformNode above.
+    const bool is_static = (layer.cache_static || item.is_static) && !item.projected;
     append_composite_pass(
         graph, current, layer_output, layer, is_static, ctx, item.world_z, node_ctx,
         Vec3(item.world_matrix[3]));

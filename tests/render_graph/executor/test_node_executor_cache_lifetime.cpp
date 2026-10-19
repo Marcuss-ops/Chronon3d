@@ -13,6 +13,13 @@
 using namespace chronon3d;
 using namespace chronon3d::graph;
 
+TEST_CASE("ClearNode output is frame-variant because compositing mutates it") {
+    const ClearNode node;
+    CHECK(node.cache_policy().frame_dependent());
+    CHECK(cache_frame_for_policy(node.cache_policy(), Frame{0}) == Frame{0});
+    CHECK(cache_frame_for_policy(node.cache_policy(), Frame{30}) == Frame{30});
+}
+
 TEST_CASE("cache evaluation production path retains sub-millisecond timing") {
     RenderCounters counters;
     RenderGraphContext context;

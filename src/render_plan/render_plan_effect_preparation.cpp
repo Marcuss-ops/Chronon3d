@@ -271,6 +271,40 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
             .light_side = effect.crease_light_side,
             .softness = effect.crease_softness});
         } break;
+        case LayerPlan::EffectKindPlan::Scanlines: {
+            prepared_effects[index].emplace_back(ScanlinesParams{
+            .axis = effect.scanlines_axis,
+            .spacing_px = effect.scanlines_spacing,
+            .amount = effect.scanlines_amount,
+            .phase = effect.scanlines_phase});
+        } break;
+        case LayerPlan::EffectKindPlan::RetroTv: {
+            prepared_effects[index].emplace_back(RetroTvParams{
+            .jitter_px = effect.retro_jitter_px,
+            .jitter_speed = effect.retro_jitter_speed,
+            .smear_px = effect.retro_smear_px,
+            .bleed_strength = effect.retro_bleed,
+            .luma_noise = effect.retro_noise,
+            .seed = effect.retro_seed});
+        } break;
+        case LayerPlan::EffectKindPlan::Halation: {
+            prepared_effects[index].emplace_back(HalationParams{
+            .threshold = effect.halation_threshold,
+            .softness = effect.halation_softness,
+            .radius_px = effect.halation_radius,
+            .intensity = effect.halation_intensity,
+            .tint = Color{effect.halation_tint[0], effect.halation_tint[1],
+                          effect.halation_tint[2], effect.halation_tint[3]}});
+        } break;
+        case LayerPlan::EffectKindPlan::AnamorphicStreak: {
+            prepared_effects[index].emplace_back(AnamorphicStreakParams{
+            .threshold = effect.streak_threshold,
+            .softness = effect.streak_softness,
+            .streak_length_px = effect.streak_length,
+            .intensity = effect.streak_intensity,
+            .tint = Color{effect.streak_tint[0], effect.streak_tint[1],
+                          effect.streak_tint[2], effect.streak_tint[3]}});
+        } break;
         }
         }
     }

@@ -530,6 +530,46 @@ private:
             }
             break;
         }
+        case Scanlines: {
+            if (auto* p = std::get_if<ScanlinesParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(static_cast<int>(p->axis)));
+                seed = hash_combine(seed, hash_value(p->spacing_px));
+                seed = hash_combine(seed, hash_value(p->amount));
+                seed = hash_combine(seed, hash_value(p->phase));
+            }
+            break;
+        }
+        case RetroTv: {
+            if (auto* p = std::get_if<RetroTvParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->jitter_px));
+                seed = hash_combine(seed, hash_value(p->jitter_speed));
+                seed = hash_combine(seed, hash_value(p->smear_px));
+                seed = hash_combine(seed, hash_value(p->bleed_strength));
+                seed = hash_combine(seed, hash_value(p->luma_noise));
+                seed = hash_combine(seed, hash_bytes(&p->seed, sizeof(p->seed)));
+            }
+            break;
+        }
+        case Halation: {
+            if (auto* p = std::get_if<HalationParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->threshold));
+                seed = hash_combine(seed, hash_value(p->softness));
+                seed = hash_combine(seed, hash_value(p->radius_px));
+                seed = hash_combine(seed, hash_value(p->intensity));
+                seed = hash_combine(seed, hash_color(p->tint));
+            }
+            break;
+        }
+        case AnamorphicStreak: {
+            if (auto* p = std::get_if<AnamorphicStreakParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->threshold));
+                seed = hash_combine(seed, hash_value(p->softness));
+                seed = hash_combine(seed, hash_value(p->streak_length_px));
+                seed = hash_combine(seed, hash_value(p->intensity));
+                seed = hash_combine(seed, hash_color(p->tint));
+            }
+            break;
+        }
         case Unknown:
             break;
         }
