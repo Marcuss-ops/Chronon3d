@@ -624,31 +624,45 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(cameraPlan.canvas.duration.integral() == 4);
     CHECK_MESSAGE(canonicallyValid(cameraPlan), canonicalDiagnostic(cameraPlan));
 
-    rig.setAperture(0.035f).setFocusDistance(425.f);
+    rig.setAperture(0.035f).setFocusDistance(425.f).setFocalLength(50.f).setFStop(2.8f);
     const auto dofCameraPlan = lowerToRenderPlan(cameraScene, cameraOptions);
     REQUIRE(dofCameraPlan.camera.has_value());
     CHECK(dofCameraPlan.camera->dof_enabled);
     CHECK(dofCameraPlan.camera->dof_aperture == doctest::Approx(0.035f));
     CHECK(dofCameraPlan.camera->dof_focus_distance == doctest::Approx(425.f));
+    CHECK(dofCameraPlan.camera->focal_length_mm == doctest::Approx(50.f));
+    CHECK(dofCameraPlan.camera->f_stop == doctest::Approx(2.8f));
     CHECK_MESSAGE(canonicallyValid(dofCameraPlan), canonicalDiagnostic(dofCameraPlan));
     const Json emittedDof = Json::parse(renderPlanToJson(dofCameraPlan));
     REQUIRE(emittedDof["camera"].contains("dof"));
     CHECK(emittedDof["camera"]["dof"]["enabled"] == true);
     CHECK(emittedDof["camera"]["dof"]["aperture"] == doctest::Approx(0.035f));
     CHECK(emittedDof["camera"]["dof"]["focus_distance"] == doctest::Approx(425.f));
+    CHECK(emittedDof["camera"]["focal_length_mm"] == doctest::Approx(50.f));
+    CHECK(emittedDof["camera"]["f_stop"] == doctest::Approx(2.8f));
     const auto decodedDof = chronon3d::render_plan::decode_render_plan(emittedDof);
     REQUIRE(decodedDof);
     REQUIRE(decodedDof->camera.has_value());
     CHECK(decodedDof->camera->dof_enabled);
     CHECK(decodedDof->camera->dof_aperture == doctest::Approx(0.035f));
     CHECK(decodedDof->camera->dof_focus_distance == doctest::Approx(425.f));
+    CHECK(decodedDof->camera->focal_length_mm == doctest::Approx(50.f));
+    CHECK(decodedDof->camera->f_stop == doctest::Approx(2.8f));
     const auto cameraDescriptor = chronon3d::render_plan::detail::make_camera_descriptor(*decodedDof);
     REQUIRE(cameraDescriptor.has_value());
     CHECK(cameraDescriptor->base.dof.enabled);
     CHECK(cameraDescriptor->base.dof.aperture == doctest::Approx(0.035f));
     CHECK(cameraDescriptor->base.dof.focus_distance == doctest::Approx(425.f));
-    CHECK(cameraDescriptor->base.dof.focus_z == doctest::Approx(425.f));
+    // The plan camera sits at z=+8 (mirrored from Motion z=-8) looking down
+    // +Z, so the camera-space S1=425 maps to the world-Z plane z=433. The
+    // legacy focus_z field carries that plane; focus_distance keeps S1.
+    CHECK(cameraDescriptor->base.dof.focus_z == doctest::Approx(433.f));
     CHECK(cameraDescriptor->base.dof.max_blur == doctest::Approx(24.f));
+    // A complete authored lens selects the physical thin-lens model, which
+    // consumes the camera-space focus_distance directly as S1.
+    CHECK(cameraDescriptor->base.lens.focal_length == doctest::Approx(50.f));
+    CHECK(cameraDescriptor->base.lens.f_stop == doctest::Approx(2.8f));
+    CHECK(cameraDescriptor->base.dof.use_physical_model);
 
 }
 

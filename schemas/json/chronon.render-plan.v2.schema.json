@@ -116,13 +116,20 @@
         "near": { "type": "number", "exclusiveMinimum": 0 },
         "far": { "type": "number", "exclusiveMinimum": 0 },
         "zoom": { "type": "number", "exclusiveMinimum": 0 },
+        "focal_length_mm": { "type": "number", "minimum": 0, "maximum": 200 },
+        "f_stop": { "type": "number", "minimum": 0, "maximum": 32 },
+        "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12 },
         "dof": {
           "type": "object", "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
-            "focus_distance": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000 },
+            "focus_distance": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000,
+              "description": "Camera-space distance along the optical axis from the camera position to the focus plane (scene units). Not a world-Z coordinate." },
             "aperture": { "type": "number", "minimum": 0, "maximum": 1 },
-            "max_blur": { "type": "number", "minimum": 0, "maximum": 256 }
+            "max_blur": { "type": "number", "minimum": 0, "maximum": 256 },
+            "f_stop": { "type": "number", "minimum": 0, "maximum": 32 },
+            "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12 },
+            "highlight_gain": { "type": "number", "minimum": 0, "maximum": 8 }
           }
         }
       }
@@ -132,7 +139,7 @@
       "allOf": [{ "$ref": "#/$defs/bezier_easing_contract" }],
       "required": ["property", "keyframes"],
       "properties": {
-          "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_fov_deg", "camera_zoom", "camera_focus_distance", "camera_aperture", "camera_max_blur"] },
+          "property": { "enum": ["camera_position_x", "camera_position_y", "camera_position_z", "camera_rotation_x", "camera_rotation_y", "camera_rotation_z", "camera_fov_deg", "camera_zoom", "camera_focus_distance", "camera_aperture", "camera_max_blur", "camera_target_x", "camera_target_y", "camera_target_z", "camera_focal_length_mm", "camera_f_stop"] },
         "easing": { "$ref": "#/$defs/easing" },
         "bezier_curve": { "$ref": "#/$defs/bezier_curve" },
         "keyframes": { "$ref": "#/$defs/keyframe_list" }
@@ -245,8 +252,33 @@
           },
           "inline_mesh": {
             "type": "object", "additionalProperties": false,
-            "required": ["vertices", "indices"],
+            "oneOf": [
+              { "required": ["vertices", "indices"], "not": { "required": ["primitive"] } },
+              { "required": ["primitive"], "not": { "anyOf": [{ "required": ["vertices"] }, { "required": ["indices"] }] } }
+            ],
             "properties": {
+              "primitive": {
+                "type": "object", "additionalProperties": false,
+                "required": ["kind"],
+                "properties": {
+                  "kind": { "enum": ["box", "plane", "sphere", "cylinder", "cone", "torus", "extrude"] },
+                  "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "depth": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "radius": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "radius_top": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "radius_bottom": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "tube": { "type": "number", "exclusiveMinimum": 0, "maximum": 1000000 },
+                  "width_segments": { "type": "integer", "minimum": 1, "maximum": 512 },
+                  "height_segments": { "type": "integer", "minimum": 1, "maximum": 512 },
+                  "radial_segments": { "type": "integer", "minimum": 3, "maximum": 512 },
+                  "tubular_segments": { "type": "integer", "minimum": 3, "maximum": 512 },
+                  "profile": { "type": "array", "minItems": 3, "maxItems": 4096,
+                    "items": { "type": "array", "minItems": 2, "maxItems": 2,
+                      "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 } } },
+                  "bevel": { "type": "number", "minimum": 0, "maximum": 1000000 }
+                }
+              },
               "vertices": {
                 "type": "array", "minItems": 3, "maxItems": 250000,
                 "items": {
@@ -259,7 +291,17 @@
                   }
                 }
               },
-              "indices": { "type": "array", "minItems": 3, "maxItems": 750000, "items": { "type": "integer", "minimum": 0, "maximum": 249999 } }
+              "indices": { "type": "array", "minItems": 3, "maxItems": 750000, "items": { "type": "integer", "minimum": 0, "maximum": 249999 } },
+              "material": {
+                "type": "object", "additionalProperties": false,
+                "properties": {
+                  "diffuse": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "specular": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "shininess": { "type": "number", "minimum": 1, "maximum": 1024 },
+                  "rim_intensity": { "type": "number", "minimum": 0, "maximum": 16 },
+                  "base_color": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+                }
+              }
             }
           },
           "position": {

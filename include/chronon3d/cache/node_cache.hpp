@@ -168,6 +168,8 @@ inline u64 mix_params_hash(u64 seed, u64 value) noexcept {
         hb.add(cam.dof.use_physical_model);
         hb.add(cam.dof.near_bokeh_radius);
         hb.add(cam.dof.far_bokeh_radius);
+        hb.add(static_cast<std::int32_t>(cam.dof.iris_blades));
+        hb.add(cam.dof.highlight_gain);
         hb.add(cam.lens.focal_length);
         hb.add(cam.lens.f_stop);
         hb.add(cam.lens.sensor_width);

@@ -209,6 +209,11 @@ CameraPropertyPlan camera_property(const std::string& value) {
         std::pair{"camera_focus_distance"sv, CameraPropertyPlan::FocusDistance},
         std::pair{"camera_aperture"sv, CameraPropertyPlan::Aperture},
         std::pair{"camera_max_blur"sv, CameraPropertyPlan::MaxBlur},
+        std::pair{"camera_target_x"sv, CameraPropertyPlan::TargetX},
+        std::pair{"camera_target_y"sv, CameraPropertyPlan::TargetY},
+        std::pair{"camera_target_z"sv, CameraPropertyPlan::TargetZ},
+        std::pair{"camera_focal_length_mm"sv, CameraPropertyPlan::FocalLengthMM},
+        std::pair{"camera_f_stop"sv, CameraPropertyPlan::FStop},
     };
     return enum_from_string(value, kValues, "unsupported camera animation property: ");
 }
@@ -231,6 +236,18 @@ CameraPlan decode_camera(const nlohmann::json& value) {
     camera.near = value.value("near", 1.0f);
     camera.far = value.value("far", 10000.0f);
     camera.zoom = value.value("zoom", 1.0f);
+    // Physical lens authoring (0 = not authored). Unknown camera-level fields
+    // (e.g. node/target hints) stay ignored: plans in the wild carry them.
+    camera.focal_length_mm = value.value("focal_length_mm", camera.focal_length_mm);
+    camera.f_stop = value.value("f_stop", camera.f_stop);
+    camera.iris_blades = value.value("iris_blades", camera.iris_blades);
+    if (!std::isfinite(camera.focal_length_mm) ||
+        (camera.focal_length_mm != 0.0f &&
+         (camera.focal_length_mm < 12.0f || camera.focal_length_mm > 200.0f)) ||
+        !std::isfinite(camera.f_stop) ||
+        (camera.f_stop != 0.0f && (camera.f_stop < 0.7f || camera.f_stop > 32.0f)) ||
+        camera.iris_blades < 0 || camera.iris_blades > 12)
+        throw std::runtime_error("camera lens values are outside supported bounds");
     if (value.contains("dof")) {
         const auto& raw_dof = value.at("dof");
         if (!raw_dof.is_object())
@@ -239,11 +256,20 @@ CameraPlan decode_camera(const nlohmann::json& value) {
         camera.dof_focus_distance = raw_dof.value("focus_distance", camera.dof_focus_distance);
         camera.dof_aperture = raw_dof.value("aperture", camera.dof_aperture);
         camera.dof_max_blur = raw_dof.value("max_blur", camera.dof_max_blur);
+        camera.dof_f_stop = raw_dof.value("f_stop", camera.dof_f_stop);
+        camera.dof_iris_blades = raw_dof.value("iris_blades", camera.dof_iris_blades);
+        camera.dof_highlight_gain = raw_dof.value("highlight_gain", camera.dof_highlight_gain);
         if (!std::isfinite(camera.dof_focus_distance) || camera.dof_focus_distance <= 0.0f ||
             camera.dof_focus_distance > 10000000.0f ||
             !std::isfinite(camera.dof_aperture) || camera.dof_aperture < 0.0f ||
             camera.dof_aperture > 1.0f || !std::isfinite(camera.dof_max_blur) ||
-            camera.dof_max_blur < 0.0f || camera.dof_max_blur > 256.0f)
+            camera.dof_max_blur < 0.0f || camera.dof_max_blur > 256.0f ||
+            !std::isfinite(camera.dof_f_stop) ||
+            (camera.dof_f_stop != 0.0f &&
+             (camera.dof_f_stop < 0.7f || camera.dof_f_stop > 32.0f)) ||
+            camera.dof_iris_blades < 0 || camera.dof_iris_blades > 12 ||
+            !std::isfinite(camera.dof_highlight_gain) ||
+            camera.dof_highlight_gain < 0.0f || camera.dof_highlight_gain > 8.0f)
             throw std::runtime_error("camera.dof values are outside supported bounds");
     }
     if (!std::isfinite(camera.fov_deg) || camera.fov_deg < 10.0f || camera.fov_deg > 120.0f)
@@ -310,6 +336,12 @@ std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value) {
             if (track.property == CameraPropertyPlan::MaxBlur &&
                 (scalar < 0.0f || scalar > 256.0f))
                 throw std::runtime_error("camera_max_blur values must be in [0, 256]");
+            if (track.property == CameraPropertyPlan::FocalLengthMM &&
+                (scalar < 12.0f || scalar > 200.0f))
+                throw std::runtime_error("camera_focal_length_mm values must be in [12, 200]");
+            if (track.property == CameraPropertyPlan::FStop &&
+                (scalar < 0.7f || scalar > 32.0f))
+                throw std::runtime_error("camera_f_stop values must be in [0.7, 32]");
             key.value.push_back(scalar);
             if (raw_key.contains("interpolation")) key.interpolation = raw_key.at("interpolation").get<std::string>();
             if (raw_key.contains("easing")) key.easing = raw_key.at("easing").get<std::string>();

@@ -188,6 +188,10 @@ struct PoseTracksSource {
     std::array<std::optional<AnimatedValue<float>>, 3> position_components{};
     std::array<std::optional<AnimatedValue<float>>, 3> rotation_components{};
     AnimatedValue<Vec3> target{Vec3{0.0f, 0.0f, 0.0f}};
+    // Per-axis look-at keys share the single target Vec3 channel, so they
+    // need the same component split as position/rotation: untouched axes
+    // must not overwrite each other on the final frame.
+    std::array<std::optional<AnimatedValue<float>>, 3> target_components{};
 
     AnimatedValue<float> zoom{AnimatedValue<float>{1000.0f}};
     AnimatedValue<float> fov_deg{AnimatedValue<float>{50.0f}};
@@ -198,6 +202,12 @@ struct PoseTracksSource {
     AnimatedValue<float> focus_distance{AnimatedValue<float>{1000.0f}};
     AnimatedValue<float> aperture{AnimatedValue<float>{0.015f}};
     AnimatedValue<float> max_blur{AnimatedValue<float>{24.0f}};
+
+    // Physical lens channels — animated focal length / f-stop.
+    // When a channel has no keyframes, eval_pose_tracks() falls back to
+    // the static values in CameraBaseSpec::lens.
+    AnimatedValue<float> focal_length{AnimatedValue<float>{50.0f}};
+    AnimatedValue<float> f_stop{AnimatedValue<float>{2.8f}};
 
     bool use_target{false};
 };

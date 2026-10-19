@@ -513,6 +513,7 @@
           "enum": [
             "none",
             "crossfade",
+            "dip_to_black",
             "slide",
             "zoom",
             "wipe_linear",
@@ -624,6 +625,12 @@
             },
             "angle": {
               "type": "number"
+            },
+            "dip_px": {
+              "description": "dip_to_black hold width at full black, in pixels (0 = pure eased fade).",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 4096
             }
           }
         }
@@ -1271,7 +1278,12 @@
             "camera_zoom",
             "camera_focus_distance",
             "camera_aperture",
-            "camera_max_blur"
+            "camera_max_blur",
+            "camera_target_x",
+            "camera_target_y",
+            "camera_target_z",
+            "camera_focal_length_mm",
+            "camera_f_stop"
           ]
         },
         "easing": {
@@ -4605,6 +4617,31 @@
                   },
                   "base_color": {
                     "$ref": "#/$defs/rgba_color"
+                  }
+                }
+              },
+              "animation": {
+                "description": "Baked per-frame position track (V3 only): strictly increasing frames, one position per base vertex. Transport + validation only; the renderer samples the base mesh.",
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4096,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["frame", "positions"],
+                  "properties": {
+                    "frame": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+                    "positions": {
+                      "type": "array",
+                      "minItems": 3,
+                      "maxItems": 250000,
+                      "items": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 }
+                      }
+                    }
                   }
                 }
               }

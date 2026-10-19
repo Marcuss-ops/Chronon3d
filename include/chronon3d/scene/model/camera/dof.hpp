@@ -101,6 +101,29 @@ inline constexpr float kUnsetDofDepth = 1e18f;
     return (camera.view_matrix() * Vec4{0.0f, 0.0f, world_z, 1.0f}).z;
 }
 
+/// Inverse of `camera_space_world_z_plane_depth` along the central optical
+/// axis: the world-Z focus plane whose camera-space depth equals
+/// `camera_space_depth`.
+///
+/// RenderPlan `dof.focus_distance` is authored in camera-space (S1, distance
+/// along the optical axis), while the legacy `focus_z` field is a world-Z
+/// coordinate. The RenderPlan bridge derives `focus_z` through this helper —
+/// once for the static descriptor, per-frame for animated focus tracks — so
+/// `camera_space_dof_settings` maps it back to exactly the authored S1.
+/// When the optical axis is parallel to the world-Z plane (|forward.z| ~ 0)
+/// no finite intersection exists; the camera position plane is returned as
+/// the deterministic fallback (the legacy model is approximate there anyway).
+[[nodiscard]] inline f32 world_z_plane_for_camera_space_depth(
+    const Camera2_5DRuntime& camera,
+    f32 camera_space_depth) {
+    const Mat4 camera_to_world = glm::inverse(camera.view_matrix());
+    const Vec3 forward = glm::normalize(Vec3{camera_to_world[2]});
+    if (std::abs(forward.z) > 1e-6f) {
+        return camera.position.z + forward.z * camera_space_depth;
+    }
+    return camera.position.z;
+}
+
 /// Convert the authored legacy world-Z focus plane to the positive
 /// camera-space reference depth used by the render graph.
 [[nodiscard]] inline DepthOfFieldSettings camera_space_dof_settings(

@@ -446,6 +446,11 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
         case CameraPropertyPlan::FocusDistance: return "focus_distance";
         case CameraPropertyPlan::Aperture: return "aperture";
         case CameraPropertyPlan::MaxBlur: return "max_blur";
+        case CameraPropertyPlan::TargetX: return "target_x";
+        case CameraPropertyPlan::TargetY: return "target_y";
+        case CameraPropertyPlan::TargetZ: return "target_z";
+        case CameraPropertyPlan::FocalLengthMM: return "focal_length_mm";
+        case CameraPropertyPlan::FStop: return "f_stop";
     }
     return "unknown";
 }

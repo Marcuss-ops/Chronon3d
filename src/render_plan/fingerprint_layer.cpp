@@ -89,6 +89,13 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 for (const float value : color) nested.add_float(value);
             });
         });
+        out.add_size(layer.inline_mesh->animation.size());
+        for (const auto& sample : layer.inline_mesh->animation) {
+            out.add_i64(sample.frame);
+            out.add_size(sample.positions.size());
+            for (const auto& position : sample.positions)
+                for (const float value : position) out.add_float(value);
+        }
     }
     if (!layer.text_spans.empty()) {
       out.add_size(layer.text_spans.size());

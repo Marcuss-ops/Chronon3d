@@ -6,8 +6,8 @@
 
 namespace chronon3d {
 
-inline constexpr std::array<std::string_view, 10> kLayerTransitionIds{
-    "none", "crossfade", "slide", "zoom", "wipe_linear", "smooth_wipe",
+inline constexpr std::array<std::string_view, 11> kLayerTransitionIds{
+    "none", "crossfade", "dip_to_black", "slide", "zoom", "wipe_linear", "smooth_wipe",
     "circle_iris", "flash", "procedural_remotion", "remotion"};
 
 [[nodiscard]] inline constexpr bool is_layer_transition_id(std::string_view id) noexcept {
@@ -26,6 +26,7 @@ inline constexpr std::array<std::string_view, 10> kLayerTransitionIds{
 enum class LayerTransitionKind : std::uint8_t {
     None,
     Crossfade,
+    DipToBlack,
     Slide,
     Zoom,
     WipeLinear,
@@ -41,6 +42,7 @@ enum class LayerTransitionKind : std::uint8_t {
     std::string_view id) noexcept {
     if (id.empty() || id == "none") return LayerTransitionKind::None;
     if (id == "crossfade") return LayerTransitionKind::Crossfade;
+    if (id == "dip_to_black") return LayerTransitionKind::DipToBlack;
     if (id == "slide") return LayerTransitionKind::Slide;
     if (id == "zoom") return LayerTransitionKind::Zoom;
     if (id == "wipe_linear") return LayerTransitionKind::WipeLinear;
