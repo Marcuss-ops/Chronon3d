@@ -16,4 +16,10 @@ RenderSettings make_isolated_temporal_settings(const RenderSettings& settings) {
     return isolated;
 }
 
+bool resolve_initial_clear_skip(
+    const bool graph_requests_skip,
+    const bool has_projected_surface) noexcept {
+    return graph_requests_skip && !has_projected_surface;
+}
+
 } // namespace chronon3d::graph::detail

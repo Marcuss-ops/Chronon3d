@@ -10,4 +10,11 @@ namespace chronon3d::graph::detail {
 [[nodiscard]] RenderSettings make_isolated_temporal_settings(
     const RenderSettings& settings);
 
+/// Reuse of a full-frame seed is unsafe when a camera-projected surface can
+/// expose pixels outside its current bounds. In that case the destination
+/// must be cleared before compositing the next frame.
+[[nodiscard]] bool resolve_initial_clear_skip(
+    bool graph_requests_skip,
+    bool has_projected_surface) noexcept;
+
 } // namespace chronon3d::graph::detail
