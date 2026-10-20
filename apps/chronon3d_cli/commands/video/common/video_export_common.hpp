@@ -19,7 +19,6 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
-#include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>

@@ -32,8 +32,8 @@
 #
 # Scene note (2026-09-07, Z0 census): the historical default
 # `TextPlaceAnimatedCenter` is no longer registered in this repository (the
-# content/ compositions tree was externalized; the CLI registers only
-# `DarkGridBackground` and `CameraImageClip` plus dev/content packs). The
+# content/ compositions tree was externalized; the CLI registers
+# `DarkGridBackground` plus dev/content packs). The
 # default is now `DarkGridBackground` — a registered built-in procedural
 # composition with no external assets — so the certification gate is runnable
 # on current main without a content pack. CHRONON3D_BENCH_SCENE still

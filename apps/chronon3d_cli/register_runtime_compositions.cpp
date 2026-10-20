@@ -6,7 +6,7 @@
 //
 // Registers:
 //   1. chronon3d::register_builtin_compositions(registry) — DarkGridBackground,
-//      CameraImageClip (the canonical "always available" production surfaces).
+//      the canonical "always available" production surface.
 //
 // The ChrononGlowFinalAE / GlowCameraProductV1 families were removed with the
 // content-pack externalization cleanup; they are not registered in this CLI.
@@ -24,7 +24,7 @@
 namespace chronon3d {
 
 void register_runtime_compositions(CompositionRegistry& registry) {
-    // Built-in compositions (DarkGridBackground, CameraImageClip).
+    // Built-in composition (DarkGridBackground).
     chronon3d::register_builtin_compositions(registry);
 }
 

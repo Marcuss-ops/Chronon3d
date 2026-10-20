@@ -7,7 +7,7 @@
 //
 //   1. register_runtime_compositions(CompositionRegistry&)
 //      Production runtime surface.  Always called.  Registers:
-//        - register_builtin_compositions (DarkGridBackground, CameraImageClip)
+//        - register_builtin_compositions (DarkGridBackground)
 //      Does NOT include any test/golden/dev header.
 //
 //   2. register_content_compositions(CompositionRegistry&)
@@ -33,7 +33,7 @@ namespace chronon3d {
 class CompositionRegistry;
 
 /// Register production runtime compositions (always called).
-/// Registers builtin compositions (DarkGridBackground, CameraImageClip).
+/// Registers the builtin composition (DarkGridBackground).
 void register_runtime_compositions(CompositionRegistry& registry);
 
 /// Register content-module compositions (always called when content
