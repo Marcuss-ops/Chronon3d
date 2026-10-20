@@ -72,7 +72,6 @@ set(SCENE_TEST_SOURCES
                 scene/camera/test_camera_program_orbit_ticket024.cpp
                 scene/camera/test_camera_program_orbit_coherence_roll_parent.cpp
                 scene/camera/test_camera_program_constraints_policy.cpp
-                scene/camera/test_composition_default_camera.cpp
                 scene/camera/test_camera_session_checkpoint.cpp
                 scene/camera/test_camera_program_damped_history_force.cpp
                 scene/camera/test_camera_program_metadata_late_rebuild.cpp
@@ -85,7 +84,6 @@ set(SCENE_TEST_SOURCES
                 scene/camera/test_orient_along_path.cpp
                 scene/camera/test_camera_trajectory_preserves_base_fields.cpp
                 scene/camera/test_camera_stabilization.cpp
-                scene/camera/test_dof_ae_parity.cpp
                 scene/camera/golden_projection_test.cpp
                 scene/camera/test_camera_near_plane_clip.cpp
                 scene/camera/camera_25d_tests.cpp
@@ -191,20 +189,3 @@ chronon3d_add_test_suite(
     SOURCES scene/motion/test_motion_contract_determinism.cpp
 )
 target_include_directories(chronon3d_motion_contract_determinism_tests PRIVATE ${CMAKE_SOURCE_DIR})
-
-# ── P3-F — Composition camera unification test suite ──
-# 7 mandatory end-to-end tests validating that Composition has NO mutable
-# camera state and the V2 pipeline (CompositionDefinition →
-# compile_composition → evaluate → EvaluatedCompositionFrame) is the
-# canonical consume path.  See
-# tests/scene/camera/test_composition_camera_unification.cpp for details.
-chronon3d_add_test_suite(
-    NAME   chronon3d_composition_camera_unification_tests
-    TIER   INTEGRATION
-    LINK_TARGETS
-        chronon3d_sdk
-        chronon3d_sdk_impl
-        chronon3d_scene
-    SOURCES scene/camera/test_composition_camera_unification.cpp
-)
-target_include_directories(chronon3d_composition_camera_unification_tests PRIVATE ${CMAKE_SOURCE_DIR})

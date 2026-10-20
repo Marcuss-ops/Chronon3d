@@ -79,7 +79,7 @@ TEST_CASE("Composition compatibility adapter snapshots the canonical pipeline") 
     auto evaluated = evaluate(compiled.value(), eval_context, Frame{12});
     REQUIRE(evaluated.has_value());
     CHECK(callback_frame == 12);
-    CHECK_FALSE(evaluated->camera.has_value());
+    CHECK_FALSE(evaluated->scene.camera_2_5d().enabled);
 }
 
 TEST_CASE("Composition compatibility adapter rejects a null scene callback") {
@@ -97,30 +97,26 @@ TEST_CASE("Composition compatibility adapter rejects a null scene callback") {
     CHECK(compiled.error().kind == CompositionCompileError::Kind::NoSceneFunction);
 }
 
-TEST_CASE("Composition adapter compiles its authored camera descriptor") {
+TEST_CASE("Composition evaluation preserves resolved scene camera state") {
     CompositionSpec spec{
-        .name = "DescriptorAdapter",
+        .name = "ResolvedCameraComposition",
         .width = 320,
         .height = 180,
         .frame_rate = {30, 1},
         .duration = 30
     };
-    Composition comp(spec, [](const FrameContext&) { return Scene{}; });
-
-    camera_v1::CameraDescriptor descriptor;
-    descriptor.id = "adapter-descriptor";
-    descriptor.source = camera_v1::StaticCameraSource{};
-    descriptor.base.position = {0.0f, 0.0f, -1000.0f};
-
-    comp.default_camera_descriptor(descriptor);
+    Composition comp(spec, [](const FrameContext&) {
+        Scene scene;
+        Camera2_5D camera;
+        camera.enabled = true;
+        camera.position = {0.0f, 0.0f, -1000.0f};
+        scene.set_camera_2_5d(camera);
+        return scene;
+    });
 
     auto compiled = compile_composition(comp, {});
     REQUIRE(compiled.has_value());
     REQUIRE(compiled->composition);
-    CHECK(compiled->composition->has_default_camera_descriptor());
-    CHECK(compiled->composition->default_camera_descriptor().id == "adapter-descriptor");
-    REQUIRE(compiled->camera_program);
-    CHECK(compiled->camera_program->is_compiled());
     CHECK(compiled->fingerprint != 0);
 
     CompositionEvaluateContext eval_context;
@@ -129,9 +125,9 @@ TEST_CASE("Composition adapter compiles its authored camera descriptor") {
     eval_context.frame_context.height = comp.height();
     auto evaluated = evaluate(compiled.value(), eval_context, Frame{0});
     REQUIRE(evaluated.has_value());
-    REQUIRE(evaluated->camera.has_value());
-    CHECK(evaluated->camera->position.x == doctest::Approx(0.0f));
-    CHECK(evaluated->camera->position.z == doctest::Approx(-1000.0f));
+    CHECK(evaluated->scene.camera_2_5d().enabled);
+    CHECK(evaluated->scene.camera_2_5d().position.x == doctest::Approx(0.0f));
+    CHECK(evaluated->scene.camera_2_5d().position.z == doctest::Approx(-1000.0f));
 }
 
 TEST_CASE("Composition fingerprint includes explicit scene content identity") {

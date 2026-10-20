@@ -96,7 +96,6 @@ RenderPreparationResult prepare_render(
     }
     auto& evaluated_frame = evaluated.value();
     Scene scene = evaluated_frame.scene.clone();
-    if (evaluated_frame.camera) scene.set_camera_2_5d(*evaluated_frame.camera);
     auto result = detail::prepare_render_scene(
         renderer, scene, compiled.composition->spec(), options);
     if (result.ok() && options.warmup_renderer) {

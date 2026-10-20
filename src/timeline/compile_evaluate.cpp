@@ -4,27 +4,18 @@
 // Bodies for the three free functions declared in
 // `<chronon3d/timeline/compile_evaluate.hpp>`:
 //
-//   * chronon3d::compile_camera(...)
 //   * chronon3d::compile_composition(...)
 //   * chronon3d::evaluate(...)
 //
-// This translation unit pays the heavyweight `camera_v1/camera_program_compiler`
-// + spdlog cost ONCE per binary, instead of once per scheduling TU that
-// includes the public header.  See the header docstring for the design rule
-// "compile separated from evaluate; no mutable state inside Composition".
+// The timeline invokes its scene callback and transports the resolved Scene.
+// Camera authoring and evaluation belong to the upstream motion system.
 // ============================================================================
 
 #include <chronon3d/timeline/compile_evaluate.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp>
 
 // Bodies-only headers — kept out of the public API to keep surface includes
 // transitively minimal.
-#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
-#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-
-#include <spdlog/spdlog.h>
 
 #include <exception>
 
@@ -49,60 +40,24 @@ std::uint64_t fingerprint_composition(
         .add(composition.frame_rate().denominator)
         .add(composition.duration())
         .add(composition.scene_content_fingerprint())
-        .add(scene_is_frame_invariant)
-        .add(composition.has_default_camera_descriptor());
-
-    if (composition.has_default_camera_descriptor()) {
-        hash.add(camera_v1::compute_camera_descriptor_fingerprint(
-            composition.default_camera_descriptor()));
-    }
+        .add(scene_is_frame_invariant);
     return hash.finish();
 }
 } // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
-// compile_camera()
-//
-// V2 staging — delegate to the canonical `camera_v1::compile_camera()` and
-// remap any failure to a structured `CompositionCompileError::CameraFailure`.
-// The context is currently an empty options carrier; camera_v1 cycle-detection
-// state is allocated fresh per call and compilation has no wall-clock input.
-// ─────────────────────────────────────────────────────────────────────────────
-Result<camera_v1::CameraProgram, CompositionCompileError>
-compile_camera(const camera_v1::CameraDescriptor& descriptor,
-               const CompositionCompileContext& /*context*/) {
-    camera_v1::CameraCompileContext camera_ctx{};
-    auto inner = camera_v1::compile_camera(
-        descriptor,
-        /*catalog=*/nullptr,
-        camera_ctx);
-
-    if (!inner.has_value()) {
-        CompositionCompileError err;
-        err.kind    = CompositionCompileError::Kind::CameraFailure;
-        err.message = "camera_v1::compile_camera() returned an error";
-        return err;  // implicit Result<...> ctor from E&& (one of the two valid paths)
-    }
-    return std::move(inner).value();  // implicit Result<...> ctor from T&&
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // compile_composition()
 //
 // V2 contract — no mutable state.  Same `(definition, context)` inputs always
-// produce a value-equal `CompiledComposition` (same fingerprint, same
-// camera-program storage).
+// produce a value-equal `CompiledComposition` (same fingerprint).
 //
 // Construction order:
 //   1. Sanity-check CompositionSpec (non-empty name + positive dims).
 //   2. Sanity-check SceneFunction presence.
 //   3. Capture `definition` into a non-owning ref-counted shared_ptr (the
 //      caller retains lifetime ownership).
-//   4. If the canonical Composition has a camera descriptor, delegate the camera compile to
-//      `compile_camera()`; surface any failure verbatim.
-//   5. Compute a deterministic sequential fingerprint over the static
-//      CompositionSpec, explicit scene-content identity, and optional camera
-//      descriptor. The callback object itself is intentionally not hashed.
+//   4. Compute a deterministic fingerprint over the CompositionSpec and
+//      explicit scene-content identity. The callback object itself is not hashed.
 // ─────────────────────────────────────────────────────────────────────────────
 Result<CompiledComposition, CompositionCompileError>
 compile_composition(const Composition& composition,
@@ -127,32 +82,9 @@ compile_composition(const Composition& composition,
 
     CompiledComposition out;
 
-    // (3) Own a snapshot of the canonical Composition. DTO conversion, when
-    //     needed, happens only in the deprecated boundary overload below.
+    // (3) Own a snapshot of the canonical Composition.
     out.composition = std::make_shared<const Composition>(composition);
-    // (4) Camera compile path (only when a descriptor was supplied).
-    // ADL on `camera_v1::CameraDescriptor` finds BOTH an outer wrapper in
-    // `chronon3d::` (this TU — returns Result<…, CompositionCompileError>)
-    // AND an inline `camera_v1::compile_camera(...)` returning
-    // Result<…, CameraCompileError>. Use a QUALIFIED call so only the
-    // outer is in the overload set; the second arg is the explicit
-    // CompositionCompileContext options carrier.
-    if (composition.has_default_camera_descriptor()) {
-        auto cam = chronon3d::compile_camera(
-            composition.default_camera_descriptor(), CompositionCompileContext{});
-        if (!cam.has_value()) {
-            return std::move(cam).error();
-        }
-        // Adopt-storage-then-const-borrow: the camera program lives in a
-        // keeping shared_ptr<CameraProgram>; the public field is a
-        // shared_ptr<const CameraProgram> aliasing the same object.
-        auto          keep   = std::make_shared<camera_v1::CameraProgram>(
-            std::move(cam).value());
-        out.camera_program = std::shared_ptr<const camera_v1::CameraProgram>(
-            keep, keep.get());
-    }
-
-    // (5) Scene execution mode resolution.
+    // (4) Scene execution mode resolution.
     // SceneFunction is a per-frame API.  Static topology is represented by
     // the separate compiled frame-program path; there is no static Scene
     // materialization mode in the canonical Composition adapter.
@@ -160,7 +92,7 @@ compile_composition(const Composition& composition,
     out.template_scene = nullptr;
     out.is_static_topology = false;
 
-    // (6) Deterministic fingerprint of the canonical Composition.
+    // (5) Deterministic fingerprint of the canonical Composition.
     out.fingerprint = fingerprint_composition(composition);
 
     return out;
@@ -173,20 +105,8 @@ compile_composition(const Composition& composition,
 // captured `CompositionDefinition::scene` lambda, catches any exception as a
 // `CompositionEvaluateError::SceneBuildFailed`.
 //
-// Camera2_5D resolution (P3-F):
-//   * Reads Camera2_5D from the compiled camera program
-//     (`CompiledComposition::camera_program->evaluate(...)`).
-//     The legacy `redecompose_camera_from_descriptor` helper that
-//     inverse-project-a-program-onto-the-legacy-field has been REMOVED
-//     in P3-F alongside the mutable camera cache inside Composition.
-//     The V2 pipeline evaluated here is the canonical consume path.
-//   * A `[[deprecated]]` warning + deprecation guarantee is in place on
-//     the legacy field; future render-path consumers MUST consume the
-//     `EvaluatedCompositionFrame::camera` produced here.
-//   * When a composition was compiled WITHOUT a camera descriptor
-//     (`!definition.camera.has_value()` ⇒ `compiled.camera_program` is
-//     null), we leave `result.camera == std::nullopt` — mirroring the
-//     legacy "Composition has no descriptor" contract.
+// Camera ownership: SceneFunction returns resolved camera state as part of
+// Scene. Timeline evaluation does not author or reinterpret that state.
 // ─────────────────────────────────────────────────────────────────────────────
 Result<EvaluatedCompositionFrame, CompositionEvaluateError>
 evaluate(const CompiledComposition& compiled,
@@ -238,36 +158,6 @@ evaluate(const CompiledComposition& compiled,
         err.kind    = CompositionEvaluateError::Kind::SceneBuildFailed;
         err.message = "scene SceneFunction threw an unknown exception type";
         return err;
-    }
-
-    // Consume Camera2_5D from the compiled program. Never consult a legacy
-    // composition field. The `redecompose_camera_from_descriptor`
-    // helper was REMOVED in P3-F (no mutable state inside Composition).
-    // Adapter-only: `CompiledComposition::camera_program` is null when the
-    // canonical Composition has no authored camera descriptor.
-    if (compiled.camera_program && compiled.camera_program->is_compiled()) {
-        camera_v1::CameraSession session;
-        camera_v1::CameraEvalContext cam_ctx;
-        cam_ctx.sample_time = sample_time;
-        const auto cam_result =
-            compiled.camera_program->evaluate(cam_ctx, session);
-        if (cam_result.has_value()) {
-            result.camera = cam_result->camera;
-        } else {
-            // AUDIT-2026-09-11 — fail-loud: a failed camera evaluation
-            // previously degraded silently to `result.camera == nullopt`,
-            // rendering the frame without the authored camera and making
-            // the visual defect unreproducible from logs. The return
-            // contract is unchanged (camera stays nullopt); this only
-            // surfaces the failure to the observation surface.
-            spdlog::error(
-                "[timeline-evaluate] CameraProgram::evaluate failed at "
-                "frame {}: code={} message='{}' — frame renders without "
-                "the authored camera",
-                sample_time.integral_frame().integral(),
-                static_cast<int>(cam_result.error().code),
-                cam_result.error().message);
-        }
     }
 
     return result;

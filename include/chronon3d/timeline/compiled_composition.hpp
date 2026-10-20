@@ -7,7 +7,6 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_table.hpp>
 
@@ -39,7 +38,6 @@ struct CompiledFrameProgram {
 /// Immutable runtime artifact retaining the one canonical Composition value.
 struct CompiledComposition {
     std::shared_ptr<const Composition> composition{};
-    std::shared_ptr<const camera_v1::CameraProgram> camera_program{};
     std::shared_ptr<const assets::PreparedAssetManifest> asset_manifest{};
     render_plan::RenderBudget render_budget{};
     std::uint64_t fingerprint{0};
