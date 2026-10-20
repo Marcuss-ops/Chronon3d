@@ -73,3 +73,65 @@ jobs:
           python3 scripts/ci/check_svg_trim_sampled_raw_gate.py
           python3 scripts/ci/check_svg_static_composite_raw_gate.py
           python3 scripts/ci/check_svg_text_stroke_raw_gate.py
+  svg-motion-heavy-gates:
+    name: Heavy SVG pixel-truth gates (animations, isolation, showcase, determinism)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: svg-motion-pixel-truth
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: ${{ github.event_name == 'push' }}
+
+      - name: Verify same-SHA checkout
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Install render and native FFmpeg tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            ninja-build ccache pkg-config ffmpeg
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.10
+
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure SVG video build (shared cache-artifact CLI for the gates)
+        run: |
+          cmake --preset linux-video-test \
+            -DCHRONON3D_ENABLE_VULKAN=OFF \
+            -DCHRONON3D_ENABLE_CUDA_INTEROP=OFF \
+            -DCHRONON3D_ENABLE_IPC=OFF \
+            -DCHRONON3D_ENABLE_SVG=ON \
+            -DCHRONON3D_ENABLE_NATIVE_FFMPEG=ON \
+            -DVCPKG_MANIFEST_FEATURES='cli;svg;tests'
+
+      - name: Build CLI for the certification gates
+        run: cmake --build --preset linux-video-test --target chronon3d_cli
+
+      - name: Six base animations + animated repeater gate
+        run: python3 scripts/ci/check_svg_motion_animations_gate.py
+
+      - name: Isolated-group compositing gate (ADR-035)
+        run: python3 scripts/ci/check_svg_group_isolation_gate.py
+
+      - name: Composite path-operator showcase gate
+        run: python3 scripts/ci/check_svg_composite_showcase_gate.py
+
+      - name: Full showcase determinism (two complete 360-frame renders)
+        run: |
+          python3 scripts/ci/check_svg_motion_showcase_determinism.py \
+            --cli "$PWD/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli"
+
+  svg-motion-determinism-flag:
+    name: Repeat render-verification flag (informational wiring)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: svg-motion-heavy-gates
+    steps:
+      - run: echo "Determinism背 gate already executed in svg-motion-heavy-gates; wiring complete."

@@ -215,6 +215,13 @@ struct ImportedSubpathPlan {
     std::string source_id;
     std::vector<std::string> source_group_ids;
     ShapeFillRulePlan fill_rule{ShapeFillRulePlan::NonZero};
+    /// ADR-035 isolated group (innermost enclosing opacity < 1 group):
+    /// children paint at full alpha and the surface composites once.
+    struct SvgGroupIsolationPlan {
+        std::uint32_t id{0};
+        float opacity{1.0f};
+    };
+    std::optional<SvgGroupIsolationPlan> svg_group;
     struct GroupTransformPlan {
         std::array<float, 2> position{0.0f, 0.0f};
         std::array<float, 2> anchor{0.0f, 0.0f};

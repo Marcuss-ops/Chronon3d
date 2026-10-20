@@ -228,6 +228,10 @@ struct SvgStyleState {
     std::vector<std::string> group_ids;
     std::vector<SvgAnimationSpec> inherited_animations;
     std::optional<SvgMorphAnimationSpec> morph_animation;
+    // ADR-035 — innermost isolated group: 0 means none. The group's own
+    // descendants paint at full alpha and the group composites once later.
+    std::uint32_t group_id{0};
+    float group_opacity{1.0f};
 };
 
 struct SvgGradientSpec {
@@ -1186,6 +1190,7 @@ void collect_path_data(
     const std::map<std::string, std::pair<std::string, const boost::property_tree::ptree*>>& ids,
     std::size_t use_depth,
     std::size_t& expanded_uses,
+    std::uint32_t& isolated_group_counter,
     const Affine2& parent_transform = Affine2(1.0f),
     SvgStyleState parent_style = {}) {
     for (const auto& [name, node] : tree) {
@@ -1282,7 +1287,23 @@ void collect_path_data(
         if (auto it = properties.find("stroke-dashoffset"); it != properties.end()) {
             try { style.stroke.dash_offset = std::stof(it->second); } catch (...) {}
         }
-        style.opacity *= style_number(properties, "opacity", 1.0f);
+        const float element_opacity = style_number(properties, "opacity", 1.0f);
+        if (name == "g" && element_opacity < 1.0f) {
+            // ADR-035: the group's own opacity isolates its children rather
+            // than folding into their paint alpha. Nested isolated groups
+            // stay fail-closed in V1: reuse the malformed-animation sentinel
+            // consumed by the downstream document validation.
+            if (style.group_id != 0) {
+                style.inherited_animations.clear();
+                style.inherited_animations.push_back(SvgAnimationSpec{});
+                style.inherited_animations.back().duration_seconds = -1.0f;
+            } else {
+                style.group_id = ++isolated_group_counter;
+                style.group_opacity = element_opacity;
+            }
+        } else {
+            style.opacity *= element_opacity;
+        }
         style.fill_opacity *= style_number(properties, "fill-opacity", 1.0f);
         style.stroke_opacity *= style_number(properties, "stroke-opacity", 1.0f);
         const auto local_transform = node.get_optional<std::string>("<xmlattr>.transform");
@@ -1305,6 +1326,26 @@ void collect_path_data(
                     break;
                 }
                 style.inherited_animations.push_back(animation);
+                // Nested animated groups: each ancestor <g> transform would
+                // compose to R(p + t), which the per-path track vocabulary
+                // (rotation about one pivot + one translation) cannot express.
+                // More than one inherited transform animation therefore fails
+                // closed through the standard malformed-animation sentinel
+                // (Q2 boundary — see TICKET-SVG-RENDER-PLAN).
+                const std::size_t inherited_transforms =
+                    std::count_if(style.inherited_animations.begin(),
+                        style.inherited_animations.end(),
+                        [](const SvgAnimationSpec& candidate) {
+                            return candidate.kind == SvgAnimationKind::Translate ||
+                                candidate.kind == SvgAnimationKind::Scale ||
+                                candidate.kind == SvgAnimationKind::Rotate;
+                        });
+                if (inherited_transforms > 1) {
+                    style.inherited_animations.clear();
+                    style.inherited_animations.push_back(SvgAnimationSpec{});
+                    style.inherited_animations.back().duration_seconds = -1.0f;
+                    break;
+                }
             }
         }
         if (name == "use") {
@@ -1331,7 +1372,7 @@ void collect_path_data(
             boost::property_tree::ptree wrapper;
             wrapper.add_child(target->second.first, *target->second.second);
             collect_path_data(wrapper, paths, styles, animations, gradients, ids,
-                              use_depth + 1, expanded_uses, use_transform, style);
+                use_depth + 1, expanded_uses, isolated_group_counter, use_transform, style);
             continue;
         }
         if (name == "path") {
@@ -1385,7 +1426,8 @@ void collect_path_data(
             }
         }
         collect_path_data(node, paths, styles, animations, gradients, ids,
-                          use_depth, expanded_uses, transform, style);
+                          use_depth, expanded_uses, isolated_group_counter,
+                          transform, style);
     }
 }
 
@@ -2055,7 +2097,9 @@ SvgDocumentLoadResult load_svg_document_file(
     std::vector<SvgStyleState> styles;
     std::vector<std::vector<SvgAnimationSpec>> animations;
     std::size_t expanded_uses = 0;
-    collect_path_data(document, path_data, styles, animations, gradients, ids, 0, expanded_uses);
+    std::uint32_t isolated_group_counter{0};
+    collect_path_data(document, path_data, styles, animations, gradients, ids, 0,
+        expanded_uses, isolated_group_counter);
     std::vector<SvgTextRun> text_runs;
     try {
         collect_svg_text_runs(ids, document, text_runs);
@@ -2272,7 +2316,11 @@ SvgDocumentLoadResult load_svg_document_file(
         path.path.fill_rule = style.fill_rule;
         path.path.opacity = style.opacity;
         SvgStyledElement styled_element{
-            path.path, style.fill, style.stroke, style.opacity, std::move(animations[index]),
+            path.path, style.fill, style.stroke, style.opacity,
+            style.group_id != 0u
+                ? std::optional<SvgStyleGroupRef>{SvgStyleGroupRef{style.group_id, style.group_opacity}}
+                : std::nullopt,
+            std::move(animations[index]),
             std::move(style.morph_animation), std::move(gradient_animation),
             !style.fill_gradient_id.empty() &&
                 !gradients.at(style.fill_gradient_id).animations.empty() &&

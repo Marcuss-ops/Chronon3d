@@ -477,6 +477,52 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
     }
 }
 
+TEST_CASE("render plan retains animated Lottie repeater operators until frame evaluation") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    FingerprintTempDir directory;
+    {
+        std::ofstream file(directory.path / "mark.json");
+        file << R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,
+          "ks":{"a":{"a":0,"k":[0,0]},"p":{"a":0,"k":[0,0]},
+                "s":{"a":0,"k":[100,100]},"r":{"a":0,"k":0},"o":{"a":0,"k":100}},
+          "shapes":[{"ty":"sh","ks":{"a":0,"k":{"c":true,
+            "v":[[0,0],[8,0],[8,8],[0,8]],"i":[[0,0],[0,0],[0,0],[0,0]],
+            "o":[[0,0],[0,0],[0,0],[0,0]]}}},
+            {"ty":"fl","r":1,"c":{"a":0,"k":[1,0,0,1]}}]}]})JSON";
+    }
+    assets::AssetResolver resolver;
+    resolver.mount(directory.path);
+    const auto decoded = decode_render_plan(nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":31},
+      "layers":[{"id":"vector","type":"shape","size":[64,64],"position":[32,32],
+        "shape":{"type":"path","lottie":"mark.json","operators":[
+          {"kind":"repeater","params":{"copies":3,"position":[6,0],
+            "animation":{"easing":"linear","keyframes":[
+              {"frame":0,"value":[0,0,1,1,0]},
+              {"frame":30,"value":[12,0,2,1,0]}]}}}]}}],
+      "output":{"path":"out.mp4","format":"mp4"}})JSON"));
+    REQUIRE(decoded);
+    const auto prepared = compile_render_plan(*decoded, resolver);
+    const auto prepare_message = prepared.has_value() ? std::string{} : prepared.error().message;
+    REQUIRE_MESSAGE(prepared.has_value(), prepare_message);
+    const auto first = evaluate(prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
+    const auto last = evaluate(prepared->compiled_composition, CompositionEvaluateContext{}, Frame{30});
+    REQUIRE(first);
+    REQUIRE(last);
+    REQUIRE(first->scene.layers().size() == 1);
+    REQUIRE(last->scene.layers().size() == 1);
+    const auto& initial_nodes = first->scene.layers()[0].nodes;
+    const auto& final_nodes = last->scene.layers()[0].nodes;
+    REQUIRE(initial_nodes.size() == 3);
+    REQUIRE(final_nodes.size() == 3);
+    CHECK(initial_nodes[2].shape.path().commands[0].p0.x == doctest::Approx(0.0f));
+    CHECK(final_nodes[2].shape.path().commands[0].p0.x == doctest::Approx(24.0f));
+    CHECK(final_nodes[2].shape.path().commands[1].p0.x >
+          initial_nodes[2].shape.path().commands[1].p0.x);
+}
+
 TEST_CASE("render plan lowers animated Lottie group transforms through native tracks") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;

@@ -1,5 +1,35 @@
-{"schema":"chronon.render-plan.v3","version":3,"job_id":"svg_group_isolation_gate",
-"canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":31},
-"layers":[{"id":"isolation_svg","type":"shape","position":[32,32],"size":[64,64],
-"shape":{"type":"path","asset":"isolation.svg"}}],
-"output":{"path":"group_isolation_####.png","format":"png_sequence","color_space":"srgb"}}
+{
+ "schema": "chronon.render-plan.v3",
+ "version": 3,
+ "job_id": "svg_group_isolation_gate",
+ "canvas": {
+  "width": 64,
+  "height": 64,
+  "fps_num": 30,
+  "fps_den": 1,
+  "duration_frames": 31
+ },
+ "layers": [
+  {
+   "id": "isolation_svg",
+   "type": "shape",
+   "position": [
+    0,
+    0
+   ],
+   "size": [
+    64,
+    64
+   ],
+   "shape": {
+    "type": "path",
+    "asset": "isolation.svg"
+   }
+  }
+ ],
+ "output": {
+  "path": "group_isolation_####.png",
+  "format": "png_sequence",
+  "color_space": "srgb"
+ }
+}

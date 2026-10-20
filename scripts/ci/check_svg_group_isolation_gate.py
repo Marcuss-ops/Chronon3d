@@ -11,6 +11,10 @@ verifies the isolated-group alpha contract end to end:
      endpoint frame hashes that differ;
   4. a repeat render reproduces an identical mid frame hash (determinism).
 
+Pixel truth surface: the raw pre-encode video sink (`--video-sink raw`),
+per the repository doctrine that the still/PNG-sequence image lane is not a
+pixel-truth surface (TICKET-TEXT-QUALITY-V2 P0-0b, IMAGE-PATH-PIXEL-TRUTH).
+
 The gate fails closed: missing CLI, CLI failures, invisible frames, oracle
 pixel misses, colliding endpoint hashes, or divergent repeat hashes abort
 the run.
@@ -18,6 +22,7 @@ the run.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import tempfile
@@ -28,7 +33,6 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "golden" / "svg_group_isolation_gate"
 PLAN_STATIC = FIXTURE / "plan.json"
 PLAN_ANIMATED = FIXTURE / "plan_animated.json"
-CANVAS = (64, 64)
 TOLERANCE = 8  # uint8 steps; software linker is exact, SSAA rounding is <=1
 
 
@@ -49,34 +53,54 @@ def cli() -> Path:
     raise SystemExit("chronon3d_cli not found (set CHRONON_CLI to an SVG-enabled build)")
 
 
-def decode_rgba(image: Path) -> bytes:
-    proc = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", str(image),
-         "-f", "rawvideo", "-pix_fmt", "rgba", "-"],
-        capture_output=True, check=True)
-    width, height = CANVAS
-    if len(proc.stdout) != width * height * 4:
-        raise SystemExit(f"{image.name} did not decode to one {width}x{height} RGBA image")
-    return proc.stdout
+def canvas_of(plan_path: Path) -> tuple[int, int]:
+    plan = json.loads(plan_path.read_text())
+    canvas = plan.get("canvas", {})
+    return (int(canvas.get("width", 64)), int(canvas.get("height", 64)))
 
 
-def render(plan: Path, output_dir: Path, prefix: str,
-           start: int = 0, end: int = 30) -> Path:
-    pattern = output_dir / f"{prefix}_####.png"
+def render_raw(plan_path: Path, output_dir: Path, tag: str,
+               start: int, end: int) -> Path:
+    """Render through the raw pre-encode sink; return the raw dump path.
+
+    The video-mode output contract primes the legacy compiled export view;
+    `--video-sink raw` then bypasses the encoder and writes host RGBA8
+    frames verbatim — the canonical pre-encode pixel-truth surface.
+    """
+    plan = json.loads(plan_path.read_text())
+    plan["output"] = {"path": f"{tag}.mp4", "format": "mp4"}
+    prepared = output_dir / f"{tag}_video_plan.json"
+    prepared.write_text(json.dumps(plan))
+    raw_path = output_dir / f"{tag}_raw.dmp"
     proc = subprocess.run(
-        [str(cli()), "render", "--plan", str(plan),
+        [str(cli()), "render", "--plan", str(prepared),
          "--assets-root", str(FIXTURE), "--backend", "software",
          "--start-frame", str(start), "--end-frame", str(end),
-         "--output", str(pattern)], capture_output=True, text=True)
+         "--video-sink", "raw", "--output", str(raw_path)],
+        capture_output=True, text=True)
     if proc.returncode:
         raise SystemExit(f"SVG CLI render failed:\n{proc.stderr[-3000:]}")
-    return output_dir / f"{prefix}_{start:04d}.png"
+    if not raw_path.is_file():
+        raise SystemExit(f"render produced no raw output: {raw_path}")
+    return raw_path
 
 
-def pixel_at(data: bytes, x: int, y: int) -> tuple[float, float, float, float]:
-    width, _ = CANVAS
+def raw_bytes(raw_path: Path, width: int, height: int, frame: int) -> bytes:
+    """Extract one frame (RGBA8, stride width*height*4) from a raw dump."""
+    frame_bytes = width * height * 4
+    data = raw_path.read_bytes()
+    offset = frame * frame_bytes
+    chunk = data[offset:offset + frame_bytes]
+    if len(chunk) != frame_bytes:
+        raise SystemExit(
+            f"{raw_path.name}: frame {frame} missing/truncated "
+            f"({len(chunk)} of {frame_bytes} bytes)")
+    return chunk
+
+
+def pixel_at(data: bytes, width: int, x: int, y: int) -> tuple[float, ...]:
     o = (y * width + x) * 4
-    return (data[o], data[o + 1], data[o + 2], data[o + 3])
+    return tuple(data[o:o + 4])
 
 
 def check_oracle(name: str, got: tuple, expected: tuple) -> None:
@@ -96,19 +120,10 @@ def main() -> int:
     executable = cli()
     with tempfile.TemporaryDirectory(prefix="svg_group_isolation_gate_") as tmpdir:
         tmp = Path(tmpdir)
+        width, height = canvas_of(PLAN_STATIC)
 
-        static_png = tmp / "isolation_0000.png"
-        proc = subprocess.run(
-            [str(executable), "render", "--plan", str(PLAN_STATIC),
-             "--assets-root", str(FIXTURE), "--backend", "software",
-             "--start-frame", "0", "--end-frame", "0",
-             "--output", str(tmp / "isolation_####.png")],
-            capture_output=True, text=True)
-        if proc.returncode:
-            raise SystemExit(f"SVG CLI static render failed:\n{proc.stderr[-3000:]}")
-        if not static_png.is_file():
-            raise SystemExit("static render produced no frame 0")
-        data = decode_rgba(static_png)
+        static_raw = render_raw(PLAN_STATIC, tmp, "isolation", 0, 0)
+        data = raw_bytes(static_raw, width, height, 0)
         visible(data, "static isolation frame 0")
 
         # Group layout: background red; group child 1 green spans
@@ -121,10 +136,10 @@ def main() -> int:
         # same constant group factor; (c) one channel that identifies the
         # lower sibling (green) to be zero in the overlap. Fold-alpha
         # compositing fails (a) and (c) simultaneously.
-        overlap = pixel_at(data, 24, 30)
-        green_only = pixel_at(data, 24, 14)
-        blue_only = pixel_at(data, 24, 38)
-        background = pixel_at(data, 4, 4)
+        overlap = pixel_at(data, width, 24, 30)
+        green_only = pixel_at(data, width, 24, 14)
+        blue_only = pixel_at(data, width, 24, 38)
+        background = pixel_at(data, width, 4, 4)
         if not all(isclose(background[ch], (255, 0, 0)[ch], abs_tol=TOLERANCE) for ch in range(3)):
             raise SystemExit(f"background pixel changed: {background}")
         print("  PASS  background stays pure red")
@@ -143,22 +158,14 @@ def main() -> int:
                 f"fold signature detected: overlap green channel {overlap[1]} > {TOLERANCE}")
         print("  PASS  overlap independent of the lower sibling (no fold double-darkening)")
 
-        # The overlap must NOT carry the lower sibling (a fold alpha would
-        # show green mixed into the overlap, shifting its green channel).
-        overlap = pixel_at(data, 24, 30)
-        if overlap[1] > TOLERANCE:
-            raise SystemExit(
-                f"fold signature detected: overlap green channel {overlap[1]} > {TOLERANCE}")
-
         # Animated translated child inside the isolated group.
-        def frame_hashes(plan: Path, prefix: str) -> dict[int, str]:
+        def frame_hashes(plan_path: Path, tag: str) -> dict[int, str]:
             frames = {}
-            render(plan, tmp, prefix, 0, 30)
+            raw = render_raw(plan_path, tmp, tag, 0, 30)
             for frame in (0, 15, 30):
-                path = tmp / f"{prefix}_{frame:04d}.png"
-                data = decode_rgba(path)
-                visible(data, f"animated {prefix} frame {frame}")
-                frames[frame] = hashlib.sha256(data).hexdigest()
+                chunk = raw_bytes(raw, width, height, frame)
+                visible(chunk, f"animated {tag} frame {frame}")
+                frames[frame] = hashlib.sha256(chunk).hexdigest()
             return frames
 
         hashes = frame_hashes(PLAN_ANIMATED, "animated")

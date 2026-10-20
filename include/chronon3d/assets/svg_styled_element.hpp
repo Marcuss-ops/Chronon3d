@@ -37,11 +37,21 @@ struct SvgGradientAnimationKeyframe {
     graphics::GradientDefinition gradient;
 };
 
+/// Innermost enclosing group that isolates its children: they must paint at
+/// full alpha onto one shared surface and the surface composites once with
+/// `group_opacity` (ADR-035). `group_id` 0 means "no isolated group".
+struct SvgStyleGroupRef {
+    std::uint32_t id{0};
+    float opacity{1.0f};
+};
+
 struct SvgStyledElement {
     PathShape path;
     std::optional<Fill> fill;
     PathStroke stroke;
     float opacity{1.0f};
+    /// Innermost isolated group (opacity < 1) of the element, if any.
+    std::optional<SvgStyleGroupRef> group;
     std::vector<SvgAnimationSpec> animations;
     std::optional<SvgMorphAnimationSpec> morph_animation;
     std::vector<SvgGradientAnimationKeyframe> gradient_animation;
