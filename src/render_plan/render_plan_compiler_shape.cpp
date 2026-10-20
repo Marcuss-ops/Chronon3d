@@ -27,7 +27,6 @@
 #include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
-#include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>

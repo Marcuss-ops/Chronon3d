@@ -15,11 +15,8 @@ migrated and the gates below pass. `Camera2_5D` may remain as renderer state.
 
 ## Current consumer census
 
-Production paths found outside `camera_v1/` include:
+Remaining production paths outside `camera_v1/` include:
 
-- RenderPlan lowering builds `CameraDescriptor`/`PoseTracksSource` in
-  `src/render_plan/render_plan_compiler_animation_utils.cpp` and
-  `render_plan_compiler_scene_setup.cpp`.
 - Scene and timeline authoring expose `CameraDescriptor`, `PoseTracksSource`,
   `CameraProgram`, and `ShotTimeline` through `SceneBuilder`, `Scene`, and
   `TimelineBuilder` public headers and implementations.
@@ -36,10 +33,12 @@ Production paths found outside `camera_v1/` include:
 - The unused legacy `fit_camera_to_layers()` solver has been removed. It had
   no production callers; the separate Camera V1 `CameraFramingSolver` remains
   active and is still part of the pending migration to CM3D.
-- Static RenderPlan cameras now lower directly to `Camera2_5D` renderer state;
-  they no longer create a Camera V1 descriptor or pass through its evaluator.
-  Animated RenderPlan cameras still use Camera V1 pending resolved sample
-  transport.
+- Static and animated RenderPlan cameras now resolve directly to `Camera2_5D`
+  renderer state. The RenderPlan execution path no longer creates Camera V1
+  descriptors or calls its pose-track evaluator. Its generic camera tracks are
+  sampled at the requested presentation time, including fractional shutter
+  times; Composition/Timeline authoring still uses Camera V1 pending consumer
+  migration.
 - `camera_shake` is evaluated by C3D scene setup after camera-track evaluation.
   This behavior must move to CM3D before the renderer path is retired.
 
