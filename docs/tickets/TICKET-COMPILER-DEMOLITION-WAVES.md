@@ -195,7 +195,7 @@ deleted.
 - **H49-H51 call-graph — CENSUS DONE / DEFERRED:** `VulkanBackend::Impl::api_mutex` era unico `recursive_mutex`; dalla sharding P1 ora sono
   3 shard non-ricorsivi (`surface_mutex → upload_mutex → submission_mutex`, `Impl::wait_for_standalone()` + `wait_for_pending()` split).
   I 2 siti ricorsivi residui sono SDK `sdk_render_engine.cpp` state + Vulkan backend API shim — conversione a `api_mutex/api_locked`
-  pattern (`public_api(){lock_guard lock(api_mutex); return api_locked();}`) è DEFERRED after green baseline: richiede re-entry test + GPU cert rerun (deadlock risk). Spec in TICKET-VK-LOCK-SHARDING.
+  pattern (`public_api(){lock_guard lock(api_mutex); return api_locked();}`) è DEFERRED after green baseline: richiede re-entry test + GPU cert rerun (deadlock risk). Spec in [TICKET-VK-LOCK-SHARDING](archive/TICKET-VK-LOCK-SHARDING.md).
 - **H52-H53 re-entry test — DEFERRED:** test di re-entry prima della sostituzione + intera GPU certification dopo la sostituzione;
   non eseguire finché baseline non è green.
 
