@@ -94,7 +94,6 @@ set(SCENE_TEST_SOURCES
                 scene/camera/test_camera_motion_blur.cpp
                 scene/camera/test_temporal_samples_pr1.cpp
                 scene/camera/test_motion_blur_torture_pr1.cpp
-                scene/camera/test_camera_motion_path.cpp
                 scene/test_scene_validator.cpp
                 scene/test_shape_texture_fill.cpp
                 scene/test_layer_order_contract.cpp

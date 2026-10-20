@@ -2,14 +2,10 @@
 // tests/core/animation/path/test_spatial_bezier_path.cpp
 //
 // Pure-math tests for SpatialBezierPath and the Waypoint value type.
-// Relocated from tests/scene/camera/test_camera_motion_path.cpp
-// during the June 2026 test-domain cleanup: the file previously
-// dragged scene + software-backend dependencies into what is pure
-// animation/path math.
+// It exercises the generic path math only; camera path evaluation belongs to
+// ChrononMotion3D.
 //
-// CameraMotionPath tests (camera-yoked — use Camera2_5D,
-// EasingCurve, AutoOrientMode) stay in
-// tests/scene/camera/test_camera_motion_path.cpp where they belong.
+// Camera path evaluation is owned by ChrononMotion3D's CameraRig/MotionPath.
 // ---------------------------------------------------------------------------
 
 #include <doctest/doctest.h>

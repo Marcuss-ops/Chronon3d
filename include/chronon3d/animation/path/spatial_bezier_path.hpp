@@ -1,11 +1,7 @@
 #pragma once
 
-#include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
-#include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/core/types/sample_time.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -303,126 +299,5 @@ enum class AutoOrientMode {
     // Roll is applied directly around the view axis
     return Vec3{pitch, yaw, roll_deg};
 }
-
-// ── CameraMotionPath — lets Camera V1 follow a 3D bezier path ───────────────
-//
-// Usage:
-//   CameraMotionPath motion;
-//   motion.path().add_waypoint({0,0,-1200}, {200,0,0}, {-100,50,0});
-//   motion.path().add_waypoint({200,50,-800}, {0,0,0}, {0,0,0});
-//   motion.auto_orient = AutoOrientMode::AlongPath;
-//   motion.easing = EasingCurve{Easing::InOutCubic};
-//
-//   Camera2_5D cam = motion.evaluate(sample_time, Frame{0}, Frame{90});
-
-struct CameraMotionPath {
-    SpatialBezierPath path;
-    AutoOrientMode auto_orient{AutoOrientMode::None};
-    Vec3 point_of_interest{0.0f, 0.0f, 0.0f};
-    EasingCurve easing{Easing::Linear};
-    f32 zoom{1000.0f};
-    f32 fov_deg{50.0f};
-    f32 roll_deg{0.0f};  // constant roll applied after auto-orientation
-
-    // Use arc-length parameterization for uniform speed
-    bool use_arc_length{false};
-
-    // Evaluate camera at a given frame within the motion range.
-    [[nodiscard]] Camera2_5D evaluate(SampleTime time, Frame start, Frame end) const {
-        Camera2_5D cam;
-        cam.enabled = true;
-
-        if (path.empty() || end <= start) {
-            cam.position = path.empty() ? Vec3{0.0f, 0.0f, -1000.0f} : path.evaluate(0.0f);
-            cam.zoom = zoom;
-            cam.fov_deg = fov_deg;
-            return cam;
-        }
-
-        // Compute normalized t with easing
-        const f32 raw_t = static_cast<f32>(time.frame - static_cast<double>(start)) /
-                          static_cast<f32>(end - start);
-        const f32 t = std::clamp(easing.apply(std::clamp(raw_t, 0.0f, 1.0f)), 0.0f, 1.0f);
-
-        // Single synchronised query: position + tangent from same parameter
-        const PathSample sample = path.sample_at(t, use_arc_length);
-        cam.position = sample.position;
-        cam.zoom = zoom;
-        cam.fov_deg = fov_deg;
-
-        // Auto-orientation (quaternion-based, no gimbal lock)
-        switch (auto_orient) {
-            case AutoOrientMode::None:
-                break;
-
-            case AutoOrientMode::AlongPath: {
-                Vec3 forward = glm::normalize(sample.forward);
-                if (glm::length(forward) > 1e-4f) {
-                    const Quat orientation = quat_look_along(forward);
-                    cam.rotation = quat_to_camera_euler(orientation, roll_deg);
-                    cam.point_of_interest = cam.position + forward * 1000.0f;
-                    cam.point_of_interest_enabled = true;
-                }
-                break;
-            }
-
-            case AutoOrientMode::TowardsPOI: {
-                cam.point_of_interest = point_of_interest;
-                cam.point_of_interest_enabled = true;
-                const Vec3 look_dir = glm::normalize(point_of_interest - cam.position);
-                const Quat orientation = quat_look_along(look_dir);
-                cam.rotation = quat_to_camera_euler(orientation, roll_deg);
-                break;
-            }
-        }
-
-        return cam;
-    }
-
-    // Convenience: evaluate with default start/end
-    [[nodiscard]] Camera2_5D evaluate(f32 t) const {
-        Camera2_5D cam;
-        cam.enabled = true;
-
-        if (path.empty()) {
-            cam.position = Vec3{0.0f, 0.0f, -1000.0f};
-            cam.zoom = zoom;
-            cam.fov_deg = fov_deg;
-            return cam;
-        }
-
-        t = std::clamp(t, 0.0f, 1.0f);
-
-        const PathSample sample = path.sample_at(t, use_arc_length);
-        cam.position = sample.position;
-        cam.zoom = zoom;
-        cam.fov_deg = fov_deg;
-
-        switch (auto_orient) {
-            case AutoOrientMode::None:
-                break;
-            case AutoOrientMode::AlongPath: {
-                Vec3 forward = glm::normalize(sample.forward);
-                if (glm::length(forward) > 1e-4f) {
-                    const Quat orientation = quat_look_along(forward);
-                    cam.rotation = quat_to_camera_euler(orientation, roll_deg);
-                    cam.point_of_interest = cam.position + forward * 1000.0f;
-                    cam.point_of_interest_enabled = true;
-                }
-                break;
-            }
-            case AutoOrientMode::TowardsPOI: {
-                cam.point_of_interest = point_of_interest;
-                cam.point_of_interest_enabled = true;
-                const Vec3 look_dir = glm::normalize(point_of_interest - cam.position);
-                const Quat orientation = quat_look_along(look_dir);
-                cam.rotation = quat_to_camera_euler(orientation, roll_deg);
-                break;
-            }
-        }
-
-        return cam;
-    }
-};
 
 } // namespace chronon3d

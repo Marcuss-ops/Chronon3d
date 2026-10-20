@@ -30,6 +30,9 @@ Production paths found outside `camera_v1/` include:
   camera-specific wrapper had no production callsites; CM3D already owns the
   Catmull-Rom `MotionPath`, path tangent/orientation, and `CameraRig` sampling.
   C3D retains the generic `CatmullRomPath3D` math for non-camera geometry.
+- The unused `CameraMotionPath` evaluator has also been removed. C3D retains
+  `SpatialBezierPath` and the quaternion math still consumed by Camera V1;
+  CM3D `MotionPath` owns path sampling and `CameraRig` owns camera evaluation.
 - `camera_shake` is evaluated by C3D scene setup after camera-track evaluation.
   This behavior must move to CM3D before the renderer path is retired.
 
