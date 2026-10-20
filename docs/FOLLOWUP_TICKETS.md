@@ -21,5 +21,5 @@
 ## Removed from this index
 
 Resolved, landed, and deferred items stay in their owning tickets/evidence; this
-index lists only active blockers. The unused spatial motion-path family was
-removed under [SPATIAL-MOTION-PATH-REMOVAL](tickets/TICKET-SPATIAL-MOTION-PATH-REMOVAL.md).
+index lists only active blockers. The unused spatial motion-path family removal
+is documented in git history (ticket retired after its scope was removed).
