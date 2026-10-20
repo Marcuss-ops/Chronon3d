@@ -385,6 +385,11 @@ std::optional<graphics::GradientDefinition> fill_gradient_at(
 std::optional<chronon3d::camera_v1::CameraDescriptor>
 make_camera_descriptor(const RenderPlan& plan) {
     if (!plan.camera) return std::nullopt;
+    // A static RenderPlan camera is already a resolved renderer value. Do
+    // not wrap it in Camera V1's authoring descriptor/evaluator.
+    if ((!plan.camera_animation || plan.camera_animation->empty()) &&
+        !plan.camera_shake)
+        return std::nullopt;
 
     const auto& source_plan = *plan.camera;
     chronon3d::camera_v1::CameraDescriptor descriptor;
@@ -578,6 +583,49 @@ make_camera_descriptor(const RenderPlan& plan) {
     }
     descriptor.source = std::move(tracks);
     return descriptor;
+}
+
+std::optional<chronon3d::Camera2_5D> make_static_camera(const RenderPlan& plan) {
+    if (!plan.camera || (plan.camera_animation && !plan.camera_animation->empty()) ||
+        plan.camera_shake) return std::nullopt;
+
+    const auto& source = *plan.camera;
+    chronon3d::Camera2_5D camera;
+    camera.enabled = true;
+    camera.is_animated = false;
+    camera.position = {source.position[0], source.position[1], source.position[2]};
+    camera.rotation = {source.rotation_deg[0], source.rotation_deg[1], source.rotation_deg[2]};
+    camera.fov_deg = source.fov_deg;
+    camera.zoom = 1000.0f * source.zoom;
+    camera.optics_mode = source.type == "orthographic"
+        ? chronon3d::CameraOpticsMode::Zoom
+        : (source.focal_length_mm > 0.0f
+            ? chronon3d::CameraOpticsMode::PhysicalLens
+            : chronon3d::CameraOpticsMode::FieldOfView);
+    if (source.type == "orthographic") camera.zoom = 1000.0f * source.zoom;
+    if (source.focal_length_mm > 0.0f) {
+        camera.lens.focal_length = source.focal_length_mm;
+        camera.lens.sensor_width = 35.0f;
+        const float aspect = plan.canvas.width > 0 && plan.canvas.height > 0
+            ? static_cast<float>(plan.canvas.width) / static_cast<float>(plan.canvas.height)
+            : 16.0f / 9.0f;
+        camera.lens.sensor_height = 35.0f / aspect;
+    }
+    const float authored_f_stop = source.dof_f_stop > 0.0f
+        ? source.dof_f_stop : source.f_stop;
+    if (authored_f_stop > 0.0f) camera.lens.f_stop = authored_f_stop;
+    camera.dof.enabled = source.dof_enabled;
+    camera.dof.focus_distance = source.dof_focus_distance;
+    camera.dof.aperture = source.dof_aperture;
+    camera.dof.max_blur = source.dof_max_blur;
+    camera.dof.iris_blades = static_cast<std::uint32_t>(source.dof_iris_blades);
+    camera.dof.highlight_gain = source.dof_highlight_gain;
+    camera.dof.use_physical_model = source.focal_length_mm > 0.0f && authored_f_stop > 0.0f;
+    if (source.dof_enabled) {
+        camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
+            camera, source.dof_focus_distance);
+    }
+    return camera;
 }
 
 chronon3d::DepthRole depth_role_value(std::string_view value) {

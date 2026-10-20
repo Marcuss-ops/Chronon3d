@@ -648,36 +648,32 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(decodedDof->camera->dof_focus_distance == doctest::Approx(425.f));
     CHECK(decodedDof->camera->focal_length_mm == doctest::Approx(50.f));
     CHECK(decodedDof->camera->f_stop == doctest::Approx(2.8f));
-    const auto cameraDescriptor = chronon3d::render_plan::detail::make_camera_descriptor(*decodedDof);
-    REQUIRE(cameraDescriptor.has_value());
-    REQUIRE(std::holds_alternative<chronon3d::camera_v1::PhysicalLensProjection>(
-        cameraDescriptor->base.projection));
-    CHECK(cameraDescriptor->base.dof.enabled);
-    CHECK(cameraDescriptor->base.dof.aperture == doctest::Approx(0.035f));
-    CHECK(cameraDescriptor->base.dof.focus_distance == doctest::Approx(425.f));
+    const auto staticCamera = chronon3d::render_plan::detail::make_static_camera(*decodedDof);
+    REQUIRE(staticCamera.has_value());
+    CHECK_FALSE(chronon3d::render_plan::detail::make_camera_descriptor(*decodedDof));
+    CHECK(staticCamera->dof.enabled);
+    CHECK(staticCamera->dof.aperture == doctest::Approx(0.035f));
+    CHECK(staticCamera->dof.focus_distance == doctest::Approx(425.f));
     // The plan camera sits at z=+8 (mirrored from Motion z=-8) looking down
     // +Z, so the camera-space S1=425 maps to the world-Z plane z=433. The
     // legacy focus_z field carries that plane; focus_distance keeps S1.
-    CHECK(cameraDescriptor->base.dof.focus_z == doctest::Approx(433.f));
-    CHECK(cameraDescriptor->base.dof.max_blur == doctest::Approx(24.f));
+    CHECK(staticCamera->dof.focus_z == doctest::Approx(433.f));
+    CHECK(staticCamera->dof.max_blur == doctest::Approx(24.f));
     // A complete authored lens selects the physical thin-lens model, which
     // consumes the camera-space focus_distance directly as S1.
-    CHECK(cameraDescriptor->base.lens.focal_length == doctest::Approx(50.f));
-    CHECK(cameraDescriptor->base.lens.f_stop == doctest::Approx(2.8f));
-    const auto& physicalProjection = std::get<chronon3d::camera_v1::PhysicalLensProjection>(
-        cameraDescriptor->base.projection);
-    CHECK(physicalProjection.lens.focal_length == doctest::Approx(50.f));
-    CHECK(physicalProjection.lens.sensor_width == doctest::Approx(35.f));
-    CHECK(physicalProjection.lens.sensor_height == doctest::Approx(35.f / (16.f / 9.f)));
-    CHECK(physicalProjection.lens.f_stop == doctest::Approx(2.8f));
-    CHECK(cameraDescriptor->base.dof.use_physical_model);
+    CHECK(staticCamera->optics_mode == chronon3d::CameraOpticsMode::PhysicalLens);
+    CHECK(staticCamera->lens.focal_length == doctest::Approx(50.f));
+    CHECK(staticCamera->lens.f_stop == doctest::Approx(2.8f));
+    CHECK(staticCamera->lens.sensor_width == doctest::Approx(35.f));
+    CHECK(staticCamera->lens.sensor_height == doctest::Approx(35.f / (16.f / 9.f)));
+    CHECK(staticCamera->dof.use_physical_model);
 
     auto fovOnlyPlan = *decodedDof;
     fovOnlyPlan.camera->focal_length_mm = 0.f;
-    const auto fovOnlyDescriptor = chronon3d::render_plan::detail::make_camera_descriptor(fovOnlyPlan);
-    REQUIRE(fovOnlyDescriptor.has_value());
-    CHECK(std::holds_alternative<chronon3d::camera_v1::FovProjection>(
-        fovOnlyDescriptor->base.projection));
+    const auto fovOnlyCamera = chronon3d::render_plan::detail::make_static_camera(fovOnlyPlan);
+    REQUIRE(fovOnlyCamera.has_value());
+    CHECK(fovOnlyCamera->optics_mode == chronon3d::CameraOpticsMode::FieldOfView);
+    CHECK(fovOnlyCamera->fov_deg == doctest::Approx(fovOnlyPlan.camera->fov_deg));
 
 }
 
