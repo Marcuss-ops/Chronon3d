@@ -6,18 +6,17 @@
 #include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/presets/camera_motion_clip.hpp>
 
 #include <cmath>
 #include <filesystem>
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
-using namespace chronon3d::animation;
-
 namespace {
 
-void add_motion_content(SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams&) {
+enum class TestAxis { Tilt, Pan, Roll };
+
+void add_motion_content(SceneBuilder& s, const FrameContext& ctx) {
     s.layer("card", [ctx](LayerBuilder& l) {
         l.enable_3d()
          .rect("card", {
@@ -39,13 +38,31 @@ void add_motion_content(SceneBuilder& s, const FrameContext& ctx, const CameraMo
     });
 }
 
-void render_motion_clip(MotionAxis axis, const char* name, const char* filename) {
+void render_resolved_camera(TestAxis axis, const char* name, const char* filename) {
     std::filesystem::create_directories("output/camera_motion");
 
     auto renderer = test::make_renderer();
-    CameraMotionParams params;
-    params.axis = axis;
-    auto comp = chronon3d::presets::camera_motion_clip(name, params, add_motion_content);
+    CompositionSpec spec;
+    spec.name = name;
+    spec.width = 1920;
+    spec.height = 1080;
+    spec.duration = 60;
+    Composition comp(spec, [axis](const FrameContext& ctx) {
+        SceneBuilder scene(ctx);
+        Camera2_5D camera;
+        camera.enabled = true;
+        camera.position = {0.0f, 0.0f, -1080.0f};
+        camera.zoom = 1080.0f;
+        const f32 angle = ctx.frame() < 30 ? -18.0f : 18.0f;
+        switch (axis) {
+        case TestAxis::Tilt: camera.rotation.x = angle; break;
+        case TestAxis::Pan: camera.rotation.y = angle; break;
+        case TestAxis::Roll: camera.rotation.z = angle; break;
+        }
+        scene.set_evaluated_camera(std::move(camera));
+        add_motion_content(scene, ctx);
+        return scene.build();
+    });
 
     auto scene_start = chronon3d::test_support::evaluate_frame(comp, Frame{0});
     auto scene_mid = chronon3d::test_support::evaluate_frame(comp, Frame{30});
@@ -84,16 +101,16 @@ TEST_CASE("CameraMotionParams has no implicit reference image by default") {
     CHECK(params.reference_image->required());
 }
 
-TEST_CASE("Camera motion clips render a generic scene") {
+TEST_CASE("Renderer consumes already-resolved camera samples") {
     SUBCASE("tilt") {
-        render_motion_clip(MotionAxis::Tilt, "CameraMotionTiltTest", "tilt.png");
+        render_resolved_camera(TestAxis::Tilt, "ResolvedCameraTiltTest", "tilt.png");
     }
 
     SUBCASE("pan") {
-        render_motion_clip(MotionAxis::Pan, "CameraMotionPanTest", "pan.png");
+        render_resolved_camera(TestAxis::Pan, "ResolvedCameraPanTest", "pan.png");
     }
 
     SUBCASE("roll") {
-        render_motion_clip(MotionAxis::Roll, "CameraMotionRollTest", "roll.png");
+        render_resolved_camera(TestAxis::Roll, "ResolvedCameraRollTest", "roll.png");
     }
 }

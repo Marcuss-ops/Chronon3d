@@ -7,7 +7,7 @@
 // instead of pushing into a global static vector.
 //
 // Call register_builtin_compositions(registry) once at startup to populate
-// non-content built-in compositions (DarkGridBackground, CameraImageClip).
+// non-content built-in composition (DarkGridBackground).
 // ---------------------------------------------------------------------------
 
 namespace chronon3d {
@@ -17,14 +17,10 @@ class CompositionRegistry;
 /// Register DarkGridBackground (src/scene/utils/dark_grid_background.cpp).
 void register_dark_grid_background(CompositionRegistry& registry);
 
-/// Register CameraImageClip (src/scene/camera_tilt_clips.cpp).
-void register_camera_tilt_clip(CompositionRegistry& registry);
-
-/// Register all non-content built-in compositions.
+/// Register the non-content built-in composition.
 /// Safe to call multiple times — CompositionRegistry rejects duplicates.
 inline void register_builtin_compositions(CompositionRegistry& registry) {
     register_dark_grid_background(registry);
-    register_camera_tilt_clip(registry);
 }
 
 } // namespace chronon3d

@@ -10,15 +10,12 @@ add_library(chronon3d_scene OBJECT
     utils/dark_grid_background.cpp
     # Moved into src/scene/ to eliminate ../ cross-directory references
     timeline_builder.cpp
-    camera_tilt_clips.cpp
-    camera_motion_applier.cpp
     layout_solver.cpp
     overlay_layout_resolver.cpp
     path_utils.cpp
     path_operators.cpp
     media_placement.cpp
     path_factories.cpp
-    presets/camera_motion_clip.cpp
     # ── P2 joints API (Layer <-> Layer attachment) ───────────────────────
     joints/joints_api.cpp
 
