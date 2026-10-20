@@ -276,13 +276,11 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     #   in asset_preflight_resolver.hpp (namespace chronon3d::).
 
     # ── Transitive closure additions (2026-07-11) ───────────────────────
-    # P3-H + feat(api) public camera facade — NEW public headers.
-    #   scene_camera_facade.hpp     → `scene.camera().descriptor/program/timeline/preset`
-    #                                  chainable setters (back-references Scene)
+    # CameraDescriptorBuilder remains a transitional authoring adapter.
+    # SceneCameraFacade was removed: Scene owns resolved renderer state only.
     #   camera_descriptor_builder.hpp → `chronon3d::camera()` fluent builder
     #                                   for `CameraDescriptor` (with `PhysicalLens`
     #                                   convenience struct for the spec example)
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/scene_camera_facade.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_descriptor_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/assets/image_cache.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_backend.hpp"

@@ -82,28 +82,25 @@ TEST_CASE("SceneBuilder evaluates the canonical camera descriptor") {
     builder.camera_descriptor(camera);
     const Scene scene = builder.build();
 
-    REQUIRE(scene.default_camera_descriptor().has_value());
-    const auto& descriptor = *scene.default_camera_descriptor();
-    CHECK(descriptor.base.enabled);
-    CHECK(descriptor.base.position.x == doctest::Approx(12.0f));
-    CHECK(descriptor.base.position.y == doctest::Approx(-8.0f));
-    CHECK(descriptor.base.rotation.x == doctest::Approx(4.0f));
-    REQUIRE(std::holds_alternative<camera_v1::FovProjection>(descriptor.base.projection));
-    CHECK(std::get<camera_v1::FovProjection>(descriptor.base.projection).fov_deg.evaluate(0.0)
-          == doctest::Approx(62.0f));
-    CHECK(std::holds_alternative<camera_v1::LookAtPoint>(descriptor.orientation));
+    const auto& resolved = scene.camera_2_5d();
+    CHECK(resolved.enabled);
+    CHECK(resolved.position.x == doctest::Approx(12.0f));
+    CHECK(resolved.position.y == doctest::Approx(-8.0f));
+    CHECK(resolved.optics_mode == CameraOpticsMode::FieldOfView);
+    CHECK(resolved.fov_deg == doctest::Approx(62.0f));
+    CHECK(resolved.point_of_interest_enabled);
 }
 
-TEST_CASE("SceneBuilder pose tracks remain the canonical descriptor source") {
+TEST_CASE("SceneBuilder pose tracks produce resolved camera state") {
     camera_v1::PoseTracksSource pose;
     pose.position = AnimatedValue<Vec3>{Vec3{2.0f, 3.0f, -800.0f}};
     SceneBuilder builder;
     builder.camera_pose(pose);
     const Scene scene = builder.build();
 
-    REQUIRE(scene.default_camera_descriptor().has_value());
-    CHECK(std::holds_alternative<camera_v1::PoseTracksSource>(
-        scene.default_camera_descriptor()->source));
+    CHECK(scene.camera_2_5d().position.x == doctest::Approx(2.0f));
+    CHECK(scene.camera_2_5d().position.y == doctest::Approx(3.0f));
+    CHECK(scene.camera_2_5d().position.z == doctest::Approx(-800.0f));
 }
 
 TEST_CASE("LayerBuilder accepts_lights toggles material") {
