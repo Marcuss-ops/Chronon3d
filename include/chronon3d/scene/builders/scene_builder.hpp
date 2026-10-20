@@ -13,8 +13,7 @@
 #include <chronon3d/scene/builders/null_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
-#include <chronon3d/scene/camera/camera_descriptor_builder.hpp>
+#include <chronon3d/scene/camera/camera_state_builder.hpp>
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/rendering/light_context.hpp>
@@ -78,13 +77,8 @@ class SceneBuilder {
     SceneBuilder& font_engine(FontEngine* engine);
     [[nodiscard]] FontEngine* font_engine() const;
 
-    /// Set the camera through the canonical V1 descriptor and evaluator.
-    SceneBuilder& camera_descriptor(camera_v1::CameraDescriptor descriptor);
-    /// Runtime-only evaluated camera injection used by the render-plan adapter.
+    /// Supply camera state already evaluated by the motion authority.
     SceneBuilder& set_evaluated_camera(Camera2_5D camera);
-
-    /// Set camera from the canonical V1 pose source at the current time.
-    SceneBuilder& camera_pose(const camera_v1::PoseTracksSource& cam);
 
     SceneBuilder& ambient_light(Color color = Color{1, 1, 1, 1}, f32 intensity = 0.2f);
     SceneBuilder& directional_light(Vec3 direction, Color color = Color{1, 1, 1, 1},

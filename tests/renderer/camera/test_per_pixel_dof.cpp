@@ -547,7 +547,7 @@ TEST_CASE("PerPixelDOF: end-to-end render with DOF does not crash") {
     Composition comp(CompositionSpec{.width = 80, .height = 80, .duration = 1},
         [](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
-            s.camera_descriptor(camera().enabled(true).position({0, 0, -1000})
+            s.set_evaluated_camera(camera().enabled(true).position({0, 0, -1000})
                 .zoom(1000.0f).dof(DepthOfFieldSettings{
                     .enabled  = true,
                     .focus_z  = 0.0f,

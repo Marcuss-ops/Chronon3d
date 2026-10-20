@@ -78,7 +78,7 @@ Composition make_video_card_comp(
     }, [rotate_y, card_size, video_path](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
-        s.camera_descriptor(chronon3d::camera().enabled(true).position({0, 0, -800}).zoom(800).point_of_interest({0, 0, 0}).build());
+        s.set_evaluated_camera(chronon3d::camera().enabled(true).position({0, 0, -800}).zoom(800).point_of_interest({0, 0, 0}).build());
 
         s.layer("video", [rotate_y, card_size, video_path](LayerBuilder& l) {
             l.enable_3d()

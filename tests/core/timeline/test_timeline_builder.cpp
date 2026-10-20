@@ -105,27 +105,6 @@ TEST_CASE("TimelineBuilder: stagger shifts keyframes by spatial order") {
     CHECK(layer_b.transform.position.x == doctest::Approx(0.0f));
 }
 
-TEST_CASE("TimelineBuilder: camera track sets animated camera") {
-    FrameContext ctx = make_frame_context(FrameContextParams{
-    .global_time = SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}),
-    .width = 1920,
-    .height = 1080
-});
-    SceneBuilder s(ctx);
-
-    camera_v1::PoseTracksSource cam;
-    cam.position.key(Frame{0}, Vec3{0.0f, 0.0f, -1000.0f});
-    cam.position.key(Frame{60}, Vec3{0.0f, 0.0f, -500.0f});
-
-    TimelineBuilder t(s);
-    t.add("push_in").from(Frame{0}).duration(Frame{60}).with_camera_pose(cam)
-    .apply();
-
-    Scene scene = s.build();
-    auto& static_cam = scene.camera_2_5d();
-    CHECK(static_cam.position.z == doctest::Approx(-750.0f)); // half-way between -1000 and -500 at frame 30
-}
-
 TEST_CASE("TimelineBuilder: global stagger applies to all tracks") {
     FrameContext ctx = make_frame_context(FrameContextParams{
     .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
