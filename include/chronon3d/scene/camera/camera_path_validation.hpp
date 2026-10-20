@@ -7,8 +7,8 @@
 // hardcoded behavior (5.0f / 15.0f). Tests / power users can override.
 //
 // Part of Camera System V1 — P1 stabilization. The previous hardcoded
-// thresholds lived in src/scene/camera/camera_motion_presets.cpp at lines
-// 73 and 77 (max_target_center_error_px > 5.0f; max_acceleration_jump > 15.0f).
+// thresholds were originally hardcoded in the legacy camera preset sampler
+// (max_target_center_error_px > 5.0f; max_acceleration_jump > 15.0f).
 // The new opts struct lets callers raise/lower them per-shot without
 // recompiling the engine.
 //

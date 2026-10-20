@@ -6,7 +6,7 @@
 
 Non avviare una milestone successiva per nascondere blocker della precedente.
 
-## Decisione corrente — Cleanup → Glow V1 → Camera 2.5D V1
+## Decisione corrente — Cleanup → Glow V1 → Camera authority migration
 
 Il repository resta vincolato alla certificazione sullo stesso SHA. L'ordine
 vincolante successivo è:
@@ -14,13 +14,17 @@ vincolante successivo è:
 1. **Baseline cleanup** — tutti i gate, consumer e test richiesti sullo stesso SHA.
 2. **Glow V1** — solo glow software CPU, con sampling continuo, bbox/dirty rect,
    alpha corretto, determinismo, landscape/portrait e video reale.
-3. **Camera 2.5D V1** — un solo percorso descriptor/program/session, projection,
-   OrientAlongPath, constraint e framing, DOF/motion blur e accesso casuale.
+3. **Camera authority migration** — CM3D owns camera authoring/evaluation;
+   C3D consumes resolved camera values and keeps projection, depth, pixel DOF,
+   motion-blur accumulation, and compositing. Freeze new C3D camera-authoring
+   features. Migration gates and demolition scope:
+   [`TICKET-CAMERA-AUTHORITY-MIGRATION`](tickets/TICKET-CAMERA-AUTHORITY-MIGRATION.md).
 4. **Combined Product** — scena Glow + Camera certificata via CLI, SDK C++, C ABI,
    seriale/parallelo e cache cold/warm sullo stesso SHA.
 
 Fino alla chiusura combinata non si aprono nuovi effetti, preset, binding,
-plugin o sistemi sperimentali.
+plugin o sistemi sperimentali. La migrazione camera è limitata alla direzione
+approvata nel ticket: non aggiunge capacità cinematiche parallele in C3D.
 
 ## Backlog prodotto — dopo la certificazione combinata
 
