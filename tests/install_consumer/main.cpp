@@ -14,7 +14,7 @@
 // Contract (RELEASE_GATE.md §SDK Product V1 / 8 — P3-H):
 //   (a) Includes ONLY headers listed in cmake/Chronon3DPublicHeaders.cmake
 //   (b) Calls ONLY sdk::RenderEngine::render() + save_png + public
-//       Composition/Scene/Layer/Shape/CameraDescriptor helpers
+//       Composition/Scene/Layer/Shape/resolved Camera2_5D helpers
 //   (c) Composition with GridBackground + TextRun layers + compiled camera
 //   (d) Output PNG via save_png
 //   (e) Pixel-hash check: fails if every pixel has mean luminance < 5/255
@@ -57,6 +57,13 @@ int main(int argc, char* argv[]) {
         spec,
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
+            c3d::Camera2_5D camera;
+            camera.enabled = true;
+            camera.position = {0.0f, 0.0f, -800.0f};
+            camera.rotation = {0.0f, 180.0f, 0.0f};
+            camera.optics_mode = c3d::CameraOpticsMode::Zoom;
+            camera.zoom = 1000.0f;
+            s.set_evaluated_camera(camera);
 
             // Background layer: GridBackground (built-in, no font needed)
             s.layer("background", [&ctx](c3d::LayerBuilder& l) {
@@ -98,16 +105,6 @@ int main(int argc, char* argv[]) {
 
             return s.build();
         });
-
-    // ── 3. Camera descriptor (public, value-typed) ───────────────────
-    c3d::camera_v1::CameraDescriptor descriptor{};
-    descriptor.id = "p3h_main_camera";
-    descriptor.base.enabled = true;
-    descriptor.base.position = c3d::Vec3{0.0f, 0.0f, -800.0f};
-    descriptor.base.rotation = c3d::Vec3{0.0f, 180.0f, 0.0f};
-    descriptor.base.projection = c3d::camera_v1::ZoomProjection{};
-    descriptor.failure_policy = c3d::camera_v1::CameraFailurePolicy::Stop;
-    comp.default_camera_descriptor(std::move(descriptor));
 
     // ── 4. Render settings ───────────────────────────────────────────
     c3d::sdk::RenderSettings settings{};

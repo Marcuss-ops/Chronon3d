@@ -164,7 +164,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_inline.inl"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_layers.inl"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_sequences.inl"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/camera_api.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/null_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/text_run_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/arc_length_table.hpp"
