@@ -7,7 +7,7 @@
 //   1. text       — TextRun via LayerBuilder::text() + TextDefinition
 //   2. image      — Rect (LayerBuilder::rect with distinctive color) +
 //                   GridBackground — same LayerBuilder surface as image()
-//   3. camera     — CameraDescriptorBuilder + Composition descriptor authoring
+//   3. camera     — resolved Camera2_5D scene state
 //   4. timeline   — Composition + Frame + FrameRate + FrameContext
 //   5. render     — sdk::RenderEngine::render(composition, frame)
 //   6. PNG-save   — chronon3d::save_png(framebuffer, path)
@@ -35,12 +35,9 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/camera/camera_descriptor_builder.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 
 // Compile-time public-surface reachability check.
-static_assert(sizeof(chronon3d::camera_v1::CameraDescriptor) > 0,
-              "CameraDescriptor must be reachable from the public SDK");
 static_assert(sizeof(chronon3d::sdk::RenderEngine) > 0,
               "sdk::RenderEngine must be reachable from the public SDK");
 
@@ -48,28 +45,13 @@ static_assert(sizeof(chronon3d::sdk::RenderEngine) > 0,
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <utility>
 #include <chronon3d/text/text_definition.hpp>
 
 namespace c3d = chronon3d;
 
 int main(int argc, char* argv[]) {
     const char* assets_root = (argc > 1) ? argv[1] : "assets";
-
-    // ── 1. Camera descriptor (public CameraDescriptorBuilder) ────────
-    // SURFACE: camera (via the new public fluent builder).
-    auto descriptor = c3d::camera()
-        .id("p3h_full_camera")
-        .position({0.0f, 0.0f, -1200.0f})
-        .point_of_interest({0.0f, 0.0f, 0.0f})
-        .lens(c3d::PhysicalLens{
-            .focal_length_mm  = 50.0f,
-            .f_stop           = 2.8f,
-            .close_focus_mm   = 450.0f,
-            .sensor_width_mm  = 36.0f,
-            .sensor_height_mm = 24.0f,
-            .gate_fit         = c3d::GateFit::Fill,
-        })
-        .build();
 
     // ── 2. Composition spec (SURFACE: timeline via Composition+Frame+FrameRate) ──
     const c3d::CompositionSpec spec{
@@ -85,6 +67,19 @@ int main(int argc, char* argv[]) {
         spec,
         [&](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
+            c3d::Camera2_5D camera;
+            camera.enabled = true;
+            camera.position = {0.0f, 0.0f, -1200.0f};
+            camera.point_of_interest = {0.0f, 0.0f, 0.0f};
+            camera.point_of_interest_enabled = true;
+            camera.optics_mode = c3d::CameraOpticsMode::PhysicalLens;
+            camera.lens.focal_length = 50.0f;
+            camera.lens.f_stop = 2.8f;
+            camera.lens.close_focus = 450.0f;
+            camera.lens.sensor_width = 36.0f;
+            camera.lens.sensor_height = 24.0f;
+            camera.lens.gate_fit = c3d::GateFit::Fill;
+            s.set_evaluated_camera(std::move(camera));
             // SURFACE: image (background grid background — exercises
             // the shape/grid surface via LayerBuilder).
             s.layer("background", [&ctx](c3d::LayerBuilder& l) {
@@ -155,7 +150,6 @@ int main(int argc, char* argv[]) {
             return s.build();
         });
 
-    comp.default_camera_descriptor(descriptor);
 
     // ── 5. Render settings + engine (SURFACE: render) ────────────────
     c3d::sdk::RenderSettings settings{};

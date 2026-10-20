@@ -1,22 +1,15 @@
 // =============================================================================
 // tests/install_consumer/main_camera.cpp
 //
-// P3-H + feat(api) public camera facade — external consumer SDK test.
+// Installed SDK consumer using a resolved camera scene state.
 //
-// Mirrors the user-spec example exactly:
-//
-//   auto descriptor = camera()
-//       .position({0, 0, -1200}).point_of_interest({0, 0, 0})
-//       .lens(PhysicalLens{.focal_length_mm = 50.0f, .sensor_width_mm = 36.0f})
-//       .build();
-//   composition.default_camera_descriptor(descriptor);
-//   renderer.render(composition, Frame{30});
+// Camera regie is resolved before rendering and attached to each Scene.
 //
 // Contract (P3-H strict):
 //   (a) Includes ONLY headers listed in cmake/Chronon3DPublicHeaders.cmake
 //   (b) Calls ONLY `chronon3d::sdk::RenderEngine::render(...)` +
-//       `chronon3d::save_png(...)` + the new public facade methods
-//   (c) Uses the composition descriptor authoring surface for camera input
+//       `chronon3d::save_png(...)` + public Scene/Layer/camera state
+//   (c) Uses resolved Camera2_5D as renderer input
 //   (d) Output PNG via save_png
 //   (e) Pixel-hash check: fails if every pixel has mean luminance < 5/255
 //   (f) MUST NOT see `CameraSession` or `RenderGraph` — no `#include` of
@@ -37,7 +30,6 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/camera/camera_descriptor_builder.hpp>    // chronon3d::camera()
 #include <chronon3d/backends/image/image_writer.hpp>                // save_png
 
 // STATIC ASSERT: the consumer must NOT see CameraSession or RenderGraph.
@@ -49,40 +41,17 @@
 // `tools/sdk/run_external_consumer.sh` (BANNED_RX) + the absence of these
 // headers from `cmake/Chronon3DPublicHeaders.cmake`.
 //
-// A compile-time diagnostic verifies the public types ARE reachable (so
-// we know the SDK install propagated the manifest correctly).
-static_assert(sizeof(chronon3d::camera_v1::CameraDescriptor) > 0,
-              "CameraDescriptor must be reachable from the public SDK");
-
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <utility>
 #include <chronon3d/text/text_definition.hpp>
 
 namespace c3d = chronon3d;
 
 int main(int argc, char* argv[]) {
     const char* assets_root = (argc > 1) ? argv[1] : "assets";
-
-    // ── 1. Build the descriptor via the public fluent builder ──────────
-    //
-    // This is the user-spec example verbatim (PhysicalLens named-field
-    // struct accepted by CameraDescriptorBuilder::lens(...)):
-    auto descriptor = c3d::camera()
-        .id("p3h_consumer_perspective")
-        .position({0.0f, 0.0f, -1200.0f})
-        .point_of_interest({0.0f, 0.0f, 0.0f})
-        .lens(c3d::PhysicalLens{
-            .focal_length_mm = 50.0f,
-            .f_stop          = 2.8f,
-            .close_focus_mm  = 450.0f,
-            .sensor_width_mm = 36.0f,
-            .sensor_height_mm = 24.0f,
-            .gate_fit        = c3d::GateFit::Fill,
-        })
-        .build();
-
     // ── 2. Composition spec (1920x1080 landscape) ─────────────────────
     const c3d::CompositionSpec spec{
         /* .name         */ "p3h_camera_consumer",
@@ -92,11 +61,24 @@ int main(int argc, char* argv[]) {
         /* .duration     */ 60,
     };
 
-    // ── 3. Composition via the descriptor authoring surface ───────────
+    // ── 3. Composition with resolved camera scene state ───────────────
     auto comp = c3d::composition(
         spec,
         [&](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
+            c3d::Camera2_5D camera;
+            camera.enabled = true;
+            camera.position = {0.0f, 0.0f, -1200.0f};
+            camera.point_of_interest = {0.0f, 0.0f, 0.0f};
+            camera.point_of_interest_enabled = true;
+            camera.optics_mode = c3d::CameraOpticsMode::PhysicalLens;
+            camera.lens.focal_length = 50.0f;
+            camera.lens.f_stop = 2.8f;
+            camera.lens.close_focus = 450.0f;
+            camera.lens.sensor_width = 36.0f;
+            camera.lens.sensor_height = 24.0f;
+            camera.lens.gate_fit = c3d::GateFit::Fill;
+            s.set_evaluated_camera(std::move(camera));
             // Background layer: GridBackground (built-in, no font needed)
             s.layer("background", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Shape);
@@ -144,7 +126,6 @@ int main(int argc, char* argv[]) {
             return scene;
         });
 
-    comp.default_camera_descriptor(descriptor);
 
     // ── 5. Render settings + engine ──────────────────────────────────
     c3d::sdk::RenderSettings settings{};
@@ -237,7 +218,7 @@ int main(int argc, char* argv[]) {
     const auto file_size = std::filesystem::file_size(output_path);
     std::printf("[CAMERA-OK] public camera facade consumer rendered %dx%d "
                 "PNG (%zu bytes, %zu/%zu pixels >5/255, "
-                "composition=default_camera_descriptor(descriptor), "
+                "scene=set_evaluated_camera(resolved_camera), "
                 "format=%s)\n",
                 out.width, out.height,
                 static_cast<std::size_t>(file_size),

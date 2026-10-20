@@ -40,6 +40,16 @@
 
 namespace c3d = chronon3d;
 
+static c3d::Camera2_5D make_cam() {
+    c3d::Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, -800.0f};
+    cam.rotation = {0.0f, 180.0f, 0.0f};
+    cam.optics_mode = c3d::CameraOpticsMode::Zoom;
+    cam.zoom = 1000.0f;
+    return cam;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /// Bridge RenderOutput → vector<float> RGBA (4 floats per pixel).
@@ -106,6 +116,7 @@ static c3d::Composition make_bg_composition() {
          .duration = 1},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
+            s.set_evaluated_camera(make_cam());
 
             // Background layer only
             s.layer("bg", [](c3d::LayerBuilder& l) {
@@ -129,6 +140,7 @@ static c3d::Composition make_text_composition() {
          .duration = 1},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
+            s.set_evaluated_camera(make_cam());
 
             // Background layer
             s.layer("bg", [](c3d::LayerBuilder& l) {
@@ -181,23 +193,10 @@ int main(int argc, char* argv[]) {
     c3d::sdk::RenderEngine engine{settings};
     engine.set_assets_root(std::filesystem::path{assets_root});
 
-    // ── Common camera descriptor ────────────────────────────────────
-    auto make_cam = []() {
-        c3d::camera_v1::CameraDescriptor cam{};
-        cam.id = "main_camera";
-        cam.base.enabled = true;
-        cam.base.position = c3d::Vec3{0.0f, 0.0f, -800.0f};
-        cam.base.rotation = c3d::Vec3{0.0f, 180.0f, 0.0f};
-        cam.base.projection = c3d::camera_v1::ZoomProjection{};
-        cam.failure_policy = c3d::camera_v1::CameraFailurePolicy::Stop;
-        return cam;
-    };
-
     // ═══════════════════════════════════════════════════════════════
     // PASS 1: Background-only render (baseline)
     // ═══════════════════════════════════════════════════════════════
     auto bg_comp = make_bg_composition();
-    bg_comp.default_camera_descriptor(make_cam());
 
     auto bg_result = engine.render(bg_comp, c3d::sdk::Frame{0});
     if (!bg_result.has_value()) {
@@ -219,7 +218,6 @@ int main(int argc, char* argv[]) {
     // PASS 2: Full render with text
     // ═══════════════════════════════════════════════════════════════
     auto text_comp = make_text_composition();
-    text_comp.default_camera_descriptor(make_cam());
 
     auto text_result = engine.render(text_comp, c3d::sdk::Frame{0});
     if (!text_result.has_value()) {
