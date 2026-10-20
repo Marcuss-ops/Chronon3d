@@ -1,13 +1,11 @@
 # TICKET-SVG-RENDER-PLAN — Resolve SVG assets into shape plans
 
 ## Stato
-IN PROGRESS — the bounded SVG software lane now supports nested animated
-transform/opacity scopes, isolated group compositing, per-element clip/mask
-scopes, styled text chunks, local text gradients, bounded pattern tiles,
-strokes, textPath, and transformed text coordinates. Strict-native Vulkan
-certification remains with the user. Open non-Vulkan text work includes broader
-pattern semantics and positive verification with a font carrying applicable
-OpenType BASE records. Arbitrary
+SOFTWARE PARITY COMPLETE for the bounded SVG importer contract below. The
+software lane supports nested animated transform/opacity scopes, isolated group
+compositing, per-element clip/mask scopes, styled text chunks, local text
+gradients and patterns, strokes, textPath, and transformed text coordinates.
+Strict-native Vulkan hardware certification remains with the user. Arbitrary
 filter graphs and browser-complete SMIL timing are outside this bounded
 importer contract.
 
@@ -595,6 +593,10 @@ Historical open-work snapshot at this revision (superseded by the 2026-10-20 sta
 
 ### Local audit — 2026-10-20
 
+The following dated audit entries preserve the state observed at each checkpoint;
+those snapshots are historical. The current status and superseding gate results
+are recorded in the final “Software parity audit” section below.
+
 On the current checkout, the SVG loader suite exposed a mixed-content ordering
 bug: Boost.PropertyTree concatenated direct text around nested `<tspan>` nodes
 into `ptree::data()`. SVG parsing now uses `no_concat_text` so the existing text
@@ -770,9 +772,23 @@ the nested group isolation/clip/mask gate, nested motion gate, baseline,
 gradient, textPath coordinate, bounded text pattern, text stroke, and text
 chunk raw gates all pass. Focused CTest also passes for the C ABI, SVG path
 loader, and text health suites; the C ABI run completed in 144.11 seconds.
-`git diff --check` passes. The bounded pattern tile
-contract and positive verification of an OpenType BASE table record remain
-documented open items. Arbitrary SVG filter graphs and broader SMIL timing are
-outside this importer contract. Strict-native Vulkan verification remains with
-the user.
+`git diff --check` passes. The bounded pattern tile contract exercised by the
+gate is the supported contract for this importer. The baseline path uses
+OpenType BASE records when a matching record exists and metric fallback
+otherwise; positive BASE-record fixture coverage is useful follow-up but is not
+a blocker for the SVG parity scope above. Arbitrary SVG filter graphs and
+broader SMIL timing remain outside this importer contract. Strict-native
+Vulkan verification remains with the user.
+
+### Software parity audit — 2026-10-20
+
+Re-ran all eight SVG software raw gates against
+`build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli` on the current
+`main` checkout. All passed: group isolation with distinct nested clips/masks,
+nested motion animations, text chunks (LTR, ligature, mixed script, Arabic RTL,
+and split combining grapheme), dominant-baseline, gradient fill/stroke,
+textPath and transformed coordinate lists, bounded pattern fill/stroke, and
+text stroke. The raw gates compare rendered RGBA pixels and repeat determinism.
+This verifies the non-Vulkan SVG parity scope on the software renderer; it does
+not certify the Vulkan backend.
 
