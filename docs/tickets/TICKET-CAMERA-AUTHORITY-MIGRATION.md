@@ -26,6 +26,10 @@ Production paths found outside `camera_v1/` include:
 - The unused `camera_motion::*` preset implementation and header have been
   removed: repository-wide search found no production, test, or tool call
   sites, and the header was not part of the SDK public-header manifest.
+- The unused `CatmullRomCameraMotion` camera evaluator has been removed. Its
+  camera-specific wrapper had no production callsites; CM3D already owns the
+  Catmull-Rom `MotionPath`, path tangent/orientation, and `CameraRig` sampling.
+  C3D retains the generic `CatmullRomPath3D` math for non-camera geometry.
 - `camera_shake` is evaluated by C3D scene setup after camera-track evaluation.
   This behavior must move to CM3D before the renderer path is retired.
 
