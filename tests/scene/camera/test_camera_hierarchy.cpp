@@ -42,8 +42,12 @@ TEST_CASE("Camera hierarchy: parent moves camera in world space") {
         l.position({100, 200, 0});
     });
 
-    s.camera_descriptor(camera().enabled().position({0, 0, -1000})
-        .rotation({5.0f, 10.0f, 15.0f}).parent("rig").build());
+    Camera2_5D resolved_camera;
+    resolved_camera.enabled = true;
+    resolved_camera.position = {0, 0, -1000};
+    resolved_camera.rotation = {5.0f, 10.0f, 15.0f};
+    resolved_camera.parent_name = "rig";
+    s.set_evaluated_camera(std::move(resolved_camera));
 
     auto scene = s.build();
     auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());

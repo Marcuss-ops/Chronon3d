@@ -118,7 +118,7 @@ namespace {
                 });
 
                 // yaw −35° → +35°, pitch 8° → −5°, a very small dolly.
-                scene.camera_descriptor(canary_orbit_camera(canary_lerp(-35.0f, 35.0f, t),
+                scene.set_evaluated_camera(canary_orbit_camera(canary_lerp(-35.0f, 35.0f, t),
                                                        canary_lerp(8.0f, -5.0f, t),
                                                        canary_lerp(1000.0f, 960.0f, t)));
                 return scene.build();
@@ -154,7 +154,7 @@ namespace {
                                        2));
                 });
 
-                scene.camera_descriptor(canary_orbit_camera(canary_lerp(-20.0f, 20.0f, t),
+                scene.set_evaluated_camera(canary_orbit_camera(canary_lerp(-20.0f, 20.0f, t),
                                                        canary_lerp(3.0f, -3.0f, t), 1040.0f));
                 return scene.build();
             });
@@ -209,8 +209,8 @@ namespace {
                 // can be told apart from "the camera happens to move similarly".
                 auto camera = canary_orbit_camera(canary_lerp(-12.0f, 12.0f, t),
                                                    canary_lerp(4.0f, -4.0f, t), 1000.0f);
-                camera.base.parent_name = "NULL_A";
-                scene.camera_descriptor(std::move(camera));
+                camera.parent_name = "NULL_A";
+                scene.set_evaluated_camera(std::move(camera));
                 return scene.build();
             });
     }
@@ -252,7 +252,7 @@ namespace {
                 }
             });
 
-            scene.camera_descriptor(canary_orbit_camera(canary_lerp(-26.0f, 26.0f, t),
+            scene.set_evaluated_camera(canary_orbit_camera(canary_lerp(-26.0f, 26.0f, t),
                                                    canary_lerp(6.0f, -6.0f, t), 1010.0f));
             return scene.build();
         });

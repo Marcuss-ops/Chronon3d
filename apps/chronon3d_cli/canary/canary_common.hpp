@@ -107,24 +107,21 @@ namespace chronon3d::canary_detail {
     /// The pose is written from its spherical definition rather than accumulated
     /// per frame, which is why frame 89 asked for first is bit-identical to frame
     /// 89 asked for last.
-    [[nodiscard]] inline camera_v1::CameraDescriptor canary_orbit_camera(
+    [[nodiscard]] inline Camera2_5D canary_orbit_camera(
         f32 yaw_deg, f32 pitch_deg, f32 distance) {
 
         const f32 yaw = glm::radians(yaw_deg);
         const f32 pitch = glm::radians(pitch_deg);
 
-        camera_v1::CameraDescriptor camera;
-        camera.id = "canary.orbit";
-        camera.base.enabled = true;
-        camera.base.position =
+        Camera2_5D camera;
+        camera.enabled = true;
+        camera.position =
             Vec3{distance * std::sin(yaw) * std::cos(pitch), distance * std::sin(pitch),
                  -distance * std::cos(yaw) * std::cos(pitch)};
-        camera_v1::ZoomProjection zoom;
-        zoom.zoom.set(1000.0f);
-        camera.base.projection = zoom;
-        camera.base.point_of_interest = Vec3{0.0f, 0.0f, 0.0f};
-        camera.base.point_of_interest_enabled = true;
-        camera.orientation = camera_v1::LookAtPoint{Vec3{0.0f, 0.0f, 0.0f}};
+        camera.optics_mode = CameraOpticsMode::Zoom;
+        camera.zoom = 1000.0f;
+        camera.point_of_interest = Vec3{0.0f, 0.0f, 0.0f};
+        camera.point_of_interest_enabled = true;
         return camera;
     }
 
