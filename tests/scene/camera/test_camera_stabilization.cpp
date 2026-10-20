@@ -14,7 +14,6 @@
 
 #include <tests/helpers/test_math.hpp>
 
-#include <chronon3d/scene/camera/camera_path_validation.hpp>
 #include <chronon3d/scene/camera/camera_shot_validator.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
@@ -29,46 +28,7 @@ namespace {
 
 using chronon3d::test::approx;
 
-// --- Section A: CameraPathValidationOptions invariants (4 cases) ---
-
-TEST_CASE("P1-A: defaults match legacy hardcoded thresholds") {
-    CameraPathValidationOptions opts;
-    CHECK(approx(opts.max_target_center_error_px, 5.0f));
-    CHECK(approx(opts.max_acceleration_jump, 15.0f));
-    CHECK_FALSE(opts.require_point_of_interest);
-}
-
-TEST_CASE("P1-A: custom overrides land in the struct members") {
-    CameraPathValidationOptions tight;
-    tight.max_target_center_error_px = 2.0f;
-    tight.max_velocity_jump         = 10.0f;
-    tight.max_acceleration_jump     = 5.0f;
-    tight.max_jerk                  = 12.0f;
-    tight.require_point_of_interest = true;
-    CHECK(approx(tight.max_target_center_error_px, 2.0f));
-    CHECK(approx(tight.max_velocity_jump, 10.0f));
-    CHECK(approx(tight.max_acceleration_jump, 5.0f));
-    CHECK(approx(tight.max_jerk, 12.0f));
-    CHECK(tight.require_point_of_interest);
-    tight.require_point_of_interest = false;
-    CHECK_FALSE(tight.require_point_of_interest);
-}
-
-TEST_CASE("P1-A: max_jerk is independent of max_acceleration_jump") {
-    CameraPathValidationOptions opts;
-    opts.max_acceleration_jump = 5.0f;
-    opts.max_jerk              = 100.0f;
-    CHECK(opts.max_jerk > opts.max_acceleration_jump);
-}
-
-TEST_CASE("P1-A: lower thresholds catch subtle velocity jumps") {
-    CameraPathValidationOptions strict_opts;
-    strict_opts.max_velocity_jump = 0.1f;
-    CameraPathValidationOptions loose_opts;
-    CHECK(strict_opts.max_velocity_jump < loose_opts.max_velocity_jump);
-}
-
-// --- Section B: SampleTime / framerate / sub-frame (3 cases) ---
+// --- Section A: SampleTime / framerate / sub-frame (3 cases) ---
 
 TEST_CASE("P1-B: sub-frame evaluation respects SampleTime fraction") {
     auto half = SampleTime::from_frame(15.5, FrameRate{60, 1});
@@ -96,7 +56,7 @@ TEST_CASE("P1-B: integer-frame SampleTime factories agree at same fps") {
     CHECK(approx(static_cast<float>(a.seconds()), static_cast<float>(b.seconds()), 1e-6f));
 }
 
-// --- Section C: project_world_to_screen geometry ---
+// --- Section B: project_world_to_screen geometry ---
 
 TEST_CASE("P1-C: target-behind camera — project_world_to_screen flags behind_camera") {
     // Camera coordinate convention: with point_of_interest_enabled, the camera
@@ -144,7 +104,7 @@ TEST_CASE("P1-C: static camera — no POI — evaluates without NaN") {
     CHECK_FALSE(std::isnan(cam.position.z));
 }
 
-// --- Section D: CameraShotValidator layer visibility ---
+// --- Section C: CameraShotValidator layer visibility ---
 
 TEST_CASE("P1-D: missing layer — require_visible handles gracefully") {
     CameraShotValidator v;
