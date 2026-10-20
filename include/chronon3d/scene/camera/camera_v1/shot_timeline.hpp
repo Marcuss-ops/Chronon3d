@@ -20,7 +20,7 @@
 //
 // P3-H + feat(api) public camera facade — ShotTimeline is part of the
 // PUBLIC SDK surface (consumers may construct timelines for
-// `scene.camera().timeline(tl)`).  The `CameraSession` type that
+// `CameraSession` type that
 // `ShotTimelineSession` stores is now internal
 // (`<chronon3d/internal/scene/camera/v1/camera_session.hpp>`); the
 // session map here holds `std::shared_ptr<CameraSession>` so the
