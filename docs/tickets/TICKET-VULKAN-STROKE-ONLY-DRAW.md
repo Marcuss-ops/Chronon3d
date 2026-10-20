@@ -80,11 +80,29 @@ Perché il test precedente non lo vedeva: `tests/registry/test_backend_registry_
 chiama `fill_dashed_path_surface` direttamente e quindi non esercita il
 routing `draw_node → try_native_path_fill/try_native_path_stroke`.
 
+## Gate di parità (implementato 2026-10-20)
+
+`scripts/ci/check_vulkan_stroke_only_parity_gate.py` + fixture
+`golden/vulkan_stroke_only_gate/plan.json` (canvas 320×240, ring stroke-only
+`cap: round`, nessuno sfondo: così la copertura misura **solo** il tratto).
+
+- Rende la fixture col sink raw pre-encode (`--video-sink raw`), che è la
+  superficie pixel-truth del repository, su `--backend software` e
+  `--backend vulkan`, e confronta i frame **byte per byte**.
+- Fallisce se il render vulkan fallisce, se il frame vulkan è completamente
+  trasparente (il sintomo pre-fix), o se un solo byte diverge dall'oracle
+  software.
+- Host senza device Vulkan: `SKIP` esplicito, non un falso PASS;
+  `CHRONON_GATE_REQUIRE_VULKAN=1` trasforma lo skip in fallimento (usato dalla
+  lane CI `vulkan-gated-unit` in `.github/workflows/native-video.yml`).
+- Misure locali: coverage 4020 px, 307200 byte identici, exit 0. Con le layer
+  svuotate il gate esce 1 con «vulkan produced a fully transparent frame».
+
 ## Residuo
 
-- Gate encoded software-vs-vulkan a soglia sul piano di riproduzione:
-  **non implementato**. La parità è oggi coperta a livello di buffer RGBA nel
-  test di routing, non da un gate sulla MP4 encoded.
+- Nessuno noto: il gate copre la parità sul raw pre-encode. Una eventuale
+  verifica sulla **MP4 encoded** resta possibile ma è ridondante rispetto al
+  raw (l'encoder è fuori dal percorso difettoso).
 
 ## Riferimenti
 - `PROBLEMS.md` §Aperti (2026-10-19) — voce 2 rimanda a questo ticket.

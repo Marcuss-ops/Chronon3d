@@ -87,3 +87,12 @@ jobs:
 
       - name: Build + run the Vulkan-gated unit suites
         run: bash scripts/ci/verify_vulkan_gated_unit_tests.sh
+
+      # The unit suites above drive the stroke kernel directly. This gate drives
+      # the draw_node routing through the raw pre-encode sink, which is where
+      # TICKET-VULKAN-STROKE-ONLY-DRAW actually broke, and compares the vulkan
+      # frame byte-for-byte with the software oracle.
+      - name: Stroke-only software/vulkan parity gate
+        env:
+          CHRONON_GATE_REQUIRE_VULKAN: '1'
+        run: python3 scripts/ci/check_vulkan_stroke_only_parity_gate.py
