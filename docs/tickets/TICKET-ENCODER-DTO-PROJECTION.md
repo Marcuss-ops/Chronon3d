@@ -2,7 +2,7 @@
 
 | **TICKET-ENCODER-DTO-PROJECTION** | |
 | --- | --- |
-| **Stato** | DOCUMENTED (protocol); no code change — the projections are allowed by design |
+| **Stato** | CLOSED (2026-10-20) — DOCUMENTED (protocol); no code change, the projections are allowed by design |
 | **Priorità** | P2 (structural; audit F16) |
 | **Problema** | The encoder contract is represented by 3+ parallel DTOs with explicit, commented conversions. Projections are permitted (each layer has a different authority), but nothing recorded *which* structs and converters a new encoder field must traverse, so adding one field is an undocumented 3-4 struct + 2 converter edit. A forgotten hop is silent: the field is accepted at the CLI and dropped before the encoder. |
 | **Confine** | Read-only documentation of the existing chain + the extension protocol. No signature, fingerprint or wire-format change. Any *consolidation* of the DTOs would move encoding fingerprints and is out of scope (needs its own ticket + parity evidence). |

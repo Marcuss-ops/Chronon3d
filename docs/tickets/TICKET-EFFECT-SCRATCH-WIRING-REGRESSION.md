@@ -1,5 +1,12 @@
 # TICKET-EFFECT-SCRATCH-WIRING-REGRESSION — processor context lost its session scratch
 
+## Stato
+RESOLVED (2026-10-20) — il wiring è ripristinato: `effect_scratch` è passato
+come `EffectScratchResources&` (riferimento tipizzato, quindi un call-site
+senza scratch non compila) e conta 35 occorrenze in `src/`, incluse le
+processor software. **Residuo di misura**, non di codice: il gate
+`framebuffer_allocations == 0` in steady-state va rieseguito sul bench, i
+contatori esistono già.
 ## Contesto
 
 `SoftwareProcessorContext` espone tre workspace di sessione:
