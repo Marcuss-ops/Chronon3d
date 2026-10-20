@@ -1,5 +1,11 @@
 # Text animation and Field2D backlog closure
 
+## Stato
+RESOLVED (2026-10-20) — i sei delta T1–T6 sono implementati e i 7 criteri di
+accettazione sono spuntati: core selector/stagger/Field2D 24 casi / 202
+asserzioni, text animator 5/17, C ABI selector/Field2D/mask 12/97, effects
+Field2D 2/626, renderer mask sources 2/12, Field2D fill 2/57, stroke
+cap/join/taper 11/44, graph text source sampling 1/4.
 Track the requested RenderPlan deltas across T1–T6. All six deltas are
 implemented in this worktree; the evidence below records the focused acceptance
 checks performed for this closeout.

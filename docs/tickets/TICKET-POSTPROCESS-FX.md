@@ -1,5 +1,10 @@
 # TICKET-POSTPROCESS-FX — Post-process effects family (V1)
 
+## Stato
+RESOLVED (2026-10-20) — le quattro famiglie (`stylize.scanlines`,
+`stylize.retro_tv`, `light.halation`, `light.anamorphic_streak`) sono nel
+catalogo effetti e coperte da `tests/effects/test_postprocess_fx.cpp` (mapping
+catalogo, range dei parametri, identità/determinismo, fail-closed GPU).
 ## Goal
 
 Implement the modern motion-design post-process effects requested in the

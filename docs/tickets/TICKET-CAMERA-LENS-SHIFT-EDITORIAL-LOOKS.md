@@ -1,5 +1,11 @@
 # TICKET-CAMERA-LENS-SHIFT-EDITORIAL-LOOKS — closeout record
 
+## Stato
+RESOLVED (2026-10-20) — tutti i 10 criteri di accettazione sono spuntati e le
+suite mirate passano (camera projection 13 casi, card rasterizer overlay 1,
+inline mesh C ABI 6, TextRunDriver 19 casi / 78 asserzioni). I residui citati
+nel ticket (8 casi falliti in un run core con mesh disabilitata, un hash golden
+del render-graph) sono fuori dallo scope di questa scheda.
 ## Scope
 
 Track the camera, card, effects, material and per-glyph gaps raised in the
