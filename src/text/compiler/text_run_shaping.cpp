@@ -38,12 +38,11 @@
 #include "text_compile_internal.hpp"
 
 #include <chronon3d/backends/text/text_unicode_grapheme.hpp>
+#include "../unicode/unicode_script.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <utility>
-#include <unicode/utf8.h>
-#include <unicode/uscript.h>
 
 namespace chronon3d::text_internal::compile {
 
@@ -165,35 +164,8 @@ shape_paragraph_runs(
             a.font == b.font && a.paragraph_style.language == b.paragraph_style.language &&
             a.byte_offset + a.byte_len == b.byte_offset;
     };
-    const auto strong_script = [](UScriptCode script) {
-        return script != USCRIPT_COMMON && script != USCRIPT_INHERITED &&
-               script != USCRIPT_UNKNOWN;
-    };
-    const auto script_segments = [&](std::string_view text) {
-        std::vector<std::pair<std::size_t, std::size_t>> segments;
-        const auto* bytes = reinterpret_cast<const std::uint8_t*>(text.data());
-        const int32_t length = static_cast<int32_t>(text.size());
-        int32_t cursor = 0, start = 0;
-        UScriptCode current = USCRIPT_UNKNOWN;
-        while (cursor < length) {
-            const int32_t char_start = cursor;
-            UChar32 cp = 0;
-            U8_NEXT(bytes, cursor, length, cp);
-            if (cp < 0) continue;
-            UErrorCode error = U_ZERO_ERROR;
-            const auto script = uscript_getScript(cp, &error);
-            if (U_FAILURE(error) || !strong_script(script)) continue;
-            if (!strong_script(current)) { current = script; continue; }
-            if (script == current) continue;
-            segments.emplace_back(static_cast<std::size_t>(start),
-                                  static_cast<std::size_t>(char_start));
-            start = char_start;
-            current = script;
-        }
-        if (start < length)
-            segments.emplace_back(static_cast<std::size_t>(start), text.size());
-        if (segments.empty() && !text.empty()) segments.emplace_back(0, text.size());
-        return segments;
+    const auto script_segments = [](std::string_view text) {
+        return chronon3d::text::unicode::strong_script_segments(text);
     };
     const auto shape_scripted = [&](const ResolvedTextRun& source) {
         const auto segments = source.direction == TextDirection::LTR

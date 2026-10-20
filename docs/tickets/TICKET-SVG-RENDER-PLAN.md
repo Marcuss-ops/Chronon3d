@@ -789,6 +789,8 @@ nested motion animations, text chunks (LTR, ligature, mixed script, Arabic RTL,
 and split combining grapheme), dominant-baseline, gradient fill/stroke,
 textPath and transformed coordinate lists, bounded pattern fill/stroke, and
 text stroke. The raw gates compare rendered RGBA pixels and repeat determinism.
-This verifies the non-Vulkan SVG parity scope on the software renderer; it does
-not certify the Vulkan backend.
+The repository architecture scan passes 207/207 rules, and focused CTest passes
+for the C ABI, SVG path loader, and text health suites. This verifies the
+non-Vulkan SVG parity scope on the software renderer; it does not certify the
+Vulkan backend.
 
