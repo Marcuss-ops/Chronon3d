@@ -727,7 +727,8 @@ struct VulkanBackend::Impl {
                           std::span<const Vec2> points,
                           std::span<const std::uint32_t> run_lengths,
                           bool has_fill, std::uint32_t fill_vertex_count,
-                          const std::array<Vec2, 8>& fill_vertices);
+                          const std::array<Vec2, 8>& fill_vertices,
+                          bool round_cap = false);
     void fill_path(runtime::RenderSurfaceHandle destination,
                    std::span<const Vec2> vertices, const Color& color);
     void fill_grid(runtime::RenderSurfaceHandle destination,

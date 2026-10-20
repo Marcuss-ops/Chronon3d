@@ -3,6 +3,7 @@
 #include "camera_change_policy.hpp"
 #include "../core/scene_fingerprint.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
 
@@ -154,6 +155,16 @@ void apply_sparse_or_full_decision(
     const SoftwareRenderer* sw_renderer,
     Frame frame,
     const effects::EffectCatalog* effect_catalog) {
+    // SparseTiles copies host pixels immediately after each tile execution.
+    // A native backend leaves those pixels stale until the single terminal
+    // synchronization, which happens only after the coordinator returns.
+    // Do not select the CPU tile executor for native surfaces, even when the
+    // caller requests a host/raw output rather than strict native encoding.
+    const auto* backend = sw_renderer ? sw_renderer->execution_context().backend : nullptr;
+    if (backend && backend->supports_native_surfaces()) {
+        set_full_rgb(plan, "native_surfaces_require_full_rgb");
+        return;
+    }
     if (dirty_ratio > settings.dirty.tile_dirty_ratio_threshold) {
         set_full_rgb(plan, "dirty_ratio_too_high");
         return;

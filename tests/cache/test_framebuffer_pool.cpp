@@ -655,6 +655,40 @@ TEST_CASE("Config: framebuffer_pool_clear_policy accessor + setter") {
 //   * allocations for the current frame come from the published slot
 //   * detach restores the static/heap fallback (daemon reuses the pool across
 //     jobs; a stale provider must never outlive the job that installed it)
+TEST_CASE("FramebufferPool clears fresh arena allocations after arena reset") {
+    auto pool = FramebufferPool::create_shared(1024 * 1024);
+    auto arena = std::make_shared<FramebufferArena>(1024 * 1024);
+    pool->set_arena(arena);
+    // Exercise every clearing entry point. Allocation freshness is telemetry,
+    // not proof that an arena's previously used bytes are transparent.
+    for (int route = 0; route < 4; ++route) {
+        {
+            auto dirty = pool->acquire_owned(64, 64, false);
+            REQUIRE(dirty->is_arena_allocated());
+            dirty->clear(Color{0.25f, 0.5f, 0.75f, 1.0f});
+        }
+        arena->reset();
+        CachedFB cleared;
+        if (route == 0) cleared = pool->acquire(64, 64, true);
+        if (route == 1) cleared = pool->acquire_shared(64, 64, true);
+        if (route == 2) cleared = promote_to_cached(pool->acquire_owned(64, 64, true));
+        if (route == 3) cleared = pool->acquire_pooled(64, 64, pool);
+        REQUIRE(cleared);
+        CHECK(cleared->is_content_cleared());
+        for (int y = 0; y < 64; ++y) {
+            for (int x = 0; x < 64; ++x) {
+                const auto pixel = cleared->get_pixel(x, y);
+                REQUIRE(pixel.r == 0.0f);
+                REQUIRE(pixel.g == 0.0f);
+                REQUIRE(pixel.b == 0.0f);
+                REQUIRE(pixel.a == 0.0f);
+            }
+        }
+        cleared.reset();
+        arena->reset();
+    }
+}
+
 TEST_CASE("FramebufferPool wave-4 job-scoped arena provider drives per-frame slots") {
     // Shared-ownership pool so acquire()'s deleter returns FBs through
     // pool->release() exactly like production.

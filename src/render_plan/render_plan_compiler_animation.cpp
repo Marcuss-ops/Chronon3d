@@ -40,7 +40,11 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         base_position.x -= static_cast<float>(canvas_width) * 0.5f;
         base_position.y -= static_cast<float>(canvas_height) * 0.5f;
     }
-    const chronon3d::Vec3 base_scale{layer.scale[0], layer.scale[1], layer.scale[2]};
+    auto base_scale = chronon3d::Vec3{layer.scale[0], layer.scale[1], layer.scale[2]};
+    const bool face_text_toward_camera =
+        layer.type == LayerType::Text && layer.enable_3d;
+    if (face_text_toward_camera)
+        base_scale.x = -std::abs(base_scale.x);
     const chronon3d::Vec3 base_rotation{layer.rotation[0], layer.rotation[1], layer.rotation[2]};
 
     struct AxisTrackGroup {
@@ -197,7 +201,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     auto add_component_vector_track = [&](chronon3d::AnimatedValue<chronon3d::Vec3>& animated,
                                           const AxisTrackGroup& group,
                                           const chronon3d::Vec3& fallback,
-                                          bool additive) {
+                                          bool additive,
+                                          bool preserve_text_front = false) {
         const std::array<const AnimationTrackPlan*, 3> components{group.x, group.y, group.z};
         const AnimationTrackPlan* reference = nullptr;
         for (const auto* track : components) {
@@ -254,6 +259,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
                     out_component = *key.temporal_out_dy;
                 }
             }
+            if (preserve_text_front)
+                value.x = -std::abs(value.x);
             const auto& reference_key = reference->keyframes[index];
             if (reference_key.interpolation == "bezier" && !reference_key.bezier_curve) {
                 animated.add_vector_temporal_keyframe(reference_key.frame, value,
@@ -344,15 +351,20 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
     if (scale_tracks.full) {
         auto& animated = builder.scale_anim();
         animated.set(base_scale);
-        for (const auto& key : scale_tracks.full->keyframes)
+        for (const auto& key : scale_tracks.full->keyframes) {
+            auto value = vector_value(key, scale_tracks.full->property, base_scale);
+            if (face_text_toward_camera)
+                value.x = -std::abs(value.x);
             add_animation_keyframe(animated, *scale_tracks.full, key,
-                vector_value(key, scale_tracks.full->property, base_scale), fps);
+                value, fps);
+        }
         animated.compute_roving();
         animated.compute_auto_beziers();
     } else if (scale_tracks.x || scale_tracks.y || scale_tracks.z) {
         auto& animated = builder.scale_anim();
         animated.set(base_scale);
-        if (add_component_vector_track(animated, scale_tracks, base_scale, false)) {
+        if (add_component_vector_track(animated, scale_tracks, base_scale, false,
+                                       face_text_toward_camera)) {
             // Timing metadata was preserved on the composed vector keyframes.
         } else {
         auto eval_x = scale_tracks.x ? std::optional{compile_component_track(scale_tracks.x, base_scale.x)} : std::nullopt;
@@ -599,8 +611,13 @@ void apply_layer_primitives(chronon3d::LayerBuilder& builder,
             builder.position({layer.position[0], layer.position[1], layer.position[2]});
         }
     }
-    if (layer.scale_dimensions >= 2)
-        builder.scale({layer.scale[0], layer.scale[1], layer.scale[2]});
+    if (layer.scale_dimensions >= 2 ||
+        (layer.type == LayerType::Text && layer.enable_3d)) {
+        auto scale = layer.scale;
+        if (layer.type == LayerType::Text && layer.enable_3d)
+            scale[0] = -std::abs(scale[0]);
+        builder.scale({scale[0], scale[1], scale[2]});
+    }
     if (layer.rotation_dimensions > 0)
         builder.rotate({layer.rotation[0], layer.rotation[1], layer.rotation[2]});
     builder.skew({layer.skew_angle_deg, layer.skew_axis_deg});

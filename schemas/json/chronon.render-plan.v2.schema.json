@@ -119,6 +119,10 @@
         "focal_length_mm": { "type": "number", "minimum": 0, "maximum": 200 },
         "f_stop": { "type": "number", "minimum": 0, "maximum": 32 },
         "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12 },
+        "node": { "type": "string", "minLength": 1, "maxLength": 128,
+          "description": "Optional authoring hint (e.g. rig node naming). The decoder accepts and ignores it; plans in the wild carry it." },
+        "target": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" },
+          "description": "Optional authoring hint (look-at target). The decoder accepts and ignores it; plans in the wild carry it." },
         "dof": {
           "type": "object", "additionalProperties": false,
           "properties": {

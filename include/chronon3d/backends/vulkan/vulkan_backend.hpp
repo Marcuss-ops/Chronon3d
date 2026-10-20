@@ -454,7 +454,8 @@ public:
         runtime::RenderSurfaceHandle, std::int32_t, std::int32_t,
         std::int32_t, std::int32_t, float, const Color&,
         std::span<const Vec2>, std::span<const std::uint32_t>,
-        bool, std::uint32_t, const std::array<Vec2, 8>&);
+        bool, std::uint32_t, const std::array<Vec2, 8>&,
+        bool round_cap = false);
     graph::RenderOpResult fill_path_surface(
         runtime::RenderSurfaceHandle, std::span<const Vec2>, const Color&);
     /// Native analytic grid background fill over the half-open destination

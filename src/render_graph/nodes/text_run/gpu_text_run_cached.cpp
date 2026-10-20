@@ -12,9 +12,67 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
+#include <cmath>
+#include <sstream>
 #include <string>
 
 namespace chronon3d::graph::text_run {
+
+namespace {
+
+std::string unsupported_animation_detail(const TextRunShape& shape) {
+    std::ostringstream detail;
+    detail << " animators=" << shape.animators.size()
+           << " animated_doc=" << static_cast<bool>(shape.animated_doc)
+           << " fill_style=" << static_cast<bool>(shape.paint.fill_style)
+           << " stroke_style=" << static_cast<bool>(shape.paint.stroke_style)
+           << " stroke_enabled=" << shape.paint.stroke_enabled
+           << " stroke_width=" << shape.paint.stroke_width
+           << " stroke_cap=" << static_cast<int>(shape.paint.stroke_cap)
+           << " stroke_join=" << static_cast<int>(shape.paint.stroke_join)
+           << " miter_limit=" << shape.paint.stroke_miter_limit
+           << " dash_count=" << shape.paint.stroke_dash_array.size()
+           << " dash_offset=" << shape.paint.stroke_dash_offset
+           << " material=" << shape.material.enabled
+           << " shadows=" << shape.shadows.size()
+           << " glyphs=" << shape.glyphs.size()
+           << " placed=" << (shape.layout ? shape.layout->placed.glyphs.size() : 0);
+    for (std::size_t i = 0; i < shape.shadows.size(); ++i) {
+        const auto& shadow = shape.shadows[i];
+        detail << " shadow" << i << "_enabled=" << shadow.enabled
+               << "_blur=" << shadow.blur
+               << "_offset=" << shadow.offset.x << ',' << shadow.offset.y;
+    }
+    for (std::size_t i = 0; i < shape.glyphs.size(); ++i) {
+        const auto& glyph = shape.glyphs[i];
+        if (std::abs(glyph.rotation.x) > 1e-6f ||
+            std::abs(glyph.rotation.y) > 1e-6f ||
+            std::abs(glyph.rotation.z) > 1e-6f ||
+            std::abs(glyph.position.z) > 1e-6f ||
+            std::abs(glyph.anchor.z) > 1e-6f ||
+            std::abs(glyph.skew) > 1e-6f ||
+            std::abs(glyph.skew_axis) > 1e-6f ||
+            glyph.background.a > 1e-6f || glyph.stroke.a > 1e-6f ||
+            glyph.stroke_width > 1e-6f || glyph.background_padding_em > 1e-6f ||
+            glyph.background_radius_em > 1e-6f) {
+            detail << " first_unsupported_glyph=" << i
+                   << " rotation=" << glyph.rotation.x << ',' << glyph.rotation.y << ',' << glyph.rotation.z
+                   << " position_z=" << glyph.position.z
+                   << " anchor_z=" << glyph.anchor.z
+                   << " skew=" << glyph.skew
+                   << " skew_axis=" << glyph.skew_axis
+                   << " background_alpha=" << glyph.background.a
+                   << " stroke_alpha=" << glyph.stroke.a
+                   << " stroke_width=" << glyph.stroke_width
+                   << " background_padding=" << glyph.background_padding_em
+                   << " background_radius=" << glyph.background_radius_em;
+            break;
+        }
+    }
+    return detail.str();
+}
+
+} // namespace
 
 graph::RenderOpResult draw_cached_text_run(
     RenderGraphContext& ctx,
@@ -76,7 +134,8 @@ graph::RenderOpResult draw_cached_text_run(
         return graph::RenderOpResult(graph::make_render_backend_error(
             graph::RenderBackendErrorCode::UnsupportedCapability,
             route_decision.reason == detail::TextRouteReason::UnsupportedAnimation
-                ? "draw_cached_text_run: animated glyph state is not supported by canonical MTSDF"
+                ? "draw_cached_text_run: animated glyph state is not supported by canonical MTSDF" +
+                    unsupported_animation_detail(shape)
                 : "draw_cached_text_run: canonical MTSDF resources are unavailable"));
     }
     if (route_decision.route == detail::TextExecutionRoute::Software) {

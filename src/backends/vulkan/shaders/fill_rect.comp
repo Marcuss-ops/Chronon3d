@@ -287,6 +287,7 @@ void main() {
             if (inside) return;
         }
 
+        bool round_cap = params.line.x > 0.5;
         float half_width = params.shape.y * 0.5;
         uint run_count = dashed_path.words[0];
         uint point_cursor = 1u + run_count;
@@ -309,7 +310,9 @@ void main() {
                 if (coverage > 0.0) break;
             }
             if (coverage <= 0.0) {
-                for (uint i = 1u; i + 1u < point_count; ++i) {
+                uint start_idx = round_cap ? 0u : 1u;
+                uint end_idx = round_cap ? point_count : point_count - 1u;
+                for (uint i = start_idx; i < end_idx; ++i) {
                     uint point_word = point_cursor + i * 2u;
                     vec2 join = vec2(uintBitsToFloat(dashed_path.words[point_word]),
                                      uintBitsToFloat(dashed_path.words[point_word + 1u]));

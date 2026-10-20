@@ -230,6 +230,26 @@ TEST_CASE("TypedProgramSampler preserves static opacity for empty animation trac
     CHECK(sampled.layers.front().opacity == doctest::Approx(0.7f));
 }
 
+TEST_CASE("TypedProgramSampler preserves a negative text-facing scale under scale animation") {
+    auto plan = test_plan();
+    plan.layers.front().type = chronon3d::render_plan::LayerType::Text;
+    plan.layers.front().text = "front-facing";
+    plan.layers.front().enable_3d = true;
+    plan.layers.front().scale = {-1.0f, 1.0f, 1.0f};
+    plan.layers.front().scale_dimensions = 3;
+    plan.layers.front().animation->tracks.push_back({
+        "scale", {{chronon3d::Frame{0}, {1.0f}},
+                   {chronon3d::Frame{12}, {2.0f}}}, "linear"});
+
+    chronon3d::assets::AssetResolver resolver;
+    auto result = chronon3d::compiler::compile(plan, resolver);
+    REQUIRE(result);
+    const auto sampled = chronon3d::compiler::TypedProgramSampler{}.sample(
+        std::move(result).value(), chronon3d::Frame{12});
+    REQUIRE(sampled.layers.size() == 1);
+    CHECK(sampled.layers.front().matrix[0][0] == doctest::Approx(-2.0f));
+}
+
 TEST_CASE("TypedProgramSampler reuses lowered matrix for opacity-only animation") {
     auto plan = test_plan();
     plan.layers.front().position = {13.0f, -4.0f, 2.0f};

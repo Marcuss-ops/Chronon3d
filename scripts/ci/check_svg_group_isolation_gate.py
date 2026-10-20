@@ -37,10 +37,15 @@ TOLERANCE = 8  # uint8 steps; software linker is exact, SSAA rounding is <=1
 
 
 def cli() -> Path:
+    gpu_override = os.environ.get("CHRONON_GPU_CLI")
+    if gpu_override:
+        return Path(gpu_override)
     override = os.environ.get("CHRONON_CLI")
     if override:
         return Path(override)
     for candidate in (
+        ROOT / "build" / "chronon" / "linux-video-release" /
+        "apps" / "chronon3d_cli" / "chronon3d_cli",
         ROOT / "build" / "chronon" / "linux-video-test" /
         "apps" / "chronon3d_cli" / "chronon3d_cli",
         ROOT / "build" / "chronon" / "linux-fast-dev" /
@@ -72,14 +77,18 @@ def render_raw(plan_path: Path, output_dir: Path, tag: str,
     prepared = output_dir / f"{tag}_video_plan.json"
     prepared.write_text(json.dumps(plan))
     raw_path = output_dir / f"{tag}_raw.dmp"
-    proc = subprocess.run(
-        [str(cli()), "render", "--plan", str(prepared),
-         "--assets-root", str(FIXTURE), "--backend", "software",
-         "--start-frame", str(start), "--end-frame", str(end),
-         "--video-sink", "raw", "--output", str(raw_path)],
-        capture_output=True, text=True)
+    backend = os.environ.get("CHRONON_GATE_BACKEND", "vulkan" if "CHRONON_GPU_CLI" in os.environ else "software")
+    cmd = [
+        str(cli()), "render", "--plan", str(prepared),
+        "--assets-root", str(FIXTURE), "--backend", backend,
+        "--start-frame", str(start), "--end-frame", str(end),
+        "--video-sink", "raw", "--output", str(raw_path)
+    ]
+    if backend == "vulkan":
+        cmd.extend(["--gpu-hot-path-mode", "require_gpu_native"])
+    proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode:
-        raise SystemExit(f"SVG CLI render failed:\n{proc.stderr[-3000:]}")
+        raise SystemExit(f"SVG CLI render failed code={proc.returncode}:\nSTDOUT:\n{proc.stdout[-3000:]}\nSTDERR:\n{proc.stderr[-3000:]}")
     if not raw_path.is_file():
         raise SystemExit(f"render produced no raw output: {raw_path}")
     return raw_path

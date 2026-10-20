@@ -402,6 +402,7 @@ TransitionPlan decode_transition(const nlohmann::json& value) {
             return std::vector<std::string>{"seed", "inner_color", "mid_color", "outer_color"};
         if (plan.kind == "remotion")
             return std::vector<std::string>{"speed", "remotion_direction", "angle"};
+        if (plan.kind == "fly_under_fade") return std::vector<std::string>{"dip_px"};
         return std::vector<std::string>{};
     }();
     for (auto it = params.begin(); it != params.end(); ++it)
