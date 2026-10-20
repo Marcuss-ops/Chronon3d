@@ -124,9 +124,6 @@ TEST_CASE("TimelineBuilder: camera track sets animated camera") {
     Scene scene = s.build();
     auto& static_cam = scene.camera_2_5d();
     CHECK(static_cam.position.z == doctest::Approx(-750.0f)); // half-way between -1000 and -500 at frame 30
-    REQUIRE(scene.default_camera_descriptor().has_value());
-    CHECK(std::holds_alternative<camera_v1::PoseTracksSource>(
-        scene.default_camera_descriptor()->source));
 }
 
 TEST_CASE("TimelineBuilder: global stagger applies to all tracks") {

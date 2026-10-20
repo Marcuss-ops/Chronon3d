@@ -25,7 +25,6 @@ SceneBuilder& SceneBuilder::camera_pose(const camera_v1::PoseTracksSource& sourc
                                   source.aperture.is_time_dependent() ||
                                   source.max_blur.is_time_dependent();
 
-    scene_.set_default_camera_descriptor(descriptor);
 
     camera_v1::CameraEvalContext eval_context;
     eval_context.frame = current_integer_frame();
@@ -49,7 +48,6 @@ SceneBuilder& SceneBuilder::camera_descriptor(camera_v1::CameraDescriptor descri
         evaluated.target_name = std::pmr::string{target->target, scene_.resource()};
         evaluated.point_of_interest_enabled = true;
     }
-    scene_.set_default_camera_descriptor(std::move(descriptor));
     scene_.set_camera_2_5d(std::move(evaluated));
     return *this;
 }

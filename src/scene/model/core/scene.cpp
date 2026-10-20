@@ -36,9 +36,6 @@ Scene Scene::clone() const {
     s.m_hierarchy_baked = m_hierarchy_baked;
     s.m_assets_root = m_assets_root;
     s.m_manifest = m_manifest;
-    s.m_camera_descriptor = m_camera_descriptor;
-    s.m_camera_program = m_camera_program;
-    s.m_camera_timeline = m_camera_timeline;
     s.m_camera_2_5d = m_camera_2_5d;
     return s;
 }
