@@ -52,8 +52,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <unicode/utf8.h>
-#include <unicode/uscript.h>
+#include "../text/unicode/unicode_script.hpp"
 
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
@@ -62,21 +61,8 @@ namespace chronon3d::render_plan {
 
 namespace {
 
-UScriptCode first_strong_unicode_script(std::string_view text) {
-    const auto* bytes = reinterpret_cast<const std::uint8_t*>(text.data());
-    const auto length = static_cast<int32_t>(text.size());
-    int32_t cursor = 0;
-    while (cursor < length) {
-        UChar32 cp = 0;
-        U8_NEXT(bytes, cursor, length, cp);
-        if (cp < 0) continue;
-        UErrorCode error = U_ZERO_ERROR;
-        const auto script = uscript_getScript(cp, &error);
-        if (U_SUCCESS(error) && script != USCRIPT_COMMON &&
-            script != USCRIPT_INHERITED && script != USCRIPT_UNKNOWN)
-            return script;
-    }
-    return USCRIPT_UNKNOWN;
+text::unicode::Script first_strong_unicode_script(std::string_view value) {
+    return text::unicode::first_strong_script(value);
 }
 
 // ── media background card pass ─────────────────────────────────────────────
@@ -631,8 +617,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             current_text_layers.reserve(imported.text_runs.size());
             std::vector<SvgTextMetrics> text_metrics(imported.text_runs.size());
             std::vector<bool> text_chunk_boundary_safe(imported.text_runs.size(), true);
-            std::vector<UScriptCode> effective_text_scripts(
-                imported.text_runs.size(), USCRIPT_UNKNOWN);
+            std::vector<text::unicode::Script> effective_text_scripts(
+                imported.text_runs.size(), text::unicode::unknown_script);
             std::unordered_map<std::string, float> text_anchor_advances;
             const auto group_key_for = [&](const chronon3d::assets::SvgTextRun& run,
                                            std::size_t index) {
@@ -643,7 +629,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             for (std::size_t text_index = 0; text_index < imported.text_runs.size(); ++text_index) {
                 const auto& run = imported.text_runs[text_index];
                 auto script_code = first_strong_unicode_script(run.text);
-                if (script_code == USCRIPT_UNKNOWN && text_index > 0) {
+                if (script_code == text::unicode::unknown_script && text_index > 0) {
                     const auto& previous = imported.text_runs[text_index - 1];
                     if (previous.text_element_id == run.text_element_id &&
                         previous.group_ids == run.group_ids &&
@@ -718,12 +704,12 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 resolved_metrics.x_height = metrics.x_height;
                 resolved_metrics.cap_height = metrics.cap_height;
                 resolved_metrics.line_height = metrics.line_height;
-                if (script_code != USCRIPT_UNKNOWN) {
-                    const char* script_name = uscript_getShortName(script_code);
+                if (script_code != text::unicode::unknown_script) {
+                    const char* script_name = text::unicode::short_name(script_code);
                     if (script_name && std::strlen(script_name) == 4) {
                         const bool rtl_baseline = run.direction == "rtl" ||
                             (run.direction != "ltr" &&
-                             uscript_isRightToLeft(script_code));
+                             text::unicode::is_right_to_left_script(script_code));
                         const auto baseline_offset = [&](std::string_view baseline) {
                             return svg_text_font_engine->get_open_type_baseline_offset(
                                 font_spec, run.font_size, baseline, script_name,
@@ -785,20 +771,19 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         combined += imported.text_runs[index].text;
                     }
                     bool chunk_boundaries_safe = false;
-                    std::optional<UScriptCode> previous_script;
+                    std::optional<text::unicode::Script> previous_script;
                     bool mixed_scripts = false;
                     for (std::size_t index = begin; index < end; ++index) {
                         const auto script = first_strong_unicode_script(
                             imported.text_runs[index].text);
-                        if (script == USCRIPT_UNKNOWN) continue;
+                        if (script == text::unicode::unknown_script) continue;
                         if (previous_script && *previous_script != script)
                             mixed_scripts = true;
                         previous_script = script;
                     }
                     const auto primary_script = first_strong_unicode_script(combined);
                     const bool right_to_left_script =
-                        primary_script != USCRIPT_UNKNOWN &&
-                        uscript_isRightToLeft(primary_script);
+                        text::unicode::is_right_to_left_script(primary_script);
                     if (mixed_scripts) {
                         // A single HarfBuzz buffer guesses one script from its
                         // first strong character. Measure the authored chunks

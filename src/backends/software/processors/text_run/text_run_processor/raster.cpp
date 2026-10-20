@@ -408,7 +408,7 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                     std::optional<BLGradient> text_stroke_gradient;
                     if (!override_color.has_value() && shape.paint.stroke_style &&
                         shape.paint.stroke_style->enabled &&
-                        shape.paint.stroke_style->type != FillType::Solid &&
+                        !shape.paint.stroke_style->gradient.color_stops.empty() &&
                         layout.bounds.x > 0.0f && layout.line_height > 0.0f) {
                         auto glyph_stroke = *shape.paint.stroke_style;
                         auto& gradient = glyph_stroke.gradient;
@@ -475,7 +475,7 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                 std::optional<BLGradient> text_fill_gradient;
                 if (!override_color.has_value() && shape.paint.fill_style &&
                     shape.paint.fill_style->enabled &&
-                    shape.paint.fill_style->type != FillType::Solid &&
+                    !shape.paint.fill_style->gradient.color_stops.empty() &&
                     layout.bounds.x > 0.0f && layout.line_height > 0.0f) {
                     // Glyphs are drawn in their own translated user space.
                     // Shift normalized gradient geometry by the glyph origin
