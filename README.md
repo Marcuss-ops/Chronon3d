@@ -128,6 +128,7 @@ Le composizioni di progetto devono vivere in pack esterni, non nel core engine.
 
 ## Documenti principali
 
+- [`docs/INDEX.md`](docs/INDEX.md) — **indice unico**: è l'unico punto di ingresso alla documentazione.
 - [`AGENTS.md`](AGENTS.md) — istruzioni operative e regole architetturali.
 - [`docs/CHRONON_PLAN.md`](docs/CHRONON_PLAN.md) — piano operativo (10 fasi GPU-first).
 - [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) — stato presente.
