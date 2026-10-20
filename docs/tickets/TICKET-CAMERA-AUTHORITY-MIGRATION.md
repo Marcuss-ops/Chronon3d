@@ -33,6 +33,9 @@ Production paths found outside `camera_v1/` include:
 - The unused `CameraMotionPath` evaluator has also been removed. C3D retains
   `SpatialBezierPath` and the quaternion math still consumed by Camera V1;
   CM3D `MotionPath` owns path sampling and `CameraRig` owns camera evaluation.
+- The unused legacy `fit_camera_to_layers()` solver has been removed. It had
+  no production callers; the separate Camera V1 `CameraFramingSolver` remains
+  active and is still part of the pending migration to CM3D.
 - `camera_shake` is evaluated by C3D scene setup after camera-track evaluation.
   This behavior must move to CM3D before the renderer path is retired.
 

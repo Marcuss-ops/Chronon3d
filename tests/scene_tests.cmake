@@ -61,7 +61,6 @@ set(SCENE_TEST_SOURCES
                 scene/transform_hierarchy_tests.cpp
                 scene/camera_shot_validator_tests.cpp
                 scene/camera_projection_tests.cpp
-                scene/camera_framing_tests.cpp
                 scene/camera/test_camera_registry.cpp
                 scene/camera/test_camera_program.cpp
                 scene/camera/test_camera_program_compiled.cpp
