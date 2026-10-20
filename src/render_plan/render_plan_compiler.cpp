@@ -28,7 +28,6 @@
 #include <chronon3d/scene/builders/text_run_materialization.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
-#include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_path_composer.hpp>
 #include <chronon3d/backends/text/text_unicode_grapheme.hpp>
@@ -1905,7 +1904,6 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         const bool has_3d_layer = std::any_of(
             plan.layers.begin(), plan.layers.end(),
             [](const LayerPlan& layer) { return layer.enable_3d; });
-        const auto plan_camera = detail::make_camera_descriptor(plan);
         std::string resolved_ocio_config_path;
         if (plan.color_management) {
             const auto config_path = resolver.resolve_lexical(
@@ -1941,11 +1939,14 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             .prepared_effects = prepared_effects,
             .font_engine = font_engine,
             .has_3d_layer = has_3d_layer,
-            .plan_camera = plan_camera,
+            .camera_evaluator = detail::make_camera_evaluator(plan),
             .follow_path_evaluators = follow_path_evaluators,
             .resolved_ocio_config_path = resolved_ocio_config_path});
 
-        definition.camera = detail::make_camera_descriptor(plan);
+        // RenderPlan camera values are resolved directly by the scene
+        // evaluator into Camera2_5D renderer state. They are not composition
+        // Camera V1 descriptors.
+        definition.camera.reset();
         definition.scene_content_fingerprint = content_fingerprint;
 
         const auto composition_t0 = chronon3d::profiling::now();

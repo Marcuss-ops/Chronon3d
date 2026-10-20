@@ -10,7 +10,6 @@ namespace chronon3d { class FrameContext; }
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/core/temporal_curve_1d.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <optional>
 #include <memory>
 #include <vector>
@@ -31,6 +30,8 @@ struct FollowPathEvaluators {
     std::function<chronon3d::Vec3(double)> rotation;
 };
 
+using CameraTrackEvaluator = std::function<chronon3d::Camera2_5D(double)>;
+
 struct SceneMaterializationInputs {
     RenderPlan plan;
     std::vector<std::string> resolved_video_paths;
@@ -41,13 +42,13 @@ struct SceneMaterializationInputs {
     std::vector<std::vector<chronon3d::EffectParams>> prepared_effects;
     std::shared_ptr<chronon3d::FontEngine> font_engine;
     bool has_3d_layer{};
-    std::optional<chronon3d::camera_v1::CameraDescriptor> plan_camera;
+    CameraTrackEvaluator camera_evaluator;
     std::vector<FollowPathEvaluators> follow_path_evaluators;
     std::string resolved_ocio_config_path;
 };
 void configure_scene_camera_and_lighting(
     chronon3d::SceneBuilder&, const RenderPlan&, bool,
-    const std::optional<chronon3d::camera_v1::CameraDescriptor>&,
+    const CameraTrackEvaluator&,
     const chronon3d::FrameContext&);
 
 [[nodiscard]] std::function<chronon3d::Scene(const chronon3d::FrameContext&)>
@@ -66,10 +67,7 @@ make_scene_evaluator(SceneMaterializationInputs inputs);
     const TransitionPlan& plan, FrameRate fps);
 [[nodiscard]] chronon3d::EasingCurve animation_keyframe_easing(
     const AnimationTrackPlan& track, const AnimationKeyframePlan& key);
-[[nodiscard]] std::optional<chronon3d::camera_v1::CameraDescriptor>
-make_camera_descriptor(const RenderPlan& plan);
-[[nodiscard]] std::optional<chronon3d::Camera2_5D>
-make_static_camera(const RenderPlan& plan);
+[[nodiscard]] CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan);
 [[nodiscard]] std::optional<std::string> expand_static_lottie(
     LayerPlan& layer, const std::filesystem::path& path);
 [[nodiscard]] chronon3d::DepthRole depth_role_value(std::string_view value);

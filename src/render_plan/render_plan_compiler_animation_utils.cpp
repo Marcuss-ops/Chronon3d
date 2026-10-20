@@ -6,7 +6,6 @@
 #include <chronon3d/effects/effect_param_animation.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/scene/path_sampling.hpp>
-#include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -382,212 +381,10 @@ std::optional<graphics::GradientDefinition> fill_gradient_at(
                                  *layer.fill_gradient_animation, frame);
 }
 
-std::optional<chronon3d::camera_v1::CameraDescriptor>
-make_camera_descriptor(const RenderPlan& plan) {
+namespace {
+
+std::optional<chronon3d::Camera2_5D> make_camera_base(const RenderPlan& plan) {
     if (!plan.camera) return std::nullopt;
-    // A static RenderPlan camera is already a resolved renderer value. Do
-    // not wrap it in Camera V1's authoring descriptor/evaluator.
-    if ((!plan.camera_animation || plan.camera_animation->empty()) &&
-        !plan.camera_shake)
-        return std::nullopt;
-
-    const auto& source_plan = *plan.camera;
-    chronon3d::camera_v1::CameraDescriptor descriptor;
-    descriptor.id = plan.job_id + "::render-plan-camera";
-    descriptor.base.enabled = true;
-    descriptor.base.position = {source_plan.position[0], source_plan.position[1], source_plan.position[2]};
-    descriptor.base.rotation = {source_plan.rotation_deg[0], source_plan.rotation_deg[1], source_plan.rotation_deg[2]};
-    if (source_plan.focal_length_mm <= 0.0f) {
-        descriptor.base.projection = chronon3d::camera_v1::FovProjection{
-            chronon3d::AnimatedValue<float>{source_plan.fov_deg}};
-    }
-    descriptor.base.dof.enabled = source_plan.dof_enabled;
-    descriptor.base.dof.focus_distance = source_plan.dof_focus_distance;
-    descriptor.base.dof.aperture = source_plan.dof_aperture;
-    descriptor.base.dof.max_blur = source_plan.dof_max_blur;
-    descriptor.base.dof.iris_blades = source_plan.dof_iris_blades;
-    descriptor.base.dof.highlight_gain = source_plan.dof_highlight_gain;
-    // Physical lens authoring: the DoF-specific f-stop wins over the
-    // camera-level one when both are present.
-    if (source_plan.focal_length_mm > 0.0f)
-        descriptor.base.lens.focal_length = source_plan.focal_length_mm;
-    const float authored_f_stop = source_plan.dof_f_stop > 0.0f
-        ? source_plan.dof_f_stop : source_plan.f_stop;
-    if (authored_f_stop > 0.0f)
-        descriptor.base.lens.f_stop = authored_f_stop;
-    // A physical focal length is the projection authority when authored,
-    // matching threepp's PerspectiveCamera::setFocalLength() behavior. Use a
-    // 35 mm horizontal gate and derive its height from the render aspect so
-    // both paths produce the same vertical field of view.
-    if (source_plan.focal_length_mm > 0.0f) {
-        auto lens = descriptor.base.lens;
-        lens.focal_length = source_plan.focal_length_mm;
-        lens.sensor_width = 35.0f;
-        const float aspect = plan.canvas.width > 0 && plan.canvas.height > 0
-            ? static_cast<float>(plan.canvas.width) / static_cast<float>(plan.canvas.height)
-            : 16.0f / 9.0f;
-        lens.sensor_height = 35.0f / aspect;
-        descriptor.base.projection = chronon3d::camera_v1::PhysicalLensProjection{lens};
-    }
-    if (source_plan.dof_enabled) {
-        // RenderPlan focus_distance is a camera-space distance along the
-        // optical axis (S1); the legacy focus_z field is a world-Z plane, so
-        // derive it from the base pose instead of copying across units.
-        // The physical thin-lens model is selected when the plan authors a
-        // complete lens (focal length + f-stop): it consumes focus_distance
-        // directly as S1, while the legacy path converts focus_z back.
-        const bool physical =
-            source_plan.focal_length_mm > 0.0f && authored_f_stop > 0.0f;
-        descriptor.base.dof.use_physical_model = physical;
-        chronon3d::Camera2_5D base_pose;
-        base_pose.position = descriptor.base.position;
-        base_pose.rotation = descriptor.base.rotation;
-        descriptor.base.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
-            base_pose, source_plan.dof_focus_distance);
-    }
-    if (source_plan.type == "orthographic") {
-        // Camera2_5D has no second projection implementation: use its existing
-        // zoom optics surface rather than introducing a parallel camera model.
-        descriptor.base.projection = chronon3d::camera_v1::ZoomProjection{
-            chronon3d::AnimatedValue<float>{1000.0f * source_plan.zoom}};
-    }
-
-    if (!plan.camera_animation || plan.camera_animation->empty())
-        return descriptor;
-
-    chronon3d::camera_v1::PoseTracksSource tracks;
-    tracks.position = chronon3d::AnimatedValue<chronon3d::Vec3>{descriptor.base.position};
-    tracks.rotation = chronon3d::AnimatedValue<chronon3d::Vec3>{descriptor.base.rotation};
-    tracks.fov_deg = chronon3d::AnimatedValue<float>{source_plan.fov_deg};
-    tracks.zoom = chronon3d::AnimatedValue<float>{1000.0f * source_plan.zoom};
-    tracks.focus_distance = chronon3d::AnimatedValue<float>{source_plan.dof_focus_distance};
-    tracks.aperture = chronon3d::AnimatedValue<float>{source_plan.dof_aperture};
-    tracks.max_blur = chronon3d::AnimatedValue<float>{source_plan.dof_max_blur};
-    tracks.focal_length = chronon3d::AnimatedValue<float>{source_plan.focal_length_mm};
-    tracks.f_stop = chronon3d::AnimatedValue<float>{
-        source_plan.dof_f_stop > 0.0f ? source_plan.dof_f_stop : source_plan.f_stop};
-    for (const auto& track : *plan.camera_animation) {
-        AnimationTrackPlan easing_track;
-        easing_track.property = "camera";
-        easing_track.easing = track.easing;
-        easing_track.bezier_curve = track.bezier_curve;
-        for (const auto& key : track.keyframes) {
-            if (key.value.size() != 1)
-                throw std::runtime_error("camera track keyframes require scalar values");
-            const auto value = key.value.front();
-            switch (track.property) {
-                case CameraPropertyPlan::PositionX: {
-                    if (!tracks.position_components[0])
-                        tracks.position_components[0].emplace(descriptor.base.position.x);
-                    add_animation_keyframe(*tracks.position_components[0], easing_track, key, value);
-                    auto current = descriptor.base.position;
-                    current.x = value;
-                    add_animation_keyframe(tracks.position, easing_track, key, current);
-                    break;
-                }
-                case CameraPropertyPlan::PositionY: {
-                    if (!tracks.position_components[1])
-                        tracks.position_components[1].emplace(descriptor.base.position.y);
-                    add_animation_keyframe(*tracks.position_components[1], easing_track, key, value);
-                    auto current = descriptor.base.position;
-                    current.y = value;
-                    add_animation_keyframe(tracks.position, easing_track, key, current);
-                    break;
-                }
-                case CameraPropertyPlan::PositionZ: {
-                    if (!tracks.position_components[2])
-                        tracks.position_components[2].emplace(descriptor.base.position.z);
-                    add_animation_keyframe(*tracks.position_components[2], easing_track, key, value);
-                    auto current = descriptor.base.position;
-                    current.z = value;
-                    add_animation_keyframe(tracks.position, easing_track, key, current);
-                    break;
-                }
-                case CameraPropertyPlan::RotationX: {
-                    if (!tracks.rotation_components[0])
-                        tracks.rotation_components[0].emplace(descriptor.base.rotation.x);
-                    add_animation_keyframe(*tracks.rotation_components[0], easing_track, key, value);
-                    auto current = descriptor.base.rotation;
-                    current.x = value;
-                    add_animation_keyframe(tracks.rotation, easing_track, key, current);
-                    break;
-                }
-                case CameraPropertyPlan::RotationY: {
-                    if (!tracks.rotation_components[1])
-                        tracks.rotation_components[1].emplace(descriptor.base.rotation.y);
-                    add_animation_keyframe(*tracks.rotation_components[1], easing_track, key, value);
-                    auto current = descriptor.base.rotation;
-                    current.y = value;
-                    add_animation_keyframe(tracks.rotation, easing_track, key, current);
-                    break;
-                }
-                case CameraPropertyPlan::RotationZ: {
-                    if (!tracks.rotation_components[2])
-                        tracks.rotation_components[2].emplace(descriptor.base.rotation.z);
-                    add_animation_keyframe(*tracks.rotation_components[2], easing_track, key, value);
-                    auto current = descriptor.base.rotation;
-                    current.z = value;
-                    add_animation_keyframe(tracks.rotation, easing_track, key, current);
-                    break;
-                }
-                case CameraPropertyPlan::FovDeg:
-                    add_animation_keyframe(tracks.fov_deg, easing_track, key, value);
-                    break;
-                case CameraPropertyPlan::Zoom:
-                    add_animation_keyframe(tracks.zoom, easing_track, key, 1000.0f * value);
-                    break;
-                case CameraPropertyPlan::FocusDistance:
-                    add_animation_keyframe(tracks.focus_distance, easing_track, key, value);
-                    break;
-                case CameraPropertyPlan::Aperture:
-                    add_animation_keyframe(tracks.aperture, easing_track, key, value);
-                    break;
-                case CameraPropertyPlan::MaxBlur:
-                    add_animation_keyframe(tracks.max_blur, easing_track, key, value);
-                    break;
-                case CameraPropertyPlan::TargetX:
-                case CameraPropertyPlan::TargetY:
-                case CameraPropertyPlan::TargetZ: {
-                    const int axis = (track.property == CameraPropertyPlan::TargetX) ? 0
-                        : (track.property == CameraPropertyPlan::TargetY) ? 1 : 2;
-                    tracks.use_target = true;
-                    if (!tracks.target_components[axis])
-                        tracks.target_components[axis].emplace(
-                            descriptor.base.point_of_interest[axis]);
-                    add_animation_keyframe(*tracks.target_components[axis], easing_track, key, value);
-                    auto current = descriptor.base.point_of_interest;
-                    current[axis] = value;
-                    add_animation_keyframe(tracks.target, easing_track, key, current);
-                    break;
-                }
-                case CameraPropertyPlan::FocalLengthMM:
-                    add_animation_keyframe(tracks.focal_length, easing_track, key, value);
-                    break;
-                case CameraPropertyPlan::FStop:
-                    add_animation_keyframe(tracks.f_stop, easing_track, key, value);
-                    break;
-            }
-        }
-    }
-    tracks.position.compute_roving(); tracks.position.compute_auto_beziers();
-    tracks.rotation.compute_roving(); tracks.rotation.compute_auto_beziers();
-    tracks.fov_deg.compute_roving(); tracks.fov_deg.compute_auto_beziers();
-    tracks.zoom.compute_roving(); tracks.zoom.compute_auto_beziers();
-    tracks.focus_distance.compute_roving(); tracks.focus_distance.compute_auto_beziers();
-    tracks.aperture.compute_roving(); tracks.aperture.compute_auto_beziers();
-    tracks.max_blur.compute_roving(); tracks.max_blur.compute_auto_beziers();
-    tracks.focal_length.compute_roving(); tracks.focal_length.compute_auto_beziers();
-    tracks.f_stop.compute_roving(); tracks.f_stop.compute_auto_beziers();
-    for (auto& component : tracks.target_components) {
-        if (component) { component->compute_roving(); component->compute_auto_beziers(); }
-    }
-    descriptor.source = std::move(tracks);
-    return descriptor;
-}
-
-std::optional<chronon3d::Camera2_5D> make_static_camera(const RenderPlan& plan) {
-    if (!plan.camera || (plan.camera_animation && !plan.camera_animation->empty()) ||
-        plan.camera_shake) return std::nullopt;
 
     const auto& source = *plan.camera;
     chronon3d::Camera2_5D camera;
@@ -626,6 +423,107 @@ std::optional<chronon3d::Camera2_5D> make_static_camera(const RenderPlan& plan) 
             camera, source.dof_focus_distance);
     }
     return camera;
+}
+
+} // namespace
+
+CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan) {
+    auto resolved = make_camera_base(plan);
+    if (!resolved) return {};
+    constexpr std::size_t kCameraPropertyCount =
+        static_cast<std::size_t>(CameraPropertyPlan::FStop) + 1;
+    using TrackValues = std::array<std::optional<chronon3d::AnimatedValue<float>>,
+                                   kCameraPropertyCount>;
+    TrackValues tracks{};
+    const auto& source = *plan.camera;
+    const auto base_for = [&](CameraPropertyPlan property) {
+        switch (property) {
+            case CameraPropertyPlan::PositionX: return resolved->position.x;
+            case CameraPropertyPlan::PositionY: return resolved->position.y;
+            case CameraPropertyPlan::PositionZ: return resolved->position.z;
+            case CameraPropertyPlan::RotationX: return resolved->rotation.x;
+            case CameraPropertyPlan::RotationY: return resolved->rotation.y;
+            case CameraPropertyPlan::RotationZ: return resolved->rotation.z;
+            case CameraPropertyPlan::FovDeg: return resolved->fov_deg;
+            case CameraPropertyPlan::Zoom: return resolved->zoom;
+            case CameraPropertyPlan::FocusDistance: return resolved->dof.focus_distance;
+            case CameraPropertyPlan::Aperture: return resolved->dof.aperture;
+            case CameraPropertyPlan::MaxBlur: return resolved->dof.max_blur;
+            case CameraPropertyPlan::TargetX:
+            case CameraPropertyPlan::TargetY:
+            case CameraPropertyPlan::TargetZ: return 0.0f;
+            case CameraPropertyPlan::FocalLengthMM: return resolved->lens.focal_length;
+            case CameraPropertyPlan::FStop:
+                return source.dof_f_stop > 0.0f ? source.dof_f_stop : resolved->lens.f_stop;
+        }
+        return 0.0f;
+    };
+    if (plan.camera_animation) {
+        for (const auto& authored : *plan.camera_animation) {
+            if (authored.keyframes.empty()) continue;
+            const auto index = static_cast<std::size_t>(authored.property);
+            if (index >= tracks.size())
+                throw std::runtime_error("camera track property is outside the supported range");
+            chronon3d::AnimatedValue<float> value{base_for(authored.property)};
+            AnimationTrackPlan easing_track;
+            easing_track.property = "camera";
+            easing_track.easing = authored.easing;
+            easing_track.bezier_curve = authored.bezier_curve;
+            for (const auto& key : authored.keyframes) {
+                if (key.value.size() != 1)
+                    throw std::runtime_error("camera track keyframes require scalar values");
+                add_animation_keyframe(value, easing_track, key, key.value.front(), plan.canvas.fps);
+            }
+            value.compute_roving();
+            value.compute_auto_beziers();
+            tracks[index] = std::move(value);
+        }
+    }
+    const auto base_camera = *resolved;
+    const auto fps = plan.canvas.fps;
+    const bool animated = plan.camera_shake.has_value() ||
+        std::any_of(tracks.begin(), tracks.end(), [](const auto& track) {
+            return track.has_value();
+        });
+    return [base_camera, tracks = std::move(tracks), fps, animated,
+            orthographic = source.type == "orthographic"](double frame) mutable {
+    auto camera = base_camera;
+    const auto sample = [&](CameraPropertyPlan property, float base) {
+        const auto index = static_cast<std::size_t>(property);
+        return tracks[index]
+            ? tracks[index]->evaluate(chronon3d::SampleTime::from_frame(frame, fps))
+            : base;
+    };
+    camera.position.x = sample(CameraPropertyPlan::PositionX, base_camera.position.x);
+    camera.position.y = sample(CameraPropertyPlan::PositionY, base_camera.position.y);
+    camera.position.z = sample(CameraPropertyPlan::PositionZ, base_camera.position.z);
+    camera.rotation.x = sample(CameraPropertyPlan::RotationX, base_camera.rotation.x);
+    camera.rotation.y = sample(CameraPropertyPlan::RotationY, base_camera.rotation.y);
+    camera.rotation.z = sample(CameraPropertyPlan::RotationZ, base_camera.rotation.z);
+    camera.fov_deg = sample(CameraPropertyPlan::FovDeg, base_camera.fov_deg);
+    if (orthographic)
+        camera.zoom = sample(CameraPropertyPlan::Zoom, camera.zoom);
+    camera.dof.focus_distance = sample(CameraPropertyPlan::FocusDistance,
+                                       camera.dof.focus_distance);
+    camera.dof.aperture = sample(CameraPropertyPlan::Aperture, camera.dof.aperture);
+    camera.dof.max_blur = sample(CameraPropertyPlan::MaxBlur, camera.dof.max_blur);
+    camera.lens.focal_length = sample(CameraPropertyPlan::FocalLengthMM,
+                                      camera.lens.focal_length);
+    camera.lens.f_stop = sample(CameraPropertyPlan::FStop, camera.lens.f_stop);
+    if (tracks[static_cast<std::size_t>(CameraPropertyPlan::TargetX)] ||
+        tracks[static_cast<std::size_t>(CameraPropertyPlan::TargetY)] ||
+        tracks[static_cast<std::size_t>(CameraPropertyPlan::TargetZ)]) {
+        camera.point_of_interest_enabled = true;
+        camera.point_of_interest.x = sample(CameraPropertyPlan::TargetX, 0.f);
+        camera.point_of_interest.y = sample(CameraPropertyPlan::TargetY, 0.f);
+        camera.point_of_interest.z = sample(CameraPropertyPlan::TargetZ, 0.f);
+    }
+    camera.is_animated = animated;
+    if (camera.dof.enabled && !camera.dof.use_physical_model)
+        camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
+            camera, camera.dof.focus_distance);
+    return camera;
+    };
 }
 
 chronon3d::DepthRole depth_role_value(std::string_view value) {

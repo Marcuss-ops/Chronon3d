@@ -2,7 +2,6 @@
 #include <chronon3d/render_plan/color_utils.hpp>
 #include "light_attenuation.hpp"
 #include <chronon3d/effects/effect_param_animation.hpp>
-#include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
@@ -27,15 +26,15 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
             prepared_effects = std::move(inputs.prepared_effects),
             font_engine = std::move(inputs.font_engine),
             has_3d_layer = inputs.has_3d_layer,
-            plan_camera = std::move(inputs.plan_camera),
+            camera_evaluator = std::move(inputs.camera_evaluator),
             follow_path_evaluators = std::move(inputs.follow_path_evaluators),
             resolved_ocio_config_path = std::move(inputs.resolved_ocio_config_path)](
                const chronon3d::FrameContext& ctx) {
 
         SceneBuilder scene(ctx);
         scene.font_engine(font_engine.get());
-        configure_scene_camera_and_lighting(
-            scene, plan, has_3d_layer, plan_camera, ctx);
+            configure_scene_camera_and_lighting(
+                scene, plan, has_3d_layer, camera_evaluator, ctx);
 
         // Point/spot/directional sources are scene-level, not layer geometry.
         std::vector<rendering::PointLightSource> point_sources;

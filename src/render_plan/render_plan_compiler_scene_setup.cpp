@@ -1,8 +1,6 @@
 #include "render_plan_compiler_detail.hpp"
 #include <chronon3d/core/hash/hash_builder.hpp>
-#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <cmath>
 #include <cstdint>
 #include <utility>
@@ -25,7 +23,7 @@ double shake_value_noise(double sample, std::uint32_t seed, std::uint32_t channe
 } // namespace
 void configure_scene_camera_and_lighting(
     chronon3d::SceneBuilder& scene, const RenderPlan& plan, bool has_3d_layer,
-    const std::optional<chronon3d::camera_v1::CameraDescriptor>& plan_camera,
+    const CameraTrackEvaluator& camera_evaluator,
     const chronon3d::FrameContext& ctx) {
         if (plan.lighting_rig) {
             const auto& source = *plan.lighting_rig;
@@ -60,46 +58,16 @@ void configure_scene_camera_and_lighting(
             // tracked on the layers themselves and must not keep the
             // camera in the per-frame animated-camera path.
             camera.is_animated = false;
-            chronon3d::camera_v1::CameraDescriptor descriptor;
-            descriptor.id = "render_plan.implicit_camera";
-            descriptor.base.position = camera.position;
-            descriptor.base.point_of_interest_enabled = true;
-            descriptor.base.point_of_interest = camera.point_of_interest;
-            chronon3d::camera_v1::ZoomProjection zoom;
-            zoom.zoom.set(camera.zoom);
-            descriptor.base.projection = zoom;
-            descriptor.orientation = chronon3d::camera_v1::LookAtPoint{camera.point_of_interest};
-            scene.camera_descriptor(std::move(descriptor));
+            scene.set_evaluated_camera(std::move(camera));
         }
-        // The canonical CLI executor builds this scene callback directly
-        // and does not pass through Composition::evaluate(), which is the
-        // path that normally applies a composition's default camera. Apply
-        // render-plan cameras here so camera tracks affect the rendered
-        // frame in both execution paths.
-        if (const auto static_camera = make_static_camera(plan)) {
-            scene.set_evaluated_camera(*static_camera);
-        } else if (plan_camera) {
-            chronon3d::camera_v1::PoseTracksSource pose;
-            pose.position = chronon3d::AnimatedValue<chronon3d::Vec3>{
-                plan_camera->base.position};
-            pose.rotation = chronon3d::AnimatedValue<chronon3d::Vec3>{
-                plan_camera->base.rotation};
-            pose.fov_deg = chronon3d::AnimatedValue<float>{
-                plan.camera->fov_deg};
-            pose.zoom = chronon3d::AnimatedValue<float>{
-                1000.0f * plan.camera->zoom};
-            if (const auto* authored = std::get_if<
-                    chronon3d::camera_v1::PoseTracksSource>(
-                        &plan_camera->source)) {
-                pose = *authored;
-            }
-            const auto camera_context = chronon3d::camera_v1::CameraEvalContext::at(
-                ctx.frame(), ctx.frame_rate(), ctx.width, ctx.height);
-            auto evaluated_camera = chronon3d::camera_v1::eval_pose_tracks(
-                plan_camera->base, pose, camera_context);
+        // RenderPlan camera samples already carry the authored pose and
+        // optics. Resolve their scalar tracks directly into renderer state;
+        // do not compile another Camera V1 authoring program.
+        if (camera_evaluator) {
+            auto evaluated_camera = camera_evaluator(ctx.effective_frame());
             if (plan.camera_shake) {
                 const auto& shake = *plan.camera_shake;
-                const double frame = static_cast<double>(ctx.frame().integral());
+                const double frame = ctx.effective_frame();
                 const double elapsed_frames = frame - static_cast<double>(shake.start_frame.integral());
                 const bool in_range = elapsed_frames >= 0.0 &&
                     (shake.duration_frames.integral() == 0 ||

@@ -648,9 +648,9 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(decodedDof->camera->dof_focus_distance == doctest::Approx(425.f));
     CHECK(decodedDof->camera->focal_length_mm == doctest::Approx(50.f));
     CHECK(decodedDof->camera->f_stop == doctest::Approx(2.8f));
-    const auto staticCamera = chronon3d::render_plan::detail::make_static_camera(*decodedDof);
-    REQUIRE(staticCamera.has_value());
-    CHECK_FALSE(chronon3d::render_plan::detail::make_camera_descriptor(*decodedDof));
+    const auto cameraEvaluator = chronon3d::render_plan::detail::make_camera_evaluator(*decodedDof);
+    REQUIRE(cameraEvaluator);
+    const auto staticCamera = cameraEvaluator(0.0);
     CHECK(staticCamera->dof.enabled);
     CHECK(staticCamera->dof.aperture == doctest::Approx(0.035f));
     CHECK(staticCamera->dof.focus_distance == doctest::Approx(425.f));
@@ -670,10 +670,11 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
 
     auto fovOnlyPlan = *decodedDof;
     fovOnlyPlan.camera->focal_length_mm = 0.f;
-    const auto fovOnlyCamera = chronon3d::render_plan::detail::make_static_camera(fovOnlyPlan);
-    REQUIRE(fovOnlyCamera.has_value());
-    CHECK(fovOnlyCamera->optics_mode == chronon3d::CameraOpticsMode::FieldOfView);
-    CHECK(fovOnlyCamera->fov_deg == doctest::Approx(fovOnlyPlan.camera->fov_deg));
+    const auto fovOnlyEvaluator = chronon3d::render_plan::detail::make_camera_evaluator(fovOnlyPlan);
+    REQUIRE(fovOnlyEvaluator);
+    const auto fovOnlyCamera = fovOnlyEvaluator(0.0);
+    CHECK(fovOnlyCamera.optics_mode == chronon3d::CameraOpticsMode::FieldOfView);
+    CHECK(fovOnlyCamera.fov_deg == doctest::Approx(fovOnlyPlan.camera->fov_deg));
 
 }
 
