@@ -7,9 +7,6 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/core/types/result.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -21,7 +18,8 @@ struct CompositionCompileContext {};
 
 struct CompositionCompileError {
     enum class Kind : std::uint8_t {
-        EmptyCompositionSpec = 0, NoSceneFunction = 1, CameraFailure = 2,
+        EmptyCompositionSpec = 0, NoSceneFunction = 1,
+        CameraFailure = 2, // Reserved for source/ABI compatibility.
         NotImplementedYet = 3, Internal = 4,
     };
     Kind kind = Kind::Internal;
@@ -38,9 +36,6 @@ struct CompositionEvaluateError {
     Kind kind = Kind::Internal;
     std::string message{};
 };
-
-Result<camera_v1::CameraProgram, CompositionCompileError>
-compile_camera(const camera_v1::CameraDescriptor&, const CompositionCompileContext&);
 
 /// Canonical compiler entry point: Composition is the only core input model.
 Result<CompiledComposition, CompositionCompileError>

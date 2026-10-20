@@ -1,50 +1,19 @@
 #pragma once
 
-// ============================================================================
-// include/chronon3d/timeline/evaluated_composition_frame.hpp
-//
-// P3-C (V0.2 timeline staging) — `EvaluatedCompositionFrame` is the typed
-// output of one
-// composition evaluated at one FrameContext point in time:
-//
-//   - `scene`   \u2014 the fully-resolved `Scene` for this frame (consumers
-//                can route directly to the V2 render driver).
-//   - `camera`  \u2014 optionally the fully-resolved `Camera2_5D` for this
-//                frame; `std::nullopt` means identity / 2.5D null-rig
-//                (an absent authored camera).
-//
-// The result is intentionally a value object so callers do not need a
-// second composition-evaluation helper with a parallel return shape.
-#include <optional>
 #include <memory_resource>
 
-#include <chronon3d/scene/model/core/scene.hpp>                  // Scene (canonical)
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>          // Camera2_5D
+#include <chronon3d/scene/model/core/scene.hpp>
 
 namespace chronon3d {
 
-// ─────────────────────────────────────────────────────────────────────────────
-// chronon3d::EvaluatedCompositionFrame
-//
-//   V2 staging struct.  Sits NEXT to (does NOT replace) anything \u2014 it is the
-//   typed result of `CompiledComposition::evaluate(frame)` once that method
-//   materialises (this struct is the output shape, not the function itself).
-//
-//   * `scene`    \u2014 the resolved `Scene` for this frame.
-//   * `camera`   \u2014 the resolved `Camera2_5D` for this frame, or `std::nullopt`
-//                  for the identity / 2.5D null-rig fallback.
-//
-//   Surface-cost note:
-//     `_scene_` brings in the Scene subtree (model/core) and `_Camera2_5D_`
-//     brings in GLM math templates.  Acceptable for the V0.2 stage-in.
-// ─────────────────────────────────────────────────────────────────────────────
+/// The scene produced by evaluating a composition at one sample time.
+/// Its camera is already resolved and stored in Scene for the renderer.
 struct EvaluatedCompositionFrame {
     explicit EvaluatedCompositionFrame(
         std::pmr::memory_resource* resource = std::pmr::get_default_resource())
         : scene(resource) {}
 
-    Scene                          scene{};
-    std::optional<Camera2_5D>      camera{};
+    Scene scene{};
 };
 
 } // namespace chronon3d

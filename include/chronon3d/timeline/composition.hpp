@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <functional>
 #include <atomic>
 #include <string>
@@ -58,17 +57,6 @@ public:
 
     [[nodiscard]] const SceneFunction& scene_function() const noexcept { return m_render; }
 
-    Composition& default_camera_descriptor(
-        camera_v1::CameraDescriptor descriptor) {
-        m_default_camera_desc = std::move(descriptor);
-        return *this;
-    }
-    [[nodiscard]] const camera_v1::CameraDescriptor&
-    default_camera_descriptor() const noexcept { return m_default_camera_desc; }
-    [[nodiscard]] bool has_default_camera_descriptor() const noexcept {
-        return !m_default_camera_desc.id.empty();
-    }
-
 private:
     friend Result<CompiledComposition, CompositionCompileError>
     compile_composition(const Composition&, const CompositionCompileContext&);
@@ -78,7 +66,6 @@ private:
     }
     [[nodiscard]] SceneFunction scene_function_snapshot() const { return m_render; }
 
-    camera_v1::CameraDescriptor m_default_camera_desc{};
     std::uint64_t m_scene_content_fingerprint{0};
     inline static std::atomic_uint64_t s_next_identity{1};
     std::uint64_t m_identity{0};

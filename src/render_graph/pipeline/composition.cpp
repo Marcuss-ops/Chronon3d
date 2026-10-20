@@ -8,8 +8,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/animation/temporal/temporal_samples.hpp>     // PR1: single source of truth
-#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
-#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include <chronon3d/runtime/job/job_session.hpp>
@@ -193,12 +191,7 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
                 "compiled composition evaluation failed: " +
                 evaluated.error().message);
         }
-        const auto camera = evaluated.value().camera;
-        Scene scene = std::move(evaluated.value().scene);
-        if (camera.has_value()) {
-            scene.set_camera_2_5d(*camera);
-        }
-        return scene;
+        return std::move(evaluated.value().scene);
     };
 
     // PR1 — Mutually-exclusive motion-blur modes.  See MotionBlurMode.
