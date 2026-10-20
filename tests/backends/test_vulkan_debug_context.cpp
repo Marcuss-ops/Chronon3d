@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 
 TEST_SUITE("VulkanDebugContext") {
@@ -437,6 +438,96 @@ TEST_CASE("Vulkan dashed curves, contours and translucent strokes match software
             CHECK(rgba[index + 3] == doctest::Approx(expected.a).epsilon(1e-5));
         }
     }
+    REQUIRE(backend->release_surface(handle).ok());
+}
+
+TEST_CASE("Vulkan stroke-only path with round caps draws through draw_node") {
+    // Regression for TICKET-VULKAN-STROKE-ONLY-DRAW. A fill-less path whose
+    // stroke uses round caps used to be rejected by try_native_path_stroke
+    // (it accepted LineCap::Butt only); with no fallback attached draw_node
+    // then reported UnsupportedCapability while the CLI kept exit 0 and wrote
+    // a background-only frame. The kernel-level test in
+    // test_backend_registry_vulkan_dispatch.cpp could not catch this because
+    // it calls fill_dashed_path_surface directly, bypassing the routing.
+    using namespace chronon3d;
+    using namespace chronon3d::backends::vulkan;
+
+    auto backend_base = make_vulkan_backend(0);
+    auto* backend = dynamic_cast<VulkanBackend*>(backend_base.get());
+    REQUIRE(backend != nullptr);
+
+    constexpr int width = 64;
+    constexpr int height = 64;
+    constexpr runtime::RenderSurfaceHandle handle = 0xC3D102u;
+    const auto desc = runtime::SurfaceDesc::make(
+        width, height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Generic,
+        runtime::LifetimeClass::FrameTransient,
+        runtime::ColorMetadata{});
+    REQUIRE(backend->create_surface(handle, desc).ok());
+    REQUIRE(backend->initialize_transparent_surface(handle).ok());
+
+    Framebuffer gpu(width, height);
+    gpu.set_surface_handle(handle);
+    RenderState state;
+    state.matrix = Mat4{1.0f};
+    Camera camera;
+
+    RenderNode ring;
+    ring.shape.set_type(ShapeType::Path);
+    auto& path = ring.shape.path();
+    path.fill.enabled = false;
+    path.stroke.enabled = true;
+    path.stroke.width = 4.0f;
+    path.stroke.color = Color{0.49f, 0.49f, 0.39f, 1.0f};
+    path.stroke.cap = LineCap::Round;
+    constexpr int segments = 32;
+    for (int i = 0; i <= segments; ++i) {
+        const double angle = 2.0 * 3.14159265358979323846 *
+            static_cast<double>(i) / static_cast<double>(segments);
+        const auto x = static_cast<float>(32.0 + 20.0 * std::cos(angle));
+        const auto y = static_cast<float>(32.0 + 20.0 * std::sin(angle));
+        if (i == 0)
+            path.commands.push_back(PathCommand::move_to({x, y}));
+        else
+            path.commands.push_back(PathCommand::line_to({x, y}));
+    }
+    path.commands.push_back(PathCommand::close());
+
+    Framebuffer oracle(width, height);
+    renderer::PathRasterizer::draw_path(oracle, ring, state, camera, width, height);
+    std::size_t oracle_covered = 0;
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            if (oracle.get_pixel(x, y).a > 0.05f) ++oracle_covered;
+        }
+    }
+    // The software oracle must paint the ring, otherwise the comparison below
+    // would silently degrade into "nothing versus nothing".
+    REQUIRE(oracle_covered > 0);
+
+    backend->begin_frame_batch();
+    const auto draw = backend->draw_node(gpu, ring, state, camera, width, height);
+    backend->end_frame_batch();
+    REQUIRE(draw.ok());
+
+    std::vector<float> rgba(static_cast<std::size_t>(width) * height * 4U);
+    REQUIRE(backend->download_surface(handle, rgba).ok());
+    std::size_t gpu_covered = 0;
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const auto index = (static_cast<std::size_t>(y) * width + x) * 4U;
+            if (rgba[index + 3] > 0.05f) ++gpu_covered;
+            const Color expected = oracle.get_pixel(x, y);
+            CHECK(rgba[index] == doctest::Approx(expected.r).epsilon(1e-5));
+            CHECK(rgba[index + 1] == doctest::Approx(expected.g).epsilon(1e-5));
+            CHECK(rgba[index + 2] == doctest::Approx(expected.b).epsilon(1e-5));
+            CHECK(rgba[index + 3] == doctest::Approx(expected.a).epsilon(1e-5));
+        }
+    }
+    // Fail-closed guard: the native route must actually produce coverage.
+    CHECK(gpu_covered > 0);
+    CHECK(gpu_covered == oracle_covered);
     REQUIRE(backend->release_surface(handle).ok());
 }
 

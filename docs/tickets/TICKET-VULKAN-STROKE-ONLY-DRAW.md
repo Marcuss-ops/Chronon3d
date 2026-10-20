@@ -1,7 +1,9 @@
 # TICKET-VULKAN-STROKE-ONLY-DRAW — Vulkan drops stroke-only path shapes
 
 ## Stato
-OPEN — riproduzione minima archiviata in questo checkout (2026-10-19).
+RESOLVED (2026-10-20) — causa individuata, fix in `43db75c22`, regressione a
+livello di routing in `tests/backends/test_vulkan_debug_context.cpp`. La
+riproduzione minima resta archiviata come prova storica.
 
 ## Sintomo
 Un layer `type: "shape"` con `shape.type: "path"`, `stroke` e senza `fill` non
@@ -39,17 +41,50 @@ $CLI render --plan output/example_svg/probe_vulkan_stroke_only.plan.json \
 - Aggiungere un `fill` potrebbe cambiare il ramo di paint e aggirare il
   difetto; non verificato in questa riproduzione.
 
-## Hypotesis / prossimi passi
+## Causa e fix (verificati 2026-10-20)
 
-1. Ridurre a un caso nel preset `linux-video-test` (CTest) prima di toccare il
-   render code: piano V3 inline → decode → compile → `TestRenderer` su surface
-   vulkan, con assert su coverage alpha > 0. Un assert di coverage rende il
-   difetto fail-closed nella suite esistente.
-2. Ispezionare il draw del path nella pipeline Vulkan: probabile ramo di paint
-   che richiede un payload `fill`, o lo stroke che salta la geometria outlined
-   quando non c'è fill.
-3. Aggiungere un gate di parità encoded software-vs-vulkan sul piano di
-   riproduzione (pixel-check a soglia) per bloccare regressioni future.
+1. **Causa.** In `src/backends/vulkan/vulkan_native_shape_dispatch.cpp`,
+   `try_native_path_stroke` accettava solo `LineCap::Butt`:
+
+   ```cpp
+   if (!path.stroke.enabled || path.stroke.width <= 0.0f ||
+       path.stroke.gradient.has_value() || path.stroke.cap != LineCap::Butt ||
+       graph::native_promotion::has_active_mask(state))
+       return false;
+   ```
+
+   Il piano di riproduzione usa `cap: round`, quindi la rotta nativa veniva
+   rifiutata. `try_native_path_fill` rifiuta a sua volta (nessun fill) e
+   `try_native_solid_rect` non copre `ShapeType::Path`: senza fallback
+   agganciato `draw_node` restituisce `UnsupportedCapability`, che la CLI
+   ignora uscendo 0 → video col solo sfondo. Il difetto era nel **routing**,
+   non nel kernel di stroke (che già disegnava).
+2. **Fix.** Commit `43db75c22` accetta `Butt` e `Round` e inoltra il flag
+   `path.stroke.cap == LineCap::Round` a `fill_dashed_path_surface`.
+3. **Prova runtime.** Sul CLI Release corrente lo stesso piano rende
+   software vs vulkan byte-identico: diff massima 0.0, 2553 pixel sopra
+   luma 10, bbox (0,0)-(154,154); `CHRONON3D_PATH_DIAG=1` mostra
+   `[native-path-dispatch-diag] ... runs=1 points=98` e nessun
+   `native path routes rejected`. L'artefatto pre-fix
+   `probe_stroke_only_vulkan.mp4` resta a 0 pixel sopra soglia.
+4. **Regressione.** `tests/backends/test_vulkan_debug_context.cpp`,
+   caso `Vulkan stroke-only path with round caps draws through draw_node`:
+   costruisce un ring stroke-only (`cap: round`, 32 segmenti, 64×64),
+   confronta pixel-per-pixel con l'oracle software
+   (`renderer::PathRasterizer`) e chiude il buco fail-open con
+   `REQUIRE(draw.ok())` + copertura alpha > 0. Con la condizione pre-fix
+   ripristinata il caso fallisce su `REQUIRE(draw.ok())`; con il fix
+   l'intero binario passa 11/11 casi, 34876 asserzioni.
+
+Perché il test precedente non lo vedeva: `tests/registry/test_backend_registry_vulkan_dispatch.cpp`
+chiama `fill_dashed_path_surface` direttamente e quindi non esercita il
+routing `draw_node → try_native_path_fill/try_native_path_stroke`.
+
+## Residuo
+
+- Gate encoded software-vs-vulkan a soglia sul piano di riproduzione:
+  **non implementato**. La parità è oggi coperta a livello di buffer RGBA nel
+  test di routing, non da un gate sulla MP4 encoded.
 
 ## Riferimenti
 - `PROBLEMS.md` §Aperti (2026-10-19) — voce 2 rimanda a questo ticket.
