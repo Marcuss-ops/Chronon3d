@@ -371,31 +371,26 @@ TEST_CASE("CameraPath: step larger than range produces single sample") {
     CHECK(samples.size() == 1); // only frame 0
 }
 
-TEST_CASE("CameraPath: composition with animated camera via SceneBuilder") {
-    // Test that a composition using camera_pose() in SceneBuilder
-    // produces a valid camera path when sampled
+TEST_CASE("CameraPath: composition preserves a resolved camera from SceneBuilder") {
     CompositionSpec spec;
-    spec.name = "AnimatedCamTest";
+    spec.name = "ResolvedCameraTest";
     spec.width = 1920;
     spec.height = 1080;
     spec.duration = 30;
 
     Composition comp(spec, [](const FrameContext& ctx) -> Scene {
         SceneBuilder builder(ctx);
-        camera_v1::PoseTracksSource cam;
-        cam.position.set(Vec3{0.0f, 0.0f, -1000.0f});
-        cam.zoom.set(1000.0f);
-        builder.camera_pose(cam);
+        builder.set_evaluated_camera(
+            camera().enabled().position({0.0f, 0.0f, -1000.0f})
+                .zoom(1000.0f).build());
         return builder.build();
     });
 
     auto samples = sample_comp(comp, 0, 29, 1);
-    CHECK(samples.size() == 30);
-
-    // All samples should have valid (non-NaN) positions
-    for (const auto& s : samples) {
-        CHECK(!std::isnan(s.position.x));
-        CHECK(!std::isnan(s.position.y));
-        CHECK(!std::isnan(s.position.z));
+    REQUIRE(samples.size() == 30);
+    for (const auto& sample : samples) {
+        CHECK_FALSE(std::isnan(sample.position.x));
+        CHECK_FALSE(std::isnan(sample.position.y));
+        CHECK_FALSE(std::isnan(sample.position.z));
     }
 }

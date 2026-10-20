@@ -67,19 +67,17 @@ TEST_CASE("SceneBuilder lighting API stores scene lights") {
     CHECK(scene.light_context().directional_color.g == doctest::Approx(0.9f));
 }
 
-TEST_CASE("SceneBuilder evaluates the canonical camera descriptor") {
-    camera_v1::CameraDescriptor camera;
-    camera.id = "scene-builder-camera";
-    camera.base.position = {12.0f, -8.0f, -900.0f};
-    camera.base.rotation = {4.0f, 7.0f, -2.0f};
-    camera_v1::FovProjection fov;
-    fov.fov_deg.set(62.0f);
-    camera.base.projection = fov;
-    camera.base.point_of_interest_enabled = true;
-    camera.base.point_of_interest = {3.0f, 5.0f, 0.0f};
-    camera.orientation = camera_v1::LookAtPoint{{3.0f, 5.0f, 0.0f}};
+TEST_CASE("SceneBuilder preserves an evaluated camera state") {
+    Camera2_5D camera;
+    camera.enabled = true;
+    camera.position = {12.0f, -8.0f, -900.0f};
+    camera.rotation = {4.0f, 7.0f, -2.0f};
+    camera.optics_mode = CameraOpticsMode::FieldOfView;
+    camera.fov_deg = 62.0f;
+    camera.point_of_interest_enabled = true;
+    camera.point_of_interest = {3.0f, 5.0f, 0.0f};
     SceneBuilder builder;
-    builder.camera_descriptor(camera);
+    builder.set_evaluated_camera(camera);
     const Scene scene = builder.build();
 
     const auto& resolved = scene.camera_2_5d();
@@ -89,18 +87,6 @@ TEST_CASE("SceneBuilder evaluates the canonical camera descriptor") {
     CHECK(resolved.optics_mode == CameraOpticsMode::FieldOfView);
     CHECK(resolved.fov_deg == doctest::Approx(62.0f));
     CHECK(resolved.point_of_interest_enabled);
-}
-
-TEST_CASE("SceneBuilder pose tracks produce resolved camera state") {
-    camera_v1::PoseTracksSource pose;
-    pose.position = AnimatedValue<Vec3>{Vec3{2.0f, 3.0f, -800.0f}};
-    SceneBuilder builder;
-    builder.camera_pose(pose);
-    const Scene scene = builder.build();
-
-    CHECK(scene.camera_2_5d().position.x == doctest::Approx(2.0f));
-    CHECK(scene.camera_2_5d().position.y == doctest::Approx(3.0f));
-    CHECK(scene.camera_2_5d().position.z == doctest::Approx(-800.0f));
 }
 
 TEST_CASE("LayerBuilder accepts_lights toggles material") {

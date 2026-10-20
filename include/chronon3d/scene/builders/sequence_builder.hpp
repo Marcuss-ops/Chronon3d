@@ -116,18 +116,6 @@ public:
         return *this;
     }
 
-    // ── Camera (delegate to SceneBuilder) ────────────────────────────
-
-    SequenceBuilder& camera_descriptor(camera_v1::CameraDescriptor descriptor) {
-        m_builder.camera_descriptor(std::move(descriptor));
-        return *this;
-    }
-
-    SequenceBuilder& camera_pose(const camera_v1::PoseTracksSource& cam) {
-        m_builder.camera_pose(cam);
-        return *this;
-    }
-
     // ── Context accessors ───────────────────────────────────────────
 
     [[nodiscard]] SampleTime local_time() const noexcept { return m_ctx.local_time(); }

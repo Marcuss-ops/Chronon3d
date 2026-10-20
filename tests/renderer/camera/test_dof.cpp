@@ -71,7 +71,7 @@ TEST_CASE("DOF: disabled returns zero blur") {
 TEST_CASE("DOF: render with DOF enabled does not crash") {
     auto fb = render_dof_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.camera_descriptor(camera().enabled(true).position({0, 0, -1000})
+        s.set_evaluated_camera(camera().enabled(true).position({0, 0, -1000})
             .zoom(1000.0f).dof(DepthOfFieldSettings{
                 .enabled  = true,
                 .focus_z  = 0.0f,

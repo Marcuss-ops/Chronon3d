@@ -23,7 +23,7 @@ TEST_CASE("Camera hierarchy: target resolves through parent chain") {
         l.parent("rig").position({50, 30, 0});
     });
 
-    s.camera_descriptor(camera().enabled().position({0, 0, -1000}).target("target").build());
+    s.set_evaluated_camera(camera().enabled().position({0, 0, -1000}).target("target").build());
 
     auto scene = s.build();
     auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
@@ -68,7 +68,7 @@ TEST_CASE("Camera hierarchy: parent rotation moves the camera around the origin"
         l.enable_3d().rotate({0, 90, 0});
     });
 
-    s.camera_descriptor(camera().enabled().position({0, 0, -1000})
+    s.set_evaluated_camera(camera().enabled().position({0, 0, -1000})
         .rotation({0.0f, 0.0f, 0.0f}).parent("rig").build());
 
     auto scene = s.build();
@@ -97,7 +97,7 @@ TEST_CASE("Camera hierarchy: target with anchor resolves POI to anchor (not laye
         l.position({720, 30, 0}).anchor({-200, 10, 0});
     });
 
-    s.camera_descriptor(camera().enabled().position({0, 0, -1000}).target("target_b").build());
+    s.set_evaluated_camera(camera().enabled().position({0, 0, -1000}).target("target_b").build());
 
     auto scene = s.build();
     auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());

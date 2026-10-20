@@ -2,18 +2,16 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/animation/effects/stagger.hpp>
 #include <string>
 #include <vector>
 #include <functional>
-#include <optional>
 
 namespace chronon3d {
 
 /**
- * TimelineBuilder — declarative, fluent API for choreographing layers and
- * camera over time within a SceneBuilder.
+ * TimelineBuilder — declarative, fluent API for choreographing layers within
+ * a SceneBuilder.
  *
  * Usage:
  *   TimelineBuilder t(s);
@@ -22,7 +20,6 @@ namespace chronon3d {
  *       l.scale_anim().key(Frame{0}, Vec3{0.9f, 0.9f, 1.0f})
  *                      .key(Frame{20}, Vec3{1.0f, 1.0f, 1.0f});
  *   })
- *   .add("camera").from(0).duration(120).with_camera_pose(camera_v1::presets::hero_push_in())
  *   .stagger({"title"}, StaggerConfig{.delay_per_unit = Frame{4}}, StaggerOrder::LeftToRight)
  *   .apply();
  */
@@ -40,7 +37,6 @@ public:
 
     // ── Content ────────────────────────────────────────────────────────────
     TimelineBuilder& with(std::function<void(LayerBuilder&)> fn);
-    TimelineBuilder& with_camera_pose(const camera_v1::PoseTracksSource& cam);
 
     // ── Stagger (applied in apply() after all tracks are built) ──────────
     TimelineBuilder& stagger(const std::vector<std::string>& names,
@@ -58,8 +54,6 @@ private:
         Frame from{0};
         Frame duration{-1};
         std::function<void(LayerBuilder&)> layer_fn;
-        std::optional<camera_v1::PoseTracksSource> camera;
-        bool is_camera{false};
     };
 
     struct StaggerOp {
