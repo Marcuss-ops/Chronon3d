@@ -222,6 +222,24 @@ TEST_CASE("Text health / repeated materialization reuses the cached layout") {
     CHECK(first->layout->layout_hash() == second->layout->layout_hash());
 }
 
+TEST_CASE("Text health / missing OpenType BASE script records use fallback") {
+    TextHealthEnvironment env;
+    FontSpec font{"assets/fonts/FreeSerif.ttf", "FreeSerif", 400, "normal", 48.0f};
+    REQUIRE_MESSAGE(env.font_engine.can_load(font), "Bundled FreeSerif test font did not load.");
+
+    const auto latin_hanging = env.font_engine.get_open_type_baseline_offset(
+        font, 48.0f, "hanging", "Latn", TextDirection::LTR);
+    const auto arabic_hanging = env.font_engine.get_open_type_baseline_offset(
+        font, 48.0f, "hanging", "Arab", TextDirection::RTL);
+    const auto latin_script = env.font_engine.get_open_type_baseline_offset(
+        font, 48.0f, "auto", "Latn", TextDirection::LTR);
+    // FreeSerif's BASE table has no horizontal baseline records for these
+    // scripts. The SVG renderer must use its metric fallback in this case.
+    CHECK_FALSE(latin_hanging.has_value());
+    CHECK_FALSE(arabic_hanging.has_value());
+    CHECK_FALSE(latin_script.has_value());
+}
+
 TEST_CASE("Text health / Unicode and RTL text survive shaping and materialization") {
     TextHealthEnvironment env;
     const auto font = find_health_font(env.font_engine, 46.0f);
@@ -238,4 +256,10 @@ TEST_CASE("Text health / Unicode and RTL text survive shaping and materializatio
     CHECK(shape->layout->language == "ar");
     CHECK(shape->layout->units.grapheme_count > 0);
     CHECK(shape->layout->units.word_count >= 2);
+    REQUIRE_FALSE(shape->layout->placed.glyphs.empty());
+    const auto first_line_y = shape->layout->placed.glyphs.front().y;
+    CHECK(first_line_y > 1.0f);
+    for (const auto& glyph : shape->layout->placed.glyphs) {
+        CHECK(glyph.y > 1.0f);
+    }
 }

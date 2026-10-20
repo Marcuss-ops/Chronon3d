@@ -192,10 +192,23 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     for (const auto& item : m_items) {
         key.params_hash = hash_combine(key.params_hash, hash_value(item.matrix));
         key.params_hash = hash_combine(key.params_hash, hash_value(item.opacity));
-        if (item.group) {
-            key.params_hash =
-                hash_combine(key.params_hash, hash_value(static_cast<std::uint64_t>(item.group->id)));
-            key.params_hash = hash_combine(key.params_hash, hash_value(item.group->opacity));
+        const auto groups = item.groups.empty() && item.group
+            ? std::vector<MultiSourceItem::GroupIsolationSpec>{*item.group}
+            : item.groups;
+        for (const auto& group : groups) {
+            key.params_hash = hash_combine(
+                key.params_hash, hash_value(static_cast<std::uint64_t>(group.id)));
+            key.params_hash = hash_combine(key.params_hash, hash_value(group.opacity));
+            if (group.opacity_animation) {
+                const auto& animation = *group.opacity_animation;
+                key.params_hash = hash_combine(key.params_hash,
+                    hash_value(static_cast<u64>(animation.start_frame)));
+                key.params_hash = hash_combine(key.params_hash,
+                    hash_value(static_cast<u64>(animation.end_frame)));
+                key.params_hash = hash_combine(key.params_hash, hash_value(animation.from));
+                key.params_hash = hash_combine(key.params_hash, hash_value(animation.to));
+                key.params_hash = hash_combine(key.params_hash, hash_value(animation.discrete));
+            }
         }
 #ifdef CHRONON3D_ENABLE_TEXT
         // text_run items also fold the per-glyph animated state of
@@ -292,7 +305,7 @@ NodeExecResult MultiSourceNode::execute(
     //
     bool has_group_items = false;
     for (const auto& item : m_items)
-        if (item.group) { has_group_items = true; break; }
+        if (item.group || !item.groups.empty()) { has_group_items = true; break; }
     const bool native_group_surfaces = has_group_items &&
         ctx.backend->supports_native_surfaces() && ctx.surface_registry;
     if (has_group_items && ctx.policy.is_gpu_native_required() &&
@@ -302,30 +315,33 @@ NodeExecResult MultiSourceNode::execute(
             "svg_group_native_unsupported: native surface registry unavailable"}};
     }
 
-    OwnedFB group_fb;
-    std::uint32_t pending_group_id = 0;
-    f32 pending_group_alpha = 0.0f;
+    struct ActiveGroup {
+        MultiSourceItem::GroupIsolationSpec spec;
+        OwnedFB framebuffer;
+    };
+    std::vector<ActiveGroup> active_groups;
 
     std::string group_failure;
-    auto blend_group_surface = [&](Framebuffer& surface, f32 group_alpha) -> bool {
+    auto blend_group_surface = [&](Framebuffer& destination, Framebuffer& surface,
+                                   f32 group_alpha) -> bool {
         if (native_group_surfaces) {
-            const auto destination = fb->surface_handle();
+            const auto destination_handle = destination.surface_handle();
             const auto source = surface.surface_handle();
-            if (destination == runtime::kInvalidRenderSurfaceHandle ||
+            if (destination_handle == runtime::kInvalidRenderSurfaceHandle ||
                 source == runtime::kInvalidRenderSurfaceHandle ||
-                !ctx.backend->is_native_surface_valid(destination) ||
+                !ctx.backend->is_native_surface_valid(destination_handle) ||
                 !ctx.backend->is_native_surface_valid(source)) {
                 group_failure = "svg_group_native_unsupported: group surface is not GPU resident";
                 return false;
             }
             const auto result = ctx.backend->composite_surface_weighted(
-                destination, source, group_alpha);
+                destination_handle, source, group_alpha);
             if (!result.ok()) {
                 group_failure = "SVG isolated group native composite failed: " +
                     result.error().message;
                 return false;
             }
-            fb->mark_gpu_authoritative();
+            destination.mark_gpu_authoritative();
             return true;
         }
         const i32 width = ctx.frame_input.width;
@@ -334,13 +350,13 @@ NodeExecResult MultiSourceNode::execute(
             for (i32 x = 0; x < width; ++x) {
                 const Color src = surface.get_pixel(x, y);
                 if (src.a <= 0.0f && group_alpha >= 1.0f) continue;
-                const Color dst = fb->get_pixel(x, y);
-                const f32 scaled_a = std::clamp(src.a * group_alpha, 0.0f, 1.0f);
+                const Color dst = destination.get_pixel(x, y);
+                const f32 scaled_a = src.a * group_alpha;
                 if (scaled_a <= 0.0f) continue;
                 const f32 keep = 1.0f - scaled_a;
                 const f32 out_a = scaled_a + dst.a * keep;
                 if (out_a <= 0.0f) {
-                    fb->set_pixel(x, y, Color::transparent());
+                    destination.set_pixel(x, y, Color::transparent());
                     continue;
                 }
                 Color out;
@@ -348,17 +364,20 @@ NodeExecResult MultiSourceNode::execute(
                 out.g = src.g * group_alpha + dst.g * keep;
                 out.b = src.b * group_alpha + dst.b * keep;
                 out.a = out_a;
-                fb->set_pixel(x, y, out);
+                destination.set_pixel(x, y, out);
             }
         }
         return true;
     };
-    auto flush_pending_group = [&]() -> bool {
-        if (!group_fb) return true;
-        if (!blend_group_surface(*group_fb, pending_group_alpha)) return false;
-        group_fb.reset();
-        pending_group_id = 0;
-        pending_group_alpha = 0.0f;
+    auto flush_groups_to = [&](std::size_t depth) -> bool {
+        while (active_groups.size() > depth) {
+            ActiveGroup closing = std::move(active_groups.back());
+            active_groups.pop_back();
+            Framebuffer& destination = active_groups.empty()
+                ? *fb : *active_groups.back().framebuffer;
+            if (!blend_group_surface(destination, *closing.framebuffer,
+                                     closing.spec.opacity)) return false;
+        }
         return true;
     };
 
@@ -366,17 +385,74 @@ NodeExecResult MultiSourceNode::execute(
             const auto& item = m_items[i];
             if (!item.node) continue;
 
-            // Group bookkeeping runs before any draw target selection.
-            const std::uint32_t item_group_id = item.group ? item.group->id : 0;
-            if (item_group_id != pending_group_id) {
-                if (!flush_pending_group())
+            auto item_groups = item.groups;
+            if (item_groups.empty() && item.group) item_groups.push_back(*item.group);
+            const double group_frame = static_cast<double>(
+                ctx.frame_input.sample_time.integral_frame());
+            for (auto& group : item_groups) {
+                if (!group.opacity_animation) continue;
+                const auto& animation = *group.opacity_animation;
+                if (animation.end_frame <= animation.start_frame ||
+                    !std::isfinite(animation.from) || !std::isfinite(animation.to))
                     return NodeExecResult{NodeExecutionError{
-                        RenderBackendErrorCode::ExecutionFailure,
-                        m_name,
-                        group_failure.empty() ? "svg_group_stage_failure" : group_failure
-                    }};
+                        RenderBackendErrorCode::InvalidInput, m_name,
+                        "svg_group_opacity_animation_invalid"}};
+                if (group_frame < static_cast<double>(animation.start_frame)) continue;
+                if (group_frame >= static_cast<double>(animation.end_frame)) {
+                    group.opacity = animation.to;
+                } else if (animation.discrete) {
+                    group.opacity = animation.from;
+                } else {
+                    const double progress = (group_frame - animation.start_frame) /
+                        static_cast<double>(animation.end_frame - animation.start_frame);
+                    group.opacity = static_cast<float>(animation.from +
+                        (animation.to - animation.from) * progress);
+                }
             }
-            if (item.group) {
+            if (item_groups.size() > 16)
+                return NodeExecResult{NodeExecutionError{
+                    RenderBackendErrorCode::UnsupportedCapability, m_name,
+                    "svg_group_depth_unsupported: nesting exceeds 16"}};
+            const std::size_t shared_depth = [&] {
+                std::size_t depth = 0;
+                while (depth < active_groups.size() && depth < item_groups.size() &&
+                    active_groups[depth].spec.id == item_groups[depth].id &&
+                    std::abs(active_groups[depth].spec.opacity - item_groups[depth].opacity) < 1e-6f)
+                    ++depth;
+                return depth;
+            }();
+            if (!flush_groups_to(shared_depth))
+                return NodeExecResult{NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure, m_name,
+                    group_failure.empty() ? "svg_group_stage_failure" : group_failure}};
+            for (std::size_t depth = shared_depth; depth < item_groups.size(); ++depth) {
+                const auto& group = item_groups[depth];
+                if (group.id == 0 || !std::isfinite(group.opacity) ||
+                    group.opacity < 0.0f || group.opacity > 1.0f)
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::InvalidInput, m_name,
+                        "svg_group_invalid: id and opacity are outside supported bounds"}};
+                if (!native_group_surfaces && fb->data() == nullptr) {
+                    spdlog::error(
+                        "[multi-source] node='{}': isolated SVG groups need CPU pixel access",
+                        m_name);
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::UnsupportedCapability, m_name,
+                        "svg_group_native_unsupported"}};
+                }
+                auto surface = ctx.acquire_owned_fb(
+                    ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
+                if (native_group_surfaces && !ensure_empty_native_surface(ctx, *surface))
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::ExecutionFailure, m_name,
+                        "failed to create native SVG group surface"}};
+                active_groups.push_back(ActiveGroup{group, std::move(surface)});
+                if (ctx.policy.diagnostics_enabled)
+                    spdlog::info("[multi-source] node='{}' group={} depth={} alpha={:.4f} begin",
+                        m_name, group.id, depth, group.opacity);
+            }
+            const bool item_is_grouped = !item_groups.empty();
+            if (item_is_grouped) {
                 if (item.node->shape.type() == ShapeType::TextRun) {
                     // Text runs and isolated SVG groups would need a
                     // different draw route; fail closed until certified.
@@ -389,37 +465,6 @@ NodeExecResult MultiSourceNode::execute(
                         m_name,
                         "svg_group_text_run_unsupported"
                     }};
-                }
-                if (!group_fb) {
-                    if (!native_group_surfaces && fb->data() == nullptr) {
-                        // No CPU pixel memory: the software blend below is
-                        // impossible. Fail closed, no silent CPU fallback.
-                        spdlog::error(
-                            "[multi-source] node='{}': isolated SVG groups "
-                            "need CPU pixel access (svg_group_native_unsupported)",
-                            m_name);
-                        return NodeExecResult{NodeExecutionError{
-                            RenderBackendErrorCode::UnsupportedCapability,
-                            m_name,
-                            "svg_group_native_unsupported"
-                        }};
-                    }
-                    group_fb = ctx.acquire_owned_fb(
-                        ctx.frame_input.width, ctx.frame_input.height,
-                        /*clear=*/true);
-                    if (native_group_surfaces &&
-                        !ensure_empty_native_surface(ctx, *group_fb)) {
-                        return NodeExecResult{NodeExecutionError{
-                            RenderBackendErrorCode::ExecutionFailure, m_name,
-                            "failed to create native SVG group surface"}};
-                    }
-                    pending_group_id = item_group_id;
-                    pending_group_alpha = item.group->opacity;
-                    if (ctx.policy.diagnostics_enabled) {
-                        spdlog::info(
-                            "[multi-source] node='{}' group={} alpha={:.4f} begin",
-                            m_name, item_group_id, pending_group_alpha);
-                    }
                 }
             }
 
@@ -520,7 +565,7 @@ NodeExecResult MultiSourceNode::execute(
             }
             state.matrix = placement->render_matrix;
 
-            state.opacity = item.group ? 1.0f : item.opacity;
+            state.opacity = item_is_grouped ? 1.0f : item.opacity;
             if (i < ctx.node_exec.current_shape_processors.size()) {
                 state.shape_processor = ctx.node_exec.current_shape_processors[i];
                 state.processor_snapshot = ctx.node_exec.processor_snapshot;
@@ -540,18 +585,85 @@ NodeExecResult MultiSourceNode::execute(
                 state.projection  = ctx.frame_input.projection_ctx;
             }
 
-        Framebuffer* draw_target = item.group ? group_fb.get() : fb.get();
-        const bool native_image = item.node->shape.type() == ShapeType::Image &&
-            detail::try_native_image(ctx, *draw_target, *item.node, state);
-        if (!native_image) {
-            const auto draw_result = ctx.backend->draw_node(
-                *draw_target, *item.node, state, ctx.frame_input.camera,
-                ctx.frame_input.width, ctx.frame_input.height);
-            if (!draw_result.ok()) {
+        Framebuffer* draw_target = item_is_grouped
+            ? active_groups.back().framebuffer.get() : fb.get();
+        if (!item.node->svg_local_masks.empty()) {
+            if (item.node->shape.type() != ShapeType::Path ||
+                native_group_surfaces || ctx.policy.is_gpu_native_required())
                 return NodeExecResult{NodeExecutionError{
-                    draw_result.error().code,
-                    m_name,
-                    draw_result.error().message}};
+                    RenderBackendErrorCode::UnsupportedCapability, m_name,
+                    "svg_element_mask_native_unsupported"}};
+            auto source_surface = ctx.acquire_owned_fb(
+                ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
+            if (source_surface->data() == nullptr)
+                return NodeExecResult{NodeExecutionError{
+                    RenderBackendErrorCode::UnsupportedCapability, m_name,
+                    "svg_element_mask_requires_software_surface"}};
+            const auto source_draw = ctx.backend->draw_node(
+                *source_surface, *item.node, state, ctx.frame_input.camera,
+                ctx.frame_input.width, ctx.frame_input.height);
+            if (!source_draw.ok())
+                return NodeExecResult{NodeExecutionError{
+                    source_draw.error().code, m_name, source_draw.error().message}};
+
+            auto mask_surface = ctx.acquire_owned_fb(
+                ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
+            if (mask_surface->data() == nullptr)
+                return NodeExecResult{NodeExecutionError{
+                    RenderBackendErrorCode::UnsupportedCapability, m_name,
+                    "svg_element_mask_requires_software_surface"}};
+            RenderState mask_state = state;
+            mask_state.opacity = 1.0f;
+            for (const auto& mask_path : item.node->svg_local_masks) {
+                mask_surface->clear(Color::transparent());
+                RenderNode mask_node;
+                mask_node.name = "svg_element_mask";
+                mask_node.shape = Shape{mask_path};
+                const auto mask_draw = ctx.backend->draw_node(
+                    *mask_surface, mask_node, mask_state, ctx.frame_input.camera,
+                    ctx.frame_input.width, ctx.frame_input.height);
+                if (!mask_draw.ok())
+                    return NodeExecResult{NodeExecutionError{
+                        mask_draw.error().code, m_name, mask_draw.error().message}};
+                for (i32 y = 0; y < ctx.frame_input.height; ++y) {
+                    for (i32 x = 0; x < ctx.frame_input.width; ++x) {
+                        const f32 coverage = std::clamp(mask_surface->get_pixel(x, y).a, 0.0f, 1.0f);
+                        if (coverage >= 1.0f) continue;
+                        Color pixel = source_surface->get_pixel(x, y);
+                        pixel.r *= coverage;
+                        pixel.g *= coverage;
+                        pixel.b *= coverage;
+                        pixel.a *= coverage;
+                        source_surface->set_pixel(x, y, pixel);
+                    }
+                }
+            }
+            for (i32 y = 0; y < ctx.frame_input.height; ++y) {
+                for (i32 x = 0; x < ctx.frame_input.width; ++x) {
+                    const Color src = source_surface->get_pixel(x, y);
+                    if (src.a <= 0.0f) continue;
+                    const Color dst = draw_target->get_pixel(x, y);
+                    const f32 keep = 1.0f - src.a;
+                    draw_target->set_pixel(x, y, Color{
+                        src.r + dst.r * keep,
+                        src.g + dst.g * keep,
+                        src.b + dst.b * keep,
+                        src.a + dst.a * keep});
+                }
+            }
+        } else {
+            const bool native_image = item.node->shape.type() == ShapeType::Image &&
+                detail::try_native_image(ctx, *draw_target, *item.node, state);
+            if (!native_image) {
+                const auto draw_result = ctx.backend->draw_node(
+                    *draw_target, *item.node, state, ctx.frame_input.camera,
+                    ctx.frame_input.width, ctx.frame_input.height);
+                if (!draw_result.ok()) {
+                    return NodeExecResult{NodeExecutionError{
+                        draw_result.error().code,
+                        m_name,
+                        draw_result.error().message}};
+                }
             }
         }
 
@@ -570,7 +682,7 @@ NodeExecResult MultiSourceNode::execute(
         }
     }
 
-    if (!flush_pending_group())
+    if (!flush_groups_to(0))
         return NodeExecResult{NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,
             m_name,

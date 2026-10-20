@@ -37,8 +37,13 @@
 
 #include "text_compile_internal.hpp"
 
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
+
+#include <algorithm>
 #include <cstddef>
 #include <utility>
+#include <unicode/utf8.h>
+#include <unicode/uscript.h>
 
 namespace chronon3d::text_internal::compile {
 
@@ -154,28 +159,229 @@ shape_paragraph_runs(
     std::vector<Result<PlacedGlyphRun, TextLayoutError>> per_run_results;
     per_run_results.reserve(para_runs.size());
 
-    for (std::size_t ri = 0; ri < para_runs.size(); ++ri) {
-        const auto& run = para_runs[ri];
-        PlacedGlyphRun placed = shape_resolved_run(
-            run, engine, tracking, features, variation_axes);
+    const auto can_shape_together = [](const ResolvedTextRun& a,
+                                       const ResolvedTextRun& b) {
+        return a.direction == b.direction &&
+            a.font == b.font && a.paragraph_style.language == b.paragraph_style.language &&
+            a.byte_offset + a.byte_len == b.byte_offset;
+    };
+    const auto strong_script = [](UScriptCode script) {
+        return script != USCRIPT_COMMON && script != USCRIPT_INHERITED &&
+               script != USCRIPT_UNKNOWN;
+    };
+    const auto script_segments = [&](std::string_view text) {
+        std::vector<std::pair<std::size_t, std::size_t>> segments;
+        const auto* bytes = reinterpret_cast<const std::uint8_t*>(text.data());
+        const int32_t length = static_cast<int32_t>(text.size());
+        int32_t cursor = 0, start = 0;
+        UScriptCode current = USCRIPT_UNKNOWN;
+        while (cursor < length) {
+            const int32_t char_start = cursor;
+            UChar32 cp = 0;
+            U8_NEXT(bytes, cursor, length, cp);
+            if (cp < 0) continue;
+            UErrorCode error = U_ZERO_ERROR;
+            const auto script = uscript_getScript(cp, &error);
+            if (U_FAILURE(error) || !strong_script(script)) continue;
+            if (!strong_script(current)) { current = script; continue; }
+            if (script == current) continue;
+            segments.emplace_back(static_cast<std::size_t>(start),
+                                  static_cast<std::size_t>(char_start));
+            start = char_start;
+            current = script;
+        }
+        if (start < length)
+            segments.emplace_back(static_cast<std::size_t>(start), text.size());
+        if (segments.empty() && !text.empty()) segments.emplace_back(0, text.size());
+        return segments;
+    };
+    const auto shape_scripted = [&](const ResolvedTextRun& source) {
+        const auto segments = source.direction == TextDirection::LTR
+            ? script_segments(source.text)
+            : std::vector<std::pair<std::size_t, std::size_t>>{{0, source.text.size()}};
+        if (segments.size() <= 1)
+            return shape_resolved_run(source, engine, tracking, features, variation_axes);
 
-        // ── Per-run failure detection ────────────────────────
-        // A run whose text is non-empty but HarfBuzz produced zero
-        // glyphs means the font rejected the input (e.g. missing
-        // glyph coverage for a script).  Encode that as a per-run
-        // Err; apply_failure_policy consumes it on the next stage.
-        if (placed.glyphs.empty() && !run.text.empty()) {
-            per_run_results.push_back(make_text_layout_error(
-                TextLayoutErrorKind::PerRunShapingFailed,
-                "compile_text_layout: run " + std::to_string(ri)
-                + " of " + std::to_string(para_runs.size())
-                + " failed shaping (HarfBuzz produced zero glyphs"
-                + " for non-empty text '" + run.text + "')"
-            ));
+        PlacedGlyphRun result;
+        float pen = 0.0f;
+        for (const auto [start, end] : segments) {
+            auto segment = source;
+            segment.text = source.text.substr(start, end - start);
+            segment.byte_offset += start;
+            segment.byte_len = segment.text.size();
+            auto shaped = shape_resolved_run(segment, engine, tracking, features,
+                                             variation_axes);
+            if (shaped.glyphs.empty() && !segment.text.empty()) return PlacedGlyphRun{};
+            if (result.glyphs.empty()) {
+                result.ascent = shaped.ascent;
+                result.descent = shaped.descent;
+                result.baseline = shaped.baseline;
+                result.total_height = shaped.total_height;
+                result.font_size = shaped.font_size;
+            }
+            const auto glyph_base = result.glyphs.size();
+            for (auto glyph : shaped.glyphs) {
+                glyph.x += pen;
+                glyph.byte_offset += start;
+                result.glyphs.push_back(std::move(glyph));
+            }
+            for (auto cluster : shaped.clusters) {
+                cluster.start_glyph += glyph_base;
+                cluster.end_glyph += glyph_base;
+                cluster.byte_offset += start;
+                result.clusters.push_back(std::move(cluster));
+            }
+            pen += shaped.total_width;
+        }
+        result.total_width = pen;
+        return result;
+    };
+    for (std::size_t begin = 0; begin < para_runs.size();) {
+        std::size_t end = begin + 1;
+        while (end < para_runs.size() &&
+               can_shape_together(para_runs[end - 1], para_runs[end])) ++end;
+        if (end - begin == 1 &&
+            (para_runs[begin].direction != TextDirection::LTR ||
+             script_segments(para_runs[begin].text).size() <= 1)) {
+            const auto& run = para_runs[begin];
+            auto placed = shape_scripted(run);
+            if (placed.glyphs.empty() && !run.text.empty()) {
+                per_run_results.push_back(make_text_layout_error(
+                    TextLayoutErrorKind::PerRunShapingFailed,
+                    "compile_text_layout: run " + std::to_string(begin) + " of " +
+                    std::to_string(para_runs.size()) + " failed shaping (HarfBuzz produced zero glyphs for non-empty text '" + run.text + "')"));
+            } else {
+                per_run_results.push_back(std::move(placed));
+            }
+            begin = end;
             continue;
         }
 
-        per_run_results.push_back(std::move(placed));
+        ResolvedTextRun combined_run = para_runs[begin];
+        combined_run.text.clear();
+        std::vector<std::size_t> boundaries{0};
+        for (std::size_t index = begin; index < end; ++index) {
+            combined_run.text += para_runs[index].text;
+            boundaries.push_back(combined_run.text.size());
+        }
+        combined_run.byte_len = combined_run.text.size();
+        auto combined = shape_scripted(combined_run);
+        if (combined.glyphs.empty() && !combined_run.text.empty()) {
+            for (std::size_t index = begin; index < end; ++index)
+                per_run_results.push_back(make_text_layout_error(
+                    TextLayoutErrorKind::PerRunShapingFailed,
+                    "compile_text_layout: combined paint chunk failed shaping"));
+            begin = end;
+            continue;
+        }
+        bool boundaries_are_cluster_edges = true;
+        bool boundary_splits_grapheme = false;
+        const auto is_grapheme_boundary = [&](std::size_t byte) {
+            const auto count = detail::grapheme_cluster_count(combined_run.text);
+            for (std::size_t index = 0; index <= count; ++index) {
+                if (detail::grapheme_byte_offset_at(combined_run.text, index) == byte)
+                    return true;
+            }
+            return false;
+        };
+        for (std::size_t boundary = 1; boundary + 1 < boundaries.size(); ++boundary) {
+            const auto byte = boundaries[boundary];
+            if (!is_grapheme_boundary(byte)) boundary_splits_grapheme = true;
+            if (std::none_of(combined.clusters.begin(), combined.clusters.end(),
+                    [byte](const auto& cluster) { return cluster.byte_offset == byte; })) {
+                boundaries_are_cluster_edges = false;
+                break;
+            }
+        }
+        if (!boundaries_are_cluster_edges && !boundary_splits_grapheme) {
+            // A glyph cluster cannot be split between paint spans. Shape each
+            // authored run independently so a ligature never inherits only
+            // the first character's color. Kerning across this boundary is
+            // intentionally not synthesized from a partial cluster.
+            for (std::size_t index = begin; index < end; ++index) {
+                const auto& run = para_runs[index];
+                auto placed = shape_scripted(run);
+                if (placed.glyphs.empty() && !run.text.empty())
+                    per_run_results.push_back(make_text_layout_error(
+                        TextLayoutErrorKind::PerRunShapingFailed,
+                        "compile_text_layout: paint run at a ligature boundary failed shaping"));
+                else
+                    per_run_results.push_back(std::move(placed));
+            }
+            begin = end;
+            continue;
+        }
+        if (boundary_splits_grapheme) {
+            // Keep the shaped grapheme in one placed run so its base/mark
+            // offsets and shared line baseline remain intact. When HarfBuzz
+            // exposes separate source clusters inside that grapheme, carry
+            // their authored paint on the glyph instead of splitting its
+            // geometry into text runs.
+            for (auto& glyph : combined.glyphs) {
+                const auto upper = std::upper_bound(boundaries.begin(), boundaries.end(),
+                                                    glyph.byte_offset);
+                const std::size_t owner = std::min<std::size_t>(
+                    upper == boundaries.begin() ? 0 : upper - boundaries.begin() - 1,
+                    para_runs.size() - 1);
+                glyph.fill_color_override = para_runs[begin + owner].fill_color_override;
+            }
+            per_run_results.push_back(std::move(combined));
+            begin = end;
+            continue;
+        }
+        std::vector<PlacedGlyphRun> split(end - begin);
+        std::vector<std::size_t> owners(combined.clusters.size(), 0);
+        std::vector<float> owner_origins(split.size(), 0.0f);
+        std::vector<bool> owner_has_origin(split.size(), false);
+        float pen = 0.0f;
+        for (std::size_t ci = 0; ci < combined.clusters.size(); ++ci) {
+            const auto& cluster = combined.clusters[ci];
+            // Preserve HarfBuzz's positioned sub-clusters inside an extended
+            // grapheme. If the base and mark have distinct source clusters,
+            // this lets a paint boundary color the mark without reshaping or
+            // changing the shared glyph positions.
+            const auto upper = std::upper_bound(boundaries.begin(), boundaries.end(),
+                                                cluster.byte_offset);
+            const std::size_t owner = std::min<std::size_t>(
+                upper == boundaries.begin() ? 0 : upper - boundaries.begin() - 1,
+                split.size() - 1);
+            owners[ci] = owner;
+            if (!owner_has_origin[owner]) {
+                owner_origins[owner] = pen;
+                owner_has_origin[owner] = true;
+            }
+            pen += combined.clusters[ci].advance;
+        }
+        for (std::size_t ci = 0; ci < combined.clusters.size(); ++ci) {
+            const auto& source = combined.clusters[ci];
+            const std::size_t owner = owners[ci];
+            auto& target = split[owner];
+            target.ascent = combined.ascent;
+            target.descent = combined.descent;
+            target.baseline = combined.baseline;
+            target.total_height = combined.total_height;
+            target.font_size = combined.font_size;
+            const std::size_t first_glyph = target.glyphs.size();
+            for (std::size_t gi = source.start_glyph;
+                 gi < source.end_glyph && gi < combined.glyphs.size(); ++gi) {
+                auto glyph = combined.glyphs[gi];
+                // Preserve advance between clusters that share one paint span.
+                // Reset only at a paint boundary; resetting at every cluster
+                // collapsed mixed-script glyphs onto the same origin. Cluster
+                // iteration is in logical byte order; for RTL this subtracts
+                // the preceding logical chunk width, and concatenate_runs
+                // restores that prefix while retaining HarfBuzz's visual x.
+                glyph.x -= owner_origins[owner];
+                target.glyphs.push_back(std::move(glyph));
+            }
+            auto cluster = source;
+            cluster.start_glyph = first_glyph;
+            cluster.end_glyph = target.glyphs.size();
+            target.total_width += source.advance;
+            target.clusters.push_back(std::move(cluster));
+        }
+        for (auto& part : split) per_run_results.push_back(std::move(part));
+        begin = end;
     }
 
     return per_run_results;

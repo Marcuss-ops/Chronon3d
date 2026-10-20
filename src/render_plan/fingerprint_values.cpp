@@ -203,16 +203,31 @@ void add_gradient_animation(CanonicalPlanWriter& out,
 void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
     out.add_string(style.font);
     if (!style.font_family.empty() || style.font_weight != 400 ||
-        style.font_style != "normal" || style.text_align != "center") {
+        style.font_style != "normal" || style.text_direction != "auto" ||
+        style.text_align != "center") {
         out.add_string("svg_text_style_v1");
         out.add_string(style.font_family);
         out.add_i64(style.font_weight);
         out.add_string(style.font_style);
+        out.add_string(style.text_direction);
         out.add_string(style.text_align);
     }
     add_optional(out, style.font_size,
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_string(style.fill);
+    add_optional(out, style.fill_gradient,
+                 [](auto& writer, const graphics::GradientDefinition& gradient) {
+        add_gradient(writer, gradient);
+    });
+    out.add_bool(static_cast<bool>(style.fill_pattern));
+    if (style.fill_pattern) {
+        out.add_uint32(style.fill_pattern->width);
+        out.add_uint32(style.fill_pattern->height);
+        out.add_string(std::string_view(
+            reinterpret_cast<const char*>(style.fill_pattern->rgba.data()),
+            style.fill_pattern->rgba.size()));
+        for (const auto value : style.fill_pattern->transform) out.add_float(value);
+    }
     add_optional(out, style.fill_opacity,
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_string(style.text_fit_mode);
@@ -242,6 +257,15 @@ void add_style(CanonicalPlanWriter& out, const LayerStylePlan& style) {
             add_gradient(nested, value);
         });
     });
+    out.add_bool(static_cast<bool>(style.stroke_pattern));
+    if (style.stroke_pattern) {
+        out.add_uint32(style.stroke_pattern->width);
+        out.add_uint32(style.stroke_pattern->height);
+        out.add_string(std::string_view(
+            reinterpret_cast<const char*>(style.stroke_pattern->rgba.data()),
+            style.stroke_pattern->rgba.size()));
+        for (const auto value : style.stroke_pattern->transform) out.add_float(value);
+    }
     add_optional(out, style.shadow, [](auto& writer, const ShadowStyle& shadow) {
         writer.add_string(shadow.color);
         add_optional(writer, shadow.opacity,

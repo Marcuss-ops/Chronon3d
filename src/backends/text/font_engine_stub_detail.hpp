@@ -35,6 +35,12 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(
     return FontMetrics{};
 }
 
+std::optional<float> FontEngine::get_open_type_baseline_offset(
+    const FontSpec&, float, std::string_view, std::string_view,
+    TextDirection) const {
+    return std::nullopt;
+}
+
 void FontEngine::clear_cache() {}
 size_t FontEngine::glyph_bbox_cache_size() const { return 0; }
 bool FontEngine::can_load(const FontSpec&) { return false; }

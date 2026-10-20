@@ -316,3 +316,21 @@ TEST_CASE("resolve_placed_glyph_run cluster golden: tracking with shared cluster
     auto reference = reference_resolve(run, 7.0f, text);
     check_placed_run_equivalence(actual, reference, "Tracking with shared clusters");
 }
+
+TEST_CASE("resolve_placed_glyph_run normalizes negative advances to left-origin coordinates") {
+    const std::string text = "ab";
+    auto run = make_run({1, 0}, {-5.0f, -7.0f});
+
+    const auto placed = resolve_placed_glyph_run(run, 0.0f, text);
+    REQUIRE(placed.glyphs.size() == 2);
+    CHECK(placed.total_width == doctest::Approx(12.0f));
+    CHECK(placed.glyphs[0].x == doctest::Approx(12.0f));
+    CHECK(placed.glyphs[1].x == doctest::Approx(7.0f));
+    CHECK(placed.glyphs[0].advance_x == doctest::Approx(5.0f));
+    CHECK(placed.glyphs[1].advance_x == doctest::Approx(7.0f));
+    REQUIRE(placed.clusters.size() == 2);
+    CHECK(placed.clusters[0].byte_offset == 0);
+    CHECK(placed.clusters[0].advance == doctest::Approx(7.0f));
+    CHECK(placed.clusters[1].byte_offset == 1);
+    CHECK(placed.clusters[1].advance == doctest::Approx(5.0f));
+}

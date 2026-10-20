@@ -70,7 +70,9 @@ void evaluate_animator_stack_into(
             const auto end = std::min<std::size_t>(span.glyph_end, inout_states.size());
             for (std::size_t glyph = span.glyph_begin; glyph < end; ++glyph) {
                 auto& state = inout_states[glyph];
-                if (span.fill_color_override) state.fill = *span.fill_color_override;
+                if (span.fill_color_override &&
+                    !placed.glyphs[glyph].fill_color_override)
+                    state.fill = *span.fill_color_override;
                 if (span.stroke) {
                     const float font_size = span.font_size > 0.0f
                         ? span.font_size : placed.font_size;

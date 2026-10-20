@@ -487,6 +487,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
         style_plan.font_family = style.value("font_family", std::string{});
         style_plan.font_weight = style.value("font_weight", 400);
         style_plan.font_style = style.value("font_style", std::string{"normal"});
+        style_plan.text_direction = style.value("direction", std::string{"auto"});
         style_plan.text_align = style.value("text_align", std::string{"center"});
         style_plan.font_size = optional_value<float>(style, "font_size");
         style_plan.fill = style.value("fill", std::string{});
@@ -498,6 +499,8 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             style_plan.font_weight % 100 != 0 ||
             (style_plan.font_style != "normal" && style_plan.font_style != "italic" &&
              style_plan.font_style != "oblique") ||
+            (style_plan.text_direction != "auto" && style_plan.text_direction != "ltr" &&
+             style_plan.text_direction != "rtl") ||
             (style_plan.text_align != "left" && style_plan.text_align != "center" &&
              style_plan.text_align != "right"))
             throw std::runtime_error("text style font weight, style, or alignment is invalid");

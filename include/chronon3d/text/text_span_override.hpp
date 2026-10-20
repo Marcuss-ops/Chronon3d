@@ -23,6 +23,15 @@
 
 namespace chronon3d {
 
+/// A post-shaping paint range. Unlike TextSpanOverride, this never splits the
+/// source into separate shaping runs; it paints glyphs whose HarfBuzz source
+/// cluster starts in the byte range.
+struct TextGlyphPaintRange {
+    std::size_t byte_start{0};
+    std::size_t byte_end{0};
+    Color color{Color::black()};
+};
+
 /// Per-range style override stored in the authoring DTO (TextDefinition)
 /// and in the runtime spec (TextDefaults).  Fields are std::optional: empty
 /// means "inherit from the surrounding default / span".

@@ -1189,7 +1189,9 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     const auto masked_frame = evaluate(masked->compiled_composition,
         CompositionEvaluateContext{}, Frame{0});
     REQUIRE(masked_frame);
-    CHECK(masked_frame->scene.layers()[0].mask.type == MaskType::Path);
+    CHECK(masked_frame->scene.layers()[0].mask.type != MaskType::Path);
+    REQUIRE(masked_frame->scene.layers()[0].nodes.size() == 1);
+    CHECK(masked_frame->scene.layers()[0].nodes[0].svg_local_masks.size() == 1);
 
     auto missing = *decoded;
     missing.layers[0].shape->svg_asset = "art/not-found.svg";
@@ -1308,7 +1310,11 @@ TEST_CASE("render plan lowers SVG opacity and translate animations into native s
     CHECK(first->scene.layers()[0].nodes[1].shape.path().commands[1].p0.x == doctest::Approx(10.0f));
     CHECK(middle->scene.layers()[0].nodes[1].shape.path().commands[1].p0.x == doctest::Approx(15.0f));
     CHECK(last->scene.layers()[0].nodes[1].shape.path().commands[1].p0.x == doctest::Approx(20.0f));
-    CHECK(middle->scene.layers()[0].nodes[1].fill.solid.a == doctest::Approx(0.75f));
+    CHECK(middle->scene.layers()[0].nodes[1].fill.solid.a == doctest::Approx(1.0f));
+    REQUIRE(middle->scene.layers()[0].nodes[1].svg_groups.size() == 1);
+    REQUIRE(middle->scene.layers()[0].nodes[1].svg_groups[0].opacity_animation.has_value());
+    CHECK(middle->scene.layers()[0].nodes[1].svg_groups[0].opacity_animation->from == doctest::Approx(1.0f));
+    CHECK(middle->scene.layers()[0].nodes[1].svg_groups[0].opacity_animation->to == doctest::Approx(0.5f));
     CHECK(first->scene.layers()[0].nodes[2].shape.path().commands[1].p0.x == doctest::Approx(10.0f));
     CHECK(middle->scene.layers()[0].nodes[2].shape.path().commands[1].p0.x == doctest::Approx(20.0f));
     CHECK(last->scene.layers()[0].nodes[2].shape.path().commands[1].p0.x == doctest::Approx(30.0f));

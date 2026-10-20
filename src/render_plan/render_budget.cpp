@@ -83,7 +83,8 @@ std::optional<PlanDecodeError> validate_render_budget(
             const bool has_non_default_scale = layer.scale != std::array<float, 3>{1, 1, 1};
             const bool has_non_default_rotation = layer.rotation != std::array<float, 3>{0, 0, 0};
             if (layer.effects.empty() || !layer.asset.empty() || !layer.source.empty() ||
-                !layer.text.empty() || !layer.text_spans.empty() || !layer.font.empty() ||
+                !layer.text.empty() || !layer.text_spans.empty() ||
+                !layer.svg_glyph_paint_ranges.empty() || !layer.font.empty() ||
                 layer.style || layer.motion_blur || layer.shape || layer.inline_mesh ||
                 (layer.inline_mesh && layer.inline_mesh->material) ||
                 plan.lighting_rig ||
@@ -115,6 +116,9 @@ std::optional<PlanDecodeError> validate_render_budget(
 
         if (!add_bytes(text_bytes, layer.text.size(), budget.max_text_bytes))
             return fail("layers[].text", "render budget max_text_bytes exceeded");
+        if (layer.svg_glyph_paint_ranges.size() > 65536)
+            return fail("layers[].svg_glyph_paint_ranges",
+                        "SVG glyph paint range count exceeds 65536");
         for (const auto* reference : {&layer.asset, &layer.source, &layer.font}) {
             if (!add_bytes(asset_reference_bytes, reference->size(),
                            budget.max_asset_reference_bytes))

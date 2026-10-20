@@ -32,6 +32,7 @@ PlacedGlyphRun resolve_placed_glyph_run(
 
     float pen_x = 0.0f;
     float pen_y = 0.0f;
+    const bool negative_advances = hb_run.glyphs.front().advance_x < 0.0f;
     result.glyphs.reserve(hb_run.glyphs.size());
 
     for (size_t i = 0; i < hb_run.glyphs.size(); ++i) {
@@ -57,7 +58,7 @@ PlacedGlyphRun resolve_placed_glyph_run(
 
         if (tracking != 0.0f && i + 1 < hb_run.glyphs.size()) {
             if (hb_run.glyphs[i + 1].is_cluster_start) {
-                pg.advance_x += tracking;
+                pg.advance_x += negative_advances ? -tracking : tracking;
             }
         }
 
@@ -66,7 +67,19 @@ PlacedGlyphRun resolve_placed_glyph_run(
         pen_y += g.advance_y;
     }
 
-    result.total_width = pen_x;
+    // Some shaping backends express horizontal advances with a negative pen
+    // direction. PlacedGlyphRun is consumed by layout and raster code whose
+    // coordinate system starts at the left edge and advances positively, so
+    // normalize such runs while retaining the returned glyph order.
+    const bool right_to_left = pen_x < 0.0f;
+    if (right_to_left) {
+        for (auto& glyph : result.glyphs) {
+            glyph.x -= pen_x;
+            glyph.advance_x = -glyph.advance_x;
+            glyph.raw_advance_x = -glyph.raw_advance_x;
+        }
+    }
+    result.total_width = right_to_left ? -pen_x : pen_x;
     result.total_height = hb_run.ascent + hb_run.descent;
 
     if (!source_text.empty()) {

@@ -97,20 +97,27 @@ apply_composition_to_placed(
         if (last_cluster_idx  >= placed.clusters.size())
             last_cluster_idx = placed.clusters.size() - 1;
 
-        size_t first_glyph = placed.clusters[first_cluster_idx].start_glyph;
-        size_t last_glyph  = placed.clusters[last_cluster_idx].end_glyph;
-        if (last_glyph > placed.glyphs.size())
-            last_glyph = placed.glyphs.size();
+        // The composer selects lines in logical cluster order, while HarfBuzz
+        // stores RTL glyphs in visual order. Gather the glyph ranges for every
+        // cluster so descending RTL indices still receive baseline and line
+        // placement updates.
+        std::vector<size_t> line_glyphs;
+        for (size_t ci = first_cluster_idx; ci <= last_cluster_idx; ++ci) {
+            const auto& cluster = placed.clusters[ci];
+            const size_t start = std::min(cluster.start_glyph, placed.glyphs.size());
+            const size_t end = std::min(cluster.end_glyph, placed.glyphs.size());
+            for (size_t gi = start; gi < end; ++gi) line_glyphs.push_back(gi);
+        }
+        std::sort(line_glyphs.begin(), line_glyphs.end());
+        line_glyphs.erase(std::unique(line_glyphs.begin(), line_glyphs.end()),
+                          line_glyphs.end());
+        if (line_glyphs.empty()) continue;
 
-        // HarfBuzz positions are shaped as one continuous run.  Once the
-        // composer breaks that run into lines, each line must restart at its
-        // paragraph origin; otherwise the second line keeps the cumulative
-        // x position of the first line and the rendered bbox grows back to
-        // the unwrapped paragraph width.
-        const float line_origin_x =
-            first_glyph < placed.glyphs.size()
-                ? placed.glyphs[first_glyph].x
-                : 0.0f;
+        // Wrapped RTL lines must restart at their leftmost visual pen
+        // position, not at the glyph belonging to the first logical cluster.
+        float line_origin_x = placed.glyphs[line_glyphs.front()].x;
+        for (const size_t gi : line_glyphs)
+            line_origin_x = std::min(line_origin_x, placed.glyphs[gi].x);
 
         // ── Cumulative spacing accumulator ────────────────────────
         // Letter/word spacing should spread glyphs apart, not shift
@@ -121,7 +128,7 @@ apply_composition_to_placed(
         float per_glyph_spacing = line.letter_spacing_adjustment
                                 + line.word_spacing_adjustment;
 
-        for (size_t gi = first_glyph; gi < last_glyph; ++gi) {
+        for (const size_t gi : line_glyphs) {
             auto& g = placed.glyphs[gi];
 
             // Baseline: shift y to the line's baseline.

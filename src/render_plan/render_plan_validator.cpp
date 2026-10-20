@@ -143,6 +143,8 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
         }
         if (layer.contains("style") && layer["style"].is_object()) {
             if (layer["style"].contains("gradient")) layer["style"].erase("gradient");
+            // V3 text direction augments the frozen V2 text style contract.
+            layer["style"].erase("direction");
             // Backdrop blur is a V3 graph-composite extension. The V2
             // projection validates common style fields only; the V3 schema
             // below validates the typed backdrop payload itself.

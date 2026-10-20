@@ -197,6 +197,51 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
         case ShapeContentTypePlan::Grid:
         case ShapeContentTypePlan::DotGrid: {
             if (!shape.imported_subpaths.empty()) {
+                const auto attach_svg_groups = [&](const ImportedSubpathPlan& source) {
+                    std::vector<RenderNode::SvgGroupIsolation> groups;
+                    groups.reserve(source.svg_groups.size());
+                    for (const auto& group : source.svg_groups) {
+                        RenderNode::SvgGroupIsolation lowered{group.id, group.opacity};
+                        if (group.opacity_animation &&
+                            group.opacity_animation->keyframes.size() == 2) {
+                            const auto& first = group.opacity_animation->keyframes.front();
+                            const auto& last = group.opacity_animation->keyframes.back();
+                            if (first.value.size() == 1 && last.value.size() == 1)
+                                lowered.opacity_animation = RenderNode::SvgGroupIsolation::OpacityAnimation{
+                                    first.frame.integral(), last.frame.integral(),
+                                    first.value.front(), last.value.front(),
+                                    first.interpolation == "hold"};
+                        }
+                        groups.push_back(std::move(lowered));
+                    }
+                    if (groups.empty() && source.svg_group)
+                        groups.push_back({source.svg_group->id, source.svg_group->opacity});
+                    if (!groups.empty()) builder.svg_group_isolation(std::move(groups));
+                };
+                const auto attach_svg_masks = [&](const ImportedSubpathPlan& source) {
+                    if (source.svg_local_masks.empty()) return;
+                    std::vector<PathShape> masks;
+                    masks.reserve(source.svg_local_masks.size());
+                    for (const auto& commands : source.svg_local_masks) {
+                        PathShape mask;
+                        mask.fill = Fill::solid_color(Color::white());
+                        mask.stroke.enabled = false;
+                        for (const auto& command : commands) {
+                            const Vec2 point{command.point[0], command.point[1]};
+                            const Vec2 c1{command.control1[0], command.control1[1]};
+                            const Vec2 c2{command.control2[0], command.control2[1]};
+                            switch (command.type) {
+                                case ShapePathCommandTypePlan::MoveTo: mask.commands.push_back(PathCommand::move_to(point)); break;
+                                case ShapePathCommandTypePlan::LineTo: mask.commands.push_back(PathCommand::line_to(point)); break;
+                                case ShapePathCommandTypePlan::QuadraticTo: mask.commands.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                case ShapePathCommandTypePlan::CubicTo: mask.commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                case ShapePathCommandTypePlan::Close: mask.commands.push_back(PathCommand::close()); mask.closed = true; break;
+                            }
+                        }
+                        masks.push_back(std::move(mask));
+                    }
+                    builder.svg_element_masks(std::move(masks));
+                };
                 const auto sample_rgba = [&](const AnimationTrackPlan& track,
                                              Color base_color) {
                     AnimatedValue<Color> value{base_color};
@@ -362,7 +407,42 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                         }
                     }
                     Vec2 svg_scale{1.0f, 1.0f};
-                    if (source.svg_scale_animation || source.svg_rotation_animation ||
+                    if (!source.svg_transform_animations.empty()) {
+                        // Loader order is ancestor → descendant. Apply the
+                        // operations in reverse so points see the innermost
+                        // transform first, matching SVG matrix composition.
+                        for (auto transform = source.svg_transform_animations.rbegin();
+                             transform != source.svg_transform_animations.rend(); ++transform) {
+                            const Vec2 values = transform->operation == "rotate"
+                                ? Vec2{0.0f, 0.0f}
+                                : sample_vec2(transform->animation,
+                                    transform->operation == "scale" ? Vec2{1.0f, 1.0f}
+                                    : Vec2{0.0f, 0.0f});
+                            const float angle = transform->operation == "rotate"
+                                ? sample_scalar(transform->animation) * 0.01745329251994329577f
+                                : 0.0f;
+                            if (transform->operation == "scale") svg_scale *= values;
+                            const float cosine = std::cos(angle), sine = std::sin(angle);
+                            const auto apply_transform = [&](Vec2 point) {
+                                if (transform->operation == "translate")
+                                    return point + values;
+                                if (transform->operation == "scale") {
+                                    return point * values;
+                                }
+                                return Vec2{cosine * point.x - sine * point.y,
+                                            sine * point.x + cosine * point.y};
+                            };
+                            for (auto& command : imported_path.commands) {
+                                if (command.type == PathCommandType::Close) continue;
+                                command.p0 = apply_transform(command.p0);
+                                if (command.type == PathCommandType::QuadraticTo ||
+                                    command.type == PathCommandType::CubicTo)
+                                    command.p1 = apply_transform(command.p1);
+                                if (command.type == PathCommandType::CubicTo)
+                                    command.p2 = apply_transform(command.p2);
+                            }
+                        }
+                    } else if (source.svg_scale_animation || source.svg_rotation_animation ||
                         source.svg_translation_animation) {
                         svg_scale = source.svg_scale_animation
                             ? sample_vec2(*source.svg_scale_animation, Vec2{1.0f, 1.0f})
@@ -468,9 +548,8 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                     if (shape.operators.empty()) {
                         builder.path("svg_path_" + std::to_string(path_index),
                                      std::move(imported_path));
-                        if (source.svg_group)
-                            builder.svg_group_isolation(
-                                source.svg_group->id, source.svg_group->opacity);
+                        attach_svg_groups(source);
+                        attach_svg_masks(source);
                         continue;
                     }
                     PathShape source_path;
@@ -637,9 +716,8 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                         copy.color.a *= expanded[copy_index].opacity;
                         builder.path("svg_path_" + std::to_string(path_index) + "_" +
                                      std::to_string(copy_index), std::move(copy));
-                        if (source.svg_group)
-                            builder.svg_group_isolation(
-                                source.svg_group->id, source.svg_group->opacity);
+                        attach_svg_groups(source);
+                        attach_svg_masks(source);
                     }
                 }
                 break;

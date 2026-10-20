@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/graphics/shape_style/fill_style.hpp>
 
 #include <stdexcept>
 #include <string>
@@ -34,17 +35,31 @@ chronon3d::TextDefinition materialize_text(
     chronon3d::TextDefinition definition;
     definition.content.value = layer.text;
     definition.spans = layer.text_spans;
+    definition.glyph_paint_ranges = layer.svg_glyph_paint_ranges;
     definition.style.font.font_path = layer.font;
     definition.style.font.font_family = layer.style->font_family;
     definition.style.font.font_weight = layer.style->font_weight;
     definition.style.font.font_style = layer.style->font_style;
     definition.style.font.font_size = *layer.style->font_size;
+    definition.paragraph.direction = layer.style->text_direction == "rtl"
+        ? TextDirection::RTL : layer.style->text_direction == "ltr"
+            ? TextDirection::LTR : TextDirection::Auto;
     auto fill = parse_hex_color(layer.style->fill);
     if (!fill)
         throw std::runtime_error("text layer '" + layer.id + "' has invalid fill color");
     fill->a *= layer.style->fill_opacity.value_or(1.0f);
     definition.style.color = *fill;
     definition.style.paint.fill = *fill;
+    definition.style.paint.fill_pattern = layer.style->fill_pattern;
+    if (layer.style->fill_gradient) {
+        auto gradient = *layer.style->fill_gradient;
+        const float opacity = layer.style->fill_opacity.value_or(1.0f);
+        for (auto& stop : gradient.color_stops) stop.color.a *= opacity;
+        for (auto& stop : gradient.opacity_stops) stop.opacity *= opacity;
+        graphics::FillStyle fill_style;
+        fill_style.gradient = std::move(gradient);
+        definition.style.paint.fill_style = fill_style.to_fill();
+    }
 
     if (layer.style->stroke) {
         auto stroke_color = parse_hex_color(layer.style->stroke->color);
@@ -62,6 +77,16 @@ chronon3d::TextDefinition materialize_text(
         definition.style.paint.stroke_miter_limit = stroke.miter_limit;
         definition.style.paint.stroke_dash_array = stroke.dash_array;
         definition.style.paint.stroke_dash_offset = stroke.dash_offset;
+        if (stroke.gradient) {
+            auto gradient = *stroke.gradient;
+            const float opacity = stroke.opacity.value_or(1.0f);
+            for (auto& stop : gradient.color_stops) stop.color.a *= opacity;
+            for (auto& stop : gradient.opacity_stops) stop.opacity *= opacity;
+            graphics::FillStyle fill_style;
+            fill_style.gradient = std::move(gradient);
+            definition.style.paint.stroke_style = fill_style.to_fill();
+        }
+        definition.style.paint.stroke_pattern = layer.style->stroke_pattern;
     }
     const auto append_shadow = [&](const ShadowStyle& shadow_style) {
         // Keep colour alpha and shadow opacity as separate factors.  The

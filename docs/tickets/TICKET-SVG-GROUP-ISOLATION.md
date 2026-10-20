@@ -1,10 +1,9 @@
 # TICKET-SVG-GROUP-ISOLATION — Isolated group compositing for lowered SVG
 
 ## Stato
-PARTIAL — software group stage certified 2026-10-17; Vulkan weighted-surface
-stage and strict-native checks are implemented 2026-10-18. Hardware gate,
-performance measurements, Q2 (nested animated groups) and Q3 (per-element
-clip scopes) remain open.
+PARTIAL — software nested opacity scopes, animated group opacity, and per-
+element clip/mask scopes pass the raw-pixel gate (2026-10-20). Vulkan strict-
+native hardware certification and performance measurements remain open.
 
 ## Obiettivo
 Make a lowered SVG group honor the SVG isolated-group alpha contract: the
@@ -19,16 +18,16 @@ Decisione architetturale: `docs/adr/ADR-035-svg-isolated-group-compositing.md`
 existing native weighted compositor and fails closed if native execution is
 unavailable).
 
-## Contratto (V1 — software + Vulkan)
+## Contratto (software + Vulkan)
 
-- The SVG loader annotates each element with the innermost enclosing group
-  (`SvgStyleGroupRef`: id, opacity) instead of folding the group's opacity
-  into child paint alpha. Nested isolated groups inside the isolated region
-  stay fail-closed in V1 through the certified malformed-animation sentinel.
+- The SVG loader annotates each element with its ordered enclosing group
+  scopes (`SvgStyleGroupRef`: id, opacity, optional opacity track) instead of
+  folding group opacity into child paint alpha. Nested isolated scopes are
+  supported through depth 16.
 - The render-plan compiler propagates `ImportedSubpathPlan::svg_group`
   (id, opacity) without folding it into fill/stroke alpha; the element's own
   opacity stays folded (correct per-paint alpha). Validation: nonzero id,
-  opacity in (0,1].
+  opacity in [0,1].
 - `LayerBuilder::svg_group_isolation(id, opacity)` tags the node (predented
   `pin_to`-style last-node retarget); the source pass moves the spec into
   `MultiSourceItem::group` with the combined post-composite alpha
@@ -58,11 +57,9 @@ unavailable).
   distinct sibling groups get distinct non-zero ids. Loader regression:
   `chronon3d_svg_path_loader_tests` 37/37 cases, 216/216 assertions
   (`Status: SUCCESS!`, SVG-enabled software build).
-- [x] Nested isolated groups inside an isolated region fail closed: loader
-  sentinel consumes the document through the certified diagnostic. CLI
-  probe (2026-10-17): plan preparation fails with
-  `SVG animation is malformed or outside the supported bounded subset`
-  instead of rendering the wrong alpha.
+- [x] Historical V1 behavior: nested isolated groups failed closed on
+  2026-10-17. Superseded by the nested scope support recorded in the
+  2026-10-20 update below.
 - [x] Node group stage implementation in `MultiSourceNode::execute()`
   (full-alpha children, single post-composite, cache-key fold, native
   fail-closed). Tree rebuilds clean: `ninja -j14` exit 0 (600/600 targets,
@@ -103,15 +100,15 @@ unavailable).
   reproduces the mid-frame hash (determinism) and the animated endpoints
   differ (0 vs 30).
 - Loader suite extended to guard the restored contract: 32 cases,
-  228 assertions pass. Nested opacity-bearing groups remain fail-closed
-  (malformed-animation sentinel at validation).
+  228 assertions pass at that revision. Nested opacity-bearing groups were
+  still fail-closed at the time; this limitation was removed in the
+  2026-10-20 update below.
 - Composite showcase re-run PASS on the updated video-test CLI: 31 raw
   frames in each run, all byte-identical across repeats, changing endpoints,
   and h264 128×128 MP4 with 31 frames. The gate no longer uses PNG output.
-- Architecture gate PASS: 206/206 rules. The motion gate retains strict
-  repeater endpoint/coverage assertions; the Lottie animated-operator loss
-  was fixed, not waived as a known defect. Nested opacity-bearing groups
-  are rejected both by loader tests and by the real raw/video CLI gate.
+- Architecture gate PASS: 206/206 rules at that revision. The motion gate
+  retains strict repeater endpoint/coverage assertions; the Lottie
+  animated-operator loss was fixed, not waived as a known defect.
 - Final local CTest regression PASS: both registered loader/C ABI suites
   passed (253.27s total). This checkout contains 277 C ABI cases; older
   300-case figures above describe earlier trees, not this run.
@@ -122,12 +119,19 @@ unavailable).
 
 ## Open work
 
-- [ ] **Q2 — nested animated groups** (bounded depth) on the group pass:
-  Loader/GroupTransformPlan tree model, per-level transform/opacity
-  composition, CLI coverage.
-- [ ] **Q3 — per-element distinct clip scopes** via sub-layer fan-out on
-  the group machinery: design diagram inside this contract; compound
-  nested-group clip scopes fail closed until then.
+- [x] **Q2 — nested static group opacity**: ordered ancestor scope chain,
+  multi-level isolated surfaces (depth limit 16), cache identity and raw
+  software pixel coverage. Verified on 2026-10-20 with loader CTest,
+  nested-opacity overlap oracle, and motion gate.
+- [x] **Q2 — nested animated transform operations** (bounded sequence): the
+  loader preserves each ancestor/descendant animateTransform with its own
+  timing, and the renderer evaluates the ordered matrix chain. Motion gate
+  covers a rotating parent with a translated child. Static transform plus
+  animated transform and rotation pivots remain fail-closed.
+- [x] **Q3 — per-element distinct clip scopes**: loader carries each
+  element's inherited group and local clip/mask geometries independently;
+  the software compositor intersects them per element. Pixel gate covers
+  sibling paths with distinct child clips nested under a group clip.
 - [x] Composite showcase gate re-run on the video-capable
   `linux-video-test` build: raw repeat comparison + MP4 PASS.
 - [ ] Measure GPU time and peak memory for one, five and ten isolated groups
@@ -136,11 +140,43 @@ unavailable).
 - [ ] Push + clean-SHA CI on the exact SHA (repo-level P0, managed in
   `TICKET-MAIN-TRUTH-STAGE-1-2`).
 
+## Session update — 2026-10-20 (nested opacity and per-element clips)
+
+- Carried all ancestor opacity scopes through loader → render plan → scene →
+  multi-source items. Software rendering isolates each level and composites
+  from inner to outer; supported depth is 16.
+- Loader regression and end-to-end pixel oracle now accept nested opacity.
+  The oracle checks overlapping siblings and sees `(231,0,124,255)` in the
+  nested overlap. Existing single-group, animation endpoint and determinism
+  checks pass.
+- The same software path applies distinct group and child clip scopes per
+  element. Loader CTest and the expanded raw pixel gate pass. Vector masks
+  use the software compositor; GPU-native execution still needs separate
+  certification.
+
+## Session update — 2026-10-20 (nested animated transforms)
+
+- Replaced the one-transform-per-path reduction with an ordered sequence of
+  translate/scale/rotate tracks, retaining each track's timing and interpolation.
+- Render-time sampling applies operations from descendant to ancestor, which
+  yields the SVG parent × child matrix order. Cumulative scale also adjusts
+  stroke width.
+- The motion gate now renders the rotating-parent/translated-child fixture;
+  its endpoints are both visible and differ. Loader CTest and the complete
+  SVG motion gate pass on the software CLI.
+
+## Session update — 2026-10-20 (animated nested group opacity)
+
+- Direct group `<animate attributeName="opacity">` is retained as a group
+  scope track and sampled on the composition frame before software isolation.
+  A zero opacity scope remains valid and composites a transparent surface.
+- The group and motion gates cover this scope alongside nested animated
+  transforms; strict-native Vulkan remains separately unverified.
+
 ## Bounded out for architectural reasons
 
-- **Nested animated groups beyond V1** and animated-group paint animations
-  (fill/stroke at group level): fail closed; the native track vocabulary is
-  per-path and Q2 will extend it with its own gates.
+- **Animated group paint animations** (fill/stroke at group level): remain
+  unsupported; the bounded native track vocabulary is per-path.
 - **Native (GPU surface) group stage**: implemented using the existing Vulkan
   weighted compositor; keep the strict-native hardware gate open until a
   same-tree run passes on a real device (zero-readback doctrine stays).
@@ -150,11 +186,9 @@ unavailable).
 ## Demolition debt
 
 - **Owner**: render-plan/compiler.
-- **Reason**: the paint-alpha fold for the group's own opacity was removed
-  for opacity < 1 groups, but opacity == 1 groups still lower through the
-  legacy inherited-opacity path (no group stage, zero overhead). Q2 must
-  decide whether opacity==1 groups lower through `svg_group` as well before
-  the fold branch can be deleted.
+- **Reason**: opacity 1 groups with no group-level effects need no isolation
+  surface and continue through the legacy inherited path. This intentional
+  no-op case does not affect animated or opacity-bearing scopes.
 - **Exit condition**: all fixtures and certified scenes lower group
   opacity through `svg_group`; the loader's group-opacity inheritance
   branch is dead.
@@ -162,4 +196,4 @@ unavailable).
   `check_svg_group_isolation_gate.py`, loader + compiler fixtures.
 - **Removal scope**: group-opacity inheritance branches in
   `svg_path_loader.cpp` and the group fold path in the lowering.
-- **Status**: `ACTIVE`.
+- **Status**: `RETAINED` (optimization contract; no parity gap).

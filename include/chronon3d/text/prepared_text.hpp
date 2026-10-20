@@ -20,6 +20,7 @@ struct PreparedText {
     TextShapingOptions shaping;
     TextAnimation animation;
     std::vector<TextSpanOverride> spans;
+    std::vector<TextGlyphPaintRange> glyph_paint_ranges;
 };
 
 /// Lower a canonical TextDefinition into the unified compiled text payload.

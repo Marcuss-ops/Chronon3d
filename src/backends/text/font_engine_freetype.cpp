@@ -18,6 +18,7 @@
 #include FT_MULTIPLE_MASTERS_H
 #include <hb.h>
 #include <hb-ft.h>
+#include <hb-ot.h>
 #include "font_variations_internal.hpp"
 
 #include <algorithm>
@@ -129,6 +130,26 @@ struct GlyphBBoxCacheEntry {
 // Parse the OpenType feature string before passing explicit features to HarfBuzz.
 // ═══════════════════════════════════════════════════════════════════════════
 namespace {
+hb_bool_t reject_unicode_composition(hb_unicode_funcs_t*, hb_codepoint_t,
+                                     hb_codepoint_t, hb_codepoint_t*, void*) {
+    return false;
+}
+
+hb_unicode_funcs_t* mark_paint_unicode_funcs() {
+    // HarfBuzz normally NFC-composes a base plus combining mark before
+    // OpenType shaping. SVG can assign those source characters different
+    // paints, so this variant preserves the decomposed input while retaining
+    // the font's mark positioning lookups.
+    static hb_unicode_funcs_t* funcs = [] {
+        auto* value = hb_unicode_funcs_create(hb_unicode_funcs_get_default());
+        hb_unicode_funcs_set_compose_func(value, reject_unicode_composition,
+                                          nullptr, nullptr);
+        hb_unicode_funcs_make_immutable(value);
+        return value;
+    }();
+    return funcs;
+}
+
 [[nodiscard]] std::vector<hb_feature_t>
 parse_opentype_features(std::string_view spec) {
     std::vector<hb_feature_t> features;
@@ -426,6 +447,16 @@ std::optional<GlyphRun> FontEngine::shape_text(
 
     hb_buffer_t* buf = m_impl->acquire_hb_buffer();
     if (!buf) return std::nullopt;
+    constexpr std::string_view kPreserveMarkPaint = "svg-preserve-mark-paint=1";
+    const bool preserve_mark_paint =
+        shaping.features.find(kPreserveMarkPaint) != std::string::npos;
+    hb_buffer_set_unicode_funcs(buf, preserve_mark_paint
+        ? mark_paint_unicode_funcs() : hb_unicode_funcs_get_default());
+    // Preserve one cluster index per source character so post-shaping paint
+    // ranges can color a combining mark independently without splitting the
+    // positioned run. The shaping features and glyph positions remain driven
+    // by HarfBuzz's normal shaping pipeline.
+    hb_buffer_set_cluster_level(buf, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS);
     hb_buffer_add_utf8(buf, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
 
     if (shaping.direction == TextDirection::RTL) {
@@ -513,7 +544,9 @@ std::optional<GlyphRun> FontEngine::shape_text(
 
     m_impl->release_hb_buffer(buf);
 
-    run.width = cursor_x;
+    // RTL advances are negative in HarfBuzz's pen direction, while layout
+    // boxes and measure_text expose an unsigned visual width.
+    run.width = std::abs(cursor_x);
     run.ascent  = static_cast<float>(face->size->metrics.ascender)  * scale;
     run.descent = -static_cast<float>(face->size->metrics.descender) * scale;
     run.baseline = 0.0f;
@@ -565,6 +598,62 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
 
     metrics.max_advance = static_cast<float>(face->size->metrics.max_advance) * scale;
     return metrics;
+}
+
+std::optional<float> FontEngine::get_open_type_baseline_offset(
+    const FontSpec& spec,
+    float font_size,
+    std::string_view baseline,
+    std::string_view script,
+    TextDirection direction
+) const {
+    if (!m_impl || !m_impl->ft_library || font_size <= 0.0f ||
+        script.size() != 4 || baseline.empty()) return std::nullopt;
+
+    const hb_script_t hb_script = hb_script_from_string(script.data(),
+        static_cast<int>(script.size()));
+    hb_ot_layout_baseline_tag_t tag;
+    if (baseline == "auto" || baseline == "use-script") {
+        tag = hb_ot_layout_get_horizontal_baseline_tag_for_script(hb_script);
+        if (tag == _HB_OT_LAYOUT_BASELINE_TAG_MAX_VALUE)
+            tag = HB_OT_LAYOUT_BASELINE_TAG_ROMAN;
+    } else if (baseline == "alphabetic") {
+        tag = HB_OT_LAYOUT_BASELINE_TAG_ROMAN;
+    } else if (baseline == "central")
+        tag = HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL;
+    else if (baseline == "hanging")
+        tag = HB_OT_LAYOUT_BASELINE_TAG_HANGING;
+    else if (baseline == "ideographic")
+        tag = HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT;
+    else if (baseline == "mathematical")
+        tag = HB_OT_LAYOUT_BASELINE_TAG_MATH;
+    else if (baseline == "text-before-edge")
+        tag = HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT;
+    else if (baseline == "text-after-edge")
+        tag = HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT;
+    else
+        return std::nullopt;
+
+    auto entry = m_impl->get_face_entry(spec);
+    if (!entry || !entry->valid()) return std::nullopt;
+    std::lock_guard<std::mutex> font_lock(entry->ops_mutex);
+    FT_Face face = entry->ft_face;
+    if (FT_Set_Pixel_Sizes(face, 0, static_cast<unsigned int>(std::ceil(font_size))) != 0)
+        return std::nullopt;
+    hb_ft_font_changed(entry->hb_font);
+
+    const hb_direction_t hb_direction = direction == TextDirection::RTL
+        ? HB_DIRECTION_RTL : HB_DIRECTION_LTR;
+    hb_position_t roman = 0;
+    hb_position_t target = 0;
+    if (!hb_ot_layout_get_baseline2(entry->hb_font,
+            HB_OT_LAYOUT_BASELINE_TAG_ROMAN, hb_direction, hb_script,
+            HB_LANGUAGE_INVALID, &roman) ||
+        !hb_ot_layout_get_baseline2(entry->hb_font,
+            tag, hb_direction, hb_script, HB_LANGUAGE_INVALID, &target))
+        return std::nullopt;
+
+    return static_cast<float>(target - roman) * Impl::pixel_scale_26_6();
 }
 
 void FontEngine::clear_cache() {

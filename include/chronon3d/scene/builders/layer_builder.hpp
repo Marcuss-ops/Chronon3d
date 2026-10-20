@@ -142,6 +142,9 @@ public:
     LayerBuilder& mask_ellipse(EllipseMaskParams params);
     LayerBuilder& mask_path(PathMaskParams params);
     LayerBuilder& svg_group_isolation(std::uint32_t id, f32 opacity);
+    LayerBuilder& svg_group_isolation(
+        std::vector<RenderNode::SvgGroupIsolation> groups);
+    LayerBuilder& svg_element_masks(std::vector<PathShape> masks);
     LayerBuilder& mask_composite(Mask mask);
     LayerBuilder& track_matte_alpha(std::string source_layer_name);
     LayerBuilder& track_matte_alpha_inverted(std::string source_layer_name);

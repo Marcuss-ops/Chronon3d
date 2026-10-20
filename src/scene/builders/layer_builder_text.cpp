@@ -35,7 +35,6 @@
 // and reach the internalization header directly.
 #include "../../text/pending_text_run_impl.hpp"
 #include "../../text/prepared_text_internal.hpp"
-#include <spdlog/spdlog.h>
 
 #include <cmath>
 #include <utility>

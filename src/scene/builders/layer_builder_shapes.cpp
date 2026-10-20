@@ -73,9 +73,28 @@ LayerBuilder& LayerBuilder::path(std::string name, PathParams p) {
 
 LayerBuilder& LayerBuilder::svg_group_isolation(std::uint32_t id, f32 opacity) {
     if (!m_layer.nodes.empty() && id != 0 && std::isfinite(opacity) &&
-        opacity > 0.0f && opacity <= 1.0f) {
+        opacity >= 0.0f && opacity <= 1.0f) {
         m_layer.nodes.back().svg_group = RenderNode::SvgGroupIsolation{id, opacity};
+        m_layer.nodes.back().svg_groups = {RenderNode::SvgGroupIsolation{id, opacity}};
     }
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::svg_group_isolation(
+    std::vector<RenderNode::SvgGroupIsolation> groups) {
+    if (groups.empty() || groups.size() > 16 || m_layer.nodes.empty()) return *this;
+    for (const auto& group : groups)
+        if (group.id == 0 || !std::isfinite(group.opacity) ||
+            group.opacity < 0.0f || group.opacity > 1.0f)
+            return *this;
+    m_layer.nodes.back().svg_group = groups.back();
+    m_layer.nodes.back().svg_groups = std::move(groups);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::svg_element_masks(std::vector<PathShape> masks) {
+    if (!m_layer.nodes.empty())
+        m_layer.nodes.back().svg_local_masks = std::move(masks);
     return *this;
 }
 
