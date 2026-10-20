@@ -342,6 +342,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 subpath.source_group_ids = element.group_ids;
                 subpath.fill_rule = element.path.fill_rule == PathFillRule::NonZero
                     ? ShapeFillRulePlan::NonZero : ShapeFillRulePlan::EvenOdd;
+                if (element.group) {
+                    if (element.group->id == 0 ||
+                        !std::isfinite(element.group->opacity) ||
+                        element.group->opacity <= 0.0f || element.group->opacity > 1.0f)
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                            "SVG isolated group is invalid: id must be nonzero and opacity in (0,1]",
+                            "svg_unsupported_style", "render-plan-svg"};
+                    subpath.svg_group = ImportedSubpathPlan::SvgGroupIsolationPlan{
+                        element.group->id, element.group->opacity};
+                }
                 if (element.fill && element.fill->enabled) {
                     if (element.fill->type != FillType::Solid &&
                         std::any_of(element.animations.begin(), element.animations.end(), [](const auto& animation) {

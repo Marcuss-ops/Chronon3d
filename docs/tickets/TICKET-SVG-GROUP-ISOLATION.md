@@ -91,6 +91,35 @@ unavailable).
 - [x] Full C ABI regression: `chronon3d_c_abi_tests` 300/300 cases,
   7720/7720 assertions (`Status: SUCCESS!`).
 
+## Session update — 2026-10-19 (ADR-035 restore)
+
+- The integration refactor (091bea87) had silently dropped the
+  `builder.svg_group_isolation` call plus the loader→plan `svg_group`
+  chain; re-running the gate showed the isolation compositing folding back
+  into plain alpha over (137 instead of 188 constant factor). Restored the
+  full ADR-035 chain end to end: loader annotation on every sibling of an
+  isolating group, plan field re-added, compiler call at both emit points.
+  The gate passed again, with the addition that the repeat render
+  reproduces the mid-frame hash (determinism) and the animated endpoints
+  differ (0 vs 30).
+- Loader suite extended to guard the restored contract: 32 cases,
+  228 assertions pass. Nested opacity-bearing groups remain fail-closed
+  (malformed-animation sentinel at validation).
+- Composite showcase re-run PASS on the updated video-test CLI: 31 raw
+  frames in each run, all byte-identical across repeats, changing endpoints,
+  and h264 128×128 MP4 with 31 frames. The gate no longer uses PNG output.
+- Architecture gate PASS: 206/206 rules. The motion gate retains strict
+  repeater endpoint/coverage assertions; the Lottie animated-operator loss
+  was fixed, not waived as a known defect. Nested opacity-bearing groups
+  are rejected both by loader tests and by the real raw/video CLI gate.
+- Final local CTest regression PASS: both registered loader/C ABI suites
+  passed (253.27s total). This checkout contains 277 C ABI cases; older
+  300-case figures above describe earlier trees, not this run.
+- Full 1080p30 SVG showcase: two 360-frame raw renders compared, all 360
+  hashes identical. MP4 derived from raw has 360 frames / 12 seconds.
+  Logs, CPU/RSS measurements, build provenance and remaining certification
+  limits are recorded in TICKET-SVG-RENDER-PLAN; no clean-SHA/GPU claim.
+
 ## Open work
 
 - [ ] **Q2 — nested animated groups** (bounded depth) on the group pass:
@@ -99,13 +128,11 @@ unavailable).
 - [ ] **Q3 — per-element distinct clip scopes** via sub-layer fan-out on
   the group machinery: design diagram inside this contract; compound
   nested-group clip scopes fail closed until then.
-- [ ] Composite showcase gate re-run on the video-capable build
-  (`linux-video-fast-dev`) after the group stage — is being verified on
-  this tree; record the result before closing.
+- [x] Composite showcase gate re-run on the video-capable
+  `linux-video-test` build: raw repeat comparison + MP4 PASS.
 - [ ] Measure GPU time and peak memory for one, five and ten isolated groups
   at 1920x1080; the current intermediate and weighted blend cover full frames.
-- [ ] Architecture gates re-run on the final tree (206 rules) before
-  canonical status update.
+- [x] Architecture gate re-run on the corrected source tree: 206/206 PASS.
 - [ ] Push + clean-SHA CI on the exact SHA (repo-level P0, managed in
   `TICKET-MAIN-TRUTH-STAGE-1-2`).
 

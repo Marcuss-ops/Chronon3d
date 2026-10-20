@@ -5,9 +5,9 @@ Renders one native inline path through the canonical CLI render path with six
 chained path operators — trim, round_corners, zig_zag, offset_path,
 pucker_bloat and an animated repeater — then verifies:
 
-  1. all authored frames decode to visible RGBA pixels;
+  1. raw renders contain exactly 31 RGBA frames with visible sampled endpoints;
   2. the authored endpoint frame hashes differ (the composite animates);
-  3. a repeat render reproduces identical frame hashes (determinism);
+  3. a repeat render reproduces all 31 frames byte for byte (determinism);
   4. an MP4 render of the same plan produces an h264 file with all authored
      frames.
 
@@ -58,7 +58,7 @@ PLAN = json.dumps({
             ],
         },
     }],
-    "output": {"path": "showcase_####.png", "format": "png_sequence",
+    "output": {"path": "showcase.mp4", "format": "mp4",
                "color_space": "srgb"},
 })
 
@@ -76,20 +76,12 @@ def cli() -> Path:
     raise SystemExit("chronon3d_cli not found (set CHRONON_CLI to an SVG-enabled build)")
 
 
-def render_cl(path: Path, plan_file: Path, output: Path) -> None:
-    subprocess.run(
-        [str(path), "render", "--plan", str(plan_file), "--backend", "software",
-         "--start-frame", "0", "--end-frame", "30", "--output", str(output)],
-        capture_output=True, text=True, check=True)
-
-
-def decode(path: Path) -> bytes:
-    proc = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", str(path), "-f", "rawvideo", "-pix_fmt",
-         "rgba", "-"], capture_output=True, check=True)
-    if len(proc.stdout) != 128 * 128 * 4:
-        raise SystemExit(f"frame {path.name} did not decode to one 128x128 RGBA image")
-    return proc.stdout
+def render_cl(path: Path, plan_file: Path, output: Path, *, raw: bool = False) -> None:
+    command = [str(path), "render", "--plan", str(plan_file), "--backend", "software",
+               "--start-frame", "0", "--end-frame", "30", "--output", str(output)]
+    if raw:
+        command.extend(["--video-sink", "raw"])
+    subprocess.run(command, capture_output=True, text=True, check=True)
 
 
 def alpha_pixels(buf: bytes) -> int:
@@ -104,17 +96,18 @@ def main() -> int:
 
         output = tmp_path / "run1"
         output.mkdir()
-        render_cl(executable, tmp_path / "plan.json", output / "showcase_####.png")
+        render_cl(executable, tmp_path / "plan.json", output / "showcase.dmp", raw=True)
         repeat = tmp_path / "repeat"
         repeat.mkdir()
-        render_cl(executable, tmp_path / "plan.json", repeat / "showcase_####.png")
+        render_cl(executable, tmp_path / "plan.json", repeat / "showcase.dmp", raw=True)
 
-        frames = {}
-        for frame in (0, 15, 30):
-            image = output / f"showcase_{frame:04d}.png"
-            if not image.is_file():
-                raise SystemExit(f"missing frame {frame}")
-            frames[frame] = decode(image)
+        first_bytes = (output / "showcase.dmp").read_bytes()
+        repeat_bytes = (repeat / "showcase.dmp").read_bytes()
+        frame_bytes = 128 * 128 * 4
+        if len(first_bytes) != 31 * frame_bytes or len(repeat_bytes) != 31 * frame_bytes:
+            raise SystemExit("raw renders must each contain exactly 31 complete RGBA frames")
+        frames = {frame: first_bytes[frame * frame_bytes:(frame + 1) * frame_bytes]
+                  for frame in (0, 15, 30)}
 
         checks: list[tuple[bool, str]] = []
         counts = {f: alpha_pixels(buf) for f, buf in frames.items()}
@@ -126,9 +119,8 @@ def main() -> int:
              "endpoint hashes differ (composite animates)"),
         ])
 
-        repeat_hash = hashlib.sha256(decode(repeat / "showcase_0015.png")).hexdigest()
-        checks.append((repeat_hash == hashlib.sha256(frames[15]).hexdigest(),
-                       "repeat render reproduces the frame-15 hash (deterministic)"))
+        checks.append((first_bytes == repeat_bytes,
+                       "repeat render reproduces all 31 RGBA frames (deterministic)"))
 
         mp4 = tmp_path / "showcase.mp4"
         mp4_plan = json.loads(PLAN)

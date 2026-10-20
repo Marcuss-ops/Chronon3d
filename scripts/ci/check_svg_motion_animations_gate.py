@@ -37,8 +37,9 @@ def plan(job_id: str, layers: str) -> str:
         "schema": "chronon.render-plan.v3", "version": 3, "job_id": job_id,
         "canvas": CANVAS,
         "layers": json.loads(layers),
-        "output": {"path": f"{job_id}_####.png", "format": "png_sequence",
-                   "color_space": "srgb"},
+        # Video-mode output primes the legacy compiled export view; the raw
+        # sink then writes host RGBA8 frames verbatim (pixel truth surface).
+        "output": {"path": f"{job_id}.mp4", "format": "mp4"},
     }))
 
 def path_layer(layer_id: str, payload: str) -> str:
@@ -94,8 +95,8 @@ FIXTURES["animated_stroke"] = {
 # 4. Group hierarchy — group translates while the child path rotates.
 FIXTURES["group_hierarchy"] = {
     "svg": f'<svg {SVG_NS}><g><animateTransform attributeName="transform" '
-           'type="translate" from="0 0" to="24 0" dur="1s" fill="freeze"/>'
-           '<path d="M 32 16 L 32 48" stroke="#00AA00" stroke-width="4" fill="none">'
+           'type="translate" from="24 32" to="48 32" dur="1s" fill="freeze"/>'
+           '<path d="M 0 -16 L 0 16" stroke="#00AA00" stroke-width="4" fill="none">'
            '<animateTransform attributeName="transform" type="rotate" from="0" '
            'to="90" dur="1s" fill="freeze"/></path></g></svg>',
     "predicate_frames": (0, 30),
@@ -167,6 +168,24 @@ FIXTURES["nested_groups"] = {
     "predicate": "translate nested inside rotating parent is rejected, not rendered wrong",
 }
 
+# ADR-035 V1 represents one isolated group factor, never a nested fold.
+FIXTURES["nested_isolated_groups"] = {
+    "expect_error": "SVG animation is malformed",
+    "svg": f'<svg {SVG_NS}><g opacity="0.5"><g opacity="0.4">'
+           '<path d="M8 8L24 8L24 24L8 24Z" fill="#FF0000"/>'
+           '</g></g></svg>',
+    "predicate_frames": (0, 30),
+}
+
+# Ablation controls certify that neither transform is silently dropped.
+FIXTURES["group_without_translation"] = dict(FIXTURES["group_hierarchy"])
+FIXTURES["group_without_translation"]["svg"] = FIXTURES["group_hierarchy"]["svg"].replace(
+    'to="48 32"', 'to="24 32"')
+FIXTURES["group_without_rotation"] = dict(FIXTURES["group_hierarchy"])
+FIXTURES["group_without_rotation"]["svg"] = FIXTURES["group_hierarchy"]["svg"].replace(
+    'to="90"', 'to="0"')
+
+
 def cli() -> Path:
     override = os.environ.get("CHRONON_CLI")
     if override:
@@ -180,13 +199,14 @@ def cli() -> Path:
     raise SystemExit("chronon3d_cli not found (set CHRONON_CLI to an SVG-enabled build)")
 
 
-def decode(path: Path) -> bytes:
-    proc = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", str(path), "-f", "rawvideo", "-pix_fmt", "rgba", "-"],
-        capture_output=True, check=True)
-    if len(proc.stdout) != 64 * 64 * 4:
-        raise SystemExit(f"frame {path.name} did not decode to one 64x64 RGBA image")
-    return proc.stdout
+def frame_from(raw_path: Path, frame: int) -> bytes:
+    """Extract one RGBA8 frame (64x64) from the pre-encode raw dump."""
+    frame_bytes = 64 * 64 * 4
+    data = raw_path.read_bytes()
+    if len(data) != CANVAS["duration_frames"] * frame_bytes:
+        raise SystemExit(f"{raw_path.name}: expected exactly 31 complete RGBA frames; "
+                         f"got {len(data)} bytes")
+    return data[frame * frame_bytes:(frame + 1) * frame_bytes]
 
 
 def px(buf: bytes) -> list[int]:
@@ -206,8 +226,13 @@ def main() -> int:
             directory.mkdir()
             if "svg" in fixture:
                 (directory / f"{name}.svg").write_text(fixture["svg"])
-                payload = json.dumps({"type": "path", "asset": f"{name}.svg"})
-                plan_path = plan(name, path_layer("shape", payload))
+            payload_bytes = json.dumps({"type": "path", "asset": f"{name}.svg"})
+            if "svg" in fixture:
+                # SVG document coordinates are viewport-relative, unlike the
+                # centered inline paths used by line_reveal and repeater.
+                document_plan = json.loads(plan(name, path_layer("shape", payload_bytes)))
+                document_plan["layers"][0]["position"] = [0, 0]
+                plan_path = json.dumps(document_plan)
             else:
                 plan_path = fixture["plan"]
             for rel, text in fixture.get("files", {}).items():
@@ -216,11 +241,12 @@ def main() -> int:
             (directory / "plan.json").write_text(plan_path)
 
             executable = cli()
-            output = directory / "out_####.png"
+            raw_output = directory / f"{name}.dmp"
             proc = subprocess.run(
                 [str(executable), "render", "--plan", str(directory / "plan.json"),
                  "--assets-root", str(directory), "--backend", "software",
-                 "--start-frame", "0", "--end-frame", "30", "--output", str(output)],
+                 "--start-frame", "0", "--end-frame", "30",
+                 "--video-sink", "raw", "--output", str(raw_output)],
                 capture_output=True, text=True)
             if "expect_error" in fixture:
                 # Unsupported combinations must be rejected explicitly, never rendered wrong.
@@ -233,10 +259,7 @@ def main() -> int:
                 raise SystemExit(f"{name}: render failed with exit {proc.returncode}: {proc.stderr}")
             frames = {}
             for frame in fixture["predicate_frames"]:
-                image = directory / f"out_{frame:04d}.png"
-                if not image.is_file():
-                    raise SystemExit(f"{name}: missing frame {frame}")
-                frames[frame] = decode(image)
+                frames[frame] = frame_from(raw_output, frame)
             name_to_frames[name] = frames
             print(f"{name}: " + "  ".join(
                 f"f{frame}={hashlib.sha256(buf).hexdigest()[:12]}"
@@ -270,17 +293,24 @@ def main() -> int:
             cols = [i // 4 % 64 for i in range(0, len(buf), 4) if buf[i + 3] > 100]
             return (min(cols), max(cols)) if cols else None
         start, end = bbox(group[0]), bbox(group[30])
-        checks.append((start is not None and end is not None and end[1] > start[1],
-                       f"group_hierarchy translates/rotates ({start} -> {end})"))
+        checks.append((start is not None and end is not None and
+                       start[1] - start[0] <= 5 and end[1] - end[0] >= 20 and
+                       group[30] != name_to_frames["group_without_translation"][30] and
+                       group[30] != name_to_frames["group_without_rotation"][30],
+                       f"group_hierarchy translation and rotation each affect pixels (bbox {start} -> {end})"))
+        checks.append((visible(group[0]) and visible(group[30]),
+                       "group_hierarchy visible at both endpoints"))
 
         mask = name_to_frames["mask_reveal"]
         def max_col(buf: bytes) -> int:
             cols = [i // 4 % 64 for i in range(0, len(buf), 4) if buf[i + 3] > 100]
             return max(cols) if cols else -1
-        checks.append((max_col(mask[0]) < 32, f"mask_reveal clipped at 0 (max col {max_col(mask[0])})"))
-        checks.append((max_col(mask[15]) < 32, f"mask_reveal clipped at 15 (max col {max_col(mask[15])})"))
-        checks.append((max_col(mask[30]) <= 32, f"mask_reveal clipped at 30 (max col {max_col(mask[30])})"))
-        checks.append((len(px(mask[30])) == 0, "mask_reveal content exits the clip fully at 30"))
+        checks.append((0 <= max_col(mask[0]) < 32,
+                       f"mask_reveal clipped at 0 (max col {max_col(mask[0])})"))
+        checks.append((0 <= max_col(mask[15]) < 32,
+                       f"mask_reveal clipped at 15 (max col {max_col(mask[15])})"))
+        checks.append((len(px(mask[30])) == 0,
+                       f"mask_reveal content exits the band fully at 30 (max col {max_col(mask[30])})"))
 
         grad = name_to_frames["color_gradient"]
         def hue(buf: bytes, offset: int) -> int:
@@ -290,9 +320,10 @@ def main() -> int:
         checks.append((hue(grad[30], 2) > hue(grad[30], 0), "color_gradient ends blue/green-dominant"))
 
         rep = name_to_frames["repeater"]
-        checks.append((hashlib.sha256(rep[0]).hexdigest() != hashlib.sha256(rep[30]).hexdigest(),
+        checks.append((rep[0] != rep[30],
                        "repeater frames differ over time (animated copies reach the CLI)"))
-        checks.append((visible(rep[0]) and visible(rep[30]), "repeater endpoints visible"))
+        checks.append((visible(rep[0]) and visible(rep[30]),
+                       "repeater endpoints visible"))
         checks.append((max_col(rep[30]) > max_col(rep[0]),
                        f"repeater copies move with keyframes (xmax {max_col(rep[0])} -> {max_col(rep[30])})"))
 

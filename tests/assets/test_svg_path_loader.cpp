@@ -584,7 +584,55 @@ TEST_CASE("SVG styles parse colors, inline declarations and group inheritance") 
     CHECK(result.elements[3].fill->solid.r == doctest::Approx(0xa1 / 255.0f));
     CHECK(result.elements[0].stroke.enabled);
     CHECK(result.elements[0].stroke.width == doctest::Approx(2.0f));
-    CHECK(result.elements[0].opacity == doctest::Approx(0.5f));
+    // ADR-035: group opacity is no longer flattened into element opacity,
+    // it is carried as the innermost isolated-group factor.
+    CHECK(result.elements[0].opacity == doctest::Approx(1.0f));
+    REQUIRE(result.elements[0].group.has_value());
+    CHECK(result.elements[0].group->id != 0u);
+    CHECK(result.elements[0].group->opacity == doctest::Approx(0.5f));
+    // All four paths share the same enclosing isolated group.
+    for (std::size_t index = 1; index < result.elements.size(); ++index) {
+        REQUIRE(result.elements[index].group.has_value());
+        CHECK(result.elements[index].group->id == result.elements[0].group->id);
+        CHECK(result.elements[index].group->opacity == doctest::Approx(0.5f));
+        CHECK(result.elements[index].opacity == doctest::Approx(1.0f));
+    }
+}
+
+TEST_CASE("SVG group opacity over element opacity preserves both factors") {
+    const std::string filename = "temp_test_group_opacity.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><g opacity="0.5">)svg"
+            << R"svg(<path d="M0 0L1 1" opacity="0.75"/>)svg"
+            << R"svg(</g></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.elements.size() == 1);
+    CHECK(result.elements[0].opacity == doctest::Approx(0.75f));
+    REQUIRE(result.elements[0].group.has_value());
+    CHECK(result.elements[0].group->id != 0u);
+    CHECK(result.elements[0].group->opacity == doctest::Approx(0.5f));
+}
+
+TEST_CASE("SVG nested isolated groups fail closed") {
+    const std::string filename = "temp_test_nested_isolated_groups.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg xmlns="http://www.w3.org/2000/svg"><g opacity="0.5">)svg"
+            << R"svg(<g opacity="0.4">)svg"
+            << R"svg(<path d="M0 0L1 1"/>)svg"
+            << R"svg(</g></g></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    // A nested isolated group cannot stay a single-factor contract: the
+    // malformed sentinel consumed by the downstream document validation is
+    // expected (negative certification, fail-closed not rendered wrong).
+    CHECK_FALSE(result.ok);
+    CHECK(result.error.find("SVG animation is malformed or outside the supported bounded subset") != std::string::npos);
 }
 
 TEST_CASE("SVG tspan text-anchor creates a distinct chunk scope") {

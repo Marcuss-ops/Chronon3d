@@ -468,6 +468,9 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                     if (shape.operators.empty()) {
                         builder.path("svg_path_" + std::to_string(path_index),
                                      std::move(imported_path));
+                        if (source.svg_group)
+                            builder.svg_group_isolation(
+                                source.svg_group->id, source.svg_group->opacity);
                         continue;
                     }
                     PathShape source_path;
@@ -634,6 +637,9 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                         copy.color.a *= expanded[copy_index].opacity;
                         builder.path("svg_path_" + std::to_string(path_index) + "_" +
                                      std::to_string(copy_index), std::move(copy));
+                        if (source.svg_group)
+                            builder.svg_group_isolation(
+                                source.svg_group->id, source.svg_group->opacity);
                     }
                 }
                 break;

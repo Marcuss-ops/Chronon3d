@@ -47,8 +47,8 @@ shape pipeline.
   rejected. Stroke caps, joins, miter limits, and dash arrays are preserved.
   Static `display:none` suppresses its full subtree. `visibility:hidden` and
   `collapse` are inherited, and a descendant may restore `visibility:visible`.
-  Group opacity is flattened into child paint alpha, so SVG isolated-group
-  compositing is not represented. SVG text runs currently have limited
+  One opacity-bearing group is isolated through ADR-035; its opacity is
+  applied once after child compositing. Nested isolated groups remain rejected. SVG text runs currently have limited
   positioned-tspan fidelity; see Phase 4.
 - Path-local `animateTransform` supports translate, scale and origin-centered
   rotation, and `<animate attributeName="opacity">` supports bounded `from` / `to`
@@ -94,9 +94,9 @@ shape pipeline.
   commands, and out-of-bound coordinates.
 - [x] The SVG source digest enters the prepared manifest; normalized lowered
   commands enter the content fingerprint. Unit coverage verifies plan fingerprint behavior.
-- [x] End-to-end CLI plan render produces a visible 64x64 PNG; decoding it to
-  tightly packed RGBA and running `tools/raw_frame_hash.py` produced frame hash
-  `4fe7b59af6de3b665b67788cc2f99892ab827efae3a467342b3bb4e3bc8e5bfe` twice.
+- [x] End-to-end encoded CLI gate verifies visible 64×64 content, changing
+  endpoints and repeat-render equality. The old PNG hash `4fe7b59a…` was an
+  empty-surface hash, not evidence of visible SVG; PNG is not pixel truth.
 - [x] Authored integration coverage checks sibling-path order, fill/stroke,
   inherited opacity, missing assets, local `<use>` expansion, root clip/mask
   lowering, and rejection of text, unresolved gradients, unsupported stroke attributes, and invalid
@@ -293,8 +293,9 @@ axis-aligned scale transforms; rotated and skewed scopes fail closed.
   camera movement on the shared composition timeline.
 - [x] Deliver MP4, contact sheet, editable RenderPlan/source SVG, assets and
   attribution, plus opening/middle/ending frame checks.
-- [x] Certify deterministic full-showcase reruns through the in-process FFmpeg
-  pipe encoder.
+- [x] Local full-showcase comparison: two complete raw 360-frame renders
+  match in all 360 RGBA hashes. Run B uses the corrected CLI; run A predates
+  the Lottie-only fix. Same-binary clean-SHA encoded CI remains unverified.
 - [ ] Run the full gate on a clean-SHA CI checkout.
 
 ### Current checkout notes
@@ -457,3 +458,107 @@ and inspect the 854×480 composition preview, then implement and gate the
 video-specific preset. The SVG text stroke cap/join/miter/dash implementation
 is included in the current working tree; software rendering supports these
 styles and the MTSDF path falls back to software for non-default strokes.
+
+## Verification update — 2026-10-19 (ADR-035 restore + raw-sink migration)
+
+- **ADR-035 restored end to end after the integration refactor dropped the
+  builder call**: the loader annotates `SvgStyleGroupRef` on every child of an
+  opacity-bearing `<g>` (no more flattening into element opacity), nested
+  isolated groups keep the fail-closed malformed-animation sentinel, the plan
+  carries `ImportedSubpathPlan::SvgGroupIsolationPlan`, and the compiler calls
+  `builder.svg_group_isolation` again at both emit points. The group-isolation
+  gate passes with a pure-red background, exactly-overlapping top child
+  (188,0,188,255 vs 188,0,188,255), a shared constant group factor, no fold
+  double-darkening, and deterministic repeat rendering.
+- The loader suite now enforces the restored contract: group opacity stays out
+  of element opacity, siblings share one group id/opacity, single-element case
+  preserves the element factor (0.75 × group 0.5), and nested opacity-bearing
+  groups are rejected with the malformed-animation error (32 cases,
+  228 assertions pass).
+- **`check_svg_motion_animations_gate` migrated to the raw pre-encode sink
+  (`--video-sink raw`)** because the PNG-sequence lane is not a pixel-truth
+  surface (TICKET-TEXT-QUALITY-V2 P0-0b claim) — it silently skipped SVG doc
+  layers. On the raw surface the six base animations certify pixel-truth
+  (line reveal grows 4 → 138 → 282 alpha>100 px, morph endpoints differ,
+  animated stroke thickens 192 → 480 px with viewport-correct placement,
+  mask content stays in columns [0,32) and exits fully at 30,
+  gradient hue rotates red → blue/green) and the nested animated groups case is
+  now explicitly rejected (`SVG animation is malformed`) instead of rendering
+  wrong or passing silently.
+- **Repeater animation regression fixed**: Lottie import had applied static
+  expansion and cleared animated operators. Animated repeater/morph operators
+  now survive import and use the existing per-frame evaluator. Copies remain
+  static; the five animated components are position X/Y, scale X/Y and rotation.
+  Dedicated C ABI regression: 1 case / 11 assertions PASS. Strict raw gate:
+  f0 `a0398c52a994…`, f30 `9871e1bc03f0…`, xmax 7 → 55.
+  The temporary KNOWN DEFECT bypass has been removed: frozen endpoints fail.
+  Min-repro and generator remain under `output/svg_frozen_repeater_repro/`
+  and `tools/make_frozen_repeater_repro.py`. A fresh 31-frame reproduction
+  now writes `repeater_fixed.dmp` with endpoint hashes and PASS recorded in
+  `output/svg_frozen_repeater_repro/fixed_verification.json`.
+- The motion gate checks exactly 31 complete raw frames. SVG fixtures use
+  viewport placement [0,0]; centered inline geometry retains [32,32]. Group
+  translation and rotation each have an ablation control, so dropping either
+  transform fails the gate. Nested isolated opacity groups are additionally
+  rejected through the real CLI. This does not claim nested transform-stack support.
+- The encoded CLI gate remained passing end to end (endpoint hashes
+  `6b232d3f71d8ccef3a409bd3830d0aac83f18907922fd54e96ed5ca2a00fc083` and
+  `027e5a800091544efb3437baebcdd771f6a0bae1bfe5e07d518dbfdc574c6f69`, two full
+  identical renders).
+- Vulkan stroke-only draw remains failing (min-repro in
+  TICKET-VULKAN-STROKE-ONLY-DRAW); software is the supported backend for
+  console delivery.
+
+### Final local acceptance and remaining SVG scope
+
+Verified locally on the working tree based on `45561923d` (not a clean-SHA CI
+certification):
+
+| Criterion | Result / evidence |
+| --- | --- |
+| Motion animations | PASS, strict raw checks including repeater and transform ablations |
+| Negative controls | PASS, frozen repeater fails; truncated/extra raw sequences rejected |
+| Group isolation | PASS, overlap oracle + repeated mid-frame hash |
+| Encoded CLI | PASS, repeat-render endpoint hashes unchanged |
+| Composite showcase | PASS, all 31 raw frames identical across repeats; h264 128×128, 31 frames |
+| Architecture | PASS, 206/206 rules |
+| Loader | PASS, 32 cases / 228 assertions |
+| Final C ABI + loader CTest | PASS, 2/2 registered suites, 253.27s; C ABI binary contains 277 cases |
+| Dedicated repeater C ABI regression | PASS, 1 case / 11 assertions |
+| 1080p showcase render | PASS, exactly 360 RGBA frames (2,985,984,000 bytes) |
+| 1080p MP4 derived from raw | PASS, h264 1920×1080, 30/1 fps, 360 frames, 12.000 seconds |
+| Independent samples 0 / 180 / 359 | PASS, each byte-identical to full-render sample |
+| Complete second 360-frame render | PASS, 360/360 raw RGBA hashes identical, zero differences |
+
+Artifacts are local under `output/svg_showcase_determinism/`: `run_a.dmp`,
+`showcase_1080p30.mp4`, `contact_sheet.png`, `metadata.json`,
+`sample_comparison.json`, `run_a.frame_hashes.json`, `determinism.json` and
+`verification.json`. MP4 was
+encoded from the raw dump with FFmpeg, not directly exported by Chronon's MP4
+sink; the smaller composite gate separately covers direct Chronon encoding.
+
+Measured full-scene debug/software render on this shared host: wall
+31m08.43s, user CPU 2760.31s, system CPU 103.66s, maximum RSS 2,976,600 KiB
+(2.84 GiB), approximately 0.193 rendered fps. These are observed timings,
+not an isolated benchmark or a speedup claim. Run A predates the Lottie-only
+operator fix; the showcase uses an SVG asset, not Lottie. Its independent
+sample rerenders and complete run B use the updated CLI. Run B completed in
+28m08.77s (user CPU 2606.59s, system CPU 85.48s, max RSS 2,977,868 KiB).
+All 360 raw RGBA frame hashes match run A, with zero differences. Shared-host
+load differs, so the timing difference is not claimed as a speedup. This is
+not a same-binary clean-SHA proof.
+
+Open work, deliberately not marked complete:
+
+- Q2: bounded nested transform/opacity tree with per-level composition.
+- Q3: distinct per-element and nested group clip/mask scopes.
+- SVG filter mapping onto existing effects; arbitrary filter graphs remain out
+  of the bounded importer contract.
+- Gradient/pattern text paint, text stroke dash/cap/join fidelity, remaining
+  baseline/chunk semantics and transformed/textPath coordinate-list support.
+- Broader SMIL timing only when required by real authored assets.
+- Strict-native Vulkan isolation and GPU time/RAM at 1/5/10 isolated groups;
+  stroke-only Vulkan defect has its own ticket.
+- Full clean-SHA CI and any new Drive delivery remain unverified; no push or
+  upload is implied by these local checks.
+

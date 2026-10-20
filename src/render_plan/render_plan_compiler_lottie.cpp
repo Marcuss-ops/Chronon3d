@@ -1032,7 +1032,14 @@ std::optional<std::string> expand_static_lottie(
             });
         if (has_trim_operator && shape.operators.size() != 1)
             return std::string("Lottie Trim Paths currently requires a single isolated path operator");
-        if (!shape.operators.empty() && !has_trim_operator) {
+        const bool has_animated_operator = std::any_of(shape.operators.begin(), shape.operators.end(),
+            [](const PathOperatorPlan& operation) {
+                return operation.repeater_animation.has_value() ||
+                    operation.morph_animation.has_value();
+            });
+        // Animated operators must survive import: the canonical per-frame
+        // shape lowering samples their tracks on the original subpaths.
+        if (!shape.operators.empty() && !has_trim_operator && !has_animated_operator) {
             std::vector<chronon3d::PathOperatorSpec> specs;
             specs.reserve(shape.operators.size());
             for (const auto& operation : shape.operators) {

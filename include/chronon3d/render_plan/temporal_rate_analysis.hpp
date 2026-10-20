@@ -139,6 +139,7 @@ inline void inspect_subpath(const ImportedSubpathPlan& subpath, TrackFacts& fact
         for (const auto& op : layer.shape->operators) {
             if (op.morph_animation) inspect_track(*op.morph_animation, facts);
             if (op.trim_animation) inspect_track(*op.trim_animation, facts);
+            if (op.repeater_animation) inspect_track(*op.repeater_animation, facts);
         }
     }
     const auto staggered = [](const std::optional<LayerPlan::StaggerPlan>& s) {
@@ -315,6 +316,7 @@ inline void append_property_schedules(std::vector<LayerRateReport::PropertySched
             const auto prefix = "shape.operators[" + std::to_string(i) + "].";
             if (op.morph_animation) add(prefix + "morph", *op.morph_animation);
             if (op.trim_animation) add(prefix + "trim", *op.trim_animation);
+            if (op.repeater_animation) add(prefix + "repeater", *op.repeater_animation);
         }
     }
     for (std::size_t i = 0; i < layer.effects.size(); ++i)
@@ -406,6 +408,7 @@ inline void append_layer_keys(std::vector<Frame>& out, const LayerPlan& layer,
         for (const auto& op : layer.shape->operators) {
             if (op.morph_animation) add(*op.morph_animation);
             if (op.trim_animation) add(*op.trim_animation);
+            if (op.repeater_animation) add(*op.repeater_animation);
         }
     }
     if (layer.path_mask) {
