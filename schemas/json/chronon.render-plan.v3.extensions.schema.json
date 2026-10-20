@@ -529,7 +529,8 @@
             "circle_iris",
             "flash",
             "procedural_remotion",
-            "remotion"
+            "remotion",
+            "fly_under_fade"
           ]
         },
         "duration_frames": {

@@ -170,6 +170,12 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         }
 
         if (layer.has_transform_animation) {
+            // A 3D text plane is compiled with a negative X base scale so its
+            // glyphs face the camera in readable order. Scale animation
+            // replaces the base value, so retain that authored orientation
+            // when scalar/vector scale tracks are sampled.
+            if (layer.kind == NodeKind::Text && layer.scale[0] < 0.0f)
+                scale.x = -std::abs(scale.x);
             Transform transform;
             transform.position = position;
             transform.scale = scale;

@@ -199,7 +199,8 @@ bool try_native_path_stroke(
     const bool visible_solid_fill = path.fill.enabled &&
         path.fill.type == FillType::Solid && path.fill.solid.a > 0.0f;
     if (!path.stroke.enabled || path.stroke.width <= 0.0f ||
-        path.stroke.gradient.has_value() || path.stroke.cap != LineCap::Butt ||
+        path.stroke.gradient.has_value() ||
+        (path.stroke.cap != LineCap::Butt && path.stroke.cap != LineCap::Round) ||
         graph::native_promotion::has_active_mask(state))
         return false;
 
@@ -349,7 +350,8 @@ bool try_native_path_stroke(
     // software rasterizer's first-hit/source-over behavior.
     return backend.fill_dashed_path_surface(
         framebuffer.surface_handle(), x0, y0, x1, y1, width, color, points,
-        run_lengths, has_fill, fill_vertex_count, fill_vertices).ok();
+        run_lengths, has_fill, fill_vertex_count, fill_vertices,
+        path.stroke.cap == LineCap::Round).ok();
 }
 
 bool try_native_grid(

@@ -172,7 +172,8 @@ void VulkanBackend::Impl::fill_dashed_path(
     std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
     float width, const Color& color, std::span<const Vec2> points,
     std::span<const std::uint32_t> run_lengths, bool has_fill,
-    std::uint32_t fill_vertex_count, const std::array<Vec2, 8>& fill_vertices) {
+    std::uint32_t fill_vertex_count, const std::array<Vec2, 8>& fill_vertices,
+    bool round_cap) {
     if (!frame_batch.active)
         throw std::logic_error("Vulkan dashed path requires an active frame batch");
     if (points.empty() || run_lengths.empty() || run_lengths.size() > UINT32_MAX)
@@ -233,7 +234,7 @@ void VulkanBackend::Impl::fill_dashed_path(
     record_fill_rect(command, descriptors, dst_image, x0, y0, x1, y1,
                      color,
                      Vec4{8.0f, width, static_cast<float>(fill_vertex_count), has_fill ? 1.0f : 0.0f},
-                     Vec4{0.0f}, vertices);
+                     Vec4{round_cap ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f}, vertices);
     dst_image.initialized = true;
     ++frame_batch.pass_count;
     ++stats.passes_executed;

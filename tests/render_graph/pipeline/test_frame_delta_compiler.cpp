@@ -6,6 +6,7 @@
 #include <chronon3d/runtime/render_surface.hpp>
 #include <memory>
 #include <type_traits>
+#include <tests/helpers/test_utils.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include "../../../src/render_graph/pipeline/frame_delta_compiler.hpp"
@@ -244,6 +245,53 @@ TEST_CASE("ExecutionResolver keeps strict native RGB sparse rendering fail-close
     CHECK_FALSE(plan.previous_surface);
 }
 
+
+TEST_CASE("ExecutionResolver never sends native host output through CPU sparse tiles") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    // No GPU device is needed: this tests the capability boundary, not drawing.
+    class NativeSurfaceBackend final : public SoftwareBackend {
+    public:
+        NativeSurfaceBackend() : SoftwareBackend(SoftwareBackendServices{}) {}
+        bool supports_native_surfaces() const noexcept override { return true; }
+    } native_backend;
+
+    auto renderer = test::make_renderer();
+    renderer.buffer_ring().prev_framebuffer() = std::make_shared<Framebuffer>(32, 32);
+    graph::detail::DirtyRectOutput dirty;
+    dirty.frame_delta = graph::detail::FrameDelta{};
+    dirty.frame_delta->scene_changed = true;
+    dirty.use_dirty_tiles = true;
+    dirty.tile_grid = TileGrid(32, 32, 16);
+    dirty.dirty_tiles = raster::DirtyTileMask(*dirty.tile_grid);
+    dirty.dirty_tiles->mark_tile(0, 0);
+    dirty.dirty_rect = BBox{0, 0, 16, 16};
+    RenderSettings settings;
+    settings.require_native_gpu = false;
+
+    const auto resolve = [&] {
+        return ExecutionResolver::resolve(
+            {}, {}, Scene{}, Camera2_5D{}, settings, dirty, 0.25, &renderer,
+            Frame{1}, 32, 32, nullptr, false, false,
+            runtime::PixelFormat::Rgba32Float);
+    };
+    const auto software_plan = resolve();
+    CHECK(software_plan.path == FrameExecutionPath::SparseTiles);
+    CHECK(software_plan.copy_previous_surface);
+    REQUIRE_FALSE(software_plan.dirty_regions.empty());
+
+    auto context = renderer.execution_context();
+    context.backend = &native_backend;
+    renderer.attach_execution_context(context);
+    const auto native_plan = resolve();
+    CHECK(native_plan.path == FrameExecutionPath::FullRgb);
+    CHECK(native_plan.reason == "native_surfaces_require_full_rgb");
+    CHECK_FALSE(native_plan.use_dirty_region);
+    CHECK(native_plan.dirty_regions.empty());
+    CHECK_FALSE(native_plan.copy_previous_surface);
+    CHECK_FALSE(native_plan.previous_framebuffer);
+}
 
 TEST_CASE("ExecutionResolver resolves initial ReuseSurface from a clean FrameDelta") {
     chronon3d::graph::detail::FrameDelta delta;

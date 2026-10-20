@@ -467,7 +467,11 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
     // device model and discrete-GPU selection in the hardware-specific probe,
     // rather than making fallback-capable CI depend on this host's board.
     CHECK_FALSE(device_stats.device_name.empty());
-    CHECK(vulkan->kernel_registry().size() == 22);
+    CHECK(vulkan->kernel_registry().size() == 24);
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::DofDepthStamp));
+    CHECK(vulkan->kernel_registry().contains(
+        chronon3d::backends::vulkan::GpuKernelId::DofBlur));
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::DirectionalBlur));
     CHECK(vulkan->kernel_registry().contains(

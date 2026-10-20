@@ -15,4 +15,11 @@
 # stabilization commits (159d38775, 46ba63654); previous value 0x65304b41dbf40d8f.
 # The new value is stable across repeated runs of the fixture.
 # Review: pending — reproducible; correctness of the 2026-10-08 fusion output not yet reviewed.
-fnv1a64=0x1ec334584fada888
+#
+# 2026-10-20 — regenerated after the static-bake cacheability fix (80119a1b9);
+# previous value 0x1ec334584fada888. Composite nodes are now excluded from
+# static-bake islands (compute_static_bake_islands keeps them frame-dependent
+# per evaluate_cache), so the normalized program carries different K entries.
+# The new value is stable across repeated runs; covered by the sibling test
+# "static bakes exclude noncacheable composites".
+fnv1a64=0xaccd5b842ed2c6a2

@@ -30,7 +30,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
             std::memory_order_relaxed);
     }
 
-    if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
+    if (clear && fb && !fb->is_content_cleared()) {
         const auto tc0 = profiling::now();
         fb->clear(Color::transparent());
         const auto tc1 = profiling::now();
@@ -175,6 +175,9 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         if (ptr) {
             auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h, static_cast<Color*>(ptr));
             fb->resize_logical(width, height);
+            // Fresh arena memory is not necessarily zeroed: a reset arena
+            // reuses prior-frame bytes. Callers honor is_content_cleared()
+            // independently of this allocation/telemetry classification.
             // P3 — an arena allocation is an allocation, not a reuse: the
             // caller's clear decision and the allocation telemetry must
             // classify it as fresh. Previously this path left the flag false,
@@ -208,7 +211,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 
     bool fresh_alloc = false;
     auto fb = pool->acquire_unique(width, height, &fresh_alloc);
-    if (clear && !fresh_alloc && !fb->is_content_cleared()) {
+    if (clear && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
     std::weak_ptr<FramebufferPool> weak_pool = pool;
@@ -224,7 +227,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     bool fresh_alloc = false;
     auto fb = acquire_unique(width, height, &fresh_alloc);
-    if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
+    if (clear && fb && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
     return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));

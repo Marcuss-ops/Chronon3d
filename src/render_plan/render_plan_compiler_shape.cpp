@@ -679,6 +679,8 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                 // Path fill RGB/alpha lives in its Fill payload; node.color
                 // supplies only the layer-opacity multiplier to draw_path().
                 params.fill = Fill::solid_color(base_color);
+            } else {
+                params.fill.enabled = false;
             }
             params.stroke = stroke.to_path_stroke();
             params.pos = {0.0f, 0.0f, 0.0f};

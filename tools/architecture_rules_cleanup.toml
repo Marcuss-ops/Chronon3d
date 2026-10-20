@@ -211,9 +211,10 @@ required_patterns = [
   'register_transition\s*\(\s*"flash"',
   'register_transition\s*\(\s*"procedural_remotion"',
   'register_transition\s*\(\s*"remotion"',
+  'register_transition\s*\(\s*"fly_under_fade"',
 ]
 forbidden_patterns = [
-  'register_transition\s*\(\s*"(?!none"|crossfade"|dip_to_black"|slide"|zoom"|wipe_linear"|smooth_wipe"|circle_iris"|flash"|procedural_remotion"|remotion")[^"]+"',
+  'register_transition\s*\(\s*"(?!none"|crossfade"|dip_to_black"|slide"|zoom"|wipe_linear"|smooth_wipe"|circle_iris"|flash"|procedural_remotion"|remotion"|fly_under_fade")[^"]+"',
 ]
 
 [[forbidden_symbol]]

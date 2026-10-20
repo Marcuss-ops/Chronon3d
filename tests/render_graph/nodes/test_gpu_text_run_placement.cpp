@@ -157,6 +157,25 @@ TEST_CASE("GPU text lowers Z-only rotation and samples it per glyph") {
     CHECK(run.animator_rotation_z == doctest::Approx(12.0f));
 }
 
+TEST_CASE("GPU MTSDF text accepts outlined glyph animation with non-default miter limit") {
+    auto layout = std::make_shared<TextRunLayout>();
+    layout->placed = make_test_placed_run(3);
+
+    TextRunShape shape;
+    shape.layout = layout;
+    shape.glyphs = make_initial_glyph_states(layout->placed);
+    shape.paint.stroke_enabled = true;
+    shape.paint.stroke_width = 3.5f;
+    shape.paint.stroke_miter_limit = 10.0f;
+
+    TextAnimatorSpec animator;
+    animator.selectors.push_back(full_glyph_selector());
+    animator.properties.push_back(OpacityProperty{0.0f});
+    shape.animators.push_back(std::move(animator));
+
+    CHECK(can_lower_gpu_text_animation(shape));
+}
+
 TEST_CASE("GPU text lowers canonical selector shapes with CPU-equivalent per-glyph weights") {
     const std::array<TextSelectorShape, 6> shapes{
         TextSelectorShape::Square, TextSelectorShape::RampUp,

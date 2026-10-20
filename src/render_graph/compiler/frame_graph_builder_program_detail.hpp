@@ -72,7 +72,20 @@ bool is_fusible_layer_node(
     const bool is_text_layer_source =
         node_info.kind == RenderGraphNodeKind::TextRun &&
         dynamic_cast<const TextRunNode*>(&graph_node) != nullptr;
-    return (is_text_layer_source && node_info.kind == RenderGraphNodeKind::TextRun) ||
+    // Projected 2.5D text runs rasterize into a tight local surface that the
+    // downstream TransformNode composites with a homography. The fused text
+    // batch re-rasterizes from the node matrix and only reads its
+    // translate/scale lanes, so a projected run fused under its transform
+    // published an empty destination: the text member was skipped as
+    // "static_baked" with no surface and the layer vanished from the frame on
+    // the GPU-native lane (observed on Vulkan with enable_3d text overlays,
+    // while the same plan rendered on the software lane). Keep projected runs
+    // standalone so the TransformNode applies the real projection.
+    const bool is_projected_text =
+        is_text_layer_source &&
+        static_cast<const TextRunNode*>(&graph_node)->placement().tight_surface;
+    return (is_text_layer_source && !is_projected_text &&
+            node_info.kind == RenderGraphNodeKind::TextRun) ||
            (current_batch_active &&
             (dynamic_cast<const TransformNode*>(&graph_node) != nullptr ||
              dynamic_cast<const CompositeNode*>(&graph_node) != nullptr));

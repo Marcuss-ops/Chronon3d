@@ -211,4 +211,50 @@ TEST_CASE("Vulkan fill_rect_surface matches the CPU oracle pixel-for-pixel") {
 
     REQUIRE(backend.release_surface(handle).ok());
 }
+
+TEST_CASE("VulkanBackend dispatches stroke-only path with round caps and produces alpha coverage") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+    backends::vulkan::VulkanBackend backend;
+
+    const std::uint32_t width = 32, height = 32;
+    const runtime::SurfaceDesc desc{
+        width, height, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage, runtime::LifetimeClass::FrameTransient, 0};
+
+    const runtime::RenderSurfaceHandle handle = 552;
+    REQUIRE(backend.create_surface(handle, desc).ok());
+    std::vector<float> clear_buf(static_cast<std::size_t>(width) * height * 4, 0.0f);
+    REQUIRE(backend.upload_surface(handle, desc, clear_buf).ok());
+
+    std::vector<Vec2> points;
+    const float cx = 16.0f, cy = 16.0f, r = 10.0f;
+    for (int i = 0; i <= 16; ++i) {
+        float angle = static_cast<float>(i) * 2.0f * 3.14159265f / 16.0f;
+        points.push_back(Vec2{cx + r * std::cos(angle), cy + r * std::sin(angle)});
+    }
+    std::vector<std::uint32_t> run_lengths = {static_cast<std::uint32_t>(points.size())};
+    const Color stroke_color{1.0f, 0.5f, 0.25f, 1.0f};
+
+    const auto result = backend.fill_dashed_path_surface(
+        handle, 0, 0, width, height, 4.0f, stroke_color,
+        points, run_lengths, false, 0, {}, true /* round_cap */);
+    REQUIRE(result.ok());
+
+    std::vector<float> actual(static_cast<std::size_t>(width) * height * 4, 0.0f);
+    REQUIRE(backend.download_surface(handle, actual).ok());
+
+    float max_alpha = 0.0f;
+    std::size_t covered_pixels = 0;
+    for (std::size_t i = 3; i < actual.size(); i += 4) {
+        if (actual[i] > 0.05f) {
+            covered_pixels++;
+            max_alpha = std::max(max_alpha, actual[i]);
+        }
+    }
+    CHECK(covered_pixels > 20);
+    CHECK(max_alpha > 0.5f);
+
+    REQUIRE(backend.release_surface(handle).ok());
+}
 #endif
