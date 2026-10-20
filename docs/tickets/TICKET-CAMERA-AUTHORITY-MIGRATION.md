@@ -36,6 +36,10 @@ Production paths found outside `camera_v1/` include:
 - The unused legacy `fit_camera_to_layers()` solver has been removed. It had
   no production callers; the separate Camera V1 `CameraFramingSolver` remains
   active and is still part of the pending migration to CM3D.
+- Static RenderPlan cameras now lower directly to `Camera2_5D` renderer state;
+  they no longer create a Camera V1 descriptor or pass through its evaluator.
+  Animated RenderPlan cameras still use Camera V1 pending resolved sample
+  transport.
 - `camera_shake` is evaluated by C3D scene setup after camera-track evaluation.
   This behavior must move to CM3D before the renderer path is retired.
 

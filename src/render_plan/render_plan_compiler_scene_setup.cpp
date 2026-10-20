@@ -76,7 +76,9 @@ void configure_scene_camera_and_lighting(
         // path that normally applies a composition's default camera. Apply
         // render-plan cameras here so camera tracks affect the rendered
         // frame in both execution paths.
-        if (plan_camera) {
+        if (const auto static_camera = make_static_camera(plan)) {
+            scene.set_evaluated_camera(*static_camera);
+        } else if (plan_camera) {
             chronon3d::camera_v1::PoseTracksSource pose;
             pose.position = chronon3d::AnimatedValue<chronon3d::Vec3>{
                 plan_camera->base.position};

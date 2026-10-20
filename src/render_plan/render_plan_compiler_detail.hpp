@@ -68,6 +68,8 @@ make_scene_evaluator(SceneMaterializationInputs inputs);
     const AnimationTrackPlan& track, const AnimationKeyframePlan& key);
 [[nodiscard]] std::optional<chronon3d::camera_v1::CameraDescriptor>
 make_camera_descriptor(const RenderPlan& plan);
+[[nodiscard]] std::optional<chronon3d::Camera2_5D>
+make_static_camera(const RenderPlan& plan);
 [[nodiscard]] std::optional<std::string> expand_static_lottie(
     LayerPlan& layer, const std::filesystem::path& path);
 [[nodiscard]] chronon3d::DepthRole depth_role_value(std::string_view value);
