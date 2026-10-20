@@ -23,6 +23,8 @@ PreparedText prepare_text(const TextDefinition& def) {
         .open_type_features = {},
     };
     pt.animation = def.animation;
+    pt.glyph_paint_ranges = def.glyph_paint_ranges;
+    if (!pt.glyph_paint_ranges.empty()) pt.animation.cache_layout = false;
     return pt;
 }
 

@@ -4,6 +4,7 @@
 
 #include <chronon3d/text/text_run_driver.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 // Scene input adapter for the canonical text compiler in src/text.
 #include <chronon3d/text/text_document.hpp>
 // TICKET-104 -- internal consumed-decrement helper mirrors the include
@@ -416,6 +417,8 @@ std::shared_ptr<const PreparedTextRun> prepare_text_run(
 
     // Default font fallback to preserve the legacy convenience behaviour.
     PreparedText prepared_with_font = normalized;
+    if (!prepared_with_font.glyph_paint_ranges.empty())
+        prepared_with_font.animation.cache_layout = false;
     if (prepared_with_font.style.font.font_path.empty() &&
         prepared_with_font.style.font.font_family.empty()) {
         prepared_with_font.style.font.font_path = presets::inter_bold_font_path();
@@ -439,6 +442,98 @@ std::shared_ptr<const PreparedTextRun> prepare_text_run(
     }
 
     auto text_layout = compiled.value();
+
+    // Keep HarfBuzz's normal composed glyph as the geometry source. For a
+    // paint boundary inside a grapheme, shape that grapheme a second time
+    // without canonical composition to recover the mark glyph and its GPOS
+    // offset. The software rasterizer applies that glyph as a SRC_ATOP color
+    // overlay, so the composed glyph's alpha coverage remains authoritative.
+    if (!prepared_with_font.glyph_paint_ranges.empty()) {
+        const std::string_view source{text_layout->source_text};
+        const size_t clusters = detail::grapheme_cluster_count(source);
+        for (size_t cluster = 0; cluster < clusters; ++cluster) {
+            const size_t begin = detail::grapheme_byte_offset_at(source, cluster);
+            const size_t end = detail::grapheme_byte_offset_at(source, cluster + 1);
+            const bool split = std::any_of(
+                prepared_with_font.glyph_paint_ranges.begin(),
+                prepared_with_font.glyph_paint_ranges.end(),
+                [begin, end](const TextGlyphPaintRange& range) {
+                    return (range.byte_start > begin && range.byte_start < end) ||
+                           (range.byte_end > begin && range.byte_end < end);
+                });
+            if (!split) continue;
+
+            TextShaping mark_shaping;
+            mark_shaping.direction = prepared_with_font.shaping.direction;
+            mark_shaping.script = static_cast<int>(prepared_with_font.shaping.script);
+            mark_shaping.language = prepared_with_font.shaping.language;
+            mark_shaping.features = prepared_with_font.shaping.open_type_features;
+            if (!mark_shaping.features.empty()) mark_shaping.features.push_back(',');
+            mark_shaping.features += "ccmp=0,svg-preserve-mark-paint=1";
+
+            const auto cluster_text = source.substr(begin, end - begin);
+            const auto shaped_marks = use_engine->shape_text(
+                cluster_text, prepared_with_font.style.font,
+                text_layout->font_size, mark_shaping);
+            if (!shaped_marks || shaped_marks->glyphs.size() < 2) continue;
+            const auto decomposed = resolve_placed_glyph_run(*shaped_marks, 0.0f,
+                                                              cluster_text);
+            if (decomposed.glyphs.size() < 2) continue;
+
+            const auto base_it = std::find_if(
+                decomposed.glyphs.begin(), decomposed.glyphs.end(),
+                [](const PlacedGlyph& glyph) { return glyph.byte_offset == 0; });
+            if (base_it == decomposed.glyphs.end()) continue;
+
+            auto target_it = std::find_if(
+                text_layout->placed.glyphs.begin(), text_layout->placed.glyphs.end(),
+                [begin](const PlacedGlyph& glyph) {
+                    return glyph.byte_offset <= begin &&
+                           begin < glyph.byte_offset + glyph.byte_len;
+                });
+            if (target_it == text_layout->placed.glyphs.end()) continue;
+
+            Color base_color = prepared_with_font.style.color;
+            for (const auto& range : prepared_with_font.glyph_paint_ranges) {
+                if (begin >= range.byte_start && begin < range.byte_end) {
+                    base_color = range.color;
+                    break;
+                }
+            }
+            for (const auto& glyph : decomposed.glyphs) {
+                if (glyph.byte_offset == 0) continue;
+                const size_t source_offset = begin + glyph.byte_offset;
+                const auto paint = std::find_if(
+                    prepared_with_font.glyph_paint_ranges.begin(),
+                    prepared_with_font.glyph_paint_ranges.end(),
+                    [source_offset](const TextGlyphPaintRange& range) {
+                        return source_offset >= range.byte_start &&
+                               source_offset < range.byte_end;
+                    });
+                if (paint == prepared_with_font.glyph_paint_ranges.end() ||
+                    paint->color == base_color) continue;
+                target_it->fill_paint_overlays.push_back(GlyphPaintOverlay{
+                    glyph.glyph_id, glyph.x - base_it->x,
+                    glyph.y - base_it->y, paint->color});
+            }
+        }
+    }
+
+    // SVG paint-only chunk boundaries must not enter TextDocument::spans when
+    // they split an extended grapheme: that can move a combining mark into a
+    // separately composed run. Apply the source byte ranges to the already
+    // shaped glyph clusters instead, preserving the one-run positions.
+    if (!prepared_with_font.glyph_paint_ranges.empty()) {
+        for (auto& glyph : text_layout->placed.glyphs) {
+            for (const auto& range : prepared_with_font.glyph_paint_ranges) {
+                if (glyph.byte_offset >= range.byte_start &&
+                    glyph.byte_offset < range.byte_end) {
+                    glyph.fill_color_override = range.color;
+                    break;
+                }
+            }
+        }
+    }
 
     // Defense-in-depth: zero glyphs for non-empty text is a failure.
     if (text_layout->placed.glyphs.empty() && !text.empty()) {

@@ -83,7 +83,13 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // make an animated layer's source frame-invariant.  Treating
         // `use_local` as static reused the first moving shape in dirty/tile
         // sequences and left the old circle at the previous position.
-        const bool source_is_static = is_static;
+        const bool has_animated_svg_group = std::any_of(
+            layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
+                return std::any_of(node.svg_groups.begin(), node.svg_groups.end(),
+                    [](const auto& group) { return group.opacity_animation.has_value(); }) ||
+                    (node.svg_group && node.svg_group->opacity_animation.has_value());
+            });
+        const bool source_is_static = is_static && !has_animated_svg_group;
 
         if (ctx.policy.diagnostics_enabled) {
             spdlog::debug(
@@ -104,7 +110,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // TransformNode input is canvas-space; native 3D keeps processor
         // camera ownership; local and canvas paths retain their existing
         // source matrices.
-        if (layer.nodes.size() == 1) {
+        const bool single_node_needs_svg_compositing = layer.nodes.size() == 1 &&
+            (!layer.nodes.front().svg_groups.empty() ||
+             layer.nodes.front().svg_group.has_value() ||
+             !layer.nodes.front().svg_local_masks.empty());
+        if (layer.nodes.size() == 1 && !single_node_needs_svg_compositing) {
             const auto& authored_node = layer.nodes[0];
             const auto node = materialize_mesh_node(authored_node, ctx);
             const u64 content_hash = hash_render_node_content_only(node);
@@ -289,10 +299,42 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             // paint alpha; non-grouped items fold the placement alpha at
             // draw time exactly as before.
             std::optional<MultiSourceItem::GroupIsolationSpec> group;
-            if (node.svg_group) {
+            std::vector<MultiSourceItem::GroupIsolationSpec> groups;
+            groups.reserve(node.svg_groups.size());
+            for (const auto& svg_group : node.svg_groups) {
+                MultiSourceItem::GroupIsolationSpec lowered{svg_group.id, svg_group.opacity};
+                if (svg_group.opacity_animation) {
+                    const auto& animation = *svg_group.opacity_animation;
+                    lowered.opacity_animation = MultiSourceItem::GroupIsolationSpec::OpacityAnimation{
+                        animation.start_frame, animation.end_frame,
+                        animation.from, animation.to, animation.discrete};
+                }
+                groups.push_back(std::move(lowered));
+            }
+            if (groups.empty() && node.svg_group)
+                groups.push_back({node.svg_group->id, node.svg_group->opacity});
+            if (!groups.empty()) {
+                groups.back().opacity *= shape_opacity;
+                if (groups.back().opacity_animation) {
+                    groups.back().opacity_animation->from *= shape_opacity;
+                    groups.back().opacity_animation->to *= shape_opacity;
+                }
+                group = groups.back();
+                shape_opacity = 1.0f;
+            } else if (node.svg_group) {
                 group = MultiSourceItem::GroupIsolationSpec{
                     node.svg_group->id,
-                    node.svg_group->opacity * shape_opacity};
+                    node.svg_group->opacity * shape_opacity,
+                    node.svg_group->opacity_animation
+                        ? std::optional<MultiSourceItem::GroupIsolationSpec::OpacityAnimation>{
+                            MultiSourceItem::GroupIsolationSpec::OpacityAnimation{
+                                node.svg_group->opacity_animation->start_frame,
+                                node.svg_group->opacity_animation->end_frame,
+                                node.svg_group->opacity_animation->from * shape_opacity,
+                                node.svg_group->opacity_animation->to * shape_opacity,
+                                node.svg_group->opacity_animation->discrete}}
+                        : std::nullopt};
+                groups.push_back(*group);
                 shape_opacity = 1.0f;
             }
             items.push_back(MultiSourceItem{
@@ -300,6 +342,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .matrix = shape_matrix,
                 .opacity = shape_opacity,
                 .group = std::move(group),
+                .groups = std::move(groups),
                 .defer_camera_projection = item.projected && !item.native_3d &&
                     !item.layer->screen_space,
                 .apply_camera_projection = !item.layer->screen_space,

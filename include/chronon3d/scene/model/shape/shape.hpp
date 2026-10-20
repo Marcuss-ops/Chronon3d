@@ -37,6 +37,7 @@
 #include <chronon3d/scene/model/shape/rounded_rect_shape.hpp>
 #include <chronon3d/scene/model/shape/circle_shape.hpp>
 #include <chronon3d/scene/model/shape/line_shape.hpp>
+#include <chronon3d/graphics/pattern_tile.hpp>
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
@@ -139,6 +140,7 @@ enum class TextCenteringMode : u8 {
 struct TextPaint {
     Color fill{1.0f, 1.0f, 1.0f, 1.0f};
     std::optional<Fill> fill_style{};
+    std::shared_ptr<const graphics::PatternTile> fill_pattern{};
     bool stroke_enabled{false};
     Color stroke_color{0.0f, 0.0f, 0.0f, 1.0f};
     f32 stroke_width{2.0f};
@@ -153,6 +155,7 @@ struct TextPaint {
     /// strokes for text (Linear, Radial, Conic) just like shape strokes.
     /// Falls back to solid `stroke_color` when absent.
     std::optional<Fill> stroke_style{};
+    std::shared_ptr<const graphics::PatternTile> stroke_pattern{};
 };
 
 struct TextShadow {

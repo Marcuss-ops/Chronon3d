@@ -63,6 +63,11 @@ bool has_frame_dependent_content(const Scene& scene, Frame frame) {
             return true;
         }
         for (const auto& node : layer.nodes) {
+            const bool has_animated_svg_group =
+                std::any_of(node.svg_groups.begin(), node.svg_groups.end(),
+                    [](const auto& group) { return group.opacity_animation.has_value(); }) ||
+                (node.svg_group && node.svg_group->opacity_animation.has_value());
+            if (has_animated_svg_group) return true;
             if (node.shape.type() != ShapeType::TextRun) continue;
             const auto handle = node.shape.text_run_shape_handle();
             if (handle.value && !handle.value->animators.empty()) return true;
@@ -405,7 +410,8 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
         plan.scene_is_static = scene_is_static;
     }
 
-    if (reuse.reuse.resolved_scene_reuse || reuse.reuse.static_scene_reuse) {
+    if (!has_frame_dependent_content(scene, frame) &&
+        (reuse.reuse.resolved_scene_reuse || reuse.reuse.static_scene_reuse)) {
         record_surface_reuse(
             sw_renderer, frame, camera,
             plan.frame_fingerprints.combined_fp,
@@ -418,7 +424,8 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
         return plan;
     }
 
-    if (reuse.reuse.static_scene_reuse && current_state.layer_state_complete) {
+    if (!has_frame_dependent_content(scene, frame) &&
+        reuse.reuse.static_scene_reuse && current_state.layer_state_complete) {
         record_surface_reuse(
             sw_renderer, frame, camera,
             plan.frame_fingerprints.combined_fp,

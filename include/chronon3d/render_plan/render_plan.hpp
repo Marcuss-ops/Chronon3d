@@ -5,6 +5,7 @@
 #include <chronon3d/animation/easing/spring.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/graphics/gradient.hpp>
+#include <chronon3d/graphics/pattern_tile.hpp>
 #include <chronon3d/graphics/field2d.hpp>
 #include <chronon3d/graphics/gradient_mesh.hpp>
 #include <chronon3d/graphics/stroke/brush_profile.hpp>
@@ -208,6 +209,12 @@ struct ImportedSubpathPlan {
     std::optional<AnimationTrackPlan> svg_translation_animation;
     std::optional<AnimationTrackPlan> svg_scale_animation;
     std::optional<AnimationTrackPlan> svg_rotation_animation;
+    struct SvgTransformAnimationPlan {
+        std::string operation; // translate | scale | rotate
+        AnimationTrackPlan animation;
+    };
+    /// Ordered SVG animateTransform operations, outermost first.
+    std::vector<SvgTransformAnimationPlan> svg_transform_animations;
     std::vector<ShapePathCommandPlan> morph_target;
     std::optional<AnimationTrackPlan> morph_animation;
     std::vector<std::vector<ShapePathCommandPlan>> morph_keyframe_targets;
@@ -220,8 +227,14 @@ struct ImportedSubpathPlan {
     struct SvgGroupIsolationPlan {
         std::uint32_t id{0};
         float opacity{1.0f};
+        std::optional<AnimationTrackPlan> opacity_animation;
     };
     std::optional<SvgGroupIsolationPlan> svg_group;
+    /// Nested isolated SVG groups, outermost first. `svg_group` is kept as
+    /// the innermost compatibility view.
+    std::vector<SvgGroupIsolationPlan> svg_groups;
+    /// Per-element clip/mask geometries, outermost scope first.
+    std::vector<std::vector<ShapePathCommandPlan>> svg_local_masks;
     struct GroupTransformPlan {
         std::array<float, 2> position{0.0f, 0.0f};
         std::array<float, 2> anchor{0.0f, 0.0f};
@@ -376,14 +389,18 @@ struct LayerStylePlan {
     std::string font_family;
     int font_weight{400};
     std::string font_style{"normal"};
+    std::string text_direction{"auto"};
     std::string text_align{"center"};
     std::optional<float> font_size;
     std::string fill;
+    std::optional<graphics::GradientDefinition> fill_gradient;
+    std::shared_ptr<const graphics::PatternTile> fill_pattern;
     std::optional<float> fill_opacity;
     std::string text_fit_mode{"none"};
     std::optional<float> min_font_size;
     std::optional<float> max_font_size;
     std::optional<StrokeStyle> stroke;
+    std::shared_ptr<const graphics::PatternTile> stroke_pattern;
     std::optional<ShadowStyle> shadow;
     std::vector<ShadowStyle> shadows;
     std::optional<BackdropBlurStyle> backdrop;
@@ -597,6 +614,7 @@ struct LayerPlan {
     std::string source;
     std::string text;
     std::vector<TextSpanOverride> text_spans;
+    std::vector<TextGlyphPaintRange> svg_glyph_paint_ranges;
     std::optional<TextCounterPlan> text_counter;
 
     // Normalized concrete font asset path copied from style.font by decoder.

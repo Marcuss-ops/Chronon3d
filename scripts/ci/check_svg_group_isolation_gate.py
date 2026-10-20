@@ -167,6 +167,157 @@ def main() -> int:
                 f"fold signature detected: overlap green channel {overlap[1]} > {TOLERANCE}")
         print("  PASS  overlap independent of the lower sibling (no fold double-darkening)")
 
+        nested_svg = tmp / "nested.svg"
+        nested_svg.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
+            '<rect width="64" height="64" fill="#ff0000"/>'
+            '<g opacity="0.5"><g opacity="0.4">'
+            '<rect x="8" y="8" width="32" height="32" fill="#00ff00"/>'
+            '<rect x="24" y="24" width="32" height="32" fill="#0000ff"/>'
+            '</g></g></svg>')
+        nested_plan = json.loads(PLAN_STATIC.read_text())
+        nested_plan["layers"] = [{
+            "id": "nested_svg", "type": "shape", "position": [0, 0],
+            "size": [64, 64],
+            "shape": {"type": "path", "asset": "nested.svg"}}]
+        nested_plan["output"] = {"path": "nested.mp4", "format": "mp4"}
+        nested_plan_path = tmp / "nested_plan.json"
+        nested_plan_path.write_text(json.dumps(nested_plan))
+        nested_raw = tmp / "nested_raw.dmp"
+        proc = subprocess.run(
+            [str(executable), "render", "--plan", str(nested_plan_path),
+             "--assets-root", str(tmp), "--backend", "software",
+             "--start-frame", "0", "--end-frame", "0",
+             "--video-sink", "raw", "--output", str(nested_raw)],
+            capture_output=True, text=True)
+        if proc.returncode:
+            raise SystemExit(f"nested SVG group render failed:\n{proc.stderr[-3000:]}")
+        nested_data = raw_bytes(nested_raw, width, height, 0)
+        nested_overlap = pixel_at(nested_data, width, 28, 28)
+        nested_green_only = pixel_at(nested_data, width, 12, 12)
+        if not (nested_overlap[2] > nested_overlap[1] and
+                nested_overlap[0] < 245 and nested_overlap[3] > 250):
+            raise SystemExit(f"nested group overlap pixel is incorrect: {nested_overlap}")
+        if not (nested_green_only[0] > 220 and
+                105 < nested_green_only[1] < 145 and
+                nested_green_only[2] < TOLERANCE):
+            raise SystemExit(f"nested group green-only pixel is incorrect: {nested_green_only}")
+        print(f"  PASS  nested opacity scopes render with isolated overlap {nested_overlap}")
+
+        animated_opacity_svg = tmp / "animated_group_opacity.svg"
+        animated_opacity_svg.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
+            '<g><animate attributeName="opacity" from="1" to="0" dur="1s" fill="freeze"/>'
+            '<rect x="8" y="8" width="40" height="40" fill="#00ff00"/>'
+            '</g></svg>')
+        animated_opacity_plan = json.loads(PLAN_ANIMATED.read_text())
+        animated_opacity_plan["layers"] = [{
+            "id": "animated_group_opacity", "type": "shape", "position": [0, 0],
+            "size": [64, 64],
+            "shape": {"type": "path", "asset": "animated_group_opacity.svg"}}]
+        animated_opacity_plan["output"] = {"path": "animated_group_opacity.mp4", "format": "mp4"}
+        animated_opacity_plan_path = tmp / "animated_group_opacity_plan.json"
+        animated_opacity_plan_path.write_text(json.dumps(animated_opacity_plan))
+        animated_opacity_raw = tmp / "animated_group_opacity_raw.dmp"
+        proc = subprocess.run(
+            [str(executable), "render", "--plan", str(animated_opacity_plan_path),
+             "--assets-root", str(tmp), "--backend", "software",
+             "--start-frame", "0", "--end-frame", "30",
+             "--video-sink", "raw", "--output", str(animated_opacity_raw)],
+            capture_output=True, text=True)
+        if proc.returncode:
+            raise SystemExit(f"animated SVG group opacity render failed:\n{proc.stderr[-3000:]}")
+        animated_first = raw_bytes(animated_opacity_raw, width, height, 0)
+        animated_last = raw_bytes(animated_opacity_raw, width, height, 30)
+        opacity_first = pixel_at(animated_first, width, 24, 24)
+        opacity_last = pixel_at(animated_last, width, 24, 24)
+        if opacity_first[1] < 240 or opacity_first[3] < 240 or opacity_last[3] > TOLERANCE:
+            raise SystemExit(f"animated group opacity endpoints are wrong: {opacity_first} -> {opacity_last}\n{proc.stderr[-5000:]}")
+        print(f"  PASS  nested group opacity animation composites once ({opacity_first} -> {opacity_last})")
+
+        clip_svg = tmp / "distinct_clips.svg"
+        clip_svg.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
+            '<defs>'
+            '<clipPath id="outer"><rect x="8" y="8" width="40" height="40"/></clipPath>'
+            '<clipPath id="inner"><rect x="20" y="20" width="20" height="20"/></clipPath>'
+            '</defs><g clip-path="url(#outer)">'
+            '<path d="M0 0H64V64H0Z" fill="#ff0000"/>'
+            '<path clip-path="url(#inner)" d="M0 0H64V64H0Z" fill="#0000ff"/>'
+            '</g></svg>')
+        clip_plan = json.loads(PLAN_STATIC.read_text())
+        clip_plan["layers"] = [{
+            "id": "distinct_clips", "type": "shape", "position": [0, 0],
+            "size": [64, 64],
+            "shape": {"type": "path", "asset": "distinct_clips.svg"}}]
+        clip_plan["output"] = {"path": "distinct_clips.mp4", "format": "mp4"}
+        clip_plan_path = tmp / "distinct_clips_plan.json"
+        clip_plan_path.write_text(json.dumps(clip_plan))
+        clip_raw = tmp / "distinct_clips_raw.dmp"
+        proc = subprocess.run(
+            [str(executable), "render", "--plan", str(clip_plan_path),
+             "--assets-root", str(tmp), "--backend", "software",
+             "--start-frame", "0", "--end-frame", "0",
+             "--video-sink", "raw", "--output", str(clip_raw)],
+            capture_output=True, text=True)
+        if proc.returncode:
+            raise SystemExit(
+                "distinct SVG clip scopes render failed:\n" +
+                (proc.stdout + proc.stderr)[-3000:])
+        clip_data = raw_bytes(clip_raw, width, height, 0)
+        outer_only = pixel_at(clip_data, width, 12, 12)
+        inner_clip = pixel_at(clip_data, width, 28, 28)
+        outside = pixel_at(clip_data, width, 54, 54)
+        if not (outer_only[0] > 150 and outer_only[2] < TOLERANCE):
+            raise SystemExit(f"outer element/group clip scope is wrong: {outer_only}\n{(proc.stdout + proc.stderr)[-20000:]}")
+        if not (inner_clip[2] > 150 and inner_clip[0] < TOLERANCE):
+            raise SystemExit(f"inner element clip scope is wrong: {inner_clip}\n{(proc.stdout + proc.stderr)[-3000:]}")
+        if outside[3] > TOLERANCE:
+            raise SystemExit(f"group clip leaked outside its scope: {outside}")
+        print("  PASS  group clip and distinct child clip scopes intersect per element")
+
+        mask_svg = tmp / "distinct_masks.svg"
+        mask_svg.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
+            '<defs>'
+            '<mask id="outer_mask" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">'
+            '<rect x="8" y="8" width="40" height="40" fill="white"/></mask>'
+            '<mask id="inner_mask" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse">'
+            '<rect x="20" y="20" width="20" height="20" fill="white"/></mask>'
+            '</defs><g mask="url(#outer_mask)">'
+            '<path d="M0 0H64V64H0Z" fill="#ff0000"/>'
+            '<path mask="url(#inner_mask)" d="M0 0H64V64H0Z" fill="#0000ff"/>'
+            '</g></svg>')
+        mask_plan = json.loads(PLAN_STATIC.read_text())
+        mask_plan["layers"] = [{
+            "id": "distinct_masks", "type": "shape", "position": [0, 0],
+            "size": [64, 64],
+            "shape": {"type": "path", "asset": "distinct_masks.svg"}}]
+        mask_plan["output"] = {"path": "distinct_masks.mp4", "format": "mp4"}
+        mask_plan_path = tmp / "distinct_masks_plan.json"
+        mask_plan_path.write_text(json.dumps(mask_plan))
+        mask_raw = tmp / "distinct_masks_raw.dmp"
+        proc = subprocess.run(
+            [str(executable), "render", "--plan", str(mask_plan_path),
+             "--assets-root", str(tmp), "--backend", "software",
+             "--start-frame", "0", "--end-frame", "0",
+             "--video-sink", "raw", "--output", str(mask_raw)],
+            capture_output=True, text=True)
+        if proc.returncode:
+            raise SystemExit("distinct SVG mask scopes render failed:\n" +
+                             (proc.stdout + proc.stderr)[-3000:])
+        mask_data = raw_bytes(mask_raw, width, height, 0)
+        outer_mask_only = pixel_at(mask_data, width, 12, 12)
+        inner_mask = pixel_at(mask_data, width, 28, 28)
+        mask_outside = pixel_at(mask_data, width, 54, 54)
+        if not (outer_mask_only[0] > 150 and outer_mask_only[2] < TOLERANCE):
+            raise SystemExit(f"outer SVG mask scope is wrong: {outer_mask_only}")
+        if not (inner_mask[2] > 150 and inner_mask[0] < TOLERANCE):
+            raise SystemExit(f"inner SVG mask scope is wrong: {inner_mask}")
+        if mask_outside[3] > TOLERANCE:
+            raise SystemExit(f"group mask leaked outside its scope: {mask_outside}")
+        print("  PASS  group mask and distinct child mask scopes apply per element")
+
         # Animated translated child inside the isolated group.
         def frame_hashes(plan_path: Path, tag: str) -> dict[int, str]:
             frames = {}

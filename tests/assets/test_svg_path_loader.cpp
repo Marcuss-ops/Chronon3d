@@ -305,6 +305,19 @@ TEST_CASE("SVG text and tspan runs inherit paint, font, position, and IDs") {
     CHECK(result.text_runs[1].baseline_shift == doctest::Approx(-4.5f));
 }
 
+TEST_CASE("SVG adjacent same-style text spans share a shaping run") {
+    const std::string filename = "temp_test_svg_text_shaping_chunk.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text font-family="Chronon Sans">A<tspan>B</tspan>C</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    CHECK(result.text_runs.front().text == "ABC");
+}
+
 TEST_CASE("SVG text retains cap join miter and dash stroke styling") {
     const std::string filename = "temp_test_svg_text_stroke_style.svg";
     {
@@ -349,18 +362,18 @@ TEST_CASE("SVG text paint inherits through nested tspans and resets after each c
     CHECK(result.text_runs[0].opacity == doctest::Approx(0.8f));
     CHECK(result.text_runs[1].text == "B");
     CHECK(result.text_runs[1].source_id == "outer");
-    CHECK(result.text_runs[1].fill == "#ff0000");
+    CHECK(result.text_runs[1].fill == "#FF0000");
     CHECK(result.text_runs[1].stroke_opacity == doctest::Approx(0.5f));
     CHECK(result.text_runs[1].opacity == doctest::Approx(0.4f));
     CHECK(result.text_runs[2].text == "C");
     CHECK(result.text_runs[2].source_id == "inner");
-    CHECK(result.text_runs[2].fill == "#ff0000");
+    CHECK(result.text_runs[2].fill == "#FF0000");
     CHECK(result.text_runs[2].stroke == std::optional<std::string>{"#445566"});
     CHECK(result.text_runs[2].font_size == doctest::Approx(10.0f));
     CHECK(result.text_runs[2].opacity == doctest::Approx(0.4f));
     CHECK(result.text_runs[3].text == "D");
     CHECK(result.text_runs[3].source_id == "outer");
-    CHECK(result.text_runs[3].fill == "#ff0000");
+    CHECK(result.text_runs[3].fill == "#FF0000");
     CHECK(result.text_runs[3].opacity == doctest::Approx(0.4f));
     CHECK(result.text_runs[4].text == "E");
     CHECK(result.text_runs[4].fill == "#112233");
@@ -368,11 +381,55 @@ TEST_CASE("SVG text paint inherits through nested tspans and resets after each c
     CHECK(result.text_runs[4].opacity == doctest::Approx(0.8f));
 }
 
+TEST_CASE("SVG absolute text coordinates start each positioning scope once") {
+    const std::string filename = "temp_test_svg_absolute_text_scope.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text x="10" y="20">A<tspan fill="#ff0000">B</tspan>C<tspan x="30" y="40">D</tspan>E</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 5);
+    CHECK(result.text_runs[0].text == "A");
+    CHECK(result.text_runs[0].x_explicit);
+    CHECK(result.text_runs[0].y_explicit);
+    CHECK(result.text_runs[1].text == "B");
+    CHECK_FALSE(result.text_runs[1].x_explicit);
+    CHECK_FALSE(result.text_runs[1].y_explicit);
+    CHECK(result.text_runs[2].text == "C");
+    CHECK_FALSE(result.text_runs[2].x_explicit);
+    CHECK_FALSE(result.text_runs[2].y_explicit);
+    CHECK(result.text_runs[3].text == "D");
+    CHECK(result.text_runs[3].x_explicit);
+    CHECK(result.text_runs[3].y_explicit);
+    CHECK(result.text_runs[3].x == doctest::Approx(30.0f));
+    CHECK(result.text_runs[3].y == doctest::Approx(40.0f));
+    CHECK(result.text_runs[4].text == "E");
+    CHECK_FALSE(result.text_runs[4].x_explicit);
+    CHECK_FALSE(result.text_runs[4].y_explicit);
+}
+
+TEST_CASE("SVG text direction is inherited and restored across tspan scopes") {
+    const std::string filename = "temp_test_svg_text_direction.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text direction="rtl">A<tspan direction="ltr">B</tspan>C</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 3);
+    CHECK(result.text_runs[0].direction == "rtl");
+    CHECK(result.text_runs[1].direction == "ltr");
+    CHECK(result.text_runs[2].direction == "rtl");
+}
+
 TEST_CASE("SVG text accepts the SVG dominant-baseline identifiers") {
     const std::string filename = "temp_test_svg_dominant_baselines.svg";
     {
         std::ofstream out(filename);
-        out << R"svg(<svg><text font-family="Chronon Sans">)svg";
+        out << R"svg(<svg><text font-family="Chronon Sans" dominant-baseline="hanging">)svg";
         for (const auto* baseline : {"auto", "use-script", "no-change", "reset-size",
                 "ideographic", "alphabetic", "hanging", "mathematical", "central",
                 "middle", "text-after-edge", "text-before-edge"})
@@ -384,6 +441,8 @@ TEST_CASE("SVG text accepts the SVG dominant-baseline identifiers") {
     REQUIRE(result.ok);
     REQUIRE(result.text_runs.size() == 12);
     CHECK(result.text_runs[4].dominant_baseline == "ideographic");
+    CHECK(result.text_runs[2].dominant_baseline == "hanging");
+    CHECK(result.text_runs[3].dominant_baseline == "hanging");
     CHECK(result.text_runs[7].dominant_baseline == "mathematical");
     CHECK(result.text_runs[10].dominant_baseline == "text-after-edge");
     CHECK(result.text_runs[11].dominant_baseline == "text-before-edge");
@@ -444,6 +503,56 @@ TEST_CASE("SVG textPath preserves local path target and start offset") {
     CHECK(*result.text_runs[0].text_path_id == "route");
     CHECK(result.text_runs[0].text_path_start_offset == doctest::Approx(15.0f));
     CHECK(result.text_runs[0].text_path_start_offset_percent);
+}
+
+TEST_CASE("SVG text resolves objectBoundingBox linear gradient paint") {
+    const std::string filename = "temp_test_svg_text_gradient.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><defs><linearGradient id="ink"><stop offset="0" stop-color="#FF0000"/><stop offset="1" stop-color="#0000FF"/></linearGradient></defs><text font-family="Chronon Sans" fill="url(#ink)">Gradient</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    REQUIRE(result.text_runs[0].fill_gradient.has_value());
+    CHECK(result.text_runs[0].fill_gradient->type == graphics::GradientType::Linear);
+    REQUIRE(result.text_runs[0].fill_gradient->color_stops.size() == 2);
+    CHECK(result.text_runs[0].fill_gradient->color_stops.front().color.r == doctest::Approx(1.0f));
+    CHECK(result.text_runs[0].fill_gradient->color_stops.back().color.b == doctest::Approx(1.0f));
+}
+
+TEST_CASE("SVG textPath retains relative per-character coordinate lists") {
+    const std::string filename = "temp_test_svg_text_path_coordinates.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><defs><path id="route" d="M 10 30 L 180 30"/></defs><text font-family="Chronon Sans"><textPath href="#route" startOffset="5" dx="0 8 0" dy="0 4 0">ABC</textPath></text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    REQUIRE(result.text_runs.front().text_path_id.has_value());
+    CHECK(result.text_runs.front().dx_coordinates == (std::vector<float>{0.0f, 8.0f, 0.0f}));
+    CHECK(result.text_runs.front().dy_coordinates == (std::vector<float>{0.0f, 4.0f, 0.0f}));
+}
+
+TEST_CASE("SVG rotated text coordinate lists preserve both transformed axes") {
+    const std::string filename = "temp_test_svg_text_rotated_coordinates.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text font-family="Chronon Sans" transform="rotate(90)" x="10 20" y="5 10" dx="1 2" dy="3 4">AB</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    REQUIRE(result.text_runs.front().transformed_position_coordinates.size() == 2);
+    REQUIRE(result.text_runs.front().transformed_delta_coordinates.size() == 2);
+    CHECK(result.text_runs.front().transformed_position_coordinates[0][0] == doctest::Approx(-5.0f));
+    CHECK(result.text_runs.front().transformed_position_coordinates[0][1] == doctest::Approx(10.0f));
+    CHECK(result.text_runs.front().transformed_delta_coordinates[0][0] == doctest::Approx(-3.0f));
+    CHECK(result.text_runs.front().transformed_delta_coordinates[0][1] == doctest::Approx(1.0f));
 }
 
 TEST_CASE("SVG document importer converts rounded rectangles") {
@@ -617,7 +726,24 @@ TEST_CASE("SVG group opacity over element opacity preserves both factors") {
     CHECK(result.elements[0].group->opacity == doctest::Approx(0.5f));
 }
 
-TEST_CASE("SVG nested isolated groups fail closed") {
+TEST_CASE("SVG group opacity animation stays on the isolated group scope") {
+    const std::string filename = "temp_test_group_animated_opacity.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><g><animate attributeName="opacity" from="1" to="0" dur="1s" fill="freeze"/><path d="M0 0L10 0L10 10Z"/></g></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.elements.size() == 1);
+    REQUIRE(result.elements.front().groups.size() == 1);
+    CHECK(result.elements.front().opacity == doctest::Approx(1.0f));
+    REQUIRE(result.elements.front().groups.front().opacity_animation.has_value());
+    CHECK(result.elements.front().groups.front().opacity_animation->kind == assets::SvgAnimationKind::Opacity);
+    CHECK(result.elements.front().groups.front().opacity_animation->to[0] == doctest::Approx(0.0f));
+}
+
+TEST_CASE("SVG nested isolated groups preserve their ordered scope") {
     const std::string filename = "temp_test_nested_isolated_groups.svg";
     {
         std::ofstream out(filename);
@@ -628,11 +754,43 @@ TEST_CASE("SVG nested isolated groups fail closed") {
     }
     const auto result = load_svg_document_file(filename);
     std::remove(filename.c_str());
-    // A nested isolated group cannot stay a single-factor contract: the
-    // malformed sentinel consumed by the downstream document validation is
-    // expected (negative certification, fail-closed not rendered wrong).
-    CHECK_FALSE(result.ok);
-    CHECK(result.error.find("SVG animation is malformed or outside the supported bounded subset") != std::string::npos);
+    REQUIRE(result.ok);
+    REQUIRE(result.elements.size() == 1);
+    const auto& element = result.elements[0];
+    REQUIRE(element.groups.size() == 2);
+    CHECK(element.groups[0].id != 0u);
+    CHECK(element.groups[1].id != 0u);
+    CHECK(element.groups[0].id != element.groups[1].id);
+    CHECK(element.groups[0].opacity == doctest::Approx(0.5f));
+    CHECK(element.groups[1].opacity == doctest::Approx(0.4f));
+    REQUIRE(element.group.has_value());
+    CHECK(element.group->id == element.groups.back().id);
+}
+
+TEST_CASE("SVG clip scopes stay distinct for grouped sibling paths") {
+    const std::string filename = "temp_test_svg_distinct_clip_scopes.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <clipPath id="outer"><rect x="0" y="0" width="20" height="20"/></clipPath>
+            <clipPath id="inner"><rect x="5" y="5" width="10" height="10"/></clipPath>
+          </defs>
+          <g clip-path="url(#outer)">
+            <path d="M0 0H20V20H0Z" fill="red"/>
+            <path clip-path="url(#inner)" d="M0 0H20V20H0Z" fill="blue"/>
+          </g>
+        </svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.elements.size() == 2);
+    REQUIRE(result.elements[0].vector_masks.size() == 1);
+    REQUIRE(result.elements[1].vector_masks.size() == 2);
+    CHECK(result.elements[0].vector_masks[0].commands.size() > 0);
+    CHECK(result.elements[1].vector_masks[0].commands.size() > 0);
+    CHECK(result.elements[1].vector_masks[1].commands.size() > 0);
 }
 
 TEST_CASE("SVG tspan text-anchor creates a distinct chunk scope") {
@@ -680,7 +838,7 @@ TEST_CASE("SVG text coordinate lists retain bounded x/y/dx/dy entries") {
     const auto rotated = load_svg_document_file(rotated_filename);
     std::remove(rotated_filename.c_str());
     CHECK_FALSE(rotated.ok);
-    CHECK(rotated.error.find("translation and axis-aligned scale") != std::string::npos);
+    CHECK(rotated.error.find("needs paired x/y coordinate lists") != std::string::npos);
 }
 
 TEST_CASE("SVG importer rejects unsupported render tags explicitly") {

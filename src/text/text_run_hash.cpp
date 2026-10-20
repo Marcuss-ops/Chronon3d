@@ -79,6 +79,10 @@ u64 TextRunLayout::layout_hash() const {
         if (span.semantic_id)
             seed = hash_combine(seed, hash_string(*span.semantic_id));
     }
+    for (const auto& glyph : placed.glyphs) {
+        if (glyph.fill_color_override)
+            seed = hash_combine(seed, hash_color(*glyph.fill_color_override));
+    }
     return seed;
 }
 

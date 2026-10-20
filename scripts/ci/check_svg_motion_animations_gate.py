@@ -154,10 +154,8 @@ FIXTURES["repeater"] = {
 }
 
 # 9. Nested animated groups — a child translation inside a rotating parent.
-# SVG nesting gives R(p + t); the renderer can only express R*p + t, so the
-# importer must reject this combination explicitly (negative certification).
+# The importer preserves ancestor order and composes the per-frame matrices.
 FIXTURES["nested_groups"] = {
-    "expect_error": "SVG animation is malformed",
     "svg": f'<svg {SVG_NS}><g><animateTransform attributeName="transform" '
            'type="rotate" from="0" to="45" dur="1s" fill="freeze"/>'
            '<g><animateTransform attributeName="transform" type="translate" '
@@ -165,12 +163,11 @@ FIXTURES["nested_groups"] = {
            '<path d="M 32 32 L 40 32" stroke="#00AA00" stroke-width="4" fill="none"/>'
            "</g></g></svg>",
     "predicate_frames": (0, 30),
-    "predicate": "translate nested inside rotating parent is rejected, not rendered wrong",
 }
 
-# ADR-035 V1 represents one isolated group factor, never a nested fold.
+# Nested static isolated opacity scopes are supported and covered by the
+# dedicated pixel oracle in check_svg_group_isolation_gate.py.
 FIXTURES["nested_isolated_groups"] = {
-    "expect_error": "SVG animation is malformed",
     "svg": f'<svg {SVG_NS}><g opacity="0.5"><g opacity="0.4">'
            '<path d="M8 8L24 8L24 24L8 24Z" fill="#FF0000"/>'
            '</g></g></svg>',
@@ -300,6 +297,12 @@ def main() -> int:
                        f"group_hierarchy translation and rotation each affect pixels (bbox {start} -> {end})"))
         checks.append((visible(group[0]) and visible(group[30]),
                        "group_hierarchy visible at both endpoints"))
+
+        nested = name_to_frames["nested_groups"]
+        checks.append((nested[0] != nested[30],
+                       "nested animated transforms compose in ancestor order"))
+        checks.append((visible(nested[0]) and visible(nested[30]),
+                       "nested animated transform endpoints stay visible"))
 
         mask = name_to_frames["mask_reveal"]
         def max_col(buf: bytes) -> int:

@@ -14,6 +14,7 @@
 #include <memory_resource>
 #include <variant>
 #include <optional>
+#include <cstdint>
 
 namespace chronon3d {
 
@@ -54,10 +55,22 @@ struct RenderNode {
     };
     std::optional<InlineMeshMaterial> inline_mesh_material;
     struct SvgGroupIsolation {
+        struct OpacityAnimation {
+            std::int64_t start_frame{0};
+            std::int64_t end_frame{0};
+            f32 from{1.0f};
+            f32 to{1.0f};
+            bool discrete{false};
+        };
         std::uint32_t id{0};
         f32 opacity{1.0f};
+        std::optional<OpacityAnimation> opacity_animation;
     };
     std::optional<SvgGroupIsolation> svg_group;
+    std::vector<SvgGroupIsolation> svg_groups;
+    /// Per-element SVG clip/mask geometries in the same local coordinates as
+    /// the associated path node, outermost scope first.
+    std::vector<PathShape> svg_local_masks;
     // Mesh moved to Shape::MeshShape (shape variant index 13).
     // Access via: node.shape.mesh_shape().prepared / .reference
     f32 corner_radius{0.0f};

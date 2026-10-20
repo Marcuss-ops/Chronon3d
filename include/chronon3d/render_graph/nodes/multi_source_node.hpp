@@ -4,6 +4,7 @@
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <spdlog/spdlog.h>
 #include <optional>
+#include <cstdint>
 #include <span>
 #include <vector>
 #include <utility>
@@ -24,10 +25,19 @@ struct MultiSourceItem {
     // alpha onto a shared intermediate surface; the surface composites onto
     // the layer framebuffer once with `group.opacity * item.opacity`.
     struct GroupIsolationSpec {
+        struct OpacityAnimation {
+            std::int64_t start_frame{0};
+            std::int64_t end_frame{0};
+            f32 from{1.0f};
+            f32 to{1.0f};
+            bool discrete{false};
+        };
         std::uint32_t id{0};
         f32 opacity{1.0f};
+        std::optional<OpacityAnimation> opacity_animation;
     };
     std::optional<GroupIsolationSpec> group{};
+    std::vector<GroupIsolationSpec> groups{}; // outermost first; `group` is innermost compatibility view
     // Projected 2D layers are camera-transformed by the layer's following
     // TransformNode.  This prevents MultiSourceNode from applying the camera
     // projection a second time when a scene camera is active. Legacy callers

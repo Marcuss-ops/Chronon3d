@@ -277,6 +277,35 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
         ctx.fillAll();
         ctx.setCompOp(BL_COMP_OP_SRC_OVER);
 
+        BLImage fill_pattern_image;
+        BLImage stroke_pattern_image;
+        const auto make_pattern_image = [](const std::shared_ptr<const graphics::PatternTile>& tile,
+                                           BLImage& image) {
+            if (!tile || !tile->valid()) return;
+            image = BLImage(static_cast<int>(tile->width), static_cast<int>(tile->height),
+                            BL_FORMAT_PRGB32);
+            BLImageData data{};
+            if (image.makeMutable(&data) != BL_SUCCESS || !data.pixelData) {
+                image.reset();
+                return;
+            }
+            const auto* source = tile->rgba.data();
+            auto* destination = static_cast<std::uint8_t*>(data.pixelData);
+            for (std::uint32_t y = 0; y < tile->height; ++y) {
+                auto* row = destination + static_cast<std::size_t>(y) * data.stride;
+                for (std::uint32_t x = 0; x < tile->width; ++x) {
+                    const auto index = (static_cast<std::size_t>(y) * tile->width + x) * 4;
+                    const std::uint32_t alpha = source[index + 3];
+                    row[x * 4 + 0] = static_cast<std::uint8_t>(source[index + 2] * alpha / 255);
+                    row[x * 4 + 1] = static_cast<std::uint8_t>(source[index + 1] * alpha / 255);
+                    row[x * 4 + 2] = static_cast<std::uint8_t>(source[index + 0] * alpha / 255);
+                    row[x * 4 + 3] = static_cast<std::uint8_t>(alpha);
+                }
+            }
+        };
+        make_pattern_image(shape.paint.fill_pattern, fill_pattern_image);
+        make_pattern_image(shape.paint.stroke_pattern, stroke_pattern_image);
+
         for (std::uint32_t gi : tier_glyphs) {
             // Animated glyph state and immutable placed layout can briefly
             // differ while a text run is refreshed. Skip the orphan state
@@ -376,7 +405,41 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                         stroke_width_user *=
                             static_cast<double>(raster_space.scale);
                     }
-                    ctx.setStrokeStyle(to_bl_rgba(out_stroke));
+                    std::optional<BLGradient> text_stroke_gradient;
+                    if (!override_color.has_value() && shape.paint.stroke_style &&
+                        shape.paint.stroke_style->enabled &&
+                        shape.paint.stroke_style->type != FillType::Solid &&
+                        layout.bounds.x > 0.0f && layout.line_height > 0.0f) {
+                        auto glyph_stroke = *shape.paint.stroke_style;
+                        auto& gradient = glyph_stroke.gradient;
+                        const Vec2 delta{source_placed.glyphs[gi].x / layout.bounds.x,
+                                         source_placed.glyphs[gi].y / layout.line_height};
+                        gradient.start -= delta;
+                        gradient.end -= delta;
+                        gradient.center -= delta;
+                        const float ascent = !s.span_fonts.empty()
+                            ? static_cast<float>(s.span_fonts.front().metrics().ascent)
+                            : layout.font_size * 0.8f;
+                        text_stroke_gradient = blend2d_bridge::paint::build_bl_gradient(
+                            glyph_stroke, 0.0f, -ascent,
+                            layout.bounds.x, layout.line_height);
+                    }
+                    if (text_stroke_gradient) {
+                        ctx.setGlobalAlpha(static_cast<double>(g.opacity * shape.paint.stroke_color.a));
+                        ctx.setStrokeStyle(*text_stroke_gradient);
+                    } else if (!override_color && !stroke_pattern_image.empty()) {
+                        const auto& tile = *shape.paint.stroke_pattern;
+                        const auto& m = tile.transform;
+                        BLMatrix2D pattern_transform(m[0], m[1], m[2], m[3],
+                            m[4] - source_placed.glyphs[gi].x,
+                            m[5] - source_placed.glyphs[gi].y);
+                        BLPattern pattern(stroke_pattern_image, BL_EXTEND_MODE_REPEAT,
+                                          pattern_transform);
+                        ctx.setGlobalAlpha(static_cast<double>(g.opacity));
+                        ctx.setStrokeStyle(pattern);
+                    } else {
+                        ctx.setStrokeStyle(to_bl_rgba(out_stroke));
+                    }
                     ctx.setStrokeWidth(stroke_width_user);
                     ctx.setStrokeCaps(shape.paint.stroke_cap == LineCap::Round
                         ? BL_STROKE_CAP_ROUND
@@ -389,6 +452,7 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                     ctx.setStrokeMiterLimit(shape.paint.stroke_miter_limit);
                     stroke_glyph_outline(ctx, path, shape.paint.stroke_dash_array,
                                          shape.paint.stroke_dash_offset);
+                    if (text_stroke_gradient) ctx.setGlobalAlpha(1.0);
                 }
             }
 #endif
@@ -408,7 +472,39 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                 if (override_color.has_value()) {
                     final_fill = *override_color;
                 }
-                ctx.setFillStyle(to_bl_rgba(final_fill));
+                std::optional<BLGradient> text_fill_gradient;
+                if (!override_color.has_value() && shape.paint.fill_style &&
+                    shape.paint.fill_style->enabled &&
+                    shape.paint.fill_style->type != FillType::Solid &&
+                    layout.bounds.x > 0.0f && layout.line_height > 0.0f) {
+                    // Glyphs are drawn in their own translated user space.
+                    // Shift normalized gradient geometry by the glyph origin
+                    // so adjacent glyphs sample one continuous text-run ramp.
+                    auto glyph_fill = *shape.paint.fill_style;
+                    auto& gradient = glyph_fill.gradient;
+                    const Vec2 delta{source_placed.glyphs[gi].x / layout.bounds.x,
+                                     source_placed.glyphs[gi].y / layout.line_height};
+                    gradient.start -= delta;
+                    gradient.end -= delta;
+                    gradient.center -= delta;
+                    const float ascent = !s.span_fonts.empty()
+                        ? static_cast<float>(s.span_fonts.front().metrics().ascent)
+                        : layout.font_size * 0.8f;
+                    text_fill_gradient = blend2d_bridge::paint::build_bl_gradient(
+                        glyph_fill, 0.0f, -ascent, layout.bounds.x, layout.line_height);
+                }
+                if (!override_color && !fill_pattern_image.empty()) {
+                    const auto& tile = *shape.paint.fill_pattern;
+                    const auto& m = tile.transform;
+                    BLMatrix2D pattern_transform(m[0], m[1], m[2], m[3],
+                        m[4] - source_placed.glyphs[gi].x,
+                        m[5] - source_placed.glyphs[gi].y);
+                    BLPattern pattern(fill_pattern_image, BL_EXTEND_MODE_REPEAT,
+                                      pattern_transform);
+                    ctx.setGlobalAlpha(static_cast<double>(op_alpha * shape.paint.fill.a));
+                    ctx.setFillStyle(pattern);
+                } else if (text_fill_gradient) ctx.setFillStyle(*text_fill_gradient);
+                else ctx.setFillStyle(to_bl_rgba(final_fill));
 
                 if (gi >= glyph_span_indices.size() ||
                     glyph_span_indices[gi] >= s.span_fonts.size()) {
@@ -420,6 +516,23 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
                     BLPoint(0.0, 0.0), span_font, sgr.bl_run);
                 if (result != BL_SUCCESS) {
                     return 0;
+                }
+                if (!override_color.has_value()) {
+                    for (const auto& overlay :
+                         source_placed.glyphs[gi].fill_paint_overlays) {
+                        SingleGlyphRun overlay_run{PlacedGlyph{
+                            .glyph_id = overlay.glyph_id}};
+                        ctx.save();
+                        ctx.translate(overlay.x_offset, overlay.y_offset);
+                        ctx.setCompOp(BL_COMP_OP_SRC_ATOP);
+                        ctx.setFillStyle(to_bl_rgba(overlay.color));
+                        ctx.setGlobalAlpha(static_cast<double>(op_alpha));
+                        (void)ctx.fillGlyphRun(BLPoint(0.0, 0.0), span_font,
+                                               overlay_run.bl_run);
+                        ctx.setCompOp(BL_COMP_OP_SRC_OVER);
+                        ctx.setGlobalAlpha(1.0);
+                        ctx.restore();
+                    }
                 }
             }
 

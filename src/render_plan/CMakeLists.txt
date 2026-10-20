@@ -94,6 +94,7 @@ target_link_libraries(chronon3d_render_plan
         chronon3d_core_impl
     PRIVATE
         spdlog::spdlog_header_only
+        ICU::uc
 )
 
 # Propagation: chronon3d_render_plan is intentionally NOT linked into

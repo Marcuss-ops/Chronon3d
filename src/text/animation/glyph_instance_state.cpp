@@ -55,7 +55,8 @@ void reset_glyph_states_in_place(
         gs.blur = 0.0f;
         gs.baseline_shift = 0.0f;
         gs.character_offset = 0;
-        gs.fill = {1.0f, 1.0f, 1.0f, 1.0f};
+        gs.fill = placed.glyphs[i].fill_color_override.value_or(
+            Color{1.0f, 1.0f, 1.0f, 1.0f});
         gs.background = {0.0f, 0.0f, 0.0f, 0.0f};
         gs.background_padding_em = 0.0f;
         gs.background_radius_em = 0.0f;

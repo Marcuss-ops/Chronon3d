@@ -185,6 +185,7 @@ struct TextDefinition {
 
     TextContent              content;     ///< text + pre-shaped glyphs (canonical from <chronon3d/text/text_content.hpp>)
     std::vector<TextSpanOverride> spans;  ///< per-range style overrides (authoring-level)
+    std::vector<TextGlyphPaintRange> glyph_paint_ranges; ///< source paint applied after shaping
     TextDefStyle             style;       ///< font, size, color, stroke, material
     TextFrame                frame;       ///< layout box, position, alignment
     ParagraphStyle           paragraph;   ///< paragraph-level typography (reused)

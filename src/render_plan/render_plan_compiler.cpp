@@ -6,6 +6,8 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/effect_param_animation.hpp>
 #include <cmath>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
@@ -29,6 +31,7 @@
 #include "../scene/camera/camera_v1/camera_program_sources.hpp"
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_path_composer.hpp>
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
 
@@ -49,6 +52,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <unicode/utf8.h>
+#include <unicode/uscript.h>
 
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
@@ -56,6 +61,24 @@
 namespace chronon3d::render_plan {
 
 namespace {
+
+UScriptCode first_strong_unicode_script(std::string_view text) {
+    const auto* bytes = reinterpret_cast<const std::uint8_t*>(text.data());
+    const auto length = static_cast<int32_t>(text.size());
+    int32_t cursor = 0;
+    while (cursor < length) {
+        UChar32 cp = 0;
+        U8_NEXT(bytes, cursor, length, cp);
+        if (cp < 0) continue;
+        UErrorCode error = U_ZERO_ERROR;
+        const auto script = uscript_getScript(cp, &error);
+        if (U_SUCCESS(error) && script != USCRIPT_COMMON &&
+            script != USCRIPT_INHERITED && script != USCRIPT_UNKNOWN)
+            return script;
+    }
+    return USCRIPT_UNKNOWN;
+}
+
 // ── media background card pass ─────────────────────────────────────────────
 //
 // A media layer (video/image) may declare the rounded, padded plate behind its
@@ -286,12 +309,22 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         struct SvgTextMetrics {
             std::string font_asset;
             float advance{0.0f};
+            float ink_width{0.0f};
             float ascent{0.0f};
             float descent{0.0f};
             float x_height{0.0f};
             float cap_height{0.0f};
             float line_height{0.0f};
+            std::optional<float> script_baseline_offset;
+            std::optional<float> central_baseline_offset;
+            std::optional<float> hanging_baseline_offset;
+            std::optional<float> ideographic_baseline_offset;
+            std::optional<float> mathematical_baseline_offset;
+            std::optional<float> before_edge_baseline_offset;
+            std::optional<float> after_edge_baseline_offset;
         };
+        std::vector<SvgTextMetrics> pending_svg_text_metrics;
+        std::vector<bool> pending_svg_text_boundary_before;
         std::unique_ptr<chronon3d::FontEngine> svg_text_font_engine;
         for (std::size_t layer_index = 0; layer_index < plan.layers.size(); ++layer_index) {
             auto& layer = plan.layers[layer_index];
@@ -342,15 +375,80 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 subpath.source_group_ids = element.group_ids;
                 subpath.fill_rule = element.path.fill_rule == PathFillRule::NonZero
                     ? ShapeFillRulePlan::NonZero : ShapeFillRulePlan::EvenOdd;
-                if (element.group) {
-                    if (element.group->id == 0 ||
-                        !std::isfinite(element.group->opacity) ||
-                        element.group->opacity <= 0.0f || element.group->opacity > 1.0f)
+                auto group_chain = element.groups;
+                if (group_chain.empty() && element.group)
+                    group_chain.push_back(*element.group);
+                if (group_chain.size() > 16)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG isolated group nesting exceeds the depth limit of 16",
+                        "svg_resource_limit", "render-plan-svg"};
+                const double svg_fps = plan.canvas.fps.fps();
+                const auto frame_at_time = [&](float seconds) -> std::optional<std::int64_t> {
+                    const double frame = static_cast<double>(seconds) * svg_fps;
+                    const double rounded = std::round(frame);
+                    if (!std::isfinite(frame) || std::abs(frame - rounded) > 1e-5 ||
+                        rounded < 0.0 || rounded > 1000000.0) return std::nullopt;
+                    return static_cast<std::int64_t>(rounded);
+                };
+                for (const auto& group : group_chain) {
+                    if (group.id == 0 || !std::isfinite(group.opacity) ||
+                        group.opacity < 0.0f || group.opacity > 1.0f)
                         return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                            "SVG isolated group is invalid: id must be nonzero and opacity in (0,1]",
+                            "SVG isolated group is invalid: id must be nonzero and opacity in [0,1]",
                             "svg_unsupported_style", "render-plan-svg"};
-                    subpath.svg_group = ImportedSubpathPlan::SvgGroupIsolationPlan{
-                        element.group->id, element.group->opacity};
+                    ImportedSubpathPlan::SvgGroupIsolationPlan planned_group{
+                        group.id, group.opacity};
+                    if (group.opacity_animation) {
+                        const auto& animation = *group.opacity_animation;
+                        const auto first_frame = frame_at_time(animation.begin_seconds);
+                        const auto last_frame = frame_at_time(
+                            animation.begin_seconds + animation.duration_seconds);
+                        if (animation.kind != assets::SvgAnimationKind::Opacity ||
+                            animation.components != 1 || !first_frame || !last_frame ||
+                            *last_frame <= *first_frame || animation.from[0] < 0.0f ||
+                            animation.from[0] > 1.0f || animation.to[0] < 0.0f ||
+                            animation.to[0] > 1.0f)
+                            return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                                "SVG group opacity animation is invalid or off the composition frame grid",
+                                "svg_animation_timing_unsupported", "render-plan-svg"};
+                        AnimationTrackPlan track;
+                        track.property = "svg_group_opacity";
+                        AnimationKeyframePlan from;
+                        from.frame = Frame{*first_frame};
+                        from.value = {animation.from[0]};
+                        from.interpolation = animation.discrete ? "hold" : "linear";
+                        AnimationKeyframePlan to;
+                        to.frame = Frame{*last_frame};
+                        to.value = {animation.to[0]};
+                        track.keyframes = {std::move(from), std::move(to)};
+                        planned_group.opacity_animation = std::move(track);
+                    }
+                    subpath.svg_groups.push_back(std::move(planned_group));
+                }
+                if (!subpath.svg_groups.empty())
+                    subpath.svg_group = subpath.svg_groups.back();
+                for (const auto& geometry : element.vector_masks) {
+                    std::vector<ShapePathCommandPlan> commands;
+                    commands.reserve(geometry.commands.size());
+                    for (const auto& command : geometry.commands) {
+                        ShapePathCommandPlan lowered;
+                        const auto lower_point = [&](Vec2 point, std::array<float, 2>& destination) {
+                            if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+                                std::abs(point.x) > 100000.0f || std::abs(point.y) > 100000.0f)
+                                throw std::runtime_error("SVG element mask coordinate exceeds finite resource bounds");
+                            destination = {std::round(point.x * 10000.0f) / 10000.0f,
+                                           std::round(point.y * 10000.0f) / 10000.0f};
+                        };
+                        switch (command.type) {
+                            case PathCommandType::MoveTo: lowered.type = ShapePathCommandTypePlan::MoveTo; lower_point(command.p0, lowered.point); break;
+                            case PathCommandType::LineTo: lowered.type = ShapePathCommandTypePlan::LineTo; lower_point(command.p0, lowered.point); break;
+                            case PathCommandType::QuadraticTo: lowered.type = ShapePathCommandTypePlan::QuadraticTo; lower_point(command.p0, lowered.point); lower_point(command.p1, lowered.control1); break;
+                            case PathCommandType::CubicTo: lowered.type = ShapePathCommandTypePlan::CubicTo; lower_point(command.p0, lowered.point); lower_point(command.p1, lowered.control1); lower_point(command.p2, lowered.control2); break;
+                            case PathCommandType::Close: lowered.type = ShapePathCommandTypePlan::Close; break;
+                        }
+                        commands.push_back(lowered);
+                    }
+                    subpath.svg_local_masks.push_back(std::move(commands));
                 }
                 if (element.fill && element.fill->enabled) {
                     if (element.fill->type != FillType::Solid &&
@@ -385,14 +483,6 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     stroke.solid_color = std::array<float, 4>{color.r, color.g, color.b, color.a};
                     subpath.stroke = std::move(stroke);
                 }
-                const double svg_fps = plan.canvas.fps.fps();
-                const auto frame_at_time = [&](float seconds) -> std::optional<std::int64_t> {
-                    const double frame = static_cast<double>(seconds) * svg_fps;
-                    const double rounded = std::round(frame);
-                    if (!std::isfinite(frame) || std::abs(frame - rounded) > 1e-5 ||
-                        rounded < 0.0 || rounded > 1000000.0) return std::nullopt;
-                    return static_cast<std::int64_t>(rounded);
-                };
                 for (const auto& svg_animation : element.animations) {
                     const auto first_frame = frame_at_time(svg_animation.begin_seconds);
                     const auto last_frame = frame_at_time(
@@ -423,6 +513,17 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     to.value.assign(svg_animation.to.begin(),
                         svg_animation.to.begin() + svg_animation.components);
                     track.keyframes = {std::move(from), std::move(to)};
+                    if (svg_animation.kind == assets::SvgAnimationKind::Translate ||
+                        svg_animation.kind == assets::SvgAnimationKind::Scale ||
+                        svg_animation.kind == assets::SvgAnimationKind::Rotate) {
+                        const char* operation = svg_animation.kind == assets::SvgAnimationKind::Translate
+                            ? "translate" : svg_animation.kind == assets::SvgAnimationKind::Scale
+                            ? "scale" : "rotate";
+                        subpath.svg_transform_animations.push_back(
+                            ImportedSubpathPlan::SvgTransformAnimationPlan{
+                                operation, std::move(track)});
+                        continue;
+                    }
                     std::optional<AnimationTrackPlan>* destination = nullptr;
                     switch (svg_animation.kind) {
                         case assets::SvgAnimationKind::Opacity: destination = &subpath.svg_opacity_animation; break;
@@ -529,6 +630,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             std::vector<std::size_t> current_text_layers;
             current_text_layers.reserve(imported.text_runs.size());
             std::vector<SvgTextMetrics> text_metrics(imported.text_runs.size());
+            std::vector<bool> text_chunk_boundary_safe(imported.text_runs.size(), true);
+            std::vector<UScriptCode> effective_text_scripts(
+                imported.text_runs.size(), USCRIPT_UNKNOWN);
             std::unordered_map<std::string, float> text_anchor_advances;
             const auto group_key_for = [&](const chronon3d::assets::SvgTextRun& run,
                                            std::size_t index) {
@@ -538,6 +642,17 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             };
             for (std::size_t text_index = 0; text_index < imported.text_runs.size(); ++text_index) {
                 const auto& run = imported.text_runs[text_index];
+                auto script_code = first_strong_unicode_script(run.text);
+                if (script_code == USCRIPT_UNKNOWN && text_index > 0) {
+                    const auto& previous = imported.text_runs[text_index - 1];
+                    if (previous.text_element_id == run.text_element_id &&
+                        previous.group_ids == run.group_ids &&
+                        previous.coordinate_scope_ids == run.coordinate_scope_ids &&
+                        previous.font_family == run.font_family &&
+                        previous.font_size == run.font_size)
+                        script_code = effective_text_scripts[text_index - 1];
+                }
+                effective_text_scripts[text_index] = script_code;
                 if (run.text.empty() || run.font_family.empty() ||
                     !std::isfinite(run.font_size) || run.font_size <= 0.0f ||
                     !std::isfinite(run.opacity) || run.opacity < 0.0f || run.opacity > 1.0f ||
@@ -594,12 +709,239 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                         "SVG text could not be measured with its resolved font asset",
                         "svg_font_unresolved", "render-plan-svg"};
-                text_metrics[text_index] = {font_asset, advance, metrics.ascent,
-                    metrics.descent, metrics.x_height, metrics.cap_height,
-                    metrics.line_height};
+                auto& resolved_metrics = text_metrics[text_index];
+                resolved_metrics.font_asset = font_asset;
+                resolved_metrics.advance = advance;
+                resolved_metrics.ink_width = advance;
+                resolved_metrics.ascent = metrics.ascent;
+                resolved_metrics.descent = metrics.descent;
+                resolved_metrics.x_height = metrics.x_height;
+                resolved_metrics.cap_height = metrics.cap_height;
+                resolved_metrics.line_height = metrics.line_height;
+                if (script_code != USCRIPT_UNKNOWN) {
+                    const char* script_name = uscript_getShortName(script_code);
+                    if (script_name && std::strlen(script_name) == 4) {
+                        const bool rtl_baseline = run.direction == "rtl" ||
+                            (run.direction != "ltr" &&
+                             uscript_isRightToLeft(script_code));
+                        const auto baseline_offset = [&](std::string_view baseline) {
+                            return svg_text_font_engine->get_open_type_baseline_offset(
+                                font_spec, run.font_size, baseline, script_name,
+                                rtl_baseline
+                                    ? chronon3d::TextDirection::RTL
+                                    : chronon3d::TextDirection::LTR);
+                        };
+                        resolved_metrics.script_baseline_offset = baseline_offset("auto");
+                        resolved_metrics.central_baseline_offset = baseline_offset("central");
+                        resolved_metrics.hanging_baseline_offset = baseline_offset("hanging");
+                        resolved_metrics.ideographic_baseline_offset = baseline_offset("ideographic");
+                        resolved_metrics.mathematical_baseline_offset = baseline_offset("mathematical");
+                        resolved_metrics.before_edge_baseline_offset = baseline_offset("text-before-edge");
+                        resolved_metrics.after_edge_baseline_offset = baseline_offset("text-after-edge");
+                    }
+                }
+            }
+            const auto has_no_text_positioning = [](const auto& run) {
+                return run.dx == 0.0f && run.dy == 0.0f && run.x_coordinates.empty() &&
+                    run.y_coordinates.empty() && run.dx_coordinates.empty() &&
+                    run.dy_coordinates.empty() &&
+                    run.transformed_position_coordinates.empty() &&
+                    run.transformed_delta_coordinates.empty() && !run.text_path_id;
+            };
+            const auto same_shaping_scope = [&](std::size_t left, std::size_t right) {
+                const auto& a = imported.text_runs[left];
+                const auto& b = imported.text_runs[right];
+                return group_key_for(a, left) == group_key_for(b, right) &&
+                    a.coordinate_scope_ids == b.coordinate_scope_ids &&
+                    a.text_anchor_scope_id == b.text_anchor_scope_id &&
+                    !b.x_explicit && !b.y_explicit &&
+                    a.font_family == b.font_family && a.font_size == b.font_size &&
+                    a.font_weight == b.font_weight && a.font_style == b.font_style &&
+                    a.direction == b.direction &&
+                    a.text_anchor == b.text_anchor &&
+                    a.dominant_baseline == b.dominant_baseline &&
+                    a.baseline_shift == b.baseline_shift &&
+                    has_no_text_positioning(a) && has_no_text_positioning(b);
+            };
+            for (std::size_t begin = 0; begin < imported.text_runs.size();) {
+                std::size_t end = begin + 1;
+                while (end < imported.text_runs.size() &&
+                       same_shaping_scope(end - 1, end)) ++end;
+                if (has_no_text_positioning(imported.text_runs[begin])) {
+                    const auto& first = imported.text_runs[begin];
+                    chronon3d::FontSpec font_spec;
+                    font_spec.font_path = text_metrics[begin].font_asset;
+                    if (const auto path = resolver.resolve_logical(font_spec.font_path))
+                        font_spec.font_path = path->string();
+                    font_spec.font_family = first.font_family;
+                    font_spec.font_weight = first.font_weight;
+                    font_spec.font_style = first.font_style;
+                    font_spec.font_size = first.font_size;
+                    std::string combined;
+                    std::vector<std::size_t> run_start_bytes(end - begin, 0);
+                    for (std::size_t index = begin; index < end; ++index) {
+                        if (index > begin)
+                            run_start_bytes[index - begin] = combined.size();
+                        combined += imported.text_runs[index].text;
+                    }
+                    bool chunk_boundaries_safe = false;
+                    std::optional<UScriptCode> previous_script;
+                    bool mixed_scripts = false;
+                    for (std::size_t index = begin; index < end; ++index) {
+                        const auto script = first_strong_unicode_script(
+                            imported.text_runs[index].text);
+                        if (script == USCRIPT_UNKNOWN) continue;
+                        if (previous_script && *previous_script != script)
+                            mixed_scripts = true;
+                        previous_script = script;
+                    }
+                    const auto primary_script = first_strong_unicode_script(combined);
+                    const bool right_to_left_script =
+                        primary_script != USCRIPT_UNKNOWN &&
+                        uscript_isRightToLeft(primary_script);
+                    if (mixed_scripts) {
+                        // A single HarfBuzz buffer guesses one script from its
+                        // first strong character. Measure the authored chunks
+                        // independently across script boundaries; the canonical
+                        // text shaper joins their glyphs with these byte ranges.
+                        chunk_boundaries_safe = true;
+                        for (std::size_t index = begin; index < end; ++index) {
+                            const auto& run = imported.text_runs[index];
+                            const auto shaped_run = svg_text_font_engine->shape_text(
+                                run.text, font_spec, first.font_size);
+                            if (!shaped_run) {
+                                chunk_boundaries_safe = false;
+                                break;
+                            }
+                            const auto placed = chronon3d::resolve_placed_glyph_run(
+                                *shaped_run, 0.0f, run.text);
+                            text_metrics[index].advance = placed.total_width;
+                            float ink_right = 0.0f;
+                            for (const auto& glyph : placed.glyphs)
+                                ink_right = std::max(ink_right,
+                                    glyph.x + glyph.bbox_x1);
+                            text_metrics[index].ink_width = std::max(
+                                placed.total_width, ink_right);
+                        }
+                    } else if (right_to_left_script) {
+                        // RTL clusters are stored in logical byte order while
+                        // their glyph positions run in visual order. Derive
+                        // paint-chunk widths from logical cluster advances;
+                        // x positions are not monotone and cannot be used as
+                        // chunk boundaries as they are for LTR text.
+                        const auto shaped = svg_text_font_engine->shape_text(
+                            combined, font_spec, first.font_size);
+                        if (shaped) {
+                            const auto placed = chronon3d::resolve_placed_glyph_run(
+                                *shaped, 0.0f, combined);
+                            std::vector<std::size_t> byte_boundaries = run_start_bytes;
+                            byte_boundaries.push_back(0);
+                            byte_boundaries.push_back(combined.size());
+                            std::sort(byte_boundaries.begin(), byte_boundaries.end());
+                            byte_boundaries.erase(std::unique(byte_boundaries.begin(),
+                                byte_boundaries.end()), byte_boundaries.end());
+                            bool complete_boundaries = true;
+                            for (std::size_t offset = 1; offset + 1 < byte_boundaries.size(); ++offset) {
+                                if (std::none_of(placed.clusters.begin(), placed.clusters.end(),
+                                    [&](const auto& cluster) {
+                                        return cluster.byte_offset == byte_boundaries[offset];
+                                    })) {
+                                    complete_boundaries = false;
+                                    break;
+                                }
+                            }
+                            if (complete_boundaries) {
+                                chunk_boundaries_safe = true;
+                                for (std::size_t offset = 0; offset < run_start_bytes.size(); ++offset) {
+                                    const auto byte_start = run_start_bytes[offset];
+                                    const auto byte_end = offset + 1 < run_start_bytes.size()
+                                        ? run_start_bytes[offset + 1] : combined.size();
+                                    float advance = 0.0f;
+                                    for (const auto& cluster : placed.clusters)
+                                        if (cluster.byte_offset >= byte_start &&
+                                            cluster.byte_offset < byte_end)
+                                            advance += cluster.advance;
+                                    text_metrics[begin + offset].advance = advance;
+                                    text_metrics[begin + offset].ink_width = advance;
+                                }
+                            }
+                        }
+                    } else {
+                    const auto shaped = svg_text_font_engine->shape_text(
+                        combined, font_spec, first.font_size);
+                    if (shaped) {
+                        const auto placed = chronon3d::resolve_placed_glyph_run(
+                            *shaped, 0.0f, combined);
+                        std::vector<std::optional<float>> run_starts(end - begin);
+                        run_starts.front() = 0.0f;
+                        bool complete_boundaries = true;
+                        bool safe_grapheme_boundaries = true;
+                        for (std::size_t offset = 1; offset < run_starts.size(); ++offset) {
+                            const auto byte = run_start_bytes[offset];
+                            const auto cluster = std::find_if(placed.clusters.begin(),
+                                placed.clusters.end(), [byte](const auto& candidate) {
+                                    return candidate.byte_offset >= byte;
+                                });
+                            if (cluster == placed.clusters.end() ||
+                                cluster->byte_offset != byte ||
+                                cluster->start_glyph >= placed.glyphs.size()) {
+                                complete_boundaries = false;
+                                bool is_grapheme_edge = false;
+                                const auto graphemes = chronon3d::detail::grapheme_cluster_count(combined);
+                                for (std::size_t grapheme = 0; grapheme <= graphemes; ++grapheme) {
+                                    if (chronon3d::detail::grapheme_byte_offset_at(combined, grapheme) == byte) {
+                                        is_grapheme_edge = true;
+                                        break;
+                                    }
+                                }
+                                if (is_grapheme_edge) safe_grapheme_boundaries = false;
+                                continue;
+                            }
+                            run_starts[offset] = placed.glyphs[cluster->start_glyph].x;
+                        }
+                        if (!complete_boundaries && safe_grapheme_boundaries) {
+                            // The paint boundary falls inside one extended
+                            // grapheme. Keep the authored paint spans together
+                            // so shaping can retain the indivisible glyph
+                            // cluster instead of reshaping its code points.
+                            chunk_boundaries_safe = true;
+                        } else if (complete_boundaries && std::isfinite(placed.total_width)) {
+                            chunk_boundaries_safe = true;
+                            for (std::size_t offset = 0; offset < run_starts.size(); ++offset) {
+                                const float next = offset + 1 < run_starts.size()
+                                    ? *run_starts[offset + 1] : placed.total_width;
+                                if (next >= *run_starts[offset]) {
+                                    text_metrics[begin + offset].advance =
+                                        next - *run_starts[offset];
+                                    float ink_right = 0.0f;
+                                    const std::size_t byte_start = run_start_bytes[offset];
+                                    const std::size_t byte_end = offset + 1 < run_start_bytes.size()
+                                        ? run_start_bytes[offset + 1] : combined.size();
+                                    for (const auto& glyph : placed.glyphs) {
+                                        if (glyph.byte_offset < byte_start ||
+                                            glyph.byte_offset >= byte_end) continue;
+                                        ink_right = std::max(ink_right,
+                                            glyph.x + glyph.bbox_x1 - *run_starts[offset]);
+                                    }
+                                    text_metrics[begin + offset].ink_width = std::max(
+                                        text_metrics[begin + offset].advance, ink_right);
+                                }
+                            }
+                        }
+                    }
+                    }
+                    if (!chunk_boundaries_safe)
+                        for (std::size_t index = begin + 1; index < end; ++index)
+                            text_chunk_boundary_safe[index] = false;
+                }
+                begin = end;
+            }
+            text_anchor_advances.clear();
+            for (std::size_t text_index = 0; text_index < imported.text_runs.size(); ++text_index) {
+                const auto& run = imported.text_runs[text_index];
                 const auto anchor_scope = run.text_anchor_scope_id.empty()
                     ? group_key_for(run, text_index) : layer.id + "#anchor#" + run.text_anchor_scope_id;
-                text_anchor_advances[anchor_scope] += advance;
+                text_anchor_advances[anchor_scope] += text_metrics[text_index].advance;
             }
             std::unordered_map<std::string, std::array<float, 2>> text_group_cursors;
             std::unordered_set<std::string> started_text_anchor_scopes;
@@ -614,21 +956,30 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     : first_run ? 0.0f : cursor_it->second[1];
                 run_x += run.dx;
                 baseline_y += run.dy + run.baseline_shift;
-                if (run.dominant_baseline == "central")
-                    baseline_y += (text_metrics[text_index].ascent -
-                                   text_metrics[text_index].descent) * 0.5f;
+                if (run.dominant_baseline == "auto" ||
+                    run.dominant_baseline == "use-script")
+                    baseline_y += text_metrics[text_index].script_baseline_offset.value_or(0.0f);
+                else if (run.dominant_baseline == "central")
+                    baseline_y += text_metrics[text_index].central_baseline_offset.value_or(
+                        (text_metrics[text_index].ascent -
+                         text_metrics[text_index].descent) * 0.5f);
                 else if (run.dominant_baseline == "middle")
                     baseline_y += text_metrics[text_index].x_height * 0.5f;
                 else if (run.dominant_baseline == "hanging")
-                    baseline_y += text_metrics[text_index].ascent * 0.8f;
+                    baseline_y += text_metrics[text_index].hanging_baseline_offset.value_or(
+                        text_metrics[text_index].ascent * 0.8f);
                 else if (run.dominant_baseline == "ideographic")
-                    baseline_y += text_metrics[text_index].descent;
+                    baseline_y += text_metrics[text_index].ideographic_baseline_offset.value_or(
+                        text_metrics[text_index].descent);
                 else if (run.dominant_baseline == "mathematical")
-                    baseline_y += text_metrics[text_index].cap_height * 0.5f;
+                    baseline_y += text_metrics[text_index].mathematical_baseline_offset.value_or(
+                        text_metrics[text_index].cap_height * 0.5f);
                 else if (run.dominant_baseline == "text-before-edge")
-                    baseline_y += text_metrics[text_index].ascent;
+                    baseline_y += text_metrics[text_index].before_edge_baseline_offset.value_or(
+                        text_metrics[text_index].ascent);
                 else if (run.dominant_baseline == "text-after-edge")
-                    baseline_y -= text_metrics[text_index].descent;
+                    baseline_y += text_metrics[text_index].after_edge_baseline_offset.value_or(
+                        -text_metrics[text_index].descent);
                 const auto anchor_scope = run.text_anchor_scope_id.empty()
                     ? group_key : layer.id + "#anchor#" + run.text_anchor_scope_id;
                 const bool first_anchor_run = started_text_anchor_scopes.insert(anchor_scope).second;
@@ -653,7 +1004,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     text_metrics[text_index].ascent;
                 text_layer.position[2] = layer.position[2];
                 text_layer.size_dimensions = 2;
-                text_layer.size = {std::max(1.0f, text_metrics[text_index].advance + 1.0f),
+                text_layer.size = {std::max(1.0f,
+                    std::max(text_metrics[text_index].advance,
+                             text_metrics[text_index].ink_width) + 1.0f),
                     text_metrics[text_index].line_height};
                 text_layer.enable_3d = layer.enable_3d;
                 text_layer.scale = layer.scale;
@@ -665,13 +1018,17 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 text_style.font_family = run.font_family;
                 text_style.font_weight = run.font_weight;
                 text_style.font_style = run.font_style;
+                text_style.text_direction = run.direction;
                 text_style.text_align = "left";
                 text_style.font_size = run.font_size;
                 text_style.fill = run.fill;
+                text_style.fill_gradient = run.fill_gradient;
+                text_style.fill_pattern = run.fill_pattern;
                 text_style.fill_opacity = run.fill_opacity;
                 if (run.stroke && run.stroke_width > 0.0f) {
                     text_style.stroke = StrokeStyle{.color = *run.stroke,
                         .width = run.stroke_width,
+                        .gradient = run.stroke_gradient,
                         .dash_array = run.stroke_dash_array,
                         .dash_offset = run.stroke_dash_offset,
                         .cap = run.stroke_cap == LineCap::Round ? "round"
@@ -680,6 +1037,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             : run.stroke_join == LineJoin::Bevel ? "bevel" : "miter",
                         .miter_limit = run.stroke_miter_limit,
                         .opacity = run.stroke_opacity};
+                    text_style.stroke_pattern = run.stroke_pattern;
                 }
                 text_style.text_fit_mode = "none";
                 text_layer.font = text_metrics[text_index].font_asset;
@@ -687,7 +1045,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 if (!run.text_path_id) {
                     const bool has_coordinate_lists = !run.x_coordinates.empty() ||
                         !run.y_coordinates.empty() || !run.dx_coordinates.empty() ||
-                        !run.dy_coordinates.empty();
+                        !run.dy_coordinates.empty() ||
+                        !run.transformed_position_coordinates.empty() ||
+                        !run.transformed_delta_coordinates.empty();
                     if (has_coordinate_lists) {
                         chronon3d::FontSpec coordinate_font;
                         coordinate_font.font_path = text_metrics[text_index].font_asset;
@@ -737,14 +1097,35 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                 return PlanDecodeError{"layers[" + std::to_string(layer_index) +
                                     "].shape.asset", "SVG coordinate list splits a shaped text cluster; split the run at that character",
                                     "svg_text_coordinate_cluster_unsupported", "render-plan-svg"};
-                            if (character_index < run.x_coordinates.size())
+                            const auto has_inner_transformed = [&](const auto& coordinates) {
+                                const auto first_inner = character_index + 1;
+                                const auto end = character_index + cluster_characters;
+                                return std::any_of(coordinates.begin() + std::min(first_inner, coordinates.size()),
+                                    coordinates.begin() + std::min(end, coordinates.size()),
+                                    [](const auto&) { return true; });
+                            };
+                            if (has_inner_transformed(run.transformed_position_coordinates) ||
+                                has_inner_transformed(run.transformed_delta_coordinates))
+                                return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                                    "].shape.asset", "SVG coordinate list splits a shaped text cluster; split the run at that character",
+                                    "svg_text_coordinate_cluster_unsupported", "render-plan-svg"};
+                            if (character_index < run.transformed_position_coordinates.size()) {
+                                cursor_x = run.transformed_position_coordinates[character_index][0];
+                                cursor_y = run.transformed_position_coordinates[character_index][1];
+                            } else {
+                                if (character_index < run.x_coordinates.size())
                                 cursor_x = run.x_coordinates[character_index];
-                            if (character_index < run.y_coordinates.size())
+                                if (character_index < run.y_coordinates.size())
                                 cursor_y = run.y_coordinates[character_index];
+                            }
                             if (character_index < run.dx_coordinates.size())
                                 cursor_x += run.dx_coordinates[character_index];
                             if (character_index < run.dy_coordinates.size())
                                 cursor_y += run.dy_coordinates[character_index];
+                            if (character_index < run.transformed_delta_coordinates.size()) {
+                                cursor_x += run.transformed_delta_coordinates[character_index][0];
+                                cursor_y += run.transformed_delta_coordinates[character_index][1];
+                            }
                             const std::string cluster_text = run.text.substr(
                                 cluster.byte_offset, cluster.byte_len);
                             auto cluster_run = run;
@@ -756,7 +1137,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             float anchored_x = cursor_x;
                             const bool starts_positioned_chunk =
                                 character_index < run.x_coordinates.size() ||
-                                character_index < run.y_coordinates.size();
+                                character_index < run.y_coordinates.size() ||
+                                character_index < run.transformed_position_coordinates.size();
                             if (starts_positioned_chunk) {
                                 float chunk_advance = cluster.advance;
                                 std::size_t next_character = character_index + cluster_characters;
@@ -767,7 +1149,8 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                         next_cluster.byte_offset + next_cluster.byte_len > run.text.size())
                                         continue;
                                     if (next_character < run.x_coordinates.size() ||
-                                        next_character < run.y_coordinates.size())
+                                        next_character < run.y_coordinates.size() ||
+                                        next_character < run.transformed_position_coordinates.size())
                                         break;
                                     chunk_advance += next_cluster.advance;
                                     next_character += utf8_count(run.text.substr(
@@ -783,6 +1166,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             current_text_layers.push_back(pending_svg_text_layers.size());
                             pending_svg_text_layers.emplace_back(std::move(cluster_run),
                                                                  std::move(cluster_layer));
+                            pending_svg_text_metrics.push_back(text_metrics[text_index]);
+                            pending_svg_text_boundary_before.push_back(
+                                text_index == 0 || text_chunk_boundary_safe[text_index]);
                             cursor_x += cluster.advance;
                             character_index += cluster_characters;
                         }
@@ -790,14 +1176,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     }
                     current_text_layers.push_back(pending_svg_text_layers.size());
                     pending_svg_text_layers.emplace_back(run, std::move(text_layer));
+                    pending_svg_text_metrics.push_back(text_metrics[text_index]);
+                    pending_svg_text_boundary_before.push_back(
+                        text_index == 0 || text_chunk_boundary_safe[text_index]);
                     continue;
                 }
-                if (!run.x_coordinates.empty() || !run.y_coordinates.empty() ||
-                    !run.dx_coordinates.empty() || !run.dy_coordinates.empty())
-                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
-                        "].shape.asset", "SVG textPath coordinate lists are not supported; position the textPath with startOffset and text-anchor",
-                        "svg_text_path_coordinate_list_unsupported", "render-plan-svg"};
-
                 const chronon3d::assets::SvgStyledElement* target_path = nullptr;
                 chronon3d::PathShape text_path_geometry;
                 std::size_t target_path_matches = 0;
@@ -855,19 +1238,38 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 const float start_offset = run.text_path_start_offset_percent
                     ? run.text_path_start_offset * sampler.total_length() * 0.01f
                     : run.text_path_start_offset;
-                path_spec.first_margin = start_offset + run.dx;
+                const float initial_dx = run.dx_coordinates.empty() ? 0.0f : run.dx_coordinates.front();
+                const float initial_dy = run.dy_coordinates.empty() ? 0.0f : run.dy_coordinates.front();
+                path_spec.first_margin = start_offset + run.dx - initial_dx;
                 if (run.text_anchor == "middle")
                     path_spec.first_margin -= placed.total_width * 0.5f;
                 else if (run.text_anchor == "end")
                     path_spec.first_margin -= placed.total_width;
-                path_spec.baseline_offset = run.dy + run.baseline_shift;
-                if (run.dominant_baseline == "central")
-                    path_spec.baseline_offset += (text_metrics[text_index].ascent -
-                        text_metrics[text_index].descent) * 0.5f;
+                path_spec.baseline_offset = run.dy - initial_dy + run.baseline_shift;
+                if (run.dominant_baseline == "auto" ||
+                    run.dominant_baseline == "use-script")
+                    path_spec.baseline_offset += text_metrics[text_index].script_baseline_offset.value_or(0.0f);
+                else if (run.dominant_baseline == "central")
+                    path_spec.baseline_offset += text_metrics[text_index].central_baseline_offset.value_or(
+                        (text_metrics[text_index].ascent -
+                         text_metrics[text_index].descent) * 0.5f);
                 else if (run.dominant_baseline == "middle")
                     path_spec.baseline_offset += text_metrics[text_index].x_height * 0.5f;
                 else if (run.dominant_baseline == "hanging")
-                    path_spec.baseline_offset += text_metrics[text_index].ascent * 0.8f;
+                    path_spec.baseline_offset += text_metrics[text_index].hanging_baseline_offset.value_or(
+                        text_metrics[text_index].ascent * 0.8f);
+                else if (run.dominant_baseline == "ideographic")
+                    path_spec.baseline_offset += text_metrics[text_index].ideographic_baseline_offset.value_or(
+                        text_metrics[text_index].descent);
+                else if (run.dominant_baseline == "mathematical")
+                    path_spec.baseline_offset += text_metrics[text_index].mathematical_baseline_offset.value_or(
+                        text_metrics[text_index].cap_height * 0.5f);
+                else if (run.dominant_baseline == "text-before-edge")
+                    path_spec.baseline_offset += text_metrics[text_index].before_edge_baseline_offset.value_or(
+                        text_metrics[text_index].ascent);
+                else if (run.dominant_baseline == "text-after-edge")
+                    path_spec.baseline_offset += text_metrics[text_index].after_edge_baseline_offset.value_or(
+                        -text_metrics[text_index].descent);
                 path_spec.perpendicular_to_path = true;
                 const auto path_placement = chronon3d::compose_text_on_path(
                     placed, sampler, path_spec, run.text);
@@ -875,16 +1277,103 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     return PlanDecodeError{"layers[" + std::to_string(layer_index) +
                         "].shape.asset", "SVG textPath cluster placement failed",
                         "svg_text_invalid", "render-plan-svg"};
+                std::size_t path_character_index = 0;
+                float path_dx_accumulated = 0.0f;
+                float path_dy_accumulated = 0.0f;
+                const auto path_origin = sampler.sample_distance(0.0f);
+                const auto absolute_path_coordinates = [&](std::size_t character_index)
+                    -> std::optional<std::array<float, 2>> {
+                    if (character_index < run.transformed_position_coordinates.size()) {
+                        const auto& point = run.transformed_position_coordinates[character_index];
+                        const float x = point[0] - path_origin.position.x;
+                        const float y = point[1] - path_origin.position.y;
+                        return std::array<float, 2>{
+                            x * path_origin.tangent.x + y * path_origin.tangent.y,
+                            x * path_origin.normal.x + y * path_origin.normal.y};
+                    }
+                    if (character_index < run.x_coordinates.size() ||
+                        character_index < run.y_coordinates.size()) {
+                        const float point_x = character_index < run.x_coordinates.size()
+                            ? run.x_coordinates[character_index] : path_origin.position.x;
+                        const float point_y = character_index < run.y_coordinates.size()
+                            ? run.y_coordinates[character_index] : path_origin.position.y;
+                        const float x = point_x - path_origin.position.x;
+                        const float y = point_y - path_origin.position.y;
+                        return std::array<float, 2>{
+                            x * path_origin.tangent.x + y * path_origin.tangent.y,
+                            x * path_origin.normal.x + y * path_origin.normal.y};
+                    }
+                    return std::nullopt;
+                };
+                const auto transformed_path_delta = [&](std::size_t character_index)
+                    -> std::optional<std::array<float, 2>> {
+                    if (character_index >= run.transformed_delta_coordinates.size())
+                        return std::nullopt;
+                    const auto& delta = run.transformed_delta_coordinates[character_index];
+                    return std::array<float, 2>{
+                        delta[0] * path_origin.tangent.x + delta[1] * path_origin.tangent.y,
+                        delta[0] * path_origin.normal.x + delta[1] * path_origin.normal.y};
+                };
+                const auto path_utf8_count = [](std::string_view value) {
+                    std::size_t count = 0;
+                    for (const unsigned char byte : value)
+                        if ((byte & 0xc0u) != 0x80u) ++count;
+                    return count;
+                };
                 for (std::size_t cluster_index = 0;
                      cluster_index < placed.clusters.size(); ++cluster_index) {
                     const auto& cluster = placed.clusters[cluster_index];
-                    const auto& placement = path_placement.clusters[cluster_index];
+                    auto placement = path_placement.clusters[cluster_index];
                     if (cluster.byte_len == 0 || cluster.byte_offset + cluster.byte_len > run.text.size())
                         continue;
-                    if (placement.path_distance > sampler.total_length()) continue;
                     const std::string cluster_text = run.text.substr(
                         cluster.byte_offset, cluster.byte_len);
                     if (cluster_text.empty()) continue;
+                    const auto cluster_characters = path_utf8_count(cluster_text);
+                    const auto has_inner_coordinate = [&](const auto& coordinates) {
+                        const auto first_inner = path_character_index + 1;
+                        const auto end = path_character_index + cluster_characters;
+                        return std::any_of(coordinates.begin() + std::min(first_inner, coordinates.size()),
+                            coordinates.begin() + std::min(end, coordinates.size()),
+                            [](const auto&) { return true; });
+                    };
+                    if (has_inner_coordinate(run.x_coordinates) ||
+                        has_inner_coordinate(run.y_coordinates) ||
+                        has_inner_coordinate(run.transformed_position_coordinates) ||
+                        has_inner_coordinate(run.dx_coordinates) ||
+                        has_inner_coordinate(run.dy_coordinates) ||
+                        has_inner_coordinate(run.transformed_delta_coordinates))
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                            "].shape.asset", "SVG textPath coordinate list splits a shaped cluster",
+                            "svg_text_coordinate_cluster_unsupported", "render-plan-svg"};
+                    if (path_character_index > 0) {
+                        if (path_character_index < run.dx_coordinates.size())
+                            path_dx_accumulated += run.dx_coordinates[path_character_index];
+                        if (path_character_index < run.dy_coordinates.size())
+                            path_dy_accumulated += run.dy_coordinates[path_character_index];
+                        if (const auto delta = transformed_path_delta(path_character_index)) {
+                            path_dx_accumulated += delta->at(0);
+                            path_dy_accumulated += delta->at(1);
+                        }
+                    }
+                    const auto absolute_position = absolute_path_coordinates(path_character_index);
+                    const float adjusted_distance = absolute_position
+                        ? absolute_position->at(0)
+                        : placement.path_distance + path_dx_accumulated;
+                    if (adjusted_distance > sampler.total_length()) {
+                        path_character_index += cluster_characters;
+                        continue;
+                    }
+                    if (absolute_position || path_dx_accumulated != 0.0f ||
+                        path_dy_accumulated != 0.0f) {
+                        const auto sample = sampler.sample_distance(adjusted_distance);
+                        placement.path_distance = adjusted_distance;
+                        placement.position = sample.position + sample.normal *
+                            (absolute_position ? absolute_position->at(1) :
+                                path_spec.baseline_offset + path_dy_accumulated);
+                        placement.rotation_deg = std::atan2(sample.tangent.y,
+                            sample.tangent.x) * 57.29577951308232f;
+                    }
                     auto cluster_run = run;
                     cluster_run.text = cluster_text;
                     auto cluster_layer = text_layer;
@@ -900,6 +1389,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     current_text_layers.push_back(pending_svg_text_layers.size());
                     pending_svg_text_layers.emplace_back(std::move(cluster_run),
                                                          std::move(cluster_layer));
+                    pending_svg_text_metrics.push_back(text_metrics[text_index]);
+                    pending_svg_text_boundary_before.push_back(
+                        text_index == 0 || text_chunk_boundary_safe[text_index]);
+                    path_character_index += cluster_characters;
                 }
             }
             for (const auto& operation : shape.operators) {
@@ -1095,7 +1588,128 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 layer.path_mask = std::move(mask);
             }
         }
-        for (auto& pending : pending_svg_text_layers)
+        std::vector<std::pair<chronon3d::assets::SvgTextRun, LayerPlan>> shaped_text_layers;
+        shaped_text_layers.reserve(pending_svg_text_layers.size());
+        const auto compatible_paint_run = [](const auto& left, const auto& right) {
+            const auto& a = left.first;
+            const auto& b = right.first;
+            const auto& al = left.second;
+            const auto& bl = right.second;
+            const auto source_layer = [](const std::string& id) {
+                const auto marker = id.find("__svgtext_");
+                return id.substr(0, marker);
+            };
+            return a.text_element_id == b.text_element_id &&
+                source_layer(al.id) == source_layer(bl.id) &&
+                a.group_ids == b.group_ids &&
+                a.coordinate_scope_ids == b.coordinate_scope_ids &&
+                a.text_anchor_scope_id == b.text_anchor_scope_id &&
+                a.font_family == b.font_family && a.font_size == b.font_size &&
+                a.font_weight == b.font_weight && a.font_style == b.font_style &&
+                a.direction == b.direction &&
+                a.text_anchor == b.text_anchor &&
+                a.dominant_baseline == b.dominant_baseline &&
+                a.baseline_shift == b.baseline_shift && a.opacity == b.opacity &&
+                !a.fill_gradient && !b.fill_gradient && !a.stroke && !b.stroke &&
+                !a.stroke_gradient && !b.stroke_gradient &&
+                !a.fill_pattern && !b.fill_pattern &&
+                !a.stroke_pattern && !b.stroke_pattern &&
+                !a.text_path_id && !b.text_path_id &&
+                !a.positioned_text_cluster && !b.positioned_text_cluster &&
+                !b.x_explicit && !b.y_explicit &&
+                a.x_coordinates.empty() && a.y_coordinates.empty() &&
+                a.dx_coordinates.empty() && a.dy_coordinates.empty() &&
+                a.transformed_position_coordinates.empty() &&
+                a.transformed_delta_coordinates.empty() &&
+                b.x_coordinates.empty() && b.y_coordinates.empty() &&
+                b.dx_coordinates.empty() && b.dy_coordinates.empty() &&
+                b.transformed_position_coordinates.empty() &&
+                b.transformed_delta_coordinates.empty() &&
+                !al.animation && !bl.animation && al.style && bl.style &&
+                !al.style->fill_gradient && !bl.style->fill_gradient &&
+                !al.style->stroke && !bl.style->stroke &&
+                al.style->font_family == bl.style->font_family &&
+                al.style->font_weight == bl.style->font_weight &&
+                al.style->font_style == bl.style->font_style &&
+                al.style->font_size == bl.style->font_size &&
+                al.style->text_align == bl.style->text_align &&
+                al.rotation == bl.rotation && al.scale == bl.scale &&
+                al.enable_3d == bl.enable_3d &&
+                al.position_dimensions == bl.position_dimensions &&
+                al.opacity == bl.opacity &&
+                std::abs(al.position[1] - bl.position[1]) <= 1.0f;
+        };
+        for (std::size_t begin = 0; begin < pending_svg_text_layers.size();) {
+            std::size_t end = begin + 1;
+            while (end < pending_svg_text_layers.size() &&
+                   pending_svg_text_boundary_before[end] &&
+                   compatible_paint_run(pending_svg_text_layers[end - 1],
+                                        pending_svg_text_layers[end])) ++end;
+            if (end - begin == 1) {
+                shaped_text_layers.push_back(std::move(pending_svg_text_layers[begin]));
+                begin = end;
+                continue;
+            }
+            auto combined = pending_svg_text_layers[begin];
+            combined.second.text_spans.clear();
+            std::string text;
+            float pen = 0.0f;
+            float ink_right = 0.0f;
+            struct PaintRange { std::size_t start; std::size_t end; Color color; };
+            std::vector<PaintRange> paint_ranges;
+            for (std::size_t index = begin; index < end; ++index) {
+                const auto& run = pending_svg_text_layers[index].first;
+                const std::size_t start = text.size();
+                text += run.text;
+                const auto& metrics = pending_svg_text_metrics[index];
+                ink_right = std::max(ink_right, pen + metrics.ink_width);
+                pen += metrics.advance;
+                const auto color = parse_hex_color(run.fill);
+                if (!color)
+                    return PlanDecodeError{"svg.text.fill",
+                        "SVG text paint span has an invalid solid fill",
+                        "svg_text_invalid", "render-plan-svg"};
+                chronon3d::TextSpanOverride span;
+                span.byte_start = start;
+                span.byte_end = text.size();
+                auto paint = *color;
+                paint.a *= run.fill_opacity;
+                paint_ranges.push_back({start, text.size(), paint});
+            }
+            combined.second.svg_glyph_paint_ranges.clear();
+            combined.second.svg_glyph_paint_ranges.reserve(paint_ranges.size());
+            for (const auto& range : paint_ranges) {
+                combined.second.svg_glyph_paint_ranges.push_back(
+                    {range.start, range.end, range.color});
+            }
+            const auto grapheme_count = chronon3d::detail::grapheme_cluster_count(text);
+            for (std::size_t grapheme = 0; grapheme < grapheme_count; ++grapheme) {
+                const auto start = chronon3d::detail::grapheme_byte_offset_at(text, grapheme);
+                const auto finish = chronon3d::detail::grapheme_byte_offset_at(text, grapheme + 1);
+                const auto owner = std::find_if(paint_ranges.begin(), paint_ranges.end(),
+                    [start](const PaintRange& range) {
+                        return start >= range.start && start < range.end;
+                    });
+                if (owner == paint_ranges.end()) continue;
+                chronon3d::TextSpanOverride span;
+                span.byte_start = start;
+                span.byte_end = finish;
+                span.color = owner->color;
+                if (!combined.second.text_spans.empty() &&
+                    combined.second.text_spans.back().color == span.color &&
+                    combined.second.text_spans.back().byte_end == span.byte_start) {
+                    combined.second.text_spans.back().byte_end = span.byte_end;
+                } else {
+                    combined.second.text_spans.push_back(std::move(span));
+                }
+            }
+            combined.first.text = text;
+            combined.second.text = std::move(text);
+            combined.second.size[0] = std::max(1.0f, std::max(pen, ink_right) + 1.0f);
+            shaped_text_layers.push_back(std::move(combined));
+            begin = end;
+        }
+        for (auto& pending : shaped_text_layers)
             plan.layers.push_back(std::move(pending.second));
 #else
         for (std::size_t index = 0; index < plan.layers.size(); ++index)

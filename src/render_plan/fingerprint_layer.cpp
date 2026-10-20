@@ -139,6 +139,15 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         });
       }
     }
+    if (!layer.svg_glyph_paint_ranges.empty()) {
+      out.add_size(layer.svg_glyph_paint_ranges.size());
+      for (const auto& range : layer.svg_glyph_paint_ranges) {
+        out.add_size(range.byte_start);
+        out.add_size(range.byte_end);
+        out.add_float(range.color.r); out.add_float(range.color.g);
+        out.add_float(range.color.b); out.add_float(range.color.a);
+      }
+    }
     if (layer.motion_blur) {
         out.add_float(layer.motion_blur->shutter_angle);
         out.add_size(layer.motion_blur->samples);
@@ -293,6 +302,34 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 for (const auto value : command.point) out.add_float(value);
                 for (const auto value : command.control1) out.add_float(value);
                 for (const auto value : command.control2) out.add_float(value);
+            }
+            if (!subpath.svg_groups.empty() || !subpath.svg_local_masks.empty() ||
+                !subpath.svg_transform_animations.empty()) {
+                out.add_bool(true);
+                out.add_size(subpath.svg_groups.size());
+                for (const auto& group : subpath.svg_groups) {
+                    out.add_uint64(group.id);
+                    out.add_float(group.opacity);
+                    add_optional(out, group.opacity_animation,
+                        [](auto& writer, const AnimationTrackPlan& track) {
+                            add_track(writer, track);
+                        });
+                }
+                out.add_size(subpath.svg_local_masks.size());
+                for (const auto& mask : subpath.svg_local_masks) {
+                    out.add_size(mask.size());
+                    for (const auto& command : mask) {
+                        out.add_enum(command.type);
+                        for (const auto value : command.point) out.add_float(value);
+                        for (const auto value : command.control1) out.add_float(value);
+                        for (const auto value : command.control2) out.add_float(value);
+                    }
+                }
+                out.add_size(subpath.svg_transform_animations.size());
+                for (const auto& transform : subpath.svg_transform_animations) {
+                    out.add_string(transform.operation);
+                    add_track(out, transform.animation);
+                }
             }
             if (!subpath.morph_target.empty() || subpath.morph_animation) {
                 out.add_bool(true);

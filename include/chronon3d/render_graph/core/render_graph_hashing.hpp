@@ -827,6 +827,18 @@ private:
     } else {
         seed = hash_combine(seed, 0ULL);  // explicit "no fill_style" sentinel
     }
+    const auto hash_pattern_tile = [](std::uint64_t value,
+            const std::shared_ptr<const graphics::PatternTile>& tile) {
+        if (!tile) return hash_combine(value, 0ULL);
+        value = hash_combine(value, tile->width);
+        value = hash_combine(value, tile->height);
+        value = hash_combine(value, hash_bytes(tile->rgba.data(), tile->rgba.size()));
+        for (const auto component : tile->transform)
+            value = hash_combine(value, hash_value(component));
+        return value;
+    };
+    seed = hash_pattern_tile(seed, t.style.paint.fill_pattern);
+    seed = hash_pattern_tile(seed, t.style.paint.stroke_pattern);
 
     // ── TextMaterial ────────────────────────────────────────────
     seed = hash_combine(seed, hash_value(t.style.material.enabled));

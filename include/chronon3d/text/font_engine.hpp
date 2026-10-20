@@ -286,6 +286,13 @@ struct TextShaping {
 //   - Advance with per-cluster tracking baked in
 //   - Source-text byte range and cluster info
 
+struct GlyphPaintOverlay {
+    u32 glyph_id{0};
+    float x_offset{0.0f};
+    float y_offset{0.0f};
+    Color color{};
+};
+
 struct PlacedGlyph {
     u32     glyph_id{0};
     float   advance_x{0.0f};       // advance INCLUDING per-cluster tracking
@@ -308,6 +315,8 @@ struct PlacedGlyph {
     size_t  byte_len{0};           // bytes in source text for this glyph's cluster
     u32     cluster{0};            // HarfBuzz cluster value
     bool    is_cluster_start{false}; // first glyph of a HarfBuzz cluster
+    std::optional<Color> fill_color_override; // source-character paint for split grapheme clusters
+    std::vector<GlyphPaintOverlay> fill_paint_overlays;
 };
 
 // ── PlacedGlyphRun ─────────────────────────────────────────────────────
@@ -460,6 +469,19 @@ public:
     [[nodiscard]] FontMetrics get_font_metrics(
         const FontSpec& spec,
         float font_size
+    ) const;
+
+    /// Return the OpenType BASE baseline offset from the font's Roman
+    /// baseline for a horizontal SVG dominant-baseline value. The result is
+    /// in pixels, positive toward the text's downward coordinate direction.
+    /// Returns nullopt when the font has no matching BASE entry; callers can
+    /// then use their bounded metric-based fallback.
+    [[nodiscard]] std::optional<float> get_open_type_baseline_offset(
+        const FontSpec& spec,
+        float font_size,
+        std::string_view baseline,
+        std::string_view script,
+        TextDirection direction = TextDirection::LTR
     ) const;
 
     /// Clear the internal face cache (useful after font file changes).

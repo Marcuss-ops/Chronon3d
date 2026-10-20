@@ -1,10 +1,12 @@
 #pragma once
 
 #include <chronon3d/scene/model/shape/path.hpp>
+#include <chronon3d/graphics/pattern_tile.hpp>
 
 #include <optional>
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -43,6 +45,7 @@ struct SvgGradientAnimationKeyframe {
 struct SvgStyleGroupRef {
     std::uint32_t id{0};
     float opacity{1.0f};
+    std::optional<SvgAnimationSpec> opacity_animation;
 };
 
 struct SvgStyledElement {
@@ -52,6 +55,9 @@ struct SvgStyledElement {
     float opacity{1.0f};
     /// Innermost isolated group (opacity < 1) of the element, if any.
     std::optional<SvgStyleGroupRef> group;
+    /// Full isolated-group ancestry, outermost first. `group` is retained as
+    /// a compatibility view of the innermost entry for existing callers.
+    std::vector<SvgStyleGroupRef> groups;
     std::vector<SvgAnimationSpec> animations;
     std::optional<SvgMorphAnimationSpec> morph_animation;
     std::vector<SvgGradientAnimationKeyframe> gradient_animation;
@@ -60,6 +66,8 @@ struct SvgStyledElement {
     std::string source_id;
     /// Original ids of enclosing SVG groups and <use> instances, outermost first.
     std::vector<std::string> group_ids;
+    /// Clip/mask geometries scoped to this SVG element, outermost first.
+    std::vector<PathShape> vector_masks;
 };
 
 /// One positioned text run imported from an SVG <text>/<tspan> tree. Runs are
@@ -77,7 +85,12 @@ struct SvgTextRun {
     std::vector<float> y_coordinates;
     std::vector<float> dx_coordinates;
     std::vector<float> dy_coordinates;
+    /// Full 2D points/deltas for coordinate lists under rotated or skewed
+    /// SVG coordinate transforms (the scalar arrays are axis-aligned only).
+    std::vector<std::array<float, 2>> transformed_position_coordinates;
+    std::vector<std::array<float, 2>> transformed_delta_coordinates;
     bool positioned_text_cluster{false};
+    bool shaping_mergeable{false};
     std::optional<float> x;
     std::optional<float> y;
     bool x_explicit{false};
@@ -88,6 +101,7 @@ struct SvgTextRun {
     float font_size{16.0f};
     int font_weight{400};
     std::string font_style{"normal"};
+    std::string direction{"auto"};
     std::string text_anchor{"start"};
     std::string dominant_baseline{"auto"};
     float baseline_shift{0.0f};
@@ -96,8 +110,12 @@ struct SvgTextRun {
     float text_path_start_offset{0.0f};
     bool text_path_start_offset_percent{false};
     std::string fill{"#000000"};
+    std::optional<graphics::GradientDefinition> fill_gradient;
+    std::shared_ptr<const graphics::PatternTile> fill_pattern;
     float fill_opacity{1.0f};
     std::optional<std::string> stroke;
+    std::optional<graphics::GradientDefinition> stroke_gradient;
+    std::shared_ptr<const graphics::PatternTile> stroke_pattern;
     float stroke_width{1.0f};
     LineCap stroke_cap{LineCap::Butt};
     LineJoin stroke_join{LineJoin::Miter};

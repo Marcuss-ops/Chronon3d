@@ -4134,6 +4134,12 @@
       "items": {
         "type": "object",
         "properties": {
+          "style": {
+            "type": "object",
+            "properties": {
+              "direction": {"enum": ["auto", "ltr", "rtl"]}
+            }
+          },
           "background_look": {
             "oneOf": [
               {
