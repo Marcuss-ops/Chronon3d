@@ -485,7 +485,3 @@ private:
 };
 
 } // namespace chronon3d
-
-// ── CatmullRomCameraMotion (extracted to catmull_rom_camera_motion.hpp) ────
-// FASE 13 — included here for backward compatibility.
-#include <chronon3d/animation/path/catmull_rom_camera_motion.hpp>
