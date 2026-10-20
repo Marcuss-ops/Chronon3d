@@ -20,6 +20,9 @@ Remaining production paths outside `camera_v1/` include:
 - Scene and timeline authoring expose `CameraDescriptor`, `PoseTracksSource`,
   `CameraProgram`, and `ShotTimeline` through `SceneBuilder`, `Scene`, and
   `TimelineBuilder` public headers and implementations.
+- CLI visual canaries now submit already-resolved `Camera2_5D` values instead
+  of creating Camera V1 descriptors; their scene, hierarchy, and render probes
+  still exercise the renderer's camera-consumer boundary.
 - The unused `camera_motion::*` preset implementation and header have been
   removed: repository-wide search found no production, test, or tool call
   sites, and the header was not part of the SDK public-header manifest.
