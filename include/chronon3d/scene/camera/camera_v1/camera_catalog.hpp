@@ -2,15 +2,12 @@
 // ==============================================================================
 // chronon3d/scene/camera/camera_v1/camera_catalog.hpp
 //
-// CameraCatalog — data-driven catalog of camera presets.
+// Transitional custom descriptor lookup used by the legacy CameraProgram API.
 //
 // Replaces CameraMotionRegistry (which wraps shared_ptr<CameraMotion> and
 // requires virtual dispatch + mutex + freeze).  A CameraCatalog is just an
 // immutable span of NamedCameraPreset structs — no singleton, no mutex,
 // no virtual calls.
-//
-// For the built-in presets, call builtin_camera_presets() which returns a
-// span of all bundled CameraDescriptor entries.
 //
 // Custom catalogs can be constructed by the caller and passed to
 // compile_camera().
@@ -40,12 +37,12 @@ struct NamedCameraPreset {
     CameraDescriptor descriptor;     ///< The actual camera data.
 };
 
-/// Catalog of named camera presets.  Can be the built-in set or a custom one.
+/// Catalog of caller-provided descriptors. Chronon3D ships no camera presets.
 class CameraCatalog {
 public:
     CameraCatalog() = default;
 
-    /// Construct from a span of presets (e.g. builtin_camera_presets()).
+    /// Construct from a span of caller-provided descriptors.
     explicit CameraCatalog(std::span<const NamedCameraPreset> presets)
         : presets_(presets.begin(), presets.end()) {}
 
@@ -83,20 +80,5 @@ public:
 private:
     std::vector<NamedCameraPreset> presets_;
 };
-
-/// Returns a span of all built-in camera presets.
-/// This is the single source of truth for bundled presets.
-/// Populated as presets are migrated from CameraMotionRegistry (PR2+).
-std::span<const NamedCameraPreset> builtin_camera_presets();
-
-/// Convenience: find a built-in camera descriptor by id.
-/// Equivalent to calling builtin_camera_presets() then find().
-inline const CameraDescriptor* find_camera_preset(std::string_view id) {
-    static const auto presets = builtin_camera_presets();
-    for (const auto& p : presets) {
-        if (p.id == id) return &p.descriptor;
-    }
-    return nullptr;
-}
 
 } // namespace chronon3d::camera_v1
