@@ -1,6 +1,6 @@
 // test_camera_program_compiled_metadata.cpp — Split from
 // test_camera_program_compiled.cpp: RegisteredMotionRef failure policy
-// (missing preset), the TICKET-A3-METADATA late-rebuild lock (DoD gate (a))
+// (missing custom descriptor), the TICKET-A3-METADATA late-rebuild lock (DoD gate (a))
 // and the empty-trajectory compile error.
 #include <doctest/doctest.h>
 
@@ -70,8 +70,8 @@ CameraDescriptor make_cam01_base_desc(std::string id_str = "cam01.test") {
 
 TEST_CASE("compiled_registered_motion_ref_missing — "
           "RegisteredMotionRef with unknown id returns MotionNotFound") {
-    SUBCASE("with valid catalog: preset not found") {
-        CameraCatalog catalog(builtin_camera_presets());
+    SUBCASE("with caller catalog: descriptor not found") {
+        CameraCatalog catalog;
         CameraDescriptor desc;
         desc.id = "test.registered_missing";
         desc.source = RegisteredMotionRef{"camera.does_not_exist"};

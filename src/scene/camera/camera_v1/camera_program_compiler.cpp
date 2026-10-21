@@ -27,7 +27,6 @@
 // RegisteredMotionRef chain detection.  The 2-arg public overload is an
 // inline forwarder that constructs a fresh context.
 //
-// FASE 6 — builtin_camera_presets() extracted to camera_builtin_presets.cpp.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
@@ -35,7 +34,6 @@
 #include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <stdexcept>
-#include "camera_builtin_presets.hpp"
 
 #include <cmath>
 #include <span>

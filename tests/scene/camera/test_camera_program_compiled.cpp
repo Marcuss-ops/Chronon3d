@@ -218,8 +218,13 @@ TEST_CASE("compiled_trajectory_motion_source — "
 
 TEST_CASE("compiled_registered_motion_ref_resolved — "
           "RegisteredMotionRef resolves through CameraCatalog and replaces source") {
-    CameraCatalog catalog(builtin_camera_presets());
-    REQUIRE_FALSE(catalog.empty());
+    CameraDescriptor orbit_descriptor;
+    orbit_descriptor.id = "camera.orbit";
+    orbit_descriptor.source = OrbitMotion{};
+    NamedCameraPreset orbit_preset{
+        "camera.orbit", "orbit", "test-only descriptor fixture", orbit_descriptor};
+    const std::array<NamedCameraPreset, 1> presets{orbit_preset};
+    CameraCatalog catalog(presets);
     REQUIRE(catalog.find_descriptor("camera.orbit") != nullptr);
 
     CameraDescriptor desc;
@@ -232,7 +237,7 @@ TEST_CASE("compiled_registered_motion_ref_resolved — "
 
     // After resolution, the descriptor's source must have been REPLACED with
     // the catalog entry's concrete variant — i.e. it is no longer a
-    // RegisteredMotionRef.  builtin `camera.orbit` uses OrbitMotion.
+    // RegisteredMotionRef. The test fixture uses OrbitMotion.
     const auto* resolved = program.descriptor();
     REQUIRE(resolved != nullptr);
     CHECK_FALSE(std::holds_alternative<RegisteredMotionRef>(resolved->source));

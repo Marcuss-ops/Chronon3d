@@ -24,7 +24,6 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/shot_timeline.cpp
     # PR1 — CameraDescriptor → compiled CameraProgram compiler.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_compiler.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/camera_builtin_presets.cpp
     # TICKET-031 — canonical stateful-constraint pre-roll + fingerprint
     # invalidation + Cut reset + per-worker session isolation.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_session_cache.cpp
