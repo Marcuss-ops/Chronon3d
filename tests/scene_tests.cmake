@@ -60,24 +60,6 @@ set(SCENE_TEST_SOURCES
                 extension/test_graph_node_catalog.cpp
                 scene/transform_hierarchy_tests.cpp
                 scene/camera_projection_tests.cpp
-                scene/camera/test_camera_registry.cpp
-                scene/camera/test_camera_program.cpp
-                scene/camera/test_camera_program_compiled.cpp
-                scene/camera/test_camera_program_compiled_metadata.cpp
-                scene/camera/test_camera_program_compiled_trajectory.cpp
-                scene/camera/test_camera_program_orient_along_path.cpp
-                scene/camera/test_camera_program_projection_orientation.cpp
-                scene/camera/test_camera_program_orientation_ticket022.cpp
-                scene/camera/test_camera_program_orbit_ticket024.cpp
-                scene/camera/test_camera_program_orbit_coherence_roll_parent.cpp
-                scene/camera/test_camera_program_constraints_policy.cpp
-                scene/camera/test_camera_session_checkpoint.cpp
-                scene/camera/test_camera_program_damped_history_force.cpp
-                scene/camera/test_camera_lookat_layer_missing_transforms.cpp
-                scene/camera/test_shot_timeline.cpp
-                scene/camera/test_shot_timeline_random_access.cpp
-                scene/camera/test_camera_context_framerate_propagation.cpp
-                scene/camera/test_camera_trajectory_preserves_base_fields.cpp
                 scene/camera/test_camera_stabilization.cpp
                 scene/camera/golden_projection_test.cpp
                 scene/camera/test_camera_near_plane_clip.cpp
@@ -100,16 +82,6 @@ chronon3d_add_test_suite(
     TIER   INTEGRATION
     LINK_TARGETS ${_SCENE_LINK_TARGETS}
     SOURCES ${SCENE_TEST_SOURCES}
-    UNITY_EXCLUDE_SOURCES
-        scene/camera/test_camera_program_compiled.cpp
-        scene/camera/test_camera_program_compiled_metadata.cpp
-        scene/camera/test_camera_program_compiled_trajectory.cpp
-        scene/camera/test_camera_program_constraints_policy.cpp
-        scene/camera/test_camera_program_orbit_ticket024.cpp
-        scene/camera/test_camera_program_orbit_coherence_roll_parent.cpp
-        scene/camera/test_camera_program_orientation_ticket022.cpp
-        scene/camera/test_camera_program_projection_orientation.cpp
-        scene/camera/test_shot_timeline_random_access.cpp
 )
 # TICKET-006: SCENE_TEXT_TESTS (test_layer_builder_animated, layout_design_kit,
 # test_text_run_builder) call into chronon3d_text_core symbols whose definitions
@@ -120,29 +92,8 @@ chronon3d_add_test_suite(
 # need backend_text because CORE_BLEND2D_TESTS and SCENE_TEXT_TESTS exercise
 # different but overlapping text paths.
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
-if(TARGET chronon3d_camera_v1_legacy)
-    target_sources(chronon3d_scene_tests PRIVATE $<TARGET_OBJECTS:chronon3d_camera_v1_legacy>)
-endif()
 if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_backend_text)
-endif()
-
-# ── CAM-DOC 04 — 5 mandatory camera_v1 determinism test categories ──
-# Compiled-execution / parity / golden struct hash / serial-vs-parallel /
-# random-access determinism.  See tests/scene/camera/test_camera_compiled_evaluate.cpp.
-chronon3d_add_test_suite(
-    NAME   chronon3d_camera_compiled_evaluate_tests
-    TIER   INTEGRATION
-    LINK_TARGETS
-        chronon3d_sdk
-        chronon3d_sdk_impl
-        chronon3d_scene
-    SOURCES scene/camera/test_camera_compiled_evaluate.cpp
-)
-target_include_directories(chronon3d_camera_compiled_evaluate_tests PRIVATE ${CMAKE_SOURCE_DIR})
-if(TARGET chronon3d_camera_v1_legacy)
-    target_sources(chronon3d_camera_compiled_evaluate_tests PRIVATE
-        $<TARGET_OBJECTS:chronon3d_camera_v1_legacy>)
 endif()
 
 # Offline ChrononMotion adapter contract: baked scenes enter the canonical
@@ -176,17 +127,3 @@ chronon3d_add_test_suite(
             scene/motion/test_element_contract.cpp
 )
 target_include_directories(chronon3d_motion_contract_bridge_tests PRIVATE ${CMAKE_SOURCE_DIR})
-
-# ── ADR-032 — motion-handshake determinism through the compiled camera path ──
-# Serial vs parallel + random-access evaluation must produce bit-identical
-# chronon_layer_state records (memcmp over the full POD).
-chronon3d_add_test_suite(
-    NAME   chronon3d_motion_contract_determinism_tests
-    TIER   INTEGRATION
-    LINK_TARGETS
-        chronon3d_sdk
-        chronon3d_sdk_impl
-        chronon3d_scene
-    SOURCES scene/motion/test_motion_contract_determinism.cpp
-)
-target_include_directories(chronon3d_motion_contract_determinism_tests PRIVATE ${CMAKE_SOURCE_DIR})

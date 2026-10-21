@@ -158,7 +158,7 @@ TEST_CASE("SDK-RENDERER GATE-10-PHASE-4-BLACK: sdk::RenderEngine::render with "
     const std::filesystem::path assets_root = "assets";   // no asset needed for bg-only
     c3d::Composition comp = build_composition(kWidth, kHeight);
 
-    // Default-camera path (no CameraDescriptor set on Composition),
+    // Default-camera path (no explicit camera set on Composition),
     // matching the gate #10 Phase 4 narrower invocation pattern.
 
     c3d::sdk::RenderSettings settings{};

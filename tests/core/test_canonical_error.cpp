@@ -9,7 +9,6 @@
 #include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 #include <chronon3d/runtime/async_encoder_sink.hpp>
 #include <chronon3d/runtime/gpu_memory_budget.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 
 TEST_CASE("canonical error taxonomy keeps domain detail payloads") {
     const auto error = chronon::from_legacy<chronon3d::runtime::ExecutionFailure>(
@@ -111,13 +110,6 @@ TEST_CASE("backend failure stops the frame and transitions the job") {
 }
 
 TEST_CASE("remaining legacy state and policy enums cross the canonical boundary") {
-    const auto camera = chronon3d::camera_v1::canonical_error(
-        chronon3d::camera_v1::CameraFailurePolicy::KeepLastValidCamera);
-    CHECK(camera.category == chronon::ErrorCategory::Recoverable);
-    CHECK(camera.detail.legacy_type ==
-          "chronon3d::scene::CameraFailurePolicy");
-    CHECK(camera.detail.legacy_code == "KeepLastValidCamera");
-
     const auto path = chronon3d::graph::canonical_error(
         chronon3d::graph::FrameExecutionPath::SparseTiles);
     CHECK(path.detail.legacy_type == "chronon3d::graph::FrameExecutionPath");

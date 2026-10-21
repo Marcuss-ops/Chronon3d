@@ -85,7 +85,7 @@ allow_list = [
   'include/chronon3d/math/camera_projection_contract\.hpp',
   'include/chronon3d/math/camera_projection_resolver\.hpp',
   'include/chronon3d/scene/model/camera/lens_model\.hpp',
-  'include/chronon3d/scene/camera/camera_v1/evaluated_projection\.hpp',
+  'include/chronon3d/scene/camera/evaluated_projection\.hpp',
   'content/2d5/compositions/camera_test_orchestrator\.cpp',
   'tests/renderer/camera/test_lens_model\.cpp',
   'tests/core/math/.*\.cpp',
@@ -94,7 +94,6 @@ allow_list = [
   'include/chronon3d/scene/model/.*/.*\.hpp',
   'include/chronon3d/scene/camera/.*camera_2_5d\.hpp',
   'include/chronon3d/scene/(?:camera|model)/camera\.hpp',
-  'src/scene/camera/camera_v1/camera_framing_solver\.cpp',
   'src/backends/software/diagnostics/nulls_overlay\.cpp',
 ]
 skip_comments = true
@@ -105,7 +104,6 @@ patterns = ['\bcompile_camera\s*\(']
 scan_paths = ["include", "src", "tests", "apps", "content"]
 extensions = [".cpp"]
 allow_list = [
-  'src/scene/camera/camera_v1/',
   'tests/',
   'src/timeline/composition\.cpp',
   'src/timeline/compile_evaluate\.cpp',

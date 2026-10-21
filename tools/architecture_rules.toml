@@ -280,20 +280,6 @@ patterns = ["\\bRenderBackendError\\s*\\{"]
 skip_comments = true
 
 [[scan]]
-name = "camera_evaluation_error_construction_adapter_only"
-scan_paths = ["include", "src", "apps", "tests"]
-allow_list = ["include/chronon3d/scene/camera/camera_v1/camera_program.hpp"]
-patterns = ["\\bCameraEvaluationError\\s*\\{"]
-skip_comments = true
-
-[[scan]]
-name = "camera_compile_error_construction_adapter_only"
-scan_paths = ["include", "src", "apps", "tests"]
-allow_list = ["include/chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp"]
-patterns = ["\\bCameraCompileError\\s*\\{"]
-skip_comments = true
-
-[[scan]]
 name = "runtime_build_error_construction_adapter_only"
 scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/runtime/render_runtime.hpp"]
@@ -362,14 +348,6 @@ scan_paths = ["include", "src", "apps", "tests"]
 allow_list = ["include/chronon3d/render/render_diagnostic.hpp"]
 patterns = ["\\bRenderDiagnostic\\s*\\{"]
 skip_comments = true
-
-[[contract]]
-name = "canonical_camera_failure_policy_adapter"
-file = "include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp"
-required_patterns = [
-  "canonical_error\\(CameraFailurePolicy",
-  "from_legacy<CameraFailurePolicy>",
-]
 
 [[contract]]
 name = "canonical_frame_execution_path_adapter"
