@@ -140,3 +140,35 @@ The CLI canary had a stale camera-parent assignment after `Camera2_5D` became
 resolved renderer state. It now composes the parent yaw into the orbit pose
 before calling `set_evaluated_camera()`, retaining the canary motion without
 camera parenting in the renderer.
+
+## Follow-up audit (2026-10-21)
+
+The C3D decoder migration does not close the whole workspace migration. A new
+workspace-wide search found remaining ChrononTemplate command-line, Python,
+and Node plan generators that still emit `camera_animation`, including camera
+roll, single-image, phrase, map, documentary, and NBA tools. Those generated
+plans are rejected by current C3D and must be migrated to CM3D-generated
+`camera_samples` or retired with their output references. Nine checked-in
+Template golden plans also still contain the retired field. The C++ web-page,
+article-evidence, and blackboard producers now bake complete resolved samples
+through CM3D, but this is only a partial producer closeout.
+
+CM3D follow-up changes remove the ambiguous `aperture` aliases (the remaining
+normalized legacy blur gain is explicitly named `legacyDefocusStrength`) and
+route shot/sequence/environment focus distances through `CameraFocusResolver`
+using optical-axis distance. The offline baker is exposed as the canonical
+CM3D `bakeResolvedCameraSamples` helper and reused by Template.
+
+The overall migration remains ACTIVE. Remaining non-visual, non-CI work:
+
+- migrate or retire every active Template generator and regenerate or remove
+  its stale serialized plans;
+- complete the shared offline/runtime `CameraSample` contract (including the
+  authored sensor/lens-shift and time/shutter fields still absent from the
+  RenderPlan camera payload), or explicitly narrow the accepted contract;
+- inventory downstream consumers and ensure each consumes resolved samples;
+- complete the same-meaning FOV/focal-length precedence and optical focus
+  contract across the core rig, RenderPlan bridge, and render backends.
+
+The G gates, image-level parity checks, and GitHub CI are tracked separately
+and are not represented as complete by this audit.
