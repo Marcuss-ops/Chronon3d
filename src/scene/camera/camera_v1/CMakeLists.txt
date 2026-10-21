@@ -22,9 +22,6 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/register_camera_v1.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_framing_solver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/shot_timeline.cpp
-    # Canonical internal shutter-pose sampler implementation.
-    # that re-exports `ShutterPoseSampler` for ABI compatibility.
-    ${CMAKE_CURRENT_SOURCE_DIR}/internal/shutter_pose_sampler.cpp
     # PR1 — CameraDescriptor → compiled CameraProgram compiler.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_compiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_builtin_presets.cpp

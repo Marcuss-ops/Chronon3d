@@ -1,7 +1,7 @@
 // ==============================================================================
 // tests/scene/camera/test_temporal_samples_pr1.cpp
 //
-// PR1 — 5 mandatory torture tests for the motion-blur unification refactor.
+// PR1 — temporal sample generation and compositor motion-blur integration.
 //
 // Tests:
 //   1. Static framebuffer identical between 1 and 16 sub-samples
@@ -14,10 +14,8 @@
 //   5. Static layers reused between sub-samples (composition.evaluate called
 //      once even when N=8 sub-frames are accumulated).
 //
-// These tests are *integration* tests: they measure the contract that any
-// future caller of `chronon3d::temporal::generate_temporal_samples` must
-// honour.  They live next to the existing ShutterPoseSampler tests because
-// the two systems share the same TemporalSampleSet contract.
+// These tests exercise the canonical temporal sample generator and the
+// compositor's framebuffer accumulation path.
 // ==============================================================================
 
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
@@ -222,15 +220,9 @@ TEST_CASE("PR1: temporal::generate_temporal_samples — 0-sample edge case") {
     CHECK(approx(s.window_start_normalized, -0.125, 1e-9)); // -45/360 = -0.125
 }
 
-TEST_CASE("PR1: temporal::generate_temporal_samples — ShutterPoseSampler ↔ framebuffer pipeline agree") {
-    // Property test: for a fixed (params, frame) the sample_times sequence
-    // produced by `generate_temporal_samples` MUST be identical when consumed
-    // by (a) ShutterPoseSampler::evaluate() and (b) the framebuffer
-    // accumulator in `render_composition_frame`.  This is the contract that
-    // pulled motion_blur_jitter out of composition.cpp in the first place.
-    //
-    // We assert the sample_times values themselves are the same (regardless
-    // of unit conversion that each consumer applies downstream).
+TEST_CASE("PR1: temporal::generate_temporal_samples — compositor sample parameters") {
+    // Assert that the canonical shutter sample set is bounded and has valid
+    // reconstruction weights before it is consumed by the framebuffer path.
     chronon3d::temporal::TemporalSampleParams p;
     p.shutter_angle_deg = 180.0;
     p.shutter_phase_deg = -90.0;
