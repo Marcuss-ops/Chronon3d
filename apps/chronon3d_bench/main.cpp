@@ -20,7 +20,6 @@
 #include <spdlog/spdlog.h>
 
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
 
 #include "cli_context.hpp"
@@ -31,7 +30,6 @@ int main(int argc, char** argv) {
     chronon3d::CompositionRegistry registry;
     chronon3d::register_runtime_compositions(registry);
     registry.freeze();
-    chronon3d::AssetRegistry assets;
 
     // Single CPU budget default — bench binary is single-purpose and does
     // not own a server-side scheduler.
@@ -48,7 +46,7 @@ int main(int argc, char** argv) {
     app.require_subcommand(1);
 
     int exit_code = 0;
-    chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line), assets, cpu_budget};
+    chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line), cpu_budget};
 
     chronon3d::cli::register_bench_commands(app, ctx);
 
