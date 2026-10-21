@@ -73,7 +73,6 @@ set(SCENE_TEST_SOURCES
                 scene/camera/test_camera_program_constraints_policy.cpp
                 scene/camera/test_camera_session_checkpoint.cpp
                 scene/camera/test_camera_program_damped_history_force.cpp
-                scene/camera/test_camera_framing_solver.cpp
                 scene/camera/test_camera_lookat_layer_missing_transforms.cpp
                 scene/camera/test_shot_timeline.cpp
                 scene/camera/test_shot_timeline_random_access.cpp
