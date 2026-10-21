@@ -210,7 +210,8 @@ map-motion selectors, tests, and one stale comment:
 
 | Action | Files | Reason / exit check |
 |---|---|---|
-| `MIGRATE` | `tools/web_presets/build_nba_dirk_physical_fold.mjs`; `tools/web_presets/emit_synthetic_cannabis_native.cpp`; `tools/web_presets/emit_dark_nba_article_native.cpp`; `tools/single_images/generate_image_25d_clean_v1.cpp`; `tools/nba_rivalry/build_precomp_2.mjs`; `tools/nba_rivalry/build_timeline_10.mjs`; `tools/camera_roll/emit_camera_1950_story.cpp`; `tools/entities_with_text/emit_cinematic_documentary_narrative.cpp`; `tools/important_phrases/build_text_depth_focus_v1.py`; `tools/important_phrases/render_editorial_didone_canary.py`; `tools/short_phrases/emit_short_phrase_plans.cpp`; `tools/documentary_effects/emit_beast_land_subject_reframe.cpp` | These construct serialized C3D plans with property tracks. Route their authored camera through CM3D `CameraRig` and `bakeResolvedCameraSamples`, or retire the generator and its consumers. Output must contain `camera_samples`, never `camera_animation`, and decode with current C3D. |
+| `MIGRATED` (local Template worktree) | `tools/web_presets/build_nba_dirk_physical_fold.mjs`; `tools/web_presets/emit_synthetic_cannabis_native.cpp`; `tools/web_presets/emit_dark_nba_article_native.cpp`; `tools/single_images/generate_image_25d_clean_v1.cpp`; `tools/nba_rivalry/build_precomp_2.mjs`; `tools/nba_rivalry/build_timeline_10.mjs`; `tools/camera_roll/emit_camera_1950_story.cpp`; `tools/entities_with_text/emit_cinematic_documentary_narrative.cpp`; `tools/short_phrases/emit_short_phrase_plans.cpp`; `tools/documentary_effects/emit_beast_land_subject_reframe.cpp` | Their authored camera now lowers through CM3D and their plans use `camera_samples`. Focused build/output checks are recorded below. Changes are not yet committed. |
+| `OPEN` | `tools/important_phrases/build_text_depth_focus_v1.py` and its test; `tools/important_phrases/render_editorial_didone_canary.py` | Port both producers and their user-facing workflows to C++, preserve their current plan/render/verification behavior, and remove the Python implementations only after parity checks pass. A preliminary `emit_text_depth_focus.cpp` exists in the current Template worktree, but it does not yet preserve the old CLI/render/verification workflow and is not a completed replacement. The Didone producer has not yet been ported. |
 | `KEEP` (rename separately) | `tools/map/render_map_editorial_pack_v1.py`; `tools/map/render_dynamic_map_overlay.py` | Here `camera_animation` is a map recipe selector (`slow_approach`), not the retired RenderPlan object. Rename it to `camera_move` in the map request/manifest contract; do not feed it into C3D plans. |
 | `UPDATE` | `tools/camera_roll/dump_scene_camera_poses.cpp` | Its comment says the CSV is lowered into `camera_animation`; the current Python consumer creates resolved `camera_samples`. Correct the documented contract. |
 | `KEEP` | `tests/web_page_highlight_pack.cpp`; `tests/web_text_layout.cpp`; `tests/native_primitives.cpp` | These assert the `camera_samples` contract and absence of the retired field; they are regression coverage, not producers. |
@@ -222,8 +223,37 @@ remaining serialized producer closeout is in Template. The golden sweep is
 closed for checked-in plan goldens, but it does not certify runtime-generated
 plans.
 
-Exit the offline producer closeout only after every `MIGRATE` entry has a
+Exit the offline producer closeout only after every open producer entry has a
 focused generation/decode check (or is removed with its consumers), the map
 selector contract is clarified, the stale comment is fixed, and a workspace
 search finds no production producer of the retired serialized field. Keep
 G1–G8, T16–T18, and same-SHA CI as separate acceptance work.
+
+## Producer worktree update (2026-10-21)
+
+Ten of the twelve listed Template producers have been migrated in the current
+local worktree. The shared C++ adapter samples authored channels with CM3D's
+`Track<float>`/`Easing` and `lowerCameraPose`; the two Node generators call its
+small C++ executable. CM3D now includes the exact `inOutCubic` easing used by
+these recipes, with scene import/export support.
+
+Verification completed:
+
+- CM3D `chrononmotion_authoring` and
+  `chrononmotion_renderplan_easing_parity`: PASS (2/2).
+- Template C++ targets for the resolver and migrated emitters: build PASS.
+- Generated-plan checks: Dirk fold 240 frames; NBA rivalry precomp 240;
+  NBA rivalry timeline 600; synthetic-cannabis 240 plus its one-frame preview;
+  image 25D 12/12 plans; 1950 story 210; cinematic documentary 390; product
+  perspective phrase 210. Each checked plan has `camera_samples` and omits
+  `camera_animation`.
+- Dark NBA generation could not be exercised because `hb-shape` is unavailable
+  in this environment. Beast Land generation could not be exercised because
+  its two required source image assets are absent. Both C++ targets compile.
+
+The producer closeout remains open for complete C++ replacements of both
+important-phrase producers, generation checks for the two environment-blocked
+emitters, C3D decode checks, the map selector rename, and the stale comment.
+The camera-authority migration also remains open for G1–G8, T16–T18, clean-SHA
+CI, and visual parity; this producer work does not close those acceptance gates.
+No claim of full migration completion is made.
