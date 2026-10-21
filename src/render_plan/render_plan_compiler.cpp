@@ -31,6 +31,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_path_composer.hpp>
 #include <chronon3d/backends/text/text_unicode_grapheme.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
 
@@ -1753,6 +1754,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         content_plan.output = {};
         const auto content_fingerprint =
             compute_render_plan_content_fingerprint(content_plan);
+        const auto scene_content_fingerprint = runtime_camera == nullptr
+            ? content_fingerprint
+            : chronon3d::core::hash::HashBuilder{}
+                  .add("chronon3d.runtime-camera-scene.v1")
+                  .add(content_fingerprint)
+                  .add(runtime_camera->fingerprint)
+                  .finish();
         fingerprint_ms = chronon3d::profiling::duration_ms(
             fingerprint_t0, chronon3d::profiling::now());
 
@@ -1963,7 +1971,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         // RenderPlan camera values are resolved directly by the scene
         // evaluator into Camera2_5D renderer state. They are not composition
         // Camera V1 descriptors.
-        definition.scene_content_fingerprint = content_fingerprint;
+        definition.scene_content_fingerprint = scene_content_fingerprint;
 
         const auto composition_t0 = chronon3d::profiling::now();
         CompiledComposition compiled_value;
@@ -2006,7 +2014,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     }
                     return std::move(evaluated.value().scene);
                 },
-                content_fingerprint);
+                scene_content_fingerprint);
         }
         const double composition_stage_ms = chronon3d::profiling::duration_ms(
             composition_t0, chronon3d::profiling::now());

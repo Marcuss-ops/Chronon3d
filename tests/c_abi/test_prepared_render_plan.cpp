@@ -3863,4 +3863,6 @@ TEST_CASE("runtime camera provider samples exact fractional frames and fingerpri
         plan, resolver, {}, nullptr, &provider);
     REQUIRE(other_source);
     CHECK(other_source->fingerprint.content_digest != prepared->fingerprint.content_digest);
+    CHECK(other_source->composition->scene_content_fingerprint() !=
+          prepared->composition->scene_content_fingerprint());
 }
