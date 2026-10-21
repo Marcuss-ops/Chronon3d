@@ -1,6 +1,6 @@
 # ADR-036 — Runtime camera samples from the motion authority
 
-**Status**: PROPOSED
+**Status**: ACCEPTED (runtime provider implemented; consumer migration in progress)
 
 **Date**: 2026-10-21
 
@@ -28,7 +28,9 @@ duplicate renderer sampling policy.
 Add an optional, non-serialized runtime camera-sample provider at the
 RenderPlan compilation boundary. The provider is invoked with the exact
 presentation time requested by C3D and returns a fully resolved renderer
-camera value. An integrated CM3D caller implements it by calling
+camera value. A provider may receive negative pre-roll times at the leading
+shutter edge; CM3D track endpoint behavior resolves those samples. An integrated
+CM3D caller implements it by calling
 `CameraRig::sample(time)` and lowering that pose through the canonical
 coordinate and optics adapter.
 
@@ -43,15 +45,18 @@ or the plan content fingerprint. Its caller supplies a stable provider
 fingerprint, which participates in the prepared-job fingerprint so distinct
 camera sources cannot collide in caches.
 
-The provider returns the existing renderer-facing `CameraPlan` value. A
-separate public `CameraFrame` schema is deferred until coordinate, matrix,
+The provider returns the existing renderer-facing `CameraPlan` value. Its
+identity contributes to both prepared-job and compiled-scene cache keys, but is
+not embedded in the serialized plan content fingerprint. A separate public
+`CameraFrame` schema is deferred until coordinate, matrix,
 sensor, focus, timebase, and clipping conventions have been certified across
 all supported backends.
 
 ## Consequences
 
-- CM3D becomes the evaluator for every runtime camera sample, including
-  shutter subframes.
+- Provider-backed plans use CM3D for every runtime camera sample, including
+  shutter subframes. Plans without a provider retain their serialized track
+  evaluation until supported consumers migrate.
 - C3D's temporal sampler remains the sole owner of shutter timing and
   accumulation.
 - Existing serialized plans preserve their current behavior during migration.
@@ -75,8 +80,8 @@ all supported backends.
   camera-specific compatibility evaluator no longer used by supported plans.
   Preserve static renderer camera values, projection, depth, DoF kernels,
   shutter scheduling/accumulation, and compositing.
-- **Status:** `ACTIVE` after implementation lands; until then this ADR is
-  proposed and authorizes no behavior change.
+- **Status:** `ACTIVE`; runtime-provider migration is implemented in C3D,
+  CM3D, and Template. Consumer migration and acceptance gates remain open.
 
 ## Alternatives considered
 
