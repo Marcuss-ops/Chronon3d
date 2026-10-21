@@ -68,6 +68,8 @@ make_scene_evaluator(SceneMaterializationInputs inputs);
 [[nodiscard]] chronon3d::EasingCurve animation_keyframe_easing(
     const AnimationTrackPlan& track, const AnimationKeyframePlan& key);
 [[nodiscard]] CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan);
+[[nodiscard]] CameraTrackEvaluator make_camera_evaluator(
+    const RenderPlan& plan, const std::function<CameraPlan(double)>& runtime_sample);
 [[nodiscard]] std::optional<std::string> expand_static_lottie(
     LayerPlan& layer, const std::filesystem::path& path);
 [[nodiscard]] chronon3d::DepthRole depth_role_value(std::string_view value);

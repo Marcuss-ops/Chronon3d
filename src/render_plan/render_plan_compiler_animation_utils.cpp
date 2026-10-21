@@ -383,10 +383,8 @@ std::optional<graphics::GradientDefinition> fill_gradient_at(
 
 namespace {
 
-std::optional<chronon3d::Camera2_5D> make_camera_base(const RenderPlan& plan) {
-    if (!plan.camera) return std::nullopt;
-
-    const auto& source = *plan.camera;
+chronon3d::Camera2_5D make_camera_value(
+    const CameraPlan& source, const CanvasSpec& canvas) {
     chronon3d::Camera2_5D camera;
     camera.enabled = true;
     camera.is_animated = false;
@@ -403,8 +401,8 @@ std::optional<chronon3d::Camera2_5D> make_camera_base(const RenderPlan& plan) {
     if (source.focal_length_mm > 0.0f) {
         camera.lens.focal_length = source.focal_length_mm;
         camera.lens.sensor_width = 35.0f;
-        const float aspect = plan.canvas.width > 0 && plan.canvas.height > 0
-            ? static_cast<float>(plan.canvas.width) / static_cast<float>(plan.canvas.height)
+        const float aspect = canvas.width > 0 && canvas.height > 0
+            ? static_cast<float>(canvas.width) / static_cast<float>(canvas.height)
             : 16.0f / 9.0f;
         camera.lens.sensor_height = 35.0f / aspect;
     }
@@ -423,6 +421,11 @@ std::optional<chronon3d::Camera2_5D> make_camera_base(const RenderPlan& plan) {
             camera, source.dof_focus_distance);
     }
     return camera;
+}
+
+std::optional<chronon3d::Camera2_5D> make_camera_base(const RenderPlan& plan) {
+    if (!plan.camera) return std::nullopt;
+    return make_camera_value(*plan.camera, plan.canvas);
 }
 
 } // namespace
@@ -520,6 +523,20 @@ CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan) {
         camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
             camera, camera.dof.focus_distance);
     return camera;
+    };
+}
+
+CameraTrackEvaluator make_camera_evaluator(
+    const RenderPlan& plan, const std::function<CameraPlan(double)>& runtime_sample) {
+    if (!runtime_sample) return make_camera_evaluator(plan);
+    const auto canvas = plan.canvas;
+    return [runtime_sample, canvas](double frame) {
+        auto camera = make_camera_value(runtime_sample(frame), canvas);
+        // Runtime sampling may produce a static pose, but conservatively mark
+        // it animated so renderer caches never reuse a camera-dependent frame
+        // across distinct sample times.
+        camera.is_animated = true;
+        return camera;
     };
 }
 

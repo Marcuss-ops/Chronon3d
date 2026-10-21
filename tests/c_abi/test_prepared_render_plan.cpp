@@ -3823,3 +3823,44 @@ TEST_CASE("render plan flow layout reaches the runtime scene configuration") {
     REQUIRE(changed_prepared);
     CHECK(changed_prepared->fingerprint.content_digest != prepared->fingerprint.content_digest);
 }
+
+TEST_CASE("runtime camera provider samples exact fractional frames and fingerprints its source") {
+    using namespace chronon3d;
+    assets::AssetResolver resolver;
+    render_plan::RenderPlan plan;
+    plan.job_id = "runtime-camera-provider";
+    plan.canvas = {.width = 64, .height = 64, .fps = FrameRate{30, 1},
+                   .duration = Frame{2}};
+    plan.camera = render_plan::CameraPlan{};
+    render_plan::LayerPlan layer;
+    layer.id = "camera-subject";
+    layer.type = render_plan::LayerType::Color;
+    layer.color = {1.f, 1.f, 1.f, 1.f};
+    plan.layers.push_back(layer);
+
+    double sampled_frame = -1.0;
+    auto sample = [&](double frame) {
+        sampled_frame = frame;
+        auto camera = *plan.camera;
+        camera.position[0] = static_cast<float>(frame * 4.0);
+        return camera;
+    };
+    render_plan::RuntimeCameraSampleProvider provider{
+        .fingerprint = "cm3d-rig-test-a", .sample = sample};
+    const auto prepared = render_plan::compile_render_plan(
+        plan, resolver, {}, nullptr, &provider);
+    REQUIRE(prepared);
+
+    const auto evaluated = evaluate(prepared->compiled_composition, {},
+        SampleTime::from_frame(0.5, FrameRate{30, 1}));
+    REQUIRE(evaluated);
+    CHECK(sampled_frame == doctest::Approx(0.5));
+    CHECK(evaluated->scene.camera_2_5d().position.x == doctest::Approx(2.f));
+    CHECK(evaluated->scene.camera_2_5d().is_animated);
+
+    provider.fingerprint = "cm3d-rig-test-b";
+    const auto other_source = render_plan::compile_render_plan(
+        plan, resolver, {}, nullptr, &provider);
+    REQUIRE(other_source);
+    CHECK(other_source->fingerprint.content_digest != prepared->fingerprint.content_digest);
+}

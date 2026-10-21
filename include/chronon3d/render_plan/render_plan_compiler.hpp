@@ -9,6 +9,7 @@
 #include <chronon3d/timeline/composition.hpp>
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -31,12 +32,22 @@ struct PreparedRenderPlan {
     RenderBudget render_budget{};
 };
 
+/// Optional runtime-only source of fully resolved camera values. `sample`
+/// receives an absolute fractional presentation frame and must return the
+/// complete camera state for that instant. Its stable identity participates in
+/// the render-job fingerprint; the callback itself is never serialized.
+struct RuntimeCameraSampleProvider {
+    std::string fingerprint;
+    std::function<CameraPlan(double)> sample;
+};
+
 Result<PreparedRenderPlan, PlanDecodeError>
 compile_render_plan(
     const RenderPlan& plan,
     chronon3d::assets::AssetResolver& resolver,
     const RenderPlanFingerprintOptions& fingerprint_options = {},
-    const compiler::CompiledProgram* canonical_program = nullptr);
+    const compiler::CompiledProgram* canonical_program = nullptr,
+    const RuntimeCameraSampleProvider* runtime_camera = nullptr);
 
 /// Build the temporary video compatibility view from an already canonical
 /// CompiledProgram. This overload performs asset/materialization preparation
