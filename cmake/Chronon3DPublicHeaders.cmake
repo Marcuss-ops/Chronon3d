@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 5763)
-Total output lines: 322
-
 # ============================================================================
 # cmake/Chronon3DPublicHeaders.cmake
 #
@@ -58,7 +55,210 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/mesh_loader.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_resolver.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_writer.hpp"
-  …3763 tokens truncated…fest.hpp (single canonical home) and DELETED this
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/render_settings.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_plan/render_budget.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/sampling/edge_mode.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/video/video_source.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/hash/hash_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/alpha.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/blend_mode.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/composite_operator.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/composition/composition_registry.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/dirty_fallback_reason.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/enum_utils.hpp"
+    # Compatibility include retained as part of the public transitive closure:
+    # sdk/render_error.hpp and several runtime value headers include it.
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/error.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/error.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/arena.hpp"
+    # detail/ framebuffer_impl.hpp transitively required by core/memory/framebuffer.hpp:27
+    # (relative `#include "detail/framebuffer_impl.hpp"`); de-facto public by
+    # directory convention (under include/chronon3d/, NOT under internal/).
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/detail/framebuffer_impl.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_handle.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/render_surface_handle.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_slot_view.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/memory_utils.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/counters.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/render_counter_macros.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/render_counter_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/profiling.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/timing.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/profiling_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/tracing/tracing.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/tracing/tracing_categories.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/tracing/trace_options.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/tracing/trace_session.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/tracing/trace_ids.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/scheduler/scheduler_mode.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/frame.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/frame_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/result.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/sample_time.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/time.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/backdrop_filter.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_catalog_data.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_catalog.def"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_category.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_descriptor.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_execution_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_ids.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_instance.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_params.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_stage.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_traits.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_type.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/luminance_response.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/motion_field.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/temporal_history.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/presets/glow_presets.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/bounds.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/mesh.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/vertex.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/distance_field2d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/gradient.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/gradient_mesh.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/vector_field2d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/shape_style/fill_style.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/shape_style/fill_style_lerp.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/shape_style/stroke_style.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/stroke/brush_profile.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/layout/layout_flow_grid.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/layout/layout_rules.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/presets/font_asset_paths.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_2_5d_projection.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_pose.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_contract.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_clip.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_frustum.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_matrix.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_resolver.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/color.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression_builtins.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/near_plane_clip.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/projection_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/projector_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/raster_utils.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/transform.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_ids.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_params.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_registry.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/media/media_placement.hpp"
+    # P3-H + feat(api) public camera facade — RenderGraph moved to
+    # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
+    # External consumers MUST NOT see this type.  RenderGraph is the
+    # internal pipeline topology used by the OPP renderer; the public
+    # surface exposes only `chronon3d::sdk::RenderEngine::render(...)`.
+    # "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph.hpp"  # HIDDEN
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/builder_params.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/scene_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/sequence_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/layer_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/layer_builder_inline.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_inline.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_layers.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_sequences.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/null_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/text_run_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_projection.hpp"
+    # P3-H + feat(api) public camera facade — CameraSession moved to
+    # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
+    # External consumers MUST NOT see this type.  The session lives in the
+    # per-frame evaluation hot path and is owned by the OPP renderer.
+    # "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/scene/camera/v1/camera_session.hpp"  # HIDDEN
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_common_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_projection_source.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/dof.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/lens_model.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/depth_role.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/card3d_material.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/clip_transition.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/hierarchy_resolver.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/effect_stack.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/mask_utils.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/scene.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/transition.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/layer.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/layer_hierarchy.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/mask.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/time_remap.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/layer_time_resolver.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/track_matte.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/render/render_node.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/render/render_node_params.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/render/resolved_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/circle_shape.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/fill.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/line_shape.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/material_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/path.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/rect_shape.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/rounded_rect_shape.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/shape.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/shape_stroke.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/transform_3d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/simd/kernels.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animated_text_document.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/glyph_instance_state.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_evaluator.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_properties.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_spec.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/animation/text_animator_stack.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_document.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_definition.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_appearance_spec.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_content.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_layout_spec.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_defaults.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_span_override.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_span.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run_definition.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/prepared_text.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_shaping_options.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/timed_text_document.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_layout_cache.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_layout_identity.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/font_engine.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/glyph_selector.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/glyph_selector_spec.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/paragraph_style.hpp"
+    # ── Phase A6 close-out (2026-07-10): canonical text placement resolver ──
+    #   ADR-019 Decision 3 establishes `resolve_text_placement()` as the
+    #   SINGLE canonical surface for converting high-level placement
+    #   semantics into the `ResolvedTextPlacement` the renderer consumes.
+    #   Phase A6 removed the parallel `class TextPlacementResolver` shim
+    #   that previously co-resident with the free function in the
+    #   retired `text_placement_resolver.hpp`.  That wrapper header is now
+    #   BANNED from `include/chronon3d/` by gate #23 in
+    #   `tools/check_architecture_boundaries.sh`.  If you want to re-expose
+    #   the wrapper class you MUST update ADR + open a new ticket.
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/resolve_text_placement.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_animator_property.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_direction.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_material.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run_layout.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run_hash.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_run_shape.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/vector/path_factories.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/vector/shape_style.hpp"
+    # ── Phase A2 #3/3 (2026-07-10): Asset Readiness V2 POD types INLINE ──
+    #   Previously `asset_readiness_v2.hpp` (M1.7 Step 1) lived here with
+    #   3 v2::Asset{Preflight*}-related symbols. Phase A1 removed the
+    #   always-green preflight stubs (gate #18). Phase A2 #1 collapsed
+    #   the v2 namespace into the flat assets:: namespace + renamed
+    #   AssetRef POD -> InternalAssetRef + added migration gate #21.
+    #   Phase A2 #2 promoted AssetManifest out (canonical body now in
+    #   asset_manifest.hpp). Phase A2 #3 INLINED the remaining two
+    #   PODs (AssetKind enum + InternalAssetRef struct) into
+    #   asset_manifest.hpp (single canonical home) and DELETED this
     #   filename. Real canonical preflight: chronon3d::AssetPreflightResolver
     #   in asset_preflight_resolver.hpp (namespace chronon3d::).
 
