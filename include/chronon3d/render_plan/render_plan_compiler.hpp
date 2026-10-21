@@ -50,6 +50,7 @@ make_video_compatibility_view(
     chronon3d::assets::AssetResolver& resolver,
     const chronon3d::assets::PreparedAssetManifest& assets,
     const compiler::CompiledProgram& program,
-    const RenderPlanFingerprintOptions& fingerprint_options = {});
+    const RenderPlanFingerprintOptions& fingerprint_options = {},
+    const RuntimeCameraSampleProvider* runtime_camera = nullptr);
 
 }  // namespace chronon3d::render_plan

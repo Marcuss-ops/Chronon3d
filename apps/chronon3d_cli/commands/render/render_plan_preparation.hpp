@@ -34,6 +34,7 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -44,6 +45,10 @@ struct RenderPlanPreparationOptions {
     std::string json;        // inline JSON document (used when `input` is empty)
     std::string assets_root; // explicit; empty falls back to CHRONON3D_CLI_ASSETS_ROOT
     std::string prepared_package; // optional immutable overlay preparation sidecar
+    // In-process callers may supply CM3D's resolved camera for the video
+    // compatibility executor. The CLI's JSON-only entry points leave this
+    // empty and retain offline-plan compatibility.
+    std::optional<render_plan::RuntimeCameraSampleProvider> runtime_camera;
 };
 
 struct PreparedOverlayPackageSummary {

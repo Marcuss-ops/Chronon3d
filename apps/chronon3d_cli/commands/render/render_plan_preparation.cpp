@@ -298,6 +298,14 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
                 ? std::getenv("CHRONON3D_CLI_ASSETS_ROOT") : "");
 
         auto plan = std::move(decoded).value();
+        if (options.runtime_camera &&
+            (plan.output.format == render_plan::OutputFormat::Png ||
+             plan.output.format == render_plan::OutputFormat::PngSequence)) {
+            return render_plan::PlanDecodeError{
+                "camera_sample_provider",
+                "runtime camera injection is currently supported by the video compatibility executor only",
+                "runtime_camera_requires_video_compatibility", "render-plan-camera"};
+        }
 #if !defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         if (plan.audio)
             return render_plan::PlanDecodeError{
@@ -397,7 +405,8 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 			auto compatibility = render_plan::make_video_compatibility_view(
 				context.decoded, resolver,
 				context.program->metadata().asset_manifest,
-				*context.program, fingerprint_options);
+				*context.program, fingerprint_options,
+				options.runtime_camera ? &*options.runtime_camera : nullptr);
 			if (!compatibility) return std::move(compatibility).error();
 			context.video_compatibility_view = std::make_shared<const CompiledComposition>(
 				std::move(compatibility).value());

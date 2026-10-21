@@ -2063,12 +2063,13 @@ Result<CompiledComposition, PlanDecodeError> make_video_compatibility_view(
     chronon3d::assets::AssetResolver& resolver,
     const chronon3d::assets::PreparedAssetManifest& assets,
     const compiler::CompiledProgram& program,
-    const RenderPlanFingerprintOptions& fingerprint_options) {
+    const RenderPlanFingerprintOptions& fingerprint_options,
+    const RuntimeCameraSampleProvider* runtime_camera) {
     // Reuse the canonical prepared-plan machinery with an explicit program
     // owner. The implementation's canonical_program branch performs asset
     // and text materialization but skips the legacy composition compiler.
     auto prepared = compile_render_plan(
-        plan, resolver, fingerprint_options, &program);
+        plan, resolver, fingerprint_options, &program, runtime_camera);
     if (!prepared) return std::move(prepared).error();
     auto result = std::move(prepared).value().compiled_composition;
     // The canonical compiler's manifest is authoritative. `assets` is kept
