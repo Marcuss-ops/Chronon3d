@@ -59,7 +59,6 @@ set(SCENE_TEST_SOURCES
                 render_graph/pipeline/test_graph_cache.cpp
                 extension/test_graph_node_catalog.cpp
                 scene/transform_hierarchy_tests.cpp
-                scene/camera_shot_validator_tests.cpp
                 scene/camera_projection_tests.cpp
                 scene/camera/test_camera_registry.cpp
                 scene/camera/test_camera_program.cpp

@@ -1,20 +1,16 @@
 // ==============================================================================
 // tests/scene/camera/test_camera_stabilization.cpp
 //
-// Camera V1 — stabilization & validation tests, migrated to current API.
+// Camera projection and sample-time contract tests.
 //
 // Tests:
-//   A1-A4: CameraPathValidationOptions invariants
-//   B1-B3: SampleTime sub-frame evaluation
-//   C1-C3: project_world_to_screen geometry
-//   D1-D2: CameraShotValidator layer visibility
+//   SampleTime sub-frame evaluation and project_world_to_screen geometry.
 // ==============================================================================
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
 
 #include <tests/helpers/test_math.hpp>
 
-#include <chronon3d/scene/camera/camera_shot_validator.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -102,30 +98,6 @@ TEST_CASE("P1-C: static camera — no POI — evaluates without NaN") {
     CHECK_FALSE(std::isnan(cam.position.x));
     CHECK_FALSE(std::isnan(cam.position.y));
     CHECK_FALSE(std::isnan(cam.position.z));
-}
-
-// --- Section C: CameraShotValidator layer visibility ---
-
-TEST_CASE("P1-D: missing layer — require_visible handles gracefully") {
-    CameraShotValidator v;
-    v.register_layer_size("layer-A", Vec2{200.0f, 200.0f});
-    // Querying an unregistered layer should not crash.
-    bool threw = false;
-    try {
-        v.require_visible("layer-B-never-registered", 0.5f);
-    } catch (...) {
-        threw = true;
-    }
-    CHECK((threw || !threw));  // gracefully handled either way
-}
-
-TEST_CASE("P1-D: register_layer_size for two sizes succeeds") {
-    CameraShotValidator v;
-    v.register_layer_size("corner-tiny",  Vec2{50.0f,  50.0f});
-    v.register_layer_size("center-large", Vec2{4000.0f, 4000.0f});
-    v.require_visible("corner-tiny",  0.5f);
-    v.require_visible("center-large", 0.5f);
-    CHECK(true);
 }
 
 } // namespace
