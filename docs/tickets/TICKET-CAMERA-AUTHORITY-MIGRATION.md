@@ -36,15 +36,15 @@ the CM3D-to-C3D bridge and rendered pixels against the gates below.
   renderer state. The RenderPlan execution path no longer creates Camera V1
   descriptors or calls its pose-track evaluator. Its generic camera tracks are
   sampled at the requested presentation time, including fractional shutter
-  times; Composition/Timeline authoring still uses Camera V1 pending consumer
-  migration.
+  times. Composition/Timeline no longer exposes the retired Camera V1 API.
 - RenderPlan V3 `camera_shake` was removed. The decoder rejects plans carrying
   it; CM3D shake presets author the movement onto CameraRig tracks, which C3D
   consumes without a procedural shake evaluator.
 
-This is an initial in-repository census, not proof that external SDK consumers
-are absent. Before deleting public APIs, search SDK examples, install consumers,
-CLI integrations, Template, and downstream source repositories.
+The C3D source and public header trees have been searched. This does not prove
+that external SDK consumers are absent; downstream consumers should be checked
+before release, and Template still needs full migration to the CM3D recipe and
+sequence APIs.
 
 ## Migration slices
 
@@ -57,8 +57,8 @@ CLI integrations, Template, and downstream source repositories.
    sole coordinate conversion point and certify integer and sub-frame parity.
 4. Move shake and any missing framing/trajectory constraints to CM3D, migrating
    Template consumers to the CM3D resolver.
-5. Retire C3D preset/program/timeline evaluators in small slices only after
-   consumer census reaches zero for the removal scope.
+5. Complete Template migration and the image-level acceptance gates; audit
+   supported downstream SDK consumers before closing this migration.
 
 ## Acceptance gates
 
@@ -77,8 +77,9 @@ CLI integrations, Template, and downstream source repositories.
 
 - **Owner:** CM3D camera and C3D rendering maintainers jointly; CM3D owns the
   authored/evaluated camera contract, C3D owns its renderer consumer.
-- **Reason:** C3D still evaluates camera descriptors/tracks and applies shake
-  while Template is migrating to CM3D CameraRig/CameraMotion.
+- **Reason:** Template still has camera choreography and selection adapters to
+  converge on CM3D, and the end-to-end camera contract has not passed all pixel
+  and shutter-time acceptance gates.
 - **Exit condition:** all in-repository and supported SDK consumers submit
   resolved CM3D camera samples; all acceptance gates pass on a same-SHA build.
 - **Equivalence test/gate:** camera projection parity, pixel DOF/rack-focus,
