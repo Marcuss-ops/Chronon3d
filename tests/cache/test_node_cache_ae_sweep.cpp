@@ -28,8 +28,7 @@
 // Semantics
 // ---------
 // "AE_CAM sweep" = zoom-only axis (AE_CAM_02) + Z-dolly axis (AE_CAM_04)
-// + parent_name axis (covers AE_CAM_04 variant + AE_CAM_08-style layered
-// configurations).  Each (scene_i, frame_j) corresponds to a fully
+// + DOF focus-plane axis. Each (scene_i, frame_j) corresponds to a fully
 // distinct Camera2_5D state.  TICKET-ae-cam-hash-collision Soluzione B
 // requires that `fold_camera_into_params_hash` (from
 // `cache::node_cache.hpp`) produces 9 fully distinct NodeCacheKey::digest()
@@ -110,12 +109,13 @@ namespace {
     return cam;
 }
 
-[[nodiscard]] Camera2_5D make_cam_parent_axis(std::pmr::string parent_name) {
+[[nodiscard]] Camera2_5D make_cam_focus_axis(f32 focus_z) {
     Camera2_5D cam;
     cam.enabled    = true;
     cam.zoom       = 1000.0f;
     cam.position   = Vec3{0.0f, 0.0f, -1000.0f};
-    cam.parent_name = std::move(parent_name);
+    cam.dof.enabled = true;
+    cam.dof.focus_z = focus_z;
     return cam;
 }
 
@@ -140,18 +140,16 @@ TEST_CASE("AE_CAM Sweep: 3 scenes x 3 frames produce 9 distinct NodeCacheKey + 0
         keys.push_back(make_node_cache_key(kBaseParams, kWidth, kHeight,
                                            make_cam_zoom_only(zoom)));
     }
-    // Scene B: Z-dolly axis (covers AE_CAM_04 parent_null Z-dolly).
+    // Scene B: Z-dolly axis (covers AE_CAM_04).
     // Avoid z=-1000 which collides with Scene A's zoom=1000 (same cam state).
     for (f32 z : {-800.0f, -1200.0f, -1600.0f}) {
         keys.push_back(make_node_cache_key(kBaseParams, kWidth, kHeight,
                                            make_cam_z_dolly(z)));
     }
-    // Scene C: parent_name axis (covers AE_CAM_08-style layered +
-    // AE_CAM_04 parent enable/disable variation).
-    // Avoid empty parent which collides with Scene A/B default (same cam state).
-    for (const char* parent : {"layer_a", "layer_b", "layer_c"}) {
+    // Scene C: DOF focus-plane axis.
+    for (f32 focus_z : {400.0f, 800.0f, 1200.0f}) {
         keys.push_back(make_node_cache_key(kBaseParams, kWidth, kHeight,
-                                           make_cam_parent_axis(std::pmr::string{parent})));
+                                           make_cam_focus_axis(focus_z)));
     }
 
     REQUIRE_EQ(keys.size(), 9u);

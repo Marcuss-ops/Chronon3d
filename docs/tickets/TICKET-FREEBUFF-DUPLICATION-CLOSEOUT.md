@@ -8,8 +8,8 @@ Audit source: `freebuff-chat-2026-10-10T16-40-58.230Z.md`.
 scanline, easing contract e parsing dei vettori hanno ora un'unica
 implementazione condivisa dove i contratti coincidono; il codice sostituito è
 stato rimosso. Le firme pubbliche ripetute del render graph sono un follow-up
-API separato. Il caso rosso della cache resta documentato sotto come failure
-preesistente e non è incluso tra le modifiche chiuse da questo ticket.
+API separato. Il vecchio report rosso della cache non si riproduce nel build
+aggiornato: la suite cache passa integralmente.
 
 ## Implemented
 
@@ -64,20 +64,18 @@ preesistente e non è incluso tra le modifiche chiuse da questo ticket.
 - The full C ABI suite passed before the final shared vector-reader change; after
   that change, the four targeted decoder cases passed (32 assertions). Re-run
   the complete affected suites on one fresh build before same-SHA certification.
-- `chronon3d_cache_tests`: 149 cases passed when excluding the pre-existing
-  dimensional-uniqueness case; its three font/tracking/placement framebuffer
-  hash assertions fail even though cache misses increase. The helper replacement
-  preserves the existing boost combine formula.
+- `chronon3d_cache_tests`: current rebuild passed all 159 cases and 103,182
+  assertions. The focused font/tracking/placement dimensional-uniqueness case
+  passed 19/19 assertions. The camera-fingerprint fixtures had stale references
+  to removed `Camera2_5D::parent_name`; they now cover resolved camera pose and
+  DOF focus-plane identity instead.
 - The fast build for CLI, cache, core, renderer, effects, camera and C ABI targets
   completed with `-j12`.
 
 ## Prossimi TODO
 
-1. **P1 — triage del caso cache rosso.** Riprodurre i tre assert di
-   dimensional uniqueness con un binario aggiornato; verificare separatamente
-   font, tracking e placement; correggere la causa o aggiornare il golden solo
-   se il nuovo output è intenzionale e dimostrato. Chiusura: suite cache intera
-   verde, senza esclusioni.
+1. **CLOSED — triage del caso cache rosso.** Le tre asserzioni font/tracking/
+   placement passano nel binario ricostruito; nessun golden è stato cambiato.
 2. **P1 — verifica post-modifica.** Ricostruire e lanciare per intero le suite
    core, cache, renderer, effects, camera e C ABI sullo stesso build tree; il
    build `-j12` già eseguito resta evidenza del checkpoint precedente, non della
