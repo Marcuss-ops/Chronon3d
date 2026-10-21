@@ -75,7 +75,6 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     && useradd --uid 10001 --create-home --shell /usr/sbin/nologin chronon
 
 COPY --from=builder /opt/chronon3d /opt/chronon3d
-COPY VERSION /opt/chronon3d/VERSION
 
 RUN mkdir -p /work/assets /work/output \
     && chown -R chronon:chronon /work

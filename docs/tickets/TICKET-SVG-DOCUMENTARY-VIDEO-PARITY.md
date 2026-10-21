@@ -227,9 +227,11 @@ first-eight-second scene does not certify the general idle+FX combination.
   before registering a general cinematic-idle preset in ChrononTemplate.
 - [ ] Run the focused importer/C ABI tests and same-source checkout CI evidence
   required by the owning SVG/render-plan ticket.
-- [ ] Verify the static-bake classifier fix with the raw-pixel 0–60-frame
-  regression gate, rerun the preset without the constant-opacity workaround,
-  and inspect the new encoded preview.
+- [x] Verify the static-bake classifier fix with the raw-pixel 0–60-frame
+  regression gate. The current software CLI retains all 132 path pixels at
+  f0/15/30/45/60, and two 61-frame RGBA renders match exactly.
+- [ ] Rerun the preset without the constant-opacity workaround and inspect its
+  new encoded preview.
 - [ ] Rebuild and verify the animated-path dirty-rectangle fallback against two
   consecutive 61/150-frame raw renders; replace the temporary
   `EffectBoundsUnknown` attribution with a dedicated diagnostic reason if the

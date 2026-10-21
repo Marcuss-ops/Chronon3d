@@ -16,7 +16,7 @@ namespace chronon3d {
 // Facade class that bundles the cinematic post-processing passes into a single
 // configurable system. Sits at the end of the rendering pipeline and is fed
 // the composed framebuffer. Internally it owns:
-//   - a per-pixel depth-of-field blur (via the existing DofEffectNode logic)
+//   - a per-pixel depth-of-field blur (via the PerPixelDofNode)
 //   - a velocity-buffer motion blur (VelocityBufferMotionBlur)
 //
 // Usage:

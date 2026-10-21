@@ -52,7 +52,7 @@ public:
         std::filesystem::remove_all(root, ec);
     }
 
-    [[nodiscard]] std::filesystem::path root;
+    std::filesystem::path root;
 };
 
 TwoJobRoots& roots() {

@@ -6,11 +6,11 @@
 //
 // Asserts:
 //   1. `cache::camera_fingerprint_digest(cam)` produces DISTINCT u64 digests
-//      for distinct Camera2_5D state (zoom, position.z, parent_name, dof).
+//      for distinct Camera2_5D state (zoom, position.z, pose axes, DOF).
 //   2. `cache::fold_camera_into_params_hash(key, cam)` mutates a NodeCacheKey
 //      so feeds with different camera states yield different
 //      `NodeCacheKey::digest()` outputs.
-//   3. AE_CAM_02 (zoom-only 500/1000/1500) and AE_CAM_04 (parent_null Z-dolly
+//   3. AE_CAM_02 (zoom-only 500/1000/1500) and AE_CAM_04 (Z-dolly
 //      -600/-1000/-1400) scenarios lock to 3 distinct digests each, mirroring
 //      the per-frame render-graph FB-hash semantics at the cache-key layer.
 //   4. The helper is deterministic (same Camera2_5D twice -> same digest).
@@ -65,12 +65,13 @@ constexpr f32 kAeCam04ZFar     = -1400.0f;
     return cam;
 }
 
-[[nodiscard]] Camera2_5D make_cam_parent(std::pmr::string parent) {
+[[nodiscard]] Camera2_5D make_cam_focus(f32 focus_z) {
     Camera2_5D cam;
     cam.enabled = true;
     cam.zoom = 1000.0f;
     cam.position = Vec3{0.0f, 0.0f, -1000.0f};
-    cam.parent_name = std::move(parent);
+    cam.dof.enabled = true;
+    cam.dof.focus_z = focus_z;
     return cam;
 }
 
@@ -125,14 +126,14 @@ TEST_CASE("CameraFingerprint: digest changes for every pose axis") {
     CHECK_NE(base_digest, camera_fingerprint_digest(rotated));
 }
 
-// 3. Camera fingerprint digest - distinguishes by parent_name
-TEST_CASE("CameraFingerprint: digest changes when parent_name changes") {
-    const u64 no_parent = camera_fingerprint_digest(make_cam_parent({}));
-    const u64 parent_a  = camera_fingerprint_digest(make_cam_parent(std::pmr::string{"layer_a"}));
-    const u64 parent_b  = camera_fingerprint_digest(make_cam_parent(std::pmr::string{"layer_b"}));
-    CHECK_NE(no_parent, parent_a);
-    CHECK_NE(parent_a,  parent_b);
-    CHECK_NE(no_parent, parent_b);
+// 3. Camera fingerprint digest - distinguishes by resolved DOF focus plane
+TEST_CASE("CameraFingerprint: digest changes when DOF focus plane changes") {
+    const u64 near_focus = camera_fingerprint_digest(make_cam_focus(400.0f));
+    const u64 mid_focus  = camera_fingerprint_digest(make_cam_focus(800.0f));
+    const u64 far_focus  = camera_fingerprint_digest(make_cam_focus(1200.0f));
+    CHECK_NE(near_focus, mid_focus);
+    CHECK_NE(mid_focus, far_focus);
+    CHECK_NE(near_focus, far_focus);
 }
 
 // 4. Determinism: same Camera2_5D twice -> same digest
