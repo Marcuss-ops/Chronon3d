@@ -1,1 +1,305 @@
-}«Z––­„(k¢z'ÝßízËlýÊ+{ùš¶ízËvåÚèiÙš¥Êi{¬¶Ê'v+$nëg¢Ø§@
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <doctest/doctest.h>
+
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/backends/software/renderer.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/backends/software/software_backend.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
+#include <chronon3d/render_graph/nodes/shadow_node.hpp>
+#include <chronon3d/rendering/light_context.hpp>
+#include <chronon3d/rendering/lighting_eval.hpp>
+#include <tests/helpers/render_fixtures.hpp>
+#include <tests/helpers/test_utils.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <span>
+using namespace chronon3d;
+
+
+namespace {
+
+float framebuffer_max_delta(const Framebuffer& a, const Framebuffer& b) {
+    REQUIRE(a.width() == b.width());
+    REQUIRE(a.height() == b.height());
+    float max_delta = 0.0f;
+    for (int y = 0; y < a.height(); ++y) {
+        for (int x = 0; x < a.width(); ++x) {
+            const Color ca = a.get_pixel(x, y);
+            const Color cb = b.get_pixel(x, y);
+            max_delta = std::max(max_delta, std::abs(ca.r - cb.r));
+            max_delta = std::max(max_delta, std::abs(ca.g - cb.g));
+            max_delta = std::max(max_delta, std::abs(ca.b - cb.b));
+            max_delta = std::max(max_delta, std::abs(ca.a - cb.a));
+        }
+    }
+    return max_delta;
+}
+
+bool framebuffer_has_only_finite(const Framebuffer& fb) {
+    for (int y = 0; y < fb.height(); ++y) {
+        for (int x = 0; x < fb.width(); ++x) {
+            const Color c = fb.get_pixel(x, y);
+            if (!std::isfinite(c.r) || !std::isfinite(c.g) || !std::isfinite(c.b) || !std::isfinite(c.a)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+Composition make_depth_scene(f32 camera_x) {
+    return composition({
+        .name = "TemporalDepthScene",
+        .width = 640,
+        .height = 360,
+        .duration = 2
+    }, [camera_x](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.set_evaluated_camera(chronon3d::camera().enabled(true).position({camera_x + static_cast<f32>(ctx.frame()) * 0.1f, 0.0f, -1000.0f}).zoom(1000.0f).rotation({0.0f, 0.0f, 0.0f}).build());
+        s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 0.12f);
+        s.directional_light({-0.35f, 1.0f, -0.65f}, Color{1.0f, 1.0f, 1.0f, 1.0f}, 0.88f);
+
+        s.layer("grid", [](LayerBuilder& l) {
+            l.grid_background("grid_bg", GridBackgroundParams{
+                .size = {640.0f, 360.0f},
+                .bg_color = {0.02f, 0.02f, 0.05f, 1.0f},
+                .grid_color = {0.18f, 0.42f, 0.95f, 0.10f},
+                .spacing = 48.0f,
+                .minor_thickness = 1.0f,
+                .major_thickness = 2.0f,
+                .major_every = 4,
+                .centered = true
+            });
+        });
+
+        s.layer("back", [](LayerBuilder& l) {
+            l.enable_3d().position({-120.0f, 12.0f, 320.0f});
+            l.rounded_rect("back_card", {
+                .size = {170.0f, 120.0f},
+                .radius = 16.0f,
+                .color = Color{0.18f, 0.22f, 0.55f, 1.0f}
+            });
+        });
+
+        s.layer("front", [](LayerBuilder& l) {
+            l.enable_3d().position({90.0f, -8.0f, 40.0f}).rotate({0.0f, 18.0f, 0.0f});
+            l.rounded_rect("front_card", {
+                .size = {190.0f, 130.0f},
+                .radius = 20.0f,
+                .color = Color{0.96f, 0.36f, 0.24f, 1.0f}
+            });
+        });
+
+        return s.build();
+    });
+}
+
+} // namespace
+
+TEST_CASE("TEST MATH 01 - Projection Center") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, -1000.0f};
+    cam.zoom = 1000.0f;
+
+    auto ctx = renderer::make_projection_context(cam, 1920, 1080);
+    auto p = ctx.project_point({0.0f, 0.0f, 0.0f});
+
+    REQUIRE(p.visible);
+    CHECK(p.screen.x == doctest::Approx(960.0f).epsilon(0.01f));
+    CHECK(p.screen.y == doctest::Approx(540.0f).epsilon(0.01f));
+}
+
+TEST_CASE("TEST MATH 02 - Perspective Scale") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, -1000.0f};
+    cam.zoom = 1000.0f;
+
+    Transform near_tr;
+    near_tr.position = {0.0f, 0.0f, -500.0f};
+    Transform mid_tr;
+    mid_tr.position = {0.0f, 0.0f, 0.0f};
+    Transform far_tr;
+    far_tr.position = {0.0f, 0.0f, 500.0f};
+
+    auto near_proj = project_layer_2_5d(near_tr, cam, 1920.0f, 1080.0f);
+    auto mid_proj  = project_layer_2_5d(mid_tr, cam, 1920.0f, 1080.0f);
+    auto far_proj  = project_layer_2_5d(far_tr, cam, 1920.0f, 1080.0f);
+
+    REQUIRE(near_proj.visible);
+    REQUIRE(mid_proj.visible);
+    REQUIRE(far_proj.visible);
+
+    CHECK(near_proj.perspective_scale > mid_proj.perspective_scale);
+    CHECK(mid_proj.perspective_scale > far_proj.perspective_scale);
+    CHECK(400.0f * near_proj.perspective_scale == doctest::Approx(800.0f).epsilon(0.01f));
+    CHECK(400.0f * mid_proj.perspective_scale  == doctest::Approx(400.0f).epsilon(0.01f));
+    CHECK(400.0f * far_proj.perspective_scale  == doctest::Approx(266.6667f).epsilon(0.01f));
+}
+
+TEST_CASE("TEST MATH 03 - FOV to Focal Length") {
+    const f32 focal = focal_length_from_fov(1080.0f, 50.0f);
+    CHECK(focal == doctest::Approx(1158.0f).epsilon(1.0f));
+}
+
+// TEST MATH 04/05 (legacy project_card + composite_projected_framebuffer
+// coverage) were retired together with the projected-card rendering model
+// (ceac97481 "cleanup: remove legacy projected card rendering model").
+// Quad-projection corner semantics are covered by the migrated
+// test_projector_2_5d.cpp against ProjectionContext::project_quad().
+
+TEST_CASE("TEST MATH 06 - Depth Sorting") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, -800.0f};
+    cam.zoom = 800.0f;
+
+    Transform back_tr;
+    back_tr.position = {0.0f, 0.0f, 250.0f};
+    Transform front_tr;
+    front_tr.position = {0.0f, 0.0f, -250.0f};
+
+    const auto back_proj = project_layer_2_5d(back_tr, cam, 640.0f, 360.0f);
+    const auto front_proj = project_layer_2_5d(front_tr, cam, 640.0f, 360.0f);
+
+    REQUIRE(back_proj.visible);
+    REQUIRE(front_proj.visible);
+
+    CHECK(back_proj.depth > front_proj.depth);
+    CHECK(back_proj.perspective_scale < front_proj.perspective_scale);
+    CHECK(back_proj.depth == doctest::Approx(1050.0f).epsilon(0.001f));
+    CHECK(front_proj.depth == doctest::Approx(550.0f).epsilon(0.001f));
+}
+
+TEST_CASE("TEST MATH 07 - Shadow Distance Falloff") {
+    using graph::ShadowNode;
+
+    graph::RenderGraphContext ctx;
+    ctx.frame_input.width = 640;
+    ctx.frame_input.height = 360;
+
+    rendering::ShadowSettings settings;
+    settings.px_per_unit = 1.0f;
+    settings.max_offset = 400.0f;
+    settings.blur_radius = 8.0f;
+    settings.contact_blur_radius = 10.0f;
+    settings.ambient_blur_radius = 96.0f;
+    settings.depth_aware = false;  // Use constant blur falloff to keep bboxes distinct
+
+    const std::array<std::optional<raster::BBox>, 1> input_bbox = {raster::BBox{160, 120, 240, 200}};
+
+    ShadowNode near_node("card", 50.0f, 0.0f, Vec3{-0.35f, 1.0f, -0.65f}, settings);
+    ShadowNode mid_node ("card", 200.0f, 0.0f, Vec3{-0.35f, 1.0f, -0.65f}, settings);
+    ShadowNode far_node ("card", 500.0f, 0.0f, Vec3{-0.35f, 1.0f, -0.65f}, settings);
+
+    auto near_bbox = near_node.predicted_bbox(ctx, std::span<const std::optional<raster::BBox>>(input_bbox));
+    auto mid_bbox  = mid_node.predicted_bbox(ctx, std::span<const std::optional<raster::BBox>>(input_bbox));
+    auto far_bbox  = far_node.predicted_bbox(ctx, std::span<const std::optional<raster::BBox>>(input_bbox));
+
+    REQUIRE(near_bbox.has_value());
+    REQUIRE(mid_bbox.has_value());
+    REQUIRE(far_bbox.has_value());
+
+    const int near_w = near_bbox->x1 - near_bbox->x0;
+    const int mid_w  = mid_bbox->x1  - mid_bbox->x0;
+    const int far_w  = far_bbox->x1  - far_bbox->x0;
+    CHECK(near_w < mid_w);
+    CHECK(mid_w < far_w);
+}
+
+TEST_CASE("TEST MATH 08 - Directional Light Lambert") {
+    rendering::LightContext light = rendering::LightContext::default_scene();
+    light.enabled = true;
+    light.ambient_enabled = true;
+    light.directional_enabled = true;
+    light.direction = {0.0f, 0.0f, 1.0f};
+    light.ambient = 0.0f;
+    light.diffuse = 1.0f;
+
+    Material2_5D mat;
+    mat.accepts_lights = true;
+    mat.ambient_multiplier = 0.0f;
+    mat.diffuse = 1.0f;
+    mat.specular = 0.0f;
+
+    const Color base{1.0f, 1.0f, 1.0f, 1.0f};
+    const auto front = evaluate_lighting(base, {0.0f, 0.0f, 1.0f}, light, mat);
+    const auto side  = evaluate_lighting(base, {1.0f, 0.0f, 0.0f}, light, mat);
+    CHECK(front.r > side.r);
+    CHECK(front.g > side.g);
+    CHECK(front.b > side.b);
+}
+
+TEST_CASE("TEST MATH 09 - Rim Light") {
+    rendering::LightContext light = rendering::LightContext::default_scene();
+    light.enabled = true;
+    light.ambient_enabled = false;
+    light.directional_enabled = true;
+    light.direction = {0.0f, 0.0f, 1.0f};
+    light.diffuse = 0.0f;
+
+    Material2_5D mat;
+    mat.accepts_lights = true;
+    mat.ambient_multiplier = 0.0f;
+    mat.diffuse = 0.0f;
+    mat.specular = 1.0f;
+    mat.shininess = 12.0f;
+
+    const Color base{1.0f, 1.0f, 1.0f, 1.0f};
+    const auto front = light.shade({0.0f, 0.0f, 1.0f}, mat);
+    const auto edge = light.shade({0.85f, 0.0f, 0.20f}, mat);
+    CHECK(edge > front);
+    CHECK(edge > 0.0f);
+}
+
+TEST_CASE("TEST MATH 10 - Depth Fog") {
+    const auto fog_amount = [](float cam_z, float near_z, float far_z, float fog_opacity) {
+        const float t = std::clamp((cam_z - near_z) / std::max(1.0f, far_z - near_z), 0.0f, 1.0f);
+        return t * fog_opacity;
+    };
+
+    const Color fog_color{0.04f, 0.08f, 0.18f, 1.0f};
+    const Color base{0.6f, 0.8f, 1.0f, 1.0f};
+
+    const float front_fog = fog_amount(600.0f, 500.0f, 2000.0f, 0.65f);
+    const float back_fog  = fog_amount(1800.0f, 500.0f, 2000.0f, 0.65f);
+    CHECK(front_fog < back_fog);
+
+    const Color front = lerp(base, fog_color, front_fog);
+    const Color back  = lerp(base, fog_color, back_fog);
+    const auto front_luma = front.r * 0.299f + front.g * 0.587f + front.b * 0.114f;
+    const auto back_luma  = back.r  * 0.299f + back.g  * 0.587f + back.b  * 0.114f;
+    CHECK(back_luma < front_luma);
+}
+
+TEST_CASE("TEST MATH 11 - HDR No Clamp") {
+    const Color base{0.8f, 0.8f, 0.8f, 1.0f};
+    const Color glow{1.5f, 1.5f, 1.5f, 1.0f};
+    const Color sum = compositor::blend(glow, base, BlendMode::Add);
+    CHECK(sum.r == doctest::Approx(2.3f));
+    CHECK(sum.g == doctest::Approx(2.3f));
+    CHECK(sum.b == doctest::Approx(2.3f));
+}
+
+TEST_CASE("TEST MATH 12 - Temporal Stability") {
+    auto scene = make_depth_scene(0.0f);
+    auto scene_shifted = make_depth_scene(0.1f);
+
+    auto renderer = test::make_renderer();
+
+    auto fb0 = renderer.render(scene, 0);
+    auto fb1 = renderer.render(scene_shifted, 1);
+    REQUIRE(fb0 != nullptr);
+    REQUIRE(fb1 != nullptr);
+    CHECK(framebuffer_has_only_finite(*fb0));
+    CHECK(framebuffer_has_only_finite(*fb1));
+    CHECK(framebuffer_max_delta(*fb0, *fb1) < 0.80f);
+}
