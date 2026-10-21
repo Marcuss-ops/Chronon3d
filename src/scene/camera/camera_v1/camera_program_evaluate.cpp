@@ -238,32 +238,6 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
         intermediate = cr.camera;
     }
 
-    // TICKET-FRAMING-V1: 5th-stage framing (after constraints, before
-    // final return).  Opt-in: runs only when the descriptor has
-    // non-empty `framing_targets` in `CameraBaseSpec`.  The framing
-    // solver picks the camera position + aim that frames all targets
-    // within the safe area + rule-of-thirds + dead-zone constraints.
-    // The solver's per-frame state (previous aim, smoothed dolly,
-    // hysteresis EMA) is held in `session.framing_session` and
-    // persists across evaluations for stable on-screen motion.
-    //
-    // HONEST GAP: the per-layer "real bounds" query is NOT implemented;
-    // the evaluator reads the targets from `descriptor_.base.framing_targets`
-    // which the composition author fills in at descriptor-build time.
-    // A real-bounds resolver (against `ctx.transforms` or a new
-    // scene-bounds resolver) is catalogued as a forward-point in
-    // `docs/FOLLOWUP_TICKETS.md` §Catalogued forward-points.
-    if (!descriptor_.base.framing_targets.empty()) {
-        CameraFramingRequest req;
-        req.targets = descriptor_.base.framing_targets;
-        req.composition_point = descriptor_.base.composition_point;
-        req.look_ahead = descriptor_.base.look_ahead;
-        req.viewport = Viewport{static_cast<float>(ctx.viewport_width), static_cast<float>(ctx.viewport_height)};
-        const CameraFramingResult framing_result =
-            framing_solver_.solve(req, intermediate, session.framing_session);
-        intermediate = framing_result.camera;
-    }
-
     // TICKET-FRAMING-V1: 7th-stage validation finale (end-of-pipeline
     // NaN/Inf sanity check on the final camera state).  Per the
     // design validation (thinker Q-A), this reuses the existing

@@ -20,7 +20,6 @@ add_library(chronon3d_camera_v1_legacy OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_sources.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_constraints.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/register_camera_v1.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/camera_framing_solver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/shot_timeline.cpp
     # PR1 — CameraDescriptor → compiled CameraProgram compiler.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_compiler.cpp
