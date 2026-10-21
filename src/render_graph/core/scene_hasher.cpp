@@ -3,8 +3,8 @@
 //
 // Implementation bodies for SceneHasher.  Moved here from the header
 // to break a circular include dependency:
-//   scene.hpp → camera_program.hpp → render_session.hpp → scene_hasher.hpp
-//   → scene.hpp (blocked by #pragma once, leaving Scene incomplete).
+//   scene.hpp → render_session.hpp → scene_hasher.hpp → scene.hpp
+//   (blocked by #pragma once, leaving Scene incomplete).
 //
 // TICKET-BUILD-ROT-CASCADE-CAMERA surface B.
 // =============================================================================
