@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 6109)
-Total output lines: 338
-
 # ============================================================================
 # cmake/Chronon3DPublicHeaders.cmake
 #
@@ -51,7 +48,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/easing/interpolate.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/effects/animated_transform.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/effects/stagger.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/animations/camera_motion_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_metadata.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_manifest.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/prepared_asset_manifest.hpp"
@@ -139,7 +135,62 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_frustum.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_matrix.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_projection_resolver.hpp"
-    "${CMAKE_SOURCE_DIR…1109 tokens truncated…re/effect_stack.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/color.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression_builtins.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/expression_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/glm_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/near_plane_clip.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/projection_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/projector_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/raster_utils.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/math/transform.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_ids.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_params.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/registry/shape_registry.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/media/media_placement.hpp"
+    # P3-H + feat(api) public camera facade — RenderGraph moved to
+    # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
+    # External consumers MUST NOT see this type.  RenderGraph is the
+    # internal pipeline topology used by the OPP renderer; the public
+    # surface exposes only `chronon3d::sdk::RenderEngine::render(...)`.
+    # "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph.hpp"  # HIDDEN
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/builder_params.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/scene_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/sequence_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/layer_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/layer_builder_inline.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_inline.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_layers.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/detail/scene_builder_sequences.inl"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/null_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/text_run_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/arc_length_table.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_constraint.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_projection.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_motion_context.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_program.hpp"
+    # P3-H + feat(api) public camera facade — CameraSession moved to
+    # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
+    # External consumers MUST NOT see this type.  The session lives in the
+    # per-frame evaluation hot path and is owned by the OPP renderer.
+    # "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/scene/camera/v1/camera_session.hpp"  # HIDDEN
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_trajectory.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/evaluated_projection.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_common_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_projection_source.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/dof.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/lens_model.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/depth_role.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/card3d_material.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/clip_transition.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/hierarchy_resolver.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/effect_stack.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/mask_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/scene.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/core/transition.hpp"
@@ -221,12 +272,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     #   in asset_preflight_resolver.hpp (namespace chronon3d::).
 
     # ── Transitive closure additions (2026-07-11) ───────────────────────
-    # CameraDescriptorBuilder remains a transitional authoring adapter.
-    # SceneCameraFacade was removed: Scene owns resolved renderer state only.
-    #   camera_descriptor_builder.hpp → `chronon3d::camera()` fluent builder
-    #                                   for `CameraDescriptor` (with `PhysicalLens`
-    #                                   convenience struct for the spec example)
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_descriptor_builder.hpp"
+    # CameraDescriptorBuilder was removed; callers provide resolved camera state.
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/assets/image_cache.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_backend.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_decode_options.hpp"
