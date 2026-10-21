@@ -26,7 +26,6 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_catalog.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/lens_model.hpp>  // LensPresets for PhysicalLens trajectory test
@@ -53,9 +52,8 @@ constexpr float kCam01Eps = 1e-5f;
 constexpr FrameRate kCam01Fps{60, 1};
 
 // Helper: compile + assert success + assert is_compiled().
-CameraProgram compile_or_die_cam01(const CameraDescriptor& desc,
-                              const CameraCatalog* catalog = nullptr) {
-    auto result = compile_camera(desc, catalog);
+CameraProgram compile_or_die_cam01(const CameraDescriptor& desc) {
+    auto result = compile_camera(desc);
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
     REQUIRE(program.is_compiled());
@@ -214,31 +212,4 @@ TEST_CASE("compiled_trajectory_motion_source — "
     // returns point[0] for every frame while remaining consistent with the
     // endpoint contract above.
     CHECK(cam_end.position.z > -1000.0f);
-}
-
-TEST_CASE("compiled_registered_motion_ref_resolved — "
-          "RegisteredMotionRef resolves through CameraCatalog and replaces source") {
-    CameraDescriptor orbit_descriptor;
-    orbit_descriptor.id = "camera.orbit";
-    orbit_descriptor.source = OrbitMotion{};
-    NamedCameraPreset orbit_preset{
-        "camera.orbit", "orbit", "test-only descriptor fixture", orbit_descriptor};
-    const std::array<NamedCameraPreset, 1> presets{orbit_preset};
-    CameraCatalog catalog(presets);
-    REQUIRE(catalog.find_descriptor("camera.orbit") != nullptr);
-
-    CameraDescriptor desc;
-    desc.id = "test.registered_resolved";
-    desc.source = RegisteredMotionRef{"camera.orbit"};
-    desc.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
-    desc.orientation = FixedOrientation{};
-
-    auto program = compile_or_die_cam01(desc, &catalog);
-
-    // After resolution, the descriptor's source must have been REPLACED with
-    // the catalog entry's concrete variant — i.e. it is no longer a
-    // RegisteredMotionRef. The test fixture uses OrbitMotion.
-    const auto* resolved = program.descriptor();
-    REQUIRE(resolved != nullptr);
-    CHECK_FALSE(std::holds_alternative<RegisteredMotionRef>(resolved->source));
 }

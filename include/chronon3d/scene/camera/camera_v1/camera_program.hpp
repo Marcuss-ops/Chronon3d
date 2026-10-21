@@ -6,7 +6,7 @@
 //
 // The RECOMMENDED usage path is:
 //   1. Build a CameraDescriptor
-//   2. auto program = compile_camera(descriptor, &catalog).value();
+//   2. auto program = compile_camera(descriptor).value();
 //   3. Call program.evaluate(ctx, session) each frame
 //
 // The builder API (motion(), trajectory(), orient(), banking(), etc.) and
@@ -37,9 +37,7 @@ namespace chronon3d::camera_v1 {
 // which cannot be included here to avoid circular deps.
 struct CameraSession;
 struct CameraEvalContext;
-struct CameraCompileContext;
 struct CameraCompileError;
-class CameraCatalog;
 
 // =========================================================================
 // Diagnostic / result types
@@ -218,9 +216,8 @@ enum class CameraEvaluationDependency : std::uint8_t {
 // CameraProgramKind — TICKET-PHASE-2 (Phase 2 refactor):
 // source-kind discriminator for a compiled CameraProgram.
 //
-// Re-populated by compile_camera() AFTER EVERY GRAFT (including
-// RegisteredMotionRef resolution), since the resolved source can differ
-// from the descriptor's declared source.  This is the structural classifier
+// Re-populated by compile_camera() from the validated descriptor source.
+// This is the structural classifier
 // used by the runtime to pick evaluation strategies (e.g. PoseTracks path
 // vs. trajectory path vs. static fast-path).
 // =========================================================================
@@ -229,7 +226,7 @@ enum class CameraProgramKind : std::uint8_t {
     PoseTracks  = 1,  // resolved to PoseTracksSource
     Orbit       = 2,  // resolved to OrbitMotion
     Trajectory  = 3,  // resolved to TrajectoryMotion
-    Ref         = 4,  // UNRESOLVED RegisteredMotionRef (only valid on failure)
+    Ref         = 4,  // Reserved for serialized compatibility.
     CameraMotionParams = 5,  // Reserved for source compatibility; the source was retired.
 };
 
@@ -247,8 +244,6 @@ enum class CameraProgramKind : std::uint8_t {
 //                                anamorphic_squeeze, motion_blur fields
 //   - InvalidTrajectory        : empty/null trajectory, segment duration
 //   - InvalidSegmentIndex      : segment from_idx >= to_idx or OOB
-//   - MissingPreset            : RegisteredMotionRef not in catalog
-//   - CircularPresetReference  : catalog cycle in RegisteredMotionRef chain
 //   - MissingTarget            : LookAtLayer with empty target string
 //   - MissingParent            : forward-point (never emitted in Phase 2)
 //   - InvalidConstraint        : DistanceConstraint min > max
@@ -317,15 +312,14 @@ public:
 
 private:
     friend chronon3d::Result<CameraProgram, CameraCompileError>
-    compile_camera(const CameraDescriptor&, const CameraCatalog*, CameraCompileContext&);
+    compile_camera(const CameraDescriptor&);
 
     // ── Runtime state ───────────────────────────────────────────────────
     CameraFailurePolicy        failure_policy_{CameraFailurePolicy::Stop};
 
     // ── Compiled state (populated by compile_camera()) ───────────────────
-    // TICKET-PHASE-2: all 5 metadata fields below are re-populated at the
-    // END of compile_camera() — AFTER every graft (including
-    // RegisteredMotionRef resolution) and AFTER every validation pass.
+    // TICKET-PHASE-2: all metadata fields below are re-populated at the
+    // END of compile_camera() after descriptor validation.
     // This enforces the "always re-populate after every graft" invariant
     // from the Phase 2 spec: no early return may leave stale metadata.
     bool                              compiled_{false};

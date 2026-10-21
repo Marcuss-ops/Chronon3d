@@ -92,7 +92,7 @@ Camera2_5D evaluate_cached_at(CameraSessionCache& cache,
 
 // Compile a descriptor once; helper hides the (Result ...) ceremony.
 CameraProgram compile_for_test(const CameraDescriptor& desc) {
-    auto cr = compile_camera(desc, /*catalog=*/nullptr);
+    auto cr = compile_camera(desc);
     REQUIRE(cr);
     auto prog = std::move(cr).value();
     REQUIRE(prog.is_compiled());

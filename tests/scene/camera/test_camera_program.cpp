@@ -121,7 +121,7 @@ CameraDescriptor make_handheld_descriptor(std::uint32_t seed = 42) {
 // redefinition error in the unified TU built by
 // chronon3d_scene_tests (see TICKET-120 build-redefinition group).
 CameraProgram compile_or_die_program(const CameraDescriptor& desc) {
-    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    auto result = compile_camera(desc);
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
     REQUIRE(program.is_compiled());

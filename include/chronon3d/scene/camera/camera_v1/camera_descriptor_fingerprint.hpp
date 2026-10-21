@@ -226,8 +226,6 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
             } else {
                 h.mix_u64(0xffffffffffffffffULL);
             }
-        } else if constexpr (std::is_same_v<T, RegisteredMotionRef>) {
-            h.mix_str(s.id);
         }
     }, desc.source);
 

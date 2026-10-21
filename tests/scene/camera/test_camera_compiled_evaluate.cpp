@@ -182,7 +182,7 @@ Camera2_5D run_compiled_cam(const CameraProgram& program, Frame f) {
 // chronon3d_scene_tests (5 test files share anonymous-namespace
 // `compile_or_die`; see TICKET-120 build-redefinition group).
 CameraProgram compile_or_die_compiled_evaluate(const CameraDescriptor& desc) {
-    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    auto result = compile_camera(desc);
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
     REQUIRE(program.is_compiled());

@@ -280,7 +280,7 @@ std::optional<CameraProgramDiagnostic> CameraProgram::apply_orientation_spec(
     // only case where look-ahead is meaningful — it is a TrajectoryMotion
     // concept).  The helper returns `used=false` for non-trajectory sources,
     // so this is a safe no-op for PoseTracksSource / OrbitMotion / Static
-    // / RegisteredMotionRef.  Default delta = 1/60 s = 1 frame at 60 fps
+    // Default delta = 1/60 s = 1 frame at 60 fps
     // (short enough to track real scene motion; long enough to anticipate
     // a single-frame tangent degeneracy).
     std::optional<Vec3> look_ahead;

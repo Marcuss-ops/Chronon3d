@@ -4,28 +4,20 @@
 // CameraProgram compiler implementation.
 //
 // TICKET-PHASE-2 (Phase 2 refactor):
-//   - compile_camera() is the SOLE point that validates the descriptor,
-//     resolves presets, detects cycles, compiles source/orientation/modifier/
+//   - compile_camera() validates the descriptor, compiles source/orientation/modifier/
 //     constraint, builds metadata, calculates the fingerprint, classifies
 //     evaluation dependency, and chooses the failure policy.
-//   - After every graft (including RegisteredMotionRef resolution), ALL 5
-//     metadata fields are re-populated at the END of the function:
+//   - The metadata fields are populated at the END of the function:
 //       failure_policy_, time_dependent_, evaluation_dependency_,
 //       program_kind_, fingerprint_.
 //   - The previous nested `CameraCompileError::Kind` enum (20+ values) is
 //     replaced by the top-level `CameraCompileErrorCode` (11 values) defined
 //     in camera_program.hpp.
-//   - No silent fallback: every RegisteredMotionRef either resolves to a
-//     concrete source, or emits a structured compile error.
 //   - Non-finite numeric values emit `NonFiniteValue` (the field-specific
 //     range error is emitted only after the value is verified finite).
 //   - The schema-version constant `kCameraProgramSchemaVersion` is mixed
 //     into the fingerprint so pre-Phase-2 fingerprints are auto-invalidated.
 //
-// CAM-02 cycle detection: the 3-arg compile_camera() overload threads a
-// CameraCompileContext (visited_ids + resolution_stack) for circular-
-// RegisteredMotionRef chain detection.  The 2-arg public overload is an
-// inline forwarder that constructs a fresh context.
 //
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
@@ -55,114 +47,23 @@ Camera2_5D evaluate_camera_descriptor(const CameraDescriptor& descriptor,
     return std::move(evaluated.value().camera);
 }
 
-// CAM-02: 3-arg compile_camera() is the canonical implementation.  The
-// 2-arg public overload (declared in camera_program_compiler.hpp) is an
-// inline forwarder that constructs a fresh CameraCompileContext.
 Result<CameraProgram, CameraCompileError>
-compile_camera(const CameraDescriptor& descriptor,
-               const CameraCatalog* catalog,
-               CameraCompileContext& ctx) {
-    // ── CAM-02: cycle detection.  clean-up helper must reach every exit.
-    auto leave_scope = [&ctx, &descriptor]() {
-        if (!ctx.resolution_stack.empty()) {
-            ctx.resolution_stack.pop_back();
-        }
-        ctx.visited_ids.erase(descriptor.id);
-    };
-
-    // If this id is already being resolved, we have a circular chain.
-    // Build a diagnostic message showing the resolution path + the
-    // back-edge that closes the loop.
-    if (!ctx.visited_ids.insert(descriptor.id).second) {
-        std::string path;
-        for (const auto& s : ctx.resolution_stack) {
-            if (!path.empty()) path += " -> ";
-            path += std::string{s};
-        }
-        if (!path.empty()) path += " -> ";
-        path += descriptor.id + " (back-edge to id already in resolution)";
-        // No push occurred yet but the failed insert is itself a state
-        // change to the set; restore by erasing so the parent's
-        // leave_scope() call (which will run on return) leaves a clean ctx.
-        ctx.visited_ids.erase(descriptor.id);
-        return make_camera_compile_error(
-            CameraCompileErrorCode::CircularPresetReference,
-            "circular catalog reference: " + path
-        );
-    }
-    ctx.resolution_stack.push_back(descriptor.id);
-
+compile_camera(const CameraDescriptor& descriptor) {
     CameraProgram program;
     program.descriptor_ = descriptor;
 
-    // ── 1. Resolve source ────────────────────────────────────────────────
-    if (auto* ref = std::get_if<RegisteredMotionRef>(&descriptor.source)) {
-        if (catalog) {
-            auto* preset_desc = catalog->find_descriptor(ref->id);
-            if (preset_desc) {
-                auto recursive_result =
-                    compile_camera(*preset_desc, catalog, ctx);
-                if (!recursive_result) {
-                    auto inner = recursive_result.error();
-                    if (inner.code != CameraCompileErrorCode::CircularPresetReference) {
-                        inner.message = "motion '" + std::string{ref->id}
-                                      + "' catalog entry failed: "
-                                      + inner.message;
-                    }
-                    leave_scope();
-                    return inner;
-                }
-                auto recursive = std::move(recursive_result).value();
-                program.descriptor_.source = recursive.descriptor_.source;
-            } else {
-                // TICKET-PHASE-2: NO silent fallback.  Either we resolve
-                // the ref, or we emit a structured error.
-                if (ref->id.empty()) {
-                    leave_scope();
-                    return make_camera_compile_error(
-                        CameraCompileErrorCode::InvalidDescriptor,
-                        "RegisteredMotionRef has empty id — must name a preset in the catalog"
-                    );
-                }
-                leave_scope();
-                return make_camera_compile_error(
-                    CameraCompileErrorCode::MissingPreset,
-                    "motion '" + std::string{ref->id}
-                        + "' not found in catalog"
-                );
-            }
-        } else {
-            // TICKET-PHASE-2: NO silent fallback.  A RegisteredMotionRef
-            // with a non-null descriptor.source AND a null catalog is a
-            // configuration error: the ref can never be resolved.
-            if (ref->id.empty()) {
-                leave_scope();
-                return make_camera_compile_error(
-                    CameraCompileErrorCode::InvalidDescriptor,
-                    "RegisteredMotionRef has empty id — must name a preset in the catalog"
-                );
-            }
-            leave_scope();
-            return make_camera_compile_error(
-                CameraCompileErrorCode::MissingPreset,
-                "motion '" + std::string{ref->id}
-                    + "' not found in catalog (catalog is null)"
-            );
-        }
-    } else if (auto* traj = std::get_if<TrajectoryMotion>(&descriptor.source)) {
-        if (traj->trajectory && traj->trajectory->size() == 0) {
-            leave_scope();
-            return make_camera_compile_error(
-                CameraCompileErrorCode::InvalidTrajectory,
-                "trajectory has zero segments"
-            );
-        }
+    // ── 1. Validate source-specific invariants ───────────────────────────
+    if (const auto* traj = std::get_if<TrajectoryMotion>(&descriptor.source);
+        traj && traj->trajectory && traj->trajectory->size() == 0) {
+        return make_camera_compile_error(
+            CameraCompileErrorCode::InvalidTrajectory,
+            "trajectory has zero segments"
+        );
     }
 
     // ── 2. Descriptor-level validation (STEP 8 + Phase 2 NonFiniteValue) ─
     // ── 2a. Empty ID ─────────────────────────────────────────────────
     if (descriptor.id.empty()) {
-        leave_scope();
         return make_camera_compile_error(
             CameraCompileErrorCode::InvalidDescriptor,
             "descriptor.id is empty — every camera descriptor must have a unique id"
@@ -253,13 +154,11 @@ compile_camera(const CameraDescriptor& descriptor,
 
         if (auto* fov = std::get_if<FovProjection>(&descriptor.base.projection)) {
             if (auto err = check_fov(fov->fov_deg)) {
-                leave_scope();
-                return *err;
+                        return *err;
             }
         } else if (auto* zoom = std::get_if<ZoomProjection>(&descriptor.base.projection)) {
             if (auto err = check_zoom(zoom->zoom)) {
-                leave_scope();
-                return *err;
+                        return *err;
             }
         }
     }
@@ -272,24 +171,21 @@ compile_camera(const CameraDescriptor& descriptor,
         // (not InvalidLens) so the cache invalidation contract can
         // distinguish numeric corruption from configuration error.
         if (!std::isfinite(lens.focal_length)) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::NonFiniteValue,
                 "lens focal_length is not finite (got " +
                     std::to_string(lens.focal_length) + ")"
             );
         }
         if (lens.focal_length <= 0.0f) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidLens,
                 "lens focal_length must be positive (got " +
                     std::to_string(lens.focal_length) + ")"
             );
         }
         if (!std::isfinite(lens.sensor_width) || !std::isfinite(lens.sensor_height)) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::NonFiniteValue,
                 "lens sensor dimensions are not finite (got " +
                     std::to_string(lens.sensor_width) + "\u00d7" +
@@ -297,8 +193,7 @@ compile_camera(const CameraDescriptor& descriptor,
             );
         }
         if (lens.sensor_width <= 0.0f || lens.sensor_height <= 0.0f) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidLens,
                 "lens sensor dimensions must be positive (got " +
                     std::to_string(lens.sensor_width) + "\u00d7" +
@@ -306,32 +201,28 @@ compile_camera(const CameraDescriptor& descriptor,
             );
         }
         if (!std::isfinite(lens.pixel_aspect)) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::NonFiniteValue,
                 "lens pixel_aspect is not finite (got " +
                     std::to_string(lens.pixel_aspect) + ")"
             );
         }
         if (lens.pixel_aspect <= 0.0f) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidLens,
                 "lens pixel_aspect must be positive (got " +
                     std::to_string(lens.pixel_aspect) + ")"
             );
         }
         if (!std::isfinite(lens.anamorphic_squeeze)) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::NonFiniteValue,
                 "lens anamorphic_squeeze is not finite (got " +
                     std::to_string(lens.anamorphic_squeeze) + ")"
             );
         }
         if (lens.anamorphic_squeeze <= 0.0f) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidLens,
                 "lens anamorphic_squeeze must be positive (got " +
                     std::to_string(lens.anamorphic_squeeze) + ")"
@@ -344,32 +235,28 @@ compile_camera(const CameraDescriptor& descriptor,
         const auto& mb = descriptor.base.motion_blur;
         if (is_motion_blur_active(mb)) {
             if (!std::isfinite(static_cast<float>(mb.samples))) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::NonFiniteValue,
                     "motion_blur.samples is not finite (got " +
                         std::to_string(mb.samples) + ")"
                 );
             }
             if (mb.samples <= 0) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidLens,
                     "motion_blur.samples must be positive when motion blur is active (got " +
                         std::to_string(mb.samples) + ")"
                 );
             }
             if (!std::isfinite(mb.shutter_angle_deg)) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::NonFiniteValue,
                     "motion_blur.shutter_angle_deg is not finite (got " +
                         std::to_string(mb.shutter_angle_deg) + ")"
                 );
             }
             if (mb.shutter_angle_deg <= 0.0f || mb.shutter_angle_deg > 360.0f) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidLens,
                     "motion_blur.shutter_angle_deg must be in (0, 360] (got " +
                         std::to_string(mb.shutter_angle_deg) + ")"
@@ -382,16 +269,14 @@ compile_camera(const CameraDescriptor& descriptor,
     for (std::size_t i = 0; i < descriptor.constraints.size(); ++i) {
         if (auto* dist = std::get_if<DistanceConstraint>(&descriptor.constraints[i])) {
             if (!std::isfinite(dist->min_distance) || !std::isfinite(dist->max_distance)) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::NonFiniteValue,
                     "constraints[" + std::to_string(i) +
                         "] DistanceConstraint: min_distance or max_distance is not finite"
                 );
             }
             if (dist->min_distance > dist->max_distance) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidConstraint,
                     "constraints[" + std::to_string(i) +
                         "] DistanceConstraint: min_distance (" +
@@ -406,8 +291,7 @@ compile_camera(const CameraDescriptor& descriptor,
     // ── 2f. Trajectory validation (supplements existing checks) ──────
     if (auto* traj = std::get_if<TrajectoryMotion>(&program.descriptor_.source)) {
         if (!traj->trajectory) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::InvalidTrajectory,
                 "TrajectoryMotion source has null trajectory"
             );
@@ -422,8 +306,7 @@ compile_camera(const CameraDescriptor& descriptor,
             const bool hold_segment = (seg.kind == SegmentKind::Hold);
             if ((!hold_segment && seg.from_idx >= seg.to_idx) ||
                 seg.from_idx >= n_pts || seg.to_idx >= n_pts) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidSegmentIndex,
                     "trajectory segment[" + std::to_string(i) +
                         "] has invalid indices: from_idx=" +
@@ -433,8 +316,7 @@ compile_camera(const CameraDescriptor& descriptor,
                 );
             }
             if (!std::isfinite(seg.duration_frames)) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::NonFiniteValue,
                     "trajectory segment[" + std::to_string(i) +
                         "] has non-finite duration: " +
@@ -442,8 +324,7 @@ compile_camera(const CameraDescriptor& descriptor,
                 );
             }
             if (seg.duration_frames <= 0.0f) {
-                leave_scope();
-                return make_camera_compile_error(
+                        return make_camera_compile_error(
                     CameraCompileErrorCode::InvalidTrajectory,
                     "trajectory segment[" + std::to_string(i) +
                         "] has non-positive duration: " +
@@ -465,8 +346,7 @@ compile_camera(const CameraDescriptor& descriptor,
     // source was overly restrictive (removed).
     if (auto* lal = std::get_if<LookAtLayer>(&descriptor.orientation)) {
         if (lal->target.empty()) {
-            leave_scope();
-            return make_camera_compile_error(
+                return make_camera_compile_error(
                 CameraCompileErrorCode::MissingTarget,
                 "LookAtLayer orientation has an empty target string \u2014 "
                 "must name a layer for world-position resolution"
@@ -498,14 +378,13 @@ compile_camera(const CameraDescriptor& descriptor,
     }
 
     // TICKET-PHASE-2: program_kind_ = resolved source discriminator.
-    // Re-populated here AFTER the RegisteredMotionRef graft so the kind
-    // reflects the FINAL source, not the declared one.
+    // Re-populated from the validated source discriminator.
     program.program_kind_ = [](const CameraSourceSpec& s) -> CameraProgramKind {
         if (std::holds_alternative<StaticCameraSource>(s))   return CameraProgramKind::Static;
         if (std::holds_alternative<PoseTracksSource>(s))     return CameraProgramKind::PoseTracks;
         if (std::holds_alternative<OrbitMotion>(s))          return CameraProgramKind::Orbit;
         if (std::holds_alternative<TrajectoryMotion>(s))     return CameraProgramKind::Trajectory;
-        return CameraProgramKind::Ref;  // RegisteredMotionRef (only on failure paths)
+        return CameraProgramKind::Static;  // Unreachable: all source alternatives are handled above.
     }(program.descriptor_.source);
 
     // TICKET-PHASE-2: fingerprint_ = FNV-1a hash of the finalised descriptor.
@@ -517,7 +396,6 @@ compile_camera(const CameraDescriptor& descriptor,
 
     // ── 6. Mark as compiled and return ───────────────────────────────────
     program.compiled_ = true;
-    leave_scope();
     return program;
 }
 
