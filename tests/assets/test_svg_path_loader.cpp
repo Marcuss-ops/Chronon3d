@@ -425,6 +425,58 @@ TEST_CASE("SVG text direction is inherited and restored across tspan scopes") {
     CHECK(result.text_runs[2].direction == "rtl");
 }
 
+TEST_CASE("SVG text imports bounded letter spacing, word spacing, and rotate lists") {
+    const std::string filename = "temp_test_svg_text_spacing_rotate.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text font-family="Chronon Sans" letter-spacing="1.5px" word-spacing="0.25em" rotate="0, 15deg, -10">A B</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    CHECK(result.text_runs[0].letter_spacing == doctest::Approx(1.5f));
+    CHECK(result.text_runs[0].word_spacing == doctest::Approx(4.0f));
+    REQUIRE(result.text_runs[0].rotate_degrees.size() == 3);
+    CHECK(result.text_runs[0].rotate_degrees[0] == doctest::Approx(0.0f));
+    CHECK(result.text_runs[0].rotate_degrees[1] == doctest::Approx(15.0f));
+    CHECK(result.text_runs[0].rotate_degrees[2] == doctest::Approx(-10.0f));
+}
+
+TEST_CASE("SVG text imports bounded textLength adjustment") {
+    const std::string filename = "temp_test_svg_text_length.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text font-family="Chronon Sans" textLength="120" lengthAdjust="spacingAndGlyphs">AB</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    REQUIRE(result.text_runs[0].text_length.has_value());
+    CHECK(*result.text_runs[0].text_length == doctest::Approx(120.0f));
+    CHECK(result.text_runs[0].length_adjust == "spacingAndGlyphs");
+
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text font-family="Chronon Sans" textLength="120">A<tspan>B</tspan></text></svg>)svg";
+    }
+    const auto nested = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    CHECK_FALSE(nested.ok);
+}
+
+TEST_CASE("SVG vertical writing mode fails closed") {
+    const std::string filename = "temp_test_svg_vertical_text.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><text writing-mode="vertical-rl">縦書き</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    CHECK_FALSE(result.ok);
+}
+
 TEST_CASE("SVG text accepts the SVG dominant-baseline identifiers") {
     const std::string filename = "temp_test_svg_dominant_baselines.svg";
     {

@@ -85,6 +85,11 @@ struct SvgTextRun {
     std::vector<float> y_coordinates;
     std::vector<float> dx_coordinates;
     std::vector<float> dy_coordinates;
+    std::vector<float> rotate_degrees;
+    float letter_spacing{0.0f};
+    float word_spacing{0.0f};
+    std::optional<float> text_length;
+    std::string length_adjust{"spacing"};
     /// Full 2D points/deltas for coordinate lists under rotated or skewed
     /// SVG coordinate transforms (the scalar arrays are axis-aligned only).
     std::vector<std::array<float, 2>> transformed_position_coordinates;

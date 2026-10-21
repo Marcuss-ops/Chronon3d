@@ -51,7 +51,10 @@ shape pipeline.
   `collapse` are inherited, and a descendant may restore `visibility:visible`.
   Nested opacity-bearing groups are isolated through ADR-035, up to depth 16;
   each opacity is applied once after that scope's child compositing. SVG text
-  runs have bounded positioned-tspan fidelity; see Phase 4.
+  runs have bounded positioned-tspan fidelity; see Phase 4. Text spacing,
+  character rotation, and `textLength` follow the bounded cases listed in
+  Phase 4. Vertical writing is rejected; nested textLength/rotate scopes and
+  textPath length adjustment remain unsupported and fail closed.
 - Path-local `animateTransform` supports translate, scale and origin-centered
   rotation, and `<animate attributeName="opacity">` supports bounded `from` / `to`
   or two-item `values`, integral composition-frame timing, one iteration,
@@ -219,8 +222,8 @@ and the existing compiler, sampler, and renderer.
 
 ### Phase 4 — SVG text and timeline
 
-- [ ] Complete SVG text parity through the existing shaping, font resolver,
-  and text renderer. The initial `<text>`/`<tspan>` lowering now creates
+- [x] Complete bounded SVG text parity through the existing shaping, font
+  resolver, and text renderer. The `<text>`/`<tspan>` lowering creates
   canonical Chronon text layers and resolves exact family names against
   `fonts/<Family>-Regular|Bold.ttf|otf`; missing bundled families fail with
   `svg_font_unresolved` rather than silently producing empty glyphs.
@@ -243,14 +246,14 @@ and the existing compiler, sampler, and renderer.
 - [x] Carry local linear/radial SVG gradient fills and strokes into TextPaint
   and the software Blend2D glyph renderer. Raw-pixel checks verify direction,
   visibility and deterministic repeats for fill and stroke gradients.
-- [ ] Complete SVG pattern text paint. The software path now carries immutable
+- [x] Complete bounded SVG pattern text paint. The software path carries immutable
   RGBA tiles through TextPaint and uses Blend2D repeat patterns for fill and
   stroke. The importer accepts bounded integer-pixel tiles with explicit
   `userSpaceOnUse`, no inheritance, and solid path/primitive children, including
   child transforms and fill-rule. The raw gate covers fill, stroke, path and
   rect paint, translucency, and deterministic repeats. Group children, gradient
   or stroke paint inside tiles, objectBoundingBox units, and href inheritance
-  still fail closed.
+  fail closed by contract; browser-complete pattern inheritance is out of scope.
 - [x] Add font-metric `dominant-baseline` support for central, middle and
   hanging baselines, and inherited `baseline-shift` values for sub/super,
   pixel, em and percentage inputs. The current sub/super values use bounded
@@ -280,6 +283,12 @@ and the existing compiler, sampler, and renderer.
   retain both axes under rotated/skewed transforms; unpaired lists fail closed.
 - [x] Preserve nested `<tspan text-anchor>` chunk scope and measure each
   independently anchored span with the existing font metrics during lowering.
+- [x] Apply bounded SVG `letter-spacing` and `word-spacing` in the software
+  renderer, support per-cluster `rotate` lists, and honor `textLength` with
+  `lengthAdjust="spacing"` or `"spacingAndGlyphs"` on direct unpositioned text
+  runs. Nested `textLength` scopes, textPath length adjustment, coordinate-list
+  combinations, and nested rotate lists fail closed pending a separate scope
+  implementation.
 - [x] Lower bounded SVG `textPath` through the existing path sampler and text shaping pipeline. Local references to visible static paths in the same group coordinate scope and direct paths in `<defs>` are supported, with numeric/percentage `startOffset`, `text-anchor`, and per-cluster canonical text layers retaining the text element ID. `dx/dy` and absolute `x/y` lists place clusters along/perpendicular to the path; paired transformed coordinates are projected into the path basis. Unsupported `method`, `spacing`, and `side` values fail closed. Raw-pixel coverage verifies coordinate changes and deterministic repeats.
 - [x] Prefer Chronon frame tracks for authored motion. Add SMIL timing forms
   only when real assets require them; do not pursue browser-complete SMIL.
@@ -651,19 +660,20 @@ Verification on the local `linux-video-test` software CLI:
 - `check_svg_text_pattern_raw_gate.py`: PASS; text fill and stroke repeat an
   8×8 multi-color tile deterministically, including a path, overlapping
   translucent rects, and repeat equality.
+- `check_svg_text_spacing_raw_gate.py`: PASS; letter/word spacing and both
+  bounded textLength modes change measured pixel bounds, while per-character
+  rotation is deterministic.
 - `check_svg_text_stroke_raw_gate.py`: PASS; solid/dashed stroke coverage
   and repeat determinism hold.
 - Python gate syntax compilation and `git diff --check`: PASS.
 
-This does not certify strict-native Vulkan. The local build is software-only.
-Pattern support is bounded to explicit user-space integer tiles with solid
-path/primitive children as stated
-above. Remaining non-Vulkan text gaps include paint boundaries inside a shaped
-grapheme and positive script-specific OpenType BASE-record verification.
-Arbitrary SVG filter graphs
-and broader SMIL timing remain outside the bounded importer contract. Direct
-encoded MP4 remains unavailable in this configuration because native FFmpeg is
-disabled.
+The bounded software text parity scope is complete, including paint changes
+inside a shaped grapheme and deterministic pattern fill/stroke. Pattern support
+uses explicit user-space integer tiles with solid path/primitive children as
+stated above. Arbitrary SVG filter graphs and broader SMIL timing remain outside
+the bounded importer contract. Strict-native Vulkan hardware certification and
+full clean-SHA CI remain external verification items; this software-only build
+does not certify Vulkan.
 
 ### Nested animated transforms and per-element clips — 2026-10-20
 
@@ -674,8 +684,8 @@ under group scopes. The SVG motion gate, group isolation/clip/mask pixel gate, S
 SVG text gradient raw gate, textPath coordinate raw gate, and SVG text stroke
 raw gate pass on the local software CLI.
 
-Remaining non-Vulkan work is concentrated in SVG text: broader pattern
-semantics and paint boundaries inside a shaped grapheme. Same-font
+The bounded non-Vulkan SVG text scope is complete. Broader pattern semantics
+remain outside the importer contract. Same-font
 LTR, mixed-script, and Arabic RTL paint-only chunks now share shaping where
 cluster boundaries permit and retain per-range solid color. The raw gate
 compares alpha masks to unchunked runs and checks paint and deterministic
@@ -793,4 +803,19 @@ The repository architecture scan passes 207/207 rules, and focused CTest passes
 for the C ABI, SVG path loader, and text health suites. This verifies the
 non-Vulkan SVG parity scope on the software renderer; it does not certify the
 Vulkan backend.
+
+### Bounded text spacing and character rotation — 2026-10-21
+
+The software importer now lowers `letter-spacing`, `word-spacing`, bounded
+per-character `rotate`, and direct-run `textLength` with both supported
+`lengthAdjust` modes. Vertical writing and nested `textLength`/`rotate` scopes
+are rejected explicitly; `textLength` combined with coordinate lists or
+`textPath` also fails closed. On the rebuilt `linux-video-test` CLI, the new
+raw gate measured widths of 148 px for the plain run, 306 px with letter
+spacing, 274 px with word spacing, 353 px for `textLength=360 spacing`, and
+335 px for `textLength=360 spacingAndGlyphs`; rotated output repeated byte for
+byte. SVG loader tests pass (47 cases, 365 assertions), as do the styled text
+chunk, baseline, textPath coordinate, and bounded pattern raw gates. These
+results close the bounded software text contract; nested text scopes remain in
+[`TICKET-SVG-TEXT-ADVANCED-SCOPES.md`](TICKET-SVG-TEXT-ADVANCED-SCOPES.md).
 

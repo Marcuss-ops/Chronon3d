@@ -749,7 +749,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     run.y_coordinates.empty() && run.dx_coordinates.empty() &&
                     run.dy_coordinates.empty() &&
                     run.transformed_position_coordinates.empty() &&
-                    run.transformed_delta_coordinates.empty() && !run.text_path_id;
+                    run.transformed_delta_coordinates.empty() && run.rotate_degrees.empty() &&
+                    run.letter_spacing == 0.0f && run.word_spacing == 0.0f &&
+                    !run.text_length && !run.text_path_id;
             };
             const auto same_shaping_scope = [&](std::size_t left, std::size_t right) {
                 const auto& a = imported.text_runs[left];
@@ -1044,12 +1046,26 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 text_style.text_fit_mode = "none";
                 text_layer.font = text_metrics[text_index].font_asset;
                 text_layer.style = std::move(text_style);
+                if (run.text_path_id && run.text_length)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                        "].shape.asset", "SVG textLength on textPath is unsupported by this bounded importer",
+                        "svg_text_length_text_path_unsupported", "render-plan-svg"};
                 if (!run.text_path_id) {
                     const bool has_coordinate_lists = !run.x_coordinates.empty() ||
                         !run.y_coordinates.empty() || !run.dx_coordinates.empty() ||
                         !run.dy_coordinates.empty() ||
                         !run.transformed_position_coordinates.empty() ||
-                        !run.transformed_delta_coordinates.empty();
+                        !run.transformed_delta_coordinates.empty() ||
+                        !run.rotate_degrees.empty() || run.letter_spacing != 0.0f ||
+                        run.word_spacing != 0.0f || run.text_length.has_value();
+                    if (run.text_length && (!run.x_coordinates.empty() ||
+                        !run.y_coordinates.empty() || !run.dx_coordinates.empty() ||
+                        !run.dy_coordinates.empty() ||
+                        !run.transformed_position_coordinates.empty() ||
+                        !run.transformed_delta_coordinates.empty()))
+                        return PlanDecodeError{"layers[" + std::to_string(layer_index) +
+                            "].shape.asset", "SVG textLength cannot be combined with explicit coordinate lists in this bounded importer",
+                            "svg_text_length_positioning_unsupported", "render-plan-svg"};
                     if (has_coordinate_lists) {
                         chronon3d::FontSpec coordinate_font;
                         coordinate_font.font_path = text_metrics[text_index].font_asset;
@@ -1069,6 +1085,16 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             *shaped, 0.0f, run.text);
                         float cursor_x = run_x - run.dx;
                         float cursor_y = baseline_y - run.dy;
+                        const float text_length_scale = run.text_length &&
+                            run.length_adjust == "spacingAndGlyphs" && placed.total_width > 0.0f
+                            ? *run.text_length / placed.total_width : 1.0f;
+                        const std::size_t nonempty_cluster_count = static_cast<std::size_t>(
+                            std::count_if(placed.clusters.begin(), placed.clusters.end(),
+                                [](const auto& cluster) { return cluster.byte_len > 0; }));
+                        const float text_length_gap = run.text_length &&
+                            run.length_adjust == "spacing" && nonempty_cluster_count > 1
+                            ? (*run.text_length - placed.total_width) /
+                                static_cast<float>(nonempty_cluster_count - 1) : 0.0f;
                         std::size_t character_index = 0;
                         const auto utf8_count = [](std::string_view value) {
                             std::size_t count = 0;
@@ -1140,9 +1166,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             const bool starts_positioned_chunk =
                                 character_index < run.x_coordinates.size() ||
                                 character_index < run.y_coordinates.size() ||
-                                character_index < run.transformed_position_coordinates.size();
+                                character_index < run.transformed_position_coordinates.size() ||
+                                (run.text_length.has_value() && character_index == 0);
                             if (starts_positioned_chunk) {
-                                float chunk_advance = cluster.advance;
+                                const float cluster_advance = cluster.advance * text_length_scale;
+                                float chunk_advance = cluster_advance;
                                 std::size_t next_character = character_index + cluster_characters;
                                 for (std::size_t next_cluster_index = cluster_index + 1;
                                      next_cluster_index < placed.clusters.size(); ++next_cluster_index) {
@@ -1154,7 +1182,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                                         next_character < run.y_coordinates.size() ||
                                         next_character < run.transformed_position_coordinates.size())
                                         break;
-                                    chunk_advance += next_cluster.advance;
+                                    chunk_advance += next_cluster.advance * text_length_scale;
                                     next_character += utf8_count(run.text.substr(
                                         next_cluster.byte_offset, next_cluster.byte_len));
                                 }
@@ -1164,14 +1192,34 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             cluster_layer.position[0] = layer.position[0] + anchored_x;
                             cluster_layer.position[1] = layer.position[1] + cursor_y -
                                 text_metrics[text_index].ascent;
-                            cluster_layer.size[0] = std::max(1.0f, cluster.advance + 1.0f);
+                            const float cluster_advance = cluster.advance * text_length_scale;
+                            cluster_layer.size[0] = std::max(1.0f, cluster_advance + 1.0f);
+                            if (run.text_length && run.length_adjust == "spacingAndGlyphs") {
+                                cluster_layer.scale[0] *= text_length_scale;
+                                cluster_layer.scale_dimensions = std::max<std::size_t>(
+                                    cluster_layer.scale_dimensions, 2);
+                            }
+                            if (character_index < run.rotate_degrees.size()) {
+                                cluster_layer.rotation[2] += run.rotate_degrees[character_index];
+                                cluster_layer.rotation_dimensions = 3;
+                            } else if (!run.rotate_degrees.empty()) {
+                                cluster_layer.rotation[2] += run.rotate_degrees.back();
+                                cluster_layer.rotation_dimensions = 3;
+                            }
                             current_text_layers.push_back(pending_svg_text_layers.size());
                             pending_svg_text_layers.emplace_back(std::move(cluster_run),
                                                                  std::move(cluster_layer));
                             pending_svg_text_metrics.push_back(text_metrics[text_index]);
                             pending_svg_text_boundary_before.push_back(
                                 text_index == 0 || text_chunk_boundary_safe[text_index]);
-                            cursor_x += cluster.advance;
+                            float spacing = 0.0f;
+                            if (cluster_index + 1 < placed.clusters.size()) {
+                                spacing += run.letter_spacing + text_length_gap;
+                                if (cluster_text == " " || cluster_text == "\t" ||
+                                    cluster_text == "\n" || cluster_text == "\r")
+                                    spacing += run.word_spacing;
+                            }
+                            cursor_x += cluster_advance + spacing;
                             character_index += cluster_characters;
                         }
                         continue;
@@ -1387,6 +1435,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         text_metrics[text_index].ascent;
                     cluster_layer.size[0] = std::max(1.0f, cluster.advance + 1.0f);
                     cluster_layer.rotation[2] += placement.rotation_deg;
+                    if (path_character_index < run.rotate_degrees.size())
+                        cluster_layer.rotation[2] += run.rotate_degrees[path_character_index];
+                    else if (!run.rotate_degrees.empty())
+                        cluster_layer.rotation[2] += run.rotate_degrees.back();
                     cluster_layer.rotation_dimensions = 3;
                     current_text_layers.push_back(pending_svg_text_layers.size());
                     pending_svg_text_layers.emplace_back(std::move(cluster_run),
@@ -1394,6 +1446,12 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     pending_svg_text_metrics.push_back(text_metrics[text_index]);
                     pending_svg_text_boundary_before.push_back(
                         text_index == 0 || text_chunk_boundary_safe[text_index]);
+                    if (cluster_index + 1 < placed.clusters.size()) {
+                        path_dx_accumulated += run.letter_spacing;
+                        if (cluster_text == " " || cluster_text == "\t" ||
+                            cluster_text == "\n" || cluster_text == "\r")
+                            path_dx_accumulated += run.word_spacing;
+                    }
                     path_character_index += cluster_characters;
                 }
             }
