@@ -3858,6 +3858,12 @@ TEST_CASE("runtime camera provider samples exact fractional frames and fingerpri
     CHECK(evaluated->scene.camera_2_5d().position.x == doctest::Approx(2.f));
     CHECK(evaluated->scene.camera_2_5d().is_animated);
 
+    const auto preRoll = evaluate(prepared->compiled_composition, {},
+        SampleTime::from_frame(-0.25, FrameRate{30, 1}));
+    REQUIRE(preRoll);
+    CHECK(sampled_frame == doctest::Approx(-0.25));
+    CHECK(preRoll->scene.camera_2_5d().position.x == doctest::Approx(-1.f));
+
     provider.fingerprint = "cm3d-rig-test-b";
     const auto other_source = render_plan::compile_render_plan(
         plan, resolver, {}, nullptr, &provider);

@@ -2,6 +2,7 @@
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
+#include <chronon3d/render_plan/camera_sample_provider.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_fingerprint.hpp>
 #include <chronon3d/compiler/compiled_program.hpp>
@@ -9,7 +10,6 @@
 #include <chronon3d/timeline/composition.hpp>
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -30,15 +30,6 @@ struct PreparedRenderPlan {
     CanvasSpec canvas;
     OutputSpec output;
     RenderBudget render_budget{};
-};
-
-/// Optional runtime-only source of fully resolved camera values. `sample`
-/// receives an absolute fractional presentation frame and must return the
-/// complete camera state for that instant. Its stable identity participates in
-/// the render-job fingerprint; the callback itself is never serialized.
-struct RuntimeCameraSampleProvider {
-    std::string fingerprint;
-    std::function<CameraPlan(double)> sample;
 };
 
 Result<PreparedRenderPlan, PlanDecodeError>
