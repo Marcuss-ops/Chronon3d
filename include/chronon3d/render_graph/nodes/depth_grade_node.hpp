@@ -14,7 +14,7 @@ namespace chronon3d::graph {
 
 // Applies depth-based colour grading (fog, saturation, contrast) to a layer
 // based on its world-space Z position.  This is a per-layer effect inserted
-// after lighting and before compositing, analogous to DofEffectNode.
+// after lighting and before compositing.
 //
 // The grading is done per-pixel using the layer's average world Z as input
 // to DepthGrade::normalized_depth() and DepthGrade::apply().

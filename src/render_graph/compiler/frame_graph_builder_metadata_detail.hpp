@@ -190,20 +190,6 @@ void GraphCompilePipeline::build_node_metadata(
                         }
                         compiled.effect_processor_table.push_back(handle);
                     }
-                } else if (dynamic_cast<const DofEffectNode*>(&node)) {
-                    node_info.processor_id = "dof";
-                    const auto handle = requires_snapshot
-                        ? resolve_effect(std::type_index(typeid(BlurParams)))
-                        : renderer::EffectProcessorHandle{};
-                    if (requires_snapshot && !handle.valid()) {
-                        throw std::runtime_error(
-                            "GraphCompilePipeline: missing compiled effect processor for node '" +
-                            std::string(node.name()) + "'");
-                    }
-                    node_info.effect_processors_offset = static_cast<std::uint32_t>(
-                        compiled.effect_processor_table.size());
-                    node_info.effect_processors_count = 1;
-                    compiled.effect_processor_table.push_back(handle);
                 } else {
                     node_info.processor_id = std::string(to_string(node_info.kind));
                 }
