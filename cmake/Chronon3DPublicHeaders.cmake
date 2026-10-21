@@ -166,6 +166,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/null_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/text_run_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_projection.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/evaluated_projection.hpp"
     # P3-H + feat(api) public camera facade — CameraSession moved to
     # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
     # External consumers MUST NOT see this type.  The session lives in the

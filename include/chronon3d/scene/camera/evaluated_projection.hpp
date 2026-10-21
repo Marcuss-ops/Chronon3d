@@ -1,6 +1,6 @@
 #pragma once
 // ==============================================================================
-// chronon3d/scene/camera/camera_v1/evaluated_projection.hpp
+// chronon3d/scene/camera/evaluated_projection.hpp
 //
 // EvaluatedProjection — normalized snapshot of a ProjectionSpec at a given frame.
 //
@@ -29,7 +29,7 @@
 
 #include <cmath>
 
-namespace chronon3d::camera_v1 {
+namespace chronon3d {
 
 /// Normalized projection snapshot.
 /// All values are produced at a given frame from the active ProjectionSpec;
@@ -137,4 +137,4 @@ inline EvaluatedProjection make_evaluated_projection(const Camera2_5D& cam,
     return out;
 }
 
-} // namespace chronon3d::camera_v1
+} // namespace chronon3d

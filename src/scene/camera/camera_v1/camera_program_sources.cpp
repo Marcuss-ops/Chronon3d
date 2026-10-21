@@ -5,7 +5,7 @@
 // ==============================================================================
 #include "camera_program_sources.hpp"
 
-#include <chronon3d/scene/camera/camera_v1/evaluated_projection.hpp>
+#include <chronon3d/scene/camera/evaluated_projection.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
