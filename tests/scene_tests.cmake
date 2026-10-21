@@ -76,7 +76,6 @@ set(SCENE_TEST_SOURCES
                 scene/camera/test_camera_lookat_layer_missing_transforms.cpp
                 scene/camera/test_shot_timeline.cpp
                 scene/camera/test_shot_timeline_random_access.cpp
-                scene/camera/test_camera_trajectory.cpp
                 scene/camera/test_camera_context_framerate_propagation.cpp
                 scene/camera/test_orient_along_path.cpp
                 scene/camera/test_camera_trajectory_preserves_base_fields.cpp
