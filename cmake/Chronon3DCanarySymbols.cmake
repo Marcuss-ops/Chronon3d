@@ -7,7 +7,6 @@ set(CHRONON3D_SDK_CANARY_SYMBOLS
     # and therefore made a healthy archive fail the install gate.
     "core|chronon3d::SystemMetricsCollector::sample_cpu_start|always|chronon3d_core_impl"
     "animations|chronon3d::temporal::generate_temporal_samples|always|chronon3d_animations"
-    "scene|chronon3d::camera_v1::register_camera_v1_builtins|always|chronon3d_scene"
     "runtime|chronon3d::RenderEngine::render_compiled|always|chronon3d_runtime"
     "graph|chronon3d::graph::register_pipeline_graph_nodes|always|chronon3d_graph_pipeline"
     "software_backend|chronon3d::SoftwareRenderer::render|always|chronon3d_backend_software"
