@@ -120,12 +120,8 @@ struct MediaRef {
 // CameraClipID — typed wrapper for camera clip identifiers.
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Same pattern as `MediaRef` — the canonical "slot identity" for
-// camera clips constructor-time registration.  Pre-P1-#8 sites held
-// `std::string` rule names (`CameraShotValidator::require_target_centered(
-// std::string target_name, …)`); a future P1-FU commit migrates
-// these to `CameraClipID`, with a temporary `using CameraClipID =
-// std::string` shim if backward-compat must be preserved.
+// Same pattern as `MediaRef` — the canonical slot identity for
+// camera-clip constructor-time registration.
 struct CameraClipID {
     std::uint64_t value{0};
     constexpr CameraClipID() noexcept = default;

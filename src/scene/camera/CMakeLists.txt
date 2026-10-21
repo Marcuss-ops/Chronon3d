@@ -5,7 +5,6 @@
 target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_projection_source.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_projection.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/camera_shot_validator.cpp
 )
 if(CHRONON3D_ENABLE_DIAGNOSTICS)
     target_sources(chronon3d_scene PRIVATE

@@ -2,7 +2,7 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
-#include <chronon3d/scene/camera/camera_shot_validator.hpp>
+#include <chronon3d/scene/camera/camera_shot_report.hpp>
 #include <vector>
 
 namespace chronon3d {
