@@ -12,8 +12,7 @@
 //   * src/render_graph/pipeline/composition.cpp
 //       (static motion_blur_jitter + motion_blur_filter_weight + Halton inline)
 //
-// Consumers:
-//   * src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp
+// Consumer:
 //   * src/render_graph/pipeline/composition.cpp (render_composition_frame)
 //
 // Independence: this module does NOT include MotionBlurSettings or any
@@ -43,7 +42,7 @@ namespace chronon3d::temporal {
 
 // ── Settings snapshot used at sample-time ─────────────────────────────────────
 // Sparse struct so callers can use this module without depending on the
-// full MotionBlurSettings struct (e.g. ShutterPoseSampler which is internal).
+// full MotionBlurSettings struct used by the compositor.
 //
 // Shutter math (matches the conventions previously inlined in
 // camera_motion_blur.cpp and composition.cpp):

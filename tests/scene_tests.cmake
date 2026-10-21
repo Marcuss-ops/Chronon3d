@@ -88,7 +88,6 @@ set(SCENE_TEST_SOURCES
                 scene/camera/test_camera_near_plane_clip.cpp
                 scene/camera/camera_25d_tests.cpp
                 scene/camera/test_camera_hierarchy.cpp
-                scene/camera/test_camera_motion_blur.cpp
                 scene/camera/test_temporal_samples_pr1.cpp
                 scene/camera/test_motion_blur_torture_pr1.cpp
                 scene/test_scene_validator.cpp

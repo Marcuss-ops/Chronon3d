@@ -81,11 +81,8 @@ namespace chronon3d::graph {
 // (include/chronon3d/animation/temporal/temporal_samples.hpp).
 //
 // The previous local helpers `motion_blur_jitter()`, `motion_blur_filter_weight()`,
-// and the inline Halton sequence were deleted in this revision because they
-// were byte-equivalent duplicates of the same logic in
-// src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp.  Both
-// consumers (this compositor AND ShutterPoseSampler) now produce IDENTICAL
-// sample times and weights for identical (params, frame) inputs.
+// and the inline Halton sequence were deleted because they duplicated the
+// canonical temporal sample generator.
 //
 // The shutter-window geometry:
 //   exposure_norm   = shutter_angle_deg / 360.0          ∈ (0, 1+]
