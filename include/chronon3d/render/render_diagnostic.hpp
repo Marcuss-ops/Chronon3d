@@ -92,7 +92,8 @@ enum class RenderDiagnosticSeverity : std::uint8_t {
 ///   - `ScopeChainLimit`         — `make_child` rejected on chain length
 ///   - `RecursivePrecomp`        — precomp loop detected (direct/indirect)
 ///   - `ProgramCompileFailure`    — SceneProgramStore build miss + fail
-///   - `InvalidCameraProgram`    — CameraProgram compile failure
+///   - `InvalidCameraProgram`    — reserved legacy ABI code (camera programs
+///                                  are authored and evaluated by CM3D)
 ///   - `AssetResolutionFailure`   — assets_root / resolver miss
 enum class RenderDiagnosticCode : std::uint8_t {
     MissingRegistry         = 0,
