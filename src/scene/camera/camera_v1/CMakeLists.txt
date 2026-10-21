@@ -7,11 +7,11 @@
 #   - CameraProgram
 #   - CameraProgramCompiler (compiled path)
 #
-# These are added directly to chronon3d_scene via target_sources. They use
-# only public types from chronon3d::core so no new private deps are needed.
+# This target is linked only into legacy camera tests during the CM3D migration.
+# The renderer's chronon3d_scene target must not contain camera authoring code.
 # ==============================================================================
 
-target_sources(chronon3d_scene PRIVATE
+add_library(chronon3d_camera_v1_legacy OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_trajectory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_orientation.cpp
@@ -28,3 +28,8 @@ target_sources(chronon3d_scene PRIVATE
     # invalidation + Cut reset + per-worker session isolation.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_session_cache.cpp
 )
+target_include_directories(chronon3d_camera_v1_legacy PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(chronon3d_camera_v1_legacy PRIVATE chronon3d_scene)

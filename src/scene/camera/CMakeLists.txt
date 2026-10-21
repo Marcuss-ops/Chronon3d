@@ -17,5 +17,9 @@ if(CHRONON3D_ENABLE_DIAGNOSTICS)
 endif()
 
 # Camera System V1 subdirectory: trajectory, program, constraints, compiler.
-# See src/scene/camera/camera_v1/CMakeLists.txt for files.
-add_subdirectory(camera_v1)
+# Camera V1 is retained only as a test fixture while consumers are migrated.
+# Renderer libraries must not compile the second camera authoring/evaluation
+# system into chronon3d_scene.
+if(CHRONON3D_BUILD_TESTS)
+    add_subdirectory(camera_v1)
+endif()

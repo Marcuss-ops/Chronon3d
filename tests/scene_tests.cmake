@@ -123,6 +123,9 @@ chronon3d_add_test_suite(
 # need backend_text because CORE_BLEND2D_TESTS and SCENE_TEXT_TESTS exercise
 # different but overlapping text paths.
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
+if(TARGET chronon3d_camera_v1_legacy)
+    target_sources(chronon3d_scene_tests PRIVATE $<TARGET_OBJECTS:chronon3d_camera_v1_legacy>)
+endif()
 if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_backend_text)
 endif()
@@ -140,6 +143,10 @@ chronon3d_add_test_suite(
     SOURCES scene/camera/test_camera_compiled_evaluate.cpp
 )
 target_include_directories(chronon3d_camera_compiled_evaluate_tests PRIVATE ${CMAKE_SOURCE_DIR})
+if(TARGET chronon3d_camera_v1_legacy)
+    target_sources(chronon3d_camera_compiled_evaluate_tests PRIVATE
+        $<TARGET_OBJECTS:chronon3d_camera_v1_legacy>)
+endif()
 
 # Offline ChrononMotion adapter contract: baked scenes enter the canonical
 # RenderPlan POD model before the renderer sees them; no motion solver runs in

@@ -51,6 +51,9 @@ chronon3d_add_test_suite(
     SOURCES ${CORE_TEST_SOURCES} core/test_hash_primitives.cpp
     UNITY_EXCLUDE_SOURCES ${CORE_TEST_UNITY_COLLISION_SOURCES}
 )
+if(TARGET chronon3d_camera_v1_legacy)
+    target_sources(chronon3d_core_tests PRIVATE $<TARGET_OBJECTS:chronon3d_camera_v1_legacy>)
+endif()
 if(CHRONON3D_ENABLE_MESH)
     target_compile_definitions(chronon3d_core_tests PRIVATE CHRONON3D_ENABLE_MESH=1)
 endif()
