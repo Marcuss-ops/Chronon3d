@@ -106,7 +106,6 @@ namespace detail {
 
 [[nodiscard]] inline Vec3 wiggle3D(f32 freq, Vec3 amp, Frame frame, u32 seed = 0) {
     return wiggle3D(freq, amp, static_cast<f32>(frame), seed);
-}// CameraShakeConfig and ShakePreset are defined in camera_shake.hpp
-// to avoid circular includes with camera_2_5d.hpp
+}// Camera-specific shake recipes belong to the external motion authority.
 
 } // namespace chronon3d
