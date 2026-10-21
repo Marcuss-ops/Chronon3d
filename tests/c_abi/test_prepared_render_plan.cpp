@@ -2409,36 +2409,6 @@ TEST_CASE("render plan wiggle driver evaluates deterministically on scalar opaci
           doctest::Approx(first->scene.layers()[0].transform.opacity));
 }
 
-TEST_CASE("render plan camera shake is random-access deterministic at each frame") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    auto source = render_plan_test::base_plan({
-        render_plan_test::shape_layer({{"type", "rect"}})});
-    source["camera"] = {{"type", "perspective"}};
-    source["camera_shake"] = {{"amplitude_px", 16}, {"frequency_hz", 7},
-        {"decay", 0}, {"seed", 91}, {"rotation_amplitude_deg", 1.0}};
-    const auto decoded = decode_render_plan(source);
-    REQUIRE(decoded);
-    assets::AssetResolver resolver;
-    const auto prepared = compile_render_plan(*decoded, resolver);
-    REQUIRE(prepared);
-    const auto at_frame = [&](std::int64_t frame) {
-        return evaluate(prepared->compiled_composition, {}, Frame{frame});
-    };
-    const auto first = at_frame(8);
-    const auto repeated = at_frame(8);
-    REQUIRE(first);
-    REQUIRE(repeated);
-    const auto& a = first->scene.camera_2_5d();
-    const auto& b = repeated->scene.camera_2_5d();
-    CHECK(a.position.x == doctest::Approx(b.position.x));
-    CHECK(a.position.y == doctest::Approx(b.position.y));
-    CHECK(a.rotation.z == doctest::Approx(b.rotation.z));
-    const auto other_frame = at_frame(9);
-    REQUIRE(other_frame);
-    CHECK(other_frame->scene.camera_2_5d().position.x != doctest::Approx(a.position.x));
-}
-
 TEST_CASE("render plan applies animated effect parameters at the sampled frame") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;

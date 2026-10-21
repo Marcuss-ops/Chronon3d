@@ -42,15 +42,9 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
                      writer.add_size(tracks.size());
                      for (const auto& track : tracks) add_camera_track(writer, track);
                  });
-    add_optional(out, plan.camera_shake, [](auto& writer, const CameraShakePlan& shake) {
-        writer.add_float(shake.amplitude_px);
-        writer.add_float(shake.frequency_hz);
-        writer.add_float(shake.decay);
-        writer.add_uint64(shake.seed);
-        writer.add_float(shake.rotation_amplitude_deg);
-        writer.add_frame(shake.start_frame);
-        writer.add_frame(shake.duration_frames);
-    });
+    // Keep the false optional marker from RenderPlan V3.36 so camera shake
+    // migration does not churn fingerprints for plans without that retired field.
+    out.add_bool(false);
     add_optional(out, plan.lighting_rig, [](auto& writer, const LightingRigPlan& rig) {
         for (const float value : rig.key_direction) writer.add_float(value);
         for (const float value : rig.key_color) writer.add_float(value);

@@ -444,47 +444,6 @@
         }
       }
     },
-    "camera_shake": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "amplitude_px": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 4096
-        },
-        "frequency_hz": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "maximum": 120
-        },
-        "decay": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 100
-        },
-        "seed": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 4294967295
-        },
-        "rotation_amplitude_deg": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 360
-        },
-        "start_frame": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 1000000
-        },
-        "duration_frames": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 1000000
-        }
-      }
-    },
     "rgba_color": {
       "type": "array",
       "minItems": 4,
@@ -4047,9 +4006,6 @@
     },
     "camera": {
       "$ref": "chronon.render-plan.v2.schema.json#/$defs/camera"
-    },
-    "camera_shake": {
-      "$ref": "#/$defs/camera_shake"
     },
     "camera_animation": {
       "$ref": "#/$defs/camera_animation"
@@ -7780,19 +7736,5 @@
         ]
       }
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "required": [
-          "camera_shake"
-        ]
-      },
-      "then": {
-        "required": [
-          "camera"
-        ]
-      }
-    }
-  ]
+  }
 }

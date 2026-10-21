@@ -60,13 +60,11 @@ this cannot be combined with per-key Bezier or spring timing overrides.
 
 ## Camera shake
 
-V3 accepts an optional root `camera_shake` object alongside `camera`. It
-supports bounded amplitude in pixels, frequency, exponential decay, a 32-bit
-seed, rotation amplitude, start frame and optional duration. Evaluation uses
-quintic-smoothed value noise from a SplitMix64 hash; it depends only on frame,
-seed and authored parameters. A zero duration means the shake continues
-through the composition. Camera shake requires an authored camera and is
-included in the plan fingerprint.
+Camera movement is authored and evaluated by ChrononMotion3D. Shake must be
+baked into the camera pose tracks before a RenderPlan reaches Chronon3D;
+RenderPlan V3 rejects the retired root `camera_shake` field. Chronon3D consumes
+the resulting camera tracks and handles projection, shutter accumulation and
+pixels.
 
 ## Effect parameter tracks
 

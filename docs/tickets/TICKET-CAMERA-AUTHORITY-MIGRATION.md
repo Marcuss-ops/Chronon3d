@@ -42,8 +42,9 @@ Remaining production paths outside `camera_v1/` include:
   sampled at the requested presentation time, including fractional shutter
   times; Composition/Timeline authoring still uses Camera V1 pending consumer
   migration.
-- `camera_shake` is evaluated by C3D scene setup after camera-track evaluation.
-  This behavior must move to CM3D before the renderer path is retired.
+- RenderPlan V3 `camera_shake` was removed. The decoder rejects plans carrying
+  it; CM3D shake presets author the movement onto CameraRig tracks, which C3D
+  consumes without a procedural shake evaluator.
 
 This is an initial in-repository census, not proof that external SDK consumers
 are absent. Before deleting public APIs, search SDK examples, install consumers,
