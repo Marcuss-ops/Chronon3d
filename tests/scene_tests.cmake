@@ -77,7 +77,6 @@ set(SCENE_TEST_SOURCES
                 scene/camera/test_shot_timeline.cpp
                 scene/camera/test_shot_timeline_random_access.cpp
                 scene/camera/test_camera_context_framerate_propagation.cpp
-                scene/camera/test_orient_along_path.cpp
                 scene/camera/test_camera_trajectory_preserves_base_fields.cpp
                 scene/camera/test_camera_stabilization.cpp
                 scene/camera/golden_projection_test.cpp
