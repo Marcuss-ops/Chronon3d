@@ -4,9 +4,8 @@
 //
 // EvaluatedProjection — normalized snapshot of a ProjectionSpec at a given frame.
 //
-// Single canonical snapshot produced by CameraProgram from any active
-// ProjectionSpec variant (ZoomProjection / FovProjection / PhysicalLensProjection).
-// Consumers (framing solver, renderer, projector) read from this snapshot
+// A canonical snapshot made from resolved renderer camera state.
+// The renderer and projector read from this snapshot
 // instead of recomputing the formulae locally.
 //
 // CAM-03 / DOC 02 + TICKET-035 goals satisfied by this snapshot:
@@ -21,7 +20,7 @@
 //
 // Hierarchy rule (DOC 02):
 //   world_orientation = parent ⊗ base_orientation ⊗ local_offset
-// is upheld by CameraProgram::evaluate(); see camera_program.cpp.
+// is supplied by the upstream camera authority.
 // ==============================================================================
 #include <chronon3d/math/camera_projection_contract.hpp>  // FocalPx, focal_xy_from_camera, Viewport2D
 #include <chronon3d/math/glm_types.hpp>                    // Vec2
@@ -87,9 +86,8 @@ struct EvaluatedProjection {
 // The effective viewport is computed via `LensModel::effective_viewport`
 // which honours `GateFit::Overscan` (pillarbox / letterbox).
 //
-// Pre-conditions: `cam` must already have run through
-// `CameraProgram::evaluate()` so that `cam.optics_mode` / `cam.lens` /
-// `cam.zoom` / `cam.fov_deg` reflect the active ProjectionSpec.
+// Pre-condition: `cam` must contain resolved optical state so that
+// `cam.optics_mode` / `cam.lens` / `cam.zoom` / `cam.fov_deg` are authoritative.
 // Inline `tan(fov/2)` is NEVER recomputed in this file (per DOC 02).
 inline EvaluatedProjection make_evaluated_projection(const Camera2_5D& cam,
                                                       camera_math::Viewport2D vp) {

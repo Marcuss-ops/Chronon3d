@@ -93,8 +93,6 @@ set(CORE_TEST_SOURCES
     render_graph/executor/test_executor_levels_parallel.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
     runtime/test_render_session_reset_and_isolation.cpp
-    runtime/test_camera_session_keep_last_valid.cpp
-    runtime/test_camera_session_cache_failed_no_commit.cpp
     runtime/test_render_runtime_isolation.cpp
     runtime/test_resource_preparation.cpp
     # Split from test_resource_preparation.cpp (each part ≤ 400 LOC):
@@ -104,7 +102,6 @@ set(CORE_TEST_SOURCES
     runtime/test_prepared_render_job.cpp
     runtime/test_prepared_render_job_allocations.cpp
     runtime/test_compiled_program_execution_equivalence.cpp
-    runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
 )
 
 # Sources that cannot join the CHRONON3D_TEST_UNITY_BUILD experiment: their

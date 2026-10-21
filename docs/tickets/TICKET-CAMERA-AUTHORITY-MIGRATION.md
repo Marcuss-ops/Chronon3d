@@ -1,6 +1,7 @@
 # Camera Authority Migration — CM3D authoring, C3D rendering
 
-Status: `ACTIVE`
+Status: `ACTIVE` — Camera V1 source and SDK authoring surface removed from C3D;
+Template migration and end-to-end gates remain open.
 
 ## Decision
 
@@ -10,16 +11,15 @@ focus, shake, and shutter-time camera samples. Chronon3D (C3D) consumes the
 resolved camera and remains responsible for 2.5D projection, depth, pixel DOF,
 motion-blur accumulation, masks, compositing, and output.
 
-Do not remove C3D camera-authoring code until every production consumer has
-migrated and the gates below pass. `Camera2_5D` may remain as renderer state.
+`Camera2_5D` and evaluated projection remain renderer state. C3D Camera V1 has
+been removed; the remaining work is to finish Template migration and certify
+the CM3D-to-C3D bridge and rendered pixels against the gates below.
 
 ## Current consumer census
 
-Remaining production paths outside `camera_v1/` include:
-
-- Scene and timeline authoring expose `CameraDescriptor`, `PoseTracksSource`,
-  `CameraProgram`, and `ShotTimeline` through `SceneBuilder`, `Scene`, and
-  `TimelineBuilder` public headers and implementations.
+- The Camera V1 evaluator, descriptors, session cache, shot timeline, and
+  public headers have been removed from C3D. Runtime consumers must submit
+  resolved `Camera2_5D` renderer state or use the CM3D RenderPlan adapter.
 - CLI visual canaries now submit already-resolved `Camera2_5D` values instead
   of creating Camera V1 descriptors; their scene, hierarchy, and render probes
   still exercise the renderer's camera-consumer boundary.
@@ -30,12 +30,8 @@ Remaining production paths outside `camera_v1/` include:
   camera-specific wrapper had no production callsites; CM3D already owns the
   Catmull-Rom `MotionPath`, path tangent/orientation, and `CameraRig` sampling.
   C3D retains the generic `CatmullRomPath3D` math for non-camera geometry.
-- The unused `CameraMotionPath` evaluator has also been removed. C3D retains
-  `SpatialBezierPath` and the quaternion math still consumed by Camera V1;
-  CM3D `MotionPath` owns path sampling and `CameraRig` owns camera evaluation.
-- The unused legacy `fit_camera_to_layers()` solver has been removed. It had
-  no production callers; the separate Camera V1 `CameraFramingSolver` remains
-  active and is still part of the pending migration to CM3D.
+- Camera trajectory, framing, constraints and timeline evaluation belong to
+  CM3D; C3D retains generic path and quaternion math where used by rendering.
 - Static and animated RenderPlan cameras now resolve directly to `Camera2_5D`
   renderer state. The RenderPlan execution path no longer creates Camera V1
   descriptors or calls its pose-track evaluator. Its generic camera tracks are

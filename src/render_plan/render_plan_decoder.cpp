@@ -394,7 +394,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
             plan.camera = detail::decode_camera(resolved_root.at("camera"));
         if (resolved_root.contains("camera_shake"))
             return PlanDecodeError{"camera_shake",
-                "camera_shake is no longer a RenderPlan feature; author it on ChrononMotion3D CameraRig tracks",
+            "camera_shake is no longer a RenderPlan feature; author it in ChrononMotion3D",
                 "camera_shake_must_be_baked_by_motion", "render-plan-camera"};
         if (resolved_root.contains("lighting_rig")) {
             if (plan.schema != kRenderPlanSchemaV3)
