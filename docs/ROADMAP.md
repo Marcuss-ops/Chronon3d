@@ -61,7 +61,7 @@ parità o percentuali rispetto ad altri prodotti non sono criteri di accettazion
 |---|---|---|
 | M0 — Baseline verificata | Un commit candidato su cui build, test, gate, consumer e documenti riportano lo stesso stato | Gate di chiusura di ogni campagna |
 | V0.1 — Acceptance suite | 20 contract rows nell'orchestratore `chronon3d_acceptance` | Contract definito in `RELEASE_V0_1_CONTRACT.md`; certificazione same-SHA ancora bloccata |
-| M2 — Camera Production V1 | `CameraDescriptor → CameraProgram` unico percorso authoring nuovo | Copertura movimenti cinematografici 2.5D |
+| M2 — Camera authority migration | CM3D risolve la regia; C3D consuma pose e mantiene projection, depth, DOF pixel e compositing | Migrazione Template e gate end-to-end in `docs/tickets/TICKET-CAMERA-AUTHORITY-MIGRATION.md` |
 | M3 — CapCut-grade Parity | Parità visiva/comportamentale pipeline tipografica (subtitle + kinetic typography) | Post cycle V0.2; non avviabile come milestone macchina-verificata sul lineage corrente |
 | M3 — SDK Product V1 | Chronon3D distribuito come SDK C++ installabile e documentato | Requisiti in `RELEASE_GATE.md` §SDK Product V1 |
 | M4 — GPU backend Vulkan | Backend headless Vulkan production | IN PROGRESS |

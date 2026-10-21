@@ -40,17 +40,18 @@ Tutti i punti seguenti devono essere veri:
 5. consumer SDK installato usa i preset senza includere header interni;
 6. output seriale e parallelo deterministico.
 
-## Camera Production V1
+## Camera authority migration
 
 Tutti i punti seguenti devono essere veri:
 
-1. tutte le nuove composizioni usano `CameraDescriptor` o `CameraProgram`;
-2. `CameraSession` è posseduta dal render job;
-3. nessun lookup o compilazione avviene per frame;
-4. orientation e projection hanno un solo contratto matematico;
-5. test camera compilati collegano ed eseguono in CI;
-6. adapter legacy hanno parity test e una fase di rimozione;
-7. consumer SDK esterno può costruire e usare una camera compilata.
+1. CM3D è l'unica autorità di authoring e valutazione cinematografica;
+2. C3D riceve pose risolte e conserva projection runtime, depth, DOF sui pixel,
+   motion blur, compositing ed export;
+3. coordinate, unità ottiche e precedenza FOV/focale hanno un contratto unico;
+4. proiezione e campioni camera coincidono ai frame interi e sub-frame;
+5. rack focus e DOF producono la risposta pixel attesa, senza aloni alpha;
+6. random access e rendering sequenziale coincidono sullo stesso backend;
+7. Template e consumer SDK supportati non implementano una seconda regia.
 
 ## SDK Product V1
 
