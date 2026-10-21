@@ -54,7 +54,7 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 
-#include <chronon3d/animations/camera_motion_params.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 
 #include <future>
 #include <thread>
@@ -63,7 +63,6 @@
 
 using namespace chronon3d;
 using namespace chronon3d::camera_v1;
-using namespace chronon3d::animation;
 
 // ─────────────────────────────────────────────────────────────────────
 // Local helpers

@@ -2,8 +2,6 @@
 #include <doctest/doctest.h>
 #include <tests/helpers/composition_helpers.hpp>
 
-#include <chronon3d/animations/camera_motion_params.hpp>
-#include <chronon3d/assets/asset_ref.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 
@@ -85,21 +83,6 @@ void render_resolved_camera(TestAxis axis, const char* name, const char* filenam
 }
 
 } // namespace
-
-TEST_CASE("CameraMotionParams has no implicit reference image by default") {
-    // The core must not embed a repository-relative asset default. A
-    // default-constructed CameraMotionParams carries NO reference image;
-    // presets that need one set an explicit assets::ImageRef.
-    CameraMotionParams params;
-    CHECK_FALSE(params.reference_image.has_value());
-
-    assets::ImageRef ref{"images/camera_reference.jpg", "camera.reference"};
-    params.reference_image = ref;
-    REQUIRE(params.reference_image.has_value());
-    CHECK(params.reference_image->path() == "images/camera_reference.jpg");
-    CHECK(params.reference_image->owner() == "camera.reference");
-    CHECK(params.reference_image->required());
-}
 
 TEST_CASE("Renderer consumes already-resolved camera samples") {
     SUBCASE("tilt") {

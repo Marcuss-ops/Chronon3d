@@ -228,53 +228,6 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
             }
         } else if constexpr (std::is_same_v<T, RegisteredMotionRef>) {
             h.mix_str(s.id);
-        } else if constexpr (std::is_same_v<T, CameraMotionParamsSource>) {
-            // TICKET-P2-29: CameraMotionParamsSource fingerprint.  Hash the
-            // embedded params struct content (axis, start/end_deg, duration,
-            // start_frame, width/height, position, zoom, pose, primary,
-            // idle, reference_image).
-            h.mix_u8(static_cast<std::uint8_t>(s.params.axis));
-            h.mix_f32(s.params.start_deg);
-            h.mix_f32(s.params.end_deg);
-            h.mix_i32(s.params.duration.integral());
-            h.mix_i32(s.params.start_frame.integral());
-            h.mix_i32(s.params.width);
-            h.mix_i32(s.params.height);
-            h.mix_vec3(s.params.position);
-            h.mix_f32(s.params.zoom);
-            // pose
-            h.mix_vec3(s.params.pose.position);
-            h.mix_vec3(s.params.pose.rotation);
-            h.mix_f32(s.params.pose.zoom);
-            // primary
-            h.mix_bool(s.params.primary.enabled);
-            h.mix_enum(s.params.primary.easing);
-            h.mix_i32(s.params.primary.duration.integral());
-            h.mix_vec3(s.params.primary.from.position);
-            h.mix_vec3(s.params.primary.from.rotation);
-            h.mix_f32(s.params.primary.from.zoom);
-            h.mix_vec3(s.params.primary.to.position);
-            h.mix_vec3(s.params.primary.to.rotation);
-            h.mix_f32(s.params.primary.to.zoom);
-            // idle
-            h.mix_bool(s.params.idle.enabled);
-            h.mix_vec3(s.params.idle.position_amplitude);
-            h.mix_vec3(s.params.idle.rotation_amplitude_deg);
-            h.mix_f32(s.params.idle.zoom_amplitude);
-            h.mix_f32(s.params.idle.frequency_hz);
-            h.mix_f32(s.params.idle.phase_offset);
-            h.mix_bool(s.params.idle.base_on_final);
-            // reference_image is an explicit optional asset reference: hash
-            // presence + the canonical AssetRef content so two descriptors
-            // with the same ref resolve to the same fingerprint, and a
-            // descriptor with no reference image is distinct from one that
-            // names an asset (even an empty-path one).
-            h.mix_bool(s.params.reference_image.has_value());
-            if (s.params.reference_image.has_value()) {
-                h.mix_str(s.params.reference_image->path());
-                h.mix_str(s.params.reference_image->owner());
-                h.mix_bool(s.params.reference_image->required());
-            }
         }
     }, desc.source);
 
