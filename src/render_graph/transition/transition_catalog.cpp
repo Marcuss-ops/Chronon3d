@@ -11,6 +11,15 @@ namespace chronon3d::graph {
 
 namespace {
 
+// Both remotion-family transitions fade the source over the same window and
+// then overlay their own emission math.  Keeping the ramp here prevents the
+// two shaders from drifting apart.
+[[nodiscard]] float remotion_fade_alpha(float progress, bool is_out) {
+    const float fade = transition_math::smoothstep01(
+        std::clamp((progress - 0.2f) / 0.6f, 0.0f, 1.0f));
+    return is_out ? 1.0f - fade : fade;
+}
+
 // ── Mask generators (separated from compositing) ───────────────────────────
 
 class LinearWipeMask final : public LayerTransitionMask {
@@ -458,13 +467,7 @@ public:
             for (i32 x = 0; x < w; ++x) {
                 const float u = static_cast<float>(x) / std::max(1, w);
 
-                float t_alpha = 0.0f;
-                if (!is_out) {
-                    t_alpha = transition_math::smoothstep01(std::clamp((progress - 0.2f) / 0.6f, 0.0f, 1.0f));
-                } else {
-                    t_alpha = 1.0f - transition_math::smoothstep01(std::clamp((progress - 0.2f) / 0.6f, 0.0f, 1.0f));
-                }
-
+                const float t_alpha = remotion_fade_alpha(progress, is_out);
                 Color base = src_row[x] * t_alpha;
 
                 float mask = transition_math::procedural_remotion_mask(u, v, progress, m_params.seed);
@@ -524,13 +527,7 @@ public:
             for (i32 x = 0; x < w; ++x) {
                 const float u = static_cast<float>(x) / std::max(1, w);
 
-                float t_alpha = 0.0f;
-                if (!is_out) {
-                    t_alpha = transition_math::smoothstep01(std::clamp((progress - 0.2f) / 0.6f, 0.0f, 1.0f));
-                } else {
-                    t_alpha = 1.0f - transition_math::smoothstep01(std::clamp((progress - 0.2f) / 0.6f, 0.0f, 1.0f));
-                }
-
+                const float t_alpha = remotion_fade_alpha(progress, is_out);
                 Color base = src_row[x] * t_alpha;
 
                 float remotion_alpha = transition_math::remotion_mask(u, v, progress, m_params.speed, m_params.direction);

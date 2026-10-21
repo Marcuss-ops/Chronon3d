@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+  <rect width="64" height="64" fill="#ff0000"/>
+  <g>
+    <animateTransform attributeName="transform" type="translate"
+      from="0 0" to="24 0" dur="1s"/>
+    <g>
+      <animateTransform attributeName="transform" type="rotate"
+        from="0" to="90" dur="1s"/>
+      <path d="M8 8 H20 V20 H8 Z" fill="#0000ff"/>
+    </g>
+  </g>
+</svg>

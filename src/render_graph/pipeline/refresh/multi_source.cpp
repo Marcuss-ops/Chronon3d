@@ -53,12 +53,28 @@ void refresh_multi_source_node(
         const auto source_placement = evaluate_source_placement(item, src_node, ctx);
         const Mat4 render_matrix = finalize_source_placement_matrix(
             source_placement, item, src_node, ctx);
-        const f32 render_opacity = source_placement.opacity;
+        f32 render_opacity = source_placement.opacity;
+
+        // Keep SVG isolation metadata when refreshing a reused graph. The
+        // fresh-build path transfers placement opacity to the outermost
+        // group and paints the child at full alpha; omitting this here made
+        // animated frames silently lose group isolation after frame zero.
+        std::vector<MultiSourceItem::GroupIsolationSpec> groups;
+        groups.reserve(src_node.svg_groups.size());
+        for (const auto& group : src_node.svg_groups) {
+            groups.push_back(MultiSourceItem::GroupIsolationSpec{
+                group.id, group.opacity});
+        }
+        if (!groups.empty()) {
+            groups.front().opacity *= render_opacity;
+            render_opacity = 1.0f;
+        }
 
         items.push_back(MultiSourceItem{
             .node = &src_node,
             .matrix = render_matrix,
             .opacity = render_opacity,
+            .groups = std::move(groups),
             .defer_camera_projection = item.projected && !item.native_3d &&
                 !item.layer->screen_space,
             .apply_camera_projection = !item.layer->screen_space,

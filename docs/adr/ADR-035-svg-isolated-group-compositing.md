@@ -25,30 +25,25 @@ TICKET-SVG-RENDER-PLAN records this as bounded-out with the note that a fix
 **Estendere `MultiSourceNode` con un ramo "gruppo isolato", senza nuovi node
 kind, executor o registry.**
 
-1. **Annotazione** — il loader SVG annota ogni elemento con l'id del gruppo
-   isolato più interno che lo avvolge e con l'opacità del gruppo
-   (`SvgStyleGroupRef{ group_id, group_opacity }` su `SvgStyledElement`).
-   Nested groups restano fail-closed in V1 (un solo livello,fq invariato);
-   Q2 li sblocca sullo stesso pass.
+1. **Annotazione** — il loader SVG annota ogni elemento con lo stack dei gruppi
+   isolati che lo avvolgono, outermost-first, e l'opacità di ciascun livello
+   (`SvgStyledElement::groups`).
 2. **Lowering** — il render-plan compiler smette di moltiplicare
    `group_opacity` nell'alpha di fill/stroke dei figli; l'opacità
    **propria** dell'elemento (`element.opacity`, `animate opacity`) resta
    piegata nel paint perché è correttamente fonte di alpha del singolo
-   paint. Il gruppo viaggia come `ImportedSubpathPlan::svg_group`.
+   paint. I gruppi viaggiano come `ImportedSubpathPlan::svg_groups`.
 3. **Builder** — gli item `MultiSourceItem` dell'aggregato del layer
-   trasportano `std::optional<GroupIsolationSpec>{ group_id, opacity }`
-   (default `nullopt` → percorso attuale, zero regressione su testo e
-   path nativi).
-4. **Esecuzione** — dentro `MultiSourceNode::execute()`, gli item di un
-   gruppo isolato sono disegnati **a alpha di paint piena** su una
-   framebuffer intermedia (pooled, `FramebufferPool`, famiglia
-   `ResidencyCache` per la tassonomia cache), e la superficie
-   intermedia è compositata sulla fb del layer **una sola volta** con
-   `alpha = group_opacity`. La fb intermedia è ripulita a inizio gruppo.
+   trasportano un `std::vector<GroupIsolationSpec>` outermost-first.
+4. **Esecuzione** — dentro `MultiSourceNode::execute()`, gli item sono
+   disegnati **a alpha di paint piena** sulla superficie del gruppo più
+   interno. Alla chiusura, ogni gruppo è compositato una volta nella superficie
+   del genitore; il gruppo radice viene compositato sulla fb del layer. Ogni
+   superficie è ripulita all'apertura.
 5. **Backend** — il percorso software usa l'oracolo pixel esistente. Quando
    `supports_native_surfaces()` è vero, il gruppo usa un framebuffer GPU
    trasparente e `composite_surface_weighted()` per comporre l'intermedio
-   sulla superficie del layer. In modalità `require_gpu_native`, superfici
+   sul framebuffer del genitore o del layer. In modalità `require_gpu_native`, superfici
    mancanti o un errore del compositor falliscono esplicitamente; non esiste
    fallback CPU nascosto. La parità hardware è certificata dal gate Vulkan
    quando `CHRONON_GPU_CLI` punta a una build SVG+Vulkan.
@@ -78,19 +73,17 @@ render indentico (determinismo).
 
 ## Demolition debt
 
-**Owner**: render-plan/compiler. **Reason**: la piega del loader
-(`style inheritance → element.opacity`) serve la V1 del gruppo annidato
-fall-attuale e resta finché Q2 non migrerà la semantica su `svg_group`. 
-**Exit condition**: tutti i fixture SVG del corpus usano `svg_group`; il
-loader non eredita più l'opacità del gruppo. **Equivalence test/gate**:
-`check_svg_motion_animations_gate.py` + nuovo `check_svg_group_isolation_gate.py`
-verdi. **Removal scope**: rami fold in `svg_path_loader.cpp` +
-`render_plan_compiler_shape.cpp` (moltiplicazioni `lottie_group_opacity`).
-**Status**: `ACTIVE`.
+**Owner**: render-plan/compiler. **Reason**: i path SVG usano ora lo stack
+isolato per l'opacità, ma la gerarchia animata dei transform e i run di testo
+non sono ancora integrati. **Exit condition**: fixture del corpus con gruppi
+path, testo e transform annidati verificati; nessun fallback che pieghi
+l'opacità di gruppo nel paint. **Equivalence test/gate**:
+`check_svg_motion_animations_gate.py` e `check_svg_group_isolation_gate.py`
+verdi su fixture annidati. **Status**: `ACTIVE`.
 
 ## Conseguenze
 
-- Positive: resa letterale dell'alpha SVG; sblocca Q2 (nested groups) e Q3
+- Positive: resa letterale dell'alpha SVG; completa i gruppi annidati di path e sblocca Q3
   (clip per elemento su sub-layer) sulla stessa meccanica; costo runtime
   limitato a layer con gruppi isolati (zero su tutte le altre).
 - Negative/note: un framebuffer intermedio GPU per gruppo per frame dal pool

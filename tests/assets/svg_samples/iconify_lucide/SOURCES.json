@@ -1,0 +1,83 @@
+{
+  "provider": "Iconify API",
+  "attribution": "Lucide contributors",
+  "license_url": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+  "icons": [
+    {
+      "file": "bus-front.svg",
+      "source": "https://api.iconify.design/lucide/bus-front.svg",
+      "set": "Lucide",
+      "license": "ISC",
+      "bytes": 334
+    },
+    {
+      "file": "lightbulb.svg",
+      "source": "https://api.iconify.design/lucide/lightbulb.svg",
+      "set": "Lucide",
+      "license": "ISC",
+      "bytes": 315
+    },
+    {
+      "file": "thermometer.svg",
+      "source": "https://api.iconify.design/lucide/thermometer.svg",
+      "set": "Lucide",
+      "license": "ISC",
+      "bytes": 242
+    },
+    {
+      "file": "chart-no-axes-combined.svg",
+      "source": "https://api.iconify.design/lucide/chart-no-axes-combined.svg",
+      "set": "Lucide",
+      "license": "ISC",
+      "bytes": 325
+    },
+    {
+      "file": "bus-front-blue-128.svg",
+      "source": "https://api.iconify.design/lucide/bus-front.svg?color=%232f81f7&width=128&height=128",
+      "set": "Lucide",
+      "license": "ISC",
+      "bytes": 329,
+      "variant": {
+        "color": "#2f81f7",
+        "width": 128,
+        "height": 128
+      }
+    },
+    {
+      "file": "lightbulb-amber-128.svg",
+      "source": "https://api.iconify.design/lucide/lightbulb.svg?color=%23f6b73c&width=128&height=128",
+      "set": "Lucide",
+      "license": "ISC",
+      "bytes": 310,
+      "variant": {
+        "color": "#f6b73c",
+        "width": 128,
+        "height": 128
+      }
+    },
+    {
+      "file": "thermometer-coral-128.svg",
+      "source": "https://api.iconify.design/lucide/thermometer.svg?color=%23f25f5c&width=128&height=128",
+      "set": "Lucide",
+      "license": "ISC",
+      "bytes": 237,
+      "variant": {
+        "color": "#f25f5c",
+        "width": 128,
+        "height": 128
+      }
+    },
+    {
+      "file": "chart-mint-128.svg",
+      "source": "https://api.iconify.design/lucide/chart-no-axes-combined.svg?color=%2365d6c4&width=128&height=128",
+      "set": "Lucide",
+      "license": "ISC",
+      "bytes": 320,
+      "variant": {
+        "color": "#65d6c4",
+        "width": 128,
+        "height": 128
+      }
+    }
+  ]
+}
