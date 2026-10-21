@@ -1,0 +1,29 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "svg_group_opacity_animated",
+  "canvas": {
+    "width": 64,
+    "height": 64,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 31
+  },
+  "layers": [
+    {
+      "id": "group_opacity_animated_svg",
+      "type": "shape",
+      "position": [0, 0],
+      "size": [64, 64],
+      "shape": {
+        "type": "path",
+        "asset": "group_opacity_animated.svg"
+      }
+    }
+  ],
+  "output": {
+    "path": "group_opacity_animated_####.png",
+    "format": "png_sequence",
+    "color_space": "srgb"
+  }
+}

@@ -112,11 +112,6 @@ add_library(chronon3d_graph_executor OBJECT
     executor/executor_levels.cpp
     executor/framebuffer_lifetime.cpp
     compiler/frame_graph_builder.cpp
-    # ── TICKET-009 close-out (post-RenderGraphContext OBJECT-lift) —
-    # graph topological-plan cache (thread-safe, shared between
-    # SoftwareRenderer and RenderRuntime).  Compiled directly into the
-    # executor sub-target to avoid a graph_executor → runtime → graph
-    # link chain.  Public surface still lives at
 )
 set_target_properties(chronon3d_graph_executor PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_graph_executor PRIVATE

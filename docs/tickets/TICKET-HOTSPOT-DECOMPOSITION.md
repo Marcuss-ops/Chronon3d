@@ -287,6 +287,54 @@ invariato.
   il broad aggregator resta una facade compatibile con 22 consumer ratchettati,
   senza introdurre una seconda authority glyph-atlas/raster-cache.
 
+## Progress snapshot — 2026-10-20 — procedural hotspots
+
+Six functions above the threshold agreed in the 2026-10 audit were split into
+stages, and three duplicated blocks were collapsed. All edits are release-
+identical in behaviour: moved code was checked line-multiset against the
+removed code (quoting, literals and error strings included), and the effect
+decoder table was verified complete against every `EffectKindPlan` enumerator
+(36/36, no duplicate rows).
+
+| Entry point | Before | After | Structure |
+| --- | --- | --- | --- |
+| `expand_static_lottie` | 1123 | 182 | layer transform, shape collection, path operators, masks, geometry materialization, paints, subpath assembly |
+| `compile_render_plan` | 1219 | 226 | asset preflight, svg/lottie expansion, materialization, per-layer compile, publish |
+| `make_scene_evaluator` | 830 | 61 | one authoring helper per `LayerType` + primitives/masks pass |
+| `decode_layer_effects` | 686 | 49 | one decoder per kind + constexpr dispatch table |
+| `render_graph_hashing.hpp` | 973 | 79 | declarations + templates only; implementations in `src/render_graph/core/render_graph_hashing.cpp` |
+| `directional_blur.cpp` axis passes | 2 x 40 | 1 x 40 | `apply_directional_blur_axis<kVertical>` |
+| `ImageCache::get_or_load` bodies | 2 x 181 | 1 shared | `decode_and_stage()` + `load_through_cache()`; the always-zero `duration_us(now(), now())` convert metric is gone |
+
+- Lottie split keeps the paint/geometry contracts at their original order:
+  geometry materialization runs before paint decoding, paints before subpath
+  assembly, and `shape.path.clear()` still follows assembly. Mask decoding and
+  path-operator decoding remain ahead of geometry so an invalid operator still
+  fails before any path is emitted.
+- Transition ramps: `procedural_remotion` and `remotion_mask` shared the same
+  0.2–0.8 smoothstep fade; `remotion_fade_alpha()` now owns it and both
+  compositors call it instead of keeping two copies.
+- Deleted the orphaned `TICKET-009` comment in
+  `src/render_graph/CMakeLists.txt`: it described
+  `src/runtime/execution_plan_cache.cpp`, which no longer exists, and was
+  truncated mid-sentence; the source list no longer carried the file.
+- `image_cache.cpp` shrinks 513 → 409 lines with no behavioural change to
+  key resolution, decode, downscale, premultiply, linear conversion, GPU key or
+  LRU weight. The shared body takes a `count_cache_stats` flag so the
+  resolver-explicit overload still does not report image cache hit/miss
+  counters, exactly as before; the always-zero convert timer it carried is
+  gone.
+
+Verification for this snapshot: every touched translation unit compiles from
+`compile_commands.json` (`image_cache.cpp`, `render_plan_compiler.cpp`,
+`render_plan_compiler_scene.cpp`, `render_plan_compiler_lottie.cpp`,
+`render_plan_decoder_effects.cpp`, `render_graph_hashing.cpp`,
+`transition_catalog.cpp`, `directional_blur.cpp`), and `git diff --check` is
+clean. The full library link and the CTest suites were not completed in this
+environment: the CMake regeneration on the WSL `/mnt/c` tree takes several
+minutes per build, so the same-tree suite run remains the gate for closing
+item 3 of the definition of done.
+
 ## Definition of done
 
 - [x] Ogni funzione indicata è sotto la soglia concordata dal reviewer oppure

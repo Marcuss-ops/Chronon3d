@@ -112,6 +112,181 @@ Color decode_image_pixel(const image::ImageBuffer& buffer, std::size_t index,
     return decoded.premultiplied();
 }
 
+using ImageCacheStorage =
+    cache::LruCache<ImageAssetKey, std::shared_ptr<CachedImage>, ImageAssetKeyHash>;
+
+// Single decode + staging path.  The two get_or_load() overloads differ only
+// in how they resolve the canonical key; decode, downscale, premultiply,
+// linear conversion, GPU key and LRU weight must stay identical or the two
+// entry points silently diverge (they did: the resolver-explicit overload had
+// a dead convert timer and a second copy of this body).
+std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
+    image::ImageBackend& backend, const std::string& path,
+    const std::string& resolved_path, ImageDecodeOptions options) {
+    const auto t0 = profiling::now();
+    // Decode: backend loads + decodes the image bytes into raw RGBA.
+    const auto decode_t0 = profiling::now();
+    auto buffer = backend.load_image(resolved_path);
+    const double decode_us = profiling::duration_us(decode_t0, profiling::now());
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->image_decode_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(decode_us)), std::memory_order_relaxed);
+        profiling::g_current_counters->image_decode_count.fetch_add(1, std::memory_order_relaxed);
+    }
+    if (!buffer || !buffer->has_pixels()) {
+        return {std::make_shared<CachedImage>(), 1};
+    }
+
+#ifdef CHRONON3D_ENABLE_OCIO
+    std::optional<color::OcioColorTransform> ocio_transform;
+    if (!options.ocio_input_space.empty()) {
+        if (buffer->linear_pixels) {
+            spdlog::error("ImageCache: OCIO input space on float image '{}' is unsupported; EXR is already decoded to linear BT.709", path);
+            return {std::make_shared<CachedImage>(), 1};
+        }
+        std::string error;
+        ocio_transform = color::OcioColorTransform::from_config(
+            options.ocio_config_path, options.ocio_input_space,
+            options.ocio_working_space, &error);
+        if (!ocio_transform) {
+            spdlog::error("ImageCache: OCIO input transform for '{}' failed: {}", path, error);
+            return {std::make_shared<CachedImage>(), 1};
+        }
+    }
+#else
+    if (!options.ocio_input_space.empty()) {
+        spdlog::error("ImageCache: '{}' declares ocio_input_space, but Chronon was built without OpenColorIO", path);
+        return {std::make_shared<CachedImage>(), 1};
+    }
+#endif
+
+    downscale_for_runtime(*buffer);
+
+    auto entry = std::make_shared<CachedImage>();
+    entry->width = buffer->width;
+    entry->height = buffer->height;
+
+    // Convert: premultiply + sRGB→linear color conversion into the
+    // Blend2D BLImage and the float Framebuffer.
+    const auto convert_t0 = profiling::now();
+
+#ifdef CHRONON3D_USE_BLEND2D
+    if (buffer->pixels && options.color_space == ColorSpace::SRGB &&
+        options.ocio_input_space.empty()) {
+        entry->bl_img.create(entry->width, entry->height, BL_FORMAT_PRGB32);
+        BLImageData bl_data;
+        if (entry->bl_img.getData(&bl_data) == BL_SUCCESS) {
+            uint32_t* dst = static_cast<uint32_t*>(bl_data.pixelData);
+            const uint8_t* src = buffer->pixels.get();
+            const int stride = static_cast<int>(bl_data.stride / sizeof(uint32_t));
+
+            if (stride == entry->width) {
+                simd::premultiply_alpha_rgba8(dst, src, entry->width * entry->height);
+            } else {
+                for (int y = 0; y < entry->height; ++y) {
+                    simd::premultiply_alpha_rgba8(dst + y * stride, src + y * entry->width * 4, entry->width);
+                }
+            }
+        }
+    }
+#endif
+
+    entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
+    if (entry->fb_img) {
+        entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
+        // Each row is independent. Parallelizing this conversion is
+        // safe because both destinations are pre-sized and indexed
+        // by row; it removes the serial sRGB->linear bottleneck while
+        // preserving the exact premultiplied-color operation.
+        tbb::parallel_for(tbb::blocked_range<int>(0, entry->height),
+            [&](const tbb::blocked_range<int>& rows) {
+                for (int y = rows.begin(); y < rows.end(); ++y) {
+                    Color* dst_row = entry->fb_img->pixels_row(y);
+                    float* gpu_row = entry->gpu_rgba.data() +
+                        static_cast<std::size_t>(y) * entry->width * 4;
+                    for (int x = 0; x < entry->width; ++x) {
+                        const auto index = static_cast<std::size_t>(y) * entry->width + x;
+                        const auto color = decode_image_pixel(
+                            *buffer, index, options.color_space
+#ifdef CHRONON3D_ENABLE_OCIO
+                            , ocio_transform ? &*ocio_transform : nullptr
+#endif
+                            );
+                        dst_row[x] = color;
+                        gpu_row[x * 4 + 0] = color.r;
+                        gpu_row[x * 4 + 1] = color.g;
+                        gpu_row[x * 4 + 2] = color.b;
+                        gpu_row[x * 4 + 3] = color.a;
+                    }
+                }
+            });
+#ifdef CHRONON3D_ENABLE_OCIO
+        if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
+            entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {
+            spdlog::error("ImageCache: OCIO input transform produced invalid pixels for '{}'", path);
+            return {std::make_shared<CachedImage>(), 1};
+        }
+#endif
+        const std::string_view bytes(
+            reinterpret_cast<const char*>(entry->gpu_rgba.data()),
+            entry->gpu_rgba.size() * sizeof(float));
+        entry->gpu_key = runtime::GpuAssetKey{
+            assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
+            static_cast<std::uint32_t>(entry->width),
+            static_cast<std::uint32_t>(entry->height)};
+    }
+
+    const double convert_us = profiling::duration_us(convert_t0, profiling::now());
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->image_convert_wall_us.fetch_add(
+            static_cast<uint64_t>(std::llround(convert_us)), std::memory_order_relaxed);
+    }
+
+    const double load_dur_ms = profiling::elapsed_ms(t0);
+    spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry->width, entry->height, load_dur_ms);
+
+    // Fase B1: weight now accounts for both BLImage (PRGB32, 4 bytes/px)
+    // and the float Framebuffer (4 floats/px = 16 bytes/px).
+    const size_t weight = static_cast<size_t>(entry->width) * entry->height * 4  // BLImage
+#ifdef CHRONON3D_USE_BLEND2D
+                        + static_cast<size_t>(entry->width) * entry->height * 16 // Framebuffer float
+#endif
+                        + entry->gpu_rgba.size() * sizeof(float);
+    return {entry, weight};
+}
+
+std::shared_ptr<const CachedImage> load_through_cache(
+    ImageCacheStorage& cache, const ImageAssetKey& key,
+    const std::string& path, const std::string& resolved_path,
+    image::ImageBackend& backend, ImageDecodeOptions options,
+    bool count_cache_stats) {
+    // TICKET-CACHE-COUNTERS-V1 — count image decode-cache hit/miss so
+    // decode-once (miss ≈ 1) vs decode-per-frame (miss ≈ frames) is visible
+    // in telemetry for the static-asset benchmark.  Only the resolver-backed
+    // overload reports these counters, exactly as before the shared body.
+    if (count_cache_stats && profiling::g_current_counters) {
+        if (cache.contains(key)) {
+            profiling::g_current_counters->image_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            profiling::g_current_counters->image_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+
+    auto shared = cache.compute_if_absent(key, [&]() {
+        return decode_and_stage(backend, path, resolved_path, options);
+    });
+
+    if (!shared) {
+        return nullptr;
+    }
+    if (!shared->valid()) {
+        spdlog::warn("ImageCache: '{}' is too large ({:.1f} MB) to fit in the cache",
+                     path, static_cast<double>(shared->width) * shared->height * 4 / (1024.0 * 1024.0));
+        return nullptr;
+    }
+    return shared;
+}
+
 } // namespace
 
 ImageCache::ImageCache(size_t capacity_bytes)
@@ -178,160 +353,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
         return nullptr;
     }
 
-    // TICKET-CACHE-COUNTERS-V1 — count image decode-cache hit/miss so
-    // decode-once (miss ≈ 1) vs decode-per-frame (miss ≈ frames) is visible
-    // in telemetry for the static-asset benchmark.
-    if (profiling::g_current_counters) {
-        if (m_cache.contains(*key)) {
-            profiling::g_current_counters->image_cache_hits.fetch_add(1, std::memory_order_relaxed);
-        } else {
-            profiling::g_current_counters->image_cache_misses.fetch_add(1, std::memory_order_relaxed);
-        }
-    }
-
-    auto shared = m_cache.compute_if_absent(*key,
-        [&]() -> std::pair<std::shared_ptr<CachedImage>, size_t> {
-            const auto t0 = profiling::now();
-            // Decode: backend loads + decodes the image bytes into raw RGBA.
-            const auto decode_t0 = profiling::now();
-            auto buffer = backend->load_image(resolved_path);
-            const double decode_us = profiling::duration_us(decode_t0, profiling::now());
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->image_decode_wall_us.fetch_add(
-                    static_cast<uint64_t>(std::llround(decode_us)), std::memory_order_relaxed);
-                profiling::g_current_counters->image_decode_count.fetch_add(1, std::memory_order_relaxed);
-            }
-            if (!buffer || !buffer->has_pixels()) {
-                return {std::make_shared<CachedImage>(), 1};
-            }
-
-#ifdef CHRONON3D_ENABLE_OCIO
-            std::optional<color::OcioColorTransform> ocio_transform;
-            if (!options.ocio_input_space.empty()) {
-                if (buffer->linear_pixels) {
-                    spdlog::error("ImageCache: OCIO input space on float image '{}' is unsupported; EXR is already decoded to linear BT.709", path);
-                    return {std::make_shared<CachedImage>(), 1};
-                }
-                std::string error;
-                ocio_transform = color::OcioColorTransform::from_config(
-                    options.ocio_config_path, options.ocio_input_space,
-                    options.ocio_working_space, &error);
-                if (!ocio_transform) {
-                    spdlog::error("ImageCache: OCIO input transform for '{}' failed: {}", path, error);
-                    return {std::make_shared<CachedImage>(), 1};
-                }
-            }
-#else
-            if (!options.ocio_input_space.empty()) {
-                spdlog::error("ImageCache: '{}' declares ocio_input_space, but Chronon was built without OpenColorIO", path);
-                return {std::make_shared<CachedImage>(), 1};
-            }
-#endif
-
-            downscale_for_runtime(*buffer);
-
-            auto entry = std::make_shared<CachedImage>();
-            entry->width = buffer->width;
-            entry->height = buffer->height;
-
-            // Convert: premultiply + sRGB→linear color conversion into the
-            // Blend2D BLImage and the float Framebuffer.
-            const auto convert_t0 = profiling::now();
-
-#ifdef CHRONON3D_USE_BLEND2D
-            if (buffer->pixels && options.color_space == ColorSpace::SRGB &&
-                options.ocio_input_space.empty()) {
-                entry->bl_img.create(entry->width, entry->height, BL_FORMAT_PRGB32);
-                BLImageData bl_data;
-                if (entry->bl_img.getData(&bl_data) == BL_SUCCESS) {
-                uint32_t* dst = static_cast<uint32_t*>(bl_data.pixelData);
-                const uint8_t* src = buffer->pixels.get();
-                const int stride = static_cast<int>(bl_data.stride / sizeof(uint32_t));
-
-                if (stride == entry->width) {
-                    simd::premultiply_alpha_rgba8(dst, src, entry->width * entry->height);
-                } else {
-                    for (int y = 0; y < entry->height; ++y) {
-                        simd::premultiply_alpha_rgba8(dst + y * stride, src + y * entry->width * 4, entry->width);
-                    }
-                }
-                }
-            }
-#endif
-
-            entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
-            if (entry->fb_img) {
-                entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
-                // Each row is independent. Parallelizing this conversion is
-                // safe because both destinations are pre-sized and indexed
-                // by row; it removes the serial sRGB->linear bottleneck while
-                // preserving the exact premultiplied-color operation.
-                tbb::parallel_for(tbb::blocked_range<int>(0, entry->height),
-                    [&](const tbb::blocked_range<int>& rows) {
-                        for (int y = rows.begin(); y < rows.end(); ++y) {
-                            Color* dst_row = entry->fb_img->pixels_row(y);
-                            float* gpu_row = entry->gpu_rgba.data() +
-                                static_cast<std::size_t>(y) * entry->width * 4;
-                            for (int x = 0; x < entry->width; ++x) {
-                                const auto index = static_cast<std::size_t>(y) * entry->width + x;
-                                const auto color = decode_image_pixel(
-                                    *buffer, index, options.color_space
-#ifdef CHRONON3D_ENABLE_OCIO
-                                    , ocio_transform ? &*ocio_transform : nullptr
-#endif
-                                    );
-                                dst_row[x] = color;
-                                gpu_row[x * 4 + 0] = color.r;
-                                gpu_row[x * 4 + 1] = color.g;
-                                gpu_row[x * 4 + 2] = color.b;
-                                gpu_row[x * 4 + 3] = color.a;
-                            }
-                        }
-                    });
-#ifdef CHRONON3D_ENABLE_OCIO
-                if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
-                    entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {
-                    spdlog::error("ImageCache: OCIO input transform produced invalid pixels for '{}'", path);
-                    return {std::make_shared<CachedImage>(), 1};
-                }
-#endif
-                const std::string_view bytes(
-                    reinterpret_cast<const char*>(entry->gpu_rgba.data()),
-                    entry->gpu_rgba.size() * sizeof(float));
-                entry->gpu_key = runtime::GpuAssetKey{
-                    assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
-                    static_cast<std::uint32_t>(entry->width),
-                    static_cast<std::uint32_t>(entry->height)};
-            }
-
-            const double convert_us = profiling::duration_us(convert_t0, profiling::now());
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->image_convert_wall_us.fetch_add(
-                    static_cast<uint64_t>(std::llround(convert_us)), std::memory_order_relaxed);
-            }
-
-            const double load_dur_ms = profiling::elapsed_ms(t0);
-            spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry->width, entry->height, load_dur_ms);
-
-            // Fase B1: weight now accounts for both BLImage (PRGB32, 4 bytes/px)
-            // and the float Framebuffer (4 floats/px = 16 bytes/px).
-            const size_t weight = static_cast<size_t>(entry->width) * entry->height * 4  // BLImage
-#ifdef CHRONON3D_USE_BLEND2D
-                                + static_cast<size_t>(entry->width) * entry->height * 16 // Framebuffer float
-#endif
-                                + entry->gpu_rgba.size() * sizeof(float);
-            return {entry, weight};
-        });
-
-    if (!shared) {
-        return nullptr;
-    }
-    if (!shared->valid()) {
-        spdlog::warn("ImageCache: '{}' is too large ({:.1f} MB) to fit in the cache",
-                     path, static_cast<double>(shared->width) * shared->height * 4 / (1024.0 * 1024.0));
-        return nullptr;
-    }
-    return shared;
+    return load_through_cache(m_cache, *key, path, resolved_path, *backend, options, true);
 }
 
 std::shared_ptr<const CachedImage> ImageCache::find(
@@ -379,130 +401,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
         spdlog::error("ImageCache: cannot load '{}' - no backend set", path);
         return nullptr;
     }
-    if (profiling::g_current_counters) {
-        if (m_cache.contains(*key)) {
-            profiling::g_current_counters->image_cache_hits.fetch_add(1, std::memory_order_relaxed);
-        } else {
-            profiling::g_current_counters->image_cache_misses.fetch_add(1, std::memory_order_relaxed);
-        }
-    }
-    auto shared = m_cache.compute_if_absent(*key,
-        [&]() -> std::pair<std::shared_ptr<CachedImage>, size_t> {
-            const auto t0 = profiling::now();
-            const auto decode_t0 = profiling::now();
-            auto buffer = backend->load_image(resolved_path);
-            const double decode_us = profiling::duration_us(decode_t0, profiling::now());
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->image_decode_wall_us.fetch_add(
-                    static_cast<uint64_t>(std::llround(decode_us)), std::memory_order_relaxed);
-                profiling::g_current_counters->image_decode_count.fetch_add(1, std::memory_order_relaxed);
-            }
-            if (!buffer || !buffer->has_pixels()) {
-                return {std::make_shared<CachedImage>(), 1};
-            }
-#ifdef CHRONON3D_ENABLE_OCIO
-            std::optional<color::OcioColorTransform> ocio_transform;
-            if (!options.ocio_input_space.empty()) {
-                if (buffer->linear_pixels) {
-                    spdlog::error("ImageCache: OCIO input space on float image '{}' is unsupported; EXR is already decoded to linear BT.709", path);
-                    return {std::make_shared<CachedImage>(), 1};
-                }
-                std::string error;
-                ocio_transform = color::OcioColorTransform::from_config(
-                    options.ocio_config_path, options.ocio_input_space,
-                    options.ocio_working_space, &error);
-                if (!ocio_transform) {
-                    spdlog::error("ImageCache: OCIO input transform for '{}' failed: {}", path, error);
-                    return {std::make_shared<CachedImage>(), 1};
-                }
-            }
-#else
-            if (!options.ocio_input_space.empty()) {
-                spdlog::error("ImageCache: '{}' declares ocio_input_space, but Chronon was built without OpenColorIO", path);
-                return {std::make_shared<CachedImage>(), 1};
-            }
-#endif
-            downscale_for_runtime(*buffer);
-            auto entry = std::make_shared<CachedImage>();
-            entry->width = buffer->width;
-            entry->height = buffer->height;
-#ifdef CHRONON3D_USE_BLEND2D
-            if (buffer->pixels && options.color_space == ColorSpace::SRGB &&
-                options.ocio_input_space.empty()) {
-                entry->bl_img.create(entry->width, entry->height, BL_FORMAT_PRGB32);
-                BLImageData bl_data;
-                if (entry->bl_img.getData(&bl_data) == BL_SUCCESS) {
-                uint32_t* dst = static_cast<uint32_t*>(bl_data.pixelData);
-                const uint8_t* src = buffer->pixels.get();
-                const int stride = static_cast<int>(bl_data.stride / sizeof(uint32_t));
-                if (stride == entry->width) {
-                    simd::premultiply_alpha_rgba8(dst, src, entry->width * entry->height);
-                } else {
-                    for (int y = 0; y < entry->height; ++y) {
-                        simd::premultiply_alpha_rgba8(dst + y * stride, src + y * entry->width * 4, entry->width);
-                    }
-                }
-                }
-            }
-#endif
-            entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
-            if (entry->fb_img) {
-                entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
-                tbb::parallel_for(tbb::blocked_range<int>(0, entry->height),
-                    [&](const tbb::blocked_range<int>& rows) {
-                        for (int y = rows.begin(); y < rows.end(); ++y) {
-                            Color* dst_row = entry->fb_img->pixels_row(y);
-                            float* gpu_row = entry->gpu_rgba.data() +
-                                static_cast<std::size_t>(y) * entry->width * 4;
-                            for (int x = 0; x < entry->width; ++x) {
-                                const auto index = static_cast<std::size_t>(y) * entry->width + x;
-                                const auto color = decode_image_pixel(
-                                    *buffer, index, options.color_space
-#ifdef CHRONON3D_ENABLE_OCIO
-                                    , ocio_transform ? &*ocio_transform : nullptr
-#endif
-                                    );
-                                dst_row[x] = color;
-                                gpu_row[x * 4 + 0] = color.r;
-                                gpu_row[x * 4 + 1] = color.g;
-                                gpu_row[x * 4 + 2] = color.b;
-                                gpu_row[x * 4 + 3] = color.a;
-                            }
-                        }
-                    });
-#ifdef CHRONON3D_ENABLE_OCIO
-                if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
-                    entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {
-                    spdlog::error("ImageCache: OCIO input transform produced invalid pixels for '{}'", path);
-                    return {std::make_shared<CachedImage>(), 1};
-                }
-#endif
-                const std::string_view bytes(
-                    reinterpret_cast<const char*>(entry->gpu_rgba.data()),
-                    entry->gpu_rgba.size() * sizeof(float));
-                entry->gpu_key = runtime::GpuAssetKey{
-                    assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
-                    static_cast<std::uint32_t>(entry->width),
-                    static_cast<std::uint32_t>(entry->height)};
-            }
-            const double convert_us = profiling::duration_us(profiling::now(), profiling::now());
-            (void)convert_us;
-            const double load_dur_ms = profiling::elapsed_ms(t0);
-            spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry->width, entry->height, load_dur_ms);
-            const size_t weight = static_cast<size_t>(entry->width) * entry->height * 4
-#ifdef CHRONON3D_USE_BLEND2D
-                                 + static_cast<size_t>(entry->width) * entry->height * 16
-#endif
-                                 + entry->gpu_rgba.size() * sizeof(float);
-            return std::pair<std::shared_ptr<CachedImage>, size_t>{entry, weight};
-        });
-    if (!shared) return nullptr;
-    if (!shared->valid()) {
-        spdlog::warn("ImageCache: '{}' is too large ({:.1f} MB) to fit in the cache",
-                     path, static_cast<double>(shared->width) * shared->height * 4 / (1024.0 * 1024.0));
-        return nullptr;
-    }
-    return shared;
+    return load_through_cache(m_cache, *key, path, resolved_path, *backend, options, false);
 }
 
 void ImageCache::clear() {

@@ -94,49 +94,9 @@ LayerPlan::EffectKindPlan decode_effect_kind(std::string_view name) {
     return found->second;
 }
 
-void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
-    if (value.contains("effects")) {
-        const auto& effects = value.at("effects");
-        if (!effects.is_array() || effects.size() > 64)
-            throw std::runtime_error("layer.effects must be an array of at most 64 entries");
-        for (const auto& raw_effect : effects) {
-            LayerPlan::EffectPlan effect;
-            const auto kind_name = raw_effect.value("type", std::string{});
-            const auto kind = decode_effect_kind(kind_name);
-            if (raw_effect.contains("time")) {
-                const auto& time=raw_effect.at("time");
-                if(!time.is_object()) throw std::runtime_error("effect time must be an object");
-                if(time.contains("posterize_fps")) {
-                    effect.posterize_fps=time.at("posterize_fps").get<float>();
-                    if(!std::isfinite(*effect.posterize_fps)||*effect.posterize_fps<=0.0f||*effect.posterize_fps>1000.0f)
-                        throw std::runtime_error("effect time posterize_fps must be finite and in (0, 1000]");
-                }
-                if(time.contains("curve")) {
-                    const auto& raw_curve=time.at("curve");
-                    if(!raw_curve.is_array()||raw_curve.size()<2) throw std::runtime_error("effect time curve must contain at least two keyframes");
-                    AnimationTrackPlan curve; curve.property="effect_time";
-                    curve.easing=time.value("easing",std::string{"linear"});
-                    curve.bezier_curve=decode_bezier_curve(time,curve.easing,"effect time");
-                    for(const auto& raw_key:raw_curve) {
-                        AnimationKeyframePlan key;
-                        key.frame=Frame{raw_key.at("frame").get<std::int64_t>()};
-                        const float v=raw_key.at("value").get<float>();
-                        if(key.frame.integral()<0||key.frame.integral()>1000000||!std::isfinite(v)||v<0.0f||v>1.0f)
-                            throw std::runtime_error("effect time curve keyframes require bounded frame values and values in [0, 1]");
-                        key.value={v}; curve.keyframes.push_back(std::move(key));
-                    }
-                    std::sort(curve.keyframes.begin(),curve.keyframes.end(),[](const auto& a,const auto& b){return a.frame<b.frame;});
-                    for(std::size_t i=1;i<curve.keyframes.size();++i)
-                        if(curve.keyframes[i-1].frame==curve.keyframes[i].frame) throw std::runtime_error("effect time curve frames must be unique");
-                    effect.time_curve=std::move(curve);
-                } else if(time.contains("easing")||time.contains("bezier_curve"))
-                    throw std::runtime_error("effect time easing requires a curve");
-                for(auto it=time.begin();it!=time.end();++it)
-                    if(it.key()!="posterize_fps"&&it.key()!="curve"&&it.key()!="easing"&&it.key()!="bezier_curve")
-                        throw std::runtime_error("unsupported effect time option: "+it.key());
-            }
-            switch (kind) {
-            case LayerPlan::EffectKindPlan::Catalog: {
+
+void decode_catalog_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Catalog;
                 effect.canonical_effect_id = raw_effect.at("effect_id").get<std::string>();
                 if (!chronon3d::effects::is_canonical_effect_id(effect.canonical_effect_id))
@@ -160,16 +120,20 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                         effect.canonical_params.push_back({param, sample});
                     }
                 }
-            } break;
-            case LayerPlan::EffectKindPlan::Lut3D: {
+}
+
+void decode_lut_3d_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Lut3D;
                 effect.asset = raw_effect.at("asset").get<std::string>();
                 effect.amount = raw_effect.value("amount", 1.0f);
                 if (effect.asset.empty() || effect.asset.size() > 4096 ||
                     !std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 1.0f)
                     throw std::runtime_error("3D LUT effect requires an asset and amount in [0, 1]");
-            } break;
-            case LayerPlan::EffectKindPlan::Echo: {
+}
+
+void decode_echo_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Echo;
                 effect.echoes = raw_effect.value("echoes", 3u);
                 effect.decay = raw_effect.value("decay", 0.5f);
@@ -178,8 +142,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     effect.decay < 0.0f || effect.decay > 1.0f ||
                     effect.time_offset_frames == 0 || effect.time_offset_frames > 120)
                     throw std::runtime_error("Echo requires echoes in [1, 8], decay in [0, 1], and time_offset_frames in [1, 120]");
-            } break;
-            case LayerPlan::EffectKindPlan::Keying: {
+}
+
+void decode_keying_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Keying;
                 const auto mode = raw_effect.value("mode", std::string("chroma"));
                 if (mode == "luma") effect.keying_mode = LayerPlan::KeyingModePlan::Luma;
@@ -226,22 +192,28 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                 if (!std::isfinite(effect.garbage_feather) || effect.garbage_feather < 0.0f ||
                     effect.garbage_feather > 0.5f)
                     throw std::runtime_error("Keying garbage_feather must be in [0, 0.5]");
-            } break;
-            case LayerPlan::EffectKindPlan::Threshold: {
+}
+
+void decode_threshold_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Threshold;
                 effect.threshold = raw_effect.value("threshold", 0.5f);
                 effect.threshold_softness = raw_effect.value("softness", 0.0f);
                 if (!std::isfinite(effect.threshold) || effect.threshold < 0.0f || effect.threshold > 1.0f ||
                     !std::isfinite(effect.threshold_softness) || effect.threshold_softness < 0.0f || effect.threshold_softness > 1.0f)
                     throw std::runtime_error("Threshold and softness must be in [0, 1]");
-            } break;
-            case LayerPlan::EffectKindPlan::Mosaic: {
+}
+
+void decode_mosaic_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Mosaic;
                 effect.block_size = raw_effect.value("block_size", 8u);
                 if (effect.block_size == 0 || effect.block_size > 512)
                     throw std::runtime_error("Mosaic block_size must be in [1, 512]");
-            } break;
-            case LayerPlan::EffectKindPlan::ChromaticAberration: {
+}
+
+void decode_chromatic_aberration_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::ChromaticAberration;
                 effect.chromatic_red_offset = raw_effect.value("red_offset", 2.0f);
                 effect.chromatic_blue_offset = raw_effect.value("blue_offset", -2.0f);
@@ -289,8 +261,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                 decode_channel_transform("red_transform", effect.chromatic_red_transform);
                 decode_channel_transform("green_transform", effect.chromatic_green_transform);
                 decode_channel_transform("blue_transform", effect.chromatic_blue_transform);
-            } break;
-            case LayerPlan::EffectKindPlan::Halftone: {
+}
+
+void decode_halftone_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Halftone;
                 effect.halftone_size = raw_effect.value("size", 8u);
                 effect.halftone_angle = raw_effect.value("angle", 0.0f);
@@ -300,8 +274,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.halftone_amount) ||
                     effect.halftone_amount < 0.0f || effect.halftone_amount > 1.0f)
                     throw std::runtime_error("Halftone requires size in [1, 128], finite angle, and amount in [0, 1]");
-            } break;
-            case LayerPlan::EffectKindPlan::DirectionalBlur: {
+}
+
+void decode_directional_blur_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::DirectionalBlur;
                 effect.directional_angle = raw_effect.value("angle", 0.0f);
                 effect.directional_length = raw_effect.value("length", 0.0f);
@@ -312,8 +288,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     effect.directional_length < 0.0f || effect.directional_length > 2048.0f ||
                     effect.directional_samples < 0 || effect.directional_samples > 256)
                     throw std::runtime_error("Directional Blur parameters are outside supported bounds");
-            } break;
-            case LayerPlan::EffectKindPlan::RadialBlur: {
+}
+
+void decode_radial_blur_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::RadialBlur;
                 if (raw_effect.contains("center")) {
                     const auto& center = raw_effect.at("center");
@@ -332,14 +310,18 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     effect.radial_render_samples > 256 || effect.radial_preview_samples < 2 ||
                     effect.radial_preview_samples > 128)
                     throw std::runtime_error("Radial Blur parameters are outside supported bounds");
-            } break;
-            case LayerPlan::EffectKindPlan::GaussianBlur: {
+}
+
+void decode_gaussian_blur_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::GaussianBlur;
                 effect.radius = raw_effect.value("radius", 8.0f);
                 if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f)
                     throw std::runtime_error("Gaussian blur radius must be in [0, 256]");
-            } break;
-            case LayerPlan::EffectKindPlan::DropShadow: {
+}
+
+void decode_drop_shadow_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::DropShadow;
                 effect.radius = raw_effect.value("radius", 12.0f);
                 if (raw_effect.contains("offset")) {
@@ -364,8 +346,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                 }
                 if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f)
                     throw std::runtime_error("Drop shadow radius must be in [0, 256]");
-            } break;
-            case LayerPlan::EffectKindPlan::Bloom: {
+}
+
+void decode_bloom_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Bloom;
                 effect.bloom_threshold = raw_effect.value("threshold", 0.80f);
                 effect.radius = raw_effect.value("radius", 24.0f);
@@ -374,8 +358,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
                     !std::isfinite(effect.bloom_intensity) || effect.bloom_intensity < 0.0f || effect.bloom_intensity > 4.0f)
                     throw std::runtime_error("Bloom requires threshold in [0, 1], radius in [0, 256], and intensity in [0, 4]");
-            } break;
-            case LayerPlan::EffectKindPlan::Glow: {
+}
+
+void decode_glow_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Glow;
                 effect.radius = raw_effect.value("radius", 24.0f);
                 effect.glow_intensity = raw_effect.value("intensity", 0.25f);
@@ -392,8 +378,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                 if (!std::isfinite(effect.radius) || effect.radius < 0.0f || effect.radius > 256.0f ||
                     !std::isfinite(effect.glow_intensity) || effect.glow_intensity < 0.0f || effect.glow_intensity > 4.0f)
                     throw std::runtime_error("Glow requires radius in [0, 256] and intensity in [0, 4]");
-            } break;
-            case LayerPlan::EffectKindPlan::Vignette: {
+}
+
+void decode_vignette_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Vignette;
                 effect.effect_color = {0.0f, 0.0f, 0.0f, 1.0f};
                 effect.radius = raw_effect.value("radius", 0.5f);
@@ -413,8 +401,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.softness) || effect.softness < 0.0f || effect.softness > 1.0f ||
                     !std::isfinite(effect.amount) || effect.amount < 0.0f || effect.amount > 1.0f)
                     throw std::runtime_error("Vignette radius, softness, and amount must be in [0, 1]");
-            } break;
-            case LayerPlan::EffectKindPlan::LightRays: {
+}
+
+void decode_light_rays_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::LightRays;
                 if (raw_effect.contains("origin")) {
                     const auto& origin = raw_effect.at("origin");
@@ -447,8 +437,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                             return !std::isfinite(component) || component < 0.0f || component > 1.0f;
                         }))
                     throw std::runtime_error("Light rays parameters are outside supported finite ranges");
-            } break;
-            case LayerPlan::EffectKindPlan::Noise: {
+}
+
+void decode_noise_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Noise;
                 effect.amount = raw_effect.value("amount", 0.08f);
                 effect.seed = raw_effect.value("seed", std::uint32_t{0});
@@ -467,8 +459,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.grain_midtone_response) || effect.grain_midtone_response < 0.0f || effect.grain_midtone_response > 4.0f ||
                     !std::isfinite(effect.grain_highlight_response) || effect.grain_highlight_response < 0.0f || effect.grain_highlight_response > 4.0f)
                     throw std::runtime_error("Noise amount, size, or tonal response is outside its supported range");
-            } break;
-            case LayerPlan::EffectKindPlan::FractalNoise: {
+}
+
+void decode_fractal_noise_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::FractalNoise;
                 if (raw_effect.contains("field")) {
                     if (raw_effect.contains("seed") || raw_effect.contains("octaves") ||
@@ -494,8 +488,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.contrast) || effect.contrast < 0.0f || effect.contrast > 16.0f ||
                     !std::isfinite(effect.brightness) || std::abs(effect.brightness) > 16.0f)
                     throw std::runtime_error("Fractal Noise parameters are outside supported finite ranges");
-            } break;
-            case LayerPlan::EffectKindPlan::Sharpen: {
+}
+
+void decode_sharpen_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Sharpen;
                 effect.amount = raw_effect.value("amount", 0.0f);
                 effect.radius = raw_effect.value("radius", 1.0f);
@@ -504,8 +500,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.radius) || effect.radius <= 0.0f || effect.radius > 64.0f ||
                     !std::isfinite(effect.threshold) || effect.threshold < 0.0f || effect.threshold > 1.0f)
                     throw std::runtime_error("Invalid sharpen parameters");
-            } break;
-            case LayerPlan::EffectKindPlan::RoughenEdges: {
+}
+
+void decode_roughen_edges_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::RoughenEdges;
                 effect.amount = raw_effect.value("amount", 0.0f);
                 effect.roughen_scale = raw_effect.value("scale", 8.0f);
@@ -520,8 +518,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.warp_evolution) || std::abs(effect.warp_evolution) > 100000.0f ||
                     !std::isfinite(effect.warp_speed) || std::abs(effect.warp_speed) > 1000.0f)
                     throw std::runtime_error("Roughen Edges parameters are outside supported finite ranges");
-            } break;
-            case LayerPlan::EffectKindPlan::TurbulentDisplace: {
+}
+
+void decode_turbulent_displace_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::TurbulentDisplace;
                 effect.amount=raw_effect.value("amount",0.1f); effect.warp_size=raw_effect.value("size",0.1f);
                 effect.warp_evolution=raw_effect.value("evolution",0.0f); effect.warp_speed=raw_effect.value("evolution_speed",0.0f);
@@ -529,23 +529,29 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                 if(!std::isfinite(effect.amount)||effect.amount<0||effect.amount>1||!std::isfinite(effect.warp_size)||effect.warp_size<=0||
                    !std::isfinite(effect.warp_evolution)||!std::isfinite(effect.warp_speed)||effect.warp_complexity<1||effect.warp_complexity>16)
                     throw std::runtime_error("Invalid turbulent displace parameters");
-            } break;
-            case LayerPlan::EffectKindPlan::WaveWarp: {
+}
+
+void decode_wave_warp_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind=LayerPlan::EffectKindPlan::WaveWarp; effect.amount=raw_effect.value("amplitude",0.05f);
                 effect.warp_wavelength=raw_effect.value("wavelength",0.2f); effect.warp_speed=raw_effect.value("speed",1.0f); effect.warp_phase=raw_effect.value("phase",0.0f);
                 if(raw_effect.contains("direction")) { const auto& v=raw_effect.at("direction"); if(!v.is_array()||v.size()!=2) throw std::runtime_error("wave direction requires two values"); effect.warp_direction={v[0].get<float>(),v[1].get<float>()}; }
                 const auto type=raw_effect.value("wave_type",std::string{"sine"});
                 if(type=="triangle") effect.wave_type=1; else if(type=="square") effect.wave_type=2; else if(type=="saw") effect.wave_type=3; else if(type!="sine") throw std::runtime_error("Invalid wave type");
                 if(!std::isfinite(effect.amount)||!std::isfinite(effect.warp_wavelength)||effect.warp_wavelength<=0||!std::isfinite(effect.warp_speed)||!std::isfinite(effect.warp_phase)||!std::isfinite(effect.warp_direction[0])||!std::isfinite(effect.warp_direction[1])) throw std::runtime_error("Invalid wave warp parameters");
-            } break;
-            case LayerPlan::EffectKindPlan::Ripple: {
+}
+
+void decode_ripple_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind=LayerPlan::EffectKindPlan::Ripple; effect.warp_radius=raw_effect.value("radius",0.25f);
                 effect.warp_speed=raw_effect.value("wave_speed",1.5f); effect.warp_width=raw_effect.value("width",0.1f);
                 effect.warp_height=raw_effect.value("wave_height",0.05f); effect.warp_damping=raw_effect.value("damping",0.5f);
                 if(raw_effect.contains("center")) { const auto& v=raw_effect.at("center"); if(!v.is_array()||v.size()!=2) throw std::runtime_error("ripple center requires two values"); effect.warp_center={v[0].get<float>(),v[1].get<float>()}; }
                 if(!std::isfinite(effect.warp_radius)||effect.warp_radius<=0||!std::isfinite(effect.warp_speed)||!std::isfinite(effect.warp_width)||effect.warp_width<=0||!std::isfinite(effect.warp_height)||!std::isfinite(effect.warp_damping)||effect.warp_damping<0||!std::isfinite(effect.warp_center[0])||!std::isfinite(effect.warp_center[1])) throw std::runtime_error("Invalid ripple parameters");
-            } break;
-            case LayerPlan::EffectKindPlan::DisplacementMap: {
+}
+
+void decode_displacement_map_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind=LayerPlan::EffectKindPlan::DisplacementMap;
                 if (raw_effect.contains("map_layer"))
                     effect.map_layer=raw_effect.at("map_layer").get<std::string>();
@@ -561,8 +567,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                    !std::isfinite(effect.map_intensity_x)||!std::isfinite(effect.map_intensity_y)||
                    std::abs(effect.map_intensity_x)>4.0f||std::abs(effect.map_intensity_y)>4.0f)
                     throw std::runtime_error("Invalid displacement map parameters");
-            } break;
-            case LayerPlan::EffectKindPlan::CornerPin: {
+}
+
+void decode_corner_pin_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::CornerPin;
                 const auto read_quad = [&](const char* key, std::size_t index) {
                     if (!raw_effect.contains(key)) return;
@@ -579,8 +587,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                 for (const float value : effect.quad)
                     if (!std::isfinite(value) || std::abs(value) > 4.0f)
                         throw std::runtime_error("Corner pin coordinates must be finite and within [-4, 4]");
-            } break;
-            case LayerPlan::EffectKindPlan::Twirl: {
+}
+
+void decode_twirl_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Twirl;
                 if (raw_effect.contains("center")) {
                     const auto& center = raw_effect.at("center");
@@ -598,8 +608,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.warp_falloff) || effect.warp_falloff <= 0.0f ||
                     effect.warp_falloff > 4.0f)
                     throw std::runtime_error("Invalid twirl parameters");
-            } break;
-            case LayerPlan::EffectKindPlan::Bulge: {
+}
+
+void decode_bulge_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Bulge;
                 if (raw_effect.contains("center")) {
                     const auto& center = raw_effect.at("center");
@@ -615,8 +627,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.warp_radius) || effect.warp_radius <= 0.0f ||
                     effect.warp_radius > 2.0f)
                     throw std::runtime_error("Invalid bulge parameters");
-            } break;
-            case LayerPlan::EffectKindPlan::MeshWarp: {
+}
+
+void decode_mesh_warp_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::MeshWarp;
                 effect.mesh_cols = raw_effect.value("cols", 2u);
                 effect.mesh_rows = raw_effect.value("rows", 2u);
@@ -639,8 +653,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     effect.mesh_offsets.push_back(component);
                 }
 
-            } break;
-            case LayerPlan::EffectKindPlan::LensDistortion: {
+}
+
+void decode_lens_distortion_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::LensDistortion;
                 effect.lens_curvature = raw_effect.value("curvature", 0.15f);
                 effect.lens_scale = raw_effect.value("scale", 1.0f);
@@ -655,8 +671,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.lens_scale) || effect.lens_scale < 0.1f || effect.lens_scale > 4.0f ||
                     !std::isfinite(effect.lens_center[0]) || !std::isfinite(effect.lens_center[1]))
                     throw std::runtime_error("Lens distortion parameters are non-finite or outside supported range");
-            } break;
-            case LayerPlan::EffectKindPlan::LuminanceResponse: {
+}
+
+void decode_luminance_response_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::LuminanceResponse;
                 effect.response_threshold = raw_effect.value("threshold", 0.70f);
                 effect.response_softness = raw_effect.value("softness", 0.20f);
@@ -675,8 +693,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.response_radius) || effect.response_radius < 0.0f || effect.response_radius > 256.0f ||
                     !std::isfinite(effect.response_intensity) || effect.response_intensity < 0.0f || effect.response_intensity > 8.0f)
                     throw std::runtime_error("Luminance response parameters are non-finite or outside supported range");
-            } break;
-            case LayerPlan::EffectKindPlan::FoldWarp: {
+}
+
+void decode_fold_warp_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::FoldWarp;
                 const auto axis_str = raw_effect.value("axis", "vertical");
                 effect.fold_axis = (axis_str == "horizontal") ? 1 : 0;
@@ -691,8 +711,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.fold_falloff) || effect.fold_falloff < 0.1f || effect.fold_falloff > 4.0f ||
                     !std::isfinite(effect.fold_perspective) || effect.fold_perspective < 0.0f || effect.fold_perspective > 0.5f)
                     throw std::runtime_error("Fold warp parameters are non-finite or outside supported range");
-            } break;
-            case LayerPlan::EffectKindPlan::CreaseShading: {
+}
+
+void decode_crease_shading_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::CreaseShading;
                 const auto axis_str = raw_effect.value("axis", "vertical");
                 effect.crease_axis = (axis_str == "horizontal") ? 1 : 0;
@@ -707,8 +729,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.crease_light_side) || effect.crease_light_side < 0.0f || effect.crease_light_side > 1.0f ||
                     !std::isfinite(effect.crease_softness) || effect.crease_softness < 0.0f || effect.crease_softness > 1.0f)
                     throw std::runtime_error("Crease shading parameters are non-finite or outside supported range");
-            } break;
-            case LayerPlan::EffectKindPlan::Scanlines: {
+}
+
+void decode_scanlines_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Scanlines;
                 const auto axis_str = raw_effect.value("axis", "horizontal");
                 effect.scanlines_axis = (axis_str == "vertical") ? 1 : 0;
@@ -719,8 +743,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.scanlines_amount) || effect.scanlines_amount < 0.0f || effect.scanlines_amount > 1.0f ||
                     !std::isfinite(effect.scanlines_phase) || effect.scanlines_phase < 0.0f || effect.scanlines_phase >= 1.0f)
                     throw std::runtime_error("Scanline parameters are non-finite or outside supported range");
-            } break;
-            case LayerPlan::EffectKindPlan::RetroTv: {
+}
+
+void decode_retro_tv_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::RetroTv;
                 effect.retro_jitter_px = raw_effect.value("jitter_px", 3.0f);
                 effect.retro_jitter_speed = raw_effect.value("jitter_speed", 20.0f);
@@ -734,8 +760,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.retro_bleed) || effect.retro_bleed < 0.0f || effect.retro_bleed > 1.0f ||
                     !std::isfinite(effect.retro_noise) || effect.retro_noise < 0.0f || effect.retro_noise > 1.0f)
                     throw std::runtime_error("Retro TV parameters are non-finite or outside supported range");
-            } break;
-            case LayerPlan::EffectKindPlan::Halation: {
+}
+
+void decode_halation_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::Halation;
                 effect.halation_threshold = raw_effect.value("threshold", 0.85f);
                 effect.halation_softness = raw_effect.value("softness", 0.15f);
@@ -754,8 +782,10 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.halation_tint[0]) || !std::isfinite(effect.halation_tint[1]) ||
                     !std::isfinite(effect.halation_tint[2]) || !std::isfinite(effect.halation_tint[3]))
                     throw std::runtime_error("Film halation parameters are non-finite or outside supported range");
-            } break;
-            case LayerPlan::EffectKindPlan::AnamorphicStreak: {
+}
+
+void decode_anamorphic_streak_effect(LayerPlan::EffectPlan& effect,
+                            const nlohmann::json& raw_effect) {
                 effect.kind = LayerPlan::EffectKindPlan::AnamorphicStreak;
                 effect.streak_threshold = raw_effect.value("threshold", 0.85f);
                 effect.streak_softness = raw_effect.value("softness", 0.10f);
@@ -774,8 +804,105 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
                     !std::isfinite(effect.streak_tint[0]) || !std::isfinite(effect.streak_tint[1]) ||
                     !std::isfinite(effect.streak_tint[2]) || !std::isfinite(effect.streak_tint[3]))
                     throw std::runtime_error("Anamorphic streak parameters are non-finite or outside supported range");
-            } break;
+}
+
+// One row per EffectKindPlan.  Adding an effect is a decoder function plus
+// one row here; the fingerprint/preparation switches still enumerate kinds
+// independently and remain the compile-time coverage gate.
+struct EffectDecoderEntry {
+    LayerPlan::EffectKindPlan kind;
+    void (*decode)(LayerPlan::EffectPlan&, const nlohmann::json&);
+};
+
+constexpr EffectDecoderEntry kEffectDecoders[] = {
+    {LayerPlan::EffectKindPlan::Catalog, &decode_catalog_effect},
+    {LayerPlan::EffectKindPlan::Lut3D, &decode_lut_3d_effect},
+    {LayerPlan::EffectKindPlan::Echo, &decode_echo_effect},
+    {LayerPlan::EffectKindPlan::Keying, &decode_keying_effect},
+    {LayerPlan::EffectKindPlan::Threshold, &decode_threshold_effect},
+    {LayerPlan::EffectKindPlan::Mosaic, &decode_mosaic_effect},
+    {LayerPlan::EffectKindPlan::ChromaticAberration, &decode_chromatic_aberration_effect},
+    {LayerPlan::EffectKindPlan::Halftone, &decode_halftone_effect},
+    {LayerPlan::EffectKindPlan::DirectionalBlur, &decode_directional_blur_effect},
+    {LayerPlan::EffectKindPlan::RadialBlur, &decode_radial_blur_effect},
+    {LayerPlan::EffectKindPlan::GaussianBlur, &decode_gaussian_blur_effect},
+    {LayerPlan::EffectKindPlan::DropShadow, &decode_drop_shadow_effect},
+    {LayerPlan::EffectKindPlan::Bloom, &decode_bloom_effect},
+    {LayerPlan::EffectKindPlan::Glow, &decode_glow_effect},
+    {LayerPlan::EffectKindPlan::Vignette, &decode_vignette_effect},
+    {LayerPlan::EffectKindPlan::LightRays, &decode_light_rays_effect},
+    {LayerPlan::EffectKindPlan::Noise, &decode_noise_effect},
+    {LayerPlan::EffectKindPlan::FractalNoise, &decode_fractal_noise_effect},
+    {LayerPlan::EffectKindPlan::Sharpen, &decode_sharpen_effect},
+    {LayerPlan::EffectKindPlan::RoughenEdges, &decode_roughen_edges_effect},
+    {LayerPlan::EffectKindPlan::TurbulentDisplace, &decode_turbulent_displace_effect},
+    {LayerPlan::EffectKindPlan::WaveWarp, &decode_wave_warp_effect},
+    {LayerPlan::EffectKindPlan::Ripple, &decode_ripple_effect},
+    {LayerPlan::EffectKindPlan::DisplacementMap, &decode_displacement_map_effect},
+    {LayerPlan::EffectKindPlan::CornerPin, &decode_corner_pin_effect},
+    {LayerPlan::EffectKindPlan::Twirl, &decode_twirl_effect},
+    {LayerPlan::EffectKindPlan::Bulge, &decode_bulge_effect},
+    {LayerPlan::EffectKindPlan::MeshWarp, &decode_mesh_warp_effect},
+    {LayerPlan::EffectKindPlan::LensDistortion, &decode_lens_distortion_effect},
+    {LayerPlan::EffectKindPlan::LuminanceResponse, &decode_luminance_response_effect},
+    {LayerPlan::EffectKindPlan::FoldWarp, &decode_fold_warp_effect},
+    {LayerPlan::EffectKindPlan::CreaseShading, &decode_crease_shading_effect},
+    {LayerPlan::EffectKindPlan::Scanlines, &decode_scanlines_effect},
+    {LayerPlan::EffectKindPlan::RetroTv, &decode_retro_tv_effect},
+    {LayerPlan::EffectKindPlan::Halation, &decode_halation_effect},
+    {LayerPlan::EffectKindPlan::AnamorphicStreak, &decode_anamorphic_streak_effect},
+};
+
+const EffectDecoderEntry* find_effect_decoder(LayerPlan::EffectKindPlan kind) {
+    for (const auto& entry : kEffectDecoders)
+        if (entry.kind == kind) return &entry;
+    return nullptr;
+}
+void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
+    if (value.contains("effects")) {
+        const auto& effects = value.at("effects");
+        if (!effects.is_array() || effects.size() > 64)
+            throw std::runtime_error("layer.effects must be an array of at most 64 entries");
+        for (const auto& raw_effect : effects) {
+            LayerPlan::EffectPlan effect;
+            const auto kind_name = raw_effect.value("type", std::string{});
+            const auto kind = decode_effect_kind(kind_name);
+            if (raw_effect.contains("time")) {
+                const auto& time=raw_effect.at("time");
+                if(!time.is_object()) throw std::runtime_error("effect time must be an object");
+                if(time.contains("posterize_fps")) {
+                    effect.posterize_fps=time.at("posterize_fps").get<float>();
+                    if(!std::isfinite(*effect.posterize_fps)||*effect.posterize_fps<=0.0f||*effect.posterize_fps>1000.0f)
+                        throw std::runtime_error("effect time posterize_fps must be finite and in (0, 1000]");
+                }
+                if(time.contains("curve")) {
+                    const auto& raw_curve=time.at("curve");
+                    if(!raw_curve.is_array()||raw_curve.size()<2) throw std::runtime_error("effect time curve must contain at least two keyframes");
+                    AnimationTrackPlan curve; curve.property="effect_time";
+                    curve.easing=time.value("easing",std::string{"linear"});
+                    curve.bezier_curve=decode_bezier_curve(time,curve.easing,"effect time");
+                    for(const auto& raw_key:raw_curve) {
+                        AnimationKeyframePlan key;
+                        key.frame=Frame{raw_key.at("frame").get<std::int64_t>()};
+                        const float v=raw_key.at("value").get<float>();
+                        if(key.frame.integral()<0||key.frame.integral()>1000000||!std::isfinite(v)||v<0.0f||v>1.0f)
+                            throw std::runtime_error("effect time curve keyframes require bounded frame values and values in [0, 1]");
+                        key.value={v}; curve.keyframes.push_back(std::move(key));
+                    }
+                    std::sort(curve.keyframes.begin(),curve.keyframes.end(),[](const auto& a,const auto& b){return a.frame<b.frame;});
+                    for(std::size_t i=1;i<curve.keyframes.size();++i)
+                        if(curve.keyframes[i-1].frame==curve.keyframes[i].frame) throw std::runtime_error("effect time curve frames must be unique");
+                    effect.time_curve=std::move(curve);
+                } else if(time.contains("easing")||time.contains("bezier_curve"))
+                    throw std::runtime_error("effect time easing requires a curve");
+                for(auto it=time.begin();it!=time.end();++it)
+                    if(it.key()!="posterize_fps"&&it.key()!="curve"&&it.key()!="easing"&&it.key()!="bezier_curve")
+                        throw std::runtime_error("unsupported effect time option: "+it.key());
             }
+            const auto* decoder = find_effect_decoder(kind);
+            if (decoder == nullptr)
+                throw std::runtime_error("unsupported layer effect type");
+            decoder->decode(effect, raw_effect);
             layer.effects.push_back(std::move(effect));
         }
     }

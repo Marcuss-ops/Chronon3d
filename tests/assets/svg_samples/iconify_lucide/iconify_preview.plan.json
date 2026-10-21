@@ -1,0 +1,125 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "iconify_lucide_static_preview",
+  "canvas": {
+    "width": 854,
+    "height": 480,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "output": {
+    "path": "iconify_preview.mp4",
+    "format": "mp4"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -579
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 45,
+    "near": 0.1,
+    "far": 10000,
+    "zoom": 579
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "shape",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "size": [
+        854,
+        480
+      ],
+      "shape": {
+        "type": "path",
+        "asset": "tests/assets/svg_samples/iconify_lucide/iconify_preview_background.svg"
+      },
+      "enable_3d": true
+    },
+    {
+      "id": "icon_0",
+      "type": "shape",
+      "position": [
+        82,
+        185,
+        0
+      ],
+      "size": [
+        84,
+        84
+      ],
+      "shape": {
+        "type": "path",
+        "asset": "tests/assets/svg_samples/iconify_lucide/bus-front-blue-128.svg"
+      },
+      "enable_3d": true
+    },
+    {
+      "id": "icon_1",
+      "type": "shape",
+      "position": [
+        272,
+        185,
+        0
+      ],
+      "size": [
+        84,
+        84
+      ],
+      "shape": {
+        "type": "path",
+        "asset": "tests/assets/svg_samples/iconify_lucide/lightbulb-amber-128.svg"
+      },
+      "enable_3d": true
+    },
+    {
+      "id": "icon_2",
+      "type": "shape",
+      "position": [
+        462,
+        185,
+        0
+      ],
+      "size": [
+        84,
+        84
+      ],
+      "shape": {
+        "type": "path",
+        "asset": "tests/assets/svg_samples/iconify_lucide/thermometer-coral-128.svg"
+      },
+      "enable_3d": true
+    },
+    {
+      "id": "icon_3",
+      "type": "shape",
+      "position": [
+        652,
+        185,
+        0
+      ],
+      "size": [
+        84,
+        84
+      ],
+      "shape": {
+        "type": "path",
+        "asset": "tests/assets/svg_samples/iconify_lucide/chart-mint-128.svg"
+      },
+      "enable_3d": true
+    }
+  ]
+}

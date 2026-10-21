@@ -91,7 +91,8 @@ std::pair<int, int> directional_blur_margins(float angle_degrees, float length)
 // Fast path: horizontal blur (angle = 0°)
 // =============================================================================
 
-static void apply_directional_blur_horizontal(
+template <bool kVertical>
+static void apply_directional_blur_axis(
     Framebuffer& fb, float length, int samples,
     const std::optional<raster::BBox>& clip,
     ::chronon3d::EffectScratchResources& scratch)
@@ -121,8 +122,11 @@ static void apply_directional_blur_horizontal(
             float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
             for (int s = 0; s < n; ++s) {
                 const float u = (static_cast<float>(s) + 0.5f) * inv_n;
-                const float sx = static_cast<float>(x) - half_len + u * length;
-                const float sy = static_cast<float>(y);
+                const float offset = -half_len + u * length;
+                const float sx = kVertical ? static_cast<float>(x)
+                                           : static_cast<float>(x) + offset;
+                const float sy = kVertical ? static_cast<float>(y) + offset
+                                           : static_cast<float>(y);
                 const Color c = sampler.bilinear(sx, sy);
                 r += c.r * inv_n;
                 g += c.g * inv_n;
@@ -134,52 +138,22 @@ static void apply_directional_blur_horizontal(
     }
 }
 
-// =============================================================================
-// Fast path: vertical blur (angle = 90°)
-// =============================================================================
+static void apply_directional_blur_horizontal(
+    Framebuffer& fb, float length, int samples,
+    const std::optional<raster::BBox>& clip,
+    ::chronon3d::EffectScratchResources& scratch)
+{
+    apply_directional_blur_axis<false>(fb, length, samples, clip, scratch);
+}
 
 static void apply_directional_blur_vertical(
     Framebuffer& fb, float length, int samples,
     const std::optional<raster::BBox>& clip,
     ::chronon3d::EffectScratchResources& scratch)
 {
-    const int w = fb.width(), h = fb.height();
-    int x0 = 0, x1 = w, y0 = 0, y1 = h;
-    if (clip) {
-        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
-        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
-    }
-
-    if (length <= 0.0f || y0 >= y1 || x0 >= x1) return;
-
-    const int n = (samples > 1) ? samples : std::max(2, static_cast<int>(std::ceil(length / 2.0f)));
-    const float half_len = length * 0.5f;
-    const float inv_n = 1.0f / static_cast<float>(n);
-
-    scratch.ensure_size(w, h);
-    Framebuffer* temp = scratch.framebuffer.get();
-    temp->blit(fb, 0, 0);
-    // Documented contract: bilinear taps with Clamp edges.
-    const sampling::Sampler2D sampler(*temp, sampling::EdgeMode::Clamp);
-
-    for (int y = y0; y < y1; ++y) {
-        Color* dst_row = fb.pixels_row(y);
-        for (int x = x0; x < x1; ++x) {
-            float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
-            for (int s = 0; s < n; ++s) {
-                const float u = (static_cast<float>(s) + 0.5f) * inv_n;
-                const float sx = static_cast<float>(x);
-                const float sy = static_cast<float>(y) - half_len + u * length;
-                const Color c = sampler.bilinear(sx, sy);
-                r += c.r * inv_n;
-                g += c.g * inv_n;
-                b += c.b * inv_n;
-                a += c.a * inv_n;
-            }
-            dst_row[x] = Color{r, g, b, a};
-        }
-    }
+    apply_directional_blur_axis<true>(fb, length, samples, clip, scratch);
 }
+
 
 // =============================================================================
 // Generic directional blur (any angle)
