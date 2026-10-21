@@ -3871,4 +3871,11 @@ TEST_CASE("runtime camera provider samples exact fractional frames and fingerpri
     CHECK(other_source->fingerprint.content_digest != prepared->fingerprint.content_digest);
     CHECK(other_source->composition->scene_content_fingerprint() !=
           prepared->composition->scene_content_fingerprint());
+
+    auto conflicting_plan = plan;
+    conflicting_plan.camera_animation = std::vector<render_plan::CameraTrackPlan>{};
+    const auto conflicting = render_plan::compile_render_plan(
+        conflicting_plan, resolver, {}, nullptr, &provider);
+    REQUIRE_FALSE(conflicting);
+    CHECK(conflicting.error().code == "runtime_camera_conflicts_with_tracks");
 }
