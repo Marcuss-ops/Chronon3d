@@ -4,6 +4,7 @@
 
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/render_plan/render_plan_compiler.hpp>
 
 #include <cmath>
 #include <filesystem>
@@ -96,4 +97,44 @@ TEST_CASE("Renderer consumes already-resolved camera samples") {
     SUBCASE("roll") {
         render_resolved_camera(TestAxis::Roll, "ResolvedCameraRollTest", "roll.png");
     }
+}
+
+TEST_CASE("runtime camera provider changes rendered pixels") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+
+    RenderPlan plan;
+    plan.job_id = "runtime-camera-pixel-truth";
+    plan.canvas = {.width = 96, .height = 64, .fps = FrameRate{30, 1},
+                   .duration = Frame{2}};
+    plan.camera = CameraPlan{};
+    LayerPlan subject;
+    subject.id = "camera-subject";
+    subject.type = LayerType::Color;
+    subject.color = {0.95f, 0.2f, 0.1f, 1.0f};
+    subject.size = {42.0f, 30.0f};
+    subject.position = {48.0f, 32.0f, 0.0f};
+    plan.layers.push_back(subject);
+
+    RuntimeCameraSampleProvider provider{
+        .fingerprint = "cm3d-pixel-truth-test",
+        .sample = [camera = *plan.camera](double frame) mutable {
+            auto resolved = camera;
+            // A deterministic resolved CM3D pose moves the camera across the
+            // subject between integer presentation frames.
+            resolved.position[0] = static_cast<float>(frame * 240.0);
+            return resolved;
+        }};
+    assets::AssetResolver resolver;
+    const auto prepared = compile_render_plan(plan, resolver, {}, nullptr, &provider);
+    REQUIRE(prepared);
+
+    auto renderer = test::make_renderer();
+    const auto first = renderer.render_compiled(prepared->compiled_composition, Frame{0});
+    const auto second = renderer.render_compiled(prepared->compiled_composition, Frame{1});
+    REQUIRE(first);
+    REQUIRE(second);
+    CHECK(first->width() == 96);
+    CHECK(first->height() == 64);
+    CHECK(test::framebuffer_hash(*first) != test::framebuffer_hash(*second));
 }
