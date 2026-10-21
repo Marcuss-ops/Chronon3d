@@ -172,3 +172,31 @@ The overall migration remains ACTIVE. Remaining non-visual, non-CI work:
 
 The G gates, image-level parity checks, and GitHub CI are tracked separately
 and are not represented as complete by this audit.
+
+## Workspace closeout progress (2026-10-21)
+
+Partial implementation is in the working trees and is not yet a closeout:
+
+- The shared `CameraPlan` now carries `sensor_width_mm` and normalized
+  `lens_shift` (`+X` right, `+Y` down). CM3D's offline baker and JSON bridge
+  serialize both; C3D decodes, validates, compiles, and fingerprints them.
+- Camera sample time is defined by absolute `frame` and canvas `fps_num/fps_den`.
+  Shutter duration is `(shutter_angle / 360) * (fps_den / fps_num)` seconds;
+  shutter sample count is carried by `MotionBlurPlan`. The runtime provider
+  evaluates exact requested times; offline samples interpolate complete poses.
+- Several CameraRig-based Template emitters now use CM3D's resolved sample
+  baker. The scene-camera and documentary snapshot Python adapters now serialize
+  already-resolved per-frame poses rather than property tracks. The title-camera
+  v1 Python generator was retired in favor of the v2 C++ emitter.
+- The active blackboard golden was regenerated from its current emitter. Eight
+  unreferenced signature/astronaut golden plans were removed; they had no
+  repository consumers.
+
+Still open: multiple active Template producers continue to emit or stage
+`camera_animation` (including short-phrase, documentary, map, single-image,
+NBA, and older C++ emitters). The full producer/consumer inventory and golden
+plan sweep are not closed. The current edits have not been committed, and the
+C3D full build was interrupted before completion. Do not mark this ticket
+complete until those producers are migrated or retired, remaining plans are
+converted or removed, and the focused builds pass. G-gates, visual parity, and
+CI remain outside this closeout as requested.

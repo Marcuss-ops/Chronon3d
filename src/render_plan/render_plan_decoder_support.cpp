@@ -218,9 +218,15 @@ CameraPlan decode_camera(const nlohmann::json& value) {
     // Physical lens authoring (0 = not authored). Unknown camera-level fields
     // (e.g. node/target hints) stay ignored: plans in the wild carry them.
     camera.focal_length_mm = value.value("focal_length_mm", camera.focal_length_mm);
+    camera.sensor_width_mm = value.value("sensor_width_mm", camera.sensor_width_mm);
+    if (value.contains("lens_shift"))
+        camera.lens_shift = decode_json_vector<2>(value.at("lens_shift"), "camera.lens_shift must contain exactly 2 numbers");
     camera.f_stop = value.value("f_stop", camera.f_stop);
     camera.iris_blades = value.value("iris_blades", camera.iris_blades);
-    if (!std::isfinite(camera.focal_length_mm) ||
+    if (!std::isfinite(camera.sensor_width_mm) || camera.sensor_width_mm < 1.f || camera.sensor_width_mm > 100.f ||
+        !std::isfinite(camera.lens_shift[0]) || !std::isfinite(camera.lens_shift[1]) ||
+        std::abs(camera.lens_shift[0]) > 1.f || std::abs(camera.lens_shift[1]) > 1.f ||
+        !std::isfinite(camera.focal_length_mm) ||
         (camera.focal_length_mm != 0.0f &&
          (camera.focal_length_mm < 12.0f || camera.focal_length_mm > 200.0f)) ||
         !std::isfinite(camera.f_stop) ||

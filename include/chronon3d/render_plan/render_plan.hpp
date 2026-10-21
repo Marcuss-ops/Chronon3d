@@ -412,6 +412,10 @@ struct AnimationPlan {
     std::vector<AnimationTrackPlan> tracks;
 };
 
+/// Shutter duration is expressed as a fraction of one frame: seconds are
+/// (shutter_angle / 360) * (fps_den / fps_num). `samples` is the number of
+/// temporal renderer samples distributed over that interval. The camera
+/// provider is queried at each resulting absolute presentation time.
 struct MotionBlurPlan {
     float shutter_angle{180.0f};
     std::uint32_t samples{12};
@@ -483,6 +487,9 @@ struct CameraPlan {
     // and an f-stop is authored, the camera compiles to the physical thin-
     // lens model; otherwise the legacy blur-per-unit model is used.
     float focal_length_mm{0.0f};
+    float sensor_width_mm{36.0f};
+    // Normalized viewport shift: +X right, +Y down, each unit is one viewport.
+    std::array<float, 2> lens_shift{0.0f, 0.0f};
     float f_stop{0.0f};
     int iris_blades{0};
     bool dof_enabled{false};
@@ -498,8 +505,12 @@ struct CameraPlan {
 };
 
 // A complete, already-resolved renderer camera at an absolute presentation
-// frame. Offline plans store these samples so C3D never reconstructs camera
-// intent from independently animated properties.
+// frame. Seconds are derived from this frame and the enclosing CanvasPlan's
+// fps_num/fps_den. For sub-frame shutter samples, use MotionBlurPlan timing;
+// offline plans interpolate adjacent complete samples while a runtime CM3D
+// provider can evaluate the exact requested time. Offline plans store these
+// values so C3D never reconstructs camera intent from independently animated
+// properties.
 struct CameraSamplePlan {
     double frame{0.0};
     CameraPlan camera;

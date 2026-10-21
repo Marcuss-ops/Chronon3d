@@ -379,6 +379,8 @@ void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
     out.add_float(camera.dof_aperture);
     out.add_float(camera.dof_max_blur);
     out.add_float(camera.focal_length_mm);
+    out.add_float(camera.sensor_width_mm);
+    for (const auto value : camera.lens_shift) out.add_float(value);
     out.add_float(camera.f_stop);
     out.add_i64(static_cast<std::int64_t>(camera.iris_blades));
     out.add_float(camera.dof_f_stop);

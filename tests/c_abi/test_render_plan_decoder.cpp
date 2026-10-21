@@ -3721,7 +3721,8 @@ TEST_CASE("resolved camera samples carry DOF and physical optics") {
     }}));
     source["canvas"]["duration_frames"] = 2;
     source["camera"] = {{"type", "perspective"}, {"fov_deg", 50}, {"near", 1}, {"far", 10000},
-        {"zoom", 1}, {"focal_length_mm", 50}, {"f_stop", 2.0}, {"iris_blades", 6},
+        {"zoom", 1}, {"focal_length_mm", 50}, {"sensor_width_mm", 32},
+        {"lens_shift", {0.04, -0.02}}, {"f_stop", 2.0}, {"iris_blades", 6},
         {"dof", {{"enabled", true}, {"focus_distance", 1400}, {"aperture", 0.02}, {"max_blur", 24},
             {"f_stop", 2.0}, {"iris_blades", 6}, {"highlight_gain", 1.5}}}};
     source["camera_samples"] = nlohmann::json::array({
@@ -3733,6 +3734,9 @@ TEST_CASE("resolved camera samples carry DOF and physical optics") {
     REQUIRE(decoded);
     REQUIRE(decoded->camera_samples);
     CHECK(decoded->camera_samples->at(1).camera.focal_length_mm == doctest::Approx(85.f));
+    CHECK(decoded->camera_samples->at(1).camera.sensor_width_mm == doctest::Approx(24.f));
+    CHECK(decoded->camera_samples->at(1).camera.lens_shift[0] == doctest::Approx(-0.1f));
+    CHECK(decoded->camera_samples->at(1).camera.lens_shift[1] == doctest::Approx(0.03f));
     CHECK(decoded->camera_samples->at(1).camera.dof_focus_distance == doctest::Approx(720.f));
     CHECK(decoded->camera_samples->at(1).camera.dof_aperture == doctest::Approx(0.06f));
 
@@ -3742,6 +3746,12 @@ TEST_CASE("resolved camera samples carry DOF and physical optics") {
     auto bad_camera = source;
     bad_camera["camera_samples"][1]["camera"]["focal_length_mm"] = 400;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_camera));
+    auto bad_sensor = source;
+    bad_sensor["camera"]["sensor_width_mm"] = 0.2;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_sensor));
+    auto bad_shift = source;
+    bad_shift["camera"]["lens_shift"] = {1.5, 0};
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_shift));
     auto bad_iris = source;
     bad_iris["camera"]["dof"]["iris_blades"] = 16;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_iris));
