@@ -431,32 +431,6 @@ inline void append_layer_keys(std::vector<Frame>& out, const LayerPlan& layer,
         }
     }
 }
-inline void append_camera_keys(std::vector<Frame>& out, const std::vector<CameraTrackPlan>& tracks,
-                               Frame first, Frame end, bool& complete) {
-    for (const auto& t : tracks) for (const auto& key : t.keyframes)
-        if (key.frame >= first && key.frame < end) append_event(out, key.frame, complete);
-}
-[[nodiscard]] inline const char* camera_property_name(CameraPropertyPlan property) noexcept {
-    switch (property) {
-        case CameraPropertyPlan::PositionX: return "position_x";
-        case CameraPropertyPlan::PositionY: return "position_y";
-        case CameraPropertyPlan::PositionZ: return "position_z";
-        case CameraPropertyPlan::RotationX: return "rotation_x";
-        case CameraPropertyPlan::RotationY: return "rotation_y";
-        case CameraPropertyPlan::RotationZ: return "rotation_z";
-        case CameraPropertyPlan::FovDeg: return "fov_deg";
-        case CameraPropertyPlan::Zoom: return "zoom";
-        case CameraPropertyPlan::FocusDistance: return "focus_distance";
-        case CameraPropertyPlan::Aperture: return "aperture";
-        case CameraPropertyPlan::MaxBlur: return "max_blur";
-        case CameraPropertyPlan::TargetX: return "reserved_target_x";
-        case CameraPropertyPlan::TargetY: return "reserved_target_y";
-        case CameraPropertyPlan::TargetZ: return "reserved_target_z";
-        case CameraPropertyPlan::FocalLengthMM: return "focal_length_mm";
-        case CameraPropertyPlan::FStop: return "f_stop";
-    }
-    return "unknown";
-}
 } // namespace temporal_rate_detail
 
 [[nodiscard]] inline const char* temporal_rate_class_name(TemporalRateClass rate) noexcept {
@@ -477,19 +451,8 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
     report.layers.reserve(plan.layers.size());
     const Frame duration = plan.canvas.duration.integral() > 0 ? plan.canvas.duration : Frame{0};
     std::size_t skippable = 0;
-    bool camera_animated = false, camera_per_frame = false;
-    if (plan.camera_animation) for (const auto& t : *plan.camera_animation) {
-        if (t.keyframes.size() < 2) continue;
-        camera_animated = true;
-        bool dense = true;
-        for (std::size_t i = 1; i < t.keyframes.size(); ++i) {
-            const auto previous = t.keyframes[i - 1].frame.integral();
-            const auto current = t.keyframes[i].frame.integral();
-            if (current <= previous || previous == std::numeric_limits<std::int64_t>::max() ||
-                current != previous + 1) { dense = false; break; }
-        }
-        camera_per_frame = camera_per_frame || dense;
-    }
+    const bool camera_animated = plan.camera_samples && plan.camera_samples->size() > 1;
+    const bool camera_per_frame = camera_animated;
 
     for (const auto& layer : plan.layers) {
         LayerRateReport item;
@@ -498,22 +461,6 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
         append_property_schedules(item.properties, layer, first, end);
         auto facts = inspect_layer(layer);
         const bool camera_affects = layer.enable_3d || layer.type == LayerType::Mesh;
-        if (camera_affects && plan.camera_animation) {
-            for (const auto& track : *plan.camera_animation) {
-                if (track.keyframes.size() < 2) continue;
-                LayerRateReport::PropertySchedule property;
-                property.path = std::string{"camera."} + camera_property_name(track.property);
-                property.rate = TemporalRateClass::PerFrame;
-                property.eval_frame_count = range_count(first, end);
-                if (property.eval_frame_count <= kMaxReportedFrames)
-                    append_range(property.eval_frames, first, end,
-                                 property.eval_frames_complete);
-                else
-                    property.eval_frames_complete = false;
-                if (!property.eval_frames_complete) property.eval_frames.clear();
-                item.properties.push_back(std::move(property));
-            }
-        }
         if (camera_affects && (camera_per_frame || (layer.enable_3d && camera_animated)))
             facts.animated = facts.per_frame = true;
         else if (camera_affects && camera_animated) facts.animated = facts.per_frame = true;
@@ -556,9 +503,6 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
             } else {
                 append_layer_keys(item.eval_frames, layer, duration,
                                   item.eval_frames_complete);
-                if (camera_affects && plan.camera_animation)
-                    append_camera_keys(item.eval_frames, *plan.camera_animation,
-                                       first, end, item.eval_frames_complete);
                 if (camera_affects && camera_animated)
                     append_range(item.eval_frames, first, end,
                                  item.eval_frames_complete);

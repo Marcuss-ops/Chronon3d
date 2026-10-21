@@ -386,36 +386,6 @@ void add_camera(CanonicalPlanWriter& out, const CameraPlan& camera) {
     out.add_float(camera.dof_highlight_gain);
 }
 
-void add_camera_track(CanonicalPlanWriter& out, const CameraTrackPlan& track) {
-    out.add_enum(track.property);
-    out.add_string(track.easing);
-    if (track.bezier_curve) {
-        out.add_bool(true);
-        for (const auto value : *track.bezier_curve) out.add_float(value);
-    }
-    out.add_size(track.keyframes.size());
-    for (const auto& key : track.keyframes) {
-        out.add_frame(key.frame);
-        out.add_size(key.value.size());
-        for (const auto value : key.value) out.add_float(value);
-        out.add_bool(key.interpolation.has_value());
-        if (key.interpolation) out.add_string(*key.interpolation);
-        out.add_bool(key.easing.has_value());
-        if (key.easing) out.add_string(*key.easing);
-        out.add_bool(key.bezier_curve.has_value());
-        if (key.bezier_curve)
-            for (const auto value : *key.bezier_curve) out.add_float(value);
-        out.add_bool(key.roving);
-        out.add_bool(key.temporal_in_dx.has_value());
-        if (key.temporal_in_dx) out.add_float(*key.temporal_in_dx);
-        out.add_bool(key.temporal_in_dy.has_value());
-        if (key.temporal_in_dy) out.add_float(*key.temporal_in_dy);
-        out.add_bool(key.temporal_out_dx.has_value());
-        if (key.temporal_out_dx) out.add_float(*key.temporal_out_dx);
-        out.add_bool(key.temporal_out_dy.has_value());
-        if (key.temporal_out_dy) out.add_float(*key.temporal_out_dy);
-    }
-}
 
 void add_audio_mix(CanonicalPlanWriter& out, const AudioMixPlan& mix) {
     out.add_size(mix.clips.size());

@@ -98,3 +98,45 @@ sequence APIs.
   evaluation. Preserve projection, `Camera2_5D` renderer state, depth, DOF
   kernels, motion-blur accumulation, and compositing.
 - **Status:** `ACTIVE`.
+
+## Offline camera-track closeout (2026-10-21)
+
+The in-repository `camera_animation` path has been removed. CM3D now emits
+complete `camera_samples` snapshots from `CameraRig`; C3D validates, fingerprints,
+and consumes those snapshots. Legacy plans carrying `camera_animation` fail
+closed with `camera_animation_retired`. The previous file-level census is
+closed as follows:
+
+| Surface | Closeout |
+|---|---|
+| C3D RenderPlan model, V2/V3 schemas, decoder, validator | Replaced track types and schema with ordered `camera_samples`; old field rejected |
+| C3D camera compiler and temporal-rate analysis | Reads complete camera snapshots; no property-track evaluator remains |
+| C3D fingerprinting | Hashes ordered sample frames and full camera values |
+| CM3D lowering and JSON emission | `bakeResolvedCameraSamples` writes full per-frame camera state; runtime provider remains the exact-time in-process route |
+| C3D preview generator and delivery verifier | Generate and inspect resolved camera samples |
+| Test fixtures and saved plans | Converted to `camera_samples`, including text stress, residency, SVG motion, scene, and Apollo plans |
+| C3D/CM3D decoder, lowering, DOF, temporal-rate, round-trip, and geospatial tests | Rewritten around complete camera samples |
+| Camera2_5D canary | Parent yaw is resolved into the submitted camera pose before rendering |
+
+The retired model symbols, legacy schema definitions, producer option, camera
+property writer, decoder, fingerprint fields, evaluator, and fixture generator
+path have been deleted. `camera_animation` remains only in the decoder's
+explicit rejection branch and its rejection test.
+
+Offline `camera_samples` are generated at integer presentation frames. C3D
+linearly interpolates complete resolved poses between adjacent snapshots when
+it evaluates a fractional time. Runtime-provider sampling is exact at requested
+sub-frames. This keeps cinematic curves and look-at evaluation in CM3D, but
+pixel parity between offline interpolation and direct CM3D sampling at shutter
+sub-frames is still an open certification item, along with G1–G8 and T16–T18.
+The overall camera migration therefore remains `ACTIVE` until those gates pass.
+
+Demolition debt for the legacy track representation is `REMOVED`: the producer,
+serialized field, schema, decoder, fingerprint logic, and evaluator are gone.
+The remaining active debt is end-to-end sub-frame and optical certification,
+not a second serialized camera-animation path.
+
+The CLI canary had a stale camera-parent assignment after `Camera2_5D` became
+resolved renderer state. It now composes the parent yaw into the orbit pose
+before calling `set_evaluated_camera()`, retaining the canary motion without
+camera parenting in the renderer.

@@ -61,7 +61,38 @@ def plan(name, layers, *, cam=None, cam_tracks=None):
     if cam:
         p["camera"] = cam
     if cam_tracks:
-        p["camera_animation"] = {"tracks": cam_tracks}
+        channels = {
+            "camera_position_x": ("position", 0), "camera_position_y": ("position", 1),
+            "camera_position_z": ("position", 2), "camera_rotation_x": ("rotation_deg", 0),
+            "camera_rotation_y": ("rotation_deg", 1), "camera_rotation_z": ("rotation_deg", 2),
+            "camera_fov_deg": ("fov_deg", None), "camera_zoom": ("zoom", None),
+            "camera_focus_distance": ("dof", "focus_distance"),
+            "camera_aperture": ("dof", "aperture"), "camera_max_blur": ("dof", "max_blur"),
+            "camera_focal_length_mm": ("focal_length_mm", None),
+            "camera_f_stop": ("f_stop", None),
+        }
+        samples = []
+        for frame in range(N):
+            resolved = json.loads(json.dumps(cam or camera()))
+            for authored in cam_tracks:
+                channel = channels[authored["property"]]
+                keys = sorted(authored["keyframes"], key=lambda key: key["frame"])
+                left, right = keys[0], keys[-1]
+                for a, b in zip(keys, keys[1:]):
+                    if a["frame"] <= frame <= b["frame"]:
+                        left, right = a, b
+                        break
+                va, vb = left["value"], right["value"]
+                t = 0 if right["frame"] == left["frame"] else (frame-left["frame"])/(right["frame"]-left["frame"])
+                value = [x+(y-x)*t for x,y in zip(va,vb)] if isinstance(va,list) else va+(vb-va)*t
+                if channel[0] == "dof":
+                    resolved.setdefault("dof", {})[channel[1]] = value
+                elif channel[1] is None:
+                    resolved[channel[0]] = value
+                else:
+                    resolved.setdefault(channel[0], [0,0,0])[channel[1]] = value
+            samples.append({"frame": frame, "camera": resolved})
+        p["camera_samples"] = samples
     (OUT / (name + ".plan.json")).write_text(json.dumps(p, indent=2) + "\n")
 
 

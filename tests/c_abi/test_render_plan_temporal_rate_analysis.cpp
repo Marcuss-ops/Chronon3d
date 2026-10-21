@@ -175,9 +175,8 @@ TEST_CASE("Temporal rate analysis recognizes procedural effect and camera time")
     CHECK(analyze_temporal_rates(plan).layers[0].rate == TemporalRateClass::PerFrame);
 
     plan.layers[0].effects.clear();
-    plan.camera_animation = std::vector<CameraTrackPlan>{
-        CameraTrackPlan{CameraPropertyPlan::PositionX,
-            {{Frame{0}, {0.0f}}, {Frame{3}, {1.0f}}}}};
+    plan.camera_samples = std::vector<CameraSamplePlan>{
+        CameraSamplePlan{0.0, {}}, CameraSamplePlan{3.0, {}}};
     plan.layers[0].enable_3d = true;
     CHECK(analyze_temporal_rates(plan).layers[0].rate == TemporalRateClass::PerFrame);
 }
@@ -281,9 +280,8 @@ TEST_CASE("Temporal rate analysis ignores camera time on flat layers and clips 3
     three_d.start_frame = Frame{4};
     three_d.duration_frames = Frame{4};
     plan.layers = {flat, three_d};
-    plan.camera_animation = std::vector<CameraTrackPlan>{
-        CameraTrackPlan{CameraPropertyPlan::PositionX,
-            {{Frame{0}, {0.0f}}, {Frame{8}, {1.0f}}}}};
+    plan.camera_samples = std::vector<CameraSamplePlan>{
+        CameraSamplePlan{0.0, {}}, CameraSamplePlan{8.0, {}}};
     auto report = analyze_temporal_rates(plan);
     CHECK(report.layers[0].rate == TemporalRateClass::Static);
     CHECK(report.layers[1].rate == TemporalRateClass::PerFrame);

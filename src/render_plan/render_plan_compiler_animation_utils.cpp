@@ -433,96 +433,40 @@ std::optional<chronon3d::Camera2_5D> make_camera_base(const RenderPlan& plan) {
 CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan) {
     auto resolved = make_camera_base(plan);
     if (!resolved) return {};
-    constexpr std::size_t kCameraPropertyCount =
-        static_cast<std::size_t>(CameraPropertyPlan::FStop) + 1;
-    using TrackValues = std::array<std::optional<chronon3d::AnimatedValue<float>>,
-                                   kCameraPropertyCount>;
-    TrackValues tracks{};
-    const auto& source = *plan.camera;
-    const auto base_for = [&](CameraPropertyPlan property) {
-        switch (property) {
-            case CameraPropertyPlan::TargetX:
-            case CameraPropertyPlan::TargetY:
-            case CameraPropertyPlan::TargetZ: return 0.0f;
-            case CameraPropertyPlan::PositionX: return resolved->position.x;
-            case CameraPropertyPlan::PositionY: return resolved->position.y;
-            case CameraPropertyPlan::PositionZ: return resolved->position.z;
-            case CameraPropertyPlan::RotationX: return resolved->rotation.x;
-            case CameraPropertyPlan::RotationY: return resolved->rotation.y;
-            case CameraPropertyPlan::RotationZ: return resolved->rotation.z;
-            case CameraPropertyPlan::FovDeg: return resolved->fov_deg;
-            case CameraPropertyPlan::Zoom: return resolved->zoom;
-            case CameraPropertyPlan::FocusDistance: return resolved->dof.focus_distance;
-            case CameraPropertyPlan::Aperture: return resolved->dof.aperture;
-            case CameraPropertyPlan::MaxBlur: return resolved->dof.max_blur;
-            case CameraPropertyPlan::FocalLengthMM: return resolved->lens.focal_length;
-            case CameraPropertyPlan::FStop:
-                return source.dof_f_stop > 0.0f ? source.dof_f_stop : resolved->lens.f_stop;
-        }
-        return 0.0f;
-    };
-    if (plan.camera_animation) {
-        for (const auto& authored : *plan.camera_animation) {
-            if (authored.keyframes.empty()) continue;
-            if (authored.property == CameraPropertyPlan::TargetX ||
-                authored.property == CameraPropertyPlan::TargetY ||
-                authored.property == CameraPropertyPlan::TargetZ) {
-                throw std::runtime_error(
-                    "camera target tracks are retired; resolve look-at in ChrononMotion3D and author rotation");
-            }
-            const auto index = static_cast<std::size_t>(authored.property);
-            if (index >= tracks.size())
-                throw std::runtime_error("camera track property is outside the supported range");
-            chronon3d::AnimatedValue<float> value{base_for(authored.property)};
-            AnimationTrackPlan easing_track;
-            easing_track.property = "camera";
-            easing_track.easing = authored.easing;
-            easing_track.bezier_curve = authored.bezier_curve;
-            for (const auto& key : authored.keyframes) {
-                if (key.value.size() != 1)
-                    throw std::runtime_error("camera track keyframes require scalar values");
-                add_animation_keyframe(value, easing_track, key, key.value.front(), plan.canvas.fps);
-            }
-            value.compute_roving();
-            value.compute_auto_beziers();
-            tracks[index] = std::move(value);
-        }
+    if (!plan.camera_samples || plan.camera_samples->empty())
+        return [camera = *resolved](double) { return camera; };
+    std::vector<std::pair<double, chronon3d::Camera2_5D>> samples;
+    samples.reserve(plan.camera_samples->size());
+    for (const auto& sample : *plan.camera_samples) {
+        auto camera = make_camera_value(sample.camera, plan.canvas);
+        camera.is_animated = plan.camera_samples->size() > 1;
+        samples.emplace_back(sample.frame, std::move(camera));
     }
-    const auto base_camera = *resolved;
-    const auto fps = plan.canvas.fps;
-    const bool animated = std::any_of(tracks.begin(), tracks.end(), [](const auto& track) {
-            return track.has_value();
-        });
-    return [base_camera, tracks = std::move(tracks), fps, animated,
-            orthographic = source.type == "orthographic"](double frame) mutable {
-    auto camera = base_camera;
-    const auto sample = [&](CameraPropertyPlan property, float base) {
-        const auto index = static_cast<std::size_t>(property);
-        return tracks[index]
-            ? tracks[index]->evaluate(chronon3d::SampleTime::from_frame(frame, fps))
-            : base;
-    };
-    camera.position.x = sample(CameraPropertyPlan::PositionX, base_camera.position.x);
-    camera.position.y = sample(CameraPropertyPlan::PositionY, base_camera.position.y);
-    camera.position.z = sample(CameraPropertyPlan::PositionZ, base_camera.position.z);
-    camera.rotation.x = sample(CameraPropertyPlan::RotationX, base_camera.rotation.x);
-    camera.rotation.y = sample(CameraPropertyPlan::RotationY, base_camera.rotation.y);
-    camera.rotation.z = sample(CameraPropertyPlan::RotationZ, base_camera.rotation.z);
-    camera.fov_deg = sample(CameraPropertyPlan::FovDeg, base_camera.fov_deg);
-    if (orthographic)
-        camera.zoom = sample(CameraPropertyPlan::Zoom, camera.zoom);
-    camera.dof.focus_distance = sample(CameraPropertyPlan::FocusDistance,
-                                       camera.dof.focus_distance);
-    camera.dof.aperture = sample(CameraPropertyPlan::Aperture, camera.dof.aperture);
-    camera.dof.max_blur = sample(CameraPropertyPlan::MaxBlur, camera.dof.max_blur);
-    camera.lens.focal_length = sample(CameraPropertyPlan::FocalLengthMM,
-                                      camera.lens.focal_length);
-    camera.lens.f_stop = sample(CameraPropertyPlan::FStop, camera.lens.f_stop);
-    camera.is_animated = animated;
-    if (camera.dof.enabled && !camera.dof.use_physical_model)
-        camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
-            camera, camera.dof.focus_distance);
-    return camera;
+    return [samples = std::move(samples)](double frame) {
+        const auto upper = std::lower_bound(samples.begin(), samples.end(), frame,
+            [](const auto& sample, double value) { return sample.first < value; });
+        if (upper == samples.begin()) return upper->second;
+        if (upper == samples.end()) return samples.back().second;
+        if (upper->first == frame) return upper->second;
+        const auto& right = upper->second;
+        const auto& left = std::prev(upper)->second;
+        const double span = upper->first - std::prev(upper)->first;
+        const float t = static_cast<float>((frame - std::prev(upper)->first) / span);
+        auto camera = left;
+        camera.position = glm::mix(left.position, right.position, t);
+        camera.rotation = glm::mix(left.rotation, right.rotation, t);
+        camera.fov_deg = glm::mix(left.fov_deg, right.fov_deg, t);
+        camera.zoom = glm::mix(left.zoom, right.zoom, t);
+        camera.lens.focal_length = glm::mix(left.lens.focal_length, right.lens.focal_length, t);
+        camera.lens.f_stop = glm::mix(left.lens.f_stop, right.lens.f_stop, t);
+        camera.dof.focus_distance = glm::mix(left.dof.focus_distance, right.dof.focus_distance, t);
+        camera.dof.aperture = glm::mix(left.dof.aperture, right.dof.aperture, t);
+        camera.dof.max_blur = glm::mix(left.dof.max_blur, right.dof.max_blur, t);
+        camera.is_animated = true;
+        if (camera.dof.enabled && !camera.dof.use_physical_model)
+            camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
+                camera, camera.dof.focus_distance);
+        return camera;
     };
 }
 

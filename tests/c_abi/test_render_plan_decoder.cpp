@@ -1117,51 +1117,22 @@ TEST_CASE("shared keyframe easing resolves hold and deterministic cubic curves")
     CHECK(sampled.evaluate(10.0) == 20.0f);
 }
 
-TEST_CASE("camera consumer uses outgoing per-key interpolation") {
+TEST_CASE("camera consumer reads resolved complete samples") {
     auto source = render_plan_test::base_plan();
     source["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1000}},
         {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}, {"near", 1},
         {"far", 10000}, {"zoom", 1}};
-    source["camera_animation"] = nlohmann::json::parse(R"JSON({"tracks":[{
-      "property":"camera_position_z","keyframes":[
-        {"frame":0,"value":-600,"interpolation":"hold"},
-        {"frame":10,"value":-1000}]}]})JSON");
-    const auto plan = chronon3d::render_plan::decode_render_plan(source);
-    REQUIRE(plan);
-    const auto evaluate = chronon3d::render_plan::detail::make_camera_evaluator(*plan);
-    REQUIRE(evaluate);
-    CHECK(evaluate(5.0).position.z == doctest::Approx(-600.0f));
-    CHECK(evaluate(10.0).position.z == doctest::Approx(-1000.0f));
-}
-
-TEST_CASE("camera render-plan scalar axes remain independent at shared keyframes") {
-    auto source = render_plan_test::base_plan();
-    source["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1000}},
-        {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}, {"near", 1},
-        {"far", 10000}, {"zoom", 1}};
-    source["camera_animation"] = nlohmann::json::parse(R"JSON({"tracks":[
-      {"property":"camera_position_x","keyframes":[{"frame":0,"value":10},{"frame":2,"value":20}]},
-      {"property":"camera_position_y","keyframes":[{"frame":0,"value":30},{"frame":2,"value":40}]},
-      {"property":"camera_position_z","keyframes":[{"frame":0,"value":-500},{"frame":2,"value":-800}]},
-      {"property":"camera_rotation_x","keyframes":[{"frame":0,"value":1},{"frame":2,"value":3}]},
-      {"property":"camera_rotation_y","keyframes":[{"frame":0,"value":4},{"frame":2,"value":6}]},
-      {"property":"camera_rotation_z","keyframes":[{"frame":0,"value":7},{"frame":2,"value":9}]}
-    ]})JSON");
+    source["camera_samples"] = nlohmann::json::array({
+        {{"frame", 0}, {"camera", {{"position", {10, 30, -500}}, {"rotation_deg", {1, 4, 7}}}}},
+        {{"frame", 2}, {"camera", {{"position", {20, 40, -800}}, {"rotation_deg", {3, 6, 9}}}}}});
     const auto plan = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE(plan);
     const auto evaluate = chronon3d::render_plan::detail::make_camera_evaluator(*plan);
     REQUIRE(evaluate);
     CHECK(evaluate(0.0).position.x == doctest::Approx(10.f));
-    CHECK(evaluate(0.0).position.y == doctest::Approx(30.f));
-    CHECK(evaluate(0.0).position.z == doctest::Approx(-500.f));
     CHECK(evaluate(1.0).position.x == doctest::Approx(15.f));
     CHECK(evaluate(1.0).position.y == doctest::Approx(35.f));
     CHECK(evaluate(1.0).position.z == doctest::Approx(-650.f));
-    CHECK(evaluate(2.0).position.x == doctest::Approx(20.f));
-    CHECK(evaluate(2.0).position.y == doctest::Approx(40.f));
-    CHECK(evaluate(2.0).position.z == doctest::Approx(-800.f));
-    CHECK(evaluate(2.0).rotation.x == doctest::Approx(3.f));
-    CHECK(evaluate(2.0).rotation.y == doctest::Approx(6.f));
     CHECK(evaluate(2.0).rotation.z == doctest::Approx(9.f));
 }
 
@@ -2985,7 +2956,7 @@ TEST_CASE("render plan decoder ignores legacy glow controls in content and finge
     CHECK(legacy->content_fingerprint == current->content_fingerprint);
 }
 
-TEST_CASE("render plan decoder accepts camera pose and closed camera tracks") {
+TEST_CASE("render plan decoder accepts ordered resolved camera samples") {
     const nlohmann::json source = {
         {"schema", "chronon.render-plan.v2"}, {"version", 2},
         {"canvas", {{"width", 640}, {"height", 360}, {"fps_num", 30},
@@ -2993,19 +2964,24 @@ TEST_CASE("render plan decoder accepts camera pose and closed camera tracks") {
         {"camera", {{"type", "perspective"}, {"position", {0, 0, -1000}},
                      {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50},
                      {"near", 1}, {"far", 10000}, {"zoom", 1}}},
-        {"camera_animation", {{"tracks", {{{"property", "camera_position_z"},
-            {"easing", "out_cubic"}, {"keyframes", {{{"frame", 0}, {"value", -600}},
-                                                         {{"frame", 48}, {"value", -1000}}}}}}}}},
+        {"camera_samples", nlohmann::json::array({
+            {{"frame", -0.25}, {"camera", {{"position", {0, 0, -600}}}},},
+            {{"frame", 0}, {"camera", {{"position", {0, 0, -1000}}}}}})},
         {"layers", {{{"id", "bg"}, {"type", "color"}, {"color", {0, 0, 0, 1}}}}},
         {"output", {{"path", "out.png"}}}};
 
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE(decoded);
-    REQUIRE(decoded->camera);
-    CHECK(decoded->camera->position[2] == doctest::Approx(-1000.0f));
-    REQUIRE(decoded->camera_animation);
-    CHECK(decoded->camera_animation->at(0).property ==
-          chronon3d::render_plan::CameraPropertyPlan::PositionZ);
+    REQUIRE(decoded->camera_samples);
+    CHECK(decoded->camera_samples->size() == 2);
+    auto unordered = source;
+    std::swap(unordered["camera_samples"][0], unordered["camera_samples"][1]);
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(unordered));
+    auto legacy = source;
+    legacy["camera_animation"] = {{"tracks", nlohmann::json::array()}};
+    const auto rejected = chronon3d::render_plan::decode_render_plan(legacy);
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().code == "camera_animation_retired");
 }
 
 TEST_CASE("render plan decoder accepts bounded cubic Bezier track easing and fingerprints it") {
@@ -3054,12 +3030,11 @@ TEST_CASE("render plan decoder rejects invalid camera ranges and unknown tracks"
     bad_fov["camera"]["fov_deg"] = 121;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_fov));
 
-    auto bad_track = base;
-    bad_track["camera_animation"] = {{"tracks", {{{"property", "camera_focus"},
-        {"keyframes", {{{"frame", 0}, {"value", 1}}}}}}}};
-    const auto error = chronon3d::render_plan::decode_render_plan(bad_track);
-    REQUIRE_FALSE(error);
-    CHECK(error.error().message.find("camera_focus") != std::string::npos);
+    auto bad_samples = base;
+    bad_samples["camera_samples"] = nlohmann::json::array({
+        {{"frame", 0}, {"camera", {{"fov_deg", 50}}}},
+        {{"frame", 0}, {"camera", {{"fov_deg", 60}}}}});
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_samples));
 }
 
 TEST_CASE("render plan decoder enforces depth role conflict and fingerprints it") {
@@ -3739,92 +3714,34 @@ TEST_CASE("RenderPlan image crop decodes normalized rectangles and rejects inval
     CHECK_FALSE(render_plan::decode_render_plan(on_text));
 }
 
-TEST_CASE("RenderPlan camera DOF channels decode and enforce their ranges") {
+TEST_CASE("resolved camera samples carry DOF and physical optics") {
     auto source = render_plan_test::base_plan(nlohmann::json::array({{
-        {"id", "dof-background"}, {"type", "color"},
+        {"id", "camera-background"}, {"type", "color"},
         {"size", {320, 180}}, {"color", {0, 0, 0, 1}}
     }}));
-    source["canvas"]["duration_frames"] = 54;
-    source["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1000}},
-        {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}, {"near", 1}, {"far", 10000},
-        {"zoom", 1}, {"dof", {
-        {"enabled", true}, {"focus_distance", 0.001}, {"aperture", 0.18}, {"max_blur", 24}}}};
-    source["camera_animation"] = {{"tracks", nlohmann::json::array({
-        {{"property", "camera_focus_distance"}, {"keyframes", nlohmann::json::array({
-            {{"frame", 0}, {"value", 0.001}}, {{"frame", 53}, {"value", 80.0}}})}},
-        {{"property", "camera_aperture"}, {"keyframes", nlohmann::json::array({
-            {{"frame", 0}, {"value", 0.18}}, {{"frame", 53}, {"value", 0.18}}})}}
-    })}};
-    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
-    if (!decoded) MESSAGE(decoded.error().message);
-    REQUIRE(decoded);
-    REQUIRE(decoded->camera_animation);
-    CHECK(decoded->camera_animation->size() == 2);
-    CHECK(decoded->camera_animation->at(0).property ==
-          chronon3d::render_plan::CameraPropertyPlan::FocusDistance);
-    CHECK(decoded->camera_animation->at(1).property ==
-          chronon3d::render_plan::CameraPropertyPlan::Aperture);
-
-    auto dof_disabled = source;
-    dof_disabled["camera"]["dof"]["enabled"] = false;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(dof_disabled));
-    auto invalid_aperture = source;
-    invalid_aperture["camera_animation"]["tracks"][1]["keyframes"][0]["value"] = 1.1;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_aperture));
-}
-
-TEST_CASE("RenderPlan camera physical lens fields and f-stop track decode") {
-    auto source = render_plan_test::base_plan(nlohmann::json::array({{
-        {"id", "lens-background"}, {"type", "color"},
-        {"size", {320, 180}}, {"color", {0, 0, 0, 1}}
-    }}));
-    source["canvas"]["duration_frames"] = 54;
-    source["camera"] = nlohmann::json{
-        {"type", "perspective"}, {"position", {0, 0, -1000}},
-        {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}, {"near", 1}, {"far", 10000},
+    source["canvas"]["duration_frames"] = 2;
+    source["camera"] = {{"type", "perspective"}, {"fov_deg", 50}, {"near", 1}, {"far", 10000},
         {"zoom", 1}, {"focal_length_mm", 50}, {"f_stop", 2.0}, {"iris_blades", 6},
-        {"dof", nlohmann::json{
-            {"enabled", true}, {"focus_distance", 1400}, {"aperture", 0.02}, {"max_blur", 24},
+        {"dof", {{"enabled", true}, {"focus_distance", 1400}, {"aperture", 0.02}, {"max_blur", 24},
             {"f_stop", 2.0}, {"iris_blades", 6}, {"highlight_gain", 1.5}}}};
-    const auto focal_track = nlohmann::json{{"property", "camera_focal_length_mm"},
-        {"keyframes", nlohmann::json::array({nlohmann::json{{"frame", 0}, {"value", 50.0}},
-                                              nlohmann::json{{"frame", 53}, {"value", 85.0}}})}};
-    const auto fstop_track = nlohmann::json{{"property", "camera_f_stop"},
-        {"keyframes", nlohmann::json::array({nlohmann::json{{"frame", 0}, {"value", 2.0}},
-                                              nlohmann::json{{"frame", 53}, {"value", 2.8}}})}};
-    source["camera_animation"] = nlohmann::json{
-        {"tracks", nlohmann::json::array({focal_track, fstop_track})}};
+    source["camera_samples"] = nlohmann::json::array({
+        {{"frame", 0}, {"camera", {{"focal_length_mm", 50}, {"f_stop", 2.0},
+            {"dof", {{"enabled", true}, {"focus_distance", 480}, {"aperture", 0.04}, {"max_blur", 12}}}}}},
+        {{"frame", 1}, {"camera", {{"focal_length_mm", 85}, {"f_stop", 2.8},
+            {"dof", {{"enabled", true}, {"focus_distance", 720}, {"aperture", 0.06}, {"max_blur", 20}}}}}}});
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
-    if (!decoded) MESSAGE(decoded.error().message);
     REQUIRE(decoded);
-    REQUIRE(decoded->camera.has_value());
-    CHECK(decoded->camera->focal_length_mm == doctest::Approx(50.0f));
-    CHECK(decoded->camera->f_stop == doctest::Approx(2.0f));
-    CHECK(decoded->camera->iris_blades == 6);
-    CHECK(decoded->camera->dof_f_stop == doctest::Approx(2.0f));
-    CHECK(decoded->camera->dof_iris_blades == 6);
-    CHECK(decoded->camera->dof_highlight_gain == doctest::Approx(1.5f));
-    REQUIRE(decoded->camera_animation);
-    CHECK(decoded->camera_animation->size() == 2);
-    CHECK(decoded->camera_animation->at(0).property ==
-          chronon3d::render_plan::CameraPropertyPlan::FocalLengthMM);
-    CHECK(decoded->camera_animation->at(1).property ==
-          chronon3d::render_plan::CameraPropertyPlan::FStop);
+    REQUIRE(decoded->camera_samples);
+    CHECK(decoded->camera_samples->at(1).camera.focal_length_mm == doctest::Approx(85.f));
+    CHECK(decoded->camera_samples->at(1).camera.dof_focus_distance == doctest::Approx(720.f));
+    CHECK(decoded->camera_samples->at(1).camera.dof_aperture == doctest::Approx(0.06f));
 
-    // An animated f-stop is a DOF channel: it requires dof.enabled=true.
-    auto fstop_disabled = source;
-    fstop_disabled["camera"]["dof"]["enabled"] = false;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(fstop_disabled));
-    // Out-of-contract lens values fail closed on both static fields and tracks.
-    auto bad_focal = source;
-    bad_focal["camera"]["focal_length_mm"] = 8.0;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_focal));
-    auto bad_focal_track = source;
-    bad_focal_track["camera_animation"]["tracks"][0]["keyframes"][1]["value"] = 400.0;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_focal_track));
-    auto bad_fstop_track = source;
-    bad_fstop_track["camera_animation"]["tracks"][1]["keyframes"][1]["value"] = 64.0;
-    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_fstop_track));
+    auto bad_order = source;
+    bad_order["camera_samples"][1]["frame"] = 0;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_order));
+    auto bad_camera = source;
+    bad_camera["camera_samples"][1]["camera"]["focal_length_mm"] = 400;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_camera));
     auto bad_iris = source;
     bad_iris["camera"]["dof"]["iris_blades"] = 16;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(bad_iris));

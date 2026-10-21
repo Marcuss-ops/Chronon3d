@@ -39,9 +39,8 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value);
 [[nodiscard]] std::optional<chronon3d::BlendMode> blend_mode(const std::string& value);
 [[nodiscard]] OutputFormat output_format(const std::string& value);
 [[nodiscard]] VideoCodec video_codec(const std::string& value);
-[[nodiscard]] CameraPropertyPlan camera_property(const std::string& value);
 [[nodiscard]] CameraPlan decode_camera(const nlohmann::json& value);
-[[nodiscard]] std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value);
+[[nodiscard]] std::vector<CameraSamplePlan> decode_camera_samples(const nlohmann::json& value);
 [[nodiscard]] ShapePathCommandPlan decode_shape_path_command(
     const nlohmann::json& value, std::string_view context);
 void decode_layer_inline_mesh(LayerPlan&, const nlohmann::json&);

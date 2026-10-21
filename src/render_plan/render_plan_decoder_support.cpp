@@ -11,6 +11,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <sstream>
 #include <utility>
 
@@ -196,25 +197,6 @@ VideoCodec video_codec(const std::string& value) {
     return find_enum_value(value, kValues).value_or(VideoCodec::Auto);
 }
 
-CameraPropertyPlan camera_property(const std::string& value) {
-    static constexpr std::array kValues{
-        std::pair{"camera_position_x"sv, CameraPropertyPlan::PositionX},
-        std::pair{"camera_position_y"sv, CameraPropertyPlan::PositionY},
-        std::pair{"camera_position_z"sv, CameraPropertyPlan::PositionZ},
-        std::pair{"camera_rotation_x"sv, CameraPropertyPlan::RotationX},
-        std::pair{"camera_rotation_y"sv, CameraPropertyPlan::RotationY},
-        std::pair{"camera_rotation_z"sv, CameraPropertyPlan::RotationZ},
-        std::pair{"camera_fov_deg"sv, CameraPropertyPlan::FovDeg},
-        std::pair{"camera_zoom"sv, CameraPropertyPlan::Zoom},
-        std::pair{"camera_focus_distance"sv, CameraPropertyPlan::FocusDistance},
-        std::pair{"camera_aperture"sv, CameraPropertyPlan::Aperture},
-        std::pair{"camera_max_blur"sv, CameraPropertyPlan::MaxBlur},
-        std::pair{"camera_focal_length_mm"sv, CameraPropertyPlan::FocalLengthMM},
-        std::pair{"camera_f_stop"sv, CameraPropertyPlan::FStop},
-    };
-    return enum_from_string(value, kValues, "unsupported camera animation property: ");
-}
-
 CameraPlan decode_camera(const nlohmann::json& value) {
     CameraPlan camera;
     camera.type = value.value("type", std::string{"perspective"});
@@ -280,133 +262,23 @@ CameraPlan decode_camera(const nlohmann::json& value) {
     return camera;
 }
 
-std::vector<CameraTrackPlan> decode_camera_tracks(const nlohmann::json& value) {
-    if (!value.is_object() || !value.contains("tracks") || !value.at("tracks").is_array())
-        throw std::runtime_error("camera_animation.tracks must be an array");
-    std::vector<CameraTrackPlan> tracks;
-    for (const auto& raw : value.at("tracks")) {
-        CameraTrackPlan track;
-        track.property = camera_property(raw.at("property").get<std::string>());
-        track.easing = raw.value("easing", std::string{"linear"});
-        const bool has_curve = raw.contains("bezier_curve");
-        if ((track.easing == "bezier") != has_curve)
-            throw std::runtime_error("camera animation requires easing='bezier' and bezier_curve together");
-        std::set<std::string> track_frames;
-        for (const auto& raw_key : raw.at("keyframes"))
-            if (!raw_key.is_object() || !raw_key.contains("frame") ||
-                !track_frames.insert(raw_key.at("frame").dump()).second)
-                throw std::runtime_error("camera keyframe frames must be unique");
-        if (has_curve) {
-            const auto& values = raw.at("bezier_curve");
-            if (!values.is_array() || values.size() != 4)
-                throw std::runtime_error("camera animation bezier_curve must contain [x1, y1, x2, y2]");
-            std::array<float, 4> curve{};
-            for (std::size_t i = 0; i < curve.size(); ++i) {
-                curve[i] = values.at(i).get<float>();
-                if (!std::isfinite(curve[i]))
-                    throw std::runtime_error("camera animation bezier_curve values must be finite");
-            }
-            if (curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
-                curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
-                throw std::runtime_error("camera animation bezier_curve x handles must be in [0, 1] and y handles in [-10, 10]");
-            track.bezier_curve = curve;
-        }
-        std::set<std::int64_t> frames;
-        for (const auto& raw_key : raw.at("keyframes")) {
-            AnimationKeyframePlan key;
-            key.frame = Frame{raw_key.at("frame").get<std::int64_t>()};
-            if (key.frame.integral() < 0 || key.frame.integral() > 1000000 ||
-                !frames.insert(key.frame.integral()).second)
-                throw std::runtime_error("camera keyframe frames must be unique and in [0, 1000000]");
-            const auto& raw_value = raw_key.at("value");
-            if (!raw_value.is_number())
-                throw std::runtime_error("camera animation keyframe values must be scalar numbers");
-            const float scalar = raw_value.get<float>();
-            if (!std::isfinite(scalar))
-                throw std::runtime_error("camera keyframe value must be finite");
-            if (track.property == CameraPropertyPlan::FocusDistance &&
-                (scalar <= 0.0f || scalar > 10000000.0f))
-                throw std::runtime_error("camera_focus_distance values must be in (0, 10000000]");
-            if (track.property == CameraPropertyPlan::Aperture &&
-                (scalar < 0.0f || scalar > 1.0f))
-                throw std::runtime_error("camera_aperture values must be in [0, 1]");
-            if (track.property == CameraPropertyPlan::MaxBlur &&
-                (scalar < 0.0f || scalar > 256.0f))
-                throw std::runtime_error("camera_max_blur values must be in [0, 256]");
-            if (track.property == CameraPropertyPlan::FocalLengthMM &&
-                (scalar < 12.0f || scalar > 200.0f))
-                throw std::runtime_error("camera_focal_length_mm values must be in [12, 200]");
-            if (track.property == CameraPropertyPlan::FStop &&
-                (scalar < 0.7f || scalar > 32.0f))
-                throw std::runtime_error("camera_f_stop values must be in [0.7, 32]");
-            key.value.push_back(scalar);
-            if (raw_key.contains("interpolation")) key.interpolation = raw_key.at("interpolation").get<std::string>();
-            if (raw_key.contains("easing")) key.easing = raw_key.at("easing").get<std::string>();
-            key.roving = raw_key.value("roving", false);
-            if (raw_key.contains("roving") && !raw_key.at("roving").is_boolean())
-                throw std::runtime_error("camera keyframe roving must be a boolean");
-            if (raw_key.contains("temporal_in_dx")) key.temporal_in_dx = raw_key.at("temporal_in_dx").get<float>();
-            if (raw_key.contains("temporal_in_dy")) key.temporal_in_dy = raw_key.at("temporal_in_dy").get<float>();
-            if (raw_key.contains("temporal_out_dx")) key.temporal_out_dx = raw_key.at("temporal_out_dx").get<float>();
-            if (raw_key.contains("temporal_out_dy")) key.temporal_out_dy = raw_key.at("temporal_out_dy").get<float>();
-            for (const auto handle : {key.temporal_in_dx, key.temporal_in_dy,
-                                      key.temporal_out_dx, key.temporal_out_dy})
-                if (handle && !std::isfinite(*handle))
-                    throw std::runtime_error("camera temporal handles must be finite");
-            if (key.temporal_in_dx.has_value() != key.temporal_in_dy.has_value() ||
-                key.temporal_out_dx.has_value() != key.temporal_out_dy.has_value())
-                throw std::runtime_error("camera temporal dx and dy must be provided together");
-            if (key.temporal_in_dx && *key.temporal_in_dx > 0.0f)
-                throw std::runtime_error("camera temporal_in_dx must be non-positive");
-            if (key.temporal_out_dx && *key.temporal_out_dx < 0.0f)
-                throw std::runtime_error("camera temporal_out_dx must be non-negative");
-            if (raw_key.contains("bezier_curve")) {
-                const auto& raw_curve = raw_key.at("bezier_curve");
-                if (!raw_curve.is_array() || raw_curve.size() != 4)
-                    throw std::runtime_error("camera keyframe bezier_curve must contain [x1, y1, x2, y2]");
-                std::array<float, 4> curve{};
-                for (std::size_t i = 0; i < curve.size(); ++i) curve[i] = raw_curve.at(i).get<float>();
-                if (!std::all_of(curve.begin(), curve.end(), [](float v) { return std::isfinite(v); }) ||
-                    curve[0] < 0.0f || curve[0] > 1.0f || curve[2] < 0.0f || curve[2] > 1.0f ||
-                    curve[1] < -10.0f || curve[1] > 10.0f || curve[3] < -10.0f || curve[3] > 10.0f)
-                    throw std::runtime_error("camera keyframe bezier_curve handles are out of range");
-                key.bezier_curve = curve;
-            }
-            if (key.interpolation == "bezier" && key.bezier_curve &&
-                (key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy))
-                throw std::runtime_error("camera bezier_curve and temporal handles cannot be combined");
-            if (key.interpolation && *key.interpolation != "linear" &&
-                *key.interpolation != "hold" && *key.interpolation != "bezier" &&
-                *key.interpolation != "auto_bezier")
-                throw std::runtime_error("camera interpolation must be linear, hold, bezier, or auto_bezier");
-            const bool has_temporal_handles = key.temporal_in_dx || key.temporal_in_dy ||
-                key.temporal_out_dx || key.temporal_out_dy;
-            if (key.roving && (has_temporal_handles || key.bezier_curve))
-                throw std::runtime_error("camera roving cannot contain authored Bezier handles");
-            if ((key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy) &&
-                (key.interpolation != "bezier" || key.bezier_curve))
-                throw std::runtime_error("camera temporal handles require interpolation='bezier' without bezier_curve");
-            if (key.roving && key.interpolation == "auto_bezier")
-                throw std::runtime_error("camera roving and auto_bezier cannot be combined");
-            if (key.interpolation == "bezier" && !key.bezier_curve &&
-                !(key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy))
-                throw std::runtime_error("camera bezier interpolation requires a curve or temporal handles");
-            if (key.interpolation && *key.interpolation != "bezier" && key.bezier_curve)
-                throw std::runtime_error("camera bezier_curve requires interpolation='bezier'");
-            if (key.interpolation == "auto_bezier" &&
-                (key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy || key.bezier_curve))
-                throw std::runtime_error("camera auto_bezier cannot combine with authored handles");
-            if (key.interpolation && key.easing)
-                throw std::runtime_error("camera keyframe interpolation cannot be combined with easing");
-            if (!key.interpolation && ((key.easing == "bezier") != key.bezier_curve.has_value()))
-                throw std::runtime_error("camera per-key easing='bezier' requires bezier_curve");
-            if (key.interpolation == "auto_bezier" && (key.easing || key.bezier_curve))
-                throw std::runtime_error("camera auto_bezier cannot combine with per-key easing or bezier_curve");
-            track.keyframes.push_back(std::move(key));
-        }
-        tracks.push_back(std::move(track));
+std::vector<CameraSamplePlan> decode_camera_samples(const nlohmann::json& value) {
+    if (!value.is_array() || value.empty() || value.size() > 1000000)
+        throw std::runtime_error("camera_samples must be a non-empty array of at most 1000000 samples");
+    std::vector<CameraSamplePlan> samples;
+    samples.reserve(value.size());
+    double previous = -std::numeric_limits<double>::infinity();
+    for (const auto& raw : value) {
+        if (!raw.is_object() || !raw.contains("frame") || !raw.contains("camera") ||
+            !raw.at("frame").is_number())
+            throw std::runtime_error("camera sample requires numeric frame and camera object");
+        const double frame = raw.at("frame").get<double>();
+        if (!std::isfinite(frame) || frame <= previous || frame < -1000000.0 || frame > 1000000.0)
+            throw std::runtime_error("camera sample frames must be finite, strictly increasing, and in [-1000000, 1000000]");
+        samples.push_back(CameraSamplePlan{frame, decode_camera(raw.at("camera"))});
+        previous = frame;
     }
-    return tracks;
+    return samples;
 }
 
 }  // namespace chronon3d::render_plan::detail

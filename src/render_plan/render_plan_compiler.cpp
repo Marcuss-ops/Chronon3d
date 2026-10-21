@@ -243,10 +243,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 "runtime camera sampling requires a camera descriptor for static lens and clipping defaults",
                 "camera_sample_provider_requires_camera", "render-plan-camera"};
         }
-        if (runtime_camera != nullptr && input_plan.camera_animation) {
+        if (runtime_camera != nullptr && input_plan.camera_samples) {
             return PlanDecodeError{"camera_sample_provider",
-                "runtime camera sampling cannot be combined with serialized camera tracks; provide one resolved camera source",
-                "runtime_camera_conflicts_with_tracks", "render-plan-camera"};
+                "runtime camera sampling cannot be combined with serialized camera samples; provide one resolved camera source",
+                "runtime_camera_conflicts_with_samples", "render-plan-camera"};
         }
         auto expanded_plan = input_plan;
         auto& plan = expanded_plan;

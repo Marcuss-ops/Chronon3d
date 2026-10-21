@@ -63,28 +63,10 @@ Json jsonForValidation(const RenderPlan& plan) {
                           {"rotation_deg", plan.camera->rotation_deg}, {"fov_deg", plan.camera->fov_deg},
                           {"near", plan.camera->near}, {"far", plan.camera->far}, {"zoom", plan.camera->zoom}};
     }
-    if (plan.camera_animation) {
-        Json animation{{"tracks", Json::array()}};
-        for (const auto& track : *plan.camera_animation) {
-            const char* property = "camera_position_z";
-            using Property = chronon3d::render_plan::CameraPropertyPlan;
-            switch (track.property) {
-                case Property::PositionX: property = "camera_position_x"; break;
-                case Property::PositionY: property = "camera_position_y"; break;
-                case Property::PositionZ: property = "camera_position_z"; break;
-                case Property::RotationX: property = "camera_rotation_x"; break;
-                case Property::RotationY: property = "camera_rotation_y"; break;
-                case Property::RotationZ: property = "camera_rotation_z"; break;
-                case Property::FovDeg: property = "camera_fov_deg"; break;
-                case Property::Zoom: property = "camera_zoom"; break;
-            }
-            Json encoded{{"property", property}, {"easing", track.easing}, {"keyframes", Json::array()}};
-            for (const auto& key : track.keyframes)
-                encoded["keyframes"].push_back({{"frame", key.frame.integral()},
-                                                {"value", key.value.empty() ? 0.f : key.value.front()}});
-            animation["tracks"].push_back(std::move(encoded));
-        }
-        root["camera_animation"] = std::move(animation);
+    if (plan.camera_samples) {
+        root["camera_samples"] = Json::array();
+        for (const auto& sample : *plan.camera_samples)
+            root["camera_samples"].push_back({{"frame", sample.frame}, {"camera", root["camera"]}});
     }
     for (const auto& layer : plan.layers) {
         const char* type = "color";
@@ -617,10 +599,10 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     cameraOptions.contentLayers.emplace("21", cameraImage);
     const auto cameraPlan = lowerToRenderPlan(cameraScene, cameraOptions);
     REQUIRE(cameraPlan.camera.has_value());
-    REQUIRE(cameraPlan.camera_animation.has_value());
-    CHECK(cameraPlan.camera_animation->size() == 7);
+    REQUIRE(cameraPlan.camera_samples.has_value());
+    CHECK(cameraPlan.camera_samples->size() == 4);
     CHECK(cameraPlan.camera->position[0] == doctest::Approx(0.f));
-    CHECK(cameraPlan.camera_animation->front().keyframes.back().value.front() == doctest::Approx(1.f));
+    CHECK(cameraPlan.camera_samples->back().camera.position[0] == doctest::Approx(1.f));
     CHECK(cameraPlan.canvas.duration.integral() == 4);
     CHECK_MESSAGE(canonicallyValid(cameraPlan), canonicalDiagnostic(cameraPlan));
 

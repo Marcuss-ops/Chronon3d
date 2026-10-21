@@ -129,6 +129,10 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         return PlanDecodeError{"variables", error.what(), "invalid_render_variables", "render-plan-variables"};
     }
     const auto& resolved_root = resolved.plan;
+    if (resolved_root.is_object() && resolved_root.contains("camera_animation"))
+        return PlanDecodeError{"camera_animation",
+            "camera_animation is retired; lower the camera to resolved camera_samples in ChrononMotion3D",
+            "camera_animation_retired", "render-plan-decoder"};
     // Check the canonical layer-track inventory before JSON Schema so callers
     // get the registered property's actionable diagnostic instead of only an
     // enum mismatch from the structural validator.
@@ -437,23 +441,12 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                 return PlanDecodeError{"lighting_rig", "lighting rig values are outside their supported finite ranges", "invalid_lighting_rig", "render-plan-lighting"};
             plan.lighting_rig = rig;
         }
-        if (resolved_root.contains("camera_animation")) {
+        if (resolved_root.contains("camera_samples")) {
             if (!plan.camera)
-                return PlanDecodeError{"camera_animation",
-                    "camera_animation requires a camera object",
-                    "camera_animation_requires_camera", "render-plan-decoder"};
-            plan.camera_animation = detail::decode_camera_tracks(resolved_root.at("camera_animation"));
-            const bool has_dof_animation = std::any_of(
-                plan.camera_animation->begin(), plan.camera_animation->end(), [](const auto& track) {
-                    return track.property == chronon3d::render_plan::CameraPropertyPlan::FocusDistance ||
-                           track.property == chronon3d::render_plan::CameraPropertyPlan::Aperture ||
-                           track.property == chronon3d::render_plan::CameraPropertyPlan::MaxBlur ||
-                           track.property == chronon3d::render_plan::CameraPropertyPlan::FStop;
-                });
-            if (has_dof_animation && !plan.camera->dof_enabled)
-                return PlanDecodeError{"camera_animation",
-                    "animated DOF channels require camera.dof.enabled=true",
-                    "camera_dof_animation_requires_dof", "render-plan-decoder"};
+                return PlanDecodeError{"camera_samples",
+                    "camera_samples requires a camera object for static renderer defaults",
+                    "camera_samples_requires_camera", "render-plan-decoder"};
+            plan.camera_samples = detail::decode_camera_samples(resolved_root.at("camera_samples"));
         }
 
         std::size_t layer_index = 0;

@@ -48,6 +48,54 @@ json track(const std::string& property,
     return {{"property", property}, {"easing", easing}, {"keyframes", frames}};
 }
 
+void set_camera_samples(json& plan, const json& authored) {
+    const int duration = plan.at("canvas").at("duration_frames").get<int>();
+    json samples = json::array();
+    for (int frame = 0; frame < duration; ++frame) {
+        json camera = plan.at("camera");
+        for (const auto& track : authored.at("tracks")) {
+            const std::string property = track.at("property").get<std::string>();
+            std::string field;
+            int component = -1;
+            bool dof = false;
+            if (property == "camera_position_x") { field = "position"; component = 0; }
+            else if (property == "camera_position_y") { field = "position"; component = 1; }
+            else if (property == "camera_position_z") { field = "position"; component = 2; }
+            else if (property == "camera_rotation_x") { field = "rotation_deg"; component = 0; }
+            else if (property == "camera_rotation_y") { field = "rotation_deg"; component = 1; }
+            else if (property == "camera_rotation_z") { field = "rotation_deg"; component = 2; }
+            else if (property == "camera_fov_deg") field = "fov_deg";
+            else if (property == "camera_zoom") field = "zoom";
+            else if (property == "camera_focal_length_mm") field = "focal_length_mm";
+            else if (property == "camera_f_stop") field = "f_stop";
+            else if (property == "camera_focus_distance") { field = "focus_distance"; dof = true; }
+            else if (property == "camera_aperture") { field = "aperture"; dof = true; }
+            else if (property == "camera_max_blur") { field = "max_blur"; dof = true; }
+            else throw std::runtime_error("unsupported authored camera channel: " + property);
+            const auto& keys = track.at("keyframes");
+            const json* left = &keys.front();
+            const json* right = &keys.back();
+            for (std::size_t i = 1; i < keys.size(); ++i) {
+                if (keys[i-1].at("frame").get<int>() <= frame &&
+                    frame <= keys[i].at("frame").get<int>()) {
+                    left = &keys[i-1]; right = &keys[i]; break;
+                }
+            }
+            const int lf = left->at("frame").get<int>();
+            const int rf = right->at("frame").get<int>();
+            const double t = rf == lf ? 0.0 : std::clamp(double(frame-lf)/double(rf-lf), 0.0, 1.0);
+            const double a = left->at("value").get<double>();
+            const double b = right->at("value").get<double>();
+            const double value = a + (b-a)*t;
+            if (dof) camera["dof"][field] = value;
+            else if (component >= 0) camera[field][component] = value;
+            else camera[field] = value;
+        }
+        samples.push_back({{"frame", frame}, {"camera", std::move(camera)}});
+    }
+    plan["camera_samples"] = std::move(samples);
+}
+
 json vector_track(const std::string& property,
                   const std::vector<std::pair<int, std::vector<double>>>& keys) {
     json frames = json::array();
@@ -182,8 +230,8 @@ void configure(json& plan, const Case& item) {
         replace_track(subtitle, "rotation_y", "rotation_y", zero);
         plan["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1000}},
                            {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}};
-        plan["camera_animation"] = {{"tracks", json::array({
-            track("camera_position_z", {{0, -1000}, {10, -1400}, {96, -1400}, {112, -1000}, {119, -1000}})})}};
+        set_camera_samples(plan, {{"tracks", json::array({
+            track("camera_position_z", {{0, -1000}, {10, -1400}, {96, -1400}, {112, -1000}, {119, -1000}})})}});
     } else if (item.id.starts_with("C2")) {
         set_text(title, "NEAR");
         set_text(subtitle, "FAR");
@@ -197,15 +245,15 @@ void configure(json& plan, const Case& item) {
         replace_track(subtitle, "rotation_y", "rotation_y", zero);
         plan["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1000}},
                            {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}};
-        plan["camera_animation"] = {{"tracks", json::array({
+        set_camera_samples(plan, {{"tracks", json::array({
             track("camera_position_x", {{0, -120}, {10, 0}, {96, 0}, {112, 120}, {119, 120}}),
             track("camera_rotation_y", {{0, -8}, {10, 0}, {96, 0}, {112, 8}, {119, 8}}),
-            track("camera_rotation_x", {{0, 6}, {10, 0}, {96, 0}, {112, -6}, {119, -6}})})}};
+            track("camera_rotation_x", {{0, 6}, {10, 0}, {96, 0}, {112, -6}, {119, -6}})})}});
     } else if (item.id.starts_with("C3")) {
         plan["camera"] = {{"type", "perspective"}, {"position", {0, 0, -1200}},
                            {"rotation_deg", {0, 0, 0}}, {"fov_deg", 50}};
-        plan["camera_animation"] = {{"tracks", json::array({
-            track("camera_position_z", {{0, -1200}, {10, -1600}, {96, -1600}, {112, -1200}, {119, -1200}})})}};
+        set_camera_samples(plan, {{"tracks", json::array({
+            track("camera_position_z", {{0, -1200}, {10, -1600}, {96, -1600}, {112, -1200}, {119, -1200}})})}});
         set_depth(title, {{0, -500}, {10, -500}, {96, -500}, {112, -500}, {119, -500}});
         set_depth(subtitle, {{0, 500}, {10, 500}, {96, 500}, {112, 500}, {119, 500}});
         replace_track(title, "rotation_y", "rotation_y", zero);
@@ -267,7 +315,7 @@ int main(int argc, char** argv) {
             plan["job_id"] = "chronon_trap_preview_" + item.id;
             plan["output"]["path"] = item.id + "_preview.mp4";
             plan.erase("camera");
-            plan.erase("camera_animation");
+            plan.erase("camera_samples");
             setup_labels(plan, item);
             configure(plan, item);
             std::ofstream output(output_dir / (item.id + ".plan.json"));
