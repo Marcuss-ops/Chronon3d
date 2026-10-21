@@ -31,7 +31,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/math/camera_projection_contract.hpp>   // FocalPx, project_world_point
-#include <chronon3d/scene/camera/camera_v1/evaluated_projection.hpp>  // EvaluatedProjection, make_evaluated_projection
+#include <chronon3d/scene/camera/evaluated_projection.hpp>  // EvaluatedProjection, make_evaluated_projection
 #include <chronon3d/scene/model/camera/lens_model.hpp>      // LensModel, LensPresets, GateFit, ViewportRect
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>     // Camera2_5D, CameraOpticsMode
 
@@ -41,8 +41,6 @@ using namespace chronon3d;
 using chronon3d::camera_math::project_world_point;
 using chronon3d::camera_math::Viewport2D;
 using chronon3d::camera_math::FocalPx;     // TICKET-035 — per-axis focal struct (camera_projection_contract.hpp)
-using chronon3d::camera_v1::make_evaluated_projection;
-using chronon3d::camera_v1::EvaluatedProjection;
 
 namespace {
 

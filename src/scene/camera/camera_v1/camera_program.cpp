@@ -22,7 +22,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
-#include <chronon3d/scene/camera/camera_v1/evaluated_projection.hpp>  // CAM-03 snapshot
+#include <chronon3d/scene/camera/evaluated_projection.hpp>  // renderer projection snapshot
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms::world_position
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>  // quat_look_along, quat_to_camera_euler
 #include <chronon3d/animation/effects/wiggle.hpp>             // CAM-04 — wiggle3D abs-time
