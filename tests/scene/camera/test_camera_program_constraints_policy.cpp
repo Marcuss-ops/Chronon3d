@@ -16,8 +16,7 @@
 //   ✓ PoseTracksSource
 //   ✓ OrbitMotion
 //   ✓ TrajectoryMotion
-//   ✓ RegisteredMotionRef (via CameraCatalog)
-//   ✓ Missing preset → compile error
+// //   ✓ Missing preset → compile error
 //   ✓ Projection: ZoomProjection
 //   ✓ Projection: FovProjection
 //   ✗ Projection: PhysicalLensProjection        [CAM-03 — variant missing]
@@ -52,7 +51,6 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_catalog.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/lens_model.hpp>  // LensPresets for PhysicalLens trajectory test
@@ -79,9 +77,8 @@ constexpr float kCam01Eps = 1e-5f;
 constexpr FrameRate kCam01Fps{60, 1};
 
 // Helper: compile + assert success + assert is_compiled().
-CameraProgram compile_or_die_cam01(const CameraDescriptor& desc,
-                              const CameraCatalog* catalog = nullptr) {
-    auto result = compile_camera(desc, catalog);
+CameraProgram compile_or_die_cam01(const CameraDescriptor& desc) {
+    auto result = compile_camera(desc);
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
     REQUIRE(program.is_compiled());
@@ -466,92 +463,6 @@ TEST_CASE("compiled_uncompiled_evaluate_returns_error — "
 // These tests exercise the compile_camera() / compute_camera_descriptor_fingerprint
 // / CameraProgram::evaluation_dependency() surface added in CAM-02.
 //
-
-// ── §9 helpers ──────────────────────────────────────────────────────────
-//
-// Build two CameraDescriptors whose RegisteredMotionRef chain forms a cycle:
-//   preset.A → "preset.B" → "preset.A"
-// Tests the cycle-detection path through the 3-arg compile_camera() with a
-// shared CameraCompileContext.
-namespace {
-
-NamedCameraPreset make_circular_AB_preset_a() {
-    CameraDescriptor d;
-    d.id = "preset.A";
-    d.base.enabled = true;
-    d.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
-    d.source = RegisteredMotionRef{"preset.B"};
-    d.orientation = FixedOrientation{};
-    return NamedCameraPreset{"preset.A", "test", "circular A back-edge",
-                              std::move(d)};
-}
-
-NamedCameraPreset make_circular_AB_preset_b() {
-    CameraDescriptor d;
-    d.id = "preset.B";
-    d.base.enabled = true;
-    d.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
-    d.source = RegisteredMotionRef{"preset.A"};
-    d.orientation = FixedOrientation{};
-    return NamedCameraPreset{"preset.B", "test", "circular B back-edge",
-                              std::move(d)};
-}
-
-NamedCameraPreset make_self_loop_preset() {
-    CameraDescriptor d;
-    d.id = "preset.SELF";
-    d.base.enabled = true;
-    d.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
-    d.source = RegisteredMotionRef{"preset.SELF"};
-    d.orientation = FixedOrientation{};
-    return NamedCameraPreset{"preset.SELF", "test", "self-loop preset",
-                              std::move(d)};
-}
-
-} // namespace
-
-// ── §9.1 Cycle detection ─────────────────────────────────────────────────
-TEST_CASE("compiled_cycle_detection_mutual_a_b — "
-          "two presets back-to-back trigger CircularCatalogReference") {
-    NamedCameraPreset presets[] = {
-        make_circular_AB_preset_a(),
-        make_circular_AB_preset_b(),
-    };
-    CameraCatalog catalog(presets);
-
-    CameraDescriptor top;
-    top.id = "test.cycle_outer";
-    top.base.enabled = true;
-    top.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
-    top.source = RegisteredMotionRef{"preset.A"};
-    top.orientation = FixedOrientation{};
-
-    auto result = compile_camera(top, &catalog);
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code
-          == CameraCompileErrorCode::CircularPresetReference);
-    // Diagnostic message must name at least one of the cyclic ids so the
-    // operator can identify which chain is broken.
-    CHECK(result.error().message.find("preset.A") != std::string::npos);
-}
-
-TEST_CASE("compiled_cycle_detection_self_loop — "
-          "a preset that resolves to itself triggers CircularCatalogReference") {
-    NamedCameraPreset presets[] = {make_self_loop_preset()};
-    CameraCatalog catalog(presets);
-
-    CameraDescriptor top;
-    top.id = "test.cycle_self";
-    top.base.enabled = true;
-    top.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
-    top.source = RegisteredMotionRef{"preset.SELF"};
-    top.orientation = FixedOrientation{};
-
-    auto result = compile_camera(top, &catalog);
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code
-          == CameraCompileErrorCode::CircularPresetReference);
-}
 
 // ── §9.2 Deterministic fingerprint ───────────────────────────────────────
 TEST_CASE("compiled_fingerprint_identical_content_equal — "

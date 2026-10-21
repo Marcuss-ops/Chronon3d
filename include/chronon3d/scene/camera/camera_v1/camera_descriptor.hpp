@@ -17,7 +17,7 @@
 // Layout:
 //   CameraDescriptor
 //     ├── CameraBaseSpec       (non-motion base state)
-//     ├── CameraSourceSpec     (variant: static / pose-tracks / orbit / trajectory / ref)
+//     ├── CameraSourceSpec     (variant: static / pose-tracks / orbit / trajectory)
 //     ├── modifiers            (IdleOscillation etc.)
 //     ├── OrientationSpec      (variant: fixed / look-at-point / look-at-layer / along-path)
 //     └── failure_policy
@@ -238,18 +238,11 @@ struct TrajectoryMotion {
     bool use_arc_length{true};
 };
 
-/// Reference to a named preset in the CameraCatalog.
-/// Resolved to a concrete source at compile_camera() time.
-struct RegisteredMotionRef {
-    std::string id;
-};
-
 using CameraSourceSpec = std::variant<
     StaticCameraSource,
     PoseTracksSource,
     OrbitMotion,
-    TrajectoryMotion,
-    RegisteredMotionRef
+    TrajectoryMotion
 >;
 
 // =============================================================================

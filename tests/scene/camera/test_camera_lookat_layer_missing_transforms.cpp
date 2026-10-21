@@ -78,7 +78,7 @@ CameraDescriptor make_lookat_layer_desc(
 // redefinition error in the unified TU built by
 // chronon3d_scene_tests (see TICKET-120 build-redefinition group).
 CameraProgram compile_or_die_lookat_diagnostic(const CameraDescriptor& desc) {
-    auto cr = compile_camera(desc, /*catalog=*/nullptr);
+    auto cr = compile_camera(desc);
     REQUIRE(cr.has_value());
     auto prog = std::move(cr).value();
     REQUIRE(prog.is_compiled());

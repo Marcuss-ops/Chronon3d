@@ -84,7 +84,7 @@ CameraProgram make_program_at_position(const Vec3& position, const char* id) {
     desc.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
     desc.source = StaticCameraSource{};
 
-    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    auto result = compile_camera(desc);
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
     REQUIRE(program.is_compiled());
@@ -107,7 +107,7 @@ CameraProgram make_test_program() {
     desc.source = StaticCameraSource{};
     desc.orientation = LookAtLayer{"missing-target"};  // missing transforms → deterministic warning
 
-    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    auto result = compile_camera(desc);
     REQUIRE(result.has_value());
     program = std::move(result).value();
     REQUIRE(program.is_compiled());

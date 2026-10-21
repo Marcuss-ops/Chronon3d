@@ -14,12 +14,12 @@
 // TRY(expr) macro — early-return on error (GNU statement-expression).
 //
 // Usage:
-//   auto r = compile_camera(descriptor, &catalog);
+//   auto r = compile_camera(descriptor);
 //   if (!r) { return r.error(); }
 //   auto program = std::move(r).value();
 //
 //   // Or with TRY:
-//   auto program = CHRONON_TRY(compile_camera(descriptor, &catalog));
+//   auto program = CHRONON_TRY(compile_camera(descriptor));
 // ==============================================================================
 
 #include <cassert>

@@ -11,7 +11,6 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_catalog.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/lens_model.hpp>  // LensPresets for PhysicalLens trajectory test
@@ -33,9 +32,8 @@ constexpr float kCam01Eps = 1e-5f;
 constexpr FrameRate kCam01Fps{60, 1};
 
 // Helper: compile + assert success + assert is_compiled().
-CameraProgram compile_or_die_cam01(const CameraDescriptor& desc,
-                              const CameraCatalog* catalog = nullptr) {
-    auto result = compile_camera(desc, catalog);
+CameraProgram compile_or_die_cam01(const CameraDescriptor& desc) {
+    auto result = compile_camera(desc);
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
     REQUIRE(program.is_compiled());

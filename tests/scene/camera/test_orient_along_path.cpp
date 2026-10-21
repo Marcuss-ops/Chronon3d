@@ -95,7 +95,7 @@ float rotation_l2(const Vec3& r_deg) {
 
 // ── Helpers ──
 CameraProgram compile_or_die_orient_along_path(const CameraDescriptor& desc) {
-    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    auto result = compile_camera(desc);
     REQUIRE(result.has_value());          // fail loudly if the descriptor is
     auto program = std::move(result).value();  // rejected (validator regression visible here)
     REQUIRE(program.is_compiled());

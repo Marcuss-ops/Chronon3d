@@ -100,7 +100,7 @@ CameraDescriptor make_pose_tracks_base() {
 // damped_history / lookat_diagnostic / program files all had
 // anonymous-namespace `compile_or_die` that collide in Unity build).
 CameraProgram compile_or_die_damped_history(const CameraDescriptor& desc) {
-    auto cr = compile_camera(desc, /*catalog=*/nullptr);
+    auto cr = compile_camera(desc);
     REQUIRE(cr.has_value());
     auto prog = std::move(cr).value();
     REQUIRE(prog.is_compiled());

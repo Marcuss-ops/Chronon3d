@@ -79,7 +79,7 @@ CameraDescriptor make_orbit_descriptor() {
 }
 
 CameraProgram compile_orbit_or_die() {
-    auto result = compile_camera(make_orbit_descriptor(), /*catalog=*/nullptr);
+    auto result = compile_camera(make_orbit_descriptor());
     REQUIRE(result.has_value());
     auto program = std::move(result).value();
     REQUIRE(program.is_compiled());

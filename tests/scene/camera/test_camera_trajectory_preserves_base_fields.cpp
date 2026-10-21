@@ -135,7 +135,7 @@ CameraDescriptor make_sentinel_desc() {
 }
 
 CameraProgram compile_or_die_traj_preserves(const CameraDescriptor& desc) {
-    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    auto result = compile_camera(desc);
     if (!result.has_value()) {
         // Silent-on-success diagnostic.  INFO prints only on the next
         // FAIL, keeping green runs uncluttered.  Grep-friendly keys:
