@@ -392,6 +392,7 @@ chronon3d::Camera2_5D make_camera_value(
     camera.rotation = {source.rotation_deg[0], source.rotation_deg[1], source.rotation_deg[2]};
     camera.fov_deg = source.fov_deg;
     camera.zoom = 1000.0f * source.zoom;
+    camera.lens_shift = {source.lens_shift[0], source.lens_shift[1]};
     camera.optics_mode = source.type == "orthographic"
         ? chronon3d::CameraOpticsMode::Zoom
         : (source.focal_length_mm > 0.0f
@@ -400,11 +401,11 @@ chronon3d::Camera2_5D make_camera_value(
     if (source.type == "orthographic") camera.zoom = 1000.0f * source.zoom;
     if (source.focal_length_mm > 0.0f) {
         camera.lens.focal_length = source.focal_length_mm;
-        camera.lens.sensor_width = 35.0f;
+        camera.lens.sensor_width = source.sensor_width_mm;
         const float aspect = canvas.width > 0 && canvas.height > 0
             ? static_cast<float>(canvas.width) / static_cast<float>(canvas.height)
             : 16.0f / 9.0f;
-        camera.lens.sensor_height = 35.0f / aspect;
+        camera.lens.sensor_height = source.sensor_width_mm / aspect;
     }
     const float authored_f_stop = source.dof_f_stop > 0.0f
         ? source.dof_f_stop : source.f_stop;
