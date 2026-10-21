@@ -71,7 +71,6 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
 
 void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                   const Layer& layer, const LayerGraphItem& item,
-                                  const Camera2_5DRuntime& cam25d,
                                   const RenderGraphContext& ctx,
                                   const BuilderContext& node_ctx) {
     const bool is_static = layer.cache_static || item.is_static;
@@ -105,16 +104,6 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         layer_output = effect_id;
     }
 
-    // DOF blur (only for projected 2.5D layers).
-    // The camera DOF path is scene-level and is inserted by OutputPass as a
-    // single PerPixelDofNode after compositing. Do not consult
-    // ctx.policy.track_dof_depth here: OutputPass sets that policy after the
-    // layer graph is built, so the old check caused one legacy DofEffectNode
-    // per projected layer plus the final post-composite node (double DOF).
-    if (item.projected && cam25d.dof.enabled) {
-        // Intentionally no per-layer node: the final post-composite pass owns
-        // the camera DOF contract and has the complete depth/alpha field.
-    }
 }
 
 // ── mask pass ─────────────────────────────────────────────────────

@@ -17,7 +17,6 @@
 #include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
-#include <chronon3d/render_graph/nodes/dof_node.hpp>
 
 #include <algorithm>
 #include <stdexcept>

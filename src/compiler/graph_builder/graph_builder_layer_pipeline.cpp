@@ -125,7 +125,7 @@ GraphNodeId build_layer_output_node(
     append_lighting_pass_if_needed(graph, layer_output, item, ctx, node_ctx);
     append_shadow_passes_if_needed(graph, layer_output, item, casters, ctx, node_ctx);
     append_depth_grade_pass_if_needed(graph, layer_output, item, ctx, depth_grade, node_ctx);
-    append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d, ctx, node_ctx);
+    append_effect_pass_if_needed(graph, layer_output, *item.layer, item, ctx, node_ctx);
 
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
         // Canonical cache identity (TICKET-ae-cam-hash-collision Soluzione

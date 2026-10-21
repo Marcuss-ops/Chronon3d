@@ -1,5 +1,19 @@
 # TICKET — Wave closeout demolition debt
 
+## DOF graph node consolidation
+
+- **Status:** CLOSED (2026-10-21).
+- Removed the unused public `DofEffectNode`, its graph-compiler processor
+  binding, and the no-op per-layer DOF pass. Repository-wide search found no
+  construction sites; scene DOF is provided by `PerPixelDofNode` after
+  compositing. The graph builder now exposes only authored per-layer effects
+  at that stage.
+- **Validation:** `chronon3d_render_graph_tests` and `chronon3d_cli` rebuilt;
+  filtered DOF suite passed (21 cases, 1,489 assertions). Repository search
+  finds no remaining `DofEffectNode` or `dof_node.hpp` references.
+
+## Legacy composition adapter
+
 This ticket records the compatibility boundaries retained while the typed
 compiler/runtime and final video-plan contracts replace older entry points.
 

@@ -34,7 +34,7 @@ GraphNodeId build_matte_sub_pipeline(
     if (include_layer_mask && !mask_before_transform)
         append_mask_pass_if_needed(graph, out, item, ctx, node_ctx);
     if (include_layer_effects)
-        append_effect_pass_if_needed(graph, out, layer, item, cam25d, ctx, node_ctx);
+        append_effect_pass_if_needed(graph, out, layer, item, ctx, node_ctx);
     if (include_layer_track_matte && layer.track_matte.active()) {
         if (item.matte_node == k_invalid_node)
             throw std::runtime_error("nested track-matte source was not materialized: " +

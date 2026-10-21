@@ -2,7 +2,6 @@
 
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 namespace chronon3d {
     struct Layer;
@@ -18,10 +17,9 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            const BuilderContext& node_ctx = {},
                            Vec3 world_position = Vec3{0.0f});
 
-/// Append effect stack nodes for layer effects and optionally DOF blur.
+/// Append effect stack nodes for authored layer effects.
 void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                   const chronon3d::Layer& layer, const LayerGraphItem& item,
-                                  const Camera2_5DRuntime& cam25d,
                                   const RenderGraphContext& ctx,
                                   const BuilderContext& node_ctx = {});
 
