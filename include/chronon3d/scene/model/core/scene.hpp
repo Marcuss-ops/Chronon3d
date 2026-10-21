@@ -16,10 +16,8 @@
 
 namespace chronon3d {
 
-// Forward declarations for the camera facade / shot timeline opaque types
-// (defined in their own public headers).  Forward-declaring here keeps the
-// Scene header slim and avoids pulling `camera_v1::ShotTimeline`'s transitive
-// `CameraSession` include into every TU that touches a Scene.
+// Forward declarations for camera facade opaque types keep the Scene header
+// slim and avoid pulling camera authoring dependencies into renderer code.
 class Scene {
 public:
     explicit Scene(std::pmr::memory_resource* res = std::pmr::get_default_resource());
