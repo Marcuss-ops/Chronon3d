@@ -81,13 +81,14 @@ if [[ "${text_hits:-0}" -lt 1 ]]; then
 fi
 log "  - text layer markers: $text_hits hit(s)"
 
-# (3b) Compiled camera present (CameraDescriptor + setter on Composition).
-camera_hits="$(grep -cE 'camera_v1::CameraDescriptor|default_camera_descriptor' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
+# (3b) A resolved camera is supplied to the renderer. Camera authoring is
+# upstream; the SDK consumer passes Camera2_5D renderer state to the Scene.
+camera_hits="$(grep -cE 'Camera2_5D|set_evaluated_camera' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
 camera_hits="${camera_hits//[[:space:]]/}"
 if [[ "${camera_hits:-0}" -lt 1 ]]; then
-    fail "phase4 strict: consumer source missing camera_v1::CameraDescriptor / default_camera_descriptor"
+    fail "phase4 strict: consumer source must supply resolved Camera2_5D state via set_evaluated_camera"
 fi
-log "  - camera markers: $camera_hits hit(s)"
+log "  - resolved camera markers: $camera_hits hit(s)"
 
 # (4a) sdk::RenderEngine used ≥ 1 (P3-H productive engine path).
 sdk_hits="$(grep -cE '(^|[^A-Za-z0-9_])(chronon3d|c3d)::sdk::RenderEngine' "$CONSUMER_SRC" 2>/dev/null || echo 0)"
