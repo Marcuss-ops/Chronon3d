@@ -27,6 +27,9 @@ struct RenderPlanFingerprintSettings {
 struct RenderPlanFingerprintOptions {
     std::string schema_version{"chronon.render-plan.v2"};
     std::string engine_compatibility_version{"chronon3d.engine.v1"};
+    /// Stable identity for a non-serialized runtime camera source. Empty when
+    /// the serialized RenderPlan is the complete camera authority.
+    std::string runtime_camera_fingerprint{};
     RenderPlanFingerprintSettings render_settings{};
 };
 

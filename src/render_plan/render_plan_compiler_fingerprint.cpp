@@ -72,6 +72,8 @@ RenderJobFingerprint compute_render_job_fingerprint(
             .add(settings_hash)
             .add_bytes(assets.manifest_digest().bytes.data(),
                        assets.manifest_digest().bytes.size());
+        if (!options.runtime_camera_fingerprint.empty())
+            hash.add("runtime_camera").add(options.runtime_camera_fingerprint);
         if (include_output_settings) {
             hash.add_enum(request_plan.output.format)
                 .add_enum(request_plan.output.codec)

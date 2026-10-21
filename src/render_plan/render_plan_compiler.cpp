@@ -228,8 +228,20 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
     const RenderPlan& input_plan,
     chronon3d::assets::AssetResolver& resolver,
     const RenderPlanFingerprintOptions& fingerprint_options,
-    const compiler::CompiledProgram* canonical_program) {
+    const compiler::CompiledProgram* canonical_program,
+    const RuntimeCameraSampleProvider* runtime_camera) {
     try {
+        if (runtime_camera != nullptr &&
+            (!runtime_camera->sample || runtime_camera->fingerprint.empty())) {
+            return PlanDecodeError{"camera_sample_provider",
+                "runtime camera sampling requires a callable provider and stable fingerprint",
+                "invalid_camera_sample_provider", "render-plan-camera"};
+        }
+        if (runtime_camera != nullptr && !input_plan.camera) {
+            return PlanDecodeError{"camera_sample_provider",
+                "runtime camera sampling requires a camera descriptor for static lens and clipping defaults",
+                "camera_sample_provider_requires_camera", "render-plan-camera"};
+        }
         auto expanded_plan = input_plan;
         auto& plan = expanded_plan;
         materialize_media_background_cards(plan);
@@ -1731,8 +1743,11 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         const auto fingerprint_t0 = chronon3d::profiling::now();
         // Audit FP-1: the canonical job-identity authority, shared with the
         // compiler path so both produce the same digest for the same job.
+        auto effective_fingerprint_options = fingerprint_options;
+        if (runtime_camera != nullptr)
+            effective_fingerprint_options.runtime_camera_fingerprint = runtime_camera->fingerprint;
         const auto fingerprints = compute_render_job_fingerprint(
-            plan, assets, fingerprint_options);
+            plan, assets, effective_fingerprint_options);
         auto content_plan = plan;
         content_plan.job_id.clear();
         content_plan.output = {};
@@ -1939,7 +1954,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             .prepared_effects = prepared_effects,
             .font_engine = font_engine,
             .has_3d_layer = has_3d_layer,
-            .camera_evaluator = detail::make_camera_evaluator(plan),
+            .camera_evaluator = runtime_camera != nullptr
+                ? detail::make_camera_evaluator(plan, runtime_camera->sample)
+                : detail::make_camera_evaluator(plan),
             .follow_path_evaluators = follow_path_evaluators,
             .resolved_ocio_config_path = resolved_ocio_config_path});
 
