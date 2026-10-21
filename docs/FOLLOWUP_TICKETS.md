@@ -8,12 +8,11 @@
 |---|---:|---|---|
 | Main truth / same-SHA CI | P0 | VERIFY — GitHub Actions jobs blocked before runner allocation by account billing/spending limit | [MAIN-TRUTH-STAGE-1-2](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) |
 | Stabilizzazione Stage 1–5 | P0 | VERIFY — close after same-SHA CI | [TICKET-200](tickets/TICKET-200-stage-plan.md) |
-| Luma/chroma key native GPU | P1 | PARTIAL — local Vulkan parity and framehash; hardware certification pending | [KEYING-GPU-NATIVE](tickets/TICKET-KEYING-GPU-NATIVE.md) |
-| Echo native GPU dispatch | P1 | PARTIAL — local Vulkan parity and framehash; GPU-host certification pending | [ECHO-GPU-NATIVE](tickets/TICKET-ECHO-GPU-NATIVE.md) |
-| Engine certification aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
-| Test harness and WBH certification | P1 | PARTIAL — WBH protocol and toolchain manifest delivered; clean same-SHA run remains | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) · [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
+| Native GPU dispatch (keying and Echo) | P1 | PARTIAL — local parity/framehash pass; GPU-host certification pending | [KEYING-GPU-NATIVE](tickets/TICKET-KEYING-GPU-NATIVE.md) · [ECHO-GPU-NATIVE](tickets/TICKET-ECHO-GPU-NATIVE.md) |
+| Test harness and certification | P0/P1 | PARTIAL — aggregator open; WBH protocol delivered, clean same-SHA run remains | [TICKET-125](tickets/TICKET-125-test-aggregator.md) · [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) · [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
 | Vulkan shape-stroke parity | P1 | PARTIAL — solid closed shapes pass pixel oracle with scale, rotation, shear, and per-corner RoundedRect radii (local llvmpipe/NVIDIA); masks and hardware certification pending | [ROADMAP-LOCAL-CLOSEOUT](tickets/TICKET-ROADMAP-LOCAL-CLOSEOUT-2026-09.md) |
 | Camera authority / cinematic composition | P0 | ACTIVE — CM3D ownership migration is gated by the consumer census and pixel/temporal T16–T18 certification | [CAMERA-AUTHORITY-MIGRATION](tickets/TICKET-CAMERA-AUTHORITY-MIGRATION.md) · [CINEMATIC-COMPOSITION-CERTIFICATION](tickets/TICKET-CINEMATIC-COMPOSITION-CERTIFICATION.md) |
+| SVG advanced import scopes | P1 | PARTIAL — bounded software scope complete; nested text scopes and wider SVG parity remain | [SVG-RENDER-PLAN](tickets/TICKET-SVG-RENDER-PLAN.md) · [SVG-TEXT-ADVANCED-SCOPES](tickets/TICKET-SVG-TEXT-ADVANCED-SCOPES.md) |
 | Daemon job lifecycle throughput | P1 | OPEN — allocator data gate | [DAEMON-JOB-LIFECYCLE](tickets/TICKET-DAEMON-JOB-LIFECYCLE.md) |
 | Benchmark corpus and CPU budget | P1 | MEASURED — host certification pending | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) |
 | Node memory metrics | P1 | OPEN — representative corpus pending | [NODE-MEMORY-METRICS](tickets/TICKET-NODE-MEMORY-METRICS.md) |
