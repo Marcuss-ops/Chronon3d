@@ -333,7 +333,7 @@ std::optional<Color> parse_svg_color(std::string value, Color current) {
 
 std::map<std::string, std::string> style_properties(const boost::property_tree::ptree& node) {
     std::map<std::string, std::string> values;
-    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter", "color", "display", "visibility", "fill-rule", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "font-family", "font-size", "font-weight", "font-style", "direction", "text-anchor", "dominant-baseline", "baseline-shift"}) {
+    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter", "color", "display", "visibility", "fill-rule", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "font-family", "font-size", "font-weight", "font-style", "direction", "text-anchor", "dominant-baseline", "baseline-shift", "letter-spacing", "word-spacing", "writing-mode"}) {
         if (auto value = node.get_optional<std::string>(std::string("<xmlattr>.") + key)) {
             auto normalized = trim(*value);
             std::transform(normalized.begin(), normalized.end(), normalized.begin(),
@@ -1712,6 +1712,11 @@ struct SvgTextStyleState {
     std::vector<float> y_coordinates;
     std::vector<float> dx_coordinates;
     std::vector<float> dy_coordinates;
+    std::vector<float> rotate_degrees;
+    float letter_spacing{0.0f};
+    float word_spacing{0.0f};
+    std::optional<float> text_length;
+    std::string length_adjust{"spacing"};
     std::string text_anchor_scope_id;
     std::vector<std::string> group_ids;
     std::vector<std::string> coordinate_scope_ids;
@@ -1747,10 +1752,60 @@ std::vector<float> svg_text_lengths(const boost::property_tree::ptree& node,
     return result;
 }
 
+std::vector<float> svg_text_angles(const boost::property_tree::ptree& node) {
+    const auto value = node.get_optional<std::string>("<xmlattr>.rotate");
+    if (!value) return {};
+    std::string list = *value;
+    std::replace(list.begin(), list.end(), ',', ' ');
+    std::istringstream input(list);
+    std::vector<float> result;
+    std::string token;
+    while (input >> token) {
+        if (token.ends_with("deg")) token.resize(token.size() - 3);
+        try {
+            std::size_t used = 0;
+            const float parsed = std::stof(token, &used);
+            if (used != token.size() || !std::isfinite(parsed) || std::abs(parsed) > 36000.0f)
+                throw std::invalid_argument("invalid SVG text rotate angle");
+            result.push_back(parsed);
+        } catch (...) {
+            throw std::invalid_argument("SVG text rotate values must be bounded degrees");
+        }
+        if (result.size() > 4096)
+            throw std::invalid_argument("SVG text rotate list exceeds the 4096-angle limit");
+    }
+    if (result.empty())
+        throw std::invalid_argument("SVG text rotate list is empty");
+    return result;
+}
+
+float svg_text_spacing(const std::string& source, float font_size) {
+    auto value = trim(source);
+    if (value == "normal") return 0.0f;
+    float factor = 1.0f;
+    if (value.ends_with("px")) value.resize(value.size() - 2);
+    else if (value.ends_with("em")) {
+        value.resize(value.size() - 2);
+        factor = font_size;
+    }
+    try {
+        std::size_t used = 0;
+        const float parsed = std::stof(value, &used);
+        if (used != value.size() || !std::isfinite(parsed) || std::abs(parsed) > 100000.0f)
+            throw std::invalid_argument("invalid SVG text spacing");
+        return parsed * factor;
+    } catch (...) {
+        throw std::invalid_argument("SVG text spacing must be a finite bounded px or em value");
+    }
+}
+
 std::optional<float> svg_text_length(const boost::property_tree::ptree& node,
                                      const char* key) {
     const auto values = svg_text_lengths(node, key);
     if (values.empty()) return std::nullopt;
+    if (values.size() != 1)
+        throw std::invalid_argument(std::string("SVG text ") + key +
+            " must contain exactly one length");
     return values.front();
 }
 
@@ -1831,6 +1886,20 @@ void apply_svg_text_style(const boost::property_tree::ptree& node,
         if (value.ends_with("px")) value.resize(value.size() - 2);
         state.font_size = std::stof(value);
     }
+    if (const auto it = properties.find("letter-spacing"); it != properties.end())
+        state.letter_spacing = svg_text_spacing(it->second, state.font_size);
+    if (const auto it = properties.find("word-spacing"); it != properties.end())
+        state.word_spacing = svg_text_spacing(it->second, state.font_size);
+    if (node.get_optional<std::string>("<xmlattr>.rotate"))
+        state.rotate_degrees = svg_text_angles(node);
+    if (node.get_optional<std::string>("<xmlattr>.textLength")) {
+        state.text_length = svg_text_length(node, "textLength");
+        if (!state.text_length || *state.text_length <= 0.0f)
+            throw std::invalid_argument("SVG textLength must be a positive finite pixel value");
+        state.length_adjust = node.get<std::string>("<xmlattr>.lengthAdjust", "spacing");
+        if (state.length_adjust != "spacing" && state.length_adjust != "spacingAndGlyphs")
+            throw std::invalid_argument("SVG lengthAdjust supports spacing or spacingAndGlyphs");
+    }
     if (const auto it = properties.find("font-weight"); it != properties.end()) {
         if (it->second == "normal") state.font_weight = 400;
         else if (it->second == "bold") state.font_weight = 700;
@@ -1840,6 +1909,9 @@ void apply_svg_text_style(const boost::property_tree::ptree& node,
         state.font_style = it->second;
     if (const auto it = properties.find("direction"); it != properties.end())
         state.direction = it->second;
+    if (const auto it = properties.find("writing-mode"); it != properties.end() &&
+        it->second != "horizontal-tb" && it->second != "lr-tb")
+        throw std::invalid_argument("vertical SVG text writing modes are not supported by the bounded importer");
     if (const auto it = properties.find("text-anchor"); it != properties.end())
         state.text_anchor = it->second;
     if (const auto it = properties.find("dominant-baseline"); it != properties.end() &&
@@ -2055,6 +2127,14 @@ void collect_svg_text_runs(
             visit_text = [&](const auto& text_node, SvgTextStyleState current,
                              std::string own_id, bool x_explicit, bool y_explicit,
                              bool shaping_mergeable) {
+                if (current.text_length || !current.rotate_degrees.empty()) {
+                    for (const auto& [child_name, child] : text_node) {
+                        (void)child;
+                        if (child_name == "tspan" || child_name == "textPath")
+                            throw std::invalid_argument(
+                                "bounded SVG textLength/rotate currently requires a direct text run without nested spans or textPath");
+                    }
+                }
                 bool local_x_pending = x_explicit;
                 bool local_y_pending = y_explicit;
                 const auto emit_run = [&](const std::string& value,
@@ -2134,6 +2214,19 @@ void collect_svg_text_runs(
                     if (has_y) run.y = point.y;
                     run.dx = delta.x;
                     run.dy = delta.y;
+                    run.rotate_degrees.reserve(run_style.rotate_degrees.size());
+                    for (const float degrees : run_style.rotate_degrees) {
+                        const float radians = degrees * 0.017453292519943295f;
+                        const auto origin = transform_point(transform, Vec2{0.0f, 0.0f});
+                        const auto direction = transform_point(transform,
+                            Vec2{std::cos(radians), std::sin(radians)}) - origin;
+                        run.rotate_degrees.push_back(std::atan2(direction.y, direction.x) *
+                            57.29577951308232f);
+                    }
+                    run.letter_spacing = run_style.letter_spacing;
+                    run.word_spacing = run_style.word_spacing;
+                    run.text_length = run_style.text_length;
+                    run.length_adjust = run_style.length_adjust;
                     run.font_family = run_style.font_family;
                     run.font_size = run_style.font_size;
                     run.font_weight = run_style.font_weight;
@@ -2169,6 +2262,9 @@ void collect_svg_text_runs(
                     const auto no_positioning = [](const SvgTextRun& candidate) {
                         return !candidate.x_explicit && !candidate.y_explicit &&
                             candidate.dx == 0.0f && candidate.dy == 0.0f &&
+                            candidate.rotate_degrees.empty() &&
+                            candidate.letter_spacing == 0.0f && candidate.word_spacing == 0.0f &&
+                            !candidate.text_length &&
                             candidate.x_coordinates.empty() && candidate.y_coordinates.empty() &&
                             candidate.dx_coordinates.empty() && candidate.dy_coordinates.empty() &&
                             candidate.transformed_position_coordinates.empty() &&
@@ -2190,6 +2286,11 @@ void collect_svg_text_runs(
                         runs.back().text_anchor == run.text_anchor &&
                         runs.back().dominant_baseline == run.dominant_baseline &&
                         runs.back().baseline_shift == run.baseline_shift &&
+                        runs.back().rotate_degrees == run.rotate_degrees &&
+                        runs.back().letter_spacing == run.letter_spacing &&
+                        runs.back().word_spacing == run.word_spacing &&
+                        runs.back().text_length == run.text_length &&
+                        runs.back().length_adjust == run.length_adjust &&
                         runs.back().fill == run.fill &&
                         !runs.back().fill_gradient && !run.fill_gradient &&
                         !runs.back().fill_pattern && !run.fill_pattern &&
