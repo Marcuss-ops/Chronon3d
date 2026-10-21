@@ -82,10 +82,9 @@ static_assert(static_cast<std::uint32_t>(MotionBlurMode::VelocityApproximation) 
 struct Camera2_5D {
     bool enabled{false};
 
-    // Set to true by camera_v1::PoseTracksSource::evaluate() and by camera motion
-    // appliers/presets that mutate the camera per-frame.  Read by
-    // SceneHasher::camera_is_static() to decide whether the camera is
-    // effectively time-dependent for fast-path / caching purposes.
+    // Set by the RenderPlan camera-track adapter when authored camera values
+    // vary over time. Read by SceneHasher::camera_is_static() to decide whether
+    // the camera is time-dependent for fast-path and caching purposes.
     // Defaults to false (static camera).
     bool is_animated{false};
 
@@ -138,8 +137,8 @@ struct Camera2_5D {
 
     DepthOfFieldSettings dof;
 
-    // Motion blur settings — populated by the canonical camera evaluator and
-    // camera_v1::PoseTracksSource flows.  The render pipeline prefers camera-level
+    // Motion blur settings — populated by the RenderPlan camera adapter. The
+    // render pipeline prefers camera-level
     // motion blur over the global RenderSettings value when the camera
     // has explicit motion blur configuration.
     MotionBlurSettings motion_blur{};
