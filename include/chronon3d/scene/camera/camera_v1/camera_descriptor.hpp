@@ -294,8 +294,8 @@ struct IdleOscillation {
 /// Handheld noise (CAM-04 / DOC 03) — wiggle3D-based per-axis displacement
 /// driven by ABSOLUTE time (`ctx.sample_time.seconds()`). Same absolute
 /// time ⇒ identical offset regardless of evaluation order, giving
-/// strong deterministic-render guarantees.  Inspired by `ShakePreset::handheld`
-/// but rebuilt around abs-time to ensure cross-stitch / random-access
+/// strong deterministic-render guarantees. Built around absolute time to
+/// ensure cross-stitch / random-access
 /// determinism (DOC 03 §5 — random-access determinism).
 struct HandheldNoise {
     Vec3       position_amplitude{2.0f, 1.0f, 0.5f};
