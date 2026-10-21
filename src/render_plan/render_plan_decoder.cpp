@@ -392,27 +392,10 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         }
         if (resolved_root.contains("camera"))
             plan.camera = detail::decode_camera(resolved_root.at("camera"));
-        if (resolved_root.contains("camera_shake")) {
-            if (plan.schema != kRenderPlanSchemaV3 || !plan.camera)
-                return PlanDecodeError{"camera_shake", "camera_shake requires a V3 camera", "camera_shake_requires_v3_camera", "render-plan-camera"};
-            const auto& raw = resolved_root.at("camera_shake");
-            CameraShakePlan shake;
-            shake.amplitude_px = raw.value("amplitude_px", shake.amplitude_px);
-            shake.frequency_hz = raw.value("frequency_hz", shake.frequency_hz);
-            shake.decay = raw.value("decay", shake.decay);
-            shake.seed = raw.value("seed", shake.seed);
-            shake.rotation_amplitude_deg = raw.value("rotation_amplitude_deg", shake.rotation_amplitude_deg);
-            shake.start_frame = Frame{raw.value("start_frame", std::int64_t{0})};
-            shake.duration_frames = Frame{raw.value("duration_frames", std::int64_t{0})};
-            if (!std::isfinite(shake.amplitude_px) || shake.amplitude_px < 0.0f || shake.amplitude_px > 4096.0f ||
-                !std::isfinite(shake.frequency_hz) || shake.frequency_hz <= 0.0f || shake.frequency_hz > 120.0f ||
-                !std::isfinite(shake.decay) || shake.decay < 0.0f || shake.decay > 100.0f ||
-                !std::isfinite(shake.rotation_amplitude_deg) || shake.rotation_amplitude_deg < 0.0f || shake.rotation_amplitude_deg > 360.0f ||
-                shake.start_frame.integral() < 0 || shake.start_frame.integral() > 1000000 ||
-                shake.duration_frames.integral() < 0 || shake.duration_frames.integral() > 1000000)
-                return PlanDecodeError{"camera_shake", "camera_shake values are outside supported bounds", "invalid_camera_shake", "render-plan-camera"};
-            plan.camera_shake = shake;
-        }
+        if (resolved_root.contains("camera_shake"))
+            return PlanDecodeError{"camera_shake",
+                "camera_shake is no longer a RenderPlan feature; author it on ChrononMotion3D CameraRig tracks",
+                "camera_shake_must_be_baked_by_motion", "render-plan-camera"};
         if (resolved_root.contains("lighting_rig")) {
             if (plan.schema != kRenderPlanSchemaV3)
                 return PlanDecodeError{"lighting_rig", "lighting_rig is available only in render-plan V3", "v3_lighting_in_v2", "render-plan-lighting"};

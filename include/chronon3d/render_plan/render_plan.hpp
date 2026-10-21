@@ -497,16 +497,6 @@ struct CameraPlan {
     float dof_highlight_gain{0.0f};
 };
 
-struct CameraShakePlan {
-    float amplitude_px{20.0f};
-    float frequency_hz{8.0f};
-    float decay{0.0f};
-    std::uint32_t seed{0};
-    float rotation_amplitude_deg{0.0f};
-    Frame start_frame{0};
-    Frame duration_frames{0}; // zero means no duration limit
-};
-
 enum class CameraPropertyPlan : std::uint8_t {
     PositionX, PositionY, PositionZ,
     RotationX, RotationY, RotationZ,
@@ -943,7 +933,6 @@ struct RenderPlan {
     // Full-scene shutter accumulation; separate from the per-layer analytic blur.
     std::optional<MotionBlurPlan> temporal_motion_blur;
     std::optional<CameraPlan> camera;
-    std::optional<CameraShakePlan> camera_shake;
     std::optional<std::vector<CameraTrackPlan>> camera_animation;
     std::optional<LightingRigPlan> lighting_rig;
     struct ColorManagementPlan {

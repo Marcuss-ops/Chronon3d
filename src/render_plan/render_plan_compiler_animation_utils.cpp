@@ -481,8 +481,7 @@ CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan) {
     }
     const auto base_camera = *resolved;
     const auto fps = plan.canvas.fps;
-    const bool animated = plan.camera_shake.has_value() ||
-        std::any_of(tracks.begin(), tracks.end(), [](const auto& track) {
+    const bool animated = std::any_of(tracks.begin(), tracks.end(), [](const auto& track) {
             return track.has_value();
         });
     return [base_camera, tracks = std::move(tracks), fps, animated,

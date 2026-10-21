@@ -477,12 +477,6 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
     report.layers.reserve(plan.layers.size());
     const Frame duration = plan.canvas.duration.integral() > 0 ? plan.canvas.duration : Frame{0};
     std::size_t skippable = 0;
-    bool camera_shake_active = false;
-    if (plan.camera_shake) {
-        const auto& s = *plan.camera_shake;
-        camera_shake_active = (s.amplitude_px != 0.0f || s.rotation_amplitude_deg != 0.0f) &&
-            s.frequency_hz > 0.0f;
-    }
     bool camera_animated = false, camera_per_frame = false;
     if (plan.camera_animation) for (const auto& t : *plan.camera_animation) {
         if (t.keyframes.size() < 2) continue;
@@ -520,8 +514,7 @@ inline void append_camera_keys(std::vector<Frame>& out, const std::vector<Camera
                 item.properties.push_back(std::move(property));
             }
         }
-        if (camera_affects && (camera_shake_active || camera_per_frame ||
-                               (layer.enable_3d && camera_animated)))
+        if (camera_affects && (camera_per_frame || (layer.enable_3d && camera_animated)))
             facts.animated = facts.per_frame = true;
         else if (camera_affects && camera_animated) facts.animated = facts.per_frame = true;
         const bool subframe =

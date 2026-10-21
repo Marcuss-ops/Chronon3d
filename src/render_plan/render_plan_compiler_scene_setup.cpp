@@ -1,26 +1,7 @@
 #include "render_plan_compiler_detail.hpp"
-#include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <cmath>
-#include <cstdint>
 #include <utility>
 namespace chronon3d::render_plan::detail {
-namespace {
-double shake_value_noise(double sample, std::uint32_t seed, std::uint32_t channel) noexcept {
-    const auto cell = static_cast<std::int64_t>(std::floor(sample));
-    const double fraction = sample - static_cast<double>(cell);
-    const auto value_at = [seed, channel](std::int64_t index) {
-        const auto bits = chronon3d::core::hash::splitmix64(static_cast<std::uint64_t>(index) ^
-            (static_cast<std::uint64_t>(seed) << 32U) ^ channel);
-        return static_cast<double>(bits >> 11U) * (1.0 / 9007199254740992.0) * 2.0 - 1.0;
-    };
-    const double smooth = fraction * fraction * fraction *
-        (fraction * (fraction * 6.0 - 15.0) + 10.0);
-    return value_at(cell) + (value_at(cell + 1) - value_at(cell)) * smooth;
-}
-
-
-} // namespace
 void configure_scene_camera_and_lighting(
     chronon3d::SceneBuilder& scene, const RenderPlan& plan, bool has_3d_layer,
     const CameraTrackEvaluator& camera_evaluator,
@@ -65,27 +46,6 @@ void configure_scene_camera_and_lighting(
         // do not compile another Camera V1 authoring program.
         if (camera_evaluator) {
             auto evaluated_camera = camera_evaluator(ctx.effective_frame());
-            if (plan.camera_shake) {
-                const auto& shake = *plan.camera_shake;
-                const double frame = ctx.effective_frame();
-                const double elapsed_frames = frame - static_cast<double>(shake.start_frame.integral());
-                const bool in_range = elapsed_frames >= 0.0 &&
-                    (shake.duration_frames.integral() == 0 ||
-                     elapsed_frames <= static_cast<double>(shake.duration_frames.integral()));
-                if (in_range) {
-                    const double elapsed_seconds = elapsed_frames /
-                        (static_cast<double>(ctx.frame_rate().numerator) / ctx.frame_rate().denominator);
-                    const double envelope = std::exp(-static_cast<double>(shake.decay) * elapsed_seconds);
-                    const double phase = elapsed_seconds * static_cast<double>(shake.frequency_hz);
-                    evaluated_camera.position.x += static_cast<float>(shake.amplitude_px *
-                        shake_value_noise(phase, shake.seed, 0U) * envelope);
-                    evaluated_camera.position.y += static_cast<float>(shake.amplitude_px *
-                        shake_value_noise(phase, shake.seed, 1U) * envelope);
-                    evaluated_camera.rotation.z += static_cast<float>(shake.rotation_amplitude_deg *
-                        shake_value_noise(phase, shake.seed, 2U) * envelope);
-                    evaluated_camera.is_animated = true;
-                }
-            }
             scene.set_evaluated_camera(std::move(evaluated_camera));
         }
 
