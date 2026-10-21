@@ -96,7 +96,9 @@ target is enabled only in the explicitly configured interoperability lane.
 
 - una sola pipeline render compilata;
 - una sola pipeline testuale canonica;
-- una sola pipeline camera `CameraDescriptor → CameraProgram`;
+- CM3D è l'autorità unica per l'authoring e la valutazione cinematografica;
+- C3D consuma la camera risolta e mantiene proiezione, depth, DOF pixel,
+  motion blur, compositing e output;
 - registrazione esplicita tramite estensioni;
 - runtime headless e deterministico;
 - nessuna GUI o dipendenza browser nel core.

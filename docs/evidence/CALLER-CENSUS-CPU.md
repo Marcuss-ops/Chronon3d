@@ -1,27 +1,34 @@
 # CPU caller census
 
-Snapshot: `main@63f2bd151` plus the working-tree changes for this task.
+Snapshot: Chronon3d `main` after Camera V1 removal; see the paired submodule
+pointer in the workspace root for the exact revision.
 
 ## Camera
 
-The production graph has one camera state model (`Camera2_5D`) and one
-evaluation authority (`camera_v1::CameraProgram` / `CameraSession`). The
-references to `camera_2_5d.hpp` are projections, render consumers, CLI mapping,
-or public compatibility types; the census did not find a second production
-camera evaluator to remove.
+ChrononMotion3D owns cinematic camera authoring and evaluation. Chronon3d keeps
+`Camera2_5D` as renderer state plus projection, depth, optical pixel effects,
+motion-blur accumulation, and compositing. Camera V1 descriptors, programs,
+sessions, trajectories, shot timelines, and camera-specific preset sources are
+absent from the production source/CMake tree. The two obsolete top-level
+RenderPlan compiler copies were also removed after confirming they were not
+referenced by CMake or source callers; the active split compiler is under
+`src/render_plan/`.
 
 The relevant production boundaries are:
 
-- authoring and CLI mapping: `scene/camera/camera_descriptor_builder.hpp` and the CLI
-  command/mapping layer;
-- canonical evaluation: `scene/camera/camera_v1/camera_program_*.cpp` and
-  `camera_session_cache.cpp`;
-- render consumption: `runtime/render_pipeline.cpp`, software renderer, and
+- camera-state conversion: `render_plan_compiler_animation_utils.cpp` builds
+  renderer camera state from the lowered RenderPlan;
+- temporal evaluation: `render_plan_compiler_animation_utils.cpp` still
+  interpolates scalar `camera_animation` tracks at the requested presentation
+  time, including shutter subframes. This generic second-stage interpolation is
+  remaining bridge debt; C3D no longer selects or executes camera recipes;
+- pixel rendering: `runtime/render_pipeline.cpp`, DOF/motion-blur passes, and
   render-graph projection helpers.
 
-Therefore no camera file was deleted. The safe action is to keep this census
-as the removal gate until a caller-level duplicate, rather than a header-level
-duplicate, is demonstrated.
+Therefore no projection or pixel-effect file is in the deletion set. The
+remaining removal gate is the RenderPlan camera-track interpolation: replace
+it with camera samples evaluated by CM3D at the renderer's actual shutter
+times, then verify pixel parity before retiring the track evaluator.
 
 ## RenderPlan
 
