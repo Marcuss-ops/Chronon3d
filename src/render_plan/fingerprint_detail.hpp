@@ -52,7 +52,6 @@ void add_style(CanonicalPlanWriter&, const LayerStylePlan&);
 void add_text_animator(CanonicalPlanWriter&, const TextAnimatorPlan&);
 void add_transition(CanonicalPlanWriter&, const TransitionPlan&);
 void add_camera(CanonicalPlanWriter&, const CameraPlan&);
-void add_camera_track(CanonicalPlanWriter&, const CameraTrackPlan&);
 void add_audio_mix(CanonicalPlanWriter&, const AudioMixPlan&);
 void add_stagger(CanonicalPlanWriter&, const LayerPlan::StaggerPlan&);
 void add_layer(CanonicalPlanWriter&, const LayerPlan&);

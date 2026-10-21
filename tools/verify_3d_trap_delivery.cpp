@@ -282,14 +282,13 @@ int main(int argc, char** argv) try {
             }
         }
     }
-    if (plan.contains("camera_animation")) {
-        for (const auto& track : plan.at("camera_animation").value("tracks", json::array())) {
-            const auto keys = track.value("keyframes", json::array());
-            if (keys.size() > 1) {
-                const auto first = keys.front().value("value", json());
-                for (std::size_t i = 1; i < keys.size(); ++i)
-                    if (keys[i].value("value", json()) != first) has_moving_3d_track = true;
-            }
+    if (plan.contains("camera_samples")) {
+        const auto& samples = plan.at("camera_samples");
+        if (samples.size() > 1) {
+            const json first = samples.front().value("camera", json::object());
+            for (std::size_t i = 1; i < samples.size(); ++i)
+                if (samples[i].value("camera", json::object()) != first)
+                    has_moving_3d_track = true;
         }
     }
     if (enabled.empty() || tracks.empty()) failures.push_back("plan has no explicit 3D layer and 3D animation track");

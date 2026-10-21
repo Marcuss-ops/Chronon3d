@@ -14,7 +14,7 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v36");
+    out.add_string("chronon3d.render-plan.content-fingerprint.v37");
     out.add_string(plan.schema);
     add_optional(out, plan.color_management, [](auto& writer, const auto& cm) {
         writer.add_string(cm.ocio_config);
@@ -37,14 +37,14 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
     }
     add_optional(out, plan.camera,
                  [](auto& writer, const CameraPlan& camera) { add_camera(writer, camera); });
-    add_optional(out, plan.camera_animation,
-                 [](auto& writer, const std::vector<CameraTrackPlan>& tracks) {
-                     writer.add_size(tracks.size());
-                     for (const auto& track : tracks) add_camera_track(writer, track);
+    add_optional(out, plan.camera_samples,
+                 [](auto& writer, const std::vector<CameraSamplePlan>& samples) {
+                     writer.add_size(samples.size());
+                     for (const auto& sample : samples) {
+                         writer.add_double(sample.frame);
+                         add_camera(writer, sample.camera);
+                     }
                  });
-    // Keep the false optional marker from RenderPlan V3.36 so camera shake
-    // migration does not churn fingerprints for plans without that retired field.
-    out.add_bool(false);
     add_optional(out, plan.lighting_rig, [](auto& writer, const LightingRigPlan& rig) {
         for (const float value : rig.key_direction) writer.add_float(value);
         for (const float value : rig.key_color) writer.add_float(value);

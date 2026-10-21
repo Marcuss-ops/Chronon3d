@@ -99,10 +99,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
     projected["version"] = 2;
     if (!projected.contains("layers") || !projected["layers"].is_array())
         return projected;
-    if (projected.contains("camera_animation"))
-        strip_per_key_timing_for_v2_projection(projected["camera_animation"]);
     projected.erase("camera");
-    projected.erase("camera_animation");
     projected.erase("lighting_rig");
 
     for (auto& layer : projected["layers"]) {

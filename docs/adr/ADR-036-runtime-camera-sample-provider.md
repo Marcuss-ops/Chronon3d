@@ -1,6 +1,6 @@
 # ADR-036 — Runtime camera samples from the motion authority
 
-**Status**: ACCEPTED (runtime provider implemented; consumer migration in progress)
+**Status**: ACCEPTED (runtime provider and serialized resolved samples implemented; image-level certification remains open)
 
 **Date**: 2026-10-21
 
@@ -12,9 +12,11 @@
 
 ChrononMotion3D (CM3D) owns camera authoring and `CameraRig::sample(time)`.
 Chronon3D (C3D) owns projection, depth, pixel DoF, and shutter accumulation.
-The current offline bridge samples the rig at integer frames into dense linear
-`camera_animation` tracks. C3D evaluates those tracks at the render time,
-including fractional times requested by shutter accumulation.
+The offline bridge serializes complete `camera_samples` resolved by CM3D at
+output-frame times. C3D reads those complete poses and linearly interpolates
+between adjacent resolved samples when a renderer requests an intermediate
+presentation time. Runtime provider calls continue to sample CM3D directly at
+the exact requested time, including shutter subframes.
 
 That representation is deterministic and useful for standalone RenderPlans,
 but linear interpolation between integer-frame samples is not guaranteed to
@@ -38,12 +40,12 @@ C3D continues to own the request times, shutter pattern, sample accumulation,
 projection and pixel effects. It must not apply camera easing, look-at,
 shake, trajectory, or other authoring rules to a provider result.
 
-Serialized RenderPlans remain self-contained and continue to use their static
-camera and baked linear tracks when no runtime provider is supplied. The
-provider path takes precedence when supplied. It is not embedded in plan JSON
-or the plan content fingerprint. Its caller supplies a stable provider
-fingerprint, which participates in the prepared-job fingerprint so distinct
-camera sources cannot collide in caches.
+Serialized RenderPlans remain self-contained and use `camera_samples` when no
+runtime provider is supplied. The provider path is mutually exclusive with the
+serialized sample list. It is not embedded in plan JSON or the plan content
+fingerprint. Its caller supplies a stable provider fingerprint, which
+participates in the prepared-job fingerprint so distinct camera sources cannot
+collide in caches.
 
 The provider returns the existing renderer-facing `CameraPlan` value. Its
 identity contributes to both prepared-job and compiled-scene cache keys, but is
@@ -55,33 +57,38 @@ all supported backends.
 ## Consequences
 
 - Provider-backed plans use CM3D for every runtime camera sample, including
-  shutter subframes. Plans without a provider retain their serialized track
-  evaluation until supported consumers migrate.
+  shutter subframes. Offline plans serialize complete CM3D-resolved camera
+  values; C3D has no camera property-track parser or per-property evaluator.
 - C3D's temporal sampler remains the sole owner of shutter timing and
   accumulation.
-- Existing serialized plans preserve their current behavior during migration.
+- Serialized plans carrying the retired `camera_animation` field are rejected
+  with a migration error. In-repository saved plans and fixtures now use
+  `camera_samples`.
 - Runtime provider identity becomes part of job/cache identity and must be
   deterministic and stable for the same authored rig.
-- The compatibility camera-track evaluator remains until consumer census,
-  visual parity, random-access, and same-SHA gates pass.
+- The only offline camera interpolation is linear interpolation between full
+  resolved snapshots. Curved/sub-frame shutter parity against direct CM3D
+  sampling remains a certification gate.
 
 ## Demolition debt
 
-- **Owner:** CM3D motion maintainers own the provider implementation; C3D
-  render-plan maintainers own the callback boundary and compatibility path.
-- **Reason:** serialized legacy plans and external SDK consumers still need
-  baked tracks while runtime integrations migrate.
-- **Exit condition:** all supported in-repository and SDK consumers supply
-  resolved CM3D camera samples; migration acceptance gates pass on one SHA.
+- **Owner:** CM3D motion maintainers own rig evaluation and offline sample
+  generation; C3D render-plan maintainers own the provider/sample bridge and
+  renderer consumption.
+- **Reason:** sub-frame optical and shutter pixel parity has not yet been
+  certified across the supported render paths.
+- **Exit condition:** no track-based producer or evaluator remains, and the
+  projection, DOF, shutter, random-access, and same-SHA acceptance gates pass.
 - **Equivalence test/gate:** compare provider samples against `CameraRig` at
   integer and sub-frame times; compare rendered shutter output, random-access
   frames, and supported legacy plans.
-- **Removal scope:** C3D camera-track policy/easing evaluation and any
-  camera-specific compatibility evaluator no longer used by supported plans.
-  Preserve static renderer camera values, projection, depth, DoF kernels,
-  shutter scheduling/accumulation, and compositing.
-- **Status:** `ACTIVE`; runtime-provider migration is implemented in C3D,
-  CM3D, and Template. Consumer migration and acceptance gates remain open.
+- **Removal scope:** completed for `CameraTrackPlan`, `CameraPropertyPlan`,
+  `camera_animation` schemas/decoding/emission/fingerprinting, and track-based
+  camera sampling. Preserve `CameraPlan` renderer values, `camera_samples`,
+  runtime provider calls, projection, depth, DoF kernels, shutter
+  scheduling/accumulation, and compositing.
+- **Status:** `ACTIVE`; legacy-format demolition is complete in C3D and CM3D.
+  Pixel and shutter certification remains open.
 
 ## Alternatives considered
 

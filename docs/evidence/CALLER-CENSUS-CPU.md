@@ -18,10 +18,10 @@ The relevant production boundaries are:
 
 - camera-state conversion: `render_plan_compiler_animation_utils.cpp` builds
   renderer camera state from the lowered RenderPlan;
-- temporal evaluation: `render_plan_compiler_animation_utils.cpp` still
-  interpolates scalar `camera_animation` tracks at the requested presentation
-  time, including shutter subframes. This generic second-stage interpolation is
-  remaining bridge debt; C3D no longer selects or executes camera recipes;
+- temporal evaluation: `render_plan_compiler_animation_utils.cpp` consumes
+  complete CM3D-resolved `camera_samples`; it linearly interpolates full poses
+  between offline frame samples for fractional evaluation. Runtime providers
+  supply exact CM3D samples at requested shutter subframes;
 - pixel rendering: `runtime/render_pipeline.cpp`, DOF/motion-blur passes, and
   render-graph projection helpers.
 

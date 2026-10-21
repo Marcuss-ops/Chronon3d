@@ -510,9 +510,9 @@ TEST_CASE("Declared layer transition fields validate and affect fingerprint") {
     CHECK_FALSE(render_plan::decode_render_plan(wrong_parameter));
 }
 
-TEST_CASE("Fingerprint v36 domain golden is pinned") {
-    // v36 adds the current canonical plan domains while preserving legacy-plan determinism.
-    CHECK(legacy_fingerprint() == 17619675009667090611ULL);
+TEST_CASE("Fingerprint v37 domain golden is pinned") {
+    // v37 adds resolved camera samples while preserving legacy-plan determinism.
+    CHECK(legacy_fingerprint() == 11091242584077091452ULL);
 }
 
 TEST_CASE("Backdrop filter parameters affect the fingerprint while absence preserves the legacy stream") {

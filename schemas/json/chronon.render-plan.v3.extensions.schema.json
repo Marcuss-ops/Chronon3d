@@ -1226,114 +1226,6 @@
         }
       ]
     },
-    "camera_track": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "property",
-        "keyframes"
-      ],
-      "properties": {
-        "property": {
-          "enum": [
-            "camera_position_x",
-            "camera_position_y",
-            "camera_position_z",
-            "camera_rotation_x",
-            "camera_rotation_y",
-            "camera_rotation_z",
-            "camera_fov_deg",
-            "camera_zoom",
-            "camera_focus_distance",
-            "camera_aperture",
-            "camera_max_blur",
-            "camera_focal_length_mm",
-            "camera_f_stop"
-          ]
-        },
-        "easing": {
-          "$ref": "#/$defs/easing"
-        },
-        "bezier_curve": {
-          "$ref": "#/$defs/bezier_curve"
-        },
-        "keyframes": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 65536,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "allOf": [
-              {
-                "$ref": "#/$defs/per_keyframe_timing_contract"
-              }
-            ],
-            "required": [
-              "frame",
-              "value"
-            ],
-            "properties": {
-              "frame": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 1000000
-              },
-              "value": {
-                "type": "number"
-              },
-              "interpolation": {
-                "enum": [
-                  "linear",
-                  "hold",
-                  "bezier",
-                  "auto_bezier"
-                ]
-              },
-              "easing": {
-                "$ref": "#/$defs/easing"
-              },
-              "bezier_curve": {
-                "$ref": "#/$defs/bezier_curve"
-              },
-              "roving": {
-                "type": "boolean",
-                "default": false
-              },
-              "temporal_in_dx": {
-                "type": "number"
-              },
-              "temporal_in_dy": {
-                "type": "number"
-              },
-              "temporal_out_dx": {
-                "type": "number"
-              },
-              "temporal_out_dy": {
-                "type": "number"
-              }
-            }
-          }
-        }
-      }
-    },
-    "camera_animation": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "tracks"
-      ],
-      "properties": {
-        "tracks": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 256,
-          "items": {
-            "$ref": "#/$defs/camera_track"
-          }
-        }
-      }
-    },
     "easing": {
       "enum": [
         "linear",
@@ -4004,8 +3896,16 @@
     "camera": {
       "$ref": "chronon.render-plan.v2.schema.json#/$defs/camera"
     },
-    "camera_animation": {
-      "$ref": "#/$defs/camera_animation"
+    "camera_samples": {
+      "type": "array", "minItems": 1, "maxItems": 1000000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["frame", "camera"],
+        "properties": {
+          "frame": { "type": "number", "minimum": -1000000, "maximum": 1000000 },
+          "camera": { "$ref": "chronon.render-plan.v2.schema.json#/$defs/camera" }
+        }
+      }
     },
     "lighting_rig": {
       "type": "object",

@@ -497,22 +497,12 @@ struct CameraPlan {
     float dof_highlight_gain{0.0f};
 };
 
-enum class CameraPropertyPlan : std::uint8_t {
-    PositionX, PositionY, PositionZ,
-    RotationX, RotationY, RotationZ,
-    FovDeg, Zoom, FocusDistance, Aperture, MaxBlur,
-    // Retired target-position tracks are reserved at 11–13 so stored plan
-    // fingerprints do not renumber the following optical properties. Camera
-    // targets/look-at are resolved by CM3D into rotation before lowering.
-    TargetX, TargetY, TargetZ,
-    FocalLengthMM, FStop
-};
-
-struct CameraTrackPlan {
-    CameraPropertyPlan property{CameraPropertyPlan::PositionZ};
-    std::vector<AnimationKeyframePlan> keyframes;
-    std::string easing{"linear"};
-    std::optional<std::array<float, 4>> bezier_curve;
+// A complete, already-resolved renderer camera at an absolute presentation
+// frame. Offline plans store these samples so C3D never reconstructs camera
+// intent from independently animated properties.
+struct CameraSamplePlan {
+    double frame{0.0};
+    CameraPlan camera;
 };
 
 // Generic AE-style text animator contract. Editorial motion ids are lowered
@@ -934,7 +924,7 @@ struct RenderPlan {
     // Full-scene shutter accumulation; separate from the per-layer analytic blur.
     std::optional<MotionBlurPlan> temporal_motion_blur;
     std::optional<CameraPlan> camera;
-    std::optional<std::vector<CameraTrackPlan>> camera_animation;
+    std::optional<std::vector<CameraSamplePlan>> camera_samples;
     std::optional<LightingRigPlan> lighting_rig;
     struct ColorManagementPlan {
         std::string ocio_config;

@@ -204,12 +204,11 @@ namespace {
                                        Color{1.0f, 0.95f, 0.86f, 1.0f}, Vec2{1600.0f, 240.0f}));
                 });
 
-                // The camera is a child of Null_A: it inherits the yaw and adds its own
-                // small orbit, which is the only way "the camera is in the hierarchy"
-                // can be told apart from "the camera happens to move similarly".
-                auto camera = canary_orbit_camera(canary_lerp(-12.0f, 12.0f, t),
+                // Camera hierarchy is resolved before reaching C3D: compose Null_A's
+                // yaw into the orbit yaw and submit only the resulting renderer pose.
+                const f32 camera_yaw = canary_lerp(-12.0f, 12.0f, t) + a_yaw;
+                auto camera = canary_orbit_camera(camera_yaw,
                                                    canary_lerp(4.0f, -4.0f, t), 1000.0f);
-                camera.parent_name = "NULL_A";
                 scene.set_evaluated_camera(std::move(camera));
                 return scene.build();
             });
