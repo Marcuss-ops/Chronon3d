@@ -40,6 +40,15 @@ the CM3D-to-C3D bridge and rendered pixels against the gates below.
 - RenderPlan V3 `camera_shake` was removed. The decoder rejects plans carrying
   it; CM3D shake presets author the movement onto CameraRig tracks, which C3D
   consumes without a procedural shake evaluator.
+- An optional runtime camera-sample provider now crosses the RenderPlan compile
+  boundary. CM3D evaluates exact fractional and pre-roll shutter times; its
+  provider identity salts both render-job and compiled-scene cache identities.
+  ChrononTemplate exposes `lowerToRuntimeRenderPlan`, which returns the layer
+  plan without dense camera tracks plus an immutable CM3D rig provider. Offline
+  JSON plans keep the existing baked-track path until their consumers migrate.
+- The runtime-provider contracts pass their focused checks: C3D verifies exact
+  fractional and negative shutter sampling plus cache identity; CM3D verifies
+  rig lowering; Template verifies runtime lowering omits camera tracks.
 
 The C3D source and public header trees have been searched. This does not prove
 that external SDK consumers are absent; downstream consumers should be checked
