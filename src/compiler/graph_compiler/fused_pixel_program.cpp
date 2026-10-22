@@ -250,18 +250,5 @@ bool FusedPixelProgram::execute(
     return true;
 }
 
-void emit_fusion_counters(
-    chronon3d::RenderCounters* counters,
-    std::size_t passes_before_fusion,
-    std::size_t passes_after_fusion,
-    std::size_t bytes_saved_by_fusion) noexcept {
-    if (!counters) return;
-    counters->pixel_fusion_passes_before.fetch_add(
-        static_cast<std::uint64_t>(passes_before_fusion), std::memory_order_relaxed);
-    counters->pixel_fusion_passes_after.fetch_add(
-        static_cast<std::uint64_t>(passes_after_fusion), std::memory_order_relaxed);
-    counters->pixel_fusion_bytes_saved.fetch_add(
-        static_cast<std::uint64_t>(bytes_saved_by_fusion), std::memory_order_relaxed);
-}
 
 } // namespace chronon3d::graph::fusion

@@ -1,0 +1,8 @@
+Command attempted with the T16 center-sample plan and temporal_motion_blur.samples=1.
+
+Result: rejected before rendering by canonical RenderPlan validation:
+  temporal_motion_blur.samples: schema violation
+  instance is below minimum of 2
+
+The smallest valid authored temporal test therefore uses 2 samples; its plan,
+raw RGBA output, timing sidecar, SHA-256, and pixel coverage are preserved here.

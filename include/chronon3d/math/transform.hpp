@@ -63,12 +63,6 @@ struct Transform {
                opacity != 1.0f || blur != 0.0f;
     }
 
-    [[nodiscard]] bool is_identity_2d() const {
-        return position.x == 0.0f && position.y == 0.0f && rotation.w == 1.0f && 
-               scale.x == 1.0f && scale.y == 1.0f && anchor.x == 0.0f && anchor.y == 0.0f &&
-               skew.x == 0.0f && skew.y == 0.0f &&
-               opacity == 1.0f && blur == 0.0f;
-    }
 };
 
 [[nodiscard]] inline Transform from_mat4(const Mat4& matrix, f32 opacity = 1.0f) {
@@ -111,10 +105,6 @@ struct Transform {
     return out;
 }
 
-[[nodiscard]] inline Transform combine_transforms(const Transform& parent, const Transform& child) {
-    const Mat4 world = parent.to_mat4() * child.to_mat4();
-    return from_mat4(world, parent.opacity * child.opacity);
-}
 
 struct RenderState {
     Mat4 matrix;

@@ -10,11 +10,6 @@ inline constexpr std::array<std::string_view, 11> kLayerTransitionIds{
     "none", "crossfade", "dip_to_black", "slide", "zoom", "wipe_linear", "smooth_wipe",
     "circle_iris", "flash", "procedural_remotion", "remotion"};
 
-[[nodiscard]] inline constexpr bool is_layer_transition_id(std::string_view id) noexcept {
-    for (const auto candidate : kLayerTransitionIds)
-        if (candidate == id) return true;
-    return false;
-}
 
 /// Typed id for a built-in layer transition.
 ///

@@ -8,9 +8,8 @@
 // arbitrary Composition authoring callers
 // and tests; production prepared-program execution uses RenderPipeline.
 //
-// Deprecated paths (thin wrappers, migrate to render()):
-//   * RenderPipeline::render_scene(...) x2                        — Fase C3 @deprecated
-//   * RenderPipeline::debug_graph(...)                            — Fase C3 @deprecated
+// The Fase C3 deprecated wrappers (`RenderPipeline::render_scene` x2,
+// `RenderPipeline::debug_graph`) have been removed — migrate to `render()`.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once

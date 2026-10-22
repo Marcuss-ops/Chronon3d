@@ -43,10 +43,6 @@ inline std::string enum_name_upper_snake(E value) {
     return to_upper_snake(magic_enum::enum_name(value));
 }
 
-template <typename E>
-inline std::string enum_name_lower(E value) {
-    return std::string(magic_enum::enum_name(value));
-}
 
 template <typename E>
 inline std::string_view enum_name_exact(E value) {

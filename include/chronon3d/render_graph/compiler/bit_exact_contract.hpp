@@ -16,12 +16,6 @@ enum class DeterminismClass : std::uint8_t {
 struct BitExactContract {
     DeterminismClass required{DeterminismClass::BitExact};
 
-    /// BitExact means byte-for-byte identical output. No ULP tolerance is
-    /// accepted in this mode. DeterministicWithinPlatform may declare a
-    /// numeric tolerance, but it must never be promoted to BitExact.
-    [[nodiscard]] constexpr bool permits_ulp_tolerance() const noexcept {
-        return required != DeterminismClass::BitExact;
-    }
 };
 
 /// Certificate emitted by a deterministic comparison harness. The harness is

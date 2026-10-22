@@ -210,60 +210,7 @@ inline void append_single_line(std::vector<std::string>& lines, std::vector<floa
     current_width = 0.0f;
 }
 
-inline void truncate_single_lines(std::vector<std::string>& lines, std::vector<float>& widths,
-                                  const SingleLayoutContext& ctx) {
-    const int max_lines = ctx.input.style.max_lines;
-    if (max_lines <= 0 || static_cast<int>(lines.size()) <= max_lines) return;
-    lines.resize(max_lines);
-    widths.resize(max_lines);
-    if (!(ctx.input.style.ellipsis || ctx.input.style.overflow == TextOverflow::Ellipsis) || lines.empty()) return;
-    auto& line = lines.back();
-    while (!line.empty() && measure_string(ctx.input, ctx.input.style, line + "...", ctx.font_size) > ctx.max_width) {
-        const auto previous = detail::previous_grapheme_start(line);
-        if (!previous) {
-            line.clear();
-            break;
-        }
-        line.resize(*previous);
-    }
-    line += "...";
-    widths.back() = measure_string(ctx.input, ctx.input.style, line, ctx.font_size);
-}
 
-inline TextLayoutResult emit_single_layout(const SingleLayoutContext& ctx,
-                                            const std::vector<std::string>& lines,
-                                            const std::vector<float>& widths) {
-    TextLayoutResult result = ctx.result;
-    float max_seen_width = 0.0f;
-    for (float width : widths) max_seen_width = std::max(max_seen_width, width);
-    result.size = {max_seen_width, static_cast<float>(lines.size()) * ctx.line_height};
-    float ascent = ctx.font_size * 0.78f;
-    float descent = ctx.font_size * 0.22f;
-    if (ctx.input.font_engine) {
-        const auto metrics = ctx.input.font_engine->get_font_metrics(ctx.input.font_spec, ctx.font_size);
-        if (metrics.ascent > 0.0f) ascent = metrics.ascent;
-        if (metrics.descent > 0.0f) descent = metrics.descent;
-    }
-    for (size_t i = 0; i < lines.size(); ++i) {
-        TextLayoutLine line;
-        line.text = lines[i];
-        line.width = widths[i];
-        line.ascent = ascent;
-        line.descent = descent;
-        line.baseline = ascent;
-        const float alignment_width = ctx.max_width > 0.0f ? ctx.max_width : max_seen_width;
-        line.position = {aligned_line_x(ctx.input.style.align, line.width, alignment_width),
-                         static_cast<float>(i) * ctx.line_height};
-        TextLayoutLineRun run;
-        run.text = line.text;
-        run.position = line.position;
-        run.width = line.width;
-        run.style = ctx.input.style;
-        line.runs.push_back(std::move(run));
-        result.lines.push_back(std::move(line));
-    }
-    return result;
-}
 
 inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
     auto ctx = make_single_layout_context(input);

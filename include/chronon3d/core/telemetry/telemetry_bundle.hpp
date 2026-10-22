@@ -13,15 +13,5 @@ struct TelemetryBundle {
     std::vector<ImageTelemetryRecord>  image_events;
 };
 
-/// Drains all in-memory telemetry stores into a single bundle.
-[[nodiscard]] inline TelemetryBundle collect_all_telemetry() {
-    return {
-        .node_events   = collect_node_telemetry(),
-        .layer_events  = collect_layer_telemetry(),
-        .cache_events  = collect_cache_telemetry(),
-        .culling_events = collect_culling_telemetry(),
-        .image_events  = collect_image_telemetry(),
-    };
-}
 
 } // namespace chronon3d::telemetry

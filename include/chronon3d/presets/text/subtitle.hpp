@@ -39,10 +39,6 @@ struct WordStyleState {
     [[nodiscard]] bool operator==(const WordStyleState&) const noexcept = default;
 };
 
-inline SubtitleTrack subtitle_from_srt(std::string_view raw) { return timed_text_from_srt(std::string{raw}); }
-inline SubtitleTrack subtitle_from_vtt(std::string_view raw) { return timed_text_from_vtt(std::string{raw}); }
-inline SubtitleTrack subtitle_from_json(std::string_view raw) { return timed_text_from_json(std::string{raw}); }
-inline SubtitleTrack subtitle_from_ass(std::string_view raw) { return timed_text_from_ass(std::string{raw}); }
 
 inline const SubtitleCue* active_cue_at(const SubtitleTrack& track, float time_s) {
     for (const auto& cue : track.cues) {

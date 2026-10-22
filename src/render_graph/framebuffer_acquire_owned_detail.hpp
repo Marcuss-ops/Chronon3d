@@ -236,12 +236,6 @@ OwnedFB RenderGraphContext::acquire_scratch_fb(
     return acquire_owned_fb(w, h, clear, bounds);
 }
 
-CachedFB RenderGraphContext::own_to_cache(OwnedFB& owned, cache::FramebufferPool* pool) {
-    if (!pool || !owned) {
-        return CachedFB{};
-    }
-    return pool->cache_adopt(std::move(owned));
-}
 
 std::span<float> RenderGraphContext::download_scratch(int w, int h) {
     const std::size_t required = static_cast<std::size_t>(w) * h * 4;

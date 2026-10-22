@@ -35,16 +35,6 @@ inline char32_t utf8_decode(const std::string& s, size_t& pos) {
     return cp;
 }
 
-/// Remove the last code point from a UTF-8 string (in-place).
-/// Safe for multi-byte sequences — scans backwards from end.
-inline void utf8_pop_back(std::string& s) {
-    if (s.empty()) return;
-    size_t pos = s.size() - 1;
-    // Skip continuation bytes (10xxxxxx)
-    while (pos > 0 && (static_cast<unsigned char>(s[pos]) & 0xC0) == 0x80)
-        --pos;
-    s.resize(pos);
-}
 
 /// Return the number of code points in a UTF-8 string (O(n)).
 inline size_t utf8_length(const std::string& s) {

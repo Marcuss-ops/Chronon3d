@@ -66,21 +66,6 @@ void TelemetryManager::clear_stores() {
     m_stores.clear();
 }
 
-void TelemetryManager::initialize_default_stores() {
-    clear_stores();
-
-    if (m_config.level == TelemetryLevel::Off) {
-        spdlog::info("[telemetry] Capture level is Off; no stores registered.");
-        return;
-    }
-
-    // Wave 1D — events only.  Chronon emits telemetry events and owns no
-    // persistence: database/aggregation live outside the engine (host store
-    // or observability collector).  A NullTelemetryStore keeps the drain
-    // boundary live so hosts that register their own store keep working.
-    spdlog::info("[telemetry] Default store: NullTelemetryStore (events only).");
-    add_store(std::make_shared<NullTelemetryStore>());
-}
 
 bool TelemetryManager::record_run(const TelemetryRunSnapshot& snapshot) {
     // The snapshot is the immutable photograph; the manager may still fill

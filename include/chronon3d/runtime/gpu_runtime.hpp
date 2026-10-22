@@ -48,17 +48,11 @@ public:
         return m_initialized;
     }
 
-    [[nodiscard]] GpuApiKind active_api() const noexcept {
-        return m_api;
-    }
 
     [[nodiscard]] std::uintptr_t native_context_handle() const noexcept {
         return m_native_context;
     }
 
-    [[nodiscard]] std::uintptr_t default_stream_handle() const noexcept {
-        return m_default_stream;
-    }
 
     /// Shutdown and release hardware contexts.
     void shutdown() noexcept;

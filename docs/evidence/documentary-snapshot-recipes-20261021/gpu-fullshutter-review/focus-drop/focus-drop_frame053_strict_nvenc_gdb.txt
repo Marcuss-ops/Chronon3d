@@ -1,0 +1,65 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+[2026-10-21 20:10:46.257] [info] [asset-profile] kind=3 path=ChrononTemplate/assets/fonts/didone_font_playfair_display_italic.ttf bytes=178128 cache=miss invalidated=0 stat=0.01ms hash=3.52ms hashed_bytes=178128 total=3.61ms
+[2026-10-21 20:10:46.258] [info] [asset-profile] kind=0 path=RenderingGen/testdata/golden/gerard_butler.jpg bytes=199075 cache=miss invalidated=0 stat=0.01ms hash=0.83ms hashed_bytes=199075 total=0.92ms
+[2026-10-21 20:10:46.258] [info] [asset-digest-cache] hits=0 misses=2 invalidations=0 bytes_hashed=377203 lookup_ms=0.00 write_ms=0.01 full_hash_ms=4.36
+[2026-10-21 20:10:46.260] [info] [plan-profile] read=1.51ms parse=4.88ms decode=141.59ms resolver=0.03ms compile_validate=6.44ms total=156.04ms
+[2026-10-21 20:10:46.260] [info] [asset-profile] kind=3 path=ChrononTemplate/assets/fonts/didone_font_playfair_display_italic.ttf bytes=178128 cache=hit invalidated=0 stat=0.01ms hash=0.00ms hashed_bytes=0 total=0.06ms
+[2026-10-21 20:10:46.260] [info] [asset-profile] kind=0 path=RenderingGen/testdata/golden/gerard_butler.jpg bytes=199075 cache=hit invalidated=0 stat=0.01ms hash=0.00ms hashed_bytes=0 total=0.05ms
+[2026-10-21 20:10:46.260] [info] [asset-digest-cache] hits=2 misses=0 invalidations=0 bytes_hashed=0 lookup_ms=0.00 write_ms=0.00 full_hash_ms=0.00
+[2026-10-21 20:10:46.262] [info] [plan-compile-profile] assets=0.18ms fingerprint=1.53ms media_resolution=0.00ms materialize=0.19ms composition_compile=0.00ms compatibility_view=0.22ms total=2.50ms
+[2026-10-21 20:10:46.266] [info] [video] execution plan resolved (reason: required_gpu_native_full_graph); decode=1 composite=2 encode=1 interop=2 handoff=1 codec=3
+[New Thread 0x7fffe57d6640 (LWP 1760265)]
+[New Thread 0x7fffe4fd5640 (LWP 1760266)]
+[2026-10-21 20:10:46.302] [info] [video-runtime] created persistent runtime for device 0 (CUDA ordinal 0)
+[New Thread 0x7fffd8dde640 (LWP 1760267)]
+[2026-10-21 20:10:46.302] [info] [video] encoder feed capability: host_frame=false direct_yuv=false native_surface=true
+[New Thread 0x7fffd3fff640 (LWP 1760268)]
+[New Thread 0x7fffd37fe640 (LWP 1760269)]
+[New Thread 0x7fffd1ddc640 (LWP 1760289)]
+[2026-10-21 20:10:46.516] [info] [native_av] CUDA context contract: native=0x555559499220 ffmpeg=0x555559499220
+[2026-10-21 20:10:46.526] [info] [native_av] NVENC tuning applied: rc=driver-default preset=slow async_depth=4 nvenc_surfaces=8 qp=-1 bitrate=0
+[New Thread 0x7fffd15db640 (LWP 1760290)]
+[h264_nvenc @ 0x555559228a80] Defined rc_lookahead requires more surfaces, increasing used surfaces 8 -> 34
+[New Thread 0x7fffd0dda640 (LWP 1760291)]
+[2026-10-21 20:10:46.628] [info] [native_av] encoder bitstream contract: codec=27 profile=100 level=-99 pix_fmt=119 parameter_sets=50 materialized=true
+[2026-10-21 20:10:46.628] [info] [native_av] Opened native encoder: 1920x1080 @ 30fps, codec=h264_nvenc, rc=driver-default, preset=slow, output='/tmp/focus-drop_gpu_debug2.partial.mp4'
+[New Thread 0x7fffa101f640 (LWP 1760293)]
+[New Thread 0x7fff95778640 (LWP 1760294)]
+[New Thread 0x7fff94b77640 (LWP 1760295)]
+[New Thread 0x7fff891cf640 (LWP 1760296)]
+[New Thread 0x7fff889ce640 (LWP 1760297)]
+[New Thread 0x7fff7278f640 (LWP 1760318)]
+[New Thread 0x7fff7238e640 (LWP 1760319)]
+[New Thread 0x7fff71f8d640 (LWP 1760320)]
+[New Thread 0x7fff69d44640 (LWP 1760321)]
+[New Thread 0x7fff69542640 (LWP 1760323)]
+[New Thread 0x7fff69943640 (LWP 1760322)]
+[New Thread 0x7fff6893f640 (LWP 1760324)]
+[New Thread 0x7fff53fff640 (LWP 1760328)]
+[New Thread 0x7fff68d40640 (LWP 1760326)]
+[New Thread 0x7fff6853e640 (LWP 1760327)]
+[New Thread 0x7fff69141640 (LWP 1760325)]
+[New Thread 0x7fff52bfa640 (LWP 1760331)]
+[New Thread 0x7fff533fc640 (LWP 1760332)]
+[New Thread 0x7fff537fd640 (LWP 1760333)]
+[New Thread 0x7fff53bfe640 (LWP 1760330)]
+[New Thread 0x7fff52ffb640 (LWP 1760329)]
+[New Thread 0x7fff527f9640 (LWP 1760334)]
+[2026-10-21 20:10:49.047] [info] ImageCache: loaded 'RenderingGen/testdata/golden/gerard_butler.jpg' (1920x1472) in 568.096ms
+[New Thread 0x7fff523f8640 (LWP 1760335)]
+[2026-10-21 20:10:49.217] [info] [pool-warm] Pre-allocated and pre-imported 6 execution slots (1920x1080) for native NVENC
+[2026-10-21 20:10:49.253] [info] [video]   1/1 frames
+[New Thread 0x7fff50ade640 (LWP 1760336)]
+[2026-10-21 20:10:49.423] [info] chronon3d::vulkan text batch formats: dst_image.format=109 atlas_image.format=44 atlas_encoding=2 (shader contract: dst rgba32f, atlas rgba8)
+
+Thread 24 "chronon3d_cli" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7fff6853e640 (LWP 1760327)]
+0x00005555581a10e0 in tbb::detail::d1::start_for<tbb::detail::d1::blocked_range<int>, chronon3d::graph::render_compiled_composition_frame_temporal(chronon3d::graph::RenderBackend&, chronon3d::cache::NodeCache&, chronon3d::RenderSettings const&, chronon3d::CompositionRegistry const*, chronon3d::media::MediaFrameProvider*, chronon3d::CompiledComposition const&, chronon3d::Frame, chronon3d::SoftwareRenderer*, chronon3d::CancellationToken*, chronon3d::runtime::FrameExecution*)::{lambda(tbb::detail::d1::blocked_range<int> const&)#4}, tbb::detail::d1::auto_partitioner const>::execute(tbb::detail::d1::execution_data&) ()
+#0  0x00005555581a10e0 in tbb::detail::d1::start_for<tbb::detail::d1::blocked_range<int>, chronon3d::graph::render_compiled_composition_frame_temporal(chronon3d::graph::RenderBackend&, chronon3d::cache::NodeCache&, chronon3d::RenderSettings const&, chronon3d::CompositionRegistry const*, chronon3d::media::MediaFrameProvider*, chronon3d::CompiledComposition const&, chronon3d::Frame, chronon3d::SoftwareRenderer*, chronon3d::CancellationToken*, chronon3d::runtime::FrameExecution*)::{lambda(tbb::detail::d1::blocked_range<int> const&)#4}, tbb::detail::d1::auto_partitioner const>::execute(tbb::detail::d1::execution_data&) ()
+#1  0x0000555558b1a763 in tbb::detail::r1::arena::process(tbb::detail::r1::thread_data&) ()
+#2  0x0000555558b3eaa8 in tbb::detail::r1::thread_dispatcher::process(rml::job&) ()
+#3  0x0000555558b303c7 in tbb::detail::r1::rml::private_worker::run() ()
+#4  0x0000555558b3055d in tbb::detail::r1::rml::private_worker::thread_routine(void*) ()
+#5  0x00007fffed63fa83 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:442
+#6  0x00007fffed6d18e0 in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:81

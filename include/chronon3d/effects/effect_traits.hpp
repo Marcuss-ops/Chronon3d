@@ -90,9 +90,5 @@ struct EffectFootprint {
 // Default implementation returns a zero margin.  Effect-specific overloads are
 // expected in the respective implementation files.
 
-[[nodiscard]] inline EffectFootprint resolve_effect_footprint(
-    EffectType /*type*/) {
-    return EffectFootprint{};
-}
 
 } // namespace chronon3d::effects

@@ -82,28 +82,6 @@ struct ConvertFrameRequest {
     color::ColorSpace output_space{color::ColorSpace::SRGB};
     float reference_white_nits{100.0f};
 
-    [[nodiscard]] constexpr runtime::FrameFormat target_frame_format() const noexcept {
-        const bool hdr = output_space == color::ColorSpace::PQ ||
-                         output_space == color::ColorSpace::HLG ||
-                         output_space == color::ColorSpace::LinearBT2020;
-        const auto transfer = output_space == color::ColorSpace::PQ
-            ? runtime::TransferFunction::Pq
-            : output_space == color::ColorSpace::HLG
-                ? runtime::TransferFunction::Hlg
-                : !apply_gamma ? runtime::TransferFunction::Linear
-                : rec709_oetf ? runtime::TransferFunction::Bt1886
-                              : runtime::TransferFunction::Srgb;
-        return runtime::FrameFormat{
-            format,
-            hdr || matrix == YuvMatrix::BT2020 ? runtime::ColorPrimaries::Bt2020
-                                               : runtime::ColorPrimaries::Bt709,
-            transfer,
-            matrix,
-            range,
-            runtime::ChromaLocation::Left,
-            runtime::AlphaMode::Opaque,
-            runtime::PixelAspectRatio{1, 1}};
-    }
 };
 
 /// Categorical result for a conversion attempt.
@@ -149,15 +127,7 @@ FrameConversionBackend select_backend(const ConvertFrameRequest& req);
 /// matrix/range support for the global capabilities. Returns None on success.
 ConversionError validate_conversion_request(const ConvertFrameRequest& req);
 
-/// Resolves the Y/U/V/UV planes from a contiguous packed buffer that
-/// contains the full framebuffer layout for the requested format. Returns
-/// std::nullopt on size-mismatch / unsupported format.
-std::optional<FramePlanes> resolve_frame_planes(
-    uint8_t* packed_buffer, std::size_t packed_size,
-    int width, int height, EncoderPixelFormat format);
 
-/// Human-readable error string (for logs).
-const char* conversion_error_to_string(ConversionError err);
 
 ConvertFrameResult convert_frame(const ConvertFrameRequest& req);
 

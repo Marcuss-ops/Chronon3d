@@ -86,8 +86,6 @@ class SceneBuilder {
     /// Add a per-pixel light (point, spot or directional) to the scene's light context.
     SceneBuilder& point_light_source(rendering::PointLightSource source);
 
-    /// Apply a DepthGrade configuration to the scene.
-    SceneBuilder& apply_depth_grade(const rendering::DepthGrade& grade);
 
     /// Apply a LightingRig preset, configuring the scene's light context,
     /// rim light, and shadow settings in one call.

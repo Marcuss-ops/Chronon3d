@@ -234,7 +234,6 @@ public:
 
     [[nodiscard]] RuntimeContext& runtime() const noexcept { return *runtime_; }
     [[nodiscard]] bool has_runtime() const noexcept { return runtime_ != nullptr; }
-    void bind_runtime(RuntimeContext& runtime) noexcept { runtime_ = &runtime; }
     void bind_executor(graph::GraphExecutor& executor) noexcept { executor_ = &executor; }
     [[nodiscard]] graph::GraphExecutor* executor() const noexcept;
     [[nodiscard]] const compiler::CompiledProgram& program() const noexcept {

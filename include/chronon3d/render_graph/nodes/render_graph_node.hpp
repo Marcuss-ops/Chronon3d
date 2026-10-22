@@ -107,9 +107,6 @@ public:
 
     void set_opacity_evaluator(OpacityEvaluator eval) { m_opacity_eval = std::move(eval); }
 
-    [[nodiscard]] float evaluate_opacity(const RenderFrameInfo& info) const {
-        return m_opacity_eval ? m_opacity_eval(info) : 1.0f;
-    }
 
     [[nodiscard]] virtual bool can_seed_full_frame(const RenderGraphContext&) const noexcept {
         return false;

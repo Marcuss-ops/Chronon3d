@@ -98,7 +98,6 @@ public:
     AnimatedValue<Vec3>& scale_anim();
     AnimatedValue<Vec3>& rotate_anim();
     AnimatedValue<Vec3>& skew_anim();
-    AnimatedValue<Vec3>& anchor_anim();
     AnimatedValue<f32>& opacity_anim();
     AnimatedValue<f32>& blur_anim();
 
@@ -191,10 +190,7 @@ public:
     LayerBuilder& arrow(std::string name, ArrowParams params);
     LayerBuilder& star(std::string name, StarParams params);
     LayerBuilder& badge(std::string name, BadgeParams params);
-    LayerBuilder& speech_bubble(std::string name, SpeechBubbleParams params);
     LayerBuilder& callout(std::string name, CalloutParams params);
-    LayerBuilder& progress_bar(std::string name, ProgressBarParams params);
-    LayerBuilder& timeline_bar(std::string name, TimelineBarParams params);
     LayerBuilder& image(std::string name, ImageParams params);
     LayerBuilder& tiled_image(std::string name, ImageParams params);
     /// Add a logical mesh dependency and an unloaded Mesh render node.

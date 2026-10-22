@@ -64,8 +64,8 @@
 //   4) m_pipeline.emplace(...)              → published after backend is live
 //
 // @deprecated standalone paths (migrate to RenderEngine constructor):
-//   * SoftwareRenderer(Config) — creates its own runtime internally
 //   * RuntimeContext::attach_backend() — use RenderEngine::Impl unified ctor
+//   (the standalone `SoftwareRenderer(Config)` ctor has been removed)
 // ----------------------------------------------------------------------
 
 #include <cassert>

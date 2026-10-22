@@ -69,7 +69,6 @@ struct Frame {
     constexpr explicit operator int()    const { return static_cast<int>(value); }
 
     [[nodiscard]] constexpr i64 as_i64() const { return value; }
-    [[nodiscard]] constexpr f32 as_f32() const { return static_cast<f32>(value); }
     [[nodiscard]] constexpr double as_double() const { return static_cast<double>(value); }
     [[nodiscard]] constexpr i64 integral() const noexcept { return value; }
 };

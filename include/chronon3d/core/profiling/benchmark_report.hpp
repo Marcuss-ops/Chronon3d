@@ -133,35 +133,7 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js);
 /// Returns 0.0 if baseline value is zero.
 double compute_regression_pct(double baseline, double current);
 
-/// Returns a short OS identifier (e.g. "Linux", "Windows", "macOS").
-constexpr const char* detect_os() {
-#if defined(__linux__)
-    return "Linux";
-#elif defined(__APPLE__)
-    return "macOS";
-#else
-    return "Unknown";
-#endif
-}
 
-/// Returns compiler identification string.
-constexpr const char* detect_compiler() {
-#if defined(__clang__)
-    return "Clang " __clang_version__;
-#elif defined(__GNUC__)
-    return "GCC " __VERSION__;
-#else
-    return "Unknown";
-#endif
-}
 
-/// Returns build type string ("Release" or "Debug") based on NDEBUG.
-constexpr const char* detect_build_type() {
-#if defined(NDEBUG)
-    return "Release";
-#else
-    return "Debug";
-#endif
-}
 
 } // namespace chronon3d

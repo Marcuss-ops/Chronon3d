@@ -219,15 +219,6 @@ struct ResourceState {
             range};
     }
 
-    [[nodiscard]] static constexpr ResourceState compute_read_write(
-        SubresourceRange range = {}) noexcept {
-        return ResourceState{
-            PipelineStage::ComputeShader,
-            AccessMask::ShaderRead | AccessMask::ShaderWrite,
-            ResourceLayout::General,
-            QueueClass::GraphicsCompute,
-            range};
-    }
 
     friend bool operator==(const ResourceState&, const ResourceState&) = default;
 };

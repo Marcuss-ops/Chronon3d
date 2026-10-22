@@ -120,11 +120,6 @@ struct FusionStats {
     std::size_t bytes_saved_by_fusion{0};
 };
 
-void emit_fusion_counters(
-    chronon3d::RenderCounters* counters,
-    std::size_t passes_before_fusion,
-    std::size_t passes_after_fusion,
-    std::size_t bytes_saved_by_fusion) noexcept;
 
 /// Detects candidates and emits descriptors. Descriptors are not executable in
 /// BitExact mode until `certification.bit_exact()` is true. This separates

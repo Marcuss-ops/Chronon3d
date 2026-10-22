@@ -60,16 +60,13 @@ public:
 
     [[nodiscard]] rendering::RimLight& rim_light() { return m_rim; }
     [[nodiscard]] const rendering::RimLight& rim_light() const { return m_rim; }
-    void set_rim_light(const rendering::RimLight& rim) { m_rim = rim; }
 
     [[nodiscard]] rendering::DepthGrade& depth_grade() { return m_depth_grade; }
     [[nodiscard]] const rendering::DepthGrade& depth_grade() const { return m_depth_grade; }
-    void set_depth_grade(const rendering::DepthGrade& grade) { m_depth_grade = grade; }
 
     // ── Hierarchy resolution (defined in scene.cpp) ──────────────────────
     void resolve_hierarchy(Frame frame);
 
-    [[nodiscard]] bool hierarchy_baked() const { return m_hierarchy_baked; }
     [[nodiscard]] bool hierarchy_resolved() const { return m_hierarchy_baked; }
 
     [[nodiscard]] std::pmr::memory_resource* resource() const { return m_nodes.get_allocator().resource(); }

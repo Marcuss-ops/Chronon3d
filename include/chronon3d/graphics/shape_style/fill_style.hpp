@@ -99,9 +99,6 @@ struct FillStyle {
     [[nodiscard]] bool is_solid()   const noexcept {
         return !gradient.has_value() && !field.has_value() && !gradient_mesh.has_value();
     }
-    [[nodiscard]] bool is_gradient() const noexcept {
-        return gradient.has_value() || gradient_mesh.has_value();
-    }
 
     // ── Bridge to scene Fill, retaining the canonical gradient ────────
 

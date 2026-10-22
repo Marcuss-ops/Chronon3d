@@ -189,10 +189,6 @@ using ColorMetadata = FrameFormat;
         color.pixel_aspect};
 }
 
-[[nodiscard]] constexpr ColorMetadata color_metadata(FrameFormat format) noexcept {
-    format.pixel = PixelFormat::Unknown;
-    return format;
-}
 
 // Graphic color passes have exactly one working domain. Boundary adapters are
 // responsible for converting media formats into/out of this representation.

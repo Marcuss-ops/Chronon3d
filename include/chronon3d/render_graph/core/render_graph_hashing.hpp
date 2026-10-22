@@ -160,28 +160,10 @@ private:
     return seed;
 }
 
-[[nodiscard]] inline u64 hash_blur_params(const BlurParams& p) {
-    return hash_value(p.radius);
-}
 
-[[nodiscard]] inline u64 hash_tint_params(const TintParams& p) {
-    u64 seed = hash_color(p.color);
-    return hash_combine(seed, hash_value(p.amount));
-}
 
-[[nodiscard]] inline u64 hash_brightness_params(const BrightnessParams& p) {
-    return hash_value(p.value);
-}
 
-[[nodiscard]] inline u64 hash_contrast_params(const ContrastParams& p) {
-    return hash_value(p.value);
-}
 
-[[nodiscard]] inline u64 hash_drop_shadow_params(const DropShadowParams& p) {
-    u64 seed = hash_vec2(p.offset);
-    seed = hash_combine(seed, hash_color(p.color));
-    return hash_combine(seed, hash_value(p.radius));
-}
 
 [[nodiscard]] inline u64 hash_glow_params(const GlowParams& p) {
     u64 seed = hash_value(p.radius);
@@ -190,11 +172,6 @@ private:
     return seed;
 }
 
-[[nodiscard]] inline u64 hash_bloom_params(const BloomParams& p) {
-    u64 seed = hash_value(p.threshold);
-    seed = hash_combine(seed, hash_value(p.radius));
-    return hash_combine(seed, hash_value(p.intensity));
-}
 
 [[nodiscard]] inline u64 hash_effect_stack(const EffectStack& effects) {
     static thread_local int depth = 0;
@@ -626,10 +603,6 @@ private:
     return seed;
 }
 
-// Forward declaration so hash_shape can delegate to it
-[[nodiscard]] inline u64 hash_text_style_full(
-    const TextShape& t, float effective_size, int padding,
-    const Mat4* transform);
 
 [[nodiscard]] inline u64 hash_shape(const Shape& s) {
     u64 seed = hash_value(static_cast<int>(s.type()));
@@ -783,121 +756,6 @@ private:
 
 // ── Text hashing (canonical, used by all text caches) ─────────────
 
-[[nodiscard]] inline u64 hash_text_style_full(
-    const TextShape& t,
-    float effective_size,
-    int padding,
-    const Mat4* transform = nullptr
-) {
-    u64 seed = 0;
-    seed = hash_combine(seed, hash_string(t.text));
-    seed = hash_combine(seed, hash_string(t.style.font_path));
-    seed = hash_combine(seed, hash_string(t.style.font_family));
-    seed = hash_combine(seed, hash_value(t.style.font_weight));
-    seed = hash_combine(seed, hash_string(t.style.font_style));
-    seed = hash_combine(seed, hash_value(effective_size));
-    seed = hash_combine(seed, hash_color(t.style.color));
-    seed = hash_combine(seed, hash_bytes(&t.style.anchor, sizeof(TextAnchor)));
-    seed = hash_combine(seed, hash_bytes(&t.style.centering_mode, sizeof(TextCenteringMode)));
-    seed = hash_combine(seed, hash_bytes(&t.style.align, sizeof(TextAlign)));
-    seed = hash_combine(seed, hash_bytes(&t.style.vertical_align, sizeof(VerticalAlign)));
-    seed = hash_combine(seed, hash_value(t.style.line_height));
-    seed = hash_combine(seed, hash_value(t.style.tracking));
-    seed = hash_combine(seed, hash_value(t.style.max_lines));
-    seed = hash_combine(seed, hash_value(t.style.auto_scale));
-    seed = hash_combine(seed, hash_value(t.style.min_size));
-    seed = hash_combine(seed, hash_value(t.style.max_size));
-    seed = hash_combine(seed, hash_value(t.style.auto_fit));
-    seed = hash_combine(seed, hash_value(t.style.ellipsis));
-    seed = hash_combine(seed, hash_bytes(&t.style.overflow, sizeof(TextOverflow)));
-    seed = hash_combine(seed, hash_bytes(&t.style.wrap, sizeof(TextWrap)));
-    seed = hash_combine(seed, hash_vec2(t.box.size));
-    seed = hash_combine(seed, hash_value(t.box.enabled));
-    seed = hash_combine(seed, hash_value(padding));
-
-    // Paint
-    seed = hash_combine(seed, hash_color(t.style.paint.fill));
-    seed = hash_combine(seed, hash_value(t.style.paint.stroke_enabled));
-    seed = hash_combine(seed, hash_color(t.style.paint.stroke_color));
-    seed = hash_combine(seed, hash_value(t.style.paint.stroke_width));
-
-    // Fill style (gradient, etc.)
-    if (t.style.paint.fill_style.has_value()) {
-        seed = hash_combine(seed, hash_fill(*t.style.paint.fill_style));
-    } else {
-        seed = hash_combine(seed, 0ULL);  // explicit "no fill_style" sentinel
-    }
-    const auto hash_pattern_tile = [](std::uint64_t value,
-            const std::shared_ptr<const graphics::PatternTile>& tile) {
-        if (!tile) return hash_combine(value, 0ULL);
-        value = hash_combine(value, tile->width);
-        value = hash_combine(value, tile->height);
-        value = hash_combine(value, hash_bytes(tile->rgba.data(), tile->rgba.size()));
-        for (const auto component : tile->transform)
-            value = hash_combine(value, hash_value(component));
-        return value;
-    };
-    seed = hash_pattern_tile(seed, t.style.paint.fill_pattern);
-    seed = hash_pattern_tile(seed, t.style.paint.stroke_pattern);
-
-    // ── TextMaterial ────────────────────────────────────────────
-    seed = hash_combine(seed, hash_value(t.style.material.enabled));
-    if (t.style.material.enabled) {
-        seed = hash_combine(seed, hash_color(t.style.material.top_color));
-        seed = hash_combine(seed, hash_color(t.style.material.bottom_color));
-        seed = hash_combine(seed, hash_value(t.style.material.gradient_angle));
-        seed = hash_combine(seed, hash_value(t.style.material.bevel_px));
-        seed = hash_combine(seed, hash_value(t.style.material.bevel_highlight_opacity));
-        seed = hash_combine(seed, hash_color(t.style.material.bevel_highlight_color));
-        seed = hash_combine(seed, hash_value(t.style.material.bevel_shadow_opacity));
-        seed = hash_combine(seed, hash_value(t.style.material.top_highlight_opacity));
-        seed = hash_combine(seed, hash_value(t.style.material.top_highlight_fraction));
-        seed = hash_combine(seed, hash_value(t.style.material.bottom_shade_opacity));
-        seed = hash_combine(seed, hash_value(t.style.material.bottom_shade_fraction));
-        seed = hash_combine(seed, hash_value(t.style.material.inner_shadow_enabled));
-        seed = hash_combine(seed, hash_vec2(t.style.material.inner_shadow_offset));
-        seed = hash_combine(seed, hash_value(t.style.material.inner_shadow_blur));
-        seed = hash_combine(seed, hash_color(t.style.material.inner_shadow_color));
-        seed = hash_combine(seed, hash_value(t.style.material.emissive));
-    }
-
-    // ── TextShaping (direction, script, language) ────────────────
-    seed = hash_combine(seed, hash_bytes(&t.style.shaping.direction, sizeof(TextDirection)));
-    seed = hash_combine(seed, hash_value(t.style.shaping.script));
-    seed = hash_combine(seed, hash_string(t.style.shaping.language));
-
-    // Box style
-    seed = hash_combine(seed, hash_value(t.style.box_style.enabled));
-    seed = hash_combine(seed, hash_vec2(t.style.box_style.padding));
-    seed = hash_combine(seed, hash_value(t.style.box_style.radius));
-    seed = hash_combine(seed, hash_color(t.style.box_style.background));
-    seed = hash_combine(seed, hash_value(t.style.box_style.border_enabled));
-    seed = hash_combine(seed, hash_color(t.style.box_style.border_color));
-    seed = hash_combine(seed, hash_value(t.style.box_style.border_width));
-
-    // ── TextAnchor has align + vertical_align + padding baked in above
-
-    // Shadows
-    seed = hash_combine(seed, hash_value(t.style.shadows.size()));
-    for (const auto& shadow : t.style.shadows) {
-        seed = hash_combine(seed, hash_value(shadow.enabled));
-        seed = hash_combine(seed, hash_vec2(shadow.offset));
-        seed = hash_combine(seed, hash_value(shadow.blur));
-        seed = hash_combine(seed, hash_value(shadow.opacity));
-        seed = hash_combine(seed, hash_color(shadow.color));
-    }
-
-    // Transform
-    if (transform) {
-        for (int i = 0; i < 4; ++i) {
-            for (int j = 0; j < 4; ++j) {
-                seed = hash_combine(seed, hash_value((*transform)[i][j]));
-            }
-        }
-    }
-
-    return seed;
-}
 
 [[nodiscard]] inline u64 hash_layer_transition_parameters(const LayerTransitionParameters& params) {
     return std::visit([](const auto& p) -> u64 {

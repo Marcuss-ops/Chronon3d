@@ -53,11 +53,6 @@ struct GpuMemoryBudgetSnapshot {
     double fragmentation_ratio{0.0};
     GpuMemoryPressure pressure{GpuMemoryPressure::Normal};
 
-    [[nodiscard]] bool fragmentation_warning(
-        const GpuMemoryBudgetPolicy& policy) const noexcept {
-        return fragmentation_ratio >=
-            std::clamp(policy.fragmentation_warning_ratio, 0.0, 1.0);
-    }
 };
 
 /// Canonical GPU-memory policy resolver. Backends feed their native allocator

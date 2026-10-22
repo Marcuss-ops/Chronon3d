@@ -84,11 +84,6 @@ public:
             history_frames, static_cast<std::uint64_t>(std::numeric_limits<i32>::max())))};
     }
 
-    /// Prepend `prefix` effects before this node's own effects.
-    /// Used by the optimizer to merge an upstream EffectStackNode into this one.
-    void prepend_effects(const EffectStack& prefix) {
-        m_effects.insert(m_effects.begin(), prefix.begin(), prefix.end());
-    }
 
     void set_temporal_history_key(std::string key) {
         m_temporal_history_key = std::move(key);

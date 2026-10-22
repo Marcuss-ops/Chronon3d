@@ -39,9 +39,6 @@ PathExistenceMap::Entry stat_path(const std::filesystem::path& path) {
 
 } // namespace
 
-PathExistenceMap::Entry PathExistenceMap::stat_locked(const std::filesystem::path& path) const {
-    return stat_path(path);
-}
 
 void PathExistenceMap::populate(const std::vector<std::filesystem::path>& paths) {
     std::unique_lock lock(mu_);

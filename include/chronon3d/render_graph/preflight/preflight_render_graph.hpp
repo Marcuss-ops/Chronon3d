@@ -113,8 +113,6 @@ struct GraphPreflightReport {
     /// Find the first node whose name contains the given substring.
     [[nodiscard]] const GraphPreflightNode* find_node(std::string_view name) const;
 
-    /// Returns true if any warning string contains the given substring.
-    [[nodiscard]] bool has_warning_containing(std::string_view text) const;
 
     // ── Human-readable dump ──────────────────────────────────────────────────
 

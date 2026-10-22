@@ -156,9 +156,6 @@ public:
     [[nodiscard]] std::optional<std::string> parent_name(
         const std::string& name) const;
 
-    /// Stable fingerprint of the matrix at `name`.  0 if not found.
-    [[nodiscard]] std::uint64_t world_transform_fingerprint(
-        const std::string& name) const noexcept;
 
 private:
     std::vector<ResolvedNode> m_resolved;

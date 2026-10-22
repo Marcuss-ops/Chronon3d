@@ -68,31 +68,6 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 
 } // namespace
 
-void SoftwareRenderer::preflight_images(const Scene& scene) {
-    for (const auto& ref : scene.asset_manifest().filter(assets::AssetKind::Image)) {
-        const auto cached = m_execution_context.images.cache->get_or_load(ref.path);
-        if (!cached || !cached->valid()) {
-            throw std::runtime_error("Render preparation failed for scene image: " + ref.path);
-        }
-    }
-    for (const auto& layer : scene.layers()) {
-        for (const auto& node : layer.nodes) {
-            const ImageShape* image = nullptr;
-            switch (node.shape.type()) {
-                case ShapeType::Image: image = &node.shape.image(); break;
-                case ShapeType::TiledImage: image = &node.shape.tiled_image().image; break;
-                default: break;
-            }
-            if (!image || image->path.empty()) continue;
-            const auto cached = m_execution_context.images.cache->get_or_load(
-                image->path, image->decode_options);
-            if (!cached || !cached->valid()) {
-                throw std::runtime_error(
-                    "Render preparation failed for scene image node: " + image->path);
-            }
-        }
-    }
-}
 
 // ── Render entry points ──────────────────────────────────────────────────────
 

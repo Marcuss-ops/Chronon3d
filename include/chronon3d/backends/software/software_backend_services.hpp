@@ -139,24 +139,5 @@ struct SoftwareBackendServicesError {
     std::string message;       // free-form, never empty
 };
 
-/// Stable string-form name for each `Code`.  For logging + diagnostics only.
-/// TICKET-118: MissingOwner removed; callers using legacy string are OK
-/// (now returns "Unknown" path implicitly — no live callers today).
-inline const char* software_backend_services_error_name(
-    SoftwareBackendServicesError::Code c) noexcept {
-    switch (c) {
-        case SoftwareBackendServicesError::Code::MissingCounters:
-            return "MissingCounters";
-        case SoftwareBackendServicesError::Code::MissingSettings:
-            return "MissingSettings";
-        case SoftwareBackendServicesError::Code::MissingFramebufferPool:
-            return "MissingFramebufferPool";
-        case SoftwareBackendServicesError::Code::MissingAssetResolver:
-            return "MissingAssetResolver";
-        case SoftwareBackendServicesError::Code::MissingTextResources:
-            return "MissingTextResources";
-    }
-    return "Unknown";
-}
 
 } // namespace chronon3d

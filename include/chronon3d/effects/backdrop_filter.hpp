@@ -68,47 +68,8 @@ struct BackdropFilterPlan {
         return p;
     }
 
-    [[nodiscard]] static BackdropFilterPlan glass_acrylic() noexcept {
-        BackdropFilterPlan p;
-        p.blur = 16.0f;
-        p.brightness = 1.04f;
-        p.saturation = 1.05f;
-        p.refraction_strength = 4.0f;
-        p.rim_strength = 0.60f;
-        p.rim_width = 2.0f;
-        p.chromatic_dispersion = 3.0f;
-        p.grain = 0.02f;
-        p.opacity = 1.0f;
-        return p;
-    }
 
-    [[nodiscard]] static BackdropFilterPlan glass_thin() noexcept {
-        BackdropFilterPlan p;
-        p.blur = 8.0f;
-        p.brightness = 1.02f;
-        p.saturation = 1.02f;
-        p.refraction_strength = 1.0f;
-        p.rim_strength = 0.30f;
-        p.rim_width = 1.5f;
-        p.chromatic_dispersion = 0.8f;
-        p.grain = 0.01f;
-        p.opacity = 1.0f;
-        return p;
-    }
 
-    [[nodiscard]] static BackdropFilterPlan glass_heavy() noexcept {
-        BackdropFilterPlan p;
-        p.blur = 48.0f;
-        p.brightness = 1.12f;
-        p.saturation = 1.25f;
-        p.refraction_strength = 6.0f;
-        p.rim_strength = 0.75f;
-        p.rim_width = 5.0f;
-        p.chromatic_dispersion = 4.0f;
-        p.grain = 0.08f;
-        p.opacity = 1.0f;
-        return p;
-    }
 
     [[nodiscard]] static BackdropFilterPlan glass_refractive() noexcept {
         BackdropFilterPlan p;

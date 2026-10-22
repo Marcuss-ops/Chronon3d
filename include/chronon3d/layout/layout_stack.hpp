@@ -23,33 +23,7 @@ struct LayoutElement {
     Vec3 pos{0.0f, 0.0f, 0.0f};
 };
 
-[[nodiscard]] inline Vec2 hstack_size(const std::vector<Vec2>& sizes, f32 gap) {
-    if (sizes.empty()) return {0.0f, 0.0f};
-    f32 width = 0.0f;
-    f32 height = 0.0f;
-    for (size_t i = 0; i < sizes.size(); ++i) {
-        width += sizes[i].x;
-        height = std::max(height, sizes[i].y);
-        if (i + 1 < sizes.size()) {
-            width += gap;
-        }
-    }
-    return {width, height};
-}
 
-[[nodiscard]] inline Vec2 vstack_size(const std::vector<Vec2>& sizes, f32 gap) {
-    if (sizes.empty()) return {0.0f, 0.0f};
-    f32 width = 0.0f;
-    f32 height = 0.0f;
-    for (size_t i = 0; i < sizes.size(); ++i) {
-        width = std::max(width, sizes[i].x);
-        height += sizes[i].y;
-        if (i + 1 < sizes.size()) {
-            height += gap;
-        }
-    }
-    return {width, height};
-}
 
 [[nodiscard]] inline std::vector<LayoutElement> hstack(const std::vector<Vec2>& sizes, f32 gap, Vec3 start_pos = {0.0f, 0.0f, 0.0f}) {
     std::vector<LayoutElement> elements;

@@ -35,11 +35,7 @@ class DebugConfig {
 public:
     [[nodiscard]] bool glow()             const noexcept { return glow_; }
     [[nodiscard]] bool text_clip_debug() const noexcept { return text_clip_debug_; }
-    [[nodiscard]] bool proj_diag()       const noexcept { return proj_diag_; }
-    [[nodiscard]] bool dump_alpha_mask() const noexcept { return dump_alpha_mask_; }
-    [[nodiscard]] bool dump_text_raster() const noexcept { return dump_text_raster_; }
     [[nodiscard]] bool text_raster()     const noexcept { return text_raster_; }
-    [[nodiscard]] bool text_bbox()       const noexcept { return text_bbox_; }
 
 private:
     friend class Config;
@@ -93,11 +89,9 @@ class SchedulerConfig {
 public:
     [[nodiscard]] bool pingpong_framebuffer() const noexcept { return pingpong_framebuffer_; }
     [[nodiscard]] bool prefetch_enabled() const noexcept { return prefetch_enabled_; }
-    [[nodiscard]] bool pip_mode() const noexcept { return pip_mode_; }
     [[nodiscard]] SchedulerMode mode() const noexcept { return mode_; }
     [[nodiscard]] int worker_count() const noexcept { return worker_count_; }
     [[nodiscard]] bool pin_calling_thread() const noexcept { return pin_calling_thread_; }
-    [[nodiscard]] bool pin_main_thread() const noexcept { return pin_calling_thread_; }
 
 private:
     friend class Config;
@@ -119,7 +113,6 @@ public:
         return telemetry_run_id_;
     }
     [[nodiscard]] const std::string& telemetry_level() const noexcept { return telemetry_level_; }
-    [[nodiscard]] const std::string& cli_assets_root() const noexcept { return cli_assets_root_; }
 
 private:
     friend class Config;

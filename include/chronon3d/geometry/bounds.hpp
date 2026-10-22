@@ -13,13 +13,6 @@ struct AABB {
     constexpr AABB() = default;
     constexpr AABB(Vec3 min_pt, Vec3 max_pt) : min(min_pt), max(max_pt) {}
 
-    static AABB from_points(const Vec3* points, usize count) {
-        AABB bounds;
-        for (usize i = 0; i < count; ++i) {
-            bounds.merge(points[i]);
-        }
-        return bounds;
-    }
 
     void merge(const Vec3& point) {
         min.x = std::min(min.x, point.x);

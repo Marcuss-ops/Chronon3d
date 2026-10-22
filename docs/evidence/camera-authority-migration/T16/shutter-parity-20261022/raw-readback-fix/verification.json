@@ -1,0 +1,72 @@
+{
+  "base_commit": "c7078ceb9632ac125758098c1a2309c40feb7270",
+  "implementation_sha256": {
+    "apps/chronon3d_cli/commands/video/common/pipe_export_stages.cpp": "d366b818100ce26b7acba828c449444488faf6b96e4612e37dcc412bbe6938ab",
+    "src/render_graph/pipeline/composition.cpp": "b4b452f3aff725e9ea08da98bf3fd9acf741c8aab02f8108d68df2090d4a0d3b",
+    "src/backends/vulkan/vulkan_surface_store_private.cpp": "a2154fd3338ec528590e32f66dd13109d8eefade9d7d409fb7c082c0ae88a1f4",
+    "src/backends/vulkan/vulkan_backend_resources_private.cpp": "af0b494d9572a1972aa96ce6a9cff81670a56d00460627bad92ba4dc799eb44d",
+    "tests/backends/test_vulkan_submission_ring.cpp": "116f59f5ffdf819dd8305251623e575ba0e2a2241067bd665a665b5800da953e"
+  },
+  "plan": "../t16-shutter-center75.plan.json",
+  "dimensions": [1920, 1080],
+  "format": "RGBA8",
+  "cases": {
+    "no_shutter": {
+      "status": "PASS",
+      "raw": "t16-no-shutter-vulkan.raw.rgba",
+      "bytes": 8294400,
+      "nonzero_bytes": 8294267,
+      "alpha": "255 for all pixels",
+      "sha256": "66b2645e72c79a29492a07e8fed66b934d95fba293b3aaee52c44edac7717804"
+    },
+    "two_shutter_samples": {
+      "status": "PASS",
+      "plan": "t16-two-sample-diagnostic.plan.json",
+      "raw": "t16-two-sample-vulkan.raw.rgba",
+      "bytes": 8294400,
+      "nonzero_bytes": 8294268,
+      "alpha": "255 for all pixels",
+      "sha256": "ea5b2dc125251fc0a29e6e0572dfb8d0b1610e5ac00f64d163e630ac91f569fe"
+    },
+    "eight_shutter_samples": {
+      "status": "PASS",
+      "raw": "t16-shutter-center75-vulkan.raw.rgba",
+      "bytes": 8294400,
+      "nonzero_bytes": 8294270,
+      "alpha": "255 for all pixels",
+      "sha256": "0416301a412fba503d97b5905dee8a872cfae9e9ab0cbc6be2e30fd568fd6ccf",
+      "repeat_sha256": "0416301a412fba503d97b5905dee8a872cfae9e9ab0cbc6be2e30fd568fd6ccf",
+      "repeat_pixel_identical": true,
+      "vs_software_center_frame_4": {
+        "mae": 0.14314509387860083,
+        "p99_absolute_error": 3,
+        "max_absolute_error": 82
+      },
+      "vs_decoded_nvenc": {
+        "mae": 1.414008487654321,
+        "p99_absolute_error": 4,
+        "max_absolute_error": 29
+      }
+    }
+  },
+  "minimal_vulkan_red_surface_test": {
+    "test": "VulkanSubmissionRing/Vulkan surface readback returns pixels written by the submitted batch",
+    "status": "PASS",
+    "assertion": "all 32x24 RGBA float pixels equal (1,0,0,1)",
+    "ctest": "chronon3d_vulkan_submission_ring_tests, 1/1 passed"
+  },
+  "schema_minimum": {
+    "one_sample_plan": "REJECTED by canonical RenderPlan validation: temporal_motion_blur.samples minimum is 2",
+    "smallest_temporal_render_tested": 2
+  },
+  "validation": {
+    "layer": "VK_LAYER_KHRONOS_validation",
+    "synchronization_validation_enabled": true,
+    "red_surface_test": "PASS with validation enabled",
+    "eight_sample_render_sync_hazards": 0,
+    "eight_sample_readback_copy_errors": 0,
+    "other_validation_errors": 4,
+    "other_error": "UNASSIGNED-CoreValidation-DrawState-InvalidImageLayout on SurfaceUploadSlot submissions for CUDA-exportable images; expected GENERAL, observed UNDEFINED",
+    "log": "vulkan-validation-render.log"
+  }
+}

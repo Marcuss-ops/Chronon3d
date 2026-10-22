@@ -316,23 +316,6 @@ bool ResolvedSceneTransforms::is_time_dependent(const std::string& name) const n
     return m_name_to_index.find(name) != m_name_to_index.end();
 }
 
-std::uint64_t ResolvedSceneTransforms::world_transform_fingerprint(
-    const std::string& name
-) const noexcept {
-    auto it = m_name_to_index.find(name);
-    if (it == m_name_to_index.end()) return 0;
-    const Mat4& m = m_resolved[it->second].world_matrix;
-    // Mix the 4x4 entries into a 64-bit hash.  Bad-quality but deterministic
-    // and adequate for cache invalidation (matches the prior impl).
-    std::uint64_t fp = 0x9E3779B97F4A7C15ULL;
-    for (int col = 0; col < 4; ++col) {
-        for (int row = 0; row < 4; ++row) {
-            const std::uint32_t bits = std::bit_cast<std::uint32_t>(m[col][row]);
-            fp ^= bits + (fp << 6) + (fp >> 2);
-        }
-    }
-    return fp;
-}
 
 // ── resolve_scene_transforms helper ────────────────────────────────────────
 

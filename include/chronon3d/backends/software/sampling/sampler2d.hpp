@@ -29,8 +29,6 @@ public:
 
     Sampler2D() = default;
 
-    /// Change the edge mode after construction.
-    void set_edge_mode(EdgeMode mode) noexcept { m_edge = mode; }
     [[nodiscard]] EdgeMode edge_mode() const noexcept { return m_edge; }
 
     /// Nearest-neighbour sample at (x, y) in pixel coordinates.

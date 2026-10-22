@@ -81,48 +81,6 @@ const char* frame_scheduling_code_name(FrameSchedulingCode code) noexcept {
     return "Unknown";
 }
 
-std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
-    const Scene& scene, const Camera& camera, i32 width, i32 height,
-    float fps)
-{
-    // Dispatch through the already-resolved backend and dependency views;
-    // RuntimeContext lookup is intentionally absent from this hot path.
-    return chronon3d::graph::render_scene_via_graph(
-        *m_context.backend,
-        *m_context.scratch.node_cache,
-        scene, camera, width, height,
-        /*frame=*/0, /*frame_time=*/0.0f,
-        *m_context.settings,
-        m_context.registry.compositions,
-        m_context.video_decoder,
-        fps, "scene", m_renderer
-    );
-}
-
-std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
-    const Scene& scene, const std::optional<Camera2_5D>& camera,
-    i32 width, i32 height,
-    float fps)
-{
-    // 2.5D variant: clone the scene, stamp the optional camera
-    // onto it, then route through the standard Scene path.
-    Scene effective = scene.clone();
-    if (camera.has_value()) {
-        effective.set_camera_2_5d(*camera);
-    }
-    Camera default_camera;
-    return chronon3d::graph::render_scene_via_graph(
-        *m_context.backend,
-        *m_context.scratch.node_cache,
-        effective, default_camera, width, height,
-        /*frame=*/0, /*frame_time=*/0.0f,
-        *m_context.settings,
-        m_context.registry.compositions,
-        m_context.video_decoder,
-        fps, "scene", m_renderer
-    );
-}
-
 std::shared_ptr<Framebuffer> RenderPipeline::render_compiled_composition(
     const CompiledComposition& compiled, Frame frame, FrameExecution* execution)
 {
@@ -475,22 +433,6 @@ FrameRenderResult RenderPipeline::render_compatibility(
         }
         throw;
     }
-}
-
-std::string RenderPipeline::debug_graph(
-    const Scene& scene, const Camera& camera, i32 width, i32 height,
-    float fps, Frame frame, f32 frame_time)
-{
-    return chronon3d::graph::debug_scene_graph(
-        *m_context.backend,
-        *m_context.scratch.node_cache,
-        scene, camera, width, height,
-        frame, frame_time,
-        *m_context.settings,
-        m_context.registry.compositions,
-        m_context.video_decoder,
-        fps
-    );
 }
 
 } // namespace chronon3d::runtime

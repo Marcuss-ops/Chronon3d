@@ -193,10 +193,6 @@ struct DirtyHistory {
         auto it = previous_layers.find(name);
         return it == previous_layers.end() ? nullptr : &it->second;
     }
-    void set_previous_layer(const std::string& name, const LayerBBoxState& state) {
-        previous_layers[name] = state;
-    }
-    void clear_previous_layers() { previous_layers.clear(); }
 };
 
 } // namespace chronon3d

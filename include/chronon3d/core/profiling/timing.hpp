@@ -27,10 +27,6 @@ namespace profiling {
         return std::chrono::duration<double, std::micro>(Clock::now() - start).count();
     }
 
-    /// Elapsed seconds since @p start.
-    inline double elapsed_s(Clock::time_point start) {
-        return std::chrono::duration<double>(Clock::now() - start).count();
-    }
 
     /// Milliseconds between two recorded time points (no now() call).
     inline double duration_ms(Clock::time_point start, Clock::time_point end) {

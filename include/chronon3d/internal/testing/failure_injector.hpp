@@ -22,10 +22,6 @@ public:
         counters()[index(point)].store(1, std::memory_order_release);
     }
 
-    static void fail_after(FailurePoint point, std::size_t successful_calls) noexcept {
-        counters()[index(point)].store(-static_cast<long long>(successful_calls + 1),
-                                        std::memory_order_release);
-    }
 
     static bool should_fail(FailurePoint point) noexcept {
         auto& counter = counters()[index(point)];

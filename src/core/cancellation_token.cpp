@@ -171,8 +171,5 @@ void install_signal_cancellation(CancellationToken& token) {
     (void)global_bridge().install(token);
 }
 
-void restore_default_signal_handlers() {
-    global_bridge().restore();
-}
 
 } // namespace chronon3d

@@ -21,19 +21,8 @@
 
 namespace chronon3d::graph {
 
-/// Retrieve binding metadata from compiled node info.  Returns a default
-/// (empty) metadata if the node has no binding info set.
-inline const SceneBindingMetadata& get_binding_metadata(const CompiledNodeInfo& info) {
-    return info.binding_meta;
-}
 
-inline SceneBindingMetadata& get_binding_metadata(CompiledNodeInfo& info) {
-    return info.binding_meta;
-}
 
-inline void set_binding_metadata(CompiledNodeInfo& info, const SceneBindingMetadata& meta) {
-    info.binding_meta = meta;
-}
 
 // ── Pending binding (before compilation) ─────────────────────────────────────
 //

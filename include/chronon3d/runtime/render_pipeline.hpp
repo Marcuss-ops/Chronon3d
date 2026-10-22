@@ -11,7 +11,7 @@
 // `RenderEngine::Impl`.  Its member methods delegate 1:1 to the
 // existing free functions in `<chronon3d/render_graph/pipeline/
 // render_pipeline.hpp>` (`graph::render_scene_via_graph`,
-// `graph::render_composition_frame`, `graph::debug_scene_graph`),
+// `graph::render_composition_frame`),
 // but reads already-resolved dependency views from the execution context.
 //
 // Why a class and not a free function:
@@ -221,29 +221,6 @@ public:
     [[nodiscard]] RenderBatchResult render_compatibility_frames(
         JobSession& session, const CompiledComposition& compiled,
         Frame first, Frame count, const FrameEncoder& encoder);
-
-    // ── Scene/debug adapters ───────────────────────────────────────
-    /// @deprecated Fase C3 — scene authoring adapter.
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
-        const Scene& scene, const Camera& camera, i32 width, i32 height,
-        float fps);
-
-    /// @deprecated Fase C3 — scene authoring adapter.
-    [[nodiscard]] std::shared_ptr<Framebuffer> render_scene(
-        const Scene& scene, const std::optional<Camera2_5D>& camera,
-        i32 width, i32 height,
-        float fps);
-
-    // ── Diagnostics ───────────────────────────────────────────────
-    /// @deprecated Fase C3 — diagnostics-only wrapper; use preflight tools instead.
-    // TICKET-GATE-10-PHASE-4 fix-up: upstream `6df9b429` removed the `fps`
-    // default but not from frames 5/6 (Frame, frame_time), violating the
-    // C++ default-argument contiguity rule.  Sentinel `= 0.0f` restores
-    // valid syntax with no new symbols (Cat-1 fix; preserves upstream
-    // "no hardcoded fps literal" intent).
-    [[nodiscard]] std::string debug_graph(
-        const Scene& scene, const Camera& camera, i32 width, i32 height,
-        float fps, Frame frame = 0, f32 frame_time = 0.0f);
 
 private:
     /// AUDIT F7 — persistent executor for the batch pipeline's three stages.

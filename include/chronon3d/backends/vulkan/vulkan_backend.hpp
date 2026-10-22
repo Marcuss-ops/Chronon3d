@@ -284,9 +284,6 @@ public:
     void attach_fallback_backend(std::shared_ptr<graph::RenderBackend> fallback) noexcept {
         m_fallback_backend = std::move(fallback);
     }
-    [[nodiscard]] const std::shared_ptr<graph::RenderBackend>& fallback_backend() const noexcept {
-        return m_fallback_backend;
-    }
     [[nodiscard]] VulkanBackendStats stats() const noexcept;
     [[nodiscard]] const GpuKernelRegistry& kernel_registry() const noexcept;
 
@@ -348,10 +345,6 @@ public:
     /// VulkanSurfaceAuthority; the compiled plan decides WHICH surfaces
     /// exist, not an out-of-band preallocate hook.
 
-    // ── Phase 8: command-replay (record once, submit with param writes) ─
-    /// Number of replay ring slots available.  Matches the frame-batch ring
-    /// depth so the GPU overlap depth stays identical.
-    [[nodiscard]] std::size_t replay_slot_count() const noexcept;
     /// Open a replay slot.  The returned command buffer is ready for
     /// recording (VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT).  The caller
     /// records every pass for one compiled frame into it, then calls
@@ -575,10 +568,6 @@ public:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
     [[nodiscard]] VkDevice device() const noexcept { return m_device; }
-    [[nodiscard]] VkQueue graphics_queue() const noexcept { return m_queue; }
-    [[nodiscard]] std::uint32_t graphics_queue_family() const noexcept {
-        return m_queue_family;
-    }
     [[nodiscard]] double init_instance_ms() const noexcept { return m_init_instance_ms; }
     [[nodiscard]] double init_device_ms() const noexcept { return m_init_device_ms; }
     [[nodiscard]] double init_pipelines_ms() const noexcept { return m_init_pipelines_ms; }

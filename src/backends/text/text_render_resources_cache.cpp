@@ -128,26 +128,8 @@ void TextRenderResources::set_raster_cache_capacity(size_t max_bytes) {
     // ctor comment for the rationale (legacy first-call-wins semantics).
 }
 
-void TextRenderResources::clear_raster_cache() {
-    if (!raster_cache) return;
-    std::unique_lock lock(raster_cache->mutex);
-    raster_cache->cache.clear();
-}
 
-std::shared_ptr<TextRasterization> TextRenderResources::lookup_raster_cache(uint64_t key) {
-    if (!raster_cache) return nullptr;
-    std::shared_lock lock(raster_cache->mutex);
-    auto cached = raster_cache->cache.get(key);
-    return cached ? *cached : nullptr;
-}
 
-void TextRenderResources::store_raster_cache(uint64_t key, std::shared_ptr<TextRasterization> result) {
-    if (!raster_cache) return;
-    size_t weight = static_cast<size_t>(result->image.width()) *
-                    static_cast<size_t>(result->image.height()) * 4;
-    std::unique_lock lock(raster_cache->mutex);
-    raster_cache->cache.put(key, result, weight);
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // P1-9 — GlyphAtlas per-instance API

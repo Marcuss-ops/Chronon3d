@@ -77,10 +77,6 @@ public:
         return m_allocation_count;
     }
 
-    /// Upstream allocation attempts observed by the completed frame.
-    [[nodiscard]] std::uint64_t last_allocation_count() const noexcept {
-        return m_last_allocation_count;
-    }
 
 private:
     [[nodiscard]] bool m_resource_used() const noexcept {

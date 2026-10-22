@@ -48,10 +48,6 @@ public:
 
     bool error() const { return m_error; }
 
-    /// F11.1 — true when parsing aborted because the recursion budget was
-    /// exhausted (distinct from a syntax error; callers can surface
-    /// "expression too complex" instead of a generic parse failure).
-    bool depth_exceeded() const { return m_depth_exceeded; }
 
 private:
     double parse_ternary() {

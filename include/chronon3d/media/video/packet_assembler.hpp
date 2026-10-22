@@ -224,8 +224,6 @@ public:
 
     [[nodiscard]] bool finalize() noexcept;
     [[nodiscard]] double open_header_ms() const noexcept { return open_header_ms_; }
-    [[nodiscard]] double packet_write_ms() const noexcept { return packet_write_ms_; }
-    [[nodiscard]] double audio_write_ms() const noexcept { return audio_write_ms_; }
     [[nodiscard]] double trailer_ms() const noexcept { return trailer_ms_; }
     [[nodiscard]] bool has_audio() const noexcept { return audio_stream_ != nullptr; }
     /// Empty unless MuxOpenConfig::checksum was requested: there is no digest

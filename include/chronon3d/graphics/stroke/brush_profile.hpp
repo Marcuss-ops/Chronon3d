@@ -585,18 +585,6 @@ public:
     [[nodiscard]] static BrushProfile felt(std::uint32_t seed = 101) noexcept {
         return felt_pen(seed);
     }
-    [[nodiscard]] static BrushProfile brush_hard_round() noexcept { return hard_round(); }
-    [[nodiscard]] static BrushProfile brush_soft_round() noexcept { return soft_round(); }
-    [[nodiscard]] static BrushProfile brush_marker() noexcept { return marker(); }
-    [[nodiscard]] static BrushProfile brush_highlighter() noexcept { return highlighter_brush(); }
-    [[nodiscard]] static BrushProfile brush_felt() noexcept { return felt(); }
-    [[nodiscard]] static BrushProfile brush_chalk() noexcept { return chalk(); }
-    [[nodiscard]] static BrushProfile brush_pencil() noexcept { return pencil(); }
-    [[nodiscard]] static BrushProfile brush_dry_paint() noexcept { return dry_paint(); }
-    [[nodiscard]] static BrushProfile brush_ink() noexcept { return ink(); }
-    [[nodiscard]] static BrushProfile brush_calligraphy() noexcept { return calligraphy(); }
-    [[nodiscard]] static BrushProfile brush_glow() noexcept { return glow(); }
-    [[nodiscard]] static BrushProfile brush_scribble() noexcept { return scribble(); }
 };
 
 } // namespace chronon3d::graphics

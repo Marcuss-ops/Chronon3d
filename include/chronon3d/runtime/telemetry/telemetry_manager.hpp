@@ -36,9 +36,6 @@ public:
     void add_store(std::shared_ptr<TelemetryStore> store);
     void clear_stores();
 
-    // Sets up the default events-only store (NullTelemetryStore) from
-    // pre-resolved boundary config. Wave 1D: no database store is bundled.
-    void initialize_default_stores();
 
     // Canonical entry point: one completed run, one immutable snapshot,
     // one transaction per store ("whole run or nothing").

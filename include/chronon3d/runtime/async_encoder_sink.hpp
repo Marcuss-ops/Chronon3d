@@ -105,7 +105,6 @@ public:
     /// calls are idempotent; a worker exception is rethrown after the worker is
     /// joined so blocked producers are never stranded.
     void flush_and_join() {
-        std::lock_guard lifecycle_lock(m_lifecycle_mutex);
         bool queue_closed_before_flush = false;
 
         {
@@ -176,7 +175,6 @@ private:
     }
 
     void record_worker_failure(std::exception_ptr failure) noexcept {
-        std::lock_guard failure_lock(m_failure_mutex);
         if (!m_worker_failure) {
             m_worker_failure = std::move(failure);
         }
@@ -185,7 +183,6 @@ private:
     void rethrow_worker_failure() {
         std::exception_ptr failure;
         {
-            std::lock_guard failure_lock(m_failure_mutex);
             failure = m_worker_failure;
         }
         if (failure) {

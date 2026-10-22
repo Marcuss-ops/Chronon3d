@@ -42,11 +42,6 @@ public:
         register_effect(std::type_index(typeid(T)), std::move(processor));
     }
 
-    [[nodiscard]] std::shared_ptr<ShapeProcessor> get_shape_shared(
-        ShapeType type) const {
-        auto it = m_shapes.find(type);
-        return it != m_shapes.end() ? it->second : nullptr;
-    }
 
     [[nodiscard]] std::shared_ptr<EffectProcessor> get_effect_shared(
         std::type_index type) const {

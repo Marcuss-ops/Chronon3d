@@ -26,7 +26,6 @@ inline constexpr std::string_view kPoppinsBoldFontAsset   = "assets/fonts/Poppin
 inline constexpr std::string_view kPoppinsRegularFontAsset = "assets/fonts/Poppins-Regular.ttf";
 
 inline std::string inter_bold_font_path()     { return std::string(kInterBoldFontAsset); }
-inline std::string inter_regular_font_path()  { return std::string(kInterRegularFontAsset); }
 inline std::string poppins_bold_font_path()   { return std::string(kPoppinsBoldFontAsset); }
 inline std::string poppins_regular_font_path() { return std::string(kPoppinsRegularFontAsset); }
 

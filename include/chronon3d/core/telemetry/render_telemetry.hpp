@@ -127,34 +127,18 @@ inline std::vector<NodeTelemetryRecord> collect_node_telemetry() {
     return node_telemetry_store().collect();
 }
 
-// ── Layer telemetry ─────────────────────────────────────────────────
-inline void record_layer_telemetry(const LayerTelemetryRecord& rec) {
-    layer_telemetry_store().record(rec);
-}
 inline std::vector<LayerTelemetryRecord> collect_layer_telemetry() {
     return layer_telemetry_store().collect();
 }
 
-// ── Cache telemetry ─────────────────────────────────────────────────
-inline void record_cache_telemetry(const CacheTelemetryRecord& rec) {
-    cache_telemetry_store().record(rec);
-}
 inline std::vector<CacheTelemetryRecord> collect_cache_telemetry() {
     return cache_telemetry_store().collect();
 }
 
-// ── Culling telemetry ───────────────────────────────────────────────
-inline void record_culling_telemetry(const CullingTelemetryRecord& rec) {
-    culling_telemetry_store().record(rec);
-}
 inline std::vector<CullingTelemetryRecord> collect_culling_telemetry() {
     return culling_telemetry_store().collect();
 }
 
-// ── Image telemetry ─────────────────────────────────────────────────
-inline void record_image_telemetry(const ImageTelemetryRecord& rec) {
-    image_telemetry_store().record(rec);
-}
 inline std::vector<ImageTelemetryRecord> collect_image_telemetry() {
     return image_telemetry_store().collect();
 }

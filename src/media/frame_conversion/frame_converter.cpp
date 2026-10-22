@@ -41,19 +41,6 @@ const FrameConversionCapabilities& frame_conversion_capabilities() {
 //  Pure error / capability helpers
 // ============================================================================
 
-const char* conversion_error_to_string(ConversionError err) {
-    switch (err) {
-        case ConversionError::None:              return "None";
-        case ConversionError::OddDims:           return "Dimensions must be even for 4:2:0 YUV";
-        case ConversionError::NullPointer:       return "Required plane pointers are null";
-        case ConversionError::UnsupportedMatrix: return "Color matrix not supported by selected backend";
-        case ConversionError::UnsupportedRange:  return "Color range not supported by selected backend";
-        case ConversionError::UnsupportedFormat: return "Target EncoderPixelFormat not handled";
-        case ConversionError::BackendError:      return "Conversion backend runtime failure";
-        case ConversionError::InvalidSource:     return "Source framebuffer is smaller than the requested extent";
-    }
-    return "Unknown";
-}
 
 FrameConversionBackend select_backend(const ConvertFrameRequest& req) {
     const auto& caps = frame_conversion_capabilities();
@@ -106,70 +93,6 @@ ConversionError validate_conversion_request(const ConvertFrameRequest& req) {
     return ConversionError::None;
 }
 
-std::optional<FramePlanes> resolve_frame_planes(
-    uint8_t* packed_buffer, std::size_t packed_size,
-    int width, int height, EncoderPixelFormat format)
-{
-    if (!packed_buffer || width <= 0 || height <= 0) {
-        return std::nullopt;
-    }
-    switch (format) {
-        case EncoderPixelFormat::YUV420P: {
-            const std::size_t need =
-                static_cast<std::size_t>(width) * height +
-                static_cast<std::size_t>(width) * height / 2;
-            if (packed_size < need) return std::nullopt;
-            return FramePlanes{
-                .y = packed_buffer,
-                .u = packed_buffer + static_cast<std::size_t>(width) * height,
-                .v = packed_buffer + static_cast<std::size_t>(width) * height * 5 / 4,
-                .stride_y = width,
-                .stride_u = width / 2,
-                .stride_v = width / 2,
-            };
-        }
-        case EncoderPixelFormat::Yuv420P10: {
-            const std::size_t y_bytes = static_cast<std::size_t>(width) * height * 2;
-            const std::size_t chroma_bytes = y_bytes / 4;
-            if (packed_size < y_bytes + 2 * chroma_bytes) return std::nullopt;
-            return FramePlanes{
-                .y = packed_buffer,
-                .u = packed_buffer + y_bytes,
-                .v = packed_buffer + y_bytes + chroma_bytes,
-                .stride_y = width * 2,
-                .stride_u = width,
-                .stride_v = width,
-            };
-        }
-        case EncoderPixelFormat::NV12: {
-            const std::size_t need = static_cast<std::size_t>(width) * height * 3 / 2;
-            if (packed_size < need) return std::nullopt;
-            return FramePlanes{
-                .y = packed_buffer,
-                .uv = packed_buffer + static_cast<std::size_t>(width) * height,
-                .stride_y = width,
-                .stride_uv = width,
-            };
-        }
-        case EncoderPixelFormat::RGB24: {
-            const std::size_t need = static_cast<std::size_t>(width) * height * 3;
-            if (packed_size < need) return std::nullopt;
-            return FramePlanes{
-                .y = packed_buffer,
-                .stride_y = width * 3,
-            };
-        }
-        case EncoderPixelFormat::RGBA8: {
-            const std::size_t need = static_cast<std::size_t>(width) * height * 4;
-            if (packed_size < need) return std::nullopt;
-            return FramePlanes{
-                .y = packed_buffer,
-                .stride_y = width * 4,
-            };
-        }
-    }
-    return std::nullopt;
-}
 
 // ============================================================================
 //  Dispatcher

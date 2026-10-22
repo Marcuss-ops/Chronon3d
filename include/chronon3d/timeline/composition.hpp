@@ -61,10 +61,6 @@ private:
     friend Result<CompiledComposition, CompositionCompileError>
     compile_composition(const Composition&, const CompositionCompileContext&);
 
-    [[nodiscard]] bool has_scene_function() const noexcept {
-        return static_cast<bool>(m_render);
-    }
-    [[nodiscard]] SceneFunction scene_function_snapshot() const { return m_render; }
 
     std::uint64_t m_scene_content_fingerprint{0};
     inline static std::atomic_uint64_t s_next_identity{1};

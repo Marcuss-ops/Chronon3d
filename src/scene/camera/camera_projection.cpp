@@ -114,20 +114,5 @@ ProjectedBounds project_quad_to_screen(
     return pb;
 }
 
-ProjectedBounds project_layer_bounds_to_screen(
-    const Transform3D& layer_world,
-    Vec2 layer_size,
-    const CameraProjectionSource& camera,
-    Viewport viewport
-) {
-    Mat4 world_m = layer_world.to_mat4();
-    std::array<Vec3, 4> corners = {
-        Vec3(world_m * Vec4(0.0f, 0.0f, 0.0f, 1.0f)),
-        Vec3(world_m * Vec4(layer_size.x, 0.0f, 0.0f, 1.0f)),
-        Vec3(world_m * Vec4(layer_size.x, layer_size.y, 0.0f, 1.0f)),
-        Vec3(world_m * Vec4(0.0f, layer_size.y, 0.0f, 1.0f))
-    };
-    return project_quad_to_screen(corners, camera, viewport);
-}
 
 } // namespace chronon3d

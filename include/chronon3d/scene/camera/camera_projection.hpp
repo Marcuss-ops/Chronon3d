@@ -39,11 +39,5 @@ ProjectedBounds project_quad_to_screen(
     Viewport viewport
 );
 
-ProjectedBounds project_layer_bounds_to_screen(
-    const Transform3D& layer_world,
-    Vec2 layer_size,
-    const CameraProjectionSource& camera,
-    Viewport viewport
-);
 
 } // namespace chronon3d

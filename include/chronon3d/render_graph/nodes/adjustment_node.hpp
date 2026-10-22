@@ -151,11 +151,6 @@ public:
     /// so they are always considered color-only from an opaque-skip perspective.
     [[nodiscard]] bool is_color_only() const { return true; }
 
-    /// Prepend `prefix` effects before this node's own effects.
-    /// Used by the optimizer to merge an upstream effect-like node into this one.
-    void prepend_effects(const EffectStack& prefix) {
-        m_effects.insert(m_effects.begin(), prefix.begin(), prefix.end());
-    }
 
 private:
     EffectStack m_effects;

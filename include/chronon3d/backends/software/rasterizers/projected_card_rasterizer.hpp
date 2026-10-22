@@ -8,16 +8,6 @@
 
 namespace chronon3d::renderer {
 
-// Fill a ProjectedCard with a solid color using triangle rasterization.
-// Splits the quad into TL→TR→BR and TL→BR→BL triangles.
-// When depth_buffer is non-empty (w×h), performs per-pixel depth testing
-// and writes interpolated Z to the depth buffer.
-void fill_projected_card(
-    Framebuffer& fb,
-    const rendering::ProjectedCard& card,
-    const Color& color,
-    std::span<float> depth_buffer = {}
-);
 
 // Composite a source Framebuffer onto dst, warped to fit a ProjectedCard.
 // Uses inverse-mapping: for each dst pixel inside the card bbox, samples src bilinearly.
