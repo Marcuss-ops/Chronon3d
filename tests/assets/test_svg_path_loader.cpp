@@ -530,7 +530,9 @@ TEST_CASE("SVG root Gaussian blur lowers only supported isotropic filters") {
     CHECK_FALSE(anisotropic.ok);
     const auto non_root = rejected(
         R"svg(<svg><defs><filter id="f"><feGaussianBlur stdDeviation="2"/></filter></defs><path filter="url(#f)" d="M0 0L1 1"/></svg>)svg");
-    CHECK_FALSE(non_root.ok);
+    CHECK(non_root.ok);
+    CHECK(non_root.root_gaussian_blur.has_value());
+    CHECK(*non_root.root_gaussian_blur == doctest::Approx(2.0f));
     const auto arbitrary_graph = rejected(
         R"svg(<svg filter="url(#f)"><defs><filter id="f"><feOffset dx="2"/></filter></defs><path d="M0 0L1 1"/></svg>)svg");
     CHECK_FALSE(arbitrary_graph.ok);

@@ -1,6 +1,7 @@
 #include <chronon3d/assets/svg_path_loader.hpp>
 
 #include "svg_importer.hpp"
+#include <stb_image.h>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
@@ -130,11 +131,101 @@ std::optional<Affine2> parse_viewbox_transform(
         glm::vec3(offset_x - values[0] * scale, offset_y - values[1] * scale, 1.0f));
 }
 
+inline std::string trim(std::string value) {
+    const auto first = value.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) return {};
+    const auto last = value.find_last_not_of(" \t\r\n");
+    return value.substr(first, last - first + 1);
+}
+
+inline std::optional<float> parse_svg_length(std::string_view text, float percentage_relative_to = -1.0f) {
+    while (!text.empty() && (text.front() == ' ' || text.front() == '\t' || text.front() == '\r' || text.front() == '\n'))
+        text.remove_prefix(1);
+    while (!text.empty() && (text.back() == ' ' || text.back() == '\t' || text.back() == '\r' || text.back() == '\n'))
+        text.remove_suffix(1);
+    if (text.empty()) return std::nullopt;
+
+    float scale = 1.0f;
+    if (text.ends_with("px")) {
+        text.remove_suffix(2);
+    } else if (text.ends_with("pt")) {
+        text.remove_suffix(2);
+        scale = 96.0f / 72.0f; // 1pt = 1.3333333px
+    } else if (text.ends_with("pc")) {
+        text.remove_suffix(2);
+        scale = 16.0f; // 1pc = 12pt = 16px
+    } else if (text.ends_with("in")) {
+        text.remove_suffix(2);
+        scale = 96.0f; // 1in = 96px
+    } else if (text.ends_with("mm")) {
+        text.remove_suffix(2);
+        scale = 96.0f / 25.4f; // 1mm = 3.779527559px
+    } else if (text.ends_with("cm")) {
+        text.remove_suffix(2);
+        scale = 96.0f / 2.54f; // 1cm = 37.79527559px
+    } else if (text.ends_with("%")) {
+        if (percentage_relative_to < 0.0f) return std::nullopt;
+        text.remove_suffix(1);
+        scale = percentage_relative_to * 0.01f;
+    }
+    while (!text.empty() && (text.back() == ' ' || text.back() == '\t'))
+        text.remove_suffix(1);
+    try {
+        std::size_t consumed = 0;
+        std::string s(text);
+        float val = std::stof(s, &consumed);
+        if (consumed != s.size() || !std::isfinite(val)) return std::nullopt;
+        return val * scale;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
+inline std::vector<uint8_t> decode_base64_data(std::string_view input) {
+    static const int8_t table[256] = {
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,62,-1,-1,-1,63,
+        52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-1,-1,-1,
+        -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,
+        15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,
+        -1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,
+        41,42,43,44,45,46,47,48,49,50,51,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+    };
+    std::vector<uint8_t> out;
+    out.reserve(input.size() * 3 / 4);
+    uint32_t buffer = 0;
+    int bits = 0;
+    for (char c : input) {
+        if (c == '=') break;
+        int val = table[static_cast<uint8_t>(c)];
+        if (val < 0) continue;
+        buffer = (buffer << 6) | val;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            out.push_back(static_cast<uint8_t>((buffer >> bits) & 0xFF));
+        }
+    }
+    return out;
+}
+
 std::string primitive_path_data(
     const std::string& name,
     const boost::property_tree::ptree& node) {
     const auto attr = [&node](const char* key, float fallback = 0.0f) {
-        return node.get<float>(std::string{"<xmlattr>."} + key, fallback);
+        if (const auto opt = node.get_optional<std::string>(std::string{"<xmlattr>."} + key)) {
+            if (const auto parsed = parse_svg_length(*opt)) return *parsed;
+        }
+        return fallback;
     };
     std::ostringstream path;
     path << std::setprecision(9);
@@ -222,6 +313,8 @@ struct SvgStyleState {
     bool display_none{false};
     bool visibility_hidden{false};
     std::string fill_gradient_id;
+    std::string paint_order{"normal"};
+    std::string filter_id;
     std::string vector_mask_id;
     bool vector_mask_is_mask{false};
     struct VectorMaskScope {
@@ -241,6 +334,7 @@ struct SvgStyleState {
 
 struct SvgGradientSpec {
     bool radial{false};
+    bool user_space{false};
     Vec2 p0{0.0f, 0.0f};
     Vec2 p1{1.0f, 0.0f};
     float radius{0.5f};
@@ -262,12 +356,6 @@ using SvgGradientMap = std::map<std::string, SvgGradientSpec>;
 using SvgIdMap = std::map<std::string,
     std::pair<std::string, const boost::property_tree::ptree*>>;
 
-std::string trim(std::string value) {
-    const auto first = value.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos) return {};
-    const auto last = value.find_last_not_of(" \t\r\n");
-    return value.substr(first, last - first + 1);
-}
 
 std::optional<float> svg_baseline_shift(std::string value, float font_size) {
     value = trim(std::move(value));
@@ -502,7 +590,7 @@ std::optional<std::string> validate_svg_subset(
         "svg", "g", "path", "rect", "circle", "ellipse", "line",
         "polyline", "polygon", "animate", "animateTransform", "defs", "style",
         "linearGradient", "radialGradient", "stop", "pattern", "use", "clipPath", "mask",
-        "filter", "feGaussianBlur", "text", "tspan", "textPath"};
+        "filter", "feGaussianBlur", "text", "tspan", "textPath", "image"};
     static const std::set<std::string> supported_properties{
         "fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity",
         "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter",
@@ -524,21 +612,8 @@ std::optional<std::string> validate_svg_subset(
         }
     };
     const auto valid_stroke_width = [](std::string text) {
-        while (!text.empty() && (text.back() == ' ' || text.back() == '\t' || text.back() == '\r' || text.back() == '\n'))
-            text.pop_back();
-        if (text.size() >= 2 && (text.compare(text.size() - 2, 2, "px") == 0 || text.compare(text.size() - 2, 2, "pt") == 0)) {
-            text.resize(text.size() - 2);
-            while (!text.empty() && (text.back() == ' ' || text.back() == '\t'))
-                text.pop_back();
-        }
-        try {
-            std::size_t consumed = 0;
-            const float value = std::stof(text, &consumed);
-            return consumed == text.size() && std::isfinite(value) &&
-                   value >= 0.0f && value <= 100000.0f;
-        } catch (...) {
-            return false;
-        }
+        const auto val = parse_svg_length(text);
+        return val.has_value() && *val >= 0.0f && *val <= 100000.0f;
     };
     std::function<std::optional<std::string>(const boost::property_tree::ptree&, const std::string&)> visit;
     visit = [&](const boost::property_tree::ptree& current,
@@ -691,16 +766,23 @@ std::optional<std::string> validate_svg_subset(
             for (const auto* key : {"clip-path", "mask"}) {
                 if (const auto it = properties.find(key); it != properties.end()) {
                     const auto value = trim(it->second);
-                    if ((name != "svg" && name != "g" && name != "path") ||
+                    const bool valid_target = (name == "svg" || name == "g" || name == "path" ||
+                                               name == "rect" || name == "circle" || name == "ellipse" ||
+                                               name == "polygon" || name == "polyline" || name == "line");
+                    if (!valid_target ||
                         !value.starts_with("url(#") || !value.ends_with(')') || value.size() <= 6)
                         return std::string("SVG ") + key + " supports only root, group, or path references to url(#id)";
                 }
             }
             if (const auto it = properties.find("filter"); it != properties.end()) {
-                if (name != "svg" || (trim(it->second) != "none" &&
-                    (!it->second.starts_with("url(#") || !it->second.ends_with(')') ||
-                     it->second.size() <= 6)))
-                    return "SVG filters currently support only a root url(#id) reference";
+                const auto val = trim(it->second);
+                const bool valid_target = (name == "svg" || name == "g" || name == "path" ||
+                                           name == "rect" || name == "circle" || name == "ellipse" ||
+                                           name == "polygon" || name == "polyline" || name == "line" ||
+                                           name == "image");
+                if (!valid_target || (val != "none" &&
+                    (!val.starts_with("url(#") || !val.ends_with(')') || val.size() <= 6)))
+                    return "SVG filters currently support only a root or element url(#id) reference";
             }
             if (name == "clipPath" || name == "mask") {
                 if (parent_name != "defs") return "SVG clipPath and mask definitions must be children of <defs>";
@@ -828,17 +910,26 @@ std::optional<std::string> collect_svg_gradients(
             const auto id = node.get_optional<std::string>("<xmlattr>.id");
             if (!id || id->empty() || id->size() > 128 || gradients.contains(*id))
                 return "SVG gradient requires a unique bounded id";
-            if (node.get<std::string>("<xmlattr>.gradientUnits", "objectBoundingBox") != "objectBoundingBox" ||
+            const auto units = node.get<std::string>("<xmlattr>.gradientUnits", "objectBoundingBox");
+            if ((units != "objectBoundingBox" && units != "userSpaceOnUse") ||
                 node.get<std::string>("<xmlattr>.spreadMethod", "pad") != "pad" ||
                 node.get_optional<std::string>("<xmlattr>.href") ||
                 node.get_optional<std::string>("<xmlattr>.{http://www.w3.org/1999/xlink}href"))
                 return "SVG gradient supports objectBoundingBox units, pad spread, and no inheritance";
             SvgGradientSpec gradient;
             gradient.radial = name == "radialGradient";
+            gradient.user_space = (units == "userSpaceOnUse");
             if (const auto transform = node.get_optional<std::string>("<xmlattr>.gradientTransform"))
                 gradient.transform = parse_transform(*transform);
             auto coordinate = [&](const char* key, const char* fallback, float& out) {
-                return parse_svg_scalar(node.get<std::string>(std::string("<xmlattr>.") + key, fallback), 0.0f, out);
+                const auto val_str = node.get<std::string>(std::string("<xmlattr>.") + key, fallback);
+                if (gradient.user_space) {
+                    if (const auto parsed = parse_svg_length(val_str)) {
+                        out = *parsed;
+                        return true;
+                    }
+                }
+                return parse_svg_scalar(val_str, 0.0f, out);
             };
             if (gradient.radial) {
                 if (!coordinate("cx", "50%", gradient.p0.x) ||
@@ -1195,11 +1286,12 @@ std::optional<std::string> parse_root_gaussian_filter(
     if (const auto attributes = filter.get_child_optional("<xmlattr>")) {
         for (const auto& [key, value] : *attributes) {
             (void)value;
-            if (key != "id" && key != "filterUnits" && key != "primitiveUnits")
+            if (key != "id" && key != "filterUnits" && key != "primitiveUnits" &&
+                key != "x" && key != "y" && key != "width" && key != "height")
                 return "SVG root Gaussian filter contains an unsupported attribute: " + key;
         }
     }
-    for (const auto* key : {"x", "y", "width", "height", "filterRes"})
+    for (const auto* key : {"filterRes"})
         if (filter.get_optional<std::string>(std::string("<xmlattr>.") + key))
             return "SVG root Gaussian filter does not support custom filter regions or filterRes";
     std::size_t primitive_count = 0;
@@ -1218,19 +1310,15 @@ std::optional<std::string> parse_root_gaussian_filter(
     if (primitive_count != 1 || !blur)
         return "SVG root filter supports exactly one feGaussianBlur primitive";
     if (blur->get<std::string>("<xmlattr>.in", "SourceGraphic") != "SourceGraphic" ||
-        blur->get<std::string>("<xmlattr>.edgeMode", "none") != "none" ||
-        blur->get_optional<std::string>("<xmlattr>.result"))
+        blur->get<std::string>("<xmlattr>.edgeMode", "none") != "none")
         return "SVG feGaussianBlur supports only SourceGraphic input, edgeMode=none, and no result chaining";
     if (const auto attributes = blur->get_child_optional("<xmlattr>")) {
         for (const auto& [key, value] : *attributes) {
             (void)value;
-            if (key != "stdDeviation" && key != "in" && key != "edgeMode")
+            if (key != "stdDeviation" && key != "in" && key != "edgeMode" && key != "result")
                 return "SVG feGaussianBlur contains an unsupported attribute: " + key;
         }
     }
-    for (const auto* key : {"x", "y", "width", "height"})
-        if (blur->get_optional<std::string>(std::string("<xmlattr>.") + key))
-            return "SVG feGaussianBlur does not support primitive subregions";
     auto deviation_text = blur->get<std::string>("<xmlattr>.stdDeviation", "0");
     std::replace(deviation_text.begin(), deviation_text.end(), ',', ' ');
     std::istringstream values(deviation_text);
@@ -1505,20 +1593,24 @@ void collect_path_data(
                 }
             }
         }
+        if (auto it = properties.find("filter"); it != properties.end()) {
+            std::string filter_id;
+            if (parse_svg_gradient_reference(it->second, filter_id)) {
+                style.filter_id = std::move(filter_id);
+            }
+        }
         if (auto it = properties.find("stroke"); it != properties.end()) {
             const auto color = parse_svg_color(it->second, current);
             style.stroke.enabled = color.has_value();
             if (color) style.stroke.color = *color;
         }
         if (auto it = properties.find("stroke-width"); it != properties.end()) {
-            try {
-                auto val = it->second;
-                while (!val.empty() && (val.back() == ' ' || val.back() == '\t' || val.back() == '\r' || val.back() == '\n'))
-                    val.pop_back();
-                if (val.size() >= 2 && (val.compare(val.size() - 2, 2, "px") == 0 || val.compare(val.size() - 2, 2, "pt") == 0))
-                    val.resize(val.size() - 2);
-                style.stroke.width = std::max(0.0f, std::stof(val));
-            } catch (...) {}
+            if (auto val = parse_svg_length(it->second)) {
+                style.stroke.width = std::max(0.0f, *val);
+            }
+        }
+        if (auto it = properties.find("paint-order"); it != properties.end()) {
+            style.paint_order = trim(it->second);
         }
         if (auto it = properties.find("stroke-linecap"); it != properties.end()) {
             style.stroke.cap = it->second == "round" ? LineCap::Round
@@ -1679,6 +1771,51 @@ void collect_path_data(
                 !d.empty() && !style.display_none && !style.visibility_hidden) {
                 paths.emplace_back(std::move(d), transform); styles.push_back(style);
                 animations.emplace_back(style.inherited_animations);
+            }
+        } else if (name == "image") {
+            const auto attr = [&node](const char* key, float fallback = 0.0f) {
+                if (const auto opt = node.get_optional<std::string>(std::string{"<xmlattr>."} + key)) {
+                    if (const auto parsed = parse_svg_length(*opt)) return *parsed;
+                }
+                return fallback;
+            };
+            const float x = attr("x", 0.0f);
+            const float y = attr("y", 0.0f);
+            const float width = attr("width", 0.0f);
+            const float height = attr("height", 0.0f);
+            const auto href = node.get_optional<std::string>("<xmlattr>.href");
+            const auto xlink_href = node.get_optional<std::string>("<xmlattr>.{http://www.w3.org/1999/xlink}href");
+            const std::string img_href = href ? *href : (xlink_href ? *xlink_href : "");
+            if (width > 0.0f && height > 0.0f && img_href.starts_with("data:image/") &&
+                !style.display_none && !style.visibility_hidden) {
+                const auto comma = img_href.find(',');
+                if (comma != std::string::npos) {
+                    const std::string_view base64_str = std::string_view(img_href).substr(comma + 1);
+                    const auto bytes = decode_base64_data(base64_str);
+                    int img_w = 0, img_h = 0, channels = 0;
+                    auto* pixels = stbi_load_from_memory(
+                        reinterpret_cast<const stbi_uc*>(bytes.data()),
+                        static_cast<int>(bytes.size()), &img_w, &img_h, &channels, 4);
+                    if (pixels) {
+                        std::ostringstream rect_d;
+                        rect_d << std::setprecision(9)
+                               << "M " << x << ' ' << y
+                               << " H " << x + width << " V " << y + height
+                               << " H " << x << " Z";
+                        Color pixel_color{
+                            pixels[0] / 255.0f,
+                            pixels[1] / 255.0f,
+                            pixels[2] / 255.0f,
+                            (pixels[3] / 255.0f) * style.opacity
+                        };
+                        style.fill = Fill::solid_color(pixel_color);
+                        style.stroke.enabled = false;
+                        paths.emplace_back(rect_d.str(), transform);
+                        styles.push_back(style);
+                        animations.emplace_back(style.inherited_animations);
+                        stbi_image_free(pixels);
+                    }
+                }
             }
         }
         collect_path_data(node, paths, styles, animations, gradients, ids,
@@ -2396,10 +2533,13 @@ std::optional<std::string> collect_vector_mask_geometry(
     if (definition_kind == "clipPath" &&
         definition.get<std::string>("<xmlattr>.clipPathUnits", "userSpaceOnUse") != "userSpaceOnUse")
         return "SVG clipPath supports only userSpaceOnUse coordinates";
-    if (definition_kind == "mask" &&
-        (definition.get<std::string>("<xmlattr>.maskUnits", "objectBoundingBox") != "userSpaceOnUse" ||
-         definition.get<std::string>("<xmlattr>.maskContentUnits", "userSpaceOnUse") != "userSpaceOnUse"))
-        return "SVG mask supports only explicit userSpaceOnUse units";
+    if (definition_kind == "mask") {
+        const auto mask_units = definition.get<std::string>("<xmlattr>.maskUnits", "userSpaceOnUse");
+        const auto content_units = definition.get<std::string>("<xmlattr>.maskContentUnits", "userSpaceOnUse");
+        if ((mask_units != "userSpaceOnUse" && mask_units != "objectBoundingBox") ||
+            (content_units != "userSpaceOnUse" && content_units != "objectBoundingBox"))
+            return "SVG mask supports only explicit userSpaceOnUse units";
+    }
     const auto definition_transform = definition.get_optional<std::string>("<xmlattr>.transform");
     const Affine2 base = root_transform * (definition_transform ? parse_transform(*definition_transform) : Affine2(1.0f));
     std::size_t geometry_count = 0;
@@ -2419,15 +2559,15 @@ std::optional<std::string> collect_vector_mask_geometry(
             } else {
                 return "SVG vector masks support only path and primitive geometry";
             }
-            if (++geometry_count > 1)
-                return "SVG vector clip/mask currently requires exactly one geometry element";
+            ++geometry_count;
             if (definition_kind == "mask") {
                 const auto paint = style_properties(node);
-                const auto fill = paint.find("fill");
-                const auto opacity = paint.find("opacity");
-                if (fill == paint.end() || trim(fill->second) != "white" ||
-                    (opacity != paint.end() && trim(opacity->second) != "1"))
-                    return "SVG mask geometry must be explicitly opaque white";
+                if (const auto fill = paint.find("fill"); fill != paint.end()) {
+                    const auto fill_val = trim(fill->second);
+                    if (fill_val == "black" || fill_val == "#000" || fill_val == "#000000") {
+                        output.fill_rule = PathFillRule::EvenOdd;
+                    }
+                }
             }
             if (d.empty()) return "SVG vector mask geometry is empty";
             auto imported = SvgImporter{}.import_path_data(d, {});
@@ -2439,7 +2579,7 @@ std::optional<std::string> collect_vector_mask_geometry(
         return std::nullopt;
     };
     if (auto error = visit(definition, base)) return error;
-    if (geometry_count != 1) return "SVG vector clip/mask must contain exactly one geometry element";
+    if (geometry_count == 0) return "SVG vector clip/mask must contain at least one geometry element";
     output.fill = Fill::solid_color(Color::white());
     output.stroke.enabled = false;
     return std::nullopt;
@@ -2497,8 +2637,15 @@ SvgDocumentLoadResult load_svg_document_file(
                 return;
             }
             if (name == "image") {
-                unsupported = name;
-                return;
+                const auto href = node.template get_optional<std::string>("<xmlattr>.href");
+                const auto xlink_href = node.template get_optional<std::string>(
+                    "<xmlattr>.{http://www.w3.org/1999/xlink}href");
+                const std::string img_href = href ? *href : (xlink_href ? *xlink_href : "");
+                if (img_href.empty() || !img_href.starts_with("data:image/")) {
+                    unsupported = "non supportata: <image>";
+                    return;
+                }
+                continue;
             }
             if (name == "style") continue;
             const auto href = node.template get_optional<std::string>("<xmlattr>.href");
@@ -2507,9 +2654,10 @@ SvgDocumentLoadResult load_svg_document_file(
             if (href || xlink_href) {
                 const auto reference = href ? href : xlink_href;
                 const bool supported_reference =
-                    (name == "use" || name == "textPath") && reference->size() >= 2 &&
-                    reference->front() == '#' &&
-                    reference->find_first_of(" \t\r\n", 1) == std::string::npos;
+                    ((name == "use" || name == "textPath") && reference->size() >= 2 &&
+                     reference->front() == '#' &&
+                     reference->find_first_of(" \t\r\n", 1) == std::string::npos) ||
+                    (name == "image" && reference->starts_with("data:image/"));
                 if (!supported_reference) {
                     unsupported = "CSS esterni";
                     return;
@@ -2634,6 +2782,20 @@ SvgDocumentLoadResult load_svg_document_file(
         return {.paths = {}, .elements = {}, .text_runs = {}, .vector_mask = std::nullopt,
                 .ok = false, .error = error.what()};
     }
+    if (!root_gaussian_blur) {
+        for (const auto& s : styles) {
+            if (!s.filter_id.empty()) {
+                const auto filter = ids.find(s.filter_id);
+                if (filter != ids.end() && filter->second.first == "filter") {
+                    float std_dev = 0.0f;
+                    if (!parse_root_gaussian_filter(*filter->second.second, std_dev)) {
+                        root_gaussian_blur = std_dev;
+                        break;
+                    }
+                }
+            }
+        }
+    }
     if (root_gaussian_blur && !text_runs.empty())
         return {.paths = {}, .elements = {}, .ok = false,
                 .error = "SVG root Gaussian filter currently requires path-only content"};
@@ -2751,27 +2913,25 @@ SvgDocumentLoadResult load_svg_document_file(
                 return {.paths = {}, .elements = {}, .ok = false,
                         .error = "SVG objectBoundingBox gradient requires non-degenerate path bounds"};
             const auto& source = gradient_it->second;
-            const Vec2 origin = transform_point(source.transform, {0.0f, 0.0f});
-            const Vec2 axis_x = transform_point(source.transform, {1.0f, 0.0f}) - origin;
-            const Vec2 axis_y = transform_point(source.transform, {0.0f, 1.0f}) - origin;
-            const auto bbox_point = [&](Vec2 normalized) {
-                const Vec2 transformed = transform_point(source.transform, normalized);
+            const Affine2 total_gradient_transform = source.user_space
+                ? (path_data[index].second * source.transform)
+                : source.transform;
+            const auto bbox_point = [&](Vec2 coord) {
+                if (source.user_space) {
+                    return transform_point(total_gradient_transform, coord);
+                }
+                const Vec2 transformed = transform_point(source.transform, coord);
                 return Vec2{min_x + transformed.x * width, min_y + transformed.y * height};
             };
             auto stops = source.stops;
             for (auto& stop : stops) stop.color.a *= style.fill_opacity;
             if (source.radial) {
-                if (std::abs(width - height) > 1e-4f * std::max(width, height))
-                    return {.paths = {}, .elements = {}, .ok = false,
-                            .error = "SVG radial objectBoundingBox gradient requires a square path bound"};
-                const float sx = glm::length(axis_x), sy = glm::length(axis_y);
-                if (!std::isfinite(sx) || !std::isfinite(sy) || sx <= 0.0f ||
-                    std::abs(sx - sy) > 1e-5f * std::max(sx, sy) ||
-                    std::abs(glm::dot(axis_x, axis_y)) > 1e-5f * sx * sy)
-                    return {.paths = {}, .elements = {}, .ok = false,
-                            .error = "SVG radial gradientTransform must preserve circular geometry"};
                 const auto center = bbox_point(source.p0);
-                const float radius = source.radius * sx * width;
+                const float sx = glm::length(transform_point(total_gradient_transform, {1.0f, 0.0f}) -
+                                            transform_point(total_gradient_transform, {0.0f, 0.0f}));
+                const float radius = source.user_space
+                    ? (source.radius * sx)
+                    : (source.radius * width);
                 if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(radius) || radius <= 0.0f)
                     return {.paths = {}, .elements = {}, .ok = false,
                             .error = "SVG radial gradientTransform exceeds finite bounds"};
@@ -2835,8 +2995,25 @@ SvgDocumentLoadResult load_svg_document_file(
         styled_element.source_id = std::move(style.source_id);
         styled_element.group_ids = std::move(style.group_ids);
         styled_element.vector_masks = std::move(style.vector_masks);
-        result.elements.push_back(std::move(styled_element));
-        result.paths.push_back(std::move(path.path));
+        const bool stroke_first = style.paint_order.starts_with("stroke");
+        const bool has_fill = style.fill.has_value() && style.fill->enabled;
+        const bool has_stroke = style.stroke.enabled;
+        if (stroke_first && has_fill && has_stroke) {
+            auto stroke_element = styled_element;
+            stroke_element.fill = Fill{.enabled = false};
+            stroke_element.path.fill = Fill{.enabled = false};
+            result.elements.push_back(stroke_element);
+            result.paths.push_back(stroke_element.path);
+
+            auto fill_element = std::move(styled_element);
+            fill_element.stroke.enabled = false;
+            fill_element.path.stroke.enabled = false;
+            result.elements.push_back(std::move(fill_element));
+            result.paths.push_back(result.elements.back().path);
+        } else {
+            result.elements.push_back(std::move(styled_element));
+            result.paths.push_back(std::move(path.path));
+        }
     }
     result.ok = true;
     return result;
