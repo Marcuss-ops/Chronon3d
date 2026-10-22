@@ -1,0 +1,92 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "t16-fov-static-30",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 150
+  },
+  "layers": [
+    {
+      "id": "night-stage",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/camera_background.png",
+      "fit": "stretch",
+      "size": [
+        1920,
+        1080
+      ],
+      "duration_frames": 150,
+      "enable_3d": true,
+      "position": [
+        -960,
+        0,
+        1000
+      ],
+      "scale": [
+        3,
+        2,
+        1
+      ]
+    },
+    {
+      "id": "title-plane",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/camera_title.png",
+      "fit": "contain",
+      "size": [
+        1900,
+        610
+      ],
+      "position": [
+        0,
+        -240,
+        0
+      ],
+      "enable_3d": true,
+      "duration_frames": 150
+    },
+    {
+      "id": "foreground-subject-alpha-cutout",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/subject_cutout_refined.png",
+      "fit": "contain",
+      "size": [
+        844,
+        1125
+      ],
+      "position": [
+        495,
+        -112,
+        -99
+      ],
+      "enable_3d": true,
+      "duration_frames": 150
+    }
+  ],
+  "output": {
+    "path": "t16_fov_30.png",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 30.0,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  }
+}

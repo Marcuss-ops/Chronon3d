@@ -47,6 +47,10 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
                           const RenderNode& node, const RenderState& state) {
     if (node.shape.type() != ShapeType::Rect) return false;
     if (node.shape.rect().stroke.enabled) return false;
+    // This direct fill consumes RenderNode::color and does not evaluate the
+    // Fill gradient payload. Let non-solid fills reach draw_node(), where the
+    // backend either evaluates them natively or reports them unsupported.
+    if (!has_native_solid_rect_fill(node)) return false;
     // Render-plan color layers carry their canonical color in RenderNode::color;
     // the builder's Fill metadata may remain at its default while the shape
     // is still an ordinary solid rectangle.  Stroke/radius/mask checks below

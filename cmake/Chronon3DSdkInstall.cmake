@@ -104,6 +104,13 @@ if(TARGET chronon3d_cli)
     )
 endif()
 
+if(TARGET chronon3d_camera_plan_bake)
+    install(TARGETS chronon3d_camera_plan_bake
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        OPTIONAL
+    )
+endif()
+
 # Export internal targets WITHOUT NAMESPACE — they remain importable so the
 # transitive link closure resolves through Chronon3D::SDK, while the public
 # Chronon3D:: namespace still exposes only the SDK alias.

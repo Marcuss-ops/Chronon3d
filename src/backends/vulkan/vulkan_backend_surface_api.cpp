@@ -314,6 +314,32 @@ graph::RenderOpResult VulkanBackend::composite_surface_weighted(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::accumulate_surface_weighted(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    float weight) {
+    if (!std::isfinite(weight)) {
+        return graph::RenderOpResult(graph::make_render_backend_error(
+            graph::RenderBackendErrorCode::InvalidInput,
+            "VulkanBackend::accumulate_surface_weighted: weight must be finite"));
+    }
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        // Add mode is premultiplied channel addition in composite.comp. Keep
+        // the sample weight as a scalar; source-over weighting is not an
+        // averaging operation and would darken later shutter samples.
+        m_impl->composite(destination, source, BlendMode::Add, std::nullopt,
+                          false, weight, false);
+    });
+#else
+    (void)destination; (void)source;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::accumulate_surface_weighted: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::copy_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle source,

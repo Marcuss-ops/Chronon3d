@@ -328,6 +328,16 @@ if(CHRONON3D_ENABLE_MOTION_ADAPTER)
     set(CHRONON3D_DEPENDENCY_INCLUDE_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include"
         CACHE PATH "Chronon3D public dependency headers for offline motion adapter" FORCE)
     add_subdirectory("${_chrononmotion_dir}" "${CMAKE_BINARY_DIR}/chrononmotion" EXCLUDE_FROM_ALL)
+
+    # This offline adapter is the process boundary used by SDK plan producers
+    # that cannot link CM3D into their language runtime (for example, the
+    # CGO-disabled Go worker). It consumes a temporary RenderPlan and lowers
+    # its authored camera tracks with CameraRig before any wire serialization.
+    add_executable(chronon3d_camera_plan_bake tools/camera_plan_bake.cpp)
+    target_link_libraries(chronon3d_camera_plan_bake PRIVATE
+        chrononmotion chrononmotion_chronon3d_adapter nlohmann_json::nlohmann_json)
+    target_compile_features(chronon3d_camera_plan_bake PRIVATE cxx_std_20)
+    target_compile_options(chronon3d_camera_plan_bake PRIVATE -Wall -Wextra)
 endif()
 
 # Central build registries and source graph.

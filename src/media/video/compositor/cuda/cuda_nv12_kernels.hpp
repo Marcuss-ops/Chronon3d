@@ -686,14 +686,14 @@ extern "C" __global__ void rgba_surface_to_nv12_2x2(
   const int ys[4] = {y, y, y1, y1};
   float3 srgb[4];
   for (int i = 0; i < 4; ++i) {
-    const float a = fminf(fmaxf(fs[i].w, 0.0f), 1.0f);
-    const float inv_a = (a > 1e-5f) ? (1.0f / a) : 0.0f;
-    // Linear light in, target transfer out. `transfer == 0` keeps the legacy
-    // pass-through for a writer whose target is already linear; every SDR
-    // encoder target (NVENC BT.709) requests the OETF.
-    srgb[i].x = encode_transfer_channel(fminf(fmaxf(fs[i].x * inv_a, 0.0f), 1.0f), transfer);
-    srgb[i].y = encode_transfer_channel(fminf(fmaxf(fs[i].y * inv_a, 0.0f), 1.0f), transfer);
-    srgb[i].z = encode_transfer_channel(fminf(fmaxf(fs[i].z * inv_a, 0.0f), 1.0f), transfer);
+    // NV12 has no alpha plane. The renderer surface is linear, premultiplied
+    // RGBA, so its RGB already represents compositing over the video matte
+    // (black). Preserve that premultiplied RGB at this boundary; unpremultiply
+    // here would make any translucent colour opaque and discard its opacity.
+    // `transfer == 0` keeps the pass-through for an already encoded target.
+    srgb[i].x = encode_transfer_channel(fminf(fmaxf(fs[i].x, 0.0f), 1.0f), transfer);
+    srgb[i].y = encode_transfer_channel(fminf(fmaxf(fs[i].y, 0.0f), 1.0f), transfer);
+    srgb[i].z = encode_transfer_channel(fminf(fmaxf(fs[i].z, 0.0f), 1.0f), transfer);
     const float y_value = 16.0f + 219.0f *
         (0.2126f * srgb[i].x + 0.7152f * srgb[i].y + 0.0722f * srgb[i].z);
     out_y[ys[i] * out_yp + xs[i]] = (unsigned char)fminf(

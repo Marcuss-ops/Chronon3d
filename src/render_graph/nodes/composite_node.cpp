@@ -366,6 +366,7 @@ void publish_dof_provenance_native(
 // expands the DOF source bbox/radius coverage.
 void publish_dof_provenance(
     RenderGraphContext& ctx, const Framebuffer& surface,
+    u64 composite_id,
     float camera_depth, float source_radius,
     const std::optional<raster::BBox>& clip,
     i32 framebuffer_width, i32 framebuffer_height) {
@@ -376,9 +377,27 @@ void publish_dof_provenance(
                                       clip, framebuffer_width, framebuffer_height);
         return;
     }
+    auto& mutable_surface = const_cast<Framebuffer&>(surface);
+    if (ensure_native_surface(ctx, mutable_surface,
+                              "CompositeNode.dof_provenance")) {
+        publish_dof_provenance_native(ctx, mutable_surface, camera_depth,
+                                      source_radius, clip, framebuffer_width,
+                                      framebuffer_height);
+        return;
+    }
     // CPU depth is now authoritative for this frame: the native depth surface
     // no longer describes every covered pixel, so it must not be consumed.
-    ctx.node_exec.native_dof_state().unusable = true;
+    auto& native_dof = ctx.node_exec.native_dof_state();
+    if (!native_dof.unusable) {
+        spdlog::warn(
+            "[dof-provenance] switching to mixed residency at composite={} "
+            "surface={}x{} cpu_authoritative={} gpu_handle={} depth={:.2f} radius={:.2f}",
+            composite_id, surface.width(), surface.height(),
+            surface.is_cpu_authoritative(),
+            static_cast<std::uint64_t>(surface.surface_handle()),
+            camera_depth, source_radius);
+    }
+    native_dof.unusable = true;
     const i32 w = framebuffer_width;
     const i32 bx0 = clip ? clip->x0 : 0;
     const i32 by0 = clip ? clip->y0 : 0;
@@ -699,7 +718,7 @@ NodeExecResult CompositeNode::execute(
                 : camera_space_depth(ctx.frame_input.camera_2_5d,
                                      Vec3{0.0f, 0.0f, m_world_z});
             publish_dof_provenance(
-                ctx, *result, depth,
+                ctx, *result, m_unique_id, depth,
                 dof_source_radius(ctx, depth),
                 ctx.node_exec.clip_rect,
                 ctx.frame_input.width, ctx.frame_input.height);
@@ -827,7 +846,7 @@ NodeExecResult CompositeNode::execute(
                 : camera_space_depth(ctx.frame_input.camera_2_5d,
                                      Vec3{0.0f, 0.0f, m_world_z});
             publish_dof_provenance(
-                ctx, *top, depth, dof_source_radius(ctx, depth),
+                ctx, *top, m_unique_id, depth, dof_source_radius(ctx, depth),
                 clip, ctx.frame_input.width, ctx.frame_input.height);
         }
 

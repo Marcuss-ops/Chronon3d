@@ -120,23 +120,29 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     if (image.tint.r != 1.0f || image.tint.g != 1.0f ||
         image.tint.b != 1.0f || image.tint.a != 1.0f) return false;
     if (native_surface_promotion_diag_enabled()) {
-        spdlog::info("[native_image_diag] path='{}' matrix3=[{:.1f},{:.1f},{:.1f},{:.1f}] anchor=[{:.1f},{:.1f}] op={:.2f} state_op={:.2f}",
+        spdlog::info("[native_image_diag] path='{}' matrix3=[{:.1f},{:.1f},{:.1f},{:.1f}] anchor=[{:.1f},{:.1f}] op={:.2f} state_op={:.2f} tint=[{:.2f},{:.2f},{:.2f},{:.2f}] flip_x={} projected={} active_mask={}",
                      image.path, state.matrix[3][0], state.matrix[3][1], state.matrix[0][0], state.matrix[1][1],
                      node.world_transform.anchor.x, node.world_transform.anchor.y,
-                     image.opacity, state.opacity);
+                     image.opacity, state.opacity,
+                     image.tint.r, image.tint.g, image.tint.b, image.tint.a,
+                     image.crop.flip_x, native_promotion::is_projected(state),
+                     native_promotion::has_active_mask(state));
     }
     if (!ctx.image_cache || !ctx.gpu_asset_cache ||
         !ctx.backend || !ctx.surface_registry ||
         image.path.empty() ||
-        image.crop.flip_x ||
         native_promotion::has_active_mask(state) ||
         native_promotion::is_projected(state)) {
         if (native_surface_promotion_diag_enabled()) {
-        spdlog::info("[native_image_diag] rejected before cache: runtime={} image_cache={} gpu_cache={} backend={} surfaces={} path={} radius={:.1f} mask={} affine={}",
+        spdlog::info("[native_image_diag] rejected before cache: runtime={} image_cache={} gpu_cache={} backend={} surfaces={} path={} flip_x={} projected={} tint_identity={} radius={:.1f} mask={} affine={}",
                      static_cast<const void*>(ctx.runtime),
                      ctx.image_cache != nullptr, ctx.gpu_asset_cache != nullptr,
                          ctx.backend != nullptr, ctx.surface_registry != nullptr,
-                         !image.path.empty(), image.radius,
+                         !image.path.empty(), image.crop.flip_x,
+                         native_promotion::is_projected(state),
+                         image.tint.r == 1.0f && image.tint.g == 1.0f &&
+                             image.tint.b == 1.0f && image.tint.a == 1.0f,
+                         image.radius,
                          native_promotion::has_active_mask(state),
                          native_promotion::is_axis_aligned_affine(state));
         }
@@ -306,7 +312,11 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     const float inv01 = -a01 / determinant;
     const float inv10 = -a10 / determinant;
     const float inv11 = a00 / determinant;
-    const float source_per_local_x = source_size.x / placement.dst_rect.size.x;
+    // A horizontal flip reverses source x while keeping the destination box
+    // fixed. Shift the source origin to its far edge before applying the
+    // negative scale so the sampled interval remains the selected crop.
+    const float source_per_local_x =
+        (image.crop.flip_x ? -1.0f : 1.0f) * source_size.x / placement.dst_rect.size.x;
     const float source_per_local_y = source_size.y / placement.dst_rect.size.y;
     const float translate_x = state.matrix[3][0];
     const float translate_y = state.matrix[3][1];
@@ -316,7 +326,9 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     // already in the matrix. Do not subtract it a second time. For rounded
     // pre-crops, source_origin has been rebased by the crop's integer origin;
     // the destination geometry and inverse mapping therefore stay unchanged.
-    const float source_offset_x = source_origin.x - source_per_local_x *
+    const float source_base_x = source_origin.x +
+        (image.crop.flip_x ? source_size.x : 0.0f);
+    const float source_offset_x = source_base_x - source_per_local_x *
         (inv00 * translate_x + inv01 * translate_y + origin_x);
     const float source_offset_y = source_origin.y - source_per_local_y *
         (inv10 * translate_x + inv11 * translate_y + origin_y);

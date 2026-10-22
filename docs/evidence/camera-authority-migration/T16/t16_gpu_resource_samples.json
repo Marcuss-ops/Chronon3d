@@ -1,0 +1,172 @@
+[
+  {
+    "seconds": 0.0,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 31,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 7.11,
+    "process_vram_mib": null
+  },
+  {
+    "seconds": 0.331,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 58,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 10.54,
+    "process_vram_mib": 194
+  },
+  {
+    "seconds": 0.632,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 262,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 14.92,
+    "process_vram_mib": 225
+  },
+  {
+    "seconds": 0.945,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 274,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 17.91,
+    "process_vram_mib": 228
+  },
+  {
+    "seconds": 1.283,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 286,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 33.98,
+    "process_vram_mib": 233
+  },
+  {
+    "seconds": 1.615,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 296,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 33.77,
+    "process_vram_mib": 233
+  },
+  {
+    "seconds": 1.919,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 296,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 33.72,
+    "process_vram_mib": 233
+  },
+  {
+    "seconds": 2.221,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 296,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 33.62,
+    "process_vram_mib": 233
+  },
+  {
+    "seconds": 2.541,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 296,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 33.66,
+    "process_vram_mib": 233
+  },
+  {
+    "seconds": 2.844,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 296,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 33.66,
+    "process_vram_mib": 233
+  },
+  {
+    "seconds": 3.154,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 296,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 33.66,
+    "process_vram_mib": 233
+  },
+  {
+    "seconds": 3.475,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 330,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 0,
+    "memory_util_percent": 0,
+    "power_w": 33.31,
+    "process_vram_mib": 331
+  },
+  {
+    "seconds": 3.859,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 478,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 66,
+    "memory_util_percent": 1,
+    "power_w": 33.28,
+    "process_vram_mib": 589
+  },
+  {
+    "seconds": 4.187,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 1044,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 4,
+    "memory_util_percent": 3,
+    "power_w": 34.99,
+    "process_vram_mib": 985
+  },
+  {
+    "seconds": 4.539,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 1056,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 4,
+    "memory_util_percent": 3,
+    "power_w": 42.45,
+    "process_vram_mib": 993
+  },
+  {
+    "seconds": 4.892,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 1056,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 35,
+    "memory_util_percent": 30,
+    "power_w": 60.77,
+    "process_vram_mib": 923
+  },
+  {
+    "seconds": 5.183,
+    "device": "NVIDIA RTX A4000",
+    "memory_used_mib": 336,
+    "memory_total_mib": 16376,
+    "gpu_util_percent": 1,
+    "memory_util_percent": 0,
+    "power_w": 64.95,
+    "process_vram_mib": null
+  }
+]

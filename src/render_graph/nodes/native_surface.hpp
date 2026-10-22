@@ -147,6 +147,25 @@ inline bool ensure_native_surface(
         stale_handle_in_registry = ctx.surface_registry->lookup(handle).has_value();
         stale_handle_backend_valid = ctx.backend->is_native_surface_valid(handle);
         if (stale_handle_in_registry && stale_handle_backend_valid) {
+            // A valid handle is not sufficient when CPU pixels became
+            // authoritative after the surface was attached. Synchronize that
+            // newer content before a native consumer reads the surface.
+            if (framebuffer.is_cpu_authoritative() && framebuffer.data()) {
+                const auto desc = native_surface_desc(
+                    ctx, framebuffer.width(), framebuffer.height());
+                std::vector<float> packed;
+                const auto pixels = framebuffer_rgba_view(framebuffer, packed);
+                const auto uploaded = ctx.backend->upload_surface(handle, desc, pixels);
+                if (!uploaded.ok()) {
+                    spdlog::error(
+                        "[native-surface] CPU-authoritative upload failed for {}x{}: {}",
+                        framebuffer.width(), framebuffer.height(),
+                        uploaded.error().message);
+                    return false;
+                }
+                framebuffer.mark_cpu_gpu_synchronized();
+                return true;
+            }
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->native_surface_reuse_count.fetch_add(
                     1, std::memory_order_relaxed);

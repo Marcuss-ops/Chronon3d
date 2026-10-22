@@ -1,0 +1,181 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "documentary_snapshot_adapter_doc_title_focus_drop_snapshot_archive_v1",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      960.0,
+      -25,
+      -1040.0
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 55,
+    "near": 0.1,
+    "far": 2000.0,
+    "zoom": 1,
+    "sensor_width_mm": 36,
+    "lens_shift": [
+      0,
+      0
+    ],
+    "iris_blades": 0,
+    "dof": {
+      "enabled": false,
+      "focus_distance": 1040.0,
+      "aperture": 0.18,
+      "max_blur": 24,
+      "iris_blades": 0,
+      "highlight_gain": 0
+    }
+  },
+  "camera_samples": [
+    {
+      "frame": 0,
+      "camera": {
+        "type": "perspective",
+        "position": [
+          960.0,
+          -25,
+          -1040.0
+        ],
+        "rotation_deg": [
+          0,
+          0,
+          0
+        ],
+        "fov_deg": 55,
+        "near": 0.1,
+        "far": 2000.0,
+        "zoom": 1,
+        "sensor_width_mm": 36,
+        "lens_shift": [
+          0,
+          0
+        ],
+        "iris_blades": 0,
+        "dof": {
+          "enabled": false,
+          "focus_distance": 1040.0,
+          "aperture": 0.18,
+          "max_blur": 24,
+          "iris_blades": 0,
+          "highlight_gain": 0
+        }
+      }
+    }
+  ],
+  "layers": [
+    {
+      "id": "debug-black-background",
+      "type": "shape",
+      "color": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "size": [
+        1920.0,
+        1080.0
+      ],
+      "position": [
+        960.0,
+        540.0
+      ],
+      "enable_3d": false,
+      "screen_space": true,
+      "loop": false,
+      "blend_mode": "normal",
+      "shape": {
+        "type": "rect",
+        "fill": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "opacity": 1.0
+    },
+    {
+      "id": "documentary-motion-light-leak",
+      "type": "shape",
+      "color": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "size": [
+        1920.0,
+        1080.0
+      ],
+      "position": [
+        960.0,
+        540.0
+      ],
+      "enable_3d": false,
+      "screen_space": true,
+      "loop": false,
+      "blend_mode": "normal",
+      "shape": {
+        "type": "rect",
+        "fill": {
+          "type": "radial",
+          "spread": "pad",
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            1,
+            0
+          ],
+          "center": [
+            0.56,
+            0
+          ],
+          "radius": 0.5507268,
+          "angle": 0,
+          "color_stops": [
+            {
+              "position": 0,
+              "color": [
+                0.28,
+                0.1736,
+                0.0672,
+                0.28
+              ]
+            },
+            {
+              "position": 1,
+              "color": [
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        }
+      },
+      "opacity": 1.0
+    }
+  ],
+  "output": {
+    "path": "debug-radial.raw",
+    "format": "mp4"
+  }
+}

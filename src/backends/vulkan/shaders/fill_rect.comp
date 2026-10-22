@@ -125,7 +125,6 @@ void main() {
     ivec2 pixel = params.rect.xy + ivec2(gl_GlobalInvocationID.xy);
     if (pixel.x < params.rect.x || pixel.x >= params.rect.z ||
         pixel.y < params.rect.y || pixel.y >= params.rect.w) return;
-
     // Surface initialization is a replacement, not source-over. Blending a
     // transparent color leaves recycled/uninitialized image contents intact.
     if (params.shape.x < -0.5) {
@@ -249,6 +248,28 @@ void main() {
         vec2 axis = params.line.zw - params.line.xy;
         float denom = dot(axis, axis);
         float t = denom > 1e-8 ? dot(p - params.line.xy, axis) / denom : 0.0;
+        int count = clamp(int(params.shape.w + 0.5), 2, 3);
+        float stop0 = params.vertices[0].x;
+        float stop1 = params.vertices[2].y;
+        float stop2 = params.vertices[5].x;
+        vec4 c0 = vec4(params.vertices[0].y, params.vertices[1].x,
+                       params.vertices[1].y, params.vertices[2].x);
+        vec4 c1 = vec4(params.vertices[3].x, params.vertices[3].y,
+                       params.vertices[4].x, params.vertices[4].y);
+        vec4 c2 = vec4(params.vertices[5].y, params.vertices[6].x,
+                       params.vertices[6].y, params.vertices[7].x);
+        vec4 source;
+        if (t <= stop0) source = c0;
+        else if (t >= (count == 2 ? stop1 : stop2)) source = count == 2 ? c1 : c2;
+        else if (count == 2) source = mix(c0, c1, clamp((t-stop0)/max(stop1-stop0,1e-6),0.0,1.0));
+        else if (t <= stop1) source = mix(c0, c1, clamp((t-stop0)/max(stop1-stop0,1e-6),0.0,1.0));
+        else source = mix(c1, c2, clamp((t-stop1)/max(stop2-stop1,1e-6),0.0,1.0));
+        vec4 destination = imageLoad(dst_image, pixel);
+        imageStore(dst_image, pixel, source + destination * (1.0 - source.a));
+        return;
+    } else if (params.shape.x > 8.5 && params.shape.x < 9.5) {
+        float radius = max(params.line.z, 1e-6);
+        float t = distance(p, params.line.xy) / radius;
         int count = clamp(int(params.shape.w + 0.5), 2, 3);
         float stop0 = params.vertices[0].x;
         float stop1 = params.vertices[2].y;

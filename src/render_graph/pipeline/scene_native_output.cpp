@@ -361,6 +361,17 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_reused_native_frame(
 std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
     std::shared_ptr<Framebuffer> exec_fb, Frame frame) {
     if (!encode_batch_active_) return exec_fb;
+    if (ctx_.policy.defer_native_video_encoder_handoff) {
+        // The temporal sample target is a Vulkan intermediate. Submitting it
+        // to CUDA/NVENC here would transfer ownership before the weighted GPU
+        // accumulator reads it, and would repeat that transfer for every
+        // shutter sample. Leave the Vulkan batch open so the parent temporal
+        // compositor can read the sample surface into its weighted
+        // accumulator before ending the batch and handing off the final image.
+        encode_batch_active_ = false;
+        if (exec_fb) exec_fb->mark_gpu_authoritative();
+        return exec_fb;
+    }
     const auto encode_surface = ctx_.policy.native_video_encode_surface;
     runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
     if (encode_surface != runtime::kInvalidRenderSurfaceHandle && exec_fb) {

@@ -1,0 +1,53 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "t16-dolly-foreground-subject-alpha-cutout-base",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 150
+  },
+  "layers": [
+    {
+      "id": "foreground-subject-alpha-cutout",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/subject_cutout_refined.png",
+      "fit": "contain",
+      "size": [
+        844,
+        1125
+      ],
+      "position": [
+        495,
+        -112,
+        -99
+      ],
+      "enable_3d": true,
+      "duration_frames": 150
+    }
+  ],
+  "output": {
+    "path": "foreground-subject-alpha-cutout-base.rgba",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000.0
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 50.0,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  }
+}

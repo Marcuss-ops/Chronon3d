@@ -1,0 +1,5194 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "t16-hero-title-three-depth-camera-150f",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 150
+  },
+  "layers": [
+    {
+      "id": "night-stage",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/camera_background.png",
+      "fit": "stretch",
+      "size": [
+        1920,
+        1080
+      ],
+      "duration_frames": 150,
+      "enable_3d": true,
+      "position": [
+        -960,
+        0,
+        1000
+      ],
+      "scale": [
+        3,
+        2,
+        1
+      ]
+    },
+    {
+      "id": "title-plane",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/camera_title.png",
+      "fit": "contain",
+      "size": [
+        1900,
+        610
+      ],
+      "position": [
+        0,
+        -240,
+        0
+      ],
+      "enable_3d": true,
+      "duration_frames": 150
+    },
+    {
+      "id": "foreground-subject-alpha-cutout",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/subject_cutout_refined.png",
+      "fit": "contain",
+      "size": [
+        844,
+        1125
+      ],
+      "position": [
+        495,
+        -112,
+        -99
+      ],
+      "enable_3d": true,
+      "duration_frames": 150
+    }
+  ],
+  "output": {
+    "path": "t16_hero_title_camera_three_depth_150f.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 50,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "camera_samples": [
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -1000.0
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.5000001192092896,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 0.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.9940185546875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.4798657894134521,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 1.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.9760131835938
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.4597314596176147,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 2.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.9458618164062
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.439597249031067,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 3.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.9035034179688
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.419463038444519,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 4.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.8488159179688
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.399328589439392,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 5.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.7816162109375
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.3791944980621338,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 6.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.701904296875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.3590601682662964,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 7.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.6095581054688
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.3389261960983276,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 8.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.50439453125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.3187919855117798,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 9.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.3864135742188
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.298657774925232,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 10.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.2554931640625
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.2785234451293945,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 11.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -999.1115112304688
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.2583892345428467,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 12.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -998.9544067382812
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.2382549047470093,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 13.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -998.7841186523438
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.2181206941604614,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 14.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -998.6004638671875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.1979864835739136,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 15.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -998.4034423828125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.1778522729873657,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 16.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -998.1929321289062
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.1577180624008179,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 17.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -997.9689331054688
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.1375837326049805,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 18.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -997.7313232421875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.1174496412277222,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 19.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -997.47998046875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.0973155498504639,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 20.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -997.2149658203125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.0771812200546265,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 21.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -996.9361572265625
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.0570470094680786,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 22.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -996.6434936523438
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.0369126796722412,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 23.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -996.3369140625
+        ],
+        "rotation_deg": [
+          -0.0,
+          -1.0167783498764038,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 24.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -996.0164794921875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.9966442584991455,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 25.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -995.6820678710938
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.9765099287033081,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 26.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -995.3336791992188
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.9563757181167603,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 27.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -994.9713134765625
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.9362415075302124,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 28.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -994.594970703125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.9161074757575989,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 29.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -994.2046508789062
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.8959729671478271,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 30.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -993.80029296875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.8758389353752136,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 31.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -993.3820190429688
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.8557046055793762,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 32.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -992.9498291015625
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.8355703949928284,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 33.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -992.5037231445312
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.8154361844062805,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 34.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -992.0437622070312
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.7953020334243774,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 35.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -991.570068359375
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.77516770362854,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 36.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -991.0826416015625
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.755033552646637,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 37.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -990.5816040039062
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.7348993420600891,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 38.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -990.0670776367188
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.714765191078186,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 39.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -989.5391235351562
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.6946308612823486,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 40.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -988.9978637695312
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.674496591091156,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 41.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -988.4434814453125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.6543623805046082,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 42.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -987.8761596679688
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.6342281699180603,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 43.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -987.2959594726562
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.6140940189361572,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 44.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -986.703125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.5939596891403198,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 45.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -986.0978393554688
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.573825478553772,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 46.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -985.4803466796875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.5536912679672241,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 47.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -984.8508911132812
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.5335569977760315,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 48.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -984.2096557617188
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.5134229063987732,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 49.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -983.5569458007812
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.4932886064052582,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 50.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -982.8930053710938
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.4731542766094208,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 51.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -982.2181396484375
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.4530200660228729,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 52.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -981.53271484375
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.4328858256340027,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 53.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -980.8369750976562
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.4127516448497772,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 54.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -980.13134765625
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.39261743426322937,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 55.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -979.4161376953125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.37248319387435913,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 56.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -978.6917114257812
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.35234904289245605,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 57.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -977.9585571289062
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.3322148025035858,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 58.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -977.2169189453125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.31208065152168274,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 59.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -976.4674072265625
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.29194629192352295,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 60.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -975.7102661132812
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.2718120217323303,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 61.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -974.9461669921875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.2516779601573944,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 62.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -974.1753540039062
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.2315436452627182,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 63.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -973.3984375
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.2114093154668808,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 64.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -972.6159057617188
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.19127510488033295,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 65.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -971.8282470703125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.1711408793926239,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 66.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -971.0359497070312
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.15100668370723724,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 67.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -970.2395629882812
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.13087248802185059,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 68.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -969.4395751953125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.11073826253414154,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 69.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -968.6366577148438
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.09060406684875488,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 70.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -967.8310546875
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.07046985626220703,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 71.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -967.0235595703125
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.05033552274107933,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 72.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -966.2146606445312
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.030201317742466927,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 73.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -965.4049682617188
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.010067104361951351,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 74.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -964.5950317382812
+        ],
+        "rotation_deg": [
+          0.0,
+          0.0100669851526618,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 75.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -963.7853393554688
+        ],
+        "rotation_deg": [
+          0.0,
+          0.030201317742466927,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 76.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -962.9764404296875
+        ],
+        "rotation_deg": [
+          0.0,
+          0.05033564195036888,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 77.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -962.1689453125
+        ],
+        "rotation_deg": [
+          0.0,
+          0.07046961039304733,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 78.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -961.3634643554688
+        ],
+        "rotation_deg": [
+          0.0,
+          0.09060406684875488,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 79.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -960.5604858398438
+        ],
+        "rotation_deg": [
+          0.0,
+          0.11073826253414154,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 80.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -959.7604370117188
+        ],
+        "rotation_deg": [
+          0.0,
+          0.13087248802185059,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 81.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -958.9640502929688
+        ],
+        "rotation_deg": [
+          0.0,
+          0.15100668370723724,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 82.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -958.1717529296875
+        ],
+        "rotation_deg": [
+          0.0,
+          0.1711408793926239,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 83.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -957.3840942382812
+        ],
+        "rotation_deg": [
+          0.0,
+          0.19127510488033295,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 84.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -956.6015014648438
+        ],
+        "rotation_deg": [
+          0.0,
+          0.2114093154668808,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 85.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -955.8246459960938
+        ],
+        "rotation_deg": [
+          0.0,
+          0.23154354095458984,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 86.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -955.0538330078125
+        ],
+        "rotation_deg": [
+          0.0,
+          0.2516779601573944,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 87.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -954.2897338867188
+        ],
+        "rotation_deg": [
+          0.0,
+          0.27181193232536316,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 88.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -953.5325927734375
+        ],
+        "rotation_deg": [
+          0.0,
+          0.29194629192352295,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 89.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -952.7830810546875
+        ],
+        "rotation_deg": [
+          0.0,
+          0.31208065152168274,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 90.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -952.04150390625
+        ],
+        "rotation_deg": [
+          0.0,
+          0.3322145640850067,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 91.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -951.3082885742188
+        ],
+        "rotation_deg": [
+          0.0,
+          0.3523488938808441,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 92.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -950.5838623046875
+        ],
+        "rotation_deg": [
+          0.0,
+          0.37248319387435913,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 93.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -949.86865234375
+        ],
+        "rotation_deg": [
+          0.0,
+          0.39261743426322937,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 94.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -949.1630249023438
+        ],
+        "rotation_deg": [
+          0.0,
+          0.4127516448497772,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 95.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -948.46728515625
+        ],
+        "rotation_deg": [
+          0.0,
+          0.43288594484329224,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 96.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -947.7818603515625
+        ],
+        "rotation_deg": [
+          0.0,
+          0.4530200660228729,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 97.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -947.1069946289062
+        ],
+        "rotation_deg": [
+          0.0,
+          0.4731542766094208,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 98.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -946.4430541992188
+        ],
+        "rotation_deg": [
+          0.0,
+          0.4932886064052582,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 99.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -945.7903442382812
+        ],
+        "rotation_deg": [
+          0.0,
+          0.5134227275848389,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 100.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -945.1491088867188
+        ],
+        "rotation_deg": [
+          0.0,
+          0.5335569381713867,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 101.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -944.5196533203125
+        ],
+        "rotation_deg": [
+          0.0,
+          0.5536913871765137,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 102.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -943.9021606445312
+        ],
+        "rotation_deg": [
+          0.0,
+          0.5738255381584167,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 103.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -943.296875
+        ],
+        "rotation_deg": [
+          0.0,
+          0.5939598083496094,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 104.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -942.7040405273438
+        ],
+        "rotation_deg": [
+          0.0,
+          0.6140937209129333,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 105.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -942.1238403320312
+        ],
+        "rotation_deg": [
+          0.0,
+          0.6342281699180603,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 106.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -941.5565185546875
+        ],
+        "rotation_deg": [
+          0.0,
+          0.6543623805046082,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 107.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -941.0021362304688
+        ],
+        "rotation_deg": [
+          0.0,
+          0.674496591091156,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 108.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -940.4608764648438
+        ],
+        "rotation_deg": [
+          0.0,
+          0.694631040096283,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 109.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -939.9329223632812
+        ],
+        "rotation_deg": [
+          0.0,
+          0.7147650122642517,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 110.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -939.4183959960938
+        ],
+        "rotation_deg": [
+          0.0,
+          0.7348992824554443,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 111.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -938.9173583984375
+        ],
+        "rotation_deg": [
+          0.0,
+          0.7550334930419922,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 112.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -938.429931640625
+        ],
+        "rotation_deg": [
+          0.0,
+          0.77516770362854,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 113.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -937.9562377929688
+        ],
+        "rotation_deg": [
+          0.0,
+          0.7953018546104431,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 114.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -937.4962768554688
+        ],
+        "rotation_deg": [
+          0.0,
+          0.8154363632202148,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 115.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -937.0501708984375
+        ],
+        "rotation_deg": [
+          0.0,
+          0.8355702757835388,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 116.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -936.6179809570312
+        ],
+        "rotation_deg": [
+          0.0,
+          0.8557047247886658,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 117.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -936.19970703125
+        ],
+        "rotation_deg": [
+          0.0,
+          0.8758386969566345,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 118.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -935.79541015625
+        ],
+        "rotation_deg": [
+          0.0,
+          0.8959730863571167,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 119.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -935.405029296875
+        ],
+        "rotation_deg": [
+          0.0,
+          0.9161074757575989,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 120.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -935.0286865234375
+        ],
+        "rotation_deg": [
+          0.0,
+          0.9362415075302124,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 121.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -934.6663208007812
+        ],
+        "rotation_deg": [
+          0.0,
+          0.9563757181167603,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 122.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -934.3179321289062
+        ],
+        "rotation_deg": [
+          0.0,
+          0.9765099287033081,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 123.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -933.9835205078125
+        ],
+        "rotation_deg": [
+          0.0,
+          0.9966439604759216,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 124.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -933.6630859375
+        ],
+        "rotation_deg": [
+          0.0,
+          1.0167783498764038,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 125.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -933.3565063476562
+        ],
+        "rotation_deg": [
+          0.0,
+          1.0369125604629517,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 126.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -933.0638427734375
+        ],
+        "rotation_deg": [
+          0.0,
+          1.057046890258789,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 127.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -932.7850341796875
+        ],
+        "rotation_deg": [
+          0.0,
+          1.077181339263916,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 128.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -932.52001953125
+        ],
+        "rotation_deg": [
+          0.0,
+          1.0973156690597534,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 129.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -932.2686767578125
+        ],
+        "rotation_deg": [
+          0.0,
+          1.1174497604370117,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 130.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -932.0310668945312
+        ],
+        "rotation_deg": [
+          0.0,
+          1.1375839710235596,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 131.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -931.8070068359375
+        ],
+        "rotation_deg": [
+          0.0,
+          1.1577180624008179,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 132.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -931.5965576171875
+        ],
+        "rotation_deg": [
+          0.0,
+          1.1778522729873657,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 133.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -931.3995361328125
+        ],
+        "rotation_deg": [
+          0.0,
+          1.1979864835739136,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 134.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -931.2158813476562
+        ],
+        "rotation_deg": [
+          0.0,
+          1.2181206941604614,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 135.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -931.0455932617188
+        ],
+        "rotation_deg": [
+          0.0,
+          1.2382549047470093,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 136.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.8884887695312
+        ],
+        "rotation_deg": [
+          0.0,
+          1.2583892345428467,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 137.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.7445068359375
+        ],
+        "rotation_deg": [
+          0.0,
+          1.2785234451293945,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 138.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.6135864257812
+        ],
+        "rotation_deg": [
+          0.0,
+          1.298657774925232,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 139.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.49560546875
+        ],
+        "rotation_deg": [
+          0.0,
+          1.3187917470932007,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 140.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.3904418945312
+        ],
+        "rotation_deg": [
+          0.0,
+          1.338926076889038,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 141.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.298095703125
+        ],
+        "rotation_deg": [
+          0.0,
+          1.3590600490570068,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 142.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.2183837890625
+        ],
+        "rotation_deg": [
+          0.0,
+          1.3791946172714233,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 143.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.1511840820312
+        ],
+        "rotation_deg": [
+          0.0,
+          1.3993287086486816,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 144.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.0964965820312
+        ],
+        "rotation_deg": [
+          0.0,
+          1.4194631576538086,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 145.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.0540771484375
+        ],
+        "rotation_deg": [
+          0.0,
+          1.439597249031067,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 146.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.0239868164062
+        ],
+        "rotation_deg": [
+          0.0,
+          1.4597314596176147,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 147.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.0059814453125
+        ],
+        "rotation_deg": [
+          0.0,
+          1.4798657894134521,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 148.0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -930.0
+        ],
+        "rotation_deg": [
+          0.0,
+          1.5000001192092896,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 149.0
+    }
+  ]
+}

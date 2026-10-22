@@ -3,16 +3,20 @@
 Stato: **OPEN — P1-1 e P1-2 già implementati nel codice corrente; P1-3 e P2 aperti**. Canary text-tile CHIUSO (78/78, 2026-09-16: era un binario
 stantio, vedi §3; il gate GPU è ora `tools/verify_text_tile_gpu_canary.sh`).
 Verifiche di codice: PASS; diagnostico di attribuzione P0-0: **ESEGUITO**, esito
-in §4.1. **P0-0b (verità pre-encode): SBLOCCATA 2026-09-17** — il PNG fedele è
+in §4.1. **P0-0b (verità pre-encode): PASS 2026-10-21** — il PNG fedele è
 una proiezione del raw sink (`tools/raw_frame_to_png.py`, evidenza
 [`docs/evidence/pre-encode-pixel-truth-2026-09-17.md`](../evidence/pre-encode-pixel-truth-2026-09-17.md));
-resta da eseguirla su un artifact di un job reale prima di dichiarare qualunque
-guadagno pixel-level. **P0-2 contratto colore CHIUSO 2026-09-17**; il prossimo
+eseguita anche sul frame 75 del render T16 reale il 2026-10-21 (raw RGBA Vulkan
+convertito verbatim in PNG; confronto contro i frame sequenziale e random
+NVENC in `docs/evidence/camera-authority-migration/T16/README.md`). Questo
+chiude il requisito di applicazione a un artifact reale; non certifica da solo
+un guadagno di qualità del testo. **P0-2 contratto colore CHIUSO 2026-09-17**; il prossimo
 passo misurabile è il framehash sui raw artifact reali e la shadow canonica.
 Audit del 2026-10-02: P1-1 (fill DirectYUV con rampa) e P1-2 (sampling
 bilineare limitato al rect del glifo e coverage screen-space) risultano già
 implementati; dettagli e contratti presenti sono riportati nella tabella §5.
-La certificazione su un artifact reale resta aperta. Nel follow-up del
+La verifica su frame 75 T16 chiude il requisito di un artifact reale; resta da
+estendere il corpus ai casi editoriali del ticket. Nel follow-up del
 2026-10-02 gli assi variabili vengono ora applicati al shaping FreeType/HarfBuzz
 e alla generazione MTSDF, con identità distinta in font span e cache atlas;
 l'esposizione nel RenderPlan/JSON e la certificazione con un font variabile
@@ -75,9 +79,9 @@ La suite resta **fuori** dalla lane headless `vulkan-gated-unit`: quella gira su
 `ubuntu-latest` senza device, e il canary fa dispatch + readback su GPU reale, lì
 darebbe uno skip silenzioso. La home corretta è il profilo WBH (host con GPU).
 
-Conseguenza: **la certificazione pixel-level non è più bloccata dal canary**;
-resta bloccata da **P0-0b** (la via still non compone il testo), che è un difetto
-distinto e non dipende dallo shader.
+Conseguenza: **la certificazione pixel-level non è più bloccata dal canary né
+dalla mancanza di un campione pre-encode**. La via still non canonica continua a
+non comporre il testo; la verità pixel-level usa il raw sink proiettato in PNG.
 
 ## 4. Diagnostico di attribuzione (P0-0) — eseguito 2026-09-16
 
@@ -127,7 +131,7 @@ Conseguenze sul piano, in ordine:
 | Priorità | Lavoro | Gate |
 |---|---|---|
 | ~~P0-0~~ | Diagnostico §4 — **eseguito** (evidenza in `docs/evidence/`) | PASS/FAIL registrati |
-| P0-0b | **Verità pre-encode** — **SBLOCCATA 2026-09-17**: la via immagine è dichiarata non-canonica ([IMAGE-PATH-PIXEL-TRUTH](TICKET-IMAGE-PATH-PIXEL-TRUTH.md), exit condition 2) e il PNG fedele esiste come proiezione del raw sink (`tools/raw_frame_to_png.py`, [evidenza](../evidence/pre-encode-pixel-truth-2026-09-17.md)) | il tool **rifiuta** un frame uniforme (`content_fraction=0` ⇒ exit 1) e produce il PNG verbatim; resta da eseguirlo su un artifact di un job reale |
+| P0-0b | **Verità pre-encode** — **PASS 2026-10-21**: via immagine non canonica ([IMAGE-PATH-PIXEL-TRUTH](TICKET-IMAGE-PATH-PIXEL-TRUTH.md), exit condition 2); PNG fedele proiettato dal raw sink con `tools/raw_frame_to_png.py` su frame 75 del render T16 reale. | Il campione non compresso è confrontato con gli output NVENC sequenziale e random; `README.md` in `docs/evidence/camera-authority-migration/T16/` registra differenze e comando. Questo chiude la prova pre-encode, non i gate di resa P1/P2. |
 | ~~P0-1~~ | Canary text tile verde (§3) — **CHIUSO 2026-09-16** | suite verde su GPU, **78/78**, 3 run; gate `tools/verify_text_tile_gpu_canary.sh` |
 | P0-2 | **CHIUSO 2026-09-17** — `parse_hex_color()` converte CSS/sRGB in linear una sola volta al lowering, prima dei backend | test `Color contract: CSS hex is lowered to canonical linear space`, `#808080` → ≈0.21586; evidenza [`color-contract-framehash-2026-09-17.md`](../evidence/color-contract-framehash-2026-09-17.md) |
 | P0-3 | **CONTRATTO GIÀ ATTERRATO** — resolver NVENC fail-closed per rate control/preset e `validate_for_benchmark()` rifiuta `driver-default`; doctor osserva le capability FFmpeg | `tests/cli/test_encoder_config_resolution.cpp`, `docs/RELEASE_GATE.md`; nessun nuovo resolver |

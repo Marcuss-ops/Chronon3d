@@ -1,0 +1,666 @@
+{
+  "fixture": "four pinned Khronos GLB product proxies in a camera orbit with rack focus",
+  "asset_directory": "render/spike/assets/threepp-certification",
+  "assets": ["Avocado.glb", "CesiumMilkTruck.glb", "BoxTextured.glb", "NumberedUVCube.glb"],
+  "view_depths": [3.6, 4.6, 5.6, 6.6],
+  "camera": {"position": [0, 0, 9.5], "fov_deg": 42, "orbit_yaw_degrees": [-18, 18]},
+  "focus_distance_track": [[0,3.7976],[1.667,5.05],[3.333,6.05],[4.967,7.05 ]],
+  "lighting": {"ambient": 0.75, "directional": 2.2},
+  "chronon_motion_scene": {
+  "format": "chrononmotion.scene",
+  "version": 1,
+  "name": "T17_floating_product_orbit",
+  "fps": 3e+01,
+  "layers": [
+    {
+      "id": 1,
+      "name": "avocado",
+      "parentId": 0,
+      "content": null,
+      "mesh": {
+        "assetId": "dof_asset_0",
+        "geometry": false,
+        "material": {
+          "name": "",
+          "kind": "unlit",
+          "baseColor": [
+            1,
+            1,
+            1
+          ],
+          "emissiveColor": [
+            1,
+            1,
+            1
+          ],
+          "emissiveStrength": 0,
+          "roughness": 1,
+          "metalness": 0,
+          "opacity": 1,
+          "transparent": false
+        }
+      },
+      "precomp": null,
+      "lifetime": {
+        "inFrame": 0,
+        "outFrame": -1
+      },
+      "is3D": true,
+      "shadow": {
+        "casts": false,
+        "accepts": true,
+        "opacity": 1,
+        "blur": 0
+      },
+      "timeRemap": {
+        "offsetFrames": 0,
+        "stretch": 1,
+        "reverse": false,
+        "loopStart": 0,
+        "loopEnd": -1,
+        "pingPong": false,
+        "freeze": false
+      },
+      "timeRemapTrack": {
+        "keys": [],
+        "modifiers": []
+      },
+      "transform": {
+        "position": [
+          -2.4,
+          -0.44931692,
+          5.7024016
+        ],
+        "anchor": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          14.3093815,
+          14.3093815,
+          14.3093815
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "orientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "opacity": 1
+      },
+      "tracks": {
+        "position": {
+          "keys": [],
+          "modifiers": []
+        },
+        "anchor": {
+          "keys": [],
+          "modifiers": []
+        },
+        "scale": {
+          "keys": [],
+          "modifiers": []
+        },
+        "rotation": {
+          "keys": [
+            {
+              "time": 0,
+              "value": [
+                0,
+                0.28,
+                0
+              ],
+              "easing": null,
+              "discrete": false
+            }
+          ],
+          "modifiers": []
+        },
+        "orientation": {
+          "keys": [],
+          "modifiers": []
+        },
+        "opacity": {
+          "keys": [],
+          "modifiers": []
+        }
+      },
+      "constraints": [],
+      "drivers": []
+    },
+    {
+      "id": 2,
+      "name": "milk_truck",
+      "parentId": 0,
+      "content": null,
+      "mesh": {
+        "assetId": "dof_asset_1",
+        "geometry": false,
+        "material": {
+          "name": "",
+          "kind": "unlit",
+          "baseColor": [
+            1,
+            1,
+            1
+          ],
+          "emissiveColor": [
+            1,
+            1,
+            1
+          ],
+          "emissiveStrength": 0,
+          "roughness": 1,
+          "metalness": 0,
+          "opacity": 1,
+          "transparent": false
+        }
+      },
+      "precomp": null,
+      "lifetime": {
+        "inFrame": 0,
+        "outFrame": -1
+      },
+      "is3D": true,
+      "shadow": {
+        "casts": false,
+        "accepts": true,
+        "opacity": 1,
+        "blur": 0
+      },
+      "timeRemap": {
+        "offsetFrames": 0,
+        "stretch": 1,
+        "reverse": false,
+        "loopStart": 0,
+        "loopEnd": -1,
+        "pingPong": false,
+        "freeze": false
+      },
+      "timeRemapTrack": {
+        "keys": [],
+        "modifiers": []
+      },
+      "transform": {
+        "position": [
+          -0.8,
+          -0.23898976,
+          4.449345
+        ],
+        "anchor": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.1848463,
+          0.1848463,
+          0.1848463
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "orientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "opacity": 1
+      },
+      "tracks": {
+        "position": {
+          "keys": [],
+          "modifiers": []
+        },
+        "anchor": {
+          "keys": [],
+          "modifiers": []
+        },
+        "scale": {
+          "keys": [],
+          "modifiers": []
+        },
+        "rotation": {
+          "keys": [
+            {
+              "time": 0,
+              "value": [
+                0,
+                -0.18,
+                0
+              ],
+              "easing": null,
+              "discrete": false
+            }
+          ],
+          "modifiers": []
+        },
+        "orientation": {
+          "keys": [],
+          "modifiers": []
+        },
+        "opacity": {
+          "keys": [],
+          "modifiers": []
+        }
+      },
+      "constraints": [],
+      "drivers": []
+    },
+    {
+      "id": 3,
+      "name": "textured_box",
+      "parentId": 0,
+      "content": null,
+      "mesh": {
+        "assetId": "dof_asset_2",
+        "geometry": false,
+        "material": {
+          "name": "",
+          "kind": "unlit",
+          "baseColor": [
+            1,
+            1,
+            1
+          ],
+          "emissiveColor": [
+            1,
+            1,
+            1
+          ],
+          "emissiveStrength": 0,
+          "roughness": 1,
+          "metalness": 0,
+          "opacity": 1,
+          "transparent": false
+        }
+      },
+      "precomp": null,
+      "lifetime": {
+        "inFrame": 0,
+        "outFrame": -1
+      },
+      "is3D": true,
+      "shadow": {
+        "casts": false,
+        "accepts": true,
+        "opacity": 1,
+        "blur": 0
+      },
+      "timeRemap": {
+        "offsetFrames": 0,
+        "stretch": 1,
+        "reverse": false,
+        "loopStart": 0,
+        "loopEnd": -1,
+        "pingPong": false,
+        "freeze": false
+      },
+      "timeRemapTrack": {
+        "keys": [],
+        "modifiers": []
+      },
+      "transform": {
+        "position": [
+          0.8,
+          0,
+          3.45
+        ],
+        "anchor": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.9,
+          0.9,
+          0.9
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "orientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "opacity": 1
+      },
+      "tracks": {
+        "position": {
+          "keys": [],
+          "modifiers": []
+        },
+        "anchor": {
+          "keys": [],
+          "modifiers": []
+        },
+        "scale": {
+          "keys": [],
+          "modifiers": []
+        },
+        "rotation": {
+          "keys": [
+            {
+              "time": 0,
+              "value": [
+                0,
+                0.12,
+                0
+              ],
+              "easing": null,
+              "discrete": false
+            }
+          ],
+          "modifiers": []
+        },
+        "orientation": {
+          "keys": [],
+          "modifiers": []
+        },
+        "opacity": {
+          "keys": [],
+          "modifiers": []
+        }
+      },
+      "constraints": [],
+      "drivers": []
+    },
+    {
+      "id": 4,
+      "name": "numbered_cube",
+      "parentId": 0,
+      "content": null,
+      "mesh": {
+        "assetId": "dof_asset_3",
+        "geometry": false,
+        "material": {
+          "name": "",
+          "kind": "unlit",
+          "baseColor": [
+            1,
+            1,
+            1
+          ],
+          "emissiveColor": [
+            1,
+            1,
+            1
+          ],
+          "emissiveStrength": 0,
+          "roughness": 1,
+          "metalness": 0,
+          "opacity": 1,
+          "transparent": false
+        }
+      },
+      "precomp": null,
+      "lifetime": {
+        "inFrame": 0,
+        "outFrame": -1
+      },
+      "is3D": true,
+      "shadow": {
+        "casts": false,
+        "accepts": true,
+        "opacity": 1,
+        "blur": 0
+      },
+      "timeRemap": {
+        "offsetFrames": 0,
+        "stretch": 1,
+        "reverse": false,
+        "loopStart": 0,
+        "loopEnd": -1,
+        "pingPong": false,
+        "freeze": false
+      },
+      "timeRemapTrack": {
+        "keys": [],
+        "modifiers": []
+      },
+      "transform": {
+        "position": [
+          2.4,
+          0,
+          2.45
+        ],
+        "anchor": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          0.5625,
+          0.5625,
+          0.5625
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "orientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "opacity": 1
+      },
+      "tracks": {
+        "position": {
+          "keys": [],
+          "modifiers": []
+        },
+        "anchor": {
+          "keys": [],
+          "modifiers": []
+        },
+        "scale": {
+          "keys": [],
+          "modifiers": []
+        },
+        "rotation": {
+          "keys": [
+            {
+              "time": 0,
+              "value": [
+                0,
+                -0.22,
+                0
+              ],
+              "easing": null,
+              "discrete": false
+            }
+          ],
+          "modifiers": []
+        },
+        "orientation": {
+          "keys": [],
+          "modifiers": []
+        },
+        "opacity": {
+          "keys": [],
+          "modifiers": []
+        }
+      },
+      "constraints": [],
+      "drivers": []
+    }
+  ],
+  "lights": [
+    {
+      "id": 101,
+      "name": "dof_ambient",
+      "kind": "ambient",
+      "parentId": 0,
+      "color": [
+        1,
+        1,
+        1
+      ],
+      "intensity": 0.75,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "anchor": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "orientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "opacity": 1
+      },
+      "castsShadow": false,
+      "shadowBias": 0,
+      "shadowNormalBias": 0,
+      "shadowRadius": 1,
+      "tracks": {
+        "intensity": {
+          "keys": [],
+          "modifiers": []
+        },
+        "color": {
+          "keys": [],
+          "modifiers": []
+        },
+        "position": {
+          "keys": [],
+          "modifiers": []
+        },
+        "rotation": {
+          "keys": [],
+          "modifiers": []
+        },
+        "direction": {
+          "keys": [],
+          "modifiers": []
+        },
+        "shadowBias": {
+          "keys": [],
+          "modifiers": []
+        },
+        "shadowNormalBias": {
+          "keys": [],
+          "modifiers": []
+        },
+        "shadowRadius": {
+          "keys": [],
+          "modifiers": []
+        }
+      }
+    },
+    {
+      "id": 102,
+      "name": "dof_key",
+      "kind": "directional",
+      "parentId": 0,
+      "targetId": 0,
+      "color": [
+        1,
+        1,
+        1
+      ],
+      "intensity": 2.2,
+      "transform": {
+        "position": [
+          -3,
+          5,
+          5
+        ],
+        "anchor": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "orientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "opacity": 1
+      },
+      "castsShadow": false,
+      "shadowBias": 0,
+      "shadowNormalBias": 0,
+      "shadowRadius": 1,
+      "tracks": {
+        "intensity": {
+          "keys": [],
+          "modifiers": []
+        },
+        "color": {
+          "keys": [],
+          "modifiers": []
+        },
+        "position": {
+          "keys": [],
+          "modifiers": []
+        },
+        "rotation": {
+          "keys": [],
+          "modifiers": []
+        },
+        "direction": {
+          "keys": [],
+          "modifiers": []
+        },
+        "shadowBias": {
+          "keys": [],
+          "modifiers": []
+        },
+        "shadowNormalBias": {
+          "keys": [],
+          "modifiers": []
+        },
+        "shadowRadius": {
+          "keys": [],
+          "modifiers": []
+        }
+      }
+    }
+  ]
+}
+}

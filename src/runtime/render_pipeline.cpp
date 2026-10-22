@@ -249,6 +249,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
             if (!rendered)
                 throw std::runtime_error(
                     "Render Plan motion-blur temporal sample produced no framebuffer");
+            // The loop below is a CPU pixel accumulator. A strict-native graph
+            // can return a GPU-authoritative framebuffer with no host storage;
+            // reject that capability mismatch before pixels_row() reaches a
+            // worker thread and turns it into a process-level SIGSEGV.
+            if (!rendered->data() || !accumulated->data())
+                throw std::runtime_error(
+                    "Render Plan temporal motion-blur CPU accumulation requires "
+                    "host framebuffer pixels; strict GPU-native samples require "
+                    "a native weighted-add accumulator");
             const float weight = sample.weight;
             weight_sum += weight;
             tbb::parallel_for(tbb::blocked_range<i32>(0, height, 16),
