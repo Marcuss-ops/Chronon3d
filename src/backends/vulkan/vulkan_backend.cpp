@@ -141,14 +141,15 @@ void VulkanBackend::begin_frame_batch_unlocked() {
     }
     auto& batch = m_impl->frame_batch;
     if (batch.active) {
-        throw std::logic_error(
-            "VulkanBackend::begin_frame_batch: a frame batch is already active");
+        ++batch.nesting_depth;
+        return;
     }
     if (m_impl->command_batch_active && m_impl->command_batch_started) {
         m_impl->emit_command_batch_boundary();
         batch.pass_count = 0;
         batch.command_plan = nullptr;
         batch.active = true;
+        batch.nesting_depth = 1;
         return;
     }
     const auto slot = batch.next_slot;
@@ -199,6 +200,7 @@ void VulkanBackend::begin_frame_batch_unlocked() {
                             m_impl->timestamp_pool, query_base);
     }
     batch.active = true;
+    batch.nesting_depth = 1;
     batch.pass_count = 0;
     batch.descriptor_sets.clear();
     batch.command_plan = nullptr;
@@ -621,6 +623,10 @@ void VulkanBackend::end_frame_batch_unlocked() {
     m_impl->require_healthy();
     auto& batch = m_impl->frame_batch;
     if (!batch.active) return;
+    if (batch.nesting_depth > 1) {
+        --batch.nesting_depth;
+        return;
+    }
     // Audit N4: recording is over, so the plan-wide leases are released before
     // the submit/drain below (which need the store lock, not the leases).
     //
@@ -638,10 +644,12 @@ void VulkanBackend::end_frame_batch_unlocked() {
     m_impl->release_all_recording_leases_locked();
     if (m_impl->command_batch_active) {
         batch.active = false;
+        batch.nesting_depth = 0;
         return;
     }
     m_impl->submit_batch();
     batch.active = false;
+    batch.nesting_depth = 0;
 #endif
 }
 
@@ -686,6 +694,7 @@ void VulkanBackend::end_command_batch() {
     }
     m_impl->flush_deferred_surface_releases();
     m_impl->frame_batch.active = false;
+    m_impl->frame_batch.nesting_depth = 0;
     m_impl->command_batch_active = false;
     m_impl->command_batch_started = false;
 #else

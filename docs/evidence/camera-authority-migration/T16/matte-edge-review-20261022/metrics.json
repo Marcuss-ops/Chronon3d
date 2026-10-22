@@ -1,0 +1,14 @@
+{
+  "asset": "Chronon3d/output/T16_Hero_Title/subject_cutout_refined.png",
+  "sha256": "d4abade3bdcbc47d214feaf53c3fc39cbd09c4c245f77e6bb962d44cbc6429a0",
+  "dimensions": [
+    2136,
+    2847
+  ],
+  "alpha_coverage_percent": {
+    "transparent_0": 40.9245,
+    "partial_1_254": 1.7428,
+    "opaque_255": 57.3327
+  },
+  "review": "Composited over black, white, magenta and checkerboard at 900px width. Hair, ear, beard, neck and shoulders remain continuous; no conspicuous background fringe or matte holes observed. Accepted for the T16 composition asset; not a universal cutout quality metric."
+}

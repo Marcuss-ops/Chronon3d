@@ -31,9 +31,9 @@ may forgo an optimization for opaque full-frame images.
 | G10 RenderPlan produces pixels | PASS (T16 1920×1080 three-depth Vulkan) / PARTIAL (T17/T18) | T16 full-resolution and three-depth 150-frame videos each decode to 150 frames at 30 fps. |
 | G11 Strict GPU path | PASS (T16 base composition) / PARTIAL (T17/T18) | NVIDIA RTX A4000, `require_gpu_native_full_graph`, native NVENC; zero conversion and staging-copy bytes in the T16 video. |
 | G12 Resource/performance | PARTIAL | Representative GPU resource samples now exist for T16–T18. 200 ms `nvidia-smi` polling observed process-attributed VRAM peaks of 993/656/311 MiB and system GPU-utilization peaks of 66/28/11%; exact allocator high-water marks, same-SHA software/GPU comparisons, and full zero-copy accounting remain. |
-| T16 Cinematic Hero Title | PARTIAL | Full 150-frame 1920×1080 strict-GPU base and DoF videos pass; five DoF samples reviewed and the face ROI sharpness drops 19.95% while the title stays within 1.73%. CAM-01, CAM-02, CAM-03, CAM-05, CAM-06, CAM-07, and CAM-08 pass focused gates; Chronon3d/threepp pixel parity, matte edge, shutter, and broader optical gates remain. |
-| T17 Floating Product Orbit + Rack Focus | PARTIAL | RTX A4000/NVENC 150-frame four-product orbit canary has four measured focus peaks, exact frame-77 random access, and a 656 MiB sampled process-VRAM peak; presentation/occlusion and native zero-copy remain. Evidence: [`T17 GPU canary`](../../../ChrononMotion3D/out/threepp_certification/nvidia/T17/). |
-| T18 Documentary Crowd + Particle Reveal | PARTIAL | RTX A4000/NVENC 150-frame threepp canary passes crowd, animated matte, particle burst, shadow and random-access gates; sampled process-VRAM peak is 311 MiB. RenderPlan/strict-native integration, temporal golden comparison, and zero-copy signoff remain. Evidence: [`T18 GPU canary`](../../../ChrononMotion3D/out/threepp_certification/nvidia/T18/). |
+| T16 Cinematic Hero Title | PARTIAL | CAM-01/02/03/05/06/07/08 pass focused gates; the authored matte passes a four-background review and frame-75 90°/8-sample shutter parity passes decoded NVENC-vs-software (MAE 1.457, p99 5). CAM-04 same-RenderPlan threepp pixels and broader optical gates remain. |
+| T17 Floating Product Orbit + Rack Focus | PARTIAL | RTX A4000/NVENC 150-frame four-product orbit has four measured focus peaks, exact frame-77 random access, and a 656 MiB sampled process-VRAM peak. The mapped GL-PBO→external CUDA AVFrame path has zero explicit CUDA D2D copies; composition approval and native C3D RenderPlan integration remain. Evidence: [`T17 GPU canary`](../../../ChrononMotion3D/out/threepp_certification/nvidia/T17/). |
+| T18 Documentary Crowd + Particle Reveal | PARTIAL | RTX A4000/NVENC 150-frame threepp canary passes crowd, animated matte, particle burst, shadow and random-access gates. The mapped GL-PBO→external CUDA AVFrame path has zero explicit CUDA D2D copies; RenderPlan/strict-native integration, temporal golden comparison, composition approval, and CPU-authored matte uploads remain. Evidence: [`T18 GPU canary`](../../../ChrononMotion3D/out/threepp_certification/nvidia/T18/). |
 
 ## Next acceptance work
 
@@ -120,7 +120,7 @@ Before calling T16 a camera or cinematic certification, the scene contract is:
 | CAM-01 FOV 50° vs 30° | Measured framing changes | PASS (focused pixel-truth A/B) — 1920×1080 raw frame 75, MAE 62.38 software / 62.37 Vulkan; 94.79% pixels change. Evidence: `docs/evidence/camera-authority-migration/T16/fov-ablation/`. |
 | CAM-02 camera dolly | Perspective scale changes by depth | PASS (focused Vulkan raw pixel-truth) — title scale ratio 0.6674×0.6659 vs predicted 0.6667; centered subject width ratio 0.6436 vs predicted 0.6431. Evidence: `docs/evidence/camera-authority-migration/T16/dolly-isolated/`. |
 | CAM-03 camera orbit | Relative parallax among all three planes | PASS (focused threepp T16 truth scene: 1400.04 px spread across three anchors; 65.4763° orbit; RenderPlan composition matte/occlusion remains under G06) |
-| CAM-04 Chronon3d/threepp | Same optical inputs align within a declared pixel tolerance | OPEN (threepp focal-length authority matches the shared 35 mm gate analytically; same RenderPlan pixel comparison remains) |
+| CAM-04 Chronon3d/threepp | Same optical inputs align within a declared pixel tolerance | OPEN (the truth recheck uses a separate threepp scene; focal-length authority matches analytically, but same-RenderPlan pixel comparison remains) |
 | CAM-05 DoF ablation | Out-of-focus ROI sharpness changes when enabled | PASS (strict `require_gpu_native_full_graph` Vulkan/NVENC, 150-frame A/B: mean face ROI gradient decreases 19.95%, title ROI decreases 1.73%; 5 samples reviewed, 0 GPU readback/staging bytes, 0 downgrades. The separate default raw readback route still returns zero RGBA with CPU depth.) Evidence: `docs/evidence/camera-authority-migration/T16/dof-ablation/`. |
 | CAM-06 lighting ablation | Only contracted light-receiving layers change | PASS (focused threepp T16 key ablation: title ROI 314,035 changed pixels; unlit portrait 36, below 62-pixel tolerance) |
 | CAM-07 sampled animation | Five samples advance smoothly and follow CameraRig | PASS (150 CameraRig samples rendered; five GPU samples reviewed) |
@@ -128,9 +128,12 @@ Before calling T16 a camera or cinematic certification, the scene contract is:
 
 The corrected preview closes the authored-scene, sample-count, and basic
 visual-motion portions. The 2026-10-21 full-resolution three-depth render
-closes the T16 base video and strict GPU render portions. T16 remains `PARTIAL` pending Chronon3d/threepp pixel parity, matte-edge
-quality, shutter, and broader dynamic-lighting certification. Focused selective
-lighting now passes CAM-06; CAM-08 also passes for T16 frame 75.
+closes the T16 base video and strict GPU render portions. The 2026-10-22
+focused matte review and encoded shutter pixel gate also pass for their tested
+asset/frame. T16 remains `PARTIAL` pending same-RenderPlan Chronon3d/threepp
+parity, a valid raw Vulkan shutter sink, and broader dynamic-lighting
+certification. Focused selective lighting passes CAM-06; CAM-08 passes for
+T16 frame 75.
 
 ### Component validation run (2026-10-19)
 
@@ -252,7 +255,9 @@ T17/T18 and the broader certification remain open.
   [`T16 DoF evidence`](../evidence/camera-authority-migration/T16/dof-ablation/).
 - CAM-05 is now `PASS` for this focused T16 strict-native GPU composition.
   The separate raw-readback failure remains documented; T16 stays `PARTIAL`
-  until matte-edge, lighting, shutter, and the other optical gates are closed.
+  pending CAM-04 same-RenderPlan parity, raw shutter sink correctness, and
+  broader optical/lighting certification. Focused matte, lighting and encoded
+  shutter results are recorded in the 2026-10-22 closeout.
 
 ### T17 four-product GPU canary (2026-10-21)
 
@@ -400,7 +405,33 @@ path or approved presentation-quality gate is connected.
 T18's CameraRig arc ends at 1.4 rad. The lead subject remains visible in the
 reviewed endpoint, and the 40-mannequin crowd, animated matte, particle timing,
 shadow toggle, and random-access frame 77 gates pass. It also encoded and muxed
-150 frames. T18 remains `PARTIAL`: its diagnostic pass reads back 151 frames;
-RenderPlan/strict-native integration, a temporal golden comparison, and
-zero-copy accounting are still absent. These renders verify the intended
+150 frames. T18 remains `PARTIAL`: RenderPlan/strict-native integration and a
+temporal golden comparison are still absent. The 2026-10-22 direct-PBO canary
+records zero explicit CUDA D2D copies, while retaining a framebuffer-to-PBO
+transfer and CPU-authored matte upload. These renders verify the intended
 camera corrections without closing the wider T17/T18 tickets.
+
+### Camera optical and GPU encoder closeout (2026-10-22)
+
+- **CAM-04 remains OPEN.** The 1920×1080 threepp recheck passes its 50 mm to
+  35 mm-gate FOV conversion (22.2753°) and camera-truth gates; it still does
+  not render the T16 RenderPlan, so it is not cross-engine pixel parity.
+  Evidence: [`threepp camera truth recheck`](../evidence/camera-authority-migration/T16/threepp-camera-truth-recheck-20261022/).
+- **T16 matte-edge passes for this authored cutout.** Its alpha was reviewed
+  on black, white, magenta and checker backgrounds; transparent/partial/opaque
+  coverage is 40.9245% / 1.7428% / 57.3327%. Review contact and metrics:
+  [`matte-edge review`](../evidence/camera-authority-migration/T16/matte-edge-review-20261022/).
+- **T16 frame-75 shutter parity passes its focused decoded-pixel gate.** The
+  1920×1080 90°/8-sample plan uses Vulkan strict-native NVENC; decoded RGB versus
+  the software shutter sample is MAE 1.457, p99 5 (limits 2 and 5). GPU
+  shutter/no-shutter MAE is 0.271. This is one frame, not full-clip certification.
+  The raw Vulkan sink still produces invalid/zero output under this temporal
+  path and is recorded as an open synchronization issue. See
+  [`shutter parity evidence`](../evidence/camera-authority-migration/T16/shutter-parity-20261022/).
+- **T05/T17/T18 encode-path copy gate closes in a scoped form.** The opt-in
+  mapped GL PBO is passed as the external CUDA AVFrame to NVENC; each 150-frame
+  GPU run muxes 150 packets and records zero explicit CUDA D2D frame copies.
+  A framebuffer-to-PBO transfer remains, as do separate diagnostic CPU reads;
+  T18 uploads its CPU-authored matte each frame. This does not close strict-native
+  C3D RenderPlan integration or the broader scene tickets. Rechecks are in
+  `ChrononMotion3D/out/threepp_certification/nvidia/{T05,T17,T18}-direct-pbo-20261022/`.

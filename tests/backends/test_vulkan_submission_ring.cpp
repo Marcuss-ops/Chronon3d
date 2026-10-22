@@ -50,6 +50,28 @@ TEST_CASE("rotates frame slots without changing one submission per frame") {
     CHECK(after.passes_executed >= before.passes_executed + 3);
 }
 
+TEST_CASE("nested graph batches submit at the outer boundary") {
+    BackendFixture fixture;
+    if (!fixture.backend) { WARN("No Vulkan device available"); return; }
+
+    const auto before = fixture.backend->stats();
+    fixture.backend->begin_frame_batch();
+    CHECK(fixture.backend->fill_rect_surface(
+              fixture.handle, 0, 0, 8, 8,
+              chronon3d::Color{0.1f, 0.2f, 0.3f, 1.0f})
+              .ok());
+    fixture.backend->begin_frame_batch();
+    CHECK(fixture.backend->fill_rect_surface(
+              fixture.handle, 8, 8, 16, 16,
+              chronon3d::Color{0.3f, 0.2f, 0.1f, 1.0f})
+              .ok());
+
+    fixture.backend->end_frame_batch();
+    CHECK(fixture.backend->stats().submissions == before.submissions);
+    fixture.backend->end_frame_batch();
+    CHECK(fixture.backend->stats().submissions == before.submissions + 1);
+}
+
 TEST_CASE("wraparound reuses the first frame slot fence") {
     BackendFixture fixture;
     if (!fixture.backend) { WARN("No Vulkan device available"); return; }

@@ -1,0 +1,35 @@
+{
+  "scope": "T16 frame 75 only; 1920x1080; same three-depth RenderPlan assets and camera sample",
+  "software_reference": "9-frame software Vulkan-independent raw RGBA8; center output frame index 4",
+  "gpu_path": "strict require_gpu_native_full_graph, Vulkan RTX A4000, H.264 NVENC; decoded RGB24",
+  "shutter": {
+    "angle_degrees": 90,
+    "samples": 8
+  },
+  "pixel_gate": {
+    "mae_max": 2.0,
+    "p99_absolute_error_max": 5.0,
+    "status": "PASS"
+  },
+  "gpu_shutter_vs_software_shutter": {
+    "mae": 1.4566243891460906,
+    "p99_absolute_error": 5.0,
+    "max_absolute_error": 82,
+    "changed_channel_percent": 84.43595679012346,
+    "channels_error_over_5_percent": 0.7566550925925927
+  },
+  "gpu_shutter_vs_gpu_no_shutter": {
+    "mae": 0.27088493441358025,
+    "p99_absolute_error": 3.0,
+    "max_absolute_error": 45,
+    "changed_channel_percent": 16.183995627572017,
+    "channels_error_over_5_percent": 0.35151427469135804
+  },
+  "software_shutter_vs_software_no_shutter": {
+    "mae": 0.08106385030864198,
+    "p99_absolute_error": 1.0,
+    "max_absolute_error": 45,
+    "changed_channel_percent": 3.997122556584362,
+    "channels_error_over_5_percent": 0.2862332818930041
+  }
+}

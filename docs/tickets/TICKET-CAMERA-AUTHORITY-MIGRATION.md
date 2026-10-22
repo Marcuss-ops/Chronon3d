@@ -470,3 +470,25 @@ revision, per-file license and dependency notices, Vulkan compatibility,
 quality/performance comparison, and pixel/alpha equivalence results. See the
 [FidelityFX DoF overview](https://gpuopen.com/fidelityfx-dof/) and its
 [Vulkan technique requirements](https://gpuopen.com/manuals/fidelityfx_sdk/techniques/depth-of-field/).
+
+### EffectCraft comparison (2026-10-22)
+
+EffectCraft is a useful architecture reference for the shutter issue. Its
+documented Advanced 3D path prepares each motion-blur sub-sample, rasterizes
+those samples on wgpu, averages them on the GPU (retaining nearest depth), then
+applies depth-based DoF and composites without a frame readback; its CPU renderer
+is used as the comparison oracle. EffectCraft is dual-licensed MIT/Apache-2.0,
+but it is a Rust/wgpu engine, so no source or dependency is being transplanted.
+
+Chronon keeps its ownership contract: CM3D supplies exact shutter-time camera
+samples; the existing C3D temporal compositor renders and accumulates them. The
+local failure exposed that nested graph scopes were trying to open independent
+Vulkan frame batches; C3D now supports nested begin/end scopes and has a ring
+regression test. The strict-native NVENC shutter path is pixel-checked at T16
+frame 75. The no-encode raw sink still fails to produce a valid result and stays
+open; EffectCraft's design reinforces the next requirement: keep the accumulator
+device-resident and synchronize only at the requested terminal consumer.
+
+References: [EffectCraft architecture](https://github.com/storytold/effectcraft/blob/main/docs/architecture.md),
+[GPU/CPU parity measurements](https://github.com/storytold/effectcraft/blob/main/docs/target-app-parity.md),
+[project license](https://github.com/storytold/effectcraft#license-and-credits).

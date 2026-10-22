@@ -1,0 +1,200 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "t16-shutter-parity-center75-20261022",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "night-stage",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/camera_background.png",
+      "fit": "stretch",
+      "size": [
+        1920,
+        1080
+      ],
+      "duration_frames": 1,
+      "enable_3d": true,
+      "position": [
+        -960,
+        0,
+        1000
+      ],
+      "scale": [
+        3,
+        2,
+        1
+      ]
+    },
+    {
+      "id": "title-plane",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/camera_title.png",
+      "fit": "contain",
+      "size": [
+        1900,
+        610
+      ],
+      "position": [
+        0,
+        -240,
+        0
+      ],
+      "enable_3d": true,
+      "duration_frames": 1
+    },
+    {
+      "id": "foreground-subject-alpha-cutout",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/subject_cutout_refined.png",
+      "fit": "contain",
+      "size": [
+        844,
+        1125
+      ],
+      "position": [
+        495,
+        -112,
+        -99
+      ],
+      "enable_3d": true,
+      "duration_frames": 1
+    }
+  ],
+  "output": {
+    "path": "t16_hero_title_camera_three_depth_150f.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 50,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "camera_samples": [
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -965.4049682617188
+        ],
+        "rotation_deg": [
+          -0.0,
+          -0.010067104361951351,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": -1
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -964.5950317382812
+        ],
+        "rotation_deg": [
+          0.0,
+          0.0100669851526618,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 0
+    },
+    {
+      "camera": {
+        "dof": {
+          "aperture": 0.014999999664723873,
+          "enabled": false,
+          "focus_distance": 1000.0,
+          "highlight_gain": 0.0,
+          "iris_blades": 0,
+          "max_blur": 24.0
+        },
+        "far": 10000.0,
+        "fov_deg": 50.0,
+        "iris_blades": 0,
+        "lens_shift": [
+          0.0,
+          0.0
+        ],
+        "near": 1.0,
+        "position": [
+          0.0,
+          0.0,
+          -963.7853393554688
+        ],
+        "rotation_deg": [
+          0.0,
+          0.030201317742466927,
+          0.0
+        ],
+        "sensor_width_mm": 36.0,
+        "type": "perspective",
+        "zoom": 1.0
+      },
+      "frame": 1
+    }
+  ],
+  "temporal_motion_blur": {
+    "shutter_angle": 90.0,
+    "samples": 8
+  }
+}
