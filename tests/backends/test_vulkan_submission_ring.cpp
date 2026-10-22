@@ -72,6 +72,27 @@ TEST_CASE("nested graph batches submit at the outer boundary") {
     CHECK(fixture.backend->stats().submissions == before.submissions + 1);
 }
 
+TEST_CASE("Vulkan surface readback returns pixels written by the submitted batch") {
+    BackendFixture fixture;
+    if (!fixture.backend) { WARN("No Vulkan device available"); return; }
+
+    fixture.backend->begin_frame_batch();
+    REQUIRE(fixture.backend->fill_rect_surface(
+        fixture.handle, 0, 0, 32, 24,
+        chronon3d::Color{1.0f, 0.0f, 0.0f, 1.0f}).ok());
+    fixture.backend->end_frame_batch();
+
+    std::vector<float> pixels(32u * 24u * 4u, -1.0f);
+    REQUIRE(fixture.backend->download_surface(fixture.handle, pixels).ok());
+    REQUIRE(pixels.size() == 32u * 24u * 4u);
+    for (std::size_t i = 0; i < pixels.size(); i += 4) {
+        CHECK(pixels[i] == doctest::Approx(1.0f).epsilon(1e-5));
+        CHECK(pixels[i + 1] == doctest::Approx(0.0f).epsilon(1e-5));
+        CHECK(pixels[i + 2] == doctest::Approx(0.0f).epsilon(1e-5));
+        CHECK(pixels[i + 3] == doctest::Approx(1.0f).epsilon(1e-5));
+    }
+}
+
 TEST_CASE("wraparound reuses the first frame slot fence") {
     BackendFixture fixture;
     if (!fixture.backend) { WARN("No Vulkan device available"); return; }
