@@ -1,3 +1,4 @@
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <algorithm>
@@ -10,6 +11,8 @@
 #include <utility>
 
 #include <spdlog/spdlog.h>
+
+namespace easing_name = chronon3d::render_plan::detail::easing_name;
 
 namespace chronon3d::render_plan {
 
@@ -230,26 +233,26 @@ std::optional<PlanDecodeError> validate_render_budget(
                 };
                 if (track.spring && !valid_spring(*track.spring))
                     return fail(prefix + ".animation.tracks[].spring", "spring config is outside supported finite bounds");
-                if (track.spring && track.easing != "spring")
+                if (track.spring && track.easing != easing_name::kSpring)
                     return fail(prefix + ".animation.tracks[].spring", "track spring config requires spring easing");
                 if (track.keyframes.empty())
                     return fail(prefix + ".animation.tracks", "tracks require at least one keyframe");
-                if (track.easing == "spring" && track.keyframes.size() < 2)
+                if (track.easing == easing_name::kSpring && track.keyframes.size() < 2)
                     return fail(prefix + ".animation.tracks", "spring segment requires positive frame span");
                 Frame previous{-1};
                 for (std::size_t key_index = 0; key_index < track.keyframes.size(); ++key_index) {
                     const auto& key = track.keyframes[key_index];
                     if (key.spring && !valid_spring(*key.spring))
                         return fail(prefix + ".animation.tracks[].keyframes[].spring", "spring config is outside supported finite bounds");
-                    if (key.spring && key.easing != "spring" &&
-                        !(track.easing == "spring" && !key.easing))
+                    if (key.spring && key.easing != easing_name::kSpring &&
+                        !(track.easing == easing_name::kSpring && !key.easing))
                         return fail(prefix + ".animation.tracks[].keyframes[].spring", "keyframe spring config requires spring easing");
                     if (key_index + 1 < track.keyframes.size() &&
-                        (key.easing == "spring" || (!key.easing && track.easing == "spring")) &&
+                        (key.easing == easing_name::kSpring || (!key.easing && track.easing == easing_name::kSpring)) &&
                         key.frame >= track.keyframes[key_index + 1].frame)
                         return fail(prefix + ".animation.tracks[].keyframes", "spring segment requires positive frame span");
                     if (key_index + 1 < track.keyframes.size() &&
-                        (key.easing == "spring" || (!key.easing && track.easing == "spring")) &&
+                        (key.easing == easing_name::kSpring || (!key.easing && track.easing == easing_name::kSpring)) &&
                         !key.spring && !track.spring)
                         return fail(prefix + ".animation.tracks[].keyframes[].spring", "spring segment requires a config on its keyframe or track");
                     if (key.frame.integral() < 0 || key.frame.integral() > duration_value)
@@ -274,7 +277,7 @@ std::optional<PlanDecodeError> validate_render_budget(
                             return invalid;
                 }
                 if (!track.keyframes.empty() &&
-                    (track.keyframes.back().easing == "spring" || track.keyframes.back().spring))
+                    (track.keyframes.back().easing == easing_name::kSpring || track.keyframes.back().spring))
                     return fail(prefix + ".animation.tracks[].keyframes", "spring segment requires positive frame span");
             }
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 
 #include <algorithm>
@@ -301,7 +302,7 @@ inline GradientAnimationPlan aurora_gradient(
     };
 
     GradientAnimationPlan result;
-    result.easing = "linear";
+    result.easing = detail::easing_name::kLinear;
     for (std::int64_t cycle = 0; cycle < duration.integral(); cycle += period) {
         for (int quarter = 0; quarter < 4; ++quarter) {
             const auto relative = cycle + static_cast<std::int64_t>(std::llround(

@@ -22,6 +22,5 @@ render_settings.hpp
 render_to_media.hpp
 scene.cpp
 shape_params.hpp
-text_run_builder.cpp
 text_run_builder.hpp
 transform.hpp

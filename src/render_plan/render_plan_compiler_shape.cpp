@@ -1,3 +1,4 @@
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/scene/model/shape/path_operator.hpp>
 #include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
@@ -49,6 +50,8 @@
 
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
+
+namespace easing_name = chronon3d::render_plan::detail::easing_name;
 
 namespace chronon3d::render_plan::detail {
 
@@ -209,7 +212,7 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                                 lowered.opacity_animation = RenderNode::SvgGroupIsolation::OpacityAnimation{
                                     first.frame.integral(), last.frame.integral(),
                                     first.value.front(), last.value.front(),
-                                    first.interpolation == "hold"};
+                                    first.interpolation == easing_name::kHold};
                         }
                         groups.push_back(std::move(lowered));
                     }

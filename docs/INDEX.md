@@ -73,7 +73,7 @@ apre un ticket nuovo che linka l'archivio.
 
 ## Igiene
 
-- `tools/check_docs_links.py` (se presente) o un grep manuale: ogni link
+- un grep manuale: ogni link
   relativo in `docs/` deve risolvere a un file esistente.
 - Un documento duplicato è peggio di un documento assente: se due file dicono
   la stessa cosa, uno dei due va ridotto a un puntatore.

@@ -276,7 +276,7 @@ inline graphics::FillStyle interpolate_values<graphics::FillStyle>(
     f32 t,
     EasingCurve e)
 {
-    if (!e.cubic.has_value() && e.preset == Easing::Hold) return a;
+    if (is_hold_easing(e)) return a;
     const f32 eased_t = e.apply(t);
     return graphics::lerp_fill_style(a, b, eased_t);
 }
@@ -288,7 +288,7 @@ inline graphics::StrokeStyle interpolate_values<graphics::StrokeStyle>(
     f32 t,
     EasingCurve e)
 {
-    if (!e.cubic.has_value() && e.preset == Easing::Hold) return a;
+    if (is_hold_easing(e)) return a;
     const f32 eased_t = e.apply(t);
     return graphics::lerp_stroke_style(a, b, eased_t);
 }

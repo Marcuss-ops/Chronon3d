@@ -1,3 +1,4 @@
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include "render_plan_compiler_detail.hpp"
 #include "render_plan_compiler_animation_internal.hpp"
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -17,6 +18,8 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+namespace easing_name = chronon3d::render_plan::detail::easing_name;
+
 namespace chronon3d::render_plan::detail {
 FollowPathEvaluators make_follow_path_evaluators(
     const LayerPlan::FollowPathDriverPlan& follow,
@@ -236,7 +239,7 @@ std::optional<chronon3d::Color> fill_color_at(
     for (std::size_t index = 1; index < keys.size(); ++index)
         if (keys[index - 1]->frame == keys[index]->frame)
             throw std::runtime_error("fill_color keyframe frames must be unique");
-    const auto easing = track->easing == "spring"
+    const auto easing = track->easing == easing_name::kSpring
         ? chronon3d::EasingCurve{chronon3d::Easing::Linear}
         : track_easing(track->easing, track->bezier_curve);
     chronon3d::AnimatedValue<chronon3d::Color> animated{base};
@@ -590,7 +593,7 @@ std::optional<chronon3d::DirectionalBlurParams> motion_blur_params_at(
     const auto data = position_animation_data(layer, base);
     if (data.keyframes.empty()) return std::nullopt;
     for (const auto& key : data.keyframes) {
-        if (key.timing.interpolation == "bezier" && !key.timing.bezier_curve) {
+        if (key.timing.interpolation == easing_name::kBezier && !key.timing.bezier_curve) {
             position.add_vector_temporal_keyframe(key.frame, key.value,
                 chronon3d::InterpMode::Bezier,
                 key.timing.temporal_in_dx.value_or(0.0f), key.temporal_in_value,

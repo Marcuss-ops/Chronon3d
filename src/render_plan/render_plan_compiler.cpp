@@ -16,6 +16,9 @@
 #include <chronon3d/assets/svg_path_loader.hpp>
 
 #include "render_plan_compiler_detail.hpp"
+#include <chronon3d/render_plan/easing_contract.hpp>
+
+using namespace chronon3d::render_plan::detail;
 #include "effect_kind_coverage.hpp"
 #include "audio_react_baker.hpp"
 #include "audio_react_plan_baker.hpp"
@@ -419,7 +422,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         AnimationKeyframePlan from;
                         from.frame = Frame{*first_frame};
                         from.value = {animation.from[0]};
-                        from.interpolation = animation.discrete ? "hold" : "linear";
+                        from.interpolation = animation.discrete ? easing_name::kHold : easing_name::kLinear;
                         AnimationKeyframePlan to;
                         to.frame = Frame{*last_frame};
                         to.value = {animation.to[0]};
@@ -510,7 +513,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                     from.frame = Frame{*first_frame};
                     from.value.assign(svg_animation.from.begin(),
                         svg_animation.from.begin() + svg_animation.components);
-                    from.interpolation = svg_animation.discrete ? "hold" : "linear";
+                    from.interpolation = svg_animation.discrete ? easing_name::kHold : easing_name::kLinear;
                     AnimationKeyframePlan to;
                     to.frame = Frame{*last_frame};
                     to.value.assign(svg_animation.to.begin(),
@@ -551,7 +554,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                             "SVG gradient animation requires a gradient fill",
                             "svg_unsupported_style", "render-plan-svg"};
                     GradientAnimationPlan track;
-                    track.easing = element.gradient_animation_discrete ? "hold" : "linear";
+                    track.easing = element.gradient_animation_discrete ? easing_name::kHold : easing_name::kLinear;
                     std::int64_t previous_frame = -1;
                     for (const auto& key : element.gradient_animation) {
                         const auto frame = frame_at_time(key.seconds);
@@ -582,7 +585,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         AnimationKeyframePlan key;
                         key.frame = Frame{*frame};
                         key.value = {static_cast<float>(morph_index)};
-                        key.interpolation = morph.discrete ? "hold" : "linear";
+                        key.interpolation = morph.discrete ? easing_name::kHold : easing_name::kLinear;
                         progress.keyframes.push_back(std::move(key));
                         if (morph_index == 0) continue;
                         std::vector<ShapePathCommandPlan> target;
@@ -669,6 +672,12 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         "svg_text_invalid", "render-plan-svg"};
                 std::string family_file = run.font_family;
                 std::replace(family_file.begin(), family_file.end(), ' ', '-');
+                if (family_file == "sans-serif" || family_file == "sans" || family_file == "system-ui" ||
+                    family_file == "Arial" || family_file == "Helvetica") {
+                    family_file = "Inter";
+                } else if (family_file == "serif" || family_file == "Times" || family_file == "Times-New-Roman") {
+                    family_file = "FreeSerif";
+                }
                 if (family_file.empty() || family_file.find_first_of("/\\:") != std::string::npos)
                     return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                         "SVG font-family is not a safe bundled font name",
@@ -676,11 +685,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                 const std::string face = run.font_weight >= 600
                     ? (run.font_style == "normal" ? "Bold" : "BoldItalic")
                     : (run.font_style == "normal" ? "Regular" : "Italic");
-                const std::array<std::string, 4> font_candidates{
+                const std::array<std::string, 6> font_candidates{
                     "fonts/" + family_file + "-" + face + ".ttf",
                     "fonts/" + family_file + "-" + face + ".otf",
                     "fonts/" + family_file + "-Regular.ttf",
-                    "fonts/" + family_file + ".ttf"};
+                    "fonts/" + family_file + ".ttf",
+                    "fonts/Inter-" + face + ".ttf",
+                    "fonts/Inter-Regular.ttf"};
                 std::optional<std::filesystem::path> resolved_font;
                 std::string font_asset;
                 for (const auto& candidate : font_candidates) {

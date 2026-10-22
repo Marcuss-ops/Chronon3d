@@ -52,7 +52,7 @@ public:
 
         // ── ADR-018 / user-spec: fits_inside(layout_box) gate ──────────
         // Local lambda (Cat-3 safe: no new public symbol; same as the
-        // canonical 12-iter impl in src/scene/builders/text_run_builder.cpp
+        // canonical 12-iter impl in src/scene/builders/scene_text_run_builder.cpp
         // compile_or_cache_layout).  Returns true iff `bounds` fit within
         // `box` (component-wise <=, no epsilon nudge — pure binary
         // search is deterministic and requires no floating-point slack).

@@ -333,7 +333,7 @@ RenderNode RenderNodeFactory::text(
     (void)run_spec;
     (void)engine;
     // When BLEND2D is disabled, the materializer symbol is a no-op
-    // (see src/scene/builders/text_run_builder.cpp: `#ifdef
+    // (see src/scene/builders/scene_text_run_builder.cpp: `#ifdef
     // CHRONON3D_USE_BLEND2D`).  The factory still emits a TextRun
     // node with a null handle so the cluster stays consistent.
 #endif

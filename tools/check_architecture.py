@@ -300,6 +300,79 @@ class Runner:
         else:
             self.ok(name)
 
+    def check_root_source_policy(self) -> None:
+        """Keep C/C++ implementation and header files inside canonical trees."""
+        for rule in self.rules.get("root_source_policy", []):
+            name = rule["name"]
+            if not self.selected(name):
+                continue
+            extensions = {ext.lower() for ext in rule.get("extensions", [])}
+            allowed = set(rule.get("allow", []))
+            hits = sorted(
+                path.name for path in self.root.iterdir()
+                if path.is_file() and path.suffix.lower() in extensions
+                and path.name not in allowed
+            )
+            if hits:
+                self.fail(name, f"C/C++ files at repository root: {', '.join(hits)}")
+            else:
+                self.ok(name, "no C/C++ files at repository root")
+
+    def check_cache_family_inventory(self) -> None:
+        """Require every concrete cache class in production headers and sources to have one family entry."""
+        cfg = self.rules.get("cache_family_inventory")
+        if not cfg:
+            return
+        name = cfg["name"]
+        if not self.selected(name):
+            return
+        taxonomy_path = self.root / cfg["taxonomy"]
+        scan_root = self.root / cfg["scan_root"]
+        if not taxonomy_path.is_file() or not scan_root.is_dir():
+            self.fail(name, "taxonomy header or cache scan root is missing")
+            return
+
+        families: dict[str, list[str]] = defaultdict(list)
+        member_line = re.compile(
+            r"^\s*//\s*CACHE_FAMILY_MEMBERS\s+(\w+):\s*(.*)$", re.MULTILINE)
+        for match in member_line.finditer(read_text(taxonomy_path)):
+            family, names = match.groups()
+            for member in (part.strip() for part in names.split(",")):
+                if member:
+                    families[member].append(family)
+
+        definitions: set[str] = set()
+        class_definition = re.compile(
+            r"\bclass\s+([A-Za-z_]\w*Cache)\b[^;{}]*\{", re.DOTALL)
+        for path in iter_files(self.root, cfg.get("scan_roots", [cfg["scan_root"]]),
+                              [".hpp", ".h", ".hh", ".cpp", ".cc"]):
+            source = read_text(path)
+            source = re.sub(r"/\*.*?\*/|//[^\n]*", " ", source, flags=re.DOTALL)
+            definitions.update(match.group(1) for match in class_definition.finditer(source))
+
+        infrastructure = set(cfg.get("infrastructure", []))
+        missing = sorted(definitions - infrastructure - set(families))
+        stale_entries = sorted(set(families) - definitions - infrastructure)
+        multiply_classified = sorted(
+            member for member, assigned in families.items() if len(assigned) != 1)
+        invalid_families = sorted(
+            member for member, assigned in families.items()
+            if any(family not in {"ContentCache", "ResidencyCache", "ProgramCache"}
+                   for family in assigned))
+        if missing or stale_entries or multiply_classified or invalid_families:
+            details = []
+            if missing:
+                details.append(f"unclassified cache class(es): {missing}")
+            if stale_entries:
+                details.append(f"inventory member(s) without a production definition: {stale_entries}")
+            if multiply_classified:
+                details.append(f"cache class(es) assigned more than once: {multiply_classified}")
+            if invalid_families:
+                details.append(f"unknown cache family for: {invalid_families}")
+            self.fail(name, "; ".join(details))
+        else:
+            self.ok(name, f"{len(definitions - infrastructure)} concrete cache classes classified once")
+
     def check_doc_tool_reference(self, rule: dict[str, Any]) -> None:
         """Operative docs must not point at tools/ paths that do not exist.
 
@@ -1232,6 +1305,8 @@ class Runner:
         for rule in self.rules.get("required_path", []):
             name = f"required_path:{rule.get('name', '?')}"
             self.guard(name, lambda rule=rule: self.check_required_path(rule))
+        self.guard("root_source_policy", self.check_root_source_policy)
+        self.guard("cache_family_inventory", self.check_cache_family_inventory)
         for rule in self.rules.get("doc_tool_reference", []):
             name = f"doc_tool_reference:{rule.get('name', '?')}"
             self.guard(name, lambda rule=rule: self.check_doc_tool_reference(rule))

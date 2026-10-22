@@ -126,15 +126,18 @@ Ogni cache deve appartenere a ESATTAMENTE una famiglia.  Vedi
 
 | Famiglia | Semantica | Membri |
 |---|---|---|
-| **ContentCache** | Stessa chiave → stesso output, sempre | NodeCache, FrameCache, VideoFrameCache, GpuAssetCache, GpuGlyphAtlas styled |
-| **ResidencyCache** | Bounded memory / residency reuse | FramebufferPool (cold-path), GpuGlyphAtlas pages |
-| **ProgramCache** | Stesso fingerprint → stesso programma compilato | TemplateProgramCache, CompiledGraphCache, SceneProgramCache |
+| **ContentCache** | Chiave da contenuto/identità asset → rappresentazione deterministica | NodeCache, FrameCache, VideoFrameCache, ConvertedFrameCache, PreparedAssetDigestCache, GpuAssetCache, GpuStyledGlyphCache, GpuTextRunPreparedCache, ImageCache, MeshPreparationCache, DirectYuvTextTextureCache, PreparationCache, TextLayoutCache, TypewriterLayoutCache, FrameValueCache (vista su NodeCache) |
+| **ResidencyCache** | Oggetti backend residenti nel runtime o pool di risorse | FramebufferPool (cold-path), pagine GpuGlyphAtlas, BLFontFaceCache, FreeTypeFaceCache |
+| **ProgramCache** | Fingerprint → programma/curva compilata | TemplateProgramCache, CompiledGraphCache, SceneProgramCache, CompiledArtifactCache, CurveCache, CompiledTopologyCache (vista su CompiledGraphCache) |
 
 Il placement hot-path non appartiene alla cache taxonomy: `runtime::ResourcePlanner`
 / `runtime::ResourcePlan` sono algoritmi e risultati effimeri di placement; la sola
 authority persistente compilata è `graph::CompiledResourceTable`.
 
 **Primitive canonica**: `LruCache` (include/chronon3d/cache/lru_cache.hpp).  Nessuna seconda cache engine.
+L'inventario delle classi concrete è verificato da `cache_family_inventory` in
+`tools/check_architecture.py`; gli adapter non owning restano esplicitamente
+assegnati alla famiglia dello storage che delegano.
 
 ---
 
@@ -146,6 +149,8 @@ authority persistente compilata è `graph::CompiledResourceTable`.
 - **Unico compilatore**: CompiledFrameGraph (include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp).
 - **Unica authority persistente di allocazione hot-path**: CompiledResourceTable (include/chronon3d/render_graph/compiler/compiled_resource_table.hpp); ResourcePlanner/ResourcePlan restano solo placement effimero durante il lowering.
 - **Unico executor**: GraphExecutor → node_runner.cpp.  `node_executor.cpp` non è un secondo executor né un fallback: è un helper estratto (`run_node`) che `node_runner.cpp` include e invoca per ogni nodo del compiled path. Un solo percorso di esecuzione.
+- **Confini di animazione**: `AnimationTrack<T>` è authoring riutilizzabile, `AnimatedValue<T>` valuta keyframe tipizzati, `QuatKeyframe`/`AnimatedQuat` preservano l'interpolazione quaternion, `TemporalCurve1D` mappa il progresso temporale, e `AnimationTrackPlan`/`AnimationKeyframePlan` sono il formato RenderPlan/JSON, mentre `SourceTextKeyframe` conserva snapshot di documento. `ChrononMotion3d::motion::Track<T>` usa tempo in secondi, easing per segmento e modificatori di canale: resta un contratto separato. Non fonderli senza dimostrare equivalenza di semantica e call site; condividere le primitive di easing/interpolazione dove la semantica coincide.
+- **Easing RenderPlan**: i campi stringa sono il confine JSON compatibile. I confronti e le conversioni C++ usano `render_plan/easing_contract.hpp`; il gate `render_plan_easing_string_comparisons` vieta confronti semantici con letterali.
 
 ---
 

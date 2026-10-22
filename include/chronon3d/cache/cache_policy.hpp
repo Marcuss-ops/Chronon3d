@@ -1,9 +1,12 @@
 // =============================================================================
 // cache_policy.hpp — CROSS-CUTTING INFRASTRUCTURE (not a cache): domain config
 //
-// Resolves capacity/eviction policy per CacheDomain.  Not a cache itself;
-// provides configuration to the three canonical cache families defined in
-// cache_taxonomy.hpp.
+// Resolves capacity/eviction policy per CacheDomain and provides settings
+// to the three cache families in cache_taxonomy.hpp. This is distinct from
+// graph::RenderNodeCachePolicy (render_graph/core/cache_policy.hpp), which
+// describes node temporal variation and invalidation.
+//
+// Not a cache itself.
 // =============================================================================
 #pragma once
 
