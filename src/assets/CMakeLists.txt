@@ -79,5 +79,6 @@ if(CHRONON3D_ENABLE_SVG)
     )
     target_include_directories(chronon3d_assets PRIVATE
         "${svgpp_SOURCE_DIR}/include"
+        ${Stb_INCLUDE_DIR}
     )
 endif()
