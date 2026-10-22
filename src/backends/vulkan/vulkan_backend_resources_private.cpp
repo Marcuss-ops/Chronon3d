@@ -113,7 +113,9 @@ void VulkanBackend::Impl::ensure_staging(VkDeviceSize bytes) {
         VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, nullptr, 0, bytes,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_SHARING_MODE_EXCLUSIVE, 0, nullptr};
-    staging = memory_manager.create_buffer(info, VulkanMemoryClass::HostUpload);
+    // This allocation is the destination of image-to-buffer readback and the
+    // CPU reads it after the transfer fence; select VMA's readback access mode.
+    staging = memory_manager.create_buffer(info, VulkanMemoryClass::HostReadback);
     if (debug_context) {
         debug_context->set_buffer_name(staging.buffer,
                                        "Chronon3D.Buffer.Staging");

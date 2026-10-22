@@ -631,7 +631,9 @@ namespace chronon3d::backends::vulkan {
                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer, 1, &copy);
         transition(command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
-        submit();
+        // CPU reads this persistently mapped destination immediately below.
+        // Complete the image-to-buffer copy before consuming its bytes.
+        submit(true);
         const auto readback_start = profiling::now();
         std::memcpy(rgba.data(), staging.mapped, static_cast<std::size_t>(bytes));
         stats.readback_us += static_cast<std::uint64_t>(profiling::elapsed_us(readback_start));

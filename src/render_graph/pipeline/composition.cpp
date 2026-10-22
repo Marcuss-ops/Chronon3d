@@ -371,13 +371,15 @@ std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
             }
             ~DeferredNativeSampleBatch() { finish(); }
         };
-        if (settings.native_video_encode_surface !=
-            runtime::kInvalidRenderSurfaceHandle) {
-            if (!frame_runtime || !frame_runtime->backend_attached() ||
-                !backend.supports_native_surfaces()) {
-                throw std::runtime_error(
-                    "native temporal rendering requires a runtime-backed GPU surface registry");
-            }
+        // A Vulkan raw/pixel-truth sink has no native encoder destination, but
+        // its temporal samples still need a GPU-resident target. Without this
+        // intermediate, isolated samples defer their frame-batch handoff while
+        // the compositor has no batch owner to close it; the terminal readback
+        // then races work that was never submitted. Use the same sample surface
+        // for native video and other native-surface consumers, and read back
+        // only the completed weighted accumulator for host sinks.
+        if (frame_runtime && frame_runtime->backend_attached() &&
+            backend.supports_native_surfaces() && ssaa == 1.0f) {
             const auto desc = runtime::SurfaceDesc::make(
                 static_cast<std::uint32_t>(rw),
                 static_cast<std::uint32_t>(rh),

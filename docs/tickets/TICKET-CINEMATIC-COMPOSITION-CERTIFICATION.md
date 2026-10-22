@@ -131,9 +131,10 @@ visual-motion portions. The 2026-10-21 full-resolution three-depth render
 closes the T16 base video and strict GPU render portions. The 2026-10-22
 focused matte review and encoded shutter pixel gate also pass for their tested
 asset/frame. T16 remains `PARTIAL` pending same-RenderPlan Chronon3d/threepp
-parity, a valid raw Vulkan shutter sink, and broader dynamic-lighting
-certification. Focused selective lighting passes CAM-06; CAM-08 passes for
-T16 frame 75.
+parity and broader dynamic-lighting certification. The focused raw Vulkan
+shutter sink now returns valid pixels and matches decoded NVENC; see the
+[readback root cause and evidence](../evidence/camera-authority-migration/T16/shutter-parity-20261022/raw-readback-fix/ROOT_CAUSE.md).
+Focused selective lighting passes CAM-06; CAM-08 passes for T16 frame 75.
 
 ### Component validation run (2026-10-19)
 
@@ -254,10 +255,10 @@ T17/T18 and the broader certification remain open.
   measurements and both outputs are in
   [`T16 DoF evidence`](../evidence/camera-authority-migration/T16/dof-ablation/).
 - CAM-05 is now `PASS` for this focused T16 strict-native GPU composition.
-  The separate raw-readback failure remains documented; T16 stays `PARTIAL`
-  pending CAM-04 same-RenderPlan parity, raw shutter sink correctness, and
-  broader optical/lighting certification. Focused matte, lighting and encoded
-  shutter results are recorded in the 2026-10-22 closeout.
+  Its separate raw DoF readback limitation remains documented; T16 stays
+  `PARTIAL` pending CAM-04 same-RenderPlan parity and broader optical/lighting
+  certification. Focused matte, lighting and shutter results are recorded in
+  the 2026-10-22 closeout.
 
 ### T17 four-product GPU canary (2026-10-21)
 
@@ -425,9 +426,12 @@ camera corrections without closing the wider T17/T18 tickets.
   1920×1080 90°/8-sample plan uses Vulkan strict-native NVENC; decoded RGB versus
   the software shutter sample is MAE 1.457, p99 5 (limits 2 and 5). GPU
   shutter/no-shutter MAE is 0.271. This is one frame, not full-clip certification.
-  The raw Vulkan sink still produces invalid/zero output under this temporal
-  path and is recorded as an open synchronization issue. See
-  [`shutter parity evidence`](../evidence/camera-authority-migration/T16/shutter-parity-20261022/).
+  The raw Vulkan sink now also produces a valid 8,294,400-byte frame on the
+  same plan. Raw RGB versus decoded NVENC is MAE 1.414, p99 4; versus software
+  center frame index 4 of the nine-frame reference it is MAE 0.143, p99 3.
+  Minimal red-surface readback, no-shutter, 2-sample, and 8-sample checks pass.
+  See [`shutter parity evidence`](../evidence/camera-authority-migration/T16/shutter-parity-20261022/)
+  and its [raw readback root cause](../evidence/camera-authority-migration/T16/shutter-parity-20261022/raw-readback-fix/ROOT_CAUSE.md).
 - **T05/T17/T18 encode-path copy gate closes in a scoped form.** The opt-in
   mapped GL PBO is passed as the external CUDA AVFrame to NVENC; each 150-frame
   GPU run muxes 150 packets and records zero explicit CUDA D2D frame copies.
