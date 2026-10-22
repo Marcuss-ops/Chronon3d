@@ -632,8 +632,6 @@ struct RenderGraphContext {
     /// Reusable scratch buffer for GPU→CPU download synchronization.
     [[nodiscard]] std::span<float> download_scratch(int w, int h);
 
-    /// Convert an OwnedFB to a shared_ptr for cache storage.
-    static CachedFB own_to_cache(OwnedFB& owned, cache::FramebufferPool* pool);
 
     /// Legacy shared_ptr acquire — still needed for cache interaction.
     std::shared_ptr<Framebuffer> acquire_framebuffer(

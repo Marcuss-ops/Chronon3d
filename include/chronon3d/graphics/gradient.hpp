@@ -387,14 +387,6 @@ namespace detail {
     return color;
 }
 
-[[nodiscard]] inline Color sample_compiled_gradient_radial(
-    const CompiledGradient& gradient, const Vec2& point)
-{
-    const Vec2 delta = point - gradient.center;
-    const f32 dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
-    const f32 t = (gradient.radius > 1e-6f) ? dist / gradient.radius : 0.0f;
-    return sample_compiled_gradient(gradient, t);
-}
 
 /// Sample a gradient definition at normalised linear progress t ∈ [0, 1].
 /// Intended for Linear gradients.  For Radial gradients, use

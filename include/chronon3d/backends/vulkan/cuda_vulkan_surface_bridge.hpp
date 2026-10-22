@@ -36,9 +36,6 @@ public:
     [[nodiscard]] CUsurfObject surface_object() const noexcept {
         return m_surface;
     }
-    [[nodiscard]] CUexternalMemory external_memory() const noexcept {
-        return m_memory;
-    }
     [[nodiscard]] CUexternalSemaphore cuda_to_vulkan_semaphore() const noexcept {
         return m_cuda_to_vulkan;
     }

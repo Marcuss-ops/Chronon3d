@@ -1441,21 +1441,6 @@ inline std::vector<LayerPlan> cinematic_radial_burst(
     return {std::move(layer)};
 }
 
-inline std::vector<LayerPlan> cinematic_dual_blob(Vec2 canvas_size,
-                                                   std::uint32_t seed = 73) {
-    auto layers = liquid_magenta(canvas_size, seed);
-    LightLeakProfile cool;
-    cool.shape = LightLeakShape::Radial;
-    cool.position = 0.72f;
-    cool.position_y = 0.35f;
-    cool.spread = 0.32f;
-    cool.softness = 0.28f;
-    cool.color_a = Color{0.08f, 0.44f, 1.0f, 0.8f};
-    cool.color_b = Color{0.22f, 0.82f, 1.0f, 0.6f};
-    cool.seed = seed ^ 0x9e3779b9U;
-    layers.push_back(LightLeakResolver::resolve(cool, canvas_size, "cinematic_dual_blob_cool"));
-    return layers;
-}
 
 inline std::vector<LayerPlan> cinematic_film_burn(Vec2 canvas_size,
                                                    float intensity = 2.0f,

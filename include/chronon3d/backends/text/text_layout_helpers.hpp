@@ -38,10 +38,6 @@ struct TextLayoutGeometry {
     }
 }
 
-inline void append_grapheme(std::string& destination, std::string_view source, size_t offset) {
-    const size_t length = grapheme_byte_offset_at(source.substr(offset), 1);
-    if (length != 0) destination.append(source.data() + offset, length);
-}
 
 [[nodiscard]] inline std::pair<float, float> fallback_font_metrics(float font_size) {
     return {font_size * 0.78f, font_size * 0.22f};

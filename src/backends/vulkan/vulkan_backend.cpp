@@ -702,13 +702,6 @@ void VulkanBackend::end_command_batch() {
 #endif
 }
 
-std::size_t VulkanBackend::replay_slot_count() const noexcept {
-#ifdef CHRONON3D_ENABLE_VULKAN
-    return Impl::kReplaySlotCount;
-#else
-    return 0;
-#endif
-}
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 VkCommandBuffer VulkanBackend::begin_replay_recording(std::size_t slot_index) {

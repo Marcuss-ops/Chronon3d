@@ -46,12 +46,6 @@ struct Error {
     [[nodiscard]] bool is_cancelled() const noexcept {
         return category == ErrorCategory::Cancelled;
     }
-    [[nodiscard]] bool is_terminal() const noexcept {
-        return category == ErrorCategory::JobFailed ||
-               category == ErrorCategory::DeviceLost ||
-               category == ErrorCategory::InvalidPlan ||
-               category == ErrorCategory::InvariantViolation;
-    }
 };
 
 struct LegacyErrorMapping {

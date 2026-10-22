@@ -120,7 +120,6 @@ public:
     }
 
     [[nodiscard]] const PointTrack& track() const noexcept { return m_track; }
-    [[nodiscard]] PointTrack take_track() noexcept { return std::move(m_track); }
 
 private:
     static constexpr float kLumaR = 0.2126f;

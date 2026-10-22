@@ -95,9 +95,6 @@ struct ProcessorDescriptor {
     ProcessorCapabilities capabilities;
     CompileRecorderFn compile_recorder{nullptr};
 
-    [[nodiscard]] constexpr bool has_compile_recorder() const noexcept {
-        return compile_recorder != nullptr;
-    }
 };
 
 } // namespace chronon3d::renderer

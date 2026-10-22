@@ -122,12 +122,6 @@ public:
     }
 
     [[nodiscard]] CapacityMode capacity_mode() const noexcept { return m_mode; }
-    [[nodiscard]] const RemovalCallback& removal_callback() const noexcept {
-        return m_on_remove;
-    }
-    [[nodiscard]] bool detailed_timing_enabled() const noexcept {
-        return m_collect_detailed_timing;
-    }
 
     void set_removal_callback(RemovalCallback cb) { m_on_remove = std::move(cb); }
 

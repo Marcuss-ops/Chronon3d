@@ -169,23 +169,6 @@ public:
         f32  parametric_t;
     };
 
-    [[nodiscard]] ArcSample sample_at_arc_fraction(f32 t) const {
-        if (m_waypoints.size() < 2) return {evaluate(t), t};
-        ensure_arc_length_table();
-        t = std::clamp(t, 0.0f, 1.0f);
-        const f32 target_length = t * m_total_arc_length;
-        auto it = std::lower_bound(m_arc_lengths.begin(), m_arc_lengths.end(), target_length);
-        if (it == m_arc_lengths.begin()) return {m_samples[0], 0.0f};
-        if (it == m_arc_lengths.end()) return {m_samples.back(), 1.0f};
-        const size_t hi = static_cast<size_t>(std::distance(m_arc_lengths.begin(), it));
-        const size_t lo = hi - 1;
-        const f32 seg_len = m_arc_lengths[hi] - m_arc_lengths[lo];
-        const f32 frac = (seg_len > 1e-6f) ? (target_length - m_arc_lengths[lo]) / seg_len : 0.0f;
-        const int num_segments = static_cast<int>(m_samples.size()) - 1;
-        const f32 param_t = static_cast<f32>(lo) / static_cast<f32>(num_segments)
-                          + frac / static_cast<f32>(num_segments);
-        return {m_samples[lo] + (m_samples[hi] - m_samples[lo]) * frac, param_t};
-    }
 
     void clear() {
         m_waypoints.clear();
@@ -274,30 +257,6 @@ enum class AutoOrientMode {
     return glm::quatLookAt(forward, up);
 }
 
-/// Compute a stable orientation that avoids flipping near poles.
-/// Uses the previous frame's orientation as a reference to pick the
-/// shortest-arc quaternion, preventing 180° flips.
-[[nodiscard]] inline Quat quat_stable_look_along(Vec3 forward, const Quat& prev_orientation,
-                                                   Vec3 up = {0.0f, 1.0f, 0.0f}) {
-    Quat target = quat_look_along(forward, up);
-    // If the dot product is negative, flip to the shorter arc
-    if (glm::dot(target, prev_orientation) < 0.0f) {
-        target = -target;
-    }
-    return target;
-}
 
-/// Convert a quaternion orientation + roll to Camera2_5D Euler rotation.
-/// Extracts pitch/yaw from the quaternion's forward direction and applies
-/// roll directly, matching the Camera2_5D Euler convention (x=pitch, y=yaw, z=roll).
-[[nodiscard]] inline Vec3 quat_to_camera_euler(const Quat& orientation, f32 roll_deg) {
-    // Extract forward direction from the quaternion
-    const Vec3 forward = orientation * Vec3{0.0f, 0.0f, -1.0f};
-    // Pitch and yaw from forward direction (same as legacy Euler code)
-    const f32 yaw   = glm::degrees(std::atan2(forward.x, -forward.z));
-    const f32 pitch = glm::degrees(std::asin(std::clamp(forward.y, -1.0f, 1.0f)));
-    // Roll is applied directly around the view axis
-    return Vec3{pitch, yaw, roll_deg};
-}
 
 } // namespace chronon3d

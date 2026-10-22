@@ -8,6 +8,10 @@ assets/
 # Source helpers under src/assets/ are code, not test fixtures.
 !src/assets/
 !src/assets/sha256.hpp
+# Public headers under include/**/assets/ are code too (they must stay visible
+# to rg/IDEs that honour .gitignore).
+!include/chronon3d/assets/
+!include/chronon3d/backends/assets/
 
 # ── IDE / Editor ───────────────────────────────────────────────────────────────
 .idea/

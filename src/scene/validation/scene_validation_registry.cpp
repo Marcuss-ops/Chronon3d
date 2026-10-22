@@ -45,9 +45,5 @@ void SceneValidationRegistry::run_all(const Scene& scene,
     }
 }
 
-void SceneValidationRegistry::register_builtins() {
-    // Built-in rules are handled directly by SceneValidator::validate().
-    // This method exists for future extension-built rules.
-}
 
 } // namespace chronon3d

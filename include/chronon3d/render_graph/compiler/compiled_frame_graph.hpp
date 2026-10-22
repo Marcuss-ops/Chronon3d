@@ -319,7 +319,6 @@ struct CompiledFrameGraph : CompiledResourceTable {
 
     [[nodiscard]] CompiledResourceTable& resource_table() noexcept { return *this; }
     [[nodiscard]] const CompiledResourceTable& resource_table() const noexcept { return *this; }
-    void set_parameter_bindings(std::vector<FrameParameterSlice> bindings) { parameter_bindings = std::move(bindings); }
     void apply_parameter_patches(const ParameterPatchSet& patches) {
         if (!prepared_parameters) throw std::logic_error("CompiledFrameGraph has no prepared parameter table");
         auto mutable_table = std::make_shared<FrameParameterTable>(*prepared_parameters);

@@ -52,12 +52,6 @@ const GraphPreflightNode* GraphPreflightReport::find_node(std::string_view name)
     return nullptr;
 }
 
-bool GraphPreflightReport::has_warning_containing(std::string_view text) const {
-    for (const auto& w : warnings) {
-        if (w.find(text) != std::string::npos) return true;
-    }
-    return false;
-}
 
 // ── Enriched DOT generation ────────────────────────────────────────
 

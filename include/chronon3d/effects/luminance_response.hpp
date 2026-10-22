@@ -49,38 +49,8 @@ struct LuminanceResponseParams {
         return p;
     }
 
-    [[nodiscard]] static LuminanceResponseParams anamorphic_blue() noexcept {
-        LuminanceResponseParams p;
-        p.threshold = 0.82f;
-        p.softness = 0.15f;
-        p.radius = 48.0f;
-        p.tint = Color{0.18f, 0.65f, 1.0f, 1.0f}; // classic sci-fi anamorphic streak
-        p.intensity = 1.5f;
-        p.blend = LuminanceBlendMode::Add;
-        return p;
-    }
 
-    [[nodiscard]] static LuminanceResponseParams anamorphic_warm() noexcept {
-        LuminanceResponseParams p;
-        p.threshold = 0.80f;
-        p.softness = 0.18f;
-        p.radius = 44.0f;
-        p.tint = Color{1.0f, 0.72f, 0.35f, 1.0f}; // golden vintage streak
-        p.intensity = 1.4f;
-        p.blend = LuminanceBlendMode::Add;
-        return p;
-    }
 
-    [[nodiscard]] static LuminanceResponseParams selective_glow() noexcept {
-        LuminanceResponseParams p;
-        p.threshold = 0.60f;
-        p.softness = 0.30f;
-        p.radius = 28.0f;
-        p.tint = Color{1.0f, 1.0f, 1.0f, 1.0f};
-        p.intensity = 1.0f;
-        p.blend = LuminanceBlendMode::Screen;
-        return p;
-    }
 };
 
 } // namespace chronon3d

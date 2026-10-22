@@ -135,14 +135,6 @@ public:
         return *this;
     }
 
-    /// Require per-word timing to be `Authoritative` for this track.
-    /// This is the default for karaoke presets IDs (e.g. karaoke_fill,
-    /// active_word_pop). Call `allow_estimated_word_timing(true)` to
-    /// explicitly opt-in to Estimated / source-less per-word animation.
-    SubtitleTrackBuilder& require_authoritative_word_timing(bool value = true) {
-        require_authoritative_ = value;
-        return *this;
-    }
 
     /// Allow `Estimated` per-word timing (SRT/VTT, JSON auto-fallback).
     /// When set, the builder will NOT fail on Estimated cues even for

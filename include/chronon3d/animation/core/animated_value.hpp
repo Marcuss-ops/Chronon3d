@@ -295,13 +295,6 @@ public:
         }
         return evaluate_base_double(static_cast<double>(current));
     }
-    [[nodiscard]] T value_at_time(f32 current) const {
-        if (m_frame_evaluator) return m_frame_evaluator(static_cast<double>(current));
-        if constexpr (std::is_same_v<T, f32>) {
-            if (m_scalar_driver) return evaluate(static_cast<double>(current));
-        }
-        return evaluate_base_double(static_cast<double>(current));
-    }
     [[nodiscard]] bool empty() const {
         return m_keyframes.empty() && !m_scalar_driver && !m_frame_evaluator;
     }
@@ -399,13 +392,7 @@ public:
         return is_animated() || has_expression();
     }
 
-    /**
-     * @brief Determines if evaluating this property at a specific frame is "expensive"
-     * enough to justify caching.
-     */
-    [[nodiscard]] bool should_cache(Frame frame) const { return should_cache_double(static_cast<double>(frame)); }
 
-    [[nodiscard]] bool should_cache(const SampleTime& time) const { return should_cache_double(time.frame); }
 
     /// Returns the time (frame) of the first keyframe, or Frame{0} if empty.
     [[nodiscard]] Frame first_keyframe_time() const {
@@ -584,6 +571,7 @@ private:
         return base;
     }
 
+
     // Check if any handle is non-zero (spatial bezier mode). Body in evaluation.inl.
     [[nodiscard]] static bool has_spatial_handles(const Keyframe<T>& kf);
 
@@ -598,10 +586,6 @@ private:
 
     bool should_cache_double(double frame) const;
 
-    // Legacy: delegates to double precision engine
-    [[nodiscard]] T evaluate_base(Frame frame) const {
-        return evaluate_base_double(static_cast<double>(frame));
-    }
 
     T m_default_value{};
     bool m_has_explicit_baseline{false};

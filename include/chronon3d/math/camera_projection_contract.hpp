@@ -109,11 +109,6 @@ struct ProjectionContractConfig {
     f32 near_epsilon{1e-4f};
 };
 
-/// Canonical default factory — trivial wrapper, kept for symmetry with the
-/// `LensPresets` namespace so authoring code can use a uniform style.
-[[nodiscard]] inline ProjectionContractConfig default_projection_contract_config() noexcept {
-    return {};
-}
 
 // ── Contract: focal length (x and y, per axis) ─────────────────────────────
 //

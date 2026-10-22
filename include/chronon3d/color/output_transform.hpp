@@ -378,23 +378,6 @@ inline uint8_t linear_to_rec709_u8(float v) {
     return static_cast<uint8_t>(std::clamp(std::round(encoded * 255.0f), 0.0f, 255.0f));
 }
 
-/// Linear → output uint8_t based on the configured ColorSpace.
-inline uint8_t linear_to_output_u8(float v, ColorSpace output) {
-    switch (output) {
-        case ColorSpace::SRGB:
-            return linear_to_srgb8(v);
-        case ColorSpace::Rec709:
-            return linear_to_rec709_u8(v);
-        case ColorSpace::LinearSRGB:
-            return static_cast<uint8_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
-        case ColorSpace::ACEScg:
-            throw std::invalid_argument("ACEScg requires the OCIO color transform");
-        case ColorSpace::LinearBT2020:
-        case ColorSpace::PQ:
-        case ColorSpace::HLG:
-            throw std::invalid_argument("HDR/wide-gamut output requires the float or 10-bit path");
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Color-level transforms

@@ -92,23 +92,6 @@ public:
         return it->second;
     }
 
-    [[nodiscard]] f32 require_float(std::string_view key) const {
-        const auto it = values_.find(key);
-        if (it == values_.end()) {
-            throw std::out_of_range(
-                std::string("ValueMap: missing required key: ") + std::string(key));
-        }
-
-        f32 value = 0.0f;
-        const auto [ptr, error] = std::from_chars(
-            it->second.data(), it->second.data() + it->second.size(), value);
-        if (error != std::errc{} || ptr != it->second.data() + it->second.size()) {
-            throw std::invalid_argument(
-                "ValueMap: cannot parse '" + it->second +
-                "' as float for key: " + std::string(key));
-        }
-        return value;
-    }
 
     [[nodiscard]] i32 require_int(std::string_view key) const {
         const auto it = values_.find(key);

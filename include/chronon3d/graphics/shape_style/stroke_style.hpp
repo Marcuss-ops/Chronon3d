@@ -42,46 +42,12 @@ struct StrokeStyle {
         return result;
     }
 
-    static StrokeStyle linear_gradient(
-        Vec2 from, Vec2 to, std::vector<GradientStop> stops,
-        f32 stroke_width = 1.0f,
-        GradientSpread spread = GradientSpread::Pad) {
-        StrokeStyle result;
-        result.enabled = true;
-        result.width = stroke_width;
-        result.gradient = GradientDefinition::linear(
-            from, to, std::move(stops), spread);
-        return result;
-    }
 
-    static StrokeStyle radial_gradient(
-        Vec2 center, f32 radius, std::vector<GradientStop> stops,
-        f32 stroke_width = 1.0f,
-        GradientSpread spread = GradientSpread::Pad) {
-        StrokeStyle result;
-        result.enabled = true;
-        result.width = stroke_width;
-        result.gradient = GradientDefinition::radial(
-            center, radius, std::move(stops), spread);
-        return result;
-    }
 
-    static StrokeStyle conic_gradient(
-        Vec2 center, f32 angle_rad, std::vector<GradientStop> stops,
-        f32 stroke_width = 1.0f,
-        GradientSpread spread = GradientSpread::Pad) {
-        StrokeStyle result;
-        result.enabled = true;
-        result.width = stroke_width;
-        result.gradient = GradientDefinition::conic(
-            center, angle_rad, std::move(stops), spread);
-        return result;
-    }
 
     [[nodiscard]] bool is_solid() const noexcept {
         return !gradient.has_value() && !brush.has_value();
     }
-    [[nodiscard]] bool is_gradient() const noexcept { return gradient.has_value(); }
 
     [[nodiscard]] ShapeStroke to_shape_stroke() const;
     [[nodiscard]] PathStroke to_path_stroke() const;

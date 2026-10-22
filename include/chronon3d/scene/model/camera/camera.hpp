@@ -39,17 +39,7 @@ public:
         set_rotation_euler(euler);
     }
 
-    void add_tilt(f32 delta_degrees) {
-        Vec3 euler = rotation_euler();
-        euler.x += delta_degrees;
-        set_rotation_euler(euler);
-    }
 
-    void set_pan(f32 degrees) {
-        Vec3 euler = rotation_euler();
-        euler.y = degrees;
-        set_rotation_euler(euler);
-    }
 
     void add_pan(f32 delta_degrees) {
         Vec3 euler = rotation_euler();
@@ -57,11 +47,6 @@ public:
         set_rotation_euler(euler);
     }
 
-    void set_roll(f32 degrees) {
-        Vec3 euler = rotation_euler();
-        euler.z = degrees;
-        set_rotation_euler(euler);
-    }
 
     void add_roll(f32 delta_degrees) {
         Vec3 euler = rotation_euler();

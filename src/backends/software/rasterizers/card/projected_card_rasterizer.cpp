@@ -120,29 +120,6 @@ static void fill_triangle_flat(Framebuffer& fb, Vec2 v0, Vec2 v1, Vec2 v2, const
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-void fill_projected_card(
-    Framebuffer& fb,
-    const rendering::ProjectedCard& card,
-    const Color& color,
-    std::span<float> depth_buffer
-) {
-    if (!card.visible || color.a <= 0.0f) return;
-    // TL=0, TR=1, BR=2, BL=3
-
-    if (depth_buffer.empty()) {
-        // Legacy path: no depth test
-        fill_triangle_flat(fb, {card.corners[0].x, card.corners[0].y},
-                                {card.corners[1].x, card.corners[1].y},
-                                {card.corners[2].x, card.corners[2].y}, color);
-        fill_triangle_flat(fb, {card.corners[0].x, card.corners[0].y},
-                                {card.corners[2].x, card.corners[2].y},
-                                {card.corners[3].x, card.corners[3].y}, color);
-    } else {
-        // Depth-tested path
-        fill_triangle_depth(fb, card.corners[0], card.corners[1], card.corners[2], color, depth_buffer);
-        fill_triangle_depth(fb, card.corners[0], card.corners[2], card.corners[3], color, depth_buffer);
-    }
-}
 
 void composite_projected_framebuffer(Framebuffer& dst, const Framebuffer& src,
                                      const rendering::ProjectedCard& card, float opacity,

@@ -210,13 +210,11 @@ public:
     void set_tune_mode(TuneMode mode) noexcept { m_tune_mode = mode; }
     [[nodiscard]] TuneMode tune_mode() const noexcept { return m_tune_mode; }
     void set_tune_config(TuneConfig cfg) noexcept { m_tune_config = std::move(cfg); }
-    [[nodiscard]] const TuneConfig& tune_config() const noexcept { return m_tune_config; }
 
     // ── Telemetry coupling ──────────────────────────────────────────────
     /// Bind a chronon3d::RenderCounters instance (may be nullptr).  Hit,
     /// miss, and eviction events bump the corresponding atomic counters.
     void set_counters(chronon3d::RenderCounters* counters) noexcept { m_counters = counters; }
-    void set_log_label(std::string label) { m_log_label = std::move(label); }
 
     // ── Eviction callback ───────────────────────────────────────────────
     /// Fired for every capacity-driven eviction AND every explicit erase.

@@ -43,9 +43,6 @@ struct TextRenderResources {
         debug_io_fence.store(on, std::memory_order_release);
     }
 
-    [[nodiscard]] bool is_debug_io_fence_active() const noexcept {
-        return debug_io_fence.load(std::memory_order_acquire);
-    }
 
     void bind_fences() noexcept {
         bl_faces.set_fence(&debug_io_fence);
@@ -63,9 +60,6 @@ struct TextRenderResources {
     std::unique_ptr<detail::TextRasterCache> raster_cache;
 
     void set_raster_cache_capacity(size_t max_bytes);
-    void clear_raster_cache();
-    std::shared_ptr<TextRasterization> lookup_raster_cache(uint64_t key);
-    void store_raster_cache(uint64_t key, std::shared_ptr<TextRasterization> result);
 
     std::unique_ptr<detail::GlyphAtlasCache> glyph_atlas;
 

@@ -52,66 +52,11 @@ inline void draw_stroked_rounded_rect(LayerBuilder& l,
     l.rounded_rect(std::move(name), p);
 }
 
-inline void draw_stroked_circle(LayerBuilder& l,
-                                std::string name,
-                                f32 radius,
-                                Color fill_color,
-                                Color stroke_color,
-                                f32 stroke_width) {
-    CircleParams p;
-    p.radius = radius;
-    p.color = fill_color;
-    p.fill = FillStyle::solid(fill_color);
-    p.stroke.enabled = stroke_width > 0.0f;
-    p.stroke.color = stroke_color;
-    p.stroke.width = stroke_width;
-    p.stroke.alignment = StrokeAlignment::Center;
-    l.circle(std::move(name), p);
-}
 
-inline void draw_premium_pill(LayerBuilder& l, std::string name, const PremiumPillStyle& style) {
-    draw_stroked_rounded_rect(
-        l,
-        std::move(name),
-        style.size,
-        style.radius,
-        style.fill,
-        style.stroke,
-        style.stroke_width,
-        style.stroke_alignment
-    );
-}
 
 // ── Decorative helpers ──────────────────────────────────────────────────────
 
-inline void draw_premium_asterisk(LayerBuilder& l,
-                                  std::string name,
-                                  Vec3 pos,
-                                  Color color,
-                                  f32 outer_radius = 42.0f,
-                                  f32 inner_radius = 12.0f) {
-    l.star(std::move(name), {
-        .center = {pos.x, pos.y},
-        .points = 8,
-        .inner_radius = inner_radius,
-        .outer_radius = outer_radius,
-        .color = color
-    });
-}
 
-inline void draw_sparkle_4point(LayerBuilder& l,
-                                std::string name,
-                                Vec3 pos,
-                                Color color,
-                                f32 size = 30.0f) {
-    l.star(std::move(name), {
-        .center = {pos.x, pos.y},
-        .points = 4,
-        .inner_radius = size * 0.22f,
-        .outer_radius = size,
-        .color = color
-    });
-}
 
 // ── Post-effect pipeline ────────────────────────────────────────────────────
 
@@ -125,48 +70,13 @@ struct PostEffectPipeline {
     f32 tint_amount{0.0f};
 };
 
-inline void apply_post_pipeline(LayerBuilder& l, const PostEffectPipeline& pipe) {
-    if (pipe.enable_bloom) {
-        l.bloom(pipe.bloom_threshold, pipe.bloom_radius, pipe.bloom_intensity);
-    }
-    if (pipe.enable_tint) {
-        l.tint(pipe.tint_color, pipe.tint_amount);
-    }
-}
 
 // ── Pre-built TextMaterial presets ──────────────────────────────────────────
 
 namespace Materials {
 
-inline TextMaterial HotPinkFlatGlow() {
-    TextMaterial m;
-    m.enabled = true;
-    m.top_color = {1.0f, 0.0f, 0.78f, 1.0f};
-    m.bottom_color = {0.8f, 0.0f, 0.6f, 1.0f};
-    m.emissive = 1.2f;
-    return m;
-}
 
-inline TextMaterial GlossyBlueTitle() {
-    TextMaterial m;
-    m.enabled = true;
-    m.top_color = {0.0f, 0.8f, 1.0f, 1.0f};
-    m.bottom_color = {0.0f, 0.4f, 0.8f, 1.0f};
-    m.bevel_px = 1.5f;
-    m.emissive = 1.1f;
-    return m;
-}
 
-inline TextMaterial DarkGlassTitle() {
-    TextMaterial m;
-    m.enabled = true;
-    m.top_color = {0.98f, 0.95f, 1.0f, 0.92f};
-    m.bottom_color = {0.80f, 0.82f, 0.95f, 0.78f};
-    m.bevel_px = 1.0f;
-    m.top_highlight_opacity = 0.20f;
-    m.bottom_shade_opacity = 0.10f;
-    return m;
-}
 
 } // namespace Materials
 

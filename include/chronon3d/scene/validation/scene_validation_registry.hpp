@@ -58,8 +58,6 @@ public:
     void run_all(const Scene& scene,
                  std::vector<ValidationDiagnostic>& diagnostics) const;
 
-    /// Register the built-in validation rules.
-    void register_builtins();
 
 private:
     std::map<std::string, std::unique_ptr<SceneValidationRule>, std::less<>> m_rules;

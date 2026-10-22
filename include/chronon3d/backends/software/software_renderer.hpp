@@ -46,7 +46,6 @@ public:
     void set_settings(const RenderSettings& settings);
     void set_motion_blur(MotionBlurSettings mb);
     void set_diagnostic_mode(bool enabled);
-    [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
     void reset_counters();
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
     void clear_caches();
@@ -171,8 +170,6 @@ public:
                                 bool graph_reused,
                                 graph::FrameExecutionPath path = graph::FrameExecutionPath::FullRgb);
 
-private:
-    void preflight_images(const Scene& scene);
     void rebind_execution_context_views() noexcept;
     Config            m_config;
     RenderSettings    m_settings{};

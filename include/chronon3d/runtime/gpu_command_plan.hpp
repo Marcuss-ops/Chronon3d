@@ -336,10 +336,6 @@ public:
         m_execution_decision = decision;
     }
 
-    void set_dynamic_parameters(
-        std::shared_ptr<const ::chronon3d::graph::FrameParameterTable> parameters) {
-        m_dynamic_parameters = std::move(parameters);
-    }
 
     void declare_surface(RenderSurfaceHandle handle, ResourceDesc desc) {
         declare_surface(handle, std::move(desc), std::nullopt, std::nullopt);
@@ -366,14 +362,10 @@ public:
     void bloom(BloomPass pass) { append(GpuPass{GpuPassKind::Bloom, std::move(pass)}); }
     void color_adjust(ColorAdjustPass pass) { append(GpuPass{GpuPassKind::ColorAdjust, std::move(pass)}); }
     void matte(MattePass pass) { append(GpuPass{GpuPassKind::Matte, std::move(pass)}); }
-    void fused_composite(FusedCompositePass pass) { append(GpuPass{GpuPassKind::FusedComposite, std::move(pass)}); }
     void layer_batch(LayerBatchPass pass) { append(GpuPass{GpuPassKind::LayerBatch, std::move(pass)}); }
     void scale(ScalePass pass) { append(GpuPass{GpuPassKind::Scale, std::move(pass)}); }
     void yuv_overlay(YuvOverlayPass pass) { append(GpuPass{GpuPassKind::YuvOverlay, std::move(pass)}); }
 
-    void bind_last_pass_parameters(::chronon3d::graph::FrameParameterSlice slice) {
-        if (!m_passes.empty()) m_passes.back().dynamic_parameters = slice;
-    }
 
     [[nodiscard]] std::size_t pass_count() const noexcept { return m_passes.size(); }
 

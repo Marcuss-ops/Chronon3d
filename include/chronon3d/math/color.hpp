@@ -156,14 +156,7 @@ struct Color {
         return {out_r, out_g, out_b, a};
     }
 
-    // Fast approximations (gamma 2.2)
-    [[nodiscard]] Color to_linear_fast() const {
-        return {std::pow(r, 2.2f), std::pow(g, 2.2f), std::pow(b, 2.2f), a};
-    }
 
-    [[nodiscard]] Color to_srgb_fast() const {
-        return {std::pow(r, 1.0f / 2.2f), std::pow(g, 1.0f / 2.2f), std::pow(b, 1.0f / 2.2f), a};
-    }
 
     [[nodiscard]] static u8 linear_to_srgb8(f32 value) {
         return color_detail::linear_to_srgb8_fast(value);

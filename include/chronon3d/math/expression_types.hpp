@@ -68,9 +68,6 @@ inline constexpr double seeded_random(unsigned int seed) {
     return static_cast<double>(x % 100000u) / 100000.0;
 }
 
-inline constexpr double random_range(double lo, double hi, unsigned int seed) {
-    return lo + (hi - lo) * seeded_random(seed);
-}
 
 // Wiggle: multi-octave smooth noise, identical to wiggle.hpp but double precision.
 inline double wiggle_impl(double freq, double amp, double time, unsigned int seed) {

@@ -57,20 +57,6 @@ inline bool TracingActive() {
 inline constexpr std::uint64_t kVulkanQueueTrackId =
     static_cast<std::uint64_t>(0x4348524F4E4F4E56ULL);  // "CHRONONV"
 
-/// Name the dedicated GPU track.  Safe to call before a trace session
-/// starts; the descriptor persists in the Perfetto track registry and is
-/// emitted when the track is first used.  No-op when tracing is compiled
-/// out.
-inline void RegisterVulkanQueueTrack() {
-#ifdef CHRONON3D_ENABLE_TRACING
-    const auto track = ::perfetto::Track(kVulkanQueueTrackId);
-    auto desc = track.Serialize();
-    desc.set_name("Chronon Vulkan Queue");
-    ::perfetto::TrackEvent::SetTrackDescriptor(track, desc);
-#else
-    (void)0;
-#endif
-}
 
 } // namespace chronon3d::tracing
 

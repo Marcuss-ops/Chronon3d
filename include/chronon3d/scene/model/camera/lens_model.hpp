@@ -127,16 +127,7 @@ struct LensModel {
         return 2.0f * std::atan(sensor_width * 0.5f / focal_length) * 180.0f / glm::pi<f32>();
     }
 
-    /// Vertical field of view in degrees.
-    [[nodiscard]] f32 vertical_fov_deg() const {
-        if (focal_length <= 0.0f) return 0.0f;
-        return 2.0f * std::atan(sensor_height * 0.5f / focal_length) * 180.0f / glm::pi<f32>();
-    }
 
-    /// Aperture diameter in mm (focal_length / f_stop).
-    [[nodiscard]] f32 aperture_diameter_mm() const {
-        return f_stop > 0.0f ? focal_length / f_stop : 0.0f;
-    }
 
     /// Convert lens focal length to effective focal length in pixels
     /// for a viewport of given width and height.
@@ -276,17 +267,6 @@ inline LensModel arri_35mm() {
     return l;
 }
 
-/// RED Helium 8K — S35 sensor, typical for documentary / commercial work.
-inline LensModel red_helium_50mm() {
-    LensModel l;
-    l.focal_length   = 50.0f;
-    l.f_stop         = 2.8f;
-    l.close_focus    = 450.0f;
-    l.sensor_width   = 29.90f;
-    l.sensor_height  = 15.77f;
-    l.gate_fit       = GateFit::Fill;
-    return l;
-}
 
 /// Full-frame 35mm stills camera (36×24mm) with a 50mm normal lens.
 inline LensModel full_frame_50mm() {
@@ -300,41 +280,9 @@ inline LensModel full_frame_50mm() {
     return l;
 }
 
-/// Full-frame 35mm with 35mm wide-angle lens.
-inline LensModel full_frame_35mm() {
-    LensModel l = full_frame_50mm();
-    l.focal_length  = 35.0f;
-    l.f_stop        = 1.4f;
-    l.close_focus   = 300.0f;
-    return l;
-}
 
-/// Full-frame 35mm with 85mm portrait lens.
-inline LensModel full_frame_85mm() {
-    LensModel l = full_frame_50mm();
-    l.focal_length  = 85.0f;
-    l.f_stop        = 1.4f;
-    l.close_focus   = 850.0f;
-    return l;
-}
 
-/// Full-frame 35mm with 24mm ultra-wide lens.
-inline LensModel full_frame_24mm() {
-    LensModel l = full_frame_50mm();
-    l.focal_length  = 24.0f;
-    l.f_stop        = 1.4f;
-    l.close_focus   = 250.0f;
-    return l;
-}
 
-/// Full-frame 35mm with 135mm telephoto lens.
-inline LensModel full_frame_135mm() {
-    LensModel l = full_frame_50mm();
-    l.focal_length  = 135.0f;
-    l.f_stop        = 2.0f;
-    l.close_focus   = 1200.0f;
-    return l;
-}
 
 /// Anamorphic — 2× squeeze on 35mm film gate (21.95 × 18.59mm).
 /// Desqueezed FOV is 2× wider than spherical equivalent.
@@ -354,41 +302,8 @@ inline LensModel anamorphic_50mm() {
     return l;
 }
 
-/// Super 16mm film — 12.52 × 7.41mm, popular for indie/documentary.
-inline LensModel super16_12mm() {
-    LensModel l;
-    l.focal_length   = 12.0f;
-    l.f_stop         = 1.8f;
-    l.close_focus    = 150.0f;
-    l.sensor_width   = 12.52f;
-    l.sensor_height  = 7.41f;
-    l.gate_fit       = GateFit::Fill;
-    return l;
-}
 
-/// Micro Four Thirds — 17.3 × 13.0mm with 25mm normal lens.
-inline LensModel mft_25mm() {
-    LensModel l;
-    l.focal_length   = 25.0f;
-    l.f_stop         = 1.7f;
-    l.close_focus    = 250.0f;
-    l.sensor_width   = 17.3f;
-    l.sensor_height  = 13.0f;
-    l.gate_fit       = GateFit::Fill;
-    return l;
-}
 
-/// IMAX — 70mm horizontal (~52.63 × 22.06mm for IMAX 15/70).
-inline LensModel imax_50mm() {
-    LensModel l;
-    l.focal_length   = 50.0f;
-    l.f_stop         = 4.0f;
-    l.close_focus    = 1000.0f;
-    l.sensor_width   = 52.63f;
-    l.sensor_height  = 22.06f;
-    l.gate_fit       = GateFit::Fill;
-    return l;
-}
 
 } // namespace LensPresets
 

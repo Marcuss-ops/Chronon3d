@@ -47,31 +47,11 @@ struct KernelTestCase {
     return error <= tolerance.absolute + tolerance.relative * std::fabs(reference);
 }
 
-[[nodiscard]] inline bool compare_float_buffer(const float* actual,
-                                                const float* reference,
-                                                std::size_t count,
-                                                KernelTolerance tolerance) noexcept {
-    for (std::size_t i = 0; i < count; ++i) {
-        if (!values_match(actual[i], reference[i], tolerance)) return false;
-    }
-    return true;
-}
 
 struct KernelBenchmarkResult {
     double elapsed_ms{0.0};
     double ns_per_element{0.0};
 };
 
-template <typename Fn>
-[[nodiscard]] KernelBenchmarkResult benchmark_kernel(Fn&& fn,
-                                                       std::size_t elements,
-                                                       std::size_t iterations = 1) {
-    const auto start = std::chrono::steady_clock::now();
-    for (std::size_t i = 0; i < iterations; ++i) fn();
-    const auto elapsed = std::chrono::duration<double, std::milli>(
-        std::chrono::steady_clock::now() - start).count();
-    const auto total = elements * iterations;
-    return {elapsed, total == 0 ? 0.0 : elapsed * 1'000'000.0 / total};
-}
 
 } // namespace chronon3d::simd

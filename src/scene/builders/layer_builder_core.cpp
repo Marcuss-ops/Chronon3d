@@ -181,7 +181,6 @@ AnimatedValue<Vec3>& LayerBuilder::position_anim() { return m_layer.anim_transfo
 AnimatedValue<Vec3>& LayerBuilder::scale_anim()    { return m_layer.anim_transform.scale; }
 AnimatedValue<Vec3>& LayerBuilder::rotate_anim()   { return m_layer.anim_transform.rotation_euler; }
 AnimatedValue<Vec3>& LayerBuilder::skew_anim()      { return m_layer.anim_transform.skew; }
-AnimatedValue<Vec3>& LayerBuilder::anchor_anim()   { return m_layer.anim_transform.anchor; }
 AnimatedValue<f32>&  LayerBuilder::opacity_anim()  { return m_layer.anim_transform.opacity; }
 AnimatedValue<f32>&  LayerBuilder::blur_anim()    { return m_layer.anim_transform.blur; }
 

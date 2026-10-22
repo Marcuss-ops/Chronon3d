@@ -21,22 +21,6 @@ namespace chronon3d::graphics {
 //  FillStyle / GradientDefinition interpolation (animation helpers)
 // ══════════════════════════════════════════════════════════════════════
 
-/// Lerp two GradientStop values by position and colour.
-[[nodiscard]] inline GradientStop lerp_gradient_stop(
-    const GradientStop& a,
-    const GradientStop& b,
-    f32 t) noexcept
-{
-    return {
-        a.position + (b.position - a.position) * t,
-        {
-            a.color.r + (b.color.r - a.color.r) * t,
-            a.color.g + (b.color.g - a.color.g) * t,
-            a.color.b + (b.color.b - a.color.b) * t,
-            a.color.a + (b.color.a - a.color.a) * t,
-        }
-    };
-}
 
 namespace detail {
 

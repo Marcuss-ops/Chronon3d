@@ -398,15 +398,6 @@ struct RenderPhaseTimings {
     double encode_ms{0.0};
     double disk_io_ms{0.0};
 
-    [[nodiscard]] std::vector<PhaseTelemetryRecord> to_phase_records() const {
-        return {
-            {kSceneEval,   scene_eval_ms},
-            {kGpuRender,   gpu_render_ms},
-            {kGpuReadback, gpu_readback_ms},
-            {kEncode,      encode_ms},
-            {kDiskIo,      disk_io_ms},
-        };
-    }
 };
 
 struct CounterTelemetryRecord {

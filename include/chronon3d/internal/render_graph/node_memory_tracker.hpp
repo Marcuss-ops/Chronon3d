@@ -343,7 +343,6 @@ public:
             shard_locks[i] = std::unique_lock(m_node_shards[i].mutex);
         }
         std::lock_guard sample_lock(m_mutex);
-        std::lock_guard metadata_lock(m_metadata_mutex);
         NodeMemoryReport report;
         std::size_t node_count = 0;
         for (const auto& shard : m_node_shards) node_count += shard.nodes.size();
@@ -385,7 +384,6 @@ public:
             shard_locks[i] = std::unique_lock(m_node_shards[i].mutex);
         }
         std::lock_guard sample_lock(m_mutex);
-        std::lock_guard metadata_lock(m_metadata_mutex);
         for (auto& shard : m_node_shards) shard.nodes.clear();
         m_samples.clear();
         m_pool = {};

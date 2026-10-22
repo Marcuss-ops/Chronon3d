@@ -112,8 +112,6 @@ private:
     mutable Map map_;
     std::chrono::milliseconds ttl_;
 
-    // Compute a fresh entry by stat. Caller holds the unique lock.
-    Entry stat_locked(const std::filesystem::path& path) const;
 };
 
 } // namespace chronon3d::preflight

@@ -160,23 +160,6 @@ struct RenderDiagnostic {
     std::string message;          ///< Free-form, never empty in practice.
 };
 
-// Render diagnostic compatibility boundary. The diagnostic code remains a
-// stable detail enum, but aggregate construction is exposed through one
-// named adapter for future producers.
-[[nodiscard]] inline RenderDiagnostic make_render_diagnostic(
-    RenderDiagnosticCode code,
-    RenderDiagnosticSeverity severity,
-    RenderStage stage,
-    chronon3d::Frame frame,
-    std::string composition_id,
-    std::string message) {
-    return RenderDiagnostic{
-        code, severity, stage, frame,
-        chronon3d::graph::kInvalidGraphInstanceId,
-        chronon3d::graph::kInvalidStableNodeId,
-        std::move(composition_id), std::move(message)
-    };
-}
 
 /// Aggregate error report.  Carries the categorical `code` + `stage`
 /// + `frame` of the primary failure, plus a free-form `message` and a
@@ -209,43 +192,7 @@ struct RenderOutput {
 // for logging / diagnostics only, never for equality.  Enum storage
 // type may evolve, order is the contract.
 
-inline const char* render_diagnostic_severity_name(RenderDiagnosticSeverity s) noexcept {
-    switch (s) {
-        case RenderDiagnosticSeverity::Info:    return "Info";
-        case RenderDiagnosticSeverity::Warning: return "Warning";
-        case RenderDiagnosticSeverity::Error:   return "Error";
-        case RenderDiagnosticSeverity::Fatal:   return "Fatal";
-    }
-    return "Unknown";
-}
 
-inline const char* render_diagnostic_code_name(RenderDiagnosticCode c) noexcept {
-    switch (c) {
-        case RenderDiagnosticCode::MissingRegistry:       return "MissingRegistry";
-        case RenderDiagnosticCode::UnknownComposition:    return "UnknownComposition";
-        case RenderDiagnosticCode::MissingExecutor:       return "MissingExecutor";
-        case RenderDiagnosticCode::MissingScheduler:      return "MissingScheduler";
-        case RenderDiagnosticCode::MissingFontEngine:     return "MissingFontEngine";
-        case RenderDiagnosticCode::ScopeChainLimit:       return "ScopeChainLimit";
-        case RenderDiagnosticCode::RecursivePrecomp:      return "RecursivePrecomp";
-        case RenderDiagnosticCode::ProgramCompileFailure: return "ProgramCompileFailure";
-        case RenderDiagnosticCode::InvalidCameraProgram:  return "InvalidCameraProgram";
-        case RenderDiagnosticCode::AssetResolutionFailure:return "AssetResolutionFailure";
-    }
-    return "Unknown";
-}
 
-inline const char* render_stage_name(RenderStage s) noexcept {
-    switch (s) {
-        case RenderStage::CompositionCompile:  return "CompositionCompile";
-        case RenderStage::CompositionEvaluate: return "CompositionEvaluate";
-        case RenderStage::GraphCompile:        return "GraphCompile";
-        case RenderStage::NodeExecute:         return "NodeExecute";
-        case RenderStage::PrecompExecute:      return "PrecompExecute";
-        case RenderStage::BackendRender:       return "BackendRender";
-        case RenderStage::OutputEncode:        return "OutputEncode";
-    }
-    return "Unknown";
-}
 
 } // namespace chronon3d::render

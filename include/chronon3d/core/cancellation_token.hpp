@@ -151,7 +151,5 @@ private:
 /// (delegates to the process-wide SignalCancellationBridge).
 void install_signal_cancellation(CancellationToken& token);
 
-/// Restore default signal handlers and stop the bridge watcher.
-void restore_default_signal_handlers();
 
 } // namespace chronon3d

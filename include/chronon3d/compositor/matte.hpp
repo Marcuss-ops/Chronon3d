@@ -35,10 +35,6 @@ inline float coverage_luma(const Color& matte) {
     return std::clamp(0.2126f * matte.r + 0.7152f * matte.g + 0.0722f * matte.b, 0.0f, 1.0f);
 }
 
-/// Compute inverted luma coverage.
-inline float coverage_luma_inverted(const Color& matte) {
-    return std::clamp(1.0f - (0.2126f * matte.r + 0.7152f * matte.g + 0.0722f * matte.b), 0.0f, 1.0f);
-}
 
 /// Apply a coverage factor to a premultiplied Color in-place.
 inline void apply_coverage(Color& target, float coverage) {

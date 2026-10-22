@@ -41,11 +41,6 @@
 namespace chronon3d {
 namespace simd {
 
-/// Name of a `PixelKernelSet` (for diagnostics + gate audit logs).
-///
-/// Returns "scalar", "sse42", "avx2", "avx512", or "neon". Inverse of
-/// `CpuIsa` → human-readable.
-[[nodiscard]] const char* pixel_kernel_set_name(CpuIsa isa) noexcept;
 
 // ── kScalarSet — the ALWAYS-AVAILABLE reference binding ─────────────────
 ///

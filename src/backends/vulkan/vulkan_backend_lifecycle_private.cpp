@@ -879,7 +879,6 @@ namespace chronon3d::backends::vulkan {
                     calibration_max_deviation = max_deviation;
                     calibration_cpu_trace_ns = chronon3d::tracing::TraceTimeNs();
                     gpu_timestamps_calibrated = true;
-                    chronon3d::tracing::RegisterVulkanQueueTrack();
                 }
             }
         }

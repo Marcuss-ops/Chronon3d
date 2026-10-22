@@ -25,15 +25,6 @@ enum class TelemetryLevel : unsigned char {
 
 inline constexpr TelemetryLevel kDefaultTelemetryLevel = TelemetryLevel::Summary;
 
-[[nodiscard]] inline constexpr std::string_view telemetry_level_name(TelemetryLevel level) noexcept {
-    switch (level) {
-    case TelemetryLevel::Off:      return "off";
-    case TelemetryLevel::Summary:  return "summary";
-    case TelemetryLevel::Detailed: return "detailed";
-    case TelemetryLevel::Trace:    return "trace";
-    }
-    return "summary";
-}
 
 /// Parse the boundary-resolved level string (Config/CLI startup owns getenv;
 /// this function never touches the environment). Unknown/empty values fall

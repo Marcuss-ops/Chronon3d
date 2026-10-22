@@ -23,11 +23,6 @@ struct DistanceField2D {
                std::min(std::max(d.x, d.y), 0.0f);
     }
 
-    [[nodiscard]] static float rounded_box(Vec2 point, Vec2 center, Vec2 half_extents, float radius) noexcept {
-        const Vec2 d = glm::abs(point - center) - half_extents + Vec2{radius, radius};
-        return glm::length(glm::max(d, Vec2{0.0f, 0.0f})) +
-               std::min(std::max(d.x, d.y), 0.0f) - radius;
-    }
 
     [[nodiscard]] static float segment(Vec2 point, Vec2 a, Vec2 b) noexcept {
         const Vec2 pa = point - a;
@@ -51,13 +46,7 @@ struct DistanceField2D {
         return std::min(d1, d2);
     }
 
-    [[nodiscard]] static float subtract_op(float d1, float d2) noexcept {
-        return std::max(d1, -d2);
-    }
 
-    [[nodiscard]] static float intersect_op(float d1, float d2) noexcept {
-        return std::max(d1, d2);
-    }
 
     /// Polynomial smooth minimum for organic shape fusion (e.g. metaball typography)
     [[nodiscard]] static float smooth_union(float d1, float d2, float k = 0.1f) noexcept {

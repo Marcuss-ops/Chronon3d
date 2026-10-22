@@ -54,9 +54,6 @@ inline void framebuffer_validate_dimensions(i32 width, i32 height) {
     }
 }
 
-inline bool framebuffer_is_clear_color(const Color& color) {
-    return color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f;
-}
 
 // ── Clear helpers ──────────────────────────────────────────────────
 

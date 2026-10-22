@@ -296,19 +296,5 @@ inline bool solve_homography_4pt(const Vec2 src[4], const Vec2 dst[4], glm::mat3
     return true;
 }
 
-inline Mat4 pack_homography_3x3_to_4x4(const glm::mat3& h) {
-    Mat4 out(1.0f);
-    out[0][0] = h[0][0];
-    out[0][1] = h[0][1];
-    out[0][3] = h[0][2];
-    out[1][0] = h[1][0];
-    out[1][1] = h[1][1];
-    out[1][3] = h[1][2];
-    out[2][2] = 1.0f;
-    out[3][0] = h[2][0];
-    out[3][1] = h[2][1];
-    out[3][3] = h[2][2];
-    return out;
-}
 
 } // namespace chronon3d

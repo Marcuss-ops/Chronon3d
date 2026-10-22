@@ -53,19 +53,6 @@ const CompositionRegistry* RenderEngine::composition_registry() const noexcept {
 
 // ── Rendering ──────────────────────────────────────────────────────────────
 
-std::shared_ptr<Framebuffer> RenderEngine::render_scene(
-    const Scene& scene, const Camera& camera, i32 width, i32 height, float fps)
-{
-    return m_impl->m_pipeline->render_scene(scene, camera, width, height, fps);
-}
-
-std::shared_ptr<Framebuffer> RenderEngine::render_scene(
-    const Scene& scene, const std::optional<Camera2_5D>& camera,
-    i32 width, i32 height, float fps)
-{
-    return m_impl->m_pipeline->render_scene(scene, camera, width, height, fps);
-}
-
 std::shared_ptr<Framebuffer> RenderEngine::render(
     const Composition& comp, Frame frame)
 {

@@ -103,22 +103,7 @@ public:
         SoftMaskView source_mask,
         TemporalFlowOptions options = {});
 
-    /// Propagate one seed mask through an ordered clip in both directions.
-    /// Each interval is solved from its neighboring source/target frames; the
-    /// seed frame itself is returned with confidence 1 for finite mask pixels.
-    [[nodiscard]] static std::vector<PropagatedMask> propagate_sequence(
-        std::span<const TrackingFrameView> frames,
-        std::size_t seed_frame,
-        SoftMaskView seed_mask,
-        TemporalFlowOptions options = {});
 
-    /// Propagate through an ordered clip using authored correction mattes at
-    /// strictly increasing frame indices. Intervals are propagated from both
-    /// anchors and confidence-weighted together; anchor mattes are preserved.
-    [[nodiscard]] static std::vector<PropagatedMask> propagate_anchored_sequence(
-        std::span<const TrackingFrameView> frames,
-        std::span<const MaskAnchor> anchors,
-        TemporalFlowOptions options = {});
 };
 
 } // namespace chronon3d::media::tracking

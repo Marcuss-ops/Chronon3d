@@ -32,12 +32,6 @@ public:
     void reset() noexcept;
 
     [[nodiscard]] std::size_t busy_count() const noexcept;
-    /// Successful slot leases are fixed-storage pool hot-path events. This
-    /// counter makes them observable without misclassifying a lease as heap
-    /// allocation.
-    [[nodiscard]] std::uint64_t hot_path_allocation_events() const noexcept {
-        return hot_path_allocation_events_.load(std::memory_order_relaxed);
-    }
     void reset_hot_path_counters() noexcept {
         hot_path_allocation_events_.store(0, std::memory_order_relaxed);
     }

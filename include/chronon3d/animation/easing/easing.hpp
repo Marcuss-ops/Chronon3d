@@ -151,9 +151,6 @@ struct EasingCurve {
     constexpr EasingCurve(Easing e = Easing::Linear) : preset(e), cubic(std::nullopt) {}
     constexpr EasingCurve(CubicBezier cb) : preset(Easing::Linear), cubic(cb) {}
 
-    static EasingCurve preset_curve(Easing e) {
-        return EasingCurve(e);
-    }
 
     static EasingCurve cubic_bezier(f32 x1, f32 y1, f32 x2, f32 y2) {
         return EasingCurve(CubicBezier(x1, y1, x2, y2));
