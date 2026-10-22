@@ -49,6 +49,25 @@ may forgo an optimization for opaque full-frame images.
 4. Record same-SHA GPU/software timing, memory, fallback and copy metrics for
    those end-to-end cases before marking them certified.
 
+### Visual recheck of existing T17/T18 canaries (2026-10-22)
+
+The archived contact sheets were inspected without launching another render.
+In the T17 framing recheck, the avocado is clipped at the left edge by frame
+149 (`evidence/camera-authority-migration/T17/framing-recheck-20261021/contact.png`).
+In the T18 threepp canary, the moving subject becomes substantially occluded
+by the green foreground figure at frame 120 and is reduced to a visible leg by
+frame 149 (`ChrononMotion3D/out/threepp_certification/nvidia/T18/contact.png`).
+These observations confirm the existing composition/occlusion blockers; they
+do not identify a C3D renderer defect. The canaries still demonstrate motion,
+focus and access-order behavior, but T17/T18 need shot/framing corrections and
+RenderPlan/strict-native evidence before acceptance.
+
+The certification-scene sources were adjusted in the shared worktree after
+this review: T17's matched CameraRig/threepp FOV is now 48° (was 42°) to retain
+edge margin; T18's CameraRig arc now ends at 1.4 rad (about 64°) so it stays on
+the lead side of the crowd. Rebuild, GPU rerender, and frame review are pending;
+the prior images above are pre-fix and do not certify the adjustment.
+
 ## T16 Camera Truth follow-up (2026-10-19; updated 2026-10-21)
 
 A 150-frame T16 camera RenderPlan is authored at
@@ -361,3 +380,27 @@ T17/T18 and the broader certification remain open.
 - This closes full-sequence parity between the Chronon3d software and Vulkan
   backends for this RenderPlan. CAM-04 remains open because the threepp truth
   lane currently uses a separately authored scene, not the same RenderPlan.
+
+### T17/T18 camera reframe recheck (2026-10-22)
+
+Rebuilt the edited threepp canaries with `ChrononMotion3D/build/release-fast`
+and rendered both at 1920×1080, 30 fps, 150 frames on the NVIDIA RTX A4000.
+The samples and MP4s are in:
+
+- [`T17 reframe`](../../../ChrononMotion3D/out/threepp_certification/nvidia/T17-reframe-20261022/)
+- [`T18 reframe`](../../../ChrononMotion3D/out/threepp_certification/nvidia/T18-reframe-20261022/)
+
+T17's matched CameraRig/threepp FOV is 48°. The avocado is inside the frame
+through frame 149; all four focus ROIs follow their authored depth ordering,
+and random-access frame 77 matches sequential rendering. The encode submitted
+and muxed 150 frames. T17 remains `PARTIAL`: its diagnostic image review reads
+back 151 frames, `gpu_resident_zero_copy` is false, and no native C3D RenderPlan
+path or approved presentation-quality gate is connected.
+
+T18's CameraRig arc ends at 1.4 rad. The lead subject remains visible in the
+reviewed endpoint, and the 40-mannequin crowd, animated matte, particle timing,
+shadow toggle, and random-access frame 77 gates pass. It also encoded and muxed
+150 frames. T18 remains `PARTIAL`: its diagnostic pass reads back 151 frames;
+RenderPlan/strict-native integration, a temporal golden comparison, and
+zero-copy accounting are still absent. These renders verify the intended
+camera corrections without closing the wider T17/T18 tickets.

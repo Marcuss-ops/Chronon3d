@@ -23,6 +23,7 @@ struct FakeImage {
     VkImage image{VK_NULL_HANDLE};
     std::uint32_t width{0};
     std::uint32_t height{0};
+    bool exportable{false};
     bool initialized{false};
     runtime::TextAtlasEncoding text_atlas_encoding{
         runtime::TextAtlasEncoding::PremultipliedRGBA};
@@ -41,12 +42,13 @@ struct FakeSurfaceOwner {
     void make_image(FakeImage& image,
                     std::uint32_t width,
                     std::uint32_t height,
-                    bool,
+                    bool exportable,
                     VkFormat) {
         ++make_count;
         image.image = fake_vk_handle<VkImage>(make_count);
         image.width = width;
         image.height = height;
+        image.exportable = exportable;
         image.initialized = false;
     }
 
