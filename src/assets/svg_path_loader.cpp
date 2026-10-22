@@ -507,11 +507,11 @@ std::optional<std::string> validate_svg_subset(
         "fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity",
         "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter",
         "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
-        "stroke-miterlimit", "fill-rule", "color", "display", "visibility",
+        "stroke-miterlimit", "fill-rule", "color", "display", "visibility", "paint-order",
         "font-family", "font-size",
         "font-weight", "font-style", "direction", "text-anchor", "dominant-baseline", "baseline-shift"};
     static const std::set<std::string> unsupported_paint_attributes{
-        "clip-rule", "paint-order", "mix-blend-mode",
+        "clip-rule", "mix-blend-mode",
         "vector-effect"};
     const auto valid_unit_interval = [](const std::string& text) {
         try {
@@ -523,7 +523,14 @@ std::optional<std::string> validate_svg_subset(
             return false;
         }
     };
-    const auto valid_stroke_width = [](const std::string& text) {
+    const auto valid_stroke_width = [](std::string text) {
+        while (!text.empty() && (text.back() == ' ' || text.back() == '\t' || text.back() == '\r' || text.back() == '\n'))
+            text.pop_back();
+        if (text.size() >= 2 && (text.compare(text.size() - 2, 2, "px") == 0 || text.compare(text.size() - 2, 2, "pt") == 0)) {
+            text.resize(text.size() - 2);
+            while (!text.empty() && (text.back() == ' ' || text.back() == '\t'))
+                text.pop_back();
+        }
         try {
             std::size_t consumed = 0;
             const float value = std::stof(text, &consumed);
@@ -1504,7 +1511,14 @@ void collect_path_data(
             if (color) style.stroke.color = *color;
         }
         if (auto it = properties.find("stroke-width"); it != properties.end()) {
-            try { style.stroke.width = std::max(0.0f, std::stof(it->second)); } catch (...) {}
+            try {
+                auto val = it->second;
+                while (!val.empty() && (val.back() == ' ' || val.back() == '\t' || val.back() == '\r' || val.back() == '\n'))
+                    val.pop_back();
+                if (val.size() >= 2 && (val.compare(val.size() - 2, 2, "px") == 0 || val.compare(val.size() - 2, 2, "pt") == 0))
+                    val.resize(val.size() - 2);
+                style.stroke.width = std::max(0.0f, std::stof(val));
+            } catch (...) {}
         }
         if (auto it = properties.find("stroke-linecap"); it != properties.end()) {
             style.stroke.cap = it->second == "round" ? LineCap::Round
