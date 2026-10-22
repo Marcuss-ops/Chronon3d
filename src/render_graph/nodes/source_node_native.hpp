@@ -39,6 +39,9 @@ inline constexpr f32 kSeedFrameEpsilon = 1e-3f;
 [[nodiscard]] bool covers_full_frame_as_rectangle(
     const Mat4& matrix, f32 width, f32 height, bool centered = false);
 
+// Legacy Fill compatibility check remains centralized in source_node_execute.cpp.
+[[nodiscard]] bool has_native_solid_rect_fill(const ::chronon3d::RenderNode& node);
+
 // GPU solid-rect fast path — defined in source_node_native_rect.cpp.
 [[nodiscard]] bool try_native_rect_fill(
     RenderGraphContext& ctx, Framebuffer& fb,

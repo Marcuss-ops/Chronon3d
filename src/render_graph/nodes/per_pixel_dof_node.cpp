@@ -231,21 +231,53 @@ NodeExecResult PerPixelDofNode::execute(
     bool native_clone_failed = false;
     const auto clone_input = [&](const Framebuffer& input) {
         auto copy = ctx.acquire_owned_fb(input.width(), input.height(), false);
-        if (ctx.policy.require_native_gpu && ctx.backend &&
-            ctx.surface_registry && ctx.backend->supports_native_surfaces()) {
+        const bool has_native_source =
+            input.surface_handle() != runtime::kInvalidRenderSurfaceHandle;
+        const bool can_copy_native = ctx.backend && ctx.surface_registry &&
+            ctx.backend->supports_native_surfaces() &&
+            (ctx.policy.require_native_gpu || has_native_source);
+        if (can_copy_native) {
             auto& mutable_input = const_cast<Framebuffer&>(input);
             if (!ensure_native_surface(ctx, mutable_input,
-                                       "PerPixelDofNode.source") ||
-                !ensure_empty_native_surface(ctx, *copy)) {
+                                       "PerPixelDofNode.source")) {
+                native_clone_failed = true;
+                return OwnedFB{};
+            }
+            // A cropped framebuffer can still reference a full-canvas native
+            // image. Allocate the clone with the source image's physical
+            // extent; the framebuffer's logical extent/origin remain cropped.
+            // Allocating from input.width()/height() creates an incompatible
+            // small surface and makes a no-op DOF pass fail during the copy.
+            const auto source_record = ctx.surface_registry->lookup(
+                input.surface_handle());
+            if (!source_record) {
+                native_clone_failed = true;
+                return OwnedFB{};
+            }
+            const auto native_handle = ctx.surface_registry->create(
+                source_record->desc);
+            if (native_handle == runtime::kInvalidRenderSurfaceHandle) {
+                native_clone_failed = true;
+                return OwnedFB{};
+            }
+            copy->set_surface_handle(native_handle);
+            const auto created = ctx.backend->create_surface(
+                native_handle, source_record->desc);
+            if (!created.ok()) {
+                (void)ctx.backend->release_surface(native_handle);
+                (void)ctx.surface_registry->release(native_handle);
+                copy->clear_surface_handle();
                 native_clone_failed = true;
                 return OwnedFB{};
             }
             const auto copied = ctx.backend->copy_surface(
-                copy->surface_handle(), input.surface_handle());
+                native_handle, input.surface_handle());
             if (!copied.ok()) {
                 spdlog::error("[PerPixelDofNode] native pass-through copy failed: {}",
                               copied.error().message);
-                release_native_surface(ctx, *copy);
+                (void)ctx.backend->release_surface(native_handle);
+                (void)ctx.surface_registry->release(native_handle);
+                copy->clear_surface_handle();
                 native_clone_failed = true;
                 return OwnedFB{};
             }
@@ -340,7 +372,9 @@ NodeExecResult PerPixelDofNode::execute(
         }
 
         auto blurred = clone_input(*inputs[0]);
-        if (!blurred || native_clone_failed) {
+        if (!blurred || native_clone_failed ||
+            !ensure_native_surface(ctx, *blurred,
+                                   "PerPixelDofNode.native_blur_source")) {
             return NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
                 "PerPixelDofNode",
@@ -368,7 +402,10 @@ NodeExecResult PerPixelDofNode::execute(
             : horizontal;
         release_native_surface(ctx, *scratch);
         if (!horizontal.ok() || !vertical.ok()) {
-            spdlog::error("[PerPixelDofNode] native DOF blur failed");
+            spdlog::error(
+                "[PerPixelDofNode] native DOF blur failed: horizontal='{}' vertical='{}'",
+                horizontal.ok() ? "ok" : horizontal.error().message,
+                vertical.ok() ? "ok" : vertical.error().message);
             release_native_surface(ctx, *blurred);
             return NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,

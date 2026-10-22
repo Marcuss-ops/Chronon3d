@@ -1,0 +1,84 @@
+{
+  "backend": "Vulkan require_gpu_native_full_graph + native h264_nvenc",
+  "frames": [
+    0,
+    30,
+    75,
+    120,
+    149
+  ],
+  "resolution": "1920x1080",
+  "fps": 30,
+  "method": "decoded H.264 frames; mean absolute horizontal/vertical luminance neighbor gradient over fixed ROIs",
+  "rois_xywh": {
+    "face": [
+      1330,
+      80,
+      520,
+      740
+    ],
+    "title": [
+      80,
+      690,
+      1240,
+      360
+    ]
+  },
+  "samples": [
+    {
+      "frame": 0,
+      "face_roi_mean_neighbor_gradient_off": 3.3590855598449707,
+      "face_roi_mean_neighbor_gradient_on": 2.741400718688965,
+      "face_roi_on_off_ratio": 0.8161151807087303,
+      "title_roi_mean_neighbor_gradient_off": 1.5998491048812866,
+      "title_roi_mean_neighbor_gradient_on": 1.5754517316818237,
+      "title_roi_on_off_ratio": 0.9847502035504322,
+      "rgb_mae_off_on": 0.7531068325042725
+    },
+    {
+      "frame": 30,
+      "face_roi_mean_neighbor_gradient_off": 3.5607409477233887,
+      "face_roi_mean_neighbor_gradient_on": 2.90352463722229,
+      "face_roi_on_off_ratio": 0.8154270922400858,
+      "title_roi_mean_neighbor_gradient_off": 1.7150373458862305,
+      "title_roi_mean_neighbor_gradient_on": 1.6841132640838623,
+      "title_roi_on_off_ratio": 0.9819688580679924,
+      "rgb_mae_off_on": 0.8355132937431335
+    },
+    {
+      "frame": 75,
+      "face_roi_mean_neighbor_gradient_off": 3.453921318054199,
+      "face_roi_mean_neighbor_gradient_on": 2.7667746543884277,
+      "face_roi_on_off_ratio": 0.8010531797369135,
+      "title_roi_mean_neighbor_gradient_off": 1.8240495920181274,
+      "title_roi_mean_neighbor_gradient_on": 1.789684534072876,
+      "title_roi_on_off_ratio": 0.9811600199382573,
+      "rgb_mae_off_on": 0.8834652900695801
+    },
+    {
+      "frame": 120,
+      "face_roi_mean_neighbor_gradient_off": 3.1064181327819824,
+      "face_roi_mean_neighbor_gradient_on": 2.5002002716064453,
+      "face_roi_on_off_ratio": 0.8048498832857917,
+      "title_roi_mean_neighbor_gradient_off": 1.7994697093963623,
+      "title_roi_mean_neighbor_gradient_on": 1.7777838706970215,
+      "title_roi_on_off_ratio": 0.9879487614678352,
+      "rgb_mae_off_on": 1.2331942319869995
+    },
+    {
+      "frame": 149,
+      "face_roi_mean_neighbor_gradient_off": 3.467365264892578,
+      "face_roi_mean_neighbor_gradient_on": 2.653104305267334,
+      "face_roi_on_off_ratio": 0.7651643546557617,
+      "title_roi_mean_neighbor_gradient_off": 1.8455479145050049,
+      "title_roi_mean_neighbor_gradient_on": 1.8047914505004883,
+      "title_roi_on_off_ratio": 0.9779163338517559,
+      "rgb_mae_off_on": 1.0637174844741821
+    }
+  ],
+  "mean_face_on_off_ratio": 0.8005219381254566,
+  "mean_face_sharpness_reduction_percent": 19.947806187454344,
+  "mean_title_on_off_ratio": 0.9827488353752546,
+  "mean_title_sharpness_reduction_percent": 1.7251164624745408,
+  "conclusion": "DoF selectively reduces face ROI sharpness across all five samples while keeping the title ROI substantially sharper."
+}

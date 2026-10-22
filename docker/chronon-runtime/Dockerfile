@@ -10,6 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV VCPKG_ROOT=/opt/vcpkg
 
 ARG VCPKG_REF
+ARG CHRONONMOTION_REF=a528e1bd83782e67426e4de3b759ef4a18094ad3
 
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build ccache git curl ca-certificates \
@@ -43,6 +44,10 @@ FROM deps AS builder
 WORKDIR /src/chronon3d
 COPY . .
 
+RUN git clone https://github.com/Marcuss-ops/ChrononMotion3d.git /src/chrononmotion \
+    && git -C /src/chrononmotion fetch --depth 1 origin "${CHRONONMOTION_REF}" \
+    && git -C /src/chrononmotion checkout --detach FETCH_HEAD
+
 RUN --mount=type=cache,id=chronon-ccache,target=/root/.cache/ccache \
     cmake -S . -B build/docker -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
@@ -61,7 +66,9 @@ RUN --mount=type=cache,id=chronon-ccache,target=/root/.cache/ccache \
         -DCHRONON3D_ENABLE_NATIVE_FFMPEG=ON \
         -DCHRONON3D_ENABLE_VULKAN=ON \
         -DCHRONON3D_USE_BLEND2D=ON \
-    && cmake --build build/docker --target chronon3d_cli chronon3d_c chronon3d_sdk_impl --parallel \
+        -DCHRONON3D_ENABLE_MOTION_ADAPTER=ON \
+        -DCHRONONMOTION_SOURCE_DIR=/src/chrononmotion \
+    && cmake --build build/docker --target chronon3d_cli chronon3d_c chronon3d_sdk_impl chronon3d_camera_plan_bake --parallel \
     && cmake --install build/docker --prefix /opt/chronon3d
 
 FROM debian:bookworm-slim

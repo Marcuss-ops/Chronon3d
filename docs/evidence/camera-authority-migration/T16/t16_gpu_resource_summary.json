@@ -1,0 +1,13 @@
+{
+  "device": "NVIDIA RTX A4000",
+  "sampling_interval_seconds": 0.2,
+  "sample_count": 17,
+  "wall_seconds": 5.595,
+  "system_vram_baseline_mib": 31,
+  "system_vram_peak_mib": 1056,
+  "system_vram_delta_mib": 1025,
+  "gpu_util_peak_percent": 66,
+  "gpu_util_mean_percent": 6.47,
+  "process_vram_observed_peak_mib": 993,
+  "note": "nvidia-smi polling; system VRAM delta is noisy and process VRAM may be absent for short-lived Vulkan/NVENC jobs"
+}

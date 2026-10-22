@@ -416,11 +416,19 @@ bool try_native_solid_rect(
         node.fill.gradient.color_stops.size() <= 3 &&
         node.fill.gradient.opacity_stops.empty() &&
         node.fill.gradient.spread == graphics::GradientSpread::Pad;
+    const bool native_radial_gradient = node.fill.enabled &&
+        node.fill.type == FillType::RadialGradient &&
+        node.fill.gradient.type == graphics::GradientType::Radial &&
+        node.fill.gradient.color_stops.size() >= 2 &&
+        node.fill.gradient.color_stops.size() <= 3 &&
+        node.fill.gradient.opacity_stops.empty() &&
+        node.fill.gradient.spread == graphics::GradientSpread::Pad;
+    const bool native_gradient = native_linear_gradient || native_radial_gradient;
     if ((type != ShapeType::Rect && type != ShapeType::RoundedRect &&
          type != ShapeType::Circle && type != ShapeType::Line) ||
-        (type != ShapeType::Line && !native_linear_gradient &&
+        (type != ShapeType::Line && !native_gradient &&
          node.fill.type != FillType::Solid && node.fill.enabled) ||
-        (native_linear_gradient && (type == ShapeType::Circle || type == ShapeType::Line)) ||
+        (native_gradient && (type == ShapeType::Circle || type == ShapeType::Line)) ||
         (graph::native_promotion::has_active_mask(state) &&
          (type == ShapeType::Line || (type != ShapeType::Circle &&
           type != ShapeType::Rect && type != ShapeType::RoundedRect))) ||
@@ -561,9 +569,11 @@ bool try_native_solid_rect(
     }
 
     std::array<Vec2, 8> vertices{};
-    if (native_linear_gradient) {
+    if (native_gradient) {
         if (has_stroke || graph::native_promotion::is_projected(state) ||
-            !orthogonal_affine || has_mask) return false;
+            !orthogonal_affine || has_mask) {
+            return false;
+        }
         const auto& gradient = node.fill.gradient;
         const auto project = [&state](Vec2 p, Vec2& result) {
             const Vec4 clip = state.matrix * Vec4(p, 0.0f, 1.0f);
@@ -572,11 +582,20 @@ bool try_native_solid_rect(
             result = Vec2{clip.x / clip.w, clip.y / clip.w};
             return std::isfinite(result.x) && std::isfinite(result.y);
         };
-        Vec2 start, end;
-        if (!project(gradient.start * size, start) ||
-            !project(gradient.end * size, end)) return false;
-        line_params = Vec4{start.x, start.y, end.x, end.y};
-        shape_params = Vec4{6.0f, 0.0f, 0.0f,
+        if (native_linear_gradient) {
+            Vec2 start, end;
+            if (!project(gradient.start * size, start) ||
+                !project(gradient.end * size, end)) return false;
+            line_params = Vec4{start.x, start.y, end.x, end.y};
+        } else {
+            Vec2 center;
+            if (!project(gradient.center * size, center) ||
+                !std::isfinite(gradient.radius) || gradient.radius <= 0.0f) return false;
+            const float radius = std::max(size.x, size.y) * basis_x * gradient.radius;
+            if (!std::isfinite(radius) || radius <= 0.0f) return false;
+            line_params = Vec4{center.x, center.y, radius, 0.0f};
+        }
+        shape_params = Vec4{native_linear_gradient ? 6.0f : 9.0f, 0.0f, 0.0f,
                             static_cast<float>(gradient.color_stops.size())};
         std::array<float, 16> packed{};
         for (std::size_t i = 0; i < gradient.color_stops.size(); ++i) {
@@ -596,7 +615,7 @@ bool try_native_solid_rect(
         }
         for (std::size_t i = 0; i < packed.size(); ++i)
             vertices[i / 2][i % 2] = packed[i];
-        // Native shader kind 6 uses rounded-rect SDF with one uniform radius.
+        // Native shader kinds 6 and 9 use rounded-rect SDF with one uniform radius.
         if (type == ShapeType::RoundedRect) {
             shape_params.y = node.shape.rounded_rect().radius * basis_x;
         } else if (node.corner_radius > 0.0f) {

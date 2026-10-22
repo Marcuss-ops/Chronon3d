@@ -531,6 +531,19 @@ public:
             "RenderBackend::composite_surface_weighted: native surfaces are not supported"));
     }
 
+    /// Add a weighted premultiplied RGBA sample into a native accumulator.
+    /// Unlike source-over compositing, every channel is accumulated as
+    /// `destination += source * weight`; temporal shutter weights are
+    /// normalized by the caller after the full sample plan is known.
+    virtual RenderOpResult accumulate_surface_weighted(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        float /*weight*/) {
+        return RenderOpResult(make_render_backend_error(
+            RenderBackendErrorCode::UnsupportedCapability,
+            "RenderBackend::accumulate_surface_weighted: native surfaces are not supported"));
+    }
+
     /// Replace-copy a native surface, optionally limited to a canvas clip.
     /// Unlike SourceOver this preserves exact source pixels and is used by
     /// native effects to merge a clipped result without a CPU round trip.

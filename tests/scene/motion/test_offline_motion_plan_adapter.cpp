@@ -646,12 +646,18 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(staticCamera.optics_mode == chronon3d::CameraOpticsMode::PhysicalLens);
     CHECK(staticCamera.lens.focal_length == doctest::Approx(50.f));
     CHECK(staticCamera.lens.f_stop == doctest::Approx(2.8f));
-    CHECK(staticCamera.lens.sensor_width == doctest::Approx(35.f));
-    CHECK(staticCamera.lens.sensor_height == doctest::Approx(35.f / (16.f / 9.f)));
+    CHECK(staticCamera.lens.sensor_width == doctest::Approx(36.f));
+    CHECK(staticCamera.lens.sensor_height == doctest::Approx(36.f / (16.f / 9.f)));
     CHECK(staticCamera.dof.use_physical_model);
 
     auto fovOnlyPlan = *decodedDof;
     fovOnlyPlan.camera->focal_length_mm = 0.f;
+    // The offline evaluator prefers the baked camera samples when present;
+    // clear their lens authority too so this really exercises the FOV path.
+    if (fovOnlyPlan.camera_samples) {
+        for (auto& sample : *fovOnlyPlan.camera_samples)
+            sample.camera.focal_length_mm = 0.f;
+    }
     const auto fovOnlyEvaluator = chronon3d::render_plan::detail::make_camera_evaluator(fovOnlyPlan);
     REQUIRE(fovOnlyEvaluator);
     const auto fovOnlyCamera = fovOnlyEvaluator(0.0);

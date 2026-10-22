@@ -1,7 +1,8 @@
 # Camera Authority Migration — CM3D authoring, C3D rendering
 
 Status: `ACTIVE` — Camera V1 source and SDK authoring surface removed from C3D;
-Template migration and end-to-end gates remain open.
+in-workspace producer migration and SDK census are closed; end-to-end gates
+remain open.
 
 ## Decision
 
@@ -50,10 +51,9 @@ the CM3D-to-C3D bridge and rendered pixels against the gates below.
   fractional and negative shutter sampling plus cache identity; CM3D verifies
   rig lowering; Template verifies runtime lowering omits camera tracks.
 
-The C3D source and public header trees have been searched. This does not prove
-that external SDK consumers are absent; downstream consumers should be checked
-before release, and Template still needs full migration to the CM3D recipe and
-sequence APIs.
+The C3D source and public header trees have been searched. The available
+workspace census is recorded in the producer closeout below; third-party
+consumers outside this checkout remain outside that census.
 
 ## Migration slices
 
@@ -66,8 +66,8 @@ sequence APIs.
    sole coordinate conversion point and certify integer and sub-frame parity.
 4. Move shake and any missing framing/trajectory constraints to CM3D, migrating
    Template consumers to the CM3D resolver.
-5. Complete Template migration and the image-level acceptance gates; audit
-   supported downstream SDK consumers before closing this migration.
+5. Complete image-level acceptance gates; keep the supported downstream SDK
+   census current as consumers are added.
 
 ## Acceptance gates
 
@@ -143,15 +143,19 @@ camera parenting in the renderer.
 
 ## Follow-up audit (2026-10-21)
 
-The C3D decoder migration does not close the whole workspace migration. A new
-workspace-wide search found remaining ChrononTemplate command-line, Python,
-and Node plan generators that still emit `camera_animation`, including camera
-roll, single-image, phrase, map, documentary, and NBA tools. Those generated
-plans are rejected by current C3D and must be migrated to CM3D-generated
-`camera_samples` or retired with their output references. Nine checked-in
-Template golden plans also still contain the retired field. The C++ web-page,
-article-evidence, and blackboard producers now bake complete resolved samples
-through CM3D, but this is only a partial producer closeout.
+The follow-up inventory has now been closed for the active in-workspace
+RenderPlan producers. Camera-roll, single-image, phrase, documentary, web-page,
+article, blackboard, and NBA generators emit resolved `camera_samples`
+directly or invoke the canonical CM3D camera-plan baker before writing the
+final plan. The apparent `camera_animation` references in the map tools are
+map-renderer style identifiers in their own payload, not RenderPlan camera
+tracks. On 2026-10-21 the baker migrated 79 existing generated RenderPlans
+under the local Template `out/` tree; the CLI validated 96 sample-bearing plans
+across their asset roots (95 via the workspace roots and the Dirk fold plan via
+its local generated asset directory). A fresh inventory of 132 RenderPlan
+outputs found 96 with resolved samples and zero with `camera_animation`.
+These `out/` artifacts are ignored generated files; the producer changes and
+ticket record are the maintained source of truth.
 
 CM3D follow-up changes remove the ambiguous `aperture` aliases (the remaining
 normalized legacy blur gain is explicitly named `legacyDefocusStrength`) and
@@ -161,12 +165,11 @@ CM3D `bakeResolvedCameraSamples` helper and reused by Template.
 
 The overall migration remains ACTIVE. Remaining non-visual, non-CI work:
 
-- migrate or retire every active Template generator and regenerate or remove
-  its stale serialized plans;
 - complete the shared offline/runtime `CameraSample` contract (including the
   authored sensor/lens-shift and time/shutter fields still absent from the
   RenderPlan camera payload), or explicitly narrow the accepted contract;
-- inventory downstream consumers and ensure each consumes resolved samples;
+- inventory downstream SDK consumers outside the available workspace and
+  confirm each consumes resolved samples;
 - complete the same-meaning FOV/focal-length precedence and optical focus
   contract across the core rig, RenderPlan bridge, and render backends.
 
@@ -175,7 +178,7 @@ and are not represented as complete by this audit.
 
 ## Workspace closeout progress (2026-10-21)
 
-Partial implementation is in the working trees and is not yet a closeout:
+Partial implementation of the shared camera-sample contract remains open:
 
 - The shared `CameraPlan` now carries `sensor_width_mm` and normalized
   `lens_shift` (`+X` right, `+Y` down). CM3D's offline baker and JSON bridge
@@ -192,68 +195,208 @@ Partial implementation is in the working trees and is not yet a closeout:
   unreferenced signature/astronaut golden plans were removed; they had no
   repository consumers.
 
-Still open: multiple active Template producers continue to emit or stage
-`camera_animation`. The earlier note that the current edits were uncommitted
-and the C3D build interrupted is historical; Template `main` now contains
-`3872349 Migrate camera emitters to resolved samples`. The current producer
-inventory and remaining plan are recorded below. Do not mark this ticket
-complete until those producers are migrated or retired and focused generation
-and decode checks pass. G-gates, visual parity, and CI remain outside this
-closeout as requested.
+The producer inventory and local generated-plan sweep have since closed; see
+the 2026-10-21 producer and SDK closeout below. Remaining work is contract and
+render certification: offline/runtime sub-frame parity, complete authored
+sensor and shutter fields, same-SHA CI, optical gates, and the integrated
+T16–T18 cases.
 
-## Workspace inventory refresh (2026-10-21, after Template `3872349`)
+## Verification update (2026-10-21)
 
-At the current workspace revisions, no checked-in `*.plan.json` golden
-contains the retired field, and CM3D production code no longer emits it. The
-remaining Template matches split into actual C3D plan producers, internal
-map-motion selectors, tests, and one stale comment:
+The root checkout now points at Chronon3D `a204d0d`, ChrononMotion3D `a460d9d`,
+and ChrononTemplate `3872349`. ChrononTemplate's local CMake wiring was updated
+so camera emitters link through CM3D's Chronon3D RenderPlan adapter, which
+supplies the resolved-sample baker and required include paths. Build evidence:
 
-| Action | Files | Reason / exit check |
-|---|---|---|
-| `MIGRATED` (local Template worktree) | `tools/web_presets/build_nba_dirk_physical_fold.mjs`; `tools/web_presets/emit_synthetic_cannabis_native.cpp`; `tools/web_presets/emit_dark_nba_article_native.cpp`; `tools/single_images/generate_image_25d_clean_v1.cpp`; `tools/nba_rivalry/build_precomp_2.mjs`; `tools/nba_rivalry/build_timeline_10.mjs`; `tools/camera_roll/emit_camera_1950_story.cpp`; `tools/entities_with_text/emit_cinematic_documentary_narrative.cpp`; `tools/short_phrases/emit_short_phrase_plans.cpp`; `tools/documentary_effects/emit_beast_land_subject_reframe.cpp` | Their authored camera now lowers through CM3D and their plans use `camera_samples`. Focused build/output checks are recorded below. Changes are not yet committed. |
-| `OPEN` | `tools/important_phrases/build_text_depth_focus_v1.py` and its test; `tools/important_phrases/render_editorial_didone_canary.py` | Port both producers and their user-facing workflows to C++, preserve their current plan/render/verification behavior, and remove the Python implementations only after parity checks pass. A preliminary `emit_text_depth_focus.cpp` exists in the current Template worktree, but it does not yet preserve the old CLI/render/verification workflow and is not a completed replacement. The Didone producer has not yet been ported. |
-| `KEEP` (rename separately) | `tools/map/render_map_editorial_pack_v1.py`; `tools/map/render_dynamic_map_overlay.py` | Here `camera_animation` is a map recipe selector (`slow_approach`), not the retired RenderPlan object. Rename it to `camera_move` in the map request/manifest contract; do not feed it into C3D plans. |
-| `UPDATE` | `tools/camera_roll/dump_scene_camera_poses.cpp` | Its comment says the CSV is lowered into `camera_animation`; the current Python consumer creates resolved `camera_samples`. Correct the documented contract. |
-| `KEEP` | `tests/web_page_highlight_pack.cpp`; `tests/web_text_layout.cpp`; `tests/native_primitives.cpp` | These assert the `camera_samples` contract and absence of the retired field; they are regression coverage, not producers. |
+- ChrononTemplate `cmake --build build/dev-fast -j16`: PASS (130 build steps).
+- ChrononTemplate focused CTest selection for camera, plan lowering,
+  documentary snapshot, and native primitives: PASS (9/9).
+- ChrononMotion3D `cmake --build build/dev-fast -j16 --target
+  chrononmotion_camera_v1`: PASS; focused CTest selection for camera,
+  authoring, and bake round-trip: PASS (4/4).
+- Chronon3D `cmake --build build/chronon/linux-video-test -j16 --target
+  chronon3d_camera_tests`: PASS; executable: PASS (73 cases, 65,799
+  assertions).
 
-The C3D occurrences are limited to the decoder's explicit fail-closed branch,
-its rejection test, and migration documentation. CM3D's only source match is a
-test assertion that emitted JSON omits `camera_animation`. Therefore the
-remaining serialized producer closeout is in Template. The golden sweep is
-closed for checked-in plan goldens, but it does not certify runtime-generated
-plans.
+This verifies the current camera libraries and adapter targets; it does not
+close the workspace migration. Follow-up edits migrate the 1950 story, Beast
+Land reframe, and synthetic cannabis emitters to CM3D's `CameraRig` baker and
+serialize `camera_samples`; their focused targets compile with `-j16`. The
+1950 emitter was run in no-render mode and produced 210 resolved samples with
+no `camera_animation` field; the C3D CLI validated that plan (`valid: true`).
+The synthetic cannabis emitter produced 240 resolved samples and no retired
+field, but its C3D validation is blocked by its existing missing
+`assets/fonts/PlayfairDisplay.ttf` asset reference. The short-phrase emitter
+now outputs its perspective-marquee camera through `CameraRig`; generating all
+27 plans produced no `camera_animation`, and C3D temporal inspection resolved
+the camera across all 210 frames. The single-image emitter now emits resolved
+camera samples for its six camera-move plans; its dolly-settle plan passed C3D
+inspection. The dark-NBA article emitter also now uses the CM3D baker and its
+focused target builds; end-to-end emission could not run because `hb-shape` is
+unavailable in the environment. A source audit still finds RenderPlan
+producers with the retired field in
+`tools/web_presets/build_nba_dirk_physical_fold.mjs`,
+`tools/nba_rivalry/build_precomp_2.mjs`,
+`tools/nba_rivalry/build_timeline_10.mjs`,
+`tools/important_phrases/build_text_depth_focus_v1.py`,
+`tools/important_phrases/render_editorial_didone_canary.py`, and
+`tools/entities_with_text/emit_cinematic_documentary_narrative.cpp`. The
+`camera_animation` payload in `tools/map/render_dynamic_map_overlay.py` is a
+separate map choreography selector, not a serialized RenderPlan camera track.
+The camera key name in `tools/map/render_map_editorial_pack_v1.py` selects
+that same internal map choreography. `tools/camera_roll/dump_scene_camera_poses.cpp`
+contains only a stale comment. No checked-in Template JSON plan currently
+contains the retired RenderPlan field.
 
-Exit the offline producer closeout only after every open producer entry has a
-focused generation/decode check (or is removed with its consumers), the map
-selector contract is clarified, the stale comment is fixed, and a workspace
-search finds no production producer of the retired serialized field. Keep
-G1–G8, T16–T18, and same-SHA CI as separate acceptance work.
+This earlier inventory is superseded by the producer and SDK closeout below.
+The overall ticket remains `ACTIVE` for same-SHA CI and the end-to-end optical,
+shutter, and random-access image gates.
 
-## Producer worktree update (2026-10-21)
+## Producer and downstream census update (2026-10-21)
 
-Ten of the twelve listed Template producers have been migrated in the current
-local worktree. The shared C++ adapter samples authored channels with CM3D's
-`Track<float>`/`Easing` and `lowerCameraPose`; the two Node generators call its
-small C++ executable. CM3D now includes the exact `inOutCubic` easing used by
-these recipes, with scene import/export support.
+The six previously listed Template producers now pass their emitted camera
+channels through `chronontemplate_camera_plan_bake`, which samples scalar
+channels with CM3D `Track<float>`, builds a `CameraRig`, and writes resolved
+`camera_samples`. The adapter's Z reflection and reflected Euler convention
+are applied before lowering. The emitted plans contain no `camera_animation`:
 
-Verification completed:
+- `tools/important_phrases/build_text_depth_focus_v1.py`
+- `tools/important_phrases/render_editorial_didone_canary.py` (the pinned
+  Bodoni 72 face was absent; the canary now uses bundled Bodoni Moda Italic)
+- `tools/entities_with_text/emit_cinematic_documentary_narrative.cpp`
+- `tools/nba_rivalry/build_precomp_2.mjs`
+- `tools/nba_rivalry/build_timeline_10.mjs`
+- `tools/web_presets/build_nba_dirk_physical_fold.mjs`
 
-- CM3D `chrononmotion_authoring` and
-  `chrononmotion_renderplan_easing_parity`: PASS (2/2).
-- Template C++ targets for the resolver and migrated emitters: build PASS.
-- Generated-plan checks: Dirk fold 240 frames; NBA rivalry precomp 240;
-  NBA rivalry timeline 600; synthetic-cannabis 240 plus its one-frame preview;
-  image 25D 12/12 plans; 1950 story 210; cinematic documentary 390; product
-  perspective phrase 210. Each checked plan has `camera_samples` and omits
-  `camera_animation`.
-- Dark NBA generation could not be exercised because `hb-shape` is unavailable
-  in this environment. Beast Land generation could not be exercised because
-  its two required source image assets are absent. Both C++ targets compile.
+The Go workspace sibling `RenderingGen/renderinggen/internal/overlay` is an
+additional supported downstream plan producer. Its semantic camera channels
+are sampled by the canonical CM3D `CameraRig` baker into complete
+absolute-frame `camera_samples`; the transient `CameraAnimation` compiler
+field is excluded from JSON. The worker requires the packaged baker and fails
+closed if it is absent. Focused Go tests cover sample count, interpolation,
+zoom, and the wire field. A focused source census found no RenderPlan
+`camera_animation`/`camera_samples` consumer in `refactored`; its
+`map_camera_animation` fields are semantic map directives, not RenderPlan
+camera tracks.
 
-The producer closeout remains open for complete C++ replacements of both
-important-phrase producers, generation checks for the two environment-blocked
-emitters, C3D decode checks, the map selector rename, and the stale comment.
-The camera-authority migration also remains open for G1–G8, T16–T18, clean-SHA
-CI, and visual parity; this producer work does not close those acceptance gates.
-No claim of full migration completion is made.
+The Template `dev-fast` tree builds with `cmake --build build/dev-fast -j16`.
+C3D validates the generated animated text-focus plans, the Didone transition,
+and NBA/Dirk plans. The cinematic documentary emitter produces 390 resolved
+samples, but full C3D validation is blocked by its pre-existing missing
+`assets/backgrounds/cinematic_dark_slate.png` and related image references. A
+Vulkan video render of the NBA precomp on the NVIDIA RTX A4000 was decoded
+and visually inspected: the corkboard background and 3D player cards are
+visible with the camera move. The first conversion attempt exposed an
+axis-sign error; it was corrected before accepting this frame. The reviewed
+PNG is preserved at
+[`output/camera-authority-migration/nba-precomp-vulkan-rtx-a4000.png`](../evidence/camera-authority-migration/nba-precomp-vulkan-rtx-a4000.png). This is a spot check, not the complete image-parity, shutter, or random-access
+acceptance suite above. RenderingGen's sampler is now integrated with the
+canonical CM3D baker; ticket status stays `ACTIVE` for the remaining gates.
+
+Additional verification from the resumed closeout:
+
+- `go test ./...` in `RenderingGen/renderinggen`: PASS. The new `camera_samples`
+  unit test also passes in the full suite.
+- ChrononTemplate focused CTest selection: PASS (9/9).
+- ChrononMotion3D camera/authoring/bake/parity CTest selection: PASS (11/11).
+- Chronon3D `chronon3d_camera_tests`: PASS (73 cases, 65,799 assertions).
+- C3D CLI `validate`: PASS for all three animated text-focus plans, the Didone
+  camera transition, both NBA rivalry plans, and the Dirk fold plan.
+- Vulkan video spot check: PASS after decoding and viewing the rendered NBA
+  precomp frame; both the background and 3D player images are present. A
+  corrected T16 150-frame Vulkan preview at 854×480 now passes visual review;
+  `ffprobe` confirms 150 frames at 30 fps. The five-frame contact sheet and
+  remaining limits are recorded in `TICKET-CINEMATIC-COMPOSITION-CERTIFICATION.md`.
+
+The RenderPlan SDK source census finds no serialized `camera_animation` field
+in RenderingGen: `CameraAnimation` is compiler-only (`json:"-"`) and its
+sampled values are serialized as `camera_samples`. `refactored` has no
+RenderPlan camera sample consumer; its similarly named map fields are semantic
+map selectors. The remaining blockers are missing assets preventing full
+cinematic documentary plan validation and the complete
+optical/shutter/random-access image parity gates listed above.
+
+## Camera producer and SDK closeout (2026-10-21)
+
+- All six remaining Template generators in the prior census now route their
+  generated camera tracks through `chronontemplate_camera_plan_bake`, built
+  from the shared CM3D `CameraRig` baker. The emitted plans contain resolved
+  `camera_samples`; the serialized legacy field is removed by the baker.
+- RenderingGen's production worker invokes the same CM3D baker executable.
+  `CHRONON_CAMERA_PLAN_BAKER` points to the binary packaged by the worker image;
+  the production path fails if it is unset or errors. The pure Go sampler is
+  retained only as a unit-test reference. The worker's source checkout pins
+  CM3D to `a528e1bd83782e67426e4de3b759ef4a18094ad3` (origin/main at audit).
+- The workspace SDK census covered Chronon3D, ChrononMotion3D,
+  ChrononTemplate, RenderingGen, and `refactored`, plus the public-header and
+  SDK install manifests. It found no remaining serialized RenderPlan
+  `camera_animation` producer/consumer outside the listed transient Template
+  generator inputs (which are baked before output). `refactored` has no
+  RenderPlan camera consumer. Its `map_camera_animation` values are semantic
+  map selectors. This is a census of the supported SDK/source trees available
+  in this workspace; it makes no claim about unprovided third-party forks.
+- The local Template `out/` tree was re-baked: 79 existing RenderPlans no
+  longer carry `camera_animation`. A fresh inventory of 132 RenderPlan
+  outputs found 96 with resolved samples and zero with legacy fields. C3D
+  CLI validation passed for all 96 sample-bearing plans using their workspace
+  or generated asset roots.
+- Build verification: Chronon3D CLI and shared baker build with `-j16`;
+  ChrononTemplate's shared baker target builds with `-j16`; the RenderingGen
+  full Go suite passed with the actual C3D/CM3D baker configured.
+- Visual verification on this host used the NVIDIA RTX A4000. The decoded
+  Vulkan NBA precomp frame shows the expected corkboard and 3D player cards
+  during camera motion; evidence is preserved at
+  `docs/evidence/camera-authority-migration/nba-precomp-vulkan-rtx-a4000.png`.
+  The separate T16 150-frame, 854x480 preview also passed the documented
+  visual spot check. These are visual spot checks, not completion of the
+  ticket's full parity, optical, shutter, or random-access certification.
+
+The producer migration, worker authority integration, and available-workspace
+SDK census are closed. Ticket status remains `ACTIVE` only for the broader
+rendering certification gates and the documentary canary's missing source
+assets; those are tracked limitations, not unfinished producer migration.
+
+
+### T16 optical probe update (2026-10-21)
+
+CAM-01's 30°/50° FOV ablation now passes using the raw pixel-truth sink at
+frame 75 on software and Vulkan. MAE between FOV variants is 62.38 and 62.37
+RGB respectively, with 94.79% of pixels changing. At fixed FOV, cross-backend
+MAE is 0.081 (30°) and 0.131 (50°). The still-image lane was initially used
+by mistake; it omits composed text and per-frame/backend variation, so its
+zero-difference result was invalid and is retained only as a labeled control.
+Evidence: `Chronon3d/docs/evidence/camera-authority-migration/T16/fov-ablation/`.
+This closes only CAM-01; the remaining end-to-end gates and T16–T18 cases keep
+the migration `ACTIVE`.
+
+### T16 dolly perspective probe (2026-10-21)
+
+CAM-02 now passes a focused raw Vulkan pixel-truth probe. With the title at
+depth 0, moving camera Z from -1000 to -1500 changes its alpha-bbox dimensions
+by ratios 0.6674×0.6659, matching the 0.6667 perspective prediction. A centered
+subject plane at depth -99 changes bbox width by 0.6436, matching the 0.6431
+prediction. See `Chronon3d/docs/evidence/camera-authority-migration/T16/dolly-isolated/`.
+The full T16 sequence remains partial; this closes only the isolated dolly
+scale gate.
+
+T16 CAM-05 DoF ablation (2026-10-21) fails on Vulkan: enabling DoF on all
+camera samples of the three-depth plan changes frame 75 from visible RGBA to
+exactly zero RGBA; disabling only the DoF enabled flag restores the frame.
+The projected image-plane path supplies CPU depth, while
+`VulkanBackend::apply_per_pixel_dof` requires a native depth surface. The
+default Vulkan raw job still exits successfully, so the output is a silent
+zero-frame failure. Evidence, plan, raw output, timing sidecar, and log are in
+`Chronon3d/docs/evidence/camera-authority-migration/T16/dof-ablation/`. CAM-05
+remained open after this raw-readback experiment.
+
+### CAM-05 strict native GPU retest (2026-10-21)
+
+The raw-sink failure above is specific to the default readback route, which
+supplies CPU depth to the Vulkan backend. The same DoF-enabled plan now renders
+successfully through `require_gpu_native_full_graph` and native NVENC for 150
+frames. The sidecar records zero GPU readback bytes, zero encoder staging-copy
+bytes, and zero execution downgrades. Reviewed A/B samples at frames
+0/30/75/120/149 show a 19.95% mean reduction in face ROI edge gradient while
+the title ROI remains at 98.27% of its DoF-off sharpness. The focused CAM-05
+gate now passes; see `Chronon3d/docs/evidence/camera-authority-migration/T16/dof-ablation/`.
+The raw Vulkan readback limitation remains documented separately.

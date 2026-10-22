@@ -1,0 +1,53 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "t16-dolly-title-plane-base",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 150
+  },
+  "layers": [
+    {
+      "id": "title-plane",
+      "type": "image",
+      "asset": "output/T16_Hero_Title/camera_title.png",
+      "fit": "contain",
+      "size": [
+        1900,
+        610
+      ],
+      "position": [
+        0,
+        -240,
+        0
+      ],
+      "enable_3d": true,
+      "duration_frames": 150
+    }
+  ],
+  "output": {
+    "path": "title-plane-base.rgba",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000.0
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 50.0,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  }
+}

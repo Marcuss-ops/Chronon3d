@@ -99,6 +99,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         effective_settings, registry, video_decoder, fps,
         temporal_context ? temporal_context->sample_key : TemporalSampleKey{},
         execution, frame_parameters);
+    ctx.policy.defer_native_video_encoder_handoff = isolated_temporal_sample;
     ctx.program_fingerprint = program_fingerprint;
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);

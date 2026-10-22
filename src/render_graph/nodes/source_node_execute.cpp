@@ -34,6 +34,14 @@
 #include <cstdlib>
 #include <limits>
 
+namespace chronon3d::graph::detail {
+
+bool has_native_solid_rect_fill(const ::chronon3d::RenderNode& node) {
+    return node.fill.enabled && node.fill.type == FillType::Solid;
+}
+
+} // namespace chronon3d::graph::detail
+
 namespace chronon3d::graph {
 
 NodeExecResult SourceNode::execute(
