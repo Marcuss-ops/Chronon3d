@@ -44,6 +44,10 @@ struct VulkanSubmissionAuthority {
     static constexpr std::size_t kCompiledPassTimingCapacity = 256;
 
     bool active{false};
+    // Graph execution can nest (for example a temporal shutter sample inside
+    // its parent composition). Each begin/end pair owns one level; only the
+    // outermost end submits the shared command buffer.
+    std::size_t nesting_depth{0};
     std::size_t next_slot{0};
     std::array<VkCommandBuffer, kSlotCount> command_buffers{};
     std::array<VkFence, kSlotCount> fences{};
