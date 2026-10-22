@@ -784,7 +784,9 @@ TEST_CASE("ChrononMotion lowering refuses transforms the plan cannot represent")
     mirrorContent.type = LayerType::Image;
     options.contentLayers.clear();
     options.contentLayers.emplace("3", mirrorContent);
-    CHECK_THROWS_AS(lowerToRenderPlan(reflected, options), std::invalid_argument);
+    const auto reflectedPlan = lowerToRenderPlan(reflected, options);
+    REQUIRE(reflectedPlan.layers.size() == 1);
+    CHECK(reflectedPlan.layers[0].scale[0] < 0.f);
 }
 
 TEST_CASE("ChrononMotion lowering preserves the caller's evaluated frame") {

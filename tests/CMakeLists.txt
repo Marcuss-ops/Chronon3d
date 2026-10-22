@@ -38,6 +38,38 @@ if(CHRONON3D_ENABLE_GEO)
     )
 endif()
 
+# Cross-repo V3 bridge drift guard (ChrononMotion's
+# tests/chronon3d_v3_bridge_regression.cpp).
+#
+# This is the one ChrononMotion test that must run inside a Chronon3D build
+# tree: only here do the canonical RenderPlan consumer symbols
+# (validate_render_plan / decode_render_plan) exist to link against. It carries
+# its own main (the ChrononMotion suite has no doctest), hence NO_DOCTEST. It
+# stays on the aggregate pipeline rather than NO_PIPELINE: linking the
+# render-plan OBJECT library pulls in effects/scene/assets/text symbols that the
+# pipeline resolves. This is the documented exception to the sibling project's
+# CHRONONMOTION_BUILD_TESTS=OFF, so the producer/consumer contract between the
+# two RenderPlan writers and Chronon3D's schema has an executable guard.
+if(CHRONON3D_ENABLE_MOTION_ADAPTER
+   AND TARGET chrononmotion_chronon3d_adapter
+   AND EXISTS "${_chrononmotion_dir}/tests/chronon3d_v3_bridge_regression.cpp")
+    chronon3d_add_test_suite(
+        NAME chrononmotion_v3_bridge_regression
+        TIER UNIT
+        NO_DOCTEST
+        EXTRA_LINK_TARGETS
+            chrononmotion_chronon3d_adapter
+            chronon3d_render_plan
+            chronon3d_compiler
+        SOURCES
+            "${_chrononmotion_dir}/tests/chronon3d_v3_bridge_regression.cpp"
+    )
+    # Ask the bridge test for the canonical consumer round-trip; standalone
+    # ChrononMotion builds compile it without this and report NOT RUN.
+    target_compile_definitions(chrononmotion_v3_bridge_regression PRIVATE
+        CHRONONMOTION_HAS_CHRONON3D_CONSUMER=1)
+endif()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/manifests/test_aggregates.cmake)
 
 # Report-driven performance contract test. It is intentionally separate from

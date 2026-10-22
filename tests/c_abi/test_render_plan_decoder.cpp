@@ -3729,6 +3729,7 @@ TEST_CASE("resolved camera samples carry DOF and physical optics") {
         {{"frame", 0}, {"camera", {{"focal_length_mm", 50}, {"f_stop", 2.0},
             {"dof", {{"enabled", true}, {"focus_distance", 480}, {"aperture", 0.04}, {"max_blur", 12}}}}}},
         {{"frame", 1}, {"camera", {{"focal_length_mm", 85}, {"f_stop", 2.8},
+            {"sensor_width_mm", 24}, {"lens_shift", {-0.1, 0.03}},
             {"dof", {{"enabled", true}, {"focus_distance", 720}, {"aperture", 0.06}, {"max_blur", 20}}}}}}});
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE(decoded);

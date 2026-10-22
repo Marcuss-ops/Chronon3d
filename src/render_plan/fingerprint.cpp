@@ -14,7 +14,11 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
-    out.add_string("chronon3d.render-plan.content-fingerprint.v38");
+    const bool has_v38_fields = plan.camera_samples.has_value() ||
+                                plan.temporal_motion_blur.has_value();
+    out.add_string(has_v38_fields
+        ? "chronon3d.render-plan.content-fingerprint.v38"
+        : "chronon3d.render-plan.content-fingerprint.v37");
     out.add_string(plan.schema);
     add_optional(out, plan.color_management, [](auto& writer, const auto& cm) {
         writer.add_string(cm.ocio_config);

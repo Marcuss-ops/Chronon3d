@@ -3891,3 +3891,119 @@ TEST_CASE("runtime camera provider samples exact fractional frames and fingerpri
     REQUIRE_FALSE(conflicting);
     CHECK(conflicting.error().code == "runtime_camera_conflicts_with_samples");
 }
+
+TEST_CASE("offline interpolated camera samples match exact runtime sampling at shutter sub-frames") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+
+    // G6 sub-frame parity fixture: a linear CameraRig segment between two
+    // adjacent integer-frame samples must resolve to the same renderer camera
+    // whether it is reconstructed by the offline-sample interpolation path or
+    // requested through the runtime CM3D sample provider at a shutter
+    // sub-frame time.
+    RenderPlan plan;
+    assets::AssetResolver resolver;
+    plan.job_id = "camera-subframe-parity";
+    plan.canvas = {.width = 64, .height = 64, .fps = FrameRate{30, 1},
+                   .duration = Frame{4}};
+    plan.camera = CameraPlan{};
+    LayerPlan layer;
+    layer.id = "camera-subject";
+    layer.type = LayerType::Color;
+    layer.color = {1.f, 1.f, 1.f, 1.f};
+    plan.layers.push_back(layer);
+
+    // Complete resolved poses baked at integer presentation frames, as CM3D's
+    // bakeResolvedCameraSamples emits them inside one linear camera segment.
+    constexpr float kStartX = 0.0f;
+    constexpr float kSpanX = 120.0f;
+    auto sample_camera = [](const double frame) {
+        CameraPlan resolved;
+        resolved.position = {static_cast<float>(frame * kSpanX), 40.0f, -1000.0f};
+        resolved.rotation_deg = {0.0f, static_cast<float>(frame * 2.0), 0.0f};
+        resolved.fov_deg = static_cast<float>(50.0 - frame);
+        resolved.focal_length_mm = static_cast<float>(50.0 + frame * 2.0);
+        resolved.sensor_width_mm = static_cast<float>(36.0 + frame * 0.5);
+        resolved.f_stop = static_cast<float>(2.0 + frame * 0.1);
+        resolved.lens_shift = {static_cast<float>(frame * 0.01),
+                               static_cast<float>(frame * -0.005)};
+        resolved.dof_enabled = true;
+        resolved.dof_focus_distance = static_cast<float>(1000.0 + frame * 100.0);
+        resolved.dof_highlight_gain = static_cast<float>(frame * 0.1);
+        return resolved;
+    };
+    plan.camera_samples = std::vector<CameraSamplePlan>{
+        {0.0, sample_camera(0.0)},
+        {1.0, sample_camera(1.0)},
+        {4.0, sample_camera(4.0)}};
+
+    const auto offline = compile_render_plan(plan, resolver);
+    REQUIRE(offline);
+
+    auto runtime_plan = plan;
+    runtime_plan.camera_samples.reset();
+    RuntimeCameraSampleProvider provider{
+        .fingerprint = "cm3d-subframe-parity-linear",
+        .sample = [=](double frame) {
+            // Exact CM3D sampling of the same linear segment.
+            return sample_camera(frame);
+        }};
+    const auto runtime = compile_render_plan(runtime_plan, resolver, {}, nullptr, &provider);
+    REQUIRE(runtime);
+    // Provider identity must not nonce the offline bake; both compile from the
+    // same plan body otherwise.
+    CHECK(runtime->fingerprint.content_digest != offline->fingerprint.content_digest);
+
+    for (const double shutter_frame : {0.25, 0.5, 0.75, 1.25, 2.5, 3.25}) {
+        const auto offline_eval = evaluate(offline->compiled_composition, {},
+            SampleTime::from_frame(shutter_frame, FrameRate{30, 1}));
+        REQUIRE(offline_eval);
+        const auto runtime_eval = evaluate(runtime->compiled_composition, {},
+            SampleTime::from_frame(shutter_frame, FrameRate{30, 1}));
+        REQUIRE(runtime_eval);
+
+        const auto& offline_camera = offline_eval->scene.camera_2_5d();
+        const auto& runtime_camera = runtime_eval->scene.camera_2_5d();
+        const float expected_x = static_cast<float>(kStartX + shutter_frame * kSpanX);
+        const float expected_yaw = static_cast<float>(shutter_frame * 2.0);
+        const float expected_fov = static_cast<float>(50.0 - shutter_frame);
+        const float expected_focal = static_cast<float>(50.0 + shutter_frame * 2.0);
+        const float expected_sensor = static_cast<float>(36.0 + shutter_frame * 0.5);
+        const float expected_f_stop = static_cast<float>(2.0 + shutter_frame * 0.1);
+        const float expected_shift_x = static_cast<float>(shutter_frame * 0.01);
+        const float expected_shift_y = static_cast<float>(shutter_frame * -0.005);
+        const float expected_focus = static_cast<float>(1000.0 + shutter_frame * 100.0);
+        const float expected_highlight = static_cast<float>(shutter_frame * 0.1);
+        // Exact CM3D sampling.
+        CHECK(runtime_camera.position.x == doctest::Approx(expected_x).epsilon(1.0e-4));
+        CHECK(runtime_camera.rotation.y == doctest::Approx(expected_yaw).epsilon(1.0e-4));
+        CHECK(runtime_camera.fov_deg == doctest::Approx(expected_fov).epsilon(1.0e-4));
+        CHECK(runtime_camera.lens.focal_length == doctest::Approx(expected_focal).epsilon(1.0e-4));
+        CHECK(runtime_camera.lens.sensor_width == doctest::Approx(expected_sensor).epsilon(1.0e-4));
+        CHECK(runtime_camera.lens.f_stop == doctest::Approx(expected_f_stop).epsilon(1.0e-4));
+        CHECK(runtime_camera.lens_shift.x == doctest::Approx(expected_shift_x).epsilon(1.0e-4));
+        CHECK(runtime_camera.lens_shift.y == doctest::Approx(expected_shift_y).epsilon(1.0e-4));
+        CHECK(runtime_camera.dof.focus_distance == doctest::Approx(expected_focus).epsilon(1.0e-4));
+        CHECK(runtime_camera.dof.highlight_gain == doctest::Approx(expected_highlight).epsilon(1.0e-4));
+        // Offline integer-sample interpolation of the same linear segment.
+        CHECK(offline_camera.position.x == doctest::Approx(expected_x).epsilon(1.0e-3));
+        CHECK(offline_camera.rotation.y == doctest::Approx(expected_yaw).epsilon(1.0e-3));
+        CHECK(offline_camera.fov_deg == doctest::Approx(expected_fov).epsilon(1.0e-3));
+        CHECK(offline_camera.lens.focal_length == doctest::Approx(expected_focal).epsilon(1.0e-3));
+        CHECK(offline_camera.lens.sensor_width == doctest::Approx(expected_sensor).epsilon(1.0e-3));
+        CHECK(offline_camera.lens.f_stop == doctest::Approx(expected_f_stop).epsilon(1.0e-3));
+        CHECK(offline_camera.lens_shift.x == doctest::Approx(expected_shift_x).epsilon(1.0e-3));
+        CHECK(offline_camera.lens_shift.y == doctest::Approx(expected_shift_y).epsilon(1.0e-3));
+        CHECK(offline_camera.dof.focus_distance == doctest::Approx(expected_focus).epsilon(1.0e-3));
+        CHECK(offline_camera.dof.highlight_gain == doctest::Approx(expected_highlight).epsilon(1.0e-3));
+        // Parity between the two authorities at the shutter sub-frame.
+        CHECK(std::abs(offline_camera.position.x - runtime_camera.position.x)
+              < 0.05f);
+        CHECK(std::abs(offline_camera.position.y - runtime_camera.position.y)
+              < 0.05f);
+        CHECK(std::abs(offline_camera.position.z - runtime_camera.position.z)
+              < 0.05f);
+        CHECK(offline_camera.is_animated);
+        CHECK(runtime_camera.is_animated);
+    }
+}

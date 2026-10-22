@@ -165,16 +165,63 @@ CM3D `bakeResolvedCameraSamples` helper and reused by Template.
 
 The overall migration remains ACTIVE. Remaining non-visual, non-CI work:
 
-- complete the shared offline/runtime `CameraSample` contract (including the
-  authored sensor/lens-shift and time/shutter fields still absent from the
-  RenderPlan camera payload), or explicitly narrow the accepted contract;
-- inventory downstream SDK consumers outside the available workspace and
-  confirm each consumes resolved samples;
-- complete the same-meaning FOV/focal-length precedence and optical focus
-  contract across the core rig, RenderPlan bridge, and render backends.
+- certify the shared offline/runtime `CameraSample` values end-to-end. The
+  current payload carries complete resolved poses, FOV/focal length, sensor
+  width, lens shift, focus/DoF values and absolute presentation frame; seconds
+  derive from the plan frame rate and shutter timing remains in the motion-blur
+  contract. Offline plans interpolate complete poses; the CM3D provider samples
+  exact requested times;
+- inventory downstream SDK consumers outside the available workspace when
+  those supported consumers are identified;
+- finish optical and pixel parity gates across CM3D, the RenderPlan bridge and
+  C3D backends. Focal length is authoritative when authored; otherwise FOV is
+  authoritative. Focus distance is camera-space optical-axis depth and is
+  explicitly converted for the legacy world-Z DOF consumer.
+
+## G6 sub-frame parity follow-up (2026-10-22)
+
+C3D now has a focused regression in
+`tests/c_abi/test_prepared_render_plan.cpp` comparing offline interpolation of
+integer-frame `camera_samples` against a runtime-provider callback implementing
+the same linear camera motion at six fractional shutter sample times. CM3D's
+actual `makeCameraSampleProvider` is separately exercised against `CameraRig`
+sub-frame samples in `ChrononMotion3D/tests/motion_camera_bake_roundtrip.cpp`.
+Together these cover the provider contract and C3D interpolation, but they do
+not link the two implementations in one end-to-end sub-frame pixel test. This check
+exposed missing interpolation for lens shift, sensor dimensions, and highlight
+gain in the existing C3D resolver; those continuous fields now use that same
+resolver's interpolation path. The focused G6 case passes with 165 assertions;
+the full C3D camera/C ABI/motion-adapter CTest selection passes 3/3. This proves
+camera-value parity for linear segments only, not a cross-engine sub-frame
+pixel test. It does not close the 180-degree shutter pixel gate, non-linear
+easing error, or full exposure accumulation certification.
+T16/T17/T18 status remains as recorded in the cinematic composition
+certification ticket.
 
 The G gates, image-level parity checks, and GitHub CI are tracked separately
 and are not represented as complete by this audit.
+
+### Current C3D consumer verification (2026-10-22)
+
+- `cmake --build build/chronon/linux-video-test --target chronon3d_cli -j12`:
+  PASS, 413/413 Ninja tasks.
+- CTest targets `chronon3d_camera_tests`, `chronon3d_c_abi_tests`, and
+  `chronon3d_motion_plan_adapter_tests`: PASS, 3/3 (291.79 seconds total).
+- The Motion3D→C3D bridge consumer regression was rebuilt (`-j12`, 303/303) and
+  rerun: 23 checks, 0 failures.
+- The current `ChrononTemplate/out` census contains 118 plans with
+  `camera_samples`; C3D CLI `validate` passes all 118 with their asset roots.
+- ChrononMotion3D `release-fast`: rig/camera/focus/trajectory/framing/sequence,
+  RenderPlan easing and projection parity, bake round-trip, T16 and T19b
+  selection passes CTest 13/13; `chrononmotion_camera_v1` reports 77 checks,
+  0 failures.
+- ChrononTemplate `release-fast`: shared camera baker, lowering, camera packs,
+  UI choreography and CM3D contract build 188/188; focused CTest passes 7/7.
+- T05 audit found only the Bullet/Charts external-submit harness under
+  `e2e_cert`; it has no camera payload or local render result, so the camera
+  gate is `NOT RUN`.
+- These are local dirty-worktree results. The full C3D preset build, same-SHA
+  GitHub CI, and end-to-end shutter-pixel parity remain open.
 
 ## Workspace closeout progress (2026-10-21)
 
@@ -400,3 +447,26 @@ bytes, and zero execution downgrades. Reviewed A/B samples at frames
 the title ROI remains at 98.27% of its DoF-off sharpness. The focused CAM-05
 gate now passes; see `Chronon3d/docs/evidence/camera-authority-migration/T16/dof-ablation/`.
 The raw Vulkan readback limitation remains documented separately.
+
+## External engine reuse decision (2026-10-22)
+
+No external engine component is adopted as a production dependency in this
+camera closeout. CM3D remains the single owner of camera authoring, lens/focus
+decisions, spatial motion and sampling; C3D remains the owner of projection,
+pixel depth, DoF, motion blur and compositing. Template continues to consume
+resolved CM3D samples through the shared baker.
+
+The first external comparison to run, if DoF quality/performance remains a
+measured gap, is AMD FidelityFX DoF against C3D's existing `PerPixelDofNode`.
+Any accepted implementation must replace or improve that node's kernel and
+stay inside the existing C3D RenderGraph; it must not add another DoF owner.
+The official FidelityFX SDK currently documents DoF 1.1, Vulkan + GLSL 4.50,
+and MIT licensing; this establishes a plausible API/license fit, not verified
+build, shader, or image compatibility with Chronon3D.
+Filament's camera API is a reference for checking the shared focal-length/FOV,
+sensor and focus contract, not a second camera model. No FidelityFX or Filament
+code has been copied or linked. Before integration, record the exact source
+revision, per-file license and dependency notices, Vulkan compatibility,
+quality/performance comparison, and pixel/alpha equivalence results. See the
+[FidelityFX DoF overview](https://gpuopen.com/fidelityfx-dof/) and its
+[Vulkan technique requirements](https://gpuopen.com/manuals/fidelityfx_sdk/techniques/depth-of-field/).

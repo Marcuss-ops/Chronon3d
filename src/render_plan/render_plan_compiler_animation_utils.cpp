@@ -461,11 +461,18 @@ CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan) {
         camera.rotation = glm::mix(left.rotation, right.rotation, t);
         camera.fov_deg = glm::mix(left.fov_deg, right.fov_deg, t);
         camera.zoom = glm::mix(left.zoom, right.zoom, t);
+        camera.lens_shift = glm::mix(left.lens_shift, right.lens_shift, t);
         camera.lens.focal_length = glm::mix(left.lens.focal_length, right.lens.focal_length, t);
         camera.lens.f_stop = glm::mix(left.lens.f_stop, right.lens.f_stop, t);
+        camera.lens.sensor_width = glm::mix(
+            left.lens.sensor_width, right.lens.sensor_width, t);
+        camera.lens.sensor_height = glm::mix(
+            left.lens.sensor_height, right.lens.sensor_height, t);
         camera.dof.focus_distance = glm::mix(left.dof.focus_distance, right.dof.focus_distance, t);
         camera.dof.aperture = glm::mix(left.dof.aperture, right.dof.aperture, t);
         camera.dof.max_blur = glm::mix(left.dof.max_blur, right.dof.max_blur, t);
+        camera.dof.highlight_gain = glm::mix(
+            left.dof.highlight_gain, right.dof.highlight_gain, t);
         camera.is_animated = true;
         if (camera.dof.enabled && !camera.dof.use_physical_model)
             camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
