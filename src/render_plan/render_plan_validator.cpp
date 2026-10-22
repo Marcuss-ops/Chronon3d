@@ -1,3 +1,4 @@
+#include <chronon3d/render_plan/easing_contract.hpp>
 // Structural render-plan validation backed by the canonical JSON Schemas.
 
 #include <chronon3d/render_plan/render_plan_validator.hpp>
@@ -189,7 +190,7 @@ nlohmann::json v2_projection(const nlohmann::json& root) {
                 track.erase("loop_mode");
                 track.erase("wiggle");
                 track.erase("spring");
-                if (track.value("easing", std::string{}) == "spring")
+                if (track.value("easing", std::string{}) == detail::easing_name::kSpring)
                     track.erase("easing");
                 if (!track.contains("keyframes"))
                     track["keyframes"] = nlohmann::json::array({

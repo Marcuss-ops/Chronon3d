@@ -6,6 +6,7 @@
 #include <chronon3d/animation/animation_property_kind.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/render_plan/spring_bake.hpp>
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/scene/path_sampling.hpp>
 
 #include <algorithm>
@@ -203,7 +204,7 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
         for (const auto* track : components) {
             if (!track) continue;
             for (const auto& key : track->keyframes)
-                if (track->easing != "linear" || track->bezier_curve || key.interpolation ||
+                if (track->easing != easing_name::kLinear || track->bezier_curve || key.interpolation ||
                     key.easing || key.bezier_curve || key.roving || key.temporal_in_dx ||
                     key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy) {
                     reference = track;
@@ -212,8 +213,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
             if (reference) break;
         }
         if (!reference) return false;
-        if (reference->easing == "spring" || std::any_of(reference->keyframes.begin(),
-                reference->keyframes.end(), [](const auto& key) { return key.easing == "spring"; }))
+        if (reference->easing == easing_name::kSpring || std::any_of(reference->keyframes.begin(),
+                reference->keyframes.end(), [](const auto& key) { return key.easing == easing_name::kSpring; }))
             return false;
         for (const auto* track : components) {
             if (!track) continue;
@@ -255,7 +256,7 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
                 }
             }
             const auto& reference_key = reference->keyframes[index];
-            if (reference_key.interpolation == "bezier" && !reference_key.bezier_curve) {
+            if (reference_key.interpolation == easing_name::kBezier && !reference_key.bezier_curve) {
                 animated.add_vector_temporal_keyframe(reference_key.frame, value,
                     chronon3d::InterpMode::Bezier,
                     reference_key.temporal_in_dx.value_or(0.0f), in_dy,
@@ -326,8 +327,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
             }
         }
         for (const auto* t : {pos_tracks.x, pos_tracks.y, pos_tracks.z})
-            if (t && (t->easing == "spring" || std::any_of(t->keyframes.begin(), t->keyframes.end(),
-                    [](const auto& key) { return key.easing == "spring"; })))
+            if (t && (t->easing == easing_name::kSpring || std::any_of(t->keyframes.begin(), t->keyframes.end(),
+                    [](const auto& key) { return key.easing == easing_name::kSpring; })))
                 for (Frame f{t->keyframes.front().frame.integral()}; f <= t->keyframes.back().frame; f += Frame{1})
                     frames.insert(f);
 
@@ -369,8 +370,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
             }
         }
         for (const auto* t : {scale_tracks.x, scale_tracks.y, scale_tracks.z})
-            if (t && (t->easing == "spring" || std::any_of(t->keyframes.begin(), t->keyframes.end(),
-                    [](const auto& key) { return key.easing == "spring"; })))
+            if (t && (t->easing == easing_name::kSpring || std::any_of(t->keyframes.begin(), t->keyframes.end(),
+                    [](const auto& key) { return key.easing == easing_name::kSpring; })))
                 for (Frame f{t->keyframes.front().frame.integral()}; f <= t->keyframes.back().frame; f += Frame{1})
                     frames.insert(f);
 
@@ -410,8 +411,8 @@ void apply_animation_tracks(chronon3d::LayerBuilder& builder,
             }
         }
         for (const auto* t : {rot_tracks.x, rot_tracks.y, rot_tracks.z})
-            if (t && (t->easing == "spring" || std::any_of(t->keyframes.begin(), t->keyframes.end(),
-                    [](const auto& key) { return key.easing == "spring"; })))
+            if (t && (t->easing == easing_name::kSpring || std::any_of(t->keyframes.begin(), t->keyframes.end(),
+                    [](const auto& key) { return key.easing == easing_name::kSpring; })))
                 for (Frame f{t->keyframes.front().frame.integral()}; f <= t->keyframes.back().frame; f += Frame{1})
                     frames.insert(f);
 

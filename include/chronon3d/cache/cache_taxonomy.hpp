@@ -40,6 +40,15 @@ enum class CacheFamily : unsigned char {
     ///   • GpuAssetCache                 — decoded assets → GPU device-local surfaces
     ///   • PreparedAssetDigestCache      — preflight file digest memoization
     ///   • GpuGlyphAtlas styled entries  — cached styled glyph representations
+    ///   • GpuStyledGlyphCache           — styled glyph entries
+    ///   • GpuTextRunPreparedCache       — prepared immutable text-run data
+    ///   • ImageCache                    — decoded images keyed by resolved asset identity
+    ///   • MeshPreparationCache          — prepared meshes keyed by resolved asset identity
+    ///   • DirectYuvTextTextureCache     — content-keyed prepared GPU text textures
+    ///   • PreparationCache              — prepared MTSDF glyph bitmaps
+    ///   • TextLayoutCache                — immutable shaped text layouts
+    ///   • TypewriterLayoutCache          — immutable typewriter layouts
+    ///   • FrameValueCache                — non-owning view over NodeCache
     ContentCache = 1,
 
     /// ResidencyCache — bounded memory residence governed by an external plan.
@@ -56,6 +65,8 @@ enum class CacheFamily : unsigned char {
     /// Members:
     ///   • FramebufferPool                    — cold-path / reference / extension pool
     ///   • GpuGlyphAtlas plain glyph pages    — glyph page residency
+    ///   • BLFontFaceCache                    — runtime-scoped backend face objects
+    ///   • FreeTypeFaceCache                  — runtime-scoped backend face objects
     ResidencyCache = 2,
 
     /// ProgramCache — program identity → compiled executable.
@@ -72,6 +83,8 @@ enum class CacheFamily : unsigned char {
     ///   • TemplateProgramCache    — compiled template programs by fingerprint
     ///   • CompiledGraphCache      — compiled frame graphs (dimension-dependent)
     ///   • SceneProgramCache       — scene-specific compiled programs
+    ///   • CurveCache              — compiled curve lookup programs
+    ///   • CompiledTopologyCache   — non-owning view over CompiledGraphCache
     ///   • PixelProgram            — canonical semantic IR (graph::pixel::PixelProgram v1)
     ///   • DeviceProgramKey        — lowered device program identity feeding ProgramArtifactKey
     ///   • CompiledArtifactCache   — persistent compiled-program artifact store
@@ -101,6 +114,15 @@ enum class CacheFamily : unsigned char {
     /// tools/architecture_rules.toml.
     ProgramCache = 3,
 };
+
+// Machine-checked inventory of concrete cache classes declared under
+// include/chronon3d and src. Keep each class in exactly one line/family.
+// FrameValueCache and CompiledTopologyCache are non-owning facades; backend-local
+// text caches hold content/preparation data, not a new family.
+// LruCache is the shared primitive, not a family member.
+// CACHE_FAMILY_MEMBERS ContentCache: ConvertedFrameCache, PreparedAssetDigestCache, FrameCache, FrameValueCache, GpuAssetCache, GpuStyledGlyphCache, GpuTextRunPreparedCache, ImageCache, MeshPreparationCache, DirectYuvTextTextureCache, PreparationCache, NodeCache, TextLayoutCache, TypewriterLayoutCache, VideoFrameCache
+// CACHE_FAMILY_MEMBERS ResidencyCache: BLFontFaceCache, FreeTypeFaceCache
+// CACHE_FAMILY_MEMBERS ProgramCache: CompiledArtifactCache, CompiledGraphCache, CompiledTopologyCache, CurveCache, SceneProgramCache, TemplateProgramCache
 
 // ── Compile-time annotation helper ──────────────────────────────────────────
 //

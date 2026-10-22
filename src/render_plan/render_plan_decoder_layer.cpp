@@ -1,5 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
-#include "easing_contract.hpp"
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include "json_vector.hpp"
 #include <chronon3d/render_plan/animation_property_registry.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>

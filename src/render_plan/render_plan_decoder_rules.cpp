@@ -1,5 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
-#include "easing_contract.hpp"
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
 
 #include <nlohmann/json.hpp>
@@ -9,6 +9,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+namespace easing_name = chronon3d::render_plan::detail::easing_name;
+namespace interpolation_name = chronon3d::render_plan::detail::interpolation_name;
 
 namespace chronon3d::render_plan::detail {
 
@@ -162,10 +165,10 @@ std::optional<PlanDecodeError> apply_layout_stagger(std::vector<LayerPlan>& laye
                 for (auto& keyframe : track.keyframes)
                     keyframe.frame += Frame{static_cast<std::int64_t>(offset)};
                 if (!stagger.easing.empty()) {
-                    if (track.spring || track.easing == "spring" ||
+                    if (track.spring || track.easing == easing_name::kSpring ||
                         std::any_of(track.keyframes.begin(), track.keyframes.end(),
                             [](const auto& keyframe) {
-                                return keyframe.spring.has_value() || keyframe.easing == "spring";
+                                return keyframe.spring.has_value() || keyframe.easing == easing_name::kSpring;
                             }))
                         return PlanDecodeError{"layers[" + std::to_string(group.members[member]) + "]",
                             "stagger easing cannot override a spring track", "stagger_spring_easing_conflict",
@@ -227,9 +230,9 @@ void validate_per_key_timing(const nlohmann::json& value, bool keyframes,
                 throw std::runtime_error("audio gain does not support roving, temporal handles, or per-key interpolation");
             if (key.contains("roving") && !key.at("roving").is_boolean())
                 throw std::runtime_error("roving must be a boolean");
-            if (!interpolation.empty() && interpolation != "linear" &&
-                interpolation != "hold" && interpolation != "bezier" &&
-                interpolation != "auto_bezier")
+            if (!interpolation.empty() && interpolation != interpolation_name::kLinear &&
+                interpolation != interpolation_name::kHold && interpolation != interpolation_name::kBezier &&
+                interpolation != interpolation_name::kAutoBezier)
                 throw std::runtime_error("keyframe interpolation must be linear, hold, bezier, or auto_bezier");
             const auto finite_handle = [&](const char* name) {
                 return !key.contains(name) || (key.at(name).is_number() &&
@@ -246,26 +249,24 @@ void validate_per_key_timing(const nlohmann::json& value, bool keyframes,
             if (key.contains("temporal_out_dx") && key.at("temporal_out_dx").get<double>() < 0.0)
                 throw std::runtime_error("temporal_out_dx must be non-negative");
             if (!interpolation.empty()) {
-                if ((interpolation != "bezier" && !easing.empty()) ||
-                    (has_curve && interpolation != "bezier") ||
+                if ((interpolation != interpolation_name::kBezier && !easing.empty()) ||
+                    (has_curve && interpolation != interpolation_name::kBezier) ||
                     (has_curve && has_handles) ||
-                    (interpolation == "bezier" && !has_curve && !has_handles))
+                    (interpolation == interpolation_name::kBezier && !has_curve && !has_handles))
                     throw std::runtime_error("keyframe interpolation requires only its matching bezier_curve or temporal handles");
-            } else if ((easing == "bezier") != has_curve) {
+            } else if ((easing == easing_name::kBezier) != has_curve) {
                 throw std::runtime_error("per-key easing='bezier' and bezier_curve must be provided together");
             }
             if (key.value("roving", false) &&
-                (interpolation == "bezier" || interpolation == "auto_bezier"))
+                (interpolation == interpolation_name::kBezier || interpolation == interpolation_name::kAutoBezier))
                 throw std::runtime_error("roving cannot be combined with Bezier interpolation");
-            if (has_handles && (interpolation != "bezier" || has_curve))
+            if (has_handles && (interpolation != interpolation_name::kBezier || has_curve))
                 throw std::runtime_error("temporal handles require interpolation='bezier' without bezier_curve");
-            if (interpolation == "auto_bezier" &&
+            if (interpolation == interpolation_name::kAutoBezier &&
                 (key.contains("temporal_in_dx") || key.contains("temporal_in_dy") ||
                  key.contains("temporal_out_dx") || key.contains("temporal_out_dy") || has_curve))
                 throw std::runtime_error("auto_bezier cannot be combined with authored Bezier data");
-            if (interpolation == "auto_bezier" && key.value("roving", false))
-                throw std::runtime_error("roving and auto_bezier cannot be combined on a keyframe");
-            if (interpolation == "auto_bezier" && key.value("roving", false))
+            if (interpolation == interpolation_name::kAutoBezier && key.value("roving", false))
                 throw std::runtime_error("roving and auto_bezier cannot be combined on a keyframe");
             if (!easing.empty() && !is_animation_easing(easing))
                 throw std::runtime_error("unsupported per-key animation easing: " + easing);

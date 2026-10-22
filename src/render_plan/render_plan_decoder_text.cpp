@@ -1,3 +1,4 @@
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include "render_plan_decoder_detail.hpp"
 
 #include <nlohmann/json.hpp>
@@ -13,6 +14,8 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+namespace easing_name = chronon3d::render_plan::detail::easing_name;
 
 namespace chronon3d::render_plan::detail {
 namespace {
@@ -88,7 +91,7 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
         if (!value.contains(name)) continue;
         if (!track->property.empty())
             throw std::runtime_error(std::string("text selector ") + name + " track cannot declare property");
-        if (track->easing != "linear")
+        if (track->easing != easing_name::kLinear)
             throw std::runtime_error(std::string("text selector ") + name + " track supports linear baked timing only");
         if (track->loop_mode != "none" || track->spring || track->bezier_curve || track->wiggle ||
             track->oscillate || track->random_hold || track->posterize_time ||
@@ -243,7 +246,7 @@ TextAnimatorPlan decode_text_animator(const nlohmann::json& value) {
             if (track.spring || track.bezier_curve || track.loop_mode != "none" || track.wiggle ||
                 track.oscillate || track.random_hold || track.posterize_time || track.data_feed || track.audio_react)
                 throw std::runtime_error("text animator property tracks do not accept timing loops or procedural drivers");
-            if (track.easing != "linear")
+            if (track.easing != easing_name::kLinear)
                 throw std::runtime_error("text animator property tracks require sampled linear keyframes");
             for (const auto& key : track.keyframes) {
                 const float scalar = key.value.size() == 1 ? key.value.front() : 0.f;

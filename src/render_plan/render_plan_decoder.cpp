@@ -1,3 +1,4 @@
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 #include <chronon3d/render_plan/animation_property_registry.hpp>
@@ -18,6 +19,9 @@
 #include <unordered_map>
 #include <vector>
 #include <set>
+
+namespace easing_name = chronon3d::render_plan::detail::easing_name;
+namespace interpolation_name = chronon3d::render_plan::detail::interpolation_name;
 
 namespace {
 
@@ -269,7 +273,7 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                                 "invalid_audio_gain_curve", "render-plan-audio"};
                         track.bezier_curve = parsed;
                     }
-                    if ((track.easing == "bezier") != track.bezier_curve.has_value())
+                    if ((track.easing == easing_name::kBezier) != track.bezier_curve.has_value())
                         return PlanDecodeError{"audio.clips[].gain", "bezier easing and bezier_curve must be provided together",
                             "invalid_audio_gain_curve", "render-plan-audio"};
                     for (const auto& raw_key : raw_gain.at("keyframes")) {
@@ -325,28 +329,28 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
                             throw std::runtime_error("audio gain per-key easing cannot be combined with track timing");
                         if (key.roving && (has_handles || key.bezier_curve))
                             throw std::runtime_error("audio gain roving cannot combine with authored handles");
-                        if (key.roving && (interpolation == "bezier" || interpolation == "auto_bezier"))
+                        if (key.roving && (interpolation == interpolation_name::kBezier || interpolation == interpolation_name::kAutoBezier))
                             throw std::runtime_error("audio gain roving cannot combine with Bezier interpolation");
-                        if (has_handles && interpolation != "bezier")
+                        if (has_handles && interpolation != interpolation_name::kBezier)
                             throw std::runtime_error("audio gain temporal handles require interpolation='bezier'");
                         if (raw_key.contains("roving") && !raw_key.at("roving").is_boolean())
                             throw std::runtime_error("audio gain roving must be a boolean");
-                        if (key.interpolation && *key.interpolation != "linear" &&
-                            *key.interpolation != "hold" && *key.interpolation != "bezier" &&
-                            *key.interpolation != "auto_bezier")
+                        if (key.interpolation && *key.interpolation != interpolation_name::kLinear &&
+                            *key.interpolation != interpolation_name::kHold && *key.interpolation != interpolation_name::kBezier &&
+                            *key.interpolation != interpolation_name::kAutoBezier)
                             throw std::runtime_error("audio gain interpolation must be linear, hold, bezier, or auto_bezier");
-                        if (interpolation == "bezier" && !key.bezier_curve && !has_handles)
+                        if (interpolation == interpolation_name::kBezier && !key.bezier_curve && !has_handles)
                             throw std::runtime_error("audio gain bezier interpolation needs bezier_curve or temporal handles");
-                        if (interpolation != "bezier" && key.bezier_curve)
+                        if (interpolation != interpolation_name::kBezier && key.bezier_curve)
                             throw std::runtime_error("audio gain bezier_curve requires interpolation='bezier'");
-                        if (!key.interpolation && ((key.easing == "bezier") != key.bezier_curve.has_value()))
+                        if (!key.interpolation && ((key.easing == easing_name::kBezier) != key.bezier_curve.has_value()))
                             throw std::runtime_error("audio gain easing='bezier' requires bezier_curve");
-                        if (interpolation == "auto_bezier" && (key.easing || key.bezier_curve))
+                        if (interpolation == interpolation_name::kAutoBezier && (key.easing || key.bezier_curve))
                             throw std::runtime_error("audio gain auto_bezier cannot combine with per-key easing or bezier_curve");
-                        if (interpolation == "auto_bezier" && (key.temporal_in_dx || key.temporal_in_dy ||
+                        if (interpolation == interpolation_name::kAutoBezier && (key.temporal_in_dx || key.temporal_in_dy ||
                             key.temporal_out_dx || key.temporal_out_dy || key.bezier_curve))
                             throw std::runtime_error("audio gain auto_bezier cannot combine with authored handles");
-                        if (key.roving && interpolation == "auto_bezier")
+                        if (key.roving && interpolation == interpolation_name::kAutoBezier)
                             throw std::runtime_error("audio gain roving and auto_bezier cannot be combined");
                         track.keyframes.push_back(std::move(key));
                     }

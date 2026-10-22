@@ -117,7 +117,7 @@ struct TextRunBuildResult {
 //     TextUnitMap — leaked an empty `units` field to per-frame code paths
 //     and broke the selector's `total_units` query in Scramble/Morph/
 //     DissolveLayouts drivers)
-//   - `materialize_prepared_text()` in `scene/builders/text_run_builder.cpp`
+//   - `materialize_prepared_text()` in `scene/builders/scene_text_run_builder.cpp`
 //     (populated the unit map, but via its OWN inline pipeline)
 //
 // After this refactor, both call sites route through `compile_text_layout`,

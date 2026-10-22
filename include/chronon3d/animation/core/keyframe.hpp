@@ -76,9 +76,13 @@ struct Keyframe {
 using KF = Keyframe<f32>;
 
 // Forward declarations for interpolation helpers.
+[[nodiscard]] constexpr bool is_hold_easing(EasingCurve easing) noexcept {
+    return !easing.cubic.has_value() && easing.preset == Easing::Hold;
+}
+
 template <typename T>
 inline T interpolate_values(const T& a, const T& b, f32 t, EasingCurve e) {
-    if (!e.cubic.has_value() && e.preset == Easing::Hold) return a;
+    if (is_hold_easing(e)) return a;
     const f32 eased_t = e.apply(t);
     return a + (b - a) * eased_t;
 }

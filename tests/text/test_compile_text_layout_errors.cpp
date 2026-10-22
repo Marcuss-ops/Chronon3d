@@ -369,7 +369,7 @@ namespace compile_layout_identity_folded {
 // phases (cache lookup + shape_text + resolve_placed_glyph_run + manual
 // TextRunLayout build + cache store) to compile_text_layout via the
 // `compile_or_cache_layout` anonymous-namespace helper in
-// `src/scene/builders/text_run_builder.cpp`.
+// `src/scene/builders/scene_text_run_builder.cpp`.
 //
 // What this TU locks:
 //   (1)  Path A = materialize_prepared_text via helper.

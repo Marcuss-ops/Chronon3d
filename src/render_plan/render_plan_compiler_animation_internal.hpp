@@ -4,6 +4,7 @@
 #include <chronon3d/animation/animation_property_kind.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/render_plan/spring_bake.hpp>
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/scene/path_sampling.hpp>
 #include <algorithm>
 #include <optional>
@@ -27,7 +28,7 @@ chronon3d::EasingCurve track_easing(
     const std::optional<std::array<float, 4>>& bezier_curve = std::nullopt,
     const std::optional<render_plan::SpringPlan>& spring = std::nullopt) {
     using chronon3d::Easing;
-    if (value == "spring") {
+    if (value == easing_name::kSpring) {
         if (spring) {
             // Spring is baked via sample_spring at evaluation time; the track easing itself stays linear.
             // Per-key spring interpolation is handled in the evaluator.
@@ -36,7 +37,7 @@ chronon3d::EasingCurve track_easing(
         throw std::runtime_error("easing='spring' requires a spring object");
     }
     if (spring) throw std::runtime_error("spring object requires easing='spring'");
-    if (value == "bezier") {
+    if (value == easing_name::kBezier) {
         if (!bezier_curve)
             throw std::runtime_error("easing='bezier' requires bezier_curve [x1, y1, x2, y2]");
         const auto& curve = *bezier_curve;
@@ -50,32 +51,32 @@ chronon3d::EasingCurve track_easing(
     }
     if (bezier_curve)
         throw std::runtime_error("bezier_curve requires easing='bezier'");
-    static constexpr std::array kEasings{
-        std::pair{"linear"sv, Easing::Linear},
-        std::pair{"in_quad"sv, Easing::InQuad},
-        std::pair{"out_quad"sv, Easing::OutQuad},
-        std::pair{"in_out_quad"sv, Easing::InOutQuad},
-        std::pair{"in_cubic"sv, Easing::InCubic},
-        std::pair{"out_cubic"sv, Easing::OutCubic},
-        std::pair{"in_out_cubic"sv, Easing::InOutCubic},
-        std::pair{"in_expo"sv, Easing::InExpo},
-        std::pair{"out_expo"sv, Easing::OutExpo},
-        std::pair{"in_out_expo"sv, Easing::InOutExpo},
-        std::pair{"in_sine"sv, Easing::InSine},
-        std::pair{"out_sine"sv, Easing::OutSine},
-        std::pair{"in_out_sine"sv, Easing::InOutSine},
-        std::pair{"in_back"sv, Easing::InBack},
-        std::pair{"out_back"sv, Easing::OutBack},
-        std::pair{"in_out_back"sv, Easing::InOutBack},
-        std::pair{"in_elastic"sv, Easing::InElastic},
-        std::pair{"out_elastic"sv, Easing::OutElastic},
-        std::pair{"in_out_elastic"sv, Easing::InOutElastic},
-        std::pair{"in_bounce"sv, Easing::InBounce},
-        std::pair{"out_bounce"sv, Easing::OutBounce},
-        std::pair{"in_out_bounce"sv, Easing::InOutBounce},
-        std::pair{"smoothstep"sv, Easing::Smoothstep},
-        std::pair{"hold"sv, Easing::Hold},
-    };
+    static constexpr std::array<std::pair<std::string_view, Easing>, 24> kEasings{{
+        std::pair{easing_name::kLinear, Easing::Linear},
+        std::pair{easing_name::kInQuad, Easing::InQuad},
+        std::pair{easing_name::kOutQuad, Easing::OutQuad},
+        std::pair{easing_name::kInOutQuad, Easing::InOutQuad},
+        std::pair{easing_name::kInCubic, Easing::InCubic},
+        std::pair{easing_name::kOutCubic, Easing::OutCubic},
+        std::pair{easing_name::kInOutCubic, Easing::InOutCubic},
+        std::pair{easing_name::kInExpo, Easing::InExpo},
+        std::pair{easing_name::kOutExpo, Easing::OutExpo},
+        std::pair{easing_name::kInOutExpo, Easing::InOutExpo},
+        std::pair{easing_name::kInSine, Easing::InSine},
+        std::pair{easing_name::kOutSine, Easing::OutSine},
+        std::pair{easing_name::kInOutSine, Easing::InOutSine},
+        std::pair{easing_name::kInBack, Easing::InBack},
+        std::pair{easing_name::kOutBack, Easing::OutBack},
+        std::pair{easing_name::kInOutBack, Easing::InOutBack},
+        std::pair{easing_name::kInElastic, Easing::InElastic},
+        std::pair{easing_name::kOutElastic, Easing::OutElastic},
+        std::pair{easing_name::kInOutElastic, Easing::InOutElastic},
+        std::pair{easing_name::kInBounce, Easing::InBounce},
+        std::pair{easing_name::kOutBounce, Easing::OutBounce},
+        std::pair{easing_name::kInOutBounce, Easing::InOutBounce},
+        std::pair{easing_name::kSmoothstep, Easing::Smoothstep},
+        std::pair{easing_name::kHold, Easing::Hold},
+    }};
     return {enum_from_string(value, kEasings, "unsupported animation easing: ")};
 }
 
@@ -83,38 +84,38 @@ chronon3d::EasingCurve keyframe_easing(const AnimationTrackPlan& track,
                                        const AnimationKeyframePlan& key) {
     if (key.spring || track.spring) {
         // Spring tracks use linear segment easing; the spring physics is applied at evaluation.
-        if (key.spring && key.easing && *key.easing != "spring") throw std::runtime_error("per-key spring requires easing='spring'");
+        if (key.spring && key.easing && *key.easing != easing_name::kSpring) throw std::runtime_error("per-key spring requires easing='spring'");
         if (key.spring && key.bezier_curve) throw std::runtime_error("per-key spring cannot be combined with bezier_curve");
         return {chronon3d::Easing::Linear};
     }
     if (key.interpolation) {
-        if (key.easing || (key.bezier_curve && *key.interpolation != "bezier") ||
+        if (key.easing || (key.bezier_curve && *key.interpolation != interpolation_name::kBezier) ||
             (key.bezier_curve && (key.temporal_in_dx || key.temporal_in_dy ||
                                   key.temporal_out_dx || key.temporal_out_dy)))
             throw std::runtime_error("keyframe interpolation cannot be combined with easing or an unrelated bezier_curve");
-        if (*key.interpolation == "linear") return {chronon3d::Easing::Linear};
-        if (*key.interpolation == "hold") return {chronon3d::Easing::Hold};
-        if (*key.interpolation == "bezier") {
+        if (*key.interpolation == interpolation_name::kLinear) return {chronon3d::Easing::Linear};
+        if (*key.interpolation == interpolation_name::kHold) return {chronon3d::Easing::Hold};
+        if (*key.interpolation == interpolation_name::kBezier) {
             if (!key.bezier_curve &&
                 !(key.temporal_in_dx || key.temporal_in_dy ||
                   key.temporal_out_dx || key.temporal_out_dy))
                 throw std::runtime_error("keyframe interpolation='bezier' requires bezier_curve or temporal handles");
-            return key.bezier_curve ? track_easing("bezier", key.bezier_curve)
+            return key.bezier_curve ? track_easing(easing_name::kBezier, key.bezier_curve)
                                     : chronon3d::EasingCurve{chronon3d::Easing::Linear};
         }
-        if (*key.interpolation == "auto_bezier")
+        if (*key.interpolation == interpolation_name::kAutoBezier)
             return chronon3d::EasingCurve{chronon3d::Easing::Linear};
         throw std::runtime_error("unsupported keyframe interpolation: " + *key.interpolation);
     }
     if (key.easing || key.bezier_curve || key.spring) {
         if (key.bezier_curve && !key.easing)
             throw std::runtime_error("per-key bezier_curve requires easing='bezier'");
-        if (key.easing == "spring") return {chronon3d::Easing::Linear};
+        if (key.easing == easing_name::kSpring) return {chronon3d::Easing::Linear};
         return track_easing(key.easing.value_or(track.easing),
                             key.bezier_curve ? key.bezier_curve : track.bezier_curve,
                             key.spring ? key.spring : track.spring);
     }
-    if (track.easing == "spring") return {chronon3d::Easing::Linear};
+    if (track.easing == easing_name::kSpring) return {chronon3d::Easing::Linear};
     return track_easing(track.easing, track.bezier_curve);
 }
 
@@ -171,7 +172,7 @@ void apply_data_feed(chronon3d::AnimatedValue<T>& animated,
             const double index = std::clamp(frame + static_cast<double>(offset),
                 0.0, static_cast<double>(values->size() - 1));
             const auto lower = static_cast<std::size_t>(std::floor(index));
-            if (interpolation == "step" || lower + 1 >= values->size())
+            if (interpolation == interpolation_name::kStep || lower + 1 >= values->size())
                 return (*values)[lower];
             const float fraction = static_cast<float>(index - static_cast<double>(lower));
             return (*values)[lower] + ((*values)[lower + 1] - (*values)[lower]) * fraction;
@@ -236,7 +237,7 @@ bool bake_spring_segment(chronon3d::AnimatedValue<T>& animated,
         [&](const AnimationKeyframePlan& candidate) { return candidate.frame == key.frame; });
     const bool is_segment = key_it != track.keyframes.end() &&
         std::next(key_it) != track.keyframes.end() &&
-        (key.easing == "spring" || (!key.interpolation && !key.easing && track.easing == "spring"));
+        (key.easing == easing_name::kSpring || (!key.interpolation && !key.easing && track.easing == easing_name::kSpring));
     if (!is_segment) return false;
 
     const auto& next_key = *std::next(key_it);
@@ -291,9 +292,9 @@ void add_interpolated_keyframe(chronon3d::AnimatedValue<T>& animated,
                                const AnimationTrackPlan& track,
                                const AnimationKeyframePlan& key,
                                const T& value) {
-    if (key.interpolation == "bezier" && key.bezier_curve) {
+    if (key.interpolation == interpolation_name::kBezier && key.bezier_curve) {
         animated.add_keyframe(key.frame, value, keyframe_easing(track, key), key.roving);
-    } else if (key.interpolation == "bezier") {
+    } else if (key.interpolation == interpolation_name::kBezier) {
         if constexpr (is_glm_vec_type_v<T>) {
             animated.add_vector_temporal_keyframe(key.frame, value, chronon3d::InterpMode::Bezier,
                 key.temporal_in_dx.value_or(0.0f), T{key.temporal_in_dy.value_or(0.0f)},
@@ -305,7 +306,7 @@ void add_interpolated_keyframe(chronon3d::AnimatedValue<T>& animated,
                 key.temporal_out_dx.value_or(0.0f), key.temporal_out_dy.value_or(0.0f),
                 key.roving, chronon3d::EasingCurve{chronon3d::Easing::Linear});
         }
-    } else if (key.interpolation == "auto_bezier") {
+    } else if (key.interpolation == interpolation_name::kAutoBezier) {
         animated.add_keyframe(key.frame, value, chronon3d::InterpMode::AutoBezier,
             0.0f, 0.0f, 0.0f, 0.0f, key.roving);
     } else if (key.temporal_in_dx || key.temporal_in_dy ||
@@ -361,7 +362,7 @@ struct PositionAnimationData {
 };
 
 bool has_authored_timing(const AnimationTrackPlan& track) {
-    return track.easing != "linear" || track.bezier_curve ||
+    return track.easing != easing_name::kLinear || track.bezier_curve ||
         std::any_of(track.keyframes.begin(), track.keyframes.end(), [](const auto& key) {
             return key.interpolation || key.easing || key.bezier_curve || key.roving ||
                    key.temporal_in_dx || key.temporal_in_dy ||

@@ -40,6 +40,39 @@ optional_globs = [
   "examples",
 ]
 
+[[root_source_policy]]
+name = "no_root_cpp_hpp"
+description = "Implementation and header files must live under their canonical source/include/test/tool directories."
+extensions = [".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"]
+allow = []
+
+[cache_family_inventory]
+name = "cache_family_inventory"
+taxonomy = "include/chronon3d/cache/cache_taxonomy.hpp"
+scan_root = "include/chronon3d"
+scan_roots = ["include/chronon3d", "src"]
+infrastructure = ["LruCache"]
+
+[[forbidden_symbol]]
+name = "render_plan_easing_string_comparisons"
+description = "RenderPlan easing comparisons must use easing_contract.hpp names."
+patterns = [
+  "\\b(?:[A-Za-z_]\\w*(?:\\.|->))*easing\\s*(?:==|!=)\\s*\"[^\"\\n]+\"",
+  "\"[^\"\\n]+\"\\s*(?:==|!=)\\s*(?:[A-Za-z_]\\w*(?:\\.|->))*easing\\b",
+]
+scan_paths = ["include/chronon3d/render_plan", "src/render_plan"]
+skip_comments = true
+
+[[forbidden_symbol]]
+name = "render_plan_interpolation_string_comparisons"
+description = "RenderPlan keyframe interpolation comparisons must use interpolation_name constants."
+patterns = [
+  "\\b(?:[A-Za-z_]\\w*(?:\\.|->))*interpolation\\s*(?:==|!=)\\s*\"[^\"\\n]+\"",
+  "\"[^\"\\n]+\"\\s*(?:==|!=)\\s*(?:[A-Za-z_]\\w*(?:\\.|->))*interpolation\\b",
+]
+scan_paths = ["include/chronon3d/render_plan", "src/render_plan"]
+skip_comments = true
+
 [[duplicate_basename]]
 name = "duplicate_source_basenames"
 description = "Prevent new source basename collisions and namespace/directory drift; historical collisions require explicit grandfathering."

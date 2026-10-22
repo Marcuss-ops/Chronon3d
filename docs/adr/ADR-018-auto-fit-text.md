@@ -6,7 +6,7 @@
 | **Date** | 2026-07-10 |
 | **Deciders** | Text pipeline architecture owner |
 | **Tags** | `text`, `auto-fit`, `font-size`, `binary-search`, `layout`, `compile_text_layout`, `ParagraphStyle` |
-| **Related** | `include/chronon3d/text/paragraph_style.hpp` (field declarations); `src/text/text_run_builder.cpp` (`compile_text_layout` canonical compiler); `src/scene/builders/text_run_builder.cpp` (`compile_or_cache_layout` materializer); `include/chronon3d/text/text_run_builder.hpp` (`TextLayoutRequest` / `TextCompileServices`); ADR-001 (frame-graph-compiler, layout pipeline); `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` (text V1 roadmap) |
+| **Related** | `include/chronon3d/text/paragraph_style.hpp` (field declarations); `src/text/text_run_builder.cpp` (`compile_text_layout` canonical compiler); `src/scene/builders/scene_text_run_builder.cpp` (`compile_or_cache_layout` materializer); `include/chronon3d/text/text_run_builder.hpp` (`TextLayoutRequest` / `TextCompileServices`); ADR-001 (frame-graph-compiler, layout pipeline); `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` (text V1 roadmap) |
 
 > **Policy update (2026-09-24):** Auto-fit is opt-in. `TextOverflow::Clip` does not change
 > the authored font size and must not trigger this ADR's shrink-only fitting. Pixel clipping
@@ -111,7 +111,7 @@ function auto_fit_font_size(params, engine, box):
 
 ### Integration point
 
-The binary search runs inside `compile_or_cache_layout()` (`src/scene/builders/text_run_builder.cpp`), **before** the cache lookup.  The rationale:
+The binary search runs inside `compile_or_cache_layout()` (`src/scene/builders/scene_text_run_builder.cpp`), **before** the cache lookup.  The rationale:
 
 1. The cache key must include the **resolved** (auto-fitted) font size, not the authored size.  If the cache key used the authored size, two calls with different box sizes but the same authored font would collide on a stale layout.
 
@@ -121,7 +121,7 @@ The binary search runs inside `compile_or_cache_layout()` (`src/scene/builders/t
 
 ### Source anchor (planned)
 
-`src/scene/builders/text_run_builder.cpp` — inside `compile_or_cache_layout()`, between the cache-key construction and the `compile_text_layout()` call.  The auto-fit block inserts a candidate font size into `cache_key.font_size` before the cache lookup.
+`src/scene/builders/scene_text_run_builder.cpp` — inside `compile_or_cache_layout()`, between the cache-key construction and the `compile_text_layout()` call.  The auto-fit block inserts a candidate font size into `cache_key.font_size` before the cache lookup.
 
 ### Test lock (planned)
 
@@ -222,7 +222,7 @@ Considered — instead of binary search from scratch each materialization, start
 * `include/chronon3d/text/paragraph_style.hpp` — `auto_fit_font_size`, `min_font_size`, `max_font_size` field declarations (TEXT-PLY-01).
 * `include/chronon3d/text/text_run_builder.hpp` — `compile_text_layout()` signature, `TextLayoutRequest`, `TextCompileServices`.
 * `src/text/text_run_builder.cpp` — `compile_text_layout()` implementation (7-stage pipeline).
-* `src/scene/builders/text_run_builder.cpp` — `compile_or_cache_layout()` (materializer-side cache + compile delegation).
+* `src/scene/builders/scene_text_run_builder.cpp` — `compile_or_cache_layout()` (materializer-side cache + compile delegation).
 * `include/chronon3d/text/text_run_layout.hpp` — `TextRunLayout::bounds` (the overflow check target).
 * `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` — text V1 roadmap (auto-fit is a V1 milestone).
 * ADR-001 — frame-graph-compiler (layout pipeline context).

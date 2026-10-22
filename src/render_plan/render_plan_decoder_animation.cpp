@@ -1,5 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
-#include "easing_contract.hpp"
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include "audio_react_contract.hpp"
 #include <chronon3d/render_plan/color_utils.hpp>
 
@@ -16,6 +16,9 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+namespace easing_name = chronon3d::render_plan::detail::easing_name;
+namespace interpolation_name = chronon3d::render_plan::detail::interpolation_name;
 
 namespace chronon3d::render_plan::detail {
 namespace {
@@ -163,7 +166,7 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
         driver.index_offset = raw.value("index_offset", std::int32_t{0});
         driver.interpolation = raw.value("interpolation", std::string{"step"});
         if (driver.index_offset < -1000000 || driver.index_offset > 1000000 ||
-            (driver.interpolation != "step" && driver.interpolation != "linear"))
+            (driver.interpolation != interpolation_name::kStep && driver.interpolation != interpolation_name::kLinear))
             throw std::runtime_error("data_feed offset or interpolation is outside supported bounds");
         if (raw.contains("values")) {
             if (raw.contains("asset") || raw.contains("sha256") || raw.contains("item_count") ||
@@ -230,7 +233,7 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
     if (!is_animation_easing(track.easing))
         throw std::runtime_error("unsupported animation easing: " + track.easing);
     if (value.contains("spring")) track.spring = decode_spring(value.at("spring"), "animation track spring");
-    if (track.easing != "spring" && track.spring)
+    if (track.easing != easing_name::kSpring && track.spring)
         throw std::runtime_error("animation spring config requires easing='spring'");
     track.bezier_curve = decode_bezier_curve(value, track.easing, "animation track");
     if (value.contains("keyframes")) for (const auto& key_value : value.at("keyframes")) {
@@ -284,20 +287,20 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
             throw std::runtime_error("temporal_out_dx must be non-negative");
         if (key.easing && !is_animation_easing(*key.easing))
             throw std::runtime_error("unsupported per-key animation easing: " + *key.easing);
-        if (key.spring && key.easing != "spring" && track.easing != "spring")
+        if (key.spring && key.easing != easing_name::kSpring && track.easing != easing_name::kSpring)
             throw std::runtime_error("per-key spring config requires easing='spring'");
-        if (key.interpolation && *key.interpolation != "linear" &&
-            *key.interpolation != "hold" && *key.interpolation != "bezier" &&
-            *key.interpolation != "auto_bezier")
+        if (key.interpolation && *key.interpolation != interpolation_name::kLinear &&
+            *key.interpolation != interpolation_name::kHold && *key.interpolation != interpolation_name::kBezier &&
+            *key.interpolation != interpolation_name::kAutoBezier)
             throw std::runtime_error("keyframe interpolation must be linear, hold, bezier, or auto_bezier");
-        if (key.interpolation == "auto_bezier" &&
+        if (key.interpolation == interpolation_name::kAutoBezier &&
             (key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy || key.bezier_curve))
             throw std::runtime_error("auto_bezier cannot be combined with authored Bezier data");
-        if (key.interpolation == "bezier" && key.bezier_curve &&
+        if (key.interpolation == interpolation_name::kBezier && key.bezier_curve &&
             (key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy))
             throw std::runtime_error("bezier_curve and temporal handles cannot be combined on one keyframe");
         if ((key.temporal_in_dx || key.temporal_in_dy || key.temporal_out_dx || key.temporal_out_dy) &&
-            (key.interpolation != "bezier" || key.bezier_curve))
+            (key.interpolation != interpolation_name::kBezier || key.bezier_curve))
             throw std::runtime_error("temporal handles require interpolation='bezier' without bezier_curve");
         const bool has_temporal_handles = key.temporal_in_dx || key.temporal_in_dy ||
             key.temporal_out_dx || key.temporal_out_dy;
@@ -306,18 +309,18 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
             throw std::runtime_error("roving keyframes cannot contain authored Bezier handles");
         if (key.interpolation && key.easing)
             throw std::runtime_error("keyframe interpolation cannot be combined with easing");
-        if (key.interpolation == "bezier" && !key.bezier_curve && !has_temporal_handles)
+        if (key.interpolation == interpolation_name::kBezier && !key.bezier_curve && !has_temporal_handles)
             throw std::runtime_error("keyframe interpolation='bezier' requires bezier_curve or temporal handles");
-        if (key.interpolation && *key.interpolation != "bezier" && key.bezier_curve)
+        if (key.interpolation && *key.interpolation != interpolation_name::kBezier && key.bezier_curve)
             throw std::runtime_error("bezier_curve requires interpolation='bezier'");
-        if (!key.interpolation && ((key.easing == "bezier") != key.bezier_curve.has_value()))
+        if (!key.interpolation && ((key.easing == easing_name::kBezier) != key.bezier_curve.has_value()))
             throw std::runtime_error("per-key easing='bezier' and bezier_curve must be provided together");
         if (key.interpolation && key.easing)
             throw std::runtime_error("keyframe interpolation cannot be combined with easing");
-        if (key.roving && (key.interpolation == "bezier" || key.interpolation == "auto_bezier" ||
+        if (key.roving && (key.interpolation == interpolation_name::kBezier || key.interpolation == interpolation_name::kAutoBezier ||
                            has_temporal_handles || key.bezier_curve))
             throw std::runtime_error("roving cannot be combined with authored or automatic Bezier timing");
-        if (key.interpolation == "auto_bezier" &&
+        if (key.interpolation == interpolation_name::kAutoBezier &&
             (key.easing || key.bezier_curve || has_temporal_handles))
             throw std::runtime_error("auto_bezier cannot be combined with easing or authored handles");
         track.keyframes.push_back(std::move(key));
@@ -327,23 +330,23 @@ AnimationTrackPlan decode_animation_track_impl(const nlohmann::json& value) {
             throw std::runtime_error("animation track requires keyframes or a procedural data driver");
         track.keyframes.push_back({Frame{0}, {0.0f}});
     }
-    if (track.easing == "spring" && track.keyframes.size() < 2)
+    if (track.easing == easing_name::kSpring && track.keyframes.size() < 2)
         throw std::runtime_error("spring segment requires positive frame span");
     for (std::size_t index = 0; index + 1 < track.keyframes.size(); ++index)
-        if ((track.keyframes[index].easing == "spring" ||
-             (!track.keyframes[index].easing && track.easing == "spring")) &&
+        if ((track.keyframes[index].easing == easing_name::kSpring ||
+             (!track.keyframes[index].easing && track.easing == easing_name::kSpring)) &&
             track.keyframes[index].frame >= track.keyframes[index + 1].frame)
             throw std::runtime_error("spring segment requires positive frame span");
     if (!track.keyframes.empty() &&
-        (track.keyframes.back().easing == "spring" || track.keyframes.back().spring))
+        (track.keyframes.back().easing == easing_name::kSpring || track.keyframes.back().spring))
         throw std::runtime_error("spring segment requires positive frame span");
     for (std::size_t index = 1; index < track.keyframes.size(); ++index)
         if (track.keyframes[index - 1].frame == track.keyframes[index].frame)
             throw std::runtime_error("animation keyframe frames must be unique");
     for (std::size_t index = 0; index + 1 < track.keyframes.size(); ++index) {
         const auto& key = track.keyframes[index];
-        const bool spring_segment = key.easing == "spring" ||
-            (!key.easing && track.easing == "spring");
+        const bool spring_segment = key.easing == easing_name::kSpring ||
+            (!key.easing && track.easing == easing_name::kSpring);
         if (spring_segment && !key.spring && !track.spring)
             throw std::runtime_error("spring segment requires a config on its keyframe or track");
     }
@@ -360,7 +363,7 @@ AnimationTrackPlan decode_animation_track(const nlohmann::json& value) {
 std::optional<std::array<float, 4>> decode_bezier_curve(
     const nlohmann::json& object, std::string_view easing, std::string_view field) {
     const bool has_curve = object.contains("bezier_curve");
-    if ((easing == "bezier") != has_curve)
+    if ((easing == easing_name::kBezier) != has_curve)
         throw std::runtime_error(std::string(field) +
             " requires easing='bezier' and bezier_curve together");
     if (!has_curve) return std::nullopt;

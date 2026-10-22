@@ -4,7 +4,7 @@
 // test_auto_fit_font_size.cpp
 //
 // ADR-018 — Regression locks for the auto-fit binary search algorithm
-// in compile_or_cache_layout() (src/scene/builders/text_run_builder.cpp).
+// in compile_or_cache_layout() (src/scene/builders/scene_text_run_builder.cpp).
 //
 // Four SUBCASEs locked:
 //   (1) Shrink triggers — long text + narrow box → font_size < authored
@@ -250,7 +250,7 @@ TEST_CASE("ADR-018: auto-fit terminates (fixed 12-iter bound, no infinite loop)"
 
     // Degenerate-but-valid input: 1x1px box (non-zero so the
     // `box.enabled && box.size > 0` gate triggers in BOTH code paths
-    // — text_run_builder.cpp + text_layout_engine.hpp) + oversized
+    // — scene_text_run_builder.cpp + text_layout_engine.hpp) + oversized
     // text.  The fixed 12-iter loop MUST terminate in bounded time.
     // 1x1px is too small to fit even 8pt text, so the binary search
     // runs all 12 iterations, never finding a fit, and the resolved

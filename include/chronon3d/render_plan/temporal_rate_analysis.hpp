@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/easing_contract.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -203,8 +204,9 @@ inline void append_track_schedule(std::vector<Frame>& out, const AnimationTrackP
         const Frame segment_end{std::min(end.integral(), next.frame.integral())};
         if (segment_end <= segment_first) continue;
         const bool hold = key.interpolation
-            ? *key.interpolation == "hold"
-            : (key.easing ? *key.easing == "hold" : t.easing == "hold");
+            ? *key.interpolation == detail::easing_name::kHold
+            : (key.easing ? *key.easing == detail::easing_name::kHold
+                          : t.easing == detail::easing_name::kHold);
         if (hold) {
             if (key.frame >= first && key.frame < end)
                 append_event(out, key.frame, complete);

@@ -1,5 +1,9 @@
 #pragma once
 
+// Node execution policy: temporal variation and invalidation of a graph node.
+// This is intentionally distinct from cache/cache_policy.hpp, which resolves
+// capacity and eviction settings for cache instances.
+
 #include <cstdint>
 #include <string_view>
 #include <chronon3d/core/types/frame.hpp>
