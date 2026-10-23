@@ -187,12 +187,11 @@ public:
     // ── Asset management ─────────────────────────────────────────
 
     /// Set the root directory for asset resolution (fonts, images, etc.).
-    /// In Phase A: writes both (a) the legacy process-wide default so
-    /// deep rendering code keeps working unchanged and (b) the
-    /// owning RuntimeContext's default_assets_root + AssetRegistry mount
-    /// so the engine owns the asset root in its own state.  Phase B
-    /// (follow-up) will drop (a) once all deep rendering callers read
-    /// the engine's runtime instead of the global.
+    /// Writes only the owning RuntimeContext's resolver mount + AssetRegistry
+    /// state: the engine owns the asset root.  Fase B2 is DONE — the legacy
+    /// process-wide default (`process_wide_assets_root()` /
+    /// `process_wide_resolver()`) no longer exists, so two engines with
+    /// different asset roots observe their own value.
     void set_assets_root(const std::filesystem::path& root);
 
     /// Access the internal AssetRegistry owned by Impl.

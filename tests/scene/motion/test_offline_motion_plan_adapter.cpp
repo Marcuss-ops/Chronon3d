@@ -606,11 +606,11 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(cameraPlan.canvas.duration.integral() == 4);
     CHECK_MESSAGE(canonicallyValid(cameraPlan), canonicalDiagnostic(cameraPlan));
 
-    rig.setLegacyDefocusStrength(0.035f).setFocusDistance(425.f).setFocalLength(50.f).setFStop(2.8f);
+    rig.setFocusDistance(425.f).setFocalLength(50.f).setFStop(2.8f);
     const auto dofCameraPlan = lowerToRenderPlan(cameraScene, cameraOptions);
     REQUIRE(dofCameraPlan.camera.has_value());
     CHECK(dofCameraPlan.camera->dof_enabled);
-    CHECK(dofCameraPlan.camera->dof_aperture == doctest::Approx(0.035f));
+    CHECK(dofCameraPlan.camera->dof_f_stop == doctest::Approx(2.8f));
     CHECK(dofCameraPlan.camera->dof_focus_distance == doctest::Approx(425.f));
     CHECK(dofCameraPlan.camera->focal_length_mm == doctest::Approx(50.f));
     CHECK(dofCameraPlan.camera->f_stop == doctest::Approx(2.8f));
@@ -716,7 +716,7 @@ TEST_CASE("ChrononMotion baked SVG Merge and Morph operators satisfy V3 schema")
     unsupportedLens.focalLength = 5.f;
     CHECK_THROWS_AS(lowerCameraPose(unsupportedLens, 0.1f, 1000.f), std::invalid_argument);
     unsupportedLens.focalLength = 0.f;
-    unsupportedLens.legacyDefocusStrength = 2.8f;
+    unsupportedLens.maxBlur = 300.f;
     CHECK_THROWS_AS(lowerCameraPose(unsupportedLens, 0.1f, 1000.f), std::invalid_argument);
 }
 

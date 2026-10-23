@@ -1,0 +1,27 @@
+{
+  "resolution": [
+    1920,
+    1080
+  ],
+  "threshold_rgb_l1_gt8": 8,
+  "all_changed_pixels": 30291,
+  "all_changed_bbox_xyxy": [
+    576,
+    634,
+    1284,
+    781
+  ],
+  "receiver_floor_changed_pixels": 14943,
+  "receiver_floor_bbox_xyxy": [
+    614,
+    710,
+    1225,
+    781
+  ],
+  "receiver_floor_mean_delta_rgb_l1": 0.8942553490990991,
+  "receiver_floor_p95_delta_rgb_l1": 6.0,
+  "receiver_floor_max_delta_rgb_l1": 13,
+  "receiver_floor_nonzero_fraction": 0.021034628378378377,
+  "shadowed_rgba_sha256": "a7d65abd0673f7896619a320665b3341f30da9190e753525c1a62f32b39c1c0f",
+  "shadow_ablation_rgba_sha256": "1f1e3cbefa86f6afa94bb71778b17a8d174c62254a0e7b1aaad9c14f9b95f507"
+}

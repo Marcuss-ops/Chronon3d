@@ -3,6 +3,20 @@
 Stato: **PARTIAL — OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
 portate, e istanziamento GPU per le particelle).
 
+### Gate T05 — verifica C3D 2026-10-22
+
+- Il RenderPlan A/B C3D software produce pixel validi e modifica i pixel del
+  receiver quando i caster sono attivi. Evidenza e metriche:
+  [`T05 C3D shadow investigation`](../evidence/lights-shadows/T05-c3d-production-20261022/).
+- La qualità non è certificata: nella scena di verifica le ombre sul pavimento
+  hanno contrasto debole e il confronto con gap caster/receiver ridotto non lo
+  migliora. Non è una composizione di produzione approvata.
+- Il render Vulkan `require_gpu_native` fallisce nel nodo `Shadow` con
+  `UnsupportedCapability: shadow requires a native GPU pass or CPU pixel backing`.
+  `ShadowNode` resta una reference CPU; il percorso nativo C3D non è integrato.
+- T05 rimane **PARTIAL**. Per chiuderlo servono un native shadow pass C3D, un
+  A/B di qualità su uno shot di produzione e la revisione visiva della composizione.
+
 ## Audit di partenza (2026-10-08)
 
 ### Avanzamento verificato (2026-10-10)
