@@ -8,6 +8,7 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_relations_validator.cpp
     render_plan_decoder_support.cpp
     render_plan_decoder_layer.cpp
+    render_plan_decoder_layer_style.cpp
     render_plan_decoder_layer_animation_validation.cpp
     render_plan_decoder_layer_fields.cpp
     render_plan_decoder_layer_timing.cpp

@@ -51,6 +51,7 @@ void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value);
     const nlohmann::json& value, std::string_view context);
 void decode_layer_inline_mesh(LayerPlan&, const nlohmann::json&);
 void decode_layer_text_spans(LayerPlan&, const nlohmann::json&);
+void decode_layer_style_fields(LayerPlan&, const nlohmann::json&);
 [[nodiscard]] std::optional<Color> decode_text_span_color(const std::string& encoded);
 [[nodiscard]] LayerPlan::StaggerPlan decode_stagger(const nlohmann::json& raw);
 [[nodiscard]] std::vector<ShapePathCommandPlan> decode_follow_path_commands(const nlohmann::json& raw);
