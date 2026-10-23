@@ -4492,7 +4492,7 @@
                 }
               },
               "animation": {
-                "description": "Baked per-frame position track (V3 only): strictly increasing frames, one position per base vertex. Transport + validation only; the renderer samples the base mesh.",
+                "description": "Baked per-frame position track (V3 only): strictly increasing frames, one position per base vertex. C3D samples positions and retains UV coordinates and mesh material.",
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 4096,
@@ -7561,20 +7561,16 @@
                 "inline_mesh"
               ],
               "not": {
-                "anyOf": [
-                  {
-                    "required": [
-                      "asset"
-                    ]
-                  },
-                  {
-                    "required": [
-                      "source"
-                    ]
-                  }
-                ]
+                "required": ["source"]
               }
             }
+          },
+          {
+            "if": {
+              "properties": {"type": {"const": "mesh"}},
+              "required": ["type", "asset"]
+            },
+            "then": {"required": ["inline_mesh"]}
           },
           {
             "if": {

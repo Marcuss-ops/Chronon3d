@@ -105,6 +105,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         throw std::runtime_error("mesh layer '" + layer.name + "' has no inline geometry");
                     InlineMeshParams params;
                     params.name = layer.name;
+                    params.texture_asset = layer.asset;
                     params.vertices.reserve(layer.inline_mesh->vertices.size());
                     for (const auto& vertex : layer.inline_mesh->vertices)
                         params.vertices.push_back(Vertex{
@@ -116,6 +117,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     builder.inline_mesh(std::move(params));
                     auto& node = builder.last_node_handle().node();
                     node.color = Color{layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+                    node.inline_mesh_animated = !layer.inline_mesh->animation.empty();
                     if (layer.inline_mesh->material) {
                         const auto& source = *layer.inline_mesh->material;
                         RenderNode::InlineMeshMaterial material;

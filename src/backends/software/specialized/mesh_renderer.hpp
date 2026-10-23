@@ -20,6 +20,11 @@ void render_mesh_filled(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
                         f32 near_plane = 0.1f,
                         f32 far_plane = 1000.0f);
 
+void render_mesh_textured(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
+                         const Mat4& view, const Mat4& proj, const Color& tint,
+                         std::span<float> depth_buffer, const Framebuffer& texture,
+                         f32 near_plane = 0.1f, f32 far_plane = 1000.0f);
+
 void render_mesh_filled_lit(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
                             const Mat4& view, const Mat4& proj, const Color& color,
                             std::span<float> depth_buffer,

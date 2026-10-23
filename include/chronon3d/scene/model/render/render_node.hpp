@@ -54,6 +54,10 @@ struct RenderNode {
         std::optional<Color> base_color;
     };
     std::optional<InlineMeshMaterial> inline_mesh_material;
+    // RenderPlan inline-mesh frame samples are frame-varying source geometry.
+    // The asset field names an optional RGBA image sampled through vertex UVs.
+    std::string inline_mesh_texture_asset;
+    bool inline_mesh_animated{false};
     struct SvgGroupIsolation {
         struct OpacityAnimation {
             std::int64_t start_frame{0};

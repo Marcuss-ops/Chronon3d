@@ -48,6 +48,27 @@ LayoutGrid make_layout_grid(const LayerPlan::GridLayoutPlan& plan) {
     return grid;
 }
 
+std::array<float, 3> inline_mesh_position_at(
+    const InlineMeshPlan& mesh, std::size_t vertex, double frame) {
+    if (mesh.animation.empty()) return mesh.vertices[vertex].position;
+    const auto upper = std::lower_bound(
+        mesh.animation.begin(), mesh.animation.end(), frame,
+        [](const InlineMeshFrameSamplePlan& sample, double value) {
+            return static_cast<double>(sample.frame) < value;
+        });
+    if (upper == mesh.animation.begin()) return upper->positions[vertex];
+    if (upper == mesh.animation.end()) return mesh.animation.back().positions[vertex];
+    if (static_cast<double>(upper->frame) == frame) return upper->positions[vertex];
+    const auto& lower = *std::prev(upper);
+    const float t = static_cast<float>((frame - static_cast<double>(lower.frame)) /
+                                       static_cast<double>(upper->frame - lower.frame));
+    const auto& a = lower.positions[vertex];
+    const auto& b = upper->positions[vertex];
+    return {a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t};
+}
+
 } // namespace
 std::function<chronon3d::Scene(const chronon3d::FrameContext&)>
 make_scene_evaluator(SceneMaterializationInputs inputs) {
@@ -435,12 +456,19 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                             throw std::runtime_error("mesh layer '" + layer.id + "' has no inline geometry");
                         InlineMeshParams params;
                         params.name = layer.id;
+                        params.texture_asset = layer.asset;
                         params.vertices.reserve(layer.inline_mesh->vertices.size());
-                        for (const auto& vertex : layer.inline_mesh->vertices)
+                        const double mesh_frame = ctx.effective_frame();
+                        for (std::size_t vertex_index = 0;
+                             vertex_index < layer.inline_mesh->vertices.size(); ++vertex_index) {
+                            const auto& vertex = layer.inline_mesh->vertices[vertex_index];
+                            const auto position = inline_mesh_position_at(
+                                *layer.inline_mesh, vertex_index, mesh_frame);
                             params.vertices.push_back(Vertex{
-                                Vec3{vertex.position[0], vertex.position[1], vertex.position[2]},
+                                Vec3{position[0], position[1], position[2]},
                                 Vec3{vertex.normal[0], vertex.normal[1], vertex.normal[2]},
                                 Vec2{vertex.uv[0], vertex.uv[1]}});
+                        }
                         params.indices = layer.inline_mesh->indices;
                         builder.accepts_lights(false).accepts_shadows(false);
                         builder.inline_mesh(std::move(params));
@@ -452,6 +480,7 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                         }
                         auto& node = builder.last_node_handle().node();
                         node.color = Color{layer.color[0], layer.color[1], layer.color[2], layer.color[3]};
+                        node.inline_mesh_animated = !layer.inline_mesh->animation.empty();
                         if (layer.inline_mesh->material) {
                             const auto& source = *layer.inline_mesh->material;
                             RenderNode::InlineMeshMaterial material;

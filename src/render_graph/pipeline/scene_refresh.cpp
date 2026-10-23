@@ -325,8 +325,16 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     auto* prepared = acquire_refresh_node(
                         compiled.refresh_scratch, node_id, *source_node,
                         ctx.node_exec.counters);
+                    const compiler::SampledMeshParameters* sampled_mesh = nullptr;
+                    if (ctx.frame_parameters &&
+                        compiled.nodes[node_id].binding_meta.has_binding()) {
+                        const auto layer_index = compiled.nodes[node_id].binding_meta.layer_index;
+                        if (layer_index < ctx.frame_parameters->layers.size())
+                            sampled_mesh = std::get_if<compiler::SampledMeshParameters>(
+                                &ctx.frame_parameters->layers[layer_index].payload);
+                    }
                     refresh_source_node(*prepared, resolved_by_name,
-                        root_nodes_by_name, is_static_cache, ctx);
+                        root_nodes_by_name, is_static_cache, ctx, sampled_mesh);
                 } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&graph_node)) {
                     auto* prepared = acquire_refresh_node(
                         compiled.refresh_scratch, node_id, *multi,

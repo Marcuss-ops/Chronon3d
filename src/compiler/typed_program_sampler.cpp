@@ -102,10 +102,32 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                     layer.size, layer.color, layer.opacity};
                 break;
             case NodeKind::Mesh:
-                sampled.payload = SampledMeshParameters{
-                    layer.inline_mesh ? &*layer.inline_mesh : nullptr,
-                    layer.color};
+            {
+                SampledMeshParameters mesh{.inline_mesh = layer.inline_mesh ? &*layer.inline_mesh : nullptr,
+                                           .color = layer.color};
+                if (mesh.inline_mesh && !mesh.inline_mesh->animation.empty()) {
+                    const auto& samples = mesh.inline_mesh->animation;
+                    const auto right = std::upper_bound(samples.begin(), samples.end(), frame_number,
+                        [](double value, const render_plan::InlineMeshFrameSamplePlan& sample) {
+                            return value < static_cast<double>(sample.frame);
+                        });
+                    if (right == samples.begin()) {
+                        mesh.animation_before = mesh.animation_after = &samples.front();
+                    } else if (right == samples.end()) {
+                        mesh.animation_before = mesh.animation_after = &samples.back();
+                    } else {
+                        mesh.animation_before = &*(right - 1);
+                        mesh.animation_after = &*right;
+                        const auto span = mesh.animation_after->frame - mesh.animation_before->frame;
+                        mesh.animation_mix = span > 0 ? std::clamp(
+                            static_cast<float>(frame_number - mesh.animation_before->frame) /
+                                static_cast<float>(span), 0.0f, 1.0f) : 0.0f;
+                    }
+                    sampled.dirty = true;
+                }
+                sampled.payload = mesh;
                 break;
+            }
             case NodeKind::Unknown:
                 break;
         }

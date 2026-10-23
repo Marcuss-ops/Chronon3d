@@ -343,6 +343,100 @@ void render_mesh_filled(
     }
 }
 
+void render_mesh_textured(
+    Framebuffer& fb, const Mesh& mesh, const Mat4& model,
+    const Mat4& view, const Mat4& proj, const Color& tint,
+    std::span<float> depth_buffer, const Framebuffer& texture,
+    f32 near_plane, f32 far_plane)
+{
+    const auto& vertices = mesh.vertices();
+    const auto& indices = mesh.indices();
+    if (vertices.empty() || indices.size() < 3 || texture.width() <= 0 || texture.height() <= 0) return;
+    const Mat4 view_model = view * model;
+    near_plane = std::max(near_plane, 1e-5f);
+    far_plane = std::max(far_plane, near_plane + 1e-5f);
+    struct ProjectedVertex { Vec2 screen; float inverse_depth; Vec2 uv; };
+    const auto sample = [&](Vec2 uv) {
+        const float px = std::clamp(uv.x, 0.0f, 1.0f) * static_cast<float>(texture.width() - 1);
+        const float py = std::clamp(1.0f - uv.y, 0.0f, 1.0f) * static_cast<float>(texture.height() - 1);
+        const int x0 = static_cast<int>(std::floor(px));
+        const int y0 = static_cast<int>(std::floor(py));
+        const int x1 = std::min(x0 + 1, texture.width() - 1);
+        const int y1 = std::min(y0 + 1, texture.height() - 1);
+        const float tx = px - static_cast<float>(x0), ty = py - static_cast<float>(y0);
+        const auto mix = [](const Color& a, const Color& b, float t) {
+            return Color{a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t,
+                         a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t};
+        };
+        return mix(mix(texture.pixels_row(y0)[x0], texture.pixels_row(y0)[x1], tx),
+                   mix(texture.pixels_row(y1)[x0], texture.pixels_row(y1)[x1], tx), ty);
+    };
+    const auto edge = [](const Vec2& a, const Vec2& b, const Vec2& p) {
+        return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+    };
+    for (std::size_t tri = 0; tri + 2 < indices.size(); tri += 3) {
+        std::array<ProjectedVertex, 3> projected{};
+        bool valid = true;
+        for (std::size_t corner = 0; corner < 3; ++corner) {
+            const auto index = indices[tri + corner];
+            if (index >= vertices.size()) { valid = false; break; }
+            const auto& vertex = vertices[index];
+            const Vec4 view_position = view_model * Vec4(vertex.position, 1.0f);
+            const float depth = -view_position.z;
+            if (!std::isfinite(depth) || depth < near_plane || depth > far_plane) { valid = false; break; }
+            const Vec4 clip = proj * view_position;
+            if (!std::isfinite(clip.w) || clip.w <= 1e-6f) { valid = false; break; }
+            projected[corner] = {
+                Vec2{(clip.x / clip.w + 1.0f) * 0.5f * static_cast<float>(fb.width()),
+                     (1.0f - (clip.y / clip.w + 1.0f) * 0.5f) * static_cast<float>(fb.height())},
+                1.0f / depth, vertex.uv};
+        }
+        if (!valid) continue;
+        const Vec2 a = projected[0].screen, b = projected[1].screen, c = projected[2].screen;
+        const float area = edge(a, b, c);
+        if (std::abs(area) < 1e-6f) continue;
+        // Raster samples live at pixel centres (x + .5, y + .5). Bound the
+        // candidate range against those centres; using ceil(min)/floor(max)
+        // dropped one-pixel strips along every shared mesh edge.
+        const int x0 = std::max(0, static_cast<int>(std::ceil(std::min({a.x, b.x, c.x}) - 0.5f)));
+        const int x1 = std::min(fb.width() - 1, static_cast<int>(std::floor(std::max({a.x, b.x, c.x}) - 0.5f)));
+        const int y0 = std::max(0, static_cast<int>(std::ceil(std::min({a.y, b.y, c.y}) - 0.5f)));
+        const int y1 = std::min(fb.height() - 1, static_cast<int>(std::floor(std::max({a.y, b.y, c.y}) - 0.5f)));
+        for (int y = y0; y <= y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x <= x1; ++x) {
+                const Vec2 p{static_cast<float>(x) + .5f, static_cast<float>(y) + .5f};
+                const float w0 = edge(b, c, p) / area;
+                const float w1 = edge(c, a, p) / area;
+                const float w2 = edge(a, b, p) / area;
+                if (w0 < -1e-5f || w1 < -1e-5f || w2 < -1e-5f) continue;
+                const float inv_depth = w0 * projected[0].inverse_depth +
+                    w1 * projected[1].inverse_depth + w2 * projected[2].inverse_depth;
+                if (!(inv_depth > 0.0f)) continue;
+                const float depth = 1.0f / inv_depth;
+                const auto depth_index = static_cast<std::size_t>(y) * fb.width() + x;
+                const bool use_depth = depth_buffer.size() == static_cast<std::size_t>(fb.width()) * fb.height();
+                if (use_depth && depth_buffer[depth_index] > 0.0f && depth >= depth_buffer[depth_index]) continue;
+                const float q0 = w0 * projected[0].inverse_depth / inv_depth;
+                const float q1 = w1 * projected[1].inverse_depth / inv_depth;
+                const float q2 = w2 * projected[2].inverse_depth / inv_depth;
+                const Vec2 uv = q0 * projected[0].uv + q1 * projected[1].uv + q2 * projected[2].uv;
+                const Color texel = sample(uv);
+                const Color src{texel.r * tint.r * tint.a, texel.g * tint.g * tint.a,
+                                texel.b * tint.b * tint.a, texel.a * tint.a};
+                if (src.a <= 1e-6f) continue;
+                if (use_depth) depth_buffer[depth_index] = depth;
+                Color& dst = row[x];
+                const float inverse_alpha = 1.0f - src.a;
+                dst.r = src.r + dst.r * inverse_alpha;
+                dst.g = src.g + dst.g * inverse_alpha;
+                dst.b = src.b + dst.b * inverse_alpha;
+                dst.a = src.a + dst.a * inverse_alpha;
+            }
+        }
+    }
+}
+
 void render_mesh_filled_lit(
     Framebuffer& fb, const Mesh& mesh, const Mat4& model,
     const Mat4& view, const Mat4& proj, const Color& color,

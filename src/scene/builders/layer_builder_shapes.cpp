@@ -206,6 +206,9 @@ LayerBuilder& LayerBuilder::inline_mesh(InlineMeshParams params) {
         params.indices.size() < 3 || params.indices.size() > 750'000 ||
         params.indices.size() % 3 != 0)
         throw std::invalid_argument("LayerBuilder::inline_mesh: triangle geometry exceeds supported limits");
+    if (!params.texture_asset.empty())
+        m_layer.asset_manifest.add_image(params.texture_asset,
+            std::string(m_layer.name) + "/" + params.name + "/texture");
     for (const auto index : params.indices)
         if (index >= params.vertices.size())
             throw std::invalid_argument("LayerBuilder::inline_mesh: index is outside the vertex array");
@@ -226,6 +229,7 @@ LayerBuilder& LayerBuilder::inline_mesh(InlineMeshParams params) {
     auto* res = m_layer.nodes.get_allocator().resource();
     RenderNode node(res);
     node.name = std::pmr::string{params.name, res};
+    node.inline_mesh_texture_asset = params.texture_asset;
     node.shape.set_type(ShapeType::Mesh);
     node.shape.mesh_shape().inline_mesh = std::make_shared<Mesh>(params.name);
     for (const auto& vertex : params.vertices)

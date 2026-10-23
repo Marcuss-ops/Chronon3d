@@ -47,9 +47,9 @@ struct InlineMeshPlan {
     std::vector<std::uint32_t> indices;
     // Presence opts the mesh into lighting; omitted preserves legacy flat color.
     std::optional<InlineMeshMaterialPlan> material;
-    // Optional baked position track (V3 only). Transport + validation only:
-    // the renderer samples the base mesh; per-frame deformation rendering
-    // remains an explicitly blocked contract change.
+    // Optional baked position track (V3 only). The software renderer linearly
+    // samples positions per frame, regenerates normals, and retains the base
+    // mesh UVs, indices, and texture asset.
     std::vector<InlineMeshFrameSamplePlan> animation;
 };
 

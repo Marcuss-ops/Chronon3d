@@ -53,6 +53,9 @@ struct SampledShapeParameters {
 
 struct SampledMeshParameters {
     const render_plan::InlineMeshPlan* inline_mesh{nullptr};
+    const render_plan::InlineMeshFrameSamplePlan* animation_before{nullptr};
+    const render_plan::InlineMeshFrameSamplePlan* animation_after{nullptr};
+    float animation_mix{0.0f};
     std::array<float, 4> color{1.0f, 1.0f, 1.0f, 1.0f};
 };
 

@@ -3,6 +3,7 @@
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/text/text_run.hpp>
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -34,11 +35,13 @@ bool check_static_recursive_impl(
     }
     visited.insert(name);
 
+    const bool has_animated_mesh = std::any_of(l.nodes.begin(), l.nodes.end(),
+        [](const RenderNode& node) { return node.inline_mesh_animated; });
     bool static_flag = false;
-    if (l.cache_static) {
+    if (l.cache_static && !has_animated_mesh) {
         static_flag = true;
     } else {
-        bool is_local_static = true;
+        bool is_local_static = !has_animated_mesh;
         if (l.kind == LayerKind::Video || l.kind == LayerKind::Precomp) {
             is_local_static = false;
         } else if ((!l.transition_in.transition_id.empty() && l.transition_in.transition_id != "none") ||

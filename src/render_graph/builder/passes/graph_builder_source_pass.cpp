@@ -89,7 +89,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     [](const auto& group) { return group.opacity_animation.has_value(); }) ||
                     (node.svg_group && node.svg_group->opacity_animation.has_value());
             });
-        const bool source_is_static = is_static && !has_animated_svg_group;
+        const bool has_animated_inline_mesh = std::any_of(
+            layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
+                return node.inline_mesh_animated;
+            });
+        const bool source_is_static = is_static && !has_animated_svg_group &&
+            !has_animated_inline_mesh;
 
         if (ctx.policy.diagnostics_enabled) {
             spdlog::debug(

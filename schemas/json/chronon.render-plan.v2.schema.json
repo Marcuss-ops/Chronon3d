@@ -521,7 +521,7 @@
             "then": { "required": ["light"] }
           },
           { "if": { "properties": { "type": { "const": "mesh" } }, "required": ["type"] },
-            "then": { "required": ["inline_mesh"], "not": { "anyOf": [{ "required": ["asset"] }, { "required": ["source"] }] } }
+            "then": { "required": ["inline_mesh"], "not": { "required": ["source"] } }
           },
           { "if": { "required": ["inline_mesh"] },
             "then": { "properties": { "type": { "const": "mesh" } }, "required": ["type"] }
