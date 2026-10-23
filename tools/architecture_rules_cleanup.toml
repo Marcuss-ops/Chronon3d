@@ -266,3 +266,26 @@ patterns = ['Impl::composite\s*\(\s*Framebuffer&', 'void\s+composite\s*\(\s*Fram
 scan_paths = ["src/backends/vulkan"]
 skip_comments = true
 hint = "Use surface handles and GPU-native composite shaders; do not revive dead CPU-pack Framebuffer composite."
+
+# -----------------------------------------------------------------------------
+# FFmpeg subprocess encoder demolition (TICKET-FFMPEG-PIPE-SINK-DEMOLITION)
+# -----------------------------------------------------------------------------
+
+[[forbidden_path]]
+name = "ffmpeg_subprocess_pipe_files_stay_demolished"
+paths = [
+  "src/media/video/ffmpeg_pipe_sink.cpp",
+  "src/media/video/ffmpeg_pipe_sink.hpp",
+  "src/media/video/ffmpeg_pipe_args.cpp",
+  "src/media/video/ffmpeg_frame_submit.cpp",
+  "src/media/video/process_runner.cpp",
+  "src/media/video/process_runner.hpp",
+]
+
+[[forbidden_symbol]]
+name = "ffmpeg_subprocess_encoder_symbols_stay_extinct"
+description = "Demolition exits 4+5 verified 2026-10-23: FfmpegPipeSink/ProcessRunner must not return to production code"
+patterns = ['\bFfmpegPipeSink\b', '\bProcessRunner\b']
+scan_paths = ["include", "src", "apps"]
+skip_comments = true
+hint = "Compressed-output authority is NativeAvSink via VideoSinkFactory; the explicit diagnostic pipe transport (--encoder-backend pipe) must not resurrect the subprocess sink or runner."

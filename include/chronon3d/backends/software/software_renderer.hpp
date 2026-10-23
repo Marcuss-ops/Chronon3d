@@ -54,6 +54,12 @@ public:
     void reset_compiled_cache();
     /// Reset runtime-owned node/frame values only; topology and history survive.
     void reset_frame_value_cache();
+
+    /// Fix 4 (TICKET-OVERLAY-THROUGHPUT): record that `compiled` has already
+    /// completed runtime::prepare_render on this renderer, so render_compiled()
+    /// reuses the session memo instead of preparing the same composition a
+    /// second time per item in the daemon's hot path.
+    void mark_prepared_composition(const CompiledComposition* compiled);
     /// Reset temporal/session history only; compiled and frame-value caches survive.
     void reset_temporal_history() noexcept;
 

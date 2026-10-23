@@ -276,6 +276,7 @@ TEST_CASE("verify_output_contract fails structural checks on a missing file") {
     CHECK(result.sha256.empty());  // no digest computed
     CHECK(result.ffprobe_ms == 0.0);  // nothing ran
     CHECK(result.sha256_ms == 0.0);   // nothing computed
+    CHECK_FALSE(result.probe_facts.has_value());  // nothing observed
 }
 
 TEST_CASE("verify_output_contract: full pass sets copy_eligible") {
@@ -310,6 +311,16 @@ TEST_CASE("verify_output_contract: full pass sets copy_eligible") {
     CHECK(result.sha256.size() == 64);
     CHECK(result.ffprobe_ms > 0.0);   // legacy field: in-process probe ran
     CHECK(result.sha256_ms > 0.0);    // digest actually computed
+
+    // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): the probe observation is
+    // preserved on the result so a downstream receipt builder reuses it
+    // instead of probing the same bytes a second time.
+    REQUIRE(result.probe_facts.has_value());
+    CHECK(result.probe_facts->format_name.find("mp4") != std::string::npos);
+    REQUIRE(result.probe_facts->streams.size() == 1);
+    CHECK(result.probe_facts->streams[0].width == 1920);
+    CHECK(result.probe_facts->streams[0].height == 1080);
+    CHECK(result.probe_facts->streams[0].frame_count == 3);
 
     std::error_code ec;
     std::filesystem::remove(artifact, ec);

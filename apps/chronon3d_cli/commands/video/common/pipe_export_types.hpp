@@ -5,6 +5,7 @@
 
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
+#include <chronon3d/media/video/media_probe.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 
@@ -12,6 +13,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -32,6 +34,10 @@ struct PipeExportResult {
     std::string sha256;
     double ffprobe_ms{0.0};
     double sha256_ms{0.0};
+    // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): the probe observation and
+    // digest the export boundary already computed on the published artifact.
+    // The receipt builder reuses them; never probed/hashed twice.
+    std::optional<media::video::MediaProbeInfo> probe_facts;
     int frames_rendered{0};
     int frames_enqueued{0};
     int frames_encoded{0};

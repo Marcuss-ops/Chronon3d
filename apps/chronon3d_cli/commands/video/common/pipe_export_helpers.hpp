@@ -68,13 +68,17 @@ void track_pipe_encoder_process(
     IVideoEncoder& encoder,
     SystemMetricsCollector& sys_metrics);
 
-[[nodiscard]] chronon3d::Result<chronon3d::runtime::RendererWarmupResult,
-                                chronon3d::runtime::PreparationError>
+/// Renderer warmup before the export loop (framebuffer pool preallocation,
+/// memory touch, optional dummy frame). The job's `runtime::prepare_render`
+/// barrier already ran in setup_pipe_export_session() on the same renderer and
+/// compiled composition (TICKET-OVERLAY-THROUGHPUT fix 4): the warmup must NOT
+/// re-run preparation — doing so repeated the per-job preflight/resolve/decode
+/// walk and double-accumulated its timings into the sidecar prepare section.
+[[nodiscard]] chronon3d::runtime::RendererWarmupResult
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
     const CompiledComposition& compiled,
-    const FfmpegExportOptions& opts,
-    chronon3d::runtime::RenderPreparationTimings* out_timings = nullptr);
+    const FfmpegExportOptions& opts);
 
 [[nodiscard]] double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder);
 

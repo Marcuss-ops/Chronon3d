@@ -226,6 +226,10 @@ PipeExportResult make_pipe_export_result(
         result.ffprobe_ms = verification.ffprobe_ms;
         result.sha256_ms = verification.sha256_ms;
         result.copy_eligible = verification.copy_eligible;
+        // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): hand the probe observation
+        // up with the digest — the receipt builder must never probe/hash these
+        // bytes again.
+        result.probe_facts = verification.probe_facts;
 
         if (!verification.passed) {
             spdlog::error("[video] output verification failed — {}", verification.failure);

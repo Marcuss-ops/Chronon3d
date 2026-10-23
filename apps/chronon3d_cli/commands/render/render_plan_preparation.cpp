@@ -279,13 +279,18 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         const double parse_ms = profiling::duration_ms(parse_t0, profiling::now());
         startup_trace().plan_json_parse_ms = parse_ms;
 
-        auto plan_json = root;
+        // TICKET-OVERLAY-THROUGHPUT fix 5: bind the plan by reference. The
+        // previous `auto plan_json = root` deep-copied the whole document (and
+        // copied it a second time for `renderinggen.job` envelopes) before
+        // decode_render_plan made its own variable-resolution copy — one full
+        // plan-tree copy per item paid twice for nothing.
+        const nlohmann::json* plan_json = &root;
         if (root.is_object() && root.value("schema", "") == "renderinggen.job" && root.contains("render_plan")) {
-            plan_json = root.at("render_plan");
+            plan_json = &root.at("render_plan");
         }
 
         const auto decode_t0 = profiling::now();
-        auto decoded = render_plan::decode_render_plan(plan_json);
+        auto decoded = render_plan::decode_render_plan(*plan_json);
         if (!decoded) {
             return std::move(decoded).error();
         }

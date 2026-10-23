@@ -12,7 +12,9 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -114,11 +116,15 @@ ipc::Reply DaemonService::handle_render_job_request(
             // One RAII context owns the policy-selected execution lock and
             // scheduler reservation. It releases both on normal return,
             // shutdown, parse/admission failure and dispatcher exceptions.
-            RenderJobAdmissionContext admission(
+            // Held in an optional so the execution lock can be released
+            // EXPLICITLY (below, before the deferred receipt step) instead of
+            // at scope exit — TICKET-OVERLAY-THROUGHPUT fix 1.
+            std::optional<RenderJobAdmissionContext> admission;
+            admission.emplace(
                 resolved.parallel_disjoint, estimated_vram,
                 m_render_job_mutex, m_admission_mutex, m_admission_cv,
                 m_running, m_device_scheduler, requirements);
-            const auto& concurrency = admission.decision();
+            const auto& concurrency = admission->decision();
             spdlog::debug(
                 "[daemon] render concurrency verdict: class={} admission={} "
                 "slots={} peak={} MiB footprints_that_fit={} reason={}",
@@ -128,27 +134,36 @@ ipc::Reply DaemonService::handle_render_job_request(
                 concurrency.admitted_slots,
                 estimated_vram / (1024ULL * 1024ULL),
                 concurrency.peak_footprints_that_fit, concurrency.reason);
-            if (!admission.admitted()) {
+            if (!admission->admitted()) {
                 update_job_status(job_id, JobState::Failed,
-                                  admission.failure_reason());
-                if (std::string_view{admission.failure_reason()} ==
+                                  admission->failure_reason());
+                if (std::string_view{admission->failure_reason()} ==
                     "daemon is shutting down") {
                     return ipc::Reply{ipc::Status::Shutdown,
-                                      admission.failure_reason()};
+                                      admission->failure_reason()};
                 }
                 return ipc::Reply{ipc::Status::Error,
                                   std::string{"RENDER_JOB rejected: "} +
-                                      admission.failure_reason()};
+                                      admission->failure_reason()};
             }
 
-            auto reservation = admission.take_reservation();
-            const auto daemon_admission_wait_ms = admission.wait_ms();
+            auto reservation = admission->take_reservation();
+            const auto daemon_admission_wait_ms = admission->wait_ms();
             update_job_status(job_id, JobState::Running, "rendering");
             const auto reserved_device = reservation.device();
             spdlog::debug("[daemon] RENDER_JOB placed on device {} (native_nvenc={}, vram_est={}MB)",
                           reserved_device, native_nvenc, estimated_vram / (1024 * 1024));
             auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
             video_execution->device_scheduler = &m_device_scheduler;
+            // Receipt deferral (TICKET-OVERLAY-THROUGHPUT fix 1): the job
+            // layer hands the assembled receipt step back here instead of
+            // writing it inline; it runs only after the execution lock and the
+            // device reservation are released (see below).
+            std::function<void()> deferred_receipt_step;
+            video_execution->receipt_deferral =
+                [&deferred_receipt_step](std::function<void()> step) {
+                    deferred_receipt_step = std::move(step);
+                };
             // Per-job wall anchor for the exclusive-wall timeline: startup is
             // measured from THIS request, never from daemon boot.
             video_execution->job_started_at = profiling::now();
@@ -204,6 +219,24 @@ ipc::Reply DaemonService::handle_render_job_request(
 
             // Wake any pending job waiting in admission
             m_admission_cv.notify_all();
+
+            // TICKET-OVERLAY-THROUGHPUT fix 1: release the execution lock NOW
+            // and only afterwards run the deferred receipt step. Receipt
+            // verification (probe + sha256 + full-decode gate, ~0,9 s per
+            // item) verifies an already-finished render — it must not hold the
+            // render lane. The next job is admitted and renders while this
+            // one's receipt is still being verified; the reply below still
+            // returns only after the step completed, so the worker's
+            // ReadMediaReceipt stays deterministic.
+            admission.reset();
+            if (deferred_receipt_step) {
+                try {
+                    deferred_receipt_step();
+                } catch (const std::exception& e) {
+                    spdlog::warn("[daemon] deferred receipt step failed: {}",
+                                 e.what());
+                }
+            }
 
             update_job_status(job_id,
                 reply.status == ipc::Status::Ok ? JobState::Completed : JobState::Failed,

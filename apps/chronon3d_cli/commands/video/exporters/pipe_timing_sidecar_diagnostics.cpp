@@ -254,6 +254,11 @@ void build_diagnostics_sections(
     sb["encoder_open_mux_header_ms"] = timings.startup_breakdown.encoder_open_mux_header_ms;
     sb["vulkan_instance_ms"] = timings.startup_breakdown.vulkan_instance_ms;
     sb["vulkan_device_ms"] = timings.startup_breakdown.vulkan_device_ms;
+    // TICKET-PERFORMANCE-AUDIT-2026-10 finding #6: device init is
+    // process-level, reported per job. A warm daemon shows its boot-time init
+    // on every item; this marker keeps it from being read (and "optimized")
+    // as a per-item cost.
+    sb["vulkan_device_ms_scope"] = "process";
     sb["vulkan_pipelines_ms"] = timings.startup_breakdown.vulkan_pipelines_ms;
     sb["renderer_runtime_init_ms"] = timings.startup_breakdown.renderer_runtime_init_ms;
     sb["other_startup_ms"] = timings.startup_breakdown.other_startup_ms;
@@ -263,7 +268,25 @@ void build_diagnostics_sections(
     sb["phases_observed"] = timings.startup_breakdown.phases_observed;
 
     auto& pb = out["prepare_breakdown"];
+    // TICKET-PERFORMANCE-AUDIT-2026-10 finding #3: `font_preflight_ms` is a
+    // legacy label for the WHOLE setup-time runtime::prepare_render call. In
+    // the overlay-golden profile it measured 245 ms/item of which ~0 was font
+    // work — almost all of it was image decode + GPU promotion. Keep the old
+    // key for consumers, publish the honest name, and project the measured
+    // sub-phases so the label can never misdirect an optimization again.
     pb["font_preflight_ms"] = timings.prepare_breakdown.font_preflight_ms;
+    pb["prepare_render_ms"] = timings.prepare_breakdown.font_preflight_ms;
+    const auto put_pb_opt = [&pb](const char* key,
+                                  const std::optional<double>& value) {
+        if (value) pb[key] = *value; else pb[key] = nullptr;
+    };
+    put_pb_opt("prepare_asset_preflight_ms", timings.prepare.asset_preflight_ms);
+    put_pb_opt("prepare_asset_resolve_ms", timings.prepare.asset_resolve_ms);
+    put_pb_opt("prepare_asset_decode_ms", timings.prepare.asset_decode_ms);
+    put_pb_opt("prepare_image_decode_ms", timings.prepare.image_decode_ms);
+    put_pb_opt("prepare_image_upload_ms", timings.prepare.image_upload_ms);
+    put_pb_opt("prepare_font_load_ms", timings.prepare.font_load_ms);
+    put_pb_opt("prepare_font_resolve_ms", timings.prepare.font_resolve_ms);
     pb["pool_warmup_ms"] = timings.prepare_breakdown.pool_warmup_ms;
     pb["triple_arena_alloc_ms"] = timings.prepare_breakdown.triple_arena_alloc_ms;
     pb["writer_thread_spawn_ms"] = timings.prepare_breakdown.writer_thread_spawn_ms;

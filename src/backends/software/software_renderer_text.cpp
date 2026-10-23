@@ -24,6 +24,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #endif
 #include "../../render_graph/nodes/text_run/gpu_text_run.hpp"
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <set>
 #include <string>
 #include <utility>
@@ -84,11 +85,31 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
                 m_execution_context.text.glyph_atlas &&
                 m_execution_context.text.prepared_cache &&
                 graph::text_run::can_lower_gpu_text_animation(*h.value)) {
-                auto prepared = graph::text_run::prepare_mtsdf_text_run(
-                    *m_execution_context.text.glyph_atlas, &resolver, *h.value);
-                if (prepared && prepared->ready) {
-                    m_execution_context.text.prepared_cache->store(
-                        *h.value->layout, prepared);
+                // Fix 4 (TICKET-OVERLAY-THROUGHPUT): the prepared-run cache is
+                // keyed by the immutable layout fingerprint and lives in the
+                // runtime, so on the daemon's warm renderer it survives across
+                // RenderJobs. A repeated item with an identical layout must
+                // not rebuild its MTSDF batches here — consult the cache
+                // first and only prepare on a miss.
+                if (m_execution_context.text.prepared_cache->find(
+                        *h.value->layout)) {
+                    if (profiling::g_current_counters) {
+                        profiling::g_current_counters
+                            ->gpu_text_prepared_batch_reuse_count.fetch_add(
+                                1, std::memory_order_relaxed);
+                    }
+                } else {
+                    auto prepared = graph::text_run::prepare_mtsdf_text_run(
+                        *m_execution_context.text.glyph_atlas, &resolver, *h.value);
+                    if (prepared && prepared->ready) {
+                        m_execution_context.text.prepared_cache->store(
+                            *h.value->layout, prepared);
+                        if (profiling::g_current_counters) {
+                            profiling::g_current_counters
+                                ->gpu_text_prepared_batch_build_count.fetch_add(
+                                    1, std::memory_order_relaxed);
+                        }
+                    }
                 }
             }
             ++summary.preflight_attempted;

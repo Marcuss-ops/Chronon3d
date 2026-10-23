@@ -457,6 +457,15 @@ bool execute_direct_mux_gop_plan(
         discard_partial();
         return false;
     }
+    // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): publish the probe + digest
+    // this verification already computed so the receipt builder never
+    // re-inspects the same bytes (the rename below preserves them).
+    if (execution) {
+        execution->observed_output.probe = verification.probe_facts;
+        execution->observed_output.sha256 = verification.sha256;
+        execution->observed_output.probe_ms = verification.ffprobe_ms;
+        execution->observed_output.sha256_ms = verification.sha256_ms;
+    }
 
     std::error_code rename_ec;
     std::filesystem::rename(partial_path, final_path, rename_ec);
@@ -777,6 +786,10 @@ int render_and_encode_ffmpeg(
 
     auto* device_scheduler = execution ? execution->device_scheduler : nullptr;
     auto video_runtimes = execution ? execution->video_runtimes : nullptr;
+    // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): keep the context reachable
+    // after the move so the export boundary's probe + digest can be published
+    // for the receipt builder (one probe, one digest per artifact).
+    auto observed_sink = execution;
     auto result = render_and_encode_native(
         registry, compiled, composition_id,
         settings, start, end, render_opts, cpu_budget,
@@ -784,6 +797,12 @@ int render_and_encode_ffmpeg(
         device_scheduler,
         std::move(execution),
         std::move(warm_renderer));
+    if (observed_sink) {
+        observed_sink->observed_output.probe = result.probe_facts;
+        observed_sink->observed_output.sha256 = result.sha256;
+        observed_sink->observed_output.probe_ms = result.ffprobe_ms;
+        observed_sink->observed_output.sha256_ms = result.sha256_ms;
+    }
     if (sidecar_written_at) *sidecar_written_at = result.sidecar_written_at;
     return result.return_code;
 }

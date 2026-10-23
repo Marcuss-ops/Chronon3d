@@ -121,6 +121,10 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_compiled(
         m_execution_context.video_decoder, compiled, frame, this);
 }
 
+void SoftwareRenderer::mark_prepared_composition(const CompiledComposition* compiled) {
+    m_session.software.prepared_composition = compiled;
+}
+
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_program(
     const compiler::CompiledProgram& program, Frame frame) {
     m_session.common.clear_last_frame_error();

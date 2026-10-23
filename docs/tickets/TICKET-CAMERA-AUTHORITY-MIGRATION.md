@@ -223,6 +223,22 @@ and are not represented as complete by this audit.
 - These are local dirty-worktree results. The full C3D preset build, same-SHA
   GitHub CI, and end-to-end shutter-pixel parity remain open.
 
+### Focused shutter-pixel gate closed (2026-10-22, reconciled 2026-10-23)
+
+The focused frame-75 shutter pixel gate now passes: decoded strict-native
+Vulkan/NVENC with 90° shutter and eight samples versus the matched software
+shutter reference is RGB MAE 1.457, p99 absolute error 5 (declared gate
+MAE ≤ 2, p99 ≤ 5). Evidence:
+[`shutter-parity-20261022`](../evidence/camera-authority-migration/T16/shutter-parity-20261022/).
+CAM-04's same-plan five-frame comparison also passes (MAE 1.429–1.592,
+p99 20–21; [`cam04-shared-plan-20261022`](../evidence/camera-authority-migration/T16/cam04-shared-plan-20261022/)).
+These close the focused center-frame shutter gate and CAM-04's same-plan
+sampled parity only: all-frame and moving-object shutter certification,
+non-linear easing error and full exposure accumulation remain open, as does
+the pre-encode raw-sink readback defect recorded in the shutter-parity
+evidence. The "end-to-end shutter-pixel parity" wording above refers to those
+remaining scopes, not to the focused gate.
+
 ## Workspace closeout progress (2026-10-21)
 
 Partial implementation of the shared camera-sample contract remains open:

@@ -159,13 +159,24 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
         receipt.bytes = static_cast<std::int64_t>(
             std::filesystem::file_size(output_path, ec));
         if (ec) receipt.bytes = -1;
-        const auto sha_start = std::chrono::steady_clock::now();
-        if (const auto digest = chronon3d::assets::sha256_file(output_path)) {
-            receipt.sha256 = digest->hex();
+        // Fix 2 (TICKET-OVERLAY-THROUGHPUT): never re-hash bytes the caller
+        // already digested — one SHA-256 per artifact. The precomputed value
+        // is accepted only for an existing regular file (the size above is
+        // still read here, so a stale caller digest cannot hide a missing
+        // output).
+        if (input.precomputed_sha256.has_value()) {
+            receipt.sha256 = *input.precomputed_sha256;
+            if (input.precomputed_sha256_ms.has_value())
+                receipt.timing.sha256_ms = *input.precomputed_sha256_ms;
+        } else {
+            const auto sha_start = std::chrono::steady_clock::now();
+            if (const auto digest = chronon3d::assets::sha256_file(output_path)) {
+                receipt.sha256 = digest->hex();
+            }
+            const auto sha_elapsed = std::chrono::steady_clock::now() - sha_start;
+            receipt.timing.sha256_ms =
+                std::chrono::duration<double, std::milli>(sha_elapsed).count();
         }
-        const auto sha_elapsed = std::chrono::steady_clock::now() - sha_start;
-        receipt.timing.sha256_ms =
-            std::chrono::duration<double, std::milli>(sha_elapsed).count();
     }
 
     if (!is_video) {
@@ -203,10 +214,25 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
     }
 
     if (is_video) {
-        const bool probed = receipt_probe::probe_media(
-            output_path, receipt.media,
-            /*require_exit_ok=*/level != VerifyLevel::Certify,
-            &receipt.timing.probe_ms);
+        // Fix 2 (TICKET-OVERLAY-THROUGHPUT): the caller may hand in the
+        // MediaContract it already observed on the freshly muxed output
+        // (canonical in-process probe at the export boundary), so the receipt
+        // performs no second probe. HDR outputs are excluded: the mastering
+        // comparison below needs the side data only the ffprobe JSON exposes.
+        bool probed = false;
+        if (input.precomputed_media.has_value() &&
+            !input.hdr_mastering_metadata.has_value()) {
+            receipt.media = *input.precomputed_media;
+            receipt.media.probed = true;
+            if (input.precomputed_probe_ms.has_value())
+                receipt.timing.probe_ms = *input.precomputed_probe_ms;
+            probed = true;
+        } else {
+            probed = receipt_probe::probe_media(
+                output_path, receipt.media,
+                /*require_exit_ok=*/level != VerifyLevel::Certify,
+                &receipt.timing.probe_ms);
+        }
         receipt.verification.ffprobe = probed ? "pass" : "fail";
 
         if (probed) {

@@ -98,6 +98,13 @@ RenderPreparationResult prepare_render(
     Scene scene = evaluated_frame.scene.clone();
     auto result = detail::prepare_render_scene(
         renderer, scene, compiled.composition->spec(), options);
+    if (result.ok()) {
+        // Fix 4 (TICKET-OVERLAY-THROUGHPUT): the daemon's setup path prepares
+        // here and renders later through render_compiled(). Register the
+        // session memo so the render entry point does not run a second full
+        // preparation for the same compiled composition.
+        renderer->mark_prepared_composition(&compiled);
+    }
     if (result.ok() && options.warmup_renderer) {
         result.warmup = warmup_renderer(*renderer, compiled, options.warmup);
         result.warmup_performed = true;

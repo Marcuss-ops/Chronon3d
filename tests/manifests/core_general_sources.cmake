@@ -97,6 +97,7 @@ set(CORE_TEST_SOURCES
     runtime/test_resource_preparation.cpp
     # Split from test_resource_preparation.cpp (each part ≤ 400 LOC):
     runtime/test_resource_preparation_mesh.cpp
+    runtime/test_render_preparation_warm_cache.cpp
     runtime/test_resource_preparation_render.cpp
     runtime/test_gpu_asset_cache_content_addressed.cpp
     runtime/test_prepared_render_job.cpp

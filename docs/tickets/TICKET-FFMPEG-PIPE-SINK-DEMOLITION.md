@@ -20,6 +20,53 @@
 2. **`--encoder-backend pipe` come percorso esplicito**: resta consentito come modalità diagnostic/debug dichiarata (null/adaptive), ma mai come fallback silenzioso del native.
 3. Cleanup finale di `ffmpeg-mode pipe` doc/options dopo certificazione del percorso native, zero caller di produzione e zero fallback.
 
+## Census 2026-10-23 (SHA `f935e3e32`) — exit conditions 2, 4, 5 verificate
+
+Repo-wide census re-run at the reconciled main SHA (audit follow-up):
+
+| Check | Result at `f935e3e32` | Evidenza |
+|---|---|---|
+| `FfmpegPipeSink` / `ProcessRunner` symbols in `include/`,`src/`,`apps/`,`tests/` | **0** (sole menzioni: docs) | repo grep |
+| `ffmpeg_pipe_sink.*`, `ffmpeg_pipe_args.*`, `ffmpeg_frame_submit.*`, `process_runner.*` files | **0** | repo grep |
+| `create_video_encoder` production callers | 2: `pipe_export_pipeline_setup.cpp:214` (child variant fanout) e `:231` (session encoder), entrambi dietro `encoder_backend` esplicito | grep + `video_export_common.cpp:12-58` |
+| Silent native→pipe downgrade | **assente**: default `encoder_backend = native` (`encoder_options.hpp:71`); il decode IPC (`daemon_service_ipc_protocol.cpp:263`) può restituire `""` ma l'unico consumer (`command_render_plan_internal.cpp:338-339`) sovrascrive solo se non-vuoto; build senza libav + richiesta native = `nullptr` fail-closed | code trace |
+| Production presets (RenderingGen motion-certification runtime reports, 13 file) | `"encoder_backend": "native"` in tutti | grep |
+| `video_pipe_fallback_frames` in strict-native sidecars | **0** (T16 fullres, three-depth, shutter A/B ×2) | `docs/evidence/camera-authority-migration/T16/**.timing.json` |
+| SDK consumers che producono video compresso | **nessuno** (01_cpp_minimal, 02_c_minimal, 02_content_registry, 03_go, 04_rust, 05_python: zero riferimenti a video encode / RENDER_JOB) | grep `sdk_consumers/` |
+
+Nota semantica: `video_pipe_fallback_frames` (`video_export_sink.cpp:308-311`) conta
+i frame codificati fuori dal lane GPU-native (frame software), NON l'uso del
+trasporto pipe: un render software legittimo riporta 150/150 (es. sidecar
+CAM-04), un render strict-native riporta 0. L'exit condition 4 va letta come
+“purezza del lane GPU canonico”, ed è verificata.
+
+**Exit 5 — SATISFATTA**: nessun target di produzione o SDK include/istanzia
+`FfmpegPipeSink`, `ProcessRunner` o pipe args (estinti). Il residuo vivo resta
+solo la modalità diagnostica esplicita `--encoder-backend pipe`
+(`VideoSinkEncoderAdapter(Ffmpeg)`), consentita dallo scope §2 e non coperta
+dall'exit 5.
+
+**Exit 4 — SATISFATTA**: preset di produzione a zero pipe caller (tutti
+`native`) e contatore `video_pipe_fallback_frames = 0` su tutti i run
+canonici strict-native campionati.
+
+**Exit 2 — SATISFATTA (insieme vuoto)**: nessun consumer SDK supportato produce
+video compresso, quindi nessuno richiede il subprocess fallback; la clausola
+“verificati sul percorso NativeAvSink” è vacua sull'insieme vuoto e resta tale
+finché un consumer non acquisisce export video.
+
+**Exit 3 — ANCORA APERTA**: la coverage codec/routing esiste
+(`tests/video/test_native_av_sink_factory.cpp`, `test_native_av_sink_lifecycle.cpp`,
+lane `Native Video Certification`) ma l'evidenza CI green è irraggiungibile
+finché i runner GitHub non allocano (TICKET-MAIN-TRUTH-STAGE-1-2). La
+demolizione fisica resta quindi bloccata, come previsto.
+
+**F40 anti-resurrection gate — ATTERATO**: con exit 4+5 PASS,
+`tools/architecture_rules_cleanup.toml` ora vieta `forbidden_path` sui file
+pipe/process-runner demoliti e `forbidden_symbol` su `FfmpegPipeSink` /
+`ProcessRunner` in `include/`,`src/`,`apps/` (skip_comments). Gate canonico
+`tools/check_architecture.py`: **GATE_PASS 209/209** sullo stesso SHA.
+
 ## Blocco corrente — 2026-10-03
 
 - La CI GitHub per `Chronon3d@5d960421dd1b` ha chiuso tutti i job prima
@@ -52,10 +99,10 @@ Il subprocess encoder non è una production fallback silenziosa e non può riacq
 La demolition può partire solo quando sono vere tutte le condizioni seguenti:
 
 1. [x] **`linux-video-release` rende native FFmpeg obbligatorio.** Il preset/release profile abilita `CHRONON3D_ENABLE_NATIVE_FFMPEG` e fallisce in configurazione se il backend native richiesto non è disponibile. `36c013bd05402cda98554e67d369687ab4587987` rende header e librerie libav requisiti `REQUIRED` a configure-time.
-2. [ ] **SDK consumers certificati.** I consumer supportati che producono video compresso sono verificati sul percorso `NativeAvSink`; nessun consumer supportato richiede il subprocess fallback.
-3. [ ] **Contratti codec/routing verdi.** Test H264, H265/HEVC e routing raw/uncompressed sono verdi sul build native, inclusi open/submit/flush/close e teardown. La coverage richiesta è ora presente (`029547d2222d7a7730dc1d08c09f4bcf9e0ceed5`, `908de2eaf9159db3b206c1f8d242ad8bfaa5bd1e`, `2fb01f97dcd326714615bf2c3907e93860b35d3c`) e la lane dedicata è `Native Video Certification` (`16f3ffaf36f5b1b946fd69ad263d8ea2347656cf`); resta da acquisire evidenza CI green.
-4. [ ] **Production presets a zero pipe caller.** I preset di produzione non selezionano `FfmpegPipeSink`; telemetry/contract runs non mostrano `video_pipe_fallback_frames` nel percorso canonico.
-5. [ ] **Caller census finale = zero.** Nessun target di produzione o SDK supportato include/istanzia direttamente `FfmpegPipeSink`, `ProcessRunner` o pipe args.
+2. [x] **SDK consumers certificati.** I consumer supportati che producono video compresso sono verificati sul percorso `NativeAvSink`; nessun consumer supportato richiede il subprocess fallback. — verificato 2026-10-23 (census `f935e3e32`): l'insieme dei consumer che producono video compresso è vuoto.
+3. [ ] **Contratti codec/routing verdi.** Test H264, H265/HEVC e routing raw/uncompressed sono verdi sul build native, inclusi open/submit/flush/close e teardown. La coverage richiesta è ora presente (`029547d2222d7a7730dc1d08c09f4bcf9e0ceed5`, `908de2eaf9159db3b206c1f8d242ad8bfaa5bd1e`, `2fb01f97dcd326714615bf2c3907e93860b35d3c`) e la lane dedicata è `Native Video Certification` (`16f3ffaf36f5b1b946fd69ad263d8ea2347656cf`); resta da acquisire evidenza CI green (runner GitHub non allocano — fuori portata in checkout locale).
+4. [x] **Production presets a zero pipe caller.** I preset di produzione non selezionano `FfmpegPipeSink`; telemetry/contract runs non mostrano `video_pipe_fallback_frames` nel percorso canonico. — verificato 2026-10-23: 13/13 runtime report `encoder_backend=native`; `video_pipe_fallback_frames = 0` su tutti i sidecar strict-native campionati.
+5. [x] **Caller census finale = zero.** Nessun target di produzione o SDK supportato include/istanzia direttamente `FfmpegPipeSink`, `ProcessRunner` o pipe args. — verificato 2026-10-23: simboli e file estinti; gate anti-resurrezione F40 atterrato (`check_architecture.py` 209/209).
 
 ## Demolition action
 

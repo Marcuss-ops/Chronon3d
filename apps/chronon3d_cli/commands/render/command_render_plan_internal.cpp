@@ -17,6 +17,7 @@
 #include <chronon3d/color/ocio_color_transform.hpp>
 #endif
 #ifdef CHRONON3D_ENABLE_VERIFICATION
+#include "../../utils/video/media_contract_from_probe.hpp"
 #include <chronon3d/verification/render_receipt.hpp>
 #endif
 #include <chronon3d/media/video/video_execution_resolver.hpp>
@@ -489,6 +490,18 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             return 1;
         }
         const auto lifecycle_execute_t0 = std::chrono::steady_clock::now();
+        // The daemon-owned receipt deferral is read BEFORE the context is
+        // moved into the executor: a deferred receipt must reach the daemon's
+        // post-admission phase (TICKET-OVERLAY-THROUGHPUT fix 1), while a CLI
+        // one-shot (no sink) keeps writing the receipt inline.
+        const auto receipt_deferral =
+            args.video_execution
+                ? args.video_execution->receipt_deferral
+                : std::function<void(std::function<void()>)>{};
+        // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): the executor's exporter
+        // publishes the export boundary's observed probe/digest on this
+        // context; keep it reachable across the move for the receipt step.
+        const auto execution_context = args.video_execution;
         auto result = execute_render_job(
             *job, std::move(args.warm_renderer), std::move(args.video_execution));
         const auto lifecycle_execute_t1 = std::chrono::steady_clock::now();
@@ -496,8 +509,6 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
             spdlog::error("Render plan job failed: {}", result.error().message);
             return 1;
         }
-        double lifecycle_receipt_build_ms = 0.0;
-        double lifecycle_receipt_write_ms = 0.0;
         if (normalized_job.report) {
 #ifdef CHRONON3D_ENABLE_VERIFICATION
             try {
@@ -535,24 +546,74 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                 }
                 receipt_input.has_audio_tracks = false;
                 receipt_input.receipt_verify_policy = normalized_job.receipt_verification;
-                const auto receipt_build_t0 = std::chrono::steady_clock::now();
-                const auto receipt = verification::build_render_receipt(
-                    receipt_input, output, video_output(output));
-                const auto receipt_build_t1 = std::chrono::steady_clock::now();
-                const auto receipt_path = verification::write_render_receipt(receipt, output);
-                const auto receipt_write_t1 = std::chrono::steady_clock::now();
-                lifecycle_receipt_build_ms = std::chrono::duration<double, std::milli>(
-                    receipt_build_t1 - receipt_build_t0).count();
-                lifecycle_receipt_write_ms = std::chrono::duration<double, std::milli>(
-                    receipt_write_t1 - receipt_build_t1).count();
-                spdlog::info("receipt: {}", receipt_path.string());
-                spdlog::info(
-                    "[video] receipt verification policy={} total_ms={:.1f} sha256_ms={:.1f} "
-                    "probe_ms={:.1f} count_frames_ms={:.1f} decode_ms={:.1f} copy_eligible={}",
-                    receipt.verification.resolved_policy, receipt.timing.total_ms,
-                    receipt.timing.sha256_ms, receipt.timing.probe_ms,
-                    receipt.timing.count_frames_ms, receipt.timing.decode_ms,
-                    receipt.copy_eligible ? "true" : "false");
+                // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): the export
+                // boundary already probed and digested the published artifact
+                // (`verify_output_contract`, incl. the direct-mux and raw
+                // lanes). Hand those facts to the receipt builder — one probe,
+                // one digest per artifact. HDR-mastering jobs and lanes that
+                // observed no facts fall back to the builder's own probe
+                // automatically.
+                if (execution_context) {
+                    const auto& observed = execution_context->observed_output;
+                    if (observed.probe.has_value()) {
+                        receipt_input.precomputed_media =
+                            media_contract_from_probe(*observed.probe);
+                        receipt_input.precomputed_probe_ms = observed.probe_ms;
+                    }
+                    if (!observed.sha256.empty()) {
+                        receipt_input.precomputed_sha256 = observed.sha256;
+                        receipt_input.precomputed_sha256_ms = observed.sha256_ms;
+                    }
+                }
+                // Receipt verification (probe + sha256 + decode gate) is not
+                // render work: it verifies an output the render has already
+                // finished. The step is therefore self-contained and runs
+                // INLINE on the CLI one-shot path, or is DEFERRED on the
+                // daemon path — the daemon executes it only after the
+                // execution lock and device reservation are released
+                // (TICKET-OVERLAY-THROUGHPUT fix 1: ~0,9 s of verification per
+                // item must not hold the render lane). The IPC reply still
+                // leaves only after the step completed, so the worker's
+                // receipt read stays deterministic.
+                const bool is_video_output = video_output(output);
+                auto write_receipt_step =
+                    [receipt_input = std::move(receipt_input), output,
+                     is_video_output] {
+                        try {
+                            const auto receipt_build_t0 =
+                                std::chrono::steady_clock::now();
+                            const auto receipt = verification::build_render_receipt(
+                                receipt_input, output, is_video_output);
+                            const auto receipt_build_t1 =
+                                std::chrono::steady_clock::now();
+                            const auto receipt_path =
+                                verification::write_render_receipt(receipt, output);
+                            const auto receipt_write_t1 =
+                                std::chrono::steady_clock::now();
+                            spdlog::info("receipt: {}", receipt_path.string());
+                            spdlog::info(
+                                "[video] receipt verification policy={} total_ms={:.1f} sha256_ms={:.1f} "
+                                "probe_ms={:.1f} count_frames_ms={:.1f} decode_ms={:.1f} copy_eligible={}",
+                                receipt.verification.resolved_policy, receipt.timing.total_ms,
+                                receipt.timing.sha256_ms, receipt.timing.probe_ms,
+                                receipt.timing.count_frames_ms, receipt.timing.decode_ms,
+                                receipt.copy_eligible ? "true" : "false");
+                            spdlog::info(
+                                "[INFO] job-lifecycle: receipt_build_ms={:.1f} "
+                                "receipt_write_ms={:.1f}",
+                                std::chrono::duration<double, std::milli>(
+                                    receipt_build_t1 - receipt_build_t0).count(),
+                                std::chrono::duration<double, std::milli>(
+                                    receipt_write_t1 - receipt_build_t1).count());
+                        } catch (const std::exception& error) {
+                            spdlog::warn("receipt generation failed: {}", error.what());
+                        }
+                    };
+                if (receipt_deferral) {
+                    receipt_deferral(std::move(write_receipt_step));
+                } else {
+                    write_receipt_step();
+                }
             } catch (const std::exception& error) {
                 spdlog::warn("receipt generation failed: {}", error.what());
             }
@@ -562,13 +623,13 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
 #endif
         }
         spdlog::info(
-            "[INFO] job-lifecycle: execute_ms={:.1f} receipt_build_ms={:.1f} "
-            "receipt_write_ms={:.1f} caller_tail_ms={:.1f}",
+            "[INFO] job-lifecycle: execute_ms={:.1f} caller_tail_ms={:.1f} "
+            "receipt_deferred={}",
             std::chrono::duration<double, std::milli>(
                 lifecycle_execute_t1 - lifecycle_execute_t0).count(),
-            lifecycle_receipt_build_ms, lifecycle_receipt_write_ms,
             std::chrono::duration<double, std::milli>(
-                std::chrono::steady_clock::now() - lifecycle_execute_t1).count());
+                std::chrono::steady_clock::now() - lifecycle_execute_t1).count(),
+            receipt_deferral ? "1" : "0");
         return 0;
     } catch (const std::exception& error) {
         spdlog::error("Render plan error: {}", error.what());

@@ -108,6 +108,11 @@ OutputVerificationResult verify_output_contract(
     }
 
     const auto& media = probe.value();
+    // Fix 2 (TICKET-OVERLAY-THROUGHPUT): preserve the probe observation so a
+    // downstream receipt builder can reuse it instead of re-probing the same
+    // bytes. Published before every verdict, so a contract mismatch still
+    // hands over the facts that were actually observed.
+    result.probe_facts = media;
     std::size_t video_streams = 0;
     std::size_t audio_streams = 0;
     const MediaStreamProbe* video_stream = nullptr;
