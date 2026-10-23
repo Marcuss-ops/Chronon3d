@@ -181,12 +181,16 @@ void scale_prgb32_alpha(BLImage& image, float factor) noexcept {
     factor = std::clamp(factor, 0.0f, 1.0f);
     BLImageData data{};
     if (image.empty() || image.getData(&data) != BL_SUCCESS ||
-        data.format != BL_FORMAT_PRGB32 || !data.pixelData) {
+        data.format != BL_FORMAT_PRGB32 || !data.pixelData || factor == 1.0f) {
         return;
     }
     for (int y = 0; y < data.size.h; ++y) {
         auto* row = static_cast<std::uint8_t*>(data.pixelData) +
             static_cast<std::size_t>(y) * data.stride;
+        if (factor == 0.0f) {
+            std::fill_n(row, data.size.w * 4, std::uint8_t{0});
+            continue;
+        }
         for (int x = 0; x < data.size.w * 4; ++x) {
             row[x] = static_cast<std::uint8_t>(std::clamp(
                 std::lround(static_cast<float>(row[x]) * factor), 0L, 255L));
