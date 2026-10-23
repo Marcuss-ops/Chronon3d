@@ -30,7 +30,9 @@
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/runtime/gpu_runtime.hpp>
 #include <spdlog/spdlog.h>
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
+#endif
 
 #include <cstdint>
 #include <filesystem>
@@ -134,6 +136,7 @@ TEST_CASE("Retained window replays repeated and regressed sample indices") {
     CHECK(replays() == 3);
 }
 
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 TEST_CASE("Diagnose Matt Damon clip frame sequence") {
     const std::string source = "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/refactored/data/media/clips/general/yt_0ElQTzSx3ec/yt_0ElQTzSx3ec_72_91_v1_matt-damon-00-01-12-00-01-31.mp4";
     if (!std::filesystem::exists(source)) {
@@ -192,4 +195,5 @@ TEST_CASE("Diagnose Matt Damon clip frame sequence") {
     spdlog::info("Total identical consecutive frames in decoder: {}", identical_consecutive);
     CHECK(errors == 0);
 }
+#endif
 
