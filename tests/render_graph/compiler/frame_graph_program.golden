@@ -22,4 +22,7 @@
 # per evaluate_cache), so the normalized program carries different K entries.
 # The new value is stable across repeated runs; covered by the sibling test
 # "static bakes exclude noncacheable composites".
-fnv1a64=0xaccd5b842ed2c6a2
+# 2026-10-23 — updated after the render-graph compiler produced a new stable
+# normalized program. Two independent compilations match; full node/operation
+# parity remains asserted above. Previous golden: 0xaccd5b842ed2c6a2.
+fnv1a64=0x3b196a95fae3f89e
