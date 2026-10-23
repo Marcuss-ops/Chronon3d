@@ -27,7 +27,8 @@ endif()
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_media_direct_yuv PRIVATE
-        direct_yuv_program.cpp
+        direct_yuv_program_prepare.cpp
+        direct_yuv_program_execute.cpp
         direct_yuv_capability.cpp
         text_texture_cache.cpp
     )
