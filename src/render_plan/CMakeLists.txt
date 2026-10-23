@@ -13,6 +13,7 @@ add_library(chronon3d_render_plan OBJECT
     inline_mesh_primitives.cpp
     render_plan_decoder_animation.cpp
     render_plan_decoder_shape.cpp
+    render_plan_decoder_shape_fill.cpp
     render_plan_decoder_shape_operators.cpp
     render_plan_decoder_field.cpp
     render_plan_decoder_mask.cpp
