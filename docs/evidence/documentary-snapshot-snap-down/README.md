@@ -16,10 +16,10 @@ temporal-shutter Vulkan path, and the 601-frame torture render remain open.
 
 Files:
 
-- `contact-sheet.png`
+- `contact-sheet.webp`
 - `documentary_snapshot_adapter_canary_v1.plan.json`
 - `documentary_snapshot_adapter_frame_000.png`
 - `documentary_snapshot_adapter_frame_045.png`
-- `documentary_snapshot_adapter_frame_053.png`
-- `documentary_snapshot_adapter_frame_080.png`
-- `documentary_snapshot_adapter_frame_120.png`
+- `documentary_snapshot_adapter_frame_053.webp`
+- `documentary_snapshot_adapter_frame_080.webp`
+- `documentary_snapshot_adapter_frame_120.webp`

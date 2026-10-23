@@ -2,13 +2,13 @@
 
 - `scene.camera.plan.json`: 150-frame / 30 fps camera plan lowered through CameraRig.
 - `t16_hero_title_camera_150f_preview.mp4`: full 854x480 Vulkan preview rendered on NVIDIA RTX A4000.
-- `t16_camera_contact_sheet.png`: frames 0, 30, 75, 120, 149 extracted from the encoded preview.
+- `t16_camera_contact_sheet.webp`: frames 0, 30, 75, 120, 149 extracted from the encoded preview.
 - `t16_hero_title_camera_150f_fullres.mp4`: 150-frame 1920x1080 Vulkan/NVENC render on the strict GPU-native path.
 - `scene.camera.three_depth.plan.json`: full-resolution variant with a CameraRig-driven background plane at z=+1000, title at z=0, and subject at z=-99.
 - `t16_hero_title_camera_three_depth_150f.mp4`: 150-frame 1920x1080 Vulkan/NVENC strict GPU-native render of the three-depth variant.
-- `t16_camera_three_depth_contact.png`: frames 0, 30, 75, 120, and 149 from the three-depth video.
-- `t16_camera_three_depth_random_frame_075.png`: random-access frame 75 rendered separately with the same Vulkan/native-NVENC backend.
-- `t16_camera_three_depth_raw_frame_075.png`: non-compressed Vulkan raw-sink frame 75 projected verbatim to PNG by `tools/raw_frame_to_png.py`; visual review confirms the title and foreground cutout render correctly. Against decoded sequential/random NVENC frame 75, RGB MAE is 1.49/1.41, p99 5/4, max 31/27. This is pre-encode pixel-truth evidence for TEXT-QUALITY-V2 P0-0b; the differences include H.264 and chroma conversion.
+- `t16_camera_three_depth_contact.webp`: frames 0, 30, 75, 120, and 149 from the three-depth video.
+- `t16_camera_three_depth_random_frame_075.webp`: random-access frame 75 rendered separately with the same Vulkan/native-NVENC backend.
+- `t16_camera_three_depth_raw_frame_075.webp`: non-compressed Vulkan raw-sink frame 75 projected verbatim to PNG by `tools/raw_frame_to_png.py`; visual review confirms the title and foreground cutout render correctly. Against decoded sequential/random NVENC frame 75, RGB MAE is 1.49/1.41, p99 5/4, max 31/27. This is pre-encode pixel-truth evidence for TEXT-QUALITY-V2 P0-0b; the differences include H.264 and chroma conversion.
 - `output/T16_Hero_Title/`: source image assets needed by the plan. The text title is a transparent raster plane so it retains correct facing in the perspective renderer.
 
 Validate from the Chronon3d repo root with:
@@ -26,13 +26,13 @@ SHA-256 manifest (the RenderPlan content digest also fingerprints its resolved a
 ```text
 fedde0a8c27ebe75976672df5306ee8a3fd5b5a7e2411707246c6d0779312f30  scene.camera.plan.json
 30b8d220a2ed811db315b9ed51a85f7f480624f9cd44c79be7e84c4efe766d6a  t16_hero_title_camera_150f_preview.mp4
-9875cda366aaacb76fe60059d47b20a0d17652dcfdba52d6f0656b57044182a4  t16_camera_contact_sheet.png
+9875cda366aaacb76fe60059d47b20a0d17652dcfdba52d6f0656b57044182a4  t16_camera_contact_sheet.webp
 eb6c1c31a30228cde58242e92a2de87bed8cfd5acc3507d977a8c556907f212d  scene.camera.three_depth.plan.json
 be70c71e857a71480864a1d01b9bb0338466a60a5568887e065e35d3c69c7c1e  t16_hero_title_camera_150f_fullres.mp4
 67c53d3c780d98f5182edfabc180522c972075282d5d5887d121ab21e4eff26b  t16_hero_title_camera_three_depth_150f.mp4
-94e44cf3036587e06eff53e701e3e7c62989c302c79d81b09074ef7d257a287c  t16_camera_three_depth_contact.png
-739c4856ee00d438aefc5848444418ea3d6211e351d19f1c423b330e0d4f4daf  t16_camera_three_depth_random_frame_075.png
-366f468c2510aa4c70b8bb4d90e58cf0364bb025ad0a9a99fd89b28a52265b3c  t16_camera_three_depth_raw_frame_075.png
+94e44cf3036587e06eff53e701e3e7c62989c302c79d81b09074ef7d257a287c  t16_camera_three_depth_contact.webp
+739c4856ee00d438aefc5848444418ea3d6211e351d19f1c423b330e0d4f4daf  t16_camera_three_depth_random_frame_075.webp
+366f468c2510aa4c70b8bb4d90e58cf0364bb025ad0a9a99fd89b28a52265b3c  t16_camera_three_depth_raw_frame_075.webp
 6a5d2d7459fd0d18665dc0d6080c9b1ccabbe858643aa2f0eb92ee3ecb2f4b3e  output/T16_Hero_Title/camera_background.png
 ec2f7be0161b71c737bd8c0380eecadce5726db73e6c9a42c8fb2e466e102afa  output/T16_Hero_Title/camera_title.png
 d4abade3bdcbc47d214feaf53c3fc39cbd09c4c245f77e6bb962d44cbc6429a0  output/T16_Hero_Title/subject_cutout_refined.png
@@ -56,7 +56,7 @@ Pixel-truth raw-sink renders at frame 75 compare 30° and 50° on both software 
 
 ## CAM-08 raw access-order check (2026-10-21)
 
-The complete 150-frame three-depth plan was rendered with Vulkan to the raw RGBA sink, then frame 75 was rendered in a separate random-access raw job. The extracted frames are byte-identical: RGB MAE 0, p99 0, max 0; each has content_fraction 0.837132. See `t16_three_depth_raw_random_sequential_contact.png`, `t16_three_depth_sequential_150f_vulkan_auto.raw.rgba`, and `t16_three_depth_random_075_vulkan_auto.raw.rgba`. The strict `require_gpu_native` plus raw-sink attempt failed at the raw writer on frame 1; the normal Vulkan raw-readback path completed. The separate strict Vulkan/NVENC 150-frame deliverable is unaffected.
+The complete 150-frame three-depth plan was rendered with Vulkan to the raw RGBA sink, then frame 75 was rendered in a separate random-access raw job. The extracted frames are byte-identical: RGB MAE 0, p99 0, max 0; each has content_fraction 0.837132. See `t16_three_depth_raw_random_sequential_contact.webp`, `t16_three_depth_sequential_150f_vulkan_auto.raw.rgba`, and `t16_three_depth_random_075_vulkan_auto.raw.rgba`. The strict `require_gpu_native` plus raw-sink attempt failed at the raw writer on frame 1; the normal Vulkan raw-readback path completed. The separate strict Vulkan/NVENC 150-frame deliverable is unaffected.
 
 The 2026-10-21 DoF ablation first exposed a failure in the default raw Vulkan
 readback route: it returns zero RGBA when DoF consumes CPU depth. A later strict
@@ -88,7 +88,7 @@ is present for every frame. Per-frame RGB MAE averages 0.148636, the maximum
 per-frame MAE is 0.162768, and the maximum per-frame p99 is 3 levels. On average
 14.621% of pixels differ in at least one channel, predominantly by only a few
 levels. The five required visual samples (0/30/75/120/149) were reviewed side
-by side in `t16_cam04_full150_contact.png` and retain matching perspective,
+by side in `t16_cam04_full150_contact.webp` and retain matching perspective,
 title/subject occlusion, and framing. Per-frame metrics are in
 `t16_cam04_full150_metrics.csv`.
 
