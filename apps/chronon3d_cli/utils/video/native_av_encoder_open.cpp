@@ -363,23 +363,23 @@ bool NativeAvEncoder::configure_codec_and_surface() {
                                 options_.color_transform.output == color::ColorSpace::HLG;
         codec_->profile = declared_profile >= 0
             ? declared_profile
-            : (hdr_output ? FF_PROFILE_H264_HIGH_10 : FF_PROFILE_H264_HIGH);
+            : (hdr_output ? AV_PROFILE_H264_HIGH_10 : AV_PROFILE_H264_HIGH);
         // FFmpeg's NVENC wrapper can leave its private profile at Main even
         // when AVCodecContext::profile is set before avcodec_open2(). Pass the
         // profile through the encoder option as well so the emitted SPS and
         // packet facts match the assembly contract (and any borrowed stream).
         const char* profile_option = nullptr;
         switch (codec_->profile) {
-            case FF_PROFILE_H264_BASELINE:
+            case AV_PROFILE_H264_BASELINE:
                 profile_option = "baseline";
                 break;
-            case FF_PROFILE_H264_MAIN:
+            case AV_PROFILE_H264_MAIN:
                 profile_option = "main";
                 break;
-            case FF_PROFILE_H264_HIGH:
+            case AV_PROFILE_H264_HIGH:
                 profile_option = "high";
                 break;
-            case FF_PROFILE_H264_HIGH_10:
+            case AV_PROFILE_H264_HIGH_10:
                 profile_option = "high10";
                 break;
             default:
