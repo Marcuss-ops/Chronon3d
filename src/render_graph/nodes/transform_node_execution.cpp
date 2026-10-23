@@ -23,6 +23,102 @@
 #include <chronon3d/rendering/projected_card.hpp>
 
 namespace chronon3d::graph {
+namespace {
+void draw_projected_card_frame(
+    RenderGraphContext& ctx, Framebuffer& result,
+    const std::optional<Card3DMaterial>& material,
+    const Mat4& pixel_model, float x_min_src, float x_max_src,
+    float y_min_src, float y_max_src, float opacity) {
+    if (!material || !material->enabled) return;
+    if (ctx.policy.require_native_gpu ||
+        result.surface_handle() != runtime::kInvalidRenderSurfaceHandle) return;
+    const std::array<Vec2, 4> source_corners{{
+        {x_min_src, y_min_src}, {x_max_src, y_min_src},
+        {x_max_src, y_max_src}, {x_min_src, y_max_src}}};
+    rendering::ProjectedCard card;
+    card.visible = true;
+    for (usize i = 0; i < source_corners.size(); ++i) {
+        const Vec4 projected = pixel_model * Vec4(source_corners[i], 0.0f, 1.0f);
+        if (!(projected.w > 1e-6f) || !std::isfinite(projected.w)) {
+            card.visible = false;
+            break;
+        }
+        card.corners[i] = {
+            projected.x / projected.w - static_cast<f32>(result.origin_x()),
+            projected.y / projected.w - static_cast<f32>(result.origin_y()), 0.0f};
+    }
+    if (card.visible)
+        chronon3d::renderer::render_card3d(
+            result, card, *material, opacity, {}, /*draw_front_face=*/false);
+}
+
+std::optional<NodeExecResult> try_integer_translation(
+    RenderGraphContext& ctx, std::string_view node_name,
+    const FramebufferRef& input, OwnedFB& result, const glm::mat3& homography,
+    i32 x0, i32 x1, i32 y0, i32 y1,
+    float x_min_src, float x_max_src, float y_min_src, float y_max_src,
+    float opacity) {
+    const f32 tx = homography[2][0];
+    const f32 ty = homography[2][1];
+    if (std::abs(tx - std::round(tx)) >= 1e-4f ||
+        std::abs(ty - std::round(ty)) >= 1e-4f) return std::nullopt;
+    const i32 itx = static_cast<i32>(std::round(tx));
+    const i32 ity = static_cast<i32>(std::round(ty));
+    const auto native_path = detail::resolve_transform_execution_path(
+        ctx.policy.require_native_gpu,
+        input->surface_handle() != runtime::kInvalidRenderSurfaceHandle,
+        ctx.backend != nullptr, ctx.surface_registry != nullptr);
+    if (native_path == detail::TransformExecutionPath::NativeSurface) {
+        const auto terminal_encode_surface = ctx.policy.native_video_encode_surface;
+        const bool terminal_destination =
+            result->surface_handle() == terminal_encode_surface &&
+            terminal_encode_surface != runtime::kInvalidRenderSurfaceHandle;
+        runtime::RenderSurfaceHandle handle = terminal_destination
+            ? terminal_encode_surface : runtime::kInvalidRenderSurfaceHandle;
+        const runtime::SurfaceDesc desc = native_surface_desc(
+            ctx, result->width(), result->height());
+        const auto created = [&]() {
+            if (terminal_destination) return RenderOpResult{RenderOpOutcome{}};
+            handle = ctx.surface_registry->create(desc);
+            return handle != runtime::kInvalidRenderSurfaceHandle
+                ? ctx.backend->create_surface(handle, desc)
+                : RenderOpResult(make_render_backend_error(
+                    RenderBackendErrorCode::InvalidInput,
+                    "TransformNode: unable to allocate native output handle"));
+        }();
+        if (created.ok()) {
+            const auto transformed = ctx.backend->transform_surface(
+                handle, input->surface_handle(),
+                input->origin_x() + itx - result->origin_x(),
+                input->origin_y() + ity - result->origin_y(), opacity);
+            if (transformed.ok()) {
+                if (!terminal_destination) result->set_surface_handle(handle);
+                return NodeExecResult{std::move(result)};
+            }
+            spdlog::warn("[transform-native] integer transform failed node='{}' source={} dest={} error='{}'",
+                         node_name, input->surface_handle(), handle,
+                         transformed.error().message);
+        } else {
+            spdlog::warn("[transform-native] integer output surface creation failed node='{}' error='{}'",
+                         node_name, created.error().message);
+        }
+        if (!terminal_destination && handle != runtime::kInvalidRenderSurfaceHandle) {
+            (void)ctx.backend->release_surface(handle);
+            ctx.surface_registry->release(handle);
+        }
+    }
+    if (ctx.policy.require_native_gpu) {
+        return NodeExecResult(NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure, std::string(node_name),
+            "native integer transform failed"});
+    }
+    detail::execute_translate_clamped(
+        result.get(), input.get(), x0, x1, y0, y1,
+        x_min_src, x_max_src, y_min_src, y_max_src, itx, ity, opacity);
+    return NodeExecResult{std::move(result)};
+}
+} // namespace
+
 NodeExecResult TransformNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> inputs,
@@ -235,32 +331,6 @@ NodeExecResult TransformNode::execute(
     const i32 y0 = clipped_bounds->y0;
     const i32 y1 = clipped_bounds->y1;
 
-    const auto draw_card_frame = [&]() {
-        if (!m_card3d_material || !m_card3d_material->enabled) return;
-        if (ctx.policy.require_native_gpu ||
-            result->surface_handle() != runtime::kInvalidRenderSurfaceHandle) return;
-        const std::array<Vec2, 4> source_corners{{
-            {x_min_src, y_min_src}, {x_max_src, y_min_src},
-            {x_max_src, y_max_src}, {x_min_src, y_max_src}}};
-        rendering::ProjectedCard card;
-        card.visible = true;
-        for (usize i = 0; i < source_corners.size(); ++i) {
-            const Vec4 projected = pixel_model * Vec4(source_corners[i], 0.0f, 1.0f);
-            if (!(projected.w > 1e-6f) || !std::isfinite(projected.w)) {
-                card.visible = false;
-                break;
-            }
-            card.corners[i] = {
-                projected.x / projected.w - static_cast<f32>(result->origin_x()),
-                projected.y / projected.w - static_cast<f32>(result->origin_y()),
-                0.0f};
-        }
-        if (card.visible) {
-            chronon3d::renderer::render_card3d(
-                *result, card, *m_card3d_material, opacity, {},
-                /*draw_front_face=*/false);
-        }
-    };
 
     const uint64_t area = (x1 > x0 && y1 > y0)
         ? static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0)
@@ -282,80 +352,10 @@ NodeExecResult TransformNode::execute(
         std::abs(H[2][2] - 1.0f) < 1e-6f;
 
     if (is_pure_translation && !m_card3d_material) {
-        const f32 tx = H[2][0];
-        const f32 ty = H[2][1];
-        const bool is_integer_translation =
-            std::abs(tx - std::round(tx)) < 1e-4f &&
-            std::abs(ty - std::round(ty)) < 1e-4f;
-
-        if (is_integer_translation) {
-            const i32 itx = static_cast<i32>(std::round(tx));
-            const i32 ity = static_cast<i32>(std::round(ty));
-
-            // Native GPU path for the canonical integer-translation case.
-            // The source must already be a device-local logical surface; the
-            // CPU implementation remains the fallback for the first upload,
-            // perspective, and filtered affine paths.
-            const auto native_path = detail::resolve_transform_execution_path(
-                ctx.policy.require_native_gpu,
-                input->surface_handle() != runtime::kInvalidRenderSurfaceHandle,
-                ctx.backend != nullptr,
-                ctx.surface_registry != nullptr);
-            if (native_path == detail::TransformExecutionPath::NativeSurface) {
-                const auto terminal_encode_surface =
-                    ctx.policy.native_video_encode_surface;
-                const bool terminal_destination =
-                    result->surface_handle() == terminal_encode_surface &&
-                    terminal_encode_surface != runtime::kInvalidRenderSurfaceHandle;
-                runtime::RenderSurfaceHandle handle = terminal_destination
-                    ? terminal_encode_surface
-                    : runtime::kInvalidRenderSurfaceHandle;
-                const runtime::SurfaceDesc desc = native_surface_desc(
-                    ctx, result->width(), result->height());
-                const auto created = [&]() {
-                    if (terminal_destination) return RenderOpResult{RenderOpOutcome{}};
-                    handle = ctx.surface_registry->create(desc);
-                    return handle != runtime::kInvalidRenderSurfaceHandle
-                        ? ctx.backend->create_surface(handle, desc)
-                        : RenderOpResult(make_render_backend_error(
-                            RenderBackendErrorCode::InvalidInput,
-                            "TransformNode: unable to allocate native output handle"));
-                }();
-                if (created.ok()) {
-                    const auto transformed = ctx.backend->transform_surface(
-                        handle, input->surface_handle(),
-                        input->origin_x() + itx - result->origin_x(),
-                        input->origin_y() + ity - result->origin_y(), opacity);
-                    if (transformed.ok()) {
-                        if (!terminal_destination) result->set_surface_handle(handle);
-                        return NodeExecResult{std::move(result)};
-                    }
-                    spdlog::warn("[transform-native] integer transform failed node='{}' source={} dest={} error='{}'",
-                                 name(), input->surface_handle(), handle,
-                                 transformed.error().message);
-                } else {
-                    spdlog::warn("[transform-native] integer output surface creation failed node='{}' error='{}'",
-                                 name(), created.error().message);
-                }
-                if (!terminal_destination &&
-                    handle != runtime::kInvalidRenderSurfaceHandle) {
-                    (void)ctx.backend->release_surface(handle);
-                    ctx.surface_registry->release(handle);
-                }
-            }
-            if (ctx.policy.require_native_gpu) {
-                return NodeExecResult(NodeExecutionError{
-                    RenderBackendErrorCode::ExecutionFailure,
-                    std::string(name()),
-                    "native integer transform failed"});
-            }
-            detail::execute_translate_clamped(
-                result.get(), input.get(),
-                x0, x1, y0, y1,
-                x_min_src, x_max_src, y_min_src, y_max_src,
-                itx, ity, opacity);
-            return NodeExecResult{std::move(result)};
-        }
+        if (auto translated = try_integer_translation(
+                ctx, name(), input, result, H, x0, x1, y0, y1,
+                x_min_src, x_max_src, y_min_src, y_max_src, opacity))
+            return std::move(*translated);
     }
 
     // Fast-path 2: affine + no scale/shear (effectively translation)
@@ -610,7 +610,9 @@ NodeExecResult TransformNode::execute(
                      ascii_grid);
     }
 
-    draw_card_frame();
+    draw_projected_card_frame(
+        ctx, *result, m_card3d_material, pixel_model,
+        x_min_src, x_max_src, y_min_src, y_max_src, opacity);
     return NodeExecResult{std::move(result)};
 }
 
