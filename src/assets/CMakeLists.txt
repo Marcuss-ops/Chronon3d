@@ -16,6 +16,9 @@ if(CHRONON3D_ENABLE_SVG)
         svg_path_loader.cpp
         svg_css.cpp
         svg_animation.cpp
+        svg_text.cpp
+        svg_text_runs.cpp
+        svg_document_validation.cpp
         svg_geometry.cpp
         svg_gradients.cpp
         svg_importer.cpp

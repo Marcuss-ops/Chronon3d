@@ -27,5 +27,7 @@ inline std::string trim(std::string value) {
     std::string value, chronon3d::Color current);
 [[nodiscard]] std::map<std::string, std::string> style_properties(
     const boost::property_tree::ptree& node);
+[[nodiscard]] float style_number(
+    const std::map<std::string, std::string>& style, const char* key, float fallback);
 
 }  // namespace chronon3d::assets::svg_loader_detail

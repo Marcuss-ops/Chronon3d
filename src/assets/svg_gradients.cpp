@@ -15,6 +15,14 @@ using svg_loader_detail::style_properties;
 using svg_loader_detail::trim;
 using svg_loader_detail::transform_numbers;
 
+bool parse_svg_gradient_reference(const std::string& text, std::string& id) {
+    const auto value = trim(text);
+    if (!value.starts_with("url(#") || !value.ends_with(')') || value.size() <= 6)
+        return false;
+    id = value.substr(5, value.size() - 6);
+    return !id.empty() && id.find_first_of(" \t\r\n") == std::string::npos;
+}
+
 bool parse_svg_scalar(std::string text, float fallback, float& value) {
     text = trim(std::move(text));
     bool percent = !text.empty() && text.back() == '%';

@@ -10,6 +10,31 @@ namespace chronon3d::assets::svg_gradient_detail {
 using svg_loader_detail::parse_svg_length;
 using svg_loader_detail::transform_numbers;
 
+std::optional<Affine2> parse_viewbox_transform(
+    const boost::property_tree::ptree& node) {
+    const auto viewbox = node.get_optional<std::string>("<xmlattr>.viewBox");
+    if (!viewbox) return std::nullopt;
+    const auto values = transform_numbers(*viewbox);
+    if (values.size() != 4 || values[2] <= 0.0f || values[3] <= 0.0f) {
+        return std::nullopt;
+    }
+
+    const float viewport_width = node.get<float>("<xmlattr>.width", values[2]);
+    const float viewport_height = node.get<float>("<xmlattr>.height", values[3]);
+    if (viewport_width <= 0.0f || viewport_height <= 0.0f) return std::nullopt;
+
+    // SVG's default preserveAspectRatio is xMidYMid meet.  Keep the
+    // importer deterministic and geometry-only: explicit viewport dimensions
+    // map the viewBox into that viewport while preserving its aspect ratio.
+    const float scale = std::min(viewport_width / values[2], viewport_height / values[3]);
+    const float offset_x = (viewport_width - values[2] * scale) * 0.5f;
+    const float offset_y = (viewport_height - values[3] * scale) * 0.5f;
+    return Affine2(
+        glm::vec3(scale, 0.0f, 0.0f),
+        glm::vec3(0.0f, scale, 0.0f),
+        glm::vec3(offset_x - values[0] * scale, offset_y - values[1] * scale, 1.0f));
+}
+
 Affine2 parse_transform(std::string_view text) {
     Affine2 result(1.0f);
     const auto translation = [](float x, float y) {
