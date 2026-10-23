@@ -99,6 +99,7 @@ set(CHRONON3D_SDK_PUBLIC_DEPS
     "spdlog::spdlog_header_only|spdlog"
     "TBB::tbb|TBB"
     "magic_enum::magic_enum|magic_enum"
+    "Clipper2::Clipper2|Clipper2"
     "nlohmann_json::nlohmann_json|nlohmann_json"
     # `chronon3d_render_plan`, `chronon3d_ipc` and `chronon3d_text_core` carry
     # `nlohmann_json_schema_validator::validator` in their INTERFACE link

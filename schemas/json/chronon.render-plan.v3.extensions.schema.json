@@ -3124,6 +3124,7 @@
                   "twist",
                   "wiggle_path",
                   "merge",
+                  "boolean_union",
                   "trim",
                   "morph"
                 ]
@@ -3227,7 +3228,9 @@
                     ],
                     "properties": {
                       "amount": {
-                        "type": "number"
+                        "type": "number",
+                        "minimum": -10000000000,
+                        "maximum": 10000000000
                       },
                       "miter_limit": {
                         "type": "number",

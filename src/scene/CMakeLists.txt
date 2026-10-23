@@ -45,6 +45,8 @@ target_link_libraries(chronon3d_scene
         chronon3d_cache
         chronon3d_effects
         chronon3d_backend_image
+    PUBLIC
+        Clipper2::Clipper2
     PRIVATE
         spdlog::spdlog_header_only        fmt::fmt
     )

@@ -404,8 +404,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::WigglePath) {
                                         specs.push_back({PathOperatorKind::WigglePath,
                                             WigglePathParams{op.amount, op.frequency}, op.seed});
-                                    } else if (op.kind == render_plan::PathOperatorKindPlan::Merge) {
-                                        MergeParams merge;
+                                    } else if (op.kind == render_plan::PathOperatorKindPlan::Merge ||
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanUnion) {
+                                        std::vector<std::vector<PathCommand>> planned_paths;
                                         for (const auto& planned_path : op.paths) {
                                             std::vector<PathCommand> subpath;
                                             for (const auto& command : planned_path) {
@@ -420,9 +421,14 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                                     case render_plan::ShapePathCommandTypePlan::Close: subpath.push_back(PathCommand::close()); break;
                                                 }
                                             }
-                                            merge.paths.push_back(std::move(subpath));
+                                            planned_paths.push_back(std::move(subpath));
                                         }
-                                        specs.push_back({PathOperatorKind::Merge, std::move(merge), 0});
+                                        if (op.kind == render_plan::PathOperatorKindPlan::BooleanUnion)
+                                            specs.push_back({PathOperatorKind::BooleanUnion,
+                                                BooleanUnionParams{std::move(planned_paths)}, 0});
+                                        else
+                                            specs.push_back({PathOperatorKind::Merge,
+                                                MergeParams{std::move(planned_paths)}, 0});
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::Trim) {
                                         specs.push_back({PathOperatorKind::Trim,
                                             TrimPathParams{op.trim_start, op.trim_end, op.trim_offset}, 0});

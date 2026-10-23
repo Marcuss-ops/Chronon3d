@@ -1485,9 +1485,10 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
                         "].shape.operators", "SVG path operator target does not resolve: " +
                         operation.target_id, "svg_target_missing", "render-plan-svg"};
                 if ((operation.kind == PathOperatorKindPlan::Merge ||
+                     operation.kind == PathOperatorKindPlan::BooleanUnion ||
                      operation.kind == PathOperatorKindPlan::Morph) && exact_matches != 1)
                     return PlanDecodeError{"layers[" + std::to_string(layer_index) +
-                        "].shape.operators", "SVG Merge/Morph requires an exact path element id, not a group target",
+                        "].shape.operators", "SVG Merge/BooleanUnion/Morph requires an exact path element id, not a group target",
                         "svg_target_property_invalid", "render-plan-svg"};
             }
             for (const auto& binding : shape.svg_element_animations) {

@@ -16,15 +16,13 @@
                          "nlohmann-json",
                          "json-schema-validator",
                          "magic-enum",
+                         "clipper2",
                          "zstd",
                          "flatbuffers"
                      ],
     "features":  {
                      "geo":  {
-                                 "description":  "Geo polygon boolean ops and dissolve (CHRONON3D_ENABLE_GEO) — Clipper2, ADR-034",
-                                 "dependencies":  [
-                                                      "clipper2"
-                                                  ]
+                                 "description":  "Geo polygon boolean ops and dissolve (CHRONON3D_ENABLE_GEO) — Clipper2, ADR-034"
                              },
                      "ipc":  {
                                  "description":  "FlatBuffers IPC boundary (CHRONON3D_ENABLE_IPC)",

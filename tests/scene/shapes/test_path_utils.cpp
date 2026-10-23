@@ -5,6 +5,7 @@
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include "src/backends/software/rasterizers/path/path_stroke.hpp"
 #include <doctest/doctest.h>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 using namespace chronon3d;
@@ -325,6 +326,181 @@ TEST_CASE("Offset path applies signed normal displacement and preserves closure"
     CHECK(result[0].commands[0].p0.y == doctest::Approx(2));
     CHECK(result[0].commands[1].p0.x == doctest::Approx(10));
     CHECK(result[0].commands[1].p0.y == doctest::Approx(2));
+}
+
+TEST_CASE("Offset path handles cubic closed paths, open curves, and compound contours") {
+    PathShape compound;
+    compound.fill_rule = PathFillRule::EvenOdd;
+    compound.closed = false;
+    compound.commands = {
+        PathCommand::move_to({0, 0}),
+        PathCommand::cubic_to({0, 11}, {11, 11}, {11, 0}),
+        PathCommand::cubic_to({11, -11}, {0, -11}, {0, 0}),
+        PathCommand::close(),
+        PathCommand::move_to({20, 0}),
+        PathCommand::line_to({30, 0}),
+        PathCommand::line_to({30, 10}),
+        PathCommand::line_to({20, 10}),
+        PathCommand::close()};
+
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::OffsetPath;
+    op.params = OffsetPathParams{1.0f, 4.0f};
+    const auto offset = apply_path_operators(compound, {op});
+    REQUIRE(offset.size() == 1);
+    CHECK(std::count_if(offset[0].commands.begin(), offset[0].commands.end(),
+        [](const PathCommand& command) { return command.type == PathCommandType::Close; }) == 2);
+    CHECK(std::count_if(offset[0].commands.begin(), offset[0].commands.end(),
+        [](const PathCommand& command) { return command.type == PathCommandType::CubicTo; }) == 0);
+
+    PathShape open_curve;
+    open_curve.commands = {PathCommand::move_to({0, 0}),
+        PathCommand::cubic_to({0, 20}, {20, 20}, {20, 0}),
+        PathCommand::move_to({30, 0}), PathCommand::line_to({40, 0})};
+    const auto offset_open = apply_path_operators(open_curve, {op});
+    REQUIRE(offset_open.size() == 1);
+    CHECK(offset_open[0].commands.size() > 4);
+    CHECK(offset_open[0].commands.front().type == PathCommandType::MoveTo);
+    CHECK(offset_open[0].commands[1].type == PathCommandType::LineTo);
+}
+
+TEST_CASE("Boolean union resolves overlapping and degenerate compound path cases") {
+    const auto rectangle = [](float x, float y, float width, float height) {
+        return std::vector<PathCommand>{PathCommand::move_to({x, y}),
+            PathCommand::line_to({x + width, y}),
+            PathCommand::line_to({x + width, y + height}),
+            PathCommand::line_to({x, y + height}), PathCommand::close()};
+    };
+    const auto area = [](const PathShape& path) {
+        double twice_area = 0.0;
+        Vec2 first{};
+        Vec2 previous{};
+        bool active = false;
+        for (const auto& command : path.commands) {
+            if (command.type == PathCommandType::MoveTo) {
+                first = previous = command.p0;
+                active = true;
+            } else if (command.type == PathCommandType::LineTo && active) {
+                twice_area += static_cast<double>(previous.x) * command.p0.y -
+                              static_cast<double>(command.p0.x) * previous.y;
+                previous = command.p0;
+            } else if (command.type == PathCommandType::Close && active) {
+                twice_area += static_cast<double>(previous.x) * first.y -
+                              static_cast<double>(first.x) * previous.y;
+                active = false;
+            }
+        }
+        return std::abs(twice_area) * 0.5;
+    };
+    const auto union_paths = [&](const std::vector<PathCommand>& base,
+                                 std::vector<std::vector<PathCommand>> extras) {
+        PathShape shape;
+        shape.commands = base;
+        shape.fill_rule = PathFillRule::EvenOdd;
+        PathOperatorSpec op;
+        op.kind = PathOperatorKind::BooleanUnion;
+        op.params = BooleanUnionParams{std::move(extras)};
+        return apply_path_operators(shape, {op}).front();
+    };
+
+    // 16 independent overlaps, edge touches, contained shapes, and disjoint
+    // placements exercise the arrangement without relying on raster output.
+    for (int x = -3; x <= 4; ++x) {
+        const auto result = union_paths(rectangle(0, 0, 10, 10),
+                                        {rectangle(static_cast<float>(x * 2), 5, 8, 8)});
+        CHECK(area(result) >= 100.0);
+        CHECK(area(result) <= 164.001);
+        CHECK(std::count_if(result.commands.begin(), result.commands.end(),
+            [](const PathCommand& command) { return command.type == PathCommandType::Close; }) >= 1);
+    }
+    const auto overlap = union_paths(rectangle(0, 0, 10, 10),
+                                     {rectangle(5, 5, 10, 10)});
+    CHECK(area(overlap) == doctest::Approx(175.0).epsilon(1e-6));
+    CHECK(std::count_if(overlap.commands.begin(), overlap.commands.end(),
+        [](const PathCommand& command) { return command.type == PathCommandType::MoveTo; }) == 1);
+    const auto tangent = union_paths(rectangle(0, 0, 10, 10),
+                                     {rectangle(10, 0, 10, 10)});
+    CHECK(area(tangent) == doctest::Approx(200.0).epsilon(1e-6));
+    CHECK(std::count_if(tangent.commands.begin(), tangent.commands.end(),
+        [](const PathCommand& command) { return command.type == PathCommandType::Close; }) == 1);
+    const auto coincident = union_paths(rectangle(0, 0, 10, 10),
+                                        {rectangle(0, 0, 10, 10)});
+    CHECK(area(coincident) == doctest::Approx(100.0).epsilon(1e-6));
+
+    PathShape cubic;
+    cubic.commands = {PathCommand::move_to({0, 0}),
+        PathCommand::cubic_to({0, 20}, {20, 20}, {20, 0}),
+        PathCommand::cubic_to({20, -20}, {0, -20}, {0, 0}), PathCommand::close()};
+    PathOperatorSpec cubic_union;
+    cubic_union.kind = PathOperatorKind::BooleanUnion;
+    cubic_union.params = BooleanUnionParams{{cubic.commands}};
+    const auto cubic_result = apply_path_operators(cubic, {cubic_union});
+    REQUIRE(cubic_result.size() == 1);
+    CHECK(std::count_if(cubic_result[0].commands.begin(), cubic_result[0].commands.end(),
+        [](const PathCommand& command) { return command.type == PathCommandType::CubicTo; }) == 0);
+    CHECK(std::count_if(cubic_result[0].commands.begin(), cubic_result[0].commands.end(),
+        [](const PathCommand& command) { return command.type == PathCommandType::Close; }) == 1);
+
+    const auto with_hole = union_paths(rectangle(0, 0, 20, 20),
+        {rectangle(5, 5, 10, 10), rectangle(8, 8, 4, 4)});
+    CHECK(area(with_hole) == doctest::Approx(400.0).epsilon(1e-6));
+    PathShape donut;
+    donut.fill_rule = PathFillRule::EvenOdd;
+    donut.commands = rectangle(0, 0, 20, 20);
+    const auto inner = rectangle(5, 5, 10, 10);
+    donut.commands.insert(donut.commands.end(), inner.begin(), inner.end());
+    const auto normalized_donut = union_paths(donut.commands, {});
+    CHECK(area(normalized_donut) == doctest::Approx(300.0).epsilon(1e-6));
+    const auto restored_island = union_paths(donut.commands,
+        {rectangle(8, 8, 4, 4)});
+    CHECK(area(restored_island) == doctest::Approx(316.0).epsilon(1e-6));
+    const auto empty = union_paths({}, {{PathCommand::move_to({1, 1}),
+                                         PathCommand::line_to({1, 1}),
+                                         PathCommand::close()}});
+    CHECK(empty.commands.empty());
+}
+
+TEST_CASE("Offset path handles compound holes and collapsed insets") {
+    PathShape donut;
+    donut.fill_rule = PathFillRule::EvenOdd;
+    donut.commands = {PathCommand::move_to({0, 0}), PathCommand::line_to({20, 0}),
+        PathCommand::line_to({20, 20}), PathCommand::line_to({0, 20}), PathCommand::close(),
+        PathCommand::move_to({5, 5}), PathCommand::line_to({15, 5}),
+        PathCommand::line_to({15, 15}), PathCommand::line_to({5, 15}), PathCommand::close()};
+    PathOperatorSpec op;
+    op.kind = PathOperatorKind::OffsetPath;
+    op.params = OffsetPathParams{2.0f, 4.0f};
+    auto expanded = apply_path_operators(donut, {op});
+    REQUIRE(expanded.size() == 1);
+    CHECK(std::count_if(expanded[0].commands.begin(), expanded[0].commands.end(),
+        [](const PathCommand& command) { return command.type == PathCommandType::Close; }) == 2);
+    const auto filled_area = [](const PathShape& path) {
+        double twice_area = 0.0;
+        Vec2 first{};
+        Vec2 previous{};
+        bool active = false;
+        for (const auto& command : path.commands) {
+            if (command.type == PathCommandType::MoveTo) {
+                first = previous = command.p0;
+                active = true;
+            } else if (command.type == PathCommandType::LineTo && active) {
+                twice_area += static_cast<double>(previous.x) * command.p0.y -
+                              static_cast<double>(command.p0.x) * previous.y;
+                previous = command.p0;
+            } else if (command.type == PathCommandType::Close && active) {
+                twice_area += static_cast<double>(previous.x) * first.y -
+                              static_cast<double>(first.x) * previous.y;
+                active = false;
+            }
+        }
+        return std::abs(twice_area) * 0.5;
+    };
+    CHECK(filled_area(expanded[0]) == doctest::Approx(540.0).epsilon(1e-5));
+    op.params = OffsetPathParams{-11.0f, 4.0f};
+    const auto collapsed = apply_path_operators(donut, {op});
+    REQUIRE(collapsed.size() == 1);
+    CHECK(std::none_of(collapsed[0].commands.begin(), collapsed[0].commands.end(),
+        [](const PathCommand& command) { return command.type == PathCommandType::Close; }));
 }
 
 TEST_CASE("Pucker-bloat transforms curve points and controls around its anchor") {
