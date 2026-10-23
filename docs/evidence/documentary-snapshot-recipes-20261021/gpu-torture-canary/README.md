@@ -92,7 +92,7 @@ authored 90-degree shutter and eight samples:
 
 - [`vulkan_pipe_frame_030_weighted-add.mp4`](vulkan_pipe_frame_030_weighted-add.mp4)
   was rendered with Vulkan and encoded by FFmpeg/NVENC pipe. The decoded frame
-  [`vulkan_pipe_frame_030_weighted-add.png`](vulkan_pipe_frame_030_weighted-add.png)
+  [`vulkan_pipe_frame_030_weighted-add.webp`](vulkan_pipe_frame_030_weighted-add.webp)
   was reviewed: the portrait, border, caption, and black negative space are
   visible and coherent. This verifies the temporal GPU accumulation path for
   this frame; it is not a full-sequence pass or a multi-frame motion-blur

@@ -6,8 +6,8 @@ Vulkan render with readback; it is not strict native full-graph GPU/NVENC
 certification. Each recipe directory contains the raw frame, PNG projection,
 timing sidecar, and invocation log.
 
-Visual contact sheets are `gpu-fullshutter-contact.png` and
-`gpu-software-frame053-contact.png`. Software frame-53 samples are in the
+Visual contact sheets are `gpu-fullshutter-contact.webp` and
+`gpu-software-frame053-contact.webp`. Software frame-53 samples are in the
 parent recipe directories. Vulkan rendered a frame for all eleven recipes, but
 two outputs were exactly zero RGBA and one showed a blank card instead of the
 photograph:
@@ -151,8 +151,8 @@ both completed all 121 frames through `require_gpu_native` + NVENC. Each log
 reports `required_gpu_native_full_graph`, 121 accepted H.264 frames, and zero
 conversion and staging-copy bytes. The decoded actual frame 90 in each plan
 shows the portrait, caption, and card clearly; SplitDepth also retains its
-tilted card. Images are `focus-drop/focus-drop_frame090_strict-native_fixed.png`
-and `split-depth/split-depth_frame090_strict-native_fixed.png`; the MP4s and
+tilted card. Images are `focus-drop/focus-drop_frame090_strict-native_fixed.webp`
+and `split-depth/split-depth_frame090_strict-native_fixed.webp`; the MP4s and
 logs beside them contain the complete runs.
 
 A later visual audit of these decoded strict-native PNGs found a large brown
@@ -165,7 +165,7 @@ with and without temporal accumulation. The full 601-frame torture render and
 the separate PhotoStack strict-native shape gate also remain open.
 
 The same 0–120 Vulkan run was repeated for the DoF-disabled SplitDepth plan.
-Its extracted frame 90 (`split-depth/split-depth_frame090_radial-native.png`)
+Its extracted frame 90 (`split-depth/split-depth_frame090_radial-native.webp`)
 also shows a nearly washed-out photo and background, confirming the visual
 failure is shared across both recipes. The full-timeline log is
 `split-depth/split-depth_gpu-radial-review.log`.
@@ -181,7 +181,7 @@ the timing sidecar reports 121 timestamped GPU frames, 1,741 ms total GPU
 device time, and 359,376 ms render time (0.324 fps). This confirms the Vulkan
 GPU renderer is active, while CPU-side accumulation/readback dominates wall
 time. The reviewed frame 90 is
-`focus-drop/focus-drop_frame090_fullshutter_vulkan.png`: the portrait and
+`focus-drop/focus-drop_frame090_fullshutter_vulkan.webp`: the portrait and
 `ROME, 1986` caption are readable, the corrected radial leak is translucent,
 and the title is partly above the canvas during the transition. This is a raw
 Vulkan visual pass for the sampled full-shutter frame, not strict-native
@@ -192,7 +192,7 @@ The matching DoF-disabled SplitDepth plan also completed all 121 frames on
 Vulkan raw. Its file is exactly 1,003,622,400 bytes; the sidecar reports 121
 GPU-timestamped frames, 1,804 ms total GPU device time, 338,781 ms render time
 (0.349 fps), and zero CUDA host-upload bytes. The reviewed frame 90 is
-`split-depth/split-depth_frame090_fullshutter_vulkan.png`: caption and portrait
+`split-depth/split-depth_frame090_fullshutter_vulkan.webp`: caption and portrait
 are readable, the card retains its tilt, and the frame is not washed out. This
 closes the sampled raw full-shutter visual gate for SplitDepth. At capture
 time, both runs used expensive CPU temporal accumulation/readback and did not
@@ -209,7 +209,7 @@ canary; full-sequence GPU shutter verification remains open.
 The original FocusDrop recipe was rendered at frame 53 with its authored
 90°/8-sample shutter and DoF enabled, using Vulkan plus the FFmpeg/NVENC pipe.
 The decoded image
-[`focus-drop_frame053_gpu-weighted-add.png`](focus-drop/focus-drop_frame053_gpu-weighted-add.png)
+[`focus-drop_frame053_gpu-weighted-add.png`](focus-drop/focus-drop_frame053_gpu-weighted-add.webp)
 was visually reviewed against the existing software sample: title and layout
 remain readable, the portrait stays in its card, and the face is visibly
 defocused. The timing sidecar records 48 GPU submissions and 14.857 ms of
@@ -241,7 +241,7 @@ open through `accumulate_surface_weighted()` and closes it immediately after
 recording the add. The strict `require_gpu_native` + native NVENC frame-53 run
 then completed: 8-sample weighted accumulation finalized into encoder surface
 3, NVENC accepted one H.264 frame, and conversion/staging-copy bytes remained
-zero. The decoded PNG `split-depth/frame_053_strict-native_recheck3.png` still
+zero. The decoded PNG `split-depth/frame_053_strict-native_recheck3.webp` still
 shows the oversized brown shape, while the corresponding Vulkan raw frame
 above shows the card and title against black. This post-fix result confirms the
 remaining defect lies in the strict-native encode output path or its final

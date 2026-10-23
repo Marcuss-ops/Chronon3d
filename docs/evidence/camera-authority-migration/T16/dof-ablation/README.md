@@ -46,8 +46,8 @@ The full 150-frame strict-native DoF-on video is
 150 frames. Its sidecar reports `required_gpu_native_full_graph`, 150 native
 encode frames, zero GPU readback bytes, zero encoder staging-copy bytes, and
 zero execution downgrades. Reviewed frames 0, 30, 75, 120, and 149 are in
-`t16_dof_on_strict_gpu_contact.png`; the matched DoF-off/on comparison is
-`t16_dof_strict_gpu_ab_contact.png`.
+`t16_dof_on_strict_gpu_contact.webp`; the matched DoF-off/on comparison is
+`t16_dof_strict_gpu_ab_contact.webp`.
 
 Over those five decoded frames, mean face ROI edge gradient falls by 19.95%
 with DoF on, while the title ROI retains 98.27% of its DoF-off sharpness. Fixed

@@ -53,7 +53,7 @@ prior parity gate: software raw frame index 4 of the nine-frame reference has
 MAE 0.143, p99 3, max 82; decoded NVENC RGB has MAE 1.414, p99 4, max 29.
 The existing strict-native NVENC-versus-software shutter gate remains MAE
 1.457, p99 5. The corrected raw render and timing sidecar are stored beside
-this file. The lossless preview [`t16-shutter-center75-vulkan.png`](t16-shutter-center75-vulkan.png)
+this file. The lossless preview [`t16-shutter-center75-vulkan.webp`](t16-shutter-center75-vulkan.webp)
 was visually inspected: portrait, title, and background are present.
 
 The minimal red-surface test passed with `VK_LAYER_KHRONOS_validation` and

@@ -4,7 +4,7 @@ This is the pixel-truth CAM-01 probe. Two 1920×1080 RenderPlans derived from th
 
 ## FOV change
 
-The 30° and 50° raw frames visibly change framing on both backends. RGB comparison reports MAE 62.38 (software) and 62.37 (Vulkan), maximum channel differences 245/247, with 94.79%/94.79% of pixels changed. Thus CAM-01's RenderPlan FOV ablation passes on the sampled T16 frame. The reviewed contact sheet is `t16_fov_ablation_contact.png`; verbatim raw captures are `t16_camera_{30,50}_{software,vulkan}.raw.rgba`, and the PNGs alongside are direct RGBA8 projections of those raw frames.
+The 30° and 50° raw frames visibly change framing on both backends. RGB comparison reports MAE 62.38 (software) and 62.37 (Vulkan), maximum channel differences 245/247, with 94.79%/94.79% of pixels changed. Thus CAM-01's RenderPlan FOV ablation passes on the sampled T16 frame. The reviewed contact sheet is `t16_fov_ablation_contact.webp`; verbatim raw captures are `t16_camera_{30,50}_{software,vulkan}.raw.rgba`, and the PNGs alongside are direct RGBA8 projections of those raw frames.
 
 ## Cross-backend and pose checks
 

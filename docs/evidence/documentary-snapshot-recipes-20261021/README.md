@@ -16,7 +16,7 @@ then returns to the fitted final composition. This review closes the sampled
 recipe visual gate only; it does not prove every intermediate frame or
 temporal-shutter Vulkan behavior.
 
-`review-contact.png` contains the 33 reviewed PNGs. Each recipe directory
+`review-contact.webp` contains the 33 reviewed PNGs. Each recipe directory
 contains its lowered RenderPlan, three raw frames, three projected PNGs, and
 timing sidecars; the adjacent `.log` files capture each invocation. The
 connected `DocumentarySnapshotPack` canary in ChrononTemplate produced the

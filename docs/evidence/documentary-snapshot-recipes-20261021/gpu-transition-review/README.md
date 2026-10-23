@@ -7,7 +7,7 @@ new frame-90 raw RGBA files is 8,294,400 bytes. These are GPU render/readback
 observations, not strict-native NVENC certification.
 
 The reviewed contact sheet is
-[`gpu-transition-contact-all-v3.png`](gpu-transition-contact-all-v3.png).
+[`gpu-transition-contact-all-v3.webp`](gpu-transition-contact-all-v3.webp).
 It uses the source-fixed Reveal90 frame-90 capture from
 `../gpu-fullshutter-review/reveal-90-ablation/`. The prior v1/v2 sheets
 and baseline Reveal90 sample remain preserved.
