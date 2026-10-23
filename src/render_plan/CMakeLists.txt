@@ -13,6 +13,8 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_decoder_layer_timing.cpp
     render_plan_decoder_layer_support.cpp
     render_plan_decoder_effects.cpp
+    render_plan_decoder_effects_color_light.cpp
+    render_plan_decoder_effects_distortion.cpp
     inline_mesh_primitives.cpp
     render_plan_decoder_animation.cpp
     render_plan_decoder_shape.cpp
