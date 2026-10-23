@@ -52,6 +52,8 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler_shape_imported.cpp
     render_plan_compiler_shape_path.cpp
     render_plan_compiler_lottie.cpp
+    render_plan_compiler_lottie_masks.cpp
+    render_plan_compiler_lottie_paint.cpp
     render_plan_compiler_lottie_transform.cpp
     render_plan_compiler_animation.cpp
     render_plan_compiler_animation_text.cpp
