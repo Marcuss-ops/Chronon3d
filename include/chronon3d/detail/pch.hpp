@@ -8,15 +8,9 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-// FIX: GCC 14 + PCH + Unity build — <chrono> cascades through
-// /usr/include/c++/14/chrono (transitively-visible headers like
-// <ratio>/<version> lost across unity-aggregator boundaries,
-// 'time_point' and friends fail to resolve). Same issue for the
-// <fmt/format.h> formatting surface.  Removed from the PCH; the
-// small number of TUs that need each include it directly (compiler
-// cache makes the per-TU cost negligible).  Add back when the
-// toolchain matures past the GCC-14 + C++20 + Unity + PCH
-// interaction cascade.
+// Keep chrono and fmt out of this PCH: GCC 14 Unity builds can lose their
+// transitive declarations across aggregator boundaries. TUs that need them
+// include them directly.
 #include <concepts>
 #include <cstddef>
 #include <cstdint>

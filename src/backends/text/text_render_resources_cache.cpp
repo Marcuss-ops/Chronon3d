@@ -50,16 +50,8 @@ struct TextRasterCache {
         : cache(capacity_in > 0 ? capacity_in : kFallbackBytes, 8) {}
 };
 
-// ── P1-9 — GlyphAtlasCache PIMPL ─────────────────────────────────────
-//
-// The cache state that USED to live in `src/backends/text/glyph_atlas.cpp`
-// is now co-located with TextRenderResources.  The 4 free functions
-// (`set/get_glyph_atlas` + `get_glyph_atlas_mutex` + `glyph_atlas_clear`)
-// are deleted.  Production callers access via the TextRenderResources
-// members declared in `text_render_resources.hpp`.  The legacy
-// `rasterize_text_to_bl_image` ABI-frozen TU bypasses the atlas (Cat-5
-// ABI stability constraint, matches the P1-8 raster cache bypass); the
-// per-renderer atlas is used by non-legacy paths.
+// Glyph atlas state is owned by TextRenderResources. The ABI-frozen
+// rasterize_text_to_bl_image path bypasses this per-renderer cache.
 
 struct GlyphAtlasKey {
     std::uint64_t font_id{0};

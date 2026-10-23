@@ -80,17 +80,13 @@ public:
     ///     (BORROWED — no local GraphExecutor instance)
     ///   - ctx.execution->arena()          for inner graph PMR allocs
     ///
-    /// WP-6 PR 6.3 — legacy path delegates to `execute_with_scope(...)`
-    /// after synthesizing a Root parent scope; the lease-held +
-    /// child-scope plumbing lives in the new overload below.  Kept as
-    /// `override` for back-compat with the existing test lattice that
-    /// drives `node->execute(ctx, ...)` directly without an explicit
-    /// parent ExecutionScope in scope.
+    /// Compatibility overload: synthesize a Root scope and delegate to the
+    /// scope-aware execution path for callers without an explicit parent.
     NodeExecResult execute(RenderGraphContext& ctx,
                     std::span<const FramebufferRef>,
                     std::span<const std::optional<raster::BBox>>) override;
 
-    /// WP-6 PR 6.3 — scope-aware additive overload.  Takes a parent
+    /// Scope-aware overload. Takes a parent
     /// `ExecutionScope&` (Root from a single-pass render-job producer;
     /// Tile when invoked from tile orchestrator's per-region path; a
     /// Precomp when arriving from another nested level) and constructs:
