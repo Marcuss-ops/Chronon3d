@@ -54,6 +54,10 @@ void add_transition(CanonicalPlanWriter&, const TransitionPlan&);
 void add_camera(CanonicalPlanWriter&, const CameraPlan&);
 void add_audio_mix(CanonicalPlanWriter&, const AudioMixPlan&);
 void add_stagger(CanonicalPlanWriter&, const LayerPlan::StaggerPlan&);
+void add_layer_identity_and_mesh(CanonicalPlanWriter&, const LayerPlan&);
+void add_layer_style_and_shape(CanonicalPlanWriter&, const LayerPlan&);
+void add_layer_effects_and_masks(CanonicalPlanWriter&, const LayerPlan&);
+void add_layer_transform_and_timing(CanonicalPlanWriter&, const LayerPlan&);
 void add_layer(CanonicalPlanWriter&, const LayerPlan&);
 
 } // namespace chronon3d::render_plan::fingerprint_detail

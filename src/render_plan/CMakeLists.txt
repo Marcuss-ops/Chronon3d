@@ -23,11 +23,16 @@ add_library(chronon3d_render_plan OBJECT
     fingerprint_writer.cpp
     fingerprint_values.cpp
     fingerprint_layer.cpp
+    fingerprint_layer_identity.cpp
+    fingerprint_layer_style.cpp
+    fingerprint_layer_effects.cpp
+    fingerprint_layer_transform.cpp
     render_plan_validator.cpp
     validation/json_schema_diagnostic_adapter.cpp
     render_plan_compiler.cpp
     render_plan_compiler_assets.cpp
     render_plan_compiler_svg.cpp
+    render_plan_compiler_svg_paths.cpp
     render_plan_compiler_svg_text.cpp
     render_plan_media_background.cpp
     render_plan_compiler_scene.cpp

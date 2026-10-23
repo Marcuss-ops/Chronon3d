@@ -4,7 +4,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
-#include <chronon3d/render_plan/effect_presets.hpp>
+#include <chronon3d/render_plan/effect_presets/core.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include "../../src/render_plan/render_plan_compiler_detail.hpp"
 #include <array>

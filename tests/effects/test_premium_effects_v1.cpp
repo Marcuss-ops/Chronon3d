@@ -9,7 +9,7 @@
 #include <chronon3d/effects/temporal_history.hpp>
 #include <chronon3d/effects/backdrop_filter.hpp>
 #include <chronon3d/effects/luminance_response.hpp>
-#include <chronon3d/render_plan/effect_presets.hpp>
+#include <chronon3d/render_plan/effect_presets/core.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include "processors/effects/distort/warp.hpp"
 #include <chronon3d/backends/software/software_session_resources.hpp>
