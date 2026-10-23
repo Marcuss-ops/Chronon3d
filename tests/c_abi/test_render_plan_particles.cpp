@@ -41,7 +41,7 @@ nlohmann::json path_shape_layer() {
         {"size", {200.0, 100.0}},
         {"position", {0.0, 0.0}},
         {"shape", {{"type", "path"},
-                   {"commands", nlohmann::json::array({
+                   {"path", nlohmann::json::array({
                        {{"type", "move_to"}, {"point", {-100.0, 0.0}}},
                        {{"type", "line_to"}, {"point", {0.0, -40.0}}},
                        {{"type", "line_to"}, {"point", {100.0, 0.0}}}
