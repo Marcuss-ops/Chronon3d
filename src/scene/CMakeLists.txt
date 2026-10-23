@@ -14,6 +14,8 @@ add_library(chronon3d_scene OBJECT
     overlay_layout_resolver.cpp
     path_utils.cpp
     path_operators.cpp
+    path_operators_geometry.cpp
+    path_operators_dispatch.cpp
     media_placement.cpp
     path_factories.cpp
     # ── P2 joints API (Layer <-> Layer attachment) ───────────────────────
