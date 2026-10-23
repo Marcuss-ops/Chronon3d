@@ -1,0 +1,24 @@
+{
+  "resolution": [
+    1920,
+    1080
+  ],
+  "receiver_floor_roi_y": [
+    700,
+    1080
+  ],
+  "threshold_rgb_l1_gt8": 8,
+  "floor_changed_pixels": 11337,
+  "floor_bbox_xyxy": [
+    630,
+    700,
+    965,
+    746
+  ],
+  "floor_mean_rgb_l1_delta": 0.45685992324561403,
+  "floor_p95_rgb_l1_delta": 2.0,
+  "floor_max_rgb_l1_delta": 20,
+  "floor_fraction_changed": 0.015538651315789473,
+  "shadowed_rgba_sha256": "6dcb5eed7c80c11978ab81ac1b959124b08199edc691f8c95b3d9a1fb03a17d6",
+  "ablation_rgba_sha256": "a09fc39ad9a690c08bf932bb2ece1cd1a1ebad1dde5d85b2bc5575b0581a702c"
+}

@@ -176,7 +176,9 @@ inline std::optional<float> parse_svg_length(std::string_view text, float percen
         float val = std::stof(s, &consumed);
         if (consumed != s.size() || !std::isfinite(val)) return std::nullopt;
         return val * scale;
-    } catch (...) {
+    } catch (const std::invalid_argument&) {
+        return std::nullopt;
+    } catch (const std::out_of_range&) {
         return std::nullopt;
     }
 }
@@ -376,7 +378,9 @@ std::optional<float> svg_baseline_shift(std::string value, float font_size) {
         if (percent) amount = amount * font_size / 100.0f;
         else if (em) amount *= font_size;
         return -amount;
-    } catch (...) {
+    } catch (const std::invalid_argument&) {
+        return std::nullopt;
+    } catch (const std::out_of_range&) {
         return std::nullopt;
     }
 }
@@ -400,8 +404,7 @@ std::optional<Color> parse_svg_color(std::string value, Color current) {
         {"teal", "#008080"}, {"aqua", "#00FFFF"}, {"orange", "#FFA500"}
     };
     if (const auto named = named_colors.find(value); named != named_colors.end()) {
-        try { return Color::from_hex(std::string{named->second}.c_str()); }
-        catch (...) { return std::nullopt; }
+        return Color::try_from_hex(std::string{named->second}.c_str());
     }
     if (value.size() == 4 && value[0] == '#') {
         const auto digit = [](char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1; };
@@ -410,7 +413,7 @@ std::optional<Color> parse_svg_color(std::string value, Color current) {
         return Color{r / 15.0f, g / 15.0f, b / 15.0f, 1.0f};
     }
     if (value.size() == 7 && value[0] == '#') {
-        try { return Color::from_hex(value.c_str()); } catch (...) { return std::nullopt; }
+        return Color::try_from_hex(value.c_str());
     }
     if (value.rfind("rgb(", 0) == 0 && value.back() == ')') {
         const auto parts = transform_numbers(std::string_view(value).substr(4, value.size() - 5));
@@ -607,7 +610,9 @@ std::optional<std::string> validate_svg_subset(
             const float value = std::stof(text, &consumed);
             return consumed == text.size() && std::isfinite(value) &&
                    value >= 0.0f && value <= 1.0f;
-        } catch (...) {
+        } catch (const std::invalid_argument&) {
+            return false;
+        } catch (const std::out_of_range&) {
             return false;
         }
     };
@@ -675,7 +680,7 @@ std::optional<std::string> validate_svg_subset(
                         const float size = std::stof(value, &used);
                         if (used != value.size() || !std::isfinite(size) || size <= 0.0f || size > 4096.0f)
                             return "SVG text font-size must be a positive bounded pixel value";
-                    } catch (...) { return "SVG text font-size must be a positive bounded pixel value"; }
+                    } catch (const std::invalid_argument&) { return "SVG text font-size must be a positive bounded pixel value"; } catch (const std::out_of_range&) { return "SVG text font-size must be a positive bounded pixel value"; }
                 }
                 if (const auto it = properties.find("text-anchor"); it != properties.end() &&
                     it->second != "start" && it->second != "middle" && it->second != "end")
@@ -702,7 +707,7 @@ std::optional<std::string> validate_svg_subset(
                             const int parsed = std::stoi(weight, &used);
                             if (used != weight.size() || parsed < 100 || parsed > 900 || parsed % 100 != 0)
                                 return "SVG font-weight must be normal, bold, or 100..900 by hundreds";
-                        } catch (...) { return "SVG font-weight must be normal, bold, or 100..900 by hundreds"; }
+                        } catch (const std::invalid_argument&) { return "SVG font-weight must be normal, bold, or 100..900 by hundreds"; } catch (const std::out_of_range&) { return "SVG font-weight must be normal, bold, or 100..900 by hundreds"; }
                     }
                 }
                 if (const auto it = properties.find("baseline-shift"); it != properties.end() &&
@@ -721,7 +726,7 @@ std::optional<std::string> validate_svg_subset(
                             const float parsed = std::stof(*value, &used);
                             if (used != value->size() || !std::isfinite(parsed) || std::abs(parsed) > 100000.0f)
                                 return "SVG <use> coordinates must be finite and bounded";
-                        } catch (...) { return "SVG <use> coordinates must be finite and bounded"; }
+                        } catch (const std::invalid_argument&) { return "SVG <use> coordinates must be finite and bounded"; } catch (const std::out_of_range&) { return "SVG <use> coordinates must be finite and bounded"; }
                     }
                 }
             }
@@ -845,7 +850,9 @@ std::optional<std::string> validate_svg_subset(
                     if (consumed != trim(it->second).size() || !std::isfinite(limit) ||
                         limit < 1.0f || limit > 1000.0f)
                         return "SVG stroke-miterlimit must be within [1,1000]";
-                } catch (...) {
+                } catch (const std::invalid_argument&) {
+                    return "SVG stroke-miterlimit must be within [1,1000]";
+                } catch (const std::out_of_range&) {
                     return "SVG stroke-miterlimit must be within [1,1000]";
                 }
             }
@@ -859,7 +866,9 @@ std::optional<std::string> validate_svg_subset(
                     if (consumed != trim(it->second).size() || !std::isfinite(offset) ||
                         std::abs(offset) > 100000.0f)
                         return "SVG stroke-dashoffset must be a finite bounded number";
-                } catch (...) {
+                } catch (const std::invalid_argument&) {
+                    return "SVG stroke-dashoffset must be a finite bounded number";
+                } catch (const std::out_of_range&) {
                     return "SVG stroke-dashoffset must be a finite bounded number";
                 }
             }
@@ -892,7 +901,7 @@ bool parse_svg_scalar(std::string text, float fallback, float& value) {
         if (percent) value /= 100.0f;
         (void)fallback;
         return std::abs(value) <= 100000.0f;
-    } catch (...) { return false; }
+    } catch (const std::invalid_argument&) { return false; } catch (const std::out_of_range&) { return false; }
 }
 
 std::optional<std::string> collect_svg_gradients(
@@ -986,7 +995,7 @@ std::optional<std::string> collect_svg_gradients(
                         duration = std::stof(duration_text, &used) * time_scale;
                         if (used != duration_text.size() || !std::isfinite(duration) || duration <= 0.0f || duration > 3600.0f)
                             return "SVG gradient animation duration is invalid";
-                    } catch (...) { return "SVG gradient animation duration is invalid"; }
+                    } catch (const std::invalid_argument&) { return "SVG gradient animation duration is invalid"; } catch (const std::out_of_range&) { return "SVG gradient animation duration is invalid"; }
                     const auto mode = animation.get<std::string>("<xmlattr>.calcMode", "linear");
                     if (mode != "linear" && mode != "discrete") return "SVG gradient animation calcMode is unsupported";
                     std::string from_text = animation.get<std::string>("<xmlattr>.from", "");
@@ -1331,7 +1340,9 @@ std::optional<std::string> parse_root_gaussian_filter(
             if (used != token.size() || !std::isfinite(value) || value < 0.0f || value > 256.0f)
                 return "SVG feGaussianBlur stdDeviation must be finite and in [0,256]";
             deviations.push_back(value);
-        } catch (...) {
+        } catch (const std::invalid_argument&) {
+            return "SVG feGaussianBlur stdDeviation must be finite and in [0,256]";
+        } catch (const std::out_of_range&) {
             return "SVG feGaussianBlur stdDeviation must be finite and in [0,256]";
         }
         if (deviations.size() > 2)
@@ -1353,7 +1364,7 @@ std::optional<std::string> parse_root_gaussian_filter(
 float style_number(const std::map<std::string, std::string>& style, const char* key, float fallback) {
     const auto it = style.find(key);
     if (it == style.end()) return fallback;
-    try { return std::clamp(std::stof(it->second), 0.0f, 1.0f); } catch (...) { return fallback; }
+    try { return std::clamp(std::stof(it->second), 0.0f, 1.0f); } catch (const std::invalid_argument&) { return fallback; } catch (const std::out_of_range&) { return fallback; }
 }
 
 bool parse_svg_animation(const std::string& tag, const boost::property_tree::ptree& node,
@@ -1367,7 +1378,7 @@ bool parse_svg_animation(const std::string& tag, const boost::property_tree::ptr
             std::size_t used = 0;
             value = std::stof(text, &used) * scale;
             return used == text.size() && std::isfinite(value) && value >= 0.0f && value <= 3600.0f;
-        } catch (...) { return false; }
+        } catch (const std::invalid_argument&) { return false; } catch (const std::out_of_range&) { return false; }
     };
     const auto parse_values = [](const std::string& text, std::vector<float>& values) {
         if (text.empty()) return false;
@@ -1472,7 +1483,7 @@ bool parse_svg_morph_animation(const boost::property_tree::ptree& node,
             std::size_t used = 0;
             seconds = std::stof(text, &used) * scale;
             return used == text.size() && std::isfinite(seconds) && seconds >= 0.0f && seconds <= 3600.0f;
-        } catch (...) { return false; }
+        } catch (const std::invalid_argument&) { return false; } catch (const std::out_of_range&) { return false; }
     };
     float begin = 0.0f;
     if (!parse_time(node.get<std::string>("<xmlattr>.begin", "0s"), begin) || begin != 0.0f ||
@@ -1621,10 +1632,14 @@ void collect_path_data(
                 : it->second == "bevel" ? LineJoin::Bevel : LineJoin::Miter;
         }
         if (auto it = properties.find("stroke-miterlimit"); it != properties.end()) {
+            // Malformed numeric attributes fall back to the default; only
+            // std::stof's own parse exceptions are swallowed here so genuine
+            // faults (e.g. allocation failures) still propagate.
             try {
                 style.stroke_miter_limit = std::stof(it->second);
                 style.stroke.miter_limit = style.stroke_miter_limit;
-            } catch (...) {}
+            } catch (const std::invalid_argument&) {
+            } catch (const std::out_of_range&) {}
         }
         if (auto it = properties.find("fill-rule"); it != properties.end()) {
             style.fill_rule = it->second == "nonzero" ? PathFillRule::NonZero
@@ -1643,7 +1658,9 @@ void collect_path_data(
             }
         }
         if (auto it = properties.find("stroke-dashoffset"); it != properties.end()) {
-            try { style.stroke.dash_offset = std::stof(it->second); } catch (...) {}
+            try { style.stroke.dash_offset = std::stof(it->second); }
+            catch (const std::invalid_argument&) {}
+            catch (const std::out_of_range&) {}
         }
         const float element_opacity = style_number(properties, "opacity", 1.0f);
         if (name == "g" && element_opacity < 1.0f) {
@@ -1890,7 +1907,10 @@ std::vector<float> svg_text_lengths(const boost::property_tree::ptree& node,
             if (used != token.size() || !std::isfinite(parsed) || std::abs(parsed) > 100000.0f)
                 throw std::invalid_argument("invalid SVG text coordinate");
             result.push_back(parsed);
-        } catch (...) {
+        } catch (const std::invalid_argument&) {
+            throw std::invalid_argument(std::string("SVG text ") + key +
+                " must contain finite bounded pixel values");
+        } catch (const std::out_of_range&) {
             throw std::invalid_argument(std::string("SVG text ") + key +
                 " must contain finite bounded pixel values");
         }
@@ -1919,7 +1939,9 @@ std::vector<float> svg_text_angles(const boost::property_tree::ptree& node) {
             if (used != token.size() || !std::isfinite(parsed) || std::abs(parsed) > 36000.0f)
                 throw std::invalid_argument("invalid SVG text rotate angle");
             result.push_back(parsed);
-        } catch (...) {
+        } catch (const std::invalid_argument&) {
+            throw std::invalid_argument("SVG text rotate values must be bounded degrees");
+        } catch (const std::out_of_range&) {
             throw std::invalid_argument("SVG text rotate values must be bounded degrees");
         }
         if (result.size() > 4096)
@@ -1945,7 +1967,9 @@ float svg_text_spacing(const std::string& source, float font_size) {
         if (used != value.size() || !std::isfinite(parsed) || std::abs(parsed) > 100000.0f)
             throw std::invalid_argument("invalid SVG text spacing");
         return parsed * factor;
-    } catch (...) {
+    } catch (const std::invalid_argument&) {
+        throw std::invalid_argument("SVG text spacing must be a finite bounded px or em value");
+    } catch (const std::out_of_range&) {
         throw std::invalid_argument("SVG text spacing must be a finite bounded px or em value");
     }
 }
@@ -1986,7 +2010,9 @@ std::optional<std::pair<float, bool>> svg_text_path_offset(
         if (used != value.size() || !std::isfinite(parsed) || std::abs(parsed) > 100000.0f)
             return std::nullopt;
         return std::pair{parsed, percent};
-    } catch (...) {
+    } catch (const std::invalid_argument&) {
+        return std::nullopt;
+    } catch (const std::out_of_range&) {
         return std::nullopt;
     }
 }
@@ -2174,7 +2200,9 @@ void apply_svg_text_style(const boost::property_tree::ptree& node,
             if (used != value.size() || !std::isfinite(width) || width < 0.0f || width > 100000.0f)
                 throw std::invalid_argument("invalid stroke width");
             state.stroke_width = width;
-        } catch (...) {
+        } catch (const std::invalid_argument&) {
+            throw std::invalid_argument("SVG text stroke-width must be a finite bounded pixel value");
+        } catch (const std::out_of_range&) {
             throw std::invalid_argument("SVG text stroke-width must be a finite bounded pixel value");
         }
     }

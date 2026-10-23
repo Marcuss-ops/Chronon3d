@@ -85,7 +85,10 @@ void bake(Json& plan) {
     if (dof.value("enabled", false)) {
         rig.setFocusDistance(dof.value("focus_distance", 0.f))
            .setMaxBlur(dof.value("max_blur", 0.f))
-           .setLegacyDefocusStrength(dof.value("aperture", 0.f));
+           // Single authored aperture truth is f/N: authored `f_stop` wins,
+           // legacy gain-domain `aperture` is bridged through fStopFromBlurGain.
+           .setFStop(dof.contains("f_stop") ? dof.at("f_stop").get<float>()
+                                            : fStopFromBlurGain(dof.value("aperture", 0.f)));
     }
 
     // RenderPlan mirrors world Z; CM3D lowering reflects Z and conjugates rotations.

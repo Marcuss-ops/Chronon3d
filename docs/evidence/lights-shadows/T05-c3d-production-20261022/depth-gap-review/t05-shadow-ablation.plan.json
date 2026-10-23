@@ -1,0 +1,145 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "t05-c3d-production-shadow-ablation-20261022-depth-gap-review",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "layers": [
+    {
+      "id": "night-backdrop",
+      "type": "color",
+      "size": [
+        1920,
+        1080
+      ],
+      "color": [
+        0.035,
+        0.055,
+        0.085,
+        1
+      ],
+      "duration_frames": 1
+    },
+    {
+      "id": "shadow-receiver-floor",
+      "type": "color",
+      "size": [
+        1720,
+        360
+      ],
+      "position": [
+        0,
+        -275,
+        48
+      ],
+      "enable_3d": true,
+      "accepts_shadows": true,
+      "casts_shadows": false,
+      "color": [
+        0.67,
+        0.7,
+        0.76,
+        1
+      ],
+      "duration_frames": 1
+    },
+    {
+      "id": "hero-caster",
+      "type": "color",
+      "size": [
+        270,
+        320
+      ],
+      "position": [
+        -120,
+        15,
+        0
+      ],
+      "enable_3d": true,
+      "casts_shadows": false,
+      "accepts_shadows": false,
+      "color": [
+        0.95,
+        0.34,
+        0.12,
+        1
+      ],
+      "duration_frames": 1
+    },
+    {
+      "id": "secondary-caster",
+      "type": "color",
+      "size": [
+        180,
+        245
+      ],
+      "position": [
+        245,
+        10,
+        70
+      ],
+      "enable_3d": true,
+      "casts_shadows": false,
+      "accepts_shadows": false,
+      "color": [
+        0.13,
+        0.63,
+        0.69,
+        1
+      ],
+      "duration_frames": 1
+    },
+    {
+      "id": "directional-key",
+      "type": "light",
+      "position": [
+        -380,
+        470,
+        500
+      ],
+      "light": {
+        "kind": "directional",
+        "direction": [
+          0.7,
+          -1.0,
+          -0.5
+        ],
+        "radius": 800,
+        "intensity": 1.0,
+        "color": "#FFF0D6",
+        "cast_shadow": true,
+        "shadow_radius": 16,
+        "shadow_bias": 0
+      },
+      "duration_frames": 1,
+      "enable_3d": true
+    }
+  ],
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 50,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "output": {
+    "path": "t05-shadow-ablation.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  }
+}
