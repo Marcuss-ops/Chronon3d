@@ -100,6 +100,11 @@ desktop.ini
 !tests/**
 !docs/**
 
+# Raw framebuffer readbacks are reproducible verification artifacts, not
+# reviewable evidence. Keep their hashes and compact summaries instead.
+docs/evidence/**/*.rgb
+docs/evidence/**/*.rgba
+
 renders/
 render_output/
 frames/
