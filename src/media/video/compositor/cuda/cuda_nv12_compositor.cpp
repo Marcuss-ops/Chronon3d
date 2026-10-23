@@ -24,7 +24,6 @@
 
 #include <chrono>
 #include <cstdlib>
-#include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
 #include <span>
@@ -101,7 +100,7 @@ cache::ProgramArtifactKey nv12_program_key() {
     const auto semantic_program_fingerprint =
         chronon3d::core::hash::HashBuilder{}
             .add("chronon3d.semantic-program.nv12.v1")
-            .add_bytes(kNv12Kernel, std::strlen(kNv12Kernel))
+            .add_bytes(kNv12Kernel.data(), kNv12Kernel.size())
             .finish();
     return {
         semantic_program_fingerprint,
@@ -118,7 +117,7 @@ std::string compile_nv12_ptx() {
     ensure_nvrtc_builtins_loaded();
 
     nvrtcProgram program{};
-    check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel, "chronon_nv12.cu",
+    check_nvrtc(nvrtcCreateProgram(&program, kNv12Kernel.c_str(), "chronon_nv12.cu",
                                    0, nullptr, nullptr), "nvrtcCreateProgram");
     const char* options[] = {
         "--std=c++17",
