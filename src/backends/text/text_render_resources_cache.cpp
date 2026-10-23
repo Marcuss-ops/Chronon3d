@@ -11,18 +11,7 @@
 
 namespace chronon3d {
 
-// ═══════════════════════════════════════════════════════════════════════════
-// P1-8 — TextRasterCache PIMPL + `hash_text_style` impl + raster cache API
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// The cache state that USED to live in the retired
-// `src/backends/text/text_rasterizer_cache.cpp`  // drift-class: historical (file retired; state co-located here)
-// is now co-located with TextRenderResources.  The 4 free functions
-// (`set/lookup/store_text_cache` + `clear_text_raster_cache`) are deleted.
-// Production callers access via the TextRenderResources members declared
-// in `text_render_resources.hpp`.  The legacy `rasterize_text_to_bl_image`
-// ABI-frozen TU bypasses the cache (Cat-5 ABI stability constraint); the
-// per-renderer cache is used by non-legacy renderer paths.
+// Per-renderer text raster and glyph atlas cache implementations.
 
 namespace detail {
 
@@ -31,21 +20,14 @@ struct TextRasterCache {
     using CacheValue = std::shared_ptr<TextRasterization>;
     using TextCache = cache::LruCache<CacheKey, CacheValue>;
 
-    /// 32 MiB fallback — matches the legacy
-    /// `text_rasterizer_cache.cpp::kFallback` (TICKET-079).  Used when a
-    /// caller passes `0` to the ctor.
+    /// Default capacity used when the caller passes `0`.
     static constexpr size_t kFallbackBytes = 32ULL * 1024ULL * 1024ULL;
 
     std::shared_mutex mutex;
     TextCache cache;
 
-    /// Ctor MATERIALIZES the cache eagerly with the requested capacity
-    /// (or fallback if 0).  Eager-init mirrors the legacy first-call-wins
-    /// semantics in `text_rasterizer_cache.cpp::resolve_text_cache_capacity()`:
-    /// capacity is locked at materialization; post-init capacity updates
-    /// are silently ignored.  The renderer MUST call
-    /// `TextRenderResources::set_raster_cache_capacity(N)` from its ctor
-    /// BEFORE the first cache touch for the injected capacity to apply.
+    /// Capacity is fixed when the cache is first materialized; later capacity
+    /// updates have no effect. The renderer sets it during construction.
     explicit TextRasterCache(size_t capacity_in)
         : cache(capacity_in > 0 ? capacity_in : kFallbackBytes, 8) {}
 };
@@ -79,78 +61,48 @@ struct GlyphAtlasKeyHash {
 struct GlyphAtlasCache {
     using Cache = cache::LruCache<GlyphAtlasKey, GlyphAtlasEntry, GlyphAtlasKeyHash>;
 
-    /// 32 MiB fallback — matches the legacy
-    /// `glyph_atlas.cpp::kFallback` (TICKET-079).  Used when a caller
-    /// passes `0` to the ctor.
+    /// Default capacity used when the caller passes `0`.
     static constexpr size_t kFallbackBytes = 32ULL * 1024ULL * 1024ULL;
 
-    /// External shared_mutex: coordinates cross-shard put/lookup atomicity
-    /// (the LruCache's per-shard mutexes protect per-shard access, but
-    /// the put+get independent operations need cross-shard coordination
-    /// to prevent the "lookup → on-miss-store" test-and-set race).  The
-    /// legacy `get_glyph_atlas_mutex()` accessor was REMOVED; callers
-    /// that needed cross-instance synchronization no longer exist (the
-    /// atlas is now per-instance, owned by ONE TextRenderResources).
+    /// Coordinates lookup and store across shards to keep the cache's
+    /// lookup-then-insert sequence atomic for this renderer instance.
     mutable std::shared_mutex mutex;
     Cache cache;
 
-    /// Ctor MATERIALIZES the cache eagerly with the requested capacity
-    /// (or fallback if 0).  Eager-init mirrors the legacy first-call-wins
-    /// semantics in `glyph_atlas.cpp::resolve_atlas_max_bytes()`: capacity
-    /// is locked at materialization; post-init capacity updates are
-    /// silently ignored.  The renderer MUST call
-    /// `TextRenderResources::set_glyph_atlas_capacity(N)` from its ctor
-    /// BEFORE the first cache touch for the injected capacity to apply.
+    /// Capacity is fixed when the cache is first materialized; later capacity
+    /// updates have no effect. The renderer sets it during construction.
     explicit GlyphAtlasCache(size_t capacity_in)
         : cache(capacity_in > 0 ? capacity_in : kFallbackBytes, 8) {}
 };
 
 } // namespace detail
 
-// Per-instance cache API on TextRenderResources.  `raster_cache` is
-// allocated lazily on the first `set_raster_cache_capacity` call (called
-// by SoftwareRenderer ctor).  Subsequent lookups/store/clear no-op on an
-// un-materialized instance.
+// Raster cache capacity and per-instance cache operations.
 
 void TextRenderResources::set_raster_cache_capacity(size_t max_bytes) {
     if (!raster_cache) {
         raster_cache = std::make_unique<detail::TextRasterCache>(max_bytes);
     }
-    // Post-materialization calls are silently ignored — see TextRasterCache
-    // ctor comment for the rationale (legacy first-call-wins semantics).
+    // Capacity is fixed when the cache is first materialized.
 }
 
 
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// P1-9 — GlyphAtlas per-instance API
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// `glyph_atlas` is allocated lazily on the first `set_glyph_atlas_capacity`
-// call (called by SoftwareRenderer ctor).  Subsequent lookups/store/clear
-// no-op on an un-materialized instance.  The 4 free functions
-// (`set/get_glyph_atlas` + `get_glyph_atlas_mutex` + `glyph_atlas_clear`)
-// are deleted; callers must use these member functions.
+// Glyph atlas capacity and per-instance cache operations.
 
 void TextRenderResources::set_glyph_atlas_capacity(size_t max_bytes) {
     if (!glyph_atlas) {
         glyph_atlas = std::make_unique<detail::GlyphAtlasCache>(max_bytes);
     }
-    // Post-materialization calls are silently ignored — see GlyphAtlasCache
-    // ctor comment for the rationale (legacy first-call-wins semantics).
+    // Capacity is fixed when the cache is first materialized.
 }
 
 void TextRenderResources::ensure_glyph_atlas_materialized() {
-    // P1-9 fix-up: thread-safe lazy materialization with the 32 MiB
-    // fallback (matches the legacy `resolve_atlas_max_bytes()` default
-    // in the deleted `glyph_atlas.cpp`).  Without this, every lookup
-    // returns nullopt in production because the renderer ctor never
-    // called `set_glyph_atlas_capacity` (BLOCKING-1 in P1-9 review).
-    // `std::call_once` is thread-safe under concurrent first-access
-    // from multiple render threads; the per-instance `once_flag`
-    // ensures each `TextRenderResources` has its own materialization
-    // state.  Idempotent: post-materialization calls are no-ops.
+    // Materialize on first use so lookup and store are safe even when the
+    // renderer did not set an explicit capacity. call_once protects concurrent
+    // access and gives each TextRenderResources its own cache.
     std::call_once(glyph_atlas_init_flag, [this]() {
         if (!glyph_atlas) {
             glyph_atlas = std::make_unique<detail::GlyphAtlasCache>(0);

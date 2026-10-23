@@ -93,9 +93,8 @@ RenderNode RenderNodeFactory::line(std::pmr::memory_resource* res, std::string n
          p.stroke.trim_start != 0.0f || p.stroke.trim_end != 1.0f);
     node.shape.line().stroke.enabled = custom_stroke;
     node.shape.line().stroke.color = p.stroke.color;
-    // LineParams historically exposes `thickness` as the primary line
-    // width.  The default stroke width is only a compatibility default; it
-    // must not silently override an explicitly requested thickness.
+    // `thickness` is the primary line width; the default stroke width must
+    // not override an explicitly requested value.
     node.shape.line().stroke.width =
         (p.stroke.width == 1.0f && p.thickness != 1.0f)
             ? p.thickness
@@ -217,10 +216,6 @@ RenderNode RenderNodeFactory::text(
     // Fallback: if the caller left font path empty, use the project
     // default (Inter-Bold).  Without this, the renderer would fail to
     // locate a font when materializing via the supplied engine.
-    // Preserved from the pre-step-2 implementation for back-compat so
-    // external callers that construct minimal TextDefinition values
-    // (e.g. tests, presets) still resolve a usable font path before
-    // the engine path-load kicks in.
     if (p.font.font_path.empty()) {
         p.font.font_path = presets::inter_bold_font_path();
     }
@@ -274,9 +269,6 @@ RenderNode RenderNodeFactory::text(
         // emits an `spdlog::error` for missing-shape (graceful
         // degradation).  The factory still flags the entry as
         // ShapeType::TextRun so the registry routes it correctly.
-        // PR 8.0 — when engine==nullptr, the materializer emits
-        // `spdlog::error("no FontEngine available...")` BEFORE
-        // returning; we just sink the nullptr result.
     }
 #else  // !CHRONON3D_USE_BLEND2D
     (void)run_spec;

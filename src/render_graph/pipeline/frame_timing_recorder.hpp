@@ -5,8 +5,6 @@
 //
 /// @file    frame_timing_recorder.hpp
 /// @brief   Phase timing computation and telemetry recording.
-///          Extracted from scene.cpp so the orchestrator doesn't need to
-///          compute deltas and log diagnostics inline.
 //
 // Uses profiling::Clock::time_point (std::chrono::steady_clock::time_point)
 // and the FrameTimings struct from frame_state_commit.hpp.

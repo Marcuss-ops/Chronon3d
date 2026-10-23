@@ -5,8 +5,7 @@
 //
 /// @file    dirty_telemetry_reporter.hpp
 /// @brief   Dirty-rect metrics computation, debug logging, and telemetry
-///          recording.  Extracted from scene.cpp to keep the orchestrator
-///          focused on pipeline flow.
+///          recording.
 //
 // Functions:
 //   compute_and_apply_dirty_metrics() — dirty ratio + union area → counters/renderer
