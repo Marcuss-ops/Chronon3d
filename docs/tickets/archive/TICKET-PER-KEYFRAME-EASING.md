@@ -45,3 +45,5 @@ goldens.
 Reuse the shared `AnimationTrackPlan` and existing `EasingCurve` / animated-value
 sampling path. Do not add expressions, runtime callbacks, or per-consumer easing
 implementations.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — COMPLETE, nessun lavoro aperto.

@@ -72,3 +72,5 @@ must be covered by the wire-fidelity test before it counts as landed:
   Do not respell those literals when adding a transport — extend
   `EncoderTransport` + `encoder_transport_names()` instead, and the CLI option gate
   picks it up automatically.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — CLOSED (2026-10-20), nessun lavoro aperto.

@@ -109,3 +109,5 @@ routing `draw_node → try_native_path_fill/try_native_path_stroke`.
 - Scena che ha esposto il difetto:
   `ChrononTemplate/tools/showcases/emit_example_svg_recreation_plans.cpp`
   (ricreazione Example Svg del 2026-10-19).
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — RESOLVED (2026-10-20), nessun lavoro aperto.

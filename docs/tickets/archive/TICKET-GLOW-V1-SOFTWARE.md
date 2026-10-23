@@ -73,3 +73,5 @@ or other effects for GPU.
 - **Exit condition:** every acceptance gate above passes on one source SHA.
 - **Removal scope:** per-frame temporary kernel/vector/framebuffer growth and
   any unaudited alternate Glow path found during implementation.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — COMPLETE, nessun lavoro aperto.

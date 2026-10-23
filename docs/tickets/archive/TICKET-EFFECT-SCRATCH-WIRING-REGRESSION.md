@@ -94,3 +94,5 @@ Il finding N-17 dell'audit 2026-09-09 ("fallback corretto ma latente, i
 dispatcher passano sempre scratch") era **doppio**: il fallback non era latente,
 era live. La scelta precedente (warn-once) è stata superata dal contratto a
 riferimento, che è ora possibile perché il wiring è stato ripristinato.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — RESOLVED (2026-10-20), nessun lavoro aperto.

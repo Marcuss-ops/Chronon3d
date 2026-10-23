@@ -39,3 +39,5 @@ No second animation engine or transition node is introduced.
 ## Demolition Debt
 Reuse the existing `LayerTransitionSpec`, catalog, transition node and layer
 builder hooks. Do not add a second transition executor or animation system.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — COMPLETE, nessun lavoro aperto.

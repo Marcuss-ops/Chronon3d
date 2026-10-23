@@ -6,7 +6,7 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 FIXTURE="$TMP_ROOT/fixture"
-mkdir -p "$FIXTURE/tools" "$FIXTURE/tests" "$FIXTURE/docs/tickets"
+mkdir -p "$FIXTURE/tools" "$FIXTURE/tests" "$FIXTURE/docs/tickets/archive"
 cp "$SCRIPT_DIR/check_test_hygiene.sh" "$FIXTURE/tools/check_test_hygiene.sh"
 : > "$FIXTURE/tests/test_main.cpp"
 cat > "$FIXTURE/tests/fixture.cpp" <<'CPP'
@@ -18,7 +18,7 @@ CPP
 
 write_registry() {
     local row="$1"
-    cat > "$FIXTURE/docs/tickets/TICKET-DOCTEST-SKIP-ROT.md" <<EOF
+    cat > "$FIXTURE/docs/tickets/archive/TICKET-DOCTEST-SKIP-ROT.md" <<EOF
 ## Registry
 
 | Row | Test | Reason | Owner | Deadline | Reactivation condition |
@@ -30,7 +30,7 @@ EOF
 }
 
 write_empty_registry() {
-    cat > "$FIXTURE/docs/tickets/TICKET-DOCTEST-SKIP-ROT.md" <<'EOF'
+    cat > "$FIXTURE/docs/tickets/archive/TICKET-DOCTEST-SKIP-ROT.md" <<'EOF'
 ## Registry
 
 | Row | Test | Reason | Owner | Deadline | Reactivation condition |
