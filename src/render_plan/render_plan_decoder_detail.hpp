@@ -30,6 +30,8 @@ void validate_per_key_timing(const nlohmann::json& value,
 [[nodiscard]] AnimationTrackPlan decode_animation_track(const nlohmann::json& value);
 [[nodiscard]] TransitionPlan decode_transition(const nlohmann::json& value);
 void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& value);
+void decode_shape_path_operators(ShapeContentPlan& shape,
+                                 const nlohmann::json& raw_shape);
 void decode_layer_masks(LayerPlan& layer, const nlohmann::json& value);
 void decode_layer_text_animators(LayerPlan& layer, const nlohmann::json& value);
 [[nodiscard]] std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind);
