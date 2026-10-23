@@ -4,11 +4,11 @@
 //
 // Per-span style/motion/identity overrides that complement (do NOT replace)
 // the document/paragraph-level `TextDefaults` shape canonised by
-// the retired `docs/MIGRATION_TEXT_SPEC.md` (TICKET-002 🟢 Done).  // drift-class: historical (doc retired)
+// the retired `docs/MIGRATION_TEXT_SPEC.md` (TICKET-002 🟢 Done).
 //
 // Hierarchy:    TextDocument → Paragraph → TextSpan[] → per-span overrides
 // Inheritance:  merge at RENDER time, NOT at construction (rendering layer)
-// Cross-ref:    the retired `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` Fase 4 §Piano operativo  // drift-class: historical (doc retired)
+// Cross-ref:    the retired `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` Fase 4 §Piano operativo
 // Guard:        DO NOT wire into `TextLayoutEngine` in this PR (Fase 4 step 2 only).
 //
 // Naming convention:
