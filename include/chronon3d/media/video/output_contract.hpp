@@ -22,9 +22,11 @@
 
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
+#include <chronon3d/media/video/media_probe.hpp>
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -88,6 +90,12 @@ struct OutputVerificationResult {
 
     /// Wall time of the SHA-256 digest computation, in ms. 0.0 = not computed.
     double sha256_ms{0.0};
+
+    /// The exact probe observation this verification ran
+    /// (TICKET-OVERLAY-THROUGHPUT fix 2, dedup): a downstream receipt builder
+    /// reuses these facts instead of probing the same bytes a second time.
+    /// Empty when the probe did not succeed.
+    std::optional<MediaProbeInfo> probe_facts;
 
     /// Human-readable reason when !passed.
     std::string failure;

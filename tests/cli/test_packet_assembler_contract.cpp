@@ -18,6 +18,7 @@
 #include "commands/video/exporters/pipe_timing_sidecar.hpp"
 #include "commands/video/common/pipe_export_pipeline.hpp"
 #include "utils/job/render_job.hpp"
+#include "utils/video/media_contract_from_probe.hpp"
 #include "utils/video/video_export_support.hpp"
 
 #include <chronon3d/media/video/packet_assembler.hpp>
@@ -1302,6 +1303,34 @@ TEST_CASE("A1 CPU native export publishes MP4 sidecar receipt and fails closed")
     REQUIRE(chronon3d::verification::write_render_receipt(
                  built_receipt, output) == receipt);
     REQUIRE(std::filesystem::exists(receipt));
+
+    // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): the production path hands the
+    // export boundary's probe + digest to the receipt builder. The reused
+    // receipt must be verdict- and digest-identical to the freshly probed one
+    // and must carry the caller-measured timings instead of running its own
+    // probe/hash on the same bytes.
+    REQUIRE(verification.probe_facts.has_value());
+    auto reused_input = receipt_input;
+    reused_input.precomputed_media = chronon3d::cli::media_contract_from_probe(
+        *verification.probe_facts);
+    reused_input.precomputed_sha256 = verification.sha256;
+    reused_input.precomputed_probe_ms = verification.ffprobe_ms;
+    reused_input.precomputed_sha256_ms = verification.sha256_ms;
+    const auto reused_receipt = chronon3d::verification::build_render_receipt(
+        reused_input, output, true);
+    CHECK(reused_receipt.sha256 == built_receipt.sha256);
+    CHECK(reused_receipt.copy_eligible == built_receipt.copy_eligible);
+    CHECK(reused_receipt.verification.ffprobe == built_receipt.verification.ffprobe);
+    CHECK(reused_receipt.verification.frame_count ==
+          built_receipt.verification.frame_count);
+    CHECK(reused_receipt.verification.codec == built_receipt.verification.codec);
+    CHECK(reused_receipt.verification.pixel_format ==
+          built_receipt.verification.pixel_format);
+    CHECK(reused_receipt.verification.resolution ==
+          built_receipt.verification.resolution);
+    CHECK(reused_receipt.verification.fps == built_receipt.verification.fps);
+    CHECK(reused_receipt.timing.probe_ms == verification.ffprobe_ms);
+    CHECK(reused_receipt.timing.sha256_ms == verification.sha256_ms);
 
     // The failure path is part of this same artifact run: a missing output can
     // never become distributable or acquire a receipt by accident.

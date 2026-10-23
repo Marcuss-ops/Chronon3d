@@ -276,6 +276,159 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
     CHECK(dispatch_count.load(std::memory_order_relaxed) == 2);
 }
 
+TEST_CASE("daemon runs the deferred receipt step after releasing the render lane") {
+    using namespace std::chrono_literals;
+
+    // -----------------------------------------------------------------------
+    // TICKET-OVERLAY-THROUGHPUT fix 1
+    //
+    // The receipt step (probe + sha256 + full-decode gate) verifies an
+    // already-finished render: it is NOT render work. The daemon must release
+    // the execution lock and the device reservation BEFORE running it, so the
+    // next RENDER_JOB is admitted and dispatched while the previous job's
+    // receipt is still being verified. The reply of the deferred job still
+    // leaves only after the step completed, because the worker reads the
+    // receipt file right after the reply.
+    // -----------------------------------------------------------------------
+    const auto suffix = std::to_string(static_cast<long>(::getpid()));
+    const auto socket_path = std::filesystem::temp_directory_path() /
+        ("chronon3d-daemon-receipt-deferral-" + suffix + ".sock");
+    const auto plan_path = std::filesystem::temp_directory_path() /
+        ("chronon3d-daemon-receipt-deferral-" + suffix + ".json");
+    const auto output_path = std::filesystem::temp_directory_path() /
+        ("chronon3d-daemon-receipt-deferral-" + suffix + ".png");
+    {
+        std::ofstream plan(plan_path);
+        REQUIRE(plan.is_open());
+        plan << R"({"schema":"chronon.render-plan.v2","version":2,"job_id":"daemon-receipt-deferral-test","canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"bg","type":"color","color":[0,0,0,1],"size":[64,64],"start_frame":0,"duration_frames":1}],"output":{"path":"unused.png","format":"png"}})";
+    }
+
+    chronon3d::CompositionRegistry registry;
+    chronon3d::cli::DaemonOptions options;
+    options.backend = "software";
+    chronon3d::cli::DaemonService service(registry, std::move(options));
+
+    auto& dispatcher = chronon3d::cli::render_job_dispatcher();
+    auto previous_dispatcher = std::move(dispatcher);
+    std::atomic<unsigned> dispatch_count{0};
+    std::mutex state_mutex;
+    std::condition_variable state_cv;
+    bool first_dispatch_returned = false;
+    bool receipt_step_done = false;
+    bool second_dispatch_started = false;
+    std::chrono::steady_clock::time_point receipt_done_at{};
+    std::chrono::steady_clock::time_point second_started_at{};
+    dispatcher = [&](const chronon3d::runtime::job::NormalizedRenderJob&,
+                     std::shared_ptr<chronon3d::SoftwareRenderer>,
+                     std::shared_ptr<chronon3d::media::VideoJobExecutionContext>
+                         video_execution) -> Reply {
+        if (dispatch_count.fetch_add(1, std::memory_order_relaxed) == 0) {
+            // The job layer's deferred receipt step (stands in for probe +
+            // sha256 + decode gate): handed to the daemon's sink, to be run
+            // off-lane after the execution lock + reservation release.
+            std::function<void()> receipt_step = [&] {
+                std::this_thread::sleep_for(700ms);
+                {
+                    std::lock_guard lock(state_mutex);
+                    receipt_done_at = std::chrono::steady_clock::now();
+                    receipt_step_done = true;
+                }
+                state_cv.notify_all();
+            };
+            video_execution->receipt_deferral(std::move(receipt_step));
+            {
+                std::lock_guard lock(state_mutex);
+                first_dispatch_returned = true;
+            }
+            state_cv.notify_all();
+            return Reply{Status::Ok, R"({"status":"ok"})"};
+        }
+        {
+            std::lock_guard lock(state_mutex);
+            second_started_at = std::chrono::steady_clock::now();
+            second_dispatch_started = true;
+        }
+        state_cv.notify_all();
+        return Reply{Status::Ok, R"({"status":"ok"})"};
+    };
+
+    std::thread daemon_thread([&service, &socket_path] {
+        service.run_socket(socket_path.string());
+    });
+
+    UnixSocketClient client_a;
+    UnixSocketClient client_b;
+    bool connected = false;
+    for (int attempt = 0; attempt < 200 && !connected; ++attempt) {
+        if (std::filesystem::exists(socket_path)) {
+            try {
+                client_a.connect(socket_path.string());
+                client_b.connect(socket_path.string());
+                connected = true;
+            } catch (const std::system_error&) {
+                // The socket inode may appear just before listen() completes.
+            }
+        }
+        if (!connected) std::this_thread::sleep_for(10ms);
+    }
+    REQUIRE(connected);
+
+    const auto make_payload = [&](std::string_view job_id) {
+        return std::string{R"({"job_id":")"} + std::string{job_id} +
+        R"(","plan_path":")" + plan_path.string() +
+        R"(","output":")" + output_path.string() +
+        R"(","range_enabled":true,"first_frame":0,"last_frame":0,"output_spec":{"width":64,"height":64,"encoder_backend":"pipe","gpu_hot_path_mode":"auto"},"execution_requirements":{"gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":false,"packet_copy_allowed":true}})";
+    };
+
+    std::optional<Reply> reply_a;
+    std::chrono::steady_clock::time_point a_reply_received_at{};
+    std::thread first_client([&] {
+        reply_a = client_a.request(Command::RenderJob,
+                                   make_payload("receipt-deferral-a"));
+        a_reply_received_at = std::chrono::steady_clock::now();
+    });
+
+    bool first_returned = false;
+    {
+        std::unique_lock lock(state_mutex);
+        first_returned = state_cv.wait_for(lock, 5s, [&] {
+            return first_dispatch_returned;
+        });
+    }
+    REQUIRE(first_returned);
+
+    // The second job must be admitted and dispatched while the first job's
+    // receipt step is (or was) still running off-lane.
+    const auto reply_b = client_b.request(Command::RenderJob,
+                                         make_payload("receipt-deferral-b"));
+    first_client.join();
+
+    REQUIRE(reply_a.has_value());
+    CHECK(reply_a->status == Status::Ok);
+    REQUIRE(reply_b.has_value());
+    CHECK(reply_b->status == Status::Ok);
+    {
+        std::lock_guard lock(state_mutex);
+        REQUIRE(receipt_step_done);
+        REQUIRE(second_dispatch_started);
+        // The render lane was already free when the second job started: the
+        // receipt step had NOT completed yet. With the receipt inside the
+        // admission lock this comparison reverses and the test fails.
+        CHECK(second_started_at < receipt_done_at);
+        // The reply of the deferred job still leaves only after the receipt
+        // step completed (worker determinism).
+        CHECK(receipt_done_at <= a_reply_received_at);
+    }
+
+    const auto shutdown = client_a.request(Command::Shutdown);
+    REQUIRE(shutdown.has_value());
+    CHECK(shutdown->status == Status::Shutdown);
+    daemon_thread.join();
+    client_a.close();
+    client_b.close();
+    dispatcher = std::move(previous_dispatcher);
+}
+
 TEST_CASE("daemon startup diagnostic reports resolved lane") {
     chronon3d::Config config = chronon3d::Config::from_environment();
     config.set_backend_preference(chronon3d::graph::BackendPreference::Software);

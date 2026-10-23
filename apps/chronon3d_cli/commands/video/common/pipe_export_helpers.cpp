@@ -227,13 +227,11 @@ void track_pipe_encoder_process(
     }
 }
 
-chronon3d::Result<chronon3d::runtime::RendererWarmupResult,
-                  chronon3d::runtime::PreparationError>
+chronon3d::runtime::RendererWarmupResult
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
     const CompiledComposition& compiled,
-    const FfmpegExportOptions& opts,
-    chronon3d::runtime::RenderPreparationTimings* out_timings)
+    const FfmpegExportOptions& opts)
 {
     if (!opts.warmup.warmup_renderer) {
         return runtime::RendererWarmupResult{};
@@ -245,36 +243,25 @@ warmup_pipe_renderer(
     uint64_t saved_fb_peak = 0;
 
     const auto warmup_t0 = profiling::now();
-    const auto preparation = runtime::prepare_render(
-        &renderer, compiled,
-        runtime::RenderPreparationOptions{
-            .warmup_renderer = true,
-            .warmup = runtime::RendererWarmupOptions{
-                .width = compiled.composition->width(),
-                .height = compiled.composition->height(),
-                .framebuffer_count = opts.warmup.warmup_framebuffers,
-                .preallocate_framebuffers = true,
-                .touch_memory = true,
-                .render_dummy_frame = opts.warmup.warmup_dummy_frame,
-                .dummy_frame = 0,
-                .quiet = false,
-            },
+    // TICKET-OVERLAY-THROUGHPUT fix 4: warmup ONLY. The setup phase already
+    // ran the runtime::prepare_render barrier for this exact (renderer,
+    // compiled) pair; calling prepare_render again here repeated the whole
+    // preflight / resource-resolve / image-decode walk per job and
+    // double-accumulated its timings into the sidecar prepare section. The
+    // dummy-frame warmup renders from the assets the setup barrier already
+    // published on this renderer, so it needs no second preparation.
+    const auto warmup_result = runtime::warmup_renderer(
+        renderer, compiled,
+        runtime::RendererWarmupOptions{
+            .width = compiled.composition->width(),
+            .height = compiled.composition->height(),
+            .framebuffer_count = opts.warmup.warmup_framebuffers,
+            .preallocate_framebuffers = true,
+            .touch_memory = true,
+            .render_dummy_frame = opts.warmup.warmup_dummy_frame,
+            .dummy_frame = 0,
+            .quiet = false,
         });
-    if (!preparation.ok()) {
-        spdlog::error("[video] Render preparation FAILED:\n{}",
-                      preparation.diagnostic());
-        if (preparation.preparation_error) {
-            return *preparation.preparation_error;
-        }
-        return runtime::make_preparation_error(
-            runtime::PreparationError::Code::InternalError,
-            "render preparation failed without a structured error: " +
-                preparation.diagnostic(),
-            {}, {}, {}, "render preparation");
-    }
-    if (out_timings) {
-        *out_timings = preparation.timings;
-    }
     const auto warmup_t1 = profiling::now();
 
     if (renderer.counters()) {
@@ -341,7 +328,7 @@ warmup_pipe_renderer(
     }
 
     chronon3d::telemetry::clear_telemetry_stores();
-    return preparation.warmup;
+    return warmup_result;
 }
 
 double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder) {

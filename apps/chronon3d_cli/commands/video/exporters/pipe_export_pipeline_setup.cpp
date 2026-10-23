@@ -455,6 +455,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->prepare_breakdown.font_preflight_ms = profiling::duration_ms(font_t0, profiling::now());
         if (!preparation.ok()) {
             spdlog::error("[video] Render preparation FAILED:\n{}", preparation.diagnostic());
+            // TICKET-OVERLAY-THROUGHPUT fix 4: record the verdict so the
+            // export gate aborts with this diagnostic (the warmup phase no
+            // longer re-runs preparation as a second failure check).
+            session->preparation_ok = false;
+            session->preparation_diagnostic = preparation.diagnostic();
             return session;
         }
         session->prepare_timings.accumulate(preparation.timings);

@@ -121,9 +121,19 @@ def load_job_metrics(file_path: Path) -> Optional[dict[str, Any]]:
         "startup_vulkan_init_ms": float(startup.get("vulkan_instance_ms") or job.get("backend_init_ms") or 0.0),
         "startup_encoder_nvenc_ms": float(startup.get("encoder_open_nvenc_ms") or 0.0),
         "startup_plan_compile_ms": float(startup.get("plan_compile_ms") or job.get("plan_compile_ms") or 0.0),
-        # Prepare
+        # Prepare — `font_preflight_ms` is the legacy label of the whole
+        # setup-time prepare_render call (TICKET-PERFORMANCE-AUDIT-2026-10
+        # finding #3: it measured almost no font work); the measured
+        # sub-phases below attribute it honestly.
         "prepare_pool_warmup_ms": float(prepare.get("pool_warmup_ms") or 0.0),
         "prepare_font_preflight_ms": float(prepare.get("font_preflight_ms") or 0.0),
+        "prepare_render_ms": float(prepare.get("prepare_render_ms") or prepare.get("font_preflight_ms") or 0.0),
+        "prepare_asset_preflight_ms": float(prepare.get("prepare_asset_preflight_ms") or 0.0),
+        "prepare_asset_resolve_ms": float(prepare.get("prepare_asset_resolve_ms") or 0.0),
+        "prepare_asset_decode_ms": float(prepare.get("prepare_asset_decode_ms") or 0.0),
+        "prepare_image_decode_ms": float(prepare.get("prepare_image_decode_ms") or 0.0),
+        "prepare_image_upload_ms": float(prepare.get("prepare_image_upload_ms") or 0.0),
+        "prepare_font_load_ms": float(prepare.get("prepare_font_load_ms") or 0.0),
         "prepare_triple_arena_alloc_ms": float(prepare.get("triple_arena_alloc_ms") or 0.0),
         # Pipeline
         "pipeline_queue_depth_avg": float(pipe.get("queue_depth_average") or 0.0),
@@ -241,7 +251,11 @@ def format_table(
             ("NVENC Open (ms)", "startup_encoder_nvenc_ms"),
             ("Plan Compile (ms)", "startup_plan_compile_ms"),
             ("Pool Warmup (ms)", "prepare_pool_warmup_ms"),
-            ("Font Preflight (ms)", "prepare_font_preflight_ms"),
+            ("Prepare render (ms)", "prepare_render_ms"),
+            ("  Asset decode (ms)", "prepare_asset_decode_ms"),
+            ("  Image decode (ms)", "prepare_image_decode_ms"),
+            ("  Image upload (ms)", "prepare_image_upload_ms"),
+            ("  Font load (ms)", "prepare_font_load_ms"),
             ("Triple Arena Alloc (ms)", "prepare_triple_arena_alloc_ms"),
         ]),
         ("Per-Frame GPU & Loop Breakdown", [

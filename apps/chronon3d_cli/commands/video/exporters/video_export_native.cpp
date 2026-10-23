@@ -58,6 +58,14 @@ PipeExportResult render_and_encode_native(
         (session->direct_yuv_session && session->direct_yuv_session->required_but_unavailable)) {
         return PipeExportResult{};
     }
+    // TICKET-OVERLAY-THROUGHPUT fix 4: the setup barrier's prepare verdict is
+    // consumed here. The warmup phase no longer re-runs preparation, so this
+    // gate is the single fail-fast point for a failed runtime::prepare_render.
+    if (!session->preparation_ok) {
+        spdlog::error("[video] export aborted: render preparation failed:\n{}",
+                      session->preparation_diagnostic);
+        return PipeExportResult{};
+    }
 
     if (opts.sink.chunks != 1) {
         spdlog::warn("[video] --chunks is ignored with --ffmpeg-mode pipe in V1");
@@ -65,16 +73,8 @@ PipeExportResult render_and_encode_native(
 
     const auto warmup_t0 = profiling::now();
     RenderSettings render_opts = settings;
-    runtime::RenderPreparationTimings warmup_prepare_timings;
     if (!session->direct_yuv_selected()) {
-        const auto warmup_result = warmup_pipe_renderer(
-            *session->renderer_ptr(), compiled, opts, &warmup_prepare_timings);
-        if (!warmup_result) {
-            spdlog::error("[video] export aborted: render preparation failed: {}",
-                          warmup_result.error().message);
-            return PipeExportResult{};
-        }
-        session->prepare_timings.accumulate(warmup_prepare_timings);
+        (void)warmup_pipe_renderer(*session->renderer_ptr(), compiled, opts);
         if (!session->renderer_ptr()->backend().supports_native_surfaces()) {
             warmup_pipe_pool(*session);
         }

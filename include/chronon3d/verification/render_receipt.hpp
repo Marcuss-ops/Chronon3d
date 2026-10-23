@@ -183,6 +183,18 @@ struct RenderReceiptInput {
     // preserving the CLI-subprocess contract where RenderingGen sets the env
     // on the child process.
     std::string receipt_verify_policy;
+
+    // Precomputed output facts (TICKET-OVERLAY-THROUGHPUT fix 2, dedup). The
+    // caller that already inspected the freshly muxed output passes the
+    // observed MediaContract and SHA-256 here so build_render_receipt never
+    // re-probes or re-hashes the same bytes: one probe, one digest per
+    // artifact. When absent (or when HDR mastering metadata must be compared)
+    // the builder runs its own probe exactly as before. The *_ms fields carry
+    // the caller-measured costs so the receipt keeps honest timings.
+    std::optional<MediaContract> precomputed_media;
+    std::optional<std::string> precomputed_sha256;
+    double precomputed_probe_ms{0.0};
+    double precomputed_sha256_ms{0.0};
 };
 
 /// The receipt payload written as `<output>.receipt.json`.

@@ -187,6 +187,13 @@ struct PipeExportSession {
     RenderFrameQueue queue;
     PipelineDepthMetrics pipeline_metrics;
     std::atomic<bool> writer_failed{false};
+
+    /// Verdict of the setup-time runtime::prepare_render barrier
+    /// (TICKET-OVERLAY-THROUGHPUT fix 4). The export gate consumes it instead
+    /// of a second full preparation in the warmup phase; the diagnostic is
+    /// kept so an aborted export can report the preparation failure verbatim.
+    bool preparation_ok{true};
+    std::string preparation_diagnostic;
     std::unique_ptr<EncoderSinkContext> sink_ctx;
     std::thread writer_thread;
     std::atomic<uint64_t> writer_encode_us_total{0};

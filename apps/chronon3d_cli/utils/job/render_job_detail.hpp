@@ -5,6 +5,7 @@
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <chronon3d/compiler/compiled_program.hpp>
 
@@ -17,7 +18,11 @@ namespace chronon3d::cli {
 /// Emit the canonical render receipt for a successful composition-bound job.
 /// The plan route owns its richer fingerprinted receipt writer; this helper
 /// closes the composition route without creating a second receipt schema.
-void write_render_job_receipt(const RenderJob& job);
+/// `execution` is the job's video execution context (may be null); when its
+/// `observed_output` carries the export boundary's probe/digest the receipt
+/// reuses them instead of inspecting the same bytes again (fix 2 dedup).
+void write_render_job_receipt(const RenderJob& job,
+                              const media::VideoJobExecutionContext* execution);
 
 /// Writes a single render frame to disk and records telemetry.
 bool write_render_frame(const CompiledComposition& compiled,

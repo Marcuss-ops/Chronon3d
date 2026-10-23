@@ -50,6 +50,52 @@ path census is saved alongside it. These are not release artifacts.
 - Existing export-fence wait counters were never populated. Their production
   wait sites are now instrumented; no fence or synchronization policy removed.
 
+## 2026-10-23 — Findings from the overlay-golden per-item profiling (external measurement)
+
+Measured on the PipelineGen overlay golden case (run v12, 38 items, 2 render
+lanes) via `render_attempt_analytics` + the per-item timing sidecars
+(`chronon3d.render-telemetry-summary.v1`, `chronon_timing_storage_key`).
+Per-item mean: worker `render_ms` 2.748 ms of which daemon `job_wall` 1.567 ms
+(`render_loop` 956, `prepare` 311, `process_startup` 186, `encode_close` 155)
+and **receipt verification 933 ms** (probe 296 + full decode 634).
+
+Defects/waste to fix in this repo (ordered by expected gain):
+
+1. **Receipt verification holds the render slot.** `write_render_job_receipt`
+   (ffprobe + sha256 + `ffmpeg -f null -` full decode) runs inside
+   `execute_render_job`, i.e. before the device reservation in
+   `daemon_service_ipc_render_job.cpp` is released. Release the reservation
+   before building the receipt (or make the receipt async); the worker reply
+   must still carry the receipt (`RequiresStructuredReply` for
+   normal/certify). Expected: −933 ms/item from the serialized service.
+2. **Duplicate verification of the same freshly-muxed file.**
+   `verify_output_contract` (`pipe_export_finalize_encoder.cpp`) already probes
+   and hashes the output (ffprobe ~15 ms + sha256 ~6 ms); `build_render_receipt`
+   (`src/verification/render_receipt.cpp`) re-runs `ffprobe -show_streams
+   -show_format` (~296 ms, process-spawn dominated) and recomputes sha256.
+   Pass the already-computed `MediaContract` + digest into the receipt input.
+   Expected: −~300 ms/item.
+3. **`prepare_breakdown.font_preflight_ms` labels all of
+   `runtime::prepare_render`** (`pipe_export_pipeline_setup.cpp` times the whole
+   call): 245 ms mean, up to 944 ms per phrase item with many text runs. In the
+   warm daemon (font/MTSDF/pool caches process-persistent) this per-item
+   re-preparation should be reused across items. Expected: −~310 ms/item with
+   the pool warmup.
+4. **Fixed per-item overheads:** `encoder_open_nvenc` ~104 ms,
+   `encode_close` ~155 ms, `plan_decode_validate` ~65 ms,
+   `pool_warmup` ~65 ms. Evaluate session/pool reuse and redundant
+   plan decode-validation.
+5. **Image uploads at source resolution:** ~300 MB/item mean (8 full uploads,
+   242 MB of image bytes) — downscale to canvas before GPU upload.
+6. **Telemetry trap (measurement only):** `vulkan_device_ms` (~300 ms on every
+   sidecar) is process-level device init reported per job; the actual attributed
+   job startup is ~186 ms. Do not treat it as a per-item cost; label it
+   process-level in the sidecar to prevent future mis-optimisation.
+
+Combined expectation: per-item service 2.748 → ~1.280 ms keeps the golden at
+≈94 items/min on the certified 2-lane topology; the render loop (956 ms/item,
+~11 ms/frame) is the remaining target to close the 100/min gate.
+
 ## Scope boundaries
 
 Broad external B00–B11/text content-pack certification, remote runner dispatch,
@@ -57,6 +103,24 @@ and daemon production-worker measurements are separate acceptance gates. Their
 absence cannot be represented as PASS. Persistent-job resources, fence removal,
 sparse native video and job concurrency changes require measured correctness
 and memory budgets, not merely successful compilation.
+
+## Overlay throughput follow-up — 2026-10-23
+
+PipelineGen's open ticket `TICKET-OVERLAY-THROUGHPUT-100-MIN.md` records a
+golden service cost of roughly 2.4–2.75 s/item and about 1.3 s/item in fixed
+startup, encoder, validation and receipt work. Its highest-impact renderer-side
+candidate is to amortize plan preparation and encoder lifecycle across a
+session of items. Keep each MP4 artifact as the compatibility baseline; compare
+session reuse against the current per-item path before changing the contract.
+
+A more disruptive alternative is to composite overlay layers into the final
+timeline (or one artifact per scene), avoiding a separate MP4, mux, receipt and
+publication for every overlay. This needs coordination with PipelineGen and
+the remote final worker. Both options are proposals only. Acceptance requires
+pixel/audio parity, unchanged idempotent receipt and retry behavior, per-class
+throughput, and three comparable before/after golden runs. The existing
+per-item receipt/prepare fixes do not by themselves certify either design or a
+100/min result.
 
 ## Audit finding reconciliation — 2026-10-05
 

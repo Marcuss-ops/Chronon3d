@@ -11,8 +11,13 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/tracing/trace_session.hpp>
 #ifdef CHRONON3D_ENABLE_VERIFICATION
+#include "../video/media_contract_from_probe.hpp"
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/verification/render_receipt.hpp>
+#endif
+#ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
+#include <chronon3d/media/video/media_probe.hpp>
 #endif
 
 #include <fmt/format.h>
@@ -27,7 +32,9 @@
 namespace chronon3d::cli {
 
 #ifdef CHRONON3D_ENABLE_VERIFICATION
-void write_render_job_receipt(const RenderJob& job) {
+
+void write_render_job_receipt(const RenderJob& job,
+                              const media::VideoJobExecutionContext* execution) {
     if (!job.execution.report || job.output.empty() || job.program) return;
 
     verification::RenderReceiptInput input;
@@ -53,6 +60,44 @@ void write_render_job_receipt(const RenderJob& job) {
     input.reference_white_nits = job.video_settings.reference_white_nits;
     input.hdr_mastering_metadata = job.video_settings.hdr_mastering_metadata;
     input.has_audio_tracks = false;
+    // FIX 2 — one probe, one digest per artifact. Preferred source: the facts
+    // the export boundary already computed on the freshly published bytes
+    // (`verify_output_contract`, published through the execution context).
+    // Missing facts fall back to inspecting the output ONCE here (canonical
+    // in-process probe, ~15 ms) and digesting it once. Either way the receipt
+    // builder never re-hashes the same bytes nor spawns its own ffprobe
+    // (~300 ms). HDR-mastering jobs keep the builder's own probe: the
+    // mastering comparison needs side data the in-process probe does not
+    // expose, and the builder falls back automatically.
+    if (execution != nullptr) {
+        const auto& observed = execution->observed_output;
+        if (observed.probe.has_value()) {
+            input.precomputed_media = media_contract_from_probe(*observed.probe);
+            input.precomputed_probe_ms = observed.probe_ms;
+        }
+        if (!observed.sha256.empty()) {
+            input.precomputed_sha256 = observed.sha256;
+            input.precomputed_sha256_ms = observed.sha256_ms;
+        }
+    }
+#ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
+    if (!input.precomputed_media.has_value() && job.mode == RenderMode::Video) {
+        const auto probe_t0 = chronon3d::profiling::now();
+        if (const auto probe = chronon3d::media::video::probe_media(job.output)) {
+            input.precomputed_media = media_contract_from_probe(probe.value());
+        }
+        input.precomputed_probe_ms =
+            chronon3d::profiling::duration_ms(probe_t0, chronon3d::profiling::now());
+    }
+#endif
+    if (!input.precomputed_sha256.has_value()) {
+        const auto sha_t0 = chronon3d::profiling::now();
+        if (const auto digest = chronon3d::assets::sha256_file(job.output)) {
+            input.precomputed_sha256 = digest->hex();
+        }
+        input.precomputed_sha256_ms =
+            chronon3d::profiling::duration_ms(sha_t0, chronon3d::profiling::now());
+    }
     const auto build_t0 = chronon3d::profiling::now();
     const auto receipt = verification::build_render_receipt(
         input, job.output,
@@ -72,7 +117,8 @@ void write_render_job_receipt(const RenderJob& job) {
         chronon3d::profiling::duration_ms(build_t1, write_t1));
 }
 #else
-void write_render_job_receipt(const RenderJob&) {}
+void write_render_job_receipt(const RenderJob&,
+                              const media::VideoJobExecutionContext*) {}
 #endif
 
 namespace {
@@ -181,6 +227,10 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.output + "'");
         }
 
+        // Fix 2 (TICKET-OVERLAY-THROUGHPUT): the receipt step reuses the
+        // export boundary's observed probe/digest from the execution context,
+        // so keep the context reachable across the exporter's move below.
+        const auto observed_context = execution;
         int rc = 0;
         std::chrono::steady_clock::time_point sidecar_written_at{};
         if (job.video_settings.dry_run) {
@@ -231,7 +281,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.output + "'");
         }
 
-        write_render_job_receipt(job);
+        write_render_job_receipt(job, observed_context.get());
         const auto receipt_t1 = chronon3d::profiling::now();
         if (sidecar_written_at != std::chrono::steady_clock::time_point{}) {
             spdlog::info(

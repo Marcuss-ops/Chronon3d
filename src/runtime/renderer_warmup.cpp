@@ -22,7 +22,7 @@ RendererWarmupResult warmup_renderer(
     // 1. Preallocate framebuffers into the pool
     if (options.preallocate_framebuffers && pool) {
         // Primary canvas size: keep the hot path focused on the actual render target.
-        result.framebuffers_created += pool->preallocate({
+        result.framebuffers_created += pool->ensure_preallocated({
             .width = options.width,
             .height = options.height,
             .count = std::max<size_t>(4, options.framebuffer_count),
@@ -33,7 +33,7 @@ RendererWarmupResult warmup_renderer(
         // Intermediate size (typical image layer ~800×450 → bucket 896×512).
         // Pre-touch these pages so composite intermediates don't incur minor
         // page faults during the render loop.
-        result.framebuffers_created += pool->preallocate({
+        result.framebuffers_created += pool->ensure_preallocated({
             .width = 896,
             .height = 512,
             .count = std::max<size_t>(4, options.framebuffer_count / 2),
@@ -42,7 +42,7 @@ RendererWarmupResult warmup_renderer(
         });
 
         // Medium intermediate size for effect scratch / compositing.
-        result.framebuffers_created += pool->preallocate({
+        result.framebuffers_created += pool->ensure_preallocated({
             .width = 1024,
             .height = 1024,
             .count = std::max<size_t>(2, options.framebuffer_count / 4),
@@ -88,7 +88,7 @@ RendererWarmupResult warmup_renderer(
     RendererWarmupResult result;
     auto pool = renderer.framebuffer_pool();
     if (options.preallocate_framebuffers && pool) {
-        result.framebuffers_created += pool->preallocate({
+        result.framebuffers_created += pool->ensure_preallocated({
             .width = options.width,
             .height = options.height,
             .count = std::max<size_t>(4, options.framebuffer_count),
@@ -120,7 +120,7 @@ RendererWarmupResult warmup_renderer(
     const auto width = options.width > 0 ? options.width : static_cast<int>(program.metadata().width);
     const auto height = options.height > 0 ? options.height : static_cast<int>(program.metadata().height);
     if (options.preallocate_framebuffers && pool) {
-        result.framebuffers_created += pool->preallocate({
+        result.framebuffers_created += pool->ensure_preallocated({
             .width = width,
             .height = height,
             .count = std::max<size_t>(4, options.framebuffer_count),
