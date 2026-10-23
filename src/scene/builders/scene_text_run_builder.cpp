@@ -7,10 +7,7 @@
 #include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 // Scene input adapter for the canonical text compiler in src/text.
 #include <chronon3d/text/text_document.hpp>
-// TICKET-104 -- internal consumed-decrement helper mirrors the include
-// pattern used by the LayerBuilder implementation TU (this file's
-// predecessor, the historical layer_builder.cpp).  Relative path
-// from src/scene/builders/ to src/text/ = "../../text/...".
+// TICKET-104: shared internal consumed-flag helper for text-run builders.
 #include "../../text/pending_text_run_impl.hpp"
 #include "../../text/prepared_text_internal.hpp"
 
@@ -26,11 +23,8 @@ namespace chronon3d {
 
 namespace {
 
-// Keep font fallback resolution anchored to the authored primary font.  The
-// canonical TextDefinition path used to leave bundled_fonts_root empty, which
-// silently degraded fallback to primary-only even when the repository font
-// bundle was present.  A sibling directory is the narrowest deterministic
-// fallback scope and also works for absolute SDK asset paths.
+// Keep fallback font resolution beside the authored primary font. This is a
+// deterministic scope for both repository fonts and absolute SDK asset paths.
 [[nodiscard]] std::filesystem::path bundled_font_root_for(const FontSpec& font) {
     if (font.font_path.empty()) {
         return {};
@@ -123,20 +117,9 @@ TextRunBuilder& TextRunBuilder::scale(Vec3 s) {
 }
 
 TextRunBuilder& TextRunBuilder::font_size(f32 v) {
-    // Font size lives inside the composable TextDefaults under
-    // .text().font.font_size — it affects HarfBuzz shaping upstream of
-    // any glyph-level animation, so this mutator updates the BASE
-    // parameter (no animator injection).
-    //
-    // FIX #3 — Do NOT disable caching here.  The cache key already
-    // includes font_size (cache_key.font_size = font_spec.font_size),
-    // so a different font_size produces a different key and naturally
-    // invalidates the cache.  Previously, setting font_size forced
-    // cache_layout=false, which permanently disabled cache lookups
-    // for that text run — causing the observed 27% hit rate (7 hits
-    // / 19 misses) because virtually every composition calls .font_size().
-    // This setter is called at BUILD TIME (once); animation goes through
-    // the animator stack, not through this mutator.
+    // Font size is a shaping input in TextDefaults. Update the base style;
+    // animated changes belong to the animator stack. The cache key includes
+    // font size, so changing it selects the matching layout entry.
     m_spec->params.style.font.font_size = v;
     return *this;
 }
@@ -192,40 +175,17 @@ TextRunBuilder& TextRunBuilder::animator(TextAnimatorSpec spec) {
         m_pending_selectors.clear();
     }
     append_animator(std::move(spec));
-    // PR 3 — record anchor for selector-after-animator binding.
-    // Captured AFTER the push_back so the index is correct (push_back may
-    // reallocate; indexing into the up-to-date size is safe in the very
-    // next selector() call because nothing else mutates the vector size
-    // in between).
+    // Record the animator index so a following selector binds to this entry.
     m_last_explicit_animator_idx = m_spec->params.animation.animators.size() - 1;
     m_has_explicit_animator = true;
     return *this;
 }
 
 TextRunBuilder& TextRunBuilder::selector(GlyphSelectorSpec spec) {
-    // PR 3 selector binding rules (two-way dichotomy):
-    //  A. Selector-after-explicit-animator: if `.selector(s)` follows an
-    //     explicit `.animator(a)` (pending drained OR never filled) → append
-    //     `s` directly to that anchor animator's selector list.  No phantom
-    //     animator entry is created.  Covers `.animator(a).selector(s)` and
-    //     `.selector(s).animator(a).selector(t).animator(b)` (the second
-    //     selector binds to b).
-    //  B. Selector-first / standalone: otherwise (no recent explicit
-    //     `.animator(...)`) → queue into `m_pending_selectors` so the
-    //     upcoming `.animator(a)` can drain it and prepend to `a.selectors`.
-    //     Covers `.selector(s).animator(a)` (selector-first) and standalone
-    //     `.selector(s)` (waits forever if no `.animator(...)` follows;
-    //     pending selectors are silently dropped at materialization time
-    //     when the chain ends without an explicit animator, which is the
-    //     documented "no animator, no binding" outcome).
     if (m_pending_selectors.empty() && m_has_explicit_animator) {
-        // Case A: append to the most recent explicit animator's selector list.
-        // `splitors[i]` never grows beyond what's inserted (selectors are the
-        // new ones from `.selector(...)` calls); safe to push_back here.
         m_spec->params.animation.animators[m_last_explicit_animator_idx]
             .selectors.push_back(std::move(spec));
     } else {
-        // Case B: queue for an upcoming `.animator(...)`.
         m_pending_selectors.push_back(std::move(spec));
     }
     return *this;
@@ -238,15 +198,15 @@ TextRunBuilder& TextRunBuilder::font_engine(FontEngine* engine) {
     // back via build_spec().  Priority at materialization:
     //   1. PendingTextRun.font_engine (per-spec, set here)
     //   2. LayerBuilder.m_font_engine  (per-layer default)
-    //   3. resolve_engine() fallback   (F1.D: process-wide FontEngine + AssetResolver)
+    //   3. resolve_engine() process-wide fallback.
     m_spec->font_engine = engine;
     return *this;
 }
 
 TextRunBuilder& TextRunBuilder::cache_layout(bool value) {
     m_cache_layout = value;
-    // PR 2: sync to spec immediately so observers / auto-build can read
-    // the value without an explicit `.commit()` call.
+    // Sync immediately so observers and auto-build can read the value
+    // without an explicit `.commit()` call.
     m_spec->params.animation.cache_layout = value;
     return *this;
 }
@@ -256,13 +216,8 @@ TextRunBuilder& TextRunBuilder::name(std::string n) {
     return *this;
 }
 
-// ── PR 9 — AnimatedTextDocument attachment ──────────────────────────────
-//
-// The pending entry's `animated_doc` slot is set so the materializer
-// picks it up at LayerBuilder::build() / RenderNodeFactory::text_run()
-// time.  We DON'T sample the document here — sampling needs the layer's
-// current SampleTime, which is only known at materialization (and the
-// compositor may rebuild with a different time later).
+// Attach the animated document to the pending spec. Sampling occurs during
+// materialization, when the layer's SampleTime is known.
 
 TextRunBuilder& TextRunBuilder::from_animated_document(
     std::shared_ptr<const AnimatedTextDocument> doc
@@ -273,30 +228,12 @@ TextRunBuilder& TextRunBuilder::from_animated_document(
 
 // ── Commit ──
 //
-// For now, mutators directly mutate `m_spec.params` so there's nothing
-// extra to commit.  We just hand back the parent LayerBuilder for
-// re-entry into layer-level chaining.  If we ever introduce a deferred
-// optimization (e.g. binary packing of the animators), `commit()` is
-// the right place to do it.
+// Return to layer-level chaining after finalizing the pending text-run spec.
 
 LayerBuilder& TextRunBuilder::commit() {
     assert(m_parent != nullptr && "TextRunBuilder commit() called with null parent");
 
-    // TICKET-104 — selector/animator chain validation.  If a selector
-    // spec was queued via `.selector(...)` WITHOUT a preceding
-    // `.animator(...)`, the chain is semantically incomplete: the
-    // selector would have no animator to live on.  Drop the orphaned
-    // selectors here + emit a one-shot `spdlog::warn` diagnostic that
-    // log-scrapers can lock against.  This matches the existing
-    // `build_text_run` skip+warn pattern — both are cat-3-compliant
-    // structural diagnostics (no new public classes, no new Result
-    // types).  The structural outcome (animators vector remains
-    // empty, the orphaned selectors are dropped) is testable
-    // directly.  Two failure modes are intentionally identical from
-    // the caller's perspective: (a) `.selector(...) .commit()` w/o
-    // `.animator(...)`  (this branch), and (b) build-cache-miss on an
-    // unsupported multi-font shape (build_text_run) — both emit warn
-    // + drop the dangling sub-spec rather than fail noisily.
+    // TICKET-104: selectors without an animator cannot be materialized.
     if (!m_pending_selectors.empty() && !m_has_explicit_animator) {
         spdlog::warn(
             "TextRunBuilder::commit: {} selector spec(s) dropped — "
@@ -308,23 +245,11 @@ LayerBuilder& TextRunBuilder::commit() {
         m_pending_selectors.clear();
     }
 
-    // LayerBuilder::build() reads m_text_runs directly; the spec is
-    // already up-to-date.  Touching m_cache_layout=false here forces
-    // a re-shape even if the layout cache already contains an entry
-    // for the spec's TextRunDefinition (because user edits may have
-    // changed shaping inputs).
+    // The spec is already current; retain the selected cache policy.
     m_spec->params.animation.cache_layout = m_cache_layout;
 
-    // TICKET-104 — consumed-flag lifecycle: commit() finalizes ONLY the
-    // animator/selector stack onto the spec.  The `consumed` flag MUST
-    // NOT be set here — doing so would cause LayerBuilder::build() to
-    // skip the spec (via `if (spec.consumed) continue;`) and the text
-    // node would never be materialized.  `mark_consumed` is called
-    // exclusively in LayerBuilder::build() AFTER the RenderNode is
-    // created (see the matching call site in that method).
-    //
-    //   ❌ Previous (buggy): chronon3d::text_internal::mark_consumed(*m_spec);
-    //   ✅ Correct:         defer consumed-flag to build() post-node-creation.
+    // TICKET-104: LayerBuilder::build marks the spec consumed after creating
+    // its RenderNode; committing the fluent builder only finalizes its fields.
 
     return *m_parent;
 }
@@ -333,40 +258,15 @@ LayerBuilder& TextRunBuilder::commit() {
 
 namespace text_run_materialize_detail {
 
-/// F1.D → Audit §10 — FontEngine Automatico: process-wide fallback.
-///
-/// Returns `preferred` if non-null.  When null (CLI still render, precomp
-/// nodes, text audit, or any path without a SoftwareRenderer), falls back
-/// to a process-wide FontEngine backed by a DEFAULT-CONSTRUCTED
-/// AssetResolver (intentionally UN-mounted — the historical
-/// implicit-CWD mounting was REMOVED per audit §10).
-///
-/// Behaviour after the unmount:
-///   - Absolute font paths (e.g. "/usr/share/fonts/Inter.ttf") still
-///     resolve via system-font fallback.
-///   - Relative paths (e.g. "assets/fonts/Inter.ttf") intentionally
-///     do NOT resolve — callers must wire an explicit FontEngine via
-///     `PendingTextRun.font_engine`, `LayerBuilder::m_font_engine`, or
-///     `sdk::RenderEngine::set_assets_root(path)` to make relative
-///     resolution work.  This is the desired hard-fail behaviour per
-///     audit §10 ("fallback CWD" delisting).
-///   - The process-wide fallback remains as a SAFETY NET for absolute
-///     paths + system fonts so pre-existing convenience compositions
-///     that don't wire a font engine don't immediately regress on
-///     shapes that don't depend on `assets/fonts/Inter.ttf`.
-///
-/// Cat-3 minimal-surface: the resolver remains a per-TU function-local
-/// static (no new public symbols introduced).  The previous `mount(
-/// implicit-CWD wiring becomes a no-op mount-then-unmount dance
-/// removed entirely per audit §10.
-///
-/// Thread safety: the C++11 magic-statics rule guarantees the
-/// initialisation runs exactly once across threads on first call.
-/// Subsequent calls keep returning the same `&s_fallback_engine`.
+/// Use the supplied engine when available. Otherwise use a process-wide
+/// engine whose resolver supports absolute paths and system fonts. Relative
+/// asset paths require an explicitly mounted engine supplied through the
+/// pending spec, layer builder, or render engine. Function-local static
+/// initialization is thread-safe.
 [[nodiscard]] FontEngine* resolve_engine(FontEngine* preferred) {
     if (preferred) return preferred;
 
-    static assets::AssetResolver s_fallback_resolver;  // intentionally UN-mounted (audit §10)
+    static assets::AssetResolver s_fallback_resolver;
     static FontEngine s_fallback_engine(s_fallback_resolver);
 
     // One-shot warning: log once per process lifetime to avoid spamming
@@ -415,7 +315,7 @@ std::shared_ptr<const PreparedTextRun> prepare_text_run(
 
     FontEngine* use_engine = resolve_engine(engine);
 
-    // Default font fallback to preserve the legacy convenience behaviour.
+    // Supply the default font when neither path nor family was authored.
     PreparedText prepared_with_font = normalized;
     if (!prepared_with_font.glyph_paint_ranges.empty())
         prepared_with_font.animation.cache_layout = false;

@@ -1,9 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// font_engine_placed_run.cpp — PlacedGlyphRun resolver (FASE 14)
+// font_engine_placed_run.cpp — PlacedGlyphRun resolver
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Extracted from font_engine.cpp.  Does NOT depend on FreeType/HarfBuzz;
-// operates purely on the GlyphRun struct output by shape_text().
+// Converts shaped glyph data to positioned glyphs without backend dependencies.
 //
 // Converts a raw HarfBuzz GlyphRun into a PlacedGlyphRun with cluster
 // mapping and per-glyph source-range metadata.

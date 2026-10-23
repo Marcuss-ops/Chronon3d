@@ -1,5 +1,4 @@
-// Shape method implementations for LayerBuilder.
-// Extracted from layer_builder.cpp to reduce file size.
+// LayerBuilder shape implementations.
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/registry/shape_ids.hpp>

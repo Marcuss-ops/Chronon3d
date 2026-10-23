@@ -1,18 +1,5 @@
-// FASE 22: this file retains ONLY the constructors, simple setters, anim
-// accessors, and the font_engine getter/setter.  Motion timeline adapters
-// live in layer_builder_motion.cpp; text_run() + build() live in
-// layer_builder_compile.cpp.  Post-split minimal include surface:
-//   layer_builder.hpp (always) — full class declaration including
-//     SampleTime, AnimatedValue (transitive via
-//     animated_transform.hpp), FontEngine forward-decl, all param structs.
-//   font_engine.hpp — needed by font_engine_setter / getter body for
-//     the full FontEngine type (pointer is fine but the include is here
-//     pre-FASE 22 for legacy reasons; keep for grep-compatibility).
-//
-// (text_run_builder.hpp, transform.hpp, sample_time.hpp, effect_ids.hpp,
-//  text_run.hpp, text_animator_property.hpp, glyph_selector.hpp,
-//  pending_text_run_impl.hpp, spdlog/spdlog.h, cmath, utility all moved
-//  to the helpers that actually use them.)
+// LayerBuilder constructors, simple setters, animation accessors, and
+// font-engine accessors.
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
