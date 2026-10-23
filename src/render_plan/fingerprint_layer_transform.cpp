@@ -77,6 +77,4 @@ void add_layer_transform_and_timing(CanonicalPlanWriter& out, const LayerPlan& l
     out.add_bool(layer.auto_orient);
 }
 
-} // namespace
-
 } // namespace chronon3d::render_plan::fingerprint_detail

@@ -1,6 +1,7 @@
 #include "render_plan_compiler_detail.hpp"
 
 #include <chronon3d/assets/svg_path_loader.hpp>
+#include <chronon3d/render_plan/easing_contract.hpp>
 
 #include <algorithm>
 #include <array>
