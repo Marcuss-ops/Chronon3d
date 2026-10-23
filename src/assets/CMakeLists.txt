@@ -14,6 +14,7 @@ set(CHRONON3D_ASSET_SOURCES
 if(CHRONON3D_ENABLE_SVG)
     list(APPEND CHRONON3D_ASSET_SOURCES
         svg_path_loader.cpp
+        svg_css.cpp
         svg_importer.cpp
         svgpp_parser_impl.cpp
     )
