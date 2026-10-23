@@ -464,11 +464,9 @@ hint = "Canonical render command registration missing."
 [[contract]]
 name = "native_decoder_cache_excludes_mutable_surfaces"
 description = "Native decoder cache must exclude mutable GPU surfaces"
-# P0-1: the decoder TU was split into _session/_decode/_helpers. The contract
-# pins the TU that owns the cache DECISION, not the retired monolith it used to
-# name — a rule that points at a file which no longer exists enforces nothing
-# while the gate still reports PASS.
-file = "src/media/video/native_video_frame_decoder_decode.cpp"
+# The presentation-time decode path owns the cache decision after the decode
+# implementation was separated from request lookup and profiling accessors.
+file = "src/media/video/native_video_frame_decoder_decode_at.cpp"
 required_patterns = [
     'const bool native_surface = decoded->framebuffer &&',
     'decoded->framebuffer->surface_handle\(\) != runtime::kInvalidRenderSurfaceHandle',

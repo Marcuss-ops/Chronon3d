@@ -35,6 +35,8 @@ if(CHRONON3D_ENABLE_VIDEO)
             video/native_video_frame_decoder_helpers.cpp
             video/native_video_frame_decoder_session.cpp
             video/native_video_frame_decoder_decode.cpp
+            video/native_video_frame_decoder_decode_at.cpp
+            video/native_video_frame_decoder_decode_access.cpp
             video/hw_frame_ref.cpp
             video/video_device_runtime.cpp
             video/mux/packet_assembler.cpp
