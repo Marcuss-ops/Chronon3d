@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/assets/svg_path_loader.hpp>
 namespace chronon3d { class FrameContext; }
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>
@@ -18,6 +19,7 @@ namespace chronon3d { class FrameContext; }
 #include <functional>
 #include <filesystem>
 #include <string_view>
+#include <utility>
 
 namespace chronon3d::render_plan::detail {
 
@@ -28,6 +30,30 @@ void materialize_media_background_cards(RenderPlan& plan);
     RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
 [[nodiscard]] std::optional<PlanDecodeError> prepare_svg_layers(
     RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
+
+struct SvgTextMetrics {
+    std::string font_asset;
+    float advance{0.0f};
+    float ink_width{0.0f};
+    float ascent{0.0f};
+    float descent{0.0f};
+    float x_height{0.0f};
+    float cap_height{0.0f};
+    float line_height{0.0f};
+    std::optional<float> script_baseline_offset;
+    std::optional<float> central_baseline_offset;
+    std::optional<float> hanging_baseline_offset;
+    std::optional<float> ideographic_baseline_offset;
+    std::optional<float> mathematical_baseline_offset;
+    std::optional<float> before_edge_baseline_offset;
+    std::optional<float> after_edge_baseline_offset;
+};
+
+[[nodiscard]] std::optional<PlanDecodeError> append_merged_svg_text_layers(
+    RenderPlan& plan,
+    std::vector<std::pair<chronon3d::assets::SvgTextRun, LayerPlan>>& pending_svg_text_layers,
+    const std::vector<SvgTextMetrics>& pending_svg_text_metrics,
+    const std::vector<bool>& pending_svg_text_boundary_before);
 
 void append_shape_layer(chronon3d::LayerBuilder& builder,
                         const LayerPlan& layer, const RenderPlan& plan,
