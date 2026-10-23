@@ -6,6 +6,7 @@ add_library(chronon3d_backend_text OBJECT
     text_material.cpp
     font_engine.cpp
     font_engine_freetype.cpp
+    font_engine_freetype_shape.cpp
     font_engine_placed_run.cpp        # resolve_placed_glyph_run
     typewriter_layout_cache.cpp       # per-runtime typewriter layout cache
     typewriter_layout.cpp             # compute_typewriter_layout (restored to core after content externalization)
