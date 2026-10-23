@@ -30,6 +30,11 @@ void materialize_media_background_cards(RenderPlan& plan);
     RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
 [[nodiscard]] std::optional<PlanDecodeError> prepare_svg_layers(
     RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
+[[nodiscard]] std::optional<PlanDecodeError> append_svg_imported_elements(
+    ShapeContentPlan& shape,
+    const std::vector<chronon3d::assets::SvgStyledElement>& elements,
+    double svg_fps,
+    std::size_t layer_index);
 
 struct SvgTextMetrics {
     std::string font_asset;

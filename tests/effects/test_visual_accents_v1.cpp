@@ -2,7 +2,7 @@
 
 #include <chronon3d/graphics/paint_mask_generator.hpp>
 #include <chronon3d/graphics/stroke/brush_profile.hpp>
-#include <chronon3d/render_plan/effect_presets.hpp>
+#include <chronon3d/render_plan/effect_presets/abstract_background.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
