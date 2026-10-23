@@ -435,7 +435,8 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 });
                 continue;
             }
-            if (op.kind == PathOperatorKindPlan::Merge) {
+            if (op.kind == PathOperatorKindPlan::Merge ||
+                op.kind == PathOperatorKindPlan::BooleanUnion) {
                 out.add_size(op.paths.size());
                 for (const auto& subpath : op.paths) {
                     out.add_size(subpath.size());

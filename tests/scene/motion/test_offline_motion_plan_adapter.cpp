@@ -205,6 +205,12 @@ Json jsonForValidation(const RenderPlan& plan) {
                             for (const auto& mergedPath : op.paths) params["paths"].push_back(jsonPathCommands(mergedPath));
                             break;
                         }
+                        case Kind::BooleanUnion: {
+                            kind = "boolean_union";
+                            params["paths"] = Json::array();
+                            for (const auto& mergedPath : op.paths) params["paths"].push_back(jsonPathCommands(mergedPath));
+                            break;
+                        }
                         case Kind::Morph:
                             kind = "morph";
                             params["target"] = jsonPathCommands(op.morph_target);

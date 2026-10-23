@@ -2222,6 +2222,30 @@ TEST_CASE("render plan decoder accepts bounded repeater operators and rejects un
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 
+TEST_CASE("render plan decoder accepts BooleanUnion as distinct from path concatenation") {
+    const auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"boolean-path","type":"shape","size":[64,64],"shape":{
+        "type":"path","path":[{"type":"move_to","point":[0,0]},
+          {"type":"line_to","point":[10,0]},{"type":"line_to","point":[10,10]},
+          {"type":"line_to","point":[0,10]},{"type":"close"}],
+        "operators":[{"kind":"boolean_union","params":{"paths":[[
+          {"type":"move_to","point":[5,5]},
+          {"type":"line_to","point":[15,5]},
+          {"type":"line_to","point":[15,15]},
+          {"type":"line_to","point":[5,15]},
+          {"type":"close"}]]}}]} }],
+      "output":{"path":"out.png"}
+    })JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->layers[0].shape->operators.size() == 1);
+    CHECK(decoded->layers[0].shape->operators[0].kind ==
+          chronon3d::render_plan::PathOperatorKindPlan::BooleanUnion);
+    CHECK(decoded->layers[0].shape->operators[0].paths.size() == 1);
+}
+
 TEST_CASE("render plan validates matte dependency cycles before lowering") {
     const auto layer = [](const char* id, const char* source) {
         nlohmann::json value{{"id", id}, {"type", "color"}, {"color", {1, 1, 1, 1}}};

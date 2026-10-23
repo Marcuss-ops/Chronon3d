@@ -1,12 +1,214 @@
 #include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/math/path_utils.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
+#include <clipper2/clipper.h>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace chronon3d {
 namespace {
+constexpr double kPathCurveTolerance = 0.05;
+constexpr int kClipperPrecision = 4;
+constexpr std::size_t kPathGeometryLimit = 1000000;
+
+struct FlattenedContour {
+    std::vector<Clipper2Lib::PointD> points;
+    bool closed{false};
+};
+
+double point_line_distance(const Vec2& point, const Vec2& start, const Vec2& end) {
+    const double dx = static_cast<double>(end.x) - start.x;
+    const double dy = static_cast<double>(end.y) - start.y;
+    const double length_squared = dx * dx + dy * dy;
+    if (length_squared <= 1.0e-24)
+        return std::hypot(static_cast<double>(point.x) - start.x,
+                          static_cast<double>(point.y) - start.y);
+    const double projection = std::clamp(
+        ((static_cast<double>(point.x) - start.x) * dx +
+         (static_cast<double>(point.y) - start.y) * dy) / length_squared, 0.0, 1.0);
+    return std::hypot(static_cast<double>(point.x) - (start.x + projection * dx),
+                      static_cast<double>(point.y) - (start.y + projection * dy));
+}
+
+void flatten_cubic_adaptive(const Vec2& p0, const Vec2& p1, const Vec2& p2,
+                            const Vec2& p3, int depth,
+                            std::vector<Clipper2Lib::PointD>& out) {
+    if (out.size() >= kPathGeometryLimit)
+        throw std::invalid_argument("path curve flattening exceeds the geometry limit");
+    const double deviation = std::max(point_line_distance(p1, p0, p3),
+                                      point_line_distance(p2, p0, p3));
+    if (deviation <= kPathCurveTolerance || depth >= 16) {
+        out.emplace_back(p3.x, p3.y);
+        return;
+    }
+    const Vec2 p01 = (p0 + p1) * 0.5f;
+    const Vec2 p12 = (p1 + p2) * 0.5f;
+    const Vec2 p23 = (p2 + p3) * 0.5f;
+    const Vec2 p012 = (p01 + p12) * 0.5f;
+    const Vec2 p123 = (p12 + p23) * 0.5f;
+    const Vec2 midpoint = (p012 + p123) * 0.5f;
+    flatten_cubic_adaptive(p0, p01, p012, midpoint, depth + 1, out);
+    flatten_cubic_adaptive(midpoint, p123, p23, p3, depth + 1, out);
+}
+
+std::vector<FlattenedContour> flatten_path_for_geometry(const PathShape& path) {
+    std::vector<FlattenedContour> result;
+    FlattenedContour contour;
+    Vec2 current{};
+    Vec2 start{};
+    bool active = false;
+    std::size_t total_points = 0;
+    auto finish = [&]() {
+        if (active && !contour.points.empty()) {
+            if (contour.points.size() > kPathGeometryLimit - total_points)
+                throw std::invalid_argument("path flattening exceeds the geometry limit");
+            total_points += contour.points.size();
+            result.push_back(std::move(contour));
+        }
+        contour = {};
+        active = false;
+    };
+    const auto add_point = [&](const Vec2& point) {
+        if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
+            std::abs(static_cast<double>(point.x)) > 1.0e10 ||
+            std::abs(static_cast<double>(point.y)) > 1.0e10)
+            throw std::invalid_argument("path coordinates must be finite and within the geometry range");
+    };
+    for (const auto& command : path.commands) {
+        if (command.type == PathCommandType::MoveTo) {
+            finish();
+            add_point(command.p0);
+            current = start = command.p0;
+            contour.points.emplace_back(current.x, current.y);
+            active = true;
+            continue;
+        }
+        if (command.type == PathCommandType::Close) {
+            if (active) {
+                contour.closed = true;
+                if (contour.points.size() > 1 && contour.points.front() != contour.points.back())
+                    contour.points.push_back(contour.points.front());
+                current = start;
+                finish();
+            }
+            continue;
+        }
+        if (!active) throw std::invalid_argument("path drawing command has no active contour");
+        add_point(command.p0);
+        if (command.type == PathCommandType::LineTo) {
+            contour.points.emplace_back(command.p0.x, command.p0.y);
+        } else if (command.type == PathCommandType::QuadraticTo) {
+            add_point(command.p1);
+            const Vec2 c1 = current + (command.p1 - current) * (2.0f / 3.0f);
+            const Vec2 c2 = command.p0 + (command.p1 - command.p0) * (2.0f / 3.0f);
+            flatten_cubic_adaptive(current, c1, c2, command.p0, 0, contour.points);
+        } else if (command.type == PathCommandType::CubicTo) {
+            add_point(command.p1);
+            add_point(command.p2);
+            flatten_cubic_adaptive(current, command.p1, command.p2, command.p0, 0,
+                                   contour.points);
+        }
+        current = command.p0;
+    }
+    if (active && path.closed) {
+        contour.closed = true;
+        if (contour.points.size() > 1 && contour.points.front() != contour.points.back())
+            contour.points.push_back(contour.points.front());
+    }
+    finish();
+    return result;
+}
+
+Clipper2Lib::FillRule clipper_fill_rule(PathFillRule rule) {
+    return rule == PathFillRule::EvenOdd ? Clipper2Lib::FillRule::EvenOdd
+                                         : Clipper2Lib::FillRule::NonZero;
+}
+
+Clipper2Lib::PathsD closed_paths(const std::vector<FlattenedContour>& contours,
+                                bool close_open_contours = false) {
+    Clipper2Lib::PathsD paths;
+    for (const auto& contour : contours) {
+        if ((!contour.closed && !close_open_contours) || contour.points.size() < 3) continue;
+        auto points = contour.points;
+        if (points.front() == points.back()) points.pop_back();
+        if (points.size() >= 3) paths.push_back(std::move(points));
+    }
+    return paths;
+}
+
+void append_closed_paths(std::vector<PathCommand>& commands,
+                         const Clipper2Lib::PathsD& paths) {
+    std::size_t total = commands.size();
+    for (const auto& path : paths) {
+        if (path.size() < 3) continue;
+        if (path.size() + 2 > kPathGeometryLimit - total)
+            throw std::invalid_argument("path operation exceeds the geometry limit");
+        total += path.size() + 2;
+        commands.push_back(PathCommand::move_to({static_cast<float>(path.front().x),
+                                                 static_cast<float>(path.front().y)}));
+        for (std::size_t index = 1; index < path.size(); ++index)
+            commands.push_back(PathCommand::line_to({static_cast<float>(path[index].x),
+                                                     static_cast<float>(path[index].y)}));
+        commands.push_back(PathCommand::close());
+    }
+}
+
+void append_offset_open_contour(std::vector<PathCommand>& commands,
+                                const FlattenedContour& contour, double amount,
+                                double miter_limit) {
+    if (contour.points.size() < 2) return;
+    std::vector<Vec2> points;
+    points.reserve(contour.points.size());
+    for (const auto& point : contour.points)
+        points.emplace_back(static_cast<float>(point.x), static_cast<float>(point.y));
+    const std::size_t segment_count = points.size() - 1;
+    std::vector<Vec2> normals;
+    normals.reserve(segment_count);
+    for (std::size_t index = 0; index < segment_count; ++index) {
+        const Vec2 delta = points[index + 1] - points[index];
+        const float length = glm::length(delta);
+        if (length <= 1.0e-6f) continue;
+        normals.emplace_back(-delta.y / length, delta.x / length);
+    }
+    if (normals.size() != segment_count) {
+        points.clear();
+        for (const auto& point : contour.points) {
+            const Vec2 value{static_cast<float>(point.x), static_cast<float>(point.y)};
+            if (points.empty() || glm::length(value - points.back()) > 1.0e-6f)
+                points.push_back(value);
+        }
+        if (points.size() < 2) return;
+        normals.clear();
+        for (std::size_t index = 0; index + 1 < points.size(); ++index) {
+            const Vec2 delta = points[index + 1] - points[index];
+            const float length = glm::length(delta);
+            if (length > 1.0e-6f) normals.emplace_back(-delta.y / length, delta.x / length);
+        }
+    }
+    const auto offset_vertex = [&](std::size_t vertex) {
+        if (vertex == 0) return points[vertex] + normals.front() * static_cast<float>(amount);
+        if (vertex + 1 == points.size()) return points[vertex] + normals.back() * static_cast<float>(amount);
+        const Vec2 previous = normals[vertex - 1];
+        const Vec2 next = normals[vertex];
+        const Vec2 sum = previous + next;
+        const float sum_length = glm::length(sum);
+        if (sum_length <= 1.0e-6f) return points[vertex] + next * static_cast<float>(amount);
+        const Vec2 miter = sum / sum_length;
+        const float denominator = glm::dot(miter, next);
+        float distance = std::abs(denominator) > 1.0e-6f
+            ? static_cast<float>(amount) / denominator
+            : static_cast<float>(amount * miter_limit);
+        distance = std::clamp(distance, -static_cast<float>(std::abs(amount) * miter_limit),
+                              static_cast<float>(std::abs(amount) * miter_limit));
+        return points[vertex] + miter * distance;
+    };
+    commands.push_back(PathCommand::move_to(offset_vertex(0)));
+    for (std::size_t index = 1; index < points.size(); ++index)
+        commands.push_back(PathCommand::line_to(offset_vertex(index)));
+}
+
 void transform_point(Vec2& p, const RepeaterParams& r, std::uint32_t copy) {
     const float t = static_cast<float>(copy);
     const float angle = glm::radians(r.rotation_degrees * t);
@@ -135,55 +337,72 @@ PathShape zig_zag(const PathShape& source, const ZigZagParams& params) {
 }
 PathShape offset_path(const PathShape& source, const OffsetPathParams& params) {
     if (!std::isfinite(params.amount) || !std::isfinite(params.miter_limit) ||
-        params.miter_limit < 1.0f)
-        throw std::invalid_argument("offset amount must be finite and miter_limit must be at least one");
+        params.miter_limit < 1.0f || params.miter_limit > 1000.0f ||
+        std::abs(params.amount) > 1.0e10f)
+        throw std::invalid_argument("offset amount must be bounded and miter_limit must be in [1, 1000]");
     if (params.amount == 0.0f) return source;
-    std::vector<Vec2> points;
-    bool closed = false;
-    std::size_t subpaths = 0;
-    for (const auto& command : source.commands) {
-        if (command.type == PathCommandType::MoveTo) {
-            if (++subpaths > 1) throw std::invalid_argument("offset-path currently requires a single subpath");
-            points.push_back(command.p0);
-        } else if (command.type == PathCommandType::LineTo) points.push_back(command.p0);
-        else if (command.type == PathCommandType::Close) closed = true;
-        else throw std::invalid_argument("offset-path currently requires a polyline path");
-    }
-    if (closed && points.size() > 1 && glm::length(points.front() - points.back()) <= 1e-6f)
-        points.pop_back();
-    if (points.size() < 2) return source;
-    const std::size_t segments = points.size() - 1 + (closed ? 1U : 0U);
-    std::vector<Vec2> normals;
-    normals.reserve(segments);
-    for (std::size_t i = 0; i < segments; ++i) {
-        const Vec2 delta = points[(i + 1) % points.size()] - points[i];
-        const float len = glm::length(delta);
-        if (len <= 1e-6f) throw std::invalid_argument("offset-path cannot process zero-length segments");
-        normals.emplace_back(-delta.y / len, delta.x / len);
+    const auto contours = flatten_path_for_geometry(source);
+    Clipper2Lib::PathsD closed = closed_paths(contours);
+    const bool has_open_geometry = std::any_of(contours.begin(), contours.end(),
+        [](const FlattenedContour& contour) {
+            return !contour.closed && contour.points.size() >= 2;
+        });
+    if (closed.empty() && !has_open_geometry) return source;
+    if (!closed.empty()) {
+        // Normalize winding and overlaps first so nested contours are treated as
+        // holes consistently by the polygon offsetter.
+        closed = Clipper2Lib::Union(closed, clipper_fill_rule(source.fill_rule),
+                                    kClipperPrecision);
+        closed = Clipper2Lib::InflatePaths(closed, params.amount,
+            Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon,
+            params.miter_limit, kClipperPrecision, kPathCurveTolerance);
     }
     PathShape output = source;
     output.commands.clear();
-    const auto offset_vertex = [&](std::size_t vertex) {
-        if (!closed && vertex == 0) return points[vertex] + normals.front() * params.amount;
-        if (!closed && vertex + 1 == points.size()) return points[vertex] + normals.back() * params.amount;
-        const Vec2 previous = normals[(vertex + segments - 1) % segments];
-        const Vec2 next = normals[vertex % segments];
-        const Vec2 sum = previous + next;
-        const float sum_len = glm::length(sum);
-        if (sum_len <= 1e-6f) return points[vertex] + next * params.amount;
-        const Vec2 miter = sum / sum_len;
-        const float denominator = glm::dot(miter, next);
-        float distance = std::abs(denominator) > 1e-6f
-            ? params.amount / denominator : params.amount * params.miter_limit;
-        const float maximum = std::abs(params.amount) * params.miter_limit;
-        distance = std::clamp(distance, -maximum, maximum);
-        return points[vertex] + miter * distance;
-    };
-    output.commands.push_back(PathCommand::move_to(offset_vertex(0)));
-    for (std::size_t i = 1; i < points.size(); ++i)
-        output.commands.push_back(PathCommand::line_to(offset_vertex(i)));
-    if (closed) output.commands.push_back(PathCommand::close());
-    output.closed = closed;
+    append_closed_paths(output.commands, closed);
+    for (const auto& contour : contours)
+        if (!contour.closed)
+            append_offset_open_contour(output.commands, contour, params.amount,
+                                       params.miter_limit);
+    output.closed = false;
+    return output;
+}
+
+PathShape boolean_union(const PathShape& source, const BooleanUnionParams& params) {
+    if (params.paths.size() > 1024)
+        throw std::invalid_argument("boolean-union accepts at most 1024 additional subpaths");
+    if (source.commands.size() > kPathGeometryLimit)
+        throw std::invalid_argument("boolean-union input exceeds the geometry limit");
+    auto source_paths = closed_paths(flatten_path_for_geometry(source), true);
+    Clipper2Lib::PathsD inputs;
+    if (!source_paths.empty()) {
+        source_paths = Clipper2Lib::Union(source_paths,
+            clipper_fill_rule(source.fill_rule), kClipperPrecision);
+        inputs.insert(inputs.end(), source_paths.begin(), source_paths.end());
+    }
+    std::size_t command_count = source.commands.size();
+    for (const auto& subpath : params.paths) {
+        if (subpath.empty() || subpath.front().type != PathCommandType::MoveTo)
+            throw std::invalid_argument("each boolean-union contour must begin with move_to");
+        if (subpath.size() > kPathGeometryLimit - command_count)
+            throw std::invalid_argument("boolean-union input exceeds the geometry limit");
+        command_count += subpath.size();
+        PathShape input_shape;
+        input_shape.commands = subpath;
+        input_shape.fill_rule = source.fill_rule;
+        auto shape_paths = closed_paths(flatten_path_for_geometry(input_shape), true);
+        if (shape_paths.empty()) continue;
+        shape_paths = Clipper2Lib::Union(shape_paths,
+            clipper_fill_rule(input_shape.fill_rule), kClipperPrecision);
+        inputs.insert(inputs.end(), shape_paths.begin(), shape_paths.end());
+    }
+    const auto united = inputs.empty() ? Clipper2Lib::PathsD{} :
+        Clipper2Lib::Union(inputs, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    PathShape output = source;
+    output.commands.clear();
+    append_closed_paths(output.commands, united);
+    output.closed = false;
+    output.fill_rule = PathFillRule::EvenOdd;
     return output;
 }
 PathShape pucker_bloat(const PathShape& source, const PuckerBloatParams& params) {
@@ -421,6 +640,11 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
                 for (const auto& subpath : merge.paths)
                     path.commands.insert(path.commands.end(), subpath.begin(), subpath.end());
             }
+        } else if (op.kind == PathOperatorKind::BooleanUnion) {
+            if (!std::holds_alternative<BooleanUnionParams>(op.params))
+                throw std::invalid_argument("boolean-union parameters do not match operator kind");
+            for (auto& path : paths)
+                path = boolean_union(path, std::get<BooleanUnionParams>(op.params));
         } else if (op.kind == PathOperatorKind::Repeater) {
             if (!std::holds_alternative<RepeaterParams>(op.params))
                 throw std::invalid_argument("repeater parameters do not match operator kind");

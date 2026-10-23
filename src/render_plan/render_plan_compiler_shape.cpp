@@ -676,12 +676,13 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                                 specs.push_back({PathOperatorKind::Morph, std::move(morph), 0});
                                 break;
                             }
-                            case PathOperatorKindPlan::Merge: {
+                            case PathOperatorKindPlan::Merge:
+                            case PathOperatorKindPlan::BooleanUnion: {
                                 if (operation.target_id.empty())
                                     throw std::runtime_error(
-                                        "SVG Merge Path requires an exact element target id");
-                                MergeParams merge;
-                                merge.paths.reserve(operation.paths.size());
+                                        "SVG merge/boolean-union requires an exact element target id");
+                                std::vector<std::vector<PathCommand>> planned_paths;
+                                planned_paths.reserve(operation.paths.size());
                                 for (const auto& planned_path : operation.paths) {
                                     std::vector<PathCommand> subpath;
                                     subpath.reserve(planned_path.size());
@@ -702,9 +703,14 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                                                 subpath.push_back(PathCommand::close()); break;
                                         }
                                     }
-                                    merge.paths.push_back(std::move(subpath));
+                                    planned_paths.push_back(std::move(subpath));
                                 }
-                                specs.push_back({PathOperatorKind::Merge, std::move(merge), 0});
+                                if (operation.kind == PathOperatorKindPlan::BooleanUnion)
+                                    specs.push_back({PathOperatorKind::BooleanUnion,
+                                        BooleanUnionParams{std::move(planned_paths)}, 0});
+                                else
+                                    specs.push_back({PathOperatorKind::Merge,
+                                        MergeParams{std::move(planned_paths)}, 0});
                                 break;
                             }
                         }
@@ -821,8 +827,9 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                         progress.evaluate(ctx.effective_frame()), 0.0f, 1.0f);
                 }
                 specs.push_back({PathOperatorKind::Morph, std::move(morph), 0});
-            } else if (op.kind == PathOperatorKindPlan::Merge) {
-                MergeParams merge;
+            } else if (op.kind == PathOperatorKindPlan::Merge ||
+                       op.kind == PathOperatorKindPlan::BooleanUnion) {
+                std::vector<std::vector<PathCommand>> planned_paths;
                 for (const auto& planned_path : op.paths) {
                     std::vector<PathCommand> subpath;
                     for (const auto& command : planned_path) {
@@ -837,9 +844,14 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                             case ShapePathCommandTypePlan::Close: subpath.push_back(PathCommand::close()); break;
                         }
                     }
-                    merge.paths.push_back(std::move(subpath));
+                    planned_paths.push_back(std::move(subpath));
                 }
-                specs.push_back({PathOperatorKind::Merge, std::move(merge), 0});
+                if (op.kind == PathOperatorKindPlan::BooleanUnion)
+                    specs.push_back({PathOperatorKind::BooleanUnion,
+                        BooleanUnionParams{std::move(planned_paths)}, 0});
+                else
+                    specs.push_back({PathOperatorKind::Merge,
+                        MergeParams{std::move(planned_paths)}, 0});
             } else if (op.kind == PathOperatorKindPlan::Trim) {
                 TrimPathParams trim{op.trim_start, op.trim_end, op.trim_offset};
                 if (op.trim_animation) {

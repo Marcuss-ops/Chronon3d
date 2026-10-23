@@ -516,6 +516,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                     decoded_op.amount = p.at("amount").get<float>();
                     decoded_op.miter_limit = p.value("miter_limit", 4.0f);
                     if (!std::isfinite(decoded_op.amount) || !std::isfinite(decoded_op.miter_limit) ||
+                        std::abs(decoded_op.amount) > 1.0e10f ||
                         decoded_op.miter_limit < 1.0f || decoded_op.miter_limit > 1000.0f)
                         throw std::runtime_error("invalid offset-path parameters");
                 } else if (kind == "pucker_bloat") {
@@ -552,32 +553,33 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                         !std::isfinite(decoded_op.frequency) || decoded_op.frequency <= 0.0f ||
                         decoded_op.frequency > 1000.0f)
                         throw std::runtime_error("invalid wiggle-path parameters");
-                } else if (kind == "merge") {
-                    decoded_op.kind = PathOperatorKindPlan::Merge;
+                } else if (kind == "merge" || kind == "boolean_union") {
+                    decoded_op.kind = kind == "merge" ? PathOperatorKindPlan::Merge
+                                                        : PathOperatorKindPlan::BooleanUnion;
                     if (shape.svg_asset && decoded_op.target_id.empty())
                         throw std::runtime_error(
-                            "SVG Merge Path requires an exact element target id");
+                            "SVG merge/boolean-union requires an exact element target id");
                     const auto& raw_paths = p.at("paths");
                     if (!raw_paths.is_array() || raw_paths.size() > 1024)
-                        throw std::runtime_error("merge paths must contain at most 1024 subpaths");
+                            throw std::runtime_error("path operation accepts at most 1024 subpaths");
                     std::size_t total_commands = 0;
                     for (const auto& raw_subpath : raw_paths) {
                         if (!raw_subpath.is_array() || raw_subpath.empty() ||
                             raw_subpath.size() > 65536 || total_commands + raw_subpath.size() > 1000000)
-                            throw std::runtime_error("merge subpath has invalid command count");
+                            throw std::runtime_error("path operation subpath has invalid command count");
                         std::vector<ShapePathCommandPlan> subpath;
                         for (const auto& raw_command : raw_subpath) {
-                            auto command = decode_shape_path_command(raw_command, "merge path");
+                            auto command = decode_shape_path_command(raw_command, "path operation");
                             const auto finite = [](const auto& v) {
                                 return std::isfinite(v[0]) && std::isfinite(v[1]);
                             };
                             if ((command.type != ShapePathCommandTypePlan::Close && !finite(command.point)) ||
                                 !finite(command.control1) || !finite(command.control2))
-                                throw std::runtime_error("merge command coordinates must be finite");
+                                throw std::runtime_error("path operation coordinates must be finite");
                             subpath.push_back(command);
                         }
                         if (subpath.front().type != ShapePathCommandTypePlan::MoveTo)
-                            throw std::runtime_error("each merged subpath must begin with move_to");
+                            throw std::runtime_error("each path-operation subpath must begin with move_to");
                         total_commands += subpath.size();
                         decoded_op.paths.push_back(std::move(subpath));
                     }

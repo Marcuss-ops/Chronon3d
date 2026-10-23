@@ -11,7 +11,7 @@
 namespace chronon3d {
 struct PathShape;
 
-enum class PathOperatorKind : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph };
+enum class PathOperatorKind : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph, BooleanUnion };
 struct RepeaterParams {
     std::uint32_t copies{1};
     Vec2 position{0.0f};
@@ -27,6 +27,9 @@ struct PuckerBloatParams { float amount{0.0f}; Vec2 anchor{0.0f}; };
 struct TwistParams { float degrees{0.0f}; Vec2 center{0.0f}; };
 struct WigglePathParams { float amount{0.0f}; float frequency{1.0f}; };
 struct MergeParams { std::vector<std::vector<PathCommand>> paths; };
+// Geometric union of the source path with these closed filled contours.
+// Unlike Merge, this resolves overlaps and returns normalized boundaries.
+struct BooleanUnionParams { std::vector<std::vector<PathCommand>> paths; };
 // Morph interpolates between paths with identical command topology. Requiring
 // matching contour/curve structure avoids ambiguous contour correspondence.
 struct MorphPathParams {
@@ -41,7 +44,7 @@ struct MorphPathParams {
 // around the path end, so an offset can carry the visible segment through the
 // start point. start == 0 && end == 1 is the identity regardless of offset.
 struct TrimPathParams { float start{0.0f}; float end{1.0f}; float offset{0.0f}; };
-using PathOperatorParams = std::variant<RepeaterParams, RoundCornersParams, ZigZagParams, OffsetPathParams, PuckerBloatParams, TwistParams, WigglePathParams, MergeParams, TrimPathParams, MorphPathParams>;
+using PathOperatorParams = std::variant<RepeaterParams, RoundCornersParams, ZigZagParams, OffsetPathParams, PuckerBloatParams, TwistParams, WigglePathParams, MergeParams, TrimPathParams, MorphPathParams, BooleanUnionParams>;
 struct PathOperatorSpec {
     PathOperatorKind kind{PathOperatorKind::Repeater};
     PathOperatorParams params{RepeaterParams{}};
