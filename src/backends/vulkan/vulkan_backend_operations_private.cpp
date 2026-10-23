@@ -13,6 +13,23 @@
 #include <limits>
 
 namespace chronon3d::backends::vulkan {
+namespace {
+
+std::int32_t composite_blend_mode(BlendMode mode, bool replace,
+                                  bool weighted_source_over) {
+    if (replace) return 2;
+    if (weighted_source_over) return 7;
+    switch (mode) {
+        case BlendMode::Add: return 1;
+        case BlendMode::Multiply: return 3;
+        case BlendMode::Screen: return 4;
+        case BlendMode::Overlay: return 5;
+        case BlendMode::Normal: return 0;
+    }
+    return 0;
+}
+
+} // namespace
 
 void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                                     runtime::RenderSurfaceHandle source,
@@ -33,9 +50,7 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
             std::to_string(src_image.height) +
             (src_image.initialized ? "" : " src-uninitialized"));
     }
-    const std::int32_t blend_mode = replace ? 2 : weighted_source_over ? 7 :
-        (mode == BlendMode::Add ? 1 : mode == BlendMode::Multiply ? 3 :
-         mode == BlendMode::Screen ? 4 : mode == BlendMode::Overlay ? 5 : 0);
+    const auto blend_mode = composite_blend_mode(mode, replace, weighted_source_over);
     const bool premultiplied_source_over =
         !replace && !weighted_source_over && mode == BlendMode::Normal;
     if (frame_batch.active) {

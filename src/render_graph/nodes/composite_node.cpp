@@ -12,14 +12,10 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <optional>
 #include <string_view>
-#include <vector>
-#include <cmath>
-#include <limits>
 
 #include "native_surface.hpp"
 #include "composite_backdrop_detail.hpp"

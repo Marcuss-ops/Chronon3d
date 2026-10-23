@@ -70,6 +70,11 @@ std::vector<FlattenedContour> flatten_path_for_geometry(const PathShape& path) {
         contour = {};
         active = false;
     };
+    const auto close_contour = [&] {
+        contour.closed = true;
+        if (contour.points.size() > 1 && contour.points.front() != contour.points.back())
+            contour.points.push_back(contour.points.front());
+    };
     const auto add_point = [&](const Vec2& point) {
         if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
             std::abs(static_cast<double>(point.x)) > 1.0e10 ||
@@ -87,9 +92,7 @@ std::vector<FlattenedContour> flatten_path_for_geometry(const PathShape& path) {
         }
         if (command.type == PathCommandType::Close) {
             if (active) {
-                contour.closed = true;
-                if (contour.points.size() > 1 && contour.points.front() != contour.points.back())
-                    contour.points.push_back(contour.points.front());
+                close_contour();
                 current = start;
                 finish();
             }
@@ -112,11 +115,7 @@ std::vector<FlattenedContour> flatten_path_for_geometry(const PathShape& path) {
         }
         current = command.p0;
     }
-    if (active && path.closed) {
-        contour.closed = true;
-        if (contour.points.size() > 1 && contour.points.front() != contour.points.back())
-            contour.points.push_back(contour.points.front());
-    }
+    if (active && path.closed) close_contour();
     finish();
     return result;
 }

@@ -2613,6 +2613,62 @@ std::optional<std::string> collect_vector_mask_geometry(
     return std::nullopt;
 }
 
+std::optional<std::string> inspect_svg_xml_tree(
+    const boost::property_tree::ptree& document, std::size_t max_nodes) {
+    std::string unsupported;
+    std::size_t node_count = 0;
+    std::function<void(const boost::property_tree::ptree&, const std::string&)> inspect =
+        [&](const auto& tree, const std::string& parent_name) {
+            for (const auto& [name, node] : tree) {
+                if (name == "<xmlattr>" || name == "<xmlcomment>") continue;
+                if (name == "<xmltext>") {
+                    if (!trim(node.data()).empty() && parent_name != "text" &&
+                        parent_name != "tspan" && parent_name != "textPath")
+                        unsupported = "text content outside <text>/<tspan>";
+                    if (!unsupported.empty()) return;
+                    continue;
+                }
+                if (++node_count > max_nodes) {
+                    unsupported = "resource limit: XML node count exceeds 100000";
+                    return;
+                }
+                if (name == "image") {
+                    const auto href = node.template get_optional<std::string>("<xmlattr>.href");
+                    const auto xlink_href = node.template get_optional<std::string>(
+                        "<xmlattr>.{http://www.w3.org/1999/xlink}href");
+                    const std::string image_href = href ? *href : (xlink_href ? *xlink_href : "");
+                    if (image_href.empty() || !image_href.starts_with("data:image/")) {
+                        unsupported = "non supportata: <image>";
+                        return;
+                    }
+                    continue;
+                }
+                if (name == "style") continue;
+                const auto href = node.template get_optional<std::string>("<xmlattr>.href");
+                const auto xlink_href = node.template get_optional<std::string>(
+                    "<xmlattr>.{http://www.w3.org/1999/xlink}href");
+                if (href || xlink_href) {
+                    const auto reference = href ? href : xlink_href;
+                    const bool local_reference =
+                        (name == "use" || name == "textPath") && reference->size() >= 2 &&
+                        reference->front() == '#' &&
+                        reference->find_first_of(" \t\r\n", 1) == std::string::npos;
+                    const bool embedded_image =
+                        name == "image" && reference->starts_with("data:image/");
+                    if (!local_reference && !embedded_image) {
+                        unsupported = "CSS esterni";
+                        return;
+                    }
+                }
+                inspect(node, name);
+                if (!unsupported.empty()) return;
+            }
+        };
+    inspect(document, {});
+    if (unsupported.empty()) return std::nullopt;
+    return unsupported;
+}
+
 } // namespace
 
 SvgPathLoadResult parse_svg_path_data(std::string_view d, SvgPathLoadOptions options) {
@@ -2646,62 +2702,13 @@ SvgDocumentLoadResult load_svg_document_file(
         return {.paths = {}, .elements = {}, .ok = false,
                 .error = "SVG CSS: " + *css_error};
 
-    std::string unsupported;
-    std::size_t xml_nodes = 0;
-    std::function<void(const boost::property_tree::ptree&, const std::string&)> inspect =
-        [&](const auto& tree, const std::string& parent_name) {
-        for (const auto& [name, node] : tree) {
-            if (name == "<xmlattr>") continue;
-            if (name == "<xmlcomment>") continue;
-            if (name == "<xmltext>") {
-                if (!trim(node.data()).empty() && parent_name != "text" &&
-                    parent_name != "tspan" && parent_name != "textPath")
-                    unsupported = "text content outside <text>/<tspan>";
-                if (!unsupported.empty()) return;
-                continue;
-            }
-            if (++xml_nodes > kMaxXmlNodes) {
-                unsupported = "resource limit: XML node count exceeds 100000";
-                return;
-            }
-            if (name == "image") {
-                const auto href = node.template get_optional<std::string>("<xmlattr>.href");
-                const auto xlink_href = node.template get_optional<std::string>(
-                    "<xmlattr>.{http://www.w3.org/1999/xlink}href");
-                const std::string img_href = href ? *href : (xlink_href ? *xlink_href : "");
-                if (img_href.empty() || !img_href.starts_with("data:image/")) {
-                    unsupported = "non supportata: <image>";
-                    return;
-                }
-                continue;
-            }
-            if (name == "style") continue;
-            const auto href = node.template get_optional<std::string>("<xmlattr>.href");
-            const auto xlink_href = node.template get_optional<std::string>(
-                "<xmlattr>.{http://www.w3.org/1999/xlink}href");
-            if (href || xlink_href) {
-                const auto reference = href ? href : xlink_href;
-                const bool supported_reference =
-                    ((name == "use" || name == "textPath") && reference->size() >= 2 &&
-                     reference->front() == '#' &&
-                     reference->find_first_of(" \t\r\n", 1) == std::string::npos) ||
-                    (name == "image" && reference->starts_with("data:image/"));
-                if (!supported_reference) {
-                    unsupported = "CSS esterni";
-                    return;
-                }
-            }
-            inspect(node, name);
-            if (!unsupported.empty()) return;
-        }
-    };
-    inspect(document, {});
-    if (!unsupported.empty()) {
-        if (unsupported.starts_with("resource limit:"))
-            return {.paths = {}, .elements = {}, .ok = false, .error = "SVG " + unsupported};
-        const auto tag = unsupported == "CSS esterni" ? "use" : unsupported.c_str();
+    if (const auto unsupported = inspect_svg_xml_tree(document, kMaxXmlNodes)) {
+        if (unsupported->starts_with("resource limit:"))
+            return {.paths = {}, .elements = {}, .ok = false,
+                    .error = "SVG " + *unsupported};
+        const auto tag = *unsupported == "CSS esterni" ? "use" : unsupported->c_str();
         return {.paths = {}, .elements = {}, .ok = false,
-                .error = std::string("SVG: ") + unsupported + " non supportata: <" + tag + ">"};
+                .error = std::string("SVG: ") + *unsupported + " non supportata: <" + tag + ">"};
     }
     if (const auto style_error = validate_svg_subset(document))
         return {.paths = {}, .elements = {}, .ok = false,

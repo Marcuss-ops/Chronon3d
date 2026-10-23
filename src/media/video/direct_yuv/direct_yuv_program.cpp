@@ -25,7 +25,6 @@ extern "C" {
 
 #include <algorithm>
 #include <cmath>
-#include <stdexcept>
 #include <unordered_set>
 #include <utility>
 

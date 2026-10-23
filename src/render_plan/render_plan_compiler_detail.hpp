@@ -21,6 +21,14 @@ namespace chronon3d { class FrameContext; }
 
 namespace chronon3d::render_plan::detail {
 
+void materialize_media_background_cards(RenderPlan& plan);
+[[nodiscard]] std::optional<PlanDecodeError> prepare_data_feed_assets(
+    RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
+[[nodiscard]] std::optional<PlanDecodeError> expand_lottie_assets(
+    RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
+[[nodiscard]] std::optional<PlanDecodeError> prepare_svg_layers(
+    RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
+
 void append_shape_layer(chronon3d::LayerBuilder& builder,
                         const LayerPlan& layer, const RenderPlan& plan,
                         const chronon3d::FrameContext& ctx);
@@ -31,6 +39,25 @@ struct FollowPathEvaluators {
 };
 
 using CameraTrackEvaluator = std::function<chronon3d::Camera2_5D(double)>;
+
+struct ResolvedLayerMediaAssets {
+    std::vector<std::string> video_paths;
+    std::vector<std::string> particle_sprite_paths;
+};
+
+[[nodiscard]] ResolvedLayerMediaAssets resolve_layer_media_assets(
+    const RenderPlan& plan, chronon3d::assets::AssetResolver& resolver);
+
+struct PreparedTextLayers {
+    std::vector<std::optional<chronon3d::PreparedText>> texts;
+    std::vector<std::shared_ptr<const chronon3d::AnimatedTextDocument>> counters;
+    std::vector<std::optional<chronon3d::Vec2>> bounds;
+};
+
+[[nodiscard]] PreparedTextLayers prepare_text_layers(
+    const RenderPlan& plan, chronon3d::assets::AssetResolver& resolver,
+    const chronon3d::CanvasInfo& canvas,
+    const std::shared_ptr<chronon3d::FontEngine>& font_engine);
 
 struct SceneMaterializationInputs {
     RenderPlan plan;

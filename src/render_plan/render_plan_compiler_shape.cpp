@@ -1,59 +1,47 @@
-#include <chronon3d/render_plan/easing_contract.hpp>
-#include <chronon3d/scene/model/shape/path_operator.hpp>
-#include <chronon3d/scene/model/shape/path.hpp>
-#include <chronon3d/animation/core/animated_value.hpp>
-#include <chronon3d/geometry/mesh.hpp>
-#include <chronon3d/effects/cube_lut.hpp>
-#include <chronon3d/effects/effect_params.hpp>
-#include <chronon3d/effects/effect_param_animation.hpp>
-#include <cmath>
-#include <algorithm>
-#include <string>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
-#include <chronon3d/assets/asset_resolver.hpp>
-#include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/assets/svg_path_loader.hpp>
-
-#include "render_plan_compiler_detail.hpp"
-#include "effect_kind_coverage.hpp"
-#include "audio_react_baker.hpp"
-#include "audio_react_plan_baker.hpp"
-#include "render_plan_effect_preparation.hpp"
-
-#include <chronon3d/backends/video/video_source.hpp>
-#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
-#include <chronon3d/scene/builders/text_run_materialization.hpp>
-#include <chronon3d/text/text_run_builder.hpp>
-#include <chronon3d/text/animated_text_document.hpp>
-#include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
-#include <chronon3d/timeline/composition_definition.hpp>
+#include <chronon3d/scene/model/shape/path.hpp>
+#include <chronon3d/scene/model/shape/path_operator.hpp>
 
-#include <filesystem>
-#include <fstream>
-#include <iomanip>
-#include <iterator>
-#include <locale>
-#include <sstream>
+#include "render_plan_compiler_detail.hpp"
+
 #include <algorithm>
-#include <charconv>
+#include <array>
 #include <cmath>
-#include <limits>
-#include <numbers>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
-
-#include <spdlog/spdlog.h>
-#include <nlohmann/json.hpp>
 
 namespace easing_name = chronon3d::render_plan::detail::easing_name;
 
 namespace chronon3d::render_plan::detail {
+namespace {
+
+bool shape_uses_authored_origin(ShapeContentTypePlan type) {
+    switch (type) {
+        case ShapeContentTypePlan::Line:
+        case ShapeContentTypePlan::Path:
+        case ShapeContentTypePlan::Star:
+        case ShapeContentTypePlan::Polygon:
+        case ShapeContentTypePlan::Arrow:
+        case ShapeContentTypePlan::Arc:
+        case ShapeContentTypePlan::Grid:
+        case ShapeContentTypePlan::DotGrid:
+        case ShapeContentTypePlan::DeviceFrame:
+            return true;
+        default:
+            return false;
+    }
+}
+
+} // namespace
 
 void append_shape_layer(chronon3d::LayerBuilder& builder,
                         const LayerPlan& layer, const RenderPlan& plan,
@@ -148,18 +136,8 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
                 layer, ctx.effective_frame(), plan.canvas.fps))
             stroke.dash_offset=*animated_offset;
     }
-    if (layer.position_dimensions < 2 &&
-        shape.type != ShapeContentTypePlan::Line &&
-        shape.type != ShapeContentTypePlan::Path &&
-        shape.type != ShapeContentTypePlan::Star &&
-        shape.type != ShapeContentTypePlan::Polygon &&
-        shape.type != ShapeContentTypePlan::Arrow &&
-        shape.type != ShapeContentTypePlan::Arc &&
-        shape.type != ShapeContentTypePlan::Grid &&
-        shape.type != ShapeContentTypePlan::DotGrid &&
-        shape.type != ShapeContentTypePlan::DeviceFrame) {
+    if (layer.position_dimensions < 2 && !shape_uses_authored_origin(shape.type))
         builder.pin_to(Anchor::Center);
-    }
     switch (shape.type) {
         case ShapeContentTypePlan::Rect: {
             RectParams params;

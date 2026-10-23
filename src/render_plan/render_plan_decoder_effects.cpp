@@ -858,53 +858,71 @@ const EffectDecoderEntry* find_effect_decoder(LayerPlan::EffectKindPlan kind) {
         if (entry.kind == kind) return &entry;
     return nullptr;
 }
-void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
-    if (value.contains("effects")) {
-        const auto& effects = value.at("effects");
-        if (!effects.is_array() || effects.size() > 64)
-            throw std::runtime_error("layer.effects must be an array of at most 64 entries");
-        for (const auto& raw_effect : effects) {
-            LayerPlan::EffectPlan effect;
-            const auto kind_name = raw_effect.value("type", std::string{});
-            const auto kind = decode_effect_kind(kind_name);
-            if (raw_effect.contains("time")) {
-                const auto& time=raw_effect.at("time");
-                if(!time.is_object()) throw std::runtime_error("effect time must be an object");
-                if(time.contains("posterize_fps")) {
-                    effect.posterize_fps=time.at("posterize_fps").get<float>();
-                    if(!std::isfinite(*effect.posterize_fps)||*effect.posterize_fps<=0.0f||*effect.posterize_fps>1000.0f)
-                        throw std::runtime_error("effect time posterize_fps must be finite and in (0, 1000]");
-                }
-                if(time.contains("curve")) {
-                    const auto& raw_curve=time.at("curve");
-                    if(!raw_curve.is_array()||raw_curve.size()<2) throw std::runtime_error("effect time curve must contain at least two keyframes");
-                    AnimationTrackPlan curve; curve.property="effect_time";
-                    curve.easing=time.value("easing",std::string{"linear"});
-                    curve.bezier_curve=decode_bezier_curve(time,curve.easing,"effect time");
-                    for(const auto& raw_key:raw_curve) {
-                        AnimationKeyframePlan key;
-                        key.frame=Frame{raw_key.at("frame").get<std::int64_t>()};
-                        const float v=raw_key.at("value").get<float>();
-                        if(key.frame.integral()<0||key.frame.integral()>1000000||!std::isfinite(v)||v<0.0f||v>1.0f)
-                            throw std::runtime_error("effect time curve keyframes require bounded frame values and values in [0, 1]");
-                        key.value={v}; curve.keyframes.push_back(std::move(key));
-                    }
-                    std::sort(curve.keyframes.begin(),curve.keyframes.end(),[](const auto& a,const auto& b){return a.frame<b.frame;});
-                    for(std::size_t i=1;i<curve.keyframes.size();++i)
-                        if(curve.keyframes[i-1].frame==curve.keyframes[i].frame) throw std::runtime_error("effect time curve frames must be unique");
-                    effect.time_curve=std::move(curve);
-                } else if(time.contains("easing")||time.contains("bezier_curve"))
-                    throw std::runtime_error("effect time easing requires a curve");
-                for(auto it=time.begin();it!=time.end();++it)
-                    if(it.key()!="posterize_fps"&&it.key()!="curve"&&it.key()!="easing"&&it.key()!="bezier_curve")
-                        throw std::runtime_error("unsupported effect time option: "+it.key());
-            }
-            const auto* decoder = find_effect_decoder(kind);
-            if (decoder == nullptr)
-                throw std::runtime_error("unsupported layer effect type");
-            decoder->decode(effect, raw_effect);
-            layer.effects.push_back(std::move(effect));
+void decode_effect_time(LayerPlan::EffectPlan& effect, const nlohmann::json& time) {
+    if (!time.is_object())
+        throw std::runtime_error("effect time must be an object");
+
+    if (time.contains("posterize_fps")) {
+        effect.posterize_fps = time.at("posterize_fps").get<float>();
+        if (!std::isfinite(*effect.posterize_fps) ||
+            *effect.posterize_fps <= 0.0f || *effect.posterize_fps > 1000.0f)
+            throw std::runtime_error(
+                "effect time posterize_fps must be finite and in (0, 1000]");
+    }
+
+    if (time.contains("curve")) {
+        const auto& raw_curve = time.at("curve");
+        if (!raw_curve.is_array() || raw_curve.size() < 2)
+            throw std::runtime_error("effect time curve must contain at least two keyframes");
+
+        AnimationTrackPlan curve;
+        curve.property = "effect_time";
+        curve.easing = time.value("easing", std::string{"linear"});
+        curve.bezier_curve = decode_bezier_curve(time, curve.easing, "effect time");
+        for (const auto& raw_key : raw_curve) {
+            AnimationKeyframePlan key;
+            key.frame = Frame{raw_key.at("frame").get<std::int64_t>()};
+            const float value = raw_key.at("value").get<float>();
+            if (key.frame.integral() < 0 || key.frame.integral() > 1000000 ||
+                !std::isfinite(value) || value < 0.0f || value > 1.0f)
+                throw std::runtime_error(
+                    "effect time curve keyframes require bounded frame values and values in [0, 1]");
+            key.value = {value};
+            curve.keyframes.push_back(std::move(key));
         }
+        std::sort(curve.keyframes.begin(), curve.keyframes.end(),
+            [](const auto& left, const auto& right) { return left.frame < right.frame; });
+        for (std::size_t index = 1; index < curve.keyframes.size(); ++index)
+            if (curve.keyframes[index - 1].frame == curve.keyframes[index].frame)
+                throw std::runtime_error("effect time curve frames must be unique");
+        effect.time_curve = std::move(curve);
+    } else if (time.contains("easing") || time.contains("bezier_curve")) {
+        throw std::runtime_error("effect time easing requires a curve");
+    }
+
+    for (auto it = time.begin(); it != time.end(); ++it)
+        if (it.key() != "posterize_fps" && it.key() != "curve" &&
+            it.key() != "easing" && it.key() != "bezier_curve")
+            throw std::runtime_error("unsupported effect time option: " + it.key());
+}
+
+void decode_layer_effects(LayerPlan& layer, const nlohmann::json& value) {
+    if (!value.contains("effects")) return;
+
+    const auto& effects = value.at("effects");
+    if (!effects.is_array() || effects.size() > 64)
+        throw std::runtime_error("layer.effects must be an array of at most 64 entries");
+
+    for (const auto& raw_effect : effects) {
+        LayerPlan::EffectPlan effect;
+        const auto kind = decode_effect_kind(raw_effect.value("type", std::string{}));
+        if (raw_effect.contains("time"))
+            decode_effect_time(effect, raw_effect.at("time"));
+
+        const auto* decoder = find_effect_decoder(kind);
+        if (!decoder) throw std::runtime_error("unsupported layer effect type");
+        decoder->decode(effect, raw_effect);
+        layer.effects.push_back(std::move(effect));
     }
 }
 

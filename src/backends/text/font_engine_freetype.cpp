@@ -38,12 +38,11 @@ namespace chronon3d {
 
 namespace {
 bool is_invisible_codepoint(char32_t cp) noexcept {
-    if (cp <= 0x1F || (cp >= 0x7F && cp <= 0x9F)) return true;
-    if (cp == 0x20 || cp == 0xA0) return true;
-    if (cp == 0x2028 || cp == 0x2029) return true;
-    if (cp >= 0x2000 && cp <= 0x200D) return true;
-    if (cp == 0x202F || cp == 0x205F || cp == 0x2060) return true;
-    return cp == 0xFEFF;
+    return cp <= 0x20 ||
+        (cp >= 0x7F && cp <= 0xA0) ||
+        (cp >= 0x2000 && cp <= 0x200D) ||
+        (cp >= 0x2028 && cp <= 0x2029) ||
+        cp == 0x202F || cp == 0x205F || cp == 0x2060 || cp == 0xFEFF;
 }
 
 } // namespace

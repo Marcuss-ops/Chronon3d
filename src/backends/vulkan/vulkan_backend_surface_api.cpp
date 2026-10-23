@@ -5,9 +5,6 @@
 // vulkan_backend_operations_private.cpp, so touching this TU never recompiles
 // the kernel recording, descriptor or surface-store code.
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
-#include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
-#include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/scene/model/render/render_node.hpp>
 #include <spdlog/spdlog.h>
 
 #ifdef CHRONON3D_ENABLE_VULKAN

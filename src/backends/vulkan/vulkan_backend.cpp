@@ -1,10 +1,8 @@
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
-#include <chronon3d/render_graph/compiler/compiled_resource_table.hpp>
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
 #endif
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/scene/model/render/render_node.hpp>
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include "vulkan_backend_impl.hpp"
@@ -12,17 +10,12 @@
 
 #include <array>
 #include <algorithm>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <spdlog/spdlog.h>
-#include <cstring>
 #include <mutex>
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 

@@ -26,6 +26,9 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_validator.cpp
     validation/json_schema_diagnostic_adapter.cpp
     render_plan_compiler.cpp
+    render_plan_compiler_assets.cpp
+    render_plan_compiler_svg.cpp
+    render_plan_media_background.cpp
     render_plan_compiler_scene.cpp
     render_plan_compiler_scene_setup.cpp
     render_plan_compiler_shape.cpp

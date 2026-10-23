@@ -12,6 +12,19 @@
 #include <utility>
 
 namespace chronon3d::render_plan::detail {
+namespace {
+
+void reject_unused_field_operator_parameters(
+    const nlohmann::json& entry, std::initializer_list<std::string_view> allowed) {
+    constexpr std::array fields{"from", "to", "edge", "softness", "amount"};
+    for (const auto* field : fields) {
+        if (!entry.contains(field)) continue;
+        if (std::find(allowed.begin(), allowed.end(), field) == allowed.end())
+            throw std::runtime_error("field operator contains a parameter unused by its kind");
+    }
+}
+
+} // namespace
 
 graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
     graphics::Field2D field;
@@ -55,14 +68,8 @@ graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
         for (const auto& entry : raw.at("operators")) {
             graphics::Field2DOperator op;
             const auto kind = entry.at("kind").get<std::string>();
-            const auto reject = [&](std::initializer_list<const char*> allowed) {
-                for (const char* key : {"from", "to", "edge", "softness", "amount"})
-                    if (entry.contains(key) && std::none_of(allowed.begin(), allowed.end(),
-                        [&](const char* candidate) { return std::string_view(candidate) == key; }))
-                        throw std::runtime_error("field operator contains a parameter unused by its kind");
-            };
             if (kind == "remap") {
-                reject({"from", "to"});
+                reject_unused_field_operator_parameters(entry, {"from", "to"});
                 scalar_operator_seen = true;
                 op.kind = graphics::Field2DOperatorKind::Remap;
                 op.from = entry.value("from", 0.0f); op.to = entry.value("to", 1.0f);
@@ -71,14 +78,14 @@ graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
                     std::abs(op.to - op.from) < 1.0e-7f)
                     throw std::runtime_error("field remap requires distinct bounds in [0, 1]");
             } else if (kind == "threshold") {
-                reject({"edge"});
+                reject_unused_field_operator_parameters(entry, {"edge"});
                 scalar_operator_seen = true;
                 op.kind = graphics::Field2DOperatorKind::Threshold;
                 op.edge = entry.value("edge", 0.5f);
                 if (!std::isfinite(op.edge) || op.edge < 0.0f || op.edge > 1.0f)
                     throw std::runtime_error("field threshold edge must be in [0, 1]");
             } else if (kind == "smoothstep") {
-                reject({"edge", "softness"});
+                reject_unused_field_operator_parameters(entry, {"edge", "softness"});
                 scalar_operator_seen = true;
                 op.kind = graphics::Field2DOperatorKind::Smoothstep;
                 op.edge = entry.value("edge", 0.5f); op.softness = entry.value("softness", 0.1f);
@@ -86,11 +93,11 @@ graphics::Field2D decode_field2d_plan(const nlohmann::json& raw) {
                     !std::isfinite(op.softness) || op.softness <= 0.0f || op.softness > 1.0f)
                     throw std::runtime_error("field smoothstep requires edge [0,1] and softness (0,1]");
             } else if (kind == "invert") {
-                reject({});
+                reject_unused_field_operator_parameters(entry, {});
                 scalar_operator_seen = true;
                 op.kind = graphics::Field2DOperatorKind::Invert;
             } else if (kind == "warp") {
-                reject({"amount"});
+                reject_unused_field_operator_parameters(entry, {"amount"});
                 if (scalar_operator_seen || warp_seen)
                     throw std::runtime_error("field warp must occur once before scalar operators");
                 warp_seen = true;

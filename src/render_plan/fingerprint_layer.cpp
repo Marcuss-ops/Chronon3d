@@ -2,7 +2,9 @@
 
 namespace chronon3d::render_plan::fingerprint_detail {
 
-void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
+namespace {
+
+void add_layer_identity_and_mesh(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.id);
     out.add_enum(layer.type);
     add_optional(out, layer.flow_layout, [](auto& w, const LayerPlan::FlowLayoutPlan& p) {
@@ -97,6 +99,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                 for (const float value : position) out.add_float(value);
         }
     }
+}
+
+void add_layer_style_and_shape(CanonicalPlanWriter& out, const LayerPlan& layer) {
     if (!layer.text_spans.empty()) {
       out.add_size(layer.text_spans.size());
       for (const auto& span : layer.text_spans) {
@@ -473,6 +478,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
             }
         }
     }
+}
+
+void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& layer) {
     if (layer.particle_emitter) {
         const auto& particles = *layer.particle_emitter;
         out.add_uint64(particles.count);
@@ -846,7 +854,9 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
         out.add_string(track.param);
         add_track(out, track.track);
     }
+}
 
+void add_layer_transform_and_timing(CanonicalPlanWriter& out, const LayerPlan& layer) {
     for (const auto value : layer.size) out.add_float(value);
     out.add_size(layer.size_dimensions);
     for (const auto value : layer.color) out.add_float(value);
@@ -919,6 +929,15 @@ void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
                  [](auto& writer, float value) { writer.add_float(value); });
     out.add_bool(layer.loop);
     out.add_bool(layer.auto_orient);
+}
+
+} // namespace
+
+void add_layer(CanonicalPlanWriter& out, const LayerPlan& layer) {
+    add_layer_identity_and_mesh(out, layer);
+    add_layer_style_and_shape(out, layer);
+    add_layer_effects_and_masks(out, layer);
+    add_layer_transform_and_timing(out, layer);
 }
 
 } // namespace chronon3d::render_plan::fingerprint_detail
