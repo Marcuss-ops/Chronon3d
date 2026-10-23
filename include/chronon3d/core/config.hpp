@@ -7,8 +7,7 @@
 // CacheConfig, SchedulerConfig) are exposed via const accessors so callers
 // can consume only the section they need.
 //
-// The old singleton pattern (`Config::get()`) is deprecated.  Callers should
-// construct a Config instance via `from_environment()` and pass it explicitly
+// Construct a Config instance via `from_environment()` and pass it explicitly
 // (e.g. stored in SoftwareRenderer, threaded through RenderGraphContext).
 //
 // Thread-safe construction: the factory reads env vars once at call time.
