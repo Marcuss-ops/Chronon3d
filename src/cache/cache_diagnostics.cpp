@@ -38,12 +38,8 @@ CacheDiagnostics::Handle CacheDiagnostics::register_cache(
 }
 
 void CacheDiagnostics::unregister(CacheDomain domain, Entry* entry) {
-    // P1-10 sealed — single O(1) lookup path. The Handle carries the
-    // `domain` field set at registration time, so we never iterate the
-    // outer `m_entries` map. Old implementation was O(D) where D =
-    // number of distinct domains (~7–10 CacheDomain enum values);
-    // new implementation is O(1) average (unordered_map::find +
-    // unordered_set::find + unordered_set::erase).
+    // The Handle carries its registration domain, so removal looks up only
+    // that domain and entry instead of scanning every domain.
     std::unique_lock lock(m_mutex);
     auto dom_it = m_entries.find(domain);
     if (dom_it != m_entries.end()) {

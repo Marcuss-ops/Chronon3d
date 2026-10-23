@@ -45,11 +45,6 @@ make_software_backend(SoftwareBackendServices services) {
     // Canonical assert form: assert(ptr && "msg") keeps the static analyzer
     // quiet on the pointer value while carrying a descriptive label in
     // the diagnostic on failure.
-    // no longer exists on SoftwareBackendServices; processors are wired
-    // post-construction via attach_processor_context().
-    // TICKET-118: validation remains contractive; the removed ownership
-    // field is intentionally not part of this factory contract.
-
     // ── Release path: ordered validation matches the user spec:
     //    counters → settings → framebuffer_pool → asset_resolver → text_resources.
     if (services.counters == nullptr)

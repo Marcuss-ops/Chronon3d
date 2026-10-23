@@ -123,10 +123,7 @@ struct SoftwareBackendServices {
 
 struct SoftwareBackendServicesError {
     enum class Code : std::uint8_t {
-        // MissingOwner REMOVED in TICKET-118 — the back-pointer field
-        // no longer exists on SoftwareBackendServices.  Codes are
-        // renumbered for the remaining 5 REQUIRED services; the new
-        // values are stable for downstream regression-grep tests.
+        // These numeric values are stable diagnostic identifiers.
         MissingCounters         = 1,
         MissingSettings         = 2,
         MissingFramebufferPool  = 3,
@@ -134,7 +131,7 @@ struct SoftwareBackendServicesError {
         MissingTextResources    = 5,
     };
 
-    Code        code{Code::MissingCounters};   // default moved (was MissingOwner pre-TICKET-118)
+    Code        code{Code::MissingCounters};
     std::string field_name;    // mirrors the SoftwareBackendServices field name
     std::string message;       // free-form, never empty
 };

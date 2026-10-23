@@ -334,17 +334,6 @@ public:
     /// them would overwrite resident bytes.
     void begin_plan_batch(const runtime::CommandPlan& plan) override;
 
-    /// Phase 5 — pre-allocate every physical surface from the compiler's
-    /// interval-coloring plan.  Must be called once before the first frame
-    /// (after prepare()).  After this call, every `create_surface()` in the
-    /// frame loop is a direct handle→slot binding with zero vkCreateImage,
-    /// zero vkCreateImageView, and zero vkAllocateMemory calls.
-    ///
-    /// DEMOLISHED (P1.4): preallocate_plan_surfaces() no longer exists.
-    /// Native surface materialization happens lazily inside the
-    /// VulkanSurfaceAuthority; the compiled plan decides WHICH surfaces
-    /// exist, not an out-of-band preallocate hook.
-
     /// Open a replay slot.  The returned command buffer is ready for
     /// recording (VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT).  The caller
     /// records every pass for one compiled frame into it, then calls

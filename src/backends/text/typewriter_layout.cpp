@@ -1,19 +1,5 @@
-// ── Typewriter Layout ────────────────────────────────────────────────────────
-// Implementation of compute_typewriter_layout and
-// compute_single_line_glyph_layout.
-//
-// Provenance: extracted from the externalized content pack
-// (content/text/typewriter_layout.cpp, removed in 6e6905116) and restored to
-// core because the *types* it produces (TypewriterLayout,
-// TypewriterCharPos — see include/chronon3d/text/typewriter_layout_cache.hpp)
-// and the FontEngine::typewriter_layout_cache() consumer were never
-// externalized.  Core owned the contract but had lost its only producer —
-// the exact "half migration" shape the Chronon compatibility rule forbids.
-//
-// The still-supported call sites are the core test suite
-// (tests/text/test_text_quality_tracking.cpp,
-// tests/text/test_text_quality_arabic.cpp) and the externalized content
-// pack, which historically compiled its own copy.
+// Typewriter layout is core functionality: the public layout types and the
+// FontEngine cache are consumed by both the core renderer and content packs.
 
 #include <chronon3d/text/typewriter_layout.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>

@@ -64,13 +64,8 @@ namespace chronon3d::graph {
 
 // ── Asset existence checks ─────────────────────────────────────────
 
-// WP-8 PR 8.0 — typed engine-local resolution: resolver is now passed
-// in explicitly (no service-locator bridge).  Same 2-branch fallback
-// semantics as the original `runtime::typed_resolver_for_deep_code()`:
-// present → opt->string(), absent → raw relative (or empty for empty
-// input) so subsequent fs::exists walks the same legacy path it used
-// to.  Two runtimes with different resolver roots no longer
-// cross-contaminate asset-integrity results.
+// Resolve through the engine-local resolver. If resolution fails, preserve
+// the authored relative path (or empty input) for the existence check.
 static inline void check_shape_assets(
     const Shape& shape,
     const std::string& node_name,
