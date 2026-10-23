@@ -14,6 +14,8 @@
 
 #include <array>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <string>
 
@@ -156,6 +158,7 @@ TEST_CASE("inline mesh rejects missing, cross-typed, referenced, malformed, and 
     CHECK_FALSE(validate_render_plan(json).ok());
 
     json = base_mesh_plan();
+    json["layers"][0].erase("inline_mesh");
     json["layers"][0]["asset"] = "mesh.glb";
     CHECK_FALSE(validate_render_plan(json).ok());
 
@@ -286,8 +289,14 @@ TEST_CASE("inline mesh animation selects adjacent samples and preserves texture 
 
     auto plan = decode_render_plan(json);
     REQUIRE(plan);
+    const auto root = std::filesystem::temp_directory_path() /
+                      "chronon-inline-mesh-texture-test";
+    std::filesystem::create_directories(root);
+    std::ofstream(root / "portrait.png", std::ios::binary).put('\0');
     assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::absolute(root));
     const auto compiled = compiler::compile(*plan, resolver);
+    if (!compiled) INFO(compiled.error().message);
     REQUIRE(compiled);
     const auto scene = compiler::SceneMaterializer{}.materialize_scene(*compiled);
     REQUIRE(scene.layers().size() == 1);
