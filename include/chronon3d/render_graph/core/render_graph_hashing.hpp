@@ -811,6 +811,8 @@ private:
     seed = hash_combine(seed, hash_color(n.color));
     seed = hash_combine(seed, hash_fill(n.fill));
     seed = hash_combine(seed, hash_value(n.inline_mesh_material.has_value()));
+    seed = hash_combine(seed, hash_string(n.inline_mesh_texture_asset));
+    seed = hash_combine(seed, hash_value(n.inline_mesh_animated));
     if (n.inline_mesh_material) {
         seed = hash_combine(seed, hash_bytes(&n.inline_mesh_material->diffuse, sizeof(float)));
         seed = hash_combine(seed, hash_bytes(&n.inline_mesh_material->specular, sizeof(float)));

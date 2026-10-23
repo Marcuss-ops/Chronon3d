@@ -18,8 +18,8 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             return std::runtime_error("compiler lower_scene: inline mesh contract violation in layer '" + layer.id + "'");
         };
         if (layer.inline_mesh) {
-            if (layer.type != render_plan::LayerType::Mesh || !layer.asset.empty() ||
-                !layer.source.empty() || layer.inline_mesh->vertices.size() < 3 ||
+            if (layer.type != render_plan::LayerType::Mesh || !layer.source.empty() ||
+                layer.inline_mesh->vertices.size() < 3 ||
                 layer.inline_mesh->vertices.size() > render_plan::kInlineMeshMaxVertices ||
                 layer.inline_mesh->indices.size() < 3 ||
                 layer.inline_mesh->indices.size() > render_plan::kInlineMeshMaxIndices ||

@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/depth_buffer_pool.hpp>
 #include "../primitive_renderer.hpp"
@@ -39,7 +40,17 @@ public:
         }
 
         if (mesh_shape.inline_mesh) {
-            if (node.inline_mesh_material) {
+            if (!node.inline_mesh_texture_asset.empty()) {
+                if (!rctx.image_renderer)
+                    throw std::runtime_error("textured inline mesh requires the prepared image renderer");
+                const auto image = rctx.image_renderer->find_prepared_image(
+                    node.inline_mesh_texture_asset);
+                if (!image || !image->valid() || !image->fb_img)
+                    throw std::runtime_error("inline mesh texture was not prepared: " +
+                                             node.inline_mesh_texture_asset);
+                render_mesh_textured(fb, *mesh_shape.inline_mesh, state.matrix, view, projection,
+                    node_color, depth_buffer, *image->fb_img, camera.near_plane, camera.far_plane);
+            } else if (node.inline_mesh_material) {
                 Color base = node_color;
                 if (node.inline_mesh_material->base_color) {
                     const Color tint = node.inline_mesh_material->base_color->to_linear();

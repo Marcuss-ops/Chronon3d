@@ -266,7 +266,9 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     if (layer.type != LayerType::Image && layer.type != LayerType::Video &&
         value.contains("ocio_input_space"))
         throw std::runtime_error("ocio_input_space is only valid for image or video layers");
-    if (layer.type != LayerType::Image && value.contains("input_color_space"))
+    if (layer.type != LayerType::Image &&
+        !(layer.type == LayerType::Mesh && !layer.asset.empty()) &&
+        value.contains("input_color_space"))
         throw std::runtime_error("input_color_space is only valid for image layers");
     if (layer.input_color_space != "srgb" && layer.input_color_space != "linearsrgb" &&
         layer.input_color_space != "rec709" && layer.input_color_space != "displayp3")
@@ -281,9 +283,14 @@ LayerPlan decode_layer(const nlohmann::json& value) {
             value.at("animation").contains("tracks") && !value.at("animation").at("tracks").empty())
             throw std::runtime_error("mesh layers cannot contain per-vertex animation tracks");
     }
-    if (layer.type == LayerType::Mesh && (!layer.asset.empty() || !layer.source.empty()))
-        throw std::runtime_error("mesh layers use inline geometry and cannot also carry asset or source references");
+    if (layer.type == LayerType::Mesh && !layer.source.empty())
+        throw std::runtime_error("mesh layers cannot carry a video source reference");
     decode_layer_inline_mesh(layer, value);
+    if (layer.type == LayerType::Mesh && !layer.asset.empty() && !layer.inline_mesh)
+        throw std::runtime_error("mesh texture assets require inline_mesh geometry");
+    if (layer.type == LayerType::Mesh && !layer.asset.empty() &&
+        layer.input_color_space != "srgb")
+        throw std::runtime_error("inline mesh textures currently require srgb input_color_space");
     layer.text = value.value("text", std::string{});
     if (value.contains("text_counter")) {
         if (layer.type != LayerType::Text)

@@ -58,7 +58,9 @@ struct RequestedAsset {
         if (!path.empty()) result.push_back({std::string(path), kind});
     };
     for (const auto& layer : plan.layers) {
-        if (layer.type == render_plan::LayerType::Image) {
+        if (layer.type == render_plan::LayerType::Image ||
+            (layer.type == render_plan::LayerType::Mesh &&
+             layer.inline_mesh && !layer.asset.empty())) {
             add(layer.asset, PreparedAssetKind::Image);
         } else if (layer.type == render_plan::LayerType::Video) {
             add(layer.source, PreparedAssetKind::Video);

@@ -15,6 +15,7 @@ struct InlineMeshParams {
     std::string name{"inline_mesh"};
     std::vector<Vertex> vertices;
     std::vector<u32> indices;
+    std::string texture_asset;
 };
 
 }  // namespace chronon3d

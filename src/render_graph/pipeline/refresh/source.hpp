@@ -9,6 +9,7 @@
 
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <unordered_map>
 #include <string_view>
 
@@ -23,6 +24,7 @@ void refresh_source_node(
     const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
     const std::unordered_map<std::string_view, const RenderNode*>& root_nodes_by_name,
     const std::unordered_map<std::string, bool>& is_static_cache,
-    RenderGraphContext& ctx);
+    RenderGraphContext& ctx,
+    const compiler::SampledMeshParameters* sampled_mesh = nullptr);
 
 } // namespace chronon3d::graph::detail

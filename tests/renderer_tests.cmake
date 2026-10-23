@@ -35,6 +35,7 @@ chronon3d_add_test_suite(
         renderer/helpers/test_stroke_gradient_helpers.cpp
         renderer/mesh/test_inline_mesh_extrusion_canary.cpp
         renderer/mesh/test_mesh_roughness_map.cpp
+        renderer/mesh/test_textured_animated_inline_mesh.cpp
         renderer/lighting/test_depth_aware_shadows.cpp
         renderer/lighting/test_directional_lights.cpp
         renderer/lighting/test_light_context.cpp

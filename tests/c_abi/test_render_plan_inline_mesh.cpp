@@ -272,6 +272,40 @@ TEST_CASE("inline mesh bytes affect stable plan fingerprint and typed compiler I
     CHECK(scene.rim_light().enabled == plan.lighting_rig->rim_enabled);
 }
 
+TEST_CASE("inline mesh animation selects adjacent samples and preserves texture asset") {
+    auto json = base_mesh_plan();
+    json["layers"][0]["inline_mesh"]["animation"] = Json::array({
+        {{"frame", 0}, {"positions", {{-0.7, -0.6, 0.0}, {0.7, -0.6, 0.0}, {0.0, 0.7, 0.0}}}},
+        {{"frame", 10}, {"positions", {{-0.5, -0.6, 0.0}, {0.9, -0.6, 0.0}, {0.2, 0.7, 0.0}}}}
+    });
+    json["layers"][0]["asset"] = "portrait.png";
+    const auto decoded = decode_render_plan(json);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].inline_mesh);
+    CHECK(decoded->layers[0].asset == "portrait.png");
+
+    auto plan = decode_render_plan(json);
+    REQUIRE(plan);
+    assets::AssetResolver resolver;
+    const auto compiled = compiler::compile(*plan, resolver);
+    REQUIRE(compiled);
+    const auto scene = compiler::SceneMaterializer{}.materialize_scene(*compiled);
+    REQUIRE(scene.layers().size() == 1);
+    REQUIRE(scene.layers()[0].nodes.size() == 1);
+    CHECK(scene.layers()[0].nodes[0].inline_mesh_texture_asset == "portrait.png");
+    CHECK(scene.layers()[0].nodes[0].inline_mesh_animated);
+    const auto sampled = compiler::TypedProgramSampler{}.sample(*compiled, Frame{5});
+    REQUIRE(sampled.layers.size() == 1);
+    const auto* mesh = std::get_if<compiler::SampledMeshParameters>(&sampled.layers[0].payload);
+    REQUIRE(mesh);
+    CHECK(sampled.layers[0].dirty);
+    REQUIRE(mesh->animation_before);
+    REQUIRE(mesh->animation_after);
+    CHECK(mesh->animation_before->frame == 0);
+    CHECK(mesh->animation_after->frame == 10);
+    CHECK(mesh->animation_mix == doctest::Approx(0.5f));
+}
+
 TEST_CASE("V3 parametric mesh primitives expand deterministically within the raw mesh contract") {
     InlineMeshPrimitivePlan boxPrimitive;
     boxPrimitive.kind = "box";
