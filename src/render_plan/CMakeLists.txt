@@ -8,6 +8,9 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_relations_validator.cpp
     render_plan_decoder_support.cpp
     render_plan_decoder_layer.cpp
+    render_plan_decoder_layer_animation_validation.cpp
+    render_plan_decoder_layer_fields.cpp
+    render_plan_decoder_layer_timing.cpp
     render_plan_decoder_layer_support.cpp
     render_plan_decoder_effects.cpp
     inline_mesh_primitives.cpp
@@ -36,10 +39,18 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler_svg.cpp
     render_plan_compiler_svg_paths.cpp
     render_plan_compiler_svg_text.cpp
+    render_plan_compiler_svg_text_metrics.cpp
+    render_plan_compiler_svg_text_shape.cpp
+    render_plan_compiler_svg_text_runs.cpp
+    render_plan_compiler_svg_animations.cpp
+    render_plan_compiler_svg_mask.cpp
+    render_plan_compiler_svg_validation.cpp
     render_plan_media_background.cpp
     render_plan_compiler_scene.cpp
     render_plan_compiler_scene_setup.cpp
     render_plan_compiler_shape.cpp
+    render_plan_compiler_shape_imported.cpp
+    render_plan_compiler_shape_path.cpp
     render_plan_compiler_lottie.cpp
     render_plan_compiler_lottie_transform.cpp
     render_plan_compiler_animation.cpp

@@ -252,6 +252,82 @@ void decode_effect_parameter_tracks(LayerPlan& layer, const nlohmann::json& valu
     }
 }
 
+void decode_layer_text_counter(LayerPlan& layer, const nlohmann::json& value) {
+    if (value.contains("text_counter")) {
+        if (layer.type != LayerType::Text)
+            throw std::runtime_error("text_counter is only valid for text layers");
+        const auto& raw = value.at("text_counter");
+        if (!raw.is_object())
+            throw std::runtime_error("text_counter must be an object");
+        TextCounterPlan plan;
+        plan.token = raw.value("token", plan.token);
+        if (plan.token.empty() || plan.token.size() > 64 ||
+            layer.text.find(plan.token) == std::string::npos ||
+            layer.text.find(plan.token, layer.text.find(plan.token) + plan.token.size()) != std::string::npos)
+            throw std::runtime_error("text_counter token must occur exactly once in text and contain at most 64 bytes");
+        const auto& counter = raw.at("counter");
+        if (!counter.is_object())
+            throw std::runtime_error("text_counter.counter must be an object");
+        auto& target = plan.counter;
+        target.from = counter.at("from").get<float>();
+        target.to = counter.at("to").get<float>();
+        target.start_frame = Frame{counter.value("start_frame", std::int64_t{0})};
+        target.duration_frames = Frame{counter.value("duration_frames", std::int64_t{30})};
+        target.easing = counter.value("easing", std::string{"out_expo"});
+        target.format = counter.value("format", std::string{"plain"});
+        target.currency = counter.value("currency", std::string{"USD"});
+        target.decimals = counter.value("decimals", 0);
+        target.prefix = counter.value("prefix", std::string{});
+        target.suffix = counter.value("suffix", std::string{});
+        if (!std::isfinite(target.from) || !std::isfinite(target.to) ||
+            std::abs(target.from) > 1.0e12f || std::abs(target.to) > 1.0e12f ||
+            target.start_frame.integral() < 0 || target.start_frame.integral() > 1000000 ||
+            target.duration_frames.integral() < 1 || target.duration_frames.integral() > 1000000 ||
+            !is_counter_easing(target.easing) ||
+            (target.format != "plain" && target.format != "currency" &&
+             target.format != "percent" && target.format != "compact") ||
+            target.decimals < 0 || target.decimals > 6 || target.prefix.size() > 32 ||
+            target.suffix.size() > 32 || target.currency.size() > 8)
+            throw std::runtime_error("text_counter values are outside supported bounds");
+        if (static_cast<std::uint64_t>(target.start_frame.integral()) +
+                static_cast<std::uint64_t>(target.duration_frames.integral()) > 1000000U)
+            throw std::runtime_error("text_counter animation exceeds the supported frame limit");
+        layer.text_counter = std::move(plan);
+    }
+
+}
+
+void decode_layer_transform_fields(LayerPlan& layer, const nlohmann::json& value) {
+    if (value.contains("position")) {
+        const auto& position = value.at("position");
+        layer.position_dimensions = position.size();
+        for (std::size_t i = 0; i < position.size() && i < layer.position.size(); ++i) {
+            layer.position[i] = position.at(i).get<float>();
+            if (!std::isfinite(layer.position[i]))
+                throw std::runtime_error("layer.position components must be finite");
+        }
+    }
+
+    if (value.contains("scale")) {
+        const auto& scale = value.at("scale");
+        layer.scale_dimensions = scale.size();
+        for (std::size_t i = 0; i < scale.size() && i < layer.scale.size(); ++i)
+            layer.scale[i] = scale.at(i).get<float>();
+    }
+    if (value.contains("rotation")) {
+        const auto& rotation = value.at("rotation");
+        layer.rotation_dimensions = rotation.size();
+        for (std::size_t i = 0; i < rotation.size() && i < layer.rotation.size(); ++i)
+            layer.rotation[i] = rotation.at(i).get<float>();
+    }
+    layer.skew_angle_deg = value.value("skew", 0.0f);
+    layer.skew_axis_deg = value.value("skew_axis", 0.0f);
+    if (!std::isfinite(layer.skew_angle_deg) || std::abs(layer.skew_angle_deg) > 80.0f ||
+        !std::isfinite(layer.skew_axis_deg) || std::abs(layer.skew_axis_deg) > 1000000.0f)
+        throw std::runtime_error("layer skew and skew_axis are outside supported bounds");
+
+}
+
 void decode_layer_layout(LayerPlan& layer, const nlohmann::json& value) {
     const auto parse_layout_vec2 = [](const nlohmann::json& raw, const char* key) {
         const auto& v = raw.at(key);

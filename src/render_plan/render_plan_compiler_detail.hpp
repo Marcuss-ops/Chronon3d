@@ -21,6 +21,11 @@ namespace chronon3d { class FrameContext; }
 #include <string_view>
 #include <utility>
 
+namespace chronon3d {
+class FontEngine;
+namespace assets { class AssetResolver; }
+}
+
 namespace chronon3d::render_plan::detail {
 
 void materialize_media_background_cards(RenderPlan& plan);
@@ -54,15 +59,65 @@ struct SvgTextMetrics {
     std::optional<float> after_edge_baseline_offset;
 };
 
+[[nodiscard]] std::optional<PlanDecodeError> measure_svg_text_runs(
+    const std::vector<chronon3d::assets::SvgTextRun>& runs,
+    std::size_t layer_index,
+    chronon3d::assets::AssetResolver& resolver,
+    std::unique_ptr<chronon3d::FontEngine>& font_engine,
+    std::vector<SvgTextMetrics>& text_metrics);
+[[nodiscard]] std::optional<PlanDecodeError> shape_svg_text_runs(
+    const std::vector<chronon3d::assets::SvgTextRun>& runs,
+    const std::string& layer_id,
+    chronon3d::assets::AssetResolver& resolver,
+    std::unique_ptr<chronon3d::FontEngine>& font_engine,
+    std::vector<SvgTextMetrics>& text_metrics,
+    std::vector<bool>& text_chunk_boundary_safe);
+[[nodiscard]] std::optional<PlanDecodeError> append_svg_text_runs(
+    LayerPlan& layer, const RenderPlan& plan,
+    chronon3d::assets::AssetResolver& resolver, std::size_t layer_index,
+    ShapeContentPlan& shape,
+    const std::vector<chronon3d::assets::SvgTextRun>& text_runs,
+    const std::vector<chronon3d::assets::SvgStyledElement>& elements,
+    std::unique_ptr<chronon3d::FontEngine>& font_engine,
+    std::vector<SvgTextMetrics>& text_metrics,
+    const std::vector<bool>& text_chunk_boundary_safe,
+    std::vector<std::size_t>& current_text_layers,
+    std::vector<std::pair<chronon3d::assets::SvgTextRun, LayerPlan>>& pending_svg_text_layers,
+    std::vector<SvgTextMetrics>& pending_svg_text_metrics,
+    std::vector<bool>& pending_svg_text_boundary_before);
+
 [[nodiscard]] std::optional<PlanDecodeError> append_merged_svg_text_layers(
     RenderPlan& plan,
     std::vector<std::pair<chronon3d::assets::SvgTextRun, LayerPlan>>& pending_svg_text_layers,
     const std::vector<SvgTextMetrics>& pending_svg_text_metrics,
     const std::vector<bool>& pending_svg_text_boundary_before);
+[[nodiscard]] std::optional<PlanDecodeError> attach_svg_element_animations(
+    ShapeContentPlan& shape, std::size_t layer_index,
+    const std::vector<std::size_t>& current_text_layers,
+    std::vector<std::pair<chronon3d::assets::SvgTextRun, LayerPlan>>& pending_svg_text_layers);
+[[nodiscard]] std::optional<PlanDecodeError> apply_svg_document_mask(
+    LayerPlan& layer, const std::optional<chronon3d::PathShape>& vector_mask,
+    std::size_t layer_index);
+[[nodiscard]] std::optional<PlanDecodeError> validate_svg_path_operator_targets(
+    const ShapeContentPlan& shape, std::size_t layer_index);
 
 void append_shape_layer(chronon3d::LayerBuilder& builder,
                         const LayerPlan& layer, const RenderPlan& plan,
                         const chronon3d::FrameContext& ctx);
+void configure_shape_path_gradient_fill(
+    chronon3d::Fill& fill, const graphics::GradientDefinition& gradient);
+void append_path_shape(chronon3d::LayerBuilder& builder,
+                       const LayerPlan& layer, const RenderPlan& plan,
+                       const chronon3d::FrameContext& ctx,
+                       const ShapeContentPlan& shape, Vec2 size, Color base_color,
+                       const std::optional<graphics::GradientDefinition>& active_gradient,
+                       const std::optional<graphics::Field2D>& sampled_field,
+                       const graphics::StrokeStyle& stroke);
+void append_imported_svg_paths(chronon3d::LayerBuilder& builder,
+                               const RenderPlan& plan,
+                               const chronon3d::FrameContext& ctx,
+                               const ShapeContentPlan& shape,
+                               Color base_color);
 
 struct FollowPathEvaluators {
     std::function<chronon3d::Vec3(double)> position;

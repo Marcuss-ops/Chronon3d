@@ -39,6 +39,9 @@ struct SvgGradientSpec {
 using SvgGradientMap = std::map<std::string, SvgGradientSpec>;
 
 [[nodiscard]] Affine2 parse_transform(std::string_view text);
+[[nodiscard]] bool parse_svg_gradient_reference(const std::string& text, std::string& id);
+[[nodiscard]] std::optional<Affine2> parse_viewbox_transform(
+    const boost::property_tree::ptree& node);
 [[nodiscard]] Vec2 transform_point(const Affine2& transform, Vec2 point);
 [[nodiscard]] std::string primitive_path_data(
     const std::string& name, const boost::property_tree::ptree& node);

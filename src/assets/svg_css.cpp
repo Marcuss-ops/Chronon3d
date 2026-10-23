@@ -11,6 +11,19 @@
 #include <vector>
 
 namespace chronon3d::assets::svg_loader_detail {
+float style_number(const std::map<std::string, std::string>& style,
+                   const char* key, float fallback) {
+    const auto it = style.find(key);
+    if (it == style.end()) return fallback;
+    try {
+        return std::clamp(std::stof(it->second), 0.0f, 1.0f);
+    } catch (const std::invalid_argument&) {
+        return fallback;
+    } catch (const std::out_of_range&) {
+        return fallback;
+    }
+}
+
 std::vector<float> transform_numbers(std::string_view text) {
     static const std::regex number(R"([-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?)");
     std::vector<float> values;
