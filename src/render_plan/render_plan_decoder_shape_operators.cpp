@@ -2,6 +2,8 @@
 #include <chronon3d/render_plan/shape_path_generator.hpp>
 #include <chronon3d/scene/model/shape/path_operator.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
