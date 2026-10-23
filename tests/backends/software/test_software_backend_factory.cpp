@@ -165,10 +165,9 @@ TEST_CASE("make_software_backend: TICKET-118 contractive-removal of owner is vis
     // mandatory: MissingOwner Code has been removed (renumbered to
     // MissingCounters=1, ..., MissingTextResources=5).
     CHECK_FALSE(source_contains("MissingOwner"));
-    // narrative marker — the source comment line announcing the
-    // contractive removal must be present so a future maintainer can
-    // grep for the TICKET header quickly.
-    CHECK(source_contains("TICKET-118"));
+    // The implementation documents the single release-path validation
+    // contract; keep this current behavior marker instead of a stale ticket tag.
+    CHECK(source_contains("release-path `if (...) return err(...)` IS the unique"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
