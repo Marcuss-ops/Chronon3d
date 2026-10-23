@@ -57,6 +57,39 @@
         "CMAKE_EXE_LINKER_FLAGS": "-fuse-ld=mold",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;ipc"
       }
+    },
+    {
+      "name": "linux-render-fast-native",
+      "inherits": "base-linux",
+      "displayName": "Linux Render Fast (native CPU, opt-in)",
+      "description": "Host-specific render performance candidate: Release -O3, -march=native and IPO/LTO. Do not distribute these binaries; compare against the portable release preset before adopting any speed claim.",
+      "binaryDir": "${sourceDir}/build/chronon/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_FLAGS_RELEASE": "-O3 -DNDEBUG -march=native",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG -march=native",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_TRACING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-render-fast-native",
+      "configurePreset": "linux-render-fast-native",
+      "targets": ["chronon3d_cli"],
+      "jobs": 14
     }
   ]
 }

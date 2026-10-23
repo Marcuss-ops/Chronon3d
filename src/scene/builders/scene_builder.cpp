@@ -1,15 +1,4 @@
-// ── A4 — suppressed deprecation warnings: the .at()/.rotate()/etc.
-// implementations are the canonical bodies for the deprecated methods.
-
 #include <chronon3d/scene/builders/scene_builder.hpp>
-
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#elif defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable: 4996)
-#endif
 #include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/layout/layout_solver.hpp>
 
@@ -130,9 +119,3 @@ SceneBuilder& SceneBuilder::clip_transition(std::string name_a, std::string name
 }
 
 } // namespace chronon3d
-
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#elif defined(_MSC_VER)
-#pragma warning(pop)
-#endif

@@ -184,17 +184,8 @@ void attach_software_backend(
         throw std::runtime_error("backend selection failed: " + error.message);
     }
 
-    // Fase C2 — attach_backend() is [[deprecated]] for public consumers.
-    // This bridge is the canonical internal orchestration path; suppress
-    // the deprecation warning so CI stays clean.
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
+    // This internal bridge is the canonical backend attachment path.
     runtime.attach_backend(resolved.take_value());
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
     renderer->attach_execution_context(
         make_software_execution_context(renderer, runtime));

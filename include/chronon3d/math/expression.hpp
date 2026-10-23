@@ -31,7 +31,7 @@ public:
                      const ExpressionContext* ctx = nullptr,
                      ExpressionState* state = nullptr)
         : m_expr(expr)
-        , m_legacy_vars(vars)
+        , m_vars(vars)
         , m_ctx(ctx)
         , m_state(state)
         , m_has_context(ctx != nullptr) {}
@@ -292,6 +292,12 @@ private:
     }
 
     double resolve_variable(const std::string& ident) {
+        // Constants are valid with and without an ExpressionContext.
+        if (ident == "true")  return 1.0;
+        if (ident == "false") return 0.0;
+        if (ident == "PI")    return 3.14159265358979323846;
+        if (ident == "E")     return 2.71828182845904523536;
+
         if (m_has_context) {
             // AE-standard variables
             if (ident == "time")          return m_ctx->time;
@@ -322,28 +328,12 @@ private:
                 return 0.0;
             }
 
-            // True/false
-            if (ident == "true")  return 1.0;
-            if (ident == "false") return 0.0;
-            if (ident == "PI")    return 3.14159265358979323846;
-            if (ident == "E")     return 2.71828182845904523536;
-
-            // Fallback to legacy vars
-            auto it = m_legacy_vars.find(ident);
-            if (it != m_legacy_vars.end()) return it->second;
-
-            m_error = true;
-            return 0.0;
         }
 
-        // Legacy path — also recognize constants
-        if (ident == "true")  return 1.0;
-        if (ident == "false") return 0.0;
-        if (ident == "PI")    return 3.14159265358979323846;
-        if (ident == "E")     return 2.71828182845904523536;
-
-        auto it = m_legacy_vars.find(ident);
-        if (it != m_legacy_vars.end()) return it->second;
+        // Both public APIs provide custom variables through this one map.
+        // Context values above take precedence, followed by one map lookup.
+        auto it = m_vars.find(ident);
+        if (it != m_vars.end()) return it->second;
         m_error = true;
         return 0.0;
     }
@@ -533,7 +523,7 @@ private:
     }
 
     std::string_view m_expr;
-    const std::unordered_map<std::string, double>& m_legacy_vars;
+    const std::unordered_map<std::string, double>& m_vars;
     const ExpressionContext* m_ctx;
     ExpressionState* m_state;
     bool m_has_context;
