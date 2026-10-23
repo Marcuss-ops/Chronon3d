@@ -7,19 +7,10 @@
 
 namespace chronon3d::renderer {
 
-// ── PR1: prepare_stroke_contours ────────────────────────────────────
-// Apply trim + dash once for the whole draw_path call, so the per-pixel
-// hot loop can iterate flat prepared data without re-allocating or
-// re-running any geometry preprocessing.  This MUST keep observable
-// behaviour identical to the legacy code that called trim/dash inside
-// the per-pixel loop:
-//   1. if `pts.size() < 2` the contour contributes an empty entry,
-//   2. when trim returns empty we fall back to the original points
-//      (legacy `pts = trimmed.empty() ? contour.points : trimmed`),
-//   3. only subpaths with `size() >= 2` survive into visible_subpaths,
-//   4. repeated_start / unique_count are pre-computed per subpath
-//      using the same closed gate as the legacy pixel loop
-//      (`no_dash && contour.closed`).
+// Prepare trim and dash once per draw, outside the per-pixel loop. Preserve
+// the stroke contract: short contours stay empty, an empty trim keeps the
+// source points, visible subpaths need at least two points, and closed
+// undashed paths retain their repeated-start handling.
 
 f32 segment_coverage(Vec2 p, Vec2 a, Vec2 b, f32 radius_start, f32 radius_end) {
     const Vec2 ab = b - a;
