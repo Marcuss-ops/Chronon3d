@@ -15,6 +15,40 @@
 #include <utility>
 #include <vector>
 namespace chronon3d::render_plan::detail {
+namespace {
+
+LayoutFlow make_layout_flow(const LayerPlan::FlowLayoutPlan& plan) {
+    LayoutFlow flow;
+    flow.group_id = plan.group_id;
+    flow.main_axis = plan.axis == "column" ? Axis::Column : Axis::Row;
+    flow.gap = plan.gap;
+    flow.wrap = plan.wrap;
+    flow.cell_size = {plan.cell_size[0], plan.cell_size[1]};
+    flow.align = plan.align == "center" ? AlignItems::Center
+        : plan.align == "end" ? AlignItems::End
+        : plan.align == "stretch" ? AlignItems::Stretch : AlignItems::Start;
+    flow.justify = plan.justify == "center" ? JustifyContent::Center
+        : plan.justify == "end" ? JustifyContent::End
+        : plan.justify == "space_between" ? JustifyContent::SpaceBetween
+        : plan.justify == "space_around" ? JustifyContent::SpaceAround
+        : plan.justify == "space_evenly" ? JustifyContent::SpaceEvenly
+        : JustifyContent::Start;
+    return flow;
+}
+
+LayoutGrid make_layout_grid(const LayerPlan::GridLayoutPlan& plan) {
+    LayoutGrid grid;
+    grid.group_id = plan.group_id;
+    grid.columns = plan.columns;
+    grid.rows = plan.rows;
+    grid.fit = plan.fit == "fixed_rows" ? GridFit::FixedRows
+        : plan.fit == "fixed_columns" ? GridFit::FixedColumns : GridFit::Auto;
+    grid.gap = {plan.gap[0], plan.gap[1]};
+    grid.cell_size = {plan.cell_size[0], plan.cell_size[1]};
+    return grid;
+}
+
+} // namespace
 std::function<chronon3d::Scene(const chronon3d::FrameContext&)>
 make_scene_evaluator(SceneMaterializationInputs inputs) {
     return [plan = std::move(inputs.plan),
@@ -46,21 +80,10 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                     if (layer.casts_shadows) builder.casts_shadows(*layer.casts_shadows);
                     if (layer.accepts_shadows) builder.accepts_shadows(*layer.accepts_shadows);
                 }
-                if (layer.flow_layout) {
-                    const auto& p=*layer.flow_layout; LayoutFlow flow;
-                    flow.group_id=p.group_id; flow.main_axis=p.axis=="column"?Axis::Column:Axis::Row;
-                    flow.gap=p.gap; flow.wrap=p.wrap; flow.cell_size={p.cell_size[0],p.cell_size[1]};
-                    flow.align=p.align=="center"?AlignItems::Center:p.align=="end"?AlignItems::End:p.align=="stretch"?AlignItems::Stretch:AlignItems::Start;
-                    flow.justify=p.justify=="center"?JustifyContent::Center:p.justify=="end"?JustifyContent::End:p.justify=="space_between"?JustifyContent::SpaceBetween:p.justify=="space_around"?JustifyContent::SpaceAround:p.justify=="space_evenly"?JustifyContent::SpaceEvenly:JustifyContent::Start;
-                    builder.flow_layout(std::move(flow));
-                }
-                if (layer.grid_layout) {
-                    const auto& p=*layer.grid_layout; LayoutGrid grid;
-                    grid.group_id=p.group_id; grid.columns=p.columns; grid.rows=p.rows;
-                    grid.fit=p.fit=="fixed_rows"?GridFit::FixedRows:p.fit=="fixed_columns"?GridFit::FixedColumns:GridFit::Auto;
-                    grid.gap={p.gap[0],p.gap[1]}; grid.cell_size={p.cell_size[0],p.cell_size[1]};
-                    builder.grid_layout(std::move(grid));
-                }
+                if (layer.flow_layout)
+                    builder.flow_layout(make_layout_flow(*layer.flow_layout));
+                if (layer.grid_layout)
+                    builder.grid_layout(make_layout_grid(*layer.grid_layout));
                 // Image textures carry their own color.  2.5D projection
                 // changes their pose, not their albedo, so keep them out
                 // of the scene lighting pass (which otherwise grays light

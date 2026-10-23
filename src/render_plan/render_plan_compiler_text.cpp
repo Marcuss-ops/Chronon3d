@@ -3,12 +3,142 @@
 #include <chronon3d/render_plan/color_utils.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/text/animated_text_document.hpp>
+#include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/scene/builders/text_run_materialization.hpp>
 
+#include <cmath>
+#include <cstdint>
+#include <memory>
+#include <vector>
+#include <filesystem>
+#include <iomanip>
+#include <locale>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace chronon3d::render_plan::detail {
+
+PreparedTextLayers prepare_text_layers(
+    const RenderPlan& plan, chronon3d::assets::AssetResolver& resolver,
+    const chronon3d::CanvasInfo& canvas,
+    const std::shared_ptr<chronon3d::FontEngine>& font_engine) {
+    std::vector<std::optional<chronon3d::PreparedText>> prepared_texts(
+        plan.layers.size());
+    std::vector<std::shared_ptr<const chronon3d::AnimatedTextDocument>> prepared_text_counters(
+        plan.layers.size());
+    std::vector<std::optional<chronon3d::Vec2>> prepared_text_bounds(
+        plan.layers.size());
+    const auto assets_root = resolver.mount_root();
+    chronon3d::TextCompileServices text_compile_services{
+        font_engine.get(), nullptr,
+        assets_root.empty() ? std::filesystem::path{}
+                            : assets_root / "fonts"};
+    for (std::size_t index = 0; index < plan.layers.size(); ++index) {
+        const auto& layer = plan.layers[index];
+        if (layer.type != LayerType::Text) continue;
+        auto definition = materialize_text(layer, canvas);
+        if (!definition.style.font.font_path.empty()) {
+            const auto resolved = resolver.resolve_logical(
+                std::filesystem::path(definition.style.font.font_path));
+            if (!resolved) {
+                throw std::runtime_error(
+                    "font asset was not prepared: " +
+                    definition.style.font.font_path);
+            }
+            definition.style.font.font_path = resolved->string();
+        }
+        if (layer.text_counter) {
+            const auto& counter = layer.text_counter->counter;
+            AnimationTrackPlan value_track;
+            value_track.property = "text_counter";
+            value_track.easing = counter.easing;
+            value_track.keyframes = {
+                {counter.start_frame, {counter.from}},
+                {counter.start_frame + counter.duration_frames, {counter.to}}};
+            chronon3d::AnimatedTextDocument animated;
+            const auto replace_token = [&](float value) {
+                double magnitude = value;
+                std::string compact_suffix;
+                if (counter.format == "percent") magnitude *= 100.0;
+                if (counter.format == "compact") {
+                    const double absolute = std::abs(magnitude);
+                    if (absolute >= 1.0e9) { magnitude /= 1.0e9; compact_suffix = "B"; }
+                    else if (absolute >= 1.0e6) { magnitude /= 1.0e6; compact_suffix = "M"; }
+                    else if (absolute >= 1.0e3) { magnitude /= 1.0e3; compact_suffix = "K"; }
+                }
+                std::ostringstream formatted;
+                formatted.imbue(std::locale::classic());
+                formatted << std::fixed << std::setprecision(counter.decimals) << magnitude;
+                std::string number = formatted.str();
+                if (counter.decimals == 0)
+                    number = std::to_string(static_cast<std::int64_t>(std::llround(magnitude)));
+                if (counter.format == "percent") number += "%";
+                else if (counter.format == "currency") {
+                    const std::string symbol = counter.currency == "USD" ? "$" :
+                        counter.currency == "EUR" ? "€" : counter.currency == "GBP" ? "£" : counter.currency + " ";
+                    number = symbol + number;
+                } else if (counter.format == "compact") number += compact_suffix;
+                return counter.prefix + number + counter.suffix;
+            };
+            const auto fill_value = [&](float value) {
+                auto target = definition;
+                const auto found = target.content.value.find(layer.text_counter->token);
+                target.content.value.replace(found, layer.text_counter->token.size(), replace_token(value));
+                const auto token_start = found;
+                const auto token_end = found + layer.text_counter->token.size();
+                const auto replacement_size = target.content.value.size() -
+                    (definition.content.value.size() - layer.text_counter->token.size());
+                const auto delta = static_cast<std::int64_t>(replacement_size) -
+                    static_cast<std::int64_t>(layer.text_counter->token.size());
+                for (auto& span : target.spans) {
+                    if (span.byte_end <= token_start) continue;
+                    if (span.byte_start < token_end)
+                        throw std::runtime_error("text_counter token cannot overlap styled text spans");
+                    const auto shifted_start = static_cast<std::int64_t>(span.byte_start) + delta;
+                    const auto shifted_end = static_cast<std::int64_t>(span.byte_end) + delta;
+                    if (shifted_start < 0 || shifted_end < shifted_start)
+                        throw std::runtime_error("text_counter span shift overflow");
+                    span.byte_start = static_cast<std::size_t>(shifted_start);
+                    span.byte_end = static_cast<std::size_t>(shifted_end);
+                }
+                return target;
+            };
+            for (std::int64_t offset = 0;
+                 offset <= counter.duration_frames.integral(); ++offset) {
+                const Frame frame = counter.start_frame + Frame{offset};
+                const float value = detail::evaluate_scalar_track(
+                    value_track, static_cast<double>(frame.integral()),
+                    counter.from, plan.canvas.fps);
+                const auto definition_at_frame = fill_value(value);
+                chronon3d::SourceTextKeyframe key;
+                key.frame = frame;
+                key.document = chronon3d::to_text_document(definition_at_frame);
+                animated.add_keyframe(std::move(key));
+            }
+            const auto to_definition = fill_value(counter.to);
+            prepared_text_counters[index] =
+                std::make_shared<const chronon3d::AnimatedTextDocument>(std::move(animated));
+            definition = to_definition;
+        }
+        prepared_texts[index] = chronon3d::prepare_text(definition);
+        if ((layer.style && layer.style->background) || layer.safe_insets) {
+            auto measured = chronon3d::compile_text_layout(
+                *prepared_texts[index], text_compile_services);
+            if (!measured)
+                throw std::runtime_error(
+                    "text card layout failed for layer '" + layer.id + "': " +
+                    measured.error().message);
+            prepared_text_bounds[index] = measured.value()->bounds;
+        }
+    }
+    return {std::move(prepared_texts), std::move(prepared_text_counters),
+            std::move(prepared_text_bounds)};
+}
 
 void apply_text_glow(chronon3d::LayerBuilder& builder, const LayerPlan& layer) {
     if (!layer.style || !layer.style->glow) return;

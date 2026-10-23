@@ -9,7 +9,6 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
-#include <initializer_list>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -18,6 +17,30 @@
 
 namespace chronon3d::render_plan::detail {
 namespace {
+
+using namespace std::string_view_literals;
+
+ShapeContentTypePlan decode_shape_type(std::string_view name) {
+    using Shape = ShapeContentTypePlan;
+    static constexpr std::array types{
+        std::pair{"rect"sv, Shape::Rect},
+        std::pair{"rounded_rect"sv, Shape::RoundedRect},
+        std::pair{"ellipse"sv, Shape::Ellipse},
+        std::pair{"line"sv, Shape::Line},
+        std::pair{"path"sv, Shape::Path},
+        std::pair{"star"sv, Shape::Star},
+        std::pair{"polygon"sv, Shape::Polygon},
+        std::pair{"arrow"sv, Shape::Arrow},
+        std::pair{"arc"sv, Shape::Arc},
+        std::pair{"grid"sv, Shape::Grid},
+        std::pair{"dot_grid"sv, Shape::DotGrid},
+        std::pair{"dotgrid"sv, Shape::DotGrid},
+        std::pair{"device_frame"sv, Shape::DeviceFrame},
+    };
+    for (const auto& [name_value, type] : types)
+        if (name == name_value) return type;
+    throw std::runtime_error("unsupported shape.type: " + std::string(name));
+}
 
 graphics::GradientMesh decode_gradient_mesh(const nlohmann::json& value) {
     graphics::GradientMesh mesh;
@@ -71,20 +94,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
     if (value.contains("shape")) {
         const auto& raw_shape = value.at("shape");
         ShapeContentPlan shape;
-        const auto shape_type = raw_shape.at("type").get<std::string>();
-        if (shape_type == "rect") shape.type = ShapeContentTypePlan::Rect;
-        else if (shape_type == "rounded_rect") shape.type = ShapeContentTypePlan::RoundedRect;
-        else if (shape_type == "ellipse") shape.type = ShapeContentTypePlan::Ellipse;
-        else if (shape_type == "line") shape.type = ShapeContentTypePlan::Line;
-        else if (shape_type == "path") shape.type = ShapeContentTypePlan::Path;
-        else if (shape_type == "star") shape.type = ShapeContentTypePlan::Star;
-        else if (shape_type == "polygon") shape.type = ShapeContentTypePlan::Polygon;
-        else if (shape_type == "arrow") shape.type = ShapeContentTypePlan::Arrow;
-        else if (shape_type == "arc") shape.type = ShapeContentTypePlan::Arc;
-        else if (shape_type == "grid") shape.type = ShapeContentTypePlan::Grid;
-        else if (shape_type == "dot_grid" || shape_type == "dotgrid") shape.type = ShapeContentTypePlan::DotGrid;
-        else if (shape_type == "device_frame") shape.type = ShapeContentTypePlan::DeviceFrame;
-        else throw std::runtime_error("unsupported shape.type: " + shape_type);
+        shape.type = decode_shape_type(raw_shape.at("type").get<std::string>());
         if (raw_shape.contains("asset")) {
             if (shape.type != ShapeContentTypePlan::Path || raw_shape.contains("path"))
                 throw std::runtime_error("shape.asset is only valid for path shapes and cannot be combined with path commands");

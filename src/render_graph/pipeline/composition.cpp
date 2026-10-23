@@ -29,67 +29,13 @@
 #include <hwy/highway.h>
 
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Refactor 6 rationale — composition.cpp is intentionally kept whole.
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// The user's original plan suggested splitting this file into:
-//     composition_pipeline.cpp / scene_graph_builder.cpp /
-//     frame_graph_compile_stage.cpp / render_execution_stage.cpp /
-//     render_output_stage.cpp / pipeline_diagnostics.cpp
-//
-// After review we decided NOT to split. The file is ONE function
-// (`render_compiled_composition_frame`) with three control-flow branches that
-// share state throughout the call:
-//
-//   * single-frame render (no motion blur)
-//   * temporal accumulation  (N sub-frames pooled into the same buffer)
-//   * SSAA downsample + final return
-//
-// The branches are NOT distinct pipeline stages. They share:
-//   - `render_fb`            (accumulator becomes the final output in
-//                             the temporal branch — same pooled buffer
-//                             pool::acquire on entry, returned on exit)
-//   - `samples`, `actual_weight_sum`, `sample_times`
-//                            (only used in the temporal branch but
-//                             declared at function scope so they can be
-//                             hoisted if needed)
-//   - profiling counters     (CHRONON_TRACE_SCOPE slices wrap each branch's
-//                             hot path; moving them across files would
-//                             break the parent-slice hierarchy)
-//   - the engine pointer      (`frame_engine` is forwarded to
-//                             `Composition::evaluate` from both branches
-//                             for textual consistency)
-//
-// A 6-file pipeline-stage split would require shuttling 10+ parameters
-// (render_fb, samples, sum_w, telemetry, ssaa state, h, rw, rh, …) across
-// ABI seams. The CMotionBlur reciprocal-multiply normalisation explicitly
-// applies `1 / actual_weight_sum` to the SAME buffer that holds the
-// accumulated sub-frames — separating "accumulate" from "normalise" into
-// distinct Tuples would force a full-frame copy pass that the in-place
-// path explicitly avoids for memory-bandwidth reasons (~66 MiB at 1080p
-// ssaa=1, ~264 MiB at ssaa=2 / 4K).
-//
-// Decision: leave this file whole. If a future profiler flags a hotspot
-// in a SPECIFIC sub-section (e.g. SSAA downsample only) we'll address it
-// surgically, not as an across-the-board split.
-// ═══════════════════════════════════════════════════════════════════════════
+// Temporal accumulation and SSAA share the frame buffer and profiling scopes.
+// Keep their ordering together so accumulation can normalize in place.
 
 namespace chronon3d::graph {
 
-// PR1 — Sub-sample generation has been centralised in
-//   chronon3d::temporal::generate_temporal_samples(...)
-// (include/chronon3d/animation/temporal/temporal_samples.hpp).
-//
-// The previous local helpers `motion_blur_jitter()`, `motion_blur_filter_weight()`,
-// and the inline Halton sequence were deleted because they duplicated the
-// canonical temporal sample generator.
-//
-// The shutter-window geometry:
-//   exposure_norm   = shutter_angle_deg / 360.0          ∈ (0, 1+]
-//   window_start    = phase_deg / 360.0
-//   sub_frame_u     = (s + 0.5 + jitter) / num_samples    ∈ [0, 1]
-// sum_i w_i = 1.0 (premultiplied-RGBA-correct accumulation).
+// Motion-blur samples use the shared temporal sampler. The shutter window is
+// [phase / 360, (phase + shutter_angle) / 360].
 
 std::shared_ptr<Framebuffer> render_compiled_composition_frame_temporal(
     RenderBackend& backend,

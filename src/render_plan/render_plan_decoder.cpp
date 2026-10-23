@@ -34,6 +34,41 @@ bool has_explicit_3d_vector(const nlohmann::json& layer, const char* key) {
            layer.at(key).size() >= 3;
 }
 
+std::optional<chronon3d::render_plan::PlanDecodeError>
+find_unregistered_animation_property(const nlohmann::json& root) {
+    if (!root.is_object() || !root.contains("layers") || !root.at("layers").is_array())
+        return std::nullopt;
+
+    const auto& layers = root.at("layers");
+    for (std::size_t layer_index = 0; layer_index < layers.size(); ++layer_index) {
+        const auto& layer = layers[layer_index];
+        if (!layer.is_object() || !layer.contains("animation")) continue;
+        const auto& animation = layer.at("animation");
+        if (!animation.is_object() || !animation.contains("tracks") ||
+            !animation.at("tracks").is_array()) continue;
+
+        const auto& tracks = animation.at("tracks");
+        for (std::size_t track_index = 0; track_index < tracks.size(); ++track_index) {
+            const auto& track = tracks[track_index];
+            if (!track.is_object() || !track.contains("property") ||
+                !track.at("property").is_string()) continue;
+
+            const auto property = track.at("property").get<std::string>();
+            if (chronon3d::render_plan::find_animation_property(property)) continue;
+
+            std::string message = "unregistered property '" + property + "'";
+            if (const auto nearest = chronon3d::render_plan::nearest_animation_property_name(property);
+                !nearest.empty())
+                message += "; did you mean '" + std::string{nearest} + "'?";
+            return chronon3d::render_plan::PlanDecodeError{
+                "layers[" + std::to_string(layer_index) + "].animation.tracks[" +
+                    std::to_string(track_index) + "].property",
+                std::move(message)};
+        }
+    }
+    return std::nullopt;
+}
+
 struct ResolvedVariables {
     nlohmann::json plan;
     std::vector<std::string> unused;
@@ -137,31 +172,8 @@ Result<RenderPlan, PlanDecodeError> decode_render_plan(const nlohmann::json& roo
         return PlanDecodeError{"camera_animation",
             "camera_animation is retired; lower the camera to resolved camera_samples in ChrononMotion3D",
             "camera_animation_retired", "render-plan-decoder"};
-    // Check the canonical layer-track inventory before JSON Schema so callers
-    // get the registered property's actionable diagnostic instead of only an
-    // enum mismatch from the structural validator.
-    if (resolved_root.is_object() && resolved_root.contains("layers") &&
-        resolved_root.at("layers").is_array()) {
-        for (std::size_t layer_index = 0; layer_index < resolved_root.at("layers").size(); ++layer_index) {
-            const auto& layer = resolved_root.at("layers")[layer_index];
-            if (!layer.is_object() || !layer.contains("animation") ||
-                !layer.at("animation").is_object() || !layer.at("animation").contains("tracks") ||
-                !layer.at("animation").at("tracks").is_array()) continue;
-            const auto& tracks = layer.at("animation").at("tracks");
-            for (std::size_t track_index = 0; track_index < tracks.size(); ++track_index) {
-                const auto& track = tracks[track_index];
-                if (!track.is_object() || !track.contains("property") ||
-                    !track.at("property").is_string()) continue;
-                const auto property = track.at("property").get<std::string>();
-                if (find_animation_property(property)) continue;
-                std::string message = "unregistered property '" + property + "'";
-                if (const auto nearest = nearest_animation_property_name(property); !nearest.empty())
-                    message += "; did you mean '" + std::string{nearest} + "'?";
-                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].animation.tracks[" +
-                    std::to_string(track_index) + "].property", std::move(message)};
-            }
-        }
-    }
+    if (const auto error = find_unregistered_animation_property(resolved_root))
+        return *error;
     const auto validation = validate_render_plan(resolved_root);
     if (!validation.ok())
         return PlanDecodeError{"", validation.format()};

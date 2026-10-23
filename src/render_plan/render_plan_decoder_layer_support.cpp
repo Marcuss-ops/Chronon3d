@@ -55,6 +55,28 @@ LayerPlan::StaggerPlan decode_stagger(const nlohmann::json& raw) {
     return plan;
 }
 
+void decode_layer_follow_path(LayerPlan& layer, const nlohmann::json& value) {
+    if (!value.contains("follow_path")) return;
+
+    const auto& raw = value.at("follow_path");
+    LayerPlan::FollowPathDriverPlan driver;
+    if (raw.contains("path_id")) driver.path_id = raw.at("path_id").get<std::string>();
+    if (raw.contains("path_commands"))
+        driver.path_commands = decode_follow_path_commands(raw.at("path_commands"));
+    driver.progress = decode_animation_track(raw.at("progress"));
+    driver.progress.property = "follow_path_progress";
+    for (const auto& key : driver.progress.keyframes)
+        if (key.value.size() != 1 || !std::isfinite(key.value.front()))
+            throw std::runtime_error("follow_path progress values must be finite scalars");
+
+    driver.auto_orient = raw.value("auto_orient", false);
+    driver.offset_deg = raw.value("offset_deg", 0.0f);
+    driver.clamp_end = raw.value("clamp_end", true);
+    if (!std::isfinite(driver.offset_deg) || std::abs(driver.offset_deg) > 1000000.0f)
+        throw std::runtime_error("follow_path offset_deg is outside supported bounds");
+    layer.follow_path = std::move(driver);
+}
+
 std::vector<ShapePathCommandPlan> decode_follow_path_commands(const nlohmann::json& raw) {
     if (!raw.is_array() || raw.size() < 2 || raw.size() > 65536)
         throw std::runtime_error("follow_path path_commands must contain 2..65536 commands");

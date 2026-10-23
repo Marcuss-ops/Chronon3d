@@ -21,6 +21,14 @@ namespace chronon3d::backends::vulkan {
 
 namespace {
 
+template <typename Result>
+void throw_if_transfer_failed(const Result& result, std::string_view operation) {
+    if (!result.ok())
+        throw std::runtime_error(
+            "Vulkan CPU fallback " + std::string(operation) + " failed: " +
+            result.error().message);
+}
+
 bool try_native_path_stroke(
     VulkanBackend& backend, Framebuffer& framebuffer,
     const RenderNode& node, const RenderState& state);
@@ -752,15 +760,11 @@ void sync_gpu_to_cpu(VulkanBackend& backend, Framebuffer& fb) {
     if (fb.stride() == w) {
         std::span<float> dst(reinterpret_cast<float*>(fb.data()), static_cast<std::size_t>(w) * h * 4);
         const auto result = backend.download_surface(handle, dst);
-        if (!result.ok()) {
-            throw std::runtime_error("Vulkan CPU fallback readback failed: " + result.error().message);
-        }
+        throw_if_transfer_failed(result, "readback");
     } else {
         std::vector<float> packed(static_cast<std::size_t>(w) * h * 4);
         const auto result = backend.download_surface(handle, packed);
-        if (!result.ok()) {
-            throw std::runtime_error("Vulkan CPU fallback readback failed: " + result.error().message);
-        }
+        throw_if_transfer_failed(result, "readback");
         FramebufferCopyAuthority::copy_rows(
             fb.pixels_row(0), fb.stride(),
             reinterpret_cast<const Color*>(packed.data()), w, w, h);
@@ -787,9 +791,7 @@ void sync_cpu_to_gpu(VulkanBackend& backend, Framebuffer& fb) {
     if (fb.stride() == w) {
         std::span<const float> src(reinterpret_cast<const float*>(fb.data()), static_cast<std::size_t>(w) * h * 4);
         const auto result = backend.upload_surface(handle, desc, src);
-        if (!result.ok()) {
-            throw std::runtime_error("Vulkan CPU fallback upload failed: " + result.error().message);
-        }
+        throw_if_transfer_failed(result, "upload");
     } else {
         std::vector<float> packed(static_cast<std::size_t>(w) * h * 4);
         for (std::size_t y = 0; y < static_cast<std::size_t>(h); ++y) {
@@ -797,9 +799,7 @@ void sync_cpu_to_gpu(VulkanBackend& backend, Framebuffer& fb) {
             std::memcpy(packed.data() + y * static_cast<std::size_t>(w) * 4, row, static_cast<std::size_t>(w) * sizeof(Color));
         }
         const auto result = backend.upload_surface(handle, desc, packed);
-        if (!result.ok()) {
-            throw std::runtime_error("Vulkan CPU fallback upload failed: " + result.error().message);
-        }
+        throw_if_transfer_failed(result, "upload");
     }
     fb.mark_gpu_authoritative();
 }

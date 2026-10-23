@@ -10,7 +10,6 @@
 
 #include <cmath>
 #include <algorithm>
-#include <limits>
 #include <array>
 #include <cstdint>
 #include <string_view>
@@ -18,7 +17,6 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <unordered_map>
 #include <unordered_set>
 
 namespace chronon3d::render_plan::detail {
@@ -36,25 +34,7 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     LayerPlan layer;
     layer.id = value.at("id").get<std::string>();
     layer.type = layer_type(value.at("type").get<std::string>());
-    if (value.contains("follow_path")) {
-        const auto& raw = value.at("follow_path");
-        LayerPlan::FollowPathDriverPlan driver;
-        if (raw.contains("path_id")) driver.path_id = raw.at("path_id").get<std::string>();
-        if (raw.contains("path_commands"))
-            driver.path_commands = decode_follow_path_commands(raw.at("path_commands"));
-        driver.progress = decode_animation_track(raw.at("progress"));
-        driver.progress.property = "follow_path_progress";
-        for (const auto& key : driver.progress.keyframes) {
-            if (key.value.size() != 1 || !std::isfinite(key.value.front()))
-                throw std::runtime_error("follow_path progress values must be finite scalars");
-        }
-        driver.auto_orient = raw.value("auto_orient", false);
-        driver.offset_deg = raw.value("offset_deg", 0.0f);
-        driver.clamp_end = raw.value("clamp_end", true);
-        if (!std::isfinite(driver.offset_deg) || std::abs(driver.offset_deg) > 1000000.0f)
-            throw std::runtime_error("follow_path offset_deg is outside supported bounds");
-        layer.follow_path = std::move(driver);
-    }
+    decode_layer_follow_path(layer, value);
     decode_layer_layout(layer, value);
     if (value.contains("transition_in")) layer.transition_in = decode_transition(value.at("transition_in"));
     if (value.contains("transition_out")) layer.transition_out = decode_transition(value.at("transition_out"));
