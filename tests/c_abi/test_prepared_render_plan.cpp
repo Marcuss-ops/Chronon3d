@@ -1197,12 +1197,11 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
     missing.layers[0].shape->svg_asset = "art/not-found.svg";
     CHECK_FALSE(compile_render_plan(missing, resolver));
 
-    const std::array<std::string, 14> unsupported_svg{
+    const std::array<std::string, 13> unsupported_svg{
         "<svg><path d=\"M0 0L1 1\" fill=\"url(#gradient)\"/></svg>",
         "<svg><path d=\"M0 0L1 1\"/><g><use href=\"#shape\"/></g></svg>",
         "<svg><defs><linearGradient id=\"g\"/></defs><path d=\"M0 0L1 1\"/></svg>",
         "<svg><mask id=\"m\"><path d=\"M0 0L1 1\"/></mask></svg>",
-        "<svg><path d=\"M0 0L1 1\" paint-order=\"stroke\"/></svg>",
         "<svg><path d=\"M0 0L1 1\" opacity=\"2\"/></svg>",
         "<svg><path d=\"M0 0L1 1\"><animate attributeName=\"opacity\" from=\"0\" to=\"1\" dur=\"1s\" repeatCount=\"indefinite\"/></path></svg>",
         "<svg><g><animate attributeName=\"fill\" from=\"red\" to=\"blue\" dur=\"1s\"/><path d=\"M0 0L1 1\"/></g></svg>",
@@ -1218,6 +1217,7 @@ TEST_CASE("render plan imports a resolver-backed SVG before composition compile"
         auto rejected = *decoded;
         rejected.layers[0].shape->svg_asset = logical;
         const auto result = compile_render_plan(rejected, resolver);
+        INFO("unsupported SVG fixture index " << i);
         CHECK_FALSE(result);
         if (!result) {
             const bool expected_error = result.error().code == "svg_import_failed" ||

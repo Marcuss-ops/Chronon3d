@@ -44,7 +44,6 @@ std::optional<PlanDecodeError> append_svg_imported_elements(
             return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                 "SVG isolated group nesting exceeds the depth limit of 16",
                 "svg_resource_limit", "render-plan-svg"};
-        const double svg_fps = svg_fps;
         const auto frame_at_time = [&](float seconds) -> std::optional<std::int64_t> {
             const double frame = static_cast<double>(seconds) * svg_fps;
             const double rounded = std::round(frame);
