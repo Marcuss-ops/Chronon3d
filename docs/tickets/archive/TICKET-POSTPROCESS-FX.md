@@ -117,3 +117,5 @@ margin-plumbing paths that `Glow`/`Bloom` expansion regimes own.
 - streak: horizontal elongation, vertical invariance, intensity clamp,
 - GPU capability rows fail closed with a diagnostic,
 - animatable-parameter whitelist membership.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — RESOLVED (2026-10-20), nessun lavoro aperto.

@@ -45,3 +45,5 @@ checks performed for this closeout.
   Decoder mask tests pass (6 cases / 56 assertions), graph source sampling
   passes (1 case / 4 assertions), and ordered mask composition passes (1 case /
   8 assertions), including transformed source coordinates.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — RESOLVED (2026-10-20), nessun lavoro aperto.

@@ -80,3 +80,5 @@ including a static-mesh contract expectation evaluated without the mesh
 feature and font-dependent fixture failures. The full render-graph suite has one
 deterministic golden hash mismatch (`0x1ec334584fada888` versus the checked-in
 `0x65304b41dbf40d8f`); its other 420 cases passed.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — RESOLVED (2026-10-20), nessun lavoro aperto.

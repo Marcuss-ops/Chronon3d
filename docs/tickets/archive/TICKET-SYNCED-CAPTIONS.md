@@ -33,3 +33,5 @@ fails with a typed CLI error.
 ## Demolition Debt
 No new parser or timing engine is introduced. The adapter collector remains the
 single format-dispatch point; the CLI lowering is the canonical boundary.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — COMPLETE, nessun lavoro aperto.

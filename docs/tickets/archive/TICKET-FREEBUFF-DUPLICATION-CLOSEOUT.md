@@ -84,3 +84,5 @@ aggiornato: la suite cache passa integralmente.
    liste pubbliche camera/frame in un input aggregato. Prima di cambiare API,
    censire consumer esterni, compatibilità e impatto ABI; nessuna rimozione è
    autorizzata dal closeout corrente.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — CLOSED, nessun lavoro aperto.

@@ -54,3 +54,5 @@ existing mux timebase to preserve current A/V synchronization.
   parity against the pre-mixed-source path.
 - **Removal scope:** Temporary pre-mix source, subprocess bridge and its option.
 - **Status:** ACTIVE.
+
+**Stato finale:** ARCHIVIATO (2026-10-23) — COMPLETE, nessun lavoro aperto.
