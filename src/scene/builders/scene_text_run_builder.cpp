@@ -398,7 +398,7 @@ std::shared_ptr<const PreparedTextRun> prepare_text_run(
     const PreparedText normalized = text_internal::normalize_prepared_text(prepared);
     const std::string& text = normalized.document.utf8;
 
-    // Early-out for empty / whitespace-only input (mirror the legacy path).
+    // Skip empty or whitespace-only input.
     const bool only_whitespace =
         text.empty() ||
         std::all_of(text.begin(), text.end(),

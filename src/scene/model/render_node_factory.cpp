@@ -197,38 +197,6 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // include/chronon3d/scene/model/render/render_node_factory.hpp
 // and shared with LayerBuilder::build() and RenderNodeFactory::text_run().
 
-// ── M1.5#9 steps 2-4 — RenderNodeFactory::text() (DONE) ─────────────────
-//
-// Refactor: `text(...)` now wraps the supplied `TextDefaults` into a
-// `PreparedText` and delegates to `materialize_prepared_text(...)`,
-// the single canonical materializer shared with `text_run()` and
-// `LayerBuilder::build()`.  The legacy text-shape code path
-// that built a `TextShape` (paint / shadows / material / font fields /
-// style.{...}/ box.{...}) is REMOVED from this factory.  Step 3
-// (M1.5#9) dropped the orphan `create_text_processor()` + factory
-// registration in builtin_processors.cpp; step 4 (P1-7 Chore 1
-// commit A) deleted the legacy `software_text_processor` directory
-// tree wholesale (8 files).  Step 5 (next chore) deletes the legacy
-// rasterizer infrastructure (`src/backends/text/text_render_resources_cache.cpp`
-// + `Blend2DResources` + `FtGlyphPathBuilder` + `rasterize_text_to_bl_image`).
-//
-// Back-compat: existing 3-arg callers `text(res, name, TextDefaults)`
-// still compile and behave identically for non-materialization
-// properties (anchor, position, color, fill, layout.box-derived
-// transform).  Materialization of paint / shadows / material / font
-// glyphs is now ROUTED through `materialize_prepared_text` so
-// downstream consumers see a unified `TextRunShapeHandle` (variant
-// index 14).  When `engine == nullptr` the materializer logs an
-// `spdlog::error` and returns nullptr — the factory still produces a
-// RenderNode with `ShapeType::TextRun` + null `text_run_shape_handle()
-// .value` so the renderer-side source-pass routes the entry to
-// TextRunNode which surfaces the missing-shape diagnostic.
-//
-// World-transform / fill mirror the legacy fields that used to be
-// carried on TextShape::style: `p.position`, `p.layout.box` (for
-// anchor resolution), `p.layout.anchor` (TextAnchor enum), and
-// `p.appearance.color` (carry color + solid fill).  These are
-// independent of the materializer's runtime work.
 RenderNode RenderNodeFactory::text(
     std::pmr::memory_resource* res,
     std::string name,
@@ -237,23 +205,10 @@ RenderNode RenderNodeFactory::text(
 ) {
     auto node = base(res, std::move(name));
 
-    // M1.5#9 step 2: switch to ShapeType::TextRun + delegate to the
-    // canonical materializer.  All paint / shadows / material fields
-    // that previously lived on TextShape::style are now routed into
-    // TextRunShape::paint/material/shadows at materialization time.
+    // Text paint and material are attached by the shared text-run materializer.
     node.shape.set_type(ShapeType::TextRun);
 
-    // ── Read all legacy scalar/string fields BEFORE std::move(p) ──
-    // World-transform (independent of materialization).  These mirror
-    // the legacy fields that used to live on TextShape::{style,box}
-    // so authoring pipeline still resolves text positioning correctly
-    // even when materialization fails (e.g. engine == nullptr).
-    //
-    // ORDERING INVARIANT: read `p.layout.{anchor,box}` and
-    // `p.placement` and `p.appearance.{color,shadows,paint,material}`
-    // HERE, before the std::move(p) into run_spec below.
-    // Reordering breaks world_transform resolution (the source TextDefaults
-    // members would be moved-from by the time these reads happen).
+    // Capture transform and color before moving content into the run spec.
     const TextAnchor   box_anchor = p.layout.anchor;
     const Vec2         box_size   = p.layout.box;
     const Vec3         world_pos  = Vec3{p.placement.offset.x, p.placement.offset.y, 0.0f};
@@ -275,13 +230,7 @@ RenderNode RenderNodeFactory::text(
     node.color = text_color;
     node.fill  = Fill::solid_color(text_color);
 
-    // ── Delegate to canonical materializer ──
-    //
-    // Wrap the legacy TextDefaults into the unified PreparedText transport.
-    // cache_layout=true
-    // mirrors the TextRunBuilder default; animators/selectors are
-    // empty for the simple text() path (callers wanting animated
-    // text should use `text_run()` or `LayerBuilder::text_run(...)`).
+    // Adapt simple text defaults to the common materialization input.
     TextDefinition definition;
     definition.content = std::move(p.content);
     definition.spans = std::move(p.spans);
