@@ -28,6 +28,7 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler.cpp
     render_plan_compiler_assets.cpp
     render_plan_compiler_svg.cpp
+    render_plan_compiler_svg_text.cpp
     render_plan_media_background.cpp
     render_plan_compiler_scene.cpp
     render_plan_compiler_scene_setup.cpp
