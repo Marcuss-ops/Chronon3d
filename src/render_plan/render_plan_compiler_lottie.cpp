@@ -970,6 +970,12 @@ std::optional<std::string> decode_lottie_paints(
             stroke_opacity_tracks.push_back(std::move(paint.opacity_animation));
             stroke_width_tracks.push_back(std::move(width_animation));
         }
+        paints.fill_paints = std::move(fill_paints);
+        paints.fill_gradients = std::move(fill_gradients);
+        paints.stroke_styles = std::move(stroke_styles);
+        paints.stroke_color_tracks = std::move(stroke_color_tracks);
+        paints.stroke_opacity_tracks = std::move(stroke_opacity_tracks);
+        paints.stroke_width_tracks = std::move(stroke_width_tracks);
     return std::nullopt;
 }
 
