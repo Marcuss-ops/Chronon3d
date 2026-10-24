@@ -41,6 +41,7 @@ if(CHRONON3D_BUILD_C_API)
     )
     add_library(chronon3d_c SHARED
         ${CMAKE_SOURCE_DIR}/src/c_api/chronon3d_c_api.cpp
+        ${CMAKE_SOURCE_DIR}/src/c_api/chronon3d_c_api_render.cpp
     )
     target_include_directories(chronon3d_c
         PUBLIC
