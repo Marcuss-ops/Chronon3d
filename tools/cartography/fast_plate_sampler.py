@@ -53,6 +53,40 @@ class FastPlateSampler:
         # frame took the fast path.
         self.fallback_count = 0
         self.opencl_plates = None
+        # OpenCL commands are asynchronous. Reuse two ordered resize surfaces
+        # for level sampling, but retain one distinct destination per queued
+        # frame until the encoder has read it back. The dynamic-map harness
+        # drains batches of 16 frames before beginning the next batch.
+        self._opencl_resize_scratch: dict[tuple[int, int], tuple[cv2.UMat, cv2.UMat]] = {}
+        self._opencl_outputs: list[cv2.UMat] = []
+        self._opencl_outputs_size: tuple[int, int] | None = None
+        self._opencl_output_cursor = 0
+        self._opencl_batch_active = False
+
+    def begin_opencl_frame_batch(self, frame_count: int,
+                                 width: int | None = None,
+                                 height: int | None = None) -> None:
+        """Prepare distinct reusable output surfaces for one ordered GPU batch."""
+        if frame_count <= 0:
+            raise ValueError("OpenCL frame batch must contain at least one frame")
+        if not cv2.ocl.useOpenCL():
+            raise RuntimeError("OpenCL must be active before allocating frame surfaces")
+        size = (self.W if width is None else int(width),
+                self.H if height is None else int(height))
+        if size[0] <= 0 or size[1] <= 0:
+            raise ValueError("OpenCL frame surface dimensions must be positive")
+        if len(self._opencl_outputs) != frame_count or self._opencl_outputs_size != size:
+            self._opencl_outputs = [
+                cv2.UMat(size[1], size[0], cv2.CV_8UC3) for _ in range(frame_count)
+            ]
+            self._opencl_outputs_size = size
+        self._opencl_output_cursor = 0
+        self._opencl_batch_active = True
+
+    def end_opencl_frame_batch(self) -> None:
+        """Release the batch contract after all frame destinations were read."""
+        self._opencl_batch_active = False
+        self._opencl_output_cursor = 0
 
     def prepare_opencl(self) -> int:
         """Upload prepared map plates once so per-frame crops stay on GPU."""
@@ -97,7 +131,24 @@ class FastPlateSampler:
         if self.opencl_plates is None:
             raise RuntimeError("OpenCL map plates were not uploaded")
 
-        def resize_level(z: int, scale: float):
+        if self._opencl_batch_active:
+            if self._opencl_outputs_size != (W, H):
+                raise RuntimeError("OpenCL frame batch dimensions changed before readback")
+            if self._opencl_output_cursor >= len(self._opencl_outputs):
+                raise RuntimeError("OpenCL frame batch exhausted before its queued outputs were drained")
+            output = self._opencl_outputs[self._opencl_output_cursor]
+            self._opencl_output_cursor += 1
+        else:
+            # Preserve the standalone sampler contract: callers may retain
+            # several returned frames without opening the encoder's batch API.
+            output = cv2.UMat(H, W, cv2.CV_8UC3)
+        scratch_key = (W, H)
+        scratch = self._opencl_resize_scratch.get(scratch_key)
+        if scratch is None:
+            scratch = (cv2.UMat(H, W, cv2.CV_8UC3), cv2.UMat(H, W, cv2.CV_8UC3))
+            self._opencl_resize_scratch[scratch_key] = scratch
+
+        def resize_level(z: int, scale: float, dst: cv2.UMat):
             w = int(round(W / scale)) + 4
             h = int(round(H / scale)) + 4
             anchor_px = latlon_to_global_px(lat, lon, z)
@@ -111,13 +162,14 @@ class FastPlateSampler:
                     break
             if crop is None:
                 raise RuntimeError(f"OpenCL map sample has no prepared plate at zoom {z}")
-            return cv2.resize(crop, (W, H), interpolation=cv2.INTER_LINEAR)
+            return cv2.resize(crop, (W, H), dst=dst, interpolation=cv2.INTER_LINEAR)
 
-        lo = resize_level(z_lo, 2.0 ** t)
+        needs_blend = alpha > 0.001 and z_lo + 1 <= self.z_max
+        lo = resize_level(z_lo, 2.0 ** t, scratch[0] if needs_blend else output)
         if alpha <= 0.001 or z_lo + 1 > self.z_max:
             return lo
-        hi = resize_level(z_lo + 1, 2.0 ** (t - 1.0))
-        return cv2.addWeighted(lo, 1.0 - alpha, hi, alpha, 0.0)
+        hi = resize_level(z_lo + 1, 2.0 ** (t - 1.0), scratch[1])
+        return cv2.addWeighted(lo, 1.0 - alpha, hi, alpha, 0.0, dst=output)
 
     # -- the one-time cost ---------------------------------------------------
     MAX_PLATE_W = 9000   # ~145 MB per level; beyond this the union plate of
