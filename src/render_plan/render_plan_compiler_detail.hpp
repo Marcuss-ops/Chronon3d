@@ -159,6 +159,35 @@ struct SceneMaterializationInputs {
     std::vector<FollowPathEvaluators> follow_path_evaluators;
     std::string resolved_ocio_config_path;
 };
+void append_image_layer_for_scene(
+    chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&,
+    const std::string& resolved_ocio_config_path);
+void append_video_layer_for_scene(
+    chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&, std::size_t,
+    const std::vector<std::string>& resolved_video_paths,
+    const std::string& resolved_ocio_config_path);
+void append_color_layer_for_scene(
+    chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&,
+    const chronon3d::FrameContext&);
+void append_particles_layer_for_scene(
+    chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&, std::size_t,
+    const std::vector<std::string>& resolved_particle_sprite_paths,
+    const chronon3d::FrameContext&);
+void append_light_layer_for_scene(
+    chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&,
+    const chronon3d::FrameContext&,
+    std::vector<chronon3d::rendering::PointLightSource>&);
+void append_mesh_layer_for_scene(
+    chronon3d::LayerBuilder&, const LayerPlan&, const chronon3d::FrameContext&);
+void append_shape_layer_for_scene(
+    chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&,
+    const chronon3d::FrameContext&);
+void append_text_layer_for_scene(
+    chronon3d::LayerBuilder&, const LayerPlan&, const RenderPlan&, std::size_t,
+    const std::vector<std::optional<chronon3d::PreparedText>>&,
+    const std::vector<std::shared_ptr<const chronon3d::AnimatedTextDocument>>&,
+    const std::vector<std::optional<chronon3d::Vec2>>&,
+    const std::shared_ptr<chronon3d::FontEngine>&);
 void configure_scene_camera_and_lighting(
     chronon3d::SceneBuilder&, const RenderPlan&, bool,
     const CameraTrackEvaluator&,

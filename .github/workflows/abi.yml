@@ -46,14 +46,14 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
       - name: Configure current hardened release
-        run: cmake --preset linux-hardened-release
+        run: cmake --preset linux-hardened-release -DCHRONON3D_BUILD_C_API=ON
 
       - name: Build current C ABI shared library
         run: cmake --build --preset linux-hardened-release --target chronon3d_c -j12
 
       - name: Configure pinned ABI baseline
         working-directory: abi-baseline
-        run: cmake --preset linux-hardened-release
+        run: cmake --preset linux-hardened-release -DCHRONON3D_BUILD_C_API=ON
 
       - name: Build pinned C ABI baseline
         working-directory: abi-baseline
