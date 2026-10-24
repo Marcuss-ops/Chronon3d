@@ -319,9 +319,9 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
     // it must never merge two initialized carriers whose bytes came from the
     // host or another external producer.
     auto& plan_slot_allocations = m_impl->plan_slot_allocations_scratch_;
-    if (plan_slot_allocations.size() < resources.slots.size())
-        plan_slot_allocations.resize(resources.slots.size());
-    for (auto& indices : plan_slot_allocations) indices.clear();
+    auto& slot_offsets = m_impl->plan_slot_allocation_offsets_scratch_;
+    auto& slot_cursor = m_impl->plan_slot_allocation_cursor_scratch_;
+    slot_offsets.assign(resources.slots.size() + 1, 0);
     for (std::size_t allocation_index = 0;
          allocation_index < resources.allocations.size(); ++allocation_index) {
         const auto& allocation = resources.allocations[allocation_index];
@@ -348,7 +348,19 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
             throw std::logic_error(
                 "Vulkan compiled allocation attempts to claim an explicitly unplanned surface");
         }
-        plan_slot_allocations[allocation.physical_slot].push_back(allocation_index);
+        ++slot_offsets[allocation.physical_slot + 1];
+    }
+    for (std::size_t slot = 0; slot < resources.slots.size(); ++slot)
+        slot_offsets[slot + 1] += slot_offsets[slot];
+    slot_cursor.assign(slot_offsets.begin(), slot_offsets.end() - 1);
+    plan_slot_allocations.resize(resources.allocations.size());
+    for (std::size_t allocation_index = 0;
+         allocation_index < resources.allocations.size(); ++allocation_index) {
+        const auto& allocation = resources.allocations[allocation_index];
+        const auto slot = allocation.physical_slot;
+        if (allocation.surface != runtime::kInvalidRenderSurfaceHandle &&
+            slot != invalid_slot && slot < resources.slots.size())
+            plan_slot_allocations[slot_cursor[slot]++] = allocation_index;
     }
 
     // Fresh backend slots live after every slot already handed out by the
@@ -358,13 +370,16 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
 
     auto& slot_map = m_impl->plan_slot_map_scratch_;
     slot_map.assign(resources.allocations.size(), invalid_slot);
-    for (const auto& allocation_indices : plan_slot_allocations) {
-        if (allocation_indices.empty()) continue;
+    for (std::size_t plan_slot = 0; plan_slot < resources.slots.size(); ++plan_slot) {
+        const auto first_allocation = slot_offsets[plan_slot];
+        const auto last_allocation = slot_offsets[plan_slot + 1];
+        if (first_allocation == last_allocation) continue;
 
         auto& carriers = m_impl->plan_carriers_scratch_;
         carriers.clear();
-        carriers.reserve(allocation_indices.size());
-        for (const auto allocation_index : allocation_indices) {
+        carriers.reserve(last_allocation - first_allocation);
+        for (auto position = first_allocation; position < last_allocation; ++position) {
+            const auto allocation_index = plan_slot_allocations[position];
             const auto handle = resources.allocations[allocation_index].surface;
             const auto binding = store.surface_bindings.find(handle);
             if (binding == store.surface_bindings.end()) continue;
@@ -398,7 +413,8 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
             }
             auto& deferred_producers = m_impl->plan_deferred_producers_scratch_;
             deferred_producers.clear();
-            for (const auto allocation_index : allocation_indices) {
+            for (auto position = first_allocation; position < last_allocation; ++position) {
+                const auto allocation_index = plan_slot_allocations[position];
                 if (slot_map[allocation_index] != invalid_slot) continue;
                 const auto& request = resources.requests.at(
                     resources.allocations[allocation_index].request_index);
@@ -445,7 +461,8 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
             const auto carrier_slot = store.surface_bindings.at(
                 resources.allocations[carrier_index].surface);
             slot_map[carrier_index] = carrier_slot;
-            for (const auto allocation_index : allocation_indices) {
+            for (auto position = first_allocation; position < last_allocation; ++position) {
+                const auto allocation_index = plan_slot_allocations[position];
                 if (allocation_index == carrier_index) continue;
                 const auto& carrier_request = resources.requests.at(
                     resources.allocations[carrier_index].request_index);
@@ -460,7 +477,8 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
         } else {
             // Preserve an existing logical binding where possible. This keeps
             // repeated plans stable and avoids growing the backend slot set.
-            for (const auto allocation_index : allocation_indices) {
+            for (auto position = first_allocation; position < last_allocation; ++position) {
+                const auto allocation_index = plan_slot_allocations[position];
                 const auto binding = store.surface_bindings.find(
                     resources.allocations[allocation_index].surface);
                 if (binding != store.surface_bindings.end()) {
@@ -468,7 +486,8 @@ void VulkanBackend::begin_plan_batch(const runtime::CommandPlan& plan) {
                     break;
                 }
             }
-            for (const auto allocation_index : allocation_indices) {
+            for (auto position = first_allocation; position < last_allocation; ++position) {
+                const auto allocation_index = plan_slot_allocations[position];
                 if (slot_map[allocation_index] == invalid_slot) {
                     deferred_producers.push_back(allocation_index);
                 }

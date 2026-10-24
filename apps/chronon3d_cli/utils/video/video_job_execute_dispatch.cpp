@@ -4,6 +4,7 @@
 #include "encoder_config_resolution.hpp"
 #include "encoder_bitstream_contract.hpp"
 #include "gop_target_contract.hpp"
+#include "ffmpeg_profile_constants.hpp"
 #include "../../commands/video/common/pipe_export_helpers.hpp"
 #include "../../commands/video/common/pipe_export_pipeline.hpp"
 #include "../../commands/video/exporters/pipe_export_pipeline_internal.hpp"
@@ -165,7 +166,7 @@ bool execute_direct_mux_gop_plan(
     // the optimization and let the normal encoder produce one High stream
     // for the complete clip (audio can still be copied from gop_source).
     if (declared->codec == AV_CODEC_ID_H264 &&
-        declared->profile != FF_PROFILE_H264_HIGH) {
+        declared->profile != ffmpeg_profile::h264_high) {
         reason = "source_profile_not_assembly_ready";
         return false;
     }
@@ -456,15 +457,6 @@ bool execute_direct_mux_gop_plan(
         reason = "output_verification_failed";
         discard_partial();
         return false;
-    }
-    // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): publish the probe + digest
-    // this verification already computed so the receipt builder never
-    // re-inspects the same bytes (the rename below preserves them).
-    if (execution) {
-        execution->observed_output.probe = verification.probe_facts;
-        execution->observed_output.sha256 = verification.sha256;
-        execution->observed_output.probe_ms = verification.ffprobe_ms;
-        execution->observed_output.sha256_ms = verification.sha256_ms;
     }
 
     std::error_code rename_ec;
@@ -786,10 +778,6 @@ int render_and_encode_ffmpeg(
 
     auto* device_scheduler = execution ? execution->device_scheduler : nullptr;
     auto video_runtimes = execution ? execution->video_runtimes : nullptr;
-    // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): keep the context reachable
-    // after the move so the export boundary's probe + digest can be published
-    // for the receipt builder (one probe, one digest per artifact).
-    auto observed_sink = execution;
     auto result = render_and_encode_native(
         registry, compiled, composition_id,
         settings, start, end, render_opts, cpu_budget,
@@ -797,12 +785,6 @@ int render_and_encode_ffmpeg(
         device_scheduler,
         std::move(execution),
         std::move(warm_renderer));
-    if (observed_sink) {
-        observed_sink->observed_output.probe = result.probe_facts;
-        observed_sink->observed_output.sha256 = result.sha256;
-        observed_sink->observed_output.probe_ms = result.ffprobe_ms;
-        observed_sink->observed_output.sha256_ms = result.sha256_ms;
-    }
     if (sidecar_written_at) *sidecar_written_at = result.sidecar_written_at;
     return result.return_code;
 }

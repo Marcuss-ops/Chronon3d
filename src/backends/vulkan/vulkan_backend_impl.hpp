@@ -390,7 +390,9 @@ struct VulkanBackend::Impl {
     // Placement scratch is ephemeral, not a second allocation authority. Both
     // domains are held during begin_plan_batch; retain only CPU capacities.
     std::vector<runtime::RenderSurfaceHandle> plan_protected_handles_scratch_{};
-    std::vector<std::vector<std::size_t>> plan_slot_allocations_scratch_{};
+    std::vector<std::size_t> plan_slot_allocation_offsets_scratch_{};
+    std::vector<std::size_t> plan_slot_allocation_cursor_scratch_{};
+    std::vector<std::size_t> plan_slot_allocations_scratch_{};
     std::vector<std::size_t> plan_slot_map_scratch_{};
     std::vector<std::size_t> plan_carriers_scratch_{};
     std::vector<std::size_t> plan_carrier_slots_scratch_{};
