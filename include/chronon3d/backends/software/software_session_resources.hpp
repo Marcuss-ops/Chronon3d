@@ -83,7 +83,11 @@ struct EffectScratchResources {
         std::uint32_t echoes, std::uint32_t offset) const {
         std::lock_guard lock(*echo_history_mutex);
         std::vector<std::shared_ptr<const Framebuffer>> result(echoes);
-        const auto found = echo_history.find(std::string(key));
+        // Transparent lookup: building a temporary std::string key per frame
+        // was a steady-state heap allocation on every echo apply
+        // (TICKET-PERFORMANCE-AUDIT-2026-10 effect-scratch evaluation).
+        const auto found = std::find_if(echo_history.begin(), echo_history.end(),
+            [key](const auto& entry) { return entry.first == key; });
         if (found == echo_history.end() || offset == 0) return result;
         const auto& frames = found->second;
         for (std::uint32_t i = 1; i <= echoes; ++i) {
@@ -105,7 +109,17 @@ struct EffectScratchResources {
         if (bytes > kEchoHistoryByteBudget) return;
         auto surface = std::make_shared<const Framebuffer>(source);
         std::lock_guard lock(*echo_history_mutex);
-        auto& frames = echo_history[std::string(key)];
+        auto it = std::find_if(echo_history.begin(), echo_history.end(),
+            [key](const auto& entry) { return entry.first == key; });
+        if (it == echo_history.end()) {
+            // Piecewise in-place construction: no temporary std::string or
+            // std::deque is materialized on the miss path.
+            it = echo_history.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(key),
+                std::forward_as_tuple()).first;
+        }
+        auto& frames = it->second;
         const auto position = std::lower_bound(frames.begin(), frames.end(), frame,
             [](const EchoFrame& candidate, std::int64_t target) {
                 return candidate.frame < target;

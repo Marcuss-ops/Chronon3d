@@ -124,8 +124,10 @@ struct PipeExportSession {
     int canvas_width{0};
     int canvas_height{0};
 
-    double engine_init_ms{0.0};
-    double backend_init_ms{0.0};
+    // Timing lexicon: absent when the renderer came from the persistent
+    // cache and these stages did not run (never a fabricated 0).
+    std::optional<double> engine_init_ms;
+    std::optional<double> backend_init_ms;
     double startup_ms{0.0};
     double input_open_ms{0.0};
     double setup_prepare_ms{0.0};

@@ -208,7 +208,7 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
             }
         }
         receipt.timing.sha256_ms = std::max(0.0,
-            receipt.timing.sha256_ms) +
+            receipt.timing.sha256_ms.value_or(0.0)) +
             std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - hash_start).count();
     }
@@ -224,14 +224,16 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
             !input.hdr_mastering_metadata.has_value()) {
             receipt.media = *input.precomputed_media;
             receipt.media.probed = true;
-            if (input.precomputed_probe_ms.has_value())
-                receipt.timing.probe_ms = *input.precomputed_probe_ms;
+            receipt.timing.ffprobe_ms = input.precomputed_probe_ms;
             probed = true;
         } else {
+            double ffprobe_ms = 0.0;
             probed = receipt_probe::probe_media(
                 output_path, receipt.media,
                 /*require_exit_ok=*/level != VerifyLevel::Certify,
-                &receipt.timing.probe_ms);
+                &ffprobe_ms);
+            // The probe attempt ran either way; its cost is measured.
+            receipt.timing.ffprobe_ms = ffprobe_ms;
         }
         receipt.verification.ffprobe = probed ? "pass" : "fail";
 
@@ -240,9 +242,11 @@ RenderReceipt build_render_receipt(const RenderReceiptInput& input,
             // `-count_frames` decode pass, timed separately from the
             // metadata probe above so the receipt can attribute the cost.
             if (level == VerifyLevel::Certify) {
+                double count_frames_ms = 0.0;
                 const auto counted =
-                    receipt_probe::count_frames_ffprobe(output_path,
-                                         &receipt.timing.count_frames_ms);
+                    receipt_probe::count_frames_ffprobe(output_path, &count_frames_ms);
+                // The pass ran; its cost is measured.
+                receipt.timing.count_frames_ms = count_frames_ms;
                 if (counted >= 0) receipt.media.frame_count = counted;
             }
 

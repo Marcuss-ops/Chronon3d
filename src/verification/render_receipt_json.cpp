@@ -104,12 +104,17 @@ std::filesystem::path write_render_receipt(const RenderReceipt& receipt,
         {"hdr_mastering_metadata", receipt.verification.hdr_mastering_metadata},
         {"frame_images", receipt.verification.frame_images},
     };
+    // Timing lexicon (render_receipt.hpp): a phase that did not run is JSON
+    // null — never a fabricated 0 and never the retired -1 sentinel.
+    const auto timing_value = [](const std::optional<double>& ms) {
+        return ms.has_value() ? nlohmann::json(*ms) : nlohmann::json(nullptr);
+    };
     js["timing_ms"] = {
-        {"sha256_ms", receipt.timing.sha256_ms},
-        {"probe_ms", receipt.timing.probe_ms},
-        {"count_frames_ms", receipt.timing.count_frames_ms},
-        {"decode_ms", receipt.timing.decode_ms},
-        {"total_ms", receipt.timing.total_ms},
+        {"sha256_ms", timing_value(receipt.timing.sha256_ms)},
+        {"ffprobe_ms", timing_value(receipt.timing.ffprobe_ms)},
+        {"count_frames_ms", timing_value(receipt.timing.count_frames_ms)},
+        {"decode_ms", timing_value(receipt.timing.decode_ms)},
+        {"total_ms", timing_value(receipt.timing.total_ms)},
     };
     js["output"] = {
         {"bytes", receipt.bytes},

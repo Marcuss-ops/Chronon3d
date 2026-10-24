@@ -31,8 +31,10 @@ struct ObservedOutputFacts {
     /// Hex digest of the published artifact; empty when not computed.
     std::string sha256;
     /// Caller-measured costs, carried so the receipt keeps honest timings.
-    double probe_ms{0.0};
-    double sha256_ms{0.0};
+    /// Absent when the caller did not measure them (timing lexicon: never a
+    /// fabricated 0).
+    std::optional<double> probe_ms;
+    std::optional<double> sha256_ms;
 };
 
 /// Host-selected placement and persistent per-device video runtime.

@@ -1149,7 +1149,7 @@ def cmd_report(ctx: Context) -> None:
             for lane in ("raw", "video"):
                 data = entry[lane]
                 phases = data.get("phases_engine") or {}
-                encode = phases.get("encode_drain_ms")
+                encode = phases.get("encoder_drain_finalize_ms")
                 fps = data.get("end_to_end_fps")
                 add("| `{}` | {} | {} | {} | {} | {} | {} | {} |".format(
                     clip,

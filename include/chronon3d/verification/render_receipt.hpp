@@ -126,17 +126,24 @@ struct ReceiptFrameImage {
     std::string sha256;
 };
 
-/// Wall-clock cost of the post-render verification, in milliseconds.  Values
-/// are -1 when the stage did not run (e.g. `decode_ms` under the fast policy).
+/// Wall-clock cost of the post-render verification, in milliseconds.
+///
+/// TIMING LEXICON (the one convention shared by every Chronon3d timing
+/// telemetry surface — receipt `timing_ms`, `startup_breakdown`,
+/// `prepare_breakdown`, `exclusive_wall_timeline`):
+///   * every timing value is milliseconds as a double under a `*_ms` key;
+///   * an absent value (JSON `null`) means "not measured / did not run" —
+///     NEVER a fabricated 0 and NEVER a negative sentinel (the historical
+///     -1 sentinel is gone; readers still accept it on legacy receipts);
+///   * `0` always means "measured, took ~0".
 /// Additive telemetry: written as `timing_ms` in the receipt JSON and never
 /// part of the verification verdicts.
 struct ReceiptTiming {
-    double sha256_ms{-1.0};
-    double probe_ms{-1.0};       // ffprobe metadata-only probe
-    double count_frames_ms{-1.0};
-                                // certify-only ffprobe -count_frames decode
-    double decode_ms{-1.0};      // full-decode smoke (normal and certify)
-    double total_ms{-1.0};       // whole build_render_receipt wall clock
+    std::optional<double> sha256_ms;
+    std::optional<double> ffprobe_ms;      // ffprobe metadata-only probe
+    std::optional<double> count_frames_ms; // certify-only -count_frames decode
+    std::optional<double> decode_ms;       // full-decode smoke (normal+certify)
+    std::optional<double> total_ms;        // whole build_render_receipt wall
 };
 
 /// Deterministic identity + render contract for one output.  Callers map
@@ -190,11 +197,12 @@ struct RenderReceiptInput {
     // re-probes or re-hashes the same bytes: one probe, one digest per
     // artifact. When absent (or when HDR mastering metadata must be compared)
     // the builder runs its own probe exactly as before. The *_ms fields carry
-    // the caller-measured costs so the receipt keeps honest timings.
+    // the caller-measured costs so the receipt keeps honest timings (absent
+    // when the caller did not measure them — never a fabricated 0).
     std::optional<MediaContract> precomputed_media;
     std::optional<std::string> precomputed_sha256;
-    double precomputed_probe_ms{0.0};
-    double precomputed_sha256_ms{0.0};
+    std::optional<double> precomputed_probe_ms;
+    std::optional<double> precomputed_sha256_ms;
 };
 
 /// The receipt payload written as `<output>.receipt.json`.

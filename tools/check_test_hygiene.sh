@@ -185,9 +185,23 @@ import re
 import sys
 
 root = Path(sys.argv[1])
-registry = root / "docs/tickets/TICKET-DOCTEST-SKIP-ROT.md"
-registry_text = registry.read_text(encoding="utf-8")
 errors = []
+# The registry ticket is RESOLVED and lives in tickets/archive/ since the
+# docs/INDEX.md consolidation (4a2f0a052); accept either location so the
+# gate keeps tracking it wherever the docs tree files it.
+registry_candidates = (
+    root / "docs/tickets/TICKET-DOCTEST-SKIP-ROT.md",
+    root / "docs/tickets/archive/TICKET-DOCTEST-SKIP-ROT.md",
+)
+registry = next((p for p in registry_candidates if p.exists()), None)
+if registry is None:
+    errors.append(
+        "doctest skip registry TICKET-DOCTEST-SKIP-ROT.md not found in "
+        "docs/tickets/ or docs/tickets/archive/"
+    )
+    print("\n".join(errors))
+    sys.exit(1)
+registry_text = registry.read_text(encoding="utf-8")
 registry_section = registry_text.split("## Registry", 1)[-1].split("## Rules", 1)[0]
 rows = []
 table_started = False

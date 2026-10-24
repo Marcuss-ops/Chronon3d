@@ -120,7 +120,8 @@ int main(int argc, char** argv) {
         chronon3d::cli::startup_trace().cli_bootstrap_ms =
             std::max(0.0, chronon3d::profiling::duration_ms(
                 cli_bootstrap_t0, chronon3d::profiling::now()) -
-                chronon3d::cli::startup_trace().composition_registration_ms);
+                chronon3d::cli::startup_trace()
+                    .composition_registration_ms.value_or(0.0));
         const auto parse_t0 = chronon3d::profiling::now();
         CLI11_PARSE(app, argc, argv);
         chronon3d::cli::startup_trace().cli_parse_ms =

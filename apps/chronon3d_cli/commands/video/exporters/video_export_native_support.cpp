@@ -3,6 +3,7 @@
 #include "../../../daemon/daemon_render_concurrency.hpp"
 #include "../../../utils/video/encoder_config_resolution.hpp"
 
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
@@ -195,9 +196,11 @@ void account_exclusive_wall_timeline(
     const double render_loop_exclusive_ms = loop_output.render_ms;
     const double mux_finalize_ms = is_native ? close_result.native_trailer_ms : 0.0;
     const double encoder_drain_exclusive_ms = std::max(0.0, encode_ms - mux_finalize_ms);
-    const double validation_exclusive_ms = std::max(0.0, result.validation_ms - (result.ffprobe_ms + result.sha256_ms));
-    const double ffprobe_exclusive_ms = result.ffprobe_ms;
-    const double sha256_exclusive_ms = result.sha256_ms;
+    const double validation_exclusive_ms = std::max(0.0,
+        result.validation_ms -
+        (result.ffprobe_ms.value_or(0.0) + result.sha256_ms.value_or(0.0)));
+    const std::optional<double> ffprobe_exclusive_ms = result.ffprobe_ms;
+    const std::optional<double> sha256_exclusive_ms = result.sha256_ms;
     const double output_finalize_exclusive_ms = result.output_finalize_ms;
 
     pipe_timing::ExclusiveWallTimeline tl;
@@ -216,10 +219,13 @@ void account_exclusive_wall_timeline(
     // writing. The write happens after this snapshot, so its real duration
     // shows up in unaccounted_ms instead of a fabricated constant.
 
+    // Absent measurements contribute nothing to the accounted sum (their
+    // cost lands in unaccounted_ms); the timeline fields stay null so the
+    // sidecar never fabricates a zero measurement.
     const double accounted_sum = startup_ms + input_open_ms + prepare_exclusive_ms +
         render_loop_exclusive_ms + encoder_drain_exclusive_ms + mux_finalize_ms +
-        validation_exclusive_ms + ffprobe_exclusive_ms + sha256_exclusive_ms +
-        output_finalize_exclusive_ms;
+        validation_exclusive_ms + ffprobe_exclusive_ms.value_or(0.0) +
+        sha256_exclusive_ms.value_or(0.0) + output_finalize_exclusive_ms;
 
     const double proc_wall_ms =
         profiling::duration_ms(session.job_started_at, profiling::now());
@@ -230,66 +236,83 @@ void account_exclusive_wall_timeline(
     timings.exclusive_wall = tl;
 
     session.startup_breakdown.total_startup_ms = startup_ms;
-    const double startup_accounted = session.startup_breakdown.cli_init_ms +
-        session.startup_breakdown.logger_init_ms +
-        session.startup_breakdown.cli_bootstrap_ms +
-        session.startup_breakdown.cli_parse_ms +
-        session.startup_breakdown.composition_registration_ms +
-        session.startup_breakdown.plan_read_ms +
-        session.startup_breakdown.plan_json_parse_ms +
-        session.startup_breakdown.plan_decode_validate_ms +
-        session.startup_breakdown.plan_asset_resolve_ms +
-        session.startup_breakdown.plan_compile_ms +
-        session.startup_breakdown.plan_prepare_ms +
-        session.startup_breakdown.encoder_create_ms +
-        session.startup_breakdown.encoder_open_hw_ctx_ms +
-        session.startup_breakdown.cuda_compositor_warmup_ms +
-        session.startup_breakdown.encoder_open_nvenc_ms +
-        session.startup_breakdown.encoder_open_mux_header_ms +
-        session.startup_breakdown.vulkan_instance_ms +
-        session.startup_breakdown.vulkan_device_ms +
-        session.startup_breakdown.vulkan_pipelines_ms +
-        session.startup_breakdown.renderer_runtime_init_ms;
+    // Timing lexicon: unmeasured phases contribute 0 to the derived sums but
+    // stay null on the wire; a phase "was observed" exactly when it carries
+    // a measurement (the old `> 0.0` probe is gone with the fake zeros).
+    const auto accounted = [](const std::optional<double>& ms) {
+        return ms.value_or(0.0);
+    };
+    const double startup_accounted =
+        accounted(session.startup_breakdown.logger_init_ms) +
+        accounted(session.startup_breakdown.cli_bootstrap_ms) +
+        accounted(session.startup_breakdown.cli_parse_ms) +
+        accounted(session.startup_breakdown.composition_registration_ms) +
+        accounted(session.startup_breakdown.plan_read_ms) +
+        accounted(session.startup_breakdown.plan_json_parse_ms) +
+        accounted(session.startup_breakdown.plan_decode_validate_ms) +
+        accounted(session.startup_breakdown.plan_asset_resolve_ms) +
+        accounted(session.startup_breakdown.plan_compile_ms) +
+        accounted(session.startup_breakdown.encoder_create_ms) +
+        accounted(session.startup_breakdown.encoder_open_hw_ctx_ms) +
+        accounted(session.startup_breakdown.cuda_compositor_warmup_ms) +
+        accounted(session.startup_breakdown.encoder_open_nvenc_ms) +
+        accounted(session.startup_breakdown.encoder_open_mux_header_ms) +
+        accounted(session.startup_breakdown.vulkan_instance_ms) +
+        accounted(session.startup_breakdown.vulkan_device_ms) +
+        accounted(session.startup_breakdown.vulkan_pipelines_ms) +
+        accounted(session.startup_breakdown.renderer_runtime_init_ms);
     session.startup_breakdown.accounted_ms = std::min(startup_ms, startup_accounted);
     session.startup_breakdown.unaccounted_ms = std::max(0.0, startup_ms - startup_accounted);
-    session.startup_breakdown.phases_observed = 0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.logger_init_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.cli_bootstrap_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.cli_parse_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.composition_registration_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_read_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_json_parse_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_decode_validate_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_asset_resolve_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.plan_compile_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.encoder_create_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.encoder_open_hw_ctx_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.encoder_open_nvenc_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.encoder_open_mux_header_ms > 0.0;
-    session.startup_breakdown.phases_observed += session.startup_breakdown.renderer_runtime_init_ms > 0.0;
+    const auto observed = [](const std::optional<double>& ms) {
+        return ms.has_value() ? std::uint32_t{1} : std::uint32_t{0};
+    };
+    session.startup_breakdown.phases_observed =
+        observed(session.startup_breakdown.logger_init_ms) +
+        observed(session.startup_breakdown.cli_bootstrap_ms) +
+        observed(session.startup_breakdown.cli_parse_ms) +
+        observed(session.startup_breakdown.composition_registration_ms) +
+        observed(session.startup_breakdown.plan_read_ms) +
+        observed(session.startup_breakdown.plan_json_parse_ms) +
+        observed(session.startup_breakdown.plan_decode_validate_ms) +
+        observed(session.startup_breakdown.plan_asset_resolve_ms) +
+        observed(session.startup_breakdown.plan_compile_ms) +
+        observed(session.startup_breakdown.encoder_create_ms) +
+        observed(session.startup_breakdown.encoder_open_hw_ctx_ms) +
+        observed(session.startup_breakdown.cuda_compositor_warmup_ms) +
+        observed(session.startup_breakdown.encoder_open_nvenc_ms) +
+        observed(session.startup_breakdown.encoder_open_mux_header_ms) +
+        observed(session.startup_breakdown.vulkan_instance_ms) +
+        observed(session.startup_breakdown.vulkan_device_ms) +
+        observed(session.startup_breakdown.vulkan_pipelines_ms) +
+        observed(session.startup_breakdown.renderer_runtime_init_ms);
 
+    const auto ms_text = [](const std::optional<double>& value) {
+        return value.has_value() ? fmt::format("{:.2f}", *value)
+                                 : std::string("null");
+    };
     spdlog::info(
-        "[startup-profile] total={:.2f}ms logger={:.2f}ms cli_bootstrap={:.2f}ms "
-        "cli_parse={:.2f}ms composition={:.2f}ms plan_read={:.2f}ms "
-        "json_parse={:.2f}ms plan_decode_validate={:.2f}ms asset_resolve={:.2f}ms "
-        "plan_compile={:.2f}ms other={:.2f}ms",
+        "[startup-profile] total={:.2f}ms logger={}ms cli_bootstrap={}ms "
+        "cli_parse={}ms composition={}ms plan_read={}ms "
+        "json_parse={}ms plan_decode_validate={}ms asset_resolve={}ms "
+        "plan_compile={}ms unaccounted={:.2f}ms",
         session.startup_breakdown.total_startup_ms,
-        session.startup_breakdown.logger_init_ms,
-        session.startup_breakdown.cli_bootstrap_ms,
-        session.startup_breakdown.cli_parse_ms,
-        session.startup_breakdown.composition_registration_ms,
-        session.startup_breakdown.plan_read_ms,
-        session.startup_breakdown.plan_json_parse_ms,
-        session.startup_breakdown.plan_decode_validate_ms,
-        session.startup_breakdown.plan_asset_resolve_ms,
-        session.startup_breakdown.plan_compile_ms,
-        session.startup_breakdown.other_startup_ms);
+        ms_text(session.startup_breakdown.logger_init_ms),
+        ms_text(session.startup_breakdown.cli_bootstrap_ms),
+        ms_text(session.startup_breakdown.cli_parse_ms),
+        ms_text(session.startup_breakdown.composition_registration_ms),
+        ms_text(session.startup_breakdown.plan_read_ms),
+        ms_text(session.startup_breakdown.plan_json_parse_ms),
+        ms_text(session.startup_breakdown.plan_decode_validate_ms),
+        ms_text(session.startup_breakdown.plan_asset_resolve_ms),
+        ms_text(session.startup_breakdown.plan_compile_ms),
+        session.startup_breakdown.unaccounted_ms);
 
     session.prepare_breakdown.total_prepare_ms = prepare_exclusive_ms;
-    const double prepare_accounted = session.prepare_breakdown.font_preflight_ms +
-        session.prepare_breakdown.pool_warmup_ms +
-        session.prepare_breakdown.triple_arena_alloc_ms +
-        session.prepare_breakdown.writer_thread_spawn_ms;
+    const double prepare_accounted =
+        accounted(session.prepare_breakdown.prepare_render_ms) +
+        accounted(session.prepare_breakdown.pool_warmup_ms) +
+        accounted(session.prepare_breakdown.triple_arena_alloc_ms) +
+        accounted(session.prepare_breakdown.writer_thread_spawn_ms);
     session.prepare_breakdown.other_prepare_ms = std::max(0.0, prepare_exclusive_ms - prepare_accounted);
 
     timings.startup_breakdown = session.startup_breakdown;

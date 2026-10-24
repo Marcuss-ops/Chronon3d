@@ -134,14 +134,15 @@ public:
     [[nodiscard]] double encoder_packet_drain_ms() const override { return encoder_packet_drain_ms_; }
     [[nodiscard]] double direct_yuv_cuda_launch_ms() const override { return direct_yuv_cuda_launch_ms_; }
     [[nodiscard]] double direct_yuv_cuda_wait_ms() const override { return direct_yuv_cuda_wait_ms_; }
-    [[nodiscard]] double open_hw_ctx_ms() const override { return open_hw_ctx_ms_; }
-    [[nodiscard]] double cuda_compositor_warmup_ms() const override { return cuda_compositor_warmup_ms_; }
-    [[nodiscard]] double open_nvenc_ms() const override { return open_nvenc_ms_; }
+    [[nodiscard]] std::optional<double> open_hw_ctx_ms() const override { return open_hw_ctx_ms_; }
+    [[nodiscard]] std::optional<double> cuda_compositor_warmup_ms() const override { return cuda_compositor_warmup_ms_; }
+    [[nodiscard]] std::optional<double> open_nvenc_ms() const override { return open_nvenc_ms_; }
     // Mux telemetry belongs to the owner of the container. On a borrowed-mux
     // session the caller owns the mux, so the encoder reports nothing here
     // (the caller reads its own MuxSession) — no double counting.
-    [[nodiscard]] double open_mux_header_ms() const override {
-        return mux_ && !borrows_mux_ ? mux_->open_header_ms() : 0.0;
+    [[nodiscard]] std::optional<double> open_mux_header_ms() const override {
+        return mux_ && !borrows_mux_
+            ? std::optional<double>(mux_->open_header_ms()) : std::nullopt;
     }
     [[nodiscard]] std::uint64_t full_file_reread_count() const override {
         return mux_ && !borrows_mux_ && mux_->checksum_used_reread() ? 1 : 0;
@@ -198,9 +199,9 @@ private:
     uint64_t mux_packets_written_{0};
     int64_t first_encoder_packet_pts_{-1};
     int64_t last_encoder_packet_pts_{-1};
-    double open_hw_ctx_ms_{0.0};
-    double cuda_compositor_warmup_ms_{0.0};
-    double open_nvenc_ms_{0.0};
+    std::optional<double> open_hw_ctx_ms_;
+    std::optional<double> cuda_compositor_warmup_ms_;
+    std::optional<double> open_nvenc_ms_;
     double encoder_hwframe_get_buffer_ms_{0.0};
     double encoder_surface_acquire_ms_{0.0};
     double encoder_nvenc_submit_ms_{0.0};

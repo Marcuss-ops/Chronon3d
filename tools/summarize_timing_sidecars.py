@@ -111,22 +111,23 @@ def load_job_metrics(file_path: Path) -> Optional[dict[str, Any]]:
         "frames_total": frames_total,
         "wall_time_ms": float(data.get("wall_time_ms") or 0.0),
         # Phases
-        "phase_process_startup_ms": float(phases.get("process_startup_ms") or 0.0),
+        "phase_startup_ms": float(phases.get("startup_ms") or 0.0),
         "phase_prepare_ms": float(phases.get("prepare_ms") or 0.0),
         "phase_render_loop_ms": float(phases.get("render_loop_ms") or 0.0),
-        "phase_encode_drain_ms": float(phases.get("encode_drain_ms") or 0.0),
+        "phase_encoder_drain_finalize_ms": float(phases.get("encoder_drain_finalize_ms") or 0.0),
         "phase_ffprobe_ms": float(phases.get("ffprobe_ms") or 0.0),
         "phase_validation_ms": float(phases.get("validation_ms") or 0.0),
         # Startup
         "startup_vulkan_init_ms": float(startup.get("vulkan_instance_ms") or job.get("backend_init_ms") or 0.0),
         "startup_encoder_nvenc_ms": float(startup.get("encoder_open_nvenc_ms") or 0.0),
         "startup_plan_compile_ms": float(startup.get("plan_compile_ms") or job.get("plan_compile_ms") or 0.0),
-        # Prepare — `font_preflight_ms` is the legacy label of the whole
-        # setup-time prepare_render call (TICKET-PERFORMANCE-AUDIT-2026-10
-        # finding #3: it measured almost no font work); the measured
-        # sub-phases below attribute it honestly.
+        # Prepare — the whole setup-time prepare_render call, one name per
+        # metric. `font_preflight_ms` (the old mislabel: it measured almost no
+        # font work — TICKET-PERFORMANCE-AUDIT-2026-10 finding #3) is not
+        # emitted anymore; it is read here only so sidecars written by older
+        # binaries still summarize. The measured sub-phases below attribute
+        # the call honestly.
         "prepare_pool_warmup_ms": float(prepare.get("pool_warmup_ms") or 0.0),
-        "prepare_font_preflight_ms": float(prepare.get("font_preflight_ms") or 0.0),
         "prepare_render_ms": float(prepare.get("prepare_render_ms") or prepare.get("font_preflight_ms") or 0.0),
         "prepare_asset_preflight_ms": float(prepare.get("prepare_asset_preflight_ms") or 0.0),
         "prepare_asset_resolve_ms": float(prepare.get("prepare_asset_resolve_ms") or 0.0),
@@ -239,10 +240,10 @@ def format_table(
     categories = [
         ("Phase Attribution (Wall Time)", [
             ("Total Wall Time (ms)", "wall_time_ms"),
-            ("Startup Phase (ms)", "phase_process_startup_ms"),
+            ("Startup Phase (ms)", "phase_startup_ms"),
             ("Prepare Phase (ms)", "phase_prepare_ms"),
             ("Render Loop Phase (ms)", "phase_render_loop_ms"),
-            ("Encode Drain Phase (ms)", "phase_encode_drain_ms"),
+            ("Encode Drain Phase (ms)", "phase_encoder_drain_finalize_ms"),
             ("FFprobe (ms)", "phase_ffprobe_ms"),
             ("Validation (ms)", "phase_validation_ms"),
         ]),

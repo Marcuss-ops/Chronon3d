@@ -20,11 +20,119 @@ No push/deployment is part of this work.
 - [x] Pipeline cache validates bounded length/vendor/device/UUID, includes driver
       and embedded shader fingerprint in filename, tolerates storage failures,
       and publishes complete files atomically under concurrent writers.
-- [ ] Reduce binding scratch allocations without changing carrier lifetime,
+- [x] Reduce binding scratch allocations without changing carrier lifetime,
       collisions, placement or output; record representative before/after data.
-- [ ] Evaluate dirty coalescing/effect scratch and adopt only validated changes.
-- [ ] Measure available native CLI lifecycle/handoff and verify output frames and
+      **Before/after 2026-10-23:** the planned-alias rebuild at every
+      `begin_plan_batch` used node-based `unordered_set` groups rebuilt from
+      scratch — measured **12 global allocations per rebuild** (1200 over 100
+      measured rebuilds, `chronon3d_vulkan_surface_materializer_tests`
+      allocation guard). Groups are now retained-capacity vectors emptied in
+      place (map nodes + per-group capacity survive the rebuild):
+      **0 allocations** over the same 100 measured rebuilds. Carrier lifetime,
+      collision policy, placement and output are unchanged — only the
+      bookkeeping container changed. `is_registered_alias` additionally
+      refuses self-pairs and invalid handles (matches the documented "no
+      invalid handle and no self-pair may ever authorize anything" guard).
+      Suites: surface materializer 27/27 (161 assertions), backend registry
+      107/107 (1 913 753 assertions) green after the change.
+- [x] Evaluate dirty coalescing/effect scratch and adopt only validated changes.
+      **Disposition 2026-10-23 (no change adopted — data below):**
+      *Dirty coalescing:* the coalescing machinery is already present and
+      tested (`ExecutionResolver::coalesce_dirty_regions`,
+      `tile_execution_policy.cpp`; contract tests
+      `test_dirty_rect_contract`, `test_dirty_rects_v2`,
+      `test_frame_delta_compiler`). Extraction over **249 representative
+      timing sidecars** (`docs/evidence/**`, ~1 500 frame entries: full
+      121–150-frame timelines, snapshot adapters, transition reviews) shows
+      `dirty_area_ratio = 1.000` on **every production frame**; the only
+      sub-1.0 samples are 4 explicit diagnostic renders (`debug-black-only`,
+      `debug-radial-diag`, `debug-radial-diag2`, `debug-radial-isolated`,
+      `debug-radial-normal`) where the ratio is 0.0 by construction. On this
+      corpus every dirty-region set would collapse to a full frame
+      (`full_frame_threshold` promotion already handles it), so further
+      coalescing work has **no measurable target** and would be unvalidated
+      churn. Not adopted. Algorithmic reference (2026-10-23, exact geometry
+      replica of `coalesce_dirty_regions` cross-validated against the pinned
+      `test_frame_delta_compiler.cpp` case, 1920×1080/16 px tiles; ratio =
+      executed region pixels / dirty-tile pixels): on synthetic partial-dirty
+      masks the current per-row span is optimal for the dominant single-rect
+      layer move (1 region, 1.00×) but covers intra-row gaps — 6.13× on two
+      disjoint panel bands (1 region vs 136 at 0.99× for a per-run baseline),
+      24.5× diagonal, 13.7× sparse, 2.0× glyph band. Alternatives are not
+      strictly better (union-merge reaches 33.75× on the diagonal; per-run
+      explodes to 240–378 regions where per-region dispatch cost is
+      unmeasured), and the production corpus has no partial-dirty frames to
+      improve. Any future coalescer change must measure per-region dispatch
+      against per-pixel raster cost (bench corpus B08 `DirtyRectSmallMotion`
+      is the intended vehicle) before adoption.
+      *Effect scratch:* `EffectScratchResources` is the persistent per-session
+      scalar-effect workspace (GOVERNANCE I-2/H-3); across the same 249
+      sidecars `framebuffer_alloc_effect = 0` and
+      `framebuffer_alloc_scratch = 0` (steady-state effect/scratch framebuffer
+      allocations already zero; wiring regression ticket RESOLVED with typed
+      `EffectScratchResources&`). `graph_refresh_scratch_node_builds = 0`.
+      Those per-category counters, however, missed a real defect found by code
+      inspection and adopted 2026-10-23: the software Echo composite copied
+      the whole framebuffer per apply (`const Framebuffer current = fb;`, a
+      deep copy via `copy_pixels_from`) although the composite reads each
+      source pixel exactly once at its own (x, y) before overwriting it
+      (history samples are independent snapshots). The copy was invisible to
+      `framebuffer_alloc_effect` because it runs outside a
+      `FramebufferAllocationScope(Effect)`; it lands in the generic
+      `framebuffer_allocations` counter. Composite now runs in place, and
+      `echo_frames`/`record_echo_frame` lost their per-call `std::string(key)`
+      temporaries (transparent lookup + piecewise in-place map insertion).
+      **Before/after on the exact instrument** — new contract case
+      `EchoSteadyStateHasNoFramebufferTemporaries` (effects suite),
+      `framebuffer_allocations` over 8 steady-state echo applies:
+      **16 → 8 (2 → 1 per apply)**; the old code fails the case at 16, the
+      remaining 1/apply is the history snapshot owned by `EffectScratchResources`
+      (GOVERNANCE H-3 allowed owner). At 1080p the eliminated copy is
+      ~33 MB/frame per echo layer. Pixel parity: Echo frame-hash canary +
+      effects suite 286/286 (5 538 017 assertions) green. Methodology note:
+      process-wide malloc totals (LD_PRELOAD counter) are not usable evidence
+      on this host — effects suite swings ±4 and the Vulkan registry suite
+      ±40 000 across identical runs (driver/thread noise); the canonical
+      `framebuffer_allocations` counter is exact and run-stable. Also
+      evaluated, NOT adopted: pooling the Echo history snapshots (the per-frame
+      deep copy remains, bounded by the 512 MiB per-key budget) — a pooled
+      ring can hand a consumer a surface the same frame's insert would
+      overwrite, so it needs deferred-reuse slot budgeting plus
+      aliasing/concurrency tests and golden runs; the native Echo path already
+      uses the pooled design (2026-10-05 reconciliation).
+- [x] Measure available native CLI lifecycle/handoff and verify output frames and
       zero-copy counters; do not remove fences or admission guards by inference.
+      **Measured 2026-10-23 (native CLI reference runs `grid`/`black_glow_inter`,
+      30 frames, 1920×1080, MP4 + timing sidecar + receipt):** output frames
+      verified at both levels — ffprobe decodes exactly 30 frames per MP4 and
+      the encoder accepted 30 packets (pts 0..29). **Lifecycle/handoff
+      attribution** (job-lifecycle log fields): `slot_pool_close_ms` 0,
+      `surface_release_ms` 0–8.8, `queue_close_ms` 0, `writer_join_ms` 0,
+      `encoder_reset_ms` 19.5–78.5, `full_graph_reset_ms` 0–311.6 (CLI path
+      only), `sink_ctx_reset_ms`/`device_runtime_reset_ms`/
+      `device_reservation_reset_ms` 0 → `session_teardown_ms` 60.9–334.2
+      (dominated by `full_graph_reset`), `sidecar_write_ms` 21.2–25.6,
+      `receipt_build_verify_ms` 0.1 (fix-2 verification=fast),
+      `receipt_file_write_ms` 0.9–1.1, `post_sidecar_to_receipt_ms`
+      68.8–344.0 (dominated by teardown, not by the receipt). Handoff:
+      `surface_handoff_path=host_upload` on the software-encode runs
+      (`encode_handoff_ms` 0.013–0.025 first frame),
+      `max_frame_to_encoder_end_ms` 228–234. **Zero-copy counters** in the
+      reference sidecars are all 0 (`host_upload`/`cpu_pixel_readback`/
+      `encoder_staging_copy`/`gpu_surface_copy_frames`); `black_glow_inter`
+      shows 16.9 MB of content upload (one 16 MB full image + five 162 kB
+      text-region uploads) — per-asset, not per-frame. Fence counters are
+      populated and zero (`cuda_encode_event_wait_count`,
+      `vulkan_cuda_export_fence_wait_count`): **no fence or admission guard was
+      removed**. Fresh gate run on the current build:
+      `tools/verify_zero_copy_end_to_end.sh --frames 30` → **ZERO_COPY_PASS
+      19/19** (effective_backend=vulkan, encoder_backend=nvenc,
+      surface_handoff_path=direct, gpu_native_surface_frames=30,
+      gpu_native_encode_frames=30, software_encode_frames=0,
+      video_pipe_fallback_frames=0), artifact re-verified at 30 frames by
+      ffprobe. Measurement caveat preserved: reference runs overlapped a CPU
+      build (zc-grid wall 14.1 s, startup 12.3 s) — lifecycle fields are
+      smoke/attribution evidence, not a speedup reference.
 - [ ] Rebuild final touched targets and run relevant C++/architecture/tool gates.
 - [ ] Record final results and exact remaining blockers.
 
@@ -85,12 +193,66 @@ Defects/waste to fix in this repo (ordered by expected gain):
    `encode_close` ~155 ms, `plan_decode_validate` ~65 ms,
    `pool_warmup` ~65 ms. Evaluate session/pool reuse and redundant
    plan decode-validation.
+   **Disposition 2026-10-23 (fix 5, reachable part closed):**
+   `pool_warmup` is closed by fix 4(b) (top-up-only warmup; the
+   `GpuSlotPool` and surface pools already live in the per-device
+   `FullGraphSession`, so "pool per sessione" exists); the redundant plan
+   work is closed by the fix-5 deep-copy removal in `prepare_render_plan`
+   and `plan_decode_validate` is one decode + typed validation per unique
+   plan (admission's `extract_plan_dimensions` parse measures ~1,5 ms and is
+   not worth a second code path). `encoder_open_nvenc` + `encode_close`
+   (~259 ms/item) are the per-artifact encoder lifecycle of the
+   one-MP4-per-item contract: removing them means cross-item encoder
+   session reuse, i.e. the "un piano = una sessione render" paradigm
+   (PipelineGen ticket, idee di paradigma #1) — a contract change that needs
+   pixel/audio parity plus three comparable golden runs before it can be
+   adopted, not a micro-fix. No unmeasured encoder change was made.
 5. **Image uploads at source resolution:** ~300 MB/item mean (8 full uploads,
    242 MB of image bytes) — downscale to canvas before GPU upload.
 6. **Telemetry trap (measurement only):** `vulkan_device_ms` (~300 ms on every
    sidecar) is process-level device init reported per job; the actual attributed
    job startup is ~186 ms. Do not treat it as a per-item cost; label it
    process-level in the sidecar to prevent future mis-optimisation.
+
+## Zone confuse e da bonificare (censimento 2026-10-23 sera)
+
+1. **Doppio nome per la stessa metrica**: `prepare_breakdown.font_preflight_ms`
+   resta come alias legacy di `prepare_render_ms`. Bonifica: rimuovere l'alias
+   quando tutti i consumer esterni (summary, dashboard) migrano; finché resta,
+   ogni lettura deve sapere che i due nomi sono la stessa colonna.
+2. **Due convenzioni di "mancata misura" nella stessa sidecar**:
+   `ReceiptTiming` usa `-1`, `prepare_breakdown` usa `null` (mai 0 finto).
+   Bonifica: una sola convenzione (preferita `null` = non misurato).
+3. **`extract_plan_dimensions` (admission) fa un parse JSON completo del
+   piano** solo per leggere `canvas.width/height`, poi il path di esecuzione
+   rilegge e riparse lo stesso file. Misurato ~1,5 ms (parse) + read: NON è
+   il `plan_decode_validate` da 61–65 ms (quello è la validazione tipizzata
+   singola). Non worth un fix dedicato: annotato per non confondere le due
+   voci in futuro.
+4. **Drift preset/CMakeCache**: `build/chronon/linux-video-release` aveva
+   `CHRONON3D_BUILD_TESTS=ON` contro il preset (`OFF`) senza la feature vcpkg
+   `tests` → configure rossa (`doctestConfig.cmake` introuvabile). Riallineato
+   al preset. Regola da far rispettare: il preset è l'unica authority; mai
+   `cmake -D` manuali sui build dir esistenti.
+5. **Feature vcpkg fantasma `native-ffmpeg`** (passata da 5 preset, assente da
+   `vcpkg.json`; warning a ogni configure). **TAGLIATA** in questa sessione.
+6. **Naming non uniforme dei timing**: `ReceiptTiming` flat (`probe_ms`),
+   `startup_breakdown`/`prepare_breakdown` annidati, campi `*_ms` in tre
+   famiglie con regole diverse. Bonifica a bassa priorità: un solo lessico.
+   Aggiunta 2026-10-23: esistono DUE campi `process_wall_ms` con significati
+   diversi nella stessa sidecar (`job.process_wall_ms` ≈ 17 ms = startup
+   processo, `exclusive_wall_timeline.process_wall_ms` ≈ 5,3 s = wall totale):
+   rinominare il primo in `process_startup_ms`.
+7. **Contatori per-categoria framebufefer a copertura parziale**: i bucket
+   `framebuffer_alloc_effect`/`_scratch` contano solo le allocazioni eseguite
+   dentro uno scope `FramebufferAllocationScope`; le allocazioni fuori scope
+   finiscono nel generico `framebuffer_allocations`/`_unknown` ed erano
+   invisibili al check "effect scratch = 0" basato sui soli bucket (è così che
+   la copia Echo per-apply è sfuggita al censimento per-sidecar). Bonifica:
+   avvolgere le allocazioni dei path effetti negli scope corretti, oppure
+   validare sempre sul contatore generico. (Metodologia: i totali malloc via
+   LD_PRELOAD su questo host hanno rumore ±4 su effects e ±40 000 su registry
+   — usare solo i contatori canonici.)
 
 Combined expectation: per-item service 2.748 → ~1.280 ms keeps the golden at
 ≈94 items/min on the certified 2-lane topology; the render loop (956 ms/item,

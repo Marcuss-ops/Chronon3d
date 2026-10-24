@@ -32,8 +32,9 @@ struct PipeExportResult {
     bool output_published{false};
     bool copy_eligible{false};
     std::string sha256;
-    double ffprobe_ms{0.0};
-    double sha256_ms{0.0};
+    // Timing lexicon: absent = not measured, never a fabricated 0.
+    std::optional<double> ffprobe_ms;
+    std::optional<double> sha256_ms;
     // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): the probe observation and
     // digest the export boundary already computed on the published artifact.
     // The receipt builder reuses them; never probed/hashed twice.

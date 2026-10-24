@@ -163,9 +163,18 @@ void build_diagnostics_sections(
     // `exclusive_wall_timeline` fields for compatibility, but expose one
     // machine-readable contract for benchmark runners: the phase sum must
     // match the process wall within the reported unaccounted remainder.
+    //
+    // Timing lexicon: each row is named EXACTLY like the
+    // `exclusive_wall_timeline` key it projects (one name per phase across
+    // blocks — the historical `process_startup_ms` / `encode_drain_ms` /
+    // `hashing_ms` aliases are gone), and an unmeasured phase is null: it
+    // contributes 0 to the derived sums below but never fabricates a row.
     auto& attribution = out["phase_attribution"];
     const auto phase_value = [](const std::optional<double>& value) {
         return value.value_or(0.0);
+    };
+    const auto phase_json = [](const std::optional<double>& value) {
+        return value.has_value() ? nlohmann::json(*value) : nlohmann::json(nullptr);
     };
     const double attributed_ms =
         phase_value(timings.exclusive_wall.startup_ms) +
@@ -182,16 +191,16 @@ void build_diagnostics_sections(
     const double unaccounted_ms = phase_value(timings.exclusive_wall.unaccounted_ms);
     attribution["schema_version"] = 1;
     attribution["phases"] = {
-        {"process_startup_ms", phase_value(timings.exclusive_wall.startup_ms)},
-        {"input_open_ms", phase_value(timings.exclusive_wall.input_open_ms)},
-        {"prepare_ms", phase_value(timings.exclusive_wall.prepare_ms)},
-        {"render_loop_ms", phase_value(timings.exclusive_wall.render_loop_ms)},
-        {"encode_drain_ms", phase_value(timings.exclusive_wall.encoder_drain_finalize_ms)},
-        {"mux_finalize_ms", phase_value(timings.exclusive_wall.mux_finalize_ms)},
-        {"validation_ms", phase_value(timings.exclusive_wall.validation_ms)},
-        {"ffprobe_ms", phase_value(timings.exclusive_wall.ffprobe_ms)},
-        {"hashing_ms", phase_value(timings.exclusive_wall.sha256_ms)},
-        {"output_finalize_ms", phase_value(timings.exclusive_wall.output_finalize_ms)},
+        {"startup_ms", phase_json(timings.exclusive_wall.startup_ms)},
+        {"input_open_ms", phase_json(timings.exclusive_wall.input_open_ms)},
+        {"prepare_ms", phase_json(timings.exclusive_wall.prepare_ms)},
+        {"render_loop_ms", phase_json(timings.exclusive_wall.render_loop_ms)},
+        {"encoder_drain_finalize_ms", phase_json(timings.exclusive_wall.encoder_drain_finalize_ms)},
+        {"mux_finalize_ms", phase_json(timings.exclusive_wall.mux_finalize_ms)},
+        {"validation_ms", phase_json(timings.exclusive_wall.validation_ms)},
+        {"ffprobe_ms", phase_json(timings.exclusive_wall.ffprobe_ms)},
+        {"sha256_ms", phase_json(timings.exclusive_wall.sha256_ms)},
+        {"output_finalize_ms", phase_json(timings.exclusive_wall.output_finalize_ms)},
     };
     attribution["process_wall_ms"] = process_wall_ms;
     attribution["attributed_ms"] = attributed_ms;
@@ -236,50 +245,54 @@ void build_diagnostics_sections(
     if (timings.internal_encoder.cpu_wait_ms) enc_p["cpu_wait_ms"] = *timings.internal_encoder.cpu_wait_ms; else enc_p["cpu_wait_ms"] = nullptr;
 
     auto& sb = out["startup_breakdown"];
-    sb["cli_init_ms"] = timings.startup_breakdown.cli_init_ms;
-    sb["logger_init_ms"] = timings.startup_breakdown.logger_init_ms;
-    sb["cli_bootstrap_ms"] = timings.startup_breakdown.cli_bootstrap_ms;
-    sb["cli_parse_ms"] = timings.startup_breakdown.cli_parse_ms;
-    sb["composition_registration_ms"] = timings.startup_breakdown.composition_registration_ms;
-    sb["plan_read_ms"] = timings.startup_breakdown.plan_read_ms;
-    sb["plan_json_parse_ms"] = timings.startup_breakdown.plan_json_parse_ms;
-    sb["plan_decode_validate_ms"] = timings.startup_breakdown.plan_decode_validate_ms;
-    sb["plan_asset_resolve_ms"] = timings.startup_breakdown.plan_asset_resolve_ms;
-    sb["plan_compile_ms"] = timings.startup_breakdown.plan_compile_ms;
-    sb["plan_prepare_ms"] = timings.startup_breakdown.plan_prepare_ms;
-    sb["encoder_create_ms"] = timings.startup_breakdown.encoder_create_ms;
-    sb["encoder_open_hw_ctx_ms"] = timings.startup_breakdown.encoder_open_hw_ctx_ms;
-    sb["cuda_compositor_warmup_ms"] = timings.startup_breakdown.cuda_compositor_warmup_ms;
-    sb["encoder_open_nvenc_ms"] = timings.startup_breakdown.encoder_open_nvenc_ms;
-    sb["encoder_open_mux_header_ms"] = timings.startup_breakdown.encoder_open_mux_header_ms;
-    sb["vulkan_instance_ms"] = timings.startup_breakdown.vulkan_instance_ms;
-    sb["vulkan_device_ms"] = timings.startup_breakdown.vulkan_device_ms;
+    // Timing lexicon: a phase that did not run is null — never a fabricated
+    // 0. (The never-measured `cli_init_ms` / `plan_prepare_ms` /
+    // `other_startup_ms` columns are gone with their fake zeros.)
+    const auto put_sb_opt = [&sb](const char* key,
+                                  const std::optional<double>& value) {
+        if (value) sb[key] = *value; else sb[key] = nullptr;
+    };
+    put_sb_opt("logger_init_ms", timings.startup_breakdown.logger_init_ms);
+    put_sb_opt("cli_bootstrap_ms", timings.startup_breakdown.cli_bootstrap_ms);
+    put_sb_opt("cli_parse_ms", timings.startup_breakdown.cli_parse_ms);
+    put_sb_opt("composition_registration_ms", timings.startup_breakdown.composition_registration_ms);
+    put_sb_opt("plan_read_ms", timings.startup_breakdown.plan_read_ms);
+    put_sb_opt("plan_json_parse_ms", timings.startup_breakdown.plan_json_parse_ms);
+    put_sb_opt("plan_decode_validate_ms", timings.startup_breakdown.plan_decode_validate_ms);
+    put_sb_opt("plan_asset_resolve_ms", timings.startup_breakdown.plan_asset_resolve_ms);
+    put_sb_opt("plan_compile_ms", timings.startup_breakdown.plan_compile_ms);
+    put_sb_opt("encoder_create_ms", timings.startup_breakdown.encoder_create_ms);
+    put_sb_opt("encoder_open_hw_ctx_ms", timings.startup_breakdown.encoder_open_hw_ctx_ms);
+    put_sb_opt("cuda_compositor_warmup_ms", timings.startup_breakdown.cuda_compositor_warmup_ms);
+    put_sb_opt("encoder_open_nvenc_ms", timings.startup_breakdown.encoder_open_nvenc_ms);
+    put_sb_opt("encoder_open_mux_header_ms", timings.startup_breakdown.encoder_open_mux_header_ms);
+    put_sb_opt("vulkan_instance_ms", timings.startup_breakdown.vulkan_instance_ms);
+    put_sb_opt("vulkan_device_ms", timings.startup_breakdown.vulkan_device_ms);
     // TICKET-PERFORMANCE-AUDIT-2026-10 finding #6: device init is
     // process-level, reported per job. A warm daemon shows its boot-time init
     // on every item; this marker keeps it from being read (and "optimized")
     // as a per-item cost.
     sb["vulkan_device_ms_scope"] = "process";
-    sb["vulkan_pipelines_ms"] = timings.startup_breakdown.vulkan_pipelines_ms;
-    sb["renderer_runtime_init_ms"] = timings.startup_breakdown.renderer_runtime_init_ms;
-    sb["other_startup_ms"] = timings.startup_breakdown.other_startup_ms;
+    put_sb_opt("vulkan_pipelines_ms", timings.startup_breakdown.vulkan_pipelines_ms);
+    put_sb_opt("renderer_runtime_init_ms", timings.startup_breakdown.renderer_runtime_init_ms);
     sb["total_startup_ms"] = timings.startup_breakdown.total_startup_ms;
     sb["accounted_ms"] = timings.startup_breakdown.accounted_ms;
     sb["unaccounted_ms"] = timings.startup_breakdown.unaccounted_ms;
     sb["phases_observed"] = timings.startup_breakdown.phases_observed;
 
     auto& pb = out["prepare_breakdown"];
-    // TICKET-PERFORMANCE-AUDIT-2026-10 finding #3: `font_preflight_ms` is a
-    // legacy label for the WHOLE setup-time runtime::prepare_render call. In
-    // the overlay-golden profile it measured 245 ms/item of which ~0 was font
-    // work — almost all of it was image decode + GPU promotion. Keep the old
-    // key for consumers, publish the honest name, and project the measured
-    // sub-phases so the label can never misdirect an optimization again.
-    pb["font_preflight_ms"] = timings.prepare_breakdown.font_preflight_ms;
-    pb["prepare_render_ms"] = timings.prepare_breakdown.font_preflight_ms;
+    // TICKET-PERFORMANCE-AUDIT-2026-10 findings #3/#zone-1: the whole
+    // setup-time runtime::prepare_render call is published under its honest
+    // name. The misleading legacy key `font_preflight_ms` (which measured 245
+    // ms/item of which ~0 was font work — almost all image decode + GPU
+    // promotion) is no longer emitted; readers accept it only when parsing
+    // sidecars written by older binaries. Measured sub-phases are projected
+    // below so the label can never misdirect an optimization again.
     const auto put_pb_opt = [&pb](const char* key,
                                   const std::optional<double>& value) {
         if (value) pb[key] = *value; else pb[key] = nullptr;
     };
+    put_pb_opt("prepare_render_ms", timings.prepare_breakdown.prepare_render_ms);
     put_pb_opt("prepare_asset_preflight_ms", timings.prepare.asset_preflight_ms);
     put_pb_opt("prepare_asset_resolve_ms", timings.prepare.asset_resolve_ms);
     put_pb_opt("prepare_asset_decode_ms", timings.prepare.asset_decode_ms);
@@ -287,9 +300,9 @@ void build_diagnostics_sections(
     put_pb_opt("prepare_image_upload_ms", timings.prepare.image_upload_ms);
     put_pb_opt("prepare_font_load_ms", timings.prepare.font_load_ms);
     put_pb_opt("prepare_font_resolve_ms", timings.prepare.font_resolve_ms);
-    pb["pool_warmup_ms"] = timings.prepare_breakdown.pool_warmup_ms;
-    pb["triple_arena_alloc_ms"] = timings.prepare_breakdown.triple_arena_alloc_ms;
-    pb["writer_thread_spawn_ms"] = timings.prepare_breakdown.writer_thread_spawn_ms;
+    put_pb_opt("pool_warmup_ms", timings.prepare_breakdown.pool_warmup_ms);
+    put_pb_opt("triple_arena_alloc_ms", timings.prepare_breakdown.triple_arena_alloc_ms);
+    put_pb_opt("writer_thread_spawn_ms", timings.prepare_breakdown.writer_thread_spawn_ms);
     pb["other_prepare_ms"] = timings.prepare_breakdown.other_prepare_ms;
     pb["total_prepare_ms"] = timings.prepare_breakdown.total_prepare_ms;
 }

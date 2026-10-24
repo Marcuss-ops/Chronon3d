@@ -23,6 +23,7 @@
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 
 #include <nlohmann/json.hpp>
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <chrono>
@@ -591,12 +592,23 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                             const auto receipt_write_t1 =
                                 std::chrono::steady_clock::now();
                             spdlog::info("receipt: {}", receipt_path.string());
+                            // Timing lexicon: a phase that did not run logs
+                            // as `null`, never a fabricated 0 or -1.
+                            const auto ms_text =
+                                [](const std::optional<double>& value) {
+                                    return value.has_value()
+                                        ? fmt::format("{:.1f}", *value)
+                                        : std::string("null");
+                                };
                             spdlog::info(
-                                "[video] receipt verification policy={} total_ms={:.1f} sha256_ms={:.1f} "
-                                "probe_ms={:.1f} count_frames_ms={:.1f} decode_ms={:.1f} copy_eligible={}",
-                                receipt.verification.resolved_policy, receipt.timing.total_ms,
-                                receipt.timing.sha256_ms, receipt.timing.probe_ms,
-                                receipt.timing.count_frames_ms, receipt.timing.decode_ms,
+                                "[video] receipt verification policy={} total_ms={} sha256_ms={} "
+                                "ffprobe_ms={} count_frames_ms={} decode_ms={} copy_eligible={}",
+                                receipt.verification.resolved_policy,
+                                ms_text(receipt.timing.total_ms),
+                                ms_text(receipt.timing.sha256_ms),
+                                ms_text(receipt.timing.ffprobe_ms),
+                                ms_text(receipt.timing.count_frames_ms),
+                                ms_text(receipt.timing.decode_ms),
                                 receipt.copy_eligible ? "true" : "false");
                             spdlog::info(
                                 "[INFO] job-lifecycle: receipt_build_ms={:.1f} "

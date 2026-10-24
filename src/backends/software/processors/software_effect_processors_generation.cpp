@@ -90,7 +90,12 @@ public:
             p->time_offset_frames + 1U;
         scratch.record_echo_frame(context.temporal_history_key, current_frame,
                                   fb, keep_frames);
-        const Framebuffer current = fb;
+        // In-place composite (TICKET-PERFORMANCE-AUDIT-2026-10 effect-scratch
+        // evaluation): every source pixel is read exactly once at its own
+        // (x, y) before that same pixel is overwritten, and the echo samples
+        // come from independent history snapshots. The old `Framebuffer
+        // current = fb;` full copy was therefore a wasted whole-frame
+        // allocation + copy per echo layer per frame.
 
         int x0 = 0, y0 = 0, x1 = fb.width(), y1 = fb.height();
         if (context.clip) {
@@ -101,7 +106,7 @@ public:
         }
         for (int y = y0; y < y1; ++y) {
             Color* dst = fb.pixels_row(y);
-            const Color* src = current.pixels_row(y);
+            const Color* src = dst;  // in-place: read-before-write per pixel
             for (int x = x0; x < x1; ++x) {
                 Color trail = Color::transparent();
                 // Composite older, dimmer samples first so nearer echoes sit

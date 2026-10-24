@@ -387,12 +387,13 @@ TEST_CASE("A5 sidecar: the summary serializer freezes its key set and its derive
 }
 
 // ── TICKET-PERFORMANCE-AUDIT-2026-10 findings #3/#6 ────────────────────────
-// The prepare-breakdown attribution: `font_preflight_ms` is a legacy label for
-// the WHOLE setup-time prepare_render call (measured 245 ms/item of which ~0
-// was font work), and `vulkan_device_ms` is process-level init, not per item.
+// The prepare-breakdown attribution: the WHOLE setup-time prepare_render call
+// is published as `prepare_render_ms` only (measured 245 ms/item of which ~0
+// was font work); the misleading legacy alias `font_preflight_ms` is not
+// emitted anymore. `vulkan_device_ms` is process-level init, not per item.
 TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phases") {
     JobTimings timings;
-    timings.prepare_breakdown.font_preflight_ms = 245.0;
+    timings.prepare_breakdown.prepare_render_ms = 245.0;
     timings.prepare.asset_preflight_ms = 0.2;
     timings.prepare.asset_resolve_ms = 12.5;
     timings.prepare.asset_decode_ms = 180.0;
@@ -404,9 +405,9 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     chronon3d::cli::pipe_timing_detail::build_diagnostics_sections(out, timings, 1);
 
     const auto& pb = out.at("prepare_breakdown");
-    // Legacy key preserved for existing consumers; honest name published too.
-    CHECK(pb.at("font_preflight_ms") == 245.0);
+    // One name per metric: the legacy alias is gone, not silently doubled.
     CHECK(pb.at("prepare_render_ms") == 245.0);
+    CHECK(pb.find("font_preflight_ms") == pb.end());
     CHECK(pb.at("prepare_asset_preflight_ms") == 0.2);
     CHECK(pb.at("prepare_asset_resolve_ms") == 12.5);
     CHECK(pb.at("prepare_asset_decode_ms") == 180.0);
@@ -415,6 +416,15 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     // Unmeasured sub-phases are null, never a fabricated zero.
     CHECK(pb.at("prepare_image_upload_ms").is_null());
     CHECK(pb.at("prepare_font_resolve_ms").is_null());
+    // The unified "did not run" convention covers every breakdown block:
+    // unmeasured startup phases are null and the never-measured legacy
+    // columns (cli_init_ms / plan_prepare_ms / other_startup_ms) are gone.
+    CHECK(out.at("startup_breakdown").at("encoder_open_nvenc_ms").is_null());
+    CHECK(pb.at("pool_warmup_ms").is_null());
+    const auto& sb = out.at("startup_breakdown");
+    CHECK(sb.find("cli_init_ms") == sb.end());
+    CHECK(sb.find("plan_prepare_ms") == sb.end());
+    CHECK(sb.find("other_startup_ms") == sb.end());
     // Device init is process-level and says so.
     CHECK(out.at("startup_breakdown").at("vulkan_device_ms") == 300.0);
     CHECK(out.at("startup_breakdown").at("vulkan_device_ms_scope") == "process");
