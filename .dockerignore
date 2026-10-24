@@ -5,6 +5,7 @@ dist/
 .ccache/
 .tmp/
 vcpkg_installed/
+vcpkg_bootstrap/
 output/
 test_renders/
 assets/
@@ -14,6 +15,8 @@ assets/
 docs/
 tests/
 tools/
+!tools/
+!tools/**
 examples/
 
 # The prebuilt runtime image copies only the already-verified SDK artifacts.

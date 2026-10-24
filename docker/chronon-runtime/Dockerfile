@@ -10,7 +10,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV VCPKG_ROOT=/opt/vcpkg
 
 ARG VCPKG_REF
-ARG CHRONONMOTION_REF=a528e1bd83782e67426e4de3b759ef4a18094ad3
 
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         build-essential cmake ninja-build ccache git curl ca-certificates \
@@ -30,16 +29,25 @@ WORKDIR /src/chronon3d
 # This stage depends only on the manifest, so normal source changes do not
 # invalidate the dependency installation.
 COPY vcpkg.json ./
+COPY cmake/vcpkg-overlays/clipper2 ./cmake/vcpkg-overlays/clipper2
 
 RUN --mount=type=cache,id=chronon-vcpkg-archives,target=/root/.cache/vcpkg/archives \
     --mount=type=cache,id=chronon-vcpkg-downloads,target=/opt/vcpkg/downloads \
-    /opt/vcpkg/vcpkg install \
+    ( /opt/vcpkg/vcpkg install \
         --triplet x64-linux \
         --x-feature=vulkan \
+        --overlay-ports=/src/chronon3d/cmake/vcpkg-overlays \
         --x-manifest-root=/src/chronon3d \
-        --x-install-root=/opt/vcpkg_installed
+        --x-install-root=/opt/vcpkg_installed || { \
+            echo 'vcpkg install failed; clipper2 build logs follow:' >&2; \
+            cat /opt/vcpkg/buildtrees/clipper2/install-x64-linux-rel-out.log >&2 2>/dev/null || true; \
+            cat /opt/vcpkg/buildtrees/clipper2/install-x64-linux-rel-err.log >&2 2>/dev/null || true; \
+            exit 1; \
+        } )
 
 FROM deps AS builder
+
+ARG CHRONONMOTION_REF=30f5750d00982b4c413706513667b8f92b483171
 
 WORKDIR /src/chronon3d
 COPY . .

@@ -28,6 +28,7 @@
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 #include "utils/video/native_av_encoder.hpp"
+#include "utils/video/ffmpeg_profile_constants.hpp"
 #endif
 
 using chronon3d::media::AudioExecutionPath;
@@ -1090,7 +1091,7 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
         CHECK(pending.height == 64);
         CHECK(pending.encoder_materialized);
         CHECK_FALSE(pending.parameter_sets.empty());
-        CHECK(pending.profile == FF_PROFILE_H264_HIGH);
+        CHECK(pending.profile == chronon3d::cli::ffmpeg_profile::h264_high);
         CHECK(pending.level < 0);
         // The container the encoder owns is declared from this same context, so
         // the parameter sets are already the ones a demuxer will read back.
@@ -1114,7 +1115,7 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
     // unmaterialized and the gate stays fail-closed; a materialized contract
     // must describe the stream a demuxer reads back from the produced file.
     REQUIRE(contract.encoder_materialized);
-    CHECK(contract.profile == FF_PROFILE_H264_HIGH);
+    CHECK(contract.profile == chronon3d::cli::ffmpeg_profile::h264_high);
     CHECK(contract.level < 0);
     if (!closed || !std::filesystem::exists(output)) {
         MESSAGE("Skipping demux comparison — encoder produced no container");

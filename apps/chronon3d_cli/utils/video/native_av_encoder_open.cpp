@@ -1,5 +1,6 @@
 #include "native_av_encoder.hpp"
 #include "native_av_encoder_internal.hpp"
+#include "ffmpeg_profile_constants.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/keyframe_cadence.hpp>
@@ -363,23 +364,24 @@ bool NativeAvEncoder::configure_codec_and_surface() {
                                 options_.color_transform.output == color::ColorSpace::HLG;
         codec_->profile = declared_profile >= 0
             ? declared_profile
-            : (hdr_output ? AV_PROFILE_H264_HIGH_10 : AV_PROFILE_H264_HIGH);
+            : (hdr_output ? ffmpeg_profile::h264_high_10
+                          : ffmpeg_profile::h264_high);
         // FFmpeg's NVENC wrapper can leave its private profile at Main even
         // when AVCodecContext::profile is set before avcodec_open2(). Pass the
         // profile through the encoder option as well so the emitted SPS and
         // packet facts match the assembly contract (and any borrowed stream).
         const char* profile_option = nullptr;
         switch (codec_->profile) {
-            case AV_PROFILE_H264_BASELINE:
+            case ffmpeg_profile::h264_baseline:
                 profile_option = "baseline";
                 break;
-            case AV_PROFILE_H264_MAIN:
+            case ffmpeg_profile::h264_main:
                 profile_option = "main";
                 break;
-            case AV_PROFILE_H264_HIGH:
+            case ffmpeg_profile::h264_high:
                 profile_option = "high";
                 break;
-            case AV_PROFILE_H264_HIGH_10:
+            case ffmpeg_profile::h264_high_10:
                 profile_option = "high10";
                 break;
             default:
