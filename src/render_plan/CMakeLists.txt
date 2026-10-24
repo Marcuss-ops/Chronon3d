@@ -50,6 +50,7 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler_svg_validation.cpp
     render_plan_media_background.cpp
     render_plan_compiler_scene.cpp
+    render_plan_compiler_scene_materializers.cpp
     render_plan_compiler_scene_setup.cpp
     render_plan_compiler_shape.cpp
     render_plan_compiler_shape_imported.cpp
@@ -90,6 +91,7 @@ endif()
 set_source_files_properties(
     render_plan_compiler.cpp
     render_plan_compiler_scene.cpp
+    render_plan_compiler_scene_materializers.cpp
     render_plan_compiler_scene_setup.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
