@@ -4,6 +4,7 @@
 #include "encoder_config_resolution.hpp"
 #include "encoder_bitstream_contract.hpp"
 #include "gop_target_contract.hpp"
+#include "ffmpeg_profile_constants.hpp"
 #include "../../commands/video/common/pipe_export_helpers.hpp"
 #include "../../commands/video/common/pipe_export_pipeline.hpp"
 #include "../../commands/video/exporters/pipe_export_pipeline_internal.hpp"
@@ -165,7 +166,7 @@ bool execute_direct_mux_gop_plan(
     // the optimization and let the normal encoder produce one High stream
     // for the complete clip (audio can still be copied from gop_source).
     if (declared->codec == AV_CODEC_ID_H264 &&
-        declared->profile != AV_PROFILE_H264_HIGH) {
+        declared->profile != ffmpeg_profile::h264_high) {
         reason = "source_profile_not_assembly_ready";
         return false;
     }

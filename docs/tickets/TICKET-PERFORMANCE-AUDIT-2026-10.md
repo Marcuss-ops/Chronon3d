@@ -20,8 +20,10 @@ No push/deployment is part of this work.
 - [x] Pipeline cache validates bounded length/vendor/device/UUID, includes driver
       and embedded shader fingerprint in filename, tolerates storage failures,
       and publishes complete files atomically under concurrent writers.
-- [ ] Reduce binding scratch allocations without changing carrier lifetime,
-      collisions, placement or output; record representative before/after data.
+- [x] Replace per-slot binding-index vectors with one contiguous scratch buffer
+      and slot offsets; retain allocation order and carrier placement decisions.
+- [ ] Run Vulkan placement/carrier contract tests and record representative
+      before/after allocation data for the binding scratch change.
 - [ ] Evaluate dirty coalescing/effect scratch and adopt only validated changes.
 - [ ] Measure available native CLI lifecycle/handoff and verify output frames and
       zero-copy counters; do not remove fences or admission guards by inference.
@@ -171,6 +173,7 @@ assertions; the standalone full suite and isolated CTest rerun both passed. The
 scene suite passes (1/1) with restored Camera 2.5D pixel assertions.
 The architecture gate passes 206/206 on this exact worktree, and
 `git diff --check` is clean.
+
 The full render-graph CTest suite now passes (1/1, 39.79 s) after adding
 TemperatureTint to strict Vulkan native color dispatch. Its capability census
 is 19/47 native routes (28 explicitly unsupported); focused parity covers
@@ -216,3 +219,12 @@ The same-SHA remote CI runs still have no
 executed steps, and hardware certification remains outstanding. No performance
 speedup is claimed without representative before/after measurement. This ticket
 stays ACTIVE.
+
+The Vulkan plan-binding scratch no longer stores one heap-backed index vector
+per planned slot. It now groups allocation indexes in one contiguous buffer
+using prefix offsets, preserving source allocation order within each slot and
+leaving carrier discovery, collision checks, slot selection, and surface binding
+logic unchanged. Validation so far: `linux-video-fast-dev` CLI build PASS,
+architecture gate 207/207 PASS, and `git diff --check` PASS. Targeted Vulkan
+placement tests and before/after allocation measurements remain pending. This
+does not close the performance ticket.

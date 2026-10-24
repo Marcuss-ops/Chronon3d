@@ -1,0 +1,10 @@
+diff --git a/CPP/Clipper2Lib/src/clipper.triangulation.cpp b/CPP/Clipper2Lib/src/clipper.triangulation.cpp
+--- a/CPP/Clipper2Lib/src/clipper.triangulation.cpp
++++ b/CPP/Clipper2Lib/src/clipper.triangulation.cpp
+@@ -1204,5 +1204,5 @@
+   {
+-    int ec;
++    int ec = 0;
+     double scale;
+     TriangulateResult result;
+     if (decPlaces <= 0) scale = 1;
