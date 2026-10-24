@@ -146,10 +146,13 @@ struct IVideoEncoder {
     [[nodiscard]] virtual double encoder_packet_drain_ms() const { return 0.0; }
     [[nodiscard]] virtual double direct_yuv_cuda_launch_ms() const { return 0.0; }
     [[nodiscard]] virtual double direct_yuv_cuda_wait_ms() const { return 0.0; }
-    [[nodiscard]] virtual double open_hw_ctx_ms() const { return 0.0; }
-    [[nodiscard]] virtual double cuda_compositor_warmup_ms() const { return 0.0; }
-    [[nodiscard]] virtual double open_nvenc_ms() const { return 0.0; }
-    [[nodiscard]] virtual double open_mux_header_ms() const { return 0.0; }
+    // Open-stage costs. Absent = the stage did not run on this encoder
+    // (e.g. no NVENC open on the software lane) — timing lexicon: never a
+    // fabricated 0.
+    [[nodiscard]] virtual std::optional<double> open_hw_ctx_ms() const { return std::nullopt; }
+    [[nodiscard]] virtual std::optional<double> cuda_compositor_warmup_ms() const { return std::nullopt; }
+    [[nodiscard]] virtual std::optional<double> open_nvenc_ms() const { return std::nullopt; }
+    [[nodiscard]] virtual std::optional<double> open_mux_header_ms() const { return std::nullopt; }
     // Number of mux checksum finalizations that had to reread the finished
     // file because the container performed a seek/backpatch.
     [[nodiscard]] virtual std::uint64_t full_file_reread_count() const { return 0; }

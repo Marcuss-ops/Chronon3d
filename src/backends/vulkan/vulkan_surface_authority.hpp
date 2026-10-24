@@ -111,9 +111,18 @@ public:
     // of a slot here before binding. A slot may then be shared only by handles
     // the same plan named; any other occupant — notably the NVENC/encode ring
     // created outside the plan — remains a hard failure (the 077a44275 guard).
-    std::unordered_map<std::size_t,
-                       std::unordered_set<runtime::RenderSurfaceHandle>>
-        planned_alias_groups{};
+    // Storage note (TICKET-PERFORMANCE-AUDIT-2026-10, binding scratch): a
+    // group is a tiny retained-capacity vector, not a node-based set. The
+    // compiled batch rebuilds the whole table at every begin_plan_batch; with
+    // node sets that rebuild allocated on every bind (measured: 12 global
+    // allocations per rebuild). `clear_planned_aliases()` now empties each
+    // group in place, keeping the map nodes and per-group capacity, so the
+    // steady-state rebuild is allocation-free. Membership semantics are
+    // unchanged: per handle, groups never merged across slots.
+    struct PlannedAliasGroup {
+        std::vector<runtime::RenderSurfaceHandle> occupants{};
+    };
+    std::unordered_map<std::size_t, PlannedAliasGroup> planned_alias_groups{};
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     // CUDA releases stay pending until the surface is actually referenced by
     // Vulkan. Only acquired surfaces participate in the current submission.
@@ -179,7 +188,14 @@ public:
     /// group is exactly the plan's occupant set.
     void register_planned_occupant(
         std::size_t slot, runtime::RenderSurfaceHandle handle) {
-        planned_alias_groups[slot].insert(handle);
+        if (handle == runtime::kInvalidRenderSurfaceHandle) {
+            return;
+        }
+        auto& occupants = planned_alias_groups[slot].occupants;
+        if (std::find(occupants.begin(), occupants.end(), handle) ==
+            occupants.end()) {
+            occupants.push_back(handle);
+        }
     }
 
     /// Convenience for callers/tests that know one alias pair explicitly.
@@ -191,22 +207,37 @@ public:
             handle_a == handle_b) {
             return;
         }
-        auto& group = planned_alias_groups[slot];
-        group.insert(handle_a);
-        group.insert(handle_b);
+        register_planned_occupant(slot, handle_a);
+        register_planned_occupant(slot, handle_b);
     }
 
     /// The plan's alias declarations are per-plan, so the compiled batch
-    /// rebuilds them from scratch at every bind.
-    void clear_planned_aliases() noexcept { planned_alias_groups.clear(); }
+    /// rebuilds them from scratch at every bind.  Empties each group in place:
+    /// map nodes and per-group capacity survive for the next rebuild.
+    void clear_planned_aliases() noexcept {
+        for (auto& entry : planned_alias_groups) {
+            entry.second.occupants.clear();
+        }
+    }
 
     [[nodiscard]] bool is_registered_alias(
         runtime::RenderSurfaceHandle handle,
         runtime::RenderSurfaceHandle other,
         std::size_t slot) const noexcept {
+        // An alias is two DISTINCT valid handles of one plan group: a self-pair
+        // or an invalid handle never authorizes anything.
+        if (handle == runtime::kInvalidRenderSurfaceHandle ||
+            other == runtime::kInvalidRenderSurfaceHandle ||
+            handle == other) {
+            return false;
+        }
         const auto it = planned_alias_groups.find(slot);
-        return it != planned_alias_groups.end() &&
-               it->second.contains(handle) && it->second.contains(other);
+        if (it == planned_alias_groups.end()) return false;
+        const auto& occupants = it->second.occupants;
+        return std::find(occupants.begin(), occupants.end(), handle) !=
+                   occupants.end() &&
+               std::find(occupants.begin(), occupants.end(), other) !=
+                   occupants.end();
     }
 
     [[nodiscard]] bool valid(runtime::RenderSurfaceHandle handle) const noexcept {

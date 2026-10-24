@@ -274,8 +274,8 @@ TEST_CASE("verify_output_contract fails structural checks on a missing file") {
     REQUIRE_FALSE(result.passed);
     CHECK_FALSE(result.copy_eligible);
     CHECK(result.sha256.empty());  // no digest computed
-    CHECK(result.ffprobe_ms == 0.0);  // nothing ran
-    CHECK(result.sha256_ms == 0.0);   // nothing computed
+    CHECK_FALSE(result.ffprobe_ms.has_value());  // nothing ran
+    CHECK_FALSE(result.sha256_ms.has_value());   // nothing computed
     CHECK_FALSE(result.probe_facts.has_value());  // nothing observed
 }
 
@@ -309,8 +309,10 @@ TEST_CASE("verify_output_contract: full pass sets copy_eligible") {
     CHECK(result.video_codec == "h264");
     CHECK(result.pixel_format == "yuv420p");
     CHECK(result.sha256.size() == 64);
-    CHECK(result.ffprobe_ms > 0.0);   // legacy field: in-process probe ran
-    CHECK(result.sha256_ms > 0.0);    // digest actually computed
+    REQUIRE(result.ffprobe_ms.has_value());
+    CHECK(*result.ffprobe_ms > 0.0);  // legacy field: in-process probe ran
+    REQUIRE(result.sha256_ms.has_value());
+    CHECK(*result.sha256_ms > 0.0);   // digest actually computed
 
     // Fix 2 (TICKET-OVERLAY-THROUGHPUT, dedup): the probe observation is
     // preserved on the result so a downstream receipt builder reuses it

@@ -37,7 +37,6 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
 int command_render(const CompositionRegistry& registry, const RenderArgs& args,
                    const CompositionProps& props = {});
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args);
-int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);

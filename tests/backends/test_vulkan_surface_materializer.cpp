@@ -4,8 +4,86 @@
 
 #include "../../src/backends/vulkan/vulkan_surface_authority.hpp"
 
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <new>
 #include <type_traits>
+#include <vector>
+
+// ── Binding-scratch allocation guard ──────────────────────────────────────
+// Same replaceable-allocation pattern as
+// tests/runtime/test_prepared_render_job_allocations.cpp: this suite is the
+// sole source of its test binary, so the global operator new/delete override
+// is program-wide here and counts every heap allocation while enabled. Used
+// to pin the TICKET-PERFORMANCE-AUDIT-2026-10 binding-scratch acceptance:
+// the planned-alias rebuild at every begin_plan_batch must allocate nothing
+// once the bookkeeping has seen the plan's slot set.
+namespace chronon3d::test::binding_alloc_guard {
+
+inline std::atomic<bool> enabled{false};
+inline std::atomic<std::size_t> allocations{0};
+
+void reset() noexcept {
+    allocations.store(0, std::memory_order_relaxed);
+}
+
+void start() noexcept {
+    reset();
+    enabled.store(true, std::memory_order_release);
+}
+
+void stop() noexcept {
+    enabled.store(false, std::memory_order_release);
+}
+
+std::size_t total() noexcept {
+    return allocations.load(std::memory_order_relaxed);
+}
+
+} // namespace chronon3d::test::binding_alloc_guard
+
+namespace {
+
+void binding_guard_record(std::size_t) noexcept {
+    if (chronon3d::test::binding_alloc_guard::enabled.load(
+            std::memory_order_acquire)) {
+        chronon3d::test::binding_alloc_guard::allocations.fetch_add(
+            1, std::memory_order_relaxed);
+    }
+}
+
+void* binding_guard_allocate(std::size_t size) {
+    if (void* p = std::malloc(size == 0 ? 1 : size)) {
+        binding_guard_record(size);
+        return p;
+    }
+    throw std::bad_alloc{};
+}
+
+} // namespace
+
+void* operator new(std::size_t size) {
+    return binding_guard_allocate(size);
+}
+void* operator new[](std::size_t size) {
+    return binding_guard_allocate(size);
+}
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
+    try { return binding_guard_allocate(size); } catch (...) { return nullptr; }
+}
+void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
+    try { return binding_guard_allocate(size); } catch (...) { return nullptr; }
+}
+
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete[](void* p) noexcept { std::free(p); }
+void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
+void operator delete(void* p, const std::nothrow_t&) noexcept { std::free(p); }
+void operator delete[](void* p, const std::nothrow_t&) noexcept { std::free(p); }
 
 namespace chronon3d::backends::vulkan {
 namespace {
@@ -802,6 +880,115 @@ TEST_CASE("deferred releases keep their masks through the overflow path") {
     CHECK(authority.deferred_surface_releases[2].slot_mask ==
           (frame_slot_bit(5) | frame_slot_bit(1)));
     CHECK(authority.pending_release_high_water == 3);
+}
+
+// ── TICKET-PERFORMANCE-AUDIT-2026-10 — binding scratch allocations ────────
+// The planned-alias bookkeeping is rebuilt at every begin_plan_batch: one
+// clear_planned_aliases() followed by one register per compiled allocation.
+// The rebuild must (a) authorize exactly the current plan's alias pairs —
+// never a stale pair from a previous plan — and (b) allocate nothing once
+// the bookkeeping has seen the plan's slot set.
+
+TEST_CASE("planned alias authorization is plan-scoped across rebuilds") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    constexpr runtime::RenderSurfaceHandle a{0xA10001u};
+    constexpr runtime::RenderSurfaceHandle b{0xA10002u};
+    constexpr runtime::RenderSurfaceHandle c{0xA10003u};
+
+    authority.register_planned_occupant(0, a);
+    authority.register_planned_occupant(0, b);
+    authority.register_planned_occupant(1, c);
+    CHECK(authority.is_registered_alias(a, b, 0));
+    CHECK(authority.is_registered_alias(b, a, 0));
+    CHECK_FALSE(authority.is_registered_alias(a, c, 0));
+    CHECK_FALSE(authority.is_registered_alias(a, b, 1));
+    CHECK_FALSE(authority.is_registered_alias(a, a, 0));
+
+    // A rebuild must never leave the previous plan's authorization behind:
+    // stale groups authorize nothing, even for pairs they once contained.
+    authority.clear_planned_aliases();
+    CHECK_FALSE(authority.is_registered_alias(a, b, 0));
+    CHECK_FALSE(authority.is_registered_alias(a, c, 1));
+
+    // The next plan reuses slot 0 with DIFFERENT occupants. The stale
+    // handles must not rejoin the group, and registration must not need the
+    // old plan's nodes to have been freed first.
+    constexpr runtime::RenderSurfaceHandle d{0xA10004u};
+    constexpr runtime::RenderSurfaceHandle e{0xA10005u};
+    authority.register_planned_occupant(0, d);
+    authority.register_planned_occupant(0, e);
+    CHECK(authority.is_registered_alias(d, e, 0));
+    CHECK_FALSE(authority.is_registered_alias(a, b, 0));
+    CHECK_FALSE(authority.is_registered_alias(a, d, 0));
+
+    // The explicit-pair convenience keeps its guards: no invalid handle and
+    // no self-pair may ever authorize anything.
+    authority.clear_planned_aliases();
+    authority.register_planned_alias(
+        runtime::kInvalidRenderSurfaceHandle, e, 2);
+    authority.register_planned_alias(d, d, 2);
+    CHECK_FALSE(authority.is_registered_alias(
+        runtime::kInvalidRenderSurfaceHandle, e, 2));
+    CHECK_FALSE(authority.is_registered_alias(d, d, 2));
+    authority.register_planned_alias(d, e, 2);
+    CHECK(authority.is_registered_alias(d, e, 2));
+}
+
+TEST_CASE("planned alias rebuild is allocation-free in steady state") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+
+    // Representative plan shape: 3 compiled slots, 6 compiled allocations.
+    const auto rebuild_cycle = [&authority] {
+        authority.clear_planned_aliases();
+        authority.register_planned_occupant(0, runtime::RenderSurfaceHandle{0xB10001u});
+        authority.register_planned_occupant(0, runtime::RenderSurfaceHandle{0xB10002u});
+        authority.register_planned_occupant(1, runtime::RenderSurfaceHandle{0xB10003u});
+        authority.register_planned_occupant(1, runtime::RenderSurfaceHandle{0xB10004u});
+        authority.register_planned_occupant(1, runtime::RenderSurfaceHandle{0xB10005u});
+        authority.register_planned_occupant(2, runtime::RenderSurfaceHandle{0xB10006u});
+    };
+
+    // Warmup: the bookkeeping reaches its high-water capacity on the first
+    // cycles; steady state starts once the slot set has been seen.
+    for (int warmup = 0; warmup < 3; ++warmup) rebuild_cycle();
+
+    // Guard calibration: the measurement is only meaningful if the counting
+    // operator new override is actually the one the containers use. One
+    // known allocation must be seen; without this, "0 allocations" would be
+    // indistinguishable from a dead counter.
+    chronon3d::test::binding_alloc_guard::start();
+    {
+        std::vector<std::uint64_t> known_allocation;
+        known_allocation.reserve(1);
+        known_allocation.push_back(1);
+        CHECK(chronon3d::test::binding_alloc_guard::total() >= 1);
+    }
+    chronon3d::test::binding_alloc_guard::stop();
+
+    constexpr int kMeasuredCycles = 100;
+    chronon3d::test::binding_alloc_guard::start();
+    for (int cycle = 0; cycle < kMeasuredCycles; ++cycle) rebuild_cycle();
+    chronon3d::test::binding_alloc_guard::stop();
+
+    const std::size_t allocations =
+        chronon3d::test::binding_alloc_guard::total();
+    // Visible unconditionally: this test IS the before/after measurement for
+    // the binding-scratch acceptance, so the number must leave the process.
+    std::fprintf(stderr,
+                 "[binding-scratch] steady-state allocations over %d rebuilds: %zu (%.2f per rebuild)\n",
+                 kMeasuredCycles, allocations,
+                 static_cast<double>(allocations) / kMeasuredCycles);
+    INFO("steady-state binding scratch allocations over ",
+         kMeasuredCycles, " rebuilds: ", allocations);
+    CHECK(allocations == 0);
+
+    // The authorization result is still exact after the measured cycles.
+    CHECK(authority.is_registered_alias(
+        runtime::RenderSurfaceHandle{0xB10001u},
+        runtime::RenderSurfaceHandle{0xB10002u}, 0));
+    CHECK_FALSE(authority.is_registered_alias(
+        runtime::RenderSurfaceHandle{0xB10001u},
+        runtime::RenderSurfaceHandle{0xB10003u}, 0));
 }
 
 } // TEST_SUITE

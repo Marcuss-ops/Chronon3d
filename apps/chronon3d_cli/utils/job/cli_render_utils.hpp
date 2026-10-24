@@ -105,8 +105,8 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     const RenderSettings& settings,
     std::optional<Config> config = std::nullopt,
     std::optional<std::filesystem::path> assets_root = std::nullopt,
-    double* engine_init_ms = nullptr,
-    double* backend_init_ms = nullptr);
+    std::optional<double>* engine_init_ms = nullptr,
+    std::optional<double>* backend_init_ms = nullptr);
 
 } // namespace cli
 } // namespace chronon3d

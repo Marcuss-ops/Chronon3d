@@ -62,8 +62,8 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     const RenderSettings& settings,
     std::optional<Config> config,
     std::optional<std::filesystem::path> assets_root,
-    double* engine_init_ms,
-    double* backend_init_ms) {
+    std::optional<double>* engine_init_ms,
+    std::optional<double>* backend_init_ms) {
     const auto engine_t0 = profiling::now();
     Config cfg = config.has_value() ? std::move(*config) : Config::from_environment();
     const bool software_backend =

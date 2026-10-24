@@ -89,8 +89,12 @@ PipeExportResult render_and_encode_native(
             session->device_runtime->cuda_host_upload_bytes();
         session->cuda_host_upload_steady_window_started = true;
     }
-    session->prepare_breakdown.pool_warmup_ms = session->direct_yuv_selected()
-        ? 0.0 : profiling::duration_ms(warmup_t0, warmup_t1);
+    if (!session->direct_yuv_selected()) {
+        // direct-yuv bypasses the warmup entirely: pool_warmup_ms stays
+        // absent (timing lexicon) instead of recording a fabricated 0.
+        session->prepare_breakdown.pool_warmup_ms =
+            profiling::duration_ms(warmup_t0, warmup_t1);
+    }
     session->sys_metrics.sample_cpu_start();
 
     telemetry::NvmlSampler nvml_sampler;

@@ -452,7 +452,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         const auto preparation = runtime::prepare_render(
             sw_renderer, compiled,
             runtime::RenderPreparationOptions{.warmup_renderer = false});
-        session->prepare_breakdown.font_preflight_ms = profiling::duration_ms(font_t0, profiling::now());
+        session->prepare_breakdown.prepare_render_ms = profiling::duration_ms(font_t0, profiling::now());
         if (!preparation.ok()) {
             spdlog::error("[video] Render preparation FAILED:\n{}", preparation.diagnostic());
             // TICKET-OVERLAY-THROUGHPUT fix 4: record the verdict so the
@@ -464,8 +464,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
         session->prepare_timings.accumulate(preparation.timings);
     } else {
-        session->prepare_breakdown.font_preflight_ms = 0.0;
-        spdlog::info("[direct-yuv] bypassed generic runtime::prepare_render and font preflight");
+        // The phase did not run: prepare_render_ms stays absent (timing
+        // lexicon) instead of recording a fabricated 0.
+        spdlog::info("[direct-yuv] bypassed generic runtime::prepare_render");
     }
 
     if (sw_renderer && sw_renderer->counters()) {

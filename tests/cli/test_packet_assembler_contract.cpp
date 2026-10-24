@@ -1329,7 +1329,7 @@ TEST_CASE("A1 CPU native export publishes MP4 sidecar receipt and fails closed")
     CHECK(reused_receipt.verification.resolution ==
           built_receipt.verification.resolution);
     CHECK(reused_receipt.verification.fps == built_receipt.verification.fps);
-    CHECK(reused_receipt.timing.probe_ms == verification.ffprobe_ms);
+    CHECK(reused_receipt.timing.ffprobe_ms == verification.ffprobe_ms);
     CHECK(reused_receipt.timing.sha256_ms == verification.sha256_ms);
 
     // The failure path is part of this same artifact run: a missing output can

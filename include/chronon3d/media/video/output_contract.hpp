@@ -85,11 +85,13 @@ struct OutputVerificationResult {
     std::string sha256;
 
     /// Legacy telemetry field name. Wall time of the in-process libavformat
-    /// probe in ms; measured with steady_clock. 0.0 = probe did not run.
-    double ffprobe_ms{0.0};
+    /// probe in ms; measured with steady_clock. Absent = probe did not run
+    /// (timing lexicon: never a fabricated 0, never a negative sentinel).
+    std::optional<double> ffprobe_ms;
 
-    /// Wall time of the SHA-256 digest computation, in ms. 0.0 = not computed.
-    double sha256_ms{0.0};
+    /// Wall time of the SHA-256 digest computation, in ms.
+    /// Absent = not computed.
+    std::optional<double> sha256_ms;
 
     /// The exact probe observation this verification ran
     /// (TICKET-OVERLAY-THROUGHPUT fix 2, dedup): a downstream receipt builder

@@ -3,6 +3,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <cstdint>
+#include <optional>
 
 namespace chronon3d::cli {
 
@@ -14,16 +15,18 @@ enum class StartupMeasurementKind : std::uint8_t {
     WarmProcess,
 };
 
+// Timing lexicon (see pipe_startup_breakdown.hpp): an absent phase value
+// means "did not run / not measured" — never a fabricated 0.
 struct StartupTrace {
-    double logger_init_ms{0.0};
-    double cli_bootstrap_ms{0.0};
-    double cli_parse_ms{0.0};
-    double composition_registration_ms{0.0};
-    double plan_read_ms{0.0};
-    double plan_json_parse_ms{0.0};
-    double plan_decode_validate_ms{0.0};
-    double plan_asset_resolve_ms{0.0};
-    double plan_compile_ms{0.0};
+    std::optional<double> logger_init_ms;
+    std::optional<double> cli_bootstrap_ms;
+    std::optional<double> cli_parse_ms;
+    std::optional<double> composition_registration_ms;
+    std::optional<double> plan_read_ms;
+    std::optional<double> plan_json_parse_ms;
+    std::optional<double> plan_decode_validate_ms;
+    std::optional<double> plan_asset_resolve_ms;
+    std::optional<double> plan_compile_ms;
     double process_wall_ms{0.0};
     double accounted_ms{0.0};
     double unaccounted_ms{0.0};

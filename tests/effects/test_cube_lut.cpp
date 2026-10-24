@@ -9,6 +9,9 @@
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include "src/backends/software/effects/render_effects_processor.hpp"
 
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
@@ -124,4 +127,47 @@ TEST_CASE("EchoFramehashCanary") {
     }
     CHECK(fb.get_pixel(16, 16).a == doctest::Approx(1.0f));
     CHECK(scratch.echo_history.at("echo-canary").size() == 4);
+}
+
+TEST_CASE("EchoSteadyStateHasNoFramebufferTemporaries") {
+    // TICKET-PERFORMANCE-AUDIT-2026-10 effect-scratch adoption: the echo
+    // composite runs in place, so a steady-state apply must allocate exactly
+    // ONE framebuffer — the history snapshot owned by EffectScratchResources
+    // (the GOVERNANCE H-3 allowed owner).  The old full-frame `current = fb`
+    // temporary made it two.  Uses the canonical framebuffer-allocation
+    // counter (framebuffer_allocations), not a malloc interposer, so the
+    // measurement is exact and run-stable.
+    constexpr int width = 64, height = 64;
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    EffectStack stack;
+    stack.push_back(EffectInstance{EchoParams{.echoes = 3, .decay = 0.55f,
+                                                .time_offset_frames = 1}});
+    EffectScratchResources scratch;
+    Framebuffer fb(width, height);
+    effects::EffectExecutionContext context;
+    context.effect_scratch = &scratch;
+    context.temporal_history_key = "echo-alloc-canary";
+
+    // Warmup: history entry creation and deque growth reach steady state.
+    for (int frame = 0; frame < 3; ++frame) {
+        context.frame = Frame{frame};
+        apply_effect_stack(fb, stack, context, registry);
+    }
+
+    RenderCounters counters;
+    counters.reset();
+    profiling::g_current_counters = &counters;
+    constexpr int kMeasuredFrames = 8;
+    for (int frame = 3; frame < 3 + kMeasuredFrames; ++frame) {
+        context.frame = Frame{frame};
+        apply_effect_stack(fb, stack, context, registry);
+    }
+    profiling::g_current_counters = nullptr;
+
+    const auto allocations =
+        counters.framebuffer_allocations.load(std::memory_order_relaxed);
+    INFO("framebuffer allocations over ", kMeasuredFrames,
+         " steady-state echo frames: ", allocations);
+    CHECK(allocations == kMeasuredFrames);
 }

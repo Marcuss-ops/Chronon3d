@@ -106,8 +106,11 @@ TEST_CASE("render receipt consumes precomputed output facts (fix 2 dedup)") {
     CHECK(receipt.sha256 == std::string(64, 'a'));
     CHECK(receipt.media.codec == "h264");
     CHECK(receipt.media.container == "mov,mp4,m4a,3gp,3g2,mj2");
-    CHECK(receipt.timing.probe_ms == 1.5);
+    CHECK(receipt.timing.ffprobe_ms == 1.5);
     CHECK(receipt.timing.sha256_ms == 2.5);
+    // Timing lexicon: phases that did not run are absent, not -1 or 0.
+    CHECK_FALSE(receipt.timing.count_frames_ms.has_value());
+    CHECK_FALSE(receipt.timing.decode_ms.has_value());
     CHECK(receipt.verification.codec == "pass");
     CHECK(receipt.verification.resolution == "pass");
     CHECK(receipt.verification.fps == "pass");
