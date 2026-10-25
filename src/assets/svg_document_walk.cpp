@@ -415,21 +415,41 @@ std::optional<std::string> collect_vector_mask_geometry(
     const auto definition_transform = definition.get_optional<std::string>("<xmlattr>.transform");
     const Affine2 base = root_transform * (definition_transform ? parse_transform(*definition_transform) : Affine2(1.0f));
     std::size_t geometry_count = 0;
-    std::function<std::optional<std::string>(const boost::property_tree::ptree&, const Affine2&)> visit;
-    visit = [&](const boost::property_tree::ptree& tree, const Affine2& parent) -> std::optional<std::string> {
+    std::optional<PathFillRule> clip_fill_rule;
+    const auto parse_clip_rule = [](const std::string& value) {
+        return value == "evenodd" ? PathFillRule::EvenOdd : PathFillRule::NonZero;
+    };
+    const auto definition_properties = style_properties(definition);
+    const auto root_clip_rule = definition_properties.find("clip-rule");
+    const auto inherited_rule = root_clip_rule == definition_properties.end()
+        ? PathFillRule::NonZero : parse_clip_rule(root_clip_rule->second);
+    std::function<std::optional<std::string>(const boost::property_tree::ptree&, const Affine2&, PathFillRule)> visit;
+    visit = [&](const boost::property_tree::ptree& tree, const Affine2& parent,
+                PathFillRule parent_rule) -> std::optional<std::string> {
         for (const auto& [name, node] : tree) {
             if (name == "<xmlattr>" || name == "<xmltext>" || name == "<xmlcomment>") continue;
             const auto transform_text = node.get_optional<std::string>("<xmlattr>.transform");
             const Affine2 transform = parent * (transform_text ? parse_transform(*transform_text) : Affine2(1.0f));
+            auto rule = parent_rule;
+            if (definition_kind == "clipPath") {
+                const auto properties = style_properties(node);
+                if (const auto it = properties.find("clip-rule"); it != properties.end())
+                    rule = parse_clip_rule(it->second);
+            }
             std::string d;
             if (name == "path") d = node.get<std::string>("<xmlattr>.d", "");
             else if (name == "rect" || name == "circle" || name == "ellipse" || name == "line" ||
                      name == "polyline" || name == "polygon") d = primitive_path_data(name, node);
             else if (name == "g") {
-                if (auto error = visit(node, transform)) return error;
+                if (auto error = visit(node, transform, rule)) return error;
                 continue;
             } else {
                 return "SVG vector masks support only path and primitive geometry";
+            }
+            if (definition_kind == "clipPath") {
+                if (clip_fill_rule && *clip_fill_rule != rule)
+                    return "SVG clipPath geometry must use one consistent clip-rule";
+                clip_fill_rule = rule;
             }
             ++geometry_count;
             if (definition_kind == "mask") {
@@ -450,8 +470,9 @@ std::optional<std::string> collect_vector_mask_geometry(
         }
         return std::nullopt;
     };
-    if (auto error = visit(definition, base)) return error;
+    if (auto error = visit(definition, base, inherited_rule)) return error;
     if (geometry_count == 0) return "SVG vector clip/mask must contain at least one geometry element";
+    if (clip_fill_rule) output.fill_rule = *clip_fill_rule;
     output.fill = Fill::solid_color(Color::white());
     output.stroke.enabled = false;
     return std::nullopt;

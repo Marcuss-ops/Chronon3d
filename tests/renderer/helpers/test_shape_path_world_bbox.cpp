@@ -16,6 +16,7 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/render_plan/shape_path_generator.hpp>
 
 #include "src/backends/software/rasterizers/shape_rasterizer.hpp"
 #include "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp"
@@ -138,6 +139,35 @@ TEST_CASE("software path fills honor even-odd and non-zero rules") {
     renderer::draw_path(non_zero, path, Mat4(1.0f), Color::white(), nullptr);
     CHECK(non_zero.get_pixel(32, 32).a > 0.0f);
     CHECK(non_zero.get_pixel(10, 10).a > 0.0f);
+}
+
+TEST_CASE("procedural ring segment rasterizes with a transparent center on CPU") {
+    const auto generated = render_plan::make_ring_segment_path(
+        56.0f, 56.0f, 0.0f, 360.0f, 0.5f, 128);
+    PathShape path;
+    path.fill = Fill::solid_color(Color::white());
+    path.fill_rule = PathFillRule::EvenOdd;
+    path.closed = true;
+    for (const auto& command : generated) {
+        const Vec2 point{command.point[0] + 32.0f, command.point[1] + 32.0f};
+        switch (command.type) {
+            case render_plan::ShapePathCommandTypePlan::MoveTo:
+                path.commands.push_back(PathCommand::move_to(point)); break;
+            case render_plan::ShapePathCommandTypePlan::LineTo:
+                path.commands.push_back(PathCommand::line_to(point)); break;
+            case render_plan::ShapePathCommandTypePlan::QuadraticTo:
+            case render_plan::ShapePathCommandTypePlan::CubicTo:
+                FAIL("ring generator emits only line segments"); break;
+            case render_plan::ShapePathCommandTypePlan::Close:
+                path.commands.push_back(PathCommand::close()); break;
+        }
+    }
+    Framebuffer framebuffer(64, 64);
+    framebuffer.clear(Color::transparent());
+    renderer::draw_path(framebuffer, path, Mat4(1.0f), Color::white(), nullptr);
+    CHECK(framebuffer.get_pixel(32, 32).a == doctest::Approx(0.0f));
+    CHECK(framebuffer.get_pixel(32, 8).a > 0.9f);
+    CHECK(framebuffer.get_pixel(32, 1).a == doctest::Approx(0.0f));
 }
 
 TEST_CASE("a path with no commands reports an empty bbox instead of a square") {

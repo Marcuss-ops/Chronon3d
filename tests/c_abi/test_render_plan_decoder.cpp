@@ -3120,7 +3120,11 @@ TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
          render_plan::ShapeContentTypePlan::DotGrid},
         {"device_frame", {{"type", "device_frame"}, {"device", "browser"},
                            {"chrome", true}, {"fill", {0.1, 0.2, 0.3, 1.0}}},
-         render_plan::ShapeContentTypePlan::DeviceFrame}
+         render_plan::ShapeContentTypePlan::DeviceFrame},
+        {"ring_segment", {{"type", "ring_segment"}, {"start_degrees", 0.0},
+                            {"sweep_degrees", 180.0}, {"inner_radius_ratio", 0.5},
+                            {"segments", 32}, {"fill", {1.0, 0.0, 0.0, 1.0}}},
+         render_plan::ShapeContentTypePlan::RingSegment}
     };
     for (const auto& test : cases) {
         INFO("shape content: " << std::string{test.name});
@@ -3140,6 +3144,12 @@ TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
             test.expected == render_plan::ShapeContentTypePlan::Grid ||
             test.expected == render_plan::ShapeContentTypePlan::DotGrid)
             CHECK(decoded->layers[0].shape->path.size() >= 3);
+        if (test.expected == render_plan::ShapeContentTypePlan::RingSegment) {
+            REQUIRE(decoded->layers[0].shape->path.size() > 3);
+            CHECK(decoded->layers[0].shape->path.back().type ==
+                  render_plan::ShapePathCommandTypePlan::Close);
+            CHECK(decoded->layers[0].shape->inner_radius_ratio == doctest::Approx(0.5f));
+        }
         if (test.expected == render_plan::ShapeContentTypePlan::RoundedRect)
             CHECK(decoded->layers[0].shape->radius == doctest::Approx(8.0f));
         if (test.expected == render_plan::ShapeContentTypePlan::Rect)
@@ -3167,6 +3177,19 @@ TEST_CASE("V3 render-plan decoder accepts concrete and generated path shapes") {
     auto unbounded_dots = render_plan_test::shape_layer({{"type", "dot_grid"}, {"spacing", 0.1},
         {"dot_radius", 0.02}, {"fill", {1.0, 1.0, 1.0, 1.0}}});
     CHECK_FALSE(render_plan::decode_render_plan(render_plan_test::base_plan({unbounded_dots})));
+
+    auto ring = render_plan_test::shape_layer({{"type", "ring_segment"},
+        {"sweep_degrees", 120.0}, {"inner_radius_ratio", 0.25},
+        {"fill", {1.0, 0.0, 0.0, 1.0}}});
+    auto ring_plan = render_plan_test::base_plan({ring});
+    const auto original_ring = render_plan::decode_render_plan(ring_plan);
+    REQUIRE(original_ring);
+    ring_plan["layers"][0]["shape"]["sweep_degrees"] = 121.0;
+    const auto changed_ring = render_plan::decode_render_plan(ring_plan);
+    REQUIRE(changed_ring);
+    CHECK(changed_ring->content_fingerprint != original_ring->content_fingerprint);
+    auto missing_ring_fill = render_plan_test::shape_layer({{"type", "ring_segment"}});
+    CHECK_FALSE(render_plan::decode_render_plan(render_plan_test::base_plan({missing_ring_fill})));
 }
 
 TEST_CASE("V3 GradientMesh fill decodes with bounded nodes and fingerprints every node") {

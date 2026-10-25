@@ -255,7 +255,8 @@ void add_layer_style_and_shape(CanonicalPlanWriter& out, const LayerPlan& layer)
             shape.arrow_head_length || shape.arrow_head_width ||
             shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
             shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Grid ||
-            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::Arc) {
+            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::Arc ||
+            shape.type == ShapeContentTypePlan::RingSegment) {
             out.add_bool(true);
             add_optional(out, shape.points, [](auto& writer, int value) { writer.add_i64(value); });
             out.add_float(shape.inner_radius_ratio);

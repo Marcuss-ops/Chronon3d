@@ -236,6 +236,18 @@ status below is updated only from commands actually executed in this workspace.
   assertions. This certifies the CPU path only; Vulkan certification remains
   separate.
 
+### CPU ring-segment primitive — 2026-10-25
+
+- [x] Add bounded `ring_segment` geometry to RenderPlan: signed sweep up to
+  360°, 1..4096 segments, and inner-radius ratio `[0,1)`. Ratio 0 emits a pie
+  wedge; a positive ratio emits an annular segment. It lowers to a closed path
+  and uses the existing fill, software rasterizer, and fingerprint path.
+- [x] Verify deterministic geometry, input rejection, decoder/schema handling,
+  fingerprint sensitivity, prepared path lowering, and CPU pixels. The C ABI
+  geometry/decoder/prepared focuses pass 13/78/51 assertions; the software
+  pixel oracle passes 3 assertions (transparent center and exterior, filled
+  annulus). Vulkan parity is not claimed.
+
 ## 14. Procedural background generators — audit and gated next steps
 
 ### Verified repository state (2026-10-03)

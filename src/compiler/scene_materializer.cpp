@@ -343,7 +343,8 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             break;
                         }
                         case render_plan::ShapeContentTypePlan::Line:
-                        case render_plan::ShapeContentTypePlan::Path: {
+                        case render_plan::ShapeContentTypePlan::Path:
+                        case render_plan::ShapeContentTypePlan::RingSegment: {
                             PathParams params;
                             for (const auto& command : shape.path) {
                                 const Vec2 point{command.point[0], command.point[1]};
