@@ -18,6 +18,16 @@ The trail clear remains necessary because weighted taps accumulate into it.
 
 `chronon3d_backend_registry_tests` from `linux-video-fast-dev` (Vulkan ON): 95/95 pass with the default device; the Echo cases (including `JobSession stores frame-addressed Vulkan Echo surfaces without readback`, `EffectStackNode composes Echo, brightness and chroma key over time`, and `Strict Vulkan rejects Echo without a native temporal surface history`) pass again with `VK_ICD_FILENAMES` pinned to the NVIDIA RTX A4000 ICD. Working tree had unrelated uncommitted changes, so this is not a same-SHA result.
 
+## Same-SHA WSL probe (2026-10-25)
+
+At C3D `bb540c068`, `linux-video-test` built
+`chronon3d_backend_registry_tests` and the Echo selection passed 4/4 cases
+(215 assertions), including native history admission, frame-addressed history,
+and the composed Echo/keying path. This WSL run selected `llvmpipe (LLVM 20.1.2,
+256 bits)`; CUDA interop was unavailable. Windows Vulkan enumeration sees the
+RTX 4060 Ti, but it was not the device used for these tests, so this is
+same-SHA local software-Vulkan evidence, not NVIDIA hardware certification.
+
 ## Exit criteria
 
 - [x] Add native dispatch and job-owned history for Vulkan/GPU-only surfaces;

@@ -25,6 +25,16 @@ GPU-hardware certification.
 
 `chronon3d_backend_registry_tests` built from `linux-video-fast-dev` (CHRONON3D_ENABLE_VULKAN=ON): 95/95 test cases pass with the default device; the 8 keying/echo-related cases pass again with `VK_ICD_FILENAMES` pinned to the NVIDIA ICD (RTX A4000, Vulkan 1.4). Working tree had unrelated uncommitted changes, so this is not a same-SHA result.
 
+## Same-SHA WSL probe (2026-10-25)
+
+At C3D `bb540c068`, `linux-video-test` built
+`chronon3d_backend_registry_tests` and the keying selection passed 6/6 cases
+(976 assertions), including software parity, stable frame hashes, and strict
+Vulkan ordering. This WSL run selected `llvmpipe (LLVM 20.1.2, 256 bits)`;
+CUDA interop was unavailable. Windows Vulkan enumeration sees the RTX 4060 Ti,
+but it was not the device used for these tests, so this is same-SHA local
+software-Vulkan evidence, not NVIDIA hardware certification.
+
 ## Exit criteria
 
 - [x] Implement native GPU luma/chroma processing with linear-light,
