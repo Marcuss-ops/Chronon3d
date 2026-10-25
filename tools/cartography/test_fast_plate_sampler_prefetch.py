@@ -7,7 +7,6 @@ import tempfile
 import threading
 import time
 import unittest
-from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -44,13 +43,18 @@ class ExactPlatePrefetchTests(unittest.TestCase):
 
         pyramid._fetch_single_tile = synthetic_fetch
         sampler = FastPlateSampler(pyramid, 400, 240)
+        # Pin the worker bound the test asserts against (the production
+        # default is TILE_PREFETCH_WORKERS; the contract under test is that
+        # prefetch respects whatever bound it is given).
+        sampler.prefetch_workers = 12
         sampler.prepare([(41.89, 12.49), (41.90, 12.50)], 5, 6)
 
         expected = sampler.required_tile_keys()
         self.assertTrue(expected)
         self.assertEqual(set(pyramid.tile_cache), expected)
         self.assertEqual(len(calls), len(set(calls)), "normalized coverage must fetch each tile once")
-        self.assertLessEqual(high_water, 12, "prefetch must respect its worker bound")
+        self.assertLessEqual(high_water, sampler.prefetch_workers,
+                             "prefetch must respect its worker bound")
         self.assertEqual(pyramid.telemetry["late_tile_fetches"], 0)
         self.assertEqual(sampler.prepare_telemetry["required_tile_count"], len(expected))
         self.assertEqual(sampler.prepare_telemetry["prefetch_tiles_fetched"], len(expected))
@@ -101,23 +105,18 @@ class ExactPlatePrefetchTests(unittest.TestCase):
                 self.assertEqual(pyramid.telemetry["tile_disk_cache_hits"], 1)
                 self.assertEqual(pyramid.telemetry["tile_disk_cache_misses"], 0)
 
-                fetched = DynamicResponse(tile_bytes)
-                with patch.object(dyn.urllib.request, "urlopen", return_value=fetched):
+                with patch.object(dyn, "_http_get", return_value=tile_bytes):
                     pyramid._fetch_single_tile(3, 3, 4)
                 self.assertEqual(pyramid.telemetry["tile_disk_cache_misses"], 1)
                 self.assertEqual(pyramid.telemetry["tile_network_fetches"], 1)
                 self.assertEqual(pyramid.telemetry["tile_bytes_downloaded"], len(tile_bytes))
 
-                with patch.object(dyn.urllib.request, "urlopen", side_effect=OSError("offline")), \
+                with patch.object(dyn, "_http_get", side_effect=OSError("offline")), \
                      patch.object(dyn.time, "sleep"):
                     _, fallback = pyramid._fetch_single_tile(3, 4, 4)
                 self.assertEqual(fallback.shape, (256, 256, 3))
                 self.assertEqual(pyramid.telemetry["tile_disk_cache_misses"], 2)
                 self.assertEqual(pyramid.telemetry["tile_fallbacks"], 1)
-
-
-class DynamicResponse(BytesIO):
-    """BytesIO response with the context-manager interface used by urllib."""
 
 
 if __name__ == "__main__":

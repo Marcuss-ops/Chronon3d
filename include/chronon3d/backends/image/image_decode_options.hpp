@@ -22,6 +22,11 @@ struct ImageDecodeOptions {
     ColorSpace color_space{ColorSpace::SRGB};
     PremultiplyAlpha premultiply{PremultiplyAlpha::Yes};
     OrientationPolicy orientation{OrientationPolicy::ApplyExif};
+    // Runtime-only resolution bound for the decoded copy (longest side, in
+    // source pixels). The authored asset is untouched: this only limits the
+    // cached linear/GPU representation to what the canvas can actually show.
+    // 0 means "no display bound" — the runtime applies its global cap.
+    int max_dimension{0};
     // Optional per-image OCIO input transform. The declared output space is
     // the project working space and must be scene-linear BT.709-compatible.
     std::string ocio_config_path;
@@ -48,6 +53,7 @@ struct ImageAssetKeyHash {
         mix(static_cast<std::size_t>(key.options.color_space));
         mix(static_cast<std::size_t>(key.options.premultiply));
         mix(static_cast<std::size_t>(key.options.orientation));
+        mix(static_cast<std::size_t>(key.options.max_dimension));
         mix(std::hash<std::string>{}(key.options.ocio_config_path));
         mix(std::hash<std::string>{}(key.options.ocio_input_space));
         mix(std::hash<std::string>{}(key.options.ocio_working_space));

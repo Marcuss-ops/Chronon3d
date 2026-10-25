@@ -50,6 +50,10 @@ struct FrameExecutionPlan {
     bool force_full_frame_clear{false};
     std::shared_ptr<runtime::RenderSurface> output_surface;
     std::shared_ptr<Framebuffer> reuse_surface;
+    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): `reuse_surface` is only
+    /// the history carrier here — the frame itself is never rendered or
+    /// encoded; the writer re-emits the previous frame's encoded packet.
+    bool duplicate_encoded_frame{false};
     FrameFingerprints frame_fingerprints{};
     bool scene_structure_unchanged{false};
     bool static_camera_changed{true};

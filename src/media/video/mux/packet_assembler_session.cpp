@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <string_view>
 
 extern "C" {
 #include <libavutil/dict.h>
@@ -45,6 +46,7 @@ bool MuxSession::open(const MuxOpenConfig& config, std::string& reason) {
     output_path_ = config.output_path;
     output_checksum_.clear();
     checksum_enabled_ = config.checksum;
+    fragmented_mp4_ = config.fragmented_mp4;
     checksum_used_reread_ = false;
     finalize_attempted_ = false;
     finalized_ = false;
@@ -148,6 +150,22 @@ bool MuxSession::write_header(const std::string& output_path,
     AVDictionary* options = nullptr;
     if (std::filesystem::path(output_path).extension() == ".gif")
         av_dict_set(&options, "loop", "0", 0);
+    // Fragmented MP4: every fragment (moof/mdat) is self-describing and final
+    // the moment it is appended — no `mdat`-size backpatch, no second seek
+    // pass, and the checksum computed by the append-only hash writer is the
+    // file digest without any reread. Fragments start at keyframes
+    // (frag_keyframe), so a packet-copy splice can still cut on fragment
+    // boundaries. Only the ISO-BMFF muxers understand "movflags"; setting it
+    // on another container would fail the header write, so guard by muxer.
+    if (fragmented_mp4_ && format_->oformat) {
+        const std::string_view muxer_name = format_->oformat->name ? format_->oformat->name : "";
+        const bool iso_bmff = muxer_name == "mp4" || muxer_name == "mov" ||
+            muxer_name == "3gp" || muxer_name == "ipod" || muxer_name == "psp" ||
+            muxer_name == "f4v";
+        if (iso_bmff)
+            av_dict_set(&options, "movflags",
+                        "frag_keyframe+empty_moov+default_base_moof", 0);
+    }
     const int ret = avformat_write_header(format_, &options);
     av_dict_free(&options);
     if (ret < 0) {

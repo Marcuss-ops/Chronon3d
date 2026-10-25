@@ -16,6 +16,9 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 
+#include <variant>
+#include <vector>
+
 namespace chronon3d::graph {
 
 namespace {
@@ -349,18 +352,118 @@ bool SceneHasher::layer_is_static(const Layer& layer) {
     return true;
 }
 
+// ── P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — settled evaluation ─────
+//
+// A frame may duplicate the previous frame's encoded output only when NOTHING
+// evaluated per frame can change the pixels anymore.  Text animators were
+// previously "not static" by mere PRESENCE (`animators.empty()`), which made
+// every hold frame of an animated phrase card pay a full raster+composite+
+// encode: the measured cost grew +372 ms per second of card even though the
+// pixels stopped changing after the reveal.  The pixel-relevant question is
+// not "is there an animator?" but "can its evaluation still change?": once
+// every animated value of the stack is past its last keyframe (Hold tail),
+// evaluate(frame) is constant and the raster cannot move.  Expressions and
+// looping modes are never settled — their evaluation is time-varying by
+// contract.  The check is STRICT (`last_keyframe_time() < frame`): the
+// duplication source is frame-1, so both frames must already be in the tail.
+//
+// Field convention for the generic property sweep below: every animatable
+// property member is an `AnimatedValue<T>` named in that set; plain data
+// members (e.g. CharacterOffsetProperty::offset) are constant by construction
+// and settle trivially.  A NEW animated member with an out-of-set name must be
+// added to the sweep — the naming convention is the contract.
+namespace {
+
+template <typename T>
+bool animated_value_settled_at(const AnimatedValue<T>& value, Frame frame) {
+    if (!value.is_time_dependent()) return true;
+    if (!value.is_animated()) return false;  // expression-only: unknown tail
+    if (value.loop_mode() != LoopMode::Hold) return false;
+    return value.last_keyframe_time() < frame;
+}
+
+template <typename T>
+bool animator_member_settled_at(const T& value, Frame frame) {
+    if constexpr (requires { value.is_time_dependent(); }) {
+        return animated_value_settled_at(value, frame);
+    } else {
+        (void)frame;
+        return true;
+    }
+}
+
+template <typename T>
+bool animator_property_settled_at(const T& property, Frame frame) {
+    bool settled = true;
+    if constexpr (requires { property.value; })
+        settled = settled && animator_member_settled_at(property.value, frame);
+    if constexpr (requires { property.degrees; })
+        settled = settled && animator_member_settled_at(property.degrees, frame);
+    if constexpr (requires { property.angle; })
+        settled = settled && animator_member_settled_at(property.angle, frame);
+    if constexpr (requires { property.axis; })
+        settled = settled && animator_member_settled_at(property.axis, frame);
+    if constexpr (requires { property.radius; })
+        settled = settled && animator_member_settled_at(property.radius, frame);
+    if constexpr (requires { property.color; })
+        settled = settled && animator_member_settled_at(property.color, frame);
+    if constexpr (requires { property.padding_em; })
+        settled = settled && animator_member_settled_at(property.padding_em, frame);
+    if constexpr (requires { property.radius_em; })
+        settled = settled && animator_member_settled_at(property.radius_em, frame);
+    if constexpr (requires { property.width; })
+        settled = settled && animator_member_settled_at(property.width, frame);
+    if constexpr (requires { property.pixels; })
+        settled = settled && animator_member_settled_at(property.pixels, frame);
+    return settled;
+}
+
+bool glyph_selector_settled_at(const GlyphSelectorSpec& selector, Frame frame) {
+    return animator_member_settled_at(selector.start, frame) &&
+           animator_member_settled_at(selector.end, frame) &&
+           animator_member_settled_at(selector.offset, frame) &&
+           animator_member_settled_at(selector.amount, frame);
+}
+
+bool text_animators_settled_at(const std::vector<TextAnimatorSpec>& animators,
+                               Frame frame) {
+    for (const auto& animator : animators) {
+        if (!animator.enabled) continue;
+        for (const auto& selector : animator.selectors) {
+            if (!glyph_selector_settled_at(selector, frame)) return false;
+        }
+        for (const auto& property : animator.properties) {
+            const bool property_settled = std::visit(
+                [frame](const auto& entry) {
+                    return animator_property_settled_at(entry, frame);
+                },
+                property);
+            if (!property_settled) return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
 bool SceneHasher::layer_is_static_at(const Layer& layer, Frame frame) {
     if (layer.kind == LayerKind::Video) return false;
     if (layer.kind == LayerKind::Precomp) return false;
     if (layer.anim_transform.is_time_dependent() && !layer_animation_done_at(layer, frame)) {
         return false;
     }
+    // Layer transitions are authored in SECONDS and this boundary has no fps
+    // to window them against, so any transition keeps the conservative
+    // "frame-dependent" verdict (unchanged behaviour).  Overlay items — the
+    // P1 target — do not author layer transitions; their entrance motion runs
+    // through anim_transform/text animators, which ARE windowed above.
     if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
     if (layer.time_remap.time_remap.is_time_dependent()) return false;
     for (const auto& n : layer.nodes) {
         if (n.shape.type() == ShapeType::TextRun) {
             const auto handle = n.shape.text_run_shape_handle();
-            if (handle.value && !handle.value->animators.empty()) {
+            if (handle.value &&
+                !text_animators_settled_at(handle.value->animators, frame)) {
                 return false;
             }
         }

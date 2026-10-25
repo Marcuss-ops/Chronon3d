@@ -4,6 +4,7 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/media/video/keyframe_cadence.hpp>
+#include <fmt/format.h>
 #include <libavutil/mastering_display_metadata.h>
 #include <libavutil/mathematics.h>
 #include <libavcodec/version.h>
@@ -223,15 +224,22 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     // Phase 2 — resolve + validate the encoder configuration BEFORE any
     // FFmpeg/decoder/CUDA/render setup.
     if (!resolve_open_configuration()) return false;
+    codec_session_fingerprint_ = compute_codec_session_fingerprint();
 
     // Phase 3 — allocate the codec context and select the surface.
     if (!configure_codec_and_surface()) return false;
 
-    // Phase 4 — apply the RESOLVED configuration verbatim.
-    if (!apply_resolved_encoder_options()) return false;
+    // Phase 3b — cross-item codec-session adoption (opt-in, fail-closed).
+    if (!try_adopt_codec_session()) return false;
+
+    // Phase 4 — apply the RESOLVED configuration verbatim. Skipped on session
+    // adoption: the cached codec is already open and carries these options.
+    if (!codec_session_adopted_ && !apply_resolved_encoder_options()) return false;
 
     // Phase 5 — open the codec and probe the encoder-owned bitstream contract.
-    if (!open_codec_and_probe_contract()) return false;
+    // Skipped on session adoption: the cached codec is already open and its
+    // live bitstream contract was restored in phase 3b.
+    if (!codec_session_adopted_ && !open_codec_and_probe_contract()) return false;
 
     const std::string filename = options_.output_path;
 
@@ -239,7 +247,11 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     if (!wire_container(filename)) return false;
 
     // Phase 7 — frame buffers and final validation.
-    return finalize_open(filename);
+    if (!finalize_open(filename)) return false;
+    // Cross-item session eligibility (fail-closed): only a healthy owned
+    // container under a complete fingerprint may be parked for the next job.
+    codec_session_eligible_ = !codec_session_fingerprint_.empty() && !borrows_mux_;
+    return true;
 }
 
 void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
@@ -251,6 +263,14 @@ void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
     mux_packets_written_ = 0;
     first_encoder_packet_pts_ = -1;
     last_encoder_packet_pts_ = -1;
+    // P1 run-anchor duplication state (pooled re-open must not inherit a
+    // previous job's anchor or discard windows).
+    duplicate_seed_source_.reset();
+    duplicate_anchor_.reset();
+    duplicate_anchor_pts_ = -1;
+    duplicate_replicated_through_pts_ = -1;
+    duplicate_discard_ranges_.clear();
+    duplicate_run_active_ = false;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     frames_submitted_ = 0;
     cuda_pending_peak_ = 0;
@@ -293,6 +313,12 @@ void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
     owned_mux_.reset();
     borrowed_stream_reproduced_ = false;
     borrowed_stream_checked_ = false;
+    // Cross-item codec-session state (a pooled re-open must not inherit a
+    // previous job's session decisions).
+    codec_session_fingerprint_.clear();
+    codec_session_adopted_ = false;
+    codec_session_eligible_ = false;
+    session_restart_intra_pending_ = false;
 }
 
 bool NativeAvEncoder::resolve_open_configuration() {
@@ -690,6 +716,69 @@ bool NativeAvEncoder::open_codec_and_probe_contract() {
     return true;
 }
 
+std::string NativeAvEncoder::compute_codec_session_fingerprint() const {
+    // Fail-closed first: lanes whose configuration carries axes this cache
+    // does not model (spliced/borrowed stream declarations, static HDR
+    // mastering metadata, OCIO output views) never share a session.
+    if (!resolved_encoder_config_) return {};
+    if (options_.borrowed_declared_stream || options_.hdr_mastering_metadata ||
+        !options_.ocio_display.empty()) {
+        return {};
+    }
+    const auto& resolved = *resolved_encoder_config_;
+    // Every field that flows into configure_codec_and_surface() or
+    // apply_resolved_encoder_options() must participate: a mismatch here
+    // would hand a codec configured for one stream to a job that needs
+    // another.
+    return fmt::format(
+        "c3d.codec-session.v1|enc={}|preset={}|crf={}|bitrate={}|tune={}|"
+        "async={}|rc={}|qp={}|{}x{}|fps={}/{}|threads={}|gpu={}|"
+        "out={}|gamma={}|dyuv={}|in={}",
+        resolved.encoder_name(), resolved.preset(),
+        resolved.crf().value_or(-1),
+        static_cast<long long>(resolved.bitrate().value_or(0)),
+        resolved.tune().value_or(std::string{}),
+        resolved.async_depth(),
+        static_cast<int>(resolved.rate_control()),
+        resolved.qp().value_or(-1),
+        options_.width, options_.height,
+        options_.fps_num, options_.fps_den,
+        options_.encode_threads,
+        gpu_nvenc_ ? 1 : 0,
+        static_cast<int>(options_.color_transform.output),
+        options_.color_transform.apply_gamma ? 1 : 0,
+        options_.direct_yuv_mode ? 1 : 0,
+        static_cast<int>(options_.input_format));
+}
+
+bool NativeAvEncoder::try_adopt_codec_session() {
+    if (codec_session_fingerprint_.empty() ||
+        !detail::codec_session_reuse_enabled()) {
+        return true;
+    }
+    auto session = detail::acquire_codec_session(codec_session_fingerprint_);
+    if (!session || !session->codec) return true;
+    // Replace the context phase 3 just allocated with the cached, already
+    // open one. The per-instance surface state configured in phase 3 (CUDA
+    // refs, stream, compositor warm-up) stays as configured; the cached codec
+    // carries its own hw_frames_ctx reference.
+    avcodec_free_context(&codec_);
+    codec_ = session->codec;
+    session->codec = nullptr;
+    bitstream_contract_ = session->contract;
+    bitstream_contract_probed_ = true;
+    // The parked session ended in draining state: reset the codec for a new
+    // frame/PTS timeline. The first frame of the new container is forced
+    // intra so this item's MP4 starts on a keyframe.
+    avcodec_flush_buffers(codec_);
+    codec_session_adopted_ = true;
+    session_restart_intra_pending_ = true;
+    spdlog::info(
+        "[native_av] codec session adopted for cross-item reuse (fingerprint '{}')",
+        codec_session_fingerprint_);
+    return true;
+}
+
 bool NativeAvEncoder::wire_container(const std::string& filename) {
     std::optional<chronon3d::media::AudioStreamConfig> audio_config;
     if (!options_.audio_source_path.empty()) {
@@ -736,7 +825,8 @@ bool NativeAvEncoder::wire_container(const std::string& filename) {
         if (!owned_mux_->open(chronon3d::media::MuxOpenConfig{
                 .output_path = filename,
                 .video_codec = codec_,
-                .audio = audio_config}, mux_reason)) {
+                .audio = audio_config,
+                .fragmented_mp4 = options_.fragmented_mp4}, mux_reason)) {
             spdlog::error("[native_av] mux session open failed: {}", mux_reason);
             return false;
         }

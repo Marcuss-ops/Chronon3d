@@ -63,13 +63,26 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
             return false;
         }
 
+        // Cross-item session restart: the first frame of a new container must
+        // be an IDR. The frame is reused across writes, so every send states
+        // the pict type explicitly (same rule as write_frame_impl).
+        if (pending.frame) {
+            pending.frame->pict_type = session_restart_intra_pending_
+                ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
+        }
         const auto send_t0 = Clock::now();
         const int send_ret = avcodec_send_frame(codec_, pending.frame);
         const double send_dur = elapsed_ms(send_t0);
+        if (send_ret == 0) session_restart_intra_pending_ = false;
         native_send_frame_ms_ += send_dur;
         encoder_nvenc_submit_ms_ += send_dur;
         const int64_t popped_pts = pending.frame ? pending.frame->pts : -1;
         (void)popped_pts;
+        // P1: remember the submitted content for run-anchor seeding (the
+        // duplicate proof guarantees identical pixels; a buffer ref is enough).
+        if (pending.frame) {
+            duplicate_seed_source_.reset(av_frame_clone(pending.frame));
+        }
         av_frame_unref(pending.frame);
         reusable_cuda_frames_.push_back(pending.frame);
         pending.frame = nullptr;

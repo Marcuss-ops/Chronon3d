@@ -98,6 +98,18 @@ struct FrameReuseEligibility {
     // camera_change_policy.hpp, exposed here as the single sanctioned entry).
     bool camera_unchanged{true};
 
+    // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): the frame is provably
+    // identical to the previous one — camera unchanged, dynamic-payload
+    // fingerprint unchanged, scene classified static at THIS frame and the
+    // frames are sequential — but no reusable CPU surface exists (the native
+    // encode lane keeps framebuffers host-less). An encoder with packet
+    // duplication may emit the previous frame's encoded packet again instead
+    // of re-rendering and re-encoding identical pixels. Deliberately
+    // INDEPENDENT of surface availability: it is an encode-side reuse, and
+    // the predicate is exactly the one surface reuse trusts for pixel
+    // identity (minus the surface itself).
+    bool duplicate_frame_eligible{false};
+
     // Stable snake_case token describing WHY reuse was rejected (first
     // failing gate). "" when at least one reuse path is available.
     std::string_view reason;

@@ -5,6 +5,8 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
+#include <cstdlib>
+#include <cstring>
 #include <mutex>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -14,6 +16,67 @@
 namespace chronon3d::cli {
 using Clock = detail::NativeAvClock;
 using detail::elapsed_ms;
+
+namespace detail {
+namespace {
+// Single-entry cross-item codec-session cache (see the rationale in
+// native_av_encoder_internal.hpp). One entry is enough: the daemon executes
+// one render job at a time per lane (CHRONON_RENDER_JOB_SLOTS=1), so
+// consecutive items of a batch reuse exactly one session.
+std::mutex g_codec_session_cache_mutex;
+std::shared_ptr<CodecSession> g_codec_session_cache;
+}  // namespace
+
+CodecSession::~CodecSession() {
+    if (codec) avcodec_free_context(&codec);
+}
+
+bool codec_session_reuse_enabled() noexcept {
+    const char* value = std::getenv("CHRONON_ENCODER_SESSION_REUSE");
+    return value != nullptr && std::strcmp(value, "1") == 0;
+}
+
+std::shared_ptr<CodecSession> acquire_codec_session(
+    const std::string& fingerprint) noexcept {
+    if (!codec_session_reuse_enabled() || fingerprint.empty()) return nullptr;
+    std::lock_guard<std::mutex> lock(g_codec_session_cache_mutex);
+    if (!g_codec_session_cache ||
+        g_codec_session_cache->fingerprint != fingerprint) {
+        return nullptr;
+    }
+    auto session = std::move(g_codec_session_cache);
+    g_codec_session_cache.reset();
+    return session;
+}
+
+void release_codec_session(std::shared_ptr<CodecSession> session) noexcept {
+    if (!session || !codec_session_reuse_enabled() ||
+        session->fingerprint.empty() || !session->codec) {
+        return;  // the deleter frees the codec
+    }
+    std::lock_guard<std::mutex> lock(g_codec_session_cache_mutex);
+    g_codec_session_cache = std::move(session);
+}
+}  // namespace detail
+
+void NativeAvEncoder::park_codec_session_for_reuse() {
+    if (!codec_ || !detail::codec_session_reuse_enabled()) return;
+    auto session = std::make_shared<detail::CodecSession>();
+    session->codec = codec_;
+    codec_ = nullptr;
+    // The contract of the LIVE session follows the session, not the instance:
+    // refresh it once here so the next adopter starts from the materialized
+    // parameter sets this run actually produced.
+    bitstream_contract_probed_ = true;
+    session->contract = encoder_target_contract_unlocked();
+    session->fingerprint = codec_session_fingerprint_;
+    // codec_session_adopted_ intentionally survives close(): it records how
+    // this item obtained its session and is only reset by the next open.
+    detail::release_codec_session(std::move(session));
+    spdlog::info(
+        "[native_av] codec session parked for cross-item reuse (fingerprint '{}')",
+        codec_session_fingerprint_);
+}
 
 bool NativeAvEncoder::close() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -154,6 +217,13 @@ bool NativeAvEncoder::close() {
         frames_written_, encoder_packets_received_, mux_packets_written_,
         first_encoder_packet_pts_, last_encoder_packet_pts_,
         cache_hits_, cache_misses_);
+    // Cross-item codec session (opt-in): park the still-open codec for the
+    // next same-configuration open instead of paying avcodec_open2 per
+    // artifact (P2 item 2 / P4 item 1). Fail-closed: only a healthy owned
+    // container under a complete fingerprint is parked.
+    if (flush_ok && codec_session_eligible_) {
+        park_codec_session_for_reuse();
+    }
     // The encoder-owned bitstream contract describes a live session only; a
     // closed (or pooled) instance must not leak it into the next job.
     bitstream_contract_ = BitstreamTargetContract{};

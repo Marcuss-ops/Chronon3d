@@ -272,6 +272,20 @@ FrameReuseEligibility compute_reuse_eligibility(
         previous.fingerprints.structure_fp == current.fingerprints.structure_fp &&
         active_at_unchanged;
 
+    // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — packet-duplicate
+    // eligibility. Evaluated BEFORE the surface-gated chain below because it
+    // must not depend on `has_previous_surface`/`projected`: duplicating a
+    // frame reuses its ENCODED PACKET, never a framebuffer. The pixel-
+    // identity proof is the one the reuse paths above already trust:
+    // identical combined fingerprint (static + dynamic payload), unchanged
+    // camera, static-scene classification at this frame and sequential
+    // adjacency (the previous frame is the one whose packet gets duplicated).
+    // `same_frame` is excluded: a repeated evaluation of one frame has no
+    // preceding presentation slot to duplicate.
+    result.duplicate_frame_eligible =
+        sequential_frame && result.camera_unchanged && combined_unchanged &&
+        current.scene_is_static;
+
     if (projected) {
         result.reason = "projected_surface";
     } else if (!current.has_previous_surface) {

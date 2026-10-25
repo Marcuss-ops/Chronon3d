@@ -84,6 +84,10 @@ struct VideoSettings {
     /// from the source makes the native mux resample the audio to that rate.
     int         audio_target_sample_rate{0};
     bool        gop_copy_only{false};
+    /// Emit the job's output container as a fragmented MP4 (see
+    /// MuxOpenConfig::fragmented_mp4). Part of the output contract: it
+    /// participates in the normalized job fingerprint.
+    bool        fragmented_mp4{false};
     std::vector<media::ChangedInterval> changed_intervals;
 
     std::string hardware_encoder{"none"};

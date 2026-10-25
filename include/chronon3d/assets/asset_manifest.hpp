@@ -46,6 +46,9 @@ struct InternalAssetRef {
     std::string path{};
     std::string owner{};
     bool        required{true};
+    // Display-derived runtime resolution bound for image assets (see
+    // ImageDecodeOptions::max_dimension). 0 = no display bound.
+    int         max_dimension{0};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -80,8 +83,12 @@ public:
     }
 
     /// Add an image asset (owner-keyed; `AssetKind::Image`).
-    void add_image(std::string path, std::string owner, bool required = true) {
-        add({AssetKind::Image, std::move(path), std::move(owner), required});
+    /// `max_dimension` mirrors the display-derived decode bound so the
+    /// preparation warm-up decodes the same cache entry the render node uses.
+    void add_image(std::string path, std::string owner, bool required = true,
+                   int max_dimension = 0) {
+        add({AssetKind::Image, std::move(path), std::move(owner), required,
+             max_dimension});
     }
 
     /// Add a video asset (owner-keyed; `AssetKind::Video`).

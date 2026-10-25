@@ -71,6 +71,7 @@ runtime::job::RenderJobRequest make_render_job_request(const RenderPlanState& ar
     request.output.audio_source_path = args.video.gop_source;
     request.output.audio_target_sample_rate = args.video.audio_sample_rate;
     request.output.gop_copy_only = args.video.gop_copy_only;
+    request.output.fragmented_mp4 = args.video.fragmented_mp4;
     request.output.pipe_pixfmt = args.video.pipe_pixfmt;
     request.output.color_output = args.video.color_output;
     request.output.reference_white_nits = args.video.reference_white_nits;
@@ -346,6 +347,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         request.video_settings.audio_target_sample_rate =
             normalized_job.output.audio_target_sample_rate;
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
+        request.video_settings.fragmented_mp4 = normalized_job.output.fragmented_mp4;
         request.video_settings.changed_intervals = normalized_job.output.changed_intervals;
         request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
         request.video_settings.color_output = !normalized_job.output.color_output.empty()

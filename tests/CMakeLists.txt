@@ -36,6 +36,21 @@ if(CHRONON3D_ENABLE_GEO)
             geo/geo_core_test.cpp
             $<TARGET_OBJECTS:chronon3d_geo>
     )
+
+    # Native map-plate scaffolding (TICKET-MAPS-NATIVE-PORT): pins the
+    # fail-closed contract until the rendering port lands.
+    chronon3d_add_test_suite(
+        NAME chronon3d_map_plate_render_test
+        TIER UNIT
+        NO_PIPELINE
+        NO_DOCTEST
+        LINK_TARGETS
+            Clipper2::Clipper2
+            nlohmann_json::nlohmann_json
+        SOURCES
+            geo/map_plate_render_test.cpp
+            $<TARGET_OBJECTS:chronon3d_geo>
+    )
 endif()
 
 # Cross-repo V3 bridge drift guard (ChrononMotion's

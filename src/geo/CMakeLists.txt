@@ -10,6 +10,7 @@ add_library(chronon3d_geo OBJECT
     ${CMAKE_CURRENT_SOURCE_DIR}/feature_query.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/geo_boolean.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/territory_change.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/map_plate_render.cpp
 )
 
 target_include_directories(chronon3d_geo PRIVATE

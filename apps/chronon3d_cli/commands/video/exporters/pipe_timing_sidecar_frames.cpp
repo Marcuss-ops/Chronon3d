@@ -33,6 +33,9 @@ nlohmann::json build_render_section(const FrameTelemetry& f) {
         {"unaccounted_cpu_ms", f.render_breakdown.unaccounted_cpu_ms},
         {"encode_handoff_ms", f.encode_handoff_ms},
         {"direct_yuv_decode_ms", f.direct_yuv_decode_ms > 0.0 ? nlohmann::json(f.direct_yuv_decode_ms) : nlohmann::json(nullptr)},
+        // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): true when this frame
+        // was emitted as a packet-level duplicate of the previous one.
+        {"duplicate_frame", f.duplicate_frame},
         {"total_ms", render_total_ms(f)}
     };
 }

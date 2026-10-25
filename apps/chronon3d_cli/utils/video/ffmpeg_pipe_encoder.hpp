@@ -72,6 +72,24 @@ struct IVideoEncoder {
     virtual ~IVideoEncoder() = default;
     virtual bool open(const struct FfmpegPipeOptions& options) = 0;
     virtual bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) = 0;
+
+    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — packet-level frame
+    /// duplication. An encoder that reports true implements
+    /// write_duplicate_frame(); the export setup grants
+    /// RenderSettings::duplicate_static_frames only when this holds, so a sink
+    /// without packet access simply never sees duplicates.
+    [[nodiscard]] virtual bool supports_duplicate_frames() const { return false; }
+    /// Emit presentation frame `frame_number` (which must equal the encoder's
+    /// presentation cursor) as a packet-level duplicate of the identical run
+    /// it belongs to. The output keeps the exact frame count and duration
+    /// contract: one sample per presentation frame, each sample the run
+    /// anchor's bitstream (reference-free, so replication cannot drift).
+    /// Returns false only where a duplicate cannot be honoured without
+    /// breaking the stream — never silently shortens it (fail-closed).
+    virtual bool write_duplicate_frame(int frame_number) {
+        (void)frame_number;
+        return false;
+    }
     virtual bool write_direct_yuv(const media::video::DirectYuvFrame& frame) {
         (void)frame;
         return false;
@@ -297,6 +315,10 @@ struct FfmpegPipeOptions {
     std::string audio_source_path;
     /// Requested output audio sample rate (Hz); 0 keeps the source rate.
     int audio_target_sample_rate{0};
+    /// Write the owned container as a fragmented MP4 (see
+    /// MuxOpenConfig::fragmented_mp4): bytes final when appended, so the
+    /// artifact can be hashed/uploaded while the mux is still open.
+    bool fragmented_mp4{false};
     double audio_start_seconds{0.0};
     double audio_end_seconds{0.0};
 

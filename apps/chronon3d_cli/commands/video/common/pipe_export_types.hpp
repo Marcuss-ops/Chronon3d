@@ -127,6 +127,12 @@ struct RenderLoopContext {
     std::vector<chronon3d::telemetry::FrameTelemetry>& telemetry_frames;
     std::atomic<std::int64_t>& telemetry_anchor_ns;
     std::uint64_t trace_job_id{0};
+    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): the export setup grants
+    /// RenderSettings::duplicate_static_frames only when the selected sink
+    /// supports packet duplication (IVideoEncoder::supports_duplicate_frames)
+    /// and the container/schedule can host replicated samples. Without the
+    /// grant identical frames degrade to the full render+encode path.
+    bool duplicate_frames_allowed{false};
 };
 
 struct RenderLoopResult {

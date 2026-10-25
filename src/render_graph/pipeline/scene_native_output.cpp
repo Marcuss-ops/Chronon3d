@@ -358,6 +358,18 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_reused_native_frame(
     return framebuffer;
 }
 
+std::shared_ptr<Framebuffer> NativeSourceResidency::finish_duplicate_native_frame(
+    const std::shared_ptr<Framebuffer>& framebuffer) {
+    // P1: a duplicated frame performs no device work at all — no source
+    // resolution, no D2D copy, no encode hand-off. The batch opened for the
+    // frame still closes so the backend batch accounting stays balanced.
+    if (encode_batch_active_) {
+        backend_.end_frame_batch();
+        encode_batch_active_ = false;
+    }
+    return framebuffer;
+}
+
 std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
     std::shared_ptr<Framebuffer> exec_fb, Frame frame) {
     if (!encode_batch_active_) return exec_fb;

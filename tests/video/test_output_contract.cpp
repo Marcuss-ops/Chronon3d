@@ -24,10 +24,14 @@ extern "C" {
 }
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -231,6 +235,220 @@ TEST_CASE("MuxSession checksum is opt-in and authoritative when requested") {
     avcodec_free_context(&video_codec);
     std::error_code ec;
     std::filesystem::remove(artifact, ec);
+}
+
+// The fragmented-mp4 side of the same contract: moof/mdat fragments have no
+// start-of-file backpatch, so the append-only hash survives to the last byte —
+// the checksum is produced WITHOUT the documented reread, and the bytes are
+// final while they are appended (the overlay-artifact streaming upload lane).
+TEST_CASE("MuxSession fragmented MP4 writes fragments and skips the checksum reread") {
+    const auto artifact = temp_path("fragmented.mp4");
+    AVCodecContext* video_codec = avcodec_alloc_context3(nullptr);
+    REQUIRE(video_codec != nullptr);
+    video_codec->codec_type = AVMEDIA_TYPE_VIDEO;
+    video_codec->codec_id = AV_CODEC_ID_MPEG4;
+    video_codec->width = 32;
+    video_codec->height = 32;
+    video_codec->pix_fmt = AV_PIX_FMT_YUV420P;
+    video_codec->time_base = AVRational{1, 10};
+
+    chronon3d::media::MuxSession mux;
+    std::string reason;
+    REQUIRE(mux.open(chronon3d::media::MuxOpenConfig{
+        .output_path = artifact,
+        .video_codec = video_codec,
+        .checksum = true,
+        .fragmented_mp4 = true}, reason));
+
+    for (int64_t pts = 0; pts < 10; ++pts) {
+        auto owned = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+        REQUIRE(owned != nullptr);
+        REQUIRE(av_new_packet(owned.get(), 4) >= 0);
+        owned->pts = pts;
+        owned->dts = pts;
+        owned->duration = 1;
+        REQUIRE(mux.submit_video(chronon3d::media::EncodedPacket{
+            std::move(owned), AVRational{1, 10}, pts == 0}));
+    }
+    REQUIRE(mux.finalize());
+
+    // The digest is authoritative AND append-only: fragmented output has no
+    // mdat-size backpatch, so nothing is invalidated and nothing is re-read.
+    const auto expected = chronon3d::assets::sha256_file(artifact);
+    REQUIRE(expected.has_value());
+    CHECK(mux.output_checksum() == expected->hex());
+    CHECK_FALSE(mux.checksum_used_reread());
+    const auto hash_metrics = mux.hash_metrics();
+    CHECK(hash_metrics.incremental_hash_invalidations == 0);
+    CHECK(hash_metrics.final_reread_bytes == 0);
+
+    // The container is really fragmented: ftyp + moof boxes are present.
+    std::ifstream in(artifact, std::ios::binary);
+    const std::string bytes{std::istreambuf_iterator<char>(in),
+                            std::istreambuf_iterator<char>()};
+    CHECK(bytes.find("ftyp") != std::string::npos);
+    CHECK(bytes.find("moof") != std::string::npos);
+
+    avcodec_free_context(&video_codec);
+    std::error_code ec;
+    std::filesystem::remove(artifact, ec);
+}
+
+// A/B parity gate (TICKET-FMP4-STREAMING): the same encoded packets muxed
+// into a classic MP4 and into a fragmented MP4 must decode to the SAME frames.
+// The container may differ (moov placement, moof fragments); the decoded
+// pixels may not. Frame identity is pinned with the suite's canonical FNV-1a
+// display framehash over the raw planes — the same convention as the Vulkan
+// parity tests — so a wrong timestamp, dropped packet or reordered frame
+// changes the hash sequence.
+TEST_CASE("MuxSession A/B: classic and fragmented outputs decode to identical frames") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+
+    const auto source = temp_path("ab_source.mp4");
+    const auto classic = temp_path("ab_classic.mp4");
+    const auto fragmented = temp_path("ab_fragmented.mp4");
+    const auto make =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i testsrc2=s=64x48:r=10 -frames:v 24 "
+        "-c:v libx264 -pix_fmt yuv420p -g 8 " + source;
+    REQUIRE(std::system(make.c_str()) == 0);
+
+    // Read the source packets ONCE and submit the same sequence to both muxes.
+    AVFormatContext* input = nullptr;
+    REQUIRE(avformat_open_input(&input, source.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(input, nullptr) >= 0);
+    const int vidx = av_find_best_stream(input, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    REQUIRE(vidx >= 0);
+    AVStream* in_stream = input->streams[vidx];
+
+    struct SavedPacket {
+        chronon3d::media::OwnedAVPacket packet;
+        bool keyframe{false};
+    };
+    std::vector<SavedPacket> packets;
+    AVPacket* read_packet = av_packet_alloc();
+    REQUIRE(read_packet != nullptr);
+    while (av_read_frame(input, read_packet) >= 0) {
+        if (read_packet->stream_index == vidx) {
+            auto owned = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+            REQUIRE(owned != nullptr);
+            REQUIRE(av_packet_ref(owned.get(), read_packet) >= 0);
+            packets.push_back({std::move(owned),
+                               (read_packet->flags & AV_PKT_FLAG_KEY) != 0});
+        }
+        av_packet_unref(read_packet);
+    }
+    av_packet_free(&read_packet);
+    REQUIRE(packets.size() == 24);
+
+    const auto mux_into = [&](const std::string& out, bool fragmented) {
+        chronon3d::media::MuxSession mux;
+        std::string reason;
+        REQUIRE(mux.open(chronon3d::media::MuxOpenConfig{
+            .output_path = out,
+            .video_params = in_stream->codecpar,
+            .video_time_base = in_stream->time_base,
+            .checksum = true,
+            .fragmented_mp4 = fragmented}, reason));
+        for (const auto& saved : packets) {
+            auto copy = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+            REQUIRE(copy != nullptr);
+            REQUIRE(av_packet_ref(copy.get(), saved.packet.get()) >= 0);
+            REQUIRE(mux.submit_video(chronon3d::media::EncodedPacket{
+                std::move(copy), in_stream->time_base, saved.keyframe}));
+        }
+        REQUIRE(mux.finalize());
+        // Both containers must produce the digest of their own final bytes.
+        const auto expected = chronon3d::assets::sha256_file(out);
+        REQUIRE(expected.has_value());
+        CHECK(mux.output_checksum() == expected->hex());
+    };
+    mux_into(classic, false);
+    mux_into(fragmented, true);
+    avformat_close_input(&input);
+
+    // Decode every frame of each output and hash the raw planes (canonical
+    // FNV-1a display framehash, same as the Vulkan parity tests).
+    const auto decode_hashes = [](const std::string& path) {
+        std::vector<std::uint64_t> hashes;
+        AVFormatContext* demux = nullptr;
+        if (avformat_open_input(&demux, path.c_str(), nullptr, nullptr) < 0) {
+            return hashes;
+        }
+        if (avformat_find_stream_info(demux, nullptr) < 0) {
+            avformat_close_input(&demux);
+            return hashes;
+        }
+        const int idx = av_find_best_stream(demux, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+        if (idx < 0) {
+            avformat_close_input(&demux);
+            return hashes;
+        }
+        AVCodecParameters* params = demux->streams[idx]->codecpar;
+        AVCodecContext* decoder =
+            avcodec_alloc_context3(avcodec_find_decoder(params->codec_id));
+        if (!decoder || avcodec_parameters_to_context(decoder, params) < 0 ||
+            avcodec_open2(decoder, avcodec_find_decoder(params->codec_id),
+                          nullptr) < 0) {
+            avcodec_free_context(&decoder);
+            avformat_close_input(&demux);
+            return hashes;
+        }
+        AVFrame* frame = av_frame_alloc();
+        AVPacket* pkt = av_packet_alloc();
+        const auto hash_frame = [&](const AVFrame* f) {
+            std::uint64_t h = 14695981039346656037ULL;
+            for (int plane = 0; plane < 3; ++plane) {
+                const int height = plane == 0 ? f->height : f->height / 2;
+                const int width = plane == 0 ? f->width : f->width / 2;
+                for (int y = 0; y < height; ++y) {
+                    const auto* row = f->data[plane] + y * f->linesize[plane];
+                    for (int x = 0; x < width; ++x) {
+                        h ^= row[x];
+                        h *= 1099511628211ULL;
+                    }
+                }
+            }
+            return h;
+        };
+        while (av_read_frame(demux, pkt) >= 0) {
+            if (pkt->stream_index == idx && avcodec_send_packet(decoder, pkt) >= 0) {
+                while (avcodec_receive_frame(decoder, frame) >= 0) {
+                    hashes.push_back(hash_frame(frame));
+                    av_frame_unref(frame);
+                }
+            }
+            av_packet_unref(pkt);
+        }
+        avcodec_send_packet(decoder, nullptr);
+        while (avcodec_receive_frame(decoder, frame) >= 0) {
+            hashes.push_back(hash_frame(frame));
+            av_frame_unref(frame);
+        }
+        av_packet_free(&pkt);
+        av_frame_free(&frame);
+        avcodec_free_context(&decoder);
+        avformat_close_input(&demux);
+        return hashes;
+    };
+
+    const auto classic_hashes = decode_hashes(classic);
+    const auto fragmented_hashes = decode_hashes(fragmented);
+    REQUIRE(classic_hashes.size() == 24);
+    REQUIRE(fragmented_hashes.size() == 24);
+    for (size_t i = 0; i < classic_hashes.size(); ++i) {
+        MESSAGE("frame " << i << " classic=" << classic_hashes[i]
+                         << " fragmented=" << fragmented_hashes[i]);
+        CHECK(classic_hashes[i] == fragmented_hashes[i]);
+    }
+
+    std::error_code ec;
+    std::filesystem::remove(source, ec);
+    std::filesystem::remove(classic, ec);
+    std::filesystem::remove(fragmented, ec);
 }
 
 TEST_CASE("resolve_output_contract: unknown profile fails loud") {

@@ -81,6 +81,10 @@ struct RenderOutcome {
     bool tile_execution_used{false};
     bool fast_path_reused{false};
     bool graph_reused{false};
+    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): the execution resolver
+    /// selected FrameExecutionPath::DuplicateFrame — no render, no encode;
+    /// the writer re-emits the previous frame's encoded packet.
+    bool duplicate_frame{false};
 };
 
 struct EncodeOutcome {

@@ -14,7 +14,8 @@
 // The payload mirrors RenderingGen's renderJobPayload (renderinggen
 // internal/chronon ipc.go): plan_path / assets_root / output / range_enabled
 // + first_frame + last_frame / report / audio_source_path / encode_preset /
-// receipt_verify / execution_requirements{backend,gpu_required,
+// fragmented_mp4 (fragmented MP4 artifact output) / receipt_verify /
+// execution_requirements{backend,gpu_required,
 // cpu_fallback_allowed,composition_required,video_source_required,
 // packet_copy_allowed} / output_spec{codec,width,height,fps_num,fps_den}.
 // Legacy top-level keys (codec, hardware_encoder, hardware, encoder_backend,

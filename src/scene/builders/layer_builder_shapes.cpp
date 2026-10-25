@@ -128,10 +128,29 @@ LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
     // block + forward-point 0e commit `8fa1cb44` for the closure lineage).
     const std::string effective_path =
         chronon3d::detail::image_params_resolve_path(p);
+    // Fix 6 (overlay throughput, TICKET-OVERLAY-THROUGHPUT-100-MIN): bind the
+    // runtime copy of a still image to what the canvas can actually show. The
+    // layer composites into its fitted box, and no image effect samples more
+    // than ~2x the box (scale-in/out motion), so anything larger is decode,
+    // conversion and GPU-upload cost that no fragment ever reads. The bound is
+    // declared here — the single place where the display box is known — and
+    // rides both the decode options (render-node path) and the asset manifest
+    // (preparation warm-up path) so both hit the same content-addressed cache
+    // entry. Degenerate (intrinsic) sizing keeps the unbounded decode.
+    // tiled_image() deliberately stays unbounded: tiling zooms into the full
+    // source resolution.
     if (!effective_path.empty()) {
+        const float display_extent = std::max(p.size.x, p.size.y);
+        int max_dimension = 0;
+        if (display_extent > 0.0f) {
+            max_dimension = std::clamp(
+                static_cast<int>(std::lround(display_extent * 2.0f)),
+                512, 2048);
+        }
+        p.decode_options.max_dimension = max_dimension;
         m_layer.asset_manifest.add_image(
             effective_path,
-            std::string(m_layer.name) + "/" + name);
+            std::string(m_layer.name) + "/" + name, true, max_dimension);
     }
     const Vec2 half_size = p.size * 0.5f;
     shape(registry::shape_ids::Image, std::move(name), std::move(p));

@@ -207,6 +207,7 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     append_field(fp, "out_gop_source", out.gop_source);
     append_int(fp, "out_audio_target_sample_rate", out.audio_target_sample_rate);
     append_flag(fp, "out_gop_copy_only", out.gop_copy_only);
+    append_flag(fp, "out_fragmented_mp4", out.fragmented_mp4);
     append_int(fp, "out_changed_intervals_count",
                static_cast<std::int64_t>(out.changed_intervals.size()));
     for (const auto& interval : out.changed_intervals) {

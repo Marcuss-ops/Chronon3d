@@ -68,6 +68,7 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.gop_source = job.video_settings.gop_source;
     opts.audio_source_path = job.video_settings.audio_source_path;
     opts.audio_target_sample_rate = job.video_settings.audio_target_sample_rate;
+    opts.fragmented_mp4 = job.video_settings.fragmented_mp4;
     opts.gop_copy_only = job.video_settings.gop_copy_only;
     opts.changed_intervals = job.video_settings.changed_intervals;
     opts.backend_preference = job.execution.config

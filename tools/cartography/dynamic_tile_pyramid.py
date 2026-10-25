@@ -17,7 +17,9 @@ import sys
 import math
 import time
 import json
-import urllib.request
+import http.client
+import threading
+import urllib.parse
 from pathlib import Path
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from threading import Lock, get_ident
@@ -180,6 +182,53 @@ def global_px_to_latlon(x: float, y: float, zoom: int) -> tuple[float, float]:
     return lat, lon
 
 
+_tile_http_local = threading.local()
+
+
+def _http_get(url: str, timeout: float = 10.0) -> bytes:
+    """GET over a per-thread persistent HTTPS connection (keep-alive).
+
+    Tile prefetch issues thousands of GETs to a handful of hosts; a fresh TLS
+    handshake per tile measured 146 ms/fetch on production hardware
+    (2026-10-24). Each prefetch worker thread now reuses one connection per
+    host and reconnects once on a stale keep-alive socket. Raises on any
+    non-2xx status, mirroring urllib.request.urlopen.
+    """
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme != "https":
+        raise ValueError(f"tile fetch supports https only: {url!r}")
+    path = urllib.parse.urlunsplit(("", "", parts.path, parts.query, ""))
+    conns = getattr(_tile_http_local, "conns", None)
+    if conns is None:
+        conns = _tile_http_local.conns = {}
+    conn = conns.get(parts.netloc)
+    if conn is None:
+        conn = http.client.HTTPSConnection(parts.netloc, timeout=timeout)
+        conns[parts.netloc] = conn
+    for attempt in (0, 1):
+        try:
+            conn.request("GET", path, headers={
+                "User-Agent": "Mozilla/5.0 (ChrononDynamicPyramid/2.0)",
+                "Connection": "keep-alive",
+            })
+            resp = conn.getresponse()
+            raw = resp.read()
+            if not 200 <= resp.status < 300:
+                raise OSError(f"tile HTTP {resp.status} for {url!r}")
+            return raw
+        except (http.client.HTTPException, OSError):
+            if attempt == 1:
+                raise
+            # Stale keep-alive socket: reconnect once, then surface the error.
+            try:
+                conn.close()
+            except Exception:
+                pass
+            conn = http.client.HTTPSConnection(parts.netloc, timeout=timeout)
+            conns[parts.netloc] = conn
+    raise OSError(f"tile fetch failed: {url!r}")
+
+
 class DynamicTilePyramid:
     def __init__(self, provider: str = "esri_sat", wayback_release: int | None = None):
         if provider not in TILE_URLS:
@@ -261,27 +310,25 @@ class DynamicTilePyramid:
 
         url = self.url_template.format(z=z, x=x, y=y,
                                       release=self.wayback_release or "")
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (ChrononDynamicPyramid/2.0)"})
         last_error = "invalid or empty tile response"
         # Tile endpoints occasionally return transient 502s under concurrent
         # exact-coverage prefetch. Give those requests a few more bounded
         # chances before marking the plate incomplete.
         for attempt in range(7):
             try:
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    raw = resp.read()
-                    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
-                    if img is not None and img.shape == (256, 256, 3):
-                        with self._cache_io_lock:
-                            tile_path.parent.mkdir(parents=True, exist_ok=True)
-                            temporary_path = tile_path.with_name(f"{tile_path.name}.{os.getpid()}.{get_ident()}.tmp")
-                            temporary_path.write_bytes(raw)
-                            os.replace(temporary_path, tile_path)
-                    if img is not None and img.shape == (256, 256, 3):
-                        self.record_telemetry("tile_network_fetches")
-                        self.record_telemetry("tile_bytes_downloaded", len(raw))
-                        self.record_telemetry("tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
-                        return (z, x, y), img
+                raw = _http_get(url)
+                img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+                if img is not None and img.shape == (256, 256, 3):
+                    with self._cache_io_lock:
+                        tile_path.parent.mkdir(parents=True, exist_ok=True)
+                        temporary_path = tile_path.with_name(f"{tile_path.name}.{os.getpid()}.{get_ident()}.tmp")
+                        temporary_path.write_bytes(raw)
+                        os.replace(temporary_path, tile_path)
+                if img is not None and img.shape == (256, 256, 3):
+                    self.record_telemetry("tile_network_fetches")
+                    self.record_telemetry("tile_bytes_downloaded", len(raw))
+                    self.record_telemetry("tile_fetch_ms", (time.perf_counter() - fetch_started) * 1000.0)
+                    return (z, x, y), img
             except Exception as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
                 if attempt < 6:
@@ -294,13 +341,9 @@ class DynamicTilePyramid:
             alternate_url = url.replace(
                 "https://server.arcgisonline.com/",
                 "https://services.arcgisonline.com/", 1)
-            alternate_req = urllib.request.Request(
-                alternate_url,
-                headers={"User-Agent": "Mozilla/5.0 (ChrononDynamicPyramid/2.0)"})
             for attempt in range(3):
                 try:
-                    with urllib.request.urlopen(alternate_req, timeout=10) as resp:
-                        raw = resp.read()
+                    raw = _http_get(alternate_url)
                     img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
                     if img is not None and img.shape == (256, 256, 3):
                         with self._cache_io_lock:

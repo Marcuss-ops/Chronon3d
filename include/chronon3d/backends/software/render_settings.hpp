@@ -123,6 +123,14 @@ struct RenderSettings {
     // Native video export is fail-closed: graph nodes must not silently
     // promote CPU framebuffer pixels to a GPU surface.
     bool require_native_gpu{false};
+    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): a frame the execution
+    /// resolver proves identical to the previous one may be emitted as a
+    /// packet-level duplicate of that frame's encoded output (cost O(1) in
+    /// the duration of a static hold).  Requires an encoder that implements
+    /// packet duplication (`IVideoEncoder::supports_duplicate_frames()`);
+    /// the export setup enables it only when the sink does, so a missing
+    /// capability degrades to the full render+encode path instead of failing.
+    bool duplicate_static_frames{false};
     runtime::RenderSurfaceHandle native_video_encode_surface{
         runtime::kInvalidRenderSurfaceHandle};
     runtime::RenderSurfaceHandle native_video_source_surface{
