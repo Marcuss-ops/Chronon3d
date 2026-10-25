@@ -115,7 +115,9 @@ struct PipeExportSession {
 
     FfmpegExportOptions opts;
     std::optional<media::VideoExecutionPlan> execution_plan;
+    std::shared_ptr<media::VideoJobExecutionContext> execution_context;
     std::string original_output_path;
+    std::vector<std::string> original_segment_paths;
     SystemMetricsCollector sys_metrics;
     std::string started_at_iso;
     int64_t total_frames{0};

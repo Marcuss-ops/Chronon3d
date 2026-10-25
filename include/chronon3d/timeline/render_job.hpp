@@ -19,6 +19,7 @@
 #include <chronon3d/timeline/compiled_composition.hpp>
 #include <chronon3d/media/video/video_job_execution_context.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
+#include <chronon3d/runtime/job/render_job_request.hpp>  // OutputSegmentSpec (P4)
 #include <chronon3d/color/hdr_mastering_metadata.hpp>
 #ifdef CHRONON3D_ENABLE_OCIO
 #include <chronon3d/color/ocio_color_transform.hpp>
@@ -89,6 +90,10 @@ struct VideoSettings {
     /// participates in the normalized job fingerprint.
     bool        fragmented_mp4{false};
     std::vector<media::ChangedInterval> changed_intervals;
+    /// Per-item output windows (P4 batch superjob): one MP4 per item cut from
+    /// one encoder session. Empty preserves the single-output path. Owned as a
+    /// semantic request by `OutputSpec`; consumed by the export pipeline.
+    std::vector<runtime::job::OutputSegmentSpec> output_segments;
 
     std::string hardware_encoder{"none"};
     std::string ffmpeg_mode{"pipe"};

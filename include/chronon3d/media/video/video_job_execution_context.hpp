@@ -37,6 +37,17 @@ struct ObservedOutputFacts {
     std::optional<double> sha256_ms;
 };
 
+/// Facts for one independently published output window in a P4 batch export.
+struct ObservedSegmentOutputFacts {
+    std::string output_path;
+    std::int64_t start_frame{0};
+    std::int64_t end_frame{0};
+    std::optional<video::MediaProbeInfo> probe;
+    std::string sha256;
+    std::optional<double> probe_ms;
+    std::optional<double> sha256_ms;
+};
+
 /// Host-selected placement and persistent per-device video runtime.
 /// Export setup consumes the reservation; it never performs a second reserve.
 struct VideoJobExecutionContext {
@@ -73,6 +84,7 @@ struct VideoJobExecutionContext {
     /// verification boundary, consumed by the receipt writer of either path
     /// (plan executor or RenderJob executor).
     ObservedOutputFacts observed_output;
+    std::vector<ObservedSegmentOutputFacts> observed_segment_outputs;
 };
 
 } // namespace chronon3d::media

@@ -72,6 +72,14 @@ struct FfmpegExportOptions {
     // Authoritative source-time intervals used by the GOP preflight. An
     // empty list retains the legacy whole-export content-change behavior.
     std::vector<chronon3d::media::ChangedInterval> changed_intervals;
+    // P4 batch superjob — per-item output windows cut from ONE encoder
+    // session (frame units ARE encoder PTS units; half-open
+    // [start_pts, end_pts), tiling the timeline contiguously from 0).
+    // Populated from the job's semantic OutputSpec.output_segments; empty
+    // preserves the single-output path. Video-only: refused together with a
+    // borrowed mux or source audio (validated at the request boundary and
+    // again fail-closed at encoder open).
+    std::vector<chronon3d::media::MuxOutputSegment> output_segments;
 
     // Rendering backend preference carried from the canonical RenderJob's
     // Config (--backend auto|software|vulkan).  Auto resolves to Software on

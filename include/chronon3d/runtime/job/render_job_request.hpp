@@ -22,6 +22,19 @@ struct TraceOptions {
     std::string level{"pipeline"};
 };
 
+/// One output window of a segmented (batch-superjob, P4) export: the item's
+/// frame interval [start_frame, end_frame) is cut out of the shared encoded
+/// timeline into its own MP4. Frame units ARE encoder PTS units (the encoder
+/// timeline is frame-numbered at the output rate), so the windows must tile
+/// the timeline contiguously starting at frame 0 — the segmented mux writer
+/// refuses anything else. Semantic DTO: strings and integers only.
+struct OutputSegmentSpec {
+    std::string output_path;
+    std::int64_t start_frame{0};
+    /// Exclusive end frame.
+    std::int64_t end_frame{0};
+};
+
 /// Semantic output intent. It owns strings and contains no CLI, JSON, IPC,
 /// renderer, or backend object.
 struct OutputSpec {
@@ -76,6 +89,16 @@ struct OutputSpec {
     /// (apps/chronon3d_cli/commands/video/common/sink_options.hpp); an unknown
     /// name is refused by the CLI job validator before execution.
     std::string sink_type;
+    /// Optional per-item output windows (P4 batch superjob): one MP4 per item
+    /// cut from ONE encoder session, so the fixed render/encode cost is paid
+    /// once per plan instead of once per artifact. Empty preserves the
+    /// single-output path. The MP4-per-item contract is preserved: every
+    /// segment stays its own artifact with its own identity and retry.
+    /// Segmented output is video-only: it is mutually exclusive with source
+    /// audio, GOP copy lanes and an explicit frame range (the windows already
+    /// describe the full timeline). `normalize_render_job` refuses every
+    /// combination that the segmented mux writer cannot honour.
+    std::vector<OutputSegmentSpec> output_segments{};
 };
 
 struct RenderJobRequest {
@@ -115,6 +138,9 @@ enum class RenderJobRequestErrorCode : std::uint8_t {
     /// The requested output transfer or PQ/HLG reference white is invalid.
     InvalidColorOutput,
     InvalidChangedInterval,
+    /// The requested output segment windows are invalid or combine with a
+    /// lane the segmented mux writer refuses (audio, GOP copy, frame range).
+    InvalidOutputSegment,
 };
 
 struct RenderJobRequestError {

@@ -127,6 +127,23 @@ bool NativeAvEncoder::close() {
         spdlog::info("[native_av] close: encoder flush accepted");
         flush_ok = drain_packets();
     }
+    if (flush_ok && duplicate_run_active_ &&
+        duplicate_replicated_through_pts_ <
+            static_cast<std::int64_t>(frames_written_) - 1) {
+        if (duplicate_prerun_packets_received_ <
+                duplicate_prerun_packets_target_ ||
+            !duplicate_anchor_) {
+            spdlog::error(
+                "[native_av] duplicate run could not drain its pre-run codec packets "
+                "before close (received={} target={})",
+                duplicate_prerun_packets_received_,
+                duplicate_prerun_packets_target_);
+            flush_ok = false;
+        } else {
+            flush_ok = emit_duplicate_replicas_through_(
+                static_cast<std::int64_t>(frames_written_) - 1);
+        }
+    }
     spdlog::info("[native_av] close: packets drained={}", flush_ok);
     double trailer_ms = 0.0;
     if (borrows_mux_) {
@@ -191,6 +208,11 @@ bool NativeAvEncoder::close() {
             return false;
         }
     } else {
+        if (segmented_mux_) {
+            const auto t_trailer0 = Clock::now();
+            if (!segmented_mux_->finalize()) flush_ok = false;
+            trailer_ms = elapsed_ms(t_trailer0);
+        } else {
         if (audio_input_ && !mux_source_audio()) {
             spdlog::error("[native_av] failed to mux source audio");
         }
@@ -201,6 +223,7 @@ bool NativeAvEncoder::close() {
             spdlog::info("[native_av] close: mux session finalized");
         }
         trailer_ms = elapsed_ms(t_trailer0);
+        }
     }
     const double flush_ms = elapsed_ms(t_flush0);
     native_flush_ms_ += flush_ms;
@@ -282,6 +305,7 @@ void NativeAvEncoder::abort_open() noexcept {
     // Only the container this encoder opened is destroyed here; a borrowed
     // MuxSession belongs to the caller.
     owned_mux_.reset();
+    segmented_mux_.reset();
     mux_ = nullptr;
     borrows_mux_ = false;
     packet_ = nullptr;
