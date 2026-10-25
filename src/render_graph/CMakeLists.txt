@@ -16,6 +16,10 @@ add_library(chronon3d_graph_core OBJECT
     registry/graph_node_catalog.cpp
     layer_resolver.cpp
     core/scene_hasher.cpp
+    render_graph_hashing.cpp
+    render_backend.cpp
+    render_graph_context.cpp
+    node_memory_tracker.cpp
 )
 set_target_properties(chronon3d_graph_core PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_core
