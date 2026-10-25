@@ -14,6 +14,9 @@ scale, rotation, and opacity tracks through imported-path sampling.
 L9 now lowers bounded static path masks with add/subtract/intersect mode,
 inversion, static feather/expansion and animated opacity; L10 lowers two-keyframe
 matching-topology mask path morphs through Chronon's existing mask Morph track.
+The resolver boundary now expands up to 256 2D shape layers and nested `ty=0`
+precompositions (depth 8), preserving scene order, parent hierarchy, supported
+blend modes and clipped integral-frame windows.
 
 ## Contratto
 
@@ -58,16 +61,18 @@ matching-topology mask path morphs through Chronon's existing mask Morph track.
 - L10 accepts exactly two integral-frame mask path keyframes with matching
   vertex/tangent/closure topology and linear or hold interpolation. Multi-
   keyframe mask morphs and temporal Bezier easing fail closed.
-- The resolver-backed asset boundary currently accepts exactly one top-level
-  2D shape layer. Multiple top-level layers fail with
-  `lottie_unsupported_or_invalid` because one asset expansion currently emits
-  one RenderPlan layer and cannot preserve separate layer timing, mattes, or
-  independent blend order. `ty=0` precompositions fail with the same typed
-  diagnostic because nested composition and local frame remapping are absent
-  from the asset contract. Both rejections have focused regressions.
-- Animated anchors, split dimensions, expressions, unsupported mask paths, text, precompositions,
-  3D layers, unsupported shape-level transforms and unsupported interpolation
-  fail closed with a Lottie lowering diagnostic.
+- The resolver-backed asset boundary accepts multiple 2D shape layers and
+  recursively expands `ty=0` precompositions. Layer arrays are lowered in
+  stable back-to-front order; `ind`/`parent` references become native scene
+  parents, Bodymovin blend modes 0..16 map to existing blend modes, and `ip`/`op`
+  windows are clipped against parent and root windows. Precomps use transparent
+  carrier layers for transforms and hierarchy. Expansion is bounded to 256
+  output layers and depth 8, with cyclic `refId`s rejected.
+- Precomps currently require integer `st`, `sr=1`, normal blend and opacity 1.
+  Time remap, effects, mattes, expressions, text/image/3D/solid layers, animated
+  anchors and split dimensions, unsupported mask paths, unsupported
+  shape-level transforms and unsupported interpolation fail closed with a
+  Lottie lowering diagnostic.
 - Input remains limited to 10 MiB; emitted commands remain limited to 65,536
   by the existing path lowering. Fingerprints include the resulting native
   transform fields and tracks through the existing plan fingerprint.
@@ -116,8 +121,11 @@ matching-topology mask path morphs through Chronon's existing mask Morph track.
   frame hashes: frame 0 `a1ff5f59…`, frame 30 `c6bb7aba…`.
 - [x] Focused L6 test checks animated fill color/opacity and stroke width at an
   intermediate frame and endpoint (C ABI: 1 case, 17 assertions).
-- [x] Explicit multi-layer and `ty=0` precomp diagnostics are regression tested
-  (Lottie-focused C ABI: 10/10 cases, 190/190 assertions).
+- [x] Multiple shape layers preserve ordering, parent links, supported blend
+  modes, in/out timing, asset manifest reference and RenderPlan-level path
+  operators; nested precomps preserve carrier/child hierarchy and timing.
+  Cycles and unsupported precomp semantics fail closed. Lottie-focused tests
+  include the full C ABI suite (285/285 cases, 7789/7789 assertions).
 
 ## Demolition debt
 

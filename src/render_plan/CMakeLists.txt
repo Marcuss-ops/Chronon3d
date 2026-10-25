@@ -19,6 +19,7 @@ add_library(chronon3d_render_plan OBJECT
     inline_mesh_primitives.cpp
     render_plan_decoder_animation.cpp
     render_plan_decoder_shape.cpp
+    render_plan_decoder_shape_chart.cpp
     render_plan_decoder_shape_fill.cpp
     render_plan_decoder_shape_operators.cpp
     render_plan_decoder_field.cpp
@@ -56,6 +57,7 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler_shape_imported.cpp
     render_plan_compiler_shape_path.cpp
     render_plan_compiler_lottie.cpp
+    render_plan_compiler_lottie_expansion.cpp
     render_plan_compiler_lottie_masks.cpp
     render_plan_compiler_lottie_paint.cpp
     render_plan_compiler_lottie_transform.cpp

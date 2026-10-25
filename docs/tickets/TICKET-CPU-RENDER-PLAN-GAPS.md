@@ -46,18 +46,20 @@ Each checkbox is marked only after its implementation, focused regression,
 
 ### Lottie layer expansion
 
-- [x] **LOT-1 — multi-layer boundary:** multi-layer files are explicitly
-  rejected with `lottie_unsupported_or_invalid` and a diagnostic explaining
-  that asset expansion produces one RenderPlan layer without per-layer timing,
-  mattes, or independent blend ordering. A regression verifies the rejection.
-- [x] **LOT-2 — precomposition boundary:** `ty=0` is explicitly rejected with
-  `lottie_unsupported_or_invalid`; the diagnostic identifies the missing nested
-  asset composition and local frame-remapping contract. A regression verifies
-  it. Nested precomp execution remains unsupported.
-- [x] **LOT-3 — regression gates:** existing accepted single-layer tests cover
-  path order, transforms, opacity, paint, and animation tracks; new regressions
-  cover multi-layer and precomp rejection. No frame-hash parity is claimed for
-  unsupported multi-layer/precomp assets.
+- [x] **LOT-1 — bounded multi-layer import:** 2D shape layers lower to separate
+  scene layers with stable z-order, parent links, blend modes, and clipped
+  integral-frame in/out windows. Hidden layers are skipped; unsupported layer
+  types and effects/expressions/mattes fail closed.
+- [x] **LOT-2 — nested precompositions:** recursively expand `ty=0` assets to
+  depth 8, with cycle detection, source `refId` resolution, parent carrier
+  transforms, integral start time, unit time stretch, and parent/root time
+  clipping. Expansion is bounded to 256 scene layers. Time remap, non-unit
+  stretch, group opacity, precomp blend modes, effects, mattes, expressions,
+  and non-shape child layers remain rejected.
+- [x] **LOT-3 — regression gates:** tests cover multi-layer order and parent
+  links, nested precomp hierarchy, cycle rejection, source asset manifest
+  retention, existing single-layer paint/transform behavior, and preservation
+  of RenderPlan path operators such as repeaters.
 
 ### Data visualization geometry
 
@@ -71,9 +73,13 @@ Each checkbox is marked only after its implementation, focused regression,
 - [x] **CHART-2 — RenderPlan exposure:** decode declarative `monotone_line`
   data points into canonical cubic path commands; coordinates participate in
   the content fingerprint and JSON schema bounds them to 2..4096 finite pairs.
-- [x] **CHART-3 — software output:** render the generated line path on CPU;
-  check visible stroke pixels, transparent clipping away from the path, and
-  repeatable alpha output. Filled-area charts and axes/ticks remain future work.
+- [x] **CHART-3 — area, axes and grid:** declarative `monotone_chart` creates
+  bounded monotone spline line and closed area paths, domain tick positions,
+  axes and grid lines as canonical imported subpaths. Domains,
+  points, tick counts, colors and dimensions are validated and fingerprinted.
+- [x] **CHART-4 — software output:** CPU pixel test checks visible area, line,
+  axes and grid, transparent clipping away from the chart and deterministic
+  repeated output.
 
 ### Completion and known hardware boundary
 
@@ -99,8 +105,8 @@ Each checkbox is marked only after its implementation, focused regression,
   `cmake --build build/chronon/linux-fast-dev --target chronon3d_scene_tests
   chronon3d_c_abi_tests -j12`.
 - 2026-10-25: implementation and focused regressions complete for bounded SVG
-  root filter chains, explicit Lottie multi-layer/precomp rejection, and CPU
-  monotone chart lines. SVG filter parsing lives in `svg_filter_parser.cpp`
+  root filter chains, Lottie multi-layer/nested-precomp expansion, and CPU
+  monotone chart area/axes/grid. SVG filter parsing lives in `svg_filter_parser.cpp`
   (the validator is 392 lines); element-scoped filters fail closed rather than
   being widened to the whole SVG. Full verification results follow below.
 - 2026-10-25: `-j12` CPU builds passed with `CHRONON3D_ENABLE_SVG=OFF` and
@@ -115,6 +121,16 @@ Each checkbox is marked only after its implementation, focused regression,
   scalar animation metadata even though its 20 named coefficients are exposed
   through `kColorMatrixAnimatableParams`. Updated the gate to recognize this
   dedicated authority; it now passes without inventing a duplicate parameter.
+- 2026-10-25: bounded Lottie multi-layer and recursive precomp expansion plus
+  the declarative `monotone_chart` area/axes/grid geometry are implemented.
+  Lottie compiler recursion is isolated in `render_plan_compiler_lottie_expansion.cpp`.
+  After the final split, focused no-SVG tests pass (Lottie multi/precomp and
+  chart: 2 cases, 26 assertions; chart CPU pixels: 1 case, 9 assertions).
+  Full no-SVG C ABI: 285/285 cases, 7789/7789 assertions; full SVG C ABI:
+  293/293 cases, 8014/8014 assertions. Renderer: no-SVG 194/194 cases,
+  5941/5941 assertions; SVG 195/195, 5953/5953. Scene: 274/274,
+  1620/1620. Both CPU builds passed with `-j12`; schema SDK parity, architecture
+  gate (209/209), compiler boundary, IPC schema, JSON parse and diff checks pass.
 
 ## Final audit status
 
@@ -124,12 +140,13 @@ Each checkbox is marked only after its implementation, focused regression,
 - **PASS — bounded SVG filters:** root-level linear chains map to current CPU
   blur, drop-shadow, color-matrix, and blend contracts; unsupported scopes and
   graph features are rejected.
-- **PARTIAL — Lottie:** the accepted top-level single 2D shape layer remains
-  supported. Multiple top-level layers and nested precompositions are
-  intentionally rejected with typed diagnostics because asset expansion has
-  one output layer and no nested local-frame contract.
-- **PARTIAL — charts:** monotone line geometry is supported; filled areas, axes,
-  ticks and adaptive grids remain unimplemented.
+- **PASS — bounded Lottie multi-layer/precomp:** separate 2D shape layers,
+  parent hierarchy, supported blend modes, layer timing and nested precomp
+  expansion run through the canonical scene compiler. Time remap, group
+  isolation semantics, mattes/effects/expressions and non-shape layers remain
+  unsupported and fail closed.
+- **PASS — CPU charts:** monotone line and area paths, axes, tick marks and
+  adaptive grid lines render through the existing software path renderer.
 - **DEFERRED — native map plates:** the acquisition performance gate and
   scaffolding are complete. Phases 2–7 remain optional per
   `TICKET-MAPS-NATIVE-PORT.md`, which measures tile acquisition rather than C++

@@ -32,6 +32,7 @@ chronon3d_add_test_suite(
         cache/test_tile_cache.cpp
         registry/test_registries.cpp
         renderer/helpers/test_shape_path_world_bbox.cpp
+        renderer/helpers/test_monotone_chart_render.cpp
         renderer/helpers/test_stroke_gradient_helpers.cpp
         renderer/mesh/test_inline_mesh_extrusion_canary.cpp
         renderer/mesh/test_mesh_roughness_map.cpp

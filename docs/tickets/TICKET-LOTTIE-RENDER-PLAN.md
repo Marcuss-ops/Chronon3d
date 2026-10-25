@@ -3,8 +3,9 @@
 ## Stato
 SUPERSEDED — this early static-only contract is replaced by
 [`TICKET-LOTTIE-ANIMATED.md`](TICKET-LOTTIE-ANIMATED.md), which records the
-current animated importer. Its documented one-top-level-shape-layer boundary
-and explicit precomposition rejection are covered by focused tests.
+current animated importer. The original one-layer/precomposition limitations
+have since been closed for the bounded multi-layer and nested-precomp subset;
+see the current ticket for supported behavior and remaining fail-closed cases.
 
 ## Obiettivo
 Resolve a logical `.json` Bodymovin/Lottie asset from a render plan and lower
