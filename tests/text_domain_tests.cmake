@@ -12,7 +12,7 @@ if(CHRONON3D_BUILD_TESTS AND CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D)
     add_custom_target(chronon3d_text_health
         COMMAND ${CMAKE_CTEST_COMMAND}
             --output-on-failure
-            -R "^chronon3d_text_health_tests$"
+            -R "^chronon3d_text_health_tests"
         DEPENDS chronon3d_text_health_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         USES_TERMINAL
