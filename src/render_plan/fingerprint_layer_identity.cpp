@@ -8,11 +8,13 @@ void add_layer_identity_and_mesh(CanonicalPlanWriter& out, const LayerPlan& laye
     add_optional(out, layer.flow_layout, [](auto& w, const LayerPlan::FlowLayoutPlan& p) {
         w.add_string(p.group_id); w.add_string(p.axis); w.add_string(p.align); w.add_string(p.justify);
         w.add_float(p.gap); w.add_bool(p.wrap); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
+        if (p.intrinsic_size) w.add_string("intrinsic-layout-v1");
         add_optional(w, p.stagger, [](auto& writer, const auto& stagger) { add_stagger(writer, stagger); });
     });
     add_optional(out, layer.grid_layout, [](auto& w, const LayerPlan::GridLayoutPlan& p) {
         w.add_string(p.group_id); w.add_string(p.fit); w.add_uint64(static_cast<std::uint64_t>(p.columns)); w.add_uint64(static_cast<std::uint64_t>(p.rows));
         w.add_float(p.gap[0]); w.add_float(p.gap[1]); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
+        if (p.intrinsic_size) w.add_string("intrinsic-layout-v1");
         add_optional(w, p.stagger, [](auto& writer, const auto& stagger) { add_stagger(writer, stagger); });
     });
     add_optional(out, layer.stagger_group, [](auto& w, const LayerPlan::StaggerPlan& stagger) {

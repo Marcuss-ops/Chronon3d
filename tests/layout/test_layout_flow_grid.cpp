@@ -15,8 +15,11 @@
 #include <chronon3d/layout/layout_flow_grid.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
 
 #include <memory_resource>
+#include <array>
+#include <utility>
 
 using namespace chronon3d;
 
@@ -82,6 +85,84 @@ TEST_CASE("LayoutFlow row: 3 items with gap=10 are evenly spaced") {
     CHECK(find_layer(scene, "b").transform.position.y == doctest::Approx(25.0f));
     CHECK(find_layer(scene, "c").transform.position.x == doctest::Approx(270.0f));
     CHECK(find_layer(scene, "c").transform.position.y == doctest::Approx(25.0f));
+}
+
+TEST_CASE("LayoutFlow intrinsic sizing uses shape and text run bounds") {
+    Scene scene;
+    push_layer(scene, "card");
+    push_layer(scene, "caption");
+    RenderNode card;
+    card.shape = Shape(RectShape{.size = {40.0f, 20.0f}});
+    find_layer(scene, "card").nodes.push_back(std::move(card));
+    find_layer(scene, "card").transform.scale = {2.0f, 1.0f, 1.0f};
+    auto text = std::make_shared<TextRunShape>();
+    auto text_layout = std::make_shared<TextRunLayout>();
+    text_layout->bounds = {100.0f, 60.0f};
+    text->layout = std::move(text_layout);
+    RenderNode caption;
+    caption.shape = Shape(TextRunShapeHandle{std::move(text)});
+    find_layer(scene, "caption").nodes.push_back(std::move(caption));
+    for (auto& layer : scene.layers()) {
+        layer.layout.flow = LayoutFlow{
+            .main_axis = Axis::Row, .gap = 10.0f, .align = AlignItems::Center,
+            .group_id = "intrinsic-flow", .intrinsic_size = true,
+        };
+    }
+
+    LayoutSolver{}.solve(scene, 300, 200);
+    CHECK(find_layer(scene, "card").transform.position.x == doctest::Approx(40.0f));
+    CHECK(find_layer(scene, "card").transform.position.y == doctest::Approx(30.0f));
+    CHECK(find_layer(scene, "caption").transform.position.x == doctest::Approx(140.0f));
+    CHECK(find_layer(scene, "caption").transform.position.y == doctest::Approx(30.0f));
+}
+
+TEST_CASE("LayoutGrid intrinsic sizing derives independent column and row tracks") {
+    Scene scene;
+    for (const auto& [name, size] : std::array<std::pair<const char*, Vec2>, 4>{{
+             {"a", {40.0f, 20.0f}}, {"b", {100.0f, 30.0f}},
+             {"c", {60.0f, 80.0f}}, {"d", {30.0f, 40.0f}}}}) {
+        push_layer(scene, name);
+        RenderNode node;
+        node.shape = Shape(RectShape{.size = size});
+        scene.layers().back().nodes.push_back(std::move(node));
+        scene.layers().back().layout.grid = LayoutGrid{
+            .columns = 2, .rows = 2, .group_id = "intrinsic-grid",
+            .intrinsic_size = true,
+        };
+    }
+    LayoutSolver{}.solve(scene, 400, 300);
+    CHECK(find_layer(scene, "a").transform.position.x == doctest::Approx(20.0f));
+    CHECK(find_layer(scene, "b").transform.position.x == doctest::Approx(110.0f));
+    CHECK(find_layer(scene, "c").transform.position.y == doctest::Approx(70.0f));
+    CHECK(find_layer(scene, "d").transform.position.y == doctest::Approx(50.0f));
+}
+
+TEST_CASE("intrinsic Flow wraps measured boxes and falls back for empty content") {
+    Scene scene;
+    push_layer(scene, "first");
+    push_layer(scene, "second");
+    for (const auto& name : {"first", "second"}) {
+        RenderNode node;
+        node.shape = Shape(RectShape{.size = {80.0f, 20.0f}});
+        find_layer(scene, name).nodes.push_back(std::move(node));
+        find_layer(scene, name).layout.flow = LayoutFlow{
+            .main_axis = Axis::Row, .gap = 0.0f, .wrap = true,
+            .group_id = "intrinsic-wrap", .intrinsic_size = true,
+        };
+    }
+    LayoutSolver{}.solve(scene, 100, 100);
+    CHECK(find_layer(scene, "first").transform.position.x == doctest::Approx(40.0f));
+    CHECK(find_layer(scene, "second").transform.position.x == doctest::Approx(40.0f));
+    CHECK(find_layer(scene, "second").transform.position.y == doctest::Approx(30.0f));
+
+    Scene empty;
+    push_layer(empty, "empty");
+    find_layer(empty, "empty").layout.flow = LayoutFlow{
+        .group_id = "empty-fallback", .intrinsic_size = true,
+    };
+    LayoutSolver{}.solve(empty, 200, 100);
+    CHECK(find_layer(empty, "empty").transform.position.x == doctest::Approx(100.0f));
+    CHECK(find_layer(empty, "empty").transform.position.y == doctest::Approx(50.0f));
 }
 
 TEST_CASE("LayoutFlow column: items stack vertically with gap") {

@@ -24,6 +24,7 @@ LayoutFlow make_layout_flow(const LayerPlan::FlowLayoutPlan& plan) {
     flow.gap = plan.gap;
     flow.wrap = plan.wrap;
     flow.cell_size = {plan.cell_size[0], plan.cell_size[1]};
+    flow.intrinsic_size = plan.intrinsic_size;
     flow.align = plan.align == "center" ? AlignItems::Center
         : plan.align == "end" ? AlignItems::End
         : plan.align == "stretch" ? AlignItems::Stretch : AlignItems::Start;
@@ -45,6 +46,7 @@ LayoutGrid make_layout_grid(const LayerPlan::GridLayoutPlan& plan) {
         : plan.fit == "fixed_columns" ? GridFit::FixedColumns : GridFit::Auto;
     grid.gap = {plan.gap[0], plan.gap[1]};
     grid.cell_size = {plan.cell_size[0], plan.cell_size[1]};
+    grid.intrinsic_size = plan.intrinsic_size;
     return grid;
 }
 

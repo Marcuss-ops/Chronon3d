@@ -259,8 +259,8 @@ struct LayerPlan {
         bool clamp_end{true};
     };
     std::optional<FollowPathDriverPlan> follow_path;
-    struct FlowLayoutPlan { std::string group_id; std::string axis{"row"}; std::string align{"start"}; std::string justify{"start"}; float gap{0}; bool wrap{false}; std::array<float,2> cell_size{0,0}; std::optional<StaggerPlan> stagger; };
-    struct GridLayoutPlan { std::string group_id; std::string fit{"auto"}; int columns{1}; int rows{1}; std::array<float,2> gap{0,0}; std::array<float,2> cell_size{0,0}; std::optional<StaggerPlan> stagger; };
+    struct FlowLayoutPlan { std::string group_id; std::string axis{"row"}; std::string align{"start"}; std::string justify{"start"}; float gap{0}; bool wrap{false}; std::array<float,2> cell_size{0,0}; std::optional<StaggerPlan> stagger; bool intrinsic_size{false}; };
+    struct GridLayoutPlan { std::string group_id; std::string fit{"auto"}; int columns{1}; int rows{1}; std::array<float,2> gap{0,0}; std::array<float,2> cell_size{0,0}; std::optional<StaggerPlan> stagger; bool intrinsic_size{false}; };
     std::optional<FlowLayoutPlan> flow_layout;
     std::optional<GridLayoutPlan> grid_layout;
     std::optional<StaggerPlan> stagger_group;
