@@ -379,6 +379,7 @@ SvgDocumentLoadResult load_svg_document_file(
                     return {.paths = {}, .elements = {}, .ok = false,
                             .error = "SVG radial gradientTransform exceeds finite bounds"};
                 style.fill = Fill::radial(center, radius, std::move(stops));
+                style.fill->gradient.spread = source.spread;
             } else {
                 const auto start = bbox_point(source.p0);
                 const auto end = bbox_point(source.p1);
@@ -389,6 +390,7 @@ SvgDocumentLoadResult load_svg_document_file(
                     return {.paths = {}, .elements = {}, .ok = false,
                             .error = "SVG linear gradientTransform exceeds finite bounds"};
                 style.fill = Fill::linear(start, end, std::move(stops));
+                style.fill->gradient.spread = source.spread;
             }
             if (!source.animations.empty() && style.fill && style.fill->enabled) {
                 const std::vector<float> event_times{0.0f, source.animations.front().duration_seconds};

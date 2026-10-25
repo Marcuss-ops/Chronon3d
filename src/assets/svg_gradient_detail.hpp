@@ -19,6 +19,7 @@ using Affine2 = glm::mat3;
 struct SvgGradientSpec {
     bool radial{false};
     bool user_space{false};
+    graphics::GradientSpread spread{graphics::GradientSpread::Pad};
     Vec2 p0{0.0f, 0.0f};
     Vec2 p1{1.0f, 0.0f};
     float radius{0.5f};
