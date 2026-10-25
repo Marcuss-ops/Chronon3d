@@ -342,7 +342,10 @@ void add_layer_style_and_shape(CanonicalPlanWriter& out, const LayerPlan& layer)
                 continue;
             }
             if (op.kind == PathOperatorKindPlan::Merge ||
-                op.kind == PathOperatorKindPlan::BooleanUnion) {
+                op.kind == PathOperatorKindPlan::BooleanUnion ||
+                op.kind == PathOperatorKindPlan::BooleanDifference ||
+                op.kind == PathOperatorKindPlan::BooleanIntersection ||
+                op.kind == PathOperatorKindPlan::BooleanXor) {
                 out.add_size(op.paths.size());
                 for (const auto& subpath : op.paths) {
                     out.add_size(subpath.size());

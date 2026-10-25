@@ -128,7 +128,10 @@ void append_path_shape(chronon3d::LayerBuilder& builder,
             }
             specs.push_back({PathOperatorKind::Morph, std::move(morph), 0});
         } else if (op.kind == PathOperatorKindPlan::Merge ||
-                   op.kind == PathOperatorKindPlan::BooleanUnion) {
+                   op.kind == PathOperatorKindPlan::BooleanUnion ||
+                   op.kind == PathOperatorKindPlan::BooleanDifference ||
+                   op.kind == PathOperatorKindPlan::BooleanIntersection ||
+                   op.kind == PathOperatorKindPlan::BooleanXor) {
             std::vector<std::vector<PathCommand>> planned_paths;
             for (const auto& planned_path : op.paths) {
                 std::vector<PathCommand> subpath;
@@ -146,10 +149,20 @@ void append_path_shape(chronon3d::LayerBuilder& builder,
                 }
                 planned_paths.push_back(std::move(subpath));
             }
-            if (op.kind == PathOperatorKindPlan::BooleanUnion)
-                specs.push_back({PathOperatorKind::BooleanUnion,
-                    BooleanUnionParams{std::move(planned_paths)}, 0});
-            else
+            if (op.kind != PathOperatorKindPlan::Merge) {
+                auto params = BooleanUnionParams{std::move(planned_paths)};
+                if (op.kind == PathOperatorKindPlan::BooleanDifference) params.operation = PathBooleanOperation::Difference;
+                else if (op.kind == PathOperatorKindPlan::BooleanIntersection) params.operation = PathBooleanOperation::Intersection;
+                else if (op.kind == PathOperatorKindPlan::BooleanXor) params.operation = PathBooleanOperation::Xor;
+                const auto path_kind = op.kind == PathOperatorKindPlan::BooleanDifference
+                    ? PathOperatorKind::BooleanDifference
+                    : op.kind == PathOperatorKindPlan::BooleanIntersection
+                        ? PathOperatorKind::BooleanIntersection
+                        : op.kind == PathOperatorKindPlan::BooleanXor
+                            ? PathOperatorKind::BooleanXor : PathOperatorKind::BooleanUnion;
+                specs.push_back({path_kind,
+                    std::move(params), 0});
+            } else
                 specs.push_back({PathOperatorKind::Merge,
                     MergeParams{std::move(planned_paths)}, 0});
         } else if (op.kind == PathOperatorKindPlan::Trim) {

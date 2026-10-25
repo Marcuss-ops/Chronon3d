@@ -26,6 +26,9 @@ std::optional<PlanDecodeError> validate_svg_path_operator_targets(
                     operation.target_id, "svg_target_missing", "render-plan-svg"};
             if ((operation.kind == PathOperatorKindPlan::Merge ||
                  operation.kind == PathOperatorKindPlan::BooleanUnion ||
+                 operation.kind == PathOperatorKindPlan::BooleanDifference ||
+                 operation.kind == PathOperatorKindPlan::BooleanIntersection ||
+                 operation.kind == PathOperatorKindPlan::BooleanXor ||
                  operation.kind == PathOperatorKindPlan::Morph) && exact_matches != 1)
                 return PlanDecodeError{"layers[" + std::to_string(layer_index) +
                     "].shape.operators", "SVG Merge/BooleanUnion/Morph requires an exact path element id, not a group target",

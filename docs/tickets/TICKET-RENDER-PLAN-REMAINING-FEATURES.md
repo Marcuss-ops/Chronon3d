@@ -224,7 +224,19 @@ status below is updated only from commands actually executed in this workspace.
   fingerprint stream: absence emits no bytes, while present values are hashed;
   pin both the V32 no-filter golden and the new filter sensitivity.
 
-## 13. Procedural background generators — audit and gated next steps
+## 13. Path Boolean operations (CPU)
+
+- [x] Extend the existing Clipper2 path operation with `boolean_difference`,
+  `boolean_intersection`, and `boolean_xor` alongside `boolean_union`; normalize
+  operand fills before evaluation and preserve the old union parameter alias.
+- [x] Wire the operations through V3 schema/decoder, content fingerprint,
+  imported SVG targeting, RenderPlan lowering, and scene materialization.
+- [x] Verify overlapping rectangle areas (difference 75, intersection 25, XOR
+  150) in the software geometry tests; decoder/fingerprint focus passes 13
+  assertions. This certifies the CPU path only; Vulkan certification remains
+  separate.
+
+## 14. Procedural background generators — audit and gated next steps
 
 ### Verified repository state (2026-10-03)
 
