@@ -167,10 +167,7 @@ struct DofSourceCoverage {
     std::optional<raster::BBox> source_bbox;
     float max_radius{0.0f};
 
-    void reset() noexcept {
-        source_bbox.reset();
-        max_radius = 0.0f;
-    }
+    void reset() noexcept;
 };
 
 // ── Per-frame input: frame id, time, dimensions, camera, projection ─────────
@@ -213,10 +210,7 @@ struct FrameInput {
     rendering::RimLight rim_light{};
 
     /// Canonical accessor for the per-composition assets directory.
-    [[nodiscard]] const std::string& assets_root() const noexcept {
-        static const std::string kEmptyAssetsRoot;
-        return static_context ? static_context->assets_root : kEmptyAssetsRoot;
-    }
+    [[nodiscard]] const std::string& assets_root() const noexcept;
 };
 
 // ── Per-job policy: flags + optimization shortcuts + tile plan ─────────────
@@ -236,11 +230,7 @@ struct RenderPolicy {
     // only the final weighted average is handed to NVENC.
     bool defer_native_video_encoder_handoff{false};
     GpuHotPathMode gpu_hot_path_mode{GpuHotPathMode::Auto};
-    [[nodiscard]] bool is_gpu_native_required() const noexcept {
-        return require_native_gpu ||
-               gpu_hot_path_mode == GpuHotPathMode::RequireGpuNative ||
-               gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv;
-    }
+    [[nodiscard]] bool is_gpu_native_required() const noexcept;
     runtime::RenderSurfaceHandle native_video_encode_surface{
         runtime::kInvalidRenderSurfaceHandle};
     runtime::RenderSurfaceHandle native_video_source_surface{
@@ -342,27 +332,15 @@ struct NodeExecutionContext {
     NativeDofDepthState native_dof_depth;
     NativeDofDepthState* shared_native_dof_depth{nullptr};
 
-    [[nodiscard]] NativeDofDepthState& native_dof_state() noexcept {
-        return shared_native_dof_depth ? *shared_native_dof_depth : native_dof_depth;
-    }
+    [[nodiscard]] NativeDofDepthState& native_dof_state() noexcept;
 
-    [[nodiscard]] std::vector<float>& dof_depth_buffer() noexcept {
-        return shared_dof_depth ? *shared_dof_depth : dof_depth;
-    }
+    [[nodiscard]] std::vector<float>& dof_depth_buffer() noexcept;
 
-    [[nodiscard]] const std::vector<float>& dof_depth_buffer() const noexcept {
-        return shared_dof_depth ? *shared_dof_depth : dof_depth;
-    }
+    [[nodiscard]] const std::vector<float>& dof_depth_buffer() const noexcept;
 
-    [[nodiscard]] DofSourceCoverage& dof_sources() noexcept {
-        return shared_dof_source_coverage
-            ? *shared_dof_source_coverage : dof_source_coverage;
-    }
+    [[nodiscard]] DofSourceCoverage& dof_sources() noexcept;
 
-    [[nodiscard]] const DofSourceCoverage& dof_sources() const noexcept {
-        return shared_dof_source_coverage
-            ? *shared_dof_source_coverage : dof_source_coverage;
-    }
+    [[nodiscard]] const DofSourceCoverage& dof_sources() const noexcept;
 
     // ── Tile clip / early-exit / dirty rect (was RenderTileContext) ───
     std::optional<raster::BBox> clip_rect;
@@ -592,16 +570,10 @@ struct RenderGraphContext {
     std::uint64_t program_fingerprint{0};
 
     /// Execution-time backend access through the typed context seam.
-    [[nodiscard]] RenderBackend* execution_backend() const noexcept {
-        return backend;
-    }
+    [[nodiscard]] RenderBackend* execution_backend() const noexcept;
     [[nodiscard]] std::shared_ptr<cache::FramebufferPool>
-    execution_framebuffer_pool() const noexcept {
-        return framebuffer_pool;
-    }
-    [[nodiscard]] cache::NodeCache* execution_node_cache() const noexcept {
-        return node_cache;
-    }
+    execution_framebuffer_pool() const noexcept;
+    [[nodiscard]] cache::NodeCache* execution_node_cache() const noexcept;
 
     /// Frame-scoped, thread-safe first-error channel. Owned by the active
     /// frame payload (or stack storage for standalone execution) and shared
