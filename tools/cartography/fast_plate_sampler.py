@@ -17,10 +17,19 @@ prepared plate, so a caller can never render garbage - only slow down.
 from __future__ import annotations
 
 import math
+import os
 import time
 
 import cv2
 import numpy as np
+
+# Tile prefetch parallelism (measured 2026-10-24): a distinct tile costs
+# ~105 ms of edge/origin latency even over a keep-alive connection, so the
+# old 12-worker pool capped throughput at ~100 tiles/s and a 1080p cold
+# prefetch needs thousands of tiles. Throughput scales linearly to 64
+# workers (754 tiles/s measured, zero fetch errors). Override with
+# DYNAMIC_MAP_TILE_WORKERS for slower links or stricter CDN politeness.
+TILE_PREFETCH_WORKERS = max(1, int(os.environ.get("DYNAMIC_MAP_TILE_WORKERS", "64")))
 
 
 class FastPlateSampler:
@@ -28,6 +37,17 @@ class FastPlateSampler:
         self.pyr = pyramid
         self.W = int(width)
         self.H = int(height)
+        # Plate margin factor: each prepared plate covers
+        # ceil(factor * W) x ceil(factor * H) global pixels around its anchor
+        # (plus an 8px rounding guard), so the camera can pan within the
+        # plate without leaving coverage. Historical default 3.0 (a 3x canvas
+        # plate — 4K-class for a 1080p render). The 2026-10-24 operator
+        # decision caps production maps at 1080p-class plates: the renderer
+        # sets factor 1.0 for classic compositions unless the payload
+        # declares otherwise; certified editorial scenes keep 3.0.
+        self.plate_margin_factor = 3.0
+        # Worker bound for the exact-coverage tile prefetch (prepare()).
+        self.prefetch_workers = TILE_PREFETCH_WORKERS
         # level -> list of (origin_x, origin_y, plate). One entry when the
         # union plate fits the budget; several per-anchor entries when the
         # anchors are too far apart for one plate to make sense.
@@ -52,6 +72,11 @@ class FastPlateSampler:
         # aggregates the per-block deltas into a run total; 0 means every
         # frame took the fast path.
         self.fallback_count = 0
+        # Frames whose hi blend level had to degrade to the lo plate because
+        # its wider window left the prepared plate budget (2026-10-24).
+        # Not an engine fallback — the frame is still served from plates —
+        # but counted so lower blend detail is visible in the telemetry.
+        self.lo_only_blend_count = 0
         self.opencl_plates = None
         # OpenCL commands are asynchronous. Reuse two ordered resize surfaces
         # for level sampling, but retain one distinct destination per queued
@@ -161,15 +186,36 @@ class FastPlateSampler:
                     crop = cv2.UMat(plate, (x0, y0, w, h))
                     break
             if crop is None:
-                raise RuntimeError(f"OpenCL map sample has no prepared plate at zoom {z}")
+                return None
             return cv2.resize(crop, (W, H), dst=dst, interpolation=cv2.INTER_LINEAR)
 
         needs_blend = alpha > 0.001 and z_lo + 1 <= self.z_max
         lo = resize_level(z_lo, 2.0 ** t, scratch[0] if needs_blend else output)
+        if lo is None:
+            # Degrade path (2026-10-24), parity with sample(): a pose outside
+            # the prepared plates (per-anchor split far from the anchors) is
+            # served by the slow tile engine instead of aborting the render;
+            # the frames stay pixel-identical to the reference engine.
+            return self._sample_opencl_fallback(lat, lon, zoom, W, H, output)
         if alpha <= 0.001 or z_lo + 1 > self.z_max:
             return lo
         hi = resize_level(z_lo + 1, 2.0 ** (t - 1.0), scratch[1])
+        if hi is None:
+            # Plate-budget degrade (2026-10-24): the contract can_sample()
+            # documents and sample()/sample_subpixel() implement — only the lo
+            # blend window must be covered; when the hi window leaves the
+            # plates, serve the frame from the lo plate alone instead of
+            # aborting, counted in lo_only_blend_count.
+            self.lo_only_blend_count += 1
+            return cv2.resize(lo, (W, H), dst=output,
+                              interpolation=cv2.INTER_NEAREST)
         return cv2.addWeighted(lo, 1.0 - alpha, hi, alpha, 0.0, dst=output)
+
+    def _sample_opencl_fallback(self, lat: float, lon: float, zoom: float,
+                                W: int, H: int, output: cv2.UMat) -> cv2.UMat:
+        frame = self.sample(lat, lon, zoom, W, H)
+        return cv2.resize(cv2.UMat(np.ascontiguousarray(frame)), (W, H),
+                          dst=output, interpolation=cv2.INTER_NEAREST)
 
     # -- the one-time cost ---------------------------------------------------
     MAX_PLATE_W = 9000   # ~145 MB per level; beyond this the union plate of
@@ -197,10 +243,11 @@ class FastPlateSampler:
             "plate_count": 0,
             "plate_bytes": 0,
             "required_tile_count": 0,
+            "plate_margin_factor": float(self.plate_margin_factor),
         }
         self.z_min, self.z_max = int(z_min), int(z_max)
-        ext_w = 3 * self.W + 8
-        ext_h = 3 * self.H + 8
+        ext_w = int(math.ceil(self.plate_margin_factor * self.W)) + 8
+        ext_h = int(math.ceil(self.plate_margin_factor * self.H)) + 8
         specs: dict[int, list[tuple[float, float, int, int]]] = {}
         required_tiles: set[tuple[int, int, int]] = set()
 
@@ -229,7 +276,8 @@ class FastPlateSampler:
                     for tile_x in range(min_tx, max_tx):
                         required_tiles.add((z, tile_x % world_tiles, tile_y))
 
-        prefetch = self.pyr.prefetch_tiles(required_tiles)
+        prefetch = self.pyr.prefetch_tiles(required_tiles,
+                                           max_workers=self.prefetch_workers)
         if prefetch["fetched"] + prefetch["memory_hits"] != len(required_tiles):
             raise RuntimeError("tile prefetch result does not cover the exact required plate set")
         self.prepare_telemetry["required_tile_count"] = len(required_tiles)
@@ -265,13 +313,12 @@ class FastPlateSampler:
         h_lo = int(round(H / (2.0 ** t))) + 4
         if self._crop(z_lo, latlon_to_global_px(lat, lon, z_lo), w_lo, h_lo) is None:
             return False
-        if t * t * (3.0 - 2.0 * t) <= 0.001 or z_lo + 1 > self.z_max:
-            return True
-        scale_hi = 2.0 ** (t - 1.0)
-        w_hi = int(round(W / scale_hi)) + 4
-        h_hi = int(round(H / scale_hi)) + 4
-        return self._crop(z_lo + 1, latlon_to_global_px(lat, lon, z_lo + 1),
-                          w_hi, h_hi) is not None
+        # Coverage requires the lo window only. The hi level of the alpha
+        # blend degrades to the lo plate when its wider window (up to 2x at
+        # low fractional zoom) leaves the prepared plate — the 2026-10-24
+        # operator plate budget trades that blend detail for 1080p-class
+        # plates. Degraded frames are counted in lo_only_blend_count.
+        return True
 
     def required_tile_keys(self) -> set[tuple[int, int, int]]:
         """Return exact Mercator tile coverage of every prepared raster plate."""
@@ -408,7 +455,8 @@ class FastPlateSampler:
         hi = self._sample_subpixel_level(z_lo + 1, latlon_to_global_px(lat, lon, z_lo + 1),
                                          2.0 ** (t - 1.0), W, H)
         if hi is None:
-            return self.sample(lat, lon, zoom, W, H)
+            self.lo_only_blend_count += 1
+            return lo
         return cv2.addWeighted(lo, 1.0 - alpha, hi, alpha, 0.0)
 
     def sample(self, lat: float, lon: float, zoom: float,
@@ -446,8 +494,12 @@ class FastPlateSampler:
         hi_px = latlon_to_global_px(lat, lon, z_lo + 1)
         hi_crop = self._crop(z_lo + 1, hi_px, w_hi, h_hi)
         if hi_crop is None:
-            self.fallback_count += 1
-            return self.pyr.sample_continuous(lat, lon, zoom, W, H)
+            # Plate-budget degrade (2026-10-24): the hi window can leave a
+            # 1080p-class plate at low fractional zoom. Serve the frame from
+            # the lo plate alone (renormalized blend) instead of the slow
+            # engine; counted in lo_only_blend_count for honest telemetry.
+            self.lo_only_blend_count += 1
+            return plate_lo
         plate_hi = cv2.resize(hi_crop, (W, H), interpolation=cv2.INTER_LINEAR,
                               dst=self._scratch_buf(W, H, 1))
         return cv2.addWeighted(plate_lo, 1.0 - alpha, plate_hi, alpha, 0.0,

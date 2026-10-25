@@ -263,6 +263,8 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
                       "Output audio sample rate in Hz (0 = keep the source rate)")
         ->check(CLI::Range(0, 192000));
     video->add_flag("--gop-copy-only", args.video_settings.gop_copy_only, "Copy compressed video/audio packets without rendering (explicit source-equivalence contract)");
+    video->add_flag("--fragmented-mp4", args.video_settings.fragmented_mp4,
+                    "Emit the output container as a fragmented MP4 (moof/mdat fragments; bytes final when appended, streamable while the mux is open)");
     video->add_option_function<std::string>(
         "--changed-interval",
         [&args](const std::string& value) {
@@ -489,6 +491,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             request.output.audio_target_sample_rate =
                 render_args.video_settings.audio_target_sample_rate;
             request.output.gop_copy_only = render_args.video_settings.gop_copy_only;
+            request.output.fragmented_mp4 = render_args.video_settings.fragmented_mp4;
             request.output.changed_intervals = render_args.video_settings.changed_intervals;
             if (render_args.pipe_pixfmt_explicit)
                 request.output.pipe_pixfmt = render_args.video_settings.pipe_pixfmt;

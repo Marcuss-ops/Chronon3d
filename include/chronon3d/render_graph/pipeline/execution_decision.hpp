@@ -14,6 +14,10 @@ namespace chronon3d::graph {
 enum class FrameExecutionPath : std::uint8_t {
     CopyGop,
     ReuseSurface,
+    // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): the frame is provably
+    // identical to the previous one and the encoder re-emits that frame's
+    // encoded packet instead of rendering/encoding identical pixels again.
+    DuplicateFrame,
     SparseTiles,
     SparseYuv,
     FullYuv,
@@ -24,6 +28,7 @@ enum class FrameExecutionPath : std::uint8_t {
     switch (path) {
         case FrameExecutionPath::CopyGop: return "CopyGop";
         case FrameExecutionPath::ReuseSurface: return "ReuseSurface";
+        case FrameExecutionPath::DuplicateFrame: return "DuplicateFrame";
         case FrameExecutionPath::SparseTiles: return "SparseTiles";
         case FrameExecutionPath::SparseYuv: return "SparseYuv";
         case FrameExecutionPath::FullYuv: return "FullYuv";

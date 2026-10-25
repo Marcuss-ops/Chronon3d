@@ -13,6 +13,7 @@
 | Engine certification aggregator | P0 | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | Test harness and WBH certification | P1 | PARTIAL — WBH protocol and toolchain manifest delivered; clean same-SHA run remains | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) · [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) |
 | Vulkan shape-stroke parity | P1 | PARTIAL — solid closed shapes pass pixel oracle with scale, rotation, shear, and per-corner RoundedRect radii (local llvmpipe/NVIDIA); masks and hardware certification pending | [ROADMAP-LOCAL-CLOSEOUT](tickets/TICKET-ROADMAP-LOCAL-CLOSEOUT-2026-09.md) |
+| Mappe native (porting render) | P1 | OPEN — scaffolding atterrato (contratto `map_plate_render` fail-closed + test); fasi tile/etichette/flyover/parità/cutover da fare | [TICKET-MAPS-NATIVE-PORT](tickets/TICKET-MAPS-NATIVE-PORT.md) |
 | Camera authority / cinematic composition | P0 | ACTIVE — in-workspace producer migration and SDK census are closed; end-to-end optical, temporal, and integrated T16–T18 certification remains | [CAMERA-AUTHORITY-MIGRATION](tickets/TICKET-CAMERA-AUTHORITY-MIGRATION.md) · [CINEMATIC-COMPOSITION-CERTIFICATION](tickets/TICKET-CINEMATIC-COMPOSITION-CERTIFICATION.md) |
 | Daemon job lifecycle throughput | P1 | OPEN — allocator data gate | [DAEMON-JOB-LIFECYCLE](tickets/TICKET-DAEMON-JOB-LIFECYCLE.md) |
 | Benchmark corpus and CPU budget | P1 | MEASURED — host certification pending | [BENCHMARK-CORPUS-OFFICIAL](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) |

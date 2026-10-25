@@ -46,6 +46,12 @@ struct OutputSpec {
     /// output contract, so it participates in the normalized job fingerprint.
     int audio_target_sample_rate{0};
     bool gop_copy_only{false};
+    /// Emit the output container as a fragmented MP4 (moof/mdat fragments,
+    /// no start-of-file backpatch): the artifact bytes are final when
+    /// appended, so the overlay-artifact lane can hash/upload them while the
+    /// mux is still open. It is part of the output contract, so it
+    /// participates in the normalized job fingerprint.
+    bool fragmented_mp4{false};
     /// Source-time content/trim intervals supplied by the authoring layer.
     /// Empty preserves the legacy whole-export content-change semantics.
     std::vector<media::ChangedInterval> changed_intervals{};

@@ -245,6 +245,13 @@ struct VideoOutputConfig {
 
     /// Overwrite existing file without prompting.
     bool overwrite{true};
+
+    /// Write the MP4 as a FRAGMENTED MP4 (moof/mdat fragments, no start-of-file
+    /// backpatch): the bytes are final when appended, so an artifact can be
+    /// hashed and uploaded while the mux is still open. Only meaningful for
+    /// VideoContainer::Mp4 (the ISO-BMFF family); ignored otherwise. See
+    /// MuxOpenConfig::fragmented_mp4 in packet_assembler.hpp.
+    bool fragmented_mp4{false};
 };
 
 // ==========================================================================

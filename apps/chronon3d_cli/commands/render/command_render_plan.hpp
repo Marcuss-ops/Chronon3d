@@ -31,6 +31,7 @@ struct RenderPlanVideoOverrides {
     std::int64_t bitrate{0};
     std::string gop_source;
     bool gop_copy_only{false};
+    bool fragmented_mp4{false};
     std::string pipe_pixfmt;
     std::string color_output;
     float reference_white_nits{0.0f};

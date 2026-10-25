@@ -286,7 +286,8 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     std::string mux_reason;
     if (!mux_->open(chronon3d::media::MuxOpenConfig{
             .output_path = config.output.output_path.string(),
-            .video_codec = codec_}, mux_reason)) {
+            .video_codec = codec_,
+            .fragmented_mp4 = config.output.fragmented_mp4}, mux_reason)) {
         return fail(VideoSinkError::WriteFailed,
                     "libavformat mux open failed: " + mux_reason);
     }

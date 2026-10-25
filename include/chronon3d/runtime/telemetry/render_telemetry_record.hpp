@@ -354,6 +354,11 @@ struct FrameTelemetry {
     bool tile_execution_used{false};
     bool fast_path_reused{false};
     bool graph_reused{false};
+    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): this frame was emitted
+    /// as a packet-level duplicate of the previous frame's encoded output —
+    /// no raster, no composite, no encode. The frame still occupies its
+    /// presentation slot, so frame count and duration are unchanged.
+    bool duplicate_frame{false};
 
     /// Current SceneProgramCache capacity at this frame.
     /// Populated by the render loop for per-frame trend charts.

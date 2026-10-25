@@ -226,6 +226,11 @@ struct RenderPolicy {
     bool retain_native_surface_for_video{false};
     bool disable_pixel_readback{false};
     bool require_native_gpu{false};
+    // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): mirror of
+    // RenderSettings::duplicate_static_frames — a frame proved identical to
+    // the previous one becomes a packet-level encode duplicate instead of a
+    // re-render.  See the RenderSettings field for the capability contract.
+    bool duplicate_static_frames{false};
     // Temporal shutter samples render into an intermediate GPU target. Submit
     // their Vulkan work without transferring ownership to the video encoder;
     // only the final weighted average is handed to NVENC.

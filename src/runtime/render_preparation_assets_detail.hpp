@@ -135,7 +135,11 @@ RenderPreparationResult prepare_render_scene(
     const ImageCounterSnapshot image_before = snapshot_image_counters(*renderer->counters());
     if (options.resources.prepare_images) {
         for (const auto& ref : image_refs_view) {
-            const auto image = renderer->execution_context().runtime->image_cache().get_or_load(ref.path);
+            // Fix 6: warm the same display-bounded cache entry the render node
+            // resolves, so preparation never decodes a second representation.
+            ImageDecodeOptions decode_options{};
+            decode_options.max_dimension = ref.max_dimension;
+            const auto image = renderer->execution_context().runtime->image_cache().get_or_load(ref.path, decode_options);
             if (!image || !image->valid()) {
                 result.preparation_error = make_preparation_error(
                     PreparationError::Code::CorruptedAsset,
@@ -157,7 +161,9 @@ RenderPreparationResult prepare_render_scene(
         renderer->execution_context().runtime->backend().supports_native_surfaces()) {
         auto& cache = renderer->execution_context().runtime->gpu_asset_cache();
         for (const auto& ref : image_refs_view) {
-            const auto image = renderer->execution_context().runtime->image_cache().find(ref.path);
+            ImageDecodeOptions decode_options{};
+            decode_options.max_dimension = ref.max_dimension;
+            const auto image = renderer->execution_context().runtime->image_cache().find(ref.path, decode_options);
             if (!image || !image->valid() || image->gpu_rgba.empty()) {
                 continue;
             }

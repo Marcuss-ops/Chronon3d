@@ -176,7 +176,8 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
     // through the caller-owned MuxSession.
     if (!mux.open(MuxOpenConfig{request.output_path, streams.video.get(), streams.audio,
                                /*video_params=*/nullptr, /*video_time_base=*/AVRational{0, 1},
-                               /*checksum=*/true},
+                               /*checksum=*/true,
+                               /*fragmented_mp4=*/request.fragmented_mp4},
                   result.reason)) {
         return result;
     }

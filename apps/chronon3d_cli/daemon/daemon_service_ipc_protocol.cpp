@@ -54,7 +54,7 @@ constexpr std::string_view kRenderJobRootKeys[] = {
     "codec", "hardware_encoder", "hardware", "encoder_backend",
     "ffmpeg_mode", "gpu_hot_path_mode", "encode_preset", "rate_control_mode",
     "crf", "qp", "bitrate", "audio_source_path",
-    "audio_target_sample_rate", "gop_copy_only", "changed_intervals",
+    "audio_target_sample_rate", "gop_copy_only", "fragmented_mp4", "changed_intervals",
     "pipe_pixfmt", "fps_num", "fps_den", "backend",
     "execution_requirements", "output_spec",
 };
@@ -63,7 +63,7 @@ constexpr std::string_view kRenderJobOutputSpecKeys[] = {
     "codec", "width", "height", "fps_num", "fps_den", "pipe_pixfmt",
     "hardware_encoder", "encoder_backend", "gpu_hot_path_mode",
     "encode_preset", "rate_control_mode", "crf", "qp", "bitrate",
-    "audio_target_sample_rate", "changed_intervals", "ffmpeg_mode",
+    "audio_target_sample_rate", "fragmented_mp4", "changed_intervals", "ffmpeg_mode",
 };
 
 constexpr std::string_view kRenderJobRequirementKeys[] = {
@@ -272,6 +272,16 @@ DecodedRenderJobPayload decode_render_job_payload(
     out.audio_target_sample_rate = static_cast<int>(
         spec_or_root_int(request, "audio_target_sample_rate", 0));
     out.gop_copy_only = request.value("gop_copy_only", false);
+    // fragmented_mp4 accepts BOTH spellings: the output_spec mirror (the
+    // RenderingGen worker's wire shape) and the root-level shorthand.
+    out.fragmented_mp4 = [&request]() {
+        const auto spec_it = request.find("output_spec");
+        if (spec_it != request.end() && spec_it->is_object()) {
+            const auto v = spec_it->find("fragmented_mp4");
+            if (v != spec_it->end() && v->is_boolean()) return v->get<bool>();
+        }
+        return request.value("fragmented_mp4", false);
+    }();
 
     const nlohmann::json* intervals = nullptr;
     const auto spec_it = request.find("output_spec");
@@ -343,7 +353,9 @@ ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
         const auto request = nlohmann::json::parse(payload.begin(), payload.end());
         const auto paths = request.value("input_paths", std::vector<std::string>{});
         const auto output = request.value("output_path", std::string{});
-        const auto result = media::assemble_segments(media::SegmentAssemblyRequest{paths, output});
+        const bool fragmented = request.value("fragmented_mp4", false);
+        const auto result = media::assemble_segments(
+            media::SegmentAssemblyRequest{paths, output, fragmented});
         if (!result.success) return ipc::Reply{ipc::Status::Error, result.reason};
         return ipc::Reply{ipc::Status::Ok, output};
     } catch (const std::exception& e) {

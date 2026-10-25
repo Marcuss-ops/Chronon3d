@@ -12,6 +12,10 @@ using Clock = std::chrono::steady_clock;
 inline double elapsed_ms(const Clock::time_point& start) {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
 }
+// Enough retries to match x264's internal frame queue depth (see the send
+// loops): with threads=auto + thread_type=frame the encoder keeps ~10-12
+// frames in flight before drain_packets() frees a slot.
+constexpr int kMaxEagainRetries = 12;
 
 } // anonymous namespace
 
@@ -41,6 +45,16 @@ bool NativeAvEncoder::write_frame_async(const Framebuffer& fb, std::shared_ptr<F
 }
 
 bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
+    // P1 post-run resync: after a duplicate run the decoder's DPB holds the
+    // run anchor's reconstruction while the encoder's DPB holds the last
+    // seed's. The first real frame after a run is forced intra so both
+    // reference chains resynchronize exactly.
+    const bool force_intra = duplicate_run_active_ || session_restart_intra_pending_;
+    duplicate_run_active_ = false;
+    return write_frame_impl(fb, force_intra);
+}
+
+bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) {
     if (!codec_ || !frame_ || !packet_) {
         return false;
     }
@@ -235,6 +249,10 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
 
     // 3. Set PTS (presentation timestamp) in frame number units
     frame_->pts = static_cast<int64_t>(frames_written_);
+    // P1: forced-intra frames (run anchors, post-run resync) are
+    // reference-free. frame_ is reused across writes, so every send states
+    // the flag explicitly instead of inheriting the previous frame's force.
+    frame_->pict_type = force_intra ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
 
     // 4. Send the frame to the encoder (with EAGAIN back-pressure loop).
     //    `send_ms` measures ONLY avcodec_send_frame time (pure submit CPU),
@@ -247,12 +265,6 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
 
     int eagain_retries = 0;
     double backpressure_ms = 0.0;
-    // Allow enough retries to match x264's internal frame queue depth.
-    // With threads=auto + thread_type=frame on an 8-core machine, x264
-    // keeps ~10-12 frames in flight, so 3 retries often hit EAGAIN and
-    // trigger back-pressure on the render queue.  12 retries let the
-    // encoder drain smoothly without blocking the render thread.
-    constexpr int kMaxEagainRetries = 12;
     while (ret == AVERROR(EAGAIN) && eagain_retries < kMaxEagainRetries) {
         ++eagain_retries;
         // Encoder buffer full — drain packets (back-pressure wait), then retry.
@@ -276,6 +288,11 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         spdlog::error("[native_av] avcodec_send_frame error: {} ({})", ret, err_buf);
         return false;
     }
+    // Cross-item session restart: the forced keyframe has been consumed.
+    session_restart_intra_pending_ = false;
+    // P1: remember what the codec just consumed — the run-anchor seed reuses
+    // exactly these buffers (cheap ref, no copy) when a duplicate run starts.
+    duplicate_seed_source_.reset(av_frame_clone(frame_));
 
     frame_send_ms = send_ms;
     native_send_frame_ms_ += send_ms;
@@ -297,6 +314,163 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         .native_convert_ms = frame_conv_ms,
         .native_send_ms = frame_send_ms,
     };
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — run-anchor packet
+// duplication.
+//
+// A frame proven identical to the previous one costs O(1) to emit: no render,
+// no conversion, no encode — the run's anchor packet is re-emitted at the
+// frame's own PTS. The anchor is the forced-intra output of the run's first
+// frame, so every replica decodes reference-free and cannot drift, whatever
+// the run length. The run's pixels are the last submitted frame's pixels
+// (the duplicate proof guarantees identical content, and every send site
+// captures its buffers in `duplicate_seed_source_`), so priming the codec —
+// needed to push the anchor out of its frame-threaded pipeline — is a bare
+// buffer re-submission.
+//
+// Fail-closed: every entry refuses (returns false) rather than silently
+// shortening the stream, and the presentation cursor (frames_written_) is
+// checked on entry so a duplicate can never shift the timeline.
+// ---------------------------------------------------------------------------
+
+bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
+    if (!open_complete_ || !codec_ || !frame_ || !packet_ || !mux_) {
+        spdlog::error("[native_av] duplicate frame submitted outside an open session");
+        return false;
+    }
+    if (options_.direct_yuv_mode) {
+        spdlog::error(
+            "[native_av] duplicate frame refused on a DirectYUV session "
+            "(typed encoder capability mismatch)");
+        return false;
+    }
+    if (borrows_mux_) {
+        // The borrowed container's sample slots are scheduled by the caller
+        // per rendered work unit; a replicated packet would consume a slot it
+        // did not render.
+        spdlog::error(
+            "[native_av] duplicate frame refused on a borrowed-mux session");
+        return false;
+    }
+    if (static_cast<std::int64_t>(frame_number) !=
+        static_cast<std::int64_t>(frames_written_)) {
+        spdlog::error(
+            "[native_av] duplicate frame {} breaks the presentation cursor {}",
+            frame_number, frames_written_);
+        return false;
+    }
+
+    // Run bookkeeping: the first duplicate after a real frame opens the run.
+    if (!duplicate_run_active_) {
+        duplicate_run_active_ = true;
+        duplicate_anchor_.reset();
+        duplicate_anchor_pts_ = static_cast<std::int64_t>(frame_number);
+        // The anchor's sample is its own packet; replication owns everything
+        // above it.
+        duplicate_replicated_through_pts_ = duplicate_anchor_pts_;
+    }
+
+    // Progress the codec on every call: this drains the anchor out of the
+    // frame-threaded pipeline and lets already-replicated seeds fall out of
+    // the discard windows.
+    if (!drain_packets()) return false;
+
+    if (!duplicate_anchor_) {
+        // The anchor has not drained yet: prime the pipeline with a seed and
+        // let the seed's own packet stand as this frame's sample until the
+        // pending window can be replicated.
+        return submit_duplicate_seed_(static_cast<std::int64_t>(frame_number));
+    }
+
+    // Emit every sample the replication window owes, in PTS order: the frames
+    // seeded before the anchor drained (their own packets are dropped once
+    // covered) and this one.
+    const auto t_mux0 = Clock::now();
+    const std::int64_t first_pending = duplicate_replicated_through_pts_ + 1;
+    for (std::int64_t pts = first_pending;
+         pts <= static_cast<std::int64_t>(frame_number); ++pts) {
+        media::OwnedAVPacket replica(av_packet_alloc());
+        if (!replica || av_packet_ref(replica.get(), duplicate_anchor_.get()) < 0) {
+            spdlog::error("[native_av] duplicate packet replication allocation failed");
+            return false;
+        }
+        replica->pts = pts;
+        replica->dts = pts;
+        if (!mux_->submit(
+                media::EncodedPacket{
+                    std::move(replica), codec_->time_base,
+                    (duplicate_anchor_->flags & AV_PKT_FLAG_KEY) != 0},
+                media::MuxVideoPlacement::AsSubmitted)) {
+            spdlog::error("[native_av] duplicate packet submit failed at pts {}", pts);
+            return false;
+        }
+        ++mux_packets_written_;
+    }
+    native_mux_write_ms_ += elapsed_ms(t_mux0);
+    duplicate_discard_ranges_.emplace_back(first_pending, frame_number);
+    duplicate_replicated_through_pts_ = static_cast<std::int64_t>(frame_number);
+    frames_written_ = static_cast<std::uint64_t>(frame_number) + 1;
+    return true;
+}
+
+bool NativeAvEncoder::submit_duplicate_seed_(std::int64_t frame_pts) {
+    if (!codec_ || !duplicate_seed_source_) {
+        spdlog::error(
+            "[native_av] duplicate seed has no submitted frame to re-encode");
+        return false;
+    }
+    // No conversion and no copy: the seed re-submits the last submitted
+    // frame's buffers at a new PTS. A FRESH shell is mandatory — the codec may
+    // still hold references to earlier shells and must not observe this
+    // send's pts/pict_type retroactively. The run's first seed is forced
+    // intra — its packet becomes the replication anchor.
+    AVFrame* seed = av_frame_alloc();
+    if (!seed) return false;
+    if (av_frame_ref(seed, duplicate_seed_source_.get()) < 0) {
+        av_frame_free(&seed);
+        spdlog::error("[native_av] duplicate seed frame ref failed");
+        return false;
+    }
+    seed->pts = frame_pts;
+    seed->pict_type = (frame_pts == duplicate_anchor_pts_)
+        ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
+
+    const auto t_send0 = Clock::now();
+    int ret = avcodec_send_frame(codec_, seed);
+    double send_ms = elapsed_ms(t_send0);
+    int eagain_retries = 0;
+    double backpressure_ms = 0.0;
+    while (ret == AVERROR(EAGAIN) && eagain_retries < kMaxEagainRetries) {
+        ++eagain_retries;
+        const auto t_bp0 = Clock::now();
+        if (!drain_packets()) {
+            av_frame_free(&seed);
+            return false;
+        }
+        backpressure_ms += elapsed_ms(t_bp0);
+        const auto t_retry = Clock::now();
+        ret = avcodec_send_frame(codec_, seed);
+        send_ms += elapsed_ms(t_retry);
+    }
+    av_frame_free(&seed);
+    if (ret == AVERROR(EAGAIN)) {
+        spdlog::error(
+            "[native_av] duplicate seed send remained EAGAIN after {} retries",
+            kMaxEagainRetries);
+        return false;
+    }
+    if (ret < 0) {
+        char err_buf[256];
+        av_strerror(ret, err_buf, sizeof(err_buf));
+        spdlog::error("[native_av] duplicate seed send failed: {} ({})", ret, err_buf);
+        return false;
+    }
+    native_send_frame_ms_ += send_ms;
+    native_backpressure_ms_ += backpressure_ms;
+    ++frames_written_;
     return true;
 }
 

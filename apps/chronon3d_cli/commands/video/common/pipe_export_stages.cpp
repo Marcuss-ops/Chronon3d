@@ -47,6 +47,10 @@ NativeSurfacePrep prepare_frame(
         ctx.backend.supports_native_video_surface();
     frame_settings.require_native_gpu =
         frame_settings.retain_native_surface_for_video;
+    // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): capability grant from
+    // the export setup — packet-level duplication only when the sink can
+    // honour it; identical frames then cost O(1) instead of render+encode.
+    frame_settings.duplicate_static_frames = ctx.duplicate_frames_allowed;
     auto* surface_registry = ctx.sw_renderer
         ? ctx.sw_renderer->execution_context().images.surfaces : nullptr;
     if (!surface_registry || !frame_settings.retain_native_surface_for_video) {
@@ -120,6 +124,12 @@ RenderOutcome render_frame(
     out.tile_execution_used = ctx.sw_renderer->last_tile_execution_used();
     out.fast_path_reused = ctx.sw_renderer->last_fast_path_reused();
     out.graph_reused = ctx.sw_renderer->last_graph_reused();
+    // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): the resolver selected
+    // FrameExecutionPath::DuplicateFrame — the frame is provably identical to
+    // the previous one and must not be rendered or encoded again.
+    out.duplicate_frame =
+        ctx.sw_renderer->last_execution_decision() ==
+        graph::FrameExecutionPath::DuplicateFrame;
     return out;
 }
 

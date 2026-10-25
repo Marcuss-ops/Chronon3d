@@ -108,6 +108,31 @@ void record_surface_reuse(
     }
 }
 
+// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — the encode-side twin of
+// record_surface_reuse: the frame is a packet-level duplicate of the
+// previous one, so the pipeline skips raster/composite/encode entirely and
+// the writer re-emits the previous frame's encoded packet.  The frame-history
+// bookkeeping is identical to surface reuse (the next frame must compare
+// against THIS frame); only the execution-path telemetry differs.
+void record_duplicate_frame(
+    SoftwareRenderer* sw_renderer,
+    Frame frame,
+    const Camera2_5D& camera,
+    std::uint64_t combined_fingerprint,
+    bool diagnostics_enabled) {
+    if (!sw_renderer) {
+        return;
+    }
+    sw_renderer->mark_fast_path_reused(frame, camera, combined_fingerprint);
+    sw_renderer->update_dirty_telemetry(
+        true, std::nullopt, false, true, false,
+        graph::FrameExecutionPath::DuplicateFrame);
+    if (diagnostics_enabled) {
+        spdlog::info("[duplicate-frame] frame={} packet_duplicate=1",
+                     static_cast<int>(frame));
+    }
+}
+
 void set_full_rgb(
     FrameExecutionPlan& plan,
     std::string_view reason,
@@ -127,6 +152,7 @@ void set_full_rgb(
     plan.copy_previous_surface = false;
     plan.dirty_regions.clear();
     plan.reuse_surface.reset();
+    plan.duplicate_encoded_frame = false;
     plan.copy_gop_plan.reset();
 }
 
@@ -408,6 +434,29 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
         plan.scene_structure_unchanged = reuse.reuse.structure_unchanged;
         plan.static_camera_changed = !reuse.reuse.camera_unchanged;
         plan.scene_is_static = scene_is_static;
+    }
+
+    // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — packet-duplicate fast
+    // path.  Considered BEFORE surface reuse because it is strictly cheaper:
+    // nothing is rasterised, composited, converted or encoded — the writer
+    // re-emits the previous frame's encoded packet with this frame's PTS.
+    // It needs no previous FRAMEBUFFER (only the previous frame's packet and
+    // the pixel-identity proof), so — unlike surface reuse — it also covers
+    // the native encode lane whose framebuffers carry no CPU pixels.  The
+    // capability grant `duplicate_static_frames` is set by the export setup
+    // only when the sink implements packet duplication; without it this
+    // branch never fires and every path below is unchanged.
+    if (ctx.policy.duplicate_static_frames && reuse.reuse.duplicate_frame_eligible) {
+        if (const auto previous_framebuffer = sw_renderer->buffer_ring().prev_framebuffer()) {
+            plan.duplicate_encoded_frame = true;
+            set_reuse_surface(plan, previous_framebuffer, "duplicate_static_frame");
+            plan.path = FrameExecutionPath::DuplicateFrame;
+            plan.dirty_region = raster::BBox{0, 0, 0, 0};
+            record_duplicate_frame(
+                sw_renderer, frame, camera, plan.frame_fingerprints.combined_fp,
+                ctx.policy.diagnostics_enabled);
+            return plan;
+        }
     }
 
     if (!has_frame_dependent_content(scene, frame) &&

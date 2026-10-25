@@ -104,6 +104,10 @@ public:
     void shutdown_noexcept() noexcept;
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
+    /// Cross-item codec session: true when this open adopted a parked session
+    /// (CHRONON_ENCODER_SESSION_REUSE=1). Survives close() so tests and
+    /// telemetry can pin whether an item actually reused a session.
+    [[nodiscard]] bool codec_session_adopted() const { return codec_session_adopted_; }
     [[nodiscard]] EncoderFrameTelemetry last_frame_telemetry() const override { return last_frame_telemetry_; }
 
     [[nodiscard]] double native_convert_ms()          const override { return native_convert_ms_; }
@@ -188,6 +192,20 @@ public:
         return output_frame_format_;
     }
 
+    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — packet-level frame
+    /// duplication. This encoder owns its mux, so an identical frame can be
+    /// emitted without touching the pixel path. The capability is refused on
+    /// DirectYUV sessions (typed feed) and on borrowed-mux sessions (the
+    /// caller's schedule owns every sample slot).
+    [[nodiscard]] bool supports_duplicate_frames() const override {
+        return !options_.direct_yuv_mode;
+    }
+    /// Emit frame `frame_number` as a packet-level duplicate (see the
+    /// run-anchor mechanism in native_av_encoder_write.cpp). Fail-closed:
+    /// returns false only where a duplicate cannot be honoured without
+    /// breaking the stream, never silently shortens it.
+    bool write_duplicate_frame(int frame_number) override;
+
 private:
     chronon3d::RenderCounters* counters_{nullptr};
     FfmpegPipeOptions options_{};
@@ -209,6 +227,31 @@ private:
     double encoder_packet_drain_ms_{0.0};
     double direct_yuv_cuda_launch_ms_{0.0};
     double direct_yuv_cuda_wait_ms_{0.0};
+
+    // ── P1 run-anchor packet duplication ─────────────────────────────────
+    // A run of frames proven identical to the previous one is emitted from a
+    // single forced-intra "anchor" packet: the run's first frame is fed to the
+    // codec as a seed (re-submission of the current AVFrame, whose pixels are
+    // the run's pixels by the duplicate proof), its packet is cached, and
+    // every identical frame that follows re-emits that packet at its own PTS.
+    // Intra output decodes reference-free, so replication cannot drift, and
+    // each replica keeps the exact frame-count and duration contract.
+    // Seeding continues only until the anchor drains out of the codec's
+    // frame-threaded pipeline; seeded frames whose sample was already emitted
+    // as a replica have their own packet dropped on the way out.
+    //
+    // Seeds re-submit the LAST SUBMITTED FRAME's buffers (`frame_` on the host
+    // feed, the CUDA queue's frame on the native lane), captured at every send
+    // site: the duplicate proof guarantees that content is the run's content.
+    struct FrameDeleter {
+        void operator()(AVFrame* frame) const noexcept { av_frame_free(&frame); }
+    };
+    std::unique_ptr<AVFrame, FrameDeleter> duplicate_seed_source_;
+    media::OwnedAVPacket duplicate_anchor_;          // run anchor (intra packet)
+    std::int64_t duplicate_anchor_pts_{-1};          // = the run's first frame
+    std::int64_t duplicate_replicated_through_pts_{-1};
+    std::deque<std::pair<std::int64_t, std::int64_t>> duplicate_discard_ranges_;
+    bool duplicate_run_active_{false};
 
     // Container ownership: `owned_mux_` is non-null only when this encoder
     // opened the container itself. `mux_` is the sink actually written to
@@ -305,7 +348,24 @@ private:
     [[nodiscard]] bool wire_container(const std::string& filename);
     [[nodiscard]] bool finalize_open(const std::string& filename);
 
+    // ── Cross-item codec session (CHRONON_ENCODER_SESSION_REUSE=1) ───────
+    // P2 item 2 / P4 item 1: one NVENC session per batch instead of one per
+    // artifact, with one MP4 container (and one forced-IDR PTS timeline) per
+    // item — the MP4-per-item contract is preserved. Opt-in and fail-closed;
+    // see native_av_encoder_internal.hpp for the full rationale.
+    [[nodiscard]] std::string compute_codec_session_fingerprint() const;
+    [[nodiscard]] bool try_adopt_codec_session();
+    void park_codec_session_for_reuse();
+
     bool drain_packets();
+    /// write_frame with an explicit intra force (P1 run-anchor seeding and the
+    /// post-run DPB resync). `force_intra` marks the submitted frame as
+    /// reference-free so its packet can be replicated without drift.
+    bool write_frame_impl(const Framebuffer& fb, bool force_intra);
+    /// P1: prime the codec's frame-threaded pipeline with a re-submission of
+    /// the current AVFrame at `frame_pts` (no conversion, no copy). The run's
+    /// first seed is forced intra — its packet becomes the run anchor.
+    bool submit_duplicate_seed_(std::int64_t frame_pts);
     bool mux_source_audio();
     bool drain_ready_cuda_frames(bool wait_for_one);
     [[nodiscard]] const BitstreamTargetContract&
@@ -325,6 +385,16 @@ private:
     uint64_t cache_hits_{0};
     uint64_t cache_misses_{0};
     mutable std::mutex mutex_;
+
+    // Cross-item codec-session state (empty fingerprint or disabled env ⇒
+    // never adopted, never parked, zero behavior change).
+    std::string codec_session_fingerprint_{};
+    bool codec_session_adopted_{false};
+    bool codec_session_eligible_{false};
+    /// True while the next submitted frame must be forced intra: a session
+    /// adopted across items starts a new container and its first frame has to
+    /// be an IDR or the MP4 does not begin on a keyframe.
+    bool session_restart_intra_pending_{false};
 };
 
 } // namespace chronon3d::cli

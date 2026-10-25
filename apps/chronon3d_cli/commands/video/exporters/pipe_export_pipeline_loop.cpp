@@ -107,6 +107,13 @@ RenderLoopOutput run_pipe_export_loop(
         .telemetry_frames = telemetry_frames,
         .telemetry_anchor_ns = session.telemetry_anchor_ns,
         .trace_job_id = session.trace_job_id,
+        // P1: the grant is the SINK's capability — a sink without packet
+        // duplication simply never sees duplicates (full render+encode).
+        // A borrowed mux schedules every sample slot per rendered work unit,
+        // so it never hosts replicated packets.
+        .duplicate_frames_allowed =
+            session.encoder && session.encoder->supports_duplicate_frames() &&
+            !opts.borrowed_mux.has_value(),
         };
         output.loop_result = run_render_loop(loop_ctx);
         const auto render_t1 = profiling::now();

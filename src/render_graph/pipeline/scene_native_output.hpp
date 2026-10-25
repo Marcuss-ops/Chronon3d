@@ -72,6 +72,13 @@ public:
     [[nodiscard]] std::shared_ptr<Framebuffer> finish_reused_native_frame(
         const std::shared_ptr<Framebuffer>& framebuffer, Frame frame);
 
+    // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) early-exit path: the
+    // frame is a packet-level duplicate of the previous one, so NOTHING is
+    // copied into the encode surface — the writer re-emits the previous
+    // frame's encoded packet. Only the frame batch closes here.
+    [[nodiscard]] std::shared_ptr<Framebuffer> finish_duplicate_native_frame(
+        const std::shared_ptr<Framebuffer>& framebuffer);
+
     // Full-path exit: copy the executed framebuffer into the encode surface
     // and close the frame batch. Returns nullptr when the copy failed.
     [[nodiscard]] std::shared_ptr<Framebuffer> finish_frame_encode(

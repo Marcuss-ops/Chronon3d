@@ -49,6 +49,41 @@ bool NativeAvEncoder::drain_packets() {
             return false;
         }
 
+        // P1 run-anchor duplication — sample bookkeeping before anything is
+        // counted or muxed:
+        //  • a seeded packet whose sample was already emitted as a replica is
+        //    dropped here (the codec's own output for that frame must never
+        //    become a SECOND sample on the same PTS);
+        //  • the run anchor (the forced-intra packet of the run's first frame)
+        //    is cached for replication and muxed as its own sample.
+        const std::int64_t drained_pts =
+            packet_->pts != AV_NOPTS_VALUE ? packet_->pts : -1;
+        if (drained_pts >= 0) {
+            while (!duplicate_discard_ranges_.empty() &&
+                   drained_pts > duplicate_discard_ranges_.front().second) {
+                duplicate_discard_ranges_.pop_front();
+            }
+            bool sample_already_emitted = false;
+            for (const auto& [from, to] : duplicate_discard_ranges_) {
+                if (drained_pts >= from && drained_pts <= to) {
+                    sample_already_emitted = true;
+                    break;
+                }
+            }
+            if (sample_already_emitted) {
+                av_packet_unref(packet_);
+                continue;
+            }
+            if (duplicate_run_active_ && !duplicate_anchor_ &&
+                drained_pts == duplicate_anchor_pts_) {
+                duplicate_anchor_ = media::OwnedAVPacket(av_packet_clone(packet_));
+                if (!duplicate_anchor_) {
+                    spdlog::error("[native_av] run anchor capture failed");
+                    return false;
+                }
+            }
+        }
+
         ++encoder_packets_received_;
         if (packet_->pts != AV_NOPTS_VALUE) {
             if (first_encoder_packet_pts_ < 0) {

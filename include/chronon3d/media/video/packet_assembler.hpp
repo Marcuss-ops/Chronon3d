@@ -131,11 +131,24 @@ struct MuxOpenConfig {
     /// `full_file_reread_count=1` and `final_reread_bytes` equal to the whole
     /// artifact size. One owner per digest.
     bool checksum{false};
+
+    /// Write a FRAGMENTED MP4 (moof/mdat fragments: `frag_keyframe` +
+    /// `empty_moov` + `default_base_moof`) instead of the classic two-pass
+    /// layout. Fragmented output has NO start-of-file backpatch: every byte is
+    /// final when it is appended, so the append-only checksum above is valid
+    /// without a reread AND the bytes can be streamed away while the mux is
+    /// still open (the overlay-artifact upload lane). Only meaningful for the
+    /// ISO-BMFF family (mp4/mov); ignored by every other muxer.
+    bool fragmented_mp4{false};
 };
 
 struct SegmentAssemblyRequest {
     std::vector<std::string> input_paths;
     std::string output_path;
+    /// Emit the assembled artifact as a fragmented MP4 (see
+    /// MuxOpenConfig::fragmented_mp4). The chunk segments may be classic MP4;
+    /// the assembled artifact is what the upload/streaming contract reads.
+    bool fragmented_mp4{false};
 };
 
 struct SegmentAssemblyResult {
@@ -261,6 +274,7 @@ private:
     /// P0-5E — container tick a BORROWED producer's output starts at.
     std::int64_t video_origin_{0};
     bool checksum_enabled_{false};
+    bool fragmented_mp4_{false};
     bool checksum_used_reread_{false};
     bool finalize_attempted_{false};
     bool finalized_{false};

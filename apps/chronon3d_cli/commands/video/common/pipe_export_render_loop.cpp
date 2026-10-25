@@ -159,6 +159,46 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 }
             }
 
+            if (shot.duplicate_frame) {
+                // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): the frame is
+                // provably identical to the previous one. Nothing is encoded:
+                // the slot lease acquired by prepare_frame returns to the pool
+                // without encoder contact and the writer re-emits the
+                // previous frame's encoded output at this frame's PTS. The
+                // lease is released explicitly (guarded) so the recycle path
+                // is the same one every non-encoded frame exit uses.
+                if (prep.slot.valid()) {
+                    prep.slot.release();
+                }
+                ctx.triple_arena->release(current_arena);
+                RenderFramePackage duplicate_package = DuplicateFramePackage{
+                    .frame_number = current_frame,
+                    .enqueued_at = std::chrono::steady_clock::now(),
+                };
+                if (!ctx.queue.push(duplicate_package, ctx.opts.cancellation_token)) {
+                    if (ctx.writer_failed.load()) {
+                        mark_pipe_writer_failed(status, current_frame);
+                    } else if (ctx.opts.cancellation_token &&
+                               ctx.opts.cancellation_token->is_cancelled()) {
+                        mark_pipe_cancelled(status, current_frame);
+                    } else {
+                        mark_pipe_render_failed(status, current_frame);
+                    }
+                    break;
+                }
+                ++status.frames_enqueued;
+                ctx.telemetry_frames.push_back({
+                    .frame_number = static_cast<int>(current_frame),
+                    .wall_start_ms = profiling::duration_ms(loop_t0, frame_loop_t0),
+                    .duration_ms = profiling::duration_ms(frame_loop_t0, profiling::now()),
+                    .cache_hit = true,
+                    .fast_path_reused = shot.fast_path_reused,
+                    .graph_reused = shot.graph_reused,
+                    .duplicate_frame = true,
+                });
+                continue;
+            }
+
             EncodeOutcome enc = encode_frame(
                 ctx, shot.fb, frame_settings, current_arena, std::move(prep),
                 current_frame, status, shot.dirty_regions);

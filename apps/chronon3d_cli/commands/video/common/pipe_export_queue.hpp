@@ -46,7 +46,19 @@ struct DirectYuvFramePackage {
     std::shared_ptr<media::video::DirectYuvFrame> direct_yuv;
 };
 
-using RenderFramePackage = std::variant<FullGraphFramePackage, DirectYuvFramePackage>;
+/// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): a frame the execution
+/// resolver proved identical to the previous one.  It carries NO framebuffer
+/// and NO surface — the writer re-emits the previous frame's encoded packet
+/// with this frame's PTS (cost O(1) in the duration of a static hold).
+/// Pushed instead of a FullGraphFramePackage whenever the resolver selected
+/// FrameExecutionPath::DuplicateFrame.
+struct DuplicateFramePackage {
+    Frame frame_number{0};
+    std::chrono::steady_clock::time_point enqueued_at{};
+};
+
+using RenderFramePackage =
+    std::variant<FullGraphFramePackage, DirectYuvFramePackage, DuplicateFramePackage>;
 
 // ===========================================================================
 // RenderFrameQueue — SPSC render→writer handoff (Wave 3)

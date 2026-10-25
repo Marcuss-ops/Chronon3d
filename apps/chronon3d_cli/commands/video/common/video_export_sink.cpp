@@ -127,6 +127,52 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
             ctx.pipeline_metrics.encode_frames_in_flight_peak,
             encode_in_flight);
 
+        if (const auto* duplicate = std::get_if<DuplicateFramePackage>(&package)) {
+            // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): the frame is
+            // provably identical to the previous one. The encoder re-emits
+            // that frame's encoded output at this frame's PTS — no pixel
+            // path is touched. Fail-closed: an encoder that cannot honour the
+            // duplicate would silently shorten the stream (frame count and
+            // duration are part of the output contract), so the rejection is
+            // a writer failure, never a skipped frame.
+            const auto enc_t0 = profiling::now();
+            if (ctx.counters) {
+                ctx.counters->duplicate_frame_emissions.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
+            const bool emitted = ctx.encoder.write_duplicate_frame(
+                static_cast<int>(duplicate->frame_number));
+            const auto enc_t1 = profiling::now();
+            if (!emitted) {
+                spdlog::error(
+                    "[video] encoder rejected duplicate frame {}",
+                    static_cast<int>(duplicate->frame_number));
+                if (ctx.counters) {
+                    ctx.counters->gpu_encode_failures.fetch_add(
+                        1, std::memory_order_relaxed);
+                }
+                ctx.writer_failed.store(true);
+                ctx.queue.fail();
+                return;
+            }
+            ++ctx.frames_encoded;
+            ctx.writer_encode_us_total.fetch_add(
+                static_cast<uint64_t>(profiling::duration_us(enc_t0, enc_t1)),
+                std::memory_order_relaxed);
+            ctx.frame_encoder_telemetry.push_back({
+                .frame_number = static_cast<int>(duplicate->frame_number),
+                .encoder_ms = profiling::duration_ms(enc_t0, enc_t1),
+                .duplicate_frame = true,
+                .encoder_wall_start_ms = anchor_offset_ms(ctx, enc_t0),
+                .encoder_wall_end_ms = anchor_offset_ms(ctx, enc_t1),
+                .writer_queue_wait_ms = queue_wait_ms(
+                    duplicate->enqueued_at, enc_t0),
+                .writer_encode_wall_ms = std::chrono::duration<double, std::milli>(
+                    enc_t1 - enc_t0).count(),
+            });
+            continue;
+        }
+
         if (const auto* direct = std::get_if<DirectYuvFramePackage>(&package)) {
             const auto enc_t0 = profiling::now();
             if (ctx.counters) {

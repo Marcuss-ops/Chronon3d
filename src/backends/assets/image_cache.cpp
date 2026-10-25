@@ -23,15 +23,25 @@ namespace {
 // linear/GPU representations to hundreds of megabytes and defeats the LRU,
 // causing the same image to be decoded once per frame. Downscale only the
 // runtime copy; the authored/downloaded asset remains unchanged.
+//
+// Fix 6 (TICKET-OVERLAY-THROUGHPUT-100-MIN): the cap is now display-derived.
+// ImageDecodeOptions::max_dimension carries the fitted display bound declared
+// by the scene builder (2x the display box, clamped); 0 keeps this global
+// safety cap. Resampling is area-average (premultiplied-safe box filter):
+// uniform quality at any reduction factor, unlike the previous point-sample
+// which aliased badly below ~2x. The authored asset is never modified.
 constexpr int kMaxImageDimension = 2048;
 
-void downscale_for_runtime(image::ImageBuffer& buffer) {
+void downscale_for_runtime(image::ImageBuffer& buffer, int max_dimension) {
+    const int cap = max_dimension > 0
+        ? std::min(max_dimension, kMaxImageDimension)
+        : kMaxImageDimension;
     if (!buffer.has_pixels() || buffer.width <= 0 || buffer.height <= 0 ||
-        std::max(buffer.width, buffer.height) <= kMaxImageDimension) {
+        std::max(buffer.width, buffer.height) <= cap) {
         return;
     }
 
-    const double scale = static_cast<double>(kMaxImageDimension) /
+    const double scale = static_cast<double>(cap) /
                          static_cast<double>(std::max(buffer.width, buffer.height));
     const int target_width = std::max(1, static_cast<int>(std::lround(buffer.width * scale)));
     const int target_height = std::max(1, static_cast<int>(std::lround(buffer.height * scale)));
@@ -41,27 +51,59 @@ void downscale_for_runtime(image::ImageBuffer& buffer) {
     auto resized_linear = buffer.linear_pixels
         ? std::make_unique<float[]>(target_pixel_count * 4) : nullptr;
 
+    // Area-average: every target pixel is the coverage-weighted mean of the
+    // source pixels its footprint covers. Premultiplied RGBA averages
+    // correctly under this rule.
     for (int y = 0; y < target_height; ++y) {
-        const int source_y = std::min(
-            buffer.height - 1,
-            static_cast<int>((static_cast<double>(y) / target_height) * buffer.height));
+        const double src_y0 = (static_cast<double>(y) / target_height) * buffer.height;
+        const double src_y1 = (static_cast<double>(y + 1) / target_height) * buffer.height;
+        const int y0 = std::min(buffer.height - 1, static_cast<int>(src_y0));
+        const int y1 = std::min(buffer.height, std::max(y0 + 1, static_cast<int>(std::ceil(src_y1))));
         for (int x = 0; x < target_width; ++x) {
-            const int source_x = std::min(
-                buffer.width - 1,
-                static_cast<int>((static_cast<double>(x) / target_width) * buffer.width));
-            const auto source_offset = (static_cast<std::size_t>(source_y) * buffer.width + source_x) * 4;
+            const double src_x0 = (static_cast<double>(x) / target_width) * buffer.width;
+            const double src_x1 = (static_cast<double>(x + 1) / target_width) * buffer.width;
+            const int x0 = std::min(buffer.width - 1, static_cast<int>(src_x0));
+            const int x1 = std::min(buffer.width, std::max(x0 + 1, static_cast<int>(std::ceil(src_x1))));
+
+            double acc[4] = {0.0, 0.0, 0.0, 0.0};
+            double weight_sum = 0.0;
+            for (int sy = y0; sy < y1; ++sy) {
+                const double wy = std::min(src_y1, static_cast<double>(sy) + 1.0) -
+                                  std::max(src_y0, static_cast<double>(sy));
+                for (int sx = x0; sx < x1; ++sx) {
+                    const double wx = std::min(src_x1, static_cast<double>(sx) + 1.0) -
+                                      std::max(src_x0, static_cast<double>(sx));
+                    const double weight = wx * wy;
+                    if (weight <= 0.0) {
+                        continue;
+                    }
+                    const auto source_offset =
+                        (static_cast<std::size_t>(sy) * buffer.width + sx) * 4;
+                    for (int c = 0; c < 4; ++c) {
+                        const double value = buffer.pixels
+                            ? static_cast<double>(buffer.pixels[source_offset + c])
+                            : static_cast<double>(buffer.linear_pixels[source_offset + c]);
+                        acc[c] += value * weight;
+                    }
+                    weight_sum += weight;
+                }
+            }
+
             const auto target_offset = (static_cast<std::size_t>(y) * target_width + x) * 4;
-            if (buffer.pixels)
-                std::copy_n(buffer.pixels.get() + source_offset, 4,
-                            resized_bytes.get() + target_offset);
-            else
-                std::copy_n(buffer.linear_pixels.get() + source_offset, 4,
-                            resized_linear.get() + target_offset);
+            for (int c = 0; c < 4; ++c) {
+                const double mean = acc[c] / weight_sum;
+                if (buffer.pixels) {
+                    resized_bytes[target_offset + c] = static_cast<u8>(
+                        std::lround(std::clamp(mean, 0.0, 255.0)));
+                } else {
+                    resized_linear[target_offset + c] = static_cast<float>(mean);
+                }
+            }
         }
     }
 
-    spdlog::info("ImageCache: downscaled runtime image ({}x{} -> {}x{})",
-                 buffer.width, buffer.height, target_width, target_height);
+    spdlog::info("ImageCache: downscaled runtime image ({}x{} -> {}x{}, cap={})",
+                 buffer.width, buffer.height, target_width, target_height, cap);
     buffer.width = target_width;
     buffer.height = target_height;
     buffer.pixels = std::move(resized_bytes);
@@ -160,7 +202,7 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
     }
 #endif
 
-    downscale_for_runtime(*buffer);
+    downscale_for_runtime(*buffer, options.max_dimension);
 
     auto entry = std::make_shared<CachedImage>();
     entry->width = buffer->width;

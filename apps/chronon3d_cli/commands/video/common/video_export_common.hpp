@@ -121,6 +121,11 @@ struct FfmpegExportOptions {
     /// from the source makes the native mux resample the audio to that rate.
     int audio_target_sample_rate{0};
     bool gop_copy_only{false};
+    /// Emit the owned container as a fragmented MP4 (see
+    /// MuxOpenConfig::fragmented_mp4): bytes final when appended, so the
+    /// artifact can be hashed and uploaded while the mux is still open. The
+    /// overlay-artifact lane requests it; classic MP4 stays the default.
+    bool fragmented_mp4{false};
 
     // P0-5E: set only by the direct-mux hybrid executor for the child render of
     // a re-encoded work unit. Unset (the normal case) means the encoder owns
