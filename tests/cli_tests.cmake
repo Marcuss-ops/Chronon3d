@@ -3,8 +3,19 @@ if(NOT CHRONON3D_BUILD_CLI OR NOT TARGET chronon3d_cli_render)
     return()
 endif()
 
+if(MSVC)
+    # LINK_GROUP:RESCAN is supported by GNU/ELF linkers, not link.exe.  MSVC
+    # resolves COFF archives to completion, so preserve both libraries in
+    # their normal order without the unsupported rescan feature.
+    set(_cli_render_core_link_targets
+        chronon3d_cli_render chronon3d_cli_core)
+else()
+    set(_cli_render_core_link_targets
+        "$<LINK_GROUP:RESCAN,chronon3d_cli_render,chronon3d_cli_core>")
+endif()
+
 set(_cli_tests_link_targets
-    "$<LINK_GROUP:RESCAN,chronon3d_cli_render,chronon3d_cli_core>"
+    ${_cli_render_core_link_targets}
     chronon3d_sdk
     chronon3d_sdk_impl
     chronon3d_pipeline
@@ -112,7 +123,7 @@ endif()
 # Canonical RenderJob planner/executor contract remains a focused target so
 # matrix builds can certify it independently from the broad CLI executable.
 set(_render_job_contract_links
-    "$<LINK_GROUP:RESCAN,chronon3d_cli_render,chronon3d_cli_core>"
+    ${_cli_render_core_link_targets}
     chronon3d_sdk
     chronon3d_sdk_impl
     chronon3d_pipeline
