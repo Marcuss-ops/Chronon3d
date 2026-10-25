@@ -227,6 +227,10 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/refresh/transform.cpp
     pipeline/debug.cpp
     pipeline/composition.cpp
+    pipeline/composition_frame_prepare.cpp
+    pipeline/composition_frame_single.cpp
+    pipeline/composition_frame_temporal.cpp
+    pipeline/composition_frame_finalize.cpp
     pipeline/register_pipeline_nodes.cpp
 )
 set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
