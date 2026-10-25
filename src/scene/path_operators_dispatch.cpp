@@ -69,10 +69,21 @@ std::vector<PathShape> apply_path_operators(const PathShape& input,
                 for (const auto& subpath : merge.paths)
                     path.commands.insert(path.commands.end(), subpath.begin(), subpath.end());
             }
-        } else if (op.kind == PathOperatorKind::BooleanUnion) {
+        } else if (op.kind == PathOperatorKind::BooleanUnion ||
+                   op.kind == PathOperatorKind::BooleanDifference ||
+                   op.kind == PathOperatorKind::BooleanIntersection ||
+                   op.kind == PathOperatorKind::BooleanXor) {
             if (!std::holds_alternative<BooleanUnionParams>(op.params))
-                throw std::invalid_argument("boolean-union parameters do not match operator kind");
-            for (auto& path : paths) path = boolean_union(path, std::get<BooleanUnionParams>(op.params));
+                throw std::invalid_argument("boolean path parameters do not match operator kind");
+            auto params = std::get<BooleanUnionParams>(op.params);
+            switch (op.kind) {
+                case PathOperatorKind::BooleanUnion: params.operation = PathBooleanOperation::Union; break;
+                case PathOperatorKind::BooleanDifference: params.operation = PathBooleanOperation::Difference; break;
+                case PathOperatorKind::BooleanIntersection: params.operation = PathBooleanOperation::Intersection; break;
+                case PathOperatorKind::BooleanXor: params.operation = PathBooleanOperation::Xor; break;
+                default: break;
+            }
+            for (auto& path : paths) path = boolean_union(path, params);
         } else if (op.kind == PathOperatorKind::Repeater) {
             if (!std::holds_alternative<RepeaterParams>(op.params))
                 throw std::invalid_argument("repeater parameters do not match operator kind");

@@ -407,7 +407,10 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                         specs.push_back({PathOperatorKind::WigglePath,
                                             WigglePathParams{op.amount, op.frequency}, op.seed});
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::Merge ||
-                                               op.kind == render_plan::PathOperatorKindPlan::BooleanUnion) {
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanUnion ||
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanDifference ||
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanIntersection ||
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanXor) {
                                         std::vector<std::vector<PathCommand>> planned_paths;
                                         for (const auto& planned_path : op.paths) {
                                             std::vector<PathCommand> subpath;
@@ -425,10 +428,21 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                             }
                                             planned_paths.push_back(std::move(subpath));
                                         }
-                                        if (op.kind == render_plan::PathOperatorKindPlan::BooleanUnion)
-                                            specs.push_back({PathOperatorKind::BooleanUnion,
-                                                BooleanUnionParams{std::move(planned_paths)}, 0});
-                                        else
+                                        if (op.kind != render_plan::PathOperatorKindPlan::Merge) {
+                                            auto params = BooleanUnionParams{std::move(planned_paths)};
+                                            PathOperatorKind path_kind = PathOperatorKind::BooleanUnion;
+                                            if (op.kind == render_plan::PathOperatorKindPlan::BooleanDifference) {
+                                                params.operation = PathBooleanOperation::Difference;
+                                                path_kind = PathOperatorKind::BooleanDifference;
+                                            } else if (op.kind == render_plan::PathOperatorKindPlan::BooleanIntersection) {
+                                                params.operation = PathBooleanOperation::Intersection;
+                                                path_kind = PathOperatorKind::BooleanIntersection;
+                                            } else if (op.kind == render_plan::PathOperatorKindPlan::BooleanXor) {
+                                                params.operation = PathBooleanOperation::Xor;
+                                                path_kind = PathOperatorKind::BooleanXor;
+                                            }
+                                            specs.push_back({path_kind, std::move(params), 0});
+                                        } else
                                             specs.push_back({PathOperatorKind::Merge,
                                                 MergeParams{std::move(planned_paths)}, 0});
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::Trim) {

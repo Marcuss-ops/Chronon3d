@@ -3127,6 +3127,9 @@
                   "wiggle_path",
                   "merge",
                   "boolean_union",
+                  "boolean_difference",
+                  "boolean_intersection",
+                  "boolean_xor",
                   "trim",
                   "morph"
                 ]

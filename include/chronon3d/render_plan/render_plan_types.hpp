@@ -151,7 +151,7 @@ struct PathRepeaterPlan {
     std::array<float, 2> anchor{0.0f, 0.0f};
     float opacity_decay{1.0f};
 };
-enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph, BooleanUnion };
+enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph, BooleanUnion, BooleanDifference, BooleanIntersection, BooleanXor };
 struct PathOperatorPlan {
     PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
     /// Optional SVG element/group target; empty applies to all authored paths.

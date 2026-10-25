@@ -150,16 +150,15 @@ PathShape offset_path(const PathShape& source, const OffsetPathParams& params) {
 
 PathShape boolean_union(const PathShape& source, const BooleanUnionParams& params) {
     if (params.paths.size() > 1024)
-        throw std::invalid_argument("boolean-union accepts at most 1024 additional subpaths");
+            throw std::invalid_argument("boolean-union accepts at most 1024 additional subpaths");
     if (source.commands.size() > kPathGeometryLimit)
         throw std::invalid_argument("boolean-union input exceeds the geometry limit");
     auto source_paths = closed_paths(flatten_path_for_geometry(source), true);
-    Clipper2Lib::PathsD inputs;
     if (!source_paths.empty()) {
         source_paths = Clipper2Lib::Union(source_paths,
             clipper_fill_rule(source.fill_rule), kClipperPrecision);
-        inputs.insert(inputs.end(), source_paths.begin(), source_paths.end());
     }
+    Clipper2Lib::PathsD clips;
     std::size_t command_count = source.commands.size();
     for (const auto& subpath : params.paths) {
         if (subpath.empty() || subpath.front().type != PathCommandType::MoveTo)
@@ -174,13 +173,28 @@ PathShape boolean_union(const PathShape& source, const BooleanUnionParams& param
         if (shape_paths.empty()) continue;
         shape_paths = Clipper2Lib::Union(shape_paths,
             clipper_fill_rule(input_shape.fill_rule), kClipperPrecision);
-        inputs.insert(inputs.end(), shape_paths.begin(), shape_paths.end());
+        clips.insert(clips.end(), shape_paths.begin(), shape_paths.end());
     }
-    const auto united = inputs.empty() ? Clipper2Lib::PathsD{} :
-        Clipper2Lib::Union(inputs, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    clips = clips.empty() ? Clipper2Lib::PathsD{} :
+        Clipper2Lib::Union(clips, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    Clipper2Lib::PathsD subjects = source_paths;
+    if (params.operation == PathBooleanOperation::Union) {
+        subjects.insert(subjects.end(), clips.begin(), clips.end());
+        subjects = subjects.empty() ? Clipper2Lib::PathsD{} :
+            Clipper2Lib::Union(subjects, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    } else if (params.operation == PathBooleanOperation::Xor) {
+        subjects = Clipper2Lib::BooleanOp(Clipper2Lib::ClipType::Xor,
+            Clipper2Lib::FillRule::NonZero, subjects, clips, kClipperPrecision);
+    } else {
+        subjects = Clipper2Lib::BooleanOp(
+            params.operation == PathBooleanOperation::Difference
+                ? Clipper2Lib::ClipType::Difference
+                : Clipper2Lib::ClipType::Intersection,
+            Clipper2Lib::FillRule::NonZero, subjects, clips, kClipperPrecision);
+    }
     PathShape output = source;
     output.commands.clear();
-    append_closed_paths(output.commands, united);
+    append_closed_paths(output.commands, subjects);
     output.closed = false;
     output.fill_rule = PathFillRule::EvenOdd;
     return output;
