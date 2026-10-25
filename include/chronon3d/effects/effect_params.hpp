@@ -414,7 +414,7 @@ struct CreaseShadingParams {
     float softness{0.50f};      // feather softness [0, 1]
 };
 
-// Vignette is the only WIP-local parameter type kept here; the Chromatic
+// Vignette is the only WIP-local parameter type kept here (tracked by issue #59); the Chromatic
 // Aberration and Halftone structs above are the canonical (upstream) ones.
 struct VignetteEffectParams { float amount{0.5f}; float radius{0.5f}; float softness{0.5f}; Color color{0,0,0,1}; };
 
