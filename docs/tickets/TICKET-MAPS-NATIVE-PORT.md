@@ -8,6 +8,12 @@ restano aperte come opzione di unificazione nelle lane condivise.
 
 Ambito aggiornato 2026-10-26: `ChrononPlugin/plugins/maps` possiede il rendering map plate e i relativi test. Chronon3D non contiene più il modulo geo. Restano nel ticket gli assi di acquisizione tile, integrazione e demolizione del percorso Python in ChrononTemplate.
 
+**Migrazione 2026-10-25:** il codice geo C++ e i tool cartography generici
+sono stati estratti in `ChrononPlugin/plugins/maps/` (namespace
+`chrononplugin::maps`). Chronon3D non possiede più il sottosistema geo; il
+renderer `map_plate_render` resta uno stub fail-closed nel plugin. La raster
+vector plate compila lì, ma la prova pixel bit-exact del port resta aperta.
+
 ## 1. Perché (misure, non stime)
 
 Nella run golden v3 del caso overlay-throughput
