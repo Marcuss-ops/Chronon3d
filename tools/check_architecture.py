@@ -692,6 +692,14 @@ class Runner:
                     errors.append(f"{effect_id} uses {params_type}, catalog declares {id_to_type[effect_id]}")
                 covered.add(effect_id)
             missing = sorted(set(id_to_type) - covered)
+            # ColorMatrix exposes its 20 named coefficients through a dedicated
+            # table because its parameter names are semantic (m00, b0, ...),
+            # rather than direct C++ member expressions. Keep this special
+            # authority covered by the same catalog check.
+            if "ColorMatrix" in missing:
+                animation_header = self.root / "include/chronon3d/effects/effect_param_animation.hpp"
+                if animation_header.exists() and "kColorMatrixAnimatableParams" in read_text(animation_header):
+                    missing.remove("ColorMatrix")
             if missing:
                 errors.append(f"effects without animatable parameters: {missing}")
             if errors:

@@ -51,6 +51,11 @@ chronon3d_add_test_suite(
         scene/shapes/mask_tests.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_renderer_core_tests)
+if(CHRONON3D_ENABLE_SVG)
+    target_sources(chronon3d_renderer_core_tests PRIVATE
+        renderer/helpers/test_svg_filter_render.cpp
+    )
+endif()
 if(CHRONON3D_USE_BLEND2D)
     target_sources(chronon3d_renderer_core_tests PRIVATE
         renderer/test_blend_pixel_nan.cpp

@@ -58,6 +58,13 @@ matching-topology mask path morphs through Chronon's existing mask Morph track.
 - L10 accepts exactly two integral-frame mask path keyframes with matching
   vertex/tangent/closure topology and linear or hold interpolation. Multi-
   keyframe mask morphs and temporal Bezier easing fail closed.
+- The resolver-backed asset boundary currently accepts exactly one top-level
+  2D shape layer. Multiple top-level layers fail with
+  `lottie_unsupported_or_invalid` because one asset expansion currently emits
+  one RenderPlan layer and cannot preserve separate layer timing, mattes, or
+  independent blend order. `ty=0` precompositions fail with the same typed
+  diagnostic because nested composition and local frame remapping are absent
+  from the asset contract. Both rejections have focused regressions.
 - Animated anchors, split dimensions, expressions, unsupported mask paths, text, precompositions,
   3D layers, unsupported shape-level transforms and unsupported interpolation
   fail closed with a Lottie lowering diagnostic.
@@ -109,6 +116,8 @@ matching-topology mask path morphs through Chronon's existing mask Morph track.
   frame hashes: frame 0 `a1ff5f59…`, frame 30 `c6bb7aba…`.
 - [x] Focused L6 test checks animated fill color/opacity and stroke width at an
   intermediate frame and endpoint (C ABI: 1 case, 17 assertions).
+- [x] Explicit multi-layer and `ty=0` precomp diagnostics are regression tested
+  (Lottie-focused C ABI: 10/10 cases, 190/190 assertions).
 
 ## Demolition debt
 

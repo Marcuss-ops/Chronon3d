@@ -1,9 +1,10 @@
-# TICKET-LOTTIE-RENDER-PLAN — Bounded Lottie lowering
+# TICKET-LOTTIE-RENDER-PLAN — Superseded bounded Lottie lowering
 
 ## Stato
-IN PROGRESS — resolver-backed lowering supports one flat static shape layer
-with path/ellipse/rectangle geometry and bounded solid paint. Animation,
-nested groups, and full Bodymovin paint semantics remain open.
+SUPERSEDED — this early static-only contract is replaced by
+[`TICKET-LOTTIE-ANIMATED.md`](TICKET-LOTTIE-ANIMATED.md), which records the
+current animated importer. Its documented one-top-level-shape-layer boundary
+and explicit precomposition rejection are covered by focused tests.
 
 ## Obiettivo
 Resolve a logical `.json` Bodymovin/Lottie asset from a render plan and lower

@@ -30,6 +30,8 @@ set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_temporal_rate_analysis.cpp
     c_abi/test_render_plan_spring_bake.cpp
     c_abi/test_render_plan_shape_path_generator.cpp
+    c_abi/test_render_plan_geometry_extensions.cpp
+    c_abi/test_prepared_render_plan_lottie_boundary.cpp
     c_abi/test_render_plan_inline_mesh.cpp
     c_abi/test_render_plan_particles.cpp
     c_abi/test_render_plan_audio_mix.cpp
@@ -54,4 +56,7 @@ chronon3d_add_test_suite(
 )
 if(CHRONON3D_ENABLE_SVG)
     target_compile_definitions(chronon3d_c_abi_tests PRIVATE CHRONON_TEST_ENABLE_SVG=1)
+    target_sources(chronon3d_c_abi_tests PRIVATE
+        c_abi/test_prepared_render_plan_svg_filters.cpp
+    )
 endif()

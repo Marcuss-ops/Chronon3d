@@ -149,6 +149,77 @@ std::vector<ShapePathCommandPlan> make_ring_segment_path(
     return path;
 }
 
+std::vector<ShapePathCommandPlan> make_monotone_cubic_path(
+    std::span<const std::array<float, 2>> data_points) {
+    if (data_points.size() < 2 || data_points.size() > 4096)
+        throw std::invalid_argument("monotone path requires 2..4096 points");
+    const std::size_t count = data_points.size();
+    std::vector<float> intervals(count - 1), slopes(count - 1), tangents(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& point = data_points[i];
+        if (!std::isfinite(point[0]) || !std::isfinite(point[1]) ||
+            std::abs(point[0]) > 100000.0f || std::abs(point[1]) > 100000.0f)
+            throw std::invalid_argument("monotone path points must be finite and within [-100000,100000]");
+        if (i == 0) continue;
+        intervals[i - 1] = point[0] - data_points[i - 1][0];
+        if (!(intervals[i - 1] > 0.0f))
+            throw std::invalid_argument("monotone path x coordinates must be strictly increasing");
+        slopes[i - 1] = (point[1] - data_points[i - 1][1]) / intervals[i - 1];
+        if (!std::isfinite(slopes[i - 1]))
+            throw std::invalid_argument("monotone path slope exceeds finite bounds");
+    }
+    tangents.front() = slopes.front();
+    tangents.back() = slopes.back();
+    for (std::size_t i = 1; i + 1 < count; ++i) {
+        const float left = slopes[i - 1], right = slopes[i];
+        if (left == 0.0f || right == 0.0f || std::signbit(left) != std::signbit(right)) {
+            tangents[i] = 0.0f;
+            continue;
+        }
+        const float h_left = intervals[i - 1], h_right = intervals[i];
+        const float w_left = 2.0f * h_right + h_left;
+        const float w_right = h_right + 2.0f * h_left;
+        tangents[i] = (w_left + w_right) /
+            (w_left / left + w_right / right);
+    }
+    for (std::size_t i = 0; i + 1 < count; ++i) {
+        const float delta = slopes[i];
+        if (delta == 0.0f) {
+            tangents[i] = tangents[i + 1] = 0.0f;
+            continue;
+        }
+        const float alpha = tangents[i] / delta;
+        const float beta = tangents[i + 1] / delta;
+        const float norm = alpha * alpha + beta * beta;
+        if (!std::isfinite(norm))
+            throw std::invalid_argument("monotone path tangent exceeds finite bounds");
+        if (norm > 9.0f) {
+            const float tau = 3.0f / std::sqrt(norm);
+            tangents[i] = tau * alpha * delta;
+            tangents[i + 1] = tau * beta * delta;
+        }
+    }
+    std::vector<ShapePathCommandPlan> path;
+    path.reserve(count);
+    auto first = command(ShapePathCommandTypePlan::MoveTo,
+        data_points.front()[0], data_points.front()[1]);
+    path.push_back(first);
+    for (std::size_t i = 0; i + 1 < count; ++i) {
+        const float h = intervals[i];
+        ShapePathCommandPlan cubic;
+        cubic.type = ShapePathCommandTypePlan::CubicTo;
+        cubic.control1 = {data_points[i][0] + h / 3.0f,
+            data_points[i][1] + tangents[i] * h / 3.0f};
+        cubic.control2 = {data_points[i + 1][0] - h / 3.0f,
+            data_points[i + 1][1] - tangents[i + 1] * h / 3.0f};
+        if (!std::isfinite(cubic.control1[1]) || !std::isfinite(cubic.control2[1]))
+            throw std::invalid_argument("monotone path controls exceed finite bounds");
+        cubic.point = data_points[i + 1];
+        path.push_back(cubic);
+    }
+    return path;
+}
+
 std::vector<ShapePathCommandPlan> make_grid_path(float width, float height, float spacing) {
     validate_size(width, height);
     if (!std::isfinite(spacing) || spacing <= 0.0f)

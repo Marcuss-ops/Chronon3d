@@ -218,7 +218,8 @@ void decode_shape_fill_and_stroke(
                     shape.type != ShapeContentTypePlan::Arc &&
                     shape.type != ShapeContentTypePlan::Grid &&
                     shape.type != ShapeContentTypePlan::DotGrid &&
-                    shape.type != ShapeContentTypePlan::RingSegment)
+                    shape.type != ShapeContentTypePlan::RingSegment &&
+                    shape.type != ShapeContentTypePlan::MonotoneLine)
                     throw std::runtime_error("brush strokes require a path-backed shape");
                 if (shape.svg_asset || shape.lottie_asset)
                     throw std::runtime_error("brush strokes are not supported on imported asset paths");

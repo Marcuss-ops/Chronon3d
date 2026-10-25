@@ -306,7 +306,6 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
         file << R"JSON({"v":"5.7.4","layers":[{"ty":4,"ddd":0,"exp":"x"}]})JSON";
     }
     CHECK_FALSE(compile_render_plan(unsupported, resolver));
-
     using json = nlohmann::json;
     const auto identity_layer = [] {
         return json{{"ty", 4}, {"ddd", 0},

@@ -596,12 +596,14 @@ std::optional<std::string> expand_static_lottie(
         auto& shape = *layer_plan.shape;
         const auto doc = json::parse(input);
         if (!doc.is_object() || doc.value("v", std::string{}).empty() ||
-            !doc.contains("layers") || !doc["layers"].is_array() ||
-            doc["layers"].size() != 1)
-            return std::string("supported Lottie requires one shape layer and a version field");
+            !doc.contains("layers") || !doc["layers"].is_array())
+            return std::string("Lottie requires a version field and a layer array");
+        if (doc["layers"].size() != 1)
+            return std::string("Lottie multi-layer assets are unsupported: asset expansion currently emits one RenderPlan layer and cannot preserve per-layer timing, mattes, or blend order");
         const auto& layer = doc["layers"][0];
-        if (layer.value("ty", -1) != 4 || layer.value("ddd", 0) != 0 ||
-            layer.contains("ef") ||
+        if (layer.value("ty", -1) == 0)
+            return std::string("Lottie precompositions are unsupported: RenderPlan has no nested asset composition or local frame-remapping contract");
+        if (layer.value("ty", -1) != 4 || layer.value("ddd", 0) != 0 || layer.contains("ef") ||
             layer.contains("tt") || layer.contains("tm") || layer.contains("exp"))
             return std::string("Lottie layer type, effects, expressions, or time remap are unsupported");
         if (layer.contains("masksProperties") &&
