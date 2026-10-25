@@ -61,13 +61,16 @@ struct ComposeStage {
     color::StraightRgb blend{1.0f, 1.0f, 1.0f};  // straight RGB blend colour
 };
 
+struct ColorMatrixStage { ColorMatrixParams params{}; };
+
 using ColorStage = std::variant<
     std::monostate,
     ExposureStage,
     LevelsStage,
     CurvesStage,
     Lut3DParams,
-    ComposeStage
+    ComposeStage,
+    ColorMatrixStage
 >;
 
 // ── ColorPipeline ─────────────────────────────────────────────────────────

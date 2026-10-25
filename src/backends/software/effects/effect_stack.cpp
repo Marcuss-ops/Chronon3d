@@ -75,6 +75,14 @@ bool append_fusible_stage(
                     params.domain_max[channel] <= params.domain_min[channel]) return false;
             pipeline.add_stage(params);
             return true;
+        } else if constexpr (std::is_same_v<Params, ColorMatrixParams>) {
+            if (effect.effect_type != effects::EffectType::ColorMatrix ||
+                std::any_of(params.values.begin(), params.values.end(),
+                            [](float value) { return !std::isfinite(value) ||
+                                                     value < -16.0f || value > 16.0f; }))
+                return false;
+            pipeline.add_stage(ColorMatrixStage{params});
+            return true;
         } else {
             return false;
         }

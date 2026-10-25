@@ -510,6 +510,12 @@ private:
             }
             break;
         }
+        case ColorMatrix: {
+            if (auto* p = std::get_if<ColorMatrixParams>(&e.params))
+                for (const float value : p->values)
+                    seed = hash_combine(seed, hash_value(value));
+            break;
+        }
         case Unknown:
             break;
         }

@@ -417,3 +417,8 @@ CHRONON_EFFECT(52, AnamorphicStreak, AnamorphicStreakParams, ids::LightAnamorphi
     "Anamorphic Streak", EffectCategory::Light, EffectStage::LayerPostTransform,
     EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
     BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(53, ColorMatrix, ColorMatrixParams, ids::ColorMatrix,
+    "Color Matrix", EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, true)
