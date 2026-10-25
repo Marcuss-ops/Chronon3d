@@ -24,8 +24,8 @@
 //                              namespace.  The §10.5 boundary policy
 //                              translates these to the OPP-side SDK
 //                              surface (`chronon3d::sdk::RenderError`
-//                              partner-WIP + `chronon3d::sdk::RenderOutput`).
-//   EXTERNAL  (partner WIP)  : `chronon3d::sdk::RenderError` /
+//                              partner-WIP (issue #59) + `chronon3d::sdk::RenderOutput`).
+//   EXTERNAL  (partner WIP, issue #59)  : `chronon3d::sdk::RenderError` /
 //                              `chronon3d::sdk::RenderOutput` in
 //                              `include/chronon3d/sdk/render_*.hpp`
 //                              (still untracked on main @ §9.2 = 1aea6591;
