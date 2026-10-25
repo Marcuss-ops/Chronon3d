@@ -829,3 +829,13 @@ chunk, baseline, textPath coordinate, and bounded pattern raw gates. These
 results close the bounded software text contract; nested text scopes remain in
 [`TICKET-SVG-TEXT-ADVANCED-SCOPES.md`](TICKET-SVG-TEXT-ADVANCED-SCOPES.md).
 
+### CPU clip-rule and gradient spread — 2026-10-25
+
+The software importer accepts SVG `clip-rule="evenodd"` and `"nonzero"`,
+including inherited CSS rules on clip geometry. Linear and radial gradients
+lower `spreadMethod="pad"`, `"repeat"`, and `"reflect"` to Chronon's existing
+CPU sampler. `userSpaceOnUse` gradient coordinates were already implemented;
+gradient inheritance and unknown spread values remain fail-closed. Focused
+loader coverage verifies the rules and spread modes. Vulkan parity is not
+claimed by these importer changes.
+

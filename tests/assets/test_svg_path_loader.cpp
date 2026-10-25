@@ -576,6 +576,31 @@ TEST_CASE("SVG text resolves objectBoundingBox linear gradient paint") {
     CHECK(result.text_runs[0].fill_gradient->color_stops.back().color.b == doctest::Approx(1.0f));
 }
 
+TEST_CASE("SVG path gradients lower userSpaceOnUse coordinates and spread modes") {
+    const std::string filename = "temp_test_svg_path_gradient_spread.svg";
+    const auto load = [&](const std::string& content) {
+        { std::ofstream out(filename); out << content; }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return result;
+    };
+    const auto repeat = load(R"svg(<svg><defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="10" y1="20" x2="30" y2="40" spreadMethod="repeat"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs><path fill="url(#g)" d="M0 0L40 0L40 40Z"/></svg>)svg");
+    REQUIRE(repeat.ok);
+    REQUIRE(repeat.elements.size() == 1);
+    REQUIRE(repeat.elements[0].fill.has_value());
+    CHECK(repeat.elements[0].fill->gradient.spread == graphics::GradientSpread::Repeat);
+    CHECK(repeat.elements[0].fill->gradient.start.x == doctest::Approx(10.0f));
+    CHECK(repeat.elements[0].fill->gradient.end.y == doctest::Approx(40.0f));
+
+    const auto reflect = load(R"svg(<svg><defs><radialGradient id="g" spreadMethod="reflect"><stop offset="0" stop-color="white"/><stop offset="1" stop-color="black"/></radialGradient></defs><path fill="url(#g)" d="M0 0L40 0L40 40Z"/></svg>)svg");
+    REQUIRE(reflect.ok);
+    REQUIRE(reflect.elements[0].fill.has_value());
+    CHECK(reflect.elements[0].fill->gradient.spread == graphics::GradientSpread::Reflect);
+
+    const auto unsupported = load(R"svg(<svg><defs><linearGradient id="g" spreadMethod="unknown"><stop offset="0"/><stop offset="1"/></linearGradient></defs><path fill="url(#g)" d="M0 0L40 0L40 40Z"/></svg>)svg");
+    CHECK_FALSE(unsupported.ok);
+}
+
 TEST_CASE("SVG textPath retains relative per-character coordinate lists") {
     const std::string filename = "temp_test_svg_text_path_coordinates.svg";
     {
