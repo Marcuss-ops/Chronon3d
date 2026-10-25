@@ -16,6 +16,23 @@
 
 namespace chronon3d::verification::receipt_probe {
 namespace {
+
+std::FILE* open_process_pipe(const char* command) {
+#ifdef _WIN32
+    return _popen(command, "r");
+#else
+    return popen(command, "r");
+#endif
+}
+
+int close_process_pipe(std::FILE* pipe) {
+#ifdef _WIN32
+    return _pclose(pipe);
+#else
+    return pclose(pipe);
+#endif
+}
+
 /// Run a command, capture stdout and report whether it exited 0.
 struct CapturedOutput {
     std::string out;
@@ -25,12 +42,12 @@ struct CapturedOutput {
 CapturedOutput run_capture_checked(const std::string& command) {
     CapturedOutput result;
     std::array<char, 4096> buffer{};
-    std::FILE* pipe = popen(command.c_str(), "r");
+    std::FILE* pipe = open_process_pipe(command.c_str());
     if (!pipe) return result;
     while (std::fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
         result.out += buffer.data();
     }
-    result.exit_ok = pclose(pipe) == 0;
+    result.exit_ok = close_process_pipe(pipe) == 0;
     return result;
 }
 

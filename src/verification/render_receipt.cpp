@@ -24,16 +24,32 @@ namespace chronon3d::verification {
 
 namespace {
 
+std::FILE* open_process_pipe(const char* command) {
+#ifdef _WIN32
+    return _popen(command, "r");
+#else
+    return popen(command, "r");
+#endif
+}
+
+void close_process_pipe(std::FILE* pipe) {
+#ifdef _WIN32
+    _pclose(pipe);
+#else
+    pclose(pipe);
+#endif
+}
+
 /// Run a shell command and capture its stdout.  Empty on failure to spawn.
 std::string run_capture(const std::string& command) {
     std::array<char, 4096> buffer{};
     std::string output;
-    std::FILE* pipe = popen(command.c_str(), "r");
+    std::FILE* pipe = open_process_pipe(command.c_str());
     if (!pipe) return output;
     while (std::fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) != nullptr) {
         output += buffer.data();
     }
-    pclose(pipe);
+    close_process_pipe(pipe);
     return output;
 }
 

@@ -22,6 +22,25 @@
 
 namespace chronon3d::backends::vulkan {
 
+inline constexpr std::size_t kVulkanFrameBatchSlotCount = 6;
+
+namespace detail {
+using SurfaceBindingMap = std::unordered_map<runtime::RenderSurfaceHandle, std::size_t>;
+using SurfaceHandleSet = std::unordered_set<runtime::RenderSurfaceHandle>;
+using RecordingSlotMaskMap = std::unordered_map<runtime::RenderSurfaceHandle, std::uint8_t>;
+using FrameSlotTransientLists = std::array<
+    std::vector<runtime::RenderSurfaceHandle>, kVulkanFrameBatchSlotCount>;
+struct SurfaceRetirementCallbacks {
+    void* context{};
+    void (*clear_initialized)(void*, std::size_t){};
+    void (*prune_unused_slots)(void*, std::size_t){};
+};
+std::size_t retire_frame_slot_transients(
+    SurfaceBindingMap&, SurfaceHandleSet&, RecordingSlotMaskMap&,
+    FrameSlotTransientLists&, std::size_t, std::span<const bool>,
+    SurfaceRetirementCallbacks, std::size_t retained_slot_limit);
+} // namespace detail
+
 // Exact frame-batch slot ownership (TICKET-DEFERRED-SURFACE-SLOT-HINT). Bit i
 // of a mask is frame-batch slot i. A handle's mask is the set of slots whose
 // recorded commands resolved it since its last release.
@@ -103,7 +122,7 @@ public:
     std::unordered_map<std::size_t, std::size_t> slot_pins{};
 
     std::unordered_map<std::size_t, PhysicalSurface> physical_surfaces{};
-    std::unordered_map<runtime::RenderSurfaceHandle, std::size_t> surface_bindings{};
+    detail::SurfaceBindingMap surface_bindings{};
     // Explicit planned aliasing. The compiled planner deliberately backs
     // lifetime-disjoint logical handles with one physical slot (that is why
     // gpu_surface_copy_frames can reach 0). The plan is the only authority
@@ -150,8 +169,7 @@ public:
     // Per-handle recording-slot masks (see frame_slot_bit). Written only on the
     // recording path, which holds the submission domain, and read by the
     // release/retire paths, which hold both domains.
-    std::unordered_map<runtime::RenderSurfaceHandle, std::uint8_t>
-        recording_slot_masks{};
+    detail::RecordingSlotMaskMap recording_slot_masks{};
     // Surface-lifecycle peaks are guarded by `mutex`, like the containers
     // they describe. `retained_bindings_high_water` counts live logical
     // handle→slot bindings (including planned aliases); the pending peak counts
@@ -161,10 +179,10 @@ public:
     std::uint64_t release_delay_frames{0};
     std::uint64_t release_delay_frames_high_water{0};
     std::uint64_t overflow_wait_count{0};
-    std::unordered_set<runtime::RenderSurfaceHandle> unplanned_surface_handles{};
-    static constexpr std::size_t kFrameBatchSlotCount = 6;
-    std::array<std::vector<runtime::RenderSurfaceHandle>, kFrameBatchSlotCount>
-        frame_slot_transient_handles{};
+    detail::SurfaceHandleSet unplanned_surface_handles{};
+    static constexpr std::size_t kFrameBatchSlotCount =
+        kVulkanFrameBatchSlotCount;
+    detail::FrameSlotTransientLists frame_slot_transient_handles{};
     // P0/P1 hardening: compiled placement slots (bind()) are plan-local 0..N
     // but were aliased into the same size_t namespace as the backend-global
     // unplanned allocator (ensure()/next_slot).  Start the unplanned allocator
@@ -599,13 +617,9 @@ public:
     void record_frame_slot_transient(std::size_t slot,
                                      runtime::RenderSurfaceHandle handle) {
         if (slot >= kFrameBatchSlotCount ||
-            handle == runtime::kInvalidRenderSurfaceHandle) {
-            return;
-        }
+            handle == runtime::kInvalidRenderSurfaceHandle) return;
         auto& list = frame_slot_transient_handles[slot];
-        if (std::find(list.begin(), list.end(), handle) == list.end()) {
-            list.push_back(handle);
-        }
+        if (std::find(list.begin(), list.end(), handle) == list.end()) list.push_back(handle);
     }
 
     /// Retire the handles recorded for a completed frame-batch slot: drop each
@@ -618,36 +632,23 @@ public:
     std::size_t retire_frame_slot_transients(
         std::size_t slot, std::span<const bool> busy = {}) {
         if (slot >= kFrameBatchSlotCount) return 0;
-        auto& list = frame_slot_transient_handles[slot];
-        const bool had_records = !list.empty();
-        std::size_t released = 0;
-        for (const auto handle : list) {
-            const auto binding = surface_bindings.find(handle);
-            if (binding == surface_bindings.end()) continue;
-            // Exact ownership: this slot's reference is gone, but a handle can
-            // also be recorded into a slot that is still busy. Keep the binding
-            // then; that slot's own retirement releases it.
-            const auto mask_it = recording_slot_masks.find(handle);
-            if (mask_it != recording_slot_masks.end()) {
-                mask_it->second = static_cast<std::uint8_t>(
-                    mask_it->second & ~frame_slot_bit(slot));
-                if (!recording_slots_retired(mask_it->second, busy)) continue;
-            }
-            const auto phys_slot = binding->second;
-            surface_bindings.erase(binding);
-            unplanned_surface_handles.erase(handle);
-            forget_recording_slots(handle);
-            const auto it = physical_surfaces.find(phys_slot);
-            if (it != physical_surfaces.end() && !slot_in_use(phys_slot)) {
-                it->second.image.initialized = false;
-            }
-            ++released;
-        }
-        list.clear();
-        if (had_records) {
-            prune_unused_slots(kMaxRetainedTransientSlots);
-        }
-        return released;
+        const detail::SurfaceRetirementCallbacks callbacks{
+            this,
+            [](void* context, std::size_t physical_slot) {
+                auto& authority = *static_cast<VulkanSurfaceAuthority*>(context);
+                const auto it = authority.physical_surfaces.find(physical_slot);
+                if (it != authority.physical_surfaces.end() &&
+                    !authority.slot_in_use(physical_slot)) {
+                    it->second.image.initialized = false;
+                }
+            },
+            [](void* context, std::size_t limit) {
+                static_cast<VulkanSurfaceAuthority*>(context)->prune_unused_slots(limit);
+            }};
+        return detail::retire_frame_slot_transients(
+            surface_bindings, unplanned_surface_handles, recording_slot_masks,
+            frame_slot_transient_handles, slot, busy, callbacks,
+            kMaxRetainedTransientSlots);
     }
 
 protected:
