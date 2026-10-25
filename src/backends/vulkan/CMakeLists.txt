@@ -120,6 +120,8 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_lifecycle_private.cpp
     vulkan_descriptor_arena_private.cpp
     vulkan_surface_store_private.cpp
+    vulkan_surface_retirement_core.cpp
+    vulkan_surface_retirement.cpp
     vulkan_kernel_record_private.cpp
     vulkan_kernel_replay_private.cpp
     vulkan_backend_operations_private.cpp
