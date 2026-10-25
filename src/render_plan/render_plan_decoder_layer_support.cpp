@@ -343,6 +343,7 @@ void decode_layer_layout(LayerPlan& layer, const nlohmann::json& value) {
         p.align=raw.value("align",p.align); p.justify=raw.value("justify",p.justify);
         p.gap=raw.value("gap",0.0f); p.wrap=raw.value("wrap",false);
         if (raw.contains("cell_size")) p.cell_size=parse_layout_vec2(raw,"cell_size");
+        p.intrinsic_size=raw.value("intrinsic_size",false);
         if (raw.contains("stagger")) p.stagger=decode_stagger(raw.at("stagger"));
         static constexpr std::array<std::string_view,2> axes{"row","column"};
         static constexpr std::array<std::string_view,4> aligns{"start","center","end","stretch"};
@@ -358,6 +359,7 @@ void decode_layer_layout(LayerPlan& layer, const nlohmann::json& value) {
         p.columns=raw.value("columns",1); p.rows=raw.value("rows",1);
         if (raw.contains("gap")) p.gap=parse_layout_vec2(raw,"gap");
         if (raw.contains("cell_size")) p.cell_size=parse_layout_vec2(raw,"cell_size");
+        p.intrinsic_size=raw.value("intrinsic_size",false);
         if (raw.contains("stagger")) p.stagger=decode_stagger(raw.at("stagger"));
         if (p.group_id.empty() || p.group_id.size()>256 || p.columns<1 || p.columns>4096 || p.rows<1 || p.rows>4096 ||
             (p.fit!="auto" && p.fit!="fixed_columns" && p.fit!="fixed_rows"))

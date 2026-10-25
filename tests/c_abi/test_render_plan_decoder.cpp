@@ -20,6 +20,34 @@ TEST_CASE("V3 flow and grid layouts decode with bounded contracts and fingerprin
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
 }
 
+TEST_CASE("V3 intrinsic layout mode decodes and changes fingerprints") {
+    auto source = nlohmann::json::parse(R"JSON({
+      "schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":640,"height":360,"fps_num":30,"fps_den":1,"duration_frames":24},
+      "layers":[{"id":"card","type":"color","color":[1,1,1,1],"flow":{"group_id":"cards","intrinsic_size":true}}],
+      "output":{"path":"out.png"}
+    })JSON");
+    const auto decoded = chronon3d::render_plan::decode_render_plan(source);
+    REQUIRE(decoded);
+    REQUIRE(decoded->layers[0].flow_layout.has_value());
+    CHECK(decoded->layers[0].flow_layout->intrinsic_size);
+    auto changed = source;
+    changed["layers"][0]["flow"]["intrinsic_size"] = false;
+    const auto uniform = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(uniform);
+    CHECK(decoded->content_fingerprint != uniform->content_fingerprint);
+    changed = source;
+    changed["layers"][0].erase("flow");
+    changed["layers"][0]["grid_layout"] = {{"group_id", "cards"}, {"columns", 2}, {"intrinsic_size", true}};
+    const auto grid = chronon3d::render_plan::decode_render_plan(changed);
+    REQUIRE(grid);
+    REQUIRE(grid->layers[0].grid_layout.has_value());
+    CHECK(grid->layers[0].grid_layout->intrinsic_size);
+    auto invalid = changed;
+    invalid["layers"][0]["grid_layout"]["intrinsic_size"] = "yes";
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid));
+}
+
 TEST_CASE("V3 roughen edges effect decodes, fingerprints, and rejects invalid bounds") {
     auto source = render_plan_test::base_plan(nlohmann::json::array({
         render_plan_test::shape_layer({{"type", "rect"}})

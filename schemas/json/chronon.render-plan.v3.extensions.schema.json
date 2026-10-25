@@ -4261,6 +4261,11 @@
                   "maximum": 1000000
                 }
               },
+              "intrinsic_size": {
+                "type": "boolean",
+                "default": false,
+                "description": "Measure each child content bounds; positive cell_size components still override the measured axis."
+              },
               "stagger": {
                 "$ref": "#/$defs/layout_stagger"
               }
@@ -4314,6 +4319,11 @@
                   "minimum": 0,
                   "maximum": 1000000
                 }
+              },
+              "intrinsic_size": {
+                "type": "boolean",
+                "default": false,
+                "description": "Measure children and derive per-column and per-row maxima; positive cell_size components still override the measured axis."
               },
               "stagger": {
                 "$ref": "#/$defs/layout_stagger"

@@ -1,5 +1,8 @@
 #include <chronon3d/layout/layout_solver.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <unordered_map>
 
 namespace chronon3d {
@@ -90,6 +93,65 @@ inline Vec2 resolve_cell_size(const Vec2& declared, int count,
     return {canvas_w / n, canvas_h / n};
 }
 
+Vec2 intrinsic_layer_size(const Layer& layer) {
+    f32 width = 0.0f;
+    f32 height = 0.0f;
+    for (const auto& node : layer.nodes) {
+        Vec2 size{};
+        switch (node.shape.type()) {
+            case ShapeType::Rect: size = node.shape.rect().size; break;
+            case ShapeType::RoundedRect: size = node.shape.rounded_rect().size; break;
+            case ShapeType::Circle: size = Vec2{node.shape.circle().radius * 2.0f}; break;
+            case ShapeType::Image: size = node.shape.image().size; break;
+            case ShapeType::TiledImage: size = node.shape.tiled_image().image.size; break;
+            case ShapeType::TextRun: {
+                const auto& handle = node.shape.text_run_shape_handle();
+                if (handle.value && handle.value->layout)
+                    size = handle.value->layout->bounds;
+                break;
+            }
+            case ShapeType::Path: {
+                const auto& commands = node.shape.path().commands;
+                f32 min_x = std::numeric_limits<f32>::infinity();
+                f32 min_y = min_x;
+                f32 max_x = -min_x;
+                f32 max_y = -min_x;
+                for (const auto& command : commands) {
+                    const std::array<Vec2, 3> points{command.p0, command.p1, command.p2};
+                    const std::size_t count = command.type == PathCommandType::CubicTo ? 3
+                        : command.type == PathCommandType::QuadraticTo ? 2
+                        : command.type == PathCommandType::Close ? 0 : 1;
+                    for (std::size_t i = 0; i < count; ++i) {
+                        min_x = std::min(min_x, points[i].x);
+                        min_y = std::min(min_y, points[i].y);
+                        max_x = std::max(max_x, points[i].x);
+                        max_y = std::max(max_y, points[i].y);
+                    }
+                }
+                if (std::isfinite(min_x)) size = {max_x - min_x, max_y - min_y};
+                break;
+            }
+            default: break;
+        }
+        if (std::isfinite(size.x) && std::isfinite(size.y) && size.x > 0.0f && size.y > 0.0f) {
+            width = std::max(width, size.x);
+            height = std::max(height, size.y);
+        }
+    }
+    const f32 sx = std::abs(layer.transform.scale.x);
+    const f32 sy = std::abs(layer.transform.scale.y);
+    return {width * (sx > 0.0f ? sx : 1.0f),
+            height * (sy > 0.0f ? sy : 1.0f)};
+}
+
+Vec2 resolve_item_size(const Layer& layer, const Vec2& declared, bool intrinsic,
+                       const Vec2& fallback) {
+    if (!intrinsic) return fallback;
+    const Vec2 measured = intrinsic_layer_size(layer);
+    return {declared.x > 0.0f ? declared.x : measured.x > 0.0f ? measured.x : fallback.x,
+            declared.y > 0.0f ? declared.y : measured.y > 0.0f ? measured.y : fallback.y};
+}
+
 // Cross-axis CENTER offset for the cell on the cross axis.
 // Differs from a pure top-left-of-cell offset by `extent * 0.5f`:
 //   Start  → `extent / 2`          (cell top at 0; center at extent/2)
@@ -118,6 +180,85 @@ void apply_flow_group(std::vector<Layer*>& members,
                       std::vector<Vec3>& out_deltas) {
     const f32 W = canvas_w;
     const f32 H = canvas_h;
+    if (flow.intrinsic_size) {
+        const Vec2 fallback = resolve_cell_size(flow.cell_size,
+            static_cast<int>(members.size()), W, H);
+        std::vector<Vec2> sizes;
+        sizes.reserve(members.size());
+        for (const auto* member : members)
+            sizes.push_back(resolve_item_size(*member, flow.cell_size, true, fallback));
+        const f32 extent_main = flow.main_axis == Axis::Row ? W : H;
+        const auto main_size = [&](std::size_t i) {
+            return flow.main_axis == Axis::Row ? sizes[i].x : sizes[i].y;
+        };
+        const auto cross_size = [&](std::size_t i) {
+            return flow.main_axis == Axis::Row ? sizes[i].y : sizes[i].x;
+        };
+        std::vector<std::pair<std::size_t, std::size_t>> lines;
+        std::size_t begin = 0;
+        f32 occupied_line = 0.0f;
+        for (std::size_t i = 0; i < members.size(); ++i) {
+            const f32 next = (i == begin ? 0.0f : occupied_line + flow.gap) + main_size(i);
+            if (flow.wrap && i > begin && next > extent_main) {
+                lines.emplace_back(begin, i);
+                begin = i;
+                occupied_line = main_size(i);
+            } else {
+                occupied_line = next;
+            }
+        }
+        if (begin < members.size()) lines.emplace_back(begin, members.size());
+
+        f32 cross_cursor = 0.0f;
+        for (const auto [line_begin, line_end] : lines) {
+            const std::size_t count = line_end - line_begin;
+            f32 line_cross = 0.0f;
+            f32 occupied = flow.gap * static_cast<f32>(count > 0 ? count - 1 : 0);
+            for (std::size_t i = line_begin; i < line_end; ++i) {
+                line_cross = std::max(line_cross, cross_size(i));
+                occupied += main_size(i);
+            }
+            const f32 free_space = std::max(0.0f, extent_main - occupied);
+            f32 leading = 0.0f;
+            f32 gap = flow.gap;
+            switch (flow.justify) {
+                case JustifyContent::Start: break;
+                case JustifyContent::Center: leading = free_space * 0.5f; break;
+                case JustifyContent::End: leading = free_space; break;
+                case JustifyContent::SpaceBetween:
+                    if (count > 1) gap += free_space / static_cast<f32>(count - 1);
+                    break;
+                case JustifyContent::SpaceAround: {
+                    const f32 extra = free_space / static_cast<f32>(count);
+                    leading = extra * 0.5f; gap += extra; break;
+                }
+                case JustifyContent::SpaceEvenly: {
+                    const f32 extra = free_space / static_cast<f32>(count + 1);
+                    leading = extra; gap += extra; break;
+                }
+            }
+            f32 main_cursor = leading;
+            for (std::size_t i = line_begin; i < line_end; ++i) {
+                const f32 item_main = main_size(i), item_cross = cross_size(i);
+                f32 cross = cross_cursor;
+                if (flow.align == AlignItems::Center) cross += (line_cross - item_cross) * 0.5f;
+                else if (flow.align == AlignItems::End) cross += line_cross - item_cross;
+                Vec2 pos;
+                if (flow.main_axis == Axis::Row)
+                    pos = {main_cursor + item_main * 0.5f, cross + item_cross * 0.5f};
+                else
+                    pos = {cross + item_cross * 0.5f, main_cursor + item_main * 0.5f};
+                Layer& layer = *members[i];
+                out_deltas.push_back({pos.x - layer.transform.position.x,
+                    pos.y - layer.transform.position.y, 0.0f});
+                layer.transform.position.x = pos.x;
+                layer.transform.position.y = pos.y;
+                main_cursor += item_main + gap;
+            }
+            cross_cursor += line_cross + flow.gap;
+        }
+        return;
+    }
     const Vec2 cell = resolve_cell_size(flow.cell_size,
                                         static_cast<int>(members.size()),
                                         W, H);
@@ -220,6 +361,48 @@ void apply_grid_group(std::vector<Layer*>& members,
 
     const f32 W = canvas_w;
     const f32 H = canvas_h;
+    if (grid.intrinsic_size) {
+        int cols = grid.columns;
+        int rows = grid.rows;
+        const int n = static_cast<int>(members.size());
+        switch (grid.fit) {
+            case GridFit::Auto:
+            case GridFit::FixedColumns:
+                rows = std::max(1, (n + cols - 1) / cols); break;
+            case GridFit::FixedRows:
+                cols = std::max(1, (n + rows - 1) / rows); break;
+        }
+        const Vec2 fallback = resolve_cell_size(grid.cell_size, n, W, H);
+        std::vector<Vec2> sizes;
+        sizes.reserve(members.size());
+        std::vector<f32> column_widths(static_cast<std::size_t>(cols), 0.0f);
+        std::vector<f32> row_heights(static_cast<std::size_t>(rows), 0.0f);
+        for (std::size_t i = 0; i < members.size(); ++i) {
+            const Vec2 size = resolve_item_size(*members[i], grid.cell_size, true, fallback);
+            sizes.push_back(size);
+            const auto col = i % static_cast<std::size_t>(cols);
+            const auto row = i / static_cast<std::size_t>(cols);
+            column_widths[col] = std::max(column_widths[col], size.x);
+            row_heights[row] = std::max(row_heights[row], size.y);
+        }
+        for (std::size_t i = 0; i < members.size(); ++i) {
+            const std::size_t col = i % static_cast<std::size_t>(cols);
+            const std::size_t row = i / static_cast<std::size_t>(cols);
+            f32 x = 0.0f, y = 0.0f;
+            for (std::size_t c = 0; c < col; ++c) x += column_widths[c] + grid.gap.x;
+            for (std::size_t r = 0; r < row; ++r) y += row_heights[r] + grid.gap.y;
+            const f32 dx = column_widths[col] - sizes[i].x;
+            const f32 dy = row_heights[row] - sizes[i].y;
+            const Vec2 pos{x + column_widths[col] * 0.5f - dx * 0.5f,
+                           y + row_heights[row] * 0.5f - dy * 0.5f};
+            Layer& layer = *members[i];
+            out_deltas.push_back({pos.x - layer.transform.position.x,
+                pos.y - layer.transform.position.y, 0.0f});
+            layer.transform.position.x = pos.x;
+            layer.transform.position.y = pos.y;
+        }
+        return;
+    }
     const Vec2 cell = resolve_cell_size(grid.cell_size,
                                         static_cast<int>(members.size()),
                                         W, H);

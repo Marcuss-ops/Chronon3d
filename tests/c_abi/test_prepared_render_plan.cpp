@@ -3720,7 +3720,7 @@ TEST_CASE("render plan flow layout reaches the runtime scene configuration") {
         layer.color={1,1,1,1};
         layer.flow_layout=render_plan::LayerPlan::FlowLayoutPlan{
             .group_id="cards",.axis="row",.align="center",.justify="center",
-            .gap=12,.wrap=false,.cell_size={100,80}};
+            .gap=12,.wrap=false,.cell_size={100,80},.intrinsic_size=true};
         plan.layers.push_back(std::move(layer));
     }
     auto prepared=render_plan::compile_render_plan(plan,resolver);
@@ -3734,6 +3734,7 @@ TEST_CASE("render plan flow layout reaches the runtime scene configuration") {
     CHECK(layers[0].layout.flow->gap == doctest::Approx(12.0f));
     CHECK(layers[0].layout.flow->cell_size.x == doctest::Approx(100.0f));
     CHECK(layers[0].layout.flow->cell_size.y == doctest::Approx(80.0f));
+    CHECK(layers[0].layout.flow->intrinsic_size);
 
     auto changed=plan;
     changed.layers[0].flow_layout->gap=20;
