@@ -2969,6 +2969,7 @@
             "dot_grid",
             "ring_segment",
             "monotone_line",
+            "monotone_chart",
             "device_frame"
           ]
         },
@@ -3063,6 +3064,31 @@
             "items": {"type": "number", "minimum": -100000, "maximum": 100000}
           }
         },
+        "x_domain": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {"type": "number", "minimum": -100000, "maximum": 100000}
+        },
+        "y_domain": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {"type": "number", "minimum": -100000, "maximum": 100000}
+        },
+        "plot_insets": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {"type": "number", "minimum": 0, "maximum": 2048},
+          "description": "Pixel insets [top,right,bottom,left] inside the shape size."
+        },
+        "x_ticks": {"type": "integer", "minimum": 2, "maximum": 64},
+        "y_ticks": {"type": "integer", "minimum": 2, "maximum": 64},
+        "show_grid": {"type": "boolean"},
+        "show_axes": {"type": "boolean"},
+        "area_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "line_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "grid_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "axis_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "line_width": {"type": "number", "minimum": 0.25, "maximum": 64},
+        "grid_width": {"type": "number", "minimum": 0.25, "maximum": 16},
+        "axis_width": {"type": "number", "minimum": 0.25, "maximum": 32},
+        "tick_size": {"type": "number", "minimum": 0, "maximum": 64},
         "inner_radius_ratio": {
           "type": "number",
           "minimum": 0,
@@ -3760,6 +3786,16 @@
             "required": ["type"]
           },
           "then": {"required": ["data_points", "stroke"]}
+        },
+        {
+          "if": {
+            "properties": {"type": {"const": "monotone_chart"}},
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["data_points"],
+            "not": {"anyOf": [{"required": ["fill"]}, {"required": ["stroke"]}]}
+          }
         },
         {
           "if": {

@@ -474,6 +474,38 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             }
                             break;
                         }
+                        case render_plan::ShapeContentTypePlan::MonotoneChart: {
+                            for (std::size_t index = 0; index < shape.imported_subpaths.size(); ++index) {
+                                const auto& imported = shape.imported_subpaths[index];
+                                PathParams params;
+                                for (const auto& command : imported.path) {
+                                    const Vec2 point{command.point[0], command.point[1]};
+                                    const Vec2 c1{command.control1[0], command.control1[1]};
+                                    const Vec2 c2{command.control2[0], command.control2[1]};
+                                    switch (command.type) {
+                                        case render_plan::ShapePathCommandTypePlan::MoveTo: params.commands.push_back(PathCommand::move_to(point)); break;
+                                        case render_plan::ShapePathCommandTypePlan::LineTo: params.commands.push_back(PathCommand::line_to(point)); break;
+                                        case render_plan::ShapePathCommandTypePlan::QuadraticTo: params.commands.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                        case render_plan::ShapePathCommandTypePlan::CubicTo: params.commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                        case render_plan::ShapePathCommandTypePlan::Close: params.commands.push_back(PathCommand::close()); params.closed = true; break;
+                                    }
+                                }
+                                if (imported.fill_color) {
+                                    const auto& c = *imported.fill_color;
+                                    params.fill = Fill::solid_color(Color{c[0], c[1], c[2], c[3]});
+                                }
+                                if (imported.stroke && imported.stroke->solid_color) {
+                                    const auto& c = *imported.stroke->solid_color;
+                                    params.stroke.enabled = true;
+                                    params.stroke.color = Color{c[0], c[1], c[2], c[3]};
+                                    params.stroke.width = imported.stroke->width.value_or(1.0f);
+                                }
+                                params.color = layer_color;
+                                params.pos = {0.0f, 0.0f, 0.0f};
+                                builder.path("chart_" + std::to_string(index), std::move(params));
+                            }
+                            break;
+                        }
                     }
                     break;
                 }

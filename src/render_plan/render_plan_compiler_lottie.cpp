@@ -21,6 +21,8 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -583,26 +585,19 @@ std::optional<std::string> assemble_lottie_subpaths(
     return std::nullopt;
 }
 
-std::optional<std::string> expand_static_lottie(
+std::optional<std::string> expand_static_lottie_layer(
     chronon3d::render_plan::LayerPlan& layer_plan,
-    const std::filesystem::path& path) {
-    std::error_code ec;
-    const auto bytes = std::filesystem::file_size(path, ec);
-    if (ec || bytes > 10ULL * 1024ULL * 1024ULL)
-        return std::string("Lottie source is missing or exceeds the 10 MiB input limit");
-    std::ifstream input(path, std::ios::binary);
-    if (!input) return std::string("Lottie source could not be opened");
+    const json& doc, std::size_t layer_index) {
     try {
         auto& shape = *layer_plan.shape;
-        const auto doc = json::parse(input);
         if (!doc.is_object() || doc.value("v", std::string{}).empty() ||
             !doc.contains("layers") || !doc["layers"].is_array())
             return std::string("Lottie requires a version field and a layer array");
-        if (doc["layers"].size() != 1)
-            return std::string("Lottie multi-layer assets are unsupported: asset expansion currently emits one RenderPlan layer and cannot preserve per-layer timing, mattes, or blend order");
-        const auto& layer = doc["layers"][0];
+        if (layer_index >= doc["layers"].size())
+            return std::string("Lottie layer index is outside the composition");
+        const auto& layer = doc["layers"][layer_index];
         if (layer.value("ty", -1) == 0)
-            return std::string("Lottie precompositions are unsupported: RenderPlan has no nested asset composition or local frame-remapping contract");
+            return std::string("Lottie precompositions require recursive asset expansion");
         if (layer.value("ty", -1) != 4 || layer.value("ddd", 0) != 0 || layer.contains("ef") ||
             layer.contains("tt") || layer.contains("tm") || layer.contains("exp"))
             return std::string("Lottie layer type, effects, expressions, or time remap are unsupported");
@@ -767,5 +762,6 @@ std::optional<std::string> expand_static_lottie(
         return std::string("malformed Lottie JSON: ") + error.what();
     }
 }
+
 
 }  // namespace chronon3d::render_plan::detail

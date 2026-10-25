@@ -38,6 +38,7 @@ ShapeContentTypePlan decode_shape_type(std::string_view name) {
         std::pair{"device_frame"sv, Shape::DeviceFrame},
         std::pair{"ring_segment"sv, Shape::RingSegment},
         std::pair{"monotone_line"sv, Shape::MonotoneLine},
+        std::pair{"monotone_chart"sv, Shape::MonotoneChart},
     };
     for (const auto& [name_value, type] : types)
         if (name == name_value) return type;
@@ -115,8 +116,9 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             throw std::runtime_error("monotone_line shapes require a stroke");
         if (shape.type == ShapeContentTypePlan::MonotoneLine && raw_shape.contains("fill"))
             throw std::runtime_error("monotone_line is an open stroked path and does not accept fill");
-        if (shape.type != ShapeContentTypePlan::MonotoneLine && raw_shape.contains("data_points"))
-            throw std::runtime_error("shape.data_points is only valid for monotone_line");
+        if (shape.type != ShapeContentTypePlan::MonotoneLine &&
+            shape.type != ShapeContentTypePlan::MonotoneChart && raw_shape.contains("data_points"))
+            throw std::runtime_error("shape.data_points is only valid for monotone_line or monotone_chart");
         if (shape.type == ShapeContentTypePlan::MonotoneLine &&
             (raw_shape.contains("path") || raw_shape.contains("asset") || raw_shape.contains("lottie")))
             throw std::runtime_error("monotone_line data cannot be combined with authored path or asset data");
@@ -129,7 +131,8 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
             shape.type == ShapeContentTypePlan::Arc || shape.type == ShapeContentTypePlan::Grid ||
             shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::DeviceFrame ||
             shape.type == ShapeContentTypePlan::RingSegment ||
-            shape.type == ShapeContentTypePlan::MonotoneLine;
+            shape.type == ShapeContentTypePlan::MonotoneLine ||
+            shape.type == ShapeContentTypePlan::MonotoneChart;
         if (shape.type != ShapeContentTypePlan::DeviceFrame &&
             (raw_shape.contains("device") || raw_shape.contains("chrome")))
             throw std::runtime_error("device and chrome options are only valid for device_frame");
@@ -219,6 +222,8 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 points.push_back({raw_point[0].get<float>(), raw_point[1].get<float>()});
             }
             shape.path = make_monotone_cubic_path(points);
+        } else if (shape.type == ShapeContentTypePlan::MonotoneChart) {
+            decode_monotone_chart(layer, shape, raw_shape);
         } else if (shape.type == ShapeContentTypePlan::Grid) {
             if (!raw_shape.contains("stroke"))
                 throw std::runtime_error("grid shapes require a stroke");

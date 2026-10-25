@@ -50,3 +50,34 @@ TEST_CASE("V3 conic gradients decode through the existing software fill contract
     REQUIRE(changed_decoded);
     CHECK(decoded->content_fingerprint != changed_decoded->content_fingerprint);
 }
+
+TEST_CASE("V3 monotone_chart exposes filled area, grid, line, and axes with stable fingerprints") {
+    auto source = render_plan_test::base_plan({render_plan_test::shape_layer({
+        {"type", "monotone_chart"},
+        {"data_points", {{0.0, 2.0}, {5.0, 8.0}, {10.0, 4.0}}},
+        {"x_domain", {0.0, 10.0}}, {"y_domain", {0.0, 10.0}},
+        {"x_ticks", 5}, {"y_ticks", 5}, {"show_grid", true}, {"show_axes", true}})});
+    const auto decoded = render_plan::decode_render_plan(source);
+    const std::string error = decoded ? std::string{} : decoded.error().message;
+    REQUIRE_MESSAGE(decoded, error);
+    const auto& shape = *decoded->layers[0].shape;
+    REQUIRE(shape.type == render_plan::ShapeContentTypePlan::MonotoneChart);
+    REQUIRE(shape.imported_subpaths.size() == 4);
+    CHECK_FALSE(shape.imported_subpaths[0].path.empty()); // grid
+    REQUIRE(shape.imported_subpaths[1].fill_color);       // area
+    CHECK(shape.imported_subpaths[1].path.back().type ==
+          render_plan::ShapePathCommandTypePlan::Close);
+    REQUIRE(shape.imported_subpaths[2].stroke);           // monotone data line
+    CHECK(shape.imported_subpaths[2].path[1].type ==
+          render_plan::ShapePathCommandTypePlan::CubicTo);
+    REQUIRE(shape.imported_subpaths[3].stroke);           // axes and ticks
+
+    auto changed = source;
+    changed["layers"][0]["shape"]["y_ticks"] = 7;
+    const auto changed_plan = render_plan::decode_render_plan(changed);
+    REQUIRE(changed_plan);
+    CHECK(changed_plan->content_fingerprint != decoded->content_fingerprint);
+    auto invalid = source;
+    invalid["layers"][0]["shape"]["x_domain"] = {1.0, 9.0};
+    CHECK_FALSE(render_plan::decode_render_plan(invalid));
+}
