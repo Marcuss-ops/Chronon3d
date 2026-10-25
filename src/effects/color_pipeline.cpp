@@ -61,6 +61,20 @@ inline void apply_compose_stage(color::StraightRgb& srgb, const ComposeStage& st
     srgb = apply_compose_op(srgb, stage.op, stage.blend);
 }
 
+inline void apply_color_matrix_stage(color::StraightRgb& rgb, float& alpha,
+                                     const ColorMatrixParams& matrix) {
+    const std::array<float, 4> in{rgb.r, rgb.g, rgb.b, alpha};
+    std::array<float, 4> out{};
+    for (std::size_t row = 0; row < 4; ++row) {
+        const auto i = row * 5;
+        out[row] = matrix.values[i] * in[0] + matrix.values[i + 1] * in[1] +
+                   matrix.values[i + 2] * in[2] + matrix.values[i + 3] * in[3] +
+                   matrix.values[i + 4];
+    }
+    rgb = {out[0], out[1], out[2]};
+    alpha = std::clamp(out[3], 0.0f, 1.0f);
+}
+
 inline std::array<float, 3> sample_lut(const Lut3DParams& lut, float r, float g, float b) {
     const auto n = static_cast<int>(lut.dimension);
     const auto coordinate = [&](float value, std::size_t channel) {
@@ -130,6 +144,7 @@ void ColorPipeline::apply(
             auto srgb = color::unpremultiply_rgb(c);
 
             // 2. Apply all stages in order
+            float alpha = c.a;
             for (const auto& stage : m_stages) {
                 if (auto* exp = std::get_if<ExposureStage>(&stage))
                     apply_exposure_stage(srgb, *exp);
@@ -141,10 +156,12 @@ void ColorPipeline::apply(
                     apply_lut_stage(srgb, *lut);
                 else if (auto* comp = std::get_if<ComposeStage>(&stage))
                     apply_compose_stage(srgb, *comp);
+                else if (auto* matrix = std::get_if<ColorMatrixStage>(&stage))
+                    apply_color_matrix_stage(srgb, alpha, matrix->params);
             }
 
             // 3. Premultiply
-            row[x] = color::premultiply_rgb(srgb, c.a);
+            row[x] = color::premultiply_rgb(srgb, alpha);
         }
     }
 }

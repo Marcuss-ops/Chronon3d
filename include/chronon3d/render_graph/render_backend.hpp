@@ -157,13 +157,15 @@ using NodeExecResult = Result<OwnedFB, NodeExecutionError>;
 
 /// Parameters for the native per-pixel color kernel (color_matrix.comp).
 /// Affine: rgb' = M * rgb + offset, rows p[0..2] = {m0, m1, m2, offset}.
+/// ColorMatrix: p[column][row] encodes a row-major 4x5 RGBA matrix.
 /// Levels: p[0..4] = input_black, input_white, gamma, output_black,
 /// output_white with lanes {red, green, blue, master}.  Pixels with alpha <= 0
-/// are untouched and alpha is always preserved.
+/// are untouched. Alpha is preserved except in ColorMatrix mode.
 struct NativeColorTransform {
     enum class Mode : std::uint8_t {
         Affine = 0, Levels = 1, Threshold = 2, Keying = 3, Vignette = 4,
-        Mosaic = 5, LiftGammaGain = 6, Offset = 7, Noise = 8, Checkerboard = 9
+        Mosaic = 5, LiftGammaGain = 6, Offset = 7, Noise = 8, Checkerboard = 9,
+        ColorMatrix = 10
     };
     Mode mode{Mode::Affine};
     std::array<std::array<float, 4>, 5> p{{

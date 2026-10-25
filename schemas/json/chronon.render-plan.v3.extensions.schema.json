@@ -122,7 +122,8 @@
             "stylize.scanlines",
             "stylize.retro_tv",
             "light.halation",
-            "light.anamorphic_streak"
+            "light.anamorphic_streak",
+            "color.matrix"
           ]
         },
         "param": {
@@ -321,7 +322,8 @@
             "stylize.scanlines",
             "stylize.retro_tv",
             "light.halation",
-            "light.anamorphic_streak"
+            "light.anamorphic_streak",
+            "color.matrix"
           ]
         },
         "params": {

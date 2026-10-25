@@ -268,6 +268,22 @@ lower_native_color_effect(const effects::EffectInstance& instance,
         out.honors_clip = true;
         return out;
     }
+    case effects::EffectType::ColorMatrix: {
+        const auto* p = std::get_if<ColorMatrixParams>(&instance.params);
+        if (!p || std::any_of(p->values.begin(), p->values.end(),
+                              [](float value) { return !std::isfinite(value) ||
+                                                       value < -16.0f || value > 16.0f; }))
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::ColorMatrix;
+        out.transform.straight_alpha = true;
+        out.honors_clip = true;
+        for (std::size_t row = 0; row < 4; ++row) {
+            for (std::size_t column = 0; column < 4; ++column)
+                out.transform.p[column][row] = p->values[row * 5 + column];
+            out.transform.p[4][row] = p->values[row * 5 + 4];
+        }
+        return out;
+    }
     case effects::EffectType::Threshold: {
         const auto* p = std::get_if<ThresholdParams>(&instance.params);
         if (!p || !finite_all({p->threshold, p->softness})) return std::nullopt;

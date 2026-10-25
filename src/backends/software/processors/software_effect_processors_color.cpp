@@ -242,6 +242,22 @@ public:
     }
 };
 
+class SoftwareColorMatrixEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<ColorMatrixParams>(&params);
+        if (!p) throw std::runtime_error("ColorMatrix processor received invalid parameters");
+        if (std::any_of(p->values.begin(), p->values.end(),
+                        [](float value) { return !std::isfinite(value) ||
+                                                 value < -16.0f || value > 16.0f; }))
+            throw std::runtime_error("ColorMatrix coefficients must be finite and in [-16, 16]");
+        ColorPipeline pipeline;
+        pipeline.add_stage(ColorMatrixStage{*p});
+        pipeline.apply(fb, context.clip);
+    }
+};
+
 class SoftwareFillEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -400,6 +416,10 @@ std::unique_ptr<EffectProcessor> create_temperature_tint_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_lift_gamma_gain_effect_processor() {
     return std::make_unique<SoftwareLiftGammaGainEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_color_matrix_effect_processor() {
+    return std::make_unique<SoftwareColorMatrixEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_fill_effect_processor() {

@@ -75,6 +75,13 @@ struct LiftGammaGainParams {
     f32 gain{1.0f};  // linear multiplier [0,4]
 };
 
+// General 4x5 affine color transform. Values are row-major; each output
+// channel computes dot(row[0..3], RGBA) + row[4].
+struct ColorMatrixParams {
+    std::array<float, 20> values{
+        1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0};
+};
+
 // ── Adjustment-layer color correction params (AE-5) ─────────────────────
 struct SaturationParams    { f32 value{1.0f}; };  // 1.0 = unchanged, 0 = greyscale
 struct HueRotateParams     { f32 degrees{0.0f}; }; // 0 = unchanged, 180 = invert hue
@@ -533,7 +540,7 @@ using EffectParams = std::variant<
     SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
-    LiftGammaGainParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
+    LiftGammaGainParams, ColorMatrixParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
 >;
 
 } // namespace chronon3d
