@@ -45,7 +45,9 @@ shape pipeline.
   Each tile is bounded to 32 shapes and 1024 path commands per shape; child
   transforms, fill-rule, opacity and fill-opacity are applied. Group tile
   content, child strokes, object-bounding-box units, and inherited patterns
-  remain unsupported. Static filters and unknown CSS declarations are rejected.
+  remain unsupported. Unknown CSS declarations are rejected. A bounded
+  root-level filter subset is documented under Phase 3; element-scoped filters
+  remain rejected so their scope is never widened accidentally.
   Stroke caps, joins, miter limits, and dash arrays are preserved.
   Static `display:none` suppresses its full subtree. `visibility:hidden` and
   `collapse` are inherited, and a descendant may restore `visibility:visible`.
@@ -212,13 +214,16 @@ and the existing compiler, sampler, and renderer.
   for SVG geometry and text; allow a child to restore `visibility:visible`,
   while a `display:none` ancestor suppresses all descendants.
 - [x] Reuse Chronon effects when SVG filter semantics map directly; defer
-  arbitrary SVG filter graphs. The importer lowers one root-level,
-  isotropic `<feGaussianBlur>` over path-only `SourceGraphic` into the existing
-  native Gaussian blur effect, including isotropic root/viewBox scaling. Unsupported
-  filter scopes, anisotropic deviation, custom regions, chaining, and other
-  primitives fail closed. Chronon's existing blur implementation is an
-  approximation of the SVG Gaussian kernel, so pixel-exact browser parity is
-  not claimed.
+  arbitrary SVG filter graphs. The importer lowers a root-only, linear chain
+  of at most eight `feGaussianBlur`, `feDropShadow`, and matrix
+  `feColorMatrix` operations into existing software effects. A final optional
+  `feBlend` may combine the chain with `BackgroundImage` using the software
+  compositor's supported blend modes. Inputs/results must be explicit and
+  sequential; filter units, numeric parameters, names, and operation counts
+  are bounded. Path-only content is required. Element/group filters, masks or
+  clips combined with a filter, custom regions, color-space conversions,
+  non-isotropic blur, and arbitrary graphs fail closed. The importer does not
+  claim pixel-exact SVG browser Gaussian-kernel parity.
 
 ### Phase 4 — SVG text and timeline
 

@@ -2968,6 +2968,7 @@
             "grid",
             "dot_grid",
             "ring_segment",
+            "monotone_line",
             "device_frame"
           ]
         },
@@ -3050,6 +3051,17 @@
           "type": "integer",
           "minimum": 3,
           "maximum": 256
+        },
+        "data_points": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4096,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"type": "number", "minimum": -100000, "maximum": 100000}
+          }
         },
         "inner_radius_ratio": {
           "type": "number",
@@ -3672,6 +3684,7 @@
                   "grid",
                   "dot_grid",
                   "ring_segment",
+                  "monotone_line",
                   "device_frame"
                 ]
               }
@@ -3740,6 +3753,13 @@
             "required": ["type"]
           },
           "then": {"required": ["fill"]}
+        },
+        {
+          "if": {
+            "properties": {"type": {"const": "monotone_line"}},
+            "required": ["type"]
+          },
+          "then": {"required": ["data_points", "stroke"]}
         },
         {
           "if": {

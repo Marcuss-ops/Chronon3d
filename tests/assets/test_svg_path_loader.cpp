@@ -91,6 +91,19 @@ TEST_CASE("SVG path loader parses a minimal SVG file") {
     CHECK(res.paths[0].commands[2].type == PathCommandType::Close);
 }
 
+TEST_CASE("SVG path loader rejects element-scoped filters instead of widening their scope") {
+    const std::string filename = "temp_element_filter.svg";
+    {
+        std::ofstream out(filename);
+        out << R"SVG(<svg><defs><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></defs>)SVG"
+               R"SVG(<path d="M0 0 L10 10" filter="url(#blur)"/></svg>)SVG";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    CHECK_FALSE(result.ok);
+    CHECK(result.error.find("element-scoped filters are unsupported") != std::string::npos);
+}
+
 TEST_CASE("SVG document importer preserves all path elements in document order") {
     const std::string filename = "temp_test_document.svg";
     {
@@ -530,12 +543,63 @@ TEST_CASE("SVG root Gaussian blur lowers only supported isotropic filters") {
     CHECK_FALSE(anisotropic.ok);
     const auto non_root = rejected(
         R"svg(<svg><defs><filter id="f"><feGaussianBlur stdDeviation="2"/></filter></defs><path filter="url(#f)" d="M0 0L1 1"/></svg>)svg");
-    CHECK(non_root.ok);
-    CHECK(non_root.root_gaussian_blur.has_value());
-    CHECK(*non_root.root_gaussian_blur == doctest::Approx(2.0f));
+    CHECK_FALSE(non_root.ok);
+    CHECK(non_root.error.find("element-scoped filters are unsupported") != std::string::npos);
     const auto arbitrary_graph = rejected(
         R"svg(<svg filter="url(#f)"><defs><filter id="f"><feOffset dx="2"/></filter></defs><path d="M0 0L1 1"/></svg>)svg");
     CHECK_FALSE(arbitrary_graph.ok);
+}
+
+TEST_CASE("SVG root filter chains lower blur, drop shadow, and color matrix in order") {
+    const std::string filename = "temp_test_svg_filter_chain.svg";
+    const auto load = [&](const std::string& content) {
+        { std::ofstream out(filename); out << content; }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return result;
+    };
+    const auto chain = load(R"svg(<svg filter="url(#f)"><defs><filter id="f">
+      <feGaussianBlur stdDeviation="2" result="soft"/>
+      <feDropShadow in="soft" dx="3" dy="-2" stdDeviation="1" flood-color="#FF0000" flood-opacity="0.5" result="shadow"/>
+      <feColorMatrix in="shadow" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" result="graded"/>
+      <feBlend in="graded" in2="BackgroundImage" mode="multiply"/>
+      </filter></defs><path d="M0 0L20 0L20 20Z"/></svg>)svg");
+    REQUIRE_MESSAGE(chain.ok, chain.error);
+    REQUIRE(chain.root_filter_effects.size() == 4);
+    CHECK(chain.root_filter_effects[0].kind == SvgFilterEffectSpec::Kind::GaussianBlur);
+    CHECK(chain.root_filter_effects[0].radius == doctest::Approx(2.0f));
+    CHECK(chain.root_filter_effects[1].kind == SvgFilterEffectSpec::Kind::DropShadow);
+    CHECK(chain.root_filter_effects[1].offset[0] == doctest::Approx(3.0f));
+    CHECK(chain.root_filter_effects[1].offset[1] == doctest::Approx(-2.0f));
+    CHECK(chain.root_filter_effects[1].color[0] == doctest::Approx(1.0f));
+    CHECK(chain.root_filter_effects[1].color[3] == doctest::Approx(0.5f));
+    CHECK(chain.root_filter_effects[2].kind == SvgFilterEffectSpec::Kind::ColorMatrix);
+    CHECK(chain.root_filter_effects[2].color_matrix[0] == doctest::Approx(1.0f));
+    CHECK(chain.root_filter_effects[3].kind == SvgFilterEffectSpec::Kind::Blend);
+    CHECK(chain.root_filter_effects[3].blend_mode == "multiply");
+
+    const auto bad_input = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur stdDeviation="1" result="soft"/><feColorMatrix in="SourceGraphic" type="matrix"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(bad_input.ok);
+    const auto missing_matrix = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feColorMatrix type="matrix"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(missing_matrix.ok);
+    const auto unsupported = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feBlend in="SourceGraphic" in2="SourceAlpha"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(unsupported.ok);
+    CHECK(unsupported.root_filter_effects.empty());
+    const auto bad_units = load(R"svg(<svg filter="url(#f)"><defs><filter id="f" primitiveUnits="objectBoundingBox"><feGaussianBlur stdDeviation="1"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(bad_units.ok);
+    const auto subregion = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur x="0" stdDeviation="1"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(subregion.ok);
+    const auto out_of_range = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur stdDeviation="257"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(out_of_range.ok);
+    const auto duplicate_result = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur stdDeviation="1" result="x"/><feGaussianBlur stdDeviation="1" result="x"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(duplicate_result.ok);
+    std::string too_many = R"svg(<svg filter="url(#f)"><defs><filter id="f">)svg";
+    for (int i = 0; i < 9; ++i)
+        too_many += "<feGaussianBlur stdDeviation=\"0\" result=\"r" + std::to_string(i) + "\"/>";
+    too_many += R"svg(</filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg";
+    CHECK_FALSE(load(too_many).ok);
+    const auto unsupported_blend = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feBlend in2="BackgroundImage" mode="color-dodge"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(unsupported_blend.ok);
 }
 
 TEST_CASE("SVG textPath preserves local path target and start offset") {

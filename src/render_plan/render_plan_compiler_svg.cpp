@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -61,18 +62,53 @@ std::optional<PlanDecodeError> prepare_svg_layers(
         if (imported.elements.size() + imported.text_runs.size() > 4096)
             return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
                 "SVG styled path/text run count exceeds 4096", "svg_resource_limit", "render-plan-svg"};
-        if (imported.root_gaussian_blur) {
-            if (!std::isfinite(*imported.root_gaussian_blur) ||
-                *imported.root_gaussian_blur < 0.0f ||
-                *imported.root_gaussian_blur > 256.0f)
-                return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
-                    "SVG root Gaussian blur is outside the supported radius bounds",
-                    "svg_unsupported_filter", "render-plan-svg"};
-            LayerPlan::EffectPlan native_blur;
-            native_blur.kind = LayerPlan::EffectKindPlan::GaussianBlur;
-            native_blur.radius = *imported.root_gaussian_blur;
-            layer.effects.insert(layer.effects.begin(), std::move(native_blur));
+        std::vector<LayerPlan::EffectPlan> svg_effects;
+        for (const auto& source : imported.root_filter_effects) {
+            LayerPlan::EffectPlan effect;
+            if (source.kind == chronon3d::assets::SvgFilterEffectSpec::Kind::GaussianBlur) {
+                effect.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+                effect.radius = source.radius;
+            } else if (source.kind == chronon3d::assets::SvgFilterEffectSpec::Kind::DropShadow) {
+                effect.kind = LayerPlan::EffectKindPlan::DropShadow;
+                effect.radius = source.radius;
+                effect.offset = source.offset;
+                effect.effect_color = source.color;
+            } else if (source.kind == chronon3d::assets::SvgFilterEffectSpec::Kind::ColorMatrix) {
+                effect.kind = LayerPlan::EffectKindPlan::Catalog;
+                effect.canonical_effect_id = "color.matrix";
+                static constexpr std::array<std::string_view, 20> names{
+                    "m00", "m01", "m02", "m03", "b0", "m10", "m11", "m12", "m13", "b1",
+                    "m20", "m21", "m22", "m23", "b2", "m30", "m31", "m32", "m33", "b3"};
+                for (std::size_t i = 0; i < names.size(); ++i)
+                    effect.canonical_params.push_back({std::string(names[i]), source.color_matrix[i]});
+            } else {
+                if (layer.blend_mode && *layer.blend_mode != chronon3d::BlendMode::Normal)
+                    return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.asset",
+                        "SVG feBlend cannot override an explicit RenderPlan layer blend mode",
+                        "svg_filter_blend_conflict", "render-plan-svg"};
+                const auto& mode = source.blend_mode;
+                layer.blend_mode = mode == "multiply" ? chronon3d::BlendMode::Multiply
+                    : mode == "screen" ? chronon3d::BlendMode::Screen
+                    : mode == "overlay" ? chronon3d::BlendMode::Overlay
+                    : mode == "darken" ? chronon3d::BlendMode::Darken
+                    : mode == "lighten" ? chronon3d::BlendMode::Lighten
+                    : mode == "difference" ? chronon3d::BlendMode::Difference
+                    : mode == "exclusion" ? chronon3d::BlendMode::Exclusion
+                    : mode == "soft-light" ? chronon3d::BlendMode::SoftLight
+                    : mode == "hard-light" ? chronon3d::BlendMode::HardLight
+                    : chronon3d::BlendMode::Normal;
+                continue;
+            }
+            svg_effects.push_back(std::move(effect));
         }
+        if (svg_effects.empty() && imported.root_gaussian_blur) {
+            LayerPlan::EffectPlan legacy_blur;
+            legacy_blur.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+            legacy_blur.radius = *imported.root_gaussian_blur;
+            svg_effects.push_back(std::move(legacy_blur));
+        }
+        layer.effects.insert(layer.effects.begin(),
+            std::make_move_iterator(svg_effects.begin()), std::make_move_iterator(svg_effects.end()));
         auto& shape = *layer.shape;
         if (auto error = append_svg_imported_elements(
                 shape, imported.elements, plan.canvas.fps.fps(), layer_index))

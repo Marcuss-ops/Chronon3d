@@ -18,6 +18,8 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/render_plan/shape_path_generator.hpp>
 
+#include <array>
+
 #include "src/backends/software/rasterizers/shape_rasterizer.hpp"
 #include "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp"
 #include "src/backends/software/rasterizers/path/path_rasterizer.hpp"
@@ -168,6 +170,43 @@ TEST_CASE("procedural ring segment rasterizes with a transparent center on CPU")
     CHECK(framebuffer.get_pixel(32, 32).a == doctest::Approx(0.0f));
     CHECK(framebuffer.get_pixel(32, 8).a > 0.9f);
     CHECK(framebuffer.get_pixel(32, 1).a == doctest::Approx(0.0f));
+}
+
+TEST_CASE("monotone chart path rasterizes on software with deterministic alpha") {
+    const std::array<std::array<float, 2>, 3> points{{
+        {{8.0f, 48.0f}}, {{32.0f, 16.0f}}, {{56.0f, 40.0f}}}};
+    const auto generated = render_plan::make_monotone_cubic_path(points);
+    PathShape path;
+    path.fill.enabled = false;
+    path.stroke.enabled = true;
+    path.stroke.width = 4.0f;
+    path.stroke.color = Color::white();
+    for (const auto& command : generated) {
+        const Vec2 endpoint{command.point[0], command.point[1]};
+        switch (command.type) {
+            case render_plan::ShapePathCommandTypePlan::MoveTo:
+                path.commands.push_back(PathCommand::move_to(endpoint)); break;
+            case render_plan::ShapePathCommandTypePlan::LineTo:
+                path.commands.push_back(PathCommand::line_to(endpoint)); break;
+            case render_plan::ShapePathCommandTypePlan::CubicTo:
+                path.commands.push_back(PathCommand::cubic_to(
+                    {command.control1[0], command.control1[1]},
+                    {command.control2[0], command.control2[1]}, endpoint)); break;
+            case render_plan::ShapePathCommandTypePlan::QuadraticTo:
+            case render_plan::ShapePathCommandTypePlan::Close:
+                FAIL("monotone line must emit only move and cubic commands"); break;
+        }
+    }
+    Framebuffer first(64, 64), second(64, 64);
+    first.clear(Color::transparent());
+    second.clear(Color::transparent());
+    renderer::draw_path(first, path, Mat4(1.0f), Color::white(), nullptr);
+    renderer::draw_path(second, path, Mat4(1.0f), Color::white(), nullptr);
+    CHECK(first.get_pixel(32, 16).a > 0.0f);
+    CHECK(first.get_pixel(32, 60).a == doctest::Approx(0.0f));
+    for (int y = 0; y < 64; ++y)
+        for (int x = 0; x < 64; ++x)
+            CHECK(first.get_pixel(x, y).a == doctest::Approx(second.get_pixel(x, y).a));
 }
 
 TEST_CASE("a path with no commands reports an empty bbox instead of a square") {
