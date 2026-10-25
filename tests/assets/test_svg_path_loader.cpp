@@ -601,6 +601,25 @@ TEST_CASE("SVG path gradients lower userSpaceOnUse coordinates and spread modes"
     CHECK_FALSE(unsupported.ok);
 }
 
+TEST_CASE("SVG text fill and stroke preserve gradient spread modes") {
+    const std::string filename = "temp_test_svg_text_gradient_spread.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><defs>
+          <linearGradient id="fill" spreadMethod="repeat"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient>
+          <radialGradient id="stroke" spreadMethod="reflect"><stop offset="0" stop-color="white"/><stop offset="1" stop-color="black"/></radialGradient>
+          </defs><text font-family="Chronon Sans" fill="url(#fill)" stroke="url(#stroke)">Gradient</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    REQUIRE(result.text_runs[0].fill_gradient.has_value());
+    REQUIRE(result.text_runs[0].stroke_gradient.has_value());
+    CHECK(result.text_runs[0].fill_gradient->spread == graphics::GradientSpread::Repeat);
+    CHECK(result.text_runs[0].stroke_gradient->spread == graphics::GradientSpread::Reflect);
+}
+
 TEST_CASE("SVG textPath retains relative per-character coordinate lists") {
     const std::string filename = "temp_test_svg_text_path_coordinates.svg";
     {
