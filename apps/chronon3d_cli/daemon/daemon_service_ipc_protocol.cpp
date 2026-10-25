@@ -56,7 +56,7 @@ constexpr std::string_view kRenderJobRootKeys[] = {
     "crf", "qp", "bitrate", "audio_source_path",
     "audio_target_sample_rate", "gop_copy_only", "fragmented_mp4", "changed_intervals",
     "pipe_pixfmt", "fps_num", "fps_den", "backend",
-    "execution_requirements", "output_spec",
+    "execution_requirements", "output_spec", "output_segments",
 };
 
 constexpr std::string_view kRenderJobOutputSpecKeys[] = {
@@ -64,6 +64,7 @@ constexpr std::string_view kRenderJobOutputSpecKeys[] = {
     "hardware_encoder", "encoder_backend", "gpu_hot_path_mode",
     "encode_preset", "rate_control_mode", "crf", "qp", "bitrate",
     "audio_target_sample_rate", "fragmented_mp4", "changed_intervals", "ffmpeg_mode",
+    "output_segments",
 };
 
 constexpr std::string_view kRenderJobRequirementKeys[] = {
@@ -73,6 +74,10 @@ constexpr std::string_view kRenderJobRequirementKeys[] = {
 
 constexpr std::string_view kChangedIntervalKeys[] = {
     "start_seconds", "end_seconds", "kind",
+};
+
+constexpr std::string_view kOutputSegmentKeys[] = {
+    "output_path", "start_frame", "end_frame",
 };
 
 template <std::size_t N>
@@ -121,24 +126,45 @@ void reject_unknown_render_job_keys(const nlohmann::json& request) {
                 refuse_unknown_key(unknown, "execution_requirements", item.key());
             }
         }
-    }
-    const auto reject_interval_entry_keys =
-        [&unknown](const nlohmann::json& container, std::string_view scope) {
-            const auto intervals = container.find("changed_intervals");
-            if (intervals == container.end() || !intervals->is_array()) return;
-            for (const auto& entry : *intervals) {
+    }    const auto reject_entry_keys =
+        [&unknown](const nlohmann::json& container, std::string_view list_key,
+                   std::string_view scope,
+                   const std::string_view* entry_keys, std::size_t entry_key_count) {
+            const auto list = container.find(list_key);
+            if (list == container.end() || !list->is_array()) return;
+            for (const auto& entry : *list) {
                 if (!entry.is_object()) continue;
                 for (const auto& item : entry.items()) {
-                    if (!payload_key_known(item.key(), kChangedIntervalKeys)) {
-                        refuse_unknown_key(unknown, scope, item.key());
+                    bool known = false;
+                    for (std::size_t i = 0; i < entry_key_count; ++i) {
+                        if (item.key() == entry_keys[i]) {
+                            known = true;
+                            break;
+                        }
                     }
+                    if (!known) refuse_unknown_key(unknown, scope, item.key());
                 }
             }
         };
+    const auto reject_interval_entry_keys =
+        [&reject_entry_keys](const nlohmann::json& container, std::string_view scope) {
+            reject_entry_keys(container, "changed_intervals", scope,
+                              kChangedIntervalKeys,
+                              sizeof(kChangedIntervalKeys) /
+                                  sizeof(kChangedIntervalKeys[0]));
+        };
     reject_interval_entry_keys(request, "changed_intervals[]");
-    if (const auto spec = request.find("output_spec");
-        spec != request.end() && spec->is_object()) {
+    const auto reject_segment_entry_keys =
+        [&reject_entry_keys](const nlohmann::json& container, std::string_view scope) {
+            reject_entry_keys(container, "output_segments", scope,
+                              kOutputSegmentKeys,
+                              sizeof(kOutputSegmentKeys) /
+                                  sizeof(kOutputSegmentKeys[0]));
+        };
+    reject_segment_entry_keys(request, "output_segments[]");
+    if (const auto spec = request.find("output_spec"); spec != request.end() && spec->is_object()) {
         reject_interval_entry_keys(*spec, "output_spec.changed_intervals[]");
+        reject_segment_entry_keys(*spec, "output_spec.output_segments[]");
     }
     if (unknown.empty()) return;
 
@@ -320,6 +346,33 @@ DecodedRenderJobPayload decode_render_job_payload(
         spec_or_root_int(request, "fps_num", 0));
     out.fps_den = static_cast<std::uint32_t>(
         spec_or_root_int(request, "fps_den", 1));
+
+    // output_segments accepts BOTH spellings like changed_intervals: the
+    // output_spec sub-object (the RenderingGen worker's wire shape) and the
+    // root-level shorthand. Semantics and closed vocabulary are owned by
+    // normalize_render_job; this decoder only transports the windows.
+    const nlohmann::json* segments = nullptr;
+    if (spec_it != request.end() && spec_it->is_object() &&
+        spec_it->contains("output_segments")) {
+        segments = &(*spec_it)["output_segments"];
+    } else if (request.contains("output_segments")) {
+        segments = &request["output_segments"];
+    }
+    if (segments) {
+        if (!segments->is_array()) {
+            throw std::runtime_error("output_segments must be a JSON array");
+        }
+        for (const auto& item : *segments) {
+            if (!item.is_object()) {
+                throw std::runtime_error(
+                    "output_segments entries must be objects");
+            }
+            out.output_segments.push_back(runtime::job::OutputSegmentSpec{
+                item.value("output_path", std::string{}),
+                item.value("start_frame", std::int64_t{0}),
+                item.value("end_frame", std::int64_t{0})});
+        }
+    }
 
     media::ExecutionRequirements exec_reqs;
     if (request.contains("execution_requirements")) {

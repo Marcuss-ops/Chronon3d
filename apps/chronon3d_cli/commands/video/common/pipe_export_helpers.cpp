@@ -88,6 +88,19 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
             "[video] explicit HDR mastering metadata requires the native CPU encoder; pipe and hardware routes cannot certify this metadata");
         return std::nullopt;
     }
+    // P4 batch superjob — segmented output is video-only and cut from one
+    // still-open codec: it cannot borrow a container, mux source audio, or
+    // ride a GOP copy lane (copied GOPs own their container schedule). The
+    // request boundary already refuses these combinations; this is the
+    // fail-closed belt for direct CLI callers.
+    if (!opts.output_segments.empty() &&
+        (opts.borrowed_mux || !opts.audio_source_path.empty() ||
+         !opts.gop_source.empty() || opts.gop_copy_only)) {
+        spdlog::error(
+            "[video] segmented output is video-only and cannot borrow a mux, "
+            "mux source audio, or combine with a GOP copy lane");
+        return std::nullopt;
+    }
     const bool hdr_output = opts.pipe.color_output == "pq" ||
                             opts.pipe.color_output == "hlg";
     if (hdr_output && !is_native_encoder_transport(opts.encoder.encoder_backend)) {
@@ -155,6 +168,7 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
         .codec = codec,
         .hardware_encoder = opts.encoder.hardware_encoder,
         .output_path = opts.output.output,
+        .output_segments = opts.output_segments,
         .input_format = *input_format,
         .verbose = opts.pipe.ffmpeg_verbose,
         .color_transform = {

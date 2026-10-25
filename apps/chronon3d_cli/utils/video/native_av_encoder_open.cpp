@@ -111,7 +111,7 @@ bool configure_hdr_static_metadata(
 bool validate_encoder_options(const FfmpegPipeOptions& options) {
     if (options.width <= 0 || options.height <= 0 ||
         options.canonical_fps_num() <= 0 || options.canonical_fps_den() <= 0 ||
-        options.output_path.empty()) {
+        (options.output_path.empty() && options.output_segments.empty())) {
         return false;
     }
     if (options.hdr_mastering_metadata &&
@@ -250,16 +250,23 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     if (!finalize_open(filename)) return false;
     // Cross-item session eligibility (fail-closed): only a healthy owned
     // container under a complete fingerprint may be parked for the next job.
-    codec_session_eligible_ = !codec_session_fingerprint_.empty() && !borrows_mux_;
+    codec_session_eligible_ = !codec_session_fingerprint_.empty() &&
+        !borrows_mux_ && options_.output_segments.empty();
     return true;
 }
 
 void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
+    segmented_mux_.reset();
+    owned_mux_.reset();
+    mux_ = nullptr;
+    borrows_mux_ = false;
     options_ = options;
     options_.fps_num = options.canonical_fps_num();
     options_.fps_den = options.canonical_fps_den();
     frames_written_ = 0;
     encoder_packets_received_ = 0;
+    codec_packets_received_ = 0;
+    codec_frames_submitted_ = 0;
     mux_packets_written_ = 0;
     first_encoder_packet_pts_ = -1;
     last_encoder_packet_pts_ = -1;
@@ -267,6 +274,11 @@ void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
     // previous job's anchor or discard windows).
     duplicate_seed_source_.reset();
     duplicate_anchor_.reset();
+    last_video_key_packet_.reset();
+    last_video_key_packet_pts_ = -1;
+    duplicate_run_start_pts_ = -1;
+    duplicate_prerun_packets_received_ = 0;
+    duplicate_prerun_packets_target_ = 0;
     duplicate_anchor_pts_ = -1;
     duplicate_replicated_through_pts_ = -1;
     duplicate_discard_ranges_.clear();
@@ -780,6 +792,36 @@ bool NativeAvEncoder::try_adopt_codec_session() {
 }
 
 bool NativeAvEncoder::wire_container(const std::string& filename) {
+    if (!options_.output_segments.empty()) {
+        if (options_.borrowed_mux || !options_.audio_source_path.empty()) {
+            spdlog::error("[native_av] segmented output does not support borrowed mux or audio");
+            return false;
+        }
+        AVCodecParameters* params = avcodec_parameters_alloc();
+        if (!params || avcodec_parameters_from_context(params, codec_) < 0) {
+            avcodec_parameters_free(&params);
+            spdlog::error("[native_av] failed to snapshot encoder parameters for segmented output");
+            return false;
+        }
+        segmented_mux_ = std::make_unique<chronon3d::media::MuxOutputSegmentWriter>();
+        std::string reason;
+        // P4 batch superjob: the per-item segments are cut at forced-IDR
+        // boundaries, and the session's output_path doubles as the whole-
+        // timeline MIRROR (the batch's fused clip) so the "batch consumed as
+        // one clip" contract keeps its MP4 while every item stays its own
+        // artifact. One codec, one EOF, N+1 muxes finalized together.
+        const bool opened = segmented_mux_->open(
+            params, codec_->time_base, options_.output_segments,
+            options_.fragmented_mp4, reason, options_.output_path);
+        avcodec_parameters_free(&params);
+        if (!opened) {
+            spdlog::error("[native_av] segmented mux open failed: {}", reason);
+            segmented_mux_.reset();
+            return false;
+        }
+        mux_ = nullptr;
+        return true;
+    }
     std::optional<chronon3d::media::AudioStreamConfig> audio_config;
     if (!options_.audio_source_path.empty()) {
         if (avformat_open_input(&audio_input_, options_.audio_source_path.c_str(),

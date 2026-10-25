@@ -71,6 +71,13 @@ FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     opts.fragmented_mp4 = job.video_settings.fragmented_mp4;
     opts.gop_copy_only = job.video_settings.gop_copy_only;
     opts.changed_intervals = job.video_settings.changed_intervals;
+    // P4 batch superjob: the semantic per-item windows become the encoder's
+    // segmented mux windows verbatim — frame units ARE encoder PTS units.
+    opts.output_segments.reserve(job.video_settings.output_segments.size());
+    for (const auto& segment : job.video_settings.output_segments) {
+        opts.output_segments.push_back(chronon3d::media::MuxOutputSegment{
+            segment.output_path, segment.start_frame, segment.end_frame});
+    }
     opts.backend_preference = job.execution.config
         ? job.execution.config->backend_preference()
         : chronon3d::graph::BackendPreference::Auto;

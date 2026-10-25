@@ -2,6 +2,7 @@
 #include "native_av_encoder_internal.hpp"
 
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <mutex>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -67,7 +68,18 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
         // be an IDR. The frame is reused across writes, so every send states
         // the pict type explicitly (same rule as write_frame_impl).
         if (pending.frame) {
-            pending.frame->pict_type = session_restart_intra_pending_
+            const auto frame_pts = pending.frame->pts;
+            // A queued CUDA surface is a newly rendered frame, so it ends any
+            // preceding packet-duplication run. The host-frame endpoint clears
+            // this flag in write_frame(), but FullGraph NVENC submits through
+            // this queue instead. Leaving it set made close() treat real CUDA
+            // frames after a static run as duplicate samples and append old
+            // anchor packets after their DTS had already reached the mux.
+            duplicate_run_active_ = false;
+            const bool segment_start = segmented_mux_ && std::any_of(
+                options_.output_segments.begin(), options_.output_segments.end(),
+                [frame_pts](const auto& segment) { return segment.start_pts == frame_pts; });
+            pending.frame->pict_type = (session_restart_intra_pending_ || segment_start)
                 ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
         }
         const auto send_t0 = Clock::now();
@@ -95,6 +107,7 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
                           frames_written_, error);
             return false;
         }
+        ++codec_frames_submitted_;
         const auto drain_t0 = Clock::now();
         if (!drain_packets()) {
             spdlog::error("[native_av] NVENC packet drain failed after GPU frame {}",

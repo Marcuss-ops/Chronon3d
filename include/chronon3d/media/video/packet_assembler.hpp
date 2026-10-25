@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -282,6 +283,65 @@ private:
     double packet_write_ms_{0.0};
     double audio_write_ms_{0.0};
     double trailer_ms_{0.0};
+};
+
+/// One output window in a shared encoded packet timeline. PTS bounds use the
+/// encoder time base and are half-open: [start_pts, end_pts).
+struct MuxOutputSegment {
+    std::string output_path;
+    std::int64_t start_pts{0};
+    std::int64_t end_pts{0};
+    /// Expected decoded samples. Zero infers one sample per PTS tick, which
+    /// matches NativeAvEncoder's frame-number time base.
+    std::uint64_t expected_packet_count{0};
+};
+
+/// Routes packets from one still-open encoder into independent MP4 muxers.
+/// The caller sends encoder EOF once, then finalizes this writer. Each output
+/// window must begin with a key packet at its exact start PTS; the writer
+/// fails closed on missing, out-of-range, or misaligned packets.
+///
+/// An optional MIRROR output (mirror_output_path) additionally receives every
+/// packet at its GLOBAL PTS: the batch's fused whole-timeline clip, produced by
+/// the same still-open codec as the per-item segments. It preserves the "batch
+/// consumed as one clip" contract while every segment stays its own artifact
+/// with its own identity and retry (P4 TICKET-BATCH-SUPERJOB). An empty mirror
+/// path preserves the segments-only shape.
+class MuxOutputSegmentWriter final {
+public:
+    MuxOutputSegmentWriter() = default;
+    ~MuxOutputSegmentWriter();
+    MuxOutputSegmentWriter(const MuxOutputSegmentWriter&) = delete;
+    MuxOutputSegmentWriter& operator=(const MuxOutputSegmentWriter&) = delete;
+
+    [[nodiscard]] bool open(
+        const AVCodecParameters* video_params,
+        AVRational video_time_base,
+        std::vector<MuxOutputSegment> segments,
+        bool fragmented_mp4,
+        std::string& reason,
+        const std::string& mirror_output_path = {});
+    [[nodiscard]] bool submit_video(
+        AVPacket& packet, AVRational source_time_base) noexcept;
+    [[nodiscard]] bool finalize() noexcept;
+    [[nodiscard]] std::size_t segment_count() const noexcept {
+        return muxes_.size();
+    }
+
+private:
+    std::vector<MuxOutputSegment> segments_;
+    std::vector<std::unique_ptr<MuxSession>> muxes_;
+    std::vector<std::uint64_t> packet_counts_;
+    std::vector<std::int64_t> last_packet_pts_;
+    /// Whole-timeline mirror (the batch's fused clip); null when not requested.
+    std::unique_ptr<MuxSession> mirror_;
+    std::string mirror_output_path_;
+    std::uint64_t mirror_packets_{0};
+    AVRational video_time_base_{0, 1};
+    bool opened_{false};
+    bool failed_{false};
+    bool finalize_attempted_{false};
+    bool finalized_{false};
 };
 
 /// Compatibility packet mux boundary for callers that still own a format

@@ -198,7 +198,13 @@ public:
     /// DirectYUV sessions (typed feed) and on borrowed-mux sessions (the
     /// caller's schedule owns every sample slot).
     [[nodiscard]] bool supports_duplicate_frames() const override {
-        return !options_.direct_yuv_mode;
+        // Packet replication relies on the encoder delivering every frame
+        // before the duplicate run in a DTS-safe position. NVENC's lookahead
+        // can publish a delayed pre-run packet after the run's anchor has
+        // already been replicated, so hardware sessions use the normal
+        // render/encode path for static frames.
+        return !gpu_nvenc_ && !options_.direct_yuv_mode &&
+               options_.output_segments.empty();
     }
     /// Emit frame `frame_number` as a packet-level duplicate (see the
     /// run-anchor mechanism in native_av_encoder_write.cpp). Fail-closed:
@@ -214,6 +220,8 @@ private:
 #endif
     uint64_t frames_written_{0};
     uint64_t encoder_packets_received_{0};
+    uint64_t codec_packets_received_{0};
+    uint64_t codec_frames_submitted_{0};
     uint64_t mux_packets_written_{0};
     int64_t first_encoder_packet_pts_{-1};
     int64_t last_encoder_packet_pts_{-1};
@@ -248,15 +256,23 @@ private:
     };
     std::unique_ptr<AVFrame, FrameDeleter> duplicate_seed_source_;
     media::OwnedAVPacket duplicate_anchor_;          // run anchor (intra packet)
+    media::OwnedAVPacket last_video_key_packet_;     // most recent random-access sample for identical-frame runs
+    std::int64_t last_video_key_packet_pts_{-1};
+    std::int64_t duplicate_run_start_pts_{-1};
+    std::uint64_t duplicate_prerun_packets_received_{0};
+    std::uint64_t duplicate_prerun_packets_target_{0};
     std::int64_t duplicate_anchor_pts_{-1};          // = the run's first frame
     std::int64_t duplicate_replicated_through_pts_{-1};
     std::deque<std::pair<std::int64_t, std::int64_t>> duplicate_discard_ranges_;
     bool duplicate_run_active_{false};
+    bool emit_duplicate_replicas_through_(std::int64_t frame_number);
+    void extend_duplicate_discard_range_through_(std::int64_t frame_number);
 
     // Container ownership: `owned_mux_` is non-null only when this encoder
     // opened the container itself. `mux_` is the sink actually written to
     // (owned or borrowed) and never owns anything.
     std::unique_ptr<chronon3d::media::MuxSession> owned_mux_;
+    std::unique_ptr<chronon3d::media::MuxOutputSegmentWriter> segmented_mux_;
     chronon3d::media::MuxSession* mux_{nullptr};
     bool borrows_mux_{false};
     AVCodecContext*  codec_{nullptr};

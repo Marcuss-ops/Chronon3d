@@ -349,6 +349,9 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         request.video_settings.gop_copy_only = normalized_job.output.gop_copy_only;
         request.video_settings.fragmented_mp4 = normalized_job.output.fragmented_mp4;
         request.video_settings.changed_intervals = normalized_job.output.changed_intervals;
+        // P4 batch superjob: the per-item windows travel with the job so the
+        // export can cut one MP4 per item from a single encoder session.
+        request.video_settings.output_segments = normalized_job.output.output_segments;
         request.video_settings.pipe_pixfmt = normalized_job.output.pipe_pixfmt;
         request.video_settings.color_output = !normalized_job.output.color_output.empty()
             ? normalized_job.output.color_output : context.decoded.output.color_space;
@@ -578,6 +581,84 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                 // item must not hold the render lane). The IPC reply still
                 // leaves only after the step completed, so the worker's
                 // receipt read stays deterministic.
+                if (!normalized_job.output.output_segments.empty()) {
+                    struct SegmentReceiptWork {
+                        verification::RenderReceiptInput input;
+                        std::string path;
+                    };
+                    std::vector<SegmentReceiptWork> work;
+                    work.reserve(normalized_job.output.output_segments.size());
+                    for (std::size_t index = 0;
+                         index < normalized_job.output.output_segments.size(); ++index) {
+                        const auto& segment = normalized_job.output.output_segments[index];
+                        std::error_code path_ec;
+                        if (!std::filesystem::is_regular_file(segment.output_path, path_ec) ||
+                            path_ec) {
+                            spdlog::warn(
+                                "segment receipt skipped; no verified output was published: {}",
+                                segment.output_path);
+                            continue;
+                        }
+                        auto segment_input = receipt_input;
+                        segment_input.first_frame = first + segment.start_frame;
+                        segment_input.frames = segment.end_frame - segment.start_frame;
+                        segment_input.precomputed_media.reset();
+                        segment_input.precomputed_probe_ms.reset();
+                        segment_input.precomputed_sha256.reset();
+                        segment_input.precomputed_sha256_ms.reset();
+                        if (execution_context) {
+                            const auto observed_it = std::find_if(
+                                execution_context->observed_segment_outputs.begin(),
+                                execution_context->observed_segment_outputs.end(),
+                                [&segment](const auto& observed) {
+                                    return observed.output_path == segment.output_path &&
+                                        observed.start_frame == segment.start_frame &&
+                                        observed.end_frame == segment.end_frame;
+                                });
+                            if (observed_it !=
+                                execution_context->observed_segment_outputs.end()) {
+                                const auto& observed = *observed_it;
+                                if (observed.probe) {
+                                    segment_input.precomputed_media =
+                                        media_contract_from_probe(*observed.probe);
+                                    segment_input.precomputed_probe_ms = observed.probe_ms;
+                                }
+                                if (!observed.sha256.empty()) {
+                                    segment_input.precomputed_sha256 = observed.sha256;
+                                    segment_input.precomputed_sha256_ms = observed.sha256_ms;
+                                }
+                            }
+                        }
+                        work.push_back({std::move(segment_input), segment.output_path});
+                    }
+                    auto write_segment_receipts = [work = std::move(work)] {
+                        for (const auto& item : work) {
+                            try {
+                                std::error_code path_ec;
+                                if (!std::filesystem::is_regular_file(item.path, path_ec) ||
+                                    path_ec) {
+                                    spdlog::warn(
+                                        "segment receipt skipped; output disappeared before receipt: {}",
+                                        item.path);
+                                    continue;
+                                }
+                                const auto receipt = verification::build_render_receipt(
+                                    item.input, item.path, true);
+                                const auto receipt_path = verification::write_render_receipt(
+                                    receipt, item.path);
+                                spdlog::info("segment receipt: {}", receipt_path.string());
+                            } catch (const std::exception& error) {
+                                spdlog::warn("segment receipt generation failed for {}: {}",
+                                             item.path, error.what());
+                            }
+                        }
+                    };
+                    if (receipt_deferral) {
+                        receipt_deferral(std::move(write_segment_receipts));
+                    } else {
+                        write_segment_receipts();
+                    }
+                } else {
                 const bool is_video_output = video_output(output);
                 auto write_receipt_step =
                     [receipt_input = std::move(receipt_input), output,
@@ -627,6 +708,7 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                     receipt_deferral(std::move(write_receipt_step));
                 } else {
                     write_receipt_step();
+                }
                 }
             } catch (const std::exception& error) {
                 spdlog::warn("receipt generation failed: {}", error.what());

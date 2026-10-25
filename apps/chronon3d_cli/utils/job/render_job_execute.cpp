@@ -80,6 +80,55 @@ void write_render_job_receipt(const RenderJob& job,
             input.precomputed_sha256_ms = observed.sha256_ms;
         }
     }
+    if (!job.video_settings.output_segments.empty()) {
+        for (std::size_t index = 0;
+             index < job.video_settings.output_segments.size(); ++index) {
+            const auto& segment = job.video_settings.output_segments[index];
+            std::error_code path_ec;
+            if (!std::filesystem::is_regular_file(segment.output_path, path_ec) || path_ec) {
+                spdlog::warn("segment receipt skipped; no verified output was published: {}",
+                             segment.output_path);
+                continue;
+            }
+            auto segment_input = input;
+            segment_input.first_frame += segment.start_frame;
+            segment_input.frames = segment.end_frame - segment.start_frame;
+            segment_input.precomputed_media.reset();
+            segment_input.precomputed_probe_ms.reset();
+            segment_input.precomputed_sha256.reset();
+            segment_input.precomputed_sha256_ms.reset();
+            if (execution != nullptr) {
+                const auto observed_it = std::find_if(
+                    execution->observed_segment_outputs.begin(),
+                    execution->observed_segment_outputs.end(),
+                    [&segment](const auto& observed) {
+                        return observed.output_path == segment.output_path &&
+                            observed.start_frame == segment.start_frame &&
+                            observed.end_frame == segment.end_frame;
+                    });
+                if (observed_it != execution->observed_segment_outputs.end()) {
+                    const auto& observed = *observed_it;
+                    if (observed.probe) {
+                        segment_input.precomputed_media =
+                            media_contract_from_probe(*observed.probe);
+                        segment_input.precomputed_probe_ms = observed.probe_ms;
+                    }
+                    if (!observed.sha256.empty()) {
+                        segment_input.precomputed_sha256 = observed.sha256;
+                        segment_input.precomputed_sha256_ms = observed.sha256_ms;
+                    }
+                }
+            }
+            const auto receipt = verification::build_render_receipt(
+                segment_input, segment.output_path, true);
+            const auto receipt_path = verification::write_render_receipt(
+                receipt, segment.output_path);
+            spdlog::info("segment receipt: {} verification={} copy_eligible={}",
+                         receipt_path.string(), receipt.verification.resolved_policy,
+                         receipt.copy_eligible ? "true" : "false");
+        }
+        return;
+    }
 #ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
     if (!input.precomputed_media.has_value() && job.mode == RenderMode::Video) {
         const auto probe_t0 = chronon3d::profiling::now();
