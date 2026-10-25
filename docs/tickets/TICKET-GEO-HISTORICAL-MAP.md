@@ -4,6 +4,12 @@
 **ADR:** [ADR-034](../adr/ADR-034-geo-historical-maps.md)
 **Created:** 2026-10-08
 
+**Migrazione 2026-10-25:** i componenti headless sono ora posseduti da
+`ChrononPlugin/plugins/maps/`; non esiste più il target `chronon3d_geo` né
+l'opzione `CHRONON3D_ENABLE_GEO`. `maps_geo_core_test` compila ed esegue i test
+del parser, query, timeline, booleani e cambi di territorio. L'API di camera,
+anchor e reveal resta fuori dal perimetro implementato.
+
 ## Acceptance criteria (per voce)
 
 Stato usando `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`.

@@ -3,6 +3,13 @@
 **Stato:** MIGRATO — il dominio geo appartiene a `ChrononPlugin/plugins/maps` (2026-10-26)
 **Data:** 2026-10-08
 
+**Aggiornamento architetturale 2026-10-25:** il dominio GeoJSON, timeline,
+booleani e raster plate appartiene a `ChrononPlugin/plugins/maps/`, namespace
+`chrononplugin::maps`. Chronon3D espone solo le primitive/render contract
+condivise e non include il sottosistema geo. Il testo seguente descrive la
+decisione storica iniziale; i percorsi `include/chronon3d/geo` e `src/geo`
+sono stati rimossi con l'estrazione.
+
 ## Contesto
 
 La proposta di prodotto richiede cartografia storica: import GeoJSON, query

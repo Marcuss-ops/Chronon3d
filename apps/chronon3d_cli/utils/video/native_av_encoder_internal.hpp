@@ -26,12 +26,11 @@ using NativeAvClock = std::chrono::steady_clock;
 // MP4 container (the MP4-per-item contract with the final worker is
 // preserved: one muxer, one PTS timeline, one forced-IDR start per item).
 //
-// The cache is opt-in (`CHRONON_ENCODER_SESSION_REUSE=1`): without the flag
-// every open allocates and every close destroys exactly as before, so no
-// behaviour changes by default. Adoption and release are fail-closed — any
-// doubtful condition (spliced/borrowed containers, HDR mastering metadata,
-// OCIO output views, a cache fingerprint mismatch, an unhealthy close)
-// produces a fresh codec session instead of a shared one.
+// This cache is intentionally disabled for now. A finalized MP4 requires
+// sending encoder EOF, after which FFmpeg rejects new frames even if
+// avcodec_flush_buffers is called. Reuse can only be restored when a batch
+// writer owns the complete unflushed codec lifetime and splits independent
+// containers at certified packet boundaries.
 
 /// One cached, still-open codec session with the contract of its live
 /// bitstream. `codec` is transferred in and out of the struct: whichever side
@@ -47,8 +46,9 @@ struct CodecSession {
     CodecSession& operator=(const CodecSession&) = delete;
 };
 
-/// Opt-in gate: `CHRONON_ENCODER_SESSION_REUSE=1` enables both caching and
-/// adoption. Any other value (or unset) keeps the historical lifecycle.
+/// Reuse of an encoder after a finalized MP4 is not supported by FFmpeg.
+/// Kept as a capability seam; returns false until a batch muxer owns the
+/// unflushed session lifecycle.
 [[nodiscard]] bool codec_session_reuse_enabled() noexcept;
 
 /// Returns the cached session when the cache holds one AND its fingerprint

@@ -5,8 +5,6 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
-#include <cstdlib>
-#include <cstring>
 #include <mutex>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -32,8 +30,12 @@ CodecSession::~CodecSession() {
 }
 
 bool codec_session_reuse_enabled() noexcept {
-    const char* value = std::getenv("CHRONON_ENCODER_SESSION_REUSE");
-    return value != nullptr && std::strcmp(value, "1") == 0;
+    // A completed MP4 requires sending end-of-stream to its encoder. FFmpeg
+    // encoders then reject new frames with AVERROR_EOF; avcodec_flush_buffers
+    // does not make an encoder reusable. Keep cross-item reuse fail-closed
+    // until the batch writer can keep one unflushed codec session while it
+    // finalizes independent MP4 containers at proven packet boundaries.
+    return false;
 }
 
 std::shared_ptr<CodecSession> acquire_codec_session(

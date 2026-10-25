@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <sstream>
 #include <string>
+#include <optional>
 #include <vector>
 
 namespace {
@@ -18,6 +19,37 @@ namespace {
 /// per frame, the last column being the frame hash. The same convention the
 /// container-parity tests use, so a wrong timestamp, dropped packet or
 /// reordered frame changes the sequence.
+class ScopedEnvironmentValue {
+public:
+    ScopedEnvironmentValue(std::string name, std::string value)
+        : m_name(std::move(name)) {
+        if (const char* previous = std::getenv(m_name.c_str())) {
+            m_previous = previous;
+        }
+        set(std::move(value));
+    }
+
+    ~ScopedEnvironmentValue() {
+        if (m_previous) {
+            ::setenv(m_name.c_str(), m_previous->c_str(), 1);
+        } else {
+            ::unsetenv(m_name.c_str());
+        }
+    }
+
+    void set(std::optional<std::string> value) {
+        if (value) {
+            ::setenv(m_name.c_str(), value->c_str(), 1);
+        } else {
+            ::unsetenv(m_name.c_str());
+        }
+    }
+
+private:
+    std::string m_name;
+    std::optional<std::string> m_previous;
+};
+
 std::string decoded_frame_hashes(const std::filesystem::path& mp4) {
     const std::string command =
         "ffmpeg -v error -i '" + mp4.string() + "' -map 0:v -f framemd5 - 2>/dev/null";
@@ -72,7 +104,7 @@ TEST_CASE("NativeAvEncoder failed open is safe to destroy repeatedly") {
     }
 }
 
-TEST_CASE("NativeAvEncoder cross-item codec session reuse keeps the MP4-per-item contract") {
+TEST_CASE("NativeAvEncoder fails closed on reuse after MP4 finalization") {
     namespace fs = std::filesystem;
     if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
         MESSAGE("Skipping — ffmpeg executable is not available");
@@ -85,14 +117,13 @@ TEST_CASE("NativeAvEncoder cross-item codec session reuse keeps the MP4-per-item
     REQUIRE_FALSE(ec);
 
     // P2 item 2 / P4 item 1 (TICKET-RESIDENT-RENDER-ENGINE /
-    // TICKET-BATCH-SUPERJOB): one codec session across consecutive
-    // same-configuration items, one MP4 container per item. The env flag is
-    // the opt-in gate (default off = historical lifecycle).
-    ::setenv("CHRONON_ENCODER_SESSION_REUSE", "1", 1);
+    // TICKET-BATCH-SUPERJOB): each MP4 is finalized before its next item.
+    // That sends EOF to FFmpeg, so even the experimental env flag must not
+    // cause an already-drained codec to be adopted for another artifact.
+    ScopedEnvironmentValue reuse_scope("CHRONON_ENCODER_SESSION_REUSE", "1");
 
     const int frame_counts[] = {24, 24, 7};
     std::vector<std::filesystem::path> outputs;
-    bool first = true;
     for (const int count : frame_counts) {
         const auto output =
             dir / ("item-" + std::to_string(outputs.size()) + ".mp4");
@@ -105,15 +136,9 @@ TEST_CASE("NativeAvEncoder cross-item codec session reuse keeps the MP4-per-item
         options.output_path = output.string();
         chronon3d::cli::NativeAvEncoder encoder;
         REQUIRE(encoder.open(options));
-        // The first item starts a fresh session; every later same-config item
-        // must adopt the parked one — this is the cross-item economics the
-        // gate measures (no avcodec_open2 per artifact).
-        if (first) {
-            CHECK_FALSE(encoder.codec_session_adopted());
-        } else {
-            CHECK(encoder.codec_session_adopted());
-        }
-        first = false;
+        // Reuse after MP4 EOF is unsupported; every artifact must start a
+        // fresh codec until the batched muxer can own one unflushed session.
+        CHECK_FALSE(encoder.codec_session_adopted());
         chronon3d::Framebuffer frame(options.width, options.height);
         for (int index = 0; index < count; ++index) {
             REQUIRE(encoder.write_frame(frame));
@@ -144,7 +169,29 @@ TEST_CASE("NativeAvEncoder cross-item codec session reuse keeps the MP4-per-item
         outputs.push_back(output);
     }
 
-    ::unsetenv("CHRONON_ENCODER_SESSION_REUSE");
+    // Reference item: same frame sequence/configuration without cross-item
+    // reuse. Decoded frame hashes must match the adopted-session artifact,
+    // not merely its frame count and MP4 metadata.
+    const auto reference = dir / "item-reference.mp4";
+    reuse_scope.set(std::nullopt);
+    {
+        chronon3d::cli::FfmpegPipeOptions options;
+        options.width = 320;
+        options.height = 240;
+        options.fps_num = 24;
+        options.fps_den = 1;
+        options.codec = "libx264";
+        options.output_path = reference.string();
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(options));
+        CHECK_FALSE(encoder.codec_session_adopted());
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int index = 0; index < 24; ++index) {
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+    reuse_scope.set(std::string{"1"});
 
     // MP4-per-item contract preserved: every segment is its own artifact with
     // its exact duration and a decodable stream (a segment whose first frame
@@ -167,6 +214,23 @@ TEST_CASE("NativeAvEncoder cross-item codec session reuse keeps the MP4-per-item
         CHECK(verification.passed);
         CHECK(verification.frame_count == expected[i]);
     }
+
+    auto reference_contract =
+        chronon3d::media::video::resolve_output_contract("youtube_overlay_v1");
+    REQUIRE(reference_contract.has_value());
+    reference_contract->width = 320;
+    reference_contract->height = 240;
+    reference_contract->fps = chronon3d::FrameRate{24, 1};
+    reference_contract->frame_count = 24;
+    reference_contract->audio_required = false;
+    reference_contract->audio_streams = 0;
+    const auto reference_verification =
+        chronon3d::media::video::verify_output_contract(reference, *reference_contract);
+    CHECK(reference_verification.passed);
+    CHECK(reference_verification.frame_count == 24);
+    const auto reference_hashes = decoded_frame_hashes(reference);
+    REQUIRE_FALSE(reference_hashes.empty());
+    CHECK(decoded_frame_hashes(outputs[1]) == reference_hashes);
 
     fs::remove_all(dir, ec);
 }
