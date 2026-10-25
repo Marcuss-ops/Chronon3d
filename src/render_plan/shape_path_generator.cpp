@@ -107,6 +107,48 @@ std::vector<ShapePathCommandPlan> make_arc_path(
     return path;
 }
 
+std::vector<ShapePathCommandPlan> make_ring_segment_path(
+    float width, float height, float start_degrees, float sweep_degrees,
+    float inner_radius_ratio, std::uint32_t segments) {
+    validate_size(width, height);
+    if (!std::isfinite(start_degrees) || !std::isfinite(sweep_degrees) ||
+        std::abs(sweep_degrees) <= 0.0f || std::abs(sweep_degrees) > 360.0f ||
+        !std::isfinite(inner_radius_ratio) || inner_radius_ratio < 0.0f ||
+        inner_radius_ratio >= 1.0f || segments < 1 || segments > 4096)
+        throw std::invalid_argument(
+            "ring segment requires finite angles, non-zero sweep <= 360 degrees, inner radius in [0,1), and 1..4096 segments");
+    const auto count = static_cast<std::uint32_t>(std::ceil(
+        static_cast<float>(segments) * std::abs(sweep_degrees) / 360.0f));
+    std::vector<ShapePathCommandPlan> path;
+    path.reserve(static_cast<std::size_t>(count + 1U) *
+        (inner_radius_ratio > 0.0f ? 2U : 1U) + 2U);
+    const auto point_at = [&](float angle_degrees, float radius) {
+        const float angle = (angle_degrees - 90.0f) * (kPi / 180.0f);
+        return std::array<float, 2>{
+            std::cos(angle) * width * 0.5f * radius,
+            std::sin(angle) * height * 0.5f * radius};
+    };
+    for (std::uint32_t i = 0; i <= count; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(count);
+        const auto point = point_at(start_degrees + sweep_degrees * t, 1.0f);
+        path.push_back(command(i == 0 ? ShapePathCommandTypePlan::MoveTo
+                                      : ShapePathCommandTypePlan::LineTo,
+                               point[0], point[1]));
+    }
+    if (inner_radius_ratio > 0.0f) {
+        for (std::uint32_t i = count + 1U; i > 0; --i) {
+            const float t = static_cast<float>(i - 1U) / static_cast<float>(count);
+            const auto point = point_at(start_degrees + sweep_degrees * t,
+                                        inner_radius_ratio);
+            path.push_back(command(ShapePathCommandTypePlan::LineTo, point[0], point[1]));
+        }
+    } else {
+        path.push_back(command(ShapePathCommandTypePlan::LineTo, 0.0f, 0.0f));
+    }
+    path.push_back(command(ShapePathCommandTypePlan::Close));
+    return path;
+}
+
 std::vector<ShapePathCommandPlan> make_grid_path(float width, float height, float spacing) {
     validate_size(width, height);
     if (!std::isfinite(spacing) || spacing <= 0.0f)

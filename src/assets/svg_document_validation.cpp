@@ -35,10 +35,11 @@ std::optional<std::string> validate_svg_subset(
         "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter",
         "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
         "stroke-miterlimit", "fill-rule", "color", "display", "visibility", "paint-order",
+        "clip-rule",
         "font-family", "font-size",
         "font-weight", "font-style", "direction", "text-anchor", "dominant-baseline", "baseline-shift"};
     static const std::set<std::string> unsupported_paint_attributes{
-        "clip-rule", "mix-blend-mode",
+        "mix-blend-mode",
         "vector-effect"};
     const auto valid_unit_interval = [](const std::string& text) {
         try {
@@ -295,6 +296,9 @@ std::optional<std::string> validate_svg_subset(
             if (const auto it = properties.find("fill-rule"); it != properties.end() &&
                 it->second != "evenodd" && it->second != "nonzero")
                 return "SVG fill-rule must be evenodd or nonzero";
+            if (const auto it = properties.find("clip-rule"); it != properties.end() &&
+                it->second != "evenodd" && it->second != "nonzero")
+                return "SVG clip-rule must be evenodd or nonzero";
             if (const auto it = properties.find("stroke-dashoffset"); it != properties.end()) {
                 try {
                     std::size_t consumed = 0;

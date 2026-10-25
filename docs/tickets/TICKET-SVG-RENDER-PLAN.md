@@ -766,6 +766,16 @@ Verification on the rebuilt `linux-video-test` software CLI:
 Vulkan certification remains with the user. Other text gaps listed above,
 general SVG filters and broader SMIL timing remain open.
 
+### CPU clip-rule support — 2026-10-25
+
+The importer now accepts SVG `clip-rule="evenodd"` and `clip-rule="nonzero"`
+on clip-path definitions and their descendant geometry, carrying the resolved
+rule into Chronon's canonical `PathFillRule`. A clipPath whose geometry resolves
+to conflicting rules is rejected because the current single-PathShape mask
+contract cannot preserve per-subpath clip rules. Verification on the CPU/SVG
+build: `chronon3d_svg_path_loader_tests`, 48/48 cases and 374/374 assertions;
+strict Vulkan parity is not claimed.
+
 ### SVG text paint overlays and current software verification — 2026-10-20
 
 Per-code-point paint inside a shaped grapheme is now implemented for the

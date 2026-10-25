@@ -2967,6 +2967,7 @@
             "arc",
             "grid",
             "dot_grid",
+            "ring_segment",
             "device_frame"
           ]
         },
@@ -3052,7 +3053,7 @@
         },
         "inner_radius_ratio": {
           "type": "number",
-          "exclusiveMinimum": 0,
+          "minimum": 0,
           "exclusiveMaximum": 1
         },
         "rotation_degrees": {
@@ -3670,6 +3671,7 @@
                   "arc",
                   "grid",
                   "dot_grid",
+                  "ring_segment",
                   "device_frame"
                 ]
               }
@@ -3731,6 +3733,13 @@
               ]
             }
           }
+        },
+        {
+          "if": {
+            "properties": {"type": {"const": "ring_segment"}},
+            "required": ["type"]
+          },
+          "then": {"required": ["fill"]}
         },
         {
           "if": {

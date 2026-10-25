@@ -36,6 +36,7 @@ ShapeContentTypePlan decode_shape_type(std::string_view name) {
         std::pair{"dot_grid"sv, Shape::DotGrid},
         std::pair{"dotgrid"sv, Shape::DotGrid},
         std::pair{"device_frame"sv, Shape::DeviceFrame},
+        std::pair{"ring_segment"sv, Shape::RingSegment},
     };
     for (const auto& [name_value, type] : types)
         if (name == name_value) return type;
@@ -116,7 +117,8 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
         const bool procedural = shape.type == ShapeContentTypePlan::Star ||
             shape.type == ShapeContentTypePlan::Polygon || shape.type == ShapeContentTypePlan::Arrow ||
             shape.type == ShapeContentTypePlan::Arc || shape.type == ShapeContentTypePlan::Grid ||
-            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::DeviceFrame;
+            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::DeviceFrame ||
+            shape.type == ShapeContentTypePlan::RingSegment;
         if (shape.type != ShapeContentTypePlan::DeviceFrame &&
             (raw_shape.contains("device") || raw_shape.contains("chrome")))
             throw std::runtime_error("device and chrome options are only valid for device_frame");
@@ -157,6 +159,11 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
              raw_shape.contains("head_ratio") || raw_shape.contains("start_degrees") ||
              raw_shape.contains("sweep_degrees") || raw_shape.contains("segments")))
             throw std::runtime_error("dot_grid received parameters for another procedural shape");
+        if (shape.type == ShapeContentTypePlan::RingSegment &&
+            (raw_shape.contains("points") || raw_shape.contains("rotation_degrees") ||
+             raw_shape.contains("shaft_ratio") || raw_shape.contains("head_ratio") ||
+             raw_shape.contains("spacing") || raw_shape.contains("dot_radius")))
+            throw std::runtime_error("ring_segment received parameters for another procedural shape");
         if (shape.type == ShapeContentTypePlan::DeviceFrame &&
             (raw_shape.contains("points") || raw_shape.contains("inner_radius_ratio") ||
              raw_shape.contains("rotation_degrees") || raw_shape.contains("shaft_ratio") ||
@@ -180,6 +187,13 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
                 throw std::runtime_error("arc shapes require a stroke");
             shape.path = make_arc_path(layer.size[0], layer.size[1],
                 raw_shape.value("start_degrees", 0.0f), raw_shape.value("sweep_degrees", 270.0f),
+                raw_shape.value("segments", 64u));
+        } else if (shape.type == ShapeContentTypePlan::RingSegment) {
+            shape.inner_radius_ratio = raw_shape.value("inner_radius_ratio", 0.0f);
+            shape.arc_start_deg = raw_shape.value("start_degrees", 0.0f);
+            shape.arc_sweep_deg = raw_shape.value("sweep_degrees", 90.0f);
+            shape.path = make_ring_segment_path(layer.size[0], layer.size[1],
+                shape.arc_start_deg, shape.arc_sweep_deg, shape.inner_radius_ratio,
                 raw_shape.value("segments", 64u));
         } else if (shape.type == ShapeContentTypePlan::Grid) {
             if (!raw_shape.contains("stroke"))
@@ -225,6 +239,7 @@ void decode_shape_and_fill_gradient(LayerPlan& layer, const nlohmann::json& valu
              shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
              shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Arc ||
              shape.type == ShapeContentTypePlan::Grid || shape.type == ShapeContentTypePlan::DotGrid ||
+             shape.type == ShapeContentTypePlan::RingSegment ||
              (shape.type == ShapeContentTypePlan::Path && !shape.svg_asset &&
               !shape.lottie_asset)) && shape.path.empty())
             throw std::runtime_error("line and path shapes require path commands");

@@ -847,6 +847,36 @@ TEST_CASE("SVG clip scopes stay distinct for grouped sibling paths") {
     CHECK(result.elements[1].vector_masks[1].commands.size() > 0);
 }
 
+TEST_CASE("SVG clip-rule maps to the canonical clip fill rule") {
+    const std::string filename = "temp_test_svg_clip_rule.svg";
+    const auto load = [&](const std::string& definition) {
+        {
+            std::ofstream out(filename);
+            out << "<svg clip-path=\"url(#clip)\"><defs>" << definition
+                << "</defs><path d=\"M0 0H20V20H0Z\"/></svg>";
+        }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return result;
+    };
+
+    const auto even_odd = load(
+        R"svg(<clipPath id="clip" clip-rule="evenodd"><path d="M0 0H20V20H0Z M5 5H15V15H5Z"/></clipPath>)svg");
+    REQUIRE(even_odd.ok);
+    REQUIRE(even_odd.vector_mask.has_value());
+    CHECK(even_odd.vector_mask->fill_rule == PathFillRule::EvenOdd);
+
+    const auto inherited = load(
+        R"svg(<clipPath id="clip" style="clip-rule:evenodd"><g><path d="M0 0H20V20H0Z"/></g></clipPath>)svg");
+    REQUIRE(inherited.ok);
+    REQUIRE(inherited.vector_mask.has_value());
+    CHECK(inherited.vector_mask->fill_rule == PathFillRule::EvenOdd);
+
+    const auto inconsistent = load(
+        R"svg(<clipPath id="clip"><path clip-rule="evenodd" d="M0 0H10V10H0Z"/><path clip-rule="nonzero" d="M10 10H20V20H10Z"/></clipPath>)svg");
+    CHECK_FALSE(inconsistent.ok);
+}
+
 TEST_CASE("SVG tspan text-anchor creates a distinct chunk scope") {
     const std::string filename = "temp_test_svg_text_anchor_scope.svg";
     {
