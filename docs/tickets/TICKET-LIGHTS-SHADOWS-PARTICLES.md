@@ -25,14 +25,29 @@ portate, e istanziamento GPU per le particelle).
   caster CPU-authoritative vengono promossi a una superficie temporanea.
 - Il test di regressione Vulkan verifica proiezione, tinta/alpha, autorità GPU
   e ripetibilità byte-identica. `chronon3d_backend_registry_tests`: **1/1
-  target passato** (38.79 s); il test aggiunto contiene 15 asserzioni.
-- Il render CLI T05 non ha prodotto un'immagine di revisione: la capability
-  probe dell'encoder collegato al CLI non rileva NVENC, pur essendo disponibile
-  sull'host. Senza render A/B visibile non certifichiamo contrasto e qualità
-  dello shot.
-- Stato T05: **PARTIAL**. Il percorso nativo e il test backend sono chiusi; il
-  gate di produzione resta aperto fino all'output CLI e alla revisione visiva.
+  target passato** (38.79 s); il test aggiunto contiene 15 asserzioni. Il test
+  è stato eseguito nel WSL corrente: `vulkaninfo` seleziona `llvmpipe` CPU, per
+  cui verifica le operazioni Vulkan native ma non la RTX fisica.
+- Il strict render CLI T05 fallisce prima dell'export con
+  `required_gpu_capability_unavailable`. In WSL non è esposto un device Vulkan
+  NVIDIA. Il render software di controllo termina, ma usa il ramo CPU di
+  `ShadowNode` e non costituisce prova visiva del pass nativo.
+- NVENC funziona con il FFmpeg di sistema; la build CLI collegata non rileva
+  l'encoder NVENC. Risolto il device Vulkan, servirà anche un export di review
+  che non falsi il gate strict o una build FFmpeg collegata con NVENC.
+- Stato T05: **PARTIAL**. Il percorso nativo e il test backend sono implementati;
+  la verifica sul device fisico e il gate di produzione restano aperti.
   Dettagli: [`evidenza pass Vulkan`](../evidence/lights-shadows/T05-native-vulkan-20261026/README.md).
+
+### Requisito ambiente per certificazione hardware
+
+Per chiudere il gate T05 serve eseguire la regressione e il render del RenderPlan
+su un device Vulkan NVIDIA reale, poi confrontare output senza/con ombre. Questo
+host Windows vede la RTX 4060 Ti con Vulkan, ma il target C3D Windows non
+compila ancora: il backend include `unistd.h` non portabile e il validator MSVC
+fallisce sugli identificatori `near`/`far` e sugli schema JSON generati troppo
+lunghi. Il WSL locale usa solo `llvmpipe` per Vulkan. Finché uno di questi
+blocchi non è risolto, T05 resta **PARTIAL**.
 
 ## Audit di partenza (2026-10-08)
 

@@ -72,14 +72,21 @@ the prior images above are pre-fix and do not certify the adjustment.
 
 - Synced ChrononMotion3D `origin/main` through `e49f121`; the T17 48° FOV and
   T18 1.4 rad camera arc are present in remote commit `28a3d6a`.
-- Tried configuring one combined T17/T18 renderer build with the existing
-  Linux vcpkg dependency prefix. CMake reports that CUDA/FFmpeg interop is
-  unavailable and that the GPU certification runner will refuse to render.
-  The archived T17/T18 contact sheets are still from before the camera fixes.
+- Built both renderer targets after explicitly supplying the installed CUDA
+  include/runtime paths and the missing CUDA CRT/OpenGL headers. The default
+  WSL GL renderer is llvmpipe and is rejected. Forcing Mesa D3D12 selects the
+  RTX 4060 Ti, but the first CUDA-GL call fails with `cudaGLGetDevices: OS call
+  failed or operation not supported on this OS`; WSL graphics interop cannot
+  satisfy the canaries' PBO-to-CUDA encode contract.
+- The archived T17/T18 contact sheets are still from before the camera fixes.
+  Review renders can use D3D12 plus a staged readback path, but such renders
+  would not pass the current zero-copy certification gates.
 - No new GPU frames were produced, so framing, moving depth/alpha, rack focus,
   motion blur, and camera timing for T16–T18 are not newly certified. Keep
   G03/G05–G08 and T16–T18 **PARTIAL** until a CUDA/FFmpeg-enabled build renders
-  the corrected shots and their required frame samples are reviewed.
+  the corrected shots and their required frame samples are reviewed on native
+  Linux NVIDIA EGL/GL, or the certification runner is updated and revalidated
+  for the WSL D3D12 staging path.
 
 ## T16 Camera Truth follow-up (2026-10-19; updated 2026-10-21)
 
