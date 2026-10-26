@@ -128,6 +128,7 @@ bool NativeAvEncoder::close() {
         flush_ok = drain_packets();
     }
     if (flush_ok && duplicate_run_active_ &&
+        duplicate_run_mode_ == DuplicateRunMode::Replicate &&
         duplicate_replicated_through_pts_ <
             static_cast<std::int64_t>(frames_written_) - 1) {
         if (duplicate_prerun_packets_received_ <

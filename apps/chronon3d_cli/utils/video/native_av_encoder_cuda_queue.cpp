@@ -76,6 +76,11 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
             // frames after a static run as duplicate samples and append old
             // anchor packets after their DTS had already reached the mux.
             duplicate_run_active_ = false;
+            duplicate_run_mode_ = DuplicateRunMode::Undecided;
+            last_real_frame_pts_ = static_cast<std::int64_t>(frame_pts);
+            last_real_packet_seen_ = false;
+            last_real_packet_was_key_ = false;
+            last_real_key_packet_.reset();
             const bool segment_start = segmented_mux_ && std::any_of(
                 options_.output_segments.begin(), options_.output_segments.end(),
                 [frame_pts](const auto& segment) { return segment.start_pts == frame_pts; });

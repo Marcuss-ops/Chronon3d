@@ -31,6 +31,7 @@
 #include <chronon3d/text/glyph_atlas.hpp>
 
 #include <spdlog/spdlog.h>
+
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/text/mtsdf_profile.hpp>
 #include <chronon3d/text/text_color_packing.hpp>

@@ -127,7 +127,14 @@ void write_render_job_receipt(const RenderJob& job,
                          receipt_path.string(), receipt.verification.resolved_policy,
                          receipt.copy_eligible ? "true" : "false");
         }
-        return;
+        // A requested mirror is an artifact too: its receipt must accompany
+        // the per-item receipts so the batch consumer can verify it without
+        // re-probing or losing the canonical identity claim.
+        std::error_code mirror_ec;
+        if (job.output.empty() ||
+            !std::filesystem::is_regular_file(job.output, mirror_ec) || mirror_ec) {
+            return;
+        }
     }
 #ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
     if (!input.precomputed_media.has_value() && job.mode == RenderMode::Video) {

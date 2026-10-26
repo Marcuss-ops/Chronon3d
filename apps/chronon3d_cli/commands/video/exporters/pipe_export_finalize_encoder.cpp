@@ -195,6 +195,20 @@ PipeExportResult make_pipe_export_result(
                                 std::move(verification)});
         }
 
+        // Isolated per-item retry is the P4 contract: ONE corrupt item leaves
+        // its verified siblings published and only its own window to
+        // RenderingGen's single-segment retry. A session that verified NOTHING
+        // is a different failure: the segmentation itself did not run, and
+        // reporting success with zero per-item outputs is precisely the silent
+        // degradation this contract forbids.
+        if (batch_ok && verified.empty()) {
+            spdlog::error(
+                "[video] segmented session verified no segment at all ({} "
+                "requested): refusing to report a successful batch",
+                session.opts.output_segments.size());
+            batch_ok = false;
+        }
+
         std::vector<std::filesystem::path> published;
         if (batch_ok) {
             for (const auto& item : verified) {
@@ -251,8 +265,15 @@ PipeExportResult make_pipe_export_result(
             std::error_code ec;
             std::filesystem::remove(segment.output_path, ec);
         }
-        if (!result.success) log_pipe_export_failure(status);
-        return result;
+        // Segment-only callers have no whole-timeline artifact. When a
+        // mirror was requested, finalize it through the SAME canonical
+        // verification/publication path as any other MP4 below. Returning
+        // here used to strand the mirror in staging while the worker still
+        // required its final path and receipt.
+        if (session.original_output_path.empty()) {
+            if (!result.success) log_pipe_export_failure(status);
+            return result;
+        }
     }
 
     if (!result.success) {
