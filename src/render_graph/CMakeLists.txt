@@ -16,6 +16,10 @@ add_library(chronon3d_graph_core OBJECT
     registry/graph_node_catalog.cpp
     layer_resolver.cpp
     core/scene_hasher.cpp
+    render_graph_hashing.cpp
+    render_backend.cpp
+    render_graph_context.cpp
+    node_memory_tracker.cpp
 )
 set_target_properties(chronon3d_graph_core PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_core
@@ -223,6 +227,10 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/refresh/transform.cpp
     pipeline/debug.cpp
     pipeline/composition.cpp
+    pipeline/composition_frame_prepare.cpp
+    pipeline/composition_frame_single.cpp
+    pipeline/composition_frame_temporal.cpp
+    pipeline/composition_frame_finalize.cpp
     pipeline/register_pipeline_nodes.cpp
 )
 set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
