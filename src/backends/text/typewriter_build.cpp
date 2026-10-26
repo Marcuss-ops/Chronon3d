@@ -1,9 +1,6 @@
 // ── Typewriter Build ───────────────────────────────────────────────────────────
 // Implementation of typewriter_build and typewriter_text.
 //
-// Provenance: restored to core from the externalized content pack
-// (content/text/typewriter_build.cpp, removed in 6e6905116).
-
 #include <chronon3d/text/typewriter_layout.hpp>
 #include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
