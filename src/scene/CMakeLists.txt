@@ -26,8 +26,6 @@ add_library(chronon3d_scene OBJECT
     motion_contract_apply.cpp
     element_contract.cpp
 
-    # Authoring facade implementations that depend on LayerBuilder.
-    subtitle_track_builder.cpp
 )
 
 # ==============================================================================

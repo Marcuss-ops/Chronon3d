@@ -49,7 +49,7 @@ namespace {
                             .rotate({0.0f, canary_lerp(-24.0f, 24.0f, t), 0.0f})
                             .scale({canary_lerp(0.72f, 1.0f, canary_smoothstep(t)),
                                     canary_lerp(0.72f, 1.0f, canary_smoothstep(t)), 1.0f});
-                        l.effect(GlowPresets::canary_black(28.0f));
+                        l.effect(GlowParams{.radius = 28.0f, .intensity = 0.25f, .color = Color::white()});
                         l.text("product_title", canary_text(
                             id == "macbook_product" ? "MACBOOK PRODUCT" : "PRODUCT ORBIT",
                             kCanaryFontBold, 132.0f, 700,
@@ -69,7 +69,7 @@ namespace {
                                     canary_lerp(0.82f, 1.0f, canary_smoothstep(t)), 1.0f})
                             .rotate({canary_lerp(-8.0f, 8.0f, t),
                                      canary_lerp(-12.0f, 12.0f, t), 0.0f});
-                        l.effect(GlowPresets::canary_black(34.0f));
+                        l.effect(GlowParams{.radius = 34.0f, .intensity = 0.25f, .color = Color::white()});
                         l.text("title", typewriter
                             ? canary_element_text("TYPEWRITER 3D", ElementCanaryMode::Motion)
                             : canary_text(

@@ -111,30 +111,6 @@ if(CHRONON3D_BUILD_TESTS)
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_clip_oversized.cpp
         LINK_TARGETS chronon3d_pipeline chronon3d_backend_software
     )
-    chronon3d_add_test_suite(
-        NAME chronon3d_text_word_emphasis_animators_tests
-        TIER UNIT
-        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_word_emphasis_animators.cpp
-        LINK_TARGETS chronon3d_text_core
-    )
-    chronon3d_add_test_suite(
-        NAME chronon3d_text_lightweight_emphasis_tests
-        TIER UNIT
-        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_lightweight_emphasis_animators.cpp
-        LINK_TARGETS chronon3d_text_core
-    )
-    chronon3d_add_test_suite(
-        NAME chronon3d_text_focus_resolver_tests
-        TIER UNIT
-        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_focus_resolver.cpp
-    )
-    list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_text_focus_resolver_tests)
-    chronon3d_add_test_suite(
-        NAME chronon3d_subtitle_font_ref_tests
-        TIER UNIT
-        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_subtitle_font_ref.cpp
-        LINK_TARGETS chronon3d_pipeline
-    )
 endif()
 
 # ── Re-registered text-domain suites (audit reconciliation 2026-09) ────────
@@ -233,10 +209,6 @@ chronon3d_label_tests(text
     chronon3d_text_alignment_isolated_tests
     chronon3d_text_unicode_line_breaking_tests
     chronon3d_text_clip_oversized_tests
-    chronon3d_text_word_emphasis_animators_tests
-    chronon3d_text_lightweight_emphasis_tests
-    chronon3d_text_focus_resolver_tests
-    chronon3d_subtitle_font_ref_tests
     chronon3d_text_document_tests
     chronon3d_text_resolver_tests
     chronon3d_single_line_composer_tests

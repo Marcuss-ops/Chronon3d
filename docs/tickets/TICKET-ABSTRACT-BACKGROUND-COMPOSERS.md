@@ -14,7 +14,7 @@ parameters, and expected outputs cannot be certified from the pasted summary.
 
 ## Repository facts verified for this contract
 
-- `include/chronon3d/render_plan/effect_presets.hpp` already provides
+- ChrononPlugin's `plugins/effects/include/chrononplugin/effects/presets.hpp` provides
   `paper_fold`, `LightLeakProfile` / `LightLeakResolver`, deterministic
   `AnimatedLightLeakEmitter`, `cinematic_soft_blob`, `cinematic_edge_burn`,
   `cinematic_diagonal_streak`, `cinematic_bezier_ribbon`, and the

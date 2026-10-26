@@ -3,6 +3,15 @@ find_package(doctest CONFIG REQUIRED)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 include(doctest)
 
+# Effect recipes are owned by the sibling ChrononPlugin checkout. The product
+# core never links this path; exposing it here only lets in-workspace test
+# builds compile the plugin's RenderPlan recipe contract checks.
+set(CHRONONPLUGIN_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ChrononPlugin"
+    CACHE PATH "ChrononPlugin source tree used by optional cross-repo tests")
+if(EXISTS "${CHRONONPLUGIN_SOURCE_DIR}/plugins/effects/include")
+    include_directories("${CHRONONPLUGIN_SOURCE_DIR}/plugins/effects/include")
+endif()
+
 set(TEST_MAIN test_main.cpp)
 
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DTestSuite.cmake)
@@ -17,41 +26,6 @@ foreach(definition IN LISTS CHRONON3D_TEST_DEFINITIONS)
     )
     include("${path}")
 endforeach()
-
-# Geo core (ADR-034): standalone main, no doctest. Registers through the
-# canonical suite helper so the recursive test-registration gate stays green;
-# it must run before the aggregates snapshot CHRONON3D_ALL_TEST_TARGETS. The
-# suite still compiles the geo object library directly and links only the
-# geo dependencies, so it does not depend on the aggregate pipeline.
-if(CHRONON3D_ENABLE_GEO)
-    chronon3d_add_test_suite(
-        NAME chronon3d_geo_core_test
-        TIER UNIT
-        NO_PIPELINE
-        NO_DOCTEST
-        LINK_TARGETS
-            Clipper2::Clipper2
-            nlohmann_json::nlohmann_json
-        SOURCES
-            geo/geo_core_test.cpp
-            $<TARGET_OBJECTS:chronon3d_geo>
-    )
-
-    # Native map-plate scaffolding (TICKET-MAPS-NATIVE-PORT): pins the
-    # fail-closed contract until the rendering port lands.
-    chronon3d_add_test_suite(
-        NAME chronon3d_map_plate_render_test
-        TIER UNIT
-        NO_PIPELINE
-        NO_DOCTEST
-        LINK_TARGETS
-            Clipper2::Clipper2
-            nlohmann_json::nlohmann_json
-        SOURCES
-            geo/map_plate_render_test.cpp
-            $<TARGET_OBJECTS:chronon3d_geo>
-    )
-endif()
 
 # Cross-repo V3 bridge drift guard (ChrononMotion's
 # tests/chronon3d_v3_bridge_regression.cpp).

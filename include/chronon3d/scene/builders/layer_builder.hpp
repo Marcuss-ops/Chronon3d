@@ -31,7 +31,6 @@
 
 namespace chronon3d {
 
-namespace authoring { class SubtitleTrackBuilder; }
 
 class FontEngine;
 struct ExtensionContext;
@@ -220,12 +219,6 @@ public:
 
 private:
     friend class builders::testing::LayerBuilderInspector;
-    friend class authoring::SubtitleTrackBuilder;
-
-    [[nodiscard]] Frame current_frame_for_authoring() const noexcept {
-        return m_current_time.integral_frame();
-    }
-
     Layer m_layer;
     SampleTime m_current_time{SampleTime::from_frame_int(0, FrameRate{30, 1})};
     std::optional<Frame> m_until_frame{};
