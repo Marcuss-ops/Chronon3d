@@ -213,6 +213,8 @@ struct ImportedSubpathPlan {
     struct SvgTransformAnimationPlan {
         std::string operation; // translate | scale | rotate
         AnimationTrackPlan animation;
+        std::array<float, 2> pivot{0.0f, 0.0f};
+        bool has_pivot{false};
     };
     /// Ordered SVG animateTransform operations, outermost first.
     std::vector<SvgTransformAnimationPlan> svg_transform_animations;

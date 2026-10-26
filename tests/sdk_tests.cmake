@@ -40,10 +40,17 @@ set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_validator.cpp
     c_abi/test_render_plan_consolidation.cpp
     c_abi/test_prepared_render_plan.cpp
+<<<<<<< HEAD
     c_abi/test_prepared_render_plan.part02.cpp
     c_abi/test_prepared_render_plan.part03.cpp
     c_abi/test_prepared_render_plan.part04.cpp
     c_abi/test_prepared_render_plan.part05.cpp)
+=======
+    c_abi/test_prepared_render_plan_runtime.cpp
+    c_abi/test_prepared_render_plan_timeline.cpp
+    c_abi/test_render_plan_decoder_features.cpp
+    c_abi/test_render_plan_decoder_validation.cpp)
+>>>>>>> 9e9b00310 (feat(svg): support fixed-pivot rigging and split tests)
 if(TARGET chronon3d_c)
     list(APPEND _chronon3d_c_abi_links chronon3d_c)
     list(APPEND _chronon3d_c_abi_sources c_abi/test_c_api_v2.cpp)

@@ -183,7 +183,8 @@ std::optional<PlanDecodeError> append_svg_imported_elements(
                     ? "scale" : "rotate";
                 subpath.svg_transform_animations.push_back(
                     ImportedSubpathPlan::SvgTransformAnimationPlan{
-                        operation, std::move(track)});
+                        operation, std::move(track), svg_animation.pivot,
+                        svg_animation.has_pivot});
                 continue;
             }
             std::optional<AnimationTrackPlan>* destination = nullptr;

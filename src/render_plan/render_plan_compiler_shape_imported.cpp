@@ -244,7 +244,7 @@ for (std::size_t path_index = 0;
         for (auto transform = source.svg_transform_animations.rbegin();
              transform != source.svg_transform_animations.rend(); ++transform) {
             const Vec2 values = transform->operation == "rotate"
-                ? Vec2{0.0f, 0.0f}
+                ? Vec2{transform->pivot[0], transform->pivot[1]}
                 : sample_vec2(transform->animation,
                     transform->operation == "scale" ? Vec2{1.0f, 1.0f}
                     : Vec2{0.0f, 0.0f});
@@ -259,8 +259,9 @@ for (std::size_t path_index = 0;
                 if (transform->operation == "scale") {
                     return point * values;
                 }
-                return Vec2{cosine * point.x - sine * point.y,
-                            sine * point.x + cosine * point.y};
+                const Vec2 local = point - values;
+                return Vec2{cosine * local.x - sine * local.y,
+                            sine * local.x + cosine * local.y} + values;
             };
             for (auto& command : imported_path.commands) {
                 if (command.type == PathCommandType::Close) continue;

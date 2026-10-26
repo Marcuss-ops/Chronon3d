@@ -44,6 +44,8 @@ struct SvgStyleState {
     std::string source_id;
     std::vector<std::string> group_ids;
     std::vector<SvgAnimationSpec> inherited_animations;
+    bool has_static_transform_scope{false};
+    bool static_transform_scopes_translation{true};
     std::optional<SvgMorphAnimationSpec> morph_animation;
     // ADR-035 — isolated SVG groups enclosing this element, outermost first.
     std::vector<SvgStyleGroupRef> groups;

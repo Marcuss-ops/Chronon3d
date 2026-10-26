@@ -21,6 +21,9 @@ struct SvgAnimationSpec {
     SvgAnimationKind kind{SvgAnimationKind::Opacity};
     std::array<float, 4> from{};
     std::array<float, 4> to{};
+    // animateTransform rotate may carry one fixed center (cx, cy).
+    std::array<float, 2> pivot{0.0f, 0.0f};
+    bool has_pivot{false};
     std::uint8_t components{1};
     float begin_seconds{0.0f};
     float duration_seconds{0.0f};

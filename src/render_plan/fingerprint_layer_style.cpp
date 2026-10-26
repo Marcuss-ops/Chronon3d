@@ -235,6 +235,10 @@ void add_layer_style_and_shape(CanonicalPlanWriter& out, const LayerPlan& layer)
                 for (const auto& transform : subpath.svg_transform_animations) {
                     out.add_string(transform.operation);
                     add_track(out, transform.animation);
+                    if (transform.has_pivot) {
+                        out.add_bool(true);
+                        for (const auto value : transform.pivot) out.add_float(value);
+                    }
                 }
             }
             if (!subpath.morph_target.empty() || subpath.morph_animation) {
