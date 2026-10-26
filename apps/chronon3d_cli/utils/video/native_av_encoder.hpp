@@ -197,20 +197,21 @@ public:
     /// previous one can be emitted without touching the pixel path. Two
     /// mechanisms live inside write_duplicate_frame():
     ///   • packet replication (O(1) per frame) — used only where the run
-    ///     anchor is provably exact: a software session whose content-stretch
-    ///     root frame's OWN packet is a key packet of this very stream, so a
-    ///     replica decodes to exactly the pixels a full render would show;
-    ///   • buffer resubmission — the previous frame's own buffers go back
+    ///     anchor is provably exact: the content-stretch root frame's OWN
+    ///     packet is a key packet of this very stream (the session's first
+    ///     frame, or a key the codec has already published), so a replica
+    ///     decodes to exactly the pixels the run must show — bit-exact with
+    ///     the full render's root frame and stale-pixel free;
+    ///   • buffer resubmission — everything else (e.g. a settled hold whose
+    ///     root is a P packet): the previous frame's own buffers go back
     ///     through the codec as an ordinary frame, so the encoder sees exactly
     ///     the frame sequence a full render would submit and the produced
     ///     stream is bit-exact with that render (no forged sample, no drift,
-    ///     no stale pixels whatever the codec does with packet order). NVENC
-    ///     sessions always take this path: NVENC's publication order is not
-    ///     reliable enough to forge samples from (the 25/10 DTS incidents).
+    ///     no stale pixels whatever the codec does with packet order).
     /// The capability is refused on DirectYUV sessions (typed feed) and on
     /// borrowed-mux sessions (the caller's schedule owns every sample slot).
     [[nodiscard]] bool supports_duplicate_frames() const override {
-        return !options_.direct_yuv_mode && options_.output_segments.empty();
+        return !options_.direct_yuv_mode;
     }
     /// Emit frame `frame_number` as a packet-level duplicate (see the
     /// run-anchor mechanism in native_av_encoder_write.cpp). Fail-closed:

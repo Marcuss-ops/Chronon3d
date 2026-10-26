@@ -59,8 +59,8 @@ struct GpuTextRunDynamic {
     float animator_scale_y;
     float animator_rotation_z;
     uint animator_fill_color;
-    uint animator_reserved3;
-    uint animator_reserved4;
+    float animator_shear_x;
+    float animator_shear_y;
     uint animator_reserved5;
 };
 
@@ -284,6 +284,18 @@ void main() {
                 vec2 d = local - vec2(glyph.origin_x, glyph.origin_y);
                 local = vec2(glyph.origin_x, glyph.origin_y) +
                         vec2(d.x * ca + d.y * sa, -d.x * sa + d.y * ca);
+            }
+            if (run.animator_shear_x != 0.0 || run.animator_shear_y != 0.0) {
+                float shx = run.animator_shear_x * reveal_weight;
+                float shy = run.animator_shear_y * reveal_weight;
+                float det = 1.0 - shx * shy;
+                if (abs(det) > 1e-5) {
+                    vec2 d = local - vec2(glyph.origin_x, glyph.origin_y);
+                    float inv_det = 1.0 / det;
+                    local = vec2(glyph.origin_x, glyph.origin_y) +
+                            vec2((d.x - shx * d.y) * inv_det,
+                                 (-shy * d.x + d.y) * inv_det);
+                }
             }
             inside = local.x >= glyph.plane_left && local.x < glyph.plane_right &&
                      local.y >= glyph.plane_top  && local.y < glyph.plane_bottom;

@@ -75,6 +75,8 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
             // this queue instead. Leaving it set made close() treat real CUDA
             // frames after a static run as duplicate samples and append old
             // anchor packets after their DTS had already reached the mux.
+            const bool resync = duplicate_run_active_ &&
+                duplicate_run_mode_ == DuplicateRunMode::Replicate;
             duplicate_run_active_ = false;
             duplicate_run_mode_ = DuplicateRunMode::Undecided;
             last_real_frame_pts_ = static_cast<std::int64_t>(frame_pts);
@@ -84,7 +86,7 @@ bool NativeAvEncoder::drain_ready_cuda_frames(bool wait_for_one) {
             const bool segment_start = segmented_mux_ && std::any_of(
                 options_.output_segments.begin(), options_.output_segments.end(),
                 [frame_pts](const auto& segment) { return segment.start_pts == frame_pts; });
-            pending.frame->pict_type = (session_restart_intra_pending_ || segment_start)
+            pending.frame->pict_type = (resync || session_restart_intra_pending_ || segment_start)
                 ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
         }
         const auto send_t0 = Clock::now();

@@ -411,8 +411,8 @@ struct alignas(16) TextRunDynamic {
     /// `color` towards this value by the selector weight when the animator
     /// fill flag (see gpu_text_selector_metadata.hpp) is set.
     std::uint32_t animator_fill_color{0};
-    std::uint32_t animator_reserved3{0};
-    std::uint32_t animator_reserved4{0};
+    float animator_shear_x{0.0f};
+    float animator_shear_y{0.0f};
     std::uint32_t animator_reserved5{0};
 };
 static_assert(sizeof(TextRunDynamic) == 128,

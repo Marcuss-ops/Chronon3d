@@ -327,6 +327,9 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
     }
 
     ++frames_written_;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    frames_submitted_ = frames_written_;
+#endif
     last_frame_telemetry_ = {
         .conversion_copy_ms = frame_conv_ms,
         .pixel_format_convert_ms = static_cast<double>(pixel_after - pixel_before),
@@ -420,6 +423,8 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
     if (run_start) {
         duplicate_run_active_ = true;
         duplicate_run_mode_ = DuplicateRunMode::Undecided;
+        duplicate_anchor_.reset();
+        duplicate_anchor_pts_ = -1;
         duplicate_run_start_pts_ = frame_number;
         duplicate_prerun_packets_received_ = codec_packets_received_;
         duplicate_prerun_packets_target_ = codec_frames_submitted_;
@@ -445,17 +450,24 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
         }
         //  • Replicate — only where the run anchor is provably exact: the
         //    content-stretch root frame's OWN packet is a key packet of this
-        //    stream, on a software session. NVENC never replicates: its packet
-        //    publication order is not reliable enough to forge samples from.
+        //    stream. That is known outright when the root is the session's
+        //    first frame (every codec opens its stream with a key packet), or
+        //    once the root packet has drained as a key. The replicas then ARE
+        //    the pixels the run must show — bit-exact with the full render's
+        //    root frame, stale-pixel free.
         //  • Resubmit — everything else (bit-exact with a full render).
         const bool anchor_exact =
-            !gpu_nvenc_ && last_real_frame_pts_ >= 0 &&
-            last_real_frame_pts_ < frame_number && last_real_packet_seen_ &&
-            last_real_packet_was_key_ && last_real_key_packet_;
+            !segmented_mux_ &&
+            last_real_frame_pts_ >= 0 &&
+            last_real_frame_pts_ < frame_number &&
+            (last_real_frame_pts_ == 0 ||
+             (last_real_packet_seen_ && last_real_packet_was_key_ &&
+              last_real_key_packet_));
         duplicate_run_mode_ = anchor_exact
             ? DuplicateRunMode::Replicate
             : DuplicateRunMode::Resubmit;
-        if (duplicate_run_mode_ == DuplicateRunMode::Replicate) {
+        if (duplicate_run_mode_ == DuplicateRunMode::Replicate &&
+            last_real_key_packet_ && !duplicate_anchor_) {
             duplicate_anchor_.reset(
                 av_packet_clone(last_real_key_packet_.get()));
             if (!duplicate_anchor_) {
@@ -532,6 +544,9 @@ bool NativeAvEncoder::emit_duplicate_replicas_through_(std::int64_t frame_number
     native_mux_write_ms_ += elapsed_ms(t_mux0);
     duplicate_replicated_through_pts_ = frame_number;
     frames_written_ = static_cast<std::uint64_t>(frame_number) + 1;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    frames_submitted_ = frames_written_;
+#endif
     return true;
 }
 
@@ -556,9 +571,12 @@ bool NativeAvEncoder::submit_duplicate_seed_(std::int64_t frame_pts,
     }
     seed->pts = frame_pts;
     // A replicate-mode run's first seed is forced intra — its packet is the
-    // run anchor. A resubmit-mode seed is an ordinary frame: forcing intra
-    // would diverge from the stream a full render produces.
-    seed->pict_type = (force_intra && frame_pts == duplicate_run_start_pts_)
+    // run anchor. A resubmit-mode seed is an ordinary frame unless it lands on
+    // a segmented-mux boundary, which requires a forced IDR.
+    const bool segment_start = segmented_mux_ && std::any_of(
+        options_.output_segments.begin(), options_.output_segments.end(),
+        [frame_pts](const auto& segment) { return segment.start_pts == frame_pts; });
+    seed->pict_type = ((force_intra && frame_pts == duplicate_run_start_pts_) || segment_start)
         ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
 
     const auto t_send0 = Clock::now();
@@ -595,6 +613,9 @@ bool NativeAvEncoder::submit_duplicate_seed_(std::int64_t frame_pts,
     native_send_frame_ms_ += send_ms;
     native_backpressure_ms_ += backpressure_ms;
     ++frames_written_;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    frames_submitted_ = frames_written_;
+#endif
     return true;
 }
 

@@ -141,7 +141,7 @@ void run_encoder_sink_thread_impl(const EncoderSinkContext& ctx) {
                     1, std::memory_order_relaxed);
             }
             const bool emitted = ctx.encoder.write_duplicate_frame(
-                static_cast<int>(duplicate->frame_number));
+                duplicate->stream_frame_number);
             const auto enc_t1 = profiling::now();
             if (!emitted) {
                 spdlog::error(
