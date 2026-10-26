@@ -10,6 +10,7 @@
 #include <chronon3d/graphics/gradient_mesh.hpp>
 #include <chronon3d/graphics/stroke/brush_profile.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/render_plan/render_plan_gradient.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
@@ -182,17 +183,6 @@ struct PathOperatorPlan {
     std::optional<AnimationTrackPlan> trim_animation;
     /// Repeater keyframes: position x/y, scale x/y, rotation degrees.
     std::optional<AnimationTrackPlan> repeater_animation;
-};
-
-struct GradientKeyframePlan {
-    Frame frame{0};
-    graphics::GradientDefinition value;
-};
-
-struct GradientAnimationPlan {
-    std::vector<GradientKeyframePlan> keyframes;
-    std::string easing{"linear"};
-    std::optional<std::array<float, 4>> bezier_curve;
 };
 
 struct ImportedSubpathPlan {
