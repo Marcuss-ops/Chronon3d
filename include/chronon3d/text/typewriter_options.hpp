@@ -3,11 +3,6 @@
 // ── Typewriter Options ───────────────────────────────────────────────────────
 // Lightweight option structs shared by the typewriter helpers.
 //
-// Provenance: restored to core from the externalized content pack
-// (content/text/typewriter_options.hpp, removed in 6e6905116) together with
-// their implementation — the typewriter types and the FontEngine-owned cache
-// were never externalized, so the helpers could not live apart from core.
-
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/presets/font_asset_paths.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
