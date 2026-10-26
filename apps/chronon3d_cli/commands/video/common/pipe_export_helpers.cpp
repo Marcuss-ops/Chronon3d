@@ -101,6 +101,20 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
             "mux source audio, or combine with a GOP copy lane");
         return std::nullopt;
     }
+    // The per-item windows are cut by NativeAvEncoder's segmented mux writer
+    // (one still-open codec, N independent muxes). The other encoder lanes
+    // write exactly one container and would DROP the windows: the export then
+    // reports success with zero per-item outputs. Refuse fail-closed here —
+    // this is the belt for direct CLI callers that bypass the worker's
+    // request validation.
+    if (!opts.output_segments.empty() &&
+        !is_native_encoder_transport(opts.encoder.encoder_backend)) {
+        spdlog::error(
+            "[video] segmented output requires the native encoder transport: "
+            "only NativeAvEncoder owns the segmented mux writer, so the "
+            "pipe/raw lanes cannot carry per-item output windows");
+        return std::nullopt;
+    }
     const bool hdr_output = opts.pipe.color_output == "pq" ||
                             opts.pipe.color_output == "hlg";
     if (hdr_output && !is_native_encoder_transport(opts.encoder.encoder_backend)) {

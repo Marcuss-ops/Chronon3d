@@ -65,20 +65,28 @@ bool NativeAvEncoder::drain_packets() {
             ? packet_->pts
             : (packet_->dts != AV_NOPTS_VALUE ? packet_->dts : -1);
         if (drained_pts >= 0) {
+            // Content-stretch root bookkeeping: the fate of the last RENDERED
+            // frame's packet decides whether a later duplicate run may
+            // replicate it (write_duplicate_frame's mode decision). Only that
+            // frame's own key packet can anchor replicas — an older key would
+            // replicate stale pixels, a P packet cannot be re-emitted at all.
+            if (last_real_frame_pts_ >= 0 &&
+                drained_pts == last_real_frame_pts_) {
+                last_real_packet_seen_ = true;
+                last_real_packet_was_key_ =
+                    (packet_->flags & AV_PKT_FLAG_KEY) != 0;
+                if (last_real_packet_was_key_) {
+                    last_real_key_packet_.reset(av_packet_clone(packet_));
+                    if (!last_real_key_packet_) {
+                        spdlog::error(
+                            "[native_av] content root key packet capture failed");
+                        return false;
+                    }
+                }
+            }
             if (duplicate_run_active_ &&
                 drained_pts < duplicate_run_start_pts_) {
                 ++duplicate_prerun_packets_received_;
-                if ((packet_->flags & AV_PKT_FLAG_KEY) &&
-                    (!duplicate_anchor_ ||
-                     drained_pts > duplicate_anchor_pts_)) {
-                    duplicate_anchor_.reset(av_packet_clone(packet_));
-                    if (!duplicate_anchor_) {
-                        spdlog::error(
-                            "[native_av] pre-run key packet capture failed");
-                        return false;
-                    }
-                    duplicate_anchor_pts_ = drained_pts;
-                }
             }
             // Keep seed discard windows for the full encoder session.  NVENC
             // may return packets in decode order, so a high PTS can arrive

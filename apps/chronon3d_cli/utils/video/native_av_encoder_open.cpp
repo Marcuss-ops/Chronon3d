@@ -283,6 +283,11 @@ void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
     duplicate_replicated_through_pts_ = -1;
     duplicate_discard_ranges_.clear();
     duplicate_run_active_ = false;
+    duplicate_run_mode_ = DuplicateRunMode::Undecided;
+    last_real_frame_pts_ = -1;
+    last_real_packet_seen_ = false;
+    last_real_packet_was_key_ = false;
+    last_real_key_packet_.reset();
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     frames_submitted_ = 0;
     cuda_pending_peak_ = 0;
@@ -633,6 +638,19 @@ bool NativeAvEncoder::apply_resolved_encoder_options() {
         char surf_str[16];
         snprintf(surf_str, sizeof(surf_str), "%d", nvenc_surfaces);
         if (!set_codec_option_checked(codec_, "surfaces", surf_str)) {
+            return false;
+        }
+        // Forced keyframes are requested through the frame's pict_type (the
+        // segment boundary, the duplicate-run anchor and the cross-item
+        // session restart all rely on that request becoming a real IDR). This
+        // NVENC wrapper drops a forced pict_type entirely unless the private
+        // `forced-idr` option is set: the boundary frame then encodes as a
+        // non-key P packet, and the segmented mux writer rejects it at the
+        // exact segment start (fail-closed `AVERROR_EXTERNAL` after a few
+        // packets). With the option set, a forced frame comes out as a true
+        // IDR key packet — the "forced keyframe at every segment start, with
+        // a GOP cut" contract. The option is inert for unforced frames.
+        if (!set_codec_option_checked(codec_, "forced-idr", "1")) {
             return false;
         }
         switch (resolved.rate_control()) {

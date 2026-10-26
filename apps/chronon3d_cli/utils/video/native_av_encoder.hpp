@@ -192,25 +192,38 @@ public:
         return output_frame_format_;
     }
 
-    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — packet-level frame
-    /// duplication. This encoder owns its mux, so an identical frame can be
-    /// emitted without touching the pixel path. The capability is refused on
-    /// DirectYUV sessions (typed feed) and on borrowed-mux sessions (the
-    /// caller's schedule owns every sample slot).
+    /// P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — duplicate-frame fast
+    /// path. This encoder owns its mux, so a frame proven identical to the
+    /// previous one can be emitted without touching the pixel path. Two
+    /// mechanisms live inside write_duplicate_frame():
+    ///   • packet replication (O(1) per frame) — used only where the run
+    ///     anchor is provably exact: a software session whose content-stretch
+    ///     root frame's OWN packet is a key packet of this very stream, so a
+    ///     replica decodes to exactly the pixels a full render would show;
+    ///   • buffer resubmission — the previous frame's own buffers go back
+    ///     through the codec as an ordinary frame, so the encoder sees exactly
+    ///     the frame sequence a full render would submit and the produced
+    ///     stream is bit-exact with that render (no forged sample, no drift,
+    ///     no stale pixels whatever the codec does with packet order). NVENC
+    ///     sessions always take this path: NVENC's publication order is not
+    ///     reliable enough to forge samples from (the 25/10 DTS incidents).
+    /// The capability is refused on DirectYUV sessions (typed feed) and on
+    /// borrowed-mux sessions (the caller's schedule owns every sample slot).
     [[nodiscard]] bool supports_duplicate_frames() const override {
-        // Packet replication relies on the encoder delivering every frame
-        // before the duplicate run in a DTS-safe position. NVENC's lookahead
-        // can publish a delayed pre-run packet after the run's anchor has
-        // already been replicated, so hardware sessions use the normal
-        // render/encode path for static frames.
-        return !gpu_nvenc_ && !options_.direct_yuv_mode &&
-               options_.output_segments.empty();
+        return !options_.direct_yuv_mode && options_.output_segments.empty();
     }
     /// Emit frame `frame_number` as a packet-level duplicate (see the
     /// run-anchor mechanism in native_av_encoder_write.cpp). Fail-closed:
     /// returns false only where a duplicate cannot be honoured without
     /// breaking the stream, never silently shortens it.
     bool write_duplicate_frame(int frame_number) override;
+
+    /// Observability for the duplicate path: true while a packet-replication
+    /// run is active (the resubmit path reports false — it forges nothing).
+    [[nodiscard]] bool duplicate_run_replicated() const noexcept {
+        return duplicate_run_active_ &&
+               duplicate_run_mode_ == DuplicateRunMode::Replicate;
+    }
 
 private:
     chronon3d::RenderCounters* counters_{nullptr};
@@ -265,6 +278,19 @@ private:
     std::int64_t duplicate_replicated_through_pts_{-1};
     std::deque<std::pair<std::int64_t, std::int64_t>> duplicate_discard_ranges_;
     bool duplicate_run_active_{false};
+    // Duplicate-run mode, decided once at run start (write_duplicate_frame):
+    // `Replicate` re-emits the run anchor's packet (O(1)); `Resubmit` feeds the
+    // run content's own buffers back through the codec as ordinary frames.
+    enum class DuplicateRunMode : std::uint8_t { Undecided, Replicate, Resubmit };
+    DuplicateRunMode duplicate_run_mode_{DuplicateRunMode::Undecided};
+    // Content-stretch root: the last RENDERED frame submitted to the codec and
+    // the fate of its packet once drained. A duplicate run's pixels are this
+    // frame's pixels, so its packet is the only one that can be replicated
+    // without drift (a P packet) or staleness (an older key).
+    std::int64_t last_real_frame_pts_{-1};
+    bool last_real_packet_seen_{false};
+    bool last_real_packet_was_key_{false};
+    media::OwnedAVPacket last_real_key_packet_;
     bool emit_duplicate_replicas_through_(std::int64_t frame_number);
     void extend_duplicate_discard_range_through_(std::int64_t frame_number);
 
@@ -381,7 +407,7 @@ private:
     /// P1: prime the codec's frame-threaded pipeline with a re-submission of
     /// the current AVFrame at `frame_pts` (no conversion, no copy). The run's
     /// first seed is forced intra — its packet becomes the run anchor.
-    bool submit_duplicate_seed_(std::int64_t frame_pts);
+    bool submit_duplicate_seed_(std::int64_t frame_pts, bool force_intra);
     bool mux_source_audio();
     bool drain_ready_cuda_frames(bool wait_for_one);
     [[nodiscard]] const BitstreamTargetContract&

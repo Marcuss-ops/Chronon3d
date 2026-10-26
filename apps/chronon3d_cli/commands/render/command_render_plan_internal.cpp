@@ -631,6 +631,12 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
                         }
                         work.push_back({std::move(segment_input), segment.output_path});
                     }
+                    // The worker still consumes the whole-timeline mirror.
+                    // Include it in the same deferred receipt transaction,
+                    // using the observation already verified at publication.
+                    if (!output.empty()) {
+                        work.push_back({receipt_input, output});
+                    }
                     auto write_segment_receipts = [work = std::move(work)] {
                         for (const auto& item : work) {
                             try {
