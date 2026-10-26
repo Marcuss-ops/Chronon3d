@@ -113,7 +113,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/luminance_response.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/motion_field.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/temporal_history.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/presets/glow_presets.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/bounds.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/mesh.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/vertex.hpp"

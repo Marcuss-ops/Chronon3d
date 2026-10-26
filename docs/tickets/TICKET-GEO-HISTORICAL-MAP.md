@@ -1,6 +1,6 @@
 # TICKET-GEO-HISTORICAL-MAP — Cartografia storica headless
 
-**Stato:** IN PROGRESS
+**Stato:** MIGRATO FUORI DAL CORE — scope funzionale residuo ancora parziale
 **ADR:** [ADR-034](../adr/ADR-034-geo-historical-maps.md)
 **Created:** 2026-10-08
 
@@ -10,14 +10,14 @@ Stato usando `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`.
 
 | # | Voce | Stato | Note |
 |---|---|---|---|
-| 1 | GeoJSON importer (Polygon, MultiPolygon, proprietà) | PARTIAL | `src/geo/geojson.cpp`; test standalone PASS; CMake/ctest NOT RUN |
-| 2 | Query per proprietà sulla collezione | PARTIAL | `query_by_property` (equality); test standalone PASS; niente query composte |
-| 3 | HistoricalGeoTimeline a snapshot (nearest, source/confidence/date range) | PARTIAL | `src/geo/historical_timeline.cpp`; test standalone PASS |
-| 4 | GeoBoolean / GeoDissolve (Union, Difference, Intersection, XOR) | PARTIAL | Clipper2 2.0.1; `src/geo/geo_boolean.cpp`; test standalone PASS; CMake/vcpkg NOT RUN |
+| 1 | GeoJSON importer (Polygon, MultiPolygon, proprietà) | PARTIAL | Trasferito a `ChrononPlugin/plugins/maps`; test Plugin conservati |
+| 2 | Query per proprietà sulla collezione | PARTIAL | Implementazione in `ChrononPlugin/plugins/maps`; niente query composte |
+| 3 | HistoricalGeoTimeline a snapshot (nearest, source/confidence/date range) | PARTIAL | Implementazione in `ChrononPlugin/plugins/maps` |
+| 4 | GeoBoolean / GeoDissolve (Union, Difference, Intersection, XOR) | PARTIAL | Implementazione in `ChrononPlugin/plugins/maps`, basata su Clipper2 |
 | 5 | GeoAnchor (ScreenSpace / ShapeSpace / GeoSpace) | NOT RUN | differita |
 | 6 | GeoCamera | NOT RUN | differita |
 | 7 | ShapeTextureFill (fit Cover/Contain/Stretch) | PARTIAL | `shape_texture_fill` (scene builders): image node + alpha track matte to shape layer, validated; 4 doctest cases PASS in `chronon3d_scene_tests`. Pixel output NOT RUN; fit mode is passed through `FitMode`, not tested per mode |
-| 8 | TerritoryChange (shared / gained / lost) | PARTIAL | `src/geo/territory_change.cpp`; test standalone PASS; niente render |
+| 8 | TerritoryChange (shared / gained / lost) | PARTIAL | Implementazione in `ChrononPlugin/plugins/maps`; niente render |
 | 9 | GeoBorderReveal (recipe Trim + stroke + glow) | NOT RUN | differita |
 | 10 | GeoLabel solver, GeoAssetPreflight | NOT RUN | differita |
 
@@ -27,7 +27,16 @@ Stato usando `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`.
   previsto dalla proposta ma non in questo ticket.
 - Interpolazione geometrica tra snapshot: non dichiarata.
 - Nessuna modifica a `CURRENT_STATUS.md` / `ROADMAP.md` (fix di feature
-  non canoniche).## Verifica
+  non canoniche).
+
+## Estrazione dal core (2026-10-26)
+
+Rimosso da Chronon3D il target opzionale `chronon3d_geo`, i suoi header e i
+relativi test. ChrononPlugin contiene l'implementazione mantenuta. Il
+trasferimento non chiude le voci funzionali ancora `NOT RUN` e non certifica
+la parità fra le due implementazioni precedenti.
+
+## Verifica storica (prima dell'estrazione; non descrive il build attuale)
 
 - Build: `CHRONON3D_ENABLE_GEO=ON` configura e compila `chronon3d_geo` (OBJECT) con vcpkg (`x64-linux`, `clipper2` via overlay port con `-Wno-error=maybe-uninitialized`, vedi nota sotto). **PASS**.
 - Test: `ctest -R chronon3d_geo_core_test` (target `chronon3d_geo_core_test`, `tests/geo/geo_core_test.cpp`). **PASS**.

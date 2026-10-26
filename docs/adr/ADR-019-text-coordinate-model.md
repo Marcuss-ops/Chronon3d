@@ -600,10 +600,9 @@ traceback.
   level confusion per ADR-019 §3 (predicted_bbox vs world_ink_bbox
   divergence that triggered TICKET-TEXT-CLIP-PREDICTED-BBOX).
 - For text layers, prefer canonical TextPlacement chain on TextDefinition:
-    layer.text("hello", chronon3d::presets::text::title_centered("HELLO"));
-  OR
     auto def = from_text_spec(ts);
     def.frame.placement = TextPlacement{TextPlacementKind::Absolute, Vec2{x, y}};
+    layer.text("hello", def);
 - Enforcement: Gate #25 in tools/check_architecture_boundaries.sh [4/4]
   (now blocking per §5A, folded per I1 audit remediation) flags files
   where pin_to(...) co-occurs with TextAnchor:: and .text(...) in the

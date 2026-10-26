@@ -6,7 +6,7 @@ accettazione è conquistato e certificato sull'asse acquisizione tile + budget
 1080p (parità bit-exact mantenuta). Scaffolding nativo atterrato; le fasi 2–7
 restano aperte come opzione di unificazione nelle lane condivise.
 
-Ambito: Chronon3d (`include/chronon3d/geo/map_plate_render.hpp`, `src/geo/map_plate_render.cpp`, `tests/geo/map_plate_render_test.cpp`), refactored (`internal/capabilities/scripts/render_queue_map*.go`, cutover orchestratore), ChrononTemplate (`tools/map/`, demolizione finale del binario Python).
+Ambito aggiornato 2026-10-26: `ChrononPlugin/plugins/maps` possiede il rendering map plate e i relativi test. Chronon3D non contiene più il modulo geo. Restano nel ticket gli assi di acquisizione tile, integrazione e demolizione del percorso Python in ChrononTemplate.
 
 ## 1. Perché (misure, non stime)
 

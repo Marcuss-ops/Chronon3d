@@ -75,7 +75,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Lights / shadows (T05) | PARTIAL — the C3D software RenderPlan caster-on/caster-off A/B changes receiver-floor pixels (mean RGB-L1 0.894; weak shadow), but strict-native Vulkan fails closed at the `Shadow` node (`UnsupportedCapability: shadow requires a native GPU pass or CPU pixel backing`); `ShadowNode` remains a CPU reference. A native C3D shadow pass, an approved production-shot A/B and strict-native repeatability evidence remain — [ticket](tickets/TICKET-LIGHTS-SHADOWS-PARTICLES.md) |
 | Render-plan audio mix | PASS (focused) — V3 clips, trim, gain automation, ducking and native mux integration; GPU/CI same-SHA certification remains separate |
 | Text Core V1 | PASS (focused) |
-| Text depth focus (text_depth_focus_v1) | PASS (unit) — `TextFocusResolver` authority + 8 preset family ids landed header-only over the canonical animator primitives; suite `chronon3d_text_focus_resolver_tests` 16/16 |
+| Text depth focus (text_depth_focus_v1) | PARTIAL — resolver and preset recipes are in `ChrononPlugin/plugins/typography`; text animator primitives remain in Chronon3D |
 | Text Production | PARTIAL |
 | GPU Production V1 | PARTIAL |
 | Executor ownership | DONE structurally |

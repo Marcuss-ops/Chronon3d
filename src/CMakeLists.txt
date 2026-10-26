@@ -86,9 +86,6 @@ add_subdirectory(extension)
 add_subdirectory(backends/software)
 add_subdirectory(scene)
 add_subdirectory(timeline)
-if(CHRONON3D_ENABLE_GEO)
-    add_subdirectory(geo)
-endif()
 add_subdirectory(animations)
 if(CHRONON3D_ENABLE_TEXT)
     add_subdirectory(text)
@@ -151,11 +148,8 @@ chronon3d_expose_registered_objects_to_build_interface(chronon3d_pipeline)
 # Object sources exposed through the aggregate pipeline do not carry their
 # link interfaces. The scene path-operator implementation uses Clipper2 even
 # when the optional geographic subsystem is disabled, so publish that runtime
-# dependency unconditionally; the geo-only JSON dependency remains gated.
+# dependency unconditionally.
 target_link_libraries(chronon3d_pipeline INTERFACE Clipper2::Clipper2)
-if(CHRONON3D_ENABLE_GEO)
-    target_link_libraries(chronon3d_pipeline INTERFACE nlohmann_json::nlohmann_json)
-endif()
 
 if(CHRONON3D_ENABLE_VULKAN AND CHRONON3D_ENABLE_CUDA_INTEROP
    AND CHRONON3D_ENABLE_NATIVE_FFMPEG

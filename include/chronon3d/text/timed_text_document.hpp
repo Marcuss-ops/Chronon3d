@@ -44,7 +44,7 @@ struct TimedWord {
     // 8-level TextUnitMap `byte_to_*` ladder.  Default {0, 0} so a
     // default-constructed TimedWord advertises "no byte mapping" (the
     // conservative answer; callers MUST populate before passing through
-    // SubtitleTrackBuilder::build() to wire selectors).
+    // ChrononPlugin captions authoring to wire selectors).
     std::size_t byte_start{0};
     std::size_t byte_end{0};
 };

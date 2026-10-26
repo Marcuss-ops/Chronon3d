@@ -4,7 +4,12 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
-#include <chronon3d/render_plan/effect_presets/core.hpp>
+#if __has_include(<chrononplugin/effects/presets/core.hpp>)
+#include <chrononplugin/effects/presets/core.hpp>
+#define CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE 1
+#else
+#define CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE 0
+#endif
 #include <chronon3d/effects/effect_params.hpp>
 #include "../../src/render_plan/render_plan_compiler_detail.hpp"
 #include <array>
@@ -1162,6 +1167,7 @@ TEST_CASE("render plan auto_orient derives z rotation from the position tangent"
           doctest::Approx(45.0f).epsilon(0.001f));
 }
 
+#if CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE
 TEST_CASE("viral effect presets lower through the existing effect stack") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
@@ -1173,7 +1179,7 @@ TEST_CASE("viral effect presets lower through the existing effect stack") {
     layer.id = "glitched";
     layer.type = LayerType::Color;
     layer.color = {0.3f, 0.4f, 0.6f, 1.0f};
-    effect_presets::glitch(layer, 0.5f, 99);
+    chrononplugin::effects::presets::glitch(layer, 0.5f, 99);
     plan.layers.push_back(std::move(layer));
 
     assets::AssetResolver resolver;
@@ -1198,7 +1204,7 @@ TEST_CASE("viral effect presets lower through the existing effect stack") {
     CHECK(grain->color_mode == NoiseColorMode::RGB);
     CHECK(grain->seed == 99);
 
-    const auto aurora = effect_presets::aurora_gradient(
+    const auto aurora = chrononplugin::effects::presets::aurora_gradient(
         Frame{0}, Frame{120}, FrameRate{30, 1});
     REQUIRE(aurora.keyframes.size() == 4);
     CHECK(aurora.keyframes.front().frame == Frame{0});
@@ -1206,13 +1212,13 @@ TEST_CASE("viral effect presets lower through the existing effect stack") {
     REQUIRE(aurora.keyframes[0].value.color_stops.size() == 3);
     CHECK(aurora.keyframes[0].value.color_stops[0].color.g !=
           aurora.keyframes[1].value.color_stops[0].color.g);
-    CHECK_THROWS_AS(effect_presets::aurora_gradient(
+    CHECK_THROWS_AS(chrononplugin::effects::presets::aurora_gradient(
         Frame{0}, Frame{0}, FrameRate{30, 1}), std::invalid_argument);
 
     LayerPlan scanline_layer;
-    effect_presets::rgb_split(scanline_layer, 6.0f);
-    effect_presets::scanlines(scanline_layer, 0.03f, 0.02f);
-    effect_presets::lens_blur(scanline_layer, 5.0f);
+    chrononplugin::effects::presets::rgb_split(scanline_layer, 6.0f);
+    chrononplugin::effects::presets::scanlines(scanline_layer, 0.03f, 0.02f);
+    chrononplugin::effects::presets::lens_blur(scanline_layer, 5.0f);
     REQUIRE(scanline_layer.effects.size() == 3);
     CHECK(scanline_layer.effects[0].kind == LayerPlan::EffectKindPlan::ChromaticAberration);
     CHECK(scanline_layer.effects[0].chromatic_red_offset == doctest::Approx(6.0f));
@@ -1221,6 +1227,7 @@ TEST_CASE("viral effect presets lower through the existing effect stack") {
     CHECK(scanline_layer.effects[2].kind == LayerPlan::EffectKindPlan::GaussianBlur);
     CHECK(scanline_layer.effects[2].radius == doctest::Approx(5.0f));
 }
+#endif
 
 TEST_CASE("render plan materializes deterministic particle shapes per frame") {
     using namespace chronon3d;

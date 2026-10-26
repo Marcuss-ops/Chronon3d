@@ -11,7 +11,6 @@
 
 #include <chronon3d/effects/effect_instance.hpp>
 #include <chronon3d/effects/effect_params.hpp>
-#include <chronon3d/effects/presets/glow_presets.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <algorithm>
 #include <variant>
