@@ -68,6 +68,19 @@ edge margin; T18's CameraRig arc now ends at 1.4 rad (about 64°) so it stays on
 the lead side of the crowd. Rebuild, GPU rerender, and frame review are pending;
 the prior images above are pre-fix and do not certify the adjustment.
 
+### Remote sync and rerender gate (2026-10-26)
+
+- Synced ChrononMotion3D `origin/main` through `e49f121`; the T17 48° FOV and
+  T18 1.4 rad camera arc are present in remote commit `28a3d6a`.
+- Tried configuring one combined T17/T18 renderer build with the existing
+  Linux vcpkg dependency prefix. CMake reports that CUDA/FFmpeg interop is
+  unavailable and that the GPU certification runner will refuse to render.
+  The archived T17/T18 contact sheets are still from before the camera fixes.
+- No new GPU frames were produced, so framing, moving depth/alpha, rack focus,
+  motion blur, and camera timing for T16–T18 are not newly certified. Keep
+  G03/G05–G08 and T16–T18 **PARTIAL** until a CUDA/FFmpeg-enabled build renders
+  the corrected shots and their required frame samples are reviewed.
+
 ## T16 Camera Truth follow-up (2026-10-19; updated 2026-10-21)
 
 A 150-frame T16 camera RenderPlan is authored at
