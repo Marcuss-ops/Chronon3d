@@ -776,6 +776,25 @@ TEST_CASE("SVG document importer parses rotate transform with pivot") {
     CHECK(document.paths[0].commands[1].p0.y == doctest::Approx(50.0f));
 }
 
+TEST_CASE("SVG animateTransform rotate accepts a fixed center pivot") {
+    const std::string filename = "temp_test_animated_rotate_pivot.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><g><animateTransform attributeName="transform" type="rotate"
+          from="0 25 40" to="90 25 40" dur="1s" fill="freeze"/>
+          <path d="M 35 40 L 45 40"/></g></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.elements.size() == 1);
+    REQUIRE(result.elements[0].animations.size() == 1);
+    CHECK(result.elements[0].animations[0].kind == SvgAnimationKind::Rotate);
+    CHECK(result.elements[0].animations[0].has_pivot);
+    CHECK(result.elements[0].animations[0].pivot[0] == doctest::Approx(25.0f));
+    CHECK(result.elements[0].animations[0].pivot[1] == doctest::Approx(40.0f));
+}
+
 TEST_CASE("SVG document importer differentiates circle and ellipse") {
     const std::string filename = "temp_test_circle_ellipse.svg";
     {

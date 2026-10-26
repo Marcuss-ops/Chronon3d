@@ -40,7 +40,7 @@ bool parse_svg_animation(const std::string& tag, const boost::property_tree::ptr
                 return false;
         }
         values = transform_numbers(text);
-        return !values.empty() && values.size() <= 2 &&
+        return !values.empty() && values.size() <= 3 &&
             std::all_of(values.begin(), values.end(), [](float value) {
                 return std::isfinite(value) && std::abs(value) <= 100000.0f;
             });
@@ -96,9 +96,17 @@ bool parse_svg_animation(const std::string& tag, const boost::property_tree::ptr
     if (transform) {
         const auto type = node.get<std::string>("<xmlattr>.type", "");
         const auto expected = type == "translate" || type == "scale" ? 2U : type == "rotate" ? 1U : 0U;
-        if (expected == 0 || from.size() != expected || to.size() != expected) return false;
+        if (expected == 0 || from.size() != to.size() ||
+            (type == "rotate" ? (from.size() != 1 && from.size() != 3)
+                               : from.size() != expected)) return false;
         if (type == "scale" && (std::abs(from[0] - from[1]) > 1e-6f ||
                                  std::abs(to[0] - to[1]) > 1e-6f)) return false;
+        if (type == "rotate" && from.size() == 3) {
+            if (std::abs(from[1] - to[1]) > 1e-6f ||
+                std::abs(from[2] - to[2]) > 1e-6f) return false;
+            output.pivot = {from[1], from[2]};
+            output.has_pivot = true;
+        }
         output.kind = type == "translate" ? SvgAnimationKind::Translate :
             type == "scale" ? SvgAnimationKind::Scale : SvgAnimationKind::Rotate;
         output.components = static_cast<std::uint8_t>(expected);
@@ -111,7 +119,8 @@ bool parse_svg_animation(const std::string& tag, const boost::property_tree::ptr
         output.components = 1;
     }
     if (color_property) output.components = 4;
-    else if (transform) output.components = static_cast<std::uint8_t>(from.size());
+    else if (transform) output.components = static_cast<std::uint8_t>(
+        output.kind == SvgAnimationKind::Rotate && output.has_pivot ? 1 : from.size());
     output.kind = transform ? output.kind : paint_kind;
     for (std::size_t i = 0; i < from.size() && i < 4; ++i) output.from[i] = from[i];
     for (std::size_t i = 0; i < to.size() && i < 4; ++i) output.to[i] = to[i];

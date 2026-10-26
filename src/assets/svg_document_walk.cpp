@@ -52,6 +52,45 @@ using svg_text_detail::svg_baseline_shift;
 using svg_text_detail::svg_text_path_reference;
 using svg_text_detail::svg_text_path_offset;
 
+bool is_translation_matrix(const Affine2& transform) {
+    constexpr float epsilon = 1e-6f;
+    return std::abs(transform[0][0] - 1.0f) <= epsilon &&
+        std::abs(transform[1][1] - 1.0f) <= epsilon &&
+        std::abs(transform[0][1]) <= epsilon &&
+        std::abs(transform[1][0]) <= epsilon &&
+        std::abs(transform[0][2]) <= epsilon &&
+        std::abs(transform[1][2]) <= epsilon &&
+        std::abs(transform[2][2] - 1.0f) <= epsilon;
+}
+
+bool is_identity_matrix(const Affine2& transform) {
+    constexpr float epsilon = 1e-6f;
+    return is_translation_matrix(transform) &&
+        std::abs(transform[2][0]) <= epsilon && std::abs(transform[2][1]) <= epsilon;
+}
+
+bool is_svg_transform_animation(SvgAnimationKind kind) {
+    return kind == SvgAnimationKind::Translate || kind == SvgAnimationKind::Scale ||
+        kind == SvgAnimationKind::Rotate;
+}
+
+void validate_static_animation_scope(const SvgStyleState& style,
+                                     std::vector<SvgAnimationSpec>& animations) {
+    const bool has_transform = std::any_of(animations.begin(), animations.end(),
+        [](const auto& animation) { return is_svg_transform_animation(animation.kind); });
+    const bool only_translations = std::all_of(animations.begin(), animations.end(),
+        [](const auto& animation) {
+            return !is_svg_transform_animation(animation.kind) ||
+                animation.kind == SvgAnimationKind::Translate;
+        });
+    if (has_transform && style.has_static_transform_scope &&
+        (!style.static_transform_scopes_translation || !only_translations)) {
+        animations.clear();
+        animations.push_back(SvgAnimationSpec{});
+        animations.back().duration_seconds = -1.0f;
+    }
+}
+
 inline std::vector<uint8_t> decode_base64_data(std::string_view input) {
     static const int8_t table[256] = {
         -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
@@ -236,6 +275,10 @@ void collect_path_data(
                 node_transform = node_transform * *viewbox_transform;
             }
         }
+        style.has_static_transform_scope = style.has_static_transform_scope ||
+            !is_identity_matrix(node_transform);
+        style.static_transform_scopes_translation = style.static_transform_scopes_translation &&
+            is_translation_matrix(node_transform);
         const Affine2 transform = parent_transform * node_transform;
         if (local_vector_mask_scope) {
             local_vector_mask_scope->transform = transform;
@@ -323,19 +366,7 @@ void collect_path_data(
                     }
                     animations.back().push_back(animation);
                 }
-                const Affine2 identity(1.0f);
-                const bool has_static_transform = [&] {
-                    for (int column = 0; column < 3; ++column)
-                        for (int row = 0; row < 3; ++row)
-                            if (std::abs(transform[column][row] - identity[column][row]) > 1e-6f)
-                                return true;
-                    return false;
-                }();
-                if (has_static_transform && !animations.back().empty()) {
-                    animations.back().clear();
-                    animations.back().push_back(SvgAnimationSpec{});
-                    animations.back().back().duration_seconds = -1.0f;
-                }
+                validate_static_animation_scope(style, animations.back());
                 styles.back().morph_animation = std::move(style.morph_animation);
             }
         } else if (name == "rect" || name == "circle" || name == "ellipse" ||
@@ -344,6 +375,7 @@ void collect_path_data(
                 !d.empty() && !style.display_none && !style.visibility_hidden) {
                 paths.emplace_back(std::move(d), transform); styles.push_back(style);
                 animations.emplace_back(style.inherited_animations);
+                validate_static_animation_scope(style, animations.back());
             }
         } else if (name == "image") {
             const auto attr = [&node](const char* key, float fallback = 0.0f) {

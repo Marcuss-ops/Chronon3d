@@ -126,8 +126,10 @@ unavailable).
 - [x] **Q2 — nested animated transform operations** (bounded sequence): the
   loader preserves each ancestor/descendant animateTransform with its own
   timing, and the renderer evaluates the ordered matrix chain. Motion gate
-  covers a rotating parent with a translated child. Static transform plus
-  animated transform and rotation pivots remain fail-closed.
+  covers a rotating parent with a translated child; fixed-center rotation
+  pivots now sample through the imported-path renderer. Static transform plus
+  animated transform combinations are accepted only for commuting static and
+  animated translations; other combinations remain fail-closed.
 - [x] **Q3 — per-element distinct clip scopes**: loader carries each
   element's inherited group and local clip/mask geometries independently;
   the software compositor intersects them per element. Pixel gate covers

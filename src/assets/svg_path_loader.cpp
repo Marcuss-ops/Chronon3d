@@ -60,6 +60,21 @@ using svg_text_detail::svg_text_path_offset;
 using svg_document_detail::inspect_svg_xml_tree;
 using svg_document_detail::parse_root_svg_filter;
 
+bool is_translation_matrix(const Affine2& transform) {
+    constexpr float epsilon = 1e-6f;
+    return std::abs(transform[0][0] - 1.0f) <= epsilon &&
+        std::abs(transform[1][1] - 1.0f) <= epsilon &&
+        std::abs(transform[0][1]) <= epsilon &&
+        std::abs(transform[1][0]) <= epsilon &&
+        std::abs(transform[0][2]) <= epsilon &&
+        std::abs(transform[1][2]) <= epsilon &&
+        std::abs(transform[2][2] - 1.0f) <= epsilon;
+}
+
+bool is_svg_transform_animation(SvgAnimationKind kind) {
+    return kind == SvgAnimationKind::Translate || kind == SvgAnimationKind::Scale ||
+        kind == SvgAnimationKind::Rotate;
+}
 
 
 
@@ -228,6 +243,30 @@ SvgDocumentLoadResult load_svg_document_file(
     std::uint32_t isolated_group_counter{0};
     collect_path_data(document, path_data, styles, animations, gradients, ids, 0,
         expanded_uses, isolated_group_counter);
+    for (std::size_t index = 0; index < path_data.size(); ++index) {
+        const Affine2 identity(1.0f);
+        bool has_static_transform = false;
+        for (int column = 0; column < 3; ++column)
+            for (int row = 0; row < 3; ++row)
+                has_static_transform = has_static_transform ||
+                    std::abs(path_data[index].second[column][row] - identity[column][row]) > 1e-6f;
+        const auto& tracks = animations[index];
+        const bool has_animated_transform = std::any_of(
+            tracks.begin(), tracks.end(), [](const auto& track) {
+                return is_svg_transform_animation(track.kind);
+            });
+        const bool only_animated_translations = std::all_of(
+            tracks.begin(), tracks.end(), [](const auto& track) {
+                return !is_svg_transform_animation(track.kind) ||
+                    track.kind == SvgAnimationKind::Translate;
+            });
+        if (has_static_transform && has_animated_transform &&
+            (!is_translation_matrix(path_data[index].second) || !only_animated_translations)) {
+            animations[index].clear();
+            animations[index].push_back(SvgAnimationSpec{});
+            animations[index].back().duration_seconds = -1.0f;
+        }
+    }
     std::vector<SvgTextRun> text_runs;
     try {
         collect_svg_text_runs(ids, document, text_runs, gradients);

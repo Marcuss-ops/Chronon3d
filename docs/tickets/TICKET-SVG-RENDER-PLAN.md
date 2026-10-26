@@ -57,12 +57,14 @@ shape pipeline.
   character rotation, and `textLength` follow the bounded cases listed in
   Phase 4. Vertical writing is rejected; nested textLength/rotate scopes and
   textPath length adjustment remain unsupported and fail closed.
-- Path-local `animateTransform` supports translate, scale and origin-centered
-  rotation, and `<animate attributeName="opacity">` supports bounded `from` / `to`
+- Path-local `animateTransform` supports translate, uniform scale and rotation
+  around the origin or a fixed explicit center. `<animate
+  attributeName="opacity">` supports bounded `from` / `to`
   or two-item `values`, integral composition-frame timing, one iteration,
   `fill="freeze"`, and linear/discrete interpolation. Unsupported timing,
-  repeated animation, additive transforms, rotation pivots, static ancestor or
-  path transforms, and animation on groups or primitives fail closed.
+  repeated animation, additive transforms, moving rotation pivots and
+  non-commuting static/animated transform mixes fail closed. Static and
+  animated translations may be composed safely.
 - Path-local animated paint supports solid `fill`/`stroke` colors,
   `stroke-width`, `fill-opacity`, and `stroke-opacity` through the native color
   and scalar tracks. Gradient stop color/opacity animations support only a
@@ -72,9 +74,12 @@ shape pipeline.
   static. Each path has a
   bounded set of nine distinct animation entries; conflicting target tracks
   fail during compilation.
-- A `<g>` can animate translate, uniform scale, origin-centered rotation and
+- A `<g>` can animate translate, uniform scale, fixed-pivot rotation and
   opacity directly; ordered ancestor/descendant tracks compose on child paths.
-  Static transforms on animated ancestry and group paint animations fail closed.
+  Static and animated transforms may be mixed when every static scope is a
+  translation and every animated transform is a translation; these operations
+  commute, so the baked geometry remains exact. Non-commuting static/animated
+  combinations and group paint animations fail closed.
 - Path `d` animation accepts 2 to 256 path values with matching command
   topology, begin at zero, integral composition-frame timing, and linear or
   discrete interpolation. `keyTimes` must be strictly increasing from 0 to 1;
@@ -129,11 +134,23 @@ shape pipeline.
   lower to the native path mask; integration coverage confirms both.
 - [x] Group translate and opacity animations sample across child paths at
   start/mid/end frames through the same native imported-path tracks.
+- [x] Animated rotation with a fixed non-origin center samples the expected
+  start/end path coordinates through the canonical imported-path evaluator;
+  changing the center during the animation fails closed.
+- [x] A static translation composed with nested animated translations samples
+  the correct start/end coordinates. Non-commuting static scale plus animated
+  translation remains a typed fail-closed case, including primitive paths.
 - [x] Path `d` morph coverage samples a three-value sequence at start, midpoint
   and end, and rejects topology changes.
 - [x] Resolver-backed SVG coverage samples synchronized gradient stop-color
   and stop-opacity animation at start, midpoint and end through the native
   gradient animation track.
+- [x] Resolver-backed SVG coverage samples a fixed-center rotation at the
+  origin and endpoint, permits commuting static plus animated translations,
+  and rejects a non-commuting static scale plus animated translation.
+- [x] The two C ABI test sources previously over 3,800 lines are split into
+  six registered files; no C/C++ file under `src`, `include` or `tests` exceeds
+  2,000 lines.
 
 ## Demolition debt
 
@@ -435,6 +452,13 @@ SVG merge is subpath concatenation, not a boolean geometry operation.
 
 ## Verification update — 2026-10-18
 
+- SVG rigging follow-up on 2026-10-26: fixed-center `animateTransform rotate`
+  and commuting static/animated translation composition are covered by focused
+  C ABI and loader tests. Full SVG-enabled C ABI passes 293/293 cases and
+  8,022 assertions; SVG loader passes 53/53 and 421 assertions; software
+  renderer passes 195/195 and 5,952 assertions. CPU SVG configuration built
+  with `-j12`; Vulkan remained disabled.
+
 - Full SVG-enabled C ABI suite on the current working tree: 275/275 cases and
   6865/6865 assertions pass (including positioned text cluster coordinates,
   baselines, textPath, and materialized text paint checks).
@@ -476,7 +500,7 @@ approval cannot be completed from the current checkout.
 | SVG-02 trim at f0/15/30/45/60 | `check_svg_trim_sampled_raw_gate.py` measures imported-SVG pixel coverage 0/0/67/96/96 and repeat equality. Five-second peak study additionally measures 0/216/703/1147/1590/1591/1591 at f0/15/30/45/60/90/149. | Generic trim and composed hold covered; reference shot and its 3.0–6.0s timing remain open. |
 | SVG-03 marker pixels | `svg_peak_pixel_gate.py` checks isolated and combined SVG+marker centroids; isolated maximum error is 0.735 px. It also reproduces the unguarded sequential path loss (132 pixels at f0–45, 6 at f60) and verifies workaround coverage. The 150-frame study visually confirms travel. | Marker behavior covered with workaround; the underlying cause is unconfirmed (disabling composite input-storage transfer did not change it), and target framing remains open. |
 | SVG-04 glow | `svg_peak_pixel_gate.py` compares combined renders with/without native glow: 602 changed halo pixels, 0 changed pixels at the prior marker position, and deterministic repeat. | Synthetic moving-marker behavior passes; target-video halo and alpha behavior remain open. |
-| SVG-05 transforms/pivots | Imported transform tracks and camera showcase exist. | Vehicle pivot and target shot scale/push are open. |
+| SVG-05 transforms/pivots | Imported transform tracks, fixed-center animated rotation, and commuting static/animated translations pass CPU scene-coordinate tests. | Vehicle pivot placement and target shot scale/push still require the supplied scene/reference clip. |
 | SVG-06 temporal stability | Repeat showcase output has matching decoded frame hashes. | Target-video thin-line flicker review open. |
 | SVG-07 vector plus footage | A plan-level vector/footage composition fixture exists. | Encoded compositing with the actual plate is open. |
 | SVG-08 determinism | Full 360-frame showcase reruns match decoded pixels; synthetic gate also repeats raw RGBA samples. | Generic behavior covered; target plan open. |
