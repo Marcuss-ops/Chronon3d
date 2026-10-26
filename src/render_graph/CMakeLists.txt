@@ -63,6 +63,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/track_matte_node.cpp
     nodes/per_pixel_dof_node.cpp
     nodes/lighting_node.cpp
+    nodes/shadow_node.cpp
     nodes/transition/transition_node_math.cpp
     transition/transition_catalog.cpp
     transition/transition_catalog_programs_basic.cpp

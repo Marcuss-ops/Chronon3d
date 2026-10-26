@@ -17,6 +17,23 @@ portate, e istanziamento GPU per le particelle).
 - T05 rimane **PARTIAL**. Per chiuderlo servono un native shadow pass C3D, un
   A/B di qualità su uno shot di produzione e la revisione visiva della composizione.
 
+### Gate T05 — pass Vulkan nativo 2026-10-26
+
+- `ShadowNode` ora ha un ramo `require_native_gpu` che proietta l'alpha del
+  caster, applica la tinta e le passate blur e compone le ombre contact/ambient
+  usando superfici native. Gli input GPU-only restano GPU-authoritative; i
+  caster CPU-authoritative vengono promossi a una superficie temporanea.
+- Il test di regressione Vulkan verifica proiezione, tinta/alpha, autorità GPU
+  e ripetibilità byte-identica. `chronon3d_backend_registry_tests`: **1/1
+  target passato** (38.79 s); il test aggiunto contiene 15 asserzioni.
+- Il render CLI T05 non ha prodotto un'immagine di revisione: la capability
+  probe dell'encoder collegato al CLI non rileva NVENC, pur essendo disponibile
+  sull'host. Senza render A/B visibile non certifichiamo contrasto e qualità
+  dello shot.
+- Stato T05: **PARTIAL**. Il percorso nativo e il test backend sono chiusi; il
+  gate di produzione resta aperto fino all'output CLI e alla revisione visiva.
+  Dettagli: [`evidenza pass Vulkan`](../evidence/lights-shadows/T05-native-vulkan-20261026/README.md).
+
 ## Audit di partenza (2026-10-08)
 
 ### Avanzamento verificato (2026-10-10)
