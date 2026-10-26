@@ -47,6 +47,9 @@ if(TARGET chronon3d_cli_video_export)
         cli/test_video_sink_encoders.cpp
         cli/test_ffmpeg_export_options.cpp
         cli/test_packet_assembler_contract.cpp
+        cli/test_packet_assembler_contract.part02.cpp
+        cli/test_packet_assembler_contract.part03.cpp
+        cli/test_packet_assembler_contract.part04.cpp
         cli/test_encoder_config_resolution.cpp
         cli/test_bitstream_target_contract.cpp
         cli/test_gop_direct_mux_parity.cpp

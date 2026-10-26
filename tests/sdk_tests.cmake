@@ -23,6 +23,10 @@ set(_chronon3d_c_abi_links
 set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_animation_property_registry.cpp
     c_abi/test_render_plan_decoder.cpp
+    c_abi/test_render_plan_decoder.part02.cpp
+    c_abi/test_render_plan_decoder.part03.cpp
+    c_abi/test_render_plan_decoder.part04.cpp
+    c_abi/test_render_plan_decoder.part05.cpp
     c_abi/test_render_plan_temporal_rate_analysis.cpp
     c_abi/test_render_plan_spring_bake.cpp
     c_abi/test_render_plan_shape_path_generator.cpp
@@ -33,7 +37,11 @@ set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_fingerprint_shape.cpp
     c_abi/test_render_plan_validator.cpp
     c_abi/test_render_plan_consolidation.cpp
-    c_abi/test_prepared_render_plan.cpp)
+    c_abi/test_prepared_render_plan.cpp
+    c_abi/test_prepared_render_plan.part02.cpp
+    c_abi/test_prepared_render_plan.part03.cpp
+    c_abi/test_prepared_render_plan.part04.cpp
+    c_abi/test_prepared_render_plan.part05.cpp)
 if(TARGET chronon3d_c)
     list(APPEND _chronon3d_c_abi_links chronon3d_c)
     list(APPEND _chronon3d_c_abi_sources c_abi/test_c_api_v2.cpp)
