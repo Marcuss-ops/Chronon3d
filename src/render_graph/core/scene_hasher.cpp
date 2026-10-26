@@ -478,6 +478,7 @@ bool SceneHasher::camera_is_static(const Camera2_5DRuntime& cam) {
 
 [[nodiscard]] bool SceneHasher::is_effectively_static_at(const Scene& scene, Frame frame) const {
     for (const auto& layer : scene.layers()) {
+        if (!layer.active_at(frame)) continue;
         if (!layer_is_static_at(layer, frame)) return false;
     }
     for (const auto& transition : scene.clip_transitions()) {

@@ -221,7 +221,7 @@ TEST_CASE("GPU text lowers canonical selector shapes with CPU-equivalent per-gly
     }
 }
 
-TEST_CASE("GPU text rejects resolved X/Y rotation outside the in-plane MTSDF path") {
+TEST_CASE("GPU text accepts resolved X/Y rotation and rejects extreme angle") {
     auto layout = std::make_shared<TextRunLayout>();
     layout->placed = make_test_placed_run(1);
 
@@ -230,7 +230,9 @@ TEST_CASE("GPU text rejects resolved X/Y rotation outside the in-plane MTSDF pat
     shape.glyphs = make_initial_glyph_states(layout->placed);
 
     shape.glyphs[0].rotation.x = 10.0f;
+    CHECK(can_lower_gpu_text_animation(shape));
 
+    shape.glyphs[0].rotation.x = 90.0f;
     CHECK_FALSE(can_lower_gpu_text_animation(shape));
 }
 

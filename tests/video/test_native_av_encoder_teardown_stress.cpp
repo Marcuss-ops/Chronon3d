@@ -512,6 +512,33 @@ TEST_CASE("P1 duplicate runs keep exact pixel parity (resubmit path)") {
         probe_encoder.shutdown_noexcept();
         if (nvenc_ok) {
             run_codec("h264_nvenc", device_runtime);
+            {
+                // Replicate mode on NVENC: the root is the session's first
+                // frame (a key packet by construction), so the run must take
+                // the O(1) replication path even on hardware — the P1
+                // static-duration gate depends on exactly this. The pixel
+                // contract is the replicate one: every replica decodes to the
+                // root frame's own pixels, zero drift.
+                const auto static_case = duplicate_parity_pair(
+                    dir, "h264_nvenc", device_runtime, /*total_frames=*/24,
+                    /*hold_start=*/0, /*real_frames=*/1);
+                CHECK(static_case.replicated);
+                auto lines_of = [](const std::string& blob) {
+                    std::vector<std::string> out;
+                    std::istringstream stream(blob);
+                    std::string line;
+                    while (std::getline(stream, line)) {
+                        if (!line.empty()) out.push_back(line);
+                    }
+                    return out;
+                };
+                const auto dup = lines_of(static_case.duplicated_hashes);
+                const auto ref = lines_of(static_case.reference_hashes);
+                REQUIRE(dup.size() == 24);
+                REQUIRE_FALSE(ref.empty());
+                for (const auto& hash : dup) CHECK(hash == dup.front());
+                CHECK(dup.front() == ref.front());
+            }
         } else {
             MESSAGE("Skipping h264_nvenc — encoder open failed on this host");
         }

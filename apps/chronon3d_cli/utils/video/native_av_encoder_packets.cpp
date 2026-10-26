@@ -82,6 +82,21 @@ bool NativeAvEncoder::drain_packets() {
                             "[native_av] content root key packet capture failed");
                         return false;
                     }
+                    // A Replicate run whose anchor had not published yet
+                    // (the root is the session's first frame, whose key packet
+                    // is known to exist but may still be inside the codec)
+                    // adopts it here, before any replica can be muxed.
+                    if (duplicate_run_active_ &&
+                        duplicate_run_mode_ == DuplicateRunMode::Replicate &&
+                        !duplicate_anchor_) {
+                        duplicate_anchor_.reset(av_packet_clone(packet_));
+                        if (!duplicate_anchor_) {
+                            spdlog::error(
+                                "[native_av] run anchor packet capture failed");
+                            return false;
+                        }
+                        duplicate_anchor_pts_ = drained_pts;
+                    }
                 }
             }
             if (duplicate_run_active_ &&

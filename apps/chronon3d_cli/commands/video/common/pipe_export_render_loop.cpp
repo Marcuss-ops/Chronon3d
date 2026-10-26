@@ -162,6 +162,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 ctx.triple_arena->release(current_arena);
                 RenderFramePackage duplicate_package = DuplicateFramePackage{
                     .frame_number = current_frame,
+                    .stream_frame_number = static_cast<int>(current_frame - ctx.start),
                     .enqueued_at = std::chrono::steady_clock::now(),
                 };
                 if (!ctx.queue.push(duplicate_package, ctx.opts.cancellation_token)) {
