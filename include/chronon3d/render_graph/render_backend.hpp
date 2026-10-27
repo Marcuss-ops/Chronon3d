@@ -83,7 +83,7 @@ struct RenderBackendError {
 // Backend compatibility boundary. RenderBackendErrorCode remains the
 // operation-level detail payload, while all construction is centralized so
 // the executor receives one stable error shape.
-[[nodiscard]] RenderBackendError make_render_backend_error(
+[[nodiscard]] inline RenderBackendError make_render_backend_error(
     RenderBackendErrorCode code, std::string message) {
     return {code, std::move(message)};
 }
