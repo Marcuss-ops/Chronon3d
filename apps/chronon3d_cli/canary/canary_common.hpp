@@ -16,7 +16,6 @@
 #include <algorithm>
 #include <array>
 #include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/effects/presets/glow_presets.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/text/text_definition.hpp>

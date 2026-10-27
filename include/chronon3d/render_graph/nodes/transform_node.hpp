@@ -95,6 +95,8 @@ public:
             params_hash = hash_combine(params_hash, hash_color(card.rim_light_color));
             params_hash = hash_combine(params_hash, hash_vec3(card.light_direction));
         }
+        if (!layer_id().empty())
+            params_hash = hash_combine(params_hash, hash_string(layer_id()));
 
         return cache::NodeCacheKey{
             .scope = "transform",
@@ -116,12 +118,14 @@ public:
     [[nodiscard]] Mat4 matrix()  const { return m_use_matrix ? m_matrix : m_transform.to_mat4(); }
     [[nodiscard]] f32        opacity() const { return m_use_matrix ? m_opacity : m_transform.opacity; }
     [[nodiscard]] bool       is_identity() const {
-        return get_transform_type() == TransformType::Identity;
+        return !m_preserve_identity &&
+               get_transform_type() == TransformType::Identity;
     }
 
     // ── Mutators for graph optimization ─────────────────────────────
     void set_matrix(const Mat4& m)  { m_matrix = m; m_use_matrix = true; invalidate_cache(); }
     void set_opacity(f32 o)         { m_opacity = o; m_use_matrix = true; invalidate_cache(); }
+    void preserve_identity(bool preserve) noexcept { m_preserve_identity = preserve; }
 
 private:
     // ── Cached matrix analysis (avoids redundant 4×4 float comparisons ──
@@ -195,6 +199,7 @@ private:
     f32       m_opacity{1.0f};
     SamplingMode m_mode{SamplingMode::Bilinear};
     bool      m_use_matrix{false};
+    bool      m_preserve_identity{false};
     Frame     m_cache_frame{-1};
     Vec2      m_source_surface_size{0.0f, 0.0f};
     std::optional<Card3DMaterial> m_card3d_material{};

@@ -4,6 +4,7 @@
 #include <bit>
 #include <cmath>
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 namespace chronon3d::runtime::job {
@@ -105,6 +106,47 @@ normalize_render_job(
             return make_render_job_request_error(
                 RenderJobRequestErrorCode::InvalidChangedInterval,
                 "render job changed interval must be finite, non-negative, and have end_seconds > start_seconds");
+        }
+    }
+    // Segmented output (P4 batch superjob): one encoder session, one MP4 per
+    // item. Fail-closed validation at the boundary both the plan-file and the
+    // daemon/IPC request pass through — the segmented mux writer refuses a
+    // non-contiguous or non-unique window set anyway, and refusing here keeps
+    // the error at the request boundary instead of mid-export. Frame units
+    // ARE encoder PTS units (the codec time base is the output frame rate).
+    if (!request.output.output_segments.empty()) {
+        const auto& segments = request.output.output_segments;
+        std::int64_t expected_start = 0;
+        std::unordered_set<std::string> paths;
+        for (const auto& segment : segments) {
+            if (segment.output_path.empty() ||
+                segment.start_frame != expected_start ||
+                segment.end_frame <= segment.start_frame ||
+                !paths.emplace(segment.output_path).second) {
+                return make_render_job_request_error(
+                    RenderJobRequestErrorCode::InvalidOutputSegment,
+                    "render job output segments require unique non-empty output "
+                    "paths and contiguous positive frame windows starting at frame 0");
+            }
+            expected_start = segment.end_frame;
+        }
+        if (!request.output.audio_source_path.empty()) {
+            return make_render_job_request_error(
+                RenderJobRequestErrorCode::InvalidOutputSegment,
+                "segmented output is video-only: source audio cannot be muxed "
+                "into per-item segments");
+        }
+        if (request.output.gop_copy_only || !request.output.gop_source.empty()) {
+            return make_render_job_request_error(
+                RenderJobRequestErrorCode::InvalidOutputSegment,
+                "segmented output cannot combine with a GOP copy lane: copied "
+                "GOPs own their container schedule");
+        }
+        if (request.frame_range) {
+            return make_render_job_request_error(
+                RenderJobRequestErrorCode::InvalidOutputSegment,
+                "output segments already describe the full timeline and cannot "
+                "combine with an explicit frame range");
         }
     }
 
@@ -231,6 +273,15 @@ std::string render_job_fingerprint(const NormalizedRenderJob& job) {
     append_field(fp, "trace_output", job.trace.output.string());
     append_field(fp, "trace_level", job.trace.level);
     append_field(fp, "receipt_verify", job.receipt_verification);
+    // Segmented output (P4): the per-item windows are part of the output
+    // contract, so two jobs with different windows are not the same job.
+    append_int(fp, "out_output_segments_count",
+               static_cast<std::int64_t>(out.output_segments.size()));
+    for (const auto& segment : out.output_segments) {
+        append_field(fp, "out_output_segment_path", segment.output_path);
+        append_int(fp, "out_output_segment_start", segment.start_frame);
+        append_int(fp, "out_output_segment_end", segment.end_frame);
+    }
     return fp;
 }
 

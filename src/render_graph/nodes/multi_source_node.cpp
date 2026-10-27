@@ -387,8 +387,12 @@ NodeExecResult MultiSourceNode::execute(
 
             auto item_groups = item.groups;
             if (item_groups.empty() && item.group) item_groups.push_back(*item.group);
+            // SVG and Lottie group opacity keyframes are lowered to the
+            // composition's frame coordinates. Sample the evaluated output
+            // frame here; sample_time may refer to an underlying media source
+            // and can remain at its first frame for generated vector layers.
             const double group_frame = static_cast<double>(
-                ctx.frame_input.sample_time.integral_frame());
+                ctx.frame_input.frame.integral());
             for (auto& group : item_groups) {
                 if (!group.opacity_animation) continue;
                 const auto& animation = *group.opacity_animation;

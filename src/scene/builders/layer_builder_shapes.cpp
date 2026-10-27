@@ -148,9 +148,11 @@ LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
                 512, 2048);
         }
         p.decode_options.max_dimension = max_dimension;
-        m_layer.asset_manifest.add_image(
-            effective_path,
-            std::string(m_layer.name) + "/" + name, true, max_dimension);
+        if (!p.embedded_payload) {
+            m_layer.asset_manifest.add_image(
+                effective_path,
+                std::string(m_layer.name) + "/" + name, true, max_dimension);
+        }
     }
     const Vec2 half_size = p.size * 0.5f;
     shape(registry::shape_ids::Image, std::move(name), std::move(p));

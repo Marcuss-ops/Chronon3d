@@ -168,4 +168,13 @@ TEST_CASE("different display bounds are different cache entries") {
     REQUIRE(small != nullptr);
     REQUIRE(full != nullptr);
     CHECK(small->width != full->width);
+    // The representation identity used by GPU promotion includes the actual
+    // prepared pixels, format and dimensions. Two display bounds must not
+    // alias one device-resident surface even though the authored asset is the
+    // same file.
+    CHECK(small->gpu_key.content_digest != full->gpu_key.content_digest);
+    CHECK(small->gpu_key.width == static_cast<std::uint32_t>(small->width));
+    CHECK(full->gpu_key.width == static_cast<std::uint32_t>(full->width));
+    CHECK(small->gpu_rgba.size() < full->gpu_rgba.size());
+    CHECK(cache->get_or_load(path, bounded) == small);
 }

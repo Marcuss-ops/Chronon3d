@@ -772,6 +772,9 @@ TEST_CASE("decode_render_job_payload accepts the whole documented vocabulary") {
         "changed_intervals":[
             {"start_seconds":1.0,"end_seconds":2.0,"kind":"content"}
         ],
+        "output_segments":[
+            {"output_path":"item-0.mp4","start_frame":0,"end_frame":24}
+        ],
         "pipe_pixfmt":"nv12",
         "fps_num":24,
         "fps_den":1,
@@ -803,6 +806,9 @@ TEST_CASE("decode_render_job_payload accepts the whole documented vocabulary") {
             "ffmpeg_mode":"pipe",
             "changed_intervals":[
                 {"start_seconds":1.0,"end_seconds":2.0,"kind":"content"}
+            ],
+            "output_segments":[
+                {"output_path":"item-0.mp4","start_frame":0,"end_frame":24}
             ]
         }
     })");
@@ -939,6 +945,28 @@ TEST_CASE("decode_render_batch_payload validates the full batch at IPC ingress")
                     std::runtime_error);
     CHECK_THROWS_AS(static_cast<void>(cli::decode_render_batch_payload(R"({"jobs":[]})")),
                     std::runtime_error);
+    CHECK_THROWS_AS(static_cast<void>(cli::decode_render_batch_payload(
+                        R"({"jobs":[{"job_id":"first"},{"job_id":"second","unexpected":true}]})")),
+                    std::exception);
+
+    // A larger valid batch preserves producer order and the full per-job
+    // identity rather than sorting or coalescing by output configuration.
+    std::string payload = R"({"jobs":[)";
+    for (int index = 0; index < 10; ++index) {
+        if (index != 0) payload += ',';
+        payload += std::string{R"({"job_id":"item-)"} + std::to_string(index) +
+            R"(","plan_path":"plan-)" + std::to_string(index) +
+            R"(.json","output":"segment-)" + std::to_string(index) +
+            R"(.mp4"})";
+    }
+    payload += "]}";
+    const auto ordered = cli::decode_render_batch_payload(payload);
+    REQUIRE(ordered.size() == 10);
+    for (std::size_t index = 0; index < ordered.size(); ++index) {
+        CHECK(ordered[index].job_id == "item-" + std::to_string(index));
+        CHECK(ordered[index].request.plan_path == "plan-" + std::to_string(index) + ".json");
+        CHECK(ordered[index].request.output_path == "segment-" + std::to_string(index) + ".mp4");
+    }
 }
 
 TEST_CASE("normalize_render_job validates the pipe pixel format against the canonical vocabulary") {
@@ -987,6 +1015,145 @@ TEST_CASE("normalize_render_job rejects invalid changed intervals") {
         CHECK(normalized.error().code ==
               c3d::runtime::job::RenderJobRequestErrorCode::InvalidChangedInterval);
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Segmented output (P4 batch superjob): the per-item frame windows must reach
+// the segmented mux writer exactly as declared — contiguous positive windows
+// tiling the timeline from frame 0 with unique output paths, video-only, and
+// never combined with a GOP copy lane or an explicit frame range.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("normalize_render_job validates and fingerprints output segments") {
+    const JobCaps auto_host{"auto"};
+    using c3d::runtime::job::OutputSegmentSpec;
+
+    JobRequest base = cli_request_for("auto", "none", "pipe", "auto");
+    base.output.output_segments = {
+        OutputSegmentSpec{"item-0.mp4", 0, 72},
+        OutputSegmentSpec{"item-1.mp4", 72, 168},
+        OutputSegmentSpec{"item-2.mp4", 168, 192},
+    };
+    const auto normalized =
+        c3d::runtime::job::normalize_render_job(base, auto_host);
+    REQUIRE(normalized.has_value());
+    REQUIRE(normalized.value().output.output_segments.size() == 3);
+    CHECK(normalized.value().output.output_segments[1].output_path == "item-1.mp4");
+    CHECK(normalized.value().output.output_segments[1].start_frame == 72);
+    CHECK(normalized.value().output.output_segments[1].end_frame == 168);
+
+    // The windows are part of the output contract: a different window set is
+    // a different job.
+    JobRequest without = base;
+    without.output.output_segments.clear();
+    const auto without_job =
+        c3d::runtime::job::normalize_render_job(without, auto_host);
+    REQUIRE(without_job.has_value());
+    CHECK(c3d::runtime::job::render_job_fingerprint(normalized.value()) !=
+          c3d::runtime::job::render_job_fingerprint(without_job.value()));
+
+    const auto rejects = [&](std::vector<OutputSegmentSpec> segments) {
+        JobRequest request = base;
+        request.output.output_segments = std::move(segments);
+        const auto result =
+            c3d::runtime::job::normalize_render_job(request, auto_host);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code ==
+              c3d::runtime::job::RenderJobRequestErrorCode::InvalidOutputSegment);
+    };
+
+    // Non-contiguous: the segmented mux writer refuses anything that does not
+    // tile the timeline from frame 0, so the request boundary refuses it too.
+    rejects({OutputSegmentSpec{"a.mp4", 0, 10},
+             OutputSegmentSpec{"b.mp4", 12, 20}});
+    // Windows must start at frame 0.
+    rejects({OutputSegmentSpec{"a.mp4", 5, 10}});
+    // Empty or inverted window.
+    rejects({OutputSegmentSpec{"a.mp4", 0, 0}});
+    rejects({OutputSegmentSpec{"a.mp4", 10, 4}});
+    // Empty or duplicate output path.
+    rejects({OutputSegmentSpec{"", 0, 10}});
+    rejects({OutputSegmentSpec{"same.mp4", 0, 10},
+             OutputSegmentSpec{"same.mp4", 10, 20}});
+
+    // Video-only: source audio cannot be muxed into per-item segments.
+    {
+        JobRequest request = base;
+        request.output.audio_source_path = "voice.m4a";
+        const auto result =
+            c3d::runtime::job::normalize_render_job(request, auto_host);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code ==
+              c3d::runtime::job::RenderJobRequestErrorCode::InvalidOutputSegment);
+    }
+    // Copied GOPs own their container schedule.
+    {
+        JobRequest request = base;
+        request.output.gop_copy_only = true;
+        const auto result =
+            c3d::runtime::job::normalize_render_job(request, auto_host);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code ==
+              c3d::runtime::job::RenderJobRequestErrorCode::InvalidOutputSegment);
+    }
+    // The windows already describe the full timeline.
+    {
+        JobRequest request = base;
+        request.frame_range = c3d::runtime::job::FrameRange{0, 72};
+        const auto result =
+            c3d::runtime::job::normalize_render_job(request, auto_host);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code ==
+              c3d::runtime::job::RenderJobRequestErrorCode::InvalidOutputSegment);
+    }
+}
+
+TEST_CASE("decode_render_job_payload maps output segments from both spellings") {
+    const auto from_spec = cli::decode_render_job_payload(R"({
+        "plan_path":"plan.json",
+        "output":"hero.mp4",
+        "output_spec":{
+            "output_segments":[
+                {"output_path":"item-0.mp4","start_frame":0,"end_frame":72},
+                {"output_path":"item-1.mp4","start_frame":72,"end_frame":192}
+            ]
+        }
+    })");
+    REQUIRE(from_spec.request.output.output_segments.size() == 2);
+    CHECK(from_spec.request.output.output_segments[0].output_path == "item-0.mp4");
+    CHECK(from_spec.request.output.output_segments[1].start_frame == 72);
+    CHECK(from_spec.request.output.output_segments[1].end_frame == 192);
+
+    const auto from_root = cli::decode_render_job_payload(R"({
+        "plan_path":"plan.json",
+        "output":"hero.mp4",
+        "output_segments":[
+            {"output_path":"item-0.mp4","start_frame":0,"end_frame":24}
+        ]
+    })");
+    REQUIRE(from_root.request.output.output_segments.size() == 1);
+    CHECK(from_root.request.output.output_segments[0].end_frame == 24);
+}
+
+TEST_CASE("decode_render_job_payload refuses unknown keys inside output_segments entries") {
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(R"({
+            "plan_path":"plan.json",
+            "output_segments":[
+                {"output_path":"item-0.mp4","start_frame":0,"end":24}
+            ]
+        })"),
+        std::exception);
+    CHECK_THROWS_AS(
+        cli::decode_render_job_payload(R"({
+            "plan_path":"plan.json",
+            "output_spec":{
+                "output_segments":[
+                    {"output_path":"item-0.mp4","start_frame":0,"end_frame":24,"pts_shift":1}
+                ]
+            }
+        })"),
+        std::exception);
 }
 
 #ifdef CHRONON3D_TEST_VIDEO_EXPORT_DISABLED

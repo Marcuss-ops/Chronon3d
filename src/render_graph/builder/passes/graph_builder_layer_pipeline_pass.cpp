@@ -6,6 +6,8 @@
 #include "graph_builder_lighting_passes.hpp"
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
 #include <chronon3d/render_graph/nodes/clip_transition_node.hpp>
+#include <chronon3d/render_graph/nodes/clear_node.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
@@ -96,6 +98,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             const auto matte=ctx.name_to_resolved.find(matte_name);
             if(matte==ctx.name_to_resolved.end())
                 throw std::runtime_error("DisplacementMap source track-matte layer is missing or inactive: "+matte_name);
+            source_item.matte_source_is_static = ctx.is_static_cache.at(matte_name);
             source_item.matte_node = build_matte_source_node(*matte->second);
         }
         BuilderContext node_ctx{
@@ -146,6 +149,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             const auto source = ctx.name_to_resolved.find(source_name);
             if (source == ctx.name_to_resolved.end())
                 throw std::runtime_error("nested track-matte source is missing: " + source_name);
+            item.matte_source_is_static = ctx.is_static_cache.at(source_name);
             item.matte_node = build_matte_source_node(*source->second);
         }
         const auto node = detail::build_matte_sub_pipeline(
@@ -204,6 +208,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             if (it == ctx.name_to_resolved.end())
                 throw std::runtime_error("track-matte source is missing or inactive at frame " +
                     std::to_string(rctx.frame_input.frame.integral()) + ": " + src_name);
+            item.matte_source_is_static = ctx.is_static_cache.at(src_name);
             item.matte_node = build_matte_source_node(*it->second);
         }
         for(const auto& effect:item.layer->effects()) {
@@ -274,6 +279,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
             if (matte_it == ctx.name_to_resolved.end())
                 throw std::runtime_error("track-matte source is missing or inactive at frame " +
                     std::to_string(rctx.frame_input.frame.integral()) + ": " + src_name);
+            item.matte_source_is_static = ctx.is_static_cache.at(src_name);
             item.matte_node = build_matte_source_node(*matte_it->second);
         }
 
@@ -293,9 +299,68 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         return out;
     };
 
+    struct OpenLottieGroup {
+        Layer::LottiePrecompGroupIsolation descriptor;
+        GraphNodeId backdrop{k_invalid_node};
+    };
+    std::vector<OpenLottieGroup> open_lottie_groups;
+    const auto close_lottie_group = [&]() {
+        if (open_lottie_groups.empty()) return;
+        flush_3d_bin();
+        auto group = std::move(open_lottie_groups.back());
+        open_lottie_groups.pop_back();
+        if (rctx.policy.diagnostics_enabled)
+            spdlog::info("[lottie-group-close] id='{}' opacity={} active={} blend={}",
+                group.descriptor.id, group.descriptor.opacity,
+                group.descriptor.opacity_active,
+                static_cast<int>(group.descriptor.blend_mode));
+
+        GraphNodeId group_output = ctx.current_output;
+        if (group.descriptor.opacity_active) {
+            auto opacity = graph.add_node(std::make_unique<TransformNode>(
+                Mat4{1.0f}, group.descriptor.opacity, Frame{-1},
+                SamplingMode::Bilinear,
+                frame_variant_cache("lottie_precomp_group_opacity")));
+            graph.node(opacity).set_layer_id(group.descriptor.id);
+            dynamic_cast<TransformNode&>(graph.node(opacity)).preserve_identity(
+                group.descriptor.opacity_animated);
+            graph.connect(group_output, opacity);
+            group_output = opacity;
+        }
+
+        Layer group_layer;
+        group_layer.blend_mode = group.descriptor.blend_mode;
+        BuilderContext node_ctx{.layer_id = group.descriptor.id};
+        ctx.current_output = group.backdrop;
+        detail::append_composite_pass(
+            graph, ctx.current_output, group_output, group_layer, false,
+            rctx, 0.0f, node_ctx, Vec3{0.0f});
+    };
+    const auto sync_lottie_group_path = [&](const Layer& layer) {
+        const auto& next_path = layer.lottie_precomp_groups;
+        std::size_t common = 0;
+        while (common < open_lottie_groups.size() && common < next_path.size() &&
+               open_lottie_groups[common].descriptor.id == next_path[common].id)
+            ++common;
+        while (open_lottie_groups.size() > common) close_lottie_group();
+        while (open_lottie_groups.size() < next_path.size()) {
+            flush_3d_bin();
+            const auto& descriptor = next_path[open_lottie_groups.size()];
+            if (rctx.policy.diagnostics_enabled)
+                spdlog::info("[lottie-group-open] id='{}' opacity={} active={} blend={}",
+                    descriptor.id, descriptor.opacity, descriptor.opacity_active,
+                    static_cast<int>(descriptor.blend_mode));
+            const GraphNodeId backdrop = ctx.current_output;
+            ctx.current_output = graph.add_node(
+                std::make_unique<ClearNode>(true, descriptor.id));
+            open_lottie_groups.push_back({descriptor, backdrop});
+        }
+    };
+
     // ── Main layer iteration ───────────────────────────────────────────
     for (const auto& resolved_layer : ctx.resolved.layers) {
         const Layer& layer = *resolved_layer.layer;
+        sync_lottie_group_path(layer);
         const std::string layer_name(layer.name);
         const bool is_static_val =
             ctx.is_static_cache.at(layer_name);
@@ -396,6 +461,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
     }
 
     flush_3d_bin();
+    while (!open_lottie_groups.empty()) close_lottie_group();
 }
 
 } // namespace chronon3d::graph::detail

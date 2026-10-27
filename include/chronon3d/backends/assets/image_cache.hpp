@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <shared_mutex>
+#include <span>
 #ifdef CHRONON3D_USE_BLEND2D
 #include <blend2d.h>
 #endif
@@ -23,6 +24,10 @@ namespace assets { class AssetResolver; }
 struct CachedImage {
     int width{0};
     int height{0};
+    // True only when every alpha sample in the decoded runtime image is 1.
+    // This is independent of ImageShape opacity and safe for full-frame seed
+    // decisions; unknown/invalid decoder data stays false.
+    bool decoded_alpha_is_opaque{false};
 #ifdef CHRONON3D_USE_BLEND2D
     BLImage bl_img;
 #endif
@@ -78,6 +83,14 @@ public:
     [[nodiscard]] std::shared_ptr<const CachedImage>
     get_or_load(const std::string& path,
                 ImageDecodeOptions options = {});
+
+    /// Decode an embedded encoded image under a stable content identity.
+    /// The identity participates in the same LRU and decode-option key as
+    /// file-backed assets; payload bytes are consumed synchronously.
+    [[nodiscard]] std::shared_ptr<const CachedImage>
+    get_or_load_embedded(const std::string& identity,
+                         std::span<const std::byte> encoded,
+                         ImageDecodeOptions options = {});
 
     /// Resolver-explicit overload — the only safe path for shared/device
     /// caches.  The cache never retains the resolver; the caller keeps it

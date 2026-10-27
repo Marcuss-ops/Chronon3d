@@ -76,6 +76,9 @@ jobs:
           python3 scripts/ci/check_svg_text_spacing_raw_gate.py
           python3 scripts/ci/check_svg_text_gradient_raw_gate.py
           python3 scripts/ci/check_svg_text_baseline_raw_gate.py
+          python3 scripts/ci/check_lottie_cli_frame_gate.py
+          python3 scripts/ci/check_lottie_reference_visual.py
+          python3 scripts/ci/check_lottie_advanced_visual.py
   svg-motion-heavy-gates:
     name: Heavy SVG pixel-truth gates (animations, isolation, showcase, determinism)
     runs-on: ubuntu-24.04

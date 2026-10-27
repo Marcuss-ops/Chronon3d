@@ -1,6 +1,6 @@
 # Chronon 100× Performance Waves — Ticket Specs (B1/B2/B3)
 
-Status: `SPEC` (analysis only — no Chronon source touched per operator constraint)
+Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE NOT CERTIFIED; B3 SPEC (25 Oct 2026)` — this file is a ticket specification, not a blanket implementation status. The B1 DirectYUV static-template path is landed in source and the broader P1 static preset has one live PASS recorded in PipelineGen; B2 submission-depth and B3 MTSDF gates below are not certified by that P1 run. No claim of 100× single-clip latency or 100 overlay/min follows from B1 alone.
 Created: 2026-09-09
 Baseline evidence: job_1788973104795535356_86264102 sidecar + TICKET-ZERO-COPY-ZWAVES.md F1–F7
 Owner: Chronon rendering-core maintainers
@@ -49,7 +49,8 @@ though their pixels change only at cue boundaries. In the E2E, cue layers span
 **Gate (sidecar).** New counter `persistent_overlay_frames` vs
 `text_raster_frames`; after landing, `text_raster_frames ≈ number_of_cues`,
 not frames. `render_loop_ms` regression test: 456-frame static-text clip must
-not exceed 1.2× the no-text control.
+not exceed 1.2× the no-text control. This gate is distinct from P1's 3 s vs
+30 s throughput ratio and pixel-parity fixture; do not mark it passed from P1.
 
 **Risk.** Interaction with `TextAnimators`/word-reveal presets — those keep
 the per-frame path (they are genuinely animated).
@@ -57,6 +58,8 @@ the per-frame path (they are genuinely animated).
 ---
 
 ## B2 — Deep frames-in-flight in the graph executor (≈1.3–1.5×)
+
+**Status (25 Oct 2026):** implementation exists in the Vulkan ring configuration (`kSubmissionRingDepth = 6`), but this ticket's sidecar acceptance gate (drain wait ≤50µs/frame, NVENC ≥90%, render_loop ≥300 fps on its specified workload) is NOT certified here. Do not infer those metrics from the independent P1 live run.
 
 **Problem.** `vulkan_backend_submission_private.cpp` waits per batch-slot
 fence before re-recording; `frame_batch_drain_wait_us` is exported per frame.
@@ -86,6 +89,8 @@ batch).
 
 ## B3 — Single-pass MTSDF text rendering (≈1.1–1.2× after B1; enables animated text at scale)
 
+**Status (25 Oct 2026):** SPEC / NOT CERTIFIED. No evidence in this ticket establishes the one-draw-per-frame gate, outline/shadow golden equivalence, or the font-set VRAM budget; the P1 static-title result does not exercise B3's animated-text path.
+
 **Problem.** The glyph atlas already stores `GlyphRepresentation::Mtsdf`
 (RGBA8 SDF pages, `gpu_glyph_atlas.hpp`) but the runtime feeds it CPU coverage
 bitmaps via `acquire()` → `upload_surface_region` per glyph
@@ -103,9 +108,10 @@ by separate stroke/shadow passes (ShadowNode translate+blur,
 3. Keep the Coverage lane as fallback for non-MSDF fonts (capability matrix in
    the `VideoCompositor` resolver, no new resolver).
 
-**Gate.** `text_pass_draws_per_frame` == 1 for MSDF runs; visual regression
-golden for outline/shadow equivalence within tolerance; atlas VRAM budget
-≤ 256MB per font set (4 pages × 4 representations max).
+**Gate (NOT RUN in this status update).** `text_pass_draws_per_frame` == 1
+for MSDF runs; visual regression golden for outline/shadow equivalence within
+tolerance; atlas VRAM budget ≤ 256MB per font set (4 pages × 4 representations
+max).
 
 **Note.** After B1, per-glyph cost is mostly off the hot path; B3's remaining
 value is animated/kinetic text and higher-quality outlines, plus shrinking
@@ -115,9 +121,12 @@ VRAM (one MTSDF page vs coverage pages per size).
 
 ## Order of execution
 
-1. **B2** (executor depth) — no visual semantics change, gates already exported.
-2. **B1** (persistent overlay) — biggest single-clip win; needs new gate counter.
-3. **B3** (MTSDF) — last; partially subsumed by B1 for static text.
+1. **B2** (executor depth) — no visual semantics change; implementation exists,
+   but verify its sidecar gates on the specified workload before claiming a gain.
+2. **B1** (persistent overlay) — biggest single-clip win; implementation LAND,
+   but keep the P1 live certification scoped to its dedicated preset/backend.
+3. **B3** (MTSDF) — last; SPEC until its draw-count, visual golden and VRAM
+   gates pass; partially subsumed by B1 for static text.
 
 ## What 100× means after these
 

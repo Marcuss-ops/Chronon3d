@@ -43,7 +43,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
 
       - name: Gate / Test Hygiene
         if: runner.os == 'Linux'
@@ -72,7 +72,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           ctest --preset ${{ matrix.config.test_preset }} \
-            -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests|chronon3d_motion_plan_adapter_tests" \
+            -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests|chronon3d_motion_plan_adapter_tests|chronon3d_backend_registry_tests" \
             --output-on-failure --output-junit test-results-${{ matrix.config.slug }}.xml
       - name: Run RenderPlan v2/v3 adapter interoperability gate
         if: runner.os == 'Linux'
@@ -124,7 +124,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -144,7 +144,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -164,7 +164,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -198,7 +198,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -257,7 +257,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -276,7 +276,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -297,7 +297,7 @@ jobs:
       - name: Install fuzz toolchain
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq clang ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -364,7 +364,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - name: Canonical architecture and test registration gate
         run: python3 tools/check_architecture.py
       - uses: lukka/run-vcpkg@v11
@@ -429,7 +429,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - name: Architecture regression guard
         run: python3 tools/check_architecture.py
       - uses: lukka/run-vcpkg@v11
@@ -456,11 +456,11 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
-      - run: cmake --preset linux-ci -DCHRONON3D_BUILD_BENCHMARKS=ON
+      - run: cmake --preset linux-ci -DCHRONON3D_BUILD_BENCHMARKS=ON -DVCPKG_MANIFEST_FEATURES='tests;ipc;benchmarks'
       - run: cmake --build build/chronon/linux-ci --target chronon3d_benchmarks --target chronon3d_scene_program_benchmarks -j$(nproc)
       - name: Run blend benchmark
         id: bench-blend

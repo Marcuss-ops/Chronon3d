@@ -54,6 +54,7 @@ struct DirectYuvFramePackage {
 /// FrameExecutionPath::DuplicateFrame.
 struct DuplicateFramePackage {
     Frame frame_number{0};
+    int stream_frame_number{0};
     std::chrono::steady_clock::time_point enqueued_at{};
 };
 

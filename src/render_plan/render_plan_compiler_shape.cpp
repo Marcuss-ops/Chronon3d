@@ -35,6 +35,9 @@ bool shape_uses_authored_origin(ShapeContentTypePlan type) {
         case ShapeContentTypePlan::Grid:
         case ShapeContentTypePlan::DotGrid:
         case ShapeContentTypePlan::DeviceFrame:
+        case ShapeContentTypePlan::RingSegment:
+        case ShapeContentTypePlan::MonotoneLine:
+        case ShapeContentTypePlan::MonotoneChart:
             return true;
         default:
             return false;
@@ -182,7 +185,10 @@ void append_shape_layer(chronon3d::LayerBuilder& builder,
         case ShapeContentTypePlan::Arrow:
         case ShapeContentTypePlan::Arc:
         case ShapeContentTypePlan::Grid:
-        case ShapeContentTypePlan::DotGrid: {
+        case ShapeContentTypePlan::DotGrid:
+        case ShapeContentTypePlan::RingSegment:
+        case ShapeContentTypePlan::MonotoneLine:
+        case ShapeContentTypePlan::MonotoneChart: {
             append_path_shape(builder, layer, plan, ctx, shape, size, base_color,
                               active_gradient, sampled_field, stroke);
             break;

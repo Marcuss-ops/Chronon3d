@@ -17,6 +17,10 @@ std::unique_ptr<graph::RenderGraphNode> generic_effect_factory(const EffectInsta
     if (effect.effect_type == EffectType::Echo)
         return std::make_unique<graph::EffectStackNode>(
             std::move(stack), Frame{-1}, graph::frame_variant_cache("echo"));
+    if (!effect.parameter_tracks.empty())
+        return std::make_unique<graph::EffectStackNode>(
+            std::move(stack), Frame{-1},
+            graph::frame_variant_cache("animated_effect_params"));
     return std::make_unique<graph::EffectStackNode>(std::move(stack));
 }
 

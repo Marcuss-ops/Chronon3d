@@ -17,7 +17,7 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     EffectCatalog catalog;
 
     const auto available_ids = catalog.available();
-    REQUIRE(available_ids.size() == 52);
+    REQUIRE(available_ids.size() == 55);
     CHECK(catalog.contains(effect_ids::BlurGaussian));
     CHECK(catalog.contains(effect_ids::ColorBrightness));
     CHECK(catalog.contains(effect_ids::ColorContrast));
@@ -25,6 +25,9 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     CHECK(catalog.contains(effect_ids::ColorSaturation));
     CHECK(catalog.contains(effect_ids::ColorHueRotate));
     CHECK(catalog.contains(effect_ids::ColorInvert));
+    CHECK(catalog.contains(effect_ids::ColorMatrix));
+    CHECK(catalog.contains(effect_ids::ColorLottieTint));
+    CHECK(catalog.contains(effect_ids::ColorLottieTritone));
     CHECK(catalog.contains(effect_ids::ColorVignette));
     CHECK(catalog.contains(effect_ids::DistortFake3DWave));
     CHECK(catalog.contains(effect_ids::LightBloom));

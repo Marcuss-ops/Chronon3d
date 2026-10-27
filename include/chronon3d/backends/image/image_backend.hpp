@@ -4,6 +4,8 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <span>
+#include <cstddef>
 
 namespace chronon3d::image {
 
@@ -27,6 +29,12 @@ public:
     virtual ~ImageBackend() = default;
 
     virtual std::unique_ptr<ImageBuffer> load_image(const std::string& path) = 0;
+
+    /// Decode an encoded image payload without materializing it on disk.
+    /// Backends that do not support memory input fail closed by returning
+    /// nullptr; the software STB backend implements PNG/JPEG memory decoding.
+    virtual std::unique_ptr<ImageBuffer> load_image_from_memory(
+        std::span<const std::byte>) { return nullptr; }
 };
 
 } // namespace chronon3d::image

@@ -24,7 +24,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            ninja-build ccache pkg-config mono-complete ffmpeg
+            ninja-build ccache pkg-config mono-complete ffmpeg mold
         # libavcodec/libavformat/libavutil/libswscale are now declared as the
         # vcpkg `native-ffmpeg` manifest feature (vcpkg.json); the ffmpeg CLI
         # binary remains a system package for the integration contract.

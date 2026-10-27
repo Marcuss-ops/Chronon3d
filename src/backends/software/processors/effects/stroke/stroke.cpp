@@ -34,94 +34,111 @@ namespace chronon3d::renderer {
 // Helpers
 // =============================================================================
 
-/// Apply a 1D horizontal max-filter (dilation) to a single row.
-/// `src` and `dst` may point to the same memory.
-static void dilate_row_horizontal(const float* src, float* dst, int w, int radius) {
-    const int len = 2 * radius + 1;
-    for (int x = 0; x < w; ++x) {
-        float mx = 0.0f;
-        const int x0 = std::max(0, x - radius);
-        const int x1 = std::min(w - 1, x + radius);
-        for (int sx = x0; sx <= x1; ++sx) {
-            mx = std::max(mx, src[sx]);
+namespace {
+
+// Adjacent alphas live in the same 64 B cache line (Color == 4 x f32), so the
+// vertical morphology pass works on tiles of this many columns at once.
+constexpr int kMorphTileCols = 4;
+
+enum class MorphOp { Dilate, Erode };
+
+/// Exact 1D sliding min/max over the window [x - radius, x + radius] —
+/// van Herk–Gil–Werman. Interior positions resolve the window through the
+/// block identity `extreme([x-r, x+r]) = extreme(suffix_in_block(x-r),
+/// prefix_in_block(x+r))` over blocks of 2r+1 elements: O(1) per element
+/// regardless of radius, versus O(radius) for a naive window. The 2*radius
+/// edge positions keep the exact legacy semantics through a small clamped
+/// window (dilate floors at 0; erode sees the transparent outside and floors
+/// at 0 from above). Extrema are selections, not accumulations, so every
+/// output value is bit-identical to the previous naive loops.
+///
+/// `work` must hold 2n floats; `src` and `dst` must not alias.
+void morph_row_1d(const float* src, float* dst, int n, int radius,
+                  MorphOp op, float* work) {
+    if (n <= 0) return;
+    const bool dilate = (op == MorphOp::Dilate);
+    const int k = 2 * radius + 1;
+    float* const prefix = work;      // extreme over [block_start(i), i]
+    float* const suffix = work + n;  // extreme over [i, block_end(i)]
+
+    for (int i = 0; i < n; ++i) {
+        prefix[i] = (i % k == 0)
+            ? src[i]
+            : (dilate ? std::max(prefix[i - 1], src[i])
+                      : std::min(prefix[i - 1], src[i]));
+    }
+    for (int i = n - 1; i >= 0; --i) {
+        suffix[i] = ((i + 1) % k == 0 || i == n - 1)
+            ? src[i]
+            : (dilate ? std::max(suffix[i + 1], src[i])
+                      : std::min(suffix[i + 1], src[i]));
+    }
+
+    for (int x = 0; x < n; ++x) {
+        float value;
+        if (x - radius < 0 || x + radius >= n) {
+            const int x0 = std::max(0, x - radius);
+            const int x1 = std::min(n - 1, x + radius);
+            value = src[x0];
+            for (int sx = x0 + 1; sx <= x1; ++sx) {
+                value = dilate ? std::max(value, src[sx])
+                               : std::min(value, src[sx]);
+            }
+            value = dilate ? std::max(0.0f, value) : std::min(0.0f, value);
+        } else {
+            value = dilate ? std::max(suffix[x - radius], prefix[x + radius])
+                           : std::min(suffix[x - radius], prefix[x + radius]);
+            value = dilate ? std::max(0.0f, value) : std::min(1.0f, value);
         }
-        dst[x] = mx;
+        dst[x] = value;
     }
 }
 
-/// Apply a 1D horizontal min-filter (erosion) to a single row.
-static void erode_row_horizontal(const float* src, float* dst, int w, int radius) {
-    for (int x = 0; x < w; ++x) {
-        float mn = 1.0f;
-        if (x - radius < 0 || x + radius >= w) {
-            mn = 0.0f;
-        }
-        const int x0 = std::max(0, x - radius);
-        const int x1 = std::min(w - 1, x + radius);
-        for (int sx = x0; sx <= x1; ++sx) {
-            mn = std::min(mn, src[sx]);
-        }
-        dst[x] = mn;
-    }
-}
-
-/// 2D separable dilate: horizontal then vertical pass.
-static void dilate_alpha(Framebuffer& fb, int radius,
-                         ::chronon3d::EffectScratchResources& scratch) {
+/// Separable alpha morphology (dilate/erode): horizontal pass over rows, then
+/// vertical pass over tiles of kMorphTileCols adjacent columns so one cache
+/// line serves every alpha of the tile instead of one line per value.
+void morph_alpha(Framebuffer& fb, int radius, MorphOp op,
+                 ::chronon3d::EffectScratchResources& scratch) {
     if (radius <= 0) return;
     const int w = fb.width(), h = fb.height();
+    const int max_dim = std::max(w, h);
+    auto& tile_in = scratch.morph_tile_in;
+    auto& tile_out = scratch.morph_tile_out;
+    auto& work = scratch.morph_work;
+    tile_in.resize(static_cast<std::size_t>(kMorphTileCols * max_dim));
+    tile_out.resize(static_cast<std::size_t>(kMorphTileCols * max_dim));
+    work.resize(static_cast<std::size_t>(2 * max_dim));
 
-    // Horizontal pass
-    scratch.ensure_size(w, h);
-    auto& row_src = scratch.row_src;
-    auto& row_dst = scratch.row_dst;
-    auto& col_src = scratch.col_src;
-    auto& col_dst = scratch.col_dst;
-    row_src.resize(static_cast<std::size_t>(w));
-    row_dst.resize(static_cast<std::size_t>(w));
     for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) row_src[x] = fb.pixels_row(y)[x].a;
-        dilate_row_horizontal(row_src.data(), row_dst.data(), w, radius);
-        for (int x = 0; x < w; ++x) fb.pixels_row(y)[x].a = row_dst[x];
+        Color* row = fb.pixels_row(y);
+        for (int x = 0; x < w; ++x) tile_in[static_cast<std::size_t>(x)] = row[x].a;
+        morph_row_1d(tile_in.data(), tile_out.data(), w, radius, op, work.data());
+        for (int x = 0; x < w; ++x) row[x].a = tile_out[static_cast<std::size_t>(x)];
     }
 
-    // Vertical pass
-    col_src.resize(static_cast<std::size_t>(h));
-    col_dst.resize(static_cast<std::size_t>(h));
-    for (int x = 0; x < w; ++x) {
-        for (int y = 0; y < h; ++y) col_src[y] = fb.pixels_row(y)[x].a;
-        dilate_row_horizontal(col_src.data(), col_dst.data(), h, radius);
-        for (int y = 0; y < h; ++y) fb.pixels_row(y)[x].a = col_dst[y];
+    for (int xb = 0; xb < w; xb += kMorphTileCols) {
+        const int cols = std::min(kMorphTileCols, w - xb);
+        for (int y = 0; y < h; ++y) {
+            const Color* row = fb.pixels_row(y);
+            for (int c = 0; c < cols; ++c) {
+                tile_in[static_cast<std::size_t>(c * h + y)] = row[xb + c].a;
+            }
+        }
+        for (int c = 0; c < cols; ++c) {
+            morph_row_1d(tile_in.data() + static_cast<std::size_t>(c * h),
+                         tile_out.data() + static_cast<std::size_t>(c * h),
+                         h, radius, op, work.data());
+        }
+        for (int y = 0; y < h; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int c = 0; c < cols; ++c) {
+                row[xb + c].a = tile_out[static_cast<std::size_t>(c * h + y)];
+            }
+        }
     }
 }
 
-/// 2D separable erode: horizontal then vertical pass.
-static void erode_alpha(Framebuffer& fb, int radius,
-                        ::chronon3d::EffectScratchResources& scratch) {
-    if (radius <= 0) return;
-    const int w = fb.width(), h = fb.height();
-
-    scratch.ensure_size(w, h);
-    auto& row_src = scratch.row_src;
-    auto& row_dst = scratch.row_dst;
-    auto& col_src = scratch.col_src;
-    auto& col_dst = scratch.col_dst;
-    row_src.resize(static_cast<std::size_t>(w));
-    row_dst.resize(static_cast<std::size_t>(w));
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) row_src[x] = fb.pixels_row(y)[x].a;
-        erode_row_horizontal(row_src.data(), row_dst.data(), w, radius);
-        for (int x = 0; x < w; ++x) fb.pixels_row(y)[x].a = row_dst[x];
-    }
-
-    col_src.resize(static_cast<std::size_t>(h));
-    col_dst.resize(static_cast<std::size_t>(h));
-    for (int x = 0; x < w; ++x) {
-        for (int y = 0; y < h; ++y) col_src[y] = fb.pixels_row(y)[x].a;
-        erode_row_horizontal(col_src.data(), col_dst.data(), h, radius);
-        for (int y = 0; y < h; ++y) fb.pixels_row(y)[x].a = col_dst[y];
-    }
-}
+} // namespace
 
 // =============================================================================
 // Bounds computation
@@ -201,11 +218,11 @@ void apply_stroke(
     Framebuffer* dilated = scratch.framebuffer.get();
     Framebuffer* eroded = scratch.framebuffer_b.get();
     dilated->blit(fb, 0, 0);
-    dilate_alpha(*dilated, outer_radius, scratch);
+    morph_alpha(*dilated, outer_radius, MorphOp::Dilate, scratch);
 
     // ── Erode alpha ──
     eroded->blit(fb, 0, 0);
-    erode_alpha(*eroded, inner_radius, scratch);
+    morph_alpha(*eroded, inner_radius, MorphOp::Erode, scratch);
 
     // ── Compose stroke ──
     // Softness is handled naturally by the morphological radius:
@@ -216,10 +233,12 @@ void apply_stroke(
 
     for (int y = y0; y < y1; ++y) {
         Color* row = fb.pixels_row(y);
+        const Color* dil_row = dilated->pixels_row(y);
+        const Color* ero_row = eroded->pixels_row(y);
         for (int x = x0; x < x1; ++x) {
             const float src_a = orig_alpha[y * w + x];
-            const float dil_a = dilated->get_pixel(x, y).a;
-            const float ero_a = eroded->get_pixel(x, y).a;
+            const float dil_a = dil_row[x].a;
+            const float ero_a = ero_row[x].a;
 
             // Stroke mask: pixels that are in the dilated region but not
             // in the eroded region (i.e. the boundary band)

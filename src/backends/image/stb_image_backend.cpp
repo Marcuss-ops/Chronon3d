@@ -17,6 +17,7 @@
 #endif
 
 #include <filesystem>
+#include <limits>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::image {
@@ -102,6 +103,40 @@ std::unique_ptr<ImageBuffer> StbImageBackend::load_image(const std::string& path
     std::memcpy(buffer->pixels.get(), pixels, static_cast<size_t>(w) * h * 4);
     stbi_image_free(pixels);
 
+    return buffer;
+}
+
+std::unique_ptr<ImageBuffer> StbImageBackend::load_image_from_memory(
+    std::span<const std::byte> encoded) {
+    if (encoded.empty() || encoded.size() > static_cast<std::size_t>(
+            std::numeric_limits<int>::max()))
+        return nullptr;
+    const auto* input = reinterpret_cast<const stbi_uc*>(encoded.data());
+    int width = 0, height = 0, channels = 0;
+    constexpr std::size_t kMaxPixels = 16U * 1024U * 1024U;
+    if (!stbi_info_from_memory(input, static_cast<int>(encoded.size()),
+                               &width, &height, &channels) ||
+        width <= 0 || height <= 0 ||
+        static_cast<std::size_t>(width) > kMaxPixels /
+            static_cast<std::size_t>(height))
+        return nullptr;
+    auto* pixels = stbi_load_from_memory(
+        input, static_cast<int>(encoded.size()), &width, &height, &channels, 4);
+    if (!pixels) return nullptr;
+    const auto pixel_count = static_cast<std::size_t>(width) *
+        static_cast<std::size_t>(height);
+    if (width <= 0 || height <= 0 || pixel_count >
+            std::numeric_limits<std::size_t>::max() / 4U) {
+        stbi_image_free(pixels);
+        return nullptr;
+    }
+    auto buffer = std::make_unique<ImageBuffer>();
+    buffer->width = width;
+    buffer->height = height;
+    buffer->channels = 4;
+    buffer->pixels = std::make_unique<u8[]>(pixel_count * 4U);
+    std::memcpy(buffer->pixels.get(), pixels, pixel_count * 4U);
+    stbi_image_free(pixels);
     return buffer;
 }
 

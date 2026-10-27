@@ -24,6 +24,7 @@ LayoutFlow make_layout_flow(const LayerPlan::FlowLayoutPlan& plan) {
     flow.gap = plan.gap;
     flow.wrap = plan.wrap;
     flow.cell_size = {plan.cell_size[0], plan.cell_size[1]};
+    flow.intrinsic_size = plan.intrinsic_size;
     flow.align = plan.align == "center" ? AlignItems::Center
         : plan.align == "end" ? AlignItems::End
         : plan.align == "stretch" ? AlignItems::Stretch : AlignItems::Start;
@@ -45,6 +46,7 @@ LayoutGrid make_layout_grid(const LayerPlan::GridLayoutPlan& plan) {
         : plan.fit == "fixed_columns" ? GridFit::FixedColumns : GridFit::Auto;
     grid.gap = {plan.gap[0], plan.gap[1]};
     grid.cell_size = {plan.cell_size[0], plan.cell_size[1]};
+    grid.intrinsic_size = plan.intrinsic_size;
     return grid;
 }
 
@@ -170,32 +172,10 @@ void apply_scene_layer_effects(LayerBuilder& builder, const LayerPlan& layer, co
         const auto effect_type = effects::detect_effect_type(effect);
         for (const auto& entry : effects::builtin_effect_catalog())
             if (entry.type == effect_type) { canonical_effect_id = entry.id; break; }
-        std::optional<EffectParams> animated_effect;
-        if (!canonical_effect_id.empty()) {
-            for (const auto& param_track : layer.effect_param_tracks) {
-                if (param_track.effect_id != canonical_effect_id) continue;
-                if (!animated_effect) animated_effect.emplace(effect);
-                const auto base = effects::get_animatable_effect_param(
-                    *animated_effect, param_track.effect_id, param_track.param);
-                if (!base)
-                    throw std::runtime_error("effect parameter track is incompatible with the compiled effect parameter type");
-                const float value = detail::evaluate_scalar_track(
-                    param_track.track, ctx.effective_frame(), *base, plan.canvas.fps);
-                const auto* bounds = effects::find_animatable_effect_param(
-                    param_track.effect_id, param_track.param);
-                if (!bounds || !std::isfinite(value))
-                    throw std::runtime_error("effect parameter track produced a non-finite sample");
-                if (!effects::set_animatable_effect_param(
-                        *animated_effect, param_track.effect_id, param_track.param,
-                        std::clamp(value, bounds->minimum, bounds->maximum)))
-                    throw std::runtime_error("failed to apply compiled effect parameter track");
-            }
-        }
-        const auto& dispatch_effect = animated_effect ? *animated_effect : effect;
         std::optional<EffectParams> time_evolved_effect;
-        if (const auto* roughen = std::get_if<RoughenEdgesParams>(&dispatch_effect);
+        if (const auto* roughen = std::get_if<RoughenEdgesParams>(&effect);
             roughen && roughen->evolution_speed != 0.0f) {
-            time_evolved_effect.emplace(dispatch_effect);
+            time_evolved_effect.emplace(effect);
             auto& sampled = std::get<RoughenEdgesParams>(*time_evolved_effect);
             sampled.evolution += sampled.evolution_speed *
                 static_cast<float>(ctx.effective_frame() /
@@ -204,12 +184,32 @@ void apply_scene_layer_effects(LayerBuilder& builder, const LayerPlan& layer, co
             sampled.evolution_speed = 0.0f;
         }
         const auto& frame_effect = time_evolved_effect
-            ? *time_evolved_effect : dispatch_effect;
+            ? *time_evolved_effect : effect;
+        bool effect_added = false;
         std::visit([&](const auto& params) {
             using T = std::decay_t<decltype(params)>;
-            if constexpr (!std::is_same_v<T, std::monostate>)
+            if constexpr (!std::is_same_v<T, std::monostate>) {
                 builder.effect(params,time_control,time_curve,duration_seconds,composition_fps);
+                effect_added = true;
+            }
         }, frame_effect);
+        if (effect_added && !canonical_effect_id.empty()) {
+            for (const auto& param_track : layer.effect_param_tracks) {
+                if (param_track.effect_id != canonical_effect_id) continue;
+                effects::EffectParameterTrack runtime_track;
+                runtime_track.param = param_track.param;
+                runtime_track.keyframes.reserve(param_track.track.keyframes.size());
+                for (const auto& key : param_track.track.keyframes) {
+                    if (key.value.size() != 1)
+                        throw std::runtime_error(
+                            "effect parameter animation requires scalar keyframes");
+                    runtime_track.keyframes.push_back({
+                        key.frame.integral(), key.value.front(),
+                        key.interpolation.value_or(std::string{}) == "hold"});
+                }
+                builder.effect_parameter_track(std::move(runtime_track));
+            }
+        }
     }
 }
 
@@ -416,6 +416,34 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
             const auto& layer = plan.layers[index];
             const auto author_layer = [&](LayerBuilder& builder) {
                 builder.font_engine(font_engine.get());
+                if (!layer.lottie_precomp_groups.empty()) {
+                    std::vector<chronon3d::Layer::LottiePrecompGroupIsolation> groups;
+                    groups.reserve(layer.lottie_precomp_groups.size());
+                    for (const auto& source_group : layer.lottie_precomp_groups) {
+                        float opacity = source_group.opacity;
+                        if (source_group.opacity_animation)
+                            opacity = detail::evaluate_scalar_track(
+                                *source_group.opacity_animation, ctx.effective_frame(),
+                                source_group.opacity, plan.canvas.fps);
+                        if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f)
+                            throw std::runtime_error(
+                                "Lottie precomp group opacity evaluated outside [0,1]");
+                        groups.push_back({source_group.id, opacity,
+                            source_group.opacity_active, source_group.blend_mode,
+                            source_group.opacity_animation.has_value()});
+                    }
+                    builder.lottie_precomp_groups(std::move(groups));
+                }
+                // Animated effect tracks make the layer graph time-varying;
+                // ensure effect nodes use frame-variant cache policy.
+                const bool animated_precomp_group = std::any_of(
+                    layer.lottie_precomp_groups.begin(),
+                    layer.lottie_precomp_groups.end(),
+                    [](const auto& group) {
+                        return group.opacity_animation.has_value();
+                    });
+                if (!layer.effect_param_tracks.empty() || animated_precomp_group)
+                    builder.cache_static(false);
                 if (layer.type != LayerType::Light && layer.type != LayerType::Adjustment) {
                     if (layer.casts_shadows) builder.casts_shadows(*layer.casts_shadows);
                     if (layer.accepts_shadows) builder.accepts_shadows(*layer.accepts_shadows);

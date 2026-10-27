@@ -99,6 +99,7 @@ desktop.ini
 *.exr
 !tests/**
 !docs/**
+!golden/lottie_cli_gate/image_rgba.png
 
 # Raw framebuffer readbacks are reproducible verification artifacts, not
 # reviewable evidence. Keep their hashes and compact summaries instead.

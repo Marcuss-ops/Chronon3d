@@ -45,7 +45,9 @@ shape pipeline.
   Each tile is bounded to 32 shapes and 1024 path commands per shape; child
   transforms, fill-rule, opacity and fill-opacity are applied. Group tile
   content, child strokes, object-bounding-box units, and inherited patterns
-  remain unsupported. Static filters and unknown CSS declarations are rejected.
+  remain unsupported. Unknown CSS declarations are rejected. A bounded
+  root-level filter subset is documented under Phase 3; element-scoped filters
+  remain rejected so their scope is never widened accidentally.
   Stroke caps, joins, miter limits, and dash arrays are preserved.
   Static `display:none` suppresses its full subtree. `visibility:hidden` and
   `collapse` are inherited, and a descendant may restore `visibility:visible`.
@@ -55,12 +57,14 @@ shape pipeline.
   character rotation, and `textLength` follow the bounded cases listed in
   Phase 4. Vertical writing is rejected; nested textLength/rotate scopes and
   textPath length adjustment remain unsupported and fail closed.
-- Path-local `animateTransform` supports translate, scale and origin-centered
-  rotation, and `<animate attributeName="opacity">` supports bounded `from` / `to`
+- Path-local `animateTransform` supports translate, uniform scale and rotation
+  around the origin or a fixed explicit center. `<animate
+  attributeName="opacity">` supports bounded `from` / `to`
   or two-item `values`, integral composition-frame timing, one iteration,
   `fill="freeze"`, and linear/discrete interpolation. Unsupported timing,
-  repeated animation, additive transforms, rotation pivots, static ancestor or
-  path transforms, and animation on groups or primitives fail closed.
+  repeated animation, additive transforms, moving rotation pivots and
+  non-commuting static/animated transform mixes fail closed. Static and
+  animated translations may be composed safely.
 - Path-local animated paint supports solid `fill`/`stroke` colors,
   `stroke-width`, `fill-opacity`, and `stroke-opacity` through the native color
   and scalar tracks. Gradient stop color/opacity animations support only a
@@ -70,9 +74,12 @@ shape pipeline.
   static. Each path has a
   bounded set of nine distinct animation entries; conflicting target tracks
   fail during compilation.
-- A `<g>` can animate translate, uniform scale, origin-centered rotation and
+- A `<g>` can animate translate, uniform scale, fixed-pivot rotation and
   opacity directly; ordered ancestor/descendant tracks compose on child paths.
-  Static transforms on animated ancestry and group paint animations fail closed.
+  Static and animated transforms may be mixed when every static scope is a
+  translation and every animated transform is a translation; these operations
+  commute, so the baked geometry remains exact. Non-commuting static/animated
+  combinations and group paint animations fail closed.
 - Path `d` animation accepts 2 to 256 path values with matching command
   topology, begin at zero, integral composition-frame timing, and linear or
   discrete interpolation. `keyTimes` must be strictly increasing from 0 to 1;
@@ -127,11 +134,23 @@ shape pipeline.
   lower to the native path mask; integration coverage confirms both.
 - [x] Group translate and opacity animations sample across child paths at
   start/mid/end frames through the same native imported-path tracks.
+- [x] Animated rotation with a fixed non-origin center samples the expected
+  start/end path coordinates through the canonical imported-path evaluator;
+  changing the center during the animation fails closed.
+- [x] A static translation composed with nested animated translations samples
+  the correct start/end coordinates. Non-commuting static scale plus animated
+  translation remains a typed fail-closed case, including primitive paths.
 - [x] Path `d` morph coverage samples a three-value sequence at start, midpoint
   and end, and rejects topology changes.
 - [x] Resolver-backed SVG coverage samples synchronized gradient stop-color
   and stop-opacity animation at start, midpoint and end through the native
   gradient animation track.
+- [x] Resolver-backed SVG coverage samples a fixed-center rotation at the
+  origin and endpoint, permits commuting static plus animated translations,
+  and rejects a non-commuting static scale plus animated translation.
+- [x] The two C ABI test sources previously over 3,800 lines are split into
+  six registered files; no C/C++ file under `src`, `include` or `tests` exceeds
+  2,000 lines.
 
 ## Demolition debt
 
@@ -212,13 +231,16 @@ and the existing compiler, sampler, and renderer.
   for SVG geometry and text; allow a child to restore `visibility:visible`,
   while a `display:none` ancestor suppresses all descendants.
 - [x] Reuse Chronon effects when SVG filter semantics map directly; defer
-  arbitrary SVG filter graphs. The importer lowers one root-level,
-  isotropic `<feGaussianBlur>` over path-only `SourceGraphic` into the existing
-  native Gaussian blur effect, including isotropic root/viewBox scaling. Unsupported
-  filter scopes, anisotropic deviation, custom regions, chaining, and other
-  primitives fail closed. Chronon's existing blur implementation is an
-  approximation of the SVG Gaussian kernel, so pixel-exact browser parity is
-  not claimed.
+  arbitrary SVG filter graphs. The importer lowers a root-only, linear chain
+  of at most eight `feGaussianBlur`, `feDropShadow`, and matrix
+  `feColorMatrix` operations into existing software effects. A final optional
+  `feBlend` may combine the chain with `BackgroundImage` using the software
+  compositor's supported blend modes. Inputs/results must be explicit and
+  sequential; filter units, numeric parameters, names, and operation counts
+  are bounded. Path-only content is required. Element/group filters, masks or
+  clips combined with a filter, custom regions, color-space conversions,
+  non-isotropic blur, and arbitrary graphs fail closed. The importer does not
+  claim pixel-exact SVG browser Gaussian-kernel parity.
 
 ### Phase 4 — SVG text and timeline
 
@@ -430,6 +452,13 @@ SVG merge is subpath concatenation, not a boolean geometry operation.
 
 ## Verification update — 2026-10-18
 
+- SVG rigging follow-up on 2026-10-26: fixed-center `animateTransform rotate`
+  and commuting static/animated translation composition are covered by focused
+  C ABI and loader tests. Full SVG-enabled C ABI passes 293/293 cases and
+  8,022 assertions; SVG loader passes 53/53 and 421 assertions; software
+  renderer passes 195/195 and 5,952 assertions. CPU SVG configuration built
+  with `-j12`; Vulkan remained disabled.
+
 - Full SVG-enabled C ABI suite on the current working tree: 275/275 cases and
   6865/6865 assertions pass (including positioned text cluster coordinates,
   baselines, textPath, and materialized text paint checks).
@@ -471,7 +500,7 @@ approval cannot be completed from the current checkout.
 | SVG-02 trim at f0/15/30/45/60 | `check_svg_trim_sampled_raw_gate.py` measures imported-SVG pixel coverage 0/0/67/96/96 and repeat equality. Five-second peak study additionally measures 0/216/703/1147/1590/1591/1591 at f0/15/30/45/60/90/149. | Generic trim and composed hold covered; reference shot and its 3.0–6.0s timing remain open. |
 | SVG-03 marker pixels | `svg_peak_pixel_gate.py` checks isolated and combined SVG+marker centroids; isolated maximum error is 0.735 px. It also reproduces the unguarded sequential path loss (132 pixels at f0–45, 6 at f60) and verifies workaround coverage. The 150-frame study visually confirms travel. | Marker behavior covered with workaround; the underlying cause is unconfirmed (disabling composite input-storage transfer did not change it), and target framing remains open. |
 | SVG-04 glow | `svg_peak_pixel_gate.py` compares combined renders with/without native glow: 602 changed halo pixels, 0 changed pixels at the prior marker position, and deterministic repeat. | Synthetic moving-marker behavior passes; target-video halo and alpha behavior remain open. |
-| SVG-05 transforms/pivots | Imported transform tracks and camera showcase exist. | Vehicle pivot and target shot scale/push are open. |
+| SVG-05 transforms/pivots | Imported transform tracks, fixed-center animated rotation, and commuting static/animated translations pass CPU scene-coordinate tests. | Vehicle pivot placement and target shot scale/push still require the supplied scene/reference clip. |
 | SVG-06 temporal stability | Repeat showcase output has matching decoded frame hashes. | Target-video thin-line flicker review open. |
 | SVG-07 vector plus footage | A plan-level vector/footage composition fixture exists. | Encoded compositing with the actual plate is open. |
 | SVG-08 determinism | Full 360-frame showcase reruns match decoded pixels; synthetic gate also repeats raw RGBA samples. | Generic behavior covered; target plan open. |
@@ -766,6 +795,16 @@ Verification on the rebuilt `linux-video-test` software CLI:
 Vulkan certification remains with the user. Other text gaps listed above,
 general SVG filters and broader SMIL timing remain open.
 
+### CPU clip-rule support — 2026-10-25
+
+The importer now accepts SVG `clip-rule="evenodd"` and `clip-rule="nonzero"`
+on clip-path definitions and their descendant geometry, carrying the resolved
+rule into Chronon's canonical `PathFillRule`. A clipPath whose geometry resolves
+to conflicting rules is rejected because the current single-PathShape mask
+contract cannot preserve per-subpath clip rules. Verification on the CPU/SVG
+build: `chronon3d_svg_path_loader_tests`, 48/48 cases and 374/374 assertions;
+strict Vulkan parity is not claimed.
+
 ### SVG text paint overlays and current software verification — 2026-10-20
 
 Per-code-point paint inside a shaped grapheme is now implemented for the
@@ -818,4 +857,14 @@ byte. SVG loader tests pass (47 cases, 365 assertions), as do the styled text
 chunk, baseline, textPath coordinate, and bounded pattern raw gates. These
 results close the bounded software text contract; nested text scopes remain in
 [`TICKET-SVG-TEXT-ADVANCED-SCOPES.md`](TICKET-SVG-TEXT-ADVANCED-SCOPES.md).
+
+### CPU clip-rule and gradient spread — 2026-10-25
+
+The software importer accepts SVG `clip-rule="evenodd"` and `"nonzero"`,
+including inherited CSS rules on clip geometry. Linear and radial gradients
+lower `spreadMethod="pad"`, `"repeat"`, and `"reflect"` to Chronon's existing
+CPU sampler. `userSpaceOnUse` gradient coordinates were already implemented;
+gradient inheritance and unknown spread values remain fail-closed. Focused
+loader coverage verifies the rules and spread modes. Vulkan parity is not
+claimed by these importer changes.
 

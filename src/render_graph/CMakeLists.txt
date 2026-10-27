@@ -63,6 +63,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/track_matte_node.cpp
     nodes/per_pixel_dof_node.cpp
     nodes/lighting_node.cpp
+    nodes/shadow_node.cpp
     nodes/transition/transition_node_math.cpp
     transition/transition_catalog.cpp
     transition/transition_catalog_programs_basic.cpp
@@ -227,6 +228,10 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/refresh/transform.cpp
     pipeline/debug.cpp
     pipeline/composition.cpp
+    pipeline/composition_frame_prepare.cpp
+    pipeline/composition_frame_single.cpp
+    pipeline/composition_frame_temporal.cpp
+    pipeline/composition_frame_finalize.cpp
     pipeline/register_pipeline_nodes.cpp
 )
 set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)

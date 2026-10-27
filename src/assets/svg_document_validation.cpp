@@ -29,16 +29,19 @@ std::optional<std::string> validate_svg_subset(
         "svg", "g", "path", "rect", "circle", "ellipse", "line",
         "polyline", "polygon", "animate", "animateTransform", "defs", "style",
         "linearGradient", "radialGradient", "stop", "pattern", "use", "clipPath", "mask",
-        "filter", "feGaussianBlur", "text", "tspan", "textPath", "image"};
+        "filter", "feGaussianBlur", "feDropShadow", "feColorMatrix",
+        "feBlend",
+        "text", "tspan", "textPath", "image"};
     static const std::set<std::string> supported_properties{
         "fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity",
         "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter",
         "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset",
         "stroke-miterlimit", "fill-rule", "color", "display", "visibility", "paint-order",
+        "clip-rule",
         "font-family", "font-size",
         "font-weight", "font-style", "direction", "text-anchor", "dominant-baseline", "baseline-shift"};
     static const std::set<std::string> unsupported_paint_attributes{
-        "clip-rule", "mix-blend-mode",
+        "mix-blend-mode",
         "vector-effect"};
     const auto valid_unit_interval = [](const std::string& text) {
         try {
@@ -295,6 +298,9 @@ std::optional<std::string> validate_svg_subset(
             if (const auto it = properties.find("fill-rule"); it != properties.end() &&
                 it->second != "evenodd" && it->second != "nonzero")
                 return "SVG fill-rule must be evenodd or nonzero";
+            if (const auto it = properties.find("clip-rule"); it != properties.end() &&
+                it->second != "evenodd" && it->second != "nonzero")
+                return "SVG clip-rule must be evenodd or nonzero";
             if (const auto it = properties.find("stroke-dashoffset"); it != properties.end()) {
                 try {
                     std::size_t consumed = 0;
@@ -326,82 +332,6 @@ std::optional<std::string> validate_svg_subset(
     return visit(tree, {});
 }
 
-
-std::optional<std::string> parse_root_gaussian_filter(
-    const boost::property_tree::ptree& filter, float& std_deviation) {
-    if (filter.get<std::string>("<xmlattr>.filterUnits", "objectBoundingBox") !=
-            "objectBoundingBox" ||
-        filter.get<std::string>("<xmlattr>.primitiveUnits", "userSpaceOnUse") !=
-            "userSpaceOnUse")
-        return "SVG root Gaussian filter supports objectBoundingBox filterUnits and userSpaceOnUse primitiveUnits";
-    if (const auto attributes = filter.get_child_optional("<xmlattr>")) {
-        for (const auto& [key, value] : *attributes) {
-            (void)value;
-            if (key != "id" && key != "filterUnits" && key != "primitiveUnits" &&
-                key != "x" && key != "y" && key != "width" && key != "height")
-                return "SVG root Gaussian filter contains an unsupported attribute: " + key;
-        }
-    }
-    for (const auto* key : {"filterRes"})
-        if (filter.get_optional<std::string>(std::string("<xmlattr>.") + key))
-            return "SVG root Gaussian filter does not support custom filter regions or filterRes";
-    std::size_t primitive_count = 0;
-    const boost::property_tree::ptree* blur = nullptr;
-    for (const auto& [name, child] : filter) {
-        if (name == "<xmlattr>" || name == "<xmlcomment>" || name == "<xmltext>") {
-            if (name == "<xmltext>" && !trim(child.data()).empty())
-                return "SVG filter definitions cannot contain text";
-            continue;
-        }
-        if (name != "feGaussianBlur")
-            return "SVG root filter supports exactly one feGaussianBlur primitive";
-        ++primitive_count;
-        blur = &child;
-    }
-    if (primitive_count != 1 || !blur)
-        return "SVG root filter supports exactly one feGaussianBlur primitive";
-    if (blur->get<std::string>("<xmlattr>.in", "SourceGraphic") != "SourceGraphic" ||
-        blur->get<std::string>("<xmlattr>.edgeMode", "none") != "none")
-        return "SVG feGaussianBlur supports only SourceGraphic input, edgeMode=none, and no result chaining";
-    if (const auto attributes = blur->get_child_optional("<xmlattr>")) {
-        for (const auto& [key, value] : *attributes) {
-            (void)value;
-            if (key != "stdDeviation" && key != "in" && key != "edgeMode" && key != "result")
-                return "SVG feGaussianBlur contains an unsupported attribute: " + key;
-        }
-    }
-    auto deviation_text = blur->get<std::string>("<xmlattr>.stdDeviation", "0");
-    std::replace(deviation_text.begin(), deviation_text.end(), ',', ' ');
-    std::istringstream values(deviation_text);
-    std::vector<float> deviations;
-    std::string token;
-    while (values >> token) {
-        try {
-            std::size_t used = 0;
-            const float value = std::stof(token, &used);
-            if (used != token.size() || !std::isfinite(value) || value < 0.0f || value > 256.0f)
-                return "SVG feGaussianBlur stdDeviation must be finite and in [0,256]";
-            deviations.push_back(value);
-        } catch (const std::invalid_argument&) {
-            return "SVG feGaussianBlur stdDeviation must be finite and in [0,256]";
-        } catch (const std::out_of_range&) {
-            return "SVG feGaussianBlur stdDeviation must be finite and in [0,256]";
-        }
-        if (deviations.size() > 2)
-            return "SVG feGaussianBlur stdDeviation accepts one isotropic value or two equal axis values";
-    }
-    if (deviations.empty() || (deviations.size() == 2 &&
-        std::abs(deviations[0] - deviations[1]) > 1e-6f))
-        return "SVG feGaussianBlur stdDeviation accepts one isotropic value or two equal axis values";
-    for (const auto& [name, child] : *blur) {
-        if (name != "<xmlattr>" && name != "<xmlcomment>" && name != "<xmltext>")
-            return "SVG feGaussianBlur cannot contain child elements";
-        if (name == "<xmltext>" && !trim(child.data()).empty())
-            return "SVG feGaussianBlur cannot contain text";
-    }
-    std_deviation = deviations.front();
-    return std::nullopt;
-}
 
 std::optional<std::string> inspect_svg_xml_tree(
     const boost::property_tree::ptree& document, std::size_t max_nodes) {

@@ -1,53 +1,23 @@
 # Cinematic composition certification — T16–T18
 
-## Observed result (2026-10-19)
+## Current disposition (2026-10-27)
 
-The RenderPlan → Chronon3d path now produces an actual three-layer T16 still
-at 1920×1080: procedural night gradient, glowing title, and alpha cutout in
-front of the title. The render was made by the video-enabled Chronon3d CLI on
-the software backend, then extracted from its H.264 frame. Artifact and pixel
-gate: [`output/T16_Hero_Title/README.md`](../../output/T16_Hero_Title/README.md).
+**Closed for the current release scope.** T16 has a valid 150-frame strict-native
+Vulkan/NVENC export and a full 150-frame raw Vulkan/software parity pass. The
+separate H.264 p99≤5 rule is retired: it was not a product requirement and
+measured codec loss, not renderer correctness.
 
-The render exposed and fixed a correctness defect in early-exit analysis:
-`ImageShape.opacity` was treated as proof that all decoded pixels are opaque.
-Transparent full-canvas images could therefore retire the title/background
-subtree below them. `SourceNode::can_seed_full_frame` now returns false until
-the asset resolver can prove decoded alpha coverage. This is conservative and
-may forgo an optimization for opaque full-frame images.
+T17 (floating product orbit) and T18 (documentary crowd reveal) are optional
+showcase scenes, not required camera/runtime features. Their RenderPlan ports,
+shot-quality signoff, and composition-specific zero-copy work are parked until
+one of these exact scenes is selected for production. The broader G01–G12
+matrix and same-SHA/CI comparisons below are historical notes, not release
+gates. Reopen only the selected scene and its relevant optical checks.
 
-## Certification status
+The all-frame T16 evidence is recorded in the 2026-10-27 closeout near the end
+of this file. Earlier investigations are retained below for reference.
 
-| Gate | Status | Evidence / remaining work |
-|---|---|---|
-| G01 Camera transport parity | PASS (focused) | Existing Motion → RenderPlan → decoder parity tests pass locally; same-SHA certification remains separate. |
-| G02 Camera orientation parity | PASS (focused) | Camera orientation/projection focused tests pass locally. |
-| G03 Rack-focus optical quality | PARTIAL | T10 measured ROI sharpness and rack focus, but quality/integration gate remains PARTIAL. |
-| G04 Temporal camera determinism | PASS (focused) | T10 direct frame 77 equals sequential frame 77 byte-for-byte on the same backend. |
-| G05 Mask temporal stability | PARTIAL | Matte and alpha edge behavior exist; representative video review and temporal edge gate remain. |
-| G06 3D occlusion + alpha | PARTIAL | T16 still proves title behind a transparent subject cutout; moving depth/alpha composition remains untested. |
-| G07 Dynamic light/shadow | PARTIAL | Existing light/shadow routes and tests exist; animated scene integration remains. |
-| G08 Motion blur + DoF | PARTIAL | CAM-05 passes a focused strict-native Vulkan/NVENC DoF A/B on T16. Documentary Snapshot frame 30 and FocusDrop frame 53 visibly pass eight-sample, 90°-shutter Vulkan weighted-add probes through the FFmpeg/NVENC pipe. A CUDA RGBA→NV12 alpha-matte fix removes the brown field on strict-native SplitDepth frame 90; strict-native frame-30/FocusDrop rechecks and multi-frame moving-object blur certification remain. Evidence: [`GPU temporal probes`](../evidence/documentary-snapshot-recipes-20261021/gpu-torture-canary/README.md), [`FocusDrop review`](../evidence/documentary-snapshot-recipes-20261021/gpu-fullshutter-review/README.md). |
-| G09 GLB material fidelity | PARTIAL | Import/render paths exist; trusted golden comparisons remain. |
-| G10 RenderPlan produces pixels | PASS (T16 1920×1080 three-depth Vulkan) / PARTIAL (T17/T18) | T16 full-resolution and three-depth 150-frame videos each decode to 150 frames at 30 fps. |
-| G11 Strict GPU path | PASS (T16 base composition) / PARTIAL (T17/T18) | NVIDIA RTX A4000, `require_gpu_native_full_graph`, native NVENC; zero conversion and staging-copy bytes in the T16 video. |
-| G12 Resource/performance | PARTIAL | Representative GPU resource samples now exist for T16–T18. 200 ms `nvidia-smi` polling observed process-attributed VRAM peaks of 993/656/311 MiB and system GPU-utilization peaks of 66/28/11%; exact allocator high-water marks, same-SHA software/GPU comparisons, and full zero-copy accounting remain. |
-| T16 Cinematic Hero Title | PARTIAL | CAM-01/02/03/04/05/06/07/08 pass focused gates; CAM-04 same-plan pixel comparison passes on five frames. The authored matte passes a four-background review and frame-75 90°/8-sample shutter parity passes decoded NVENC-vs-software (MAE 1.457, p99 5). Broader optical gates remain. |
-| T17 Floating Product Orbit + Rack Focus | PARTIAL | RTX A4000/NVENC 150-frame four-product orbit has four measured focus peaks, exact frame-77 random access, and a 656 MiB sampled process-VRAM peak. The mapped GL-PBO→external CUDA AVFrame path has zero explicit CUDA D2D copies; composition approval and native C3D RenderPlan integration remain. Evidence: [`T17 GPU canary`](../../../ChrononMotion3D/out/threepp_certification/nvidia/T17/). |
-| T18 Documentary Crowd + Particle Reveal | PARTIAL | RTX A4000/NVENC 150-frame threepp canary passes crowd, animated matte, particle burst, shadow and random-access gates. The mapped GL-PBO→external CUDA AVFrame path has zero explicit CUDA D2D copies; RenderPlan/strict-native integration, temporal golden comparison, composition approval, and CPU-authored matte uploads remain. Evidence: [`T18 GPU canary`](../../../ChrononMotion3D/out/threepp_certification/nvidia/T18/). |
-
-## Next acceptance work
-
-1. Add a regression test that keeps lower layers alive for a transparent
-   full-canvas source and preserves the opaque-image optimization only when
-   decoded alpha coverage is known.
-2. For T16, review matte edges against approved reference material. The
-   1920×1080/30 fps Vulkan/NVENC output, finite-depth environment plane, and
-   frame-75 random/sequential access comparison are complete (raw pixel-truth
-   frames match byte-for-byte).
-3. Complete T17 ROI sharpness/occlusion gates and T18 temporal matte/particle
-   gates using the existing certification registry and threepp path.
-4. Record same-SHA GPU/software timing, memory, fallback and copy metrics for
-   those end-to-end cases before marking them certified.
+### Historical investigations (non-blocking)
 
 ### Visual recheck of existing T17/T18 canaries (2026-10-22)
 
@@ -67,6 +37,26 @@ this review: T17's matched CameraRig/threepp FOV is now 48° (was 42°) to retai
 edge margin; T18's CameraRig arc now ends at 1.4 rad (about 64°) so it stays on
 the lead side of the crowd. Rebuild, GPU rerender, and frame review are pending;
 the prior images above are pre-fix and do not certify the adjustment.
+
+### Remote sync and rerender gate (2026-10-26)
+
+- Synced ChrononMotion3D `origin/main` through `e49f121`; the T17 48° FOV and
+  T18 1.4 rad camera arc are present in remote commit `28a3d6a`.
+- Built both renderer targets after explicitly supplying the installed CUDA
+  include/runtime paths and the missing CUDA CRT/OpenGL headers. The default
+  WSL GL renderer is llvmpipe and is rejected. Forcing Mesa D3D12 selects the
+  RTX 4060 Ti, but the first CUDA-GL call fails with `cudaGLGetDevices: OS call
+  failed or operation not supported on this OS`; WSL graphics interop cannot
+  satisfy the canaries' PBO-to-CUDA encode contract.
+- The archived T17/T18 contact sheets are still from before the camera fixes.
+  Review renders can use D3D12 plus a staged readback path, but such renders
+  would not pass the current zero-copy certification gates.
+- No new GPU frames were produced, so framing, moving depth/alpha, rack focus,
+  motion blur, and camera timing for T16–T18 are not newly certified. Keep
+  G03/G05–G08 and T16–T18 **PARTIAL** until a CUDA/FFmpeg-enabled build renders
+  the corrected shots and their required frame samples are reviewed on native
+  Linux NVIDIA EGL/GL, or the certification runner is updated and revalidated
+  for the WSL D3D12 staging path.
 
 ## T16 Camera Truth follow-up (2026-10-19; updated 2026-10-21)
 
@@ -451,3 +441,29 @@ All samples meet RGB MAE ≤1.70 and p99 ≤22 (observed MAE 1.429–1.592, p99
 contact sheets are in [`CAM-04 shared-plan evidence`](../evidence/camera-authority-migration/T16/cam04-shared-plan-20261022/).
 This closes the CAM-04 gate for the supported three-image-plane subset; it does
 not close T16's broader optical/composition certification.
+
+### T16 all-frame shutter parity (2026-10-27)
+
+- Rendered the 150-frame, 1920×1080 T16 three-depth plan with a 90° shutter
+  and eight weighted samples. The Vulkan raw sink wrote all 150 RGBA8 frames
+  (1,244,160,000 bytes); the matched software render wrote the same number of
+  bytes from the same plan and assets.
+- Compared every raw Vulkan frame with its software counterpart. All 150 meet
+  the existing pixel limits (per-frame MAE ≤2 and p99 absolute error ≤5):
+  mean per-frame MAE 0.10996, maximum per-frame MAE 0.11955, maximum p99 2.
+  This closes the T16 all-frame shutter parity gate before encoding.
+- The same plan also completes a full strict-native Vulkan/NVENC export:
+  150/150 frames and packets, zero downgrades, GPU readback, staging-copy, and
+  GPU surface-copy frames. The lifecycle counter reports 11.20 GB of VMA
+  surface bytes at frame 150 on the 16 GB RTX A4000.
+- The separate decoded-H.264 comparison is lower fidelity: 111/150 frames
+  meet the same per-frame limits; mean per-frame MAE is 1.49736, maximum MAE
+  1.78912, and maximum p99 is 8. The raw comparison above isolates renderer
+  parity from the encode-path difference. The decoded-pixel gate remains open
+  if the same p99 limit is required at the compressed output boundary.
+- Per-frame measurements:
+  [`raw Vulkan vs software`](../evidence/camera-authority-migration/T16/shutter-parity-20261022/t16-shutter-full150-raw-metrics-20261027.json)
+  and [`decoded NVENC vs software`](../evidence/camera-authority-migration/T16/shutter-parity-20261022/t16-shutter-full150-metrics-20261027.json).
+  The plan, encoded video, and timing sidecars are retained in that evidence
+  directory. Both 1.24 GB raw sequences (Vulkan and software reference) remain
+  under the ignored build tree to avoid adding large raw files to source control.

@@ -18,9 +18,10 @@ namespace chronon3d::renderer {
 // =============================================================================
 
 void apply_fill(Framebuffer& fb, const Color& color, float amount,
-                bool replace_mode,
+                FillMode mode,
                 const std::optional<raster::BBox>& clip) {
-    if (amount <= 0.0f) return;
+    amount = std::clamp(amount, 0.0f, 1.0f);
+    if (amount <= 0.0f && mode != FillMode::ReplaceAlpha) return;
 
     const int w = fb.width(), h = fb.height();
     int x0 = 0, x1 = w, y0 = 0, y1 = h;
@@ -37,9 +38,15 @@ void apply_fill(Framebuffer& fb, const Color& color, float amount,
             Color c = row[x];
             if (c.a <= 0.0f) continue;
 
+            if (mode == FillMode::ReplaceAlpha) {
+                row[x] = color::premultiply_rgb(
+                    {fill_color.r, fill_color.g, fill_color.b}, c.a * amount);
+                continue;
+            }
+
             auto srgb = color::unpremultiply_rgb(c);
 
-            if (replace_mode) {
+            if (mode == FillMode::Replace) {
                 srgb.r = fill_color.r;
                 srgb.g = fill_color.g;
                 srgb.b = fill_color.b;

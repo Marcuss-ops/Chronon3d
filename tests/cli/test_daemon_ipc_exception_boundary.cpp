@@ -5,6 +5,7 @@
 #include "commands/render/command_render_plan.hpp"
 #include <chronon3d/api/render_engine.hpp>
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -274,6 +275,111 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
     REQUIRE(shutdown.has_value());
     CHECK(shutdown->status == Status::Shutdown);
     CHECK(dispatch_count.load(std::memory_order_relaxed) == 2);
+}
+
+TEST_CASE("daemon RENDER_BATCH preserves segment order and isolates a failed segment retry") {
+    using namespace std::chrono_literals;
+
+    const auto suffix = std::to_string(static_cast<long>(::getpid()));
+    const auto socket_path = std::filesystem::temp_directory_path() /
+        ("chronon3d-daemon-batch-retry-" + suffix + ".sock");
+    const auto plan_path = std::filesystem::temp_directory_path() /
+        ("chronon3d-daemon-batch-retry-" + suffix + ".json");
+    {
+        std::ofstream plan(plan_path);
+        REQUIRE(plan.is_open());
+        plan << R"({"schema":"chronon.render-plan.v2","version":2,"job_id":"daemon-batch-retry-test","canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},"layers":[{"id":"bg","type":"color","color":[0,0,0,1],"size":[64,64],"start_frame":0,"duration_frames":1}],"output":{"path":"unused.png","format":"png"}})";
+    }
+
+    chronon3d::CompositionRegistry registry;
+    chronon3d::cli::DaemonOptions options;
+    options.backend = "software";
+    chronon3d::cli::DaemonService service(registry, std::move(options));
+
+    auto& dispatcher = chronon3d::cli::render_job_dispatcher();
+    auto previous_dispatcher = std::move(dispatcher);
+    std::atomic<unsigned> dispatch_count{0};
+    std::vector<std::string> dispatched_outputs;
+    dispatcher = [&dispatch_count, &dispatched_outputs](
+        const chronon3d::runtime::job::NormalizedRenderJob& job,
+        std::shared_ptr<chronon3d::SoftwareRenderer>,
+        std::shared_ptr<chronon3d::media::VideoJobExecutionContext>) -> Reply {
+        const auto call = dispatch_count.fetch_add(1, std::memory_order_relaxed);
+        const auto output = job.output_path.string();
+        dispatched_outputs.push_back(output);
+        if (output == "segment-0.png") {
+            return Reply{Status::Error, "segment-0 transient failure"};
+        }
+        return Reply{Status::Ok, "segment render complete"};
+    };
+
+    std::thread daemon_thread([&service, &socket_path] {
+        service.run_socket(socket_path.string());
+    });
+    UnixSocketClient client;
+    bool connected = false;
+    for (int attempt = 0; attempt < 200 && !connected; ++attempt) {
+        if (std::filesystem::exists(socket_path)) {
+            try {
+                client.connect(socket_path.string());
+                connected = true;
+            } catch (const std::system_error&) {
+                // The socket inode can exist before listen() is ready.
+            }
+        }
+        if (!connected) std::this_thread::sleep_for(10ms);
+    }
+
+    const auto make_payload = [&](std::string_view job_id,
+                                  std::string_view output) {
+        return std::string{R"({"job_id":")"} + std::string{job_id} +
+            R"(","plan_path":")" + plan_path.string() +
+            R"(","output":")" + std::string{output} +
+            R"(","backend":"software","range_enabled":true,"first_frame":0,"last_frame":0,"output_spec":{"width":64,"height":64,"encoder_backend":"pipe","gpu_hot_path_mode":"auto"},"execution_requirements":{"backend":"software","gpu_required":false,"cpu_fallback_allowed":true,"composition_required":false,"video_source_required":false,"packet_copy_allowed":true}})";
+    };
+
+    std::optional<Reply> batch_reply;
+    std::optional<Reply> retry_reply;
+    std::optional<Reply> shutdown;
+    if (connected) {
+        const auto first = make_payload("batch-segment-0", "segment-0.png");
+        const auto second = make_payload("batch-segment-1", "segment-1.png");
+        const std::string batch_payload =
+            std::string{"{\"jobs\":"} + "[" + first + "," + second + "]}";
+        batch_reply = client.request(Command::RenderBatch, batch_payload);
+        retry_reply = client.request(
+            Command::RenderJob,
+            make_payload("retry-segment-0", "segment-0-retry.png"));
+        shutdown = client.request(Command::Shutdown);
+    }
+
+    client.close();
+    if (daemon_thread.joinable()) daemon_thread.join();
+    dispatcher = std::move(previous_dispatcher);
+    std::error_code ignored;
+    std::filesystem::remove(plan_path, ignored);
+    std::filesystem::remove(socket_path, ignored);
+
+    REQUIRE(connected);
+    REQUIRE(batch_reply.has_value());
+    CHECK(batch_reply->status == Status::Error);
+    const auto batch_result = nlohmann::json::parse(batch_reply->message);
+    REQUIRE(batch_result.contains("results"));
+    REQUIRE(batch_result["results"].size() == 2);
+    CHECK(batch_result["results"][0]["index"] == 0);
+    CHECK(batch_result["results"][0]["status"] == "error");
+    CHECK(batch_result["results"][0]["message"] == "segment-0 transient failure");
+    CHECK(batch_result["results"][1]["index"] == 1);
+    CHECK(batch_result["results"][1]["status"] == "ok");
+    REQUIRE(dispatched_outputs.size() == 3);
+    CHECK(dispatched_outputs[0] == "segment-0.png");
+    CHECK(dispatched_outputs[1] == "segment-1.png");
+    CHECK(dispatched_outputs[2] == "segment-0-retry.png");
+    REQUIRE(retry_reply.has_value());
+    CHECK(retry_reply->status == Status::Ok);
+    CHECK(dispatch_count.load(std::memory_order_relaxed) == 3);
+    REQUIRE(shutdown.has_value());
+    CHECK(shutdown->status == Status::Shutdown);
 }
 
 TEST_CASE("daemon runs the deferred receipt step after releasing the render lane") {

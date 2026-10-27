@@ -343,7 +343,9 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                             break;
                         }
                         case render_plan::ShapeContentTypePlan::Line:
-                        case render_plan::ShapeContentTypePlan::Path: {
+                        case render_plan::ShapeContentTypePlan::Path:
+                        case render_plan::ShapeContentTypePlan::RingSegment:
+                        case render_plan::ShapeContentTypePlan::MonotoneLine: {
                             PathParams params;
                             for (const auto& command : shape.path) {
                                 const Vec2 point{command.point[0], command.point[1]};
@@ -407,7 +409,10 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                         specs.push_back({PathOperatorKind::WigglePath,
                                             WigglePathParams{op.amount, op.frequency}, op.seed});
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::Merge ||
-                                               op.kind == render_plan::PathOperatorKindPlan::BooleanUnion) {
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanUnion ||
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanDifference ||
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanIntersection ||
+                                               op.kind == render_plan::PathOperatorKindPlan::BooleanXor) {
                                         std::vector<std::vector<PathCommand>> planned_paths;
                                         for (const auto& planned_path : op.paths) {
                                             std::vector<PathCommand> subpath;
@@ -425,10 +430,21 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                             }
                                             planned_paths.push_back(std::move(subpath));
                                         }
-                                        if (op.kind == render_plan::PathOperatorKindPlan::BooleanUnion)
-                                            specs.push_back({PathOperatorKind::BooleanUnion,
-                                                BooleanUnionParams{std::move(planned_paths)}, 0});
-                                        else
+                                        if (op.kind != render_plan::PathOperatorKindPlan::Merge) {
+                                            auto params = BooleanUnionParams{std::move(planned_paths)};
+                                            PathOperatorKind path_kind = PathOperatorKind::BooleanUnion;
+                                            if (op.kind == render_plan::PathOperatorKindPlan::BooleanDifference) {
+                                                params.operation = PathBooleanOperation::Difference;
+                                                path_kind = PathOperatorKind::BooleanDifference;
+                                            } else if (op.kind == render_plan::PathOperatorKindPlan::BooleanIntersection) {
+                                                params.operation = PathBooleanOperation::Intersection;
+                                                path_kind = PathOperatorKind::BooleanIntersection;
+                                            } else if (op.kind == render_plan::PathOperatorKindPlan::BooleanXor) {
+                                                params.operation = PathBooleanOperation::Xor;
+                                                path_kind = PathOperatorKind::BooleanXor;
+                                            }
+                                            specs.push_back({path_kind, std::move(params), 0});
+                                        } else
                                             specs.push_back({PathOperatorKind::Merge,
                                                 MergeParams{std::move(planned_paths)}, 0});
                                     } else if (op.kind == render_plan::PathOperatorKindPlan::Trim) {
@@ -455,6 +471,38 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                                     copy.color.a *= expanded[i].opacity;
                                     builder.path("shape_repeater_" + std::to_string(i), std::move(copy));
                                 }
+                            }
+                            break;
+                        }
+                        case render_plan::ShapeContentTypePlan::MonotoneChart: {
+                            for (std::size_t index = 0; index < shape.imported_subpaths.size(); ++index) {
+                                const auto& imported = shape.imported_subpaths[index];
+                                PathParams params;
+                                for (const auto& command : imported.path) {
+                                    const Vec2 point{command.point[0], command.point[1]};
+                                    const Vec2 c1{command.control1[0], command.control1[1]};
+                                    const Vec2 c2{command.control2[0], command.control2[1]};
+                                    switch (command.type) {
+                                        case render_plan::ShapePathCommandTypePlan::MoveTo: params.commands.push_back(PathCommand::move_to(point)); break;
+                                        case render_plan::ShapePathCommandTypePlan::LineTo: params.commands.push_back(PathCommand::line_to(point)); break;
+                                        case render_plan::ShapePathCommandTypePlan::QuadraticTo: params.commands.push_back(PathCommand::quadratic_to(c1, point)); break;
+                                        case render_plan::ShapePathCommandTypePlan::CubicTo: params.commands.push_back(PathCommand::cubic_to(c1, c2, point)); break;
+                                        case render_plan::ShapePathCommandTypePlan::Close: params.commands.push_back(PathCommand::close()); params.closed = true; break;
+                                    }
+                                }
+                                if (imported.fill_color) {
+                                    const auto& c = *imported.fill_color;
+                                    params.fill = Fill::solid_color(Color{c[0], c[1], c[2], c[3]});
+                                }
+                                if (imported.stroke && imported.stroke->solid_color) {
+                                    const auto& c = *imported.stroke->solid_color;
+                                    params.stroke.enabled = true;
+                                    params.stroke.color = Color{c[0], c[1], c[2], c[3]};
+                                    params.stroke.width = imported.stroke->width.value_or(1.0f);
+                                }
+                                params.color = layer_color;
+                                params.pos = {0.0f, 0.0f, 0.0f};
+                                builder.path("chart_" + std::to_string(index), std::move(params));
                             }
                             break;
                         }

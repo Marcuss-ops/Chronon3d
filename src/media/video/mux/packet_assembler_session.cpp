@@ -6,7 +6,9 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <iterator>
 #include <string_view>
+#include <unordered_set>
 
 extern "C" {
 #include <libavutil/dict.h>
@@ -279,6 +281,202 @@ bool MuxSession::finalize() noexcept {
 
 MuxHashMetrics MuxSession::hash_metrics() const noexcept {
     return writer_ ? writer_->hash_metrics() : MuxHashMetrics{};
+}
+
+MuxOutputSegmentWriter::~MuxOutputSegmentWriter() {
+    if (finalized_) return;
+    mirror_.reset();
+    muxes_.clear();
+    for (const auto& segment : segments_) {
+        std::error_code ec;
+        std::filesystem::remove(segment.output_path, ec);
+    }
+    if (!mirror_output_path_.empty()) {
+        std::error_code ec;
+        std::filesystem::remove(mirror_output_path_, ec);
+    }
+}
+
+bool MuxOutputSegmentWriter::open(
+    const AVCodecParameters* video_params,
+    AVRational video_time_base,
+    std::vector<MuxOutputSegment> segments,
+    bool fragmented_mp4,
+    std::string& reason,
+    const std::string& mirror_output_path) {
+    if (opened_ || finalize_attempted_) {
+        reason = "segmented mux writer can only be opened once";
+        return false;
+    }
+    if (!video_params || video_params->codec_type != AVMEDIA_TYPE_VIDEO ||
+        video_time_base.num <= 0 || video_time_base.den <= 0 || segments.empty()) {
+        reason = "segmented mux writer requires video parameters, time base, and outputs";
+        return false;
+    }
+
+    std::int64_t expected_start = 0;
+    std::unordered_set<std::string> output_paths;
+    for (const auto& segment : segments) {
+        if (segment.output_path.empty() || segment.start_pts != expected_start ||
+            segment.end_pts <= segment.start_pts ||
+            !output_paths.emplace(segment.output_path).second) {
+            reason = "segments must have unique output paths and contiguous positive PTS ranges starting at zero";
+            return false;
+        }
+        expected_start = segment.end_pts;
+    }
+    // The mirror shares the output namespace: a mirror path colliding with a
+    // segment would have two muxers writing the same file.
+    if (!mirror_output_path.empty() &&
+        output_paths.find(mirror_output_path) != output_paths.end()) {
+        reason = "mirror output path collides with a segment output path";
+        return false;
+    }
+
+    segments_ = std::move(segments);
+    video_time_base_ = video_time_base;
+    mirror_output_path_ = mirror_output_path;
+    muxes_.reserve(segments_.size());
+    packet_counts_.assign(segments_.size(), 0);
+    last_packet_pts_.assign(segments_.size(), AV_NOPTS_VALUE);
+    for (const auto& segment : segments_) {
+        auto mux = std::make_unique<MuxSession>();
+        if (!mux->open(MuxOpenConfig{
+                .output_path = segment.output_path,
+                .video_params = video_params,
+                .video_time_base = video_time_base,
+                .fragmented_mp4 = fragmented_mp4}, reason)) {
+            muxes_.clear();
+            for (const auto& path : segments_) {
+                std::error_code ec;
+                std::filesystem::remove(path.output_path, ec);
+            }
+            segments_.clear();
+            packet_counts_.clear();
+            return false;
+        }
+        muxes_.push_back(std::move(mux));
+    }
+    if (!mirror_output_path_.empty()) {
+        mirror_ = std::make_unique<MuxSession>();
+        if (!mirror_->open(MuxOpenConfig{
+                .output_path = mirror_output_path_,
+                .video_params = video_params,
+                .video_time_base = video_time_base,
+                .fragmented_mp4 = fragmented_mp4}, reason)) {
+            mirror_.reset();
+            muxes_.clear();
+            for (const auto& path : segments_) {
+                std::error_code ec;
+                std::filesystem::remove(path.output_path, ec);
+            }
+            segments_.clear();
+            packet_counts_.clear();
+            std::error_code ec;
+            std::filesystem::remove(mirror_output_path_, ec);
+            mirror_output_path_.clear();
+            return false;
+        }
+    }
+    opened_ = true;
+    return true;
+}
+
+bool MuxOutputSegmentWriter::submit_video(
+    AVPacket& packet, AVRational source_time_base) noexcept {
+    if (!opened_ || finalize_attempted_ || failed_ ||
+        source_time_base.num != video_time_base_.num ||
+        source_time_base.den != video_time_base_.den ||
+        packet.pts == AV_NOPTS_VALUE || packet.dts == AV_NOPTS_VALUE) {
+        failed_ = true;
+        return false;
+    }
+
+    const auto after = std::upper_bound(
+        segments_.begin(), segments_.end(), packet.pts,
+        [](std::int64_t pts, const MuxOutputSegment& segment) {
+            return pts < segment.start_pts;
+        });
+    if (after == segments_.begin()) {
+        failed_ = true;
+        return false;
+    }
+    const auto index = static_cast<std::size_t>(
+        std::distance(segments_.begin(), after) - 1);
+    const auto& segment = segments_[index];
+    if (packet.pts < segment.start_pts || packet.pts >= segment.end_pts) {
+        failed_ = true;
+        return false;
+    }
+    if ((packet_counts_[index] > 0 &&
+         packet.pts <= last_packet_pts_[index]) ||
+        (packet_counts_[index] == 0 &&
+         (packet.pts != segment.start_pts ||
+          (packet.flags & AV_PKT_FLAG_KEY) == 0))) {
+        failed_ = true;
+        return false;
+    }
+
+    AVPacket* shifted = av_packet_clone(&packet);
+    if (!shifted) {
+        failed_ = true;
+        return false;
+    }
+    shifted->pts -= segment.start_pts;
+    shifted->dts -= segment.start_pts;
+    const bool submitted = muxes_[index]->submit_video(*shifted, source_time_base);
+    av_packet_free(&shifted);
+    if (!submitted) {
+        failed_ = true;
+        return false;
+    }
+    // Whole-timeline mirror (the batch's fused clip): the SAME packet at its
+    // global PTS. A second clone is deliberate — MuxSession::submit_video may
+    // place (mutate) the packet it receives, so the mirror must never see the
+    // segment's shifted copy nor hand the caller back a moved packet.
+    if (mirror_) {
+        AVPacket* global = av_packet_clone(&packet);
+        if (!global) {
+            failed_ = true;
+            return false;
+        }
+        const bool mirror_submitted =
+            mirror_->submit_video(*global, source_time_base);
+        av_packet_free(&global);
+        if (!mirror_submitted) {
+            failed_ = true;
+            return false;
+        }
+        ++mirror_packets_;
+    }
+    ++packet_counts_[index];
+    last_packet_pts_[index] = packet.pts;
+    return true;
+}
+
+bool MuxOutputSegmentWriter::finalize() noexcept {
+    if (!opened_) return false;
+    if (finalize_attempted_) return finalized_;
+    finalize_attempted_ = true;
+    bool ok = !failed_;
+    std::uint64_t total_packets = 0;
+    for (std::size_t i = 0; i < muxes_.size(); ++i) {
+        const auto expected = segments_[i].expected_packet_count != 0
+            ? segments_[i].expected_packet_count
+            : static_cast<std::uint64_t>(
+                  segments_[i].end_pts - segments_[i].start_pts);
+        if (packet_counts_[i] != expected) ok = false;
+        total_packets += packet_counts_[i];
+        if (!muxes_[i]->finalize()) ok = false;
+    }
+    // The mirror is the whole timeline: it must have received exactly the
+    // packets the segments received, no more and no fewer.
+    if (mirror_) {
+        if (mirror_packets_ != total_packets) ok = false;
+        if (!mirror_->finalize()) ok = false;
+    }
+    finalized_ = ok;
+    return finalized_;
 }
 
 } // namespace chronon3d::media

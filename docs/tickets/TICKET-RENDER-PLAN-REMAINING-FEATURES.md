@@ -224,7 +224,31 @@ status below is updated only from commands actually executed in this workspace.
   fingerprint stream: absence emits no bytes, while present values are hashed;
   pin both the V32 no-filter golden and the new filter sensitivity.
 
-## 13. Procedural background generators — audit and gated next steps
+## 13. Path Boolean operations (CPU)
+
+- [x] Extend the existing Clipper2 path operation with `boolean_difference`,
+  `boolean_intersection`, and `boolean_xor` alongside `boolean_union`; normalize
+  operand fills before evaluation and preserve the old union parameter alias.
+- [x] Wire the operations through V3 schema/decoder, content fingerprint,
+  imported SVG targeting, RenderPlan lowering, and scene materialization.
+- [x] Verify overlapping rectangle areas (difference 75, intersection 25, XOR
+  150) in the software geometry tests; decoder/fingerprint focus passes 13
+  assertions. This certifies the CPU path only; Vulkan certification remains
+  separate.
+
+### CPU ring-segment primitive — 2026-10-25
+
+- [x] Add bounded `ring_segment` geometry to RenderPlan: signed sweep up to
+  360°, 1..4096 segments, and inner-radius ratio `[0,1)`. Ratio 0 emits a pie
+  wedge; a positive ratio emits an annular segment. It lowers to a closed path
+  and uses the existing fill, software rasterizer, and fingerprint path.
+- [x] Verify deterministic geometry, input rejection, decoder/schema handling,
+  fingerprint sensitivity, prepared path lowering, and CPU pixels. The C ABI
+  geometry/decoder/prepared focuses pass 13/78/51 assertions; the software
+  pixel oracle passes 3 assertions (transparent center and exterior, filled
+  annulus). Vulkan parity is not claimed.
+
+## 14. Procedural background generators — audit and gated next steps
 
 ### Verified repository state (2026-10-03)
 

@@ -10,6 +10,7 @@
 #include <chronon3d/graphics/gradient_mesh.hpp>
 #include <chronon3d/graphics/stroke/brush_profile.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/render_plan/render_plan_gradient.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
@@ -40,7 +41,8 @@ inline constexpr const char* kRenderPlanSchemaV3 = "chronon.render-plan.v3";
 enum class LayerType : std::uint8_t { Image, Video, Text, Color, Shape, Particles, Light, Adjustment, Mesh };
 enum class ShapeContentTypePlan : std::uint8_t {
     Rect, RoundedRect, Ellipse, Line, Path,
-    Star, Polygon, Arrow, Arc, Grid, DotGrid, DeviceFrame
+    Star, Polygon, Arrow, Arc, Grid, DotGrid, DeviceFrame, RingSegment, MonotoneLine,
+    MonotoneChart
 };
 enum class DeviceFrameKindPlan : std::uint8_t { Phone, Browser };
 enum class ShapeFillRulePlan : std::uint8_t { EvenOdd, NonZero };
@@ -151,7 +153,7 @@ struct PathRepeaterPlan {
     std::array<float, 2> anchor{0.0f, 0.0f};
     float opacity_decay{1.0f};
 };
-enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph, BooleanUnion };
+enum class PathOperatorKindPlan : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph, BooleanUnion, BooleanDifference, BooleanIntersection, BooleanXor };
 struct PathOperatorPlan {
     PathOperatorKindPlan kind{PathOperatorKindPlan::Repeater};
     /// Optional SVG element/group target; empty applies to all authored paths.
@@ -183,17 +185,6 @@ struct PathOperatorPlan {
     std::optional<AnimationTrackPlan> repeater_animation;
 };
 
-struct GradientKeyframePlan {
-    Frame frame{0};
-    graphics::GradientDefinition value;
-};
-
-struct GradientAnimationPlan {
-    std::vector<GradientKeyframePlan> keyframes;
-    std::string easing{"linear"};
-    std::optional<std::array<float, 4>> bezier_curve;
-};
-
 struct ImportedSubpathPlan {
     std::vector<ShapePathCommandPlan> path;
     std::optional<std::array<float, 4>> fill_color;
@@ -212,6 +203,8 @@ struct ImportedSubpathPlan {
     struct SvgTransformAnimationPlan {
         std::string operation; // translate | scale | rotate
         AnimationTrackPlan animation;
+        std::array<float, 2> pivot{0.0f, 0.0f};
+        bool has_pivot{false};
     };
     /// Ordered SVG animateTransform operations, outermost first.
     std::vector<SvgTransformAnimationPlan> svg_transform_animations;

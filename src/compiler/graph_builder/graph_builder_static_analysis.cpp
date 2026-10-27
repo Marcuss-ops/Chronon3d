@@ -37,11 +37,20 @@ bool check_static_recursive_impl(
 
     const bool has_animated_mesh = std::any_of(l.nodes.begin(), l.nodes.end(),
         [](const RenderNode& node) { return node.inline_mesh_animated; });
+    const bool has_animated_lottie_group = std::any_of(
+        l.lottie_precomp_groups.begin(), l.lottie_precomp_groups.end(),
+        [](const auto& group) { return group.opacity_animated; });
     bool static_flag = false;
-    if (l.cache_static && !has_animated_mesh) {
+    if (l.cache_static && !has_animated_mesh && !has_animated_lottie_group) {
         static_flag = true;
     } else {
-        bool is_local_static = !has_animated_mesh;
+        // Effect payloads can be updated by RenderPlan parameter tracks at
+        // scene evaluation time. Until static effects and animated effects
+        // have distinct cache metadata, conservatively keep effect-bearing
+        // layers out of the frame-zero static cache.
+        bool is_local_static = !has_animated_mesh && !has_animated_lottie_group &&
+                               l.effects().empty() &&
+                               !l.time_remap.active();
         if (l.kind == LayerKind::Video || l.kind == LayerKind::Precomp) {
             is_local_static = false;
         } else if ((!l.transition_in.transition_id.empty() && l.transition_in.transition_id != "none") ||

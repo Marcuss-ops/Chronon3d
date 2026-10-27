@@ -5,14 +5,32 @@ namespace chronon3d::render_plan::fingerprint_detail {
 void add_layer_identity_and_mesh(CanonicalPlanWriter& out, const LayerPlan& layer) {
     out.add_string(layer.id);
     out.add_enum(layer.type);
+    // Preserve the canonical byte stream for plans with no Lottie isolation
+    // metadata. This importer-only field is absent from legacy/public plans;
+    // only emit its tagged domain when expansion actually produced groups.
+    if (!layer.lottie_precomp_groups.empty()) {
+        out.add_string("lottie-precomp-groups-v1");
+        out.add_size(layer.lottie_precomp_groups.size());
+        for (const auto& group : layer.lottie_precomp_groups) {
+            out.add_string(group.id);
+            out.add_float(group.opacity);
+            out.add_bool(group.opacity_active);
+            out.add_enum(group.blend_mode);
+            add_optional(out, group.opacity_animation, [](auto& writer, const auto& track) {
+                add_track(writer, track);
+            });
+        }
+    }
     add_optional(out, layer.flow_layout, [](auto& w, const LayerPlan::FlowLayoutPlan& p) {
         w.add_string(p.group_id); w.add_string(p.axis); w.add_string(p.align); w.add_string(p.justify);
         w.add_float(p.gap); w.add_bool(p.wrap); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
+        if (p.intrinsic_size) w.add_string("intrinsic-layout-v1");
         add_optional(w, p.stagger, [](auto& writer, const auto& stagger) { add_stagger(writer, stagger); });
     });
     add_optional(out, layer.grid_layout, [](auto& w, const LayerPlan::GridLayoutPlan& p) {
         w.add_string(p.group_id); w.add_string(p.fit); w.add_uint64(static_cast<std::uint64_t>(p.columns)); w.add_uint64(static_cast<std::uint64_t>(p.rows));
         w.add_float(p.gap[0]); w.add_float(p.gap[1]); w.add_float(p.cell_size[0]); w.add_float(p.cell_size[1]);
+        if (p.intrinsic_size) w.add_string("intrinsic-layout-v1");
         add_optional(w, p.stagger, [](auto& writer, const auto& stagger) { add_stagger(writer, stagger); });
     });
     add_optional(out, layer.stagger_group, [](auto& w, const LayerPlan::StaggerPlan& stagger) {

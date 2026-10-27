@@ -30,7 +30,7 @@ bool NativeAvEncoder::submit_copied_video(
 // ---------------------------------------------------------------------------
 
 bool NativeAvEncoder::drain_packets() {
-    if (!codec_ || !mux_ || !packet_) {
+    if (!codec_ || (!mux_ && !segmented_mux_) || !packet_) {
         return false;
     }
 
@@ -48,6 +48,7 @@ bool NativeAvEncoder::drain_packets() {
             spdlog::error("[native_av] avcodec_receive_packet error: {}", ret);
             return false;
         }
+        ++codec_packets_received_;
 
         // P1 run-anchor duplication — sample bookkeeping before anything is
         // counted or muxed:
@@ -56,13 +57,57 @@ bool NativeAvEncoder::drain_packets() {
         //    become a SECOND sample on the same PTS);
         //  • the run anchor (the forced-intra packet of the run's first frame)
         //    is cached for replication and muxed as its own sample.
-        const std::int64_t drained_pts =
-            packet_->pts != AV_NOPTS_VALUE ? packet_->pts : -1;
+        // NVENC may publish a delayed packet with DTS but no PTS. With the
+        // configured no-B-frame stream, DTS is the frame tick for that packet;
+        // use it for duplicate-window classification so an un-timestamped seed
+        // cannot leak into the mux ahead of its packet replica.
+        const std::int64_t drained_pts = packet_->pts != AV_NOPTS_VALUE
+            ? packet_->pts
+            : (packet_->dts != AV_NOPTS_VALUE ? packet_->dts : -1);
         if (drained_pts >= 0) {
-            while (!duplicate_discard_ranges_.empty() &&
-                   drained_pts > duplicate_discard_ranges_.front().second) {
-                duplicate_discard_ranges_.pop_front();
+            // Content-stretch root bookkeeping: the fate of the last RENDERED
+            // frame's packet decides whether a later duplicate run may
+            // replicate it (write_duplicate_frame's mode decision). Only that
+            // frame's own key packet can anchor replicas — an older key would
+            // replicate stale pixels, a P packet cannot be re-emitted at all.
+            if (last_real_frame_pts_ >= 0 &&
+                drained_pts == last_real_frame_pts_) {
+                last_real_packet_seen_ = true;
+                last_real_packet_was_key_ =
+                    (packet_->flags & AV_PKT_FLAG_KEY) != 0;
+                if (last_real_packet_was_key_) {
+                    last_real_key_packet_.reset(av_packet_clone(packet_));
+                    if (!last_real_key_packet_) {
+                        spdlog::error(
+                            "[native_av] content root key packet capture failed");
+                        return false;
+                    }
+                    // A Replicate run whose anchor had not published yet
+                    // (the root is the session's first frame, whose key packet
+                    // is known to exist but may still be inside the codec)
+                    // adopts it here, before any replica can be muxed.
+                    if (duplicate_run_active_ &&
+                        duplicate_run_mode_ == DuplicateRunMode::Replicate &&
+                        !duplicate_anchor_) {
+                        duplicate_anchor_.reset(av_packet_clone(packet_));
+                        if (!duplicate_anchor_) {
+                            spdlog::error(
+                                "[native_av] run anchor packet capture failed");
+                            return false;
+                        }
+                        duplicate_anchor_pts_ = drained_pts;
+                    }
+                }
             }
+            if (duplicate_run_active_ &&
+                drained_pts < duplicate_run_start_pts_) {
+                ++duplicate_prerun_packets_received_;
+            }
+            // Keep seed discard windows for the full encoder session.  NVENC
+            // may return packets in decode order, so a high PTS can arrive
+            // before a lower PTS from the same priming run; pruning by the
+            // current packet's PTS would then leak that late seed into the
+            // mux after its duplicate has already been emitted.
             bool sample_already_emitted = false;
             for (const auto& [from, to] : duplicate_discard_ranges_) {
                 if (drained_pts >= from && drained_pts <= to) {
@@ -73,14 +118,6 @@ bool NativeAvEncoder::drain_packets() {
             if (sample_already_emitted) {
                 av_packet_unref(packet_);
                 continue;
-            }
-            if (duplicate_run_active_ && !duplicate_anchor_ &&
-                drained_pts == duplicate_anchor_pts_) {
-                duplicate_anchor_ = media::OwnedAVPacket(av_packet_clone(packet_));
-                if (!duplicate_anchor_) {
-                    spdlog::error("[native_av] run anchor capture failed");
-                    return false;
-                }
             }
         }
 
@@ -135,13 +172,29 @@ bool NativeAvEncoder::drain_packets() {
             }
         }
 
+        // Retain the most recent random-access packet as an exact-pixel anchor
+        // for a later frame-delta-proven run. The immediately previous packet
+        // may be a P-frame and cannot safely be re-emitted at arbitrary PTS.
+        if (packet_->flags & AV_PKT_FLAG_KEY) {
+            media::OwnedAVPacket latest_key(av_packet_clone(packet_));
+            if (!latest_key) {
+                spdlog::error("[native_av] last key packet cache allocation failed");
+                return false;
+            }
+            last_video_key_packet_ = std::move(latest_key);
+            last_video_key_packet_pts_ = drained_pts;
+        }
+
         const auto t_mux0 = Clock::now();
         // Move-only packet ownership: MuxSession consumes the packet inside
         // submit() and never retains it, so no shared_ptr control block is
         // needed on this path.
         media::OwnedAVPacket owned_packet(av_packet_alloc());
-        if (!owned_packet || av_packet_ref(owned_packet.get(), packet_) < 0) {
+        if (!segmented_mux_ && (!owned_packet || av_packet_ref(owned_packet.get(), packet_) < 0)) {
             ret = AVERROR(ENOMEM);
+        } else if (segmented_mux_) {
+            ret = segmented_mux_->submit_video(*packet_, codec_->time_base)
+                ? 0 : AVERROR_EXTERNAL;
         } else {
             // P0-5E: on a borrowed container this encode belongs at the tick
             // the schedule reserved for the work unit being rendered, so the

@@ -62,11 +62,22 @@ void refresh_multi_source_node(
         std::vector<MultiSourceItem::GroupIsolationSpec> groups;
         groups.reserve(src_node.svg_groups.size());
         for (const auto& group : src_node.svg_groups) {
-            groups.push_back(MultiSourceItem::GroupIsolationSpec{
-                group.id, group.opacity});
+            MultiSourceItem::GroupIsolationSpec lowered{group.id, group.opacity};
+            if (group.opacity_animation) {
+                const auto& animation = *group.opacity_animation;
+                lowered.opacity_animation =
+                    MultiSourceItem::GroupIsolationSpec::OpacityAnimation{
+                        animation.start_frame, animation.end_frame,
+                        animation.from, animation.to, animation.discrete};
+            }
+            groups.push_back(std::move(lowered));
         }
         if (!groups.empty()) {
             groups.front().opacity *= render_opacity;
+            if (groups.front().opacity_animation) {
+                groups.front().opacity_animation->from *= render_opacity;
+                groups.front().opacity_animation->to *= render_opacity;
+            }
             render_opacity = 1.0f;
         }
 

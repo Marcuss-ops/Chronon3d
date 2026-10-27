@@ -1,34 +1,8 @@
 #pragma once
 
-// ---------------------------------------------------------------------------
-// runtime/dirty_history.hpp
-//
-// Per-frame dirty-rect / tiling / reuse telemetry — canonical definition.
-//
-// WP-3 PR 3.2 — this header is now the canonical home for BOTH:
-//   - `DirtyHistory`:              the per-frame dirty-rect / tile / reuse
-//                                  telemetry counters + folded-layer bbox
-//                                  state (the previous_layers field below).
-//   - `LayerBBoxState`:            the per-layer bbox + diff state captured
-//                                  per frame; was canonically defined in
-//                                  `<chronon3d/math/renderer_state.hpp>`.
-//
-// Migration rationale:
-//   - Folded into DirtyHistory (WP-3 PR 3.2): `RendererLayerHistory` is gone.
-//     Its sole payload `prev_layer_bboxes` is now `DirtyHistory::previous_layers`.
-//   - Moved here (WP-3 PR 3.2): `LayerBBoxState` previously lived in
-//     `<chronon3d/math/renderer_state.hpp>`; the canonical home is now this
-//     header so that `LayerBBoxState` is reachable wherever `DirtyHistory`
-//     is consumed (the dependency direction `dirty_history.hpp → math/`
-//     already pulled in `raster::BBox` so adding `LayerBBoxState` here
-//     avoids the would-be circular include that `dirty_history.hpp`
-//     adopting `previous_layers<LayerBBoxState, std::string>` would have
-//     needed).
-//
-// Backward-compatibility aliases (`RendererFrameHistory` /
-// `RendererDirtyTelemetry`) were REMOVED in WP-3 PR 3.2 (no external SDK
-// consumer holds them; internal code is fully updated).
-// ---------------------------------------------------------------------------
+// Per-frame dirty-rectangle, tiling, and reuse telemetry. `DirtyHistory`
+// stores aggregate counters and prior layer bounds; `LayerBBoxState` stores
+// the per-layer bounds and diff state captured for each frame.
 
 #include <cstdint>
 #include <cmath>

@@ -194,15 +194,43 @@ bool finalize_render_job(
             *setup.renderer->execution_context().backend, counters_list, run);
     }
 
+    // P1 sub-phase attribution (TICKET-PERF-REVOLUTIONARY-IDEAS §5b).
+    // setup_renderer decomposes into the three boundaries setup_render_job()
+    // already measures; rendering_loop decomposes into the non-overlapping
+    // per-frame buckets FrameTelemetry records.  Pure instrumentation.
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases = {
-        {"setup_renderer", profiling::duration_ms(setup.setup_t0, setup.setup_t1)}
+        {"setup_renderer", profiling::duration_ms(setup.setup_t0, setup.setup_t1)},
+        {"setup_create_renderer", setup.create_renderer_ms},
+        {"setup_prepare_render", setup.prepare_render_ms},
+        {"setup_finalize", setup.setup_finalize_ms},
     };
     if (setup.renderer->counters()) {
         auto graph_phases =
             cli::telemetry::capture_graph_phase_records(*setup.renderer->counters());
         phases.insert(phases.end(), graph_phases.begin(), graph_phases.end());
     }
-    phases.push_back({"rendering_loop", profiling::duration_ms(loop_t0, loop_t1)});
+    const double loop_total_ms = profiling::duration_ms(loop_t0, loop_t1);
+    double loop_prepare_ms = 0.0;
+    double loop_graph_ms = 0.0;
+    double loop_handoff_ms = 0.0;
+    for (const auto& frame : telemetry_frames) {
+        loop_prepare_ms += frame.preparation_ms;
+        loop_graph_ms += frame.graph_eval_ms + frame.direct_yuv_decode_ms;
+        loop_handoff_ms += frame.encode_handoff_ms;
+    }
+    // The residual is real loop wall not covered by the frame buckets (queue
+    // bookkeeping, telemetry, scheduler wakeups).  Named honestly instead of
+    // being folded into another bucket.
+    double loop_other_ms =
+        loop_total_ms - loop_prepare_ms - loop_graph_ms - loop_handoff_ms;
+    if (loop_other_ms < 0.0) {
+        loop_other_ms = 0.0;
+    }
+    phases.push_back({"rendering_loop", loop_total_ms});
+    phases.push_back({"loop_prepare_frame", loop_prepare_ms});
+    phases.push_back({"loop_graph_eval", loop_graph_ms});
+    phases.push_back({"loop_encode_handoff", loop_handoff_ms});
+    phases.push_back({"loop_other", loop_other_ms});
 
     // Wave 1D — events only.  Chronon no longer persists telemetry to a
     // bundled store; persistence/aggregation are engine-external (host store

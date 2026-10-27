@@ -59,6 +59,7 @@ std::string_view effect_id_for_plan_kind(LayerPlan::EffectKindPlan kind) {
         case K::RetroTv: return StylizeRetroTv;
         case K::Halation: return LightHalation;
         case K::AnamorphicStreak: return LightAnamorphicStreak;
+        case K::Fill: return GenerateFill;
     }
     return {};
 }
@@ -138,6 +139,7 @@ constexpr EffectDecoderEntry kEffectDecoders[] = {
     {LayerPlan::EffectKindPlan::RetroTv, &decode_retro_tv_effect},
     {LayerPlan::EffectKindPlan::Halation, &decode_halation_effect},
     {LayerPlan::EffectKindPlan::AnamorphicStreak, &decode_anamorphic_streak_effect},
+    {LayerPlan::EffectKindPlan::Fill, &decode_catalog_effect},
 };
 
 const EffectDecoderEntry* find_effect_decoder(LayerPlan::EffectKindPlan kind) {

@@ -20,7 +20,6 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/effects/presets/glow_presets.hpp>
 
 #include <cmath>
 #include <cstdint>

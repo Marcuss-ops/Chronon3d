@@ -88,6 +88,33 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
             "[video] explicit HDR mastering metadata requires the native CPU encoder; pipe and hardware routes cannot certify this metadata");
         return std::nullopt;
     }
+    // P4 batch superjob — segmented output is video-only and cut from one
+    // still-open codec: it cannot borrow a container, mux source audio, or
+    // ride a GOP copy lane (copied GOPs own their container schedule). The
+    // request boundary already refuses these combinations; this is the
+    // fail-closed belt for direct CLI callers.
+    if (!opts.output_segments.empty() &&
+        (opts.borrowed_mux || !opts.audio_source_path.empty() ||
+         !opts.gop_source.empty() || opts.gop_copy_only)) {
+        spdlog::error(
+            "[video] segmented output is video-only and cannot borrow a mux, "
+            "mux source audio, or combine with a GOP copy lane");
+        return std::nullopt;
+    }
+    // The per-item windows are cut by NativeAvEncoder's segmented mux writer
+    // (one still-open codec, N independent muxes). The other encoder lanes
+    // write exactly one container and would DROP the windows: the export then
+    // reports success with zero per-item outputs. Refuse fail-closed here —
+    // this is the belt for direct CLI callers that bypass the worker's
+    // request validation.
+    if (!opts.output_segments.empty() &&
+        !is_native_encoder_transport(opts.encoder.encoder_backend)) {
+        spdlog::error(
+            "[video] segmented output requires the native encoder transport: "
+            "only NativeAvEncoder owns the segmented mux writer, so the "
+            "pipe/raw lanes cannot carry per-item output windows");
+        return std::nullopt;
+    }
     const bool hdr_output = opts.pipe.color_output == "pq" ||
                             opts.pipe.color_output == "hlg";
     if (hdr_output && !is_native_encoder_transport(opts.encoder.encoder_backend)) {
@@ -155,6 +182,7 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
         .codec = codec,
         .hardware_encoder = opts.encoder.hardware_encoder,
         .output_path = opts.output.output,
+        .output_segments = opts.output_segments,
         .input_format = *input_format,
         .verbose = opts.pipe.ffmpeg_verbose,
         .color_transform = {

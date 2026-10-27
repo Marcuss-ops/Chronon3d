@@ -35,6 +35,18 @@ CUDA interop was unavailable. Windows Vulkan enumeration sees the RTX 4060 Ti,
 but it was not the device used for these tests, so this is same-SHA local
 software-Vulkan evidence, not NVIDIA hardware certification.
 
+## Windows NVIDIA hardware parity run (2026-10-26)
+
+On the Windows host, `vulkaninfo --summary` selected the NVIDIA GeForce RTX
+4060 Ti. The Release/Vulkan `chronon3d_backend_registry_tests.exe` target was
+up to date, then the focused keying/Echo selection passed 8/8 cases and
+1,009/1,009 assertions on that Vulkan device. The keying pixel comparisons
+reported maximum absolute errors below `5.3e-8`; both luma and chroma display
+framehashes exactly matched the software processor. This closes the local
+NVIDIA keying parity check. The worktree contains uncommitted Vulkan changes,
+so this run is not same-commit certification; the dedicated same-SHA gate
+remains open.
+
 ## Exit criteria
 
 - [x] Implement native GPU luma/chroma processing with linear-light,

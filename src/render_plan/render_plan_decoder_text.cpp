@@ -58,7 +58,7 @@ void validate_text_track(const AnimationTrackPlan& track,
 
 TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     reject_unknown_fields(value, {"id", "semantic_id", "unit", "shape", "order", "combine",
-        "start", "end", "offset", "amount", "exclude_spaces", "randomize_order", "random_seed",
+        "start", "end", "offset", "amount", "exclude_spaces", "end_inclusive", "randomize_order", "random_seed",
         "wiggly_frequency", "wiggly_amplitude", "wiggly_seed", "noise_frequency",
         "noise_amplitude", "noise_seed", "index_step"}, "text selector");
     if (value.contains("id") && (!value.at("id").is_string() || value.at("id").get<std::string>().size() > 256))
@@ -100,9 +100,11 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
         validate_text_track(*track, {1}, std::string("text selector ") + name);
     }
     if ((value.contains("exclude_spaces") && !value.at("exclude_spaces").is_boolean()) ||
+        (value.contains("end_inclusive") && !value.at("end_inclusive").is_boolean()) ||
         (value.contains("randomize_order") && !value.at("randomize_order").is_boolean()))
-        throw std::runtime_error("text selector exclude_spaces and randomize_order must be booleans");
+        throw std::runtime_error("text selector exclude_spaces, end_inclusive, and randomize_order must be booleans");
     selector.exclude_spaces = value.value("exclude_spaces", true);
+    selector.end_inclusive = value.value("end_inclusive", false);
     selector.randomize_order = value.value("randomize_order", false);
     const auto bounded_seed = [&](const char* key) {
         if (!value.contains(key)) return std::uint64_t{0};

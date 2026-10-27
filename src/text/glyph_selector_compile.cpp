@@ -415,6 +415,16 @@ SelectorWeight selector_weight(
     if (raw_index >= total) return 0.0f;
 
     auto glyph_params = params;
+    if (spec.end_inclusive && total > 0 && glyph_params.start < glyph_params.end) {
+        // Bodymovin selectors address character cells by their source range
+        // boundaries. The renderer samples each glyph at its center, so grow
+        // the interval by half a unit on both sides to retain the boundary
+        // glyphs while preserving an empty collapsed range.
+        const f32 half_unit = 50.0f / static_cast<f32>(total);
+        glyph_params.start = std::max(0.0f, glyph_params.start - half_unit);
+        glyph_params.end = std::min(100.0f,
+            glyph_params.end + half_unit + 1e-4f);
+    }
     glyph_params.ordered_index = !compiled.random_permutation.empty()
         ? compiled.random_permutation[raw_index]
         : detail::apply_selector_order(spec.order, raw_index, total, 0);

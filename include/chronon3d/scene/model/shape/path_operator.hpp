@@ -11,7 +11,7 @@
 namespace chronon3d {
 struct PathShape;
 
-enum class PathOperatorKind : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph, BooleanUnion };
+enum class PathOperatorKind : std::uint8_t { Repeater, RoundCorners, ZigZag, OffsetPath, PuckerBloat, Twist, WigglePath, Merge, Trim, Morph, BooleanUnion, BooleanDifference, BooleanIntersection, BooleanXor };
 struct RepeaterParams {
     std::uint32_t copies{1};
     Vec2 position{0.0f};
@@ -27,9 +27,13 @@ struct PuckerBloatParams { float amount{0.0f}; Vec2 anchor{0.0f}; };
 struct TwistParams { float degrees{0.0f}; Vec2 center{0.0f}; };
 struct WigglePathParams { float amount{0.0f}; float frequency{1.0f}; };
 struct MergeParams { std::vector<std::vector<PathCommand>> paths; };
-// Geometric union of the source path with these closed filled contours.
+// Boolean operation between the source fill and these closed filled contours.
 // Unlike Merge, this resolves overlaps and returns normalized boundaries.
-struct BooleanUnionParams { std::vector<std::vector<PathCommand>> paths; };
+enum class PathBooleanOperation : std::uint8_t { Union, Difference, Intersection, Xor };
+struct BooleanUnionParams {
+    std::vector<std::vector<PathCommand>> paths;
+    PathBooleanOperation operation{PathBooleanOperation::Union};
+};
 // Morph interpolates between paths with identical command topology. Requiring
 // matching contour/curve structure avoids ambiguous contour correspondence.
 struct MorphPathParams {

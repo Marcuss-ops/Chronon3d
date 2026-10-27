@@ -153,7 +153,13 @@ struct EffectScratchResources {
     std::unique_ptr<Framebuffer> framebuffer;
     std::unique_ptr<Framebuffer> framebuffer_b;
     std::vector<float> original_alpha;
-    std::vector<float> row_src, row_dst, col_src, col_dst;
+    // Alpha-morphology scratch (stroke): two gather/tile buffers plus the
+    // van Herk–Gil–Werman block work (2n floats).  Sized by the effect at
+    // use time; capacity persists across frames (steady-state: no allocation).
+    std::vector<float> morph_tile_in, morph_tile_out, morph_work;
+    // Tight RGBA float staging (roughen-edges kernel input): Color is exactly
+    // 4 floats, so pack/unpack is per-row memcpy.
+    std::vector<float> rgba_scratch;
     // Directional blur taps are packed as dx, dy, weight triples.
     std::vector<float> directional_taps;
     // Per-worker Gaussian taps for Glow. Each worker retains capacity across
@@ -189,10 +195,6 @@ struct EffectScratchResources {
         }
         width = std::max(width, requested_width);
         height = std::max(height, requested_height);
-        row_src.resize(static_cast<std::size_t>(width));
-        row_dst.resize(static_cast<std::size_t>(width));
-        col_src.resize(static_cast<std::size_t>(height));
-        col_dst.resize(static_cast<std::size_t>(height));
         original_alpha.resize(static_cast<std::size_t>(width) *
                               static_cast<std::size_t>(height));
     }
@@ -206,7 +208,8 @@ struct EffectScratchResources {
         framebuffer.reset();
         framebuffer_b.reset();
         original_alpha.clear();
-        row_src.clear(); row_dst.clear(); col_src.clear(); col_dst.clear();
+        morph_tile_in.clear(); morph_tile_out.clear(); morph_work.clear();
+        rgba_scratch.clear();
         directional_taps.clear();
         {
             std::lock_guard lock(*glow_kernel_mutex);

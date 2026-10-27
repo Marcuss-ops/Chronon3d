@@ -47,8 +47,8 @@ struct GpuTextRunDynamic {
     float animator_scale_y;
     float animator_rotation_z;
     uint animator_fill_color;
-    uint animator_reserved3;
-    uint animator_reserved4;
+    float animator_shear_x;
+    float animator_shear_y;
     uint animator_reserved5;
 };
 
@@ -129,6 +129,11 @@ void main() {
                     length(vec2(g.plane_right, g.plane_bottom) - pivot)));
             extent_x += rad;
             extent_y += rad;
+        }
+        if (r.animator_shear_x != 0.0 || r.animator_shear_y != 0.0) {
+            float max_sh = max(abs(r.animator_shear_x), abs(r.animator_shear_y));
+            extent_x += max_sh * (abs(g.plane_bottom - g.plane_top) + 32.0);
+            extent_y += max_sh * (abs(g.plane_right - g.plane_left) + 32.0);
         }
         x0 = r.tx + g.plane_left * r.sx - extent_x;
         y0 = r.ty + g.plane_top * r.sy - extent_y;
