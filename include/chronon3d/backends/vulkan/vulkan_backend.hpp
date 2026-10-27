@@ -201,10 +201,20 @@ struct InteropGeneration {
 };
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+// POSIX external objects are file descriptors; on Windows the same handoff
+// uses opaque NT handles exported by VK_KHR_external_*_win32.
+#ifdef _WIN32
+using CudaInteropNativeHandle = void*;
+inline constexpr CudaInteropNativeHandle kInvalidCudaInteropNativeHandle = nullptr;
+#else
+using CudaInteropNativeHandle = int;
+inline constexpr CudaInteropNativeHandle kInvalidCudaInteropNativeHandle = -1;
+#endif
+
 struct CudaExternalMemoryInfo {
-    int fd{-1};
-    int cuda_to_vulkan_semaphore_fd{-1};
-    int vulkan_to_cuda_semaphore_fd{-1};
+    CudaInteropNativeHandle memory_handle{kInvalidCudaInteropNativeHandle};
+    CudaInteropNativeHandle cuda_to_vulkan_semaphore_handle{kInvalidCudaInteropNativeHandle};
+    CudaInteropNativeHandle vulkan_to_cuda_semaphore_handle{kInvalidCudaInteropNativeHandle};
     std::uint64_t allocation_size{0};
     std::uint32_t width{0};
     std::uint32_t height{0};

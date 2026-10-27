@@ -7,6 +7,9 @@
 // allocation, no diagnostics.
 // ==============================================================================
 
+#ifdef _WIN32
+#define CHRONON3D_BUILD_DLL
+#endif
 #include <chronon3d/motion/contract_bridge.hpp>
 
 #include <glm/gtc/type_ptr.hpp>
@@ -59,11 +62,9 @@ float depth_from_clip(const Mat4& clip_from_local) noexcept {
 // for every consumer of the header, and MSVC forbids defining a dllimport
 // function (C2491). There the C ABI wrapper, compiled with CHRONON3D_BUILD_DLL,
 // remains the definition site and this one is skipped.
-#if !defined(_WIN32)
 extern "C" uint32_t chronon_contract_version(void) {
     return kContractZoneVersion;
 }
-#endif
 
 bool contract_version_matches() noexcept {
     return chronon_contract_version() == kContractZoneVersion;
@@ -139,3 +140,4 @@ chronon_layer_state with_clip_from_local(const chronon_layer_state& base,
 }
 
 } // namespace chronon3d::motion
+

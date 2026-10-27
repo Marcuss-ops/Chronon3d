@@ -169,6 +169,14 @@ target_precompile_headers(chronon3d_backend_vulkan
         <vector>
 )
 target_compile_definitions(chronon3d_backend_vulkan PUBLIC CHRONON3D_ENABLE_VULKAN)
+if(WIN32 AND CHRONON3D_ENABLE_CUDA_INTEROP)
+    # Vulkan exposes Win32 external-handle entry points/types only when this
+    # platform macro is enabled before including vulkan.h.
+    target_compile_definitions(chronon3d_backend_vulkan PUBLIC
+        VK_USE_PLATFORM_WIN32_KHR
+        NOMINMAX
+        WIN32_LEAN_AND_MEAN)
+endif()
 target_link_libraries(chronon3d_backend_vulkan
     PUBLIC
         chronon3d

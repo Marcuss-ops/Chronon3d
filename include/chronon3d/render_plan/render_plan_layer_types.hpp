@@ -89,6 +89,12 @@ struct TimeRemapPlan {
 // the thin-lens model, scene units, strictly positive). It is NOT a world-Z
 // coordinate: the legacy world-Z focus reference (DepthOfFieldSettings::
 // focus_z) is derived from it with the camera pose at compile/eval time.
+#ifdef near
+#undef near
+#endif
+#ifdef far
+#undef far
+#endif
 struct CameraPlan {
     std::string type{"perspective"};
     std::array<float, 3> position{0.0f, 0.0f, -1000.0f};

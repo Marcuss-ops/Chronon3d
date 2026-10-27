@@ -25,7 +25,7 @@
 #include <string_view>
 
 #if (defined(__x86_64__) || defined(__i386__)) && \
-    (defined(__GNUC__) || defined(__clang__))
+    (defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER)))
 #include <cpuid.h>   // __builtin_cpu_init() declaration (GCC/Clang)
 #endif
 
@@ -151,7 +151,7 @@ CpuCapabilities detect_cpu_capabilities() noexcept {
     // primes the CPU model in GCC. Platform-abstracted: non-x86/aarch64
     // hosts conservatively report the scalar route.
 #if defined(__x86_64__) || defined(__i386__)
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER))
     __builtin_cpu_init();
     caps.has_sse42  = __builtin_cpu_supports("sse4.2");
     caps.has_avx2   = __builtin_cpu_supports("avx2");
@@ -181,3 +181,4 @@ CpuCapabilities detect_cpu_capabilities() noexcept {
 
 } // namespace simd
 } // namespace chronon3d
+

@@ -106,7 +106,11 @@ void VulkanMemoryManager::initialize(
         const auto flags = props.memoryTypes[i].propertyFlags;
         if ((flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0 &&
             (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == 0) {
+#ifdef _WIN32
+            external_types[i] = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
             external_types[i] = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
         }
     }
 #endif
@@ -202,14 +206,18 @@ VulkanBufferAllocation VulkanMemoryManager::create_buffer(
             break;
     }
 
-    // VMA is configured with OPAQUE_FD as the external handle type for
+    // VMA is configured with the platform's opaque external handle type for
     // device-local memory so CUDA/NVENC interop can import exported buffers.
     // The Vulkan object must advertise the same handle type whenever that
     // memory class is selected; otherwise validation reports
     // VUID-vkBindBufferMemory-memory-02726 and NVIDIA may lose the device.
     VkExternalMemoryBufferCreateInfo external_buffer{
         VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO};
+#ifdef _WIN32
+    external_buffer.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
     external_buffer.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
     VkBufferCreateInfo compatible_buffer_info = buffer_info;
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     if (memory_class == VulkanMemoryClass::DeviceLocal ||

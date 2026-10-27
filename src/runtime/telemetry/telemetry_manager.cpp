@@ -9,7 +9,16 @@
 #include <iomanip>
 #include <fstream>
 #include <utility>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <psapi.h>
+#pragma comment(lib, "Psapi.lib")
+#else
 #include <sys/resource.h>
+#endif
 #if defined(__APPLE__)
 #include <sys/sysctl.h>
 #endif
@@ -30,10 +39,19 @@ uint64_t read_peak_memory_internal() {
             break;
         }
     }
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS_EX counters{};
+    counters.cb = sizeof(counters);
+    if (::GetProcessMemoryInfo(::GetCurrentProcess(),
+            reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof(counters))) {
+        return static_cast<uint64_t>(counters.PeakWorkingSetSize);
+    }
+#else
     struct rusage usage {};
     if (getrusage(RUSAGE_SELF, &usage) == 0 && usage.ru_maxrss > 0) {
         return static_cast<uint64_t>(usage.ru_maxrss) * 1024ULL;
     }
+#endif
     return 0;
 }
 
@@ -282,3 +300,4 @@ uint64_t TelemetryManager::get_peak_memory_usage() {
 }
 
 } // namespace chronon3d::telemetry
+

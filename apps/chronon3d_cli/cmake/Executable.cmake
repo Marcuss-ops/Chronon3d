@@ -15,6 +15,10 @@ get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11
     INTERFACE_INCLUDE_DIRECTORIES
 )
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND MSVC)
+    target_link_libraries(chronon3d_cli PRIVATE
+        "C:/Program Files/LLVM/lib/clang/23/lib/windows/clang_rt.builtins-x86_64.lib")
+endif()
 target_link_libraries(chronon3d_cli PRIVATE
     chronon3d_sdk
     chronon3d_cli_core
@@ -95,3 +99,4 @@ foreach(_target IN ITEMS
         set_target_properties(${_target} PROPERTIES UNITY_BUILD OFF)
     endif()
 endforeach()
+

@@ -238,6 +238,11 @@ if(CHRONON3D_ENABLE_TEXT)
 else()
     set(_chronon3d_sdk_text_flag "false")
 endif()
+if(CHRONON3D_ENABLE_CUDA_INTEROP)
+    set(_chronon3d_sdk_cuda_interop_flag "true")
+else()
+    set(_chronon3d_sdk_cuda_interop_flag "false")
+endif()
 if(CMAKE_BUILD_TYPE)
     set(_chronon3d_sdk_build_type "${CMAKE_BUILD_TYPE}")
 else()
@@ -259,7 +264,8 @@ file(WRITE "${_chronon3d_sdk_manifest}"
 "  \"features\": {\n"
 "    \"software\": true,\n"
 "    \"vulkan\": ${_chronon3d_sdk_vulkan_flag},\n"
-"    \"text\": ${_chronon3d_sdk_text_flag}\n"
+"    \"text\": ${_chronon3d_sdk_text_flag},\n"
+"    \"cuda_interop\": ${_chronon3d_sdk_cuda_interop_flag}\n"
 "  }\n"
 "}\n"
 )

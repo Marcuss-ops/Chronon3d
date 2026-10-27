@@ -3,7 +3,14 @@
 #include <chronon3d/core/tracing/tracing.hpp>
 
 #include <cstdint>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -11,6 +18,18 @@
 #include <optional>
 #include <thread>
 #include <vector>
+
+#ifdef _WIN32
+inline void* nvml_load(const char* name) { return reinterpret_cast<void*>(::LoadLibraryA(name)); }
+inline void* nvml_symbol(void* library, const char* name) {
+    return reinterpret_cast<void*>(::GetProcAddress(reinterpret_cast<HMODULE>(library), name));
+}
+inline void nvml_unload(void* library) { if (library) ::FreeLibrary(reinterpret_cast<HMODULE>(library)); }
+#else
+inline void* nvml_load(const char* name) { return ::dlopen(name, RTLD_NOW); }
+inline void* nvml_symbol(void* library, const char* name) { return ::dlsym(library, name); }
+inline void nvml_unload(void* library) { if (library) ::dlclose(library); }
+#endif
 
 namespace chronon3d::cli::telemetry {
 
@@ -180,44 +199,44 @@ private:
     nvmlReturn_t (*p_nvmlDeviceGetMemoryInfo)(nvmlDevice_t, nvmlMemory_t*){nullptr};
 
     void init_nvml() {
-        m_lib = dlopen("libnvidia-ml.so.1", RTLD_NOW);
-        if (!m_lib) m_lib = dlopen("libnvidia-ml.so", RTLD_NOW);
+        m_lib = nvml_load("nvml.dll");
+        if (!m_lib) m_lib = nullptr;
         if (!m_lib) return;
 
-        p_nvmlInit = reinterpret_cast<nvmlReturn_t(*)()>(dlsym(m_lib, "nvmlInit_v2"));
-        if (!p_nvmlInit) p_nvmlInit = reinterpret_cast<nvmlReturn_t(*)()>(dlsym(m_lib, "nvmlInit"));
-        p_nvmlShutdown = reinterpret_cast<nvmlReturn_t(*)()>(dlsym(m_lib, "nvmlShutdown"));
+        p_nvmlInit = reinterpret_cast<nvmlReturn_t(*)()>(nvml_symbol(m_lib, "nvmlInit_v2"));
+        if (!p_nvmlInit) p_nvmlInit = reinterpret_cast<nvmlReturn_t(*)()>(nvml_symbol(m_lib, "nvmlInit"));
+        p_nvmlShutdown = reinterpret_cast<nvmlReturn_t(*)()>(nvml_symbol(m_lib, "nvmlShutdown"));
         p_nvmlDeviceGetHandleByIndex = reinterpret_cast<nvmlReturn_t(*)(unsigned int, nvmlDevice_t*)>(
-            dlsym(m_lib, "nvmlDeviceGetHandleByIndex_v2"));
+            nvml_symbol(m_lib, "nvmlDeviceGetHandleByIndex_v2"));
         if (!p_nvmlDeviceGetHandleByIndex) {
             p_nvmlDeviceGetHandleByIndex = reinterpret_cast<nvmlReturn_t(*)(unsigned int, nvmlDevice_t*)>(
-                dlsym(m_lib, "nvmlDeviceGetHandleByIndex"));
+                nvml_symbol(m_lib, "nvmlDeviceGetHandleByIndex"));
         }
         p_nvmlDeviceGetUtilizationRates = reinterpret_cast<nvmlReturn_t(*)(nvmlDevice_t, nvmlUtilization_t*)>(
-            dlsym(m_lib, "nvmlDeviceGetUtilizationRates"));
+            nvml_symbol(m_lib, "nvmlDeviceGetUtilizationRates"));
         p_nvmlDeviceGetDecoderUtilization = reinterpret_cast<nvmlReturn_t(*)(nvmlDevice_t, unsigned int*, unsigned int*)>(
-            dlsym(m_lib, "nvmlDeviceGetDecoderUtilization"));
+            nvml_symbol(m_lib, "nvmlDeviceGetDecoderUtilization"));
         p_nvmlDeviceGetEncoderUtilization = reinterpret_cast<nvmlReturn_t(*)(nvmlDevice_t, unsigned int*, unsigned int*)>(
-            dlsym(m_lib, "nvmlDeviceGetEncoderUtilization"));
+            nvml_symbol(m_lib, "nvmlDeviceGetEncoderUtilization"));
         p_nvmlDeviceGetMemoryInfo = reinterpret_cast<nvmlReturn_t(*)(nvmlDevice_t, nvmlMemory_t*)>(
-            dlsym(m_lib, "nvmlDeviceGetMemoryInfo"));
+            nvml_symbol(m_lib, "nvmlDeviceGetMemoryInfo"));
 
         if (!p_nvmlInit || !p_nvmlShutdown || !p_nvmlDeviceGetHandleByIndex ||
             !p_nvmlDeviceGetUtilizationRates || !p_nvmlDeviceGetMemoryInfo) {
-            dlclose(m_lib);
+            nvml_unload(m_lib);
             m_lib = nullptr;
             return;
         }
 
         if (p_nvmlInit() != 0) {
-            dlclose(m_lib);
+            nvml_unload(m_lib);
             m_lib = nullptr;
             return;
         }
 
         if (p_nvmlDeviceGetHandleByIndex(0, &m_device) != 0) {
             p_nvmlShutdown();
-            dlclose(m_lib);
+            nvml_unload(m_lib);
             m_lib = nullptr;
             return;
         }
@@ -234,7 +253,7 @@ private:
             p_nvmlShutdown();
         }
         if (m_lib) {
-            dlclose(m_lib);
+            nvml_unload(m_lib);
             m_lib = nullptr;
         }
         m_initialized = false;
@@ -280,3 +299,4 @@ private:
 };
 
 } // namespace chronon3d::cli::telemetry
+

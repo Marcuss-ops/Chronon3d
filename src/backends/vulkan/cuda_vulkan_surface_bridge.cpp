@@ -5,7 +5,6 @@
 
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
 #include <chrono>
 #include <cstdint>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -31,15 +30,23 @@ void check_cuda(CUresult result, const char* operation) {
 }
 
 CUexternalSemaphore import_semaphore(
-    int fd, bool timeline, const char* operation) {
+    CudaInteropNativeHandle handle, bool timeline, const char* operation) {
     CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC desc{};
+#ifdef _WIN32
+    desc.type = timeline
+        ? CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_WIN32
+        : CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32;
+    desc.handle.win32.handle = handle;
+#else
     desc.type = timeline
         ? CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_FD
         : CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
-    desc.handle.fd = fd;
+    desc.handle.fd = handle;
+#endif
     CUexternalSemaphore semaphore = nullptr;
     const CUresult result = cuImportExternalSemaphore(&semaphore, &desc);
-    // The caller retains FD ownership on failure; CUDA consumes it on success.
+    // POSIX descriptors transfer to CUDA after success. Win32 handles remain
+    // application-owned and the scoped handle owner closes them on return.
     check_cuda(result, operation);
     return semaphore;
 }
@@ -50,10 +57,18 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     const CudaExternalMemoryInfo& info, CUcontext context, CUstream stream)
     : m_context(context), m_stream(stream), m_timeline(info.timeline_semaphores),
       m_generation(info.generation) {
-    VulkanExternalFds descriptors(info.fd, info.cuda_to_vulkan_semaphore_fd,
-                                  info.vulkan_to_cuda_semaphore_fd);
-    if (!m_context || info.fd < 0 || info.cuda_to_vulkan_semaphore_fd < 0 ||
-        info.vulkan_to_cuda_semaphore_fd < 0 || info.width == 0 ||
+    VulkanExternalFds descriptors(info.memory_handle, info.cuda_to_vulkan_semaphore_handle,
+                                  info.vulkan_to_cuda_semaphore_handle);
+#ifdef _WIN32
+    const bool invalid_handle = info.memory_handle == nullptr ||
+        info.cuda_to_vulkan_semaphore_handle == nullptr ||
+        info.vulkan_to_cuda_semaphore_handle == nullptr;
+#else
+    const bool invalid_handle = info.memory_handle < 0 ||
+        info.cuda_to_vulkan_semaphore_handle < 0 ||
+        info.vulkan_to_cuda_semaphore_handle < 0;
+#endif
+    if (!m_context || invalid_handle || info.width == 0 ||
         info.height == 0 || info.allocation_size == 0 ||
         (info.cuda_array_format != 1 && info.cuda_array_format != 2)) {
         throw std::invalid_argument("invalid CUDA/Vulkan external surface handles");
@@ -66,8 +81,13 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     make_current();
 
     CUDA_EXTERNAL_MEMORY_HANDLE_DESC memory_desc{};
+#ifdef _WIN32
+    memory_desc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32;
+    memory_desc.handle.win32.handle = info.memory_handle;
+#else
     memory_desc.type = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD;
-    memory_desc.handle.fd = info.fd;
+    memory_desc.handle.fd = info.memory_handle;
+#endif
     memory_desc.size = info.allocation_size;
     // VulkanMemoryManager allocates every exported image with dedicated
     // memory. CUDA must import that same allocation contract; omitting the
@@ -75,7 +95,9 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
     memory_desc.flags = CUDA_EXTERNAL_MEMORY_DEDICATED;
     CUresult result = cuImportExternalMemory(&m_memory, &memory_desc);
     check_cuda(result, "cuImportExternalMemory(surface)");
+#ifndef _WIN32
     (void)descriptors.release(0);  // CUDA owns the imported memory FD.
+#endif
 
     CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC array_desc{};
     array_desc.offset = 0;
@@ -99,13 +121,17 @@ CudaVulkanSurfaceBridge::CudaVulkanSurfaceBridge(
         check_cuda(cuSurfObjectCreate(&m_surface, &resource),
                    "cuSurfObjectCreate(surface)");
         m_cuda_to_vulkan = import_semaphore(
-            info.cuda_to_vulkan_semaphore_fd, m_timeline,
+            info.cuda_to_vulkan_semaphore_handle, m_timeline,
             "cuImportExternalSemaphore(cuda->vulkan)");
+#ifndef _WIN32
         (void)descriptors.release(1);
+#endif
         m_vulkan_to_cuda = import_semaphore(
-            info.vulkan_to_cuda_semaphore_fd, m_timeline,
+            info.vulkan_to_cuda_semaphore_handle, m_timeline,
             "cuImportExternalSemaphore(vulkan->cuda)");
+#ifndef _WIN32
         (void)descriptors.release(2);
+#endif
     } catch (...) {
         if (m_vulkan_to_cuda) cuDestroyExternalSemaphore(m_vulkan_to_cuda);
         if (m_cuda_to_vulkan) cuDestroyExternalSemaphore(m_cuda_to_vulkan);

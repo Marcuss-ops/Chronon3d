@@ -38,7 +38,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -800,3 +799,4 @@ struct VulkanBackend::Impl {
 } // namespace chronon3d::backends::vulkan
 
 #endif // CHRONON3D_ENABLE_VULKAN
+
