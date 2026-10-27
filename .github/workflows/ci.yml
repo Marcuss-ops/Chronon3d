@@ -43,7 +43,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
 
       - name: Gate / Test Hygiene
         if: runner.os == 'Linux'
@@ -124,7 +124,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -144,7 +144,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -164,7 +164,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -198,7 +198,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -257,7 +257,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -276,7 +276,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -297,7 +297,7 @@ jobs:
       - name: Install fuzz toolchain
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq clang ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -364,7 +364,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - name: Canonical architecture and test registration gate
         run: python3 tools/check_architecture.py
       - uses: lukka/run-vcpkg@v11
@@ -429,7 +429,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - name: Architecture regression guard
         run: python3 tools/check_architecture.py
       - uses: lukka/run-vcpkg@v11
@@ -456,7 +456,7 @@ jobs:
       - name: Install Linux build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ninja-build mono-complete pkg-config
+          sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
