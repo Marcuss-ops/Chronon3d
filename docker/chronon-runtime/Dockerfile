@@ -12,7 +12,7 @@ ENV VCPKG_ROOT=/opt/vcpkg
 ARG VCPKG_REF
 
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build ccache git curl ca-certificates \
+        build-essential cmake ninja-build ccache git curl ca-certificates nasm \
         pkg-config zip unzip tar python3-pip \
         libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
         libvulkan-dev glslang-tools \

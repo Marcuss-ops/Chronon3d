@@ -53,6 +53,10 @@ jobs:
         with:
           cmakeVersion: 3.31.10
 
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -125,6 +129,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -145,6 +153,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -165,6 +177,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -199,6 +215,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -258,6 +278,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -277,6 +301,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -298,6 +326,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq clang ninja-build ccache mono-complete pkg-config
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -367,6 +399,10 @@ jobs:
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - name: Canonical architecture and test registration gate
         run: python3 tools/check_architecture.py
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -432,6 +468,10 @@ jobs:
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
       - name: Architecture regression guard
         run: python3 tools/check_architecture.py
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -457,6 +497,10 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build ccache mono-complete pkg-config
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}

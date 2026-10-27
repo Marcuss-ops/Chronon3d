@@ -38,6 +38,10 @@ jobs:
         with:
           cmakeVersion: 3.31.10
 
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
+
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
@@ -102,6 +106,10 @@ jobs:
       - uses: lukka/get-cmake@latest
         with:
           cmakeVersion: 3.31.10
+
+      - name: Install Linux vcpkg prerequisites
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/linux-vcpkg-prerequisites
 
       - uses: lukka/run-vcpkg@v11
         with:
