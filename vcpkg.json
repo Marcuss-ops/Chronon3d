@@ -21,9 +21,6 @@
                          "flatbuffers"
                      ],
     "features":  {
-                     "geo":  {
-                                 "description":  "Geo polygon boolean ops and dissolve (CHRONON3D_ENABLE_GEO) — Clipper2, ADR-034"
-                             },
                      "ipc":  {
                                  "description":  "FlatBuffers IPC boundary (CHRONON3D_ENABLE_IPC)",
                                  "dependencies":  [

@@ -26,6 +26,16 @@ inline constexpr auto kAnimatableEffectParams = std::to_array<AnimatableEffectPa
 #undef CHRONON_ANIM_PARAM
 });
 
+inline constexpr std::array<std::string_view, 20> kColorMatrixParamNames{
+    "m00", "m01", "m02", "m03", "b0", "m10", "m11", "m12", "m13", "b1",
+    "m20", "m21", "m22", "m23", "b2", "m30", "m31", "m32", "m33", "b3"};
+inline constexpr auto kColorMatrixAnimatableParams = [] {
+    std::array<AnimatableEffectParam, 20> rows{};
+    for (std::size_t i = 0; i < rows.size(); ++i)
+        rows[i] = {ids::ColorMatrix, kColorMatrixParamNames[i], -16.0f, 16.0f};
+    return rows;
+}();
+
 [[nodiscard]] inline std::optional<EffectParams> make_default_animatable_effect_params(
     std::string_view effect_id) {
 #define CHRONON_EFFECT(val, enum_name, params_type, id_str, ...) \
@@ -48,6 +58,11 @@ inline constexpr auto kAnimatableEffectParams = std::to_array<AnimatableEffectPa
 
 [[nodiscard]] inline const AnimatableEffectParam* find_animatable_effect_param(
     std::string_view effect_id, std::string_view param) noexcept {
+    if (effect_id == ids::ColorMatrix) {
+        const auto found = std::find_if(kColorMatrixAnimatableParams.begin(), kColorMatrixAnimatableParams.end(),
+            [param](const AnimatableEffectParam& row) { return row.param == param; });
+        return found == kColorMatrixAnimatableParams.end() ? nullptr : &*found;
+    }
     const auto found = std::find_if(kAnimatableEffectParams.begin(), kAnimatableEffectParams.end(),
         [effect_id, param](const AnimatableEffectParam& row) {
             return row.effect_id == effect_id && row.param == param;
@@ -64,6 +79,15 @@ inline constexpr auto kAnimatableEffectParams = std::to_array<AnimatableEffectPa
 template <class Params>
 [[nodiscard]] bool set_animatable_effect_param(
     Params& params, std::string_view effect_id, std::string_view param, float sample) noexcept {
+    if constexpr (std::is_same_v<std::remove_cvref_t<Params>, ::chronon3d::ColorMatrixParams>) {
+        if (effect_id == ids::ColorMatrix) {
+            const auto found = std::find(kColorMatrixParamNames.begin(), kColorMatrixParamNames.end(), param);
+            if (found == kColorMatrixParamNames.end() || !std::isfinite(sample) ||
+                sample < -16.0f || sample > 16.0f) return false;
+            params.values[static_cast<std::size_t>(found - kColorMatrixParamNames.begin())] = sample;
+            return true;
+        }
+    }
     bool applied = false;
 #define CHRONON_ANIM_PARAM(row_id, params_type, member, minimum, maximum)             \
     if constexpr (std::is_same_v<std::remove_cvref_t<Params>, ::chronon3d::params_type>) { \
@@ -87,6 +111,13 @@ template <class Params>
 template <class Params>
 [[nodiscard]] std::optional<float> get_animatable_effect_param(
     const Params& params, std::string_view effect_id, std::string_view param) noexcept {
+    if constexpr (std::is_same_v<std::remove_cvref_t<Params>, ::chronon3d::ColorMatrixParams>) {
+        if (effect_id == ids::ColorMatrix) {
+            const auto found = std::find(kColorMatrixParamNames.begin(), kColorMatrixParamNames.end(), param);
+            if (found == kColorMatrixParamNames.end()) return std::nullopt;
+            return params.values[static_cast<std::size_t>(found - kColorMatrixParamNames.begin())];
+        }
+    }
     std::optional<float> result;
 #define CHRONON_ANIM_PARAM(row_id, params_type, member, minimum, maximum)              \
     if constexpr (std::is_same_v<std::remove_cvref_t<Params>, ::chronon3d::params_type>) { \

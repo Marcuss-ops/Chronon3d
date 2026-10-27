@@ -1,0 +1,1 @@
+{"schema":"chronon.render-plan.v3","version":3,"job_id":"lottie_advanced_mega_gate","canvas":{"width":1920,"height":1080,"fps_num":30,"fps_den":1,"duration_frames":300},"layers":[{"id":"combined","type":"shape","size":[1920,1080],"shape":{"type":"path","lottie":"lottie_advanced_mega.json"}}],"output":{"path":"combined.mp4","format":"mp4","codec":"h264"}}

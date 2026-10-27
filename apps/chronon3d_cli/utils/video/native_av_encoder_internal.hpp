@@ -26,12 +26,14 @@ using NativeAvClock = std::chrono::steady_clock;
 // MP4 container (the MP4-per-item contract with the final worker is
 // preserved: one muxer, one PTS timeline, one forced-IDR start per item).
 //
-// The cache is opt-in (`CHRONON_ENCODER_SESSION_REUSE=1`): without the flag
-// every open allocates and every close destroys exactly as before, so no
-// behaviour changes by default. Adoption and release are fail-closed — any
-// doubtful condition (spliced/borrowed containers, HDR mastering metadata,
-// OCIO output views, a cache fingerprint mismatch, an unhealthy close)
-// produces a fresh codec session instead of a shared one.
+// Cross-job adoption is opt-in (CHRONON_ENCODER_SESSION_REUSE=1) and
+// additionally gated on the Fix 5 supported configuration (software x264,
+// constant-QP, zerolatency, one thread): EOS-flushed codecs reject new
+// frames, and packet-complete unflushed codecs with adaptive rate control
+// (CRF) retain history and change the next job's pixels. A certified packet
+// boundary alone does not prove independent-render parity — CQP has no
+// adaptive state, which is what makes the supported shape shareable.
+// P4's single-session segmented writer does not use this cross-job cache.
 
 /// One cached, still-open codec session with the contract of its live
 /// bitstream. `codec` is transferred in and out of the struct: whichever side
@@ -40,6 +42,11 @@ struct CodecSession {
     AVCodecContext* codec{nullptr};
     BitstreamTargetContract contract{};
     std::string fingerprint{};
+    // Self-certified by the park site: true only when close() parked this
+    // session WITHOUT an EOS flush (certified packet boundary). Only such
+    // sessions may be cached or adopted — an EOS-flushed codec rejects new
+    // frames forever, so adopting one would fail on the first write.
+    bool unflushed{false};
 
     CodecSession() = default;
     ~CodecSession();
@@ -47,8 +54,10 @@ struct CodecSession {
     CodecSession& operator=(const CodecSession&) = delete;
 };
 
-/// Opt-in gate: `CHRONON_ENCODER_SESSION_REUSE=1` enables both caching and
-/// adoption. Any other value (or unset) keeps the historical lifecycle.
+/// Cross-job codec-session capability seam: true only with the documented
+/// opt-in flag set. Park/adopt are additionally gated per configuration
+/// (NativeAvEncoder::codec_session_config_supported), so the flag alone
+/// never enables reuse of an uncertified session shape.
 [[nodiscard]] bool codec_session_reuse_enabled() noexcept;
 
 /// Returns the cached session when the cache holds one AND its fingerprint
@@ -59,8 +68,8 @@ struct CodecSession {
 
 /// Parks a healthy finished session for the next same-configuration open.
 /// The single cache slot is replaced atomically (the displaced session is
-/// destroyed). A null session, disabled reuse or an empty fingerprint frees
-/// instead of caching.
+/// destroyed). A null session, disabled reuse, an empty fingerprint or a
+/// session that is not `unflushed` frees instead of caching — fail-closed.
 void release_codec_session(std::shared_ptr<CodecSession> session) noexcept;
 
 } // namespace chronon3d::cli::detail

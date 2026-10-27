@@ -58,8 +58,23 @@ using svg_text_detail::svg_baseline_shift;
 using svg_text_detail::svg_text_path_reference;
 using svg_text_detail::svg_text_path_offset;
 using svg_document_detail::inspect_svg_xml_tree;
-using svg_document_detail::parse_root_gaussian_filter;
+using svg_document_detail::parse_root_svg_filter;
 
+bool is_translation_matrix(const Affine2& transform) {
+    constexpr float epsilon = 1e-6f;
+    return std::abs(transform[0][0] - 1.0f) <= epsilon &&
+        std::abs(transform[1][1] - 1.0f) <= epsilon &&
+        std::abs(transform[0][1]) <= epsilon &&
+        std::abs(transform[1][0]) <= epsilon &&
+        std::abs(transform[0][2]) <= epsilon &&
+        std::abs(transform[1][2]) <= epsilon &&
+        std::abs(transform[2][2] - 1.0f) <= epsilon;
+}
+
+bool is_svg_transform_animation(SvgAnimationKind kind) {
+    return kind == SvgAnimationKind::Translate || kind == SvgAnimationKind::Scale ||
+        kind == SvgAnimationKind::Rotate;
+}
 
 
 
@@ -147,19 +162,19 @@ SvgDocumentLoadResult load_svg_document_file(
         return {.paths = {}, .elements = {}, .ok = false, .error = "SVG document root <svg> is missing"};
     const auto root_properties = style_properties(*svg_root);
     std::optional<float> root_gaussian_blur;
+    std::vector<SvgFilterEffectSpec> root_filter_effects;
+    std::string root_filter_id;
     if (const auto filter_it = root_properties.find("filter");
         filter_it != root_properties.end() && trim(filter_it->second) != "none") {
-        std::string filter_id;
-        if (!parse_svg_gradient_reference(filter_it->second, filter_id))
+        if (!parse_svg_gradient_reference(filter_it->second, root_filter_id))
             return {.paths = {}, .elements = {}, .ok = false,
                     .error = "SVG root filter reference is malformed"};
-        const auto filter = ids.find(filter_id);
+        const auto filter = ids.find(root_filter_id);
         if (filter == ids.end() || filter->second.first != "filter")
             return {.paths = {}, .elements = {}, .ok = false,
                     .error = "SVG root filter reference does not resolve to a <filter> definition"};
-        float std_deviation = 0.0f;
-        if (const auto error = parse_root_gaussian_filter(*filter->second.second,
-                                                          std_deviation))
+        if (const auto error = parse_root_svg_filter(*filter->second.second,
+                                                     root_filter_effects))
             return {.paths = {}, .elements = {}, .ok = false, .error = *error};
         const auto root_transform_text = svg_root->get_optional<std::string>("<xmlattr>.transform");
         Affine2 root_transform = root_transform_text
@@ -176,11 +191,21 @@ SvgDocumentLoadResult load_svg_document_file(
             std::abs(glm::dot(axis_x, axis_y)) > 1e-5f * scale_x * scale_y)
             return {.paths = {}, .elements = {}, .ok = false,
                     .error = "SVG root Gaussian filter requires an isotropic root transform"};
-        std_deviation *= scale_x;
-        if (!std::isfinite(std_deviation) || std_deviation > 256.0f)
-            return {.paths = {}, .elements = {}, .ok = false,
-                    .error = "SVG root Gaussian filter radius exceeds 256 after root scaling"};
-        root_gaussian_blur = std_deviation;
+        for (auto& effect : root_filter_effects) {
+            if (effect.kind == SvgFilterEffectSpec::Kind::GaussianBlur ||
+                effect.kind == SvgFilterEffectSpec::Kind::DropShadow) {
+                effect.radius *= scale_x;
+                effect.offset[0] *= scale_x;
+                effect.offset[1] *= scale_y;
+                if (!std::isfinite(effect.radius) || effect.radius > 256.0f ||
+                    std::abs(effect.offset[0]) > 10000.0f || std::abs(effect.offset[1]) > 10000.0f)
+                    return {.paths = {}, .elements = {}, .ok = false,
+                            .error = "SVG root filter geometry exceeds bounds after root scaling"};
+            }
+        }
+        if (root_filter_effects.size() == 1 &&
+            root_filter_effects.front().kind == SvgFilterEffectSpec::Kind::GaussianBlur)
+            root_gaussian_blur = root_filter_effects.front().radius;
     }
     const auto clip_ref = root_properties.find("clip-path");
     const auto mask_ref = root_properties.find("mask");
@@ -188,9 +213,9 @@ SvgDocumentLoadResult load_svg_document_file(
         return {.paths = {}, .elements = {}, .ok = false,
                 .error = "SVG root cannot combine clip-path and mask in the bounded vector-mask subset"};
     const auto vector_ref = clip_ref != root_properties.end() ? clip_ref : mask_ref;
-    if (root_gaussian_blur && vector_ref != root_properties.end())
+    if (!root_filter_effects.empty() && vector_ref != root_properties.end())
         return {.paths = {}, .elements = {}, .ok = false,
-                .error = "SVG root Gaussian filter cannot be combined with a root clip-path or mask"};
+                .error = "SVG root filter cannot be combined with a root clip-path or mask"};
     if (vector_ref != root_properties.end()) {
         std::string reference_id;
         if (!parse_svg_gradient_reference(vector_ref->second, reference_id))
@@ -218,6 +243,30 @@ SvgDocumentLoadResult load_svg_document_file(
     std::uint32_t isolated_group_counter{0};
     collect_path_data(document, path_data, styles, animations, gradients, ids, 0,
         expanded_uses, isolated_group_counter);
+    for (std::size_t index = 0; index < path_data.size(); ++index) {
+        const Affine2 identity(1.0f);
+        bool has_static_transform = false;
+        for (int column = 0; column < 3; ++column)
+            for (int row = 0; row < 3; ++row)
+                has_static_transform = has_static_transform ||
+                    std::abs(path_data[index].second[column][row] - identity[column][row]) > 1e-6f;
+        const auto& tracks = animations[index];
+        const bool has_animated_transform = std::any_of(
+            tracks.begin(), tracks.end(), [](const auto& track) {
+                return is_svg_transform_animation(track.kind);
+            });
+        const bool only_animated_translations = std::all_of(
+            tracks.begin(), tracks.end(), [](const auto& track) {
+                return !is_svg_transform_animation(track.kind) ||
+                    track.kind == SvgAnimationKind::Translate;
+            });
+        if (has_static_transform && has_animated_transform &&
+            (!is_translation_matrix(path_data[index].second) || !only_animated_translations)) {
+            animations[index].clear();
+            animations[index].push_back(SvgAnimationSpec{});
+            animations[index].back().duration_seconds = -1.0f;
+        }
+    }
     std::vector<SvgTextRun> text_runs;
     try {
         collect_svg_text_runs(ids, document, text_runs, gradients);
@@ -225,23 +274,13 @@ SvgDocumentLoadResult load_svg_document_file(
         return {.paths = {}, .elements = {}, .text_runs = {}, .vector_mask = std::nullopt,
                 .ok = false, .error = error.what()};
     }
-    if (!root_gaussian_blur) {
-        for (const auto& s : styles) {
-            if (!s.filter_id.empty()) {
-                const auto filter = ids.find(s.filter_id);
-                if (filter != ids.end() && filter->second.first == "filter") {
-                    float std_dev = 0.0f;
-                    if (!parse_root_gaussian_filter(*filter->second.second, std_dev)) {
-                        root_gaussian_blur = std_dev;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    if (root_gaussian_blur && !text_runs.empty())
+    for (const auto& style : styles)
+        if (!style.filter_id.empty() && style.filter_id != root_filter_id)
+            return {.paths = {}, .elements = {}, .text_runs = {}, .ok = false,
+                    .error = "SVG element-scoped filters are unsupported; use one root-level filter"};
+    if (!root_filter_effects.empty() && !text_runs.empty())
         return {.paths = {}, .elements = {}, .ok = false,
-                .error = "SVG root Gaussian filter currently requires path-only content"};
+                .error = "SVG bounded filter lowering currently requires path-only content"};
     const bool root_mask_reference = vector_ref != root_properties.end();
     std::string root_mask_id;
     if (root_mask_reference) (void)parse_svg_gradient_reference(vector_ref->second, root_mask_id);
@@ -274,6 +313,7 @@ SvgDocumentLoadResult load_svg_document_file(
     result.text_runs = std::move(text_runs);
     result.vector_mask = vector_mask;
     result.root_gaussian_blur = root_gaussian_blur;
+    result.root_filter_effects = std::move(root_filter_effects);
     for (std::size_t index = 0; index < path_data.size(); ++index) {
         if (std::any_of(animations[index].begin(), animations[index].end(), [](const auto& animation) {
                 return animation.duration_seconds < 0.0f;
@@ -379,6 +419,7 @@ SvgDocumentLoadResult load_svg_document_file(
                     return {.paths = {}, .elements = {}, .ok = false,
                             .error = "SVG radial gradientTransform exceeds finite bounds"};
                 style.fill = Fill::radial(center, radius, std::move(stops));
+                style.fill->gradient.spread = source.spread;
             } else {
                 const auto start = bbox_point(source.p0);
                 const auto end = bbox_point(source.p1);
@@ -389,6 +430,7 @@ SvgDocumentLoadResult load_svg_document_file(
                     return {.paths = {}, .elements = {}, .ok = false,
                             .error = "SVG linear gradientTransform exceeds finite bounds"};
                 style.fill = Fill::linear(start, end, std::move(stops));
+                style.fill->gradient.spread = source.spread;
             }
             if (!source.animations.empty() && style.fill && style.fill->enabled) {
                 const std::vector<float> event_times{0.0f, source.animations.front().duration_seconds};

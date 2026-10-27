@@ -128,12 +128,17 @@ void decode_shape_path_operators(ShapeContentPlan& shape,
                     !std::isfinite(decoded_op.frequency) || decoded_op.frequency <= 0.0f ||
                     decoded_op.frequency > 1000.0f)
                     throw std::runtime_error("invalid wiggle-path parameters");
-            } else if (kind == "merge" || kind == "boolean_union") {
-                decoded_op.kind = kind == "merge" ? PathOperatorKindPlan::Merge
-                                                    : PathOperatorKindPlan::BooleanUnion;
+            } else if (kind == "merge" || kind == "boolean_union" ||
+                       kind == "boolean_difference" || kind == "boolean_intersection" ||
+                       kind == "boolean_xor") {
+                if (kind == "merge") decoded_op.kind = PathOperatorKindPlan::Merge;
+                else if (kind == "boolean_union") decoded_op.kind = PathOperatorKindPlan::BooleanUnion;
+                else if (kind == "boolean_difference") decoded_op.kind = PathOperatorKindPlan::BooleanDifference;
+                else if (kind == "boolean_intersection") decoded_op.kind = PathOperatorKindPlan::BooleanIntersection;
+                else decoded_op.kind = PathOperatorKindPlan::BooleanXor;
                 if (shape.svg_asset && decoded_op.target_id.empty())
                     throw std::runtime_error(
-                        "SVG merge/boolean-union requires an exact element target id");
+                        "SVG merge/boolean operation requires an exact element target id");
                 const auto& raw_paths = p.at("paths");
                 if (!raw_paths.is_array() || raw_paths.size() > 1024)
                         throw std::runtime_error("path operation accepts at most 1024 subpaths");

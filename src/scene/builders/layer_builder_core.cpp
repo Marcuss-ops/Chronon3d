@@ -159,6 +159,11 @@ LayerBuilder& LayerBuilder::depth_role(DepthRole role) { m_layer.depth_role = ro
 LayerBuilder& LayerBuilder::depth_offset(f32 offset)   { m_layer.depth_offset = offset; return *this; }
 
 LayerBuilder& LayerBuilder::blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
+LayerBuilder& LayerBuilder::lottie_precomp_groups(
+    std::vector<Layer::LottiePrecompGroupIsolation> groups) {
+    m_layer.lottie_precomp_groups = std::move(groups);
+    return *this;
+}
 
 // Layout methods → layer_builder_layout.cpp
 // Node transform + internal helpers → node_transform_commands.cpp

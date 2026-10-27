@@ -133,6 +133,7 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
     // `builder_params.hpp` field-order invariant block for the closure
     // lineage of forward-point 0e → 0f+ single-source-of-truth helper.
     node.shape.image().path = chronon3d::detail::image_params_resolve_path(p);
+    node.shape.image().embedded_payload = std::move(p.embedded_payload);
     node.shape.image().size = p.size;
     node.shape.image().fit = p.fit;
     node.shape.image().focal_point = p.focal_point;

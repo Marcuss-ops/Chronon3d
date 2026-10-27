@@ -41,6 +41,7 @@ void setup_render_job(const CompositionRegistry& registry,
             registry, job.settings, job.execution.config, job.execution.assets_root);
     }
     const auto renderer_t1 = profiling::now();
+    out.create_renderer_ms = profiling::duration_ms(out.setup_t0, renderer_t1);
 
     if (!out.renderer) {
         out.setup_t1 = renderer_t1;
@@ -138,6 +139,7 @@ void setup_render_job(const CompositionRegistry& registry,
         out.resource_plan = planner.build();
     }
     const auto warmup_t1 = profiling::now();
+    out.prepare_render_ms = profiling::duration_ms(warmup_t0, warmup_t1);
 
     if (preparation.warmup_performed && out.renderer->counters()) {
         const auto warmup_ms = static_cast<uint64_t>(
@@ -161,6 +163,7 @@ void setup_render_job(const CompositionRegistry& registry,
 
     chronon3d::telemetry::clear_telemetry_stores();
     out.setup_t1 = profiling::now();
+    out.setup_finalize_ms = profiling::duration_ms(warmup_t1, out.setup_t1);
 }
 
 } // namespace chronon3d::cli

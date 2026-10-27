@@ -127,6 +127,155 @@ PipeExportResult make_pipe_export_result(
         return result;
     }
 
+    if (!session.opts.output_segments.empty()) {
+        struct VerifiedSegment {
+            std::filesystem::path partial;
+            std::filesystem::path final;
+            std::int64_t start_frame{0};
+            std::int64_t end_frame{0};
+            media::video::OutputVerificationResult verification;
+        };
+        std::vector<VerifiedSegment> verified;
+        verified.reserve(session.opts.output_segments.size());
+        bool batch_ok = result.success &&
+            session.opts.output_segments.size() == session.original_segment_paths.size();
+        auto contract_result = media::video::resolve_output_contract("youtube_overlay_v1");
+        if (!contract_result) {
+            spdlog::error("[video] segmented output contract unavailable: {}",
+                          std::move(contract_result).error());
+            batch_ok = false;
+        }
+        // Final paths are batch-level preconditions: never overwrite one
+        // artifact or publish only half a batch because a destination existed.
+        for (std::size_t i = 0; batch_ok && i < session.opts.output_segments.size(); ++i) {
+            const auto& segment = session.opts.output_segments[i];
+            const std::filesystem::path final(session.original_segment_paths[i]);
+            std::error_code ec;
+            if (segment.end_pts <= segment.start_pts ||
+                std::filesystem::exists(final, ec) || ec) {
+                spdlog::error("[video] segmented output destination preflight failed: {}",
+                              final.string());
+                batch_ok = false;
+                break;
+            }
+        }
+
+        // A structurally invalid or missing MP4 is isolated to its item.
+        // RenderingGen's finalizer sees that missing artifact and retries
+        // only its declared frame window; valid sibling segments can publish.
+        for (std::size_t i = 0; batch_ok && i < session.opts.output_segments.size(); ++i) {
+            const auto& segment = session.opts.output_segments[i];
+            const std::filesystem::path partial(segment.output_path);
+            const std::filesystem::path final(session.original_segment_paths[i]);
+            const auto frame_count = segment.end_pts - segment.start_pts;
+            std::error_code ec;
+            if (!std::filesystem::is_regular_file(partial, ec) || ec) {
+                spdlog::error("[video] segmented output missing/unreadable for [{},{}): {}",
+                              segment.start_pts, segment.end_pts, partial.string());
+                continue;
+            }
+            auto contract = contract_result.value();
+            contract.width = session.canvas_width;
+            contract.height = session.canvas_height;
+            contract.fps = session.opts.output.frame_rate();
+            contract.frame_count = frame_count;
+            contract.audio_required = false;
+            contract.audio_streams = 0;
+            const auto verify_t0 = profiling::now();
+            auto verification = media::video::verify_output_contract(partial, contract);
+            const double verify_ms = profiling::duration_ms(verify_t0, profiling::now());
+            result.validation_ms += verify_ms;
+            if (!verification.passed) {
+                spdlog::error("[video] segmented output verification failed for {} — {}",
+                              partial.string(), verification.failure);
+                std::filesystem::remove(partial, ec);
+                continue;
+            }
+            verified.push_back({partial, final, segment.start_pts, segment.end_pts,
+                                std::move(verification)});
+        }
+
+        // Isolated per-item retry is the P4 contract: ONE corrupt item leaves
+        // its verified siblings published and only its own window to
+        // RenderingGen's single-segment retry. A session that verified NOTHING
+        // is a different failure: the segmentation itself did not run, and
+        // reporting success with zero per-item outputs is precisely the silent
+        // degradation this contract forbids.
+        if (batch_ok && verified.empty()) {
+            spdlog::error(
+                "[video] segmented session verified no segment at all ({} "
+                "requested): refusing to report a successful batch",
+                session.opts.output_segments.size());
+            batch_ok = false;
+        }
+
+        std::vector<std::filesystem::path> published;
+        if (batch_ok) {
+            for (const auto& item : verified) {
+                std::error_code ec;
+                std::filesystem::rename(item.partial, item.final, ec);
+                if (ec) {
+                    spdlog::error("[video] failed to publish segment {} → {}: {}",
+                                  item.partial.string(), item.final.string(), ec.message());
+                    batch_ok = false;
+                    break;
+                }
+                published.push_back(item.final);
+            }
+            if (!batch_ok) {
+                for (const auto& path : published) {
+                    std::error_code ec;
+                    std::filesystem::remove(path, ec);
+                }
+            }
+        }
+
+        if (!batch_ok) {
+            result.success = false;
+            result.return_code = 1;
+            if (session.execution_context) {
+                session.execution_context->observed_segment_outputs.clear();
+            }
+        } else {
+            result.output_published = !published.empty();
+            for (const auto& item : verified) {
+                result.ffprobe_ms = result.ffprobe_ms.value_or(0.0) +
+                    item.verification.ffprobe_ms.value_or(0.0);
+                result.sha256_ms = result.sha256_ms.value_or(0.0) +
+                    item.verification.sha256_ms.value_or(0.0);
+            }
+            if (session.execution_context) {
+                auto& observed = session.execution_context->observed_segment_outputs;
+                observed.clear();
+                observed.reserve(verified.size());
+                for (const auto& item : verified) {
+                    observed.push_back({
+                        .output_path = item.final.string(),
+                        .start_frame = item.start_frame,
+                        .end_frame = item.end_frame,
+                        .probe = item.verification.probe_facts,
+                        .sha256 = item.verification.sha256,
+                        .probe_ms = item.verification.ffprobe_ms,
+                        .sha256_ms = item.verification.sha256_ms,
+                    });
+                }
+            }
+        }
+        for (const auto& segment : session.opts.output_segments) {
+            std::error_code ec;
+            std::filesystem::remove(segment.output_path, ec);
+        }
+        // Segment-only callers have no whole-timeline artifact. When a
+        // mirror was requested, finalize it through the SAME canonical
+        // verification/publication path as any other MP4 below. Returning
+        // here used to strand the mirror in staging while the worker still
+        // required its final path and receipt.
+        if (session.original_output_path.empty()) {
+            if (!result.success) log_pipe_export_failure(status);
+            return result;
+        }
+    }
+
     if (!result.success) {
         if (result.encoder_close_failed) {
             spdlog::error("[video] Export failed: encoder close failed after all frames rendered");
@@ -197,6 +346,13 @@ PipeExportResult make_pipe_export_result(
             std::filesystem::remove(partial_path, raw_ec);
         } else {
             result.output_published = true;
+            if (session.execution_context) {
+                auto& observed = session.execution_context->observed_output;
+                observed.probe.reset();
+                observed.sha256 = result.sha256;
+                observed.probe_ms.reset();
+                observed.sha256_ms = result.sha256_ms;
+            }
         }
     } else {
         const auto validation_t0 = profiling::now();
@@ -259,6 +415,13 @@ PipeExportResult make_pipe_export_result(
         } else {
             result.output_published = true;
             spdlog::info("[video] Wrote {}", session.original_output_path);
+            if (session.execution_context) {
+                auto& observed = session.execution_context->observed_output;
+                observed.probe = verification.probe_facts;
+                observed.sha256 = verification.sha256;
+                observed.probe_ms = verification.ffprobe_ms;
+                observed.sha256_ms = verification.sha256_ms;
+            }
         }
     }
 

@@ -9,7 +9,12 @@
 #include <chronon3d/effects/temporal_history.hpp>
 #include <chronon3d/effects/backdrop_filter.hpp>
 #include <chronon3d/effects/luminance_response.hpp>
-#include <chronon3d/render_plan/effect_presets/core.hpp>
+#if __has_include(<chrononplugin/effects/presets/core.hpp>)
+#include <chrononplugin/effects/presets/core.hpp>
+#define CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE 1
+#else
+#define CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE 0
+#endif
 #include <chronon3d/render_plan/render_plan.hpp>
 #include "processors/effects/distort/warp.hpp"
 #include <chronon3d/backends/software/software_session_resources.hpp>
@@ -23,7 +28,9 @@ using namespace chronon3d;
 using namespace chronon3d::graphics;
 using namespace chronon3d::effects;
 using namespace chronon3d::render_plan;
-using namespace chronon3d::render_plan::effect_presets;
+#if CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE
+using namespace chrononplugin::effects::presets;
+#endif
 using namespace chronon3d::renderer;
 
 TEST_CASE("Premium Effects V1: Field2D transform and combined operators") {
@@ -357,6 +364,7 @@ TEST_CASE("Premium Effects V1: VectorField2D and GradientMesh") {
     }
 }
 
+#if CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE
 TEST_CASE("Premium Effects V1: MotionField & Velocity RGB Split") {
     MotionField field;
     field.velocity = Vec2{15.0f, 0.0f}; // moving horizontally right
@@ -366,13 +374,14 @@ TEST_CASE("Premium Effects V1: MotionField & Velocity RGB Split") {
     CHECK(vel.y == 0.0f);
 
     LayerPlan layer;
-    effect_presets::velocity_rgb_split(layer, vel, 6.0f);
+    chrononplugin::effects::presets::velocity_rgb_split(layer, vel, 6.0f);
     REQUIRE(layer.effects.size() == 1);
     CHECK(layer.effects[0].kind == LayerPlan::EffectKindPlan::ChromaticAberration);
     CHECK(layer.effects[0].chromatic_offset_mode == 2);
     CHECK(layer.effects[0].chromatic_velocity[0] == 15.0f);
     CHECK(layer.effects[0].chromatic_red_offset == 6.0f);
 }
+#endif
 
 TEST_CASE("Premium Effects V1: TemporalHistory determinism") {
     TemporalHistoryConfig hist;
@@ -473,6 +482,7 @@ TEST_CASE("Premium Effects V1: Execution on Framebuffer (LensDistortion, FoldWar
     }
 }
 
+#if CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE
 TEST_CASE("Premium Effects V1: Presets and Recipes composition") {
     LayerPlan layer;
 
@@ -549,7 +559,7 @@ TEST_CASE("Premium Effects V1: Presets and Recipes composition") {
     }
 
     SUBCASE("CRT recipe populates canonical primitives stack") {
-        effect_presets::crt(layer);
+        chrononplugin::effects::presets::crt(layer);
         REQUIRE(layer.effects.size() >= 4);
         CHECK(layer.effects[0].kind == LayerPlan::EffectKindPlan::LensDistortion);
         CHECK(layer.effects[1].kind == LayerPlan::EffectKindPlan::WaveWarp); // scanlines
@@ -559,7 +569,7 @@ TEST_CASE("Premium Effects V1: Presets and Recipes composition") {
 
     SUBCASE("Paper fold recipe populates FoldWarp + CreaseShading") {
         LayerPlan fold_layer;
-        effect_presets::paper_fold(fold_layer, 0.35f, 0.5f);
+        chrononplugin::effects::presets::paper_fold(fold_layer, 0.35f, 0.5f);
         REQUIRE(fold_layer.effects.size() == 2);
         CHECK(fold_layer.effects[0].kind == LayerPlan::EffectKindPlan::FoldWarp);
         CHECK(fold_layer.effects[1].kind == LayerPlan::EffectKindPlan::CreaseShading);
@@ -567,7 +577,7 @@ TEST_CASE("Premium Effects V1: Presets and Recipes composition") {
 
     SUBCASE("Anamorphic flare recipe populates LuminanceResponse + DirectionalBlur") {
         LayerPlan flare_layer;
-        effect_presets::anamorphic_flare(flare_layer, 64.0f);
+        chrononplugin::effects::presets::anamorphic_flare(flare_layer, 64.0f);
         REQUIRE(flare_layer.effects.size() == 2);
         CHECK(flare_layer.effects[0].kind == LayerPlan::EffectKindPlan::LuminanceResponse);
         CHECK(flare_layer.effects[1].kind == LayerPlan::EffectKindPlan::DirectionalBlur);
@@ -575,9 +585,10 @@ TEST_CASE("Premium Effects V1: Presets and Recipes composition") {
 
     SUBCASE("Frosted glass recipe configures BackdropFilterPlan") {
         LayerPlan glass_layer;
-        effect_presets::frosted_glass(glass_layer);
+        chrononplugin::effects::presets::frosted_glass(glass_layer);
         REQUIRE(glass_layer.backdrop_filter.has_value());
         CHECK(glass_layer.backdrop_filter->blur == 28.0f);
         CHECK(glass_layer.backdrop_filter->rim_strength > 0.0f);
     }
 }
+#endif

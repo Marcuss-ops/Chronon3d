@@ -32,6 +32,7 @@ chronon3d_add_test_suite(
         cache/test_tile_cache.cpp
         registry/test_registries.cpp
         renderer/helpers/test_shape_path_world_bbox.cpp
+        renderer/helpers/test_monotone_chart_render.cpp
         renderer/helpers/test_stroke_gradient_helpers.cpp
         renderer/mesh/test_inline_mesh_extrusion_canary.cpp
         renderer/mesh/test_mesh_roughness_map.cpp
@@ -51,6 +52,11 @@ chronon3d_add_test_suite(
         scene/shapes/mask_tests.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_renderer_core_tests)
+if(CHRONON3D_ENABLE_SVG)
+    target_sources(chronon3d_renderer_core_tests PRIVATE
+        renderer/helpers/test_svg_filter_render.cpp
+    )
+endif()
 if(CHRONON3D_USE_BLEND2D)
     target_sources(chronon3d_renderer_core_tests PRIVATE
         renderer/test_blend_pixel_nan.cpp
@@ -80,6 +86,7 @@ chronon3d_add_test_suite(
         render_graph/compiler/test_frame_graph_compiler_scheduling.cpp
         render_graph/compiler/test_frame_graph_compiler_reuse.cpp
         render_graph/compiler/test_frame_graph_compiler_runtime.cpp
+        render_graph/compiler/test_source_node_alpha_seed.cpp
         render_graph/compiler/test_frame_graph_compiler_golden.cpp
         render_graph/core/test_node_identity.cpp
         render_graph/features/test_transition.cpp

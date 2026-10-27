@@ -27,6 +27,18 @@ namespace chronon3d {
 
 struct BlurParams          { f32   radius{0.0f}; };
 struct TintParams          { Color color{0,0,0,0}; f32 amount{1.0f}; };
+// Bodymovin/After Effects two-color Tint controls, stored in sRGB coordinates.
+struct LottieTintParams {
+    f32 black_r{0.0f}, black_g{0.0f}, black_b{0.0f};
+    f32 white_r{1.0f}, white_g{1.0f}, white_b{1.0f};
+    f32 amount{1.0f};
+};
+struct LottieTritoneParams {
+    f32 dark_r{0.0f}, dark_g{0.0f}, dark_b{0.0f};
+    f32 mid_r{0.5f}, mid_g{0.5f}, mid_b{0.5f};
+    f32 bright_r{1.0f}, bright_g{1.0f}, bright_b{1.0f};
+    f32 amount{1.0f};
+};
 struct BrightnessParams    { f32   value{0.0f}; };
 struct ContrastParams      { f32   value{1.0f}; };
 struct DropShadowParams    { Vec2 offset{0,8}; Color color{0,0,0,0.35f}; f32 radius{12}; };
@@ -73,6 +85,13 @@ struct LiftGammaGainParams {
     f32 lift{0.0f};  // additive offset [-1,1]
     f32 gamma{1.0f}; // signed power shaping [0.1,4]
     f32 gain{1.0f};  // linear multiplier [0,4]
+};
+
+// General 4x5 affine color transform. Values are row-major; each output
+// channel computes dot(row[0..3], RGBA) + row[4].
+struct ColorMatrixParams {
+    std::array<float, 20> values{
+        1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0};
 };
 
 // ── Adjustment-layer color correction params (AE-5) ─────────────────────
@@ -125,7 +144,10 @@ struct CurvesParams {
 // ── Fill (Replace / Mix) ───────────────────────────────────────────────
 enum class FillMode {
     Replace,
-    Mix
+    Mix,
+    // Bodymovin/After Effects Fill replaces the layer color and applies its
+    // animated opacity to the source alpha, including zero opacity.
+    ReplaceAlpha
 };
 
 struct FillParams {
@@ -414,7 +436,7 @@ struct CreaseShadingParams {
     float softness{0.50f};      // feather softness [0, 1]
 };
 
-// Vignette is the only WIP-local parameter type kept here; the Chromatic
+// Vignette is the only WIP-local parameter type kept here (tracked by issue #59); the Chromatic
 // Aberration and Halftone structs above are the canonical (upstream) ones.
 struct VignetteEffectParams { float amount{0.5f}; float radius{0.5f}; float softness{0.5f}; Color color{0,0,0,1}; };
 
@@ -497,6 +519,8 @@ using EffectParams = std::variant<
     std::monostate,
     BlurParams,
     TintParams,
+    LottieTintParams,
+    LottieTritoneParams,
     BrightnessParams,
     ContrastParams,
     DropShadowParams,
@@ -533,7 +557,7 @@ using EffectParams = std::variant<
     SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
-    LiftGammaGainParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
+    LiftGammaGainParams, ColorMatrixParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
 >;
 
 } // namespace chronon3d

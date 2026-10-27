@@ -25,7 +25,8 @@ namespace detail {
 NodeExecResult execute_clear_node(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef>,
-    std::span<const std::optional<raster::BBox>>
+    std::span<const std::optional<raster::BBox>>,
+    bool force_clear
 ) {
     // Native video export must start the graph with a device-local transparent
     // target.  The legacy clear path owns only CPU pixels; letting that
@@ -65,7 +66,7 @@ NodeExecResult execute_clear_node(
         ctx.policy.reuse_prev_framebuffer,
         ctx.node_exec.ping_write.fb != nullptr,
         buffer_ring && buffer_ring->prev_framebuffer() != nullptr,
-        ctx.policy.skip_initial_clear,
+        ctx.policy.skip_initial_clear && !force_clear,
         ctx.node_exec.clip_rect,
         ctx.frame_input.width,
         ctx.frame_input.height);

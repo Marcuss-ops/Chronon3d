@@ -6,7 +6,6 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
-#include <cstring>
 #include <mutex>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -32,8 +31,33 @@ CodecSession::~CodecSession() {
 }
 
 bool codec_session_reuse_enabled() noexcept {
-    const char* value = std::getenv("CHRONON_ENCODER_SESSION_REUSE");
-    return value != nullptr && std::strcmp(value, "1") == 0;
+    // Cross-job codec adoption is opt-in via CHRONON_ENCODER_SESSION_REUSE=1
+    // AND additionally gated per configuration (Fix 5 supported-config gate
+    // in NativeAvEncoder::codec_session_config_supported): only a constant-QP
+    // zero-latency single-thread software session may be parked or adopted.
+    //
+    // Safety invariant (why the default/CRF path stays fail-closed): a
+    // completed MP4 requires sending end-of-stream to its encoder, after
+    // which FFmpeg rejects new frames with AVERROR_EOF and
+    // avcodec_flush_buffers does not make the encoder reusable. Verified
+    // empirically 2026-10-26 (test "Cross-item codec session reuse stays
+    // fail-closed").
+    //
+    // NativeAvEncoder::close() therefore parks the codec UNFLUSHED and only
+    // at a certified packet boundary (every frame submitted to the codec
+    // already produced its packet, so the container is complete without EOS).
+    // An EOS-flushed encoder must never be parked; the park site is gated on
+    // that boundary, not on this flag.
+    // Packet completeness is insufficient: the moving-content regression
+    // proves that an unflushed x264 CRF session retains adaptive state and
+    // changes decoded pixels in the following job, even after codec flush —
+    // hence the supported-config gate (CQP has no adaptive state). P4's
+    // one-session segmented writer is unaffected: it never adopts a codec
+    // across independent jobs.
+    if (const char* flag = std::getenv("CHRONON_ENCODER_SESSION_REUSE")) {
+        return flag[0] == '1' && flag[1] == '\0';
+    }
+    return false;
 }
 
 std::shared_ptr<CodecSession> acquire_codec_session(
@@ -50,8 +74,11 @@ std::shared_ptr<CodecSession> acquire_codec_session(
 }
 
 void release_codec_session(std::shared_ptr<CodecSession> session) noexcept {
+    // Fail-closed: only an UNFLUSHED session may enter the cache. An
+    // EOS-flushed codec rejects new frames forever, so caching one would hand
+    // the next adopter a dead codec (Fix 5).
     if (!session || !codec_session_reuse_enabled() ||
-        session->fingerprint.empty() || !session->codec) {
+        session->fingerprint.empty() || !session->codec || !session->unflushed) {
         return;  // the deleter frees the codec
     }
     std::lock_guard<std::mutex> lock(g_codec_session_cache_mutex);
@@ -64,6 +91,9 @@ void NativeAvEncoder::park_codec_session_for_reuse() {
     auto session = std::make_shared<detail::CodecSession>();
     session->codec = codec_;
     codec_ = nullptr;
+    // Self-certification: this site is only reachable from the reuse_unflushed
+    // branch of close() (certified packet boundary, no EOS sent).
+    session->unflushed = true;
     // The contract of the LIVE session follows the session, not the instance:
     // refresh it once here so the next adopter starts from the materialized
     // parameter sets this run actually produced.
@@ -96,9 +126,35 @@ bool NativeAvEncoder::close() {
 #endif
 
     const auto t_flush0 = Clock::now();
-    spdlog::info("[native_av] close: sending encoder flush");
     bool flush_ok = false;
     int flush_result = AVERROR(EAGAIN);
+    // Fix 5 — cross-job codec session (P2): at a CERTIFIED PACKET BOUNDARY
+    // (every frame submitted to the codec already produced its packet) the
+    // container is complete without end-of-stream. First receive whatever the
+    // encoder has already finished but the write path left uncollected (the
+    // tail submits can lag one drain); this is receive-only, no EOS.
+    const bool preflush_drained = drain_packets();
+    // Skip the EOS flush at the boundary and keep the codec UNFLUSHED for the
+    // park/adopt cache: an EOS-flushed codec rejects new frames forever
+    // (FFmpeg, verified empirically 2026-10-26), so only an unflushed,
+    // boundary-complete session may be parked. Every other close keeps the
+    // historical flush path and never parks. A frame-threaded encoder keeps
+    // work in flight, so the strict frames==packets equality is what
+    // certifies the boundary; anything else falls back to flush (fail-closed).
+    const bool reuse_unflushed =
+        preflush_drained && codec_session_eligible_ &&
+        detail::codec_session_reuse_enabled() && !duplicate_run_active_ &&
+        codec_frames_submitted_ > 0 &&
+        encoder_packets_received_ == codec_frames_submitted_;
+    if (reuse_unflushed) {
+        spdlog::info(
+            "[native_av] close: packet-complete boundary ({} frames / {} packets); "
+            "skipping EOS flush to keep the codec session reusable across jobs",
+            codec_frames_submitted_, encoder_packets_received_);
+        flush_ok = drain_packets();
+        flush_result = 0;
+    } else {
+    spdlog::info("[native_av] close: sending encoder flush");
     // A frame threaded encoder can have more work in flight than the CLI
     // wrapper's old single send/drain sequence assumed. EAGAIN means output
     // must be received before the null frame can enter the codec; retry after
@@ -124,6 +180,25 @@ bool NativeAvEncoder::close() {
     if (flush_ok && flush_result != AVERROR_EOF) {
         spdlog::info("[native_av] close: encoder flush accepted");
         flush_ok = drain_packets();
+    }
+    if (flush_ok && duplicate_run_active_ &&
+        duplicate_run_mode_ == DuplicateRunMode::Replicate &&
+        duplicate_replicated_through_pts_ <
+            static_cast<std::int64_t>(frames_written_) - 1) {
+        if (duplicate_prerun_packets_received_ <
+                duplicate_prerun_packets_target_ ||
+            !duplicate_anchor_) {
+            spdlog::error(
+                "[native_av] duplicate run could not drain its pre-run codec packets "
+                "before close (received={} target={})",
+                duplicate_prerun_packets_received_,
+                duplicate_prerun_packets_target_);
+            flush_ok = false;
+        } else {
+            flush_ok = emit_duplicate_replicas_through_(
+                static_cast<std::int64_t>(frames_written_) - 1);
+        }
+    }
     }
     spdlog::info("[native_av] close: packets drained={}", flush_ok);
     double trailer_ms = 0.0;
@@ -189,6 +264,11 @@ bool NativeAvEncoder::close() {
             return false;
         }
     } else {
+        if (segmented_mux_) {
+            const auto t_trailer0 = Clock::now();
+            if (!segmented_mux_->finalize()) flush_ok = false;
+            trailer_ms = elapsed_ms(t_trailer0);
+        } else {
         if (audio_input_ && !mux_source_audio()) {
             spdlog::error("[native_av] failed to mux source audio");
         }
@@ -199,6 +279,7 @@ bool NativeAvEncoder::close() {
             spdlog::info("[native_av] close: mux session finalized");
         }
         trailer_ms = elapsed_ms(t_trailer0);
+        }
     }
     const double flush_ms = elapsed_ms(t_flush0);
     native_flush_ms_ += flush_ms;
@@ -217,11 +298,12 @@ bool NativeAvEncoder::close() {
         frames_written_, encoder_packets_received_, mux_packets_written_,
         first_encoder_packet_pts_, last_encoder_packet_pts_,
         cache_hits_, cache_misses_);
-    // Cross-item codec session (opt-in): park the still-open codec for the
-    // next same-configuration open instead of paying avcodec_open2 per
-    // artifact (P2 item 2 / P4 item 1). Fail-closed: only a healthy owned
-    // container under a complete fingerprint is parked.
-    if (flush_ok && codec_session_eligible_) {
+    // Cross-job codec session (Fix 5, opt-in): park the still-open codec for
+    // the next same-configuration open instead of paying avcodec_open2 +
+    // NVENC session setup per artifact (P2 item 2 / P4 item 1). Only an
+    // UNFLUSHED, boundary-complete session is parked (reuse_unflushed): a
+    // flushed codec is dead for FFmpeg and must be freed, not cached.
+    if (flush_ok && reuse_unflushed) {
         park_codec_session_for_reuse();
     }
     // The encoder-owned bitstream contract describes a live session only; a
@@ -280,6 +362,7 @@ void NativeAvEncoder::abort_open() noexcept {
     // Only the container this encoder opened is destroyed here; a borrowed
     // MuxSession belongs to the caller.
     owned_mux_.reset();
+    segmented_mux_.reset();
     mux_ = nullptr;
     borrows_mux_ = false;
     packet_ = nullptr;

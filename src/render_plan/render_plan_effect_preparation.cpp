@@ -101,6 +101,14 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
                        effect.effect_color[2], effect.effect_color[3]},
             .radius = effect.radius});
         } break;
+        case LayerPlan::EffectKindPlan::Fill: {
+            prepared_effects[index].emplace_back(FillParams{
+                .color = Color{effect.effect_color[0], effect.effect_color[1],
+                               effect.effect_color[2], effect.effect_color[3]},
+                .amount = effect.amount,
+                .mode = effect.fill_opacity_replaces_alpha
+                    ? FillMode::ReplaceAlpha : FillMode::Mix});
+        } break;
         case LayerPlan::EffectKindPlan::Bloom: {
             prepared_effects[index].emplace_back(BloomParams{
             .threshold = effect.bloom_threshold,
@@ -226,7 +234,7 @@ std::vector<std::vector<EffectParams>> prepare_layer_effects(
         } break;
         case LayerPlan::EffectKindPlan::Catalog: {
             auto params = effects::make_default_animatable_effect_params(effect.canonical_effect_id);
-            if (!params) throw std::runtime_error("catalog effect cannot be materialized by the compiler");
+            if (!params) throw std::runtime_error("catalog effect cannot be materialized by the compiler: " + effect.canonical_effect_id);
             for (const auto& value : effect.canonical_params) {
             if (!effects::set_animatable_effect_param(*params, effect.canonical_effect_id,
                                   value.param, value.value))

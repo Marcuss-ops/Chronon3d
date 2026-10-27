@@ -125,19 +125,16 @@ public:
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        auto result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
-        if (inputs.empty() || !inputs[0]) return result;
+        if (inputs.empty() || !inputs[0]) {
+            return ctx.acquire_owned_fb(
+                ctx.frame_input.width, ctx.frame_input.height);
+        }
         const Framebuffer& src = *inputs[0];
 
-        // ShadowNode is still the CPU reference implementation.  A strict
-        // native export must not dereference pixels_row() on a GPU-only
-        // caster; report the missing native capability instead.
-        if (ctx.policy.require_native_gpu && !src.data()) {
-            return NodeExecResult(NodeExecutionError{
-                RenderBackendErrorCode::UnsupportedCapability,
-                std::string(name()),
-                "shadow requires a native GPU pass or CPU pixel backing"});
-        }
+        if (ctx.policy.require_native_gpu) return execute_native(ctx, src);
+
+        auto result = ctx.acquire_owned_fb(
+            ctx.frame_input.width, ctx.frame_input.height);
 
         // Screen-space offset: dz = caster_z - receiver_z, then project along light XZ.
         const float raw_dz = m_caster_world_z - m_receiver_world_z;
@@ -234,6 +231,9 @@ public:
     }
 
 private:
+    [[nodiscard]] NodeExecResult execute_native(
+        RenderGraphContext& ctx, const Framebuffer& source) const;
+
     std::string m_caster_name;
     f32 m_caster_world_z;
     f32 m_receiver_world_z;

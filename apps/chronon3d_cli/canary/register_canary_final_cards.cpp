@@ -124,7 +124,7 @@ namespace {
                         Color{1.0f, 1.0f, 1.0f, 1.0f}, Vec2{1700.0f, 360.0f}));
 
                     // Steady Font Fleet canary_black glow - static, clean, no pulsation
-                    l.effect(GlowPresets::canary_black());
+                    l.effect(GlowParams{.radius = 24.0f, .intensity = 0.25f, .color = Color::white()});
                 });
 
                 // Smooth 3D Dolly / Orbit camera: gentle yaw arc ±12°, subtle pitch, smooth push 1050 -> 950

@@ -351,7 +351,7 @@ TEST_CASE("compile_text_layout: P1-1 — single-run failure returns Err(PerRunSh
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TODO(cr-followup) Err(MissingFont) — empty-engine fixture required.
+// TODO(cr-followup; issue #59) Err(MissingFont) — empty-engine fixture required.
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Same fixture gap as the prior commit; pending FontEngine::reset_registrations().

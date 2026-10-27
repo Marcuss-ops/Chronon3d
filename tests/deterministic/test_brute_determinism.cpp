@@ -510,14 +510,14 @@ TEST_CASE("BruteDeterm-17.e: §17 3×2×60 thread×cache×frame matrix (ADR-018 
     auto warm_default_baseline = render_motion3d_glow_orbit_one_frame(kFrameIndex);
     const std::string warm_default_alpha = warm_default_baseline.alpha_bbox_canonical;
 
-    constexpr bool kUseHardcodedBaselines = false;  // TODO(working-build-host): flip to true after TICKET-VIDEO-REPEATABILITY-BASELINE closes
+    constexpr bool kUseHardcodedBaselines = false;  // TODO(working-build-host; issue #59): flip to true after TICKET-VIDEO-REPEATABILITY-BASELINE closes
     static const char* kHardcodedBaselines_alpha[9][2] = {
         // Size [9][2] = OOB-safe for threads {1,2,8} (indexes {0,1,7}, max 7 <= 8).
         // OOB-fix applied 2026-07-12 per code-reviewer verdict NEEDS-FIX latent UB.
         // Original [3][2] triggered UB when threads=8 (index 7 in a [3] array).
         // Forward-point: TICKET-VIDEO-REPEATABILITY-BASELINE (still invokes this switch).
         // baselines_alpha[threads-1][cache_idx] — to be filled by working-build-host run.
-        // TODO(working-build-host): embed SHA-256 of alpha_bbox_canonical field here.
+        // TODO(working-build-host; issue #59): embed SHA-256 of alpha_bbox_canonical field here.
         {nullptr, nullptr},  // threads=1, cold/warm
         {nullptr, nullptr},  // threads=2, cold/warm
         {nullptr, nullptr},  // threads=8, cold/warm
@@ -527,7 +527,7 @@ TEST_CASE("BruteDeterm-17.e: §17 3×2×60 thread×cache×frame matrix (ADR-018 
         for (const char* cache : {"cold", "warm"}) {
             ScopedParallelism par(threads);
             const bool is_cold = (std::string(cache) == "cold");
-            // TODO(working-build-host): if (is_cold) engine.clear_caches();
+            // TODO(working-build-host; issue #59): if (is_cold) engine.clear_caches();
 
             const auto baseline_metrics = render_motion3d_glow_orbit_60_frames();
             const auto baseline_per_frame = baseline_metrics.per_frame_digests();

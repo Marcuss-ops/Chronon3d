@@ -235,6 +235,10 @@ void add_layer_style_and_shape(CanonicalPlanWriter& out, const LayerPlan& layer)
                 for (const auto& transform : subpath.svg_transform_animations) {
                     out.add_string(transform.operation);
                     add_track(out, transform.animation);
+                    if (transform.has_pivot) {
+                        out.add_bool(true);
+                        for (const auto value : transform.pivot) out.add_float(value);
+                    }
                 }
             }
             if (!subpath.morph_target.empty() || subpath.morph_animation) {
@@ -255,7 +259,8 @@ void add_layer_style_and_shape(CanonicalPlanWriter& out, const LayerPlan& layer)
             shape.arrow_head_length || shape.arrow_head_width ||
             shape.type == ShapeContentTypePlan::Star || shape.type == ShapeContentTypePlan::Polygon ||
             shape.type == ShapeContentTypePlan::Arrow || shape.type == ShapeContentTypePlan::Grid ||
-            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::Arc) {
+            shape.type == ShapeContentTypePlan::DotGrid || shape.type == ShapeContentTypePlan::Arc ||
+            shape.type == ShapeContentTypePlan::RingSegment) {
             out.add_bool(true);
             add_optional(out, shape.points, [](auto& writer, int value) { writer.add_i64(value); });
             out.add_float(shape.inner_radius_ratio);
@@ -342,7 +347,10 @@ void add_layer_style_and_shape(CanonicalPlanWriter& out, const LayerPlan& layer)
                 continue;
             }
             if (op.kind == PathOperatorKindPlan::Merge ||
-                op.kind == PathOperatorKindPlan::BooleanUnion) {
+                op.kind == PathOperatorKindPlan::BooleanUnion ||
+                op.kind == PathOperatorKindPlan::BooleanDifference ||
+                op.kind == PathOperatorKindPlan::BooleanIntersection ||
+                op.kind == PathOperatorKindPlan::BooleanXor) {
                 out.add_size(op.paths.size());
                 for (const auto& subpath : op.paths) {
                     out.add_size(subpath.size());

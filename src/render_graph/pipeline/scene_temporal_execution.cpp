@@ -165,6 +165,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         execution_plan = ExecutionResolver::resolve_early_reuse(
             ctx, scene, frame, static_cast<int>(width),
             static_cast<int>(height), sw_renderer);
+        if (execution_plan.path == FrameExecutionPath::DuplicateFrame &&
+            execution_plan.duplicate_encoded_frame) {
+            // The writer will re-emit the previous encoded packet. Close the
+            // otherwise empty native batch and return a null framebuffer;
+            // the export loop recognizes the DuplicateFrame decision before
+            // requiring pixel storage.
+            return native_residency.finish_duplicate_native_frame({});
+        }
         if (execution_plan.reuse_surface && !ctx.policy.require_native_gpu) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->fast_path_reused_frames.fetch_add(1, std::memory_order_relaxed);

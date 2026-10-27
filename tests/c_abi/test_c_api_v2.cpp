@@ -250,6 +250,47 @@ TEST_CASE("C ABI v2 caller-owned buffer query, too-small failure, and second ren
                       [](std::uint8_t value) { return value != 0; }));
 }
 
+#if defined(CHRONON_TEST_ENABLE_SVG)
+TEST_CASE("SVG software filter chain renders repeatable RGBA output") {
+    const auto root = std::filesystem::temp_directory_path() /
+        ("chronon3d_svg_filter_" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(root);
+    {
+        std::ofstream svg(root / "source.svg");
+        svg << R"SVG(<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" filter="url(#fx)">
+<defs><filter id="fx"><feGaussianBlur stdDeviation="1" result="blur"/><feDropShadow dx="2" dy="1" stdDeviation="1" flood-color="#ff0000" flood-opacity="0.5" in="blur" result="shadow"/><feColorMatrix type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0" in="shadow" result="color"/><feBlend in="color" in2="BackgroundImage" mode="multiply"/></filter></defs>
+<path d="M8 8 H56 V56 H8 Z" fill="#00ff00"/>
+</svg>)SVG";
+    }
+    const auto root_string = root.string();
+    chronon_engine_config config{sizeof(config), chronon_abi_version(), root_string.c_str(), 0};
+    chronon_error_info error{sizeof(error), CHRONON_OK, nullptr};
+    chronon_engine* engine = nullptr;
+    REQUIRE(chronon_engine_create_v2(&config, &engine, &error) == CHRONON_OK);
+    const std::string source = R"JSON({"schema":"chronon.render-plan.v3","version":3,
+      "canvas":{"width":64,"height":64,"fps_num":30,"fps_den":1,"duration_frames":1},
+      "layers":[{"id":"bg","type":"color","color":[1,1,1,1]},
+        {"id":"svg","type":"shape","size":[64,64],"shape":{"type":"path","asset":"source.svg"}}],
+      "output":{"path":"out.png"}})JSON";
+    chronon_plan* plan = nullptr;
+    const auto compile_status = chronon_plan_compile_json_n(engine, source.data(), source.size(), &plan);
+    REQUIRE(compile_status == CHRONON_OK);
+    chronon_frame_info info{};
+    REQUIRE(chronon_render_frame_into(engine, plan, 0, nullptr, 0, &info) == CHRONON_ERROR_BUFFER_TOO_SMALL);
+    std::vector<std::uint8_t> first(static_cast<std::size_t>(info.size));
+    std::vector<std::uint8_t> second(static_cast<std::size_t>(info.size));
+    REQUIRE(chronon_render_frame_into(engine, plan, 0, first.data(), first.size(), &info) == CHRONON_OK);
+    REQUIRE(chronon_render_frame_into(engine, plan, 0, second.data(), second.size(), &info) == CHRONON_OK);
+    CHECK(std::any_of(first.begin(), first.end(), [](std::uint8_t value) { return value != 0; }));
+    CHECK(first == second);
+    chronon_plan_destroy(plan);
+    chronon_engine_destroy(engine);
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(root, cleanup_error);
+}
+#endif
+
 struct CancellationState {
     std::atomic<bool> cancelled{true};
 };

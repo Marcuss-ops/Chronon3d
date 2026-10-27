@@ -11,7 +11,13 @@ public:
     // framebuffer cached from an earlier frame therefore preserves pixels
     // from that frame in regions not overwritten by the new camera projection.
     // Re-execute the clear node for every frame.
-    ClearNode() : RenderGraphNode(frame_variant_cache("clear")) {}
+    explicit ClearNode(bool force_clear = false, std::string cache_identity = {})
+        : RenderGraphNode(frame_variant_cache(force_clear ? "group_clear" : "clear")),
+          m_force_clear(force_clear),
+          m_cache_identity(cache_identity.empty()
+              ? (force_clear ? "group_clear" : "clear")
+              : (force_clear ? "group_clear:" + cache_identity
+                             : "clear:" + cache_identity)) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Output; }
     std::string_view name() const noexcept override { return "Clear"; }
@@ -30,7 +36,7 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
-            .scope = "clear",
+            .scope = m_cache_identity,
             .frame = 0,
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height
@@ -42,6 +48,10 @@ public:
         std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override;
+
+private:
+    bool m_force_clear{false};
+    std::string m_cache_identity;
 };
 
 } // namespace chronon3d::graph

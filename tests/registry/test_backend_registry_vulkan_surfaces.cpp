@@ -18,6 +18,8 @@
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/shadow_node.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
@@ -55,6 +57,87 @@
 #include "../../src/render_graph/nodes/text_run/gpu_text_run.hpp"
 
 #ifdef CHRONON3D_ENABLE_VULKAN
+TEST_CASE("strict Vulkan ShadowNode projects and blurs caster alpha natively") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    constexpr std::uint32_t source_width = 16;
+    constexpr std::uint32_t source_height = 16;
+    constexpr std::uint32_t frame_width = 32;
+    constexpr std::uint32_t frame_height = 32;
+    const auto desc = SurfaceDesc::make(
+        source_width, source_height, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto handle = registry.create(desc);
+    REQUIRE(handle != kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.create_surface(handle, desc).ok());
+
+    std::vector<float> pixels(source_width * source_height * 4, 0.0f);
+    const std::size_t caster_pixel = (4U * source_width + 4U) * 4U;
+    pixels[caster_pixel + 0] = 0.2f;
+    pixels[caster_pixel + 1] = 0.1f;
+    pixels[caster_pixel + 2] = 0.05f;
+    pixels[caster_pixel + 3] = 0.5f;
+    REQUIRE(backend.upload_surface(handle, desc, pixels).ok());
+
+    Framebuffer source(source_width, source_height);
+    source.set_surface_handle(handle);
+    source.set_origin(8, 8);
+    source.mark_gpu_authoritative();
+
+    graph::RenderGraphContext ctx;
+    ctx.frame_input.width = frame_width;
+    ctx.frame_input.height = frame_height;
+    ctx.policy.require_native_gpu = true;
+    ctx.backend = &backend;
+    ctx.surface_registry = &registry;
+
+    rendering::ShadowSettings settings;
+    settings.opacity = 1.0f;
+    settings.contact_opacity = 1.0f;
+    settings.ambient_opacity = 0.0f;
+    settings.contact_blur_radius = 0.0f;
+    settings.blur_radius = 0.0f;
+    settings.px_per_unit = 1.0f;
+    auto node = graph::ShadowNode::create(
+        "native-caster", 0.0f, -4.0f, Vec3{1.0f, 1.0f, 0.0f}, settings);
+    const std::array<FramebufferRef, 1> inputs{FramebufferRef{source}};
+    auto result = node->execute(ctx, inputs, {});
+    REQUIRE(result.ok());
+    auto output = result.take_value();
+    REQUIRE(output);
+    REQUIRE(output->is_gpu_authoritative());
+
+    std::vector<float> actual(frame_width * frame_height * 4, 0.0f);
+    REQUIRE(backend.download_surface(output->surface_handle(), actual).ok());
+    const std::size_t shadow_pixel = (12U * frame_width + 8U) * 4U;
+    const float alpha = actual[shadow_pixel + 3];
+    CHECK(alpha > 0.01f);
+    CHECK(actual[shadow_pixel + 0] == doctest::Approx(alpha * 0.03f).epsilon(1e-4));
+    CHECK(actual[shadow_pixel + 1] == doctest::Approx(alpha * 0.04f).epsilon(1e-4));
+    CHECK(actual[shadow_pixel + 2] == doctest::Approx(alpha * 0.08f).epsilon(1e-4));
+
+    auto repeated_result = node->execute(ctx, inputs, {});
+    REQUIRE(repeated_result.ok());
+    auto repeated_output = repeated_result.take_value();
+    REQUIRE(repeated_output);
+    std::vector<float> repeated(actual.size(), 0.0f);
+    REQUIRE(backend.download_surface(repeated_output->surface_handle(), repeated).ok());
+    CHECK(repeated == actual);
+
+    (void)backend.release_surface(output->surface_handle());
+    (void)registry.release(output->surface_handle());
+    output->clear_surface_handle();
+    (void)backend.release_surface(repeated_output->surface_handle());
+    (void)registry.release(repeated_output->surface_handle());
+    repeated_output->clear_surface_handle();
+    (void)backend.release_surface(handle);
+    (void)registry.release(handle);
+    source.clear_surface_handle();
+}
+
 TEST_CASE("Vulkan color adjust matches the CPU scalar oracle") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     constexpr std::uint32_t width = 2;

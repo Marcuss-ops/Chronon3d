@@ -57,6 +57,35 @@ GlyphSelectorUnitMap build_text_unit_map(
         map.grapheme_count = grapheme_idx;
     }
 
+    // Some shaping backends omit whitespace from the placed glyph stream,
+    // even though After Effects character selectors count those source
+    // characters when positioning later glyphs. Restore only those missing
+    // whitespace units; spaces that do have a placed glyph are already
+    // represented by the cluster mapping above.
+    {
+        std::vector<size_t> missing_whitespace_offsets;
+        for (size_t byte = 0; byte < source.size();) {
+            size_t cp_len = 1;
+            const char32_t cp = detail::decode_utf8_codepoint_from(source, byte, cp_len);
+            if (byte + cp_len > source.size()) cp_len = source.size() - byte;
+            if (detail::is_unicode_whitespace(cp)) {
+                const bool represented = std::any_of(
+                    placed.glyphs.begin(), placed.glyphs.end(),
+                    [byte](const PlacedGlyph& glyph) { return glyph.byte_offset == byte; });
+                if (!represented) missing_whitespace_offsets.push_back(byte);
+            }
+            byte += cp_len;
+        }
+        for (size_t glyph = 0; glyph < glyph_count; ++glyph) {
+            const auto before = std::lower_bound(
+                missing_whitespace_offsets.begin(), missing_whitespace_offsets.end(),
+                static_cast<size_t>(placed.glyphs[glyph].byte_offset));
+            map.glyph_to_grapheme[glyph] += static_cast<u32>(
+                std::distance(missing_whitespace_offsets.begin(), before));
+        }
+        map.grapheme_count += static_cast<u32>(missing_whitespace_offsets.size());
+    }
+
     // ── Word and line mapping: walk source text byte-by-byte ─────────
     {
         u32 word_idx = 0;

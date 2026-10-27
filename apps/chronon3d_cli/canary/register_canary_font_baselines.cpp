@@ -41,7 +41,7 @@ namespace {
                     // the authoring site names the look instead of
                     // restating five numbers that must stay in sync
                     // across every black-glow clip.
-                    l.effect(GlowPresets::canary_black());
+                    l.effect(GlowParams{.radius = 24.0f, .intensity = 0.25f, .color = Color::white()});
                 });
 
                 scene.set_evaluated_camera(canary_orbit_camera(0.0f, 0.0f, 1000.0f));

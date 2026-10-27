@@ -9,6 +9,8 @@ public:
     ~StbImageBackend() override = default;
 
     std::unique_ptr<ImageBuffer> load_image(const std::string& path) override;
+    std::unique_ptr<ImageBuffer> load_image_from_memory(
+        std::span<const std::byte> encoded) override;
 };
 
 } // namespace chronon3d::image

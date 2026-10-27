@@ -211,7 +211,8 @@ void validate_layer_animation_fields(LayerPlan& layer, const nlohmann::json& val
                             layer.shape->type == ShapeContentTypePlan::Star ||
                             layer.shape->type == ShapeContentTypePlan::Polygon ||
                             layer.shape->type == ShapeContentTypePlan::Arrow ||
-                            layer.shape->type == ShapeContentTypePlan::DotGrid) &&
+                            layer.shape->type == ShapeContentTypePlan::DotGrid ||
+                            layer.shape->type == ShapeContentTypePlan::RingSegment) &&
                            layer.shape->fill_color && !layer.shape->gradient) {
                     // Only explicit solid fills are animatable; gradients use
                     // the typed fill_gradient_animation track instead.

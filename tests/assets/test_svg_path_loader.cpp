@@ -91,6 +91,19 @@ TEST_CASE("SVG path loader parses a minimal SVG file") {
     CHECK(res.paths[0].commands[2].type == PathCommandType::Close);
 }
 
+TEST_CASE("SVG path loader rejects element-scoped filters instead of widening their scope") {
+    const std::string filename = "temp_element_filter.svg";
+    {
+        std::ofstream out(filename);
+        out << R"SVG(<svg><defs><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></defs>)SVG"
+               R"SVG(<path d="M0 0 L10 10" filter="url(#blur)"/></svg>)SVG";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    CHECK_FALSE(result.ok);
+    CHECK(result.error.find("element-scoped filters are unsupported") != std::string::npos);
+}
+
 TEST_CASE("SVG document importer preserves all path elements in document order") {
     const std::string filename = "temp_test_document.svg";
     {
@@ -530,12 +543,63 @@ TEST_CASE("SVG root Gaussian blur lowers only supported isotropic filters") {
     CHECK_FALSE(anisotropic.ok);
     const auto non_root = rejected(
         R"svg(<svg><defs><filter id="f"><feGaussianBlur stdDeviation="2"/></filter></defs><path filter="url(#f)" d="M0 0L1 1"/></svg>)svg");
-    CHECK(non_root.ok);
-    CHECK(non_root.root_gaussian_blur.has_value());
-    CHECK(*non_root.root_gaussian_blur == doctest::Approx(2.0f));
+    CHECK_FALSE(non_root.ok);
+    CHECK(non_root.error.find("element-scoped filters are unsupported") != std::string::npos);
     const auto arbitrary_graph = rejected(
         R"svg(<svg filter="url(#f)"><defs><filter id="f"><feOffset dx="2"/></filter></defs><path d="M0 0L1 1"/></svg>)svg");
     CHECK_FALSE(arbitrary_graph.ok);
+}
+
+TEST_CASE("SVG root filter chains lower blur, drop shadow, and color matrix in order") {
+    const std::string filename = "temp_test_svg_filter_chain.svg";
+    const auto load = [&](const std::string& content) {
+        { std::ofstream out(filename); out << content; }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return result;
+    };
+    const auto chain = load(R"svg(<svg filter="url(#f)"><defs><filter id="f">
+      <feGaussianBlur stdDeviation="2" result="soft"/>
+      <feDropShadow in="soft" dx="3" dy="-2" stdDeviation="1" flood-color="#FF0000" flood-opacity="0.5" result="shadow"/>
+      <feColorMatrix in="shadow" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" result="graded"/>
+      <feBlend in="graded" in2="BackgroundImage" mode="multiply"/>
+      </filter></defs><path d="M0 0L20 0L20 20Z"/></svg>)svg");
+    REQUIRE_MESSAGE(chain.ok, chain.error);
+    REQUIRE(chain.root_filter_effects.size() == 4);
+    CHECK(chain.root_filter_effects[0].kind == SvgFilterEffectSpec::Kind::GaussianBlur);
+    CHECK(chain.root_filter_effects[0].radius == doctest::Approx(2.0f));
+    CHECK(chain.root_filter_effects[1].kind == SvgFilterEffectSpec::Kind::DropShadow);
+    CHECK(chain.root_filter_effects[1].offset[0] == doctest::Approx(3.0f));
+    CHECK(chain.root_filter_effects[1].offset[1] == doctest::Approx(-2.0f));
+    CHECK(chain.root_filter_effects[1].color[0] == doctest::Approx(1.0f));
+    CHECK(chain.root_filter_effects[1].color[3] == doctest::Approx(0.5f));
+    CHECK(chain.root_filter_effects[2].kind == SvgFilterEffectSpec::Kind::ColorMatrix);
+    CHECK(chain.root_filter_effects[2].color_matrix[0] == doctest::Approx(1.0f));
+    CHECK(chain.root_filter_effects[3].kind == SvgFilterEffectSpec::Kind::Blend);
+    CHECK(chain.root_filter_effects[3].blend_mode == "multiply");
+
+    const auto bad_input = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur stdDeviation="1" result="soft"/><feColorMatrix in="SourceGraphic" type="matrix"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(bad_input.ok);
+    const auto missing_matrix = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feColorMatrix type="matrix"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(missing_matrix.ok);
+    const auto unsupported = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feBlend in="SourceGraphic" in2="SourceAlpha"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(unsupported.ok);
+    CHECK(unsupported.root_filter_effects.empty());
+    const auto bad_units = load(R"svg(<svg filter="url(#f)"><defs><filter id="f" primitiveUnits="objectBoundingBox"><feGaussianBlur stdDeviation="1"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(bad_units.ok);
+    const auto subregion = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur x="0" stdDeviation="1"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(subregion.ok);
+    const auto out_of_range = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur stdDeviation="257"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(out_of_range.ok);
+    const auto duplicate_result = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feGaussianBlur stdDeviation="1" result="x"/><feGaussianBlur stdDeviation="1" result="x"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(duplicate_result.ok);
+    std::string too_many = R"svg(<svg filter="url(#f)"><defs><filter id="f">)svg";
+    for (int i = 0; i < 9; ++i)
+        too_many += "<feGaussianBlur stdDeviation=\"0\" result=\"r" + std::to_string(i) + "\"/>";
+    too_many += R"svg(</filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg";
+    CHECK_FALSE(load(too_many).ok);
+    const auto unsupported_blend = load(R"svg(<svg filter="url(#f)"><defs><filter id="f"><feBlend in2="BackgroundImage" mode="color-dodge"/></filter></defs><path d="M0 0L1 0L1 1Z"/></svg>)svg");
+    CHECK_FALSE(unsupported_blend.ok);
 }
 
 TEST_CASE("SVG textPath preserves local path target and start offset") {
@@ -574,6 +638,50 @@ TEST_CASE("SVG text resolves objectBoundingBox linear gradient paint") {
     REQUIRE(result.text_runs[0].fill_gradient->color_stops.size() == 2);
     CHECK(result.text_runs[0].fill_gradient->color_stops.front().color.r == doctest::Approx(1.0f));
     CHECK(result.text_runs[0].fill_gradient->color_stops.back().color.b == doctest::Approx(1.0f));
+}
+
+TEST_CASE("SVG path gradients lower userSpaceOnUse coordinates and spread modes") {
+    const std::string filename = "temp_test_svg_path_gradient_spread.svg";
+    const auto load = [&](const std::string& content) {
+        { std::ofstream out(filename); out << content; }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return result;
+    };
+    const auto repeat = load(R"svg(<svg><defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="10" y1="20" x2="30" y2="40" spreadMethod="repeat"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs><path fill="url(#g)" d="M0 0L40 0L40 40Z"/></svg>)svg");
+    REQUIRE(repeat.ok);
+    REQUIRE(repeat.elements.size() == 1);
+    REQUIRE(repeat.elements[0].fill.has_value());
+    CHECK(repeat.elements[0].fill->gradient.spread == graphics::GradientSpread::Repeat);
+    CHECK(repeat.elements[0].fill->gradient.start.x == doctest::Approx(10.0f));
+    CHECK(repeat.elements[0].fill->gradient.end.y == doctest::Approx(40.0f));
+
+    const auto reflect = load(R"svg(<svg><defs><radialGradient id="g" spreadMethod="reflect"><stop offset="0" stop-color="white"/><stop offset="1" stop-color="black"/></radialGradient></defs><path fill="url(#g)" d="M0 0L40 0L40 40Z"/></svg>)svg");
+    REQUIRE(reflect.ok);
+    REQUIRE(reflect.elements[0].fill.has_value());
+    CHECK(reflect.elements[0].fill->gradient.spread == graphics::GradientSpread::Reflect);
+
+    const auto unsupported = load(R"svg(<svg><defs><linearGradient id="g" spreadMethod="unknown"><stop offset="0"/><stop offset="1"/></linearGradient></defs><path fill="url(#g)" d="M0 0L40 0L40 40Z"/></svg>)svg");
+    CHECK_FALSE(unsupported.ok);
+}
+
+TEST_CASE("SVG text fill and stroke preserve gradient spread modes") {
+    const std::string filename = "temp_test_svg_text_gradient_spread.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><defs>
+          <linearGradient id="fill" spreadMethod="repeat"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient>
+          <radialGradient id="stroke" spreadMethod="reflect"><stop offset="0" stop-color="white"/><stop offset="1" stop-color="black"/></radialGradient>
+          </defs><text font-family="Chronon Sans" fill="url(#fill)" stroke="url(#stroke)">Gradient</text></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.text_runs.size() == 1);
+    REQUIRE(result.text_runs[0].fill_gradient.has_value());
+    REQUIRE(result.text_runs[0].stroke_gradient.has_value());
+    CHECK(result.text_runs[0].fill_gradient->spread == graphics::GradientSpread::Repeat);
+    CHECK(result.text_runs[0].stroke_gradient->spread == graphics::GradientSpread::Reflect);
 }
 
 TEST_CASE("SVG textPath retains relative per-character coordinate lists") {
@@ -666,6 +774,25 @@ TEST_CASE("SVG document importer parses rotate transform with pivot") {
     // Pivot (50, 50) remains (50, 50)
     CHECK(document.paths[0].commands[1].p0.x == doctest::Approx(50.0f));
     CHECK(document.paths[0].commands[1].p0.y == doctest::Approx(50.0f));
+}
+
+TEST_CASE("SVG animateTransform rotate accepts a fixed center pivot") {
+    const std::string filename = "temp_test_animated_rotate_pivot.svg";
+    {
+        std::ofstream out(filename);
+        out << R"svg(<svg><g><animateTransform attributeName="transform" type="rotate"
+          from="0 25 40" to="90 25 40" dur="1s" fill="freeze"/>
+          <path d="M 35 40 L 45 40"/></g></svg>)svg";
+    }
+    const auto result = load_svg_document_file(filename);
+    std::remove(filename.c_str());
+    REQUIRE(result.ok);
+    REQUIRE(result.elements.size() == 1);
+    REQUIRE(result.elements[0].animations.size() == 1);
+    CHECK(result.elements[0].animations[0].kind == SvgAnimationKind::Rotate);
+    CHECK(result.elements[0].animations[0].has_pivot);
+    CHECK(result.elements[0].animations[0].pivot[0] == doctest::Approx(25.0f));
+    CHECK(result.elements[0].animations[0].pivot[1] == doctest::Approx(40.0f));
 }
 
 TEST_CASE("SVG document importer differentiates circle and ellipse") {
@@ -845,6 +972,36 @@ TEST_CASE("SVG clip scopes stay distinct for grouped sibling paths") {
     CHECK(result.elements[0].vector_masks[0].commands.size() > 0);
     CHECK(result.elements[1].vector_masks[0].commands.size() > 0);
     CHECK(result.elements[1].vector_masks[1].commands.size() > 0);
+}
+
+TEST_CASE("SVG clip-rule maps to the canonical clip fill rule") {
+    const std::string filename = "temp_test_svg_clip_rule.svg";
+    const auto load = [&](const std::string& definition) {
+        {
+            std::ofstream out(filename);
+            out << "<svg clip-path=\"url(#clip)\"><defs>" << definition
+                << "</defs><path d=\"M0 0H20V20H0Z\"/></svg>";
+        }
+        const auto result = load_svg_document_file(filename);
+        std::remove(filename.c_str());
+        return result;
+    };
+
+    const auto even_odd = load(
+        R"svg(<clipPath id="clip" clip-rule="evenodd"><path d="M0 0H20V20H0Z M5 5H15V15H5Z"/></clipPath>)svg");
+    REQUIRE(even_odd.ok);
+    REQUIRE(even_odd.vector_mask.has_value());
+    CHECK(even_odd.vector_mask->fill_rule == PathFillRule::EvenOdd);
+
+    const auto inherited = load(
+        R"svg(<clipPath id="clip" style="clip-rule:evenodd"><g><path d="M0 0H20V20H0Z"/></g></clipPath>)svg");
+    REQUIRE(inherited.ok);
+    REQUIRE(inherited.vector_mask.has_value());
+    CHECK(inherited.vector_mask->fill_rule == PathFillRule::EvenOdd);
+
+    const auto inconsistent = load(
+        R"svg(<clipPath id="clip"><path clip-rule="evenodd" d="M0 0H10V10H0Z"/><path clip-rule="nonzero" d="M10 10H20V20H10Z"/></clipPath>)svg");
+    CHECK_FALSE(inconsistent.ok);
 }
 
 TEST_CASE("SVG tspan text-anchor creates a distinct chunk scope") {

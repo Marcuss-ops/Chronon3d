@@ -21,6 +21,13 @@ struct RenderJobSetupResult {
     profiling::Clock::time_point setup_t0;
     profiling::Clock::time_point setup_t1;
 
+    // P1 sub-phase attribution (TICKET-PERF-REVOLUTIONARY-IDEAS §5b):
+    // setup_renderer = create_renderer + prepare_render + setup_finalize.
+    // Pure instrumentation: no behaviour change, closes the "0% explained" gap.
+    double create_renderer_ms{0};
+    double prepare_render_ms{0};
+    double setup_finalize_ms{0};
+
     uint64_t saved_fb_alloc{0};
     uint64_t saved_fb_reuses{0};
     uint64_t saved_fb_bytes{0};

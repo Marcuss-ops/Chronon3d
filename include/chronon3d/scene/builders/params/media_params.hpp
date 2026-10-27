@@ -7,6 +7,9 @@
 #include <chronon3d/scene/model/shape/shape.hpp>
 
 #include <string>
+#include <memory>
+#include <vector>
+#include <cstddef>
 
 namespace chronon3d {
 
@@ -16,6 +19,7 @@ struct ImageParams {
 
     // Compatibility spelling retained for existing manifest-oriented callers.
     std::string asset_path{};
+    std::shared_ptr<const std::vector<std::byte>> embedded_payload{};
 
     Vec2 size{100.0f, 100.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};

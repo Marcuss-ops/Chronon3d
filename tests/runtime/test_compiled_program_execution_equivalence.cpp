@@ -319,3 +319,76 @@ TEST_CASE("animated image overlay keeps its prepared box centred across motion f
     CHECK((b4.x0 + b4.x1) / 2.0 == doctest::Approx(96.0).epsilon(1.0));
     CHECK((b4.y0 + b4.y1) / 2.0 == doctest::Approx(64.0).epsilon(1.0));
 }
+
+TEST_CASE("temporal accumulation renders shutter samples on shared engine state") {
+    // Regression: TemporalAccumulation sub-samples deferred the native frame
+    // batch without a downstream batch owner when no encode surface was bound
+    // (host sinks / unit tests). The terminal readback then raced work that was
+    // never submitted: every shutter sample was empty AND the leaked open batch
+    // poisoned later renders on the same engine (sharp-after-blur rendered
+    // empty while a fresh engine rendered correctly).
+    auto build = [](bool animated) {
+        auto plan = make_plan("temporal-shared-state", 128, 128,
+                              chronon3d::Frame{25}, {});
+        plan.canvas.fps = {24, 1};
+        LayerPlan patch;
+        patch.id = "patch";
+        patch.type = LayerType::Color;
+        patch.color = {1.0f, 1.0f, 1.0f, 1.0f};
+        patch.size = {16.0f, 16.0f};
+        patch.size_dimensions = 2;
+        patch.position = {0.0f, 0.0f, 0.0f};
+        patch.position_dimensions = 2;
+        if (animated) {
+            patch.animation = chronon3d::render_plan::AnimationPlan{};
+            patch.animation->tracks.push_back({
+                "position_x",
+                {{chronon3d::Frame{0}, {-32.0f}}, {chronon3d::Frame{24}, {32.0f}}},
+                "linear"});
+        }
+        plan.layers.push_back(std::move(patch));
+        return plan;
+    };
+
+    chronon3d::assets::AssetResolver resolver;
+    for (bool animated : {false, true}) {
+        auto compiled = chronon3d::compiler::compile(build(animated), resolver);
+        REQUIRE(compiled);
+        const auto program = std::move(compiled).value();
+
+        chronon3d::RenderEngine engine;
+        auto settings = engine.settings();
+        settings.motion_blur.mode =
+            chronon3d::MotionBlurMode::TemporalAccumulation;
+        settings.motion_blur.samples = 12;
+        settings.motion_blur.shutter_angle_deg = 180.0f;
+        settings.motion_blur.shutter_phase_deg = -90.0f;
+        engine.set_settings(settings);
+        const auto blurred_first =
+            engine.render_program(program, chronon3d::Frame{12});
+        REQUIRE(blurred_first);
+        const auto blurred_bounds = alpha_bounds(*blurred_first);
+        CAPTURE(animated);
+        CAPTURE(blurred_bounds.pixels);
+        // Shutter samples must reach the accumulator: an empty frame here was
+        // the original failure mode (blurred == sharp == blank).
+        CHECK(blurred_bounds.pixels > 0);
+
+        // A sharp render on the SAME engine after a blurred one must match a
+        // fresh-engine sharp render bit-for-bit: no cross-render poisoning.
+        settings.motion_blur.mode = chronon3d::MotionBlurMode::Off;
+        settings.motion_blur.samples = 1;
+        engine.set_settings(settings);
+        const auto sharp_after_blur =
+            engine.render_program(program, chronon3d::Frame{12});
+        REQUIRE(sharp_after_blur);
+        CHECK(alpha_bounds(*sharp_after_blur).pixels > 0);
+
+        chronon3d::RenderEngine fresh;
+        fresh.set_settings(settings);
+        const auto sharp_fresh =
+            fresh.render_program(program, chronon3d::Frame{12});
+        REQUIRE(sharp_fresh);
+        CHECK(bit_equal(*sharp_after_blur, *sharp_fresh));
+    }
+}

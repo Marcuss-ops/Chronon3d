@@ -43,6 +43,7 @@ void append_image_layer_for_scene(
     const std::string& resolved_ocio_config_path) {
     ImageParams params;
     params.asset_path = layer.asset;
+    params.embedded_payload = layer.embedded_image_payload;
     if (!layer.ocio_input_space.empty()) {
         if (!plan.color_management)
             throw std::runtime_error("image ocio_input_space requires plan color_management");

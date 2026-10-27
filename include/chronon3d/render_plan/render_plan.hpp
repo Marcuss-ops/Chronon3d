@@ -1,6 +1,11 @@
 #pragma once
 
+#include <chronon3d/render_plan/render_plan_effects.hpp>
+#include <chronon3d/render_plan/render_plan_gradient.hpp>
+#include <chronon3d/render_plan/render_plan_layer.hpp>
+#include <chronon3d/render_plan/render_plan_layer_types.hpp>
 #include <chronon3d/render_plan/render_plan_layers.hpp>
+#include <chronon3d/render_plan/render_plan_text.hpp>
 
 namespace chronon3d::render_plan {
 struct PreparedOverlayPackage {
