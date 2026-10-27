@@ -821,3 +821,100 @@ TEST_CASE("Cross-job adaptive rate control never reuses packet-complete sessions
 
     fs::remove_all(dir, ec);
 }
+
+TEST_CASE("Cross-job CQP zerolatency session reuses with pixel parity") {
+    namespace fs = std::filesystem;
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+    const auto dir = fs::temp_directory_path() / "chronon3d_codec_session_reuse_cqp";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+    REQUIRE_FALSE(ec);
+
+    // Fix 5 correctness gate: the supported configuration (software x264,
+    // constant-QP, zerolatency, one thread) shares one codec session across
+    // jobs AND renders pixels identical to independent encodes — including
+    // moving content, the shape that exposed the CRF adaptive-state leak.
+    // CQP has no adaptive state; zerolatency removes lookahead/B-frames so
+    // every submitted frame reaches the certified packet boundary.
+    ScopedEnvironmentValue reuse("CHRONON_ENCODER_SESSION_REUSE", "1");
+
+    auto contract_check = [](const fs::path& mp4) {
+        auto contract =
+            chronon3d::media::video::resolve_output_contract("youtube_overlay_v1");
+        REQUIRE(contract.has_value());
+        contract->width = 320;
+        contract->height = 240;
+        contract->fps = chronon3d::FrameRate{24, 1};
+        contract->frame_count = 24;
+        contract->audio_required = false;
+        contract->audio_streams = 0;
+        const auto verification =
+            chronon3d::media::video::verify_output_contract(mp4, *contract);
+        CHECK(verification.passed);
+        CHECK(verification.frame_count == 24);
+    };
+
+    auto make_options = [](const fs::path& output) {
+        chronon3d::cli::FfmpegPipeOptions options;
+        options.width = 320;
+        options.height = 240;
+        options.fps_num = 24;
+        options.fps_den = 1;
+        options.codec = "libx264";
+        options.output_path = output.string();
+        options.encode_threads = 1;
+        options.qp = 23;
+        options.qp_explicit = true;
+        options.tune = "zerolatency";
+        options.tune_explicit = true;
+        return options;
+    };
+
+    // Moving content: the painted phase advances every frame (the golden
+    // overlay mix's dominant shape), so any leaked encoder state across the
+    // session boundary changes the decoded pixels.
+    auto render_moving = [&](const fs::path& output, bool expected_adoption) {
+        auto options = make_options(output);
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(options));
+        CHECK(encoder.codec_session_adopted() == expected_adoption);
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int index = 0; index < 24; ++index) {
+            paint_frame(frame, index, 8);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    };
+
+    const auto item_a = dir / "cqp_a.mp4";
+    const auto item_b = dir / "cqp_b.mp4";
+    const auto item_c = dir / "cqp_c.mp4";
+    const auto reference = dir / "cqp_reference.mp4";
+
+    // A renders first (nothing to adopt) and parks its session at close;
+    // B and C adopt the parked session in a chain.
+    render_moving(item_a, false);
+    render_moving(item_b, true);
+    render_moving(item_c, true);
+
+    // The independent-render oracle: same content, fresh sessions.
+    reuse.set(std::string{"0"});
+    render_moving(reference, false);
+
+    contract_check(item_a);
+    contract_check(item_b);
+    contract_check(item_c);
+    contract_check(reference);
+
+    const auto hashes_reference = decoded_frame_hashes(reference);
+    REQUIRE_FALSE(hashes_reference.empty());
+    CHECK(decoded_frame_hashes(item_a) == hashes_reference);
+    CHECK(decoded_frame_hashes(item_b) == hashes_reference);
+    CHECK(decoded_frame_hashes(item_c) == hashes_reference);
+
+    fs::remove_all(dir, ec);
+}

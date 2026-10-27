@@ -26,10 +26,13 @@ using NativeAvClock = std::chrono::steady_clock;
 // MP4 container (the MP4-per-item contract with the final worker is
 // preserved: one muxer, one PTS timeline, one forced-IDR start per item).
 //
-// Cross-job adoption is disabled even with CHRONON_ENCODER_SESSION_REUSE=1:
-// EOS-flushed codecs reject new frames, and packet-complete unflushed codecs
-// can retain adaptive rate-control history and change the next job's pixels.
-// A certified packet boundary alone does not prove independent-render parity.
+// Cross-job adoption is opt-in (CHRONON_ENCODER_SESSION_REUSE=1) and
+// additionally gated on the Fix 5 supported configuration (software x264,
+// constant-QP, zerolatency, one thread): EOS-flushed codecs reject new
+// frames, and packet-complete unflushed codecs with adaptive rate control
+// (CRF) retain history and change the next job's pixels. A certified packet
+// boundary alone does not prove independent-render parity — CQP has no
+// adaptive state, which is what makes the supported shape shareable.
 // P4's single-session segmented writer does not use this cross-job cache.
 
 /// One cached, still-open codec session with the contract of its live
@@ -51,8 +54,10 @@ struct CodecSession {
     CodecSession& operator=(const CodecSession&) = delete;
 };
 
-/// Cross-job codec-session capability seam; currently always false until
-/// independent-render pixel parity is certified for a supported configuration.
+/// Cross-job codec-session capability seam: true only with the documented
+/// opt-in flag set. Park/adopt are additionally gated per configuration
+/// (NativeAvEncoder::codec_session_config_supported), so the flag alone
+/// never enables reuse of an uncertified session shape.
 [[nodiscard]] bool codec_session_reuse_enabled() noexcept;
 
 /// Returns the cached session when the cache holds one AND its fingerprint

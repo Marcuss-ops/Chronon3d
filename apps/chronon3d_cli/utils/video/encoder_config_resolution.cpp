@@ -8,8 +8,10 @@
 //   | intent                | software (libx264 family)   | NVENC                 |
 //   |-----------------------|-----------------------------|-----------------------|
 //   | ConstantQuality (crf) | ✅ crf level resolved       | ❌ explicit → error   |
-//   | ConstantQp            | ❌ error (no certified      | ✅ constqp + qp       |
-//   |                       |    x264 constant-QP path)   |                       |
+//   | ConstantQp            | ✅ qp level resolved       | ✅ constqp + qp       |
+//   |                       |    (cross-job reuse only    |                       |
+//   |                       |    under the Fix 5           |                       |
+//   |                       |    supported-config gate)    |                       |
 //   | Bitrate / vbr         | ✅ ABR bitrate              | ✅ rc=vbr + bitrate   |
 //   | cbr                   | ❌ error                    | ✅ rc=cbr + bitrate   |
 //   | unspecified           | ✅ crf engine default       | ✅ DriverDefault      |
@@ -396,14 +398,22 @@ EncoderResolution resolve_encoder_config(const EncoderConfigRequest& request) {
             break;
 
         case EncoderRateControlRequest::ConstantQp:
-            if (!nvenc) {
-                return failure(
-                    "rate control 'qp' (constant quantizer) is not supported on "
-                    "the software encoder; use crf or bitrate");
-            }
-            if (request.qp < 0 || request.qp > 63) {
-                return failure("qp rate control requires a valid qp value in "
-                               "[0, 63]; got " + std::to_string(request.qp));
+            // Fix 5 supported-config path: constant-QP is the only software
+            // rate control with no adaptive state, hence the only one whose
+            // session may be shared across jobs (see the reuse gate in
+            // native_av_encoder_open.cpp). NVENC keeps its [0, 63] driver
+            // range; x264 constant quantizer spans [0, 69].
+            if (nvenc) {
+                if (request.qp < 0 || request.qp > 63) {
+                    return failure("qp rate control requires a valid qp value in "
+                                   "[0, 63]; got " + std::to_string(request.qp));
+                }
+            } else {
+                if (request.qp < 0 || request.qp > 69) {
+                    return failure("qp rate control requires a valid qp value in "
+                                   "[0, 69] on the software encoder; got " +
+                                   std::to_string(request.qp));
+                }
             }
             resolved_rc = ResolvedEncoderRateControl::ConstantQp;
             resolved_qp = request.qp;

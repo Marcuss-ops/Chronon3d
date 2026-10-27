@@ -5,6 +5,7 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
+#include <cstdlib>
 #include <mutex>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
@@ -30,14 +31,17 @@ CodecSession::~CodecSession() {
 }
 
 bool codec_session_reuse_enabled() noexcept {
-    // Cross-job codec adoption remains disabled, including when the
-    // historical CHRONON_ENCODER_SESSION_REUSE opt-in is set.
+    // Cross-job codec adoption is opt-in via CHRONON_ENCODER_SESSION_REUSE=1
+    // AND additionally gated per configuration (Fix 5 supported-config gate
+    // in NativeAvEncoder::codec_session_config_supported): only a constant-QP
+    // zero-latency single-thread software session may be parked or adopted.
     //
-    // Safety invariant (why this used to be hard fail-closed): a completed
-    // MP4 requires sending end-of-stream to its encoder, after which FFmpeg
-    // rejects new frames with AVERROR_EOF and avcodec_flush_buffers does not
-    // make the encoder reusable. Verified empirically 2026-10-26 (test
-    // "Cross-item codec session reuse stays fail-closed").
+    // Safety invariant (why the default/CRF path stays fail-closed): a
+    // completed MP4 requires sending end-of-stream to its encoder, after
+    // which FFmpeg rejects new frames with AVERROR_EOF and
+    // avcodec_flush_buffers does not make the encoder reusable. Verified
+    // empirically 2026-10-26 (test "Cross-item codec session reuse stays
+    // fail-closed").
     //
     // NativeAvEncoder::close() therefore parks the codec UNFLUSHED and only
     // at a certified packet boundary (every frame submitted to the codec
@@ -46,10 +50,13 @@ bool codec_session_reuse_enabled() noexcept {
     // that boundary, not on this flag.
     // Packet completeness is insufficient: the moving-content regression
     // proves that an unflushed x264 CRF session retains adaptive state and
-    // changes decoded pixels in the following job, even after codec flush.
-    // Keep the opt-in fail-closed until a supported configuration passes
-    // independent-render pixel parity. P4's one-session segmented writer is
-    // unaffected: it never adopts a codec across independent jobs.
+    // changes decoded pixels in the following job, even after codec flush —
+    // hence the supported-config gate (CQP has no adaptive state). P4's
+    // one-session segmented writer is unaffected: it never adopts a codec
+    // across independent jobs.
+    if (const char* flag = std::getenv("CHRONON_ENCODER_SESSION_REUSE")) {
+        return flag[0] == '1' && flag[1] == '\0';
+    }
     return false;
 }
 
