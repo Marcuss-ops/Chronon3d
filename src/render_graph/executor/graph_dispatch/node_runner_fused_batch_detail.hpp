@@ -11,7 +11,7 @@
 // thing node_runner.cpp needs.
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include "execution_state.hpp"
+#include "../execution_state.hpp"
 
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 

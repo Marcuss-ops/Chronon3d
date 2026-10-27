@@ -39,6 +39,11 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
     const glm::mat4& model_matrix,
     float opacity);
 
+std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
+    runtime::GpuGlyphAtlas& glyph_atlas,
+    const assets::AssetResolver* resolver,
+    const TextRunShape& shape);
+
 namespace detail {
 
 /// Overflow-safe `a * b`.  Returns false on overflow and never writes `out`.

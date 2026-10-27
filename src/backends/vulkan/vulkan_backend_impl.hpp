@@ -97,25 +97,7 @@ struct VulkanBackend::Impl {
 
     void require_healthy() const;
 
-    struct Image {
-        VkImage image{VK_NULL_HANDLE};
-        VmaAllocation allocation{VK_NULL_HANDLE};
-        VkImageView view{VK_NULL_HANDLE};
-        VkFormat format{VK_FORMAT_R32G32B32A32_SFLOAT};
-        std::uint32_t width{0};
-        std::uint32_t height{0};
-        runtime::TextAtlasEncoding text_atlas_encoding{
-            runtime::TextAtlasEncoding::PremultipliedRGBA};
-        bool initialized{false};
-        bool exportable{false};
-        bool cuda_timeline{false};
-        std::shared_ptr<InteropGeneration> interop_generation{};
-        VkSemaphore cuda_to_vulkan{VK_NULL_HANDLE};
-        VkSemaphore vulkan_to_cuda{VK_NULL_HANDLE};
-        std::uint64_t last_vulkan_to_cuda_value{0};
-        std::optional<std::size_t> cuda_export_fence_slot{};
-        bool cuda_export_standalone_fence{false};
-    };
+#include "impl/vulkan_impl_image.hpp"
 
     // Compatibility names remain inside Impl, but descriptor allocation and
     // descriptor handles now have exactly one owner: VulkanDescriptorAuthority.
@@ -211,11 +193,7 @@ struct VulkanBackend::Impl {
     // Source-compatibility façade only. All state and binding policy live in
     // VulkanSurfaceAuthority; this nested type keeps the existing out-of-line
     // destroy_all definition and therefore requires no duplicated store state.
-    class VulkanSurfaceStore final
-        : public VulkanSurfaceAuthority<Image, VulkanBackend::Impl> {
-    public:
-        void destroy_all(VulkanBackend::Impl& owner) noexcept;
-    } surfaces;
+#include "impl/vulkan_surface_store.hpp"
 
     // DEMOLISHED (P1.4): plan_preallocated/plan_canvas_width/plan_canvas_height
     // removed — plan_preallocated was initialized false and only ever written
@@ -247,7 +225,7 @@ struct VulkanBackend::Impl {
     /// Which contention domain(s) a lock site takes. `Dual` is the coupling
     /// the audit N4 measurement is about: two independent domains serialized
     /// by one acquisition.
-    enum class LockDomain : std::uint8_t { Surface, Submission, Dual };
+#include "impl/vulkan_domain_lock.hpp"
 
     /// Audit N4 measurement: the contention domains, timed.
     ///
@@ -257,27 +235,6 @@ struct VulkanBackend::Impl {
     /// control-flow change at the call site — plus the wait/hold accounting
     /// the audit asked for. Only sites that genuinely need both use `Dual`;
     /// the recording path is not one of them any more.
-    class DomainLock {
-    public:
-        explicit DomainLock(Impl& impl, LockDomain domain);
-
-        ~DomainLock();
-
-        DomainLock(const DomainLock&) = delete;
-        DomainLock& operator=(const DomainLock&) = delete;
-        DomainLock(DomainLock&&) = delete;
-        DomainLock& operator=(DomainLock&&) = delete;
-
-    private:
-        Impl& impl_;
-        LockDomain domain_;
-        std::chrono::steady_clock::time_point wait_start_{};
-        std::unique_lock<std::mutex> first_;
-        // Owns nothing unless the domain is Dual (defer_lock).
-        std::unique_lock<std::mutex> second_;
-        std::chrono::steady_clock::time_point hold_start_{};
-    };
-
     void record_lock_wait(LockDomain domain, std::uint64_t microseconds) noexcept;
 
     void record_lock_hold(LockDomain domain, std::uint64_t microseconds) noexcept;
@@ -329,13 +286,7 @@ struct VulkanBackend::Impl {
     [[nodiscard]] static bool& recording_resolve_context() noexcept;
 
     /// RAII flag for the recording window; nests by saving the previous value.
-    struct RecordingResolveScope {
-        const bool previous;
-        RecordingResolveScope() noexcept;
-        ~RecordingResolveScope();
-        RecordingResolveScope(const RecordingResolveScope&) = delete;
-        RecordingResolveScope& operator=(const RecordingResolveScope&) = delete;
-    };
+#include "impl/vulkan_recording_scope.hpp"
 
     /// Lock-free lease lookup used by resolve_image() while recording.
     [[nodiscard]] Image* leased_image(runtime::RenderSurfaceHandle handle);
@@ -795,6 +746,9 @@ struct VulkanBackend::Impl {
     void wait_for_pending();
     std::uint64_t submit(bool wait_for_completion = true);
 };
+
+extern template class VulkanSurfaceAuthority<
+    VulkanBackend::Impl::Image, VulkanBackend::Impl>;
 
 } // namespace chronon3d::backends::vulkan
 

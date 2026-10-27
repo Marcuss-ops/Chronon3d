@@ -24,6 +24,12 @@ std::optional<std::string> decode_lottie_paints(
     const std::vector<const nlohmann::json*>& strokes,
     std::size_t geometry_count, LottiePaintSet& paints);
 bool lottie_point(const nlohmann::json&, std::array<float, 2>&);
+std::optional<std::string> decode_lottie_text_document(
+    const LayerPlan&, const nlohmann::json&, const nlohmann::json&, LayerPlan&);
+std::optional<std::string> decode_lottie_text_animators(
+    const nlohmann::json&, LayerPlan&);
+std::optional<std::string> decode_lottie_layer_effects(
+    const nlohmann::json&, LayerPlan&);
 std::optional<std::string> decode_lottie_masks(
     const nlohmann::json&, LayerPlan&, float anchor_x, float anchor_y);
 std::optional<std::string> expand_static_lottie_layer(

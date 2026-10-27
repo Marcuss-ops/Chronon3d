@@ -20,13 +20,10 @@
 #include <vector>
 
 #include "native_surface.hpp"
+#include "effect_stack_node_native_api.hpp"
 
 namespace chronon3d::graph {
 
-#include "effect_stack_node_native_detail.hpp"
-#include "effect_stack_node_native_color_detail.hpp"
-#include "effect_stack_node_native_echo_detail.hpp"
-#include "effect_stack_node_native_bulk_detail.hpp"
 #include "effect_stack_node_bbox_detail.hpp"
 NodeExecResult EffectStackNode::execute(
     RenderGraphContext& ctx,

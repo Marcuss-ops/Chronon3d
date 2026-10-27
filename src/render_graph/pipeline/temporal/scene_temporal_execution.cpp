@@ -33,22 +33,22 @@
 #include <chrono>
 #include <tuple>
 
-#include "helpers.hpp"
-#include "scene_internal.hpp"
-#include "scene_context_setup.hpp"        // Azione 19 — Phase 0 helper
+#include "../helpers.hpp"
+#include "../scene_internal.hpp"
+#include "../scene_context_setup.hpp"     // Azione 19 — Phase 0 helper
 #include "scene_temporal_policy.hpp"
-#include "scene_native_output.hpp"        // native output sync + residency
+#include "../scene_native_output.hpp"     // native output sync + residency
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
-#include "../core/scene_fingerprint.hpp"
-#include "tile_execution_policy.hpp"
-#include "graph_cache_coordinator.hpp"
-#include "pool_preallocation.hpp"
-#include "frame_state_commit.hpp"
-#include "../builder/graph_builder_internal.hpp"
-#include "../builder/graph_builder_pipeline.hpp"
-#include "dirty_telemetry_reporter.hpp"
-#include "tile_execution_coordinator.hpp"
-#include "frame_timing_recorder.hpp"
+#include "../../core/scene_fingerprint.hpp"
+#include "../tile_execution_policy.hpp"
+#include "../graph_cache_coordinator.hpp"
+#include "../pool_preallocation.hpp"
+#include "../frame_state_commit.hpp"
+#include "../../builder/graph_builder_internal.hpp"
+#include "../../builder/graph_builder_pipeline.hpp"
+#include "../dirty_telemetry_reporter.hpp"
+#include "../tile_execution_coordinator.hpp"
+#include "../frame_timing_recorder.hpp"
 #include <chronon3d/core/scope/execution_scope.hpp>  // PR 6.2 — root scope
 
 #include <spdlog/spdlog.h>
@@ -56,7 +56,7 @@
 #include <cstring>
 #include <vector>
 #include "temporal_render_context.hpp"
-#include "../nodes/native_surface.hpp"
+#include "../../nodes/native_surface.hpp"
 
 namespace chronon3d::graph {
 

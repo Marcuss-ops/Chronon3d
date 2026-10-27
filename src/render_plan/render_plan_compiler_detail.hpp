@@ -212,9 +212,6 @@ make_scene_evaluator(SceneMaterializationInputs inputs);
 [[nodiscard]] CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan);
 [[nodiscard]] CameraTrackEvaluator make_camera_evaluator(
     const RenderPlan& plan, const std::function<CameraPlan(double)>& runtime_sample);
-[[nodiscard]] std::optional<std::string> expand_static_lottie(
-    const LayerPlan& layer, const std::filesystem::path& path,
-    std::vector<LayerPlan>& expanded_layers);
 [[nodiscard]] chronon3d::DepthRole depth_role_value(std::string_view value);
 void apply_text_animators(chronon3d::TextRunBuilder& builder, const LayerPlan& layer, FrameRate fps);
 void apply_text_glow(chronon3d::LayerBuilder& builder, const LayerPlan& layer);

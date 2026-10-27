@@ -2,7 +2,7 @@
 #include "cache_evaluator.hpp"
 #include "node_runner.hpp"
 #include "node_executor.hpp"
-#include "node_skip_policy.hpp"
+#include "graph_dispatch/node_skip_policy.hpp"
 #include "node_state_commit.hpp"
 #include "tile_pruning.hpp"
 #include "text_bbox_reconcile.hpp"
@@ -37,7 +37,7 @@
 // (chronon3d::graph::detail). It MUST be included at file scope: including
 // it inside a namespace would re-nest its declarations
 // ("graph::graph::detail") and break name lookup.
-#include "node_runner_fused_batch_detail.hpp"
+#include "graph_dispatch/node_runner_fused_batch_detail.hpp"
 
 namespace chronon3d::graph {
 

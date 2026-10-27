@@ -4,6 +4,11 @@
 
 add_library(chronon3d_render_plan OBJECT
     render_plan_decoder.cpp
+    render_plan_decoder_globals.cpp
+    render_plan_decoder_layers.cpp
+    render_plan_decoder_output.cpp
+    render_plan_decoder_audio.cpp
+    render_plan_decoder_preflight.cpp
     render_plan_decoder_rules.cpp
     render_plan_relations_validator.cpp
     render_plan_decoder_support.cpp
@@ -12,7 +17,9 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_decoder_layer_animation_validation.cpp
     render_plan_decoder_layer_fields.cpp
     render_plan_decoder_layer_timing.cpp
-    render_plan_decoder_layer_support.cpp
+    render_plan_decoder_layer_orchestration.cpp
+    render_plan_decoder_layer_materials.cpp
+    render_plan_decoder_layer_geometry.cpp
     render_plan_decoder_effects.cpp
     render_plan_decoder_effects_color_light.cpp
     render_plan_decoder_effects_distortion.cpp
@@ -37,8 +44,12 @@ add_library(chronon3d_render_plan OBJECT
     fingerprint_layer_effects.cpp
     fingerprint_layer_transform.cpp
     render_plan_validator.cpp
+    render_plan_validator_v2_projection.cpp
     validation/json_schema_diagnostic_adapter.cpp
     render_plan_compiler.cpp
+    render_plan_compiler_validate.cpp
+    render_plan_compiler_compose.cpp
+    render_plan_compiler_video_compatibility.cpp
     render_plan_compiler_assets.cpp
     render_plan_compiler_svg.cpp
     render_plan_compiler_svg_paths.cpp
@@ -57,7 +68,9 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler_shape_imported.cpp
     render_plan_compiler_shape_path.cpp
     render_plan_compiler_lottie.cpp
-    render_plan_compiler_lottie_expansion.cpp
+    lottie_expansion/expansion.cpp
+    render_plan_compiler_lottie_effects.cpp
+    render_plan_compiler_lottie_text.cpp
     render_plan_compiler_lottie_masks.cpp
     render_plan_compiler_lottie_paint.cpp
     render_plan_compiler_lottie_transform.cpp

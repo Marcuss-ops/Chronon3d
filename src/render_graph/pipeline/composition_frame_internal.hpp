@@ -6,12 +6,12 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include "temporal_render_pipeline.hpp"
+#include "temporal/temporal_render_pipeline.hpp"
 
 #include <memory>
 #include <string>
 
-#include "temporal_render_context.hpp"
+#include "temporal/temporal_render_context.hpp"
 
 namespace chronon3d::graph::detail {
 

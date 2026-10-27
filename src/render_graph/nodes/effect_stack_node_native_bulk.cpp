@@ -1,3 +1,21 @@
+// Native effect stack implementation unit.
+#include <chronon3d/effects/curves.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/effect_gpu_capability.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
+#include "native_surface.hpp"
+#include "effect_stack_node_native_api.hpp"
+
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cmath>
+#include <initializer_list>
+#include <vector>
+
+namespace chronon3d::graph {
 // Included inside namespace chronon3d::graph by effect_stack_node.cpp.
 //
 // Native bulk routes for TICKET-VULKAN-EFFECT-PARITY wave 2 (22 effects).
@@ -143,10 +161,9 @@ bool try_native_full_frame_warp_bulk(RenderGraphContext& ctx,
                                      Framebuffer& result,
                                      const std::optional<raster::BBox>& clip,
                                      runtime::RenderSurfaceHandle borrowed_source,
-                                     runtime::RenderSurfaceHandle map_source =
-                                         runtime::kInvalidRenderSurfaceHandle,
-                                     const Framebuffer* map_framebuffer = nullptr,
-                                     const Framebuffer* src_framebuffer = nullptr) {
+                                     runtime::RenderSurfaceHandle map_source,
+                                     const Framebuffer* map_framebuffer,
+                                     const Framebuffer* src_framebuffer) {
     using namespace bulk_detail;
     if (!clip_covers_result(clip, result) || !ctx.backend || !ctx.surface_registry ||
         effect_stack.size() != 1) {
@@ -729,3 +746,5 @@ bool try_native_full_frame_lut_bulk(RenderGraphContext& ctx,
 }
 
 } // namespace native_effects
+
+} // namespace chronon3d::graph

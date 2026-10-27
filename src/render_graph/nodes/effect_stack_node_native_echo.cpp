@@ -1,9 +1,27 @@
+// Native effect stack implementation unit.
+#include <chronon3d/effects/curves.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/effect_gpu_capability.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
+#include "native_surface.hpp"
+#include "effect_stack_node_native_api.hpp"
+
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cmath>
+#include <initializer_list>
+#include <vector>
+
+namespace chronon3d::graph {
 // Included inside namespace chronon3d::graph by effect_stack_node.cpp.
 // Native Echo lowers to frame-owned GPU surfaces and weighted source-over
 // composites. History is addressed by exact frame number through JobSession.
 namespace native_effects {
 
-inline bool try_native_echo(
+bool try_native_echo(
     RenderGraphContext& ctx, const EffectInstance& effect,
     Framebuffer& source, Framebuffer& result, std::string_view history_key,
     const std::optional<raster::BBox>& clip) {
@@ -147,3 +165,5 @@ inline bool try_native_echo(
 }
 
 } // namespace native_effects
+
+} // namespace chronon3d::graph

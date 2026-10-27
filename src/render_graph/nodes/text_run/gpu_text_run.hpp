@@ -11,6 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/render_graph/render_backend_types.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/runtime/gpu_text_run_cache.hpp>
 #include <chronon3d/text/text_run_shape.hpp>

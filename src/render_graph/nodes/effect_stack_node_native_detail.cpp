@@ -1,3 +1,21 @@
+// Native effect stack implementation unit.
+#include <chronon3d/effects/curves.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/effect_gpu_capability.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
+#include "native_surface.hpp"
+#include "effect_stack_node_native_api.hpp"
+
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cmath>
+#include <initializer_list>
+#include <vector>
+
+namespace chronon3d::graph {
 namespace native_effects {
 
 bool clip_covers_result(const std::optional<raster::BBox>& clip,
@@ -193,7 +211,7 @@ bool try_native_full_frame_drop_shadow(
     RenderGraphContext& ctx, const EffectStack& effect_stack,
     Framebuffer& result, const std::optional<raster::BBox>& clip,
     runtime::RenderSurfaceHandle borrowed_source,
-    const Framebuffer* borrowed_source_framebuffer = nullptr) {
+    const Framebuffer* borrowed_source_framebuffer) {
     (void)clip;
     if (!ctx.backend || !ctx.backend->supports_native_surfaces() || !ctx.surface_registry ||
         effect_stack.size() != 1) return false;
@@ -696,3 +714,5 @@ bool try_native_full_frame_directional_blur(RenderGraphContext& ctx,
 }
 
 } // namespace native_effects
+
+} // namespace chronon3d::graph

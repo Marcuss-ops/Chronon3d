@@ -1,3 +1,21 @@
+// Native effect stack implementation unit.
+#include <chronon3d/effects/curves.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/effect_gpu_capability.hpp>
+#include <chronon3d/runtime/frame/frame_execution.hpp>
+#include <chronon3d/runtime/job/job_session.hpp>
+#include "native_surface.hpp"
+#include "effect_stack_node_native_api.hpp"
+
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <cmath>
+#include <initializer_list>
+#include <vector>
+
+namespace chronon3d::graph {
 // Included inside namespace chronon3d::graph by effect_stack_node.cpp.
 //
 // Native per-pixel color effects (TICKET-VULKAN-EFFECT-PARITY wave 1).  Each
@@ -562,3 +580,5 @@ bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
 }
 
 } // namespace native_effects
+
+} // namespace chronon3d::graph

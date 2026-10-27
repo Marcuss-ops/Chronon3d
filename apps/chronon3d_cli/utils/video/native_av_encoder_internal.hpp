@@ -1,6 +1,7 @@
 #pragma once
 
 #include "encoder_bitstream_contract.hpp"
+#include "native_av_encoder.hpp"
 
 #include <chrono>
 #include <memory>
@@ -11,6 +12,14 @@ extern "C" {
 }
 
 namespace chronon3d::cli::detail {
+
+[[nodiscard]] runtime::TransferFunction transfer_from_output_space(
+    color::ColorSpace output) noexcept;
+[[nodiscard]] bool set_codec_option_checked(
+    AVCodecContext* codec, const char* key, const std::string& value);
+[[nodiscard]] bool configure_hdr_static_metadata(
+    AVCodecContext* codec, const color::HdrMasteringMetadata& metadata);
+[[nodiscard]] bool validate_encoder_options(const FfmpegPipeOptions& options);
 
 using NativeAvClock = std::chrono::steady_clock;
 [[nodiscard]] double elapsed_ms(const NativeAvClock::time_point& start) noexcept;
