@@ -11,11 +11,6 @@ const char* render_backend_error_code_name(RenderBackendErrorCode code) noexcept
     return "Unknown";  // unreachable in well-formed enum usage
 }
 
-[[nodiscard]] RenderBackendError make_render_backend_error(
-    RenderBackendErrorCode code, std::string message) {
-    return RenderBackendError{code, std::move(message)};
-}
-
 [[nodiscard]] chronon::Error RenderBackendError::canonical_error(
         std::string component) const {
         const auto kind = code == RenderBackendErrorCode::InvalidInput

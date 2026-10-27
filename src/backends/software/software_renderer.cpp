@@ -241,6 +241,14 @@ void SoftwareRenderer::reset_frame_value_cache() {
     m_session.reset_frame_values();
 }
 
+void SoftwareRenderer::set_frame_value_cache_identity(std::string identity) {
+    m_frame_value_cache_identity = std::move(identity);
+}
+
+const std::string& SoftwareRenderer::frame_value_cache_identity() const noexcept {
+    return m_frame_value_cache_identity;
+}
+
 void SoftwareRenderer::reset_temporal_history() noexcept {
     m_session.reset_temporal_history();
 }
