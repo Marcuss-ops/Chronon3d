@@ -484,6 +484,32 @@ documented SSIM values above. `git diff --check` passes. The only remaining
 certification gate is a clean-checkout CI run on the final committed SHA; this
 worktree is still uncommitted, so the ticket remains IN PROGRESS.
 
+Animated-export and runtime-track follow-up (2026-10-27, current uncommitted
+worktree): animated effect parameters now travel as runtime tracks to the
+effect-stack node, where the sampled payload is applied and frame variants are
+cached. Scene/static-frame classification now treats animated effect tracks
+and SVG group opacity as frame-dependent, preventing the MP4 fast path from
+repeating stale frames. The native AV encoder only replicates packets after a
+real key packet drains, preserving buffered startup packets. Effect-parameter
+Bezier easing is rejected explicitly because the runtime track currently
+supports linear and hold interpolation only.
+
+Verification on this worktree: `cmake --build --preset linux-fast-dev -j12`
+completed the four requested test targets. Compositor passed 70/70 cases and
+651,078 assertions; precomp passed 14/14 and 50/50; effects passed 287/287 and
+5,538,036/5,538,036. The C ABI binary was rebuilt and the three affected cases
+pass 85/85 assertions; the full C ABI run was interrupted after exposing stale
+expectations about scene-baked effect values, and those assertions now inspect
+the runtime tracks instead. The video-preset CLI rebuild passed. The full
+software CLI gate passed the 300-frame 1920x1080 mega-scene MP4, five repeatable
+checkpoints, out-of-order frame requests, animated effects, matte modes,
+images, text, and time-remap. The independent visual gate passed at SSIM
+0.992944, 0.991288, 0.991237, 0.991235 and 0.991235 for frames 0, 30, 90,
+150 and 299 (threshold 0.985). This worktree has not yet passed a full current
+C ABI sanitizer run or same-SHA CI. The pinned Lottie-web 5.13.0 reference
+comparison also passes: global SSIM 0.999929/0.999930 and subject ROI SSIM
+0.999767/0.999773 at frames 0 and 30. The ticket remains IN PROGRESS.
+
 ## Demolition debt
 
 - **Status:** IN PROGRESS — retain bounded lowering while advancing the

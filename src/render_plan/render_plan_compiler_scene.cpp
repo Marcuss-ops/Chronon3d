@@ -172,32 +172,10 @@ void apply_scene_layer_effects(LayerBuilder& builder, const LayerPlan& layer, co
         const auto effect_type = effects::detect_effect_type(effect);
         for (const auto& entry : effects::builtin_effect_catalog())
             if (entry.type == effect_type) { canonical_effect_id = entry.id; break; }
-        std::optional<EffectParams> animated_effect;
-        if (!canonical_effect_id.empty()) {
-            for (const auto& param_track : layer.effect_param_tracks) {
-                if (param_track.effect_id != canonical_effect_id) continue;
-                if (!animated_effect) animated_effect.emplace(effect);
-                const auto base = effects::get_animatable_effect_param(
-                    *animated_effect, param_track.effect_id, param_track.param);
-                if (!base)
-                    throw std::runtime_error("effect parameter track is incompatible with the compiled effect parameter type");
-                const float value = detail::evaluate_scalar_track(
-                    param_track.track, ctx.effective_frame(), *base, plan.canvas.fps);
-                const auto* bounds = effects::find_animatable_effect_param(
-                    param_track.effect_id, param_track.param);
-                if (!bounds || !std::isfinite(value))
-                    throw std::runtime_error("effect parameter track produced a non-finite sample");
-                if (!effects::set_animatable_effect_param(
-                        *animated_effect, param_track.effect_id, param_track.param,
-                        std::clamp(value, bounds->minimum, bounds->maximum)))
-                    throw std::runtime_error("failed to apply compiled effect parameter track");
-            }
-        }
-        const auto& dispatch_effect = animated_effect ? *animated_effect : effect;
         std::optional<EffectParams> time_evolved_effect;
-        if (const auto* roughen = std::get_if<RoughenEdgesParams>(&dispatch_effect);
+        if (const auto* roughen = std::get_if<RoughenEdgesParams>(&effect);
             roughen && roughen->evolution_speed != 0.0f) {
-            time_evolved_effect.emplace(dispatch_effect);
+            time_evolved_effect.emplace(effect);
             auto& sampled = std::get<RoughenEdgesParams>(*time_evolved_effect);
             sampled.evolution += sampled.evolution_speed *
                 static_cast<float>(ctx.effective_frame() /
@@ -206,12 +184,32 @@ void apply_scene_layer_effects(LayerBuilder& builder, const LayerPlan& layer, co
             sampled.evolution_speed = 0.0f;
         }
         const auto& frame_effect = time_evolved_effect
-            ? *time_evolved_effect : dispatch_effect;
+            ? *time_evolved_effect : effect;
+        bool effect_added = false;
         std::visit([&](const auto& params) {
             using T = std::decay_t<decltype(params)>;
-            if constexpr (!std::is_same_v<T, std::monostate>)
+            if constexpr (!std::is_same_v<T, std::monostate>) {
                 builder.effect(params,time_control,time_curve,duration_seconds,composition_fps);
+                effect_added = true;
+            }
         }, frame_effect);
+        if (effect_added && !canonical_effect_id.empty()) {
+            for (const auto& param_track : layer.effect_param_tracks) {
+                if (param_track.effect_id != canonical_effect_id) continue;
+                effects::EffectParameterTrack runtime_track;
+                runtime_track.param = param_track.param;
+                runtime_track.keyframes.reserve(param_track.track.keyframes.size());
+                for (const auto& key : param_track.track.keyframes) {
+                    if (key.value.size() != 1)
+                        throw std::runtime_error(
+                            "effect parameter animation requires scalar keyframes");
+                    runtime_track.keyframes.push_back({
+                        key.frame.integral(), key.value.front(),
+                        key.interpolation.value_or(std::string{}) == "hold"});
+                }
+                builder.effect_parameter_track(std::move(runtime_track));
+            }
+        }
     }
 }
 

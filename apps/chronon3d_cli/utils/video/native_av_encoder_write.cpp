@@ -448,21 +448,19 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
                 if (!drain_packets()) return false;
             }
         }
-        //  • Replicate — only where the run anchor is provably exact: the
-        //    content-stretch root frame's OWN packet is a key packet of this
-        //    stream. That is known outright when the root is the session's
-        //    first frame (every codec opens its stream with a key packet), or
-        //    once the root packet has drained as a key. The replicas then ARE
-        //    the pixels the run must show — bit-exact with the full render's
-        //    root frame, stale-pixel free.
+        //  • Replicate — only where the run anchor is provably exact AND its
+        //    packet has actually drained as a key packet. Even the session's
+        //    first frame can remain buffered by the encoder; discarding seed
+        //    packets before observing that anchor can leave a hole if the
+        //    duplicate run ends before the encoder publishes it. In that case
+        //    resubmit through the codec so every presentation tick is retained.
         //  • Resubmit — everything else (bit-exact with a full render).
         const bool anchor_exact =
             !segmented_mux_ &&
             last_real_frame_pts_ >= 0 &&
             last_real_frame_pts_ < frame_number &&
-            (last_real_frame_pts_ == 0 ||
-             (last_real_packet_seen_ && last_real_packet_was_key_ &&
-              last_real_key_packet_));
+            last_real_packet_seen_ && last_real_packet_was_key_ &&
+            last_real_key_packet_;
         duplicate_run_mode_ = anchor_exact
             ? DuplicateRunMode::Replicate
             : DuplicateRunMode::Resubmit;

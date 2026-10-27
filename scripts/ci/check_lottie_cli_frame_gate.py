@@ -105,12 +105,18 @@ def build_combined_fixture(tmp: Path) -> tuple[Path, Path]:
         (LUMA_ANIM, 0.25, 1270.0, 145.0),
         (EFFECTS_ANIM, 0.40, 26.0, 224.0),
         (IMAGE_ANIM, 0.50, -120.0, 570.0),
+        (EMBEDDED_IMAGE_ANIM, 0.50, 1510.0, 620.0),
         (REMAP_ANIM, 0.18, 1450.0, 800.0),
         (TINT_ANIM, 0.25, 480.0, 580.0),
         (TRITONE_ANIM, 0.25, 960.0, 580.0),
         (FILL_ANIM, 0.30, 1362.0, 338.0),
         (STRETCH_NESTED_ANIM, 0.30, 330.0, 700.0),
     ]
+    # Keep isolated multi-child compositing in the integrated scene as well as
+    # in its focused pixel gate: Multiply must be applied to the already
+    # composed precomp at the animated 100% -> 50% opacity.
+    group_doc, _ = build_precomp_group_fixture(tmp, 1, 50, animated=True)
+    docs.append((group_doc, 0.25, 1000.0, 760.0))
     sx, sy = 6.0, 4.5
 
     def canonicalize_keyframes(value: object) -> None:
@@ -300,6 +306,20 @@ def build_combined_fixture(tmp: Path) -> tuple[Path, Path]:
             scale_layer(layer)
             layout_layer(layer, layout_scale, layout_dx, layout_dy)
             bodymovin_group_shapes(layer)
+            if path == TRITONE_ANIM:
+                for effect in layer.get("ef", []):
+                    if effect.get("ty") != 23:
+                        continue
+                    controls = effect.get("ef", [])
+                    if len(controls) > 1 and isinstance(controls[1].get("v"), dict):
+                        controls[1]["v"] = {
+                            "a": 1,
+                            "k": [
+                                {"t": 0, "s": [0.5, 0.0, 0.5], "e": [0.0, 1.0, 0.0],
+                                 "o": {"x": 0, "y": 0}, "i": {"x": 1, "y": 1}},
+                                {"t": 30, "s": [0.0, 1.0, 0.0]},
+                            ],
+                        }
             layer["op"] = 300
             old = layer.get("ind")
             if old in index_map:
@@ -329,11 +349,11 @@ def build_combined_fixture(tmp: Path) -> tuple[Path, Path]:
                 "b": 1, "rn": 0, "sh": 1, "r": 1},
             "a": {"fc": {"a": 0, "k": [0, 1, 0, 1]}}}], "d": {"k": [
             {"t": 0, "h": 1, "s": {"s": 18, "f": "Inter-Regular",
-                                       "t": "Advanced Lottie", "j": 0,
+                                       "t": "Advanced\rLottie", "j": 0,
                                        "fc": [1, 1, 1, 1], "ca": 0,
                                        "tr": 0, "lh": 0, "ls": 0}},
             {"t": 30, "s": {"s": 18, "f": "Inter-Regular",
-                              "t": "Text changed", "j": 0,
+                              "t": "Text\rchanged", "j": 0,
                               "fc": [1, 0.8, 0.2, 1], "ca": 0,
                               "tr": 0, "lh": 0, "ls": 0}}]}}})
     scale_layer(combined["layers"][-1])
@@ -533,6 +553,25 @@ def main() -> int:
             if rejected.returncode == 0 or "both dimensions (direction 1)" not in rejection_output:
                 print(f"FAIL: anisotropic Lottie Gaussian Blur direction {unsupported_direction} was not rejected explicitly")
                 return 1
+
+        eased_effect_doc = json.loads(EFFECTS_ANIM.read_text())
+        blur_keys = eased_effect_doc["layers"][0]["ef"][0]["ef"][0]["v"]["k"]
+        blur_keys[0]["o"] = {"x": 0.333, "y": 0.0}
+        blur_keys[1]["i"] = {"x": 0.667, "y": 1.0}
+        eased_effect_path = Path(tmp) / "unsupported_effect_bezier.json"
+        eased_effect_path.write_text(json.dumps(eased_effect_doc, separators=(",", ":")))
+        eased_effect_plan = json.loads(EFFECTS_PLAN.read_text())
+        eased_effect_plan["job_id"] = "unsupported_effect_bezier"
+        eased_effect_plan["layers"][0]["shape"]["lottie"] = eased_effect_path.name
+        eased_effect_plan_path = Path(tmp) / "unsupported_effect_bezier_plan.json"
+        eased_effect_plan_path.write_text(json.dumps(eased_effect_plan, separators=(",", ":")))
+        rejected = subprocess.run(
+            [str(cli_path), "validate", "--plan", str(eased_effect_plan_path),
+             "--assets-root", tmp], capture_output=True, text=True)
+        rejection_output = rejected.stdout + rejected.stderr
+        if rejected.returncode == 0 or "effect parameter easing supports only linear and hold" not in rejection_output:
+            print("FAIL: unsupported Bezier easing on Lottie effect parameter was not rejected explicitly")
+            return 1
 
         tint_validate = subprocess.run(
             [str(cli_path), "validate", "--plan", str(TINT_PLAN),

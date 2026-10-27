@@ -519,6 +519,15 @@ private:
         case Unknown:
             break;
         }
+        for (const auto& track : e.parameter_tracks) {
+            seed = hash_combine(seed, hash_string(track.param));
+            seed = hash_combine(seed, hash_value(track.keyframes.size()));
+            for (const auto& key : track.keyframes) {
+                seed = hash_combine(seed, hash_value(key.frame));
+                seed = hash_combine(seed, hash_value(key.value));
+                seed = hash_combine(seed, hash_value(key.hold));
+            }
+        }
     }
     return seed;
 }

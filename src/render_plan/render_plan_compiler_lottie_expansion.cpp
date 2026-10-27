@@ -901,6 +901,15 @@ std::optional<std::string> decode_lottie_layer_effects(
         }
     }
 
+    for (const auto& track : layer.effect_param_tracks) {
+        for (const auto& keyframe : track.track.keyframes) {
+            if (keyframe.interpolation &&
+                *keyframe.interpolation != interpolation_name::kLinear &&
+                *keyframe.interpolation != interpolation_name::kHold)
+                return std::string("Lottie effect parameter easing supports only linear and hold keyframes");
+        }
+    }
+
     // The graph applies native layer effects after the layer transform. SVG
     // filters (and After Effects layer effects as exported by Bodymovin) are
     // evaluated in layer space before that transform. Fold the static 2D
@@ -1417,9 +1426,26 @@ std::optional<std::string> expand_static_lottie(
                         // Convert the centered frame origin to the baseline used by
                         // the Lottie text renderer (the bounded text contract uses
                         // a baseline offset of 0.3457 em from the centered frame).
-                        const float baseline_offset = layer.style
+                        float baseline_offset = layer.style
                             ? layer.style->font_size.value_or(0.0f) * 0.3457f : 0.0f;
-                        if (baseline_offset > 0.0f && std::isfinite(baseline_offset)) {
+                        // Lottie positions multiline text from the first line's
+                        // baseline. Chronon's full-canvas text layout centers the
+                        // complete block, moving that baseline up by half of the
+                        // default 1.2em line step for each additional line. Undo
+                        // that shift when converting the Bodymovin baseline to
+                        // Chronon's centered text origin.
+                        if (documents[doc_index]["s"].contains("t") &&
+                            documents[doc_index]["s"]["t"].is_string() && layer.style) {
+                            const auto& content = documents[doc_index]["s"]["t"].get_ref<const std::string&>();
+                            const auto line_breaks = static_cast<float>(std::count_if(
+                                content.begin(), content.end(), [](char value) {
+                                    return value == '\r' || value == '\n';
+                                }));
+                            baseline_offset -= line_breaks *
+                                layer.style->font_size.value_or(0.0f) * 0.60f;
+                        }
+                        if (std::abs(baseline_offset) > 1e-6f &&
+                            std::isfinite(baseline_offset)) {
                             if (layer.position_dimensions >= 2)
                                 layer.position[1] -= baseline_offset;
                             if (layer.animation) {
