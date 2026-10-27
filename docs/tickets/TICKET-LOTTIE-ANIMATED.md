@@ -510,6 +510,13 @@ C ABI sanitizer run or same-SHA CI. The pinned Lottie-web 5.13.0 reference
 comparison also passes: global SSIM 0.999929/0.999930 and subject ROI SSIM
 0.999767/0.999773 at frames 0 and 30. The ticket remains IN PROGRESS.
 
+CI repair follow-up (2026-10-27): the first pushed SHA exposed two pre-existing
+pipeline breakages before tests ran: the fuzz target referenced the obsolete
+`schema/chronon_ipc.fbs` path instead of `schemas/flatbuffers/chronon_ipc.fbs`,
+and the native-video job forced `-fuse-ld=mold` without installing mold. Both
+pipeline issues are corrected in the follow-up SHA; full same-SHA certification
+must be rerun there.
+
 ## Demolition debt
 
 - **Status:** IN PROGRESS — retain bounded lowering while advancing the

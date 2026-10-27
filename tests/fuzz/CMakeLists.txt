@@ -34,6 +34,7 @@ find_package(flatbuffers CONFIG REQUIRED)
 find_program(CHRONON3D_FLATC flatc REQUIRED)
 set(FUZZ_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(FUZZ_GENERATED_HEADER "${FUZZ_GENERATED_DIR}/chronon_ipc_generated.h")
+set(CHRONON3D_IPC_SCHEMA "${CMAKE_SOURCE_DIR}/schemas/flatbuffers/chronon_ipc.fbs")
 
 add_custom_command(
     OUTPUT "${FUZZ_GENERATED_HEADER}"
@@ -41,8 +42,8 @@ add_custom_command(
     COMMAND "${CHRONON3D_FLATC}"
         --cpp
         -o "${FUZZ_GENERATED_DIR}"
-        "${CMAKE_SOURCE_DIR}/schema/chronon_ipc.fbs"
-    DEPENDS "${CMAKE_SOURCE_DIR}/schema/chronon_ipc.fbs"
+        "${CHRONON3D_IPC_SCHEMA}"
+    DEPENDS "${CHRONON3D_IPC_SCHEMA}"
     COMMENT "[fuzz] Compiling FlatBuffers schema: chronon_ipc.fbs → C++"
     VERBATIM
 )
