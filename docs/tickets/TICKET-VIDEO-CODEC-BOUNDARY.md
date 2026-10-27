@@ -1,5 +1,10 @@
 # TICKET-VIDEO-CODEC-BOUNDARY — the codec boundary gets one decision language
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] `BoundaryReencode` (finding CB-2): implementare il boundary re-encoder che consuma il modello di dipendenze GOP; poi demolire `hybrid_pipeline_unavailable`.
+- [ ] Decisione per-layer vs per-job (esperimento 4): oggi resta un flag di job.
+
 ## Contesto
 
 > **Aggiornamento 2026-10-10:** il boundary executor e i contratti codec video sono **VERIFICATI**: `chronon3d_video_contracts_tests` (5/5 casi passati, 25/25 asserzioni), validazione stream e frame order, determinismo serial/parallel e stabilità 900 frame verificati su `chronon3d_cli render`.

@@ -1,5 +1,9 @@
 # Color Matrix effect
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Eseguire i test (build ok ma test NON eseguiti in questa pass): schema, effetti, parità software/Vulkan del contratto premoltiplicato.
+
 ## Scope
 
 Add a canonical 4x5 RGBA color matrix to Chronon3d so authoring can express

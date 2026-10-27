@@ -17,8 +17,8 @@ vincolante successivo è:
 3. **Camera authority migration** — CM3D owns camera authoring/evaluation;
    C3D consumes resolved camera values and keeps projection, depth, pixel DOF,
    motion-blur accumulation, and compositing. Freeze new C3D camera-authoring
-   features. Migration gates and demolition scope:
-   [`TICKET-CAMERA-AUTHORITY-MIGRATION`](tickets/TICKET-CAMERA-AUTHORITY-MIGRATION.md).
+   features.   Migration gates and demolition scope:
+   `TICKET-CAMERA-AUTHORITY-MIGRATION` (chiusa 2026-10-27: migrazione completata, scheda rimossa; storico in git).
 4. **Combined Product** — scena Glow + Camera certificata via CLI, SDK C++, C ABI,
    seriale/parallelo e cache cold/warm sullo stesso SHA.
 

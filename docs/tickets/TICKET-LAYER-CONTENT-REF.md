@@ -7,6 +7,10 @@
 
 ---
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Dopo la review su `main`: implementare “one content dimension, one predicate” oppure scartare la proposta.
+
 ## 1. Problem, with evidence
 
 `LayerKind` (`include/chronon3d/scene/model/layer/layer.hpp:36-48`, member at `:53`) is a ten-value

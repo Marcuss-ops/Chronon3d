@@ -5,6 +5,12 @@ PARTIAL — software nested opacity scopes, animated group opacity, and per-
 element clip/mask scopes pass the raw-pixel gate (2026-10-20). Vulkan strict-
 native hardware certification and performance measurements remain open.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Oracle Vulkan strict-native (overlap) + hash degli endpoint animati e parità.
+- [ ] Misurare tempo GPU e memoria picco per uno, cinque e dieci gruppi isolati.
+- [ ] Push + CI clean-SHA sullo SHA esatto.
+
 ## Obiettivo
 Make a lowered SVG group honor the SVG isolated-group alpha contract: the
 group's children render at full paint alpha onto an offscreen surface, and

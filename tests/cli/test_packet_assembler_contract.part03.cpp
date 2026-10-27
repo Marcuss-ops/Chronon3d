@@ -676,6 +676,148 @@ TEST_CASE("Segment assembly retains audio delay on a common timeline") {
     std::filesystem::remove(input, ec); std::filesystem::remove(output, ec);
 }
 
+TEST_CASE("Audio-aware assembly muxes one source stream over video-only segments") {
+    const auto root = std::filesystem::temp_directory_path();
+    const auto first = root / "chronon3d_anchor_child_first.mp4";
+    const auto second = root / "chronon3d_anchor_child_second.mp4";
+    const auto audio_source = root / "chronon3d_anchor_audio_source.m4a";
+    const auto output = root / "chronon3d_anchor_assembled.mp4";
+    std::error_code cleanup_error;
+    for (const auto& path : {first, second, audio_source, output})
+        std::filesystem::remove(path, cleanup_error);
+
+    // Children: silent, copy-eligible segments — the video-only chunk shape.
+    for (const auto& path : {first, second}) {
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(p0_5a_pipe_options(path.string())));
+        for (int index = 0; index < 10; ++index) {
+            chronon3d::Framebuffer frame(64, 64);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+    // The anchor's audio owner: the source stream, copied exactly once.
+    const auto command = "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i sine=frequency=440:sample_rate=48000:duration=1 "
+        "-c:a aac " + audio_source.string();
+    REQUIRE(std::system(command.c_str()) == 0);
+
+    chronon3d::media::SegmentAssemblyRequest request;
+    request.input_paths = {first.string(), second.string()};
+    request.output_path = output.string();
+    request.audio_source_path = audio_source.string();
+    const auto result = chronon3d::media::assemble_segments(request);
+    REQUIRE(result.success);
+    REQUIRE(std::filesystem::exists(output));
+
+    AVFormatContext* format = nullptr;
+    REQUIRE(avformat_open_input(&format, output.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
+    int video_index = -1, audio_index = -1;
+    for (unsigned int index = 0; index < format->nb_streams; ++index) {
+        const auto type = format->streams[index]->codecpar->codec_type;
+        if (type == AVMEDIA_TYPE_VIDEO && video_index < 0) video_index = static_cast<int>(index);
+        if (type == AVMEDIA_TYPE_AUDIO && audio_index < 0) audio_index = static_cast<int>(index);
+    }
+    REQUIRE(video_index >= 0);
+    REQUIRE(audio_index >= 0);
+    CHECK(format->streams[audio_index]->codecpar->codec_id == AV_CODEC_ID_AAC);
+
+    AVPacket* packet = av_packet_alloc();
+    REQUIRE(packet != nullptr);
+    std::uint64_t video_packets = 0, audio_packets = 0;
+    while (av_read_frame(format, packet) >= 0) {
+        if (packet->stream_index == video_index) ++video_packets;
+        if (packet->stream_index == audio_index) ++audio_packets;
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    avformat_close_input(&format);
+    CHECK(video_packets == 20);   // 10 + 10 child frames, nothing invented
+    CHECK(audio_packets > 0);     // the source stream copied into the parent
+
+    // "Exactly once" is a COUNT, not a presence: the parent carries the
+    // source's audio packets verbatim — no duplication, no loss, no invention.
+    AVFormatContext* audio_format = nullptr;
+    REQUIRE(avformat_open_input(&audio_format, audio_source.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(audio_format, nullptr) >= 0);
+    int source_audio_index = -1;
+    for (unsigned int index = 0; index < audio_format->nb_streams; ++index) {
+        if (audio_format->streams[index]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            source_audio_index = static_cast<int>(index);
+            break;
+        }
+    }
+    REQUIRE(source_audio_index >= 0);
+    AVPacket* source_packet = av_packet_alloc();
+    REQUIRE(source_packet != nullptr);
+    std::uint64_t source_audio_packets = 0;
+    while (av_read_frame(audio_format, source_packet) >= 0) {
+        if (source_packet->stream_index == source_audio_index) ++source_audio_packets;
+        av_packet_unref(source_packet);
+    }
+    av_packet_free(&source_packet);
+    avformat_close_input(&audio_format);
+    CHECK(audio_packets == source_audio_packets);
+
+    for (const auto& path : {first, second, audio_source, output})
+        std::filesystem::remove(path, cleanup_error);
+}
+
+TEST_CASE("Audio-aware assembly refuses a second audio owner and a silent audio source") {
+    const auto root = std::filesystem::temp_directory_path();
+    const auto with_audio = root / "chronon3d_anchor_audio_child.mp4";
+    const auto silent = root / "chronon3d_anchor_silent_child.mp4";
+    const auto audio_source = root / "chronon3d_anchor_audio_source2.m4a";
+    const auto output = root / "chronon3d_anchor_refused.mp4";
+    std::error_code cleanup_error;
+    for (const auto& path : {with_audio, silent, audio_source, output})
+        std::filesystem::remove(path, cleanup_error);
+
+    const auto media = "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i color=c=red:s=64x64:r=10:d=1 "
+        "-f lavfi -i sine=frequency=440:sample_rate=48000:duration=0.5 "
+        "-c:v libx264 -bf 0 -g 10 -c:a aac ";
+    REQUIRE(std::system((media + with_audio.string()).c_str()) == 0);
+    {
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(p0_5a_pipe_options(silent.string())));
+        for (int index = 0; index < 10; ++index) {
+            chronon3d::Framebuffer frame(64, 64);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+    REQUIRE(std::system(("ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i sine=frequency=440:sample_rate=48000:duration=1 "
+        "-c:a aac " + audio_source.string()).c_str()) == 0);
+
+    // One artifact carries exactly ONE audio owner: audio-bearing segments
+    // plus an anchor audio source must fail closed, never double-mux.
+    {
+        chronon3d::media::SegmentAssemblyRequest request;
+        request.input_paths = {with_audio.string()};
+        request.output_path = output.string();
+        request.audio_source_path = audio_source.string();
+        const auto result = chronon3d::media::assemble_segments(request);
+        CHECK_FALSE(result.success);
+        CHECK_FALSE(result.reason.empty());
+    }
+    // An "audio source" without an audio stream is a typed refusal too.
+    {
+        chronon3d::media::SegmentAssemblyRequest request;
+        request.input_paths = {silent.string()};
+        request.output_path = output.string();
+        request.audio_source_path = silent.string();
+        const auto result = chronon3d::media::assemble_segments(request);
+        CHECK_FALSE(result.success);
+        CHECK_FALSE(result.reason.empty());
+    }
+
+    for (const auto& path : {with_audio, silent, audio_source, output})
+        std::filesystem::remove(path, cleanup_error);
+}
+
 // P0-5C — the encoder can write through a CALLER-OWNED MuxSession.
 //
 // The direct-mux lane needs one container for copied packets and re-encoded

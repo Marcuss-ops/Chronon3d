@@ -6,6 +6,12 @@ rows are implemented. Vulkan blur/glow/bloom have native zero-readback paths;
 drop shadow remains unsupported in strict GPU mode. Video E2E and pixel parity
 gates remain open.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Drop shadow in strict GPU: implementarlo o dichiarare capability reject esplicita (oggi è semplicemente unsupported).
+- [ ] Build + focused effects/render-graph tests + video E2E landscape/portrait.
+- [ ] Parità pixel software/Vulkan per blur/glow/bloom.
+
 ## Contratto
 
 `BlurParams`, `DropShadowParams`, and `BloomParams` remain the canonical plan

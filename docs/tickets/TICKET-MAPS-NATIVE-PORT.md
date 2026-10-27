@@ -16,6 +16,13 @@ sono stati estratti in `ChrononPlugin/plugins/maps/` (namespace
 renderer `map_plate_render` resta uno stub fail-closed nel plugin. La raster
 vector plate compila lì, ma la prova pixel bit-exact del port resta aperta.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Portare le famiglie di composizione residue nel renderer `map_plate_render`.
+- [ ] Prova pixel bit-exact del port (raster vector plate): oggi aperta.
+- [ ] Demolire il percorso Python in ChrononTemplate.
+- [ ] Campioni NVENC/OpenCL e animazioni etichette: NON RUN.
+
 ## 1. Perché (misure, non stime)
 
 Nella run golden v3 del caso overlay-throughput

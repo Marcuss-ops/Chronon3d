@@ -4,6 +4,12 @@
 **Priority**: `P2` (non-blocking; contract completeness)
 **Area**: CLI render/video job normalization (Phase 9 CLI/IPC parity)
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Bare strict su host capace → `full_graph_native`, zero readback.
+- [ ] Bare strict senza host capace → fail-close `required_gpu_capability_unavailable`, nessun artifact.
+- [ ] Certificazione same-SHA della lane strict su host GPU.
+
 ## Resolution — landed in `eae160fe7`
 
 The "one intent, two spellings" defect is fixed. The CLI entry mapping

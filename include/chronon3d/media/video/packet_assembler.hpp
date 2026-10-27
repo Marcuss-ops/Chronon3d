@@ -150,6 +150,21 @@ struct SegmentAssemblyRequest {
     /// MuxOpenConfig::fragmented_mp4). The chunk segments may be classic MP4;
     /// the assembled artifact is what the upload/streaming contract reads.
     bool fragmented_mp4{false};
+    /// AUDIO-AWARE ASSEMBLY — the family anchor's single source-audio owner.
+    /// When set, the source media file's audio stream is copied verbatim
+    /// (whole stream, packet-copy, no transcode) over the assembled video —
+    /// the exact semantics of the render path's `--gop-source` mux
+    /// (NativeAvEncoder::mux_source_audio with no trim window), so the
+    /// assembled artifact is what a single-job render of the same plan
+    /// produces. Mutually exclusive with audio-bearing segments: one
+    /// artifact carries exactly ONE audio owner, and video-only segments are
+    /// what lets assembly never cut audio at a chunk boundary.
+    std::string audio_source_path;
+    /// Optional target sample rate for the OUTPUT audio stream (0 keeps the
+    /// source rate verbatim). Mirrors AudioStreamConfig::target_sample_rate:
+    /// a positive value equal to the source rate stays on the byte-identical
+    /// copy path; a differing value makes MuxSession resample.
+    int audio_target_sample_rate{0};
 };
 
 struct SegmentAssemblyResult {

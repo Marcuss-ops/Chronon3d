@@ -4,6 +4,10 @@
 
 IMPLEMENTED / MANIFEST-LOCKED / HOST-CERTIFICATION-PENDING (2026-09-11)
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Reperire il content pack attivo (assente da questo checkout) e lanciare il runner sull'host GPU → certificazione baseline.
+
 ## Contract
 
 `tools/benchmark_gpu_baseline.sh` is the single runner for reproducible GPU

@@ -5,6 +5,11 @@ Owner: working session (repo owner + agent)
 Created: 2026-09-04
 Baseline: `main@2fc814d0f5304ce32fd0b725fd5f30731636c555`
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Chiudere l'Exit checkpoint su un checkout pulito (gli stages 1–5 risultano DONE per ispezione/census).
+- [ ] Debito separato: migrare i dipendenti font senza cambiare i contratti (owner: font domain).
+
 ## Purpose
 
 Single plan-of-record for the 5-stage stabilization campaign ending at the

@@ -4,6 +4,11 @@ Status: ACTIVE
 
 Owner: Scene model and graphics-style maintainers.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Completare la migrazione del Fill legacy: rimuovere le forwarding `sample_gradient*` e i consumatori residui.
+- [ ] Exit check: scan zero-match su `include/`, `src/`, `apps/`.
+
 ## Reason
 
 `graphics::GradientDefinition` is the canonical gradient authority, but the

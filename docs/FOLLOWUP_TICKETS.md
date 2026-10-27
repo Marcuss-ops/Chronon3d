@@ -9,9 +9,9 @@
 | GPU benchmark corpus | P1 | WAITING EXTERNAL — manifest and runner are ready; the active content pack is absent from this checkout | [GPU-BASELINE-CORPUS](tickets/TICKET-GPU-BASELINE-CORPUS.md) |
 
 Camera ownership migration, the current daemon admission policy, and node
-memory instrumentation are closed for the present product scope. Optional
-T17/T18 showcase certification is parked in its ticket and does not block
-release.
+memory instrumentation are closed for the present product scope. The optional
+T17/T18 showcase certification was retired with its ticket (removed 2026-10-27)
+and does not block release.
 
 ## Removed from this index
 

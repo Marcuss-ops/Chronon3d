@@ -1,5 +1,11 @@
 # TICKET-HOTPATH-ZERO-ALLOC-P1 — Zero-allocation hot path, wave P1
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] D1: `NodeCacheKey::scope` da `std::string` a id intero.
+- [ ] D3: eliminare il per-node context clone applicando `ADR-DRAFT-NODE-CONTEXT-OWNERSHIP` (owner-scoped payload refs).
+- [ ] (D2 è stale e resta solo come storico: non è lavoro.)
+
 ## Contesto
 
 Audit "ingombri C++" (settembre 2026) su `src/render_graph/executor/`,

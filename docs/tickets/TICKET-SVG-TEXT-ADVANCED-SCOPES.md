@@ -4,6 +4,14 @@
 **Parent:** [TICKET-SVG-RENDER-PLAN.md](TICKET-SVG-RENDER-PLAN.md)
 **Owner:** Chronon3D C++ renderer
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] `textLength` annidati (parent/child) sull'intero testo shaped, incluse run styled separate; `spacing` e `spacingAndGlyphs`.
+- [ ] `rotate` per-carattere continuo attraverso `<tspan>` annidati + comportamento sotto antenati ruotati/skew.
+- [ ] `textLength` su `textPath` e certificazione della spaziatura con pixel coverage.
+- [ ] Writing-mode verticale bounded oppure reject con diagnostica tipizzata.
+- [ ] Pixel gate separati per target parent/child, run ruotati annidati, spaziatura textPath e repeat deterministici.
+
 ## Goal
 
 Extend SVG text beyond the direct, bounded runs covered by the parent ticket,

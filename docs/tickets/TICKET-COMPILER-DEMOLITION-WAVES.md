@@ -9,6 +9,10 @@ compiler output e graph lowering, senza introdurre una seconda pipeline
 temporanea. Ogni riga diventa `DONE` solo quando il codice, i caller e il gate
 sono coerenti.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Wave 3: il render-plan runtime deve eseguire direttamente topology e parameter (il path compat è ancora load-bearing — la chiusura precedente era prematura).
+
 ## Todo / acceptance criteria
 
 - [x] Wave 1 — `command_plan_executor` rimosso da production e test helper.

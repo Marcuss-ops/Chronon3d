@@ -1,5 +1,9 @@
 # Luma/Chroma Key: native GPU support
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Certificazione same-SHA su host GPU (CI bloccato per billing; evidenza locale NVIDIA già registrata).
+
 ## Current behavior
 
 `matte.luma_chroma_key` is registered and implemented in the software effect

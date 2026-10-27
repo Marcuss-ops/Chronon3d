@@ -5,6 +5,10 @@
 PARTIAL — protocol and toolchain manifest delivered; clean same-SHA machine
 certification remains open.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Certificazione same-SHA su macchina pulita (protocollo e toolchain manifest già consegnati).
+
 ## Problema
 
 Formalizzare il protocollo WBH (Working-Build-Host) per la certificazione dei test first-principles in modo riproducibile tra macchine diverse.

@@ -4,6 +4,7 @@
 
 #include "blend2d_bridge.hpp"
 #include <chronon3d/scene/model/core/mask_utils.hpp>
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>
@@ -213,7 +214,7 @@ void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y, float
     };
 
     if (sh >= 16) {
-        tbb::parallel_for(tbb::blocked_range<int>(0, sh), [&](const tbb::blocked_range<int>& range) {
+        parallel_for_tracked(tbb::blocked_range<int>(0, sh), [&](const tbb::blocked_range<int>& range) {
             process_rows(range.begin(), range.end());
         });
     } else {
@@ -382,7 +383,7 @@ void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x
     };
 
     if (sh >= 16) {
-        tbb::parallel_for(tbb::blocked_range<int>(0, sh), [&](const tbb::blocked_range<int>& range) {
+        parallel_for_tracked(tbb::blocked_range<int>(0, sh), [&](const tbb::blocked_range<int>& range) {
             process_rows(range.begin(), range.end());
         });
     } else {

@@ -5,6 +5,10 @@
 **Owner:** text domain
 **Reference test:** `tests/text/test_text_clip_oversized.cpp` (authored-size `CHECK`; pixel-containment `WARN` while renderer clipping remains open)
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Enforcement renderer del clipping (`TextOverflow::Clip`) per testo oversized (P3; oggi c'è solo la diagnostica WARN).
+
 ## Semantica della limitation (machine-verified)
 
 `TextOverflow::Clip` (`include/chronon3d/text/text_definition.hpp` + `text_layout_spec.hpp`) means
@@ -45,11 +49,11 @@ flag dedicato previsto da ADR-018. Resta da implementare il taglio dei pixel al 
 ## Fuori confine
 
 - `predicted_bbox`/compositor clip prediction (root cause diverso:
-  `TICKET-TEXT-CLIP-PREDICTED-BBOX`, referenziato da `TICKET-TEXT-OVERSIZED-CLIP-WARN`).
+  `TICKET-TEXT-CLIP-PREDICTED-BBOX`, referenziato da `TICKET-TEXT-OVERSIZED-CLIP-WARN`, scheda rimossa il 2026-10-27 come duplicata).
 - Qualsiasi modifica al percorso RenderingGen stabile (golden canary invariato).
 
 ## Cross-link
 
-- Parent warning: `docs/tickets/TICKET-TEXT-OVERSIZED-CLIP-WARN.md`
+- Parent warning: `TICKET-TEXT-OVERSIZED-CLIP-WARN` (scheda rimossa il 2026-10-27 come duplicata: la diagnostica WARN vive in `tests/text/test_text_clip_oversized.cpp`)
 - Regression lock: `tests/text/test_text_clip_oversized.cpp`
 - Policy decision pointer: `../refactored/docs/product-validation/PRODUCT-VALIDATION-AGGREGATOR.md`

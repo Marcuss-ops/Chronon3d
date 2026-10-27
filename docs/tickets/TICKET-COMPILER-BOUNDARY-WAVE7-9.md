@@ -16,6 +16,10 @@ Removal scope: delete the legacy compiler authorities and the private prepared
 plan bridge only after the equivalence gate is green. No Wave 7-9 change may
 delete those authorities prematurely.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Completare il debito boundary wave 7–9; il plan bridge legacy si tocca solo con equivalence gate verde.
+
 ## Wave 2 closeout — public plan accessors removed (2026-09-07)
 
 `CompiledProgram` no longer exposes `prepared_plan()` / `compiled_composition()`

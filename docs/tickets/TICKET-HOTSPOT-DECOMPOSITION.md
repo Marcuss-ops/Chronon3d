@@ -5,6 +5,10 @@ Owner: CLI/render maintainers
 Scope: orchestration boundaries, high-churn render paths, and compile-time text
 headers identified by the 2026-09 audit.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Chiudere e registrare l'esito dei criteri di accettazione delle wave residue B–E (packet/mux boundary, render node policies, backend boundaries, text header compile-time).
+
 ## Progress snapshot — 2026-10-02 — shared-lock contention
 
 - `NodeMemoryTracker` now partitions node records into 16 mutex shards selected

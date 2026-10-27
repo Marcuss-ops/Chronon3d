@@ -1,3 +1,4 @@
+// Include contract: parallel_tracked/tbb are included by image_renderer.cpp.
 bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state, Framebuffer& fb) {
     if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
         return false;
@@ -199,7 +200,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     if (has_tint && cached && cached->fb_img && !using_placeholder) {
         Framebuffer cropped(src_w, src_h);
         cropped.set_opaque(false);
-        tbb::parallel_for(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
+        parallel_for_tracked(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
             for (int y = range.begin(); y < range.end(); ++y) {
                 const Color* src = cached->fb_img->pixels_row(src_y + y) + src_x;
                 Color* dst = cropped.pixels_row(y);
@@ -223,7 +224,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         cropped.set_opaque(false);
 
         // Parallel memcpy of cropped rows from cached framebuffer
-        tbb::parallel_for(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
+        parallel_for_tracked(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
             for (int y = range.begin(); y < range.end(); ++y) {
                 std::memcpy(cropped.pixels_row(y),
                             cached->fb_img->pixels_row(src_y + y) + src_x,
@@ -252,7 +253,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     if (has_tint && cached && cached->fb_img && !using_placeholder) {
         Framebuffer cropped(src_w, src_h);
         cropped.set_opaque(false);
-        tbb::parallel_for(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
+        parallel_for_tracked(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
             for (int y = range.begin(); y < range.end(); ++y) {
                 const Color* src = cached->fb_img->pixels_row(src_y + y) + src_x;
                 Color* dst = cropped.pixels_row(y);
@@ -272,7 +273,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     } else if (cached && cached->fb_img && !using_placeholder) {
         Framebuffer cropped(src_w, src_h);
         cropped.set_opaque(false);
-        tbb::parallel_for(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
+        parallel_for_tracked(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
             for (int y = range.begin(); y < range.end(); ++y) {
                 std::memcpy(cropped.pixels_row(y),
                             cached->fb_img->pixels_row(src_y + y) + src_x,

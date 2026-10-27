@@ -9,6 +9,10 @@ Strict-native Vulkan hardware certification remains with the user. Arbitrary
 filter graphs and browser-complete SMIL timing are outside this bounded
 importer contract.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Eseguire il gate completo su un checkout CI clean-SHA.
+
 ## Obiettivo
 Allow a render plan shape to refer to an SVG asset through the mounted
 `AssetResolver`. Import its geometry into the existing `ShapePathCommandPlan`

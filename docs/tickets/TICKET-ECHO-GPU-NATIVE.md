@@ -1,5 +1,9 @@
 # Echo effect: native GPU support
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Certificazione same-SHA su host GPU (l'evidenza locale llvmpipe/NVIDIA non basta).
+
 ## Current behavior
 
 Strict Vulkan stores frame-addressed native copies in job-owned history and

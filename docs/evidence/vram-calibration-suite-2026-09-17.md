@@ -1,6 +1,6 @@
 # Calibration suite VRAM — eseguibile, con la matrice dichiarata (2026-09-17)
 
-Ambito: [`TICKET-DAEMON-JOB-LIFECYCLE`](../tickets/TICKET-DAEMON-JOB-LIFECYCLE.md)
+Ambito: `TICKET-DAEMON-JOB-LIFECYCLE` (scheda chiusa e rimossa; storico in git)
 §5, l'exit condition della domanda «si può togliere il mutex?». Host: RTX A4000
 16 GB, driver 595.91.07.
 

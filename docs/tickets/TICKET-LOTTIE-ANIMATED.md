@@ -36,6 +36,11 @@ replaces source alpha on the Lottie path, including zero opacity; generic Fill
 mixing remains unchanged. The native GPU path rejects this Lottie-specific Fill
 mode until it has matching alpha semantics.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Certificazione same-SHA CI.
+- [ ] Residuo dichiarato in coda: testo bezier/procedurale.
+
 ## Contratto
 
 - Bodymovin stays a compile-time input. Lowered geometry and transform tracks

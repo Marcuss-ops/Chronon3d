@@ -95,7 +95,7 @@ enum class Command : std::uint32_t {
     Status        = 4,   ///< no payload → engine statistics
     Shutdown      = 5,   ///< no payload → stop serving
     RenderJob     = 6,   ///< payload: JSON render-plan request (full parity fields)
-    AssembleSegments = 7, ///< payload: JSON {input_paths, output_path}
+    AssembleSegments = 7, ///< payload: JSON {input_paths, output_path, fragmented_mp4, audio_source_path, audio_target_sample_rate}
     GetJobStatus  = 8,   ///< payload: daemon job_id → JSON lifecycle snapshot
     RenderBatch   = 9,   ///< payload: JSON {jobs:[RENDER_JOB payload, ...]}
 };

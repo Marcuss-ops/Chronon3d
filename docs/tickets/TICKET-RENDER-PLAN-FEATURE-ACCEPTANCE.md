@@ -1,5 +1,10 @@
 # RenderPlan feature acceptance and blockers
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Eseguire focused schema validation, C ABI/render-plan tests, effects tests e build mirata (questa scheda registra scope e blocker, non un PASS).
+- [ ] Il gate di accettazione più ampio resta in `archive/TICKET-VULKAN-EFFECT-PARITY.md`, inclusa la certificazione same-SHA GPU-host.
+
 ## Implemented / verifiable acceptance criteria
 
 - V3 `light_rays` effect contract carries normalized origin `[0,1]²`, length `[0,100000]`, density `[0,8]`, RGBA `[0,1]`, and decay `[0,1]` through schema, decoder, lowering and content fingerprint. V2 schema remains unchanged.

@@ -58,6 +58,30 @@ std::string ContentDigest::hex() const {
 }
 
 ContentDigest sha256_string(std::string_view value) {
+#ifdef CHRONON3D_HAS_OPENSSL_SHA256
+    // The platform's optimized SHA-256 computes the same digest as the
+    // portable fallback below (SHA-256 is a fixed standard), but at several
+    // times the throughput — which matters when hashing whole pixel buffers
+    // (e.g. the ImageCache GPU-asset key over 33 MB at 1080p).
+    EVP_MD_CTX* context = EVP_MD_CTX_new();
+    if (context) {
+        if (EVP_DigestInit_ex(context, EVP_sha256(), nullptr) == 1 &&
+            EVP_DigestUpdate(context, value.data(), value.size()) == 1) {
+            std::array<unsigned char, 64> digest_bytes{};
+            unsigned int digest_size = 0;
+            if (EVP_DigestFinal_ex(context, digest_bytes.data(), &digest_size) == 1 &&
+                digest_size == 32U) {
+                ContentDigest digest;
+                for (std::size_t i = 0; i < digest.bytes.size(); ++i)
+                    digest.bytes[i] = static_cast<std::byte>(digest_bytes[i]);
+                EVP_MD_CTX_free(context);
+                return digest;
+            }
+        }
+        EVP_MD_CTX_free(context);
+    }
+    // Fall through to the portable implementation on any EVP failure.
+#endif
     Sha256 sha;
     sha.update(value.data(), value.size());
     return sha.finish();

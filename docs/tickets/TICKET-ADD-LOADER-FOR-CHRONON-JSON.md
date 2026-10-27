@@ -7,6 +7,10 @@ standalone template and its host verification remain pending because the
 template was removed before it acquired the subprocess argument/output
 contract.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Generare il renderer standalone reale dal template e verificarlo con REAL-GREEN-PASS sull'host di verifica indicato.
+
 ## Problema
 
 `Blocco 4.2` (`chronon create <name>`) fornisce un template versionato

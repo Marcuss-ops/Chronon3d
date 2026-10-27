@@ -9,8 +9,28 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 
 namespace chronon3d::cli {
+
+namespace {
+
+/// Retention identity for the runtime node cache (P2): the program content
+/// digest when the job carries a compiled program, the composition id
+/// otherwise.  Two jobs with the same identity render the same content, so
+/// evaluated node values retained from the first are exact for the second.
+std::string frame_value_cache_identity(const RenderJob& job) {
+    if (job.program) {
+        const std::string digest =
+            job.program->fingerprint_data().content_digest.hex();
+        if (!digest.empty()) {
+            return "program:" + digest;
+        }
+    }
+    return "comp:" + job.comp_id;
+}
+
+}  // anonymous namespace
 
 void setup_render_job(const CompositionRegistry& registry,
                       const RenderJob& job,
@@ -26,11 +46,20 @@ void setup_render_job(const CompositionRegistry& registry,
     out.renderer = std::move(warm_renderer);
     if (out.renderer) {
         // A daemon reuses the renderer object, but every RenderJob is a new
-        // temporal session.  Drop evaluated node values and temporal history
-        // before preparing the next plan; keep image/GPU/font/pipeline caches
-        // warm so persistence remains useful without leaking state from the
-        // previous job into frame zero.
-        out.renderer->reset_frame_value_cache();
+        // temporal session: temporal history is dropped unconditionally so
+        // frame zero never sees the previous job's feedback.  Evaluated node
+        // values are different — NodeCache keys are content-addressed and
+        // carry the EvaluationVersion — so when this job renders the same
+        // content as the one that populated the cache they are RETAINED and
+        // the next evaluation hits (P2: this is what makes cache reuse across
+        // daemon jobs possible).  A different identity keeps the per-job
+        // reset: node scopes are only unique within one composition.  Image,
+        // GPU, font and pipeline caches stay warm either way.
+        const std::string identity = frame_value_cache_identity(job);
+        if (out.renderer->frame_value_cache_identity() != identity) {
+            out.renderer->reset_frame_value_cache();
+            out.renderer->set_frame_value_cache_identity(identity);
+        }
         out.renderer->reset_temporal_history();
         out.renderer->set_settings(job.settings);
         if (job.execution.assets_root) {
@@ -39,6 +68,10 @@ void setup_render_job(const CompositionRegistry& registry,
     } else {
         out.renderer = create_renderer(
             registry, job.settings, job.execution.config, job.execution.assets_root);
+        if (out.renderer) {
+            out.renderer->set_frame_value_cache_identity(
+                frame_value_cache_identity(job));
+        }
     }
     const auto renderer_t1 = profiling::now();
     out.create_renderer_ms = profiling::duration_ms(out.setup_t0, renderer_t1);

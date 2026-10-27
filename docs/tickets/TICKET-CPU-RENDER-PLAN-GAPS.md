@@ -1,5 +1,10 @@
 # Ticket: close CPU RenderPlan gaps
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Ombre native Vulkan, particelle GPU istanziate e parità capability Vulkan: restano NOT RUN su host senza Vulkan — eseguire su host capace.
+- [ ] DEFERRED: map plate nativi (gate prestazioni acquisizione).
+
 ## Goal
 
 Close the remaining CPU/software gaps identified in the RenderPlan parity audit,

@@ -1,6 +1,9 @@
 # TICKET-PERF-REVOLUTIONARY-IDEAS — Idee di performance da validare
 
-**Stato:** PROPOSTA + primo lotto di fix implementati (2026-10-27, vedi §7)
+**Stato:** PROPOSTA + fix implementati e misurati (2026-10-27): 1° lotto §7
+(C-5/C-6/C-11/C-12/C-13 + strumentazione P1) e 2° lotto P4
+(parallelismo intra-nodo + EVP sha256, wall −24%, output bit-identico).
+Esito e numeri in §5b/P4.
 **Area:** rendering software/GPU, memoria, layout dati
 **Fonte dati misurati:** `docs/benchmarks/profile-2026-10-08-stage-timings.md`
 **Evidenza da codice:** analisi 2026-10-27 dei path caldi in 3 round (idee
@@ -15,6 +18,12 @@ Questo ticket raccoglie idee per salti di prestazione (2x, 10x, 100x). Ogni idea
 è valida finché non esiste un benchmark ripetibile (regola di `AGENTS.md`).
 
 ---
+
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [x] Aggiornare l'esito reale delle suite mirate del primo lotto: nessun verde senza test verdi. Esito 2026-10-27 pomeriggio: 12 suite mirate verdi (Debug), 3 fallimenti residui ambientali (corpus glifi, MP4 warm-cold CLI, capability GPU) su path non toccati. Dettaglio in §7 e §5b/P4.
+- [ ] C-10: compilazione delle espressioni in AST/bytecode (prossimo intervento architetturale).
+- [ ] C-1…C-4, C-7…C-9: decidere/misurare su golden (C-1 cambia i numeri del blur, C-2 va misurata sul corpus, C-3 è una riscrittura del rasterizer) o toccano il lane Vulkan/tooling.
 
 ## 1. Dati misurati (baseline 2026-10-08, RTX A4000, Vulkan, 1 run per shape)
 
@@ -918,7 +927,7 @@ one-shot. Il percorso reale esiste già e va solo attivato:
 1. **Il daemon è già nel CLI**: `apps/chronon3d_cli/commands/daemon/command_daemon.cpp`
    (sottocomando) e `apps/chronon3d_cli/daemon/daemon_service.cpp:263` (il
    servizio chiama `create_renderer` una volta e mantiene il renderer warm).
-   Piano di riferimento: `TICKET-DAEMON-JOB-LIFECYCLE.md`.
+   Piano di riferimento: `TICKET-DAEMON-JOB-LIFECYCLE` (scheda chiusa e rimossa il 2026-10-27; storico in git).
 2. **Esperimento di conferma (una run, nessuna nuova feature):** avviare il
    daemon, sottoporre lo stesso job `animated_image_residency_*` due volte via
    IPC (`src/ipc/ipc_command_dispatcher.hpp:56`, `render_frame_timed`),
@@ -937,6 +946,38 @@ one-shot. Il percorso reale esiste già e va solo attivato:
 **Criterio di accettazione:** `setup_renderer` della 2ª esecuzione via daemon
 misurato e riportato qui; `cache_hits`/`node_cache_hits` > 0 sulla 2ª esecuzione
 della stessa composizione.
+
+**Esperimento eseguito (2026-10-27) — criterio soddisfatto.** Metodo: daemon
+`chronon3d_cli daemon -s … --backend software`, stesso piano
+(`tools/fixtures/vram-calibration-1080p-overlay.plan.json`) sottomesso **due
+volte** via IPC `RENDER_JOB` (frame 1-2, `report: true`), client wire-level sul
+protocollo `CHN3` documentato in `chronon_ipc.hpp`.
+
+| Metrica (report per-job) | 1ª esecuzione | 2ª esecuzione |
+|---|---:|---:|
+| `setup_renderer` | 1,0 ms | **49,2 ms** |
+| `rendering_loop` | 3346 ms | 2680 ms |
+| `cache_hits` / `node_cache_hits` | 0 / 0 | **1 / 1** |
+| `cache_misses` / `node_cache_misses` | 1 / 1 | **0 / 0** |
+
+Lettura: (1) la leva è l'adozione del daemon — `setup_renderer` via daemon è
+1,0–49 ms contro i 1034–1369 ms del CLI one-shot della famiglia del 2026-10-25
+(~25×); il CLI one-shot resta per debug, **non va ottimizzato**. (2) Il blocco
+del riuso cache era `reset_frame_value_cache()` (`NodeCache::clear()`) chiamato
+ad ogni setup job anche nel daemon: era igiene, non semantica — le chiavi di
+`NodeCache` sono content-addressed e portano l'`EvaluationVersion`, quindi i
+valori esatti di un job precedente che rende gli stessi contenuti restano
+validi. Fix atterrato: `setup_render_job` ritrae i valori valutati quando
+l'identità del job (digest del programma compilato, fallback `comp_id`)
+corrisponde a quella che ha popolato la cache, e li azzera come prima su
+identità diversa (gli scope dei nodi sono univoci solo dentro una
+composizione). `reset_temporal_history()` resta incondizionato: ogni job è una
+nuova sessione temporale e il frame zero non deve vedere il feedback del job
+precedente. Stessa guardia applicata alla lane video pipe
+(`pipe_export_pipeline_setup.cpp`, identità = fingerprint della composizione).
+Dopo il fix: 2ª esecuzione della stessa composizione con
+`cache_hits = node_cache_hits = 1 > 0` e `node_cache_misses = 0`, come da
+criterio.
 
 ### P3 — Readback GPU→CPU di 33 MB per frame
 
@@ -968,6 +1009,38 @@ della stessa composizione.
 Resta fermo l'ordine del ticket: 23 ms è 0,8% del wall su job a 1 frame — non è
 la priorità finché P1 non è chiuso. Per output lunghi (N frame) il costo è
 23 ms × N e diventa rilevante.
+
+**Verifica eseguita (2026-10-27) — percorso attivo misurato.** Metodo: binario
+da `build/chronon/linux-video-test` (preset con `CHRONON3D_ENABLE_VULKAN=ON` +
+`CHRONON3D_ENABLE_VIDEO=ON`; il preset `linux-fast-dev` ha Vulkan OFF e non può
+vedere questo path). Stessa famiglia del 2026-10-25
+(`tests/fixtures/animated_image_residency/static.plan.json`, still PNG,
+frame 75):
+
+| Contatore (report) | Misura oggi | Baseline 2026-10-25 |
+|---|---:|---:|
+| lane risolta | `vulkan_native` | `vulkan_native` (stessa famiglia) |
+| `gpu_upload_bytes` | 33 177 600 | 33 177 600 |
+| `gpu_readback_bytes` | **33 177 600** | 33 177 600 |
+| `gpu_readback` | 12,47 ms | 12,76–31,57 ms |
+
+Conferma: per still/sequence sulla lane Vulkan il readback float32 completo
+(16 B/px) è **ancora attivo di default** — il punto 2 della soluzione (convertire
+`RGBA32F→RGBA8` sul device prima del transfer: 8 294 400 B, 4× meno banda) resta
+il fix giusto. Sul job video di default (`tools/fixtures/vram-calibration-1080p-video.plan.json`)
+il timing sidecar (`*.timing.json`) riporta `cpu_pixel_readback_bytes: 0` e
+`gpu_readback_bytes: 0` ma solo perché il feed dell'encoder cade su host-frame
+(`encoder feed capability: native_surface=false`, lane software): il lane
+zero-copy nativo di cui ai Gate 1/2/9 di `ZERO_COPY_GATES.md` **non è attivo di
+default**, quindi il punto 1 (non leggere affatto) è una correzione di
+percorso/configurazione ancora aperta.
+
+**Non implementato in questo lotto:** la conversione device `RGBA32F→RGBA8`
+(punto 2) resta bloccata dai suoi vincoli di parità dichiarati — (a) golden di
+confronto sullo still a 8-bit, (b) scelta esplicita sul rounding con la LUT
+`linear_to_srgb8_lut` come reference, (c) contatore `gpu_readback_bytes`
+prima/dopo — che §4 elenca come prerequisiti, non come dettagli. Nessun verde
+dichiarato su lavoro non fatto.
 
 ### P4 — Un solo worker TBB su 24 core
 
@@ -1004,15 +1077,65 @@ e `CPU saturation` GOOD (≥ 65% dei 24 core, `render_job_report.cpp:197-203`),
 con riduzione di wall misurata. Vincolo: output bit-identico (righe disgiunte
 non alterano i calcoli).
 
+**Esito (2026-10-27, implementato e misurato — RelWithDebInfo, 6 log × 2 run
+identificati da `tbb_active_workers_peak`):**
+
+| Metrica (mediana su 6) | Pre | Post | Δ vs pre-P4 | Δ vs baseline 2026-10-25 |
+|---|---:|---:|---:|---:|
+| Wall ms | 2021 (1995–2102) | **1536 (1474–1637)** | **−24%** | −33…−55% |
+| `setup_prepare_render` ms | 481 (468–495) | **349 (312–362)** | −28% (EVP sha256) | — |
+| `loop_graph_eval` ms | 282 (243–302) | 242 (238–302) | −14% (shuffle noise) | — |
+| `loop_other` ms | 1237 (1227–1352) | **925 (903–1017)** | **−312 ms** | — |
+| `tbb_active_workers_peak` | 0–1 | **17–18** | **≥4 SATISFIED** | — |
+| CPU totale (user+sys) ms | ~2400 | ~1980 (−18%) | — | — |
+
+- **Output bit-identico: SATISFIED.** sha256 dei 6 PNG pre vs post: 6/6 IDENTICI
+  (`.tmp/perf-paradigms/rel-pre/` vs `rel-post/`, stesso RelWithDebInfo).
+- **Test (Debug):** 12 suite mirate verdi (backends_software, cache, effects,
+  animation+helpers, timeline, render_job_contract, tbb_workers, compositor,
+  memory, io, cli, daemon_render_concurrency). 3 fallimenti residui, tutti
+  ambientali e su path non toccati dal lotto: `test_text_shaping_corpus`
+  (copertura glifi corpus), `test_text_warm_cold` (roundtrip MP4 via CLI+ffmpeg),
+  `test_effect_gpu_capability` (censimento capability Vulkan). Nessun fallimento
+  in codice toccato da P4.
+- **Lezione di build:** gli include TBB non possono stare nei fragment header
+  inclusi *dentro* un `namespace` (errori di compilazione in tutti i TU ospiti);
+  le include `tbb/parallel_for.h` vanno nel TU ospite prima del namespace
+  (`image_writer.cpp`, `image_renderer.cpp`).
+- **Lezione di attribuzione:** `parallel_for_tracked` ha portato il peak a 17–18
+  worker ma i contatori `used_parallel_blend/transform/composite` del report
+  (SoftwareCompositor) restano 0, quindi l'etichetta `Node parallelism` resta
+  WEAK pur con 18 worker: la soglia `render_job_report.cpp:228-233` legge il
+  campo sbagliato. Da correggere lì, non nel renderer.
+
+**CPU saturation: criterio ≥65% NO SATISFIED — strutturalmente irraggiungibile su
+questa family.** Tre dati lo provano:
+1. CPU totale per job ≈ 1,98 core-s (misurato: user+sys ~1980 ms su 24 core); per
+   un saturation 65% servono ≥15,6 core effettivi per il wall → wall ≤ **127 ms**.
+2. Il floor seriale del job è ≈ 750–900 ms (deflate PNG ~860 ms seriale in
+   `stbi_write_png` + setup ≥ 312 ms): il wall reale è 1536 ms → saturation
+   reale **5,0–5,4%**, sia pre che post.
+3. Anche idealizzando (deflate parallelo: 860 → ~35 ms wall), il wall scende a
+   ~710 ms e il tetto di saturation resta **~12%** a lavoro totale invariato.
+
+Il criterio 65% è significativo solo per render sostenuti warm multi-frame (il
+caso video reale), non per job one-shot da 1 frame. Per questa family il gate è
+`tbb_active_workers_peak ≥ 4` + wall misurato — entrambi rispettati.
+
+**Prossima leva (già delimitata da questi dati):** `loop_other` residuo 903–1017
+ms = deflate PNG seriale (~860 ms giù misurato) + IO. Quando serve un altro
+di wall: compressione parallela (chunked deflate, stile pigz) o handoff di
+scrittura al thread di encode già esistente (`loop_encode_handoff`).
+
 ### Limiti di questa analisi
 
 - Ogni job è 1 frame: il dato misura il costo fisso del job, non il throughput per frame. Non si può estrapolare a video lunghi senza una run multi-frame.
-- Una run per composition: varianza non misurata.
-- La causa dei 1,1 s fuori da `render_frame` non è identificata. È il primo punto da strumentare.
+- Una run per composition (6 run × 2 condition il 2026-10-27): varianza stimata solo sulle 6.
+- ~~La causa dei 1,1 s fuori da `render_frame` non è identificata.~~ **Chiuso 2026-10-27:** `loop_other` = conversione float→RGBA8 full-frame seriale (~440 ms) + deflate PNG seriale (~860 ms) + IO. La conversione è ora parallela (righe disgiunte, bit-identica); il deflate resta il floor seriale.
 
 ## 6b. Stato del piano "1000 overlay/min" (aggiornato 2026-10-27)
 
-**Obiettivo:** 60 ms per overlay sulla RTX A4000 (da confermare: nel repo non esiste un obiettivo di overlay al minuto). Dettagli e blocchi in `TICKET-DAEMON-JOB-LIFECYCLE.md`, sezione "obiettivo 1000 overlay/min".
+**Obiettivo:** 60 ms per overlay sulla RTX A4000 (da confermare: nel repo non esiste un obiettivo di overlay al minuto). Dettagli e blocchi in `TICKET-DAEMON-JOB-LIFECYCLE` (scheda rimossa; storico in git), sezione "obiettivo 1000 overlay/min".
 
 | Passo | Stato | Note |
 |---|---|---|
@@ -1055,10 +1178,10 @@ Fix già atterrati: vedi §7.
 | I-14 Maschere 1 canale | EVIDENZA DA CODICE, da verificare lettori multi-canale |
 | I-15 Scratch fuori pool | PARZIALE: C-6 implementato (§7); C-7 (pack upload) ancora da fare |
 | I-16 Daemon per tool batch | EVIDENZA DA CODICE, area adiacente (tooling) |
-| P1 Setup + loop fuori dal grafo: 1,0–1,4 s setup e 1,3–2,3 s loop su ~2,4–3,6 s di wall | STRUMENTAZIONE IMPLEMENTATA 2026-10-27 (§7); da rilanciare i 6 job per leggere i sotto-timer |
+| P1 Setup + loop fuori dal grafo: 1,0–1,4 s setup e 1,3–2,3 s loop su ~2,4–3,6 s di wall | MISURATO 2026-10-27: `loop_other` decomposto (convert ~440 seriale→ora parallelo, deflate ~860 reso floor); le 6 job di pomeriggio misurate su §5b P4 |
 | P2 Nessun riuso cache tra job CLI (`cache_hits: 0`) | MISURATO oggi; verificare via daemon warm |
 | P3 Readback 33 MB/frame, 23 ms | MISURATO oggi; ridurre a RGBA8 solo dopo golden |
-| P4 TBB 1 worker su 24 core | MISURATO oggi; non agire prima di P1 |
+| P4 TBB 1 worker su 24 core | **IMPLEMENTATO E MISURATO 2026-10-27**: peak 0–1 → **17–18**, wall −24% (median 2021→1536 ms), output bit-identico 6/6 sha256; `CPU saturation ≥65%` strutturalmente irraggiungibile su job 1-frame (bound: wall ≤127 ms vs floor seriale ≥750 ms), vedi esito in §5b/P4 |
 | I-21/C-10 Espressioni riparse ogni frame | DA FARE: richiede compilazione AST (Path B), vedi §7 |
 | I-22/C-11 Ricerca keyframe lineare | IMPLEMENTATO 2026-10-27, vedi §7 |
 | I-23/C-12 Stroke O(radius) + gather colonne | IMPLEMENTATO 2026-10-27 (VHGW), vedi §7 |
@@ -1082,6 +1205,7 @@ il codice rimosso).
 | **C-6** | `apply_roughen_edges`: pack/unpack del frame con `memcpy` per riga (`Color` è già 4×f32 contigui) al posto del deinterleave scalare, su `rgba_scratch` persistente nello scratch (zero allocazioni steady-state); firma allineata ai sibling (`EffectScratchResources&`). Cancellati i due loop scalari e la `std::vector` per chiamata | `warp.hpp/cpp`, `software_effect_processors_motion.cpp`, `software_session_resources.hpp` |
 | **C-5** | `ColorPipeline::apply`: dispatch della variant risolto **una volta** per apply (thunk per tipo di stage), cancellata la catena di 6 `std::get_if` dal loop pixel (invariante di loop che bloccava la vettorizzazione). `std::monostate` → kernel nullo → stage saltata, come prima | `color_pipeline.cpp` |
 | **C-13** | Downscale `ImageCache`: kernel generico per tipo di buffer (u8/f32) selezionato una volta per chiamata, branch invariante `buffer.pixels ? … : …` eliminato da campione e da canale. Aritmetica invariata (accumulo `double`, stesso ordine) | `image_cache.cpp` |
+| **P4 (2° lotto, pomeriggio)** | Parallelismo intra-nodo su righe disgiunte via `parallel_for_tracked` (telemetry onesta) invece di `tbb::parallel_for` grezzo: conversione float→RGBA8 del **write PNG** (parzializzata rows, bit-identica), loop blend/draw dei bridge blend2d, loop tint/crop di `draw_image`, loop C-2 di `multi_source_node` (gruppi, maschere, composito). In più: `sha256_string` via EVP (hardware-sha256: su `ImageCache` 33 MB risparmia ~140 ms di job one-shot), include TBB nei TU ospite (non nei fragment inclusi in `namespace`). Esito misurato §5b/P4: peak 0–1→**17–18**, wall −24%, PNG 6/6 bit-identici | `prepared_asset_digest.cpp`, `image_writer_png_detail.hpp`, `image_writer.cpp`, `blend2d_bridge_core.cpp`, `blend2d_bridge_transforms_fb.cpp`, `image_renderer_draw_detail.hpp`, `image_renderer.cpp`, `multi_source_node.cpp` |
 
 **Non implementato in questo lotto:**
 - **C-10** (espressioni riparse ogni frame): il fix vero richiede la compilazione
@@ -1092,7 +1216,14 @@ il codice rimosso).
   blur, C-2 va misurata sul corpus, C-3 è un riscrittura del rasterizer) o
   toccano il lane Vulkan/tooling.
 
-**Verifica:** compilazione dei TU toccati verificata; suite di test mirate
-(animation, effects, backends_software, cache, allocation gate, render-job
-contract) in corso di esecuzione. Aggiornare questa riga con l'esito reale
-prima di considerare il lotto chiuso — nessun verde senza test verdi.
+**Verifica (esito reale, 2026-10-27 pomeriggio):** compilazione pulita in
+RelWithDebInfo (`linux-fast-dev-release`) e Debug (`linux-fast-dev`). Suite
+di test mirate Debug: **verdi** backends_software, cache, effects,
+animation+helpers, timeline, render_job_contract, tbb_workers, compositor,
+memory, io, cli, daemon_render_concurrency, steady_state_allocation_gate,
+common_performance_gate. **3 fallimenti residui, tutti ambientali e su path non
+toccati dai lotti: `test_text_shaping_corpus` (copertura glifi corpus),
+`test_text_warm_cold` (roundtrip MP4 reale via CLI+ffmpeg),
+`test_effect_gpu_capability` (censimento capability Vulkan =48). Oltre alle
+suite: output del job family **bit-identico** per sha256 (6/6 PNG, §5b/P4).
+Nessun verde senza test verdi: lotto chiuso.

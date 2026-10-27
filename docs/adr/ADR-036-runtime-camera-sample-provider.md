@@ -105,5 +105,5 @@ all supported backends.
 
 ## References
 
-- [`TICKET-CAMERA-AUTHORITY-MIGRATION`](../tickets/TICKET-CAMERA-AUTHORITY-MIGRATION.md)
+- `TICKET-CAMERA-AUTHORITY-MIGRATION` (scheda chiusa e rimossa il 2026-10-27; storico in git)
 - [`ADR-029-authority-boundary-doctrine`](ADR-029-authority-boundary-doctrine.md)

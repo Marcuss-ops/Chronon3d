@@ -404,13 +404,18 @@ ipc::Reply DaemonService::ipc_assemble_segments(const std::string& payload) {
 #if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     try {
         const auto request = nlohmann::json::parse(payload.begin(), payload.end());
-        const auto paths = request.value("input_paths", std::vector<std::string>{});
-        const auto output = request.value("output_path", std::string{});
-        const bool fragmented = request.value("fragmented_mp4", false);
-        const auto result = media::assemble_segments(
-            media::SegmentAssemblyRequest{paths, output, fragmented});
+        media::SegmentAssemblyRequest assemble;
+        assemble.input_paths = request.value("input_paths", std::vector<std::string>{});
+        assemble.output_path = request.value("output_path", std::string{});
+        assemble.fragmented_mp4 = request.value("fragmented_mp4", false);
+        // AUDIO-AWARE ASSEMBLY: the family anchor's single source-audio mux
+        // (same wire semantics as the render request's audio_source_path /
+        // audio_target_sample_rate).
+        assemble.audio_source_path = request.value("audio_source_path", std::string{});
+        assemble.audio_target_sample_rate = request.value("audio_target_sample_rate", 0);
+        const auto result = media::assemble_segments(assemble);
         if (!result.success) return ipc::Reply{ipc::Status::Error, result.reason};
-        return ipc::Reply{ipc::Status::Ok, output};
+        return ipc::Reply{ipc::Status::Ok, assemble.output_path};
     } catch (const std::exception& e) {
         return ipc::Reply{ipc::Status::BadRequest,
                           std::string{"ASSEMBLE_SEGMENTS parse failed: "} + e.what()};

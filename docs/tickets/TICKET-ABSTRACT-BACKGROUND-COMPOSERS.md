@@ -12,6 +12,14 @@ lights, 19 cinematic leaks), but its ZIP/CSV/contact sheet are not in this
 checkout. Those counts are planning input only; individual palettes, crops,
 parameters, and expected outputs cannot be certified from the pasted summary.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Sbloccare il feature freeze: runner dispatch ripristinato, CI green sullo SHA esatto, worktree riconciliato e baseline rivista.
+- [ ] Aggiungere i 43 reference PNG, la contact sheet e il CSV per-reference.
+- [ ] Validare i conteggi attesi (16 `wave_*`, 8 `neon_*` unici, 19 `cinematic_*`) e mappare ogni record alle primitive esistenti.
+- [ ] Adottare o emendare i bounds proposti; specificare `LayeredFoldField`; verificare il lowering di `LightCone` e `GlowPath`.
+- [ ] Per ogni composer accettato: esempio autored + lowering documentato; solo helper di authoring approvati, nessun nuovo schema/effect id senza Gate 2.
+
 ## Repository facts verified for this contract
 
 - ChrononPlugin's `plugins/effects/include/chrononplugin/effects/presets.hpp` provides

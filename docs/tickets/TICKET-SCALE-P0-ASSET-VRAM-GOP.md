@@ -11,6 +11,11 @@ policy `DeviceSelectionRequirements`) più due debiti MTSDF/Vulkan.
 
 ---
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Parità del corpus overlay più ampio (native-image) oltre il singolo video same-SHA già certificato.
+- [ ] Demolition 5G: parità fra percorso a segmenti e direct mux sul `gop_parity_corpus()`.
+
 ## P0-1 — `ImageCache` non trattiene più l'`AssetResolver` job-scoped
 
 `VideoDeviceRuntime::ImageCache` è process/device lifetime e condivisa da tutti
