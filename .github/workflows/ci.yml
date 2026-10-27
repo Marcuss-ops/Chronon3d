@@ -460,7 +460,7 @@ jobs:
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
-      - run: cmake --preset linux-ci -DCHRONON3D_BUILD_BENCHMARKS=ON
+      - run: cmake --preset linux-ci -DCHRONON3D_BUILD_BENCHMARKS=ON -DVCPKG_MANIFEST_FEATURES='tests;ipc;benchmarks'
       - run: cmake --build build/chronon/linux-ci --target chronon3d_benchmarks --target chronon3d_scene_program_benchmarks -j$(nproc)
       - name: Run blend benchmark
         id: bench-blend

@@ -517,6 +517,10 @@ and the native-video job forced `-fuse-ld=mold` without installing mold. Both
 pipeline issues are corrected in the follow-up SHA; full same-SHA certification
 must be rerun there.
 
+The second SHA also found that the benchmark CI job enabled CMake benchmarks
+without enabling vcpkg's `benchmarks` manifest feature. The job now requests
+that feature explicitly; the same-SHA certification must include this fix.
+
 ## Demolition debt
 
 - **Status:** IN PROGRESS — retain bounded lowering while advancing the
