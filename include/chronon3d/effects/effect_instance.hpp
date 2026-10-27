@@ -9,9 +9,22 @@
 #include <utility>
 #include <type_traits>
 #include <optional>
+#include <string>
+#include <vector>
 #include <chronon3d/animation/core/temporal_curve_1d.hpp>
 
 namespace chronon3d::effects {
+
+struct EffectParameterKeyframe {
+    std::int64_t frame{0};
+    float value{0.0f};
+    bool hold{false};
+};
+
+struct EffectParameterTrack {
+    std::string param;
+    std::vector<EffectParameterKeyframe> keyframes;
+};
 
 // ── effect_type_for<T> primary template ────────────────────────────────────
 // (defined in effect_type.hpp, specializations generated in effect_catalog_data.hpp)
@@ -28,6 +41,7 @@ struct EffectInstance {
     std::optional<TemporalCurve1D> time_curve;
     double time_duration_seconds{0.0};
     double composition_fps{0.0};
+    std::vector<EffectParameterTrack> parameter_tracks;
 
     EffectInstance() = default;
 

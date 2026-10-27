@@ -962,7 +962,7 @@ TEST_CASE("render plan wiggle driver evaluates deterministically on scalar opaci
           doctest::Approx(first->scene.layers()[0].transform.opacity));
 }
 
-TEST_CASE("render plan applies animated effect parameters at the sampled frame") {
+TEST_CASE("render plan carries animated effect parameters into runtime effects") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
     auto source = render_plan_test::base_plan({
@@ -983,7 +983,12 @@ TEST_CASE("render plan applies animated effect parameters at the sampled frame")
     REQUIRE(evaluated->scene.layers()[0].effects().size() == 1);
     const auto* blur = std::get_if<BlurParams>(&evaluated->scene.layers()[0].effects()[0].params);
     REQUIRE(blur);
-    CHECK(blur->radius == doctest::Approx(50.0f));
+    REQUIRE(evaluated->scene.layers()[0].effects()[0].parameter_tracks.size() == 1);
+    const auto& radius_track = evaluated->scene.layers()[0].effects()[0].parameter_tracks[0];
+    CHECK(radius_track.param == "radius");
+    REQUIRE(radius_track.keyframes.size() == 2);
+    CHECK(radius_track.keyframes[0].value == doctest::Approx(0.0f));
+    CHECK(radius_track.keyframes[1].value == doctest::Approx(100.0f));
 }
 
 TEST_CASE("render plan compiles and samples a catalog-addressed effect track") {
@@ -1010,7 +1015,12 @@ TEST_CASE("render plan compiles and samples a catalog-addressed effect track") {
     REQUIRE(evaluated->scene.layers()[0].effects().size() == 1);
     const auto* tint = std::get_if<TintParams>(&evaluated->scene.layers()[0].effects()[0].params);
     REQUIRE(tint);
-    CHECK(tint->amount == doctest::Approx(0.5f));
+    REQUIRE(evaluated->scene.layers()[0].effects()[0].parameter_tracks.size() == 1);
+    const auto& amount_track = evaluated->scene.layers()[0].effects()[0].parameter_tracks[0];
+    CHECK(amount_track.param == "amount");
+    REQUIRE(amount_track.keyframes.size() == 2);
+    CHECK(amount_track.keyframes[0].value == doctest::Approx(0.0f));
+    CHECK(amount_track.keyframes[1].value == doctest::Approx(1.0f));
 }
 
 TEST_CASE("render plan samples inline data-feed values at the requested frame") {

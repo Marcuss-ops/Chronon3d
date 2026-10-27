@@ -12,6 +12,7 @@
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/effect_catalog_data.hpp>
+#include <chronon3d/effects/effect_instance.hpp>
 #include <chronon3d/scene/model/shape/material_2_5d.hpp>
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
@@ -26,6 +27,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -173,6 +175,14 @@ public:
         instance.time_duration_seconds=time_duration_seconds;
         instance.composition_fps=composition_fps;
         m_layer.effects().push_back(std::move(instance));
+        return *this;
+    }
+    LayerBuilder& effect_parameter_track(
+        effects::EffectParameterTrack track) {
+        if (m_layer.effects().empty())
+            throw std::logic_error("effect parameter track requires a preceding effect");
+        m_layer.effects()[m_layer.effects().size() - 1].parameter_tracks.push_back(
+            std::move(track));
         return *this;
     }
     LayerBuilder& bloom(

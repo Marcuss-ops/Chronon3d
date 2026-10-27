@@ -18,7 +18,7 @@
     299
   ],
   "input": "../lottie_advanced_mega.json",
-  "input_sha256": "912a2cf26d0434e6f03cc6ed3444a5b691511f883fac8508a9c2f6f27f0be408",
+  "input_sha256": "bf3019b75ff039570d9ed7da6417a63c126bb1631e9ad8894725331610cd2665",
   "assets": {
     "../image_rgba.png": "be9f10d2a3b8df35cf01c5ee6239c85d61daa7f11ccd5ee7a8e08bab8d90d7b9",
     "../fonts/Inter-Regular.ttf": "deb990e241954e1af87c6033d40a76cf0f48e0d112541794526051ac4a3ee2c8"
@@ -27,11 +27,11 @@
   "images_loaded": true,
   "runtime_errors": [],
   "references": {
-    "lottie_web_5_13_0_mega_frame_0.png": "32c8b32887b1995e9a2dfd088da5a261d5f210b5b86442f593dbf8009f1ad530",
-    "lottie_web_5_13_0_mega_frame_30.png": "e398e28b7f565f9ca996e39cf005b98b2b410e8d6f92b0e15706724447213733",
-    "lottie_web_5_13_0_mega_frame_90.png": "34a41d3a72c0131b052220b153f30c3d63502a84d4cc0fc9604869a20c5abb33",
-    "lottie_web_5_13_0_mega_frame_150.png": "611940ef4865dfc4ed16576fb518945bdaa15db1f554dc920e6988ef5abde04e",
-    "lottie_web_5_13_0_mega_frame_299.png": "611940ef4865dfc4ed16576fb518945bdaa15db1f554dc920e6988ef5abde04e"
+    "lottie_web_5_13_0_mega_frame_0.png": "14b343aea391d28a0602e611255a5f4c6c58e9a1cb490e7264a381c64546e499",
+    "lottie_web_5_13_0_mega_frame_30.png": "de2b2a4e7b9300d6741cc96565357aa32ad13dbc21810adb17cad2d100d1dc33",
+    "lottie_web_5_13_0_mega_frame_90.png": "c06230e7e5b2aed473a7e4cbd8c911475f7a7632ec5bbc8a9dc84e8818535809",
+    "lottie_web_5_13_0_mega_frame_150.png": "53c611766fb25b9fb1835298eb80203ff6b98ef947828b6a21481c790cc001d7",
+    "lottie_web_5_13_0_mega_frame_299.png": "53c611766fb25b9fb1835298eb80203ff6b98ef947828b6a21481c790cc001d7"
   },
   "capture_note": "Pinned Lottie-web 5.13.0 SVG references captured at each listed frame with headless Chrome 156, local Inter font, and expanded filter bounds.",
   "renderer_settings": {

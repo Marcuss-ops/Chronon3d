@@ -53,6 +53,17 @@ bool has_frame_dependent_content(const Scene& scene, Frame frame) {
     }
     for (const auto& layer : scene.layers()) {
         if (!layer.active_at(frame)) continue;
+        const bool animated_effect_parameter = std::any_of(
+            layer.effects().begin(), layer.effects().end(), [&](const auto& effect) {
+                if (!effect.enabled) return false;
+                return std::any_of(
+                    effect.parameter_tracks.begin(), effect.parameter_tracks.end(),
+                    [&](const auto& track) {
+                        return !track.keyframes.empty() &&
+                            frame.integral() <= track.keyframes.back().frame;
+                    });
+            });
+        if (animated_effect_parameter) return true;
         const auto has_transition = [](const LayerTransitionSpec& spec) {
             return !spec.transition_id.empty() && spec.transition_id != "none" &&
                    spec.duration > 0.0;

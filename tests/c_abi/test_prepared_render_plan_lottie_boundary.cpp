@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace {
@@ -394,9 +395,23 @@ TEST_CASE("Lottie image layers resolve external assets through the mounted resol
     const auto* end_fill = std::get_if<chronon3d::FillParams>(
         &fill_at_end->scene.layers()[0].effects()[0].params);
     REQUIRE(end_fill);
-    CHECK(end_fill->color.r == doctest::Approx(0.0f));
-    CHECK(end_fill->color.b == doctest::Approx(1.0f));
-    CHECK(end_fill->amount == doctest::Approx(1.0f));
+    const auto& fill_tracks = fill_at_end->scene.layers()[0].effects()[0].parameter_tracks;
+    REQUIRE(fill_tracks.size() == 4);
+    const auto find_track = [](const auto& tracks, std::string_view name) -> const auto* {
+        const auto found = std::find_if(tracks.begin(), tracks.end(), [&](const auto& track) {
+            return track.param == name;
+        });
+        return found == tracks.end() ? nullptr : &*found;
+    };
+    const auto* red_track = find_track(fill_tracks, "color.r");
+    const auto* blue_track = find_track(fill_tracks, "color.b");
+    const auto* fill_amount_track = find_track(fill_tracks, "amount");
+    REQUIRE(red_track);
+    REQUIRE(blue_track);
+    REQUIRE(fill_amount_track);
+    CHECK(red_track->keyframes.back().value == doctest::Approx(0.0f));
+    CHECK(blue_track->keyframes.back().value == doctest::Approx(1.0f));
+    CHECK(fill_amount_track->keyframes.back().value == doctest::Approx(1.0f));
 
     auto animated_effect = effected_image_layer;
     animated_effect["ef"][0]["ef"][0]["v"] = {
@@ -418,10 +433,14 @@ TEST_CASE("Lottie image layers resolve external assets through the mounted resol
     const auto blur_end = chronon3d::evaluate(animated_blurs->compiled_composition,
         chronon3d::CompositionEvaluateContext{}, chronon3d::Frame{9});
     REQUIRE(blur_end);
-    CHECK(std::get<chronon3d::BlurParams>(blur_end->scene.layers()[0].effects()[0].params)
-        .radius == doctest::Approx(9.0f));
-    CHECK(std::get<chronon3d::DropShadowParams>(blur_end->scene.layers()[0].effects()[1].params)
-        .radius == doctest::Approx(6.0f));
+    const auto& blur_tracks = blur_end->scene.layers()[0].effects()[0].parameter_tracks;
+    const auto& shadow_tracks = blur_end->scene.layers()[0].effects()[1].parameter_tracks;
+    REQUIRE(blur_tracks.size() == 1);
+    REQUIRE(shadow_tracks.size() == 1);
+    CHECK(blur_tracks[0].param == "radius");
+    CHECK(blur_tracks[0].keyframes.back().value == doctest::Approx(9.0f));
+    CHECK(shadow_tracks[0].param == "radius");
+    CHECK(shadow_tracks[0].keyframes.back().value == doctest::Approx(6.0f));
 
     animated_effect["ef"][0]["ef"][0]["v"]["k"][1]["s"] = 1000.0f;
     write_image_document(animated_effect);
