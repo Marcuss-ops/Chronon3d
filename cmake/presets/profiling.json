@@ -6,7 +6,6 @@
   "configurePresets": [
     {
       "name": "linux-profile-core",
-      "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux Profile Core (no text/video/mesh/exr)",
       "description": "Hidden core-only profile matrix preset used by the nightly profile-envelope workflow.",
@@ -30,7 +29,6 @@
     },
     {
       "name": "linux-profile-motion",
-      "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux Profile Motion (Blend2D + text)",
       "description": "Hidden profile matrix preset with Blend2D and text enabled.",
@@ -54,7 +52,6 @@
     },
     {
       "name": "linux-profile-video",
-      "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux Profile Video (native ffmpeg)",
       "description": "Hidden profile matrix preset with native FFmpeg, Blend2D and text enabled.",
@@ -78,7 +75,6 @@
     },
     {
       "name": "linux-profile-extended",
-      "hidden": true,
       "inherits": "base-linux",
       "displayName": "Linux Profile Extended (mesh, EXR, benchmarks, tracing)",
       "description": "Hidden extended feature envelope with mesh, EXR, benchmarks and tracing enabled.",
