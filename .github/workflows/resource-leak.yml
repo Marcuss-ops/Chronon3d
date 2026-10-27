@@ -40,7 +40,7 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
 
       - name: Configure hardened release
-        run: cmake --preset linux-hardened-release
+        run: cmake --preset linux-hardened-release -DCHRONON3D_BUILD_DAEMON=ON
 
       - name: Build daemon
         run: cmake --build --preset linux-hardened-release --target chronon3d_daemon -j12
