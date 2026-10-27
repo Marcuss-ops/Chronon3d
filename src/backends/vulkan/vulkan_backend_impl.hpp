@@ -46,25 +46,19 @@
 
 namespace chronon3d::backends::vulkan {
 
-inline bool surface_lifecycle_diag_enabled() noexcept {
-    static const bool enabled = [] {
-        const char* value = std::getenv("CHRONON3D_SURFACE_LIFECYCLE_DIAG");
-        return value && *value && std::string_view(value) != "0";
-    }();
-    return enabled;
-}
+// Out-of-line definitions live in vulkan_backend_impl_detail.cpp (issue #52).
+// The ABI layout structs and their static_asserts deliberately stay defined
+// here, in the header that defines the layouts.
+bool surface_lifecycle_diag_enabled() noexcept;
 
-inline void check(VkResult result, const char* operation) {
-    if (result == VK_SUCCESS) return;
-    if (result == VK_ERROR_DEVICE_LOST) {
-        runtime::poison_gpu_worker();
-        throw runtime::GpuDeviceLostError{
-            std::string{"Vulkan device lost during "} + operation};
-    }
-    throw std::runtime_error(std::string{"Vulkan "} + operation +
-                             " failed with VkResult=" +
-                             std::to_string(static_cast<int>(result)));
-}
+void check(VkResult result, const char* operation);
+
+// Single authority for the create-pipeline → register-in-registry →
+// destroy-on-reject dance shared by the kernel pipeline init phases
+// (definition in vulkan_backend_impl_detail.cpp).
+void register_kernel_or_throw(GpuKernelRegistry& registry, VkDevice device,
+                              GpuKernelId id, VkPipeline pipeline,
+                              const char* pipeline_name);
 
 inline constexpr float kIdentityTint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -234,13 +228,10 @@ struct VulkanBackend::Impl {
     [[nodiscard]] std::size_t surface_physical_count() const noexcept;
     [[nodiscard]] bool surface_is_job_persistent(
         runtime::RenderSurfaceHandle handle) const noexcept;
-    Image& bind_surface_to_slot(runtime::RenderSurfaceHandle handle,
-                                std::size_t slot,
-                                const runtime::SurfaceDesc& desc,
-                                std::span<const runtime::RenderSurfaceHandle>
-                                    planned_occupants = {}) {
-        return surfaces.bind(handle, slot, desc, planned_occupants);
-    }
+    Image& bind_surface_to_slot(
+        runtime::RenderSurfaceHandle handle, std::size_t slot,
+        const runtime::SurfaceDesc& desc,
+        std::span<const runtime::RenderSurfaceHandle> planned_occupants = {});
     void prune_surface_slots();
     void reclaim_unused_transient_surface_slots();
 
@@ -269,23 +260,9 @@ struct VulkanBackend::Impl {
     /// the recording path is not one of them any more.
     class DomainLock {
     public:
-        explicit DomainLock(Impl& impl, LockDomain domain)
-            : impl_(impl), domain_(domain), wait_start_(profiling::now()),
-              // Fixed acquisition order (surfaces → submission), the order the
-              // displaced scoped_lock used, so no inversion is introduced.
-              first_(domain == LockDomain::Submission ? impl.submission_ring.mutex
-                                                      : impl.surfaces.mutex),
-              second_(impl.submission_ring.mutex, std::defer_lock) {
-            if (domain == LockDomain::Dual) second_.lock();
-            impl_.record_lock_wait(domain_, static_cast<std::uint64_t>(
-                profiling::elapsed_us(wait_start_)));
-            hold_start_ = profiling::now();
-        }
+        explicit DomainLock(Impl& impl, LockDomain domain);
 
-        ~DomainLock() {
-            impl_.record_lock_hold(domain_, static_cast<std::uint64_t>(
-                profiling::elapsed_us(hold_start_)));
-        }
+        ~DomainLock();
 
         DomainLock(const DomainLock&) = delete;
         DomainLock& operator=(const DomainLock&) = delete;
@@ -355,10 +332,8 @@ struct VulkanBackend::Impl {
     /// RAII flag for the recording window; nests by saving the previous value.
     struct RecordingResolveScope {
         const bool previous;
-        RecordingResolveScope() noexcept : previous(recording_resolve_context()) {
-            recording_resolve_context() = true;
-        }
-        ~RecordingResolveScope() { recording_resolve_context() = previous; }
+        RecordingResolveScope() noexcept;
+        ~RecordingResolveScope();
         RecordingResolveScope(const RecordingResolveScope&) = delete;
         RecordingResolveScope& operator=(const RecordingResolveScope&) = delete;
     };
@@ -424,6 +399,12 @@ struct VulkanBackend::Impl {
          bool calibrated_timestamps_supported,
          VulkanDebugContext* dbg_ctx = nullptr);
     ~Impl();
+
+    // Lifecycle init phases (definitions split across the lifecycle_*_private
+    // units per issue #51).
+    void init_descriptor_layouts();
+    void init_core_kernel_pipelines();
+    void init_draw_kernel_pipelines();
 
     void destroy_image(Image& target);
     void destroy_upload_slot(VulkanUploadRing::UploadSlot& slot);
@@ -499,22 +480,7 @@ struct VulkanBackend::Impl {
     void transition(VkCommandBuffer command, VkImage image,
                     VkImageLayout old_layout, VkImageLayout new_layout);
 
-    static VkFormat to_vk_format(runtime::PixelFormat fmt) noexcept {
-        switch (fmt) {
-            case runtime::PixelFormat::Rgba32Float:
-                return VK_FORMAT_R32G32B32A32_SFLOAT;
-            case runtime::PixelFormat::Rgba8Unorm:
-                return VK_FORMAT_B8G8R8A8_UNORM;
-            case runtime::PixelFormat::R8Unorm:
-                return VK_FORMAT_R8_UNORM;
-            case runtime::PixelFormat::Nv12:
-                return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
-            case runtime::PixelFormat::P010:
-                return VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16;
-            default:
-                return VK_FORMAT_R32G32B32A32_SFLOAT;
-        }
-    }
+    static VkFormat to_vk_format(runtime::PixelFormat fmt) noexcept;
 
     static constexpr std::size_t pixel_format_bytes(runtime::PixelFormat fmt) noexcept {
         switch (fmt) {
@@ -528,10 +494,7 @@ struct VulkanBackend::Impl {
     }
 
     static bool surface_compatible(const runtime::SurfaceDesc& a,
-                                   const runtime::SurfaceDesc& b) {
-        return a.width == b.width && a.height == b.height && a.format == b.format &&
-               a.residency == b.residency;
-    }
+                                   const runtime::SurfaceDesc& b);
 
     // DEMOLISHED (P1.4): preallocate_plan_surfaces removed — the surface
     // authority materializes lazily from the compiled plan.

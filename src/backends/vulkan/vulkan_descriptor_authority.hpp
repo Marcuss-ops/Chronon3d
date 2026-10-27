@@ -13,7 +13,8 @@ namespace chronon3d::backends::vulkan {
 
 // Shared Vulkan result boundary is defined by vulkan_backend_impl.hpp in every
 // translation unit that instantiates this private allocator.
-inline void check(VkResult result, const char* operation);
+// Definition lives in vulkan_backend_impl_detail.cpp (issue #52).
+void check(VkResult result, const char* operation);
 
 // Owns one geometrically growing family of resettable descriptor pools.
 // Allocation policy lives here so callers cannot create ad-hoc frame pools.

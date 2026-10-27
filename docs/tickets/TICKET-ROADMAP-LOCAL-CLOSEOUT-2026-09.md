@@ -77,8 +77,11 @@ software hit test, so shear is exact. The bounding-box extent `w * hypot(M_col)`
 is a correct bound for a Euclidean local offset under any affine map. Test
 `Vulkan closed-shape strokes match software pixels under shear` (three
 alignments, 36,879 pixel assertions) passes; the previous rejection test was
-replaced because it encoded the old contract. Fill-only shear still fails
-closed, and masks remain unsupported and fail closed.
+replaced because it encoded the old contract. Closed solid strokes also apply
+the cached layer-mask coverage in the native shader. The focused test
+`Vulkan closed-shape strokes match software pixels under layer masks` passed
+1/1 cases and 36,879/36,879 pixel assertions on 2026-10-26. Fill-only shear,
+fill-only masks, and path masks still fail closed.
 
 The nine shape/alignment combinations in `test_vulkan_debug_context.cpp` use
 the certified solid-stroke subset. On 2026-10-04, `chronon3d_vulkan_debug_context_tests`

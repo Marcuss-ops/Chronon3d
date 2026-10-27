@@ -114,17 +114,27 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_lifecycle.cpp
     vulkan_backend_stats.cpp
     vulkan_backend_surface_api.cpp
+    vulkan_backend_surface_api_ops_private.cpp
+    vulkan_backend_surface_api_effects_private.cpp
+    vulkan_backend_impl_detail.cpp
     vulkan_backend_impl_surface_state.cpp
     vulkan_backend_surface_upload.cpp
     vulkan_backend_cuda_surface_api_private.cpp
     vulkan_backend_lifecycle_private.cpp
+    vulkan_backend_lifecycle_layouts_private.cpp
+    vulkan_backend_lifecycle_pipelines_private.cpp
+    vulkan_backend_lifecycle_pipelines_draw_private.cpp
     vulkan_descriptor_arena_private.cpp
     vulkan_surface_store_private.cpp
     vulkan_surface_retirement_core.cpp
     vulkan_surface_retirement.cpp
     vulkan_kernel_record_private.cpp
+    vulkan_kernel_record_composite_private.cpp
+    vulkan_kernel_record_text_private.cpp
     vulkan_kernel_replay_private.cpp
     vulkan_backend_operations_private.cpp
+    vulkan_backend_operations_filter_private.cpp
+    vulkan_backend_operations_color_private.cpp
     vulkan_backend_text_ops_private.cpp
     vulkan_backend_layer_ops_private.cpp
     vulkan_backend_resources_private.cpp

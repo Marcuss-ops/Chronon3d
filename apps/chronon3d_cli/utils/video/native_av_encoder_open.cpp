@@ -788,6 +788,18 @@ bool NativeAvEncoder::try_adopt_codec_session() {
     }
     auto session = detail::acquire_codec_session(codec_session_fingerprint_);
     if (!session || !session->codec) return true;
+    // Fix 5 — only an UNFLUSHED parked session is adoptable: an EOS-flushed
+    // codec rejects new frames forever (FFmpeg, verified empirically
+    // 2026-10-26), so adopting one would fail on the first write_frame. The
+    // park site self-certifies `unflushed`; anything else is discarded here
+    // fail-closed (the session destructor frees the codec).
+    if (!session->unflushed) {
+        spdlog::warn(
+            "[native_av] discarded parked codec session for fingerprint '{}': "
+            "only unflushed sessions can be adopted",
+            codec_session_fingerprint_);
+        return true;
+    }
     // Replace the context phase 3 just allocated with the cached, already
     // open one. The per-instance surface state configured in phase 3 (CUDA
     // refs, stream, compositor warm-up) stays as configured; the cached codec
@@ -797,14 +809,15 @@ bool NativeAvEncoder::try_adopt_codec_session() {
     session->codec = nullptr;
     bitstream_contract_ = session->contract;
     bitstream_contract_probed_ = true;
-    // The parked session ended in draining state: reset the codec for a new
-    // frame/PTS timeline. The first frame of the new container is forced
-    // intra so this item's MP4 starts on a keyframe.
+    // Reset the codec for the new frame/PTS timeline. The first frame of the
+    // new container is forced intra (session_restart_intra_pending_) so this
+    // item's MP4 starts on a keyframe and the adopted codec's previous GOP
+    // cannot leak into the new stream.
     avcodec_flush_buffers(codec_);
     codec_session_adopted_ = true;
     session_restart_intra_pending_ = true;
     spdlog::info(
-        "[native_av] codec session adopted for cross-item reuse (fingerprint '{}')",
+        "[native_av] codec session adopted for cross-job reuse (fingerprint '{}')",
         codec_session_fingerprint_);
     return true;
 }

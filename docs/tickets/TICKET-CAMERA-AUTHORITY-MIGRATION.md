@@ -508,3 +508,22 @@ device-resident and synchronize only at the requested terminal consumer.
 References: [EffectCraft architecture](https://github.com/storytold/effectcraft/blob/main/docs/architecture.md),
 [GPU/CPU parity measurements](https://github.com/storytold/effectcraft/blob/main/docs/target-app-parity.md),
 [project license](https://github.com/storytold/effectcraft#license-and-credits).
+
+### Local adapter closeout build (2026-10-26)
+
+- Repaired the split ChrononMotion3D RenderPlan adapter sources: shared lowering
+  helpers are included by the main lowering unit, geometry uses the canonical
+  RenderPlan path-command type, and layer validation has balanced scope.
+- `chrononmotion_chronon3d_adapter` builds and links in the video-enabled C3D
+  configuration with `-j16`. `chronon3d_motion_plan_adapter_tests` passes
+  10/10 cases and 159 assertions. The camera test now checks the documented
+  compatibility mapping for the legacy `dof.aperture` wire field
+  (`blurGainFromFStop(2.8)`) while f/stop remains the authored optical value.
+- `linux-fast-dev` builds `chronon3d_dev_fast` with `-j16`; camera tests pass
+  73/73 cases and 65,799 assertions. Daemon concurrency passes 25/25 cases and
+  163 assertions, and node-memory telemetry passes its focused case (11
+  assertions).
+- This closes local adapter build and value-transport checks only. The GPU is
+  currently occupied by pre-existing Chronon daemons and another compute
+  process, so no new camera or VRAM render was launched. Full optical,
+  all-frame shutter, and integrated T16–T18 certification remains open.

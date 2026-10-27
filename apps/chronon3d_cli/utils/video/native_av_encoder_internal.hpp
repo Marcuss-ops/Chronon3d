@@ -26,11 +26,11 @@ using NativeAvClock = std::chrono::steady_clock;
 // MP4 container (the MP4-per-item contract with the final worker is
 // preserved: one muxer, one PTS timeline, one forced-IDR start per item).
 //
-// This cache is intentionally disabled for now. A finalized MP4 requires
-// sending encoder EOF, after which FFmpeg rejects new frames even if
-// avcodec_flush_buffers is called. Reuse can only be restored when a batch
-// writer owns the complete unflushed codec lifetime and splits independent
-// containers at certified packet boundaries.
+// Cross-job adoption is disabled even with CHRONON_ENCODER_SESSION_REUSE=1:
+// EOS-flushed codecs reject new frames, and packet-complete unflushed codecs
+// can retain adaptive rate-control history and change the next job's pixels.
+// A certified packet boundary alone does not prove independent-render parity.
+// P4's single-session segmented writer does not use this cross-job cache.
 
 /// One cached, still-open codec session with the contract of its live
 /// bitstream. `codec` is transferred in and out of the struct: whichever side
@@ -39,6 +39,11 @@ struct CodecSession {
     AVCodecContext* codec{nullptr};
     BitstreamTargetContract contract{};
     std::string fingerprint{};
+    // Self-certified by the park site: true only when close() parked this
+    // session WITHOUT an EOS flush (certified packet boundary). Only such
+    // sessions may be cached or adopted — an EOS-flushed codec rejects new
+    // frames forever, so adopting one would fail on the first write.
+    bool unflushed{false};
 
     CodecSession() = default;
     ~CodecSession();
@@ -46,9 +51,8 @@ struct CodecSession {
     CodecSession& operator=(const CodecSession&) = delete;
 };
 
-/// Reuse of an encoder after a finalized MP4 is not supported by FFmpeg.
-/// Kept as a capability seam; returns false until a batch muxer owns the
-/// unflushed session lifecycle.
+/// Cross-job codec-session capability seam; currently always false until
+/// independent-render pixel parity is certified for a supported configuration.
 [[nodiscard]] bool codec_session_reuse_enabled() noexcept;
 
 /// Returns the cached session when the cache holds one AND its fingerprint
@@ -59,8 +63,8 @@ struct CodecSession {
 
 /// Parks a healthy finished session for the next same-configuration open.
 /// The single cache slot is replaced atomically (the displaced session is
-/// destroyed). A null session, disabled reuse or an empty fingerprint frees
-/// instead of caching.
+/// destroyed). A null session, disabled reuse, an empty fingerprint or a
+/// session that is not `unflushed` frees instead of caching — fail-closed.
 void release_codec_session(std::shared_ptr<CodecSession> session) noexcept;
 
 } // namespace chronon3d::cli::detail

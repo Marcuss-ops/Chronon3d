@@ -15,6 +15,26 @@ concurrency e protocollo IPC `RENDER_BATCH` verificati con successo:
 (4/4 pass, 24 assert). Resta la misura multi-shape su cluster GPU esterno.
 Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
 
+### Aggiornamento evidence 2026-10-23 — pool a tre daemon
+
+Il report [`vram_three_runtime_pool_2026-10-23.json`](../../../RenderingGen/multilingual_overlays_v1/evidence/vram_three_runtime_pool_2026-10-23.json)
+registra tre daemon posseduti che renderizzano in parallelo lo stesso piano
+overlay 1920×1080: 418 campioni a 20 ms, incremento GPU di picco 3.1 GiB e
+incremento attribuito ai daemon di 3.15 GiB; i tre output sono identici. Il
+campione conferma l’overlap per questa sola shape. Il report dichiara
+esplicitamente che non autorizza la rimozione del mutex: mancano le altre shape
+(sorgente video FullGraph, DirectYUV e 4K) e i dati dell’allocator interno. La
+GPU locale è attualmente occupata da processi preesistenti, quindi non ho
+avviato nuove misure che contaminerebbero il campionamento.
+
+La matrice locale [`vram-calibration-suite-2026-10-26.json`](../../tools/fixtures/vram-calibration-suite-2026-10-26.json)
+ora specifica overlay-only, video-sorgente FullGraph e overlay 4K con tre
+ripetizioni ciascuno. `go run ./cmd/vram-probe -mode calibration-suite
+-shape-manifest <manifest> -dry-run -out <report>` risolve e valida i piani:
+**3 shape, 9 run, nessun rendering**. DirectYUV resta fuori perché non è
+disponibile un piano fixture certificabile per quel percorso. La matrice è
+pronta, ma non sostituisce le misure runtime né la telemetria interna VMA.
+
 ## Implementazione verificabile locale — static island / temporal / batch
 
 - `CompiledProgram` possiede uno `TemporalUpdateSchedule` per nodo e proprietà;

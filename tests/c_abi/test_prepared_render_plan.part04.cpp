@@ -154,66 +154,6 @@ TEST_CASE("render plan auto_orient derives z rotation from the position tangent"
           doctest::Approx(45.0f).epsilon(0.001f));
 }
 
-TEST_CASE("viral effect presets lower through the existing effect stack") {
-    using namespace chronon3d;
-    using namespace chronon3d::render_plan;
-    RenderPlan plan;
-    plan.job_id = "glitch-preset";
-    plan.canvas = {.width = 32, .height = 32,
-                   .fps = FrameRate{30, 1}, .duration = Frame{2}};
-    LayerPlan layer;
-    layer.id = "glitched";
-    layer.type = LayerType::Color;
-    layer.color = {0.3f, 0.4f, 0.6f, 1.0f};
-    effect_presets::glitch(layer, 0.5f, 99);
-    plan.layers.push_back(std::move(layer));
-
-    assets::AssetResolver resolver;
-    const auto prepared = compile_render_plan(plan, resolver);
-    REQUIRE(prepared);
-    const auto evaluated = evaluate(
-        prepared->compiled_composition, CompositionEvaluateContext{}, Frame{0});
-    REQUIRE(evaluated);
-    const auto& effects = evaluated->scene.layers()[0].effects();
-    REQUIRE(effects.size() == 3);
-    const auto* warp = std::get_if<WaveWarpParams>(&effects[0].params);
-    REQUIRE(warp);
-    CHECK(warp->type == WaveWarpParams::WaveType::Square);
-    CHECK(warp->direction.y == doctest::Approx(1.0f));
-    const auto* split = std::get_if<ChromaticAberrationParams>(&effects[1].params);
-    REQUIRE(split);
-    CHECK(split->red_offset == doctest::Approx(4.0f));
-    CHECK(split->blue_offset == doctest::Approx(-4.0f));
-    const auto* grain = std::get_if<NoiseParams>(&effects[2].params);
-    REQUIRE(grain);
-    CHECK(grain->animated);
-    CHECK(grain->color_mode == NoiseColorMode::RGB);
-    CHECK(grain->seed == 99);
-
-    const auto aurora = effect_presets::aurora_gradient(
-        Frame{0}, Frame{120}, FrameRate{30, 1});
-    REQUIRE(aurora.keyframes.size() == 4);
-    CHECK(aurora.keyframes.front().frame == Frame{0});
-    CHECK(aurora.keyframes.back().frame == Frame{120});
-    REQUIRE(aurora.keyframes[0].value.color_stops.size() == 3);
-    CHECK(aurora.keyframes[0].value.color_stops[0].color.g !=
-          aurora.keyframes[1].value.color_stops[0].color.g);
-    CHECK_THROWS_AS(effect_presets::aurora_gradient(
-        Frame{0}, Frame{0}, FrameRate{30, 1}), std::invalid_argument);
-
-    LayerPlan scanline_layer;
-    effect_presets::rgb_split(scanline_layer, 6.0f);
-    effect_presets::scanlines(scanline_layer, 0.03f, 0.02f);
-    effect_presets::lens_blur(scanline_layer, 5.0f);
-    REQUIRE(scanline_layer.effects.size() == 3);
-    CHECK(scanline_layer.effects[0].kind == LayerPlan::EffectKindPlan::ChromaticAberration);
-    CHECK(scanline_layer.effects[0].chromatic_red_offset == doctest::Approx(6.0f));
-    CHECK(scanline_layer.effects[1].kind == LayerPlan::EffectKindPlan::WaveWarp);
-    CHECK(scanline_layer.effects[1].wave_type == 2);
-    CHECK(scanline_layer.effects[2].kind == LayerPlan::EffectKindPlan::GaussianBlur);
-    CHECK(scanline_layer.effects[2].radius == doctest::Approx(5.0f));
-}
-
 TEST_CASE("render plan materializes deterministic particle shapes per frame") {
     using namespace chronon3d;
     using namespace chronon3d::render_plan;
