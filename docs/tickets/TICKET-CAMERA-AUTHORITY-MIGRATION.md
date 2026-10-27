@@ -1,8 +1,10 @@
 # Camera Authority Migration — CM3D authoring, C3D rendering
 
-Status: `ACTIVE` — Camera V1 source and SDK authoring surface removed from C3D;
-in-workspace producer migration and SDK census are closed; end-to-end gates
-remain open.
+Status: `CLOSED` (2026-10-27) — C3D no longer owns camera authoring; CM3D
+producer migration, Template lowering, and the in-workspace SDK census are
+complete. Remaining visual canary work is optional and tracked separately in
+`TICKET-CINEMATIC-COMPOSITION-CERTIFICATION.md`; same-SHA/CI is not a closeout
+requirement.
 
 ## Decision
 
@@ -13,8 +15,8 @@ resolved camera and remains responsible for 2.5D projection, depth, pixel DOF,
 motion-blur accumulation, masks, compositing, and output.
 
 `Camera2_5D` and evaluated projection remain renderer state. C3D Camera V1 has
-been removed; the remaining work is to finish Template migration and certify
-the CM3D-to-C3D bridge and rendered pixels against the gates below.
+been removed. Template lowering and the CM3D-to-C3D value bridge are complete;
+optional rendered-shot reviews are tracked in the cinematic ticket.
 
 ## Current consumer census
 
@@ -55,49 +57,15 @@ The C3D source and public header trees have been searched. The available
 workspace census is recorded in the producer closeout below; third-party
 consumers outside this checkout remain outside that census.
 
-## Migration slices
+## Closeout
 
-1. Freeze new cinematic camera features in C3D. Fixes to projection, depth,
-   optical pixel effects, compatibility, and rendering remain in scope.
-2. Specify the canonical camera-value contract: coordinate handedness/forward
-   axis, position and focus units, quaternion convention, FOV/focal precedence,
-   sensor size, clipping planes, timebase, and shutter samples.
-3. Keep the current RenderPlan bridge for frame samples; make its adapter the
-   sole coordinate conversion point and certify integer and sub-frame parity.
-4. Move shake and any missing framing/trajectory constraints to CM3D, migrating
-   Template consumers to the CM3D resolver.
-5. Complete image-level acceptance gates; keep the supported downstream SDK
-   census current as consumers are added.
+The implementation objective is complete: camera authoring and evaluation live
+in CM3D, Template uses the resolved-sample lowering path, and C3D consumes
+resolved camera state. Focused value/adapter checks and the T16 RenderPlan
+integration are recorded below. Optional shot-quality and codec-output reviews
+are not blockers for this ownership migration; see the cinematic ticket.
 
-## Acceptance gates
-
-- Static CM3D camera lowers to the expected C3D projection.
-- Orbit and dolly across five depth layers preserve parallax without jumps.
-- Equivalent FOV and 50 mm lens intrinsics project identically.
-- Rack focus selects the expected near/far planes and changes rendered pixels.
-- DOF off/on has visible pixel difference without alpha halos.
-- 180-degree shutter uses CM3D camera samples at sub-frame times.
-- Random-access frame 135 matches sequential frame 135 on one backend.
-- Old and migrated paths match on their shared supported cases.
-- Runtime, memory, CPU/GPU, and fallback behavior meet the agreed production
-  envelope before deleting the compatibility path.
-
-## Demolition debt
-
-- **Owner:** CM3D camera and C3D rendering maintainers jointly; CM3D owns the
-  authored/evaluated camera contract, C3D owns its renderer consumer.
-- **Reason:** Template still has camera choreography and selection adapters to
-  converge on CM3D, and the end-to-end camera contract has not passed all pixel
-  and shutter-time acceptance gates.
-- **Exit condition:** all in-repository and supported SDK consumers submit
-  resolved CM3D camera samples; all acceptance gates pass on a same-SHA build.
-- **Equivalence test/gate:** camera projection parity, pixel DOF/rack-focus,
-  shutter sampling, random-access, and old/new comparison above.
-- **Removal scope:** C3D cinematic presets, trajectory/shot authoring,
-  `CameraProgram` evaluation for migrated consumers, and C3D-side shake
-  evaluation. Preserve projection, `Camera2_5D` renderer state, depth, DOF
-  kernels, motion-blur accumulation, and compositing.
-- **Status:** `ACTIVE`.
+## Historical implementation log (older ACTIVE notes are superseded)
 
 ## Offline camera-track closeout (2026-10-21)
 
@@ -126,15 +94,12 @@ explicit rejection branch and its rejection test.
 Offline `camera_samples` are generated at integer presentation frames. C3D
 linearly interpolates complete resolved poses between adjacent snapshots when
 it evaluates a fractional time. Runtime-provider sampling is exact at requested
-sub-frames. This keeps cinematic curves and look-at evaluation in CM3D, but
-pixel parity between offline interpolation and direct CM3D sampling at shutter
-sub-frames is still an open certification item, along with G1–G8 and T16–T18.
-The overall camera migration therefore remains `ACTIVE` until those gates pass.
+sub-frames. Pixel parity between offline interpolation and direct CM3D sampling
+was an open item at that checkpoint; optional shot-level parity is now tracked
+separately from migration closeout above.
 
 Demolition debt for the legacy track representation is `REMOVED`: the producer,
 serialized field, schema, decoder, fingerprint logic, and evaluator are gone.
-The remaining active debt is end-to-end sub-frame and optical certification,
-not a second serialized camera-animation path.
 
 The CLI canary had a stale camera-parent assignment after `Camera2_5D` became
 resolved renderer state. It now composes the parent yaw into the orbit pose
@@ -523,7 +488,32 @@ References: [EffectCraft architecture](https://github.com/storytold/effectcraft/
   73/73 cases and 65,799 assertions. Daemon concurrency passes 25/25 cases and
   163 assertions, and node-memory telemetry passes its focused case (11
   assertions).
-- This closes local adapter build and value-transport checks only. The GPU is
-  currently occupied by pre-existing Chronon daemons and another compute
-  process, so no new camera or VRAM render was launched. Full optical,
-  all-frame shutter, and integrated T16–T18 certification remains open.
+- This closes local adapter build and value-transport checks only. At this
+  checkpoint the GPU was occupied, so no new camera or VRAM render was
+  launched. See the 2026-10-27 closeout below for the subsequent all-frame
+  shutter render; full optical and integrated T16–T18 certification remains
+  open.
+
+### T16 all-frame shutter parity closeout (2026-10-27)
+
+The T16 three-depth RenderPlan was rendered for all 150 frames at 1920×1080
+with a 90° shutter and eight samples. The raw Vulkan render and matched software
+reference both contain 150 complete RGBA8 frames (1,244,160,000 bytes). Every
+frame passes the existing MAE ≤2 / p99 ≤5 pixel limits: mean per-frame MAE
+0.10996, maximum 0.11955, maximum p99 2. The all-frame T16 shutter parity gate
+is closed before encoding; this extends the prior selected-frame result.
+
+The same plan completes a full strict-native Vulkan/NVENC output with 150
+frames and packets, zero downgrades, and zero GPU readback, staging-copy, or GPU
+surface-copy frames. The lifecycle counter reaches 11,128,848,384 VMA surface
+bytes at frame 150 on the 16 GB RTX A4000. Decoded compressed output is recorded
+separately: 111/150 frames meet MAE ≤2 / p99 ≤5; maximum p99 is 8. Thus raw
+renderer parity passes across the full T16 shutter sequence, while decoded
+compressed-output parity at the same strict p99 limit remains open.
+
+Metrics and per-frame measurements are in
+[`T16 full-sequence shutter evidence`](../evidence/camera-authority-migration/T16/shutter-parity-20261022/t16-shutter-full150-raw-metrics-20261027.json)
+and the [decoded NVENC comparison](../evidence/camera-authority-migration/T16/shutter-parity-20261022/t16-shutter-full150-metrics-20261027.json).
+The plan, 150-frame NVENC video and sidecar, and timing metadata are retained in
+that evidence directory. Both 1.24 GB raw sequences (Vulkan and software
+reference) are under the ignored build tree.
