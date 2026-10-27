@@ -35,6 +35,7 @@ void apply_mesh_warp(Framebuffer& fb, const MeshWarpParams& params,
                      ::chronon3d::EffectScratchResources& scratch,
                      const std::optional<raster::BBox>& clip = std::nullopt);
 void apply_roughen_edges(Framebuffer& fb, const RoughenEdgesParams& params,
+                         ::chronon3d::EffectScratchResources& scratch,
                          float time_seconds = 0.0f,
                          const std::optional<raster::BBox>& clip = std::nullopt);
 void apply_turbulent_displace(Framebuffer& fb, const TurbulentDisplaceParams& params, float time_seconds,

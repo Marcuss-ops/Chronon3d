@@ -97,16 +97,20 @@ template <AnimatableValue T>
             throw std::runtime_error("offset loop mode requires a numeric or vector value");
     };
 
-    // Linear scan for keyframe segment (uses > to correctly handle
-    // duplicate frames — matches upper_bound behavior).
-    size_t idx = 0;
-    for (size_t i = 0; i + 1 < m_keyframes.size(); ++i) {
-        if (static_cast<double>(m_keyframes[i + 1].frame) > eval_frame) {
-            idx = i;
-            break;
-        }
-        idx = i + 1;
-    }
+    // Segment lookup: upper_bound returns the first keyframe strictly after
+    // eval_frame; stepping back one yields the last keyframe at or before it —
+    // exactly what the previous linear scan produced for duplicate frames
+    // (the scan broke on the first `frame > eval_frame`).  O(log n) instead of
+    // O(n) per evaluation, which matters for imported motion/Lottie tracks
+    // with thousands of keyframes.
+    const auto after = std::upper_bound(
+        m_keyframes.begin(), m_keyframes.end(), eval_frame,
+        [](double frame_value, const auto& keyframe) {
+            return frame_value < static_cast<double>(keyframe.frame);
+        });
+    const size_t idx = (after == m_keyframes.begin())
+        ? size_t{0}
+        : static_cast<size_t>(after - m_keyframes.begin() - 1);
     if (idx + 1 >= m_keyframes.size()) {
         return apply_cycle_offset(m_keyframes.back().value);
     }

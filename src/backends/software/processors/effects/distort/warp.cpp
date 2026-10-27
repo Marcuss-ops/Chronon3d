@@ -5,6 +5,7 @@
 #include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <numbers>
 #include <stdexcept>
 
@@ -222,8 +223,9 @@ void apply_mesh_warp(Framebuffer& fb, const MeshWarpParams& params,
     }
 }
 
-void apply_roughen_edges(Framebuffer& fb, const RoughenEdgesParams& p, float time_seconds,
-                         const std::optional<raster::BBox>& clip) {
+void apply_roughen_edges(Framebuffer& fb, const RoughenEdgesParams& p,
+                         ::chronon3d::EffectScratchResources& scratch,
+                         float time_seconds, const std::optional<raster::BBox>& clip) {
     if (!std::isfinite(p.amount) || p.amount < 0.0f || p.amount > 64.0f ||
         !std::isfinite(p.scale) || p.scale <= 0.0f || p.scale > 1024.0f ||
         p.complexity < 1 || p.complexity > 4 || !std::isfinite(p.evolution) ||
@@ -240,29 +242,27 @@ void apply_roughen_edges(Framebuffer& fb, const RoughenEdgesParams& p, float tim
     }
     if (x0 >= x1 || y0 >= y1 || p.amount == 0.0f) return;
 
+    // Color is exactly 4 contiguous floats (math/color.hpp): packing the
+    // frame into the kernel's tight RGBA layout is a per-row memcpy, not a
+    // per-pixel deinterleave.  The scratch buffer persists across frames, so
+    // steady-state allocations stay at zero.
     const std::size_t count = static_cast<std::size_t>(width) *
                               static_cast<std::size_t>(height) * 4;
-    std::vector<float> pixels(count);
+    std::vector<float>& pixels = scratch.rgba_scratch;
+    pixels.resize(count);
     for (int y = 0; y < height; ++y) {
-        const Color* row = fb.pixels_row(y);
-        for (int x = 0; x < width; ++x) {
-            const std::size_t i = (static_cast<std::size_t>(y) * width + x) * 4;
-            pixels[i] = row[x].r;
-            pixels[i + 1] = row[x].g;
-            pixels[i + 2] = row[x].b;
-            pixels[i + 3] = row[x].a;
-        }
+        std::memcpy(pixels.data() + static_cast<std::size_t>(y) * width * 4,
+                    fb.pixels_row(y),
+                    static_cast<std::size_t>(width) * sizeof(Color));
     }
     effects::distort::roughen_edges_rgba(pixels, width, height,
         effects::distort::RoughenEdgesKernelParams{
             .amount = p.amount, .scale = p.scale, .octaves = p.complexity,
             .evolution = p.evolution + p.evolution_speed * time_seconds, .seed = p.seed});
     for (int y = y0; y < y1; ++y) {
-        Color* row = fb.pixels_row(y);
-        for (int x = x0; x < x1; ++x) {
-            const std::size_t i = (static_cast<std::size_t>(y) * width + x) * 4;
-            row[x] = Color{pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]};
-        }
+        std::memcpy(fb.pixels_row(y) + x0,
+                    pixels.data() + (static_cast<std::size_t>(y) * width + x0) * 4,
+                    static_cast<std::size_t>(x1 - x0) * sizeof(Color));
     }
 }
 

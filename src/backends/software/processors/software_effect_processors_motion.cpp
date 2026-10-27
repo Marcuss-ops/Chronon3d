@@ -115,7 +115,7 @@ public:
                const effects::EffectExecutionContext& context) override {
         const auto* p = std::get_if<RoughenEdgesParams>(&params);
         if (!p) throw std::runtime_error("RoughenEdges processor received invalid parameters");
-        apply_roughen_edges(fb, *p, context.time_seconds, context.clip);
+        apply_roughen_edges(fb, *p, *context.effect_scratch, context.time_seconds, context.clip);
     }
 };
 

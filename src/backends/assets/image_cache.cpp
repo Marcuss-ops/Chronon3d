@@ -14,6 +14,7 @@
 #include <cmath>
 #include <filesystem>
 #include <limits>
+#include <type_traits>
 
 namespace chronon3d {
 
@@ -54,53 +55,63 @@ void downscale_for_runtime(image::ImageBuffer& buffer, int max_dimension) {
 
     // Area-average: every target pixel is the coverage-weighted mean of the
     // source pixels its footprint covers. Premultiplied RGBA averages
-    // correctly under this rule.
-    for (int y = 0; y < target_height; ++y) {
-        const double src_y0 = (static_cast<double>(y) / target_height) * buffer.height;
-        const double src_y1 = (static_cast<double>(y + 1) / target_height) * buffer.height;
-        const int y0 = std::min(buffer.height - 1, static_cast<int>(src_y0));
-        const int y1 = std::min(buffer.height, std::max(y0 + 1, static_cast<int>(std::ceil(src_y1))));
-        for (int x = 0; x < target_width; ++x) {
-            const double src_x0 = (static_cast<double>(x) / target_width) * buffer.width;
-            const double src_x1 = (static_cast<double>(x + 1) / target_width) * buffer.width;
-            const int x0 = std::min(buffer.width - 1, static_cast<int>(src_x0));
-            const int x1 = std::min(buffer.width, std::max(x0 + 1, static_cast<int>(std::ceil(src_x1))));
+    // correctly under this rule.  The buffer kind (u8 vs f32 linear) is
+    // loop-invariant: the kernel is instantiated once per kind instead of
+    // branching on `buffer.pixels` per sample and per channel.  Same
+    // arithmetic, same accumulation order — bit-identical output.
+    const auto store_mean = [](auto* target, std::size_t offset, double mean) {
+        using Channel = std::remove_reference_t<decltype(target[offset])>;
+        if constexpr (std::is_same_v<Channel, u8>) {
+            target[offset] = static_cast<u8>(std::lround(std::clamp(mean, 0.0, 255.0)));
+        } else {
+            target[offset] = static_cast<float>(mean);
+        }
+    };
+    const auto downsample = [&](auto* source, auto* target) {
+        for (int y = 0; y < target_height; ++y) {
+            const double src_y0 = (static_cast<double>(y) / target_height) * buffer.height;
+            const double src_y1 = (static_cast<double>(y + 1) / target_height) * buffer.height;
+            const int y0 = std::min(buffer.height - 1, static_cast<int>(src_y0));
+            const int y1 = std::min(buffer.height, std::max(y0 + 1, static_cast<int>(std::ceil(src_y1))));
+            for (int x = 0; x < target_width; ++x) {
+                const double src_x0 = (static_cast<double>(x) / target_width) * buffer.width;
+                const double src_x1 = (static_cast<double>(x + 1) / target_width) * buffer.width;
+                const int x0 = std::min(buffer.width - 1, static_cast<int>(src_x0));
+                const int x1 = std::min(buffer.width, std::max(x0 + 1, static_cast<int>(std::ceil(src_x1))));
 
-            double acc[4] = {0.0, 0.0, 0.0, 0.0};
-            double weight_sum = 0.0;
-            for (int sy = y0; sy < y1; ++sy) {
-                const double wy = std::min(src_y1, static_cast<double>(sy) + 1.0) -
-                                  std::max(src_y0, static_cast<double>(sy));
-                for (int sx = x0; sx < x1; ++sx) {
-                    const double wx = std::min(src_x1, static_cast<double>(sx) + 1.0) -
-                                      std::max(src_x0, static_cast<double>(sx));
-                    const double weight = wx * wy;
-                    if (weight <= 0.0) {
-                        continue;
+                double acc[4] = {0.0, 0.0, 0.0, 0.0};
+                double weight_sum = 0.0;
+                for (int sy = y0; sy < y1; ++sy) {
+                    const double wy = std::min(src_y1, static_cast<double>(sy) + 1.0) -
+                                      std::max(src_y0, static_cast<double>(sy));
+                    for (int sx = x0; sx < x1; ++sx) {
+                        const double wx = std::min(src_x1, static_cast<double>(sx) + 1.0) -
+                                          std::max(src_x0, static_cast<double>(sx));
+                        const double weight = wx * wy;
+                        if (weight <= 0.0) {
+                            continue;
+                        }
+                        const auto source_offset =
+                            (static_cast<std::size_t>(sy) * buffer.width + sx) * 4;
+                        for (int c = 0; c < 4; ++c) {
+                            const double value = static_cast<double>(source[source_offset + c]);
+                            acc[c] += value * weight;
+                        }
+                        weight_sum += weight;
                     }
-                    const auto source_offset =
-                        (static_cast<std::size_t>(sy) * buffer.width + sx) * 4;
-                    for (int c = 0; c < 4; ++c) {
-                        const double value = buffer.pixels
-                            ? static_cast<double>(buffer.pixels[source_offset + c])
-                            : static_cast<double>(buffer.linear_pixels[source_offset + c]);
-                        acc[c] += value * weight;
-                    }
-                    weight_sum += weight;
                 }
-            }
 
-            const auto target_offset = (static_cast<std::size_t>(y) * target_width + x) * 4;
-            for (int c = 0; c < 4; ++c) {
-                const double mean = acc[c] / weight_sum;
-                if (buffer.pixels) {
-                    resized_bytes[target_offset + c] = static_cast<u8>(
-                        std::lround(std::clamp(mean, 0.0, 255.0)));
-                } else {
-                    resized_linear[target_offset + c] = static_cast<float>(mean);
+                const auto target_offset = (static_cast<std::size_t>(y) * target_width + x) * 4;
+                for (int c = 0; c < 4; ++c) {
+                    store_mean(target, target_offset + c, acc[c] / weight_sum);
                 }
             }
         }
+    };
+    if (buffer.pixels) {
+        downsample(buffer.pixels.get(), resized_bytes.get());
+    } else {
+        downsample(buffer.linear_pixels.get(), resized_linear.get());
     }
 
     spdlog::info("ImageCache: downscaled runtime image ({}x{} -> {}x{}, cap={})",
