@@ -1,0 +1,20 @@
+{
+  "schema": "renderinggen.vram-calibration-suite.v1",
+  "shapes": [
+    {
+      "label": "overlay-only",
+      "plan": "vram-calibration-1080p-overlay.plan.json",
+      "repeat": 3
+    },
+    {
+      "label": "video-source-fullgraph",
+      "plan": "vram-calibration-1080p-video.plan.json",
+      "repeat": 3
+    },
+    {
+      "label": "4k-overlay",
+      "plan": "vram-calibration-4k-overlay.plan.json",
+      "repeat": 3
+    }
+  ]
+}

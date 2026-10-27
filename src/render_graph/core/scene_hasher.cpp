@@ -41,6 +41,62 @@ uint64_t hash_clip_transition(const SceneClipTransition& transition) {
     return h;
 }
 
+bool has_live_effect_parameter_animation(const Layer& layer, Frame frame) {
+    for (const auto& effect : layer.effects()) {
+        if (!effect.enabled) continue;
+        for (const auto& track : effect.parameter_tracks) {
+            if (!track.keyframes.empty() &&
+                frame.integral() <= track.keyframes.back().frame) return true;
+        }
+    }
+    return false;
+}
+
+bool has_live_svg_group_animation(const Layer& layer, Frame frame) {
+    for (const auto& node : layer.nodes) {
+        const auto live = [frame](const auto& group) {
+            return group.opacity_animation &&
+                frame.integral() <= group.opacity_animation->end_frame;
+        };
+        if (std::any_of(node.svg_groups.begin(), node.svg_groups.end(), live) ||
+            (node.svg_group && live(*node.svg_group))) return true;
+    }
+    return false;
+}
+
+uint64_t hash_effect_parameters_at(const Layer& layer, Frame frame) {
+    uint64_t hash = 0;
+    for (const auto& effect : layer.effects()) {
+        if (!effect.enabled) continue;
+        for (const auto& track : effect.parameter_tracks) {
+            if (track.keyframes.empty()) continue;
+            const auto current = frame.integral();
+            float value = track.keyframes.front().value;
+            if (current >= track.keyframes.back().frame) {
+                value = track.keyframes.back().value;
+            } else {
+                for (std::size_t i = 0; i + 1 < track.keyframes.size(); ++i) {
+                    const auto& left = track.keyframes[i];
+                    const auto& right = track.keyframes[i + 1];
+                    if (current >= right.frame) continue;
+                    if (!left.hold && right.frame > left.frame) {
+                        const float t = static_cast<float>(current - left.frame) /
+                            static_cast<float>(right.frame - left.frame);
+                        value = left.value + (right.value - left.value) * t;
+                    } else {
+                        value = left.value;
+                    }
+                    break;
+                }
+            }
+            hash = hash_combine(hash, hash_string(effect.descriptor.id));
+            hash = hash_combine(hash, hash_string(track.param));
+            hash = hash_combine(hash, hash_value(value));
+        }
+    }
+    return hash;
+}
+
 // Topology-only variants deliberately omit transition timing and visual
 // parameters. Those values affect per-frame evaluation, not the emitted
 // node/edge topology, and are handled by the dynamic refresh path.
@@ -210,6 +266,7 @@ uint64_t SceneHasher::compute_dynamic_fingerprint(const Scene& scene, Frame fram
     // Keep that distinction explicit: this fingerprint gates pixel reuse,
     // not compiled graph reuse.
     for (const auto& layer : scene.layers()) {
+        h = hash_combine(h, hash_effect_parameters_at(layer, frame));
         if (layer.kind == LayerKind::Video && layer.video_source &&
             layer.active_at(frame)) {
             h = hash_combine(h, hash_string(layer.name));
@@ -236,6 +293,13 @@ uint64_t SceneHasher::hash_layer(const Layer& layer) {
     h = hash_combine(h, layer.screen_space ? 1 : 0);
     h = hash_combine(h, layer.cache_static ? 1 : 0);
     h = hash_combine(h, static_cast<u64>(layer.blend_mode));
+    for (const auto& group : layer.lottie_precomp_groups) {
+        h = hash_combine(h, hash_string(group.id));
+        h = hash_combine(h, hash_value(group.opacity));
+        h = hash_combine(h, group.opacity_active ? 1ULL : 0ULL);
+        h = hash_combine(h, static_cast<u64>(group.blend_mode));
+        h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
+    }
     h = hash_combine(h, static_cast<u64>(layer.composite_operator));
     h = hash_combine(h, hash_transform(layer.transform));
     h = hash_combine(h, hash_mask(layer.mask));
@@ -274,6 +338,13 @@ uint64_t SceneHasher::hash_layer_structure(const Layer& layer) {
     // per-frame render value.
     h = hash_combine(h, layer.cache_static ? 1ULL : 0ULL);
     h = hash_combine(h, static_cast<u64>(layer.blend_mode));
+    h = hash_combine(h, static_cast<u64>(layer.lottie_precomp_groups.size()));
+    for (const auto& group : layer.lottie_precomp_groups) {
+        h = hash_combine(h, hash_string(group.id));
+        h = hash_combine(h, group.opacity_active ? 1ULL : 0ULL);
+        h = hash_combine(h, static_cast<u64>(group.blend_mode));
+        h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
+    }
     // The current compositor contract emits SourceOver for this pass;
     // do not invalidate the graph on an authored operator that the builder
     // does not consume yet.
@@ -339,8 +410,14 @@ bool SceneHasher::layer_is_static(const Layer& layer) {
     if (layer.kind == LayerKind::Video) return false;
     if (layer.kind == LayerKind::Precomp) return false;
     if (layer.anim_transform.is_time_dependent()) return false;
+    if (std::any_of(layer.lottie_precomp_groups.begin(),
+                    layer.lottie_precomp_groups.end(),
+                    [](const auto& group) { return group.opacity_animated; }))
+        return false;
     if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
     if (layer.time_remap.time_remap.is_time_dependent()) return false;
+    if (has_live_effect_parameter_animation(layer, Frame{0})) return false;
+    if (has_live_svg_group_animation(layer, Frame{0})) return false;
     for (const auto& n : layer.nodes) {
         if (n.shape.type() == ShapeType::TextRun) {
             const auto handle = n.shape.text_run_shape_handle();
@@ -452,6 +529,10 @@ bool SceneHasher::layer_is_static_at(const Layer& layer, Frame frame) {
     if (layer.anim_transform.is_time_dependent() && !layer_animation_done_at(layer, frame)) {
         return false;
     }
+    if (std::any_of(layer.lottie_precomp_groups.begin(),
+                    layer.lottie_precomp_groups.end(),
+                    [](const auto& group) { return group.opacity_animated; }))
+        return false;
     // Layer transitions are authored in SECONDS and this boundary has no fps
     // to window them against, so any transition keeps the conservative
     // "frame-dependent" verdict (unchanged behaviour).  Overlay items — the
@@ -459,6 +540,8 @@ bool SceneHasher::layer_is_static_at(const Layer& layer, Frame frame) {
     // through anim_transform/text animators, which ARE windowed above.
     if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
     if (layer.time_remap.time_remap.is_time_dependent()) return false;
+    if (has_live_effect_parameter_animation(layer, frame)) return false;
+    if (has_live_svg_group_animation(layer, frame)) return false;
     for (const auto& n : layer.nodes) {
         if (n.shape.type() == ShapeType::TextRun) {
             const auto handle = n.shape.text_run_shape_handle();
@@ -478,6 +561,7 @@ bool SceneHasher::camera_is_static(const Camera2_5DRuntime& cam) {
 
 [[nodiscard]] bool SceneHasher::is_effectively_static_at(const Scene& scene, Frame frame) const {
     for (const auto& layer : scene.layers()) {
+        if (!layer.active_at(frame)) continue;
         if (!layer_is_static_at(layer, frame)) return false;
     }
     for (const auto& transition : scene.clip_transitions()) {

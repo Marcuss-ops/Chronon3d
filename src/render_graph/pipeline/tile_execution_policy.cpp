@@ -53,6 +53,17 @@ bool has_frame_dependent_content(const Scene& scene, Frame frame) {
     }
     for (const auto& layer : scene.layers()) {
         if (!layer.active_at(frame)) continue;
+        const bool animated_effect_parameter = std::any_of(
+            layer.effects().begin(), layer.effects().end(), [&](const auto& effect) {
+                if (!effect.enabled) return false;
+                return std::any_of(
+                    effect.parameter_tracks.begin(), effect.parameter_tracks.end(),
+                    [&](const auto& track) {
+                        return !track.keyframes.empty() &&
+                            frame.integral() <= track.keyframes.back().frame;
+                    });
+            });
+        if (animated_effect_parameter) return true;
         const auto has_transition = [](const LayerTransitionSpec& spec) {
             return !spec.transition_id.empty() && spec.transition_id != "none" &&
                    spec.duration > 0.0;
@@ -447,16 +458,24 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
     // only when the sink implements packet duplication; without it this
     // branch never fires and every path below is unchanged.
     if (ctx.policy.duplicate_static_frames && reuse.reuse.duplicate_frame_eligible) {
-        if (const auto previous_framebuffer = sw_renderer->buffer_ring().prev_framebuffer()) {
-            plan.duplicate_encoded_frame = true;
-            set_reuse_surface(plan, previous_framebuffer, "duplicate_static_frame");
-            plan.path = FrameExecutionPath::DuplicateFrame;
-            plan.dirty_region = raster::BBox{0, 0, 0, 0};
-            record_duplicate_frame(
-                sw_renderer, frame, camera, plan.frame_fingerprints.combined_fp,
-                ctx.policy.diagnostics_enabled);
-            return plan;
-        }
+        // Packet duplication needs the previous ENCODED packet and the
+        // fingerprint proof above. FullGraph/NVENC intentionally has no
+        // retained CPU framebuffer, so do not gate this path on the buffer
+        // ring or manufacture a framebuffer merely to carry history.
+        plan.duplicate_encoded_frame = true;
+        plan.path = FrameExecutionPath::DuplicateFrame;
+        plan.decode = false;
+        plan.render = false;
+        plan.composite = false;
+        plan.convert_to_rgb = false;
+        plan.convert_to_yuv = false;
+        plan.encode = true;
+        plan.dirty_region = raster::BBox{0, 0, 0, 0};
+        plan.reason = "duplicate_static_frame";
+        record_duplicate_frame(
+            sw_renderer, frame, camera, plan.frame_fingerprints.combined_fp,
+            ctx.policy.diagnostics_enabled);
+        return plan;
     }
 
     if (!has_frame_dependent_content(scene, frame) &&
@@ -510,6 +529,14 @@ FrameExecutionPlan ExecutionResolver::resolve(
     plan.dirty_region = dirty_out.dirty_rect;
     plan.dirty_tiles = dirty_out.dirty_tiles;
     plan.encode = encode_requested;
+
+    // Early resolution already proved frame identity and selected a packet
+    // duplicate. Preserve it before YUV/native lane policy chooses a render
+    // path; this plan has no framebuffer or pixel work by design.
+    if (plan.path == FrameExecutionPath::DuplicateFrame &&
+        plan.duplicate_encoded_frame) {
+        return plan;
+    }
 
     // CopyGop is evaluated before surface reuse because it replaces render and
     // encode work with packet muxing for a certified untouched segment.

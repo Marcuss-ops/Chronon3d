@@ -122,7 +122,8 @@
             "stylize.scanlines",
             "stylize.retro_tv",
             "light.halation",
-            "light.anamorphic_streak"
+            "light.anamorphic_streak",
+            "color.matrix"
           ]
         },
         "param": {
@@ -321,7 +322,8 @@
             "stylize.scanlines",
             "stylize.retro_tv",
             "light.halation",
-            "light.anamorphic_streak"
+            "light.anamorphic_streak",
+            "color.matrix"
           ]
         },
         "params": {
@@ -2965,6 +2967,9 @@
             "arc",
             "grid",
             "dot_grid",
+            "ring_segment",
+            "monotone_line",
+            "monotone_chart",
             "device_frame"
           ]
         },
@@ -3048,9 +3053,45 @@
           "minimum": 3,
           "maximum": 256
         },
+        "data_points": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4096,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"type": "number", "minimum": -100000, "maximum": 100000}
+          }
+        },
+        "x_domain": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {"type": "number", "minimum": -100000, "maximum": 100000}
+        },
+        "y_domain": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {"type": "number", "minimum": -100000, "maximum": 100000}
+        },
+        "plot_insets": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "items": {"type": "number", "minimum": 0, "maximum": 2048},
+          "description": "Pixel insets [top,right,bottom,left] inside the shape size."
+        },
+        "x_ticks": {"type": "integer", "minimum": 2, "maximum": 64},
+        "y_ticks": {"type": "integer", "minimum": 2, "maximum": 64},
+        "show_grid": {"type": "boolean"},
+        "show_axes": {"type": "boolean"},
+        "area_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "line_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "grid_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "axis_color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+        "line_width": {"type": "number", "minimum": 0.25, "maximum": 64},
+        "grid_width": {"type": "number", "minimum": 0.25, "maximum": 16},
+        "axis_width": {"type": "number", "minimum": 0.25, "maximum": 32},
+        "tick_size": {"type": "number", "minimum": 0, "maximum": 64},
         "inner_radius_ratio": {
           "type": "number",
-          "exclusiveMinimum": 0,
+          "minimum": 0,
           "exclusiveMaximum": 1
         },
         "rotation_degrees": {
@@ -3125,6 +3166,9 @@
                   "wiggle_path",
                   "merge",
                   "boolean_union",
+                  "boolean_difference",
+                  "boolean_intersection",
+                  "boolean_xor",
                   "trim",
                   "morph"
                 ]
@@ -3665,6 +3709,8 @@
                   "arc",
                   "grid",
                   "dot_grid",
+                  "ring_segment",
+                  "monotone_line",
                   "device_frame"
                 ]
               }
@@ -3725,6 +3771,30 @@
                 "fill"
               ]
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {"type": {"const": "ring_segment"}},
+            "required": ["type"]
+          },
+          "then": {"required": ["fill"]}
+        },
+        {
+          "if": {
+            "properties": {"type": {"const": "monotone_line"}},
+            "required": ["type"]
+          },
+          "then": {"required": ["data_points", "stroke"]}
+        },
+        {
+          "if": {
+            "properties": {"type": {"const": "monotone_chart"}},
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["data_points"],
+            "not": {"anyOf": [{"required": ["fill"]}, {"required": ["stroke"]}]}
           }
         },
         {
@@ -4247,6 +4317,11 @@
                   "maximum": 1000000
                 }
               },
+              "intrinsic_size": {
+                "type": "boolean",
+                "default": false,
+                "description": "Measure each child content bounds; positive cell_size components still override the measured axis."
+              },
               "stagger": {
                 "$ref": "#/$defs/layout_stagger"
               }
@@ -4300,6 +4375,11 @@
                   "minimum": 0,
                   "maximum": 1000000
                 }
+              },
+              "intrinsic_size": {
+                "type": "boolean",
+                "default": false,
+                "description": "Measure children and derive per-column and per-row maxima; positive cell_size components still override the measured axis."
               },
               "stagger": {
                 "$ref": "#/$defs/layout_stagger"

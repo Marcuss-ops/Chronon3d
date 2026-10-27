@@ -16,14 +16,13 @@
 //    - `Start`     → packed at canvas cross-axis start (default)
 //    - `Center`    → centered along the cross axis
 //    - `End`       → packed at canvas cross-axis end
-//    - `Stretch`   → reserved; same effect as Start in v1 (size-stretch not
-//                    addressed here because Layer has no intrinsic size yet)
+//    - `Stretch`   → reserved; same effect as Start (cross-size stretching
+//                    remains unimplemented)
 //
-//  Cell size is uniform across the container because the existing layout
-//  system does not measure per-layer intrinsic sizes. Callers should set
-//  `cell_size` to the desired (W, H) per cell. If `cell_size` is zero,
-//  the pass falls back to `canvas_size / N` so the layout is still
-//  deterministic and visible.
+//  Cell size is uniform by default. With `intrinsic_size`, Flow measures each
+//  supported child independently and Grid derives per-track maxima. Positive
+//  `cell_size` components remain explicit overrides; unsupported/empty content
+//  falls back to the deterministic canvas/N size.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/math/glm_types.hpp>
@@ -85,6 +84,7 @@ struct LayoutFlow {
     JustifyContent justify{ JustifyContent::Start };
     std::string group_id{};
     Vec2        cell_size{ 0.0f, 0.0f };   // uniform (W,H) per cell; (0,0) ⇒ auto from canvas/N
+    bool        intrinsic_size{ false };   // measure each layer's supported content bounds
 };
 
 /// Uniform grid container.
@@ -104,6 +104,7 @@ struct LayoutGrid {
     GridFit     fit{ GridFit::Auto };
     std::string group_id{};
     Vec2        cell_size{ 0.0f, 0.0f };
+    bool        intrinsic_size{ false };   // derive per-column/per-row track sizes from content
 };
 
 }  // namespace chronon3d

@@ -624,7 +624,9 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     const Json emittedDof = Json::parse(renderPlanToJson(dofCameraPlan));
     REQUIRE(emittedDof["camera"].contains("dof"));
     CHECK(emittedDof["camera"]["dof"]["enabled"] == true);
-    CHECK(emittedDof["camera"]["dof"]["aperture"] == doctest::Approx(0.035f));
+    // RenderPlan's old aperture wire field carries the sanctioned f-stop
+    // bridge value for legacy consumers; f/2.8 maps to 0.672 / 2.8 = 0.24.
+    CHECK(emittedDof["camera"]["dof"]["aperture"] == doctest::Approx(blurGainFromFStop(2.8f)));
     CHECK(emittedDof["camera"]["dof"]["focus_distance"] == doctest::Approx(425.f));
     CHECK(emittedDof["camera"]["focal_length_mm"] == doctest::Approx(50.f));
     CHECK(emittedDof["camera"]["f_stop"] == doctest::Approx(2.8f));
@@ -632,7 +634,7 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     REQUIRE(decodedDof);
     REQUIRE(decodedDof->camera.has_value());
     CHECK(decodedDof->camera->dof_enabled);
-    CHECK(decodedDof->camera->dof_aperture == doctest::Approx(0.035f));
+    CHECK(decodedDof->camera->dof_aperture == doctest::Approx(blurGainFromFStop(2.8f)));
     CHECK(decodedDof->camera->dof_focus_distance == doctest::Approx(425.f));
     CHECK(decodedDof->camera->focal_length_mm == doctest::Approx(50.f));
     CHECK(decodedDof->camera->f_stop == doctest::Approx(2.8f));
@@ -640,7 +642,7 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     REQUIRE(cameraEvaluator);
     const auto staticCamera = cameraEvaluator(0.0);
     CHECK(staticCamera.dof.enabled);
-    CHECK(staticCamera.dof.aperture == doctest::Approx(0.035f));
+    CHECK(staticCamera.dof.aperture == doctest::Approx(blurGainFromFStop(2.8f)));
     CHECK(staticCamera.dof.focus_distance == doctest::Approx(425.f));
     // The plan camera sits at z=+8 (mirrored from Motion z=-8) looking down
     // +Z, so the camera-space S1=425 maps to the world-Z plane z=433. The

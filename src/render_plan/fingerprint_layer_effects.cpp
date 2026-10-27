@@ -160,6 +160,11 @@ void add_layer_effects_and_masks(CanonicalPlanWriter& out, const LayerPlan& laye
                 for (const auto value : effect.offset) out.add_float(value);
                 for (const auto value : effect.effect_color) out.add_float(value);
             } break;
+            case LayerPlan::EffectKindPlan::Fill: {
+                out.add_float(effect.amount);
+                out.add_bool(effect.fill_opacity_replaces_alpha);
+                for (const auto value : effect.effect_color) out.add_float(value);
+            } break;
             case LayerPlan::EffectKindPlan::Bloom: {
                 out.add_float(effect.bloom_threshold);
                 out.add_float(effect.radius);

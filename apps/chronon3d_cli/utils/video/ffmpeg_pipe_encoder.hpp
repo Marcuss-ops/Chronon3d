@@ -269,6 +269,9 @@ struct FfmpegPipeOptions {
     std::string codec{"libx264"};
     std::string hardware_encoder{"none"};
     std::string output_path;
+    // Optional independent outputs cut from one encoder timeline. Segmented
+    // output is video-only and cannot borrow a mux or add source audio.
+    std::vector<chronon3d::media::MuxOutputSegment> output_segments;
     PipePixelFormat input_format{PipePixelFormat::RGBA};
     std::string output_pix_fmt{"yuv420p"};
     bool verbose{false};

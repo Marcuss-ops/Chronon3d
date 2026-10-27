@@ -5,6 +5,23 @@
 #include <stdexcept>
 #include <vector>
 
+TEST_CASE("SourceNode does not seed the frame from image metadata without decoded alpha coverage") {
+    RenderNode image;
+    image.shape = Shape{ImageShape{
+        .path = "assets/full-canvas-cutout.png",
+        .size = Vec2{1920.0f, 1080.0f},
+        .opacity = 1.0f,
+    }};
+
+    cache::NodeCacheKey key{};
+    SourceNode source("full_canvas_cutout", image, key);
+    RenderGraphContext context;
+
+    // ImageShape metadata says nothing about decoded pixel alpha. Keeping the
+    // initial clear means the lower-layer subtree remains part of composition.
+    CHECK_FALSE(source.can_seed_full_frame(context));
+}
+
 TEST_CASE("ExecutionWorkspaceRing - leases and releases workspace slots deterministically") {
     ExecutionWorkspaceRing ring;
 

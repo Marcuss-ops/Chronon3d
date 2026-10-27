@@ -1,12 +1,20 @@
 # TICKET-MAPS-NATIVE-PORT — porting nativo del rendering mappe
 
-Stato: **ASSE ACQUISIZIONE TILE CHIUSO (2026-10-24)** — la misura ha smontato la
-premessa del porting: il rendering pesa solo ~4,8 s su 33,3 s; il ≥2× di
-accettazione è conquistato e certificato sull'asse acquisizione tile + budget
-1080p (parità bit-exact mantenuta). Scaffolding nativo atterrato; le fasi 2–7
-restano aperte come opzione di unificazione nelle lane condivise.
+Stato: **FASI 0–7 CHIUSE (2026-10-26)** — asse acquisizione tile chiuso
+(2026-10-24, ≥2× certificato con parità bit-exact mantenuta) e porting nativo
+atterrato per il sottoinsieme base flyover: il renderer `map_plate_render` di
+ChrononPlugin è la **lane unica realtime** delle mappe (verificata end-to-end:
+install host + drop-in systemd + render reale con telemetria certificata).
+Restano da portare le famiglie di composizione residue, una gate di parità
+alla volta (vedi sotto).
 
-Ambito: Chronon3d (`include/chronon3d/geo/map_plate_render.hpp`, `src/geo/map_plate_render.cpp`, `tests/geo/map_plate_render_test.cpp`), refactored (`internal/capabilities/scripts/render_queue_map*.go`, cutover orchestratore), ChrononTemplate (`tools/map/`, demolizione finale del binario Python).
+Ambito aggiornato 2026-10-26: `ChrononPlugin/plugins/maps` possiede il rendering map plate e i relativi test. Chronon3D non contiene più il modulo geo. Restano nel ticket gli assi di acquisizione tile, integrazione e demolizione del percorso Python in ChrononTemplate.
+
+**Migrazione 2026-10-25:** il codice geo C++ e i tool cartography generici
+sono stati estratti in `ChrononPlugin/plugins/maps/` (namespace
+`chrononplugin::maps`). Chronon3D non possiede più il sottosistema geo; il
+renderer `map_plate_render` resta uno stub fail-closed nel plugin. La raster
+vector plate compila lì, ma la prova pixel bit-exact del port resta aperta.
 
 ## 1. Perché (misure, non stime)
 
@@ -39,7 +47,12 @@ renderselo gratuito lascia 28 s (1,17×, sotto l'accettazione ≥2× della sezio
 di rete pura). Conseguenza operativa: prima si sistema l'asse tile, poi si
 misura di nuovo, e solo allora ha senso valutare il C++.
 
-## 2. Architettura attuale (da sostituire)
+## 2. Architettura precedente (STORICA — sostituita il 2026-10-26)
+
+> La sezione descrive la pipeline Python pre-porting a scopo di confronto. La
+> lane attuale è il renderer nativo `maps_dynamic_map_render` di
+> `ChrononPlugin/plugins/maps` (stesso contratto CLI dell'omonimo Python
+> ritirato: `--input`/`--output`/`--summary-output`).
 
 - **Orchestrazione** Go `refactored/internal/capabilities/scripts/render_queue_map.go`
   (+ `render_queue_map_composition.go`): identità cache = payload + fingerprint
@@ -78,12 +91,23 @@ passa da decine di secondi di processo esterno a servizio render misurato.
 |---|---|---|
 | 0 | Fix asse acquisizione tile (keep-alive + parallelismo + budget 1080p) + parità bit-exact | **CHIUSO 2026-10-24** |
 | 1 | Scaffolding: contratto `map_plate_render` fail-closed + test | **ATTERATO** |
-| 2 | Primitiva tile/plate: tile pyramid → textured planes | aperto |
-| 3 | Passo etichette (text run builder) | aperto |
-| 4 | Flyover/camera (contratto motion esistente) | aperto |
-| 5 | Telemetria certificata + parità pixel vs Python | aperto |
-| 6 | Cutover orchestratore Go (dual-lane: nativo preferito, Python fallback) | aperto |
-| 7 | Demolizione del binario Python + aggiornamento cache identity | aperto |
+| 2 | Primitiva tile/plate: tile pyramid → textured planes | **CHIUSO 2026-10-26** (`maps_raster_parity_check` 8/8) |
+| 3 | Passo etichette (text run builder) | **CHIUSO 2026-10-26** (`maps_camera_label_parity_check` 3/3) |
+| 4 | Flyover/camera (contratto motion esistente) | **CHIUSO 2026-10-26** (`maps_camera_label_parity_check` 21/21) |
+| 5 | Telemetria certificata + parità pixel vs Python | **CHIUSO 2026-10-26** (`maps_map_plate_telemetry_test` 17 invarianti; `maps_composite_parity_check` 9/9 frame) |
+| 6 | Cutover orchestratore Go (lane unica: `maps_dynamic_map_render`) | **CHIUSO 2026-10-26** — payload/sampler/profilo allineati al sottoinsieme nativo, `map_backend=dynamic` in RenderingGen, distribuzione (install rules + drop-in systemd + runtime image) ed E2E realtime verificato |
+| 7 | Demolizione del binario Python + aggiornamento cache identity | **CHIUSO 2026-10-26** (cache identity = SHA-256 del binario nativo; vedi demolition debt in `docs/stato/chronon-plugin.md`) |
+
+**Sottoinsieme servito dal nativo (e criteri residui):** base flyover +
+etichette camera-aligned sul basemap editoriale, profilo chiuso
+libx264/veryfast/CRF23. Le famiglie di composizione residue (route/region/
+comparison/multi-tappa/editoriali), i basemap raster Esri, il timing per-pin
+parlato, le animazioni etichette e i campioni NVENC/OpenCL restano **NON
+PORTATE**: falliscono chiuso con errore tipizzato (o degradation dichiarata
+dove il dato viaggia comunque, es. timing/area-glow), mai approssimate. La
+golden run completa sul nativo (exit condition del demolition debt) non è
+raggiungibile finché le famiglie non atterrano una gate alla volta: la
+fixture golden richiede `map_animation: region_zoom`.
 
 Le fasi 2–7 sono il porting nativo propriamente detto: resta aperto come
 opzione di **unificazione** (le mappe rientrano nelle lane render condivise),

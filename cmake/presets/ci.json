@@ -21,7 +21,6 @@
     },
     {
       "name": "linux-ci-nocontent",
-      "hidden": true,
       "inherits": "linux-ci",
       "displayName": "Linux CI core (compatibility alias)"
     },

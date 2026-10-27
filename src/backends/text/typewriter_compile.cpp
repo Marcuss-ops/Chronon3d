@@ -1,9 +1,6 @@
 // ── Typewriter Compile ───────────────────────────────────────────────────────
 // Implementation of advance_cluster_window and compile_typewriter_glyphs.
 //
-// Provenance: restored to core from the externalized content pack
-// (content/text/typewriter_compile.cpp, removed in 6e6905116).
-
 #include <chronon3d/text/typewriter_layout.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>

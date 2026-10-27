@@ -111,7 +111,7 @@ bool configure_hdr_static_metadata(
 bool validate_encoder_options(const FfmpegPipeOptions& options) {
     if (options.width <= 0 || options.height <= 0 ||
         options.canonical_fps_num() <= 0 || options.canonical_fps_den() <= 0 ||
-        options.output_path.empty()) {
+        (options.output_path.empty() && options.output_segments.empty())) {
         return false;
     }
     if (options.hdr_mastering_metadata &&
@@ -249,17 +249,29 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     // Phase 7 — frame buffers and final validation.
     if (!finalize_open(filename)) return false;
     // Cross-item session eligibility (fail-closed): only a healthy owned
-    // container under a complete fingerprint may be parked for the next job.
-    codec_session_eligible_ = !codec_session_fingerprint_.empty() && !borrows_mux_;
+    // container under a complete fingerprint AND the Fix 5 supported
+    // configuration may be parked for the next job. Adaptive rate control
+    // (CRF), B-frames/lookahead and frame threading all carry encoder state
+    // across jobs and change the next job's pixels; parking them would trade
+    // correctness for teardown savings.
+    codec_session_eligible_ = !codec_session_fingerprint_.empty() &&
+        !borrows_mux_ && options_.output_segments.empty() &&
+        codec_session_config_supported();
     return true;
 }
 
 void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
+    segmented_mux_.reset();
+    owned_mux_.reset();
+    mux_ = nullptr;
+    borrows_mux_ = false;
     options_ = options;
     options_.fps_num = options.canonical_fps_num();
     options_.fps_den = options.canonical_fps_den();
     frames_written_ = 0;
     encoder_packets_received_ = 0;
+    codec_packets_received_ = 0;
+    codec_frames_submitted_ = 0;
     mux_packets_written_ = 0;
     first_encoder_packet_pts_ = -1;
     last_encoder_packet_pts_ = -1;
@@ -267,10 +279,20 @@ void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
     // previous job's anchor or discard windows).
     duplicate_seed_source_.reset();
     duplicate_anchor_.reset();
+    last_video_key_packet_.reset();
+    last_video_key_packet_pts_ = -1;
+    duplicate_run_start_pts_ = -1;
+    duplicate_prerun_packets_received_ = 0;
+    duplicate_prerun_packets_target_ = 0;
     duplicate_anchor_pts_ = -1;
     duplicate_replicated_through_pts_ = -1;
     duplicate_discard_ranges_.clear();
     duplicate_run_active_ = false;
+    duplicate_run_mode_ = DuplicateRunMode::Undecided;
+    last_real_frame_pts_ = -1;
+    last_real_packet_seen_ = false;
+    last_real_packet_was_key_ = false;
+    last_real_key_packet_.reset();
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     frames_submitted_ = 0;
     cuda_pending_peak_ = 0;
@@ -603,6 +625,25 @@ bool NativeAvEncoder::apply_resolved_encoder_options() {
         // backends; NVENC + tune fails during resolution.
         if (!set_codec_option_checked(codec_, "tune", *tune)) return false;
     }
+    // Fix 5 supported-config path: constant-QP on the software encoder.
+    // The FFmpeg libx264 wrapper switches to CQP when `qp` is set; the
+    // resolver guarantees a validated qp in [0, 69] whenever this branch is
+    // reached (software + ConstantQp). NVENC CQP is handled in the
+    // gpu_nvenc_ branch below.
+    if (!gpu_nvenc_ &&
+        resolved.rate_control() == ResolvedEncoderRateControl::ConstantQp &&
+        (codec_name == "libx264" || codec_name == "libx264rgb")) {
+        const int qp = resolved.qp().value_or(-1);
+        if (qp < 0 || qp > 69) {
+            spdlog::error(
+                "[native_av] Internal error: software constant-QP without a "
+                "validated qp reached open()");
+            return false;
+        }
+        char qp_str[16];
+        snprintf(qp_str, sizeof(qp_str), "%d", qp);
+        if (!set_codec_option_checked(codec_, "qp", qp_str)) return false;
+    }
 
     // ── Native NVENC pipeline depth + resolved rate control ─────────────
     // The NVENC wrapper in this FFmpeg build (libavcodec 58 / 4.2-4.4) does
@@ -621,6 +662,19 @@ bool NativeAvEncoder::apply_resolved_encoder_options() {
         char surf_str[16];
         snprintf(surf_str, sizeof(surf_str), "%d", nvenc_surfaces);
         if (!set_codec_option_checked(codec_, "surfaces", surf_str)) {
+            return false;
+        }
+        // Forced keyframes are requested through the frame's pict_type (the
+        // segment boundary, the duplicate-run anchor and the cross-item
+        // session restart all rely on that request becoming a real IDR). This
+        // NVENC wrapper drops a forced pict_type entirely unless the private
+        // `forced-idr` option is set: the boundary frame then encodes as a
+        // non-key P packet, and the segmented mux writer rejects it at the
+        // exact segment start (fail-closed `AVERROR_EXTERNAL` after a few
+        // packets). With the option set, a forced frame comes out as a true
+        // IDR key packet — the "forced keyframe at every segment start, with
+        // a GOP cut" contract. The option is inert for unforced frames.
+        if (!set_codec_option_checked(codec_, "forced-idr", "1")) {
             return false;
         }
         switch (resolved.rate_control()) {
@@ -751,13 +805,52 @@ std::string NativeAvEncoder::compute_codec_session_fingerprint() const {
         static_cast<int>(options_.input_format));
 }
 
+bool NativeAvEncoder::codec_session_config_supported() const {
+    if (!resolved_encoder_config_) return false;
+    const auto& resolved = *resolved_encoder_config_;
+    const std::string& encoder_name = resolved.encoder_name();
+    // Software x264-family only: NVENC CQP keeps driver-side state (lookahead
+    // and B-frames are outside this wrapper's control) and is not certified.
+    if (gpu_nvenc_ || (encoder_name != "libx264" && encoder_name != "libx264rgb")) {
+        return false;
+    }
+    if (resolved.rate_control() != ResolvedEncoderRateControl::ConstantQp) {
+        return false;
+    }
+    if (!resolved.qp().has_value()) return false;
+    // Canonical tune spelling as emitted by the resolver (see the allowed
+    // x264 tune vocabulary); only zero-latency reaches the packet boundary.
+    const auto tune = resolved.tune();
+    if (!tune || *tune != "zerolatency") return false;
+    // Frame threading keeps work in flight and defeats both the packet
+    // boundary and determinism; 0 means engine-default (auto), also excluded.
+    if (options_.encode_threads != 1) return false;
+    return true;
+}
+
 bool NativeAvEncoder::try_adopt_codec_session() {
     if (codec_session_fingerprint_.empty() ||
         !detail::codec_session_reuse_enabled()) {
         return true;
     }
+    // Defense in depth: the park site already gated eligibility, and the
+    // fingerprint pins every session-shaping axis, but an adopter whose own
+    // configuration is not supported must never reuse — fail closed.
+    if (!codec_session_config_supported()) return true;
     auto session = detail::acquire_codec_session(codec_session_fingerprint_);
     if (!session || !session->codec) return true;
+    // Fix 5 — only an UNFLUSHED parked session is adoptable: an EOS-flushed
+    // codec rejects new frames forever (FFmpeg, verified empirically
+    // 2026-10-26), so adopting one would fail on the first write_frame. The
+    // park site self-certifies `unflushed`; anything else is discarded here
+    // fail-closed (the session destructor frees the codec).
+    if (!session->unflushed) {
+        spdlog::warn(
+            "[native_av] discarded parked codec session for fingerprint '{}': "
+            "only unflushed sessions can be adopted",
+            codec_session_fingerprint_);
+        return true;
+    }
     // Replace the context phase 3 just allocated with the cached, already
     // open one. The per-instance surface state configured in phase 3 (CUDA
     // refs, stream, compositor warm-up) stays as configured; the cached codec
@@ -767,19 +860,50 @@ bool NativeAvEncoder::try_adopt_codec_session() {
     session->codec = nullptr;
     bitstream_contract_ = session->contract;
     bitstream_contract_probed_ = true;
-    // The parked session ended in draining state: reset the codec for a new
-    // frame/PTS timeline. The first frame of the new container is forced
-    // intra so this item's MP4 starts on a keyframe.
+    // Reset the codec for the new frame/PTS timeline. The first frame of the
+    // new container is forced intra (session_restart_intra_pending_) so this
+    // item's MP4 starts on a keyframe and the adopted codec's previous GOP
+    // cannot leak into the new stream.
     avcodec_flush_buffers(codec_);
     codec_session_adopted_ = true;
     session_restart_intra_pending_ = true;
     spdlog::info(
-        "[native_av] codec session adopted for cross-item reuse (fingerprint '{}')",
+        "[native_av] codec session adopted for cross-job reuse (fingerprint '{}')",
         codec_session_fingerprint_);
     return true;
 }
 
 bool NativeAvEncoder::wire_container(const std::string& filename) {
+    if (!options_.output_segments.empty()) {
+        if (options_.borrowed_mux || !options_.audio_source_path.empty()) {
+            spdlog::error("[native_av] segmented output does not support borrowed mux or audio");
+            return false;
+        }
+        AVCodecParameters* params = avcodec_parameters_alloc();
+        if (!params || avcodec_parameters_from_context(params, codec_) < 0) {
+            avcodec_parameters_free(&params);
+            spdlog::error("[native_av] failed to snapshot encoder parameters for segmented output");
+            return false;
+        }
+        segmented_mux_ = std::make_unique<chronon3d::media::MuxOutputSegmentWriter>();
+        std::string reason;
+        // P4 batch superjob: the per-item segments are cut at forced-IDR
+        // boundaries, and the session's output_path doubles as the whole-
+        // timeline MIRROR (the batch's fused clip) so the "batch consumed as
+        // one clip" contract keeps its MP4 while every item stays its own
+        // artifact. One codec, one EOF, N+1 muxes finalized together.
+        const bool opened = segmented_mux_->open(
+            params, codec_->time_base, options_.output_segments,
+            options_.fragmented_mp4, reason, options_.output_path);
+        avcodec_parameters_free(&params);
+        if (!opened) {
+            spdlog::error("[native_av] segmented mux open failed: {}", reason);
+            segmented_mux_.reset();
+            return false;
+        }
+        mux_ = nullptr;
+        return true;
+    }
     std::optional<chronon3d::media::AudioStreamConfig> audio_config;
     if (!options_.audio_source_path.empty()) {
         if (avformat_open_input(&audio_input_, options_.audio_source_path.c_str(),

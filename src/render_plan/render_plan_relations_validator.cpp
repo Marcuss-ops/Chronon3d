@@ -41,10 +41,11 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
     for (std::size_t index = 0; index < plan.layers.size(); ++index) {
         const auto& layer = plan.layers[index];
         if (layer.time_remap) {
-            if (layer.type != LayerType::Video) {
+            if (layer.type != LayerType::Video && layer.type != LayerType::Shape &&
+                layer.type != LayerType::Image) {
                 return PlanDecodeError{
                     "layers[" + std::to_string(index) + "].time_remap",
-                    "time_remap is supported only for video layers",
+                    "time_remap is supported only for video, shape, and image layers",
                     "time_remap_requires_video", "render-plan-relations"};
             }
             if (layer.time_remap->speed &&

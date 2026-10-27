@@ -61,6 +61,20 @@ inline void apply_compose_stage(color::StraightRgb& srgb, const ComposeStage& st
     srgb = apply_compose_op(srgb, stage.op, stage.blend);
 }
 
+inline void apply_color_matrix_stage(color::StraightRgb& rgb, float& alpha,
+                                     const ColorMatrixParams& matrix) {
+    const std::array<float, 4> in{rgb.r, rgb.g, rgb.b, alpha};
+    std::array<float, 4> out{};
+    for (std::size_t row = 0; row < 4; ++row) {
+        const auto i = row * 5;
+        out[row] = matrix.values[i] * in[0] + matrix.values[i + 1] * in[1] +
+                   matrix.values[i + 2] * in[2] + matrix.values[i + 3] * in[3] +
+                   matrix.values[i + 4];
+    }
+    rgb = {out[0], out[1], out[2]};
+    alpha = std::clamp(out[3], 0.0f, 1.0f);
+}
+
 inline std::array<float, 3> sample_lut(const Lut3DParams& lut, float r, float g, float b) {
     const auto n = static_cast<int>(lut.dimension);
     const auto coordinate = [&](float value, std::size_t channel) {
@@ -100,6 +114,50 @@ inline void apply_lut_stage(color::StraightRgb& rgb, const Lut3DParams& lut) {
     rgb.b = std::lerp(rgb.b, mapped[2], lut.amount);
 }
 
+// ── Resolved stage dispatch ────────────────────────────────────────────────
+// One indirect call per stage per pixel instead of a std::get_if chain per
+// pixel: the chain is loop-invariant and blocks auto-vectorization of the
+// fused pass.  Resolution happens once per apply(), the pixel loop only calls.
+using StageFn = void (*)(color::StraightRgb&, float&, const void*);
+
+void exposure_fn(color::StraightRgb& rgb, float&, const void* stage) {
+    apply_exposure_stage(rgb, *static_cast<const ExposureStage*>(stage));
+}
+
+void levels_fn(color::StraightRgb& rgb, float&, const void* stage) {
+    apply_levels_stage(rgb, *static_cast<const LevelsStage*>(stage));
+}
+
+void curves_fn(color::StraightRgb& rgb, float&, const void* stage) {
+    apply_curves_stage(rgb, *static_cast<const CurvesStage*>(stage));
+}
+
+void lut_fn(color::StraightRgb& rgb, float&, const void* stage) {
+    apply_lut_stage(rgb, *static_cast<const Lut3DParams*>(stage));
+}
+
+void compose_fn(color::StraightRgb& rgb, float&, const void* stage) {
+    apply_compose_stage(rgb, *static_cast<const ComposeStage*>(stage));
+}
+
+void matrix_fn(color::StraightRgb& rgb, float& alpha, const void* stage) {
+    apply_color_matrix_stage(rgb, alpha,
+                             static_cast<const ColorMatrixStage*>(stage)->params);
+}
+
+/// Maps a variant stage to its direct entry point.  A stage without a kernel
+/// (std::monostate) resolves to nullptr and is skipped — same behaviour as the
+/// previous per-pixel chain.
+[[nodiscard]] StageFn resolve_stage_fn(const ColorStage& stage) {
+    if (std::get_if<ExposureStage>(&stage)) return &exposure_fn;
+    if (std::get_if<LevelsStage>(&stage)) return &levels_fn;
+    if (std::get_if<CurvesStage>(&stage)) return &curves_fn;
+    if (std::get_if<Lut3DParams>(&stage)) return &lut_fn;
+    if (std::get_if<ComposeStage>(&stage)) return &compose_fn;
+    if (std::get_if<ColorMatrixStage>(&stage)) return &matrix_fn;
+    return nullptr;
+}
+
 } // anonymous namespace
 
 // =============================================================================
@@ -120,6 +178,21 @@ void ColorPipeline::apply(
     }
     if (y0 >= y1 || x0 >= x1) return;
 
+    // Variant dispatch resolved once outside the pixel loop (resolve_stage_fn
+    // above): the loop only performs direct calls, same stages, same order,
+    // same arithmetic.
+    struct ResolvedStage {
+        StageFn fn;
+        const void* stage;
+    };
+    std::vector<ResolvedStage> resolved;
+    resolved.reserve(m_stages.size());
+    for (const auto& stage : m_stages) {
+        if (const StageFn fn = resolve_stage_fn(stage)) {
+            resolved.push_back({fn, &stage});
+        }
+    }
+
     for (int y = y0; y < y1; ++y) {
         Color* row = fb.pixels_row(y);
         for (int x = x0; x < x1; ++x) {
@@ -130,21 +203,13 @@ void ColorPipeline::apply(
             auto srgb = color::unpremultiply_rgb(c);
 
             // 2. Apply all stages in order
-            for (const auto& stage : m_stages) {
-                if (auto* exp = std::get_if<ExposureStage>(&stage))
-                    apply_exposure_stage(srgb, *exp);
-                else if (auto* lvl = std::get_if<LevelsStage>(&stage))
-                    apply_levels_stage(srgb, *lvl);
-                else if (auto* curv = std::get_if<CurvesStage>(&stage))
-                    apply_curves_stage(srgb, *curv);
-                else if (auto* lut = std::get_if<Lut3DParams>(&stage))
-                    apply_lut_stage(srgb, *lut);
-                else if (auto* comp = std::get_if<ComposeStage>(&stage))
-                    apply_compose_stage(srgb, *comp);
+            float alpha = c.a;
+            for (const auto& entry : resolved) {
+                entry.fn(srgb, alpha, entry.stage);
             }
 
             // 3. Premultiply
-            row[x] = color::premultiply_rgb(srgb, c.a);
+            row[x] = color::premultiply_rgb(srgb, alpha);
         }
     }
 }

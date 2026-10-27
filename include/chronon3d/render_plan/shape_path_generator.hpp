@@ -3,6 +3,8 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 
 #include <cstdint>
+#include <array>
+#include <span>
 #include <vector>
 
 namespace chronon3d::render_plan {
@@ -18,6 +20,11 @@ inline constexpr std::uint64_t kMaxGeneratedGridElements = 4096;
 [[nodiscard]] std::vector<ShapePathCommandPlan> make_arc_path(
     float width, float height, float start_degrees, float sweep_degrees,
     std::uint32_t segments);
+[[nodiscard]] std::vector<ShapePathCommandPlan> make_ring_segment_path(
+    float width, float height, float start_degrees, float sweep_degrees,
+    float inner_radius_ratio, std::uint32_t segments);
+[[nodiscard]] std::vector<ShapePathCommandPlan> make_monotone_cubic_path(
+    std::span<const std::array<float, 2>> data_points);
 [[nodiscard]] std::vector<ShapePathCommandPlan> make_grid_path(
     float width, float height, float spacing);
 [[nodiscard]] std::vector<ShapePathCommandPlan> make_dot_grid_path(

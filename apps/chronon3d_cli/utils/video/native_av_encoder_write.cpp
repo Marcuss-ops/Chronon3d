@@ -4,6 +4,8 @@
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <optional>
+#include <algorithm>
+#include <thread>
 
 namespace chronon3d::cli {
 
@@ -45,12 +47,18 @@ bool NativeAvEncoder::write_frame_async(const Framebuffer& fb, std::shared_ptr<F
 }
 
 bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
-    // P1 post-run resync: after a duplicate run the decoder's DPB holds the
+    // P1 post-run resync: after a REPLICATE run the decoder's DPB holds the
     // run anchor's reconstruction while the encoder's DPB holds the last
-    // seed's. The first real frame after a run is forced intra so both
-    // reference chains resynchronize exactly.
-    const bool force_intra = duplicate_run_active_ || session_restart_intra_pending_;
+    // seed's. The first real frame after such a run is forced intra so both
+    // reference chains resynchronize exactly. A RESUBMIT run forges nothing —
+    // the codec saw one ordinary frame per duplicate — so the stream continues
+    // unbroken and must NOT be forced: that would diverge from the stream a
+    // full render produces.
+    const bool resync = duplicate_run_active_ &&
+        duplicate_run_mode_ == DuplicateRunMode::Replicate;
+    const bool force_intra = resync || session_restart_intra_pending_;
     duplicate_run_active_ = false;
+    duplicate_run_mode_ = DuplicateRunMode::Undecided;
     return write_frame_impl(fb, force_intra);
 }
 
@@ -252,7 +260,12 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
     // P1: forced-intra frames (run anchors, post-run resync) are
     // reference-free. frame_ is reused across writes, so every send states
     // the flag explicitly instead of inheriting the previous frame's force.
-    frame_->pict_type = force_intra ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
+    const auto frame_pts = static_cast<std::int64_t>(frames_written_);
+    const bool segment_start = segmented_mux_ && std::any_of(
+        options_.output_segments.begin(), options_.output_segments.end(),
+        [frame_pts](const auto& segment) { return segment.start_pts == frame_pts; });
+    frame_->pict_type = (force_intra || segment_start)
+        ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
 
     // 4. Send the frame to the encoder (with EAGAIN back-pressure loop).
     //    `send_ms` measures ONLY avcodec_send_frame time (pure submit CPU),
@@ -290,9 +303,18 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
     }
     // Cross-item session restart: the forced keyframe has been consumed.
     session_restart_intra_pending_ = false;
-    // P1: remember what the codec just consumed — the run-anchor seed reuses
+    ++codec_frames_submitted_;
+    // P1: remember what the codec just consumed — the duplicate path reuses
     // exactly these buffers (cheap ref, no copy) when a duplicate run starts.
     duplicate_seed_source_.reset(av_frame_clone(frame_));
+    // Content-stretch root for a later duplicate run: this frame's own packet
+    // is the only packet that can be replicated without drift or staleness,
+    // and only when the codec emits it as a key packet (write_duplicate_frame
+    // decides the run mode from this bookkeeping).
+    last_real_frame_pts_ = static_cast<std::int64_t>(frames_written_);
+    last_real_packet_seen_ = false;
+    last_real_packet_was_key_ = false;
+    last_real_key_packet_.reset();
 
     frame_send_ms = send_ms;
     native_send_frame_ms_ += send_ms;
@@ -305,6 +327,9 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
     }
 
     ++frames_written_;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    frames_submitted_ = frames_written_;
+#endif
     last_frame_telemetry_ = {
         .conversion_copy_ms = frame_conv_ms,
         .pixel_format_convert_ms = static_cast<double>(pixel_after - pixel_before),
@@ -321,15 +346,24 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
 // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT) — run-anchor packet
 // duplication.
 //
-// A frame proven identical to the previous one costs O(1) to emit: no render,
-// no conversion, no encode — the run's anchor packet is re-emitted at the
-// frame's own PTS. The anchor is the forced-intra output of the run's first
-// frame, so every replica decodes reference-free and cannot drift, whatever
-// the run length. The run's pixels are the last submitted frame's pixels
-// (the duplicate proof guarantees identical content, and every send site
-// captures its buffers in `duplicate_seed_source_`), so priming the codec —
-// needed to push the anchor out of its frame-threaded pipeline — is a bare
-// buffer re-submission.
+// A frame proven identical to the previous one is emitted without touching
+// the pixel path. Two mechanisms, both fail-closed:
+//
+//  • Replicate — the run's pixels are the content-stretch root frame's pixels
+//    (the duplicate proof guarantees identical content, and every send site
+//    captures its buffers in `duplicate_seed_source_`). When that root
+//    frame's own packet is a key packet, its packet is re-emitted at each
+//    duplicate's PTS: no render, no conversion, no encode, and every replica
+//    decodes to exactly the pixels a full render would show (the anchor is a
+//    sample of this very stream). Priming seeds — bare buffer re-submissions —
+//    push the anchor out of the frame-threaded pipeline and cover the frames
+//    whose packets the codec has not published yet; their own packets are
+//    discarded so a PTS can never be sampled twice.
+//  • Resubmit — anything else (a non-key root packet, any NVENC session):
+//    the previous frame's buffers go back through the codec as ordinary
+//    frames. The encoder then sees exactly the frame sequence a full render
+//    would submit, so the produced stream is bit-exact with that render. No
+//    packet is forged, so packet publication order cannot corrupt anything.
 //
 // Fail-closed: every entry refuses (returns false) rather than silently
 // shortening the stream, and the presentation cursor (frames_written_) is
@@ -337,7 +371,8 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
 // ---------------------------------------------------------------------------
 
 bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
-    if (!open_complete_ || !codec_ || !frame_ || !packet_ || !mux_) {
+    if (!open_complete_ || !codec_ || !frame_ || !packet_ ||
+        (!mux_ && !segmented_mux_)) {
         spdlog::error("[native_av] duplicate frame submitted outside an open session");
         return false;
     }
@@ -355,6 +390,26 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
             "[native_av] duplicate frame refused on a borrowed-mux session");
         return false;
     }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    // FullGraph submits CUDA frames asynchronously. A duplicate can arrive
+    // while its preceding real frame is still in pending_cuda_frames_; drain
+    // that frame first so it becomes the seed source and advances the codec
+    // presentation cursor before we validate the duplicate's frame number.
+    // A ready drain waits for its first pending frame, then opportunistically
+    // drains any following frames that are already complete.  More than one
+    // frame can still be in flight, so repeat until the queue is empty before
+    // checking the presentation cursor; otherwise a duplicate can overtake a
+    // preceding CUDA frame that has not completed yet.
+    while (!pending_cuda_frames_.empty()) {
+        if (!drain_ready_cuda_frames(true)) {
+            spdlog::error("[native_av] could not drain preceding native frames before duplicate {}",
+                          frame_number);
+            return false;
+        }
+    }
+#endif
     if (static_cast<std::int64_t>(frame_number) !=
         static_cast<std::int64_t>(frames_written_)) {
         spdlog::error(
@@ -364,34 +419,109 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
     }
 
     // Run bookkeeping: the first duplicate after a real frame opens the run.
-    if (!duplicate_run_active_) {
+    const bool run_start = !duplicate_run_active_;
+    if (run_start) {
         duplicate_run_active_ = true;
+        duplicate_run_mode_ = DuplicateRunMode::Undecided;
         duplicate_anchor_.reset();
-        duplicate_anchor_pts_ = static_cast<std::int64_t>(frame_number);
-        // The anchor's sample is its own packet; replication owns everything
-        // above it.
-        duplicate_replicated_through_pts_ = duplicate_anchor_pts_;
+        duplicate_anchor_pts_ = -1;
+        duplicate_run_start_pts_ = frame_number;
+        duplicate_prerun_packets_received_ = codec_packets_received_;
+        duplicate_prerun_packets_target_ = codec_frames_submitted_;
+        duplicate_replicated_through_pts_ = frame_number - 1;
     }
 
-    // Progress the codec on every call: this drains the anchor out of the
-    // frame-threaded pipeline and lets already-replicated seeds fall out of
-    // the discard windows.
+    // Progress the codec on every call: this drains the run's opening packets
+    // (the mode decision below needs the content root's packet fate), pushes
+    // the anchor out of the frame-threaded pipeline and lets already-replicated
+    // seeds fall out of the discard windows.
     if (!drain_packets()) return false;
 
-    if (!duplicate_anchor_) {
-        // The anchor has not drained yet: prime the pipeline with a seed and
-        // let the seed's own packet stand as this frame's sample until the
-        // pending window can be replicated.
-        return submit_duplicate_seed_(static_cast<std::int64_t>(frame_number));
+    if (duplicate_run_mode_ == DuplicateRunMode::Undecided) {
+        // The content root's packet may still be inside the codec (lookahead /
+        // frame threading). On a software session give it a bounded chance to
+        // publish before falling back to the resubmit path; NVENC never
+        // replicates, so it must not pay the wait at all.
+        if (!gpu_nvenc_) {
+            for (int wait = 0; wait < 250 && !last_real_packet_seen_; ++wait) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                if (!drain_packets()) return false;
+            }
+        }
+        //  • Replicate — only where the run anchor is provably exact AND its
+        //    packet has actually drained as a key packet. Even the session's
+        //    first frame can remain buffered by the encoder; discarding seed
+        //    packets before observing that anchor can leave a hole if the
+        //    duplicate run ends before the encoder publishes it. In that case
+        //    resubmit through the codec so every presentation tick is retained.
+        //  • Resubmit — everything else (bit-exact with a full render).
+        const bool anchor_exact =
+            !segmented_mux_ &&
+            last_real_frame_pts_ >= 0 &&
+            last_real_frame_pts_ < frame_number &&
+            last_real_packet_seen_ && last_real_packet_was_key_ &&
+            last_real_key_packet_;
+        duplicate_run_mode_ = anchor_exact
+            ? DuplicateRunMode::Replicate
+            : DuplicateRunMode::Resubmit;
+        if (duplicate_run_mode_ == DuplicateRunMode::Replicate &&
+            last_real_key_packet_ && !duplicate_anchor_) {
+            duplicate_anchor_.reset(
+                av_packet_clone(last_real_key_packet_.get()));
+            if (!duplicate_anchor_) {
+                spdlog::error("[native_av] run anchor packet clone failed");
+                return false;
+            }
+            duplicate_anchor_pts_ = last_real_frame_pts_;
+        }
     }
 
-    // Emit every sample the replication window owes, in PTS order: the frames
-    // seeded before the anchor drained (their own packets are dropped once
-    // covered) and this one.
+    if (duplicate_run_mode_ == DuplicateRunMode::Resubmit) {
+        return submit_duplicate_seed_(static_cast<std::int64_t>(frame_number),
+                                      /*force_intra=*/false);
+    }
+
+    // Replicate mode: register this PTS before anything can drain. The codec
+    // may already have produced the seed submitted by the preceding duplicate
+    // call; if that packet reached the mux here, a replica at an earlier PTS
+    // would violate the mux DTS cursor.
+    extend_duplicate_discard_range_through_(frame_number);
+
+    // NVENC lookahead can still hold packets for real frames preceding this
+    // duplicate run. Do not mux future-timestamp replicas ahead of them: feed
+    // identical frame seeds until every pre-run input has produced a packet,
+    // and register each seed PTS for discard before that packet can drain.
+    if (!duplicate_anchor_ || duplicate_prerun_packets_received_ <
+        duplicate_prerun_packets_target_) {
+        return submit_duplicate_seed_(static_cast<std::int64_t>(frame_number),
+                                      /*force_intra=*/true);
+    }
+
+    return emit_duplicate_replicas_through_(frame_number);
+}
+
+void NativeAvEncoder::extend_duplicate_discard_range_through_(
+    std::int64_t frame_number) {
+    if (!duplicate_discard_ranges_.empty() &&
+        duplicate_discard_ranges_.back().first == duplicate_run_start_pts_) {
+        duplicate_discard_ranges_.back().second = std::max(
+            duplicate_discard_ranges_.back().second, frame_number);
+        return;
+    }
+    duplicate_discard_ranges_.emplace_back(
+        duplicate_run_start_pts_, frame_number);
+}
+
+bool NativeAvEncoder::emit_duplicate_replicas_through_(std::int64_t frame_number) {
+    if (!duplicate_anchor_ || !mux_ ||
+        frame_number < duplicate_replicated_through_pts_) {
+        return false;
+    }
+    // Emit every sample the replication window owes, in presentation order.
     const auto t_mux0 = Clock::now();
     const std::int64_t first_pending = duplicate_replicated_through_pts_ + 1;
     for (std::int64_t pts = first_pending;
-         pts <= static_cast<std::int64_t>(frame_number); ++pts) {
+         pts <= frame_number; ++pts) {
         media::OwnedAVPacket replica(av_packet_alloc());
         if (!replica || av_packet_ref(replica.get(), duplicate_anchor_.get()) < 0) {
             spdlog::error("[native_av] duplicate packet replication allocation failed");
@@ -410,13 +540,16 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
         ++mux_packets_written_;
     }
     native_mux_write_ms_ += elapsed_ms(t_mux0);
-    duplicate_discard_ranges_.emplace_back(first_pending, frame_number);
-    duplicate_replicated_through_pts_ = static_cast<std::int64_t>(frame_number);
+    duplicate_replicated_through_pts_ = frame_number;
     frames_written_ = static_cast<std::uint64_t>(frame_number) + 1;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    frames_submitted_ = frames_written_;
+#endif
     return true;
 }
 
-bool NativeAvEncoder::submit_duplicate_seed_(std::int64_t frame_pts) {
+bool NativeAvEncoder::submit_duplicate_seed_(std::int64_t frame_pts,
+                                             bool force_intra) {
     if (!codec_ || !duplicate_seed_source_) {
         spdlog::error(
             "[native_av] duplicate seed has no submitted frame to re-encode");
@@ -435,7 +568,13 @@ bool NativeAvEncoder::submit_duplicate_seed_(std::int64_t frame_pts) {
         return false;
     }
     seed->pts = frame_pts;
-    seed->pict_type = (frame_pts == duplicate_anchor_pts_)
+    // A replicate-mode run's first seed is forced intra — its packet is the
+    // run anchor. A resubmit-mode seed is an ordinary frame unless it lands on
+    // a segmented-mux boundary, which requires a forced IDR.
+    const bool segment_start = segmented_mux_ && std::any_of(
+        options_.output_segments.begin(), options_.output_segments.end(),
+        [frame_pts](const auto& segment) { return segment.start_pts == frame_pts; });
+    seed->pict_type = ((force_intra && frame_pts == duplicate_run_start_pts_) || segment_start)
         ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
 
     const auto t_send0 = Clock::now();
@@ -468,9 +607,13 @@ bool NativeAvEncoder::submit_duplicate_seed_(std::int64_t frame_pts) {
         spdlog::error("[native_av] duplicate seed send failed: {} ({})", ret, err_buf);
         return false;
     }
+    ++codec_frames_submitted_;
     native_send_frame_ms_ += send_ms;
     native_backpressure_ms_ += backpressure_ms;
     ++frames_written_;
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+    frames_submitted_ = frames_written_;
+#endif
     return true;
 }
 

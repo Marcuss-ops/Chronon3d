@@ -10,14 +10,6 @@
 //                                               compile_typewriter_glyphs
 //   src/backends/text/typewriter_build.cpp    — typewriter_build, typewriter_text
 //
-// Provenance: the declarations previously lived in the externalized content
-// pack (content/text/text_helpers_typewriter.hpp, removed in 6e6905116).
-// The producing types (TypewriterLayout / TypewriterCharPos /
-// CompiledTypewriterGlyph) and the FontEngine-owned cache were never
-// externalized, so core owned the contract but had lost its producers — the
-// exact "half migration" shape the Chronon compatibility rule forbids.  The
-// full helper set is therefore restored to core.
-//
 // Namespace: chronon3d::content::text (kept for source compatibility with
 // the historical call sites).
 

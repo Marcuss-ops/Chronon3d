@@ -178,6 +178,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
 
         auto accumulated = workspace.framebuffer_pool(0)->acquire(
             width, height, /*clear=*/true);
+        // The typed pipeline owns this sub-frame accumulation: each sample is
+        // a SHARP render at its own sub-frame time (the FrameParameterBlock is
+        // re-sampled per sample below). Render the samples with motion blur
+        // disabled so the composition layer cannot re-enter its own temporal
+        // accumulator, which knows nothing about typed frame parameters and
+        // would render every sub-scene empty.
+        RenderSettings sample_settings = settings;
+        sample_settings.motion_blur.mode = MotionBlurMode::Off;
+        sample_settings.motion_blur.samples = 1;
         float weight_sum = 0.0f;
         compiler::TypedProgramSampler sampler;
         for (std::size_t i = 0; i < count; ++i) {
@@ -200,7 +209,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
             };
             const auto rendered = graph::render_scene_via_graph_temporal(
                 *m_context.backend, *m_context.scratch.node_cache, *topology,
-                Camera{}, width, height, frame, frame_offset, settings,
+                Camera{}, width, height, frame, frame_offset, sample_settings,
                 m_context.registry.compositions, m_context.video_decoder,
                 static_cast<float>(canvas_fps.fps()), metadata.job_id, m_renderer,
                 &temporal_context, nullptr, &parameters, key);
@@ -216,6 +225,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
                     "Render Plan temporal motion-blur CPU accumulation requires "
                     "host framebuffer pixels; strict GPU-native samples require "
                     "a native weighted-add accumulator");
+            {
+                int nonzero = 0;
+                for (int yy = 0; yy < height; yy += 7)
+                    for (int xx = 0; xx < width; xx += 7)
+                        if (rendered->get_pixel(xx, yy).a > 0.05f) ++nonzero;
+                std::fprintf(stderr, "[mb-probe] sample %zu time=%.3f weight=%.4f nonzero=%d fb=%dx%d\n",
+                             i, sample.time.frame, (double)sample.weight, nonzero,
+                             rendered->width(), rendered->height());
+            }
             const float weight = sample.weight;
             weight_sum += weight;
             tbb::parallel_for(tbb::blocked_range<i32>(0, height, 16),

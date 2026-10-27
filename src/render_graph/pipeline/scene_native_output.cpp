@@ -373,13 +373,25 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_duplicate_native_fram
 std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
     std::shared_ptr<Framebuffer> exec_fb, Frame frame) {
     if (!encode_batch_active_) return exec_fb;
-    if (ctx_.policy.defer_native_video_encoder_handoff) {
+    if (ctx_.policy.defer_native_video_encoder_handoff &&
+        ctx_.policy.native_video_encode_surface !=
+            runtime::kInvalidRenderSurfaceHandle) {
         // The temporal sample target is a Vulkan intermediate. Submitting it
         // to CUDA/NVENC here would transfer ownership before the weighted GPU
         // accumulator reads it, and would repeat that transfer for every
         // shutter sample. Leave the Vulkan batch open so the parent temporal
         // compositor can read the sample surface into its weighted
         // accumulator before ending the batch and handing off the final image.
+        //
+        // The deferral is only sound when an encode surface is actually bound:
+        // the parent's DeferredNativeSampleBatch closes the batch after the
+        // weighted add ONLY in the native-sample route. Without an encode
+        // surface (host accumulation, CPU sinks, unit tests) no batch owner
+        // exists downstream, and deferring here left the frame batch open
+        // forever: the terminal readback then raced work that was never
+        // submitted (empty shutter samples) and the leaked open batch poisoned
+        // every later render on the same backend. Fall through to the normal
+        // submission path when there is no hand-off to defer.
         encode_batch_active_ = false;
         if (exec_fb) exec_fb->mark_gpu_authoritative();
         return exec_fb;

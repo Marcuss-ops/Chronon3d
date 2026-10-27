@@ -254,14 +254,21 @@ constexpr std::size_t render_counters_field_count() {
 /// Constexpr array of counter field names for logging, introspection, and
 /// debug output.  Affiancato (non sostitutivo) alla X-macro per non rompere
 /// l'allineamento anti false-sharing dei campi struct.
-/// Uses CTAD (C++17) to let the compiler count elements automatically,
-/// avoiding size mismatches with dirty_fallback_reasons array slots.
-constexpr std::array kCounterNames = {
+/// A C array counts the macro-expanded entries without invoking std::array's
+/// CTAD deduction-guide fold expression.  Clang's CFI build exceeds its
+/// expression nesting limit when that guide checks all 471 entries at once.
+/// Copy the values into std::array afterward to preserve the public type.
+constexpr auto kCounterNames = [] {
+    constexpr std::string_view names[] = {
 #define X(name) std::string_view{#name},
-    CHRONON_RENDER_COUNTERS(X)
-    CHRONON_RENDER_COUNTERS_SYSTEM(X)
-    CHRONON_RENDER_COUNTERS_SETUP(X)
+        CHRONON_RENDER_COUNTERS(X)
+        CHRONON_RENDER_COUNTERS_SYSTEM(X)
+        CHRONON_RENDER_COUNTERS_SETUP(X)
 #undef X
-};
+    };
+    std::array<std::string_view, sizeof(names) / sizeof(names[0])> result{};
+    for (std::size_t i = 0; i < result.size(); ++i) result[i] = names[i];
+    return result;
+}();
 
 } // namespace chronon3d

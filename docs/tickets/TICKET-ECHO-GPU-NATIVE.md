@@ -28,6 +28,17 @@ and the composed Echo/keying path. This WSL run selected `llvmpipe (LLVM 20.1.2,
 RTX 4060 Ti, but it was not the device used for these tests, so this is
 same-SHA local software-Vulkan evidence, not NVIDIA hardware certification.
 
+## Windows NVIDIA hardware parity run (2026-10-26)
+
+On the Windows host, `vulkaninfo --summary` selected the NVIDIA GeForce RTX
+4060 Ti. The Release/Vulkan `chronon3d_backend_registry_tests.exe` target was
+up to date, then the focused keying/Echo selection passed 8/8 cases and
+1,009/1,009 assertions on that Vulkan device. This includes native frame
+history, frame-addressed Echo, composed Echo/keying, and software comparison
+cases. This closes the local NVIDIA Echo parity check. The worktree contains
+uncommitted Vulkan changes, so this run is not same-commit certification; the
+dedicated same-SHA gate remains open.
+
 ## Exit criteria
 
 - [x] Add native dispatch and job-owned history for Vulkan/GPU-only surfaces;

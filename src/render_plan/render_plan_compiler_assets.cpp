@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -96,10 +97,20 @@ std::optional<PlanDecodeError> expand_lottie_assets(
             return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.lottie",
                 "Lottie asset could not be resolved within the mounted asset root",
                 "lottie_asset_unresolved", "render-plan-lottie"};
-        auto lowered = expand_static_lottie(layer, *resolved);
+        std::vector<LayerPlan> expanded;
+        auto lowered = expand_static_lottie(layer, *resolved, expanded);
         if (lowered)
             return PlanDecodeError{"layers[" + std::to_string(layer_index) + "].shape.lottie",
                 *lowered, "lottie_unsupported_or_invalid", "render-plan-lottie"};
+        const auto count = expanded.size();
+        // Retain a single source reference for asset preflight and the prepared
+        // asset manifest. The imported path data is already materialized.
+        if (count != 0 && expanded.front().shape)
+            expanded.front().shape->lottie_asset = logical;
+        plan.layers.erase(plan.layers.begin() + static_cast<std::ptrdiff_t>(layer_index));
+        plan.layers.insert(plan.layers.begin() + static_cast<std::ptrdiff_t>(layer_index),
+            std::make_move_iterator(expanded.begin()), std::make_move_iterator(expanded.end()));
+        layer_index += count - 1;
     }
     return std::nullopt;
 }

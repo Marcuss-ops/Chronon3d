@@ -21,6 +21,8 @@
 // mode 7 (offset): p[0] dx, dy, edge mode, sample filter.
 // mode 8 (noise): p[0] amount, seed bits, frame bits, grain size;
 //                 p[1] shadow/midtone/highlight response, RGB flag.
+// mode 10 (ColorMatrix): p[0..3] hold each RGBA input column across output
+//                        rows; p[4] holds the four row biases. Alpha clamps.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
@@ -214,6 +216,19 @@ void main() {
             ? vec3(0.0) : rgb * (1.0 / alpha_for_unpremultiply);
     }
 
+    if (params.options.x > 9.5 && params.options.x < 10.5) {
+        vec4 rgba = vec4(rgb, source.a);
+        vec4 result = vec4(0.0);
+        for (int row = 0; row < 4; ++row) {
+            result[row] = dot(vec4(params.p[0][row], params.p[1][row],
+                                   params.p[2][row], params.p[3][row]), rgba) +
+                          params.p[4][row];
+        }
+        float out_alpha = clamp(result.a, 0.0, 1.0);
+        imageStore(destination_image, coord,
+                   out_alpha <= 1.0e-8 ? vec4(0.0) : vec4(result.rgb * out_alpha, out_alpha));
+        return;
+    }
     if (params.options.x < 0.5) {
         vec3 r = vec3(dot(params.p[0].xyz, rgb) + params.p[0].w,
                       dot(params.p[1].xyz, rgb) + params.p[1].w,

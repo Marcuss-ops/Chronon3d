@@ -467,8 +467,12 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 glyph.pad0 = 0; // the record selector addresses one local glyph
 
                 auto& dynamic = glyph_runs[state_index];
-                const float scale_x = state.scale.x * state.scale.z;
-                const float scale_y = state.scale.y * state.scale.z;
+                float depth_factor = 1.0f;
+                if (std::isfinite(state.position.z) && state.position.z > 0.0f) {
+                    depth_factor = 1.0f / (1.0f + state.position.z * 0.001f);
+                }
+                const float scale_x = state.scale.x * state.scale.z * depth_factor;
+                const float scale_y = state.scale.y * state.scale.z * depth_factor;
                 dynamic.flags |= 2u;
                 dynamic.flags = runtime::pack_text_selector_metadata(
                     dynamic.flags,
@@ -486,6 +490,13 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 dynamic.animator_scale_x = scale_x;
                 dynamic.animator_scale_y = scale_y;
                 dynamic.animator_rotation_z = state.rotation.z;
+                constexpr double kPi = 3.14159265358979323846;
+                const double ry_rad = static_cast<double>(state.rotation.y) * (kPi / 180.0);
+                const double rx_rad = static_cast<double>(state.rotation.x) * (kPi / 180.0);
+                const double ry_clamped = std::clamp(ry_rad, -kPi / 2.0 + 1e-3, kPi / 2.0 - 1e-3);
+                const double rx_clamped = std::clamp(rx_rad, -kPi / 2.0 + 1e-3, kPi / 2.0 - 1e-3);
+                dynamic.animator_shear_x = static_cast<float>(std::tan(ry_clamped));
+                dynamic.animator_shear_y = static_cast<float>(std::tan(rx_clamped));
                 dynamic.animator_opacity = state.opacity;
                 dynamic.animator_blur = std::max(0.0f, state.blur);
                 if (has_fill_animator) {

@@ -289,14 +289,28 @@ TEST_CASE("Cache invariance: 8 input dimensions produce distinct keys (or distin
     }
     SUBCASE("glow: with layer-level glow effect") {
         auto renderer = make_cached_renderer();
-        renderer->render(build_comp(CompSpec{}), Frame{0});
+        auto baseline = renderer->render(build_comp(CompSpec{}), Frame{0});
+        REQUIRE(baseline != nullptr);
+        const u64 baseline_hash = test::framebuffer_hash(*baseline);
         u64 misses_before = renderer->counters()->cache_misses.load();
         CompSpec s{};
         s.glow = true;  // default false
-        renderer->render(build_comp(s), Frame{0});
+        auto with_glow = renderer->render(build_comp(s), Frame{0});
+        REQUIRE(with_glow != nullptr);
+        const u64 glow_hash = test::framebuffer_hash(*with_glow);
         u64 misses_after = renderer->counters()->cache_misses.load();
         INFO("glow dim: cache_misses " << misses_before << "→" << misses_after);
-        CHECK(misses_after > misses_before);
+        CHECK(glow_hash != baseline_hash);
+
+        // A layer-level glow may intentionally bypass node caching while
+        // preserving reuse of its unchanged source node. Verify the actual
+        // semantic contract: the effect changes the pixels and a cold render
+        // produces the same result. Requiring a cache miss here incorrectly
+        // couples this test to the current cache policy of EffectStackNode.
+        auto cold_renderer = make_cached_renderer();
+        auto cold_glow = cold_renderer->render(build_comp(s), Frame{0});
+        REQUIRE(cold_glow != nullptr);
+        CHECK(glow_hash == test::framebuffer_hash(*cold_glow));
     }
     SUBCASE("tracking: different rect width (visual 'spacing')") {
         auto renderer = make_cached_renderer();

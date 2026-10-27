@@ -90,6 +90,13 @@ enum class LayerKind {
 }
 
 struct Layer {
+    struct LottiePrecompGroupIsolation {
+        std::string id;
+        float opacity{1.0f};
+        bool opacity_active{false};
+        BlendMode blend_mode{BlendMode::Normal};
+        bool opacity_animated{false};
+    };
     std::pmr::string name;
     std::pmr::string parent_name;
     LayerKind kind{LayerKind::Normal};
@@ -145,6 +152,7 @@ struct Layer {
     std::unique_ptr<Material2_5D> m_material{};
     std::unique_ptr<Card3DMaterial> m_card3d_material{};
     bool m_card3d_material_configured{false};
+    std::vector<LottiePrecompGroupIsolation> lottie_precomp_groups;
     LayerTransitionSpec transition_in{};
     LayerTransitionSpec transition_out{};
     std::pmr::vector<RenderNode> nodes;

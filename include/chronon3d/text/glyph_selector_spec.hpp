@@ -129,6 +129,7 @@ struct GlyphSelectorSpec {
     f32 ease_high{100.0f};                       // 0–100 % of range for ease-out
 
     bool exclude_spaces{true};                   // skip whitespace-only units
+    bool end_inclusive{false};                   // include character cells touching an AE range end
     bool randomize_order{false};                 // use deterministic shuffle
     u64  random_seed{0};                         // seed for deterministic shuffle
     WigglySelectorParams wiggly{};                // used by shape == Wiggly

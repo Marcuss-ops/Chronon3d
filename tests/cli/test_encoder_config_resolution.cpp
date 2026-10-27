@@ -304,12 +304,26 @@ TEST_CASE("software + bitrate mode with bitrate → valid ABR") {
     CHECK_FALSE(resolved.crf().has_value());
 }
 
-TEST_CASE("software + QP mode → invalid (no certified x264 constant-QP path)") {
+TEST_CASE("software + QP mode → valid constant-QP (Fix 5 supported path)") {
     auto r = sw_request();
     r.rate_control_mode = "qp";
     r.rate_control_explicit = true;
     r.qp_explicit = true;
     r.qp = 23;
+    const auto resolved = require_ok(r);
+    CHECK(resolved.rate_control() == ResolvedEncoderRateControl::ConstantQp);
+    CHECK(resolved.qp().has_value());
+    CHECK(*resolved.qp() == 23);
+    CHECK_FALSE(resolved.crf().has_value());
+    CHECK(std::string(resolved.rate_control_label()) == "constqp");
+}
+
+TEST_CASE("software + QP mode out of x264 range → invalid") {
+    auto r = sw_request();
+    r.rate_control_mode = "qp";
+    r.rate_control_explicit = true;
+    r.qp_explicit = true;
+    r.qp = 70;
     const auto message = require_fail(r);
     CHECK(message.find("qp") != std::string::npos);
 }

@@ -6,6 +6,8 @@ namespace chronon3d::effects::ids {
 
 inline constexpr std::string_view BlurGaussian = "blur.gaussian";
 inline constexpr std::string_view ColorTint = "color.tint";
+inline constexpr std::string_view ColorLottieTint = "color.lottie_tint";
+inline constexpr std::string_view ColorLottieTritone = "color.lottie_tritone";
 inline constexpr std::string_view ColorBrightness = "color.brightness";
 inline constexpr std::string_view ColorContrast = "color.contrast";
 inline constexpr std::string_view LightDropShadow = "light.drop_shadow";
@@ -18,6 +20,7 @@ inline constexpr std::string_view ColorExposure = "color.exposure";
 inline constexpr std::string_view ColorLevels   = "color.levels";
 inline constexpr std::string_view ColorTemperatureTint = "color.temperature_tint";
 inline constexpr std::string_view ColorLiftGammaGain = "color.lift_gamma_gain";
+inline constexpr std::string_view ColorMatrix = "color.matrix";
 
 // ── A4: Fill, Noise, Offset ──
 inline constexpr std::string_view GenerateFill   = "generate.fill";

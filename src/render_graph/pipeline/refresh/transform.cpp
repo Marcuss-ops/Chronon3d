@@ -5,6 +5,8 @@
 #include "../../builder/evaluated_layer_placement.hpp"
 #include "../../builder/graph_builder_internal.hpp"
 
+#include <algorithm>
+
 namespace chronon3d::graph::detail {
 
 void refresh_transform_node(
@@ -17,6 +19,19 @@ void refresh_transform_node(
 
     const auto layer_it = resolved_by_name.find(layer_id);
     if (layer_it == resolved_by_name.end() || !layer_it->second || !layer_it->second->layer) {
+        // Lottie isolated precomp opacity is represented by an identity
+        // TransformNode after the group's children have been composited. Bind
+        // it by the stable group id so frame refresh changes only opacity and
+        // leaves the identity matrix intact.
+        for (const auto& [_, resolved] : resolved_by_name) {
+            if (!resolved || !resolved->layer) continue;
+            const auto& groups = resolved->layer->lottie_precomp_groups;
+            const auto group = std::find_if(groups.begin(), groups.end(),
+                [&](const auto& value) { return value.id == layer_id; });
+            if (group == groups.end()) continue;
+            node.set_opacity(group->opacity);
+            return;
+        }
         return;
     }
 

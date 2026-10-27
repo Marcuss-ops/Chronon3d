@@ -181,7 +181,7 @@ con `highlight_color` costruito da `build_timed_highlight_plan(shape)`, che legg
 Non è però un difetto di P0-2: `FillColorProperty::color` **non** nasce da
 `parse_hex_color`, quindi ricade nel residuo «dominio dei colori non-hex».
 Nessun produttore censito oggi passa un accent: `build_semantic_emphasis_animators`
-(`subtitle_track_builder.cpp:132`) chiama `make_lightweight_emphasis_animator`
+(`ChrononPlugin/plugins/typography/src/subtitle_track_builder.cpp:132`) chiama `make_lightweight_emphasis_animator`
 con `std::nullopt`, quindi nessun `FillColorProperty` viene creato su quel path.
 Il difetto è **latente**, non attivo sul corpus attuale.
 

@@ -31,6 +31,7 @@
 #include <chronon3d/runtime/frame/frame_execution.hpp>
 
 #include <chrono>
+#include <tuple>
 
 #include "helpers.hpp"
 #include "scene_internal.hpp"
@@ -164,6 +165,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
         execution_plan = ExecutionResolver::resolve_early_reuse(
             ctx, scene, frame, static_cast<int>(width),
             static_cast<int>(height), sw_renderer);
+        if (execution_plan.path == FrameExecutionPath::DuplicateFrame &&
+            execution_plan.duplicate_encoded_frame) {
+            // The writer will re-emit the previous encoded packet. Close the
+            // otherwise empty native batch and return a null framebuffer;
+            // the export loop recognizes the DuplicateFrame decision before
+            // requiring pixel storage.
+            return native_residency.finish_duplicate_native_frame({});
+        }
         if (execution_plan.reuse_surface && !ctx.policy.require_native_gpu) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->fast_path_reused_frames.fetch_add(1, std::memory_order_relaxed);
@@ -408,94 +417,108 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
     }
     const auto t_prealloc1 = profiling::now();
 
-    // ── 11. Execute: tile-based (V1) or traditional single-pass ──
-    // PR 6.2 — root ExecutionScope per render invocation.  Binds the
-    // session + compiled-graph identity for the entire execute phase so
-    // child scopes (tile / precomp) can walk the parent chain.  Arena
-    // reset happens inside execute_tile_or_fallback at scope exit.
-    // Do not construct the compatibility JobSession on production frames.
-    // Its frame-slot payloads own several MiB arenas; constructing and
-    // destroying that unused session once per frame was the dominant CPU
-    // cost in native video exports (perf: ~70% memset in the arena teardown).
-    std::optional<runtime::JobSession> fallback_session;
-    runtime::JobSession* session_ptr = nullptr;
-    if (isolated_temporal_sample && temporal_context->session) {
-        session_ptr = temporal_context->session;
-    } else if (sw_renderer) {
-        session_ptr = &sw_renderer->session();
-    } else {
-        // Compatibility fallback for standalone/preflight callers that carry
-        // neither a temporal session nor a software renderer.  Production
-        // frames must never land here (that is the whole point of the comment
-        // above), but the guard is a runtime branch, not a static invariant —
-        // so it is counted.  Any non-zero delta on a production export means a
-        // caller lost its frame lease and re-introduced the arena cost.
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->fallback_session_constructions.fetch_add(
-                1, std::memory_order_relaxed);
+    // Preparation above resolves the frame plan, graph, and preallocation.
+    // Keep execution scoped so its session and root execution scope end before
+    // the verification/commit phase below.
+    auto execute_phase = [&]() {
+        // ── 11. Execute: tile-based (V1) or traditional single-pass ──
+        // PR 6.2 — root ExecutionScope per render invocation.  Binds the
+        // session + compiled-graph identity for the entire execute phase so
+        // child scopes (tile / precomp) can walk the parent chain.  Arena
+        // reset happens inside execute_tile_or_fallback at scope exit.
+        // Do not construct the compatibility JobSession on production frames.
+        // Its frame-slot payloads own several MiB arenas; constructing and
+        // destroying that unused session once per frame was the dominant CPU
+        // cost in native video exports (perf: ~70% memset in the arena teardown).
+        std::optional<runtime::JobSession> fallback_session;
+        runtime::JobSession* session_ptr = nullptr;
+        if (isolated_temporal_sample && temporal_context->session) {
+            session_ptr = temporal_context->session;
+        } else if (sw_renderer) {
+            session_ptr = &sw_renderer->session();
+        } else {
+            // Compatibility fallback for standalone/preflight callers that carry
+            // neither a temporal session nor a software renderer.  Production
+            // frames must never land here (that is the whole point of the comment
+            // above), but the guard is a runtime branch, not a static invariant —
+            // so it is counted.  Any non-zero delta on a production export means a
+            // caller lost its frame lease and re-introduced the arena cost.
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->fallback_session_constructions.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
+            fallback_session.emplace();
+            session_ptr = &*fallback_session;
         }
-        fallback_session.emplace();
-        session_ptr = &*fallback_session;
-    }
-    auto& session_ref = *session_ptr;
-    // Wave 7: production frames use the leased FrameExecution payload arena.
-    // The JobSession arena remains only as an explicit compatibility fallback
-    // for standalone/preflight callers that do not provide a frame lease.
-    FrameArena& frame_arena = execution
-        ? *execution->arena() : session_ref.root_arena();
-    ExecutionScope root_scope = ExecutionScope::make_root(
-        session_ref, frame_arena,
-        graph_result.compiled.graph_instance_id);
-    const auto t_exec0 = profiling::now();
-    // Frame-batching boundary: a batching backend records every graph pass
-    // between these calls and performs a single submission in
-    // end_frame_batch().  No-op for backends without batching support.
-    native_residency.begin_frame_batch();
-    auto exec_result = execute_tile_or_fallback(
-        ctx, graph_result.compiled,        resolved, effective_settings, dirty_out,
-        execution_plan,
-        dirty_ratio, isolated_temporal_sample ? nullptr : sw_renderer,
-        frame, width, height, root_scope);
-    exec_result.fb = native_residency.finish_frame_encode(
-        std::move(exec_result.fb), frame);
-    // Native surfaces remain authoritative across composite nodes. The public
-    // render API still returns a CPU Framebuffer, so perform exactly one
-    // terminal synchronization here rather than between every graph pass.
-    detail::synchronize_native_output(ctx, exec_result.fb);
-    // Retirement polls completed frame fences and never blocks the native
-    // Vulkan->CUDA/NVENC hot path.
-    backend.retire_frame_transient_surfaces();
-    const auto t_exec1 = profiling::now();
+        auto& session_ref = *session_ptr;
+        // Wave 7: production frames use the leased FrameExecution payload arena.
+        // The JobSession arena remains only as an explicit compatibility fallback
+        // for standalone/preflight callers that do not provide a frame lease.
+        FrameArena& frame_arena = execution
+            ? *execution->arena() : session_ref.root_arena();
+        ExecutionScope root_scope = ExecutionScope::make_root(
+            session_ref, frame_arena,
+            graph_result.compiled.graph_instance_id);
+        const auto t_exec0 = profiling::now();
+        // Frame-batching boundary: a batching backend records every graph pass
+        // between these calls and performs a single submission in
+        // end_frame_batch().  No-op for backends without batching support.
+        native_residency.begin_frame_batch();
+        auto exec_result = execute_tile_or_fallback(
+            ctx, graph_result.compiled,        resolved, effective_settings, dirty_out,
+            execution_plan,
+            dirty_ratio, isolated_temporal_sample ? nullptr : sw_renderer,
+            frame, width, height, root_scope);
+        exec_result.fb = native_residency.finish_frame_encode(
+            std::move(exec_result.fb), frame);
+        // Native surfaces remain authoritative across composite nodes. The public
+        // render API still returns a CPU Framebuffer, so perform exactly one
+        // terminal synchronization here rather than between every graph pass.
+        detail::synchronize_native_output(ctx, exec_result.fb);
+        // Retirement polls completed frame fences and never blocks the native
+        // Vulkan->CUDA/NVENC hot path.
+        backend.retire_frame_transient_surfaces();
+        const auto t_exec1 = profiling::now();
 
-    if (sw_renderer && !isolated_temporal_sample) {
-        sw_renderer->dirty_telemetry().record_execution_cost(
-            exec_result.use_tile_execution,
-            profiling::duration_ms(t_exec0, t_exec1));
-    }
-
-    // ── 12. Phase timing telemetry ──
-    compute_and_record_timings(
-        t_resolve0, t_resolve1, t_dirty0, t_dirty1,
-        t_graph0, t_graph1, t_exec0, t_exec1,
-        ctx.node_exec.counters,        ctx.policy.diagnostics_enabled && !isolated_temporal_sample,
-        frame, graph_result.graph_reused);
-    if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->graph_executed_frames.fetch_add(1, std::memory_order_relaxed);
-        if (graph_result.graph_reused) {
-            ctx.node_exec.counters->graph_reused_frames.fetch_add(1, std::memory_order_relaxed);
+        if (sw_renderer && !isolated_temporal_sample) {
+            sw_renderer->dirty_telemetry().record_execution_cost(
+                exec_result.use_tile_execution,
+                profiling::duration_ms(t_exec0, t_exec1));
         }
-    }
-    record_dirty_telemetry(isolated_temporal_sample ? nullptr : sw_renderer, dirty_out,
-        exec_result.use_tile_execution, graph_result.graph_reused,
-        execution_plan.path);
 
-    // ── 13. Save state for next frame ──
-    if (sw_renderer && !isolated_temporal_sample) {
-        commit_frame_state(
-            sw_renderer, frame, ctx.frame_input.camera_2_5d,
-            std::move(graph_result.compiled), exec_result.fb,
-            resolved, execution_plan.frame_fingerprints, dirty_out, width, height);
-    }
+    return std::tuple{std::move(exec_result), t_exec0, t_exec1};
+    };
+    auto [exec_result, t_exec0, t_exec1] = execute_phase();
+
+    // Verification records the completed work and commits reusable state only
+    // after native output synchronization and graph execution have succeeded.
+    auto verify_phase = [&]() {
+        // ── 12. Phase timing telemetry ──
+        compute_and_record_timings(
+            t_resolve0, t_resolve1, t_dirty0, t_dirty1,
+            t_graph0, t_graph1, t_exec0, t_exec1,
+            ctx.node_exec.counters,        ctx.policy.diagnostics_enabled && !isolated_temporal_sample,
+            frame, graph_result.graph_reused);
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->graph_executed_frames.fetch_add(1, std::memory_order_relaxed);
+            if (graph_result.graph_reused) {
+                ctx.node_exec.counters->graph_reused_frames.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+        record_dirty_telemetry(isolated_temporal_sample ? nullptr : sw_renderer, dirty_out,
+            exec_result.use_tile_execution, graph_result.graph_reused,
+            execution_plan.path);
+
+        // ── 13. Save state for next frame ──
+        if (sw_renderer && !isolated_temporal_sample) {
+            commit_frame_state(
+                sw_renderer, frame, ctx.frame_input.camera_2_5d,
+                std::move(graph_result.compiled), exec_result.fb,
+                resolved, execution_plan.frame_fingerprints, dirty_out, width, height);
+        }
+
+    };
+    verify_phase();
 
     return exec_result.fb;
 }

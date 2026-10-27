@@ -134,7 +134,7 @@ for spatial motion that the current native plan cannot express.
 | SVG-02 Trim Paths | Pixel coverage progression at relevant frames; target timing compared to reference | Generic raw samples pass; target shot timing open |
 | SVG-03 marker positioning | Rendered marker centroid on intended path/coordinates while transforms change | Generic marker gate passes (max isolated error 0.735 px); unguarded composed regression gate awaiting rerun; target framing open |
 | SVG-04 glow | Core/halo pixel bounds, alpha residue and frame carryover checks | Synthetic combined moving-marker test passes (602 halo pixels, 0 prior-position pixels, deterministic repeat); target visual gate open |
-| SVG-05 transforms | Vehicle pivot, scale, graph camera push checked in rendered frames | Open |
+| SVG-05 transforms | CPU importer supports fixed-center rotation and commuting translations; vehicle pivot, scale and graph camera push still require checks against the target rendered frames | Generic implementation PASS; target reference still open |
 | SVG-06 temporal stability | Inspect graph/contours across motion; no unintended flicker | Generic repeat determinism exists; target review open |
 | SVG-07 composite | Encode SVG and generated presenter image in one timeline and inspect cut/overlay | Rendered; encoded-frame review pending |
 | SVG-08 determinism | Repeated raw/video renders match on approved scene plan | Generic 90/360-frame evidence exists; target plan open |

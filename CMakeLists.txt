@@ -93,7 +93,6 @@ set(CHRONONMOTION_SOURCE_DIR "" CACHE PATH
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks and benchmark CLI" OFF)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
-option(CHRONON3D_ENABLE_GEO "Build the headless geo / historical map core (ADR-034; needs Clipper2)" OFF)
 option(CHRONON3D_ENABLE_TEXT "Enable text rendering support (freetype + harfbuzz + ICU boundaries)" ON)
 option(CHRONON3D_ENABLE_SVG "Enable SVG path/document importing" OFF)
 option(CHRONON3D_ENABLE_OCIO "Enable OpenColorIO colour-management transforms" OFF)

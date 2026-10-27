@@ -205,7 +205,7 @@ namespace {
 
                     // Identical glow contract to make_black_glow_static():
                     // motion is the only variable in this baseline.
-                    l.effect(GlowPresets::canary_black());
+                    l.effect(GlowParams{.radius = 24.0f, .intensity = 0.25f, .color = Color::white()});
                 });
 
                 scene.set_evaluated_camera(canary_orbit_camera(0.0f, 0.0f, 1000.0f));

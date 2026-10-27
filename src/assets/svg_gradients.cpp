@@ -53,14 +53,18 @@ std::optional<std::string> collect_svg_gradients(
             if (!id || id->empty() || id->size() > 128 || gradients.contains(*id))
                 return "SVG gradient requires a unique bounded id";
             const auto units = node.get<std::string>("<xmlattr>.gradientUnits", "objectBoundingBox");
+            const auto spread_method = node.get<std::string>("<xmlattr>.spreadMethod", "pad");
             if ((units != "objectBoundingBox" && units != "userSpaceOnUse") ||
-                node.get<std::string>("<xmlattr>.spreadMethod", "pad") != "pad" ||
+                (spread_method != "pad" && spread_method != "repeat" && spread_method != "reflect") ||
                 node.get_optional<std::string>("<xmlattr>.href") ||
                 node.get_optional<std::string>("<xmlattr>.{http://www.w3.org/1999/xlink}href"))
-                return "SVG gradient supports objectBoundingBox units, pad spread, and no inheritance";
+                return "SVG gradient supports objectBoundingBox or userSpaceOnUse units, pad/repeat/reflect spread, and no inheritance";
             SvgGradientSpec gradient;
             gradient.radial = name == "radialGradient";
             gradient.user_space = (units == "userSpaceOnUse");
+            gradient.spread = spread_method == "repeat" ? graphics::GradientSpread::Repeat
+                : spread_method == "reflect" ? graphics::GradientSpread::Reflect
+                : graphics::GradientSpread::Pad;
             if (const auto transform = node.get_optional<std::string>("<xmlattr>.gradientTransform"))
                 gradient.transform = parse_transform(*transform);
             auto coordinate = [&](const char* key, const char* fallback, float& out) {

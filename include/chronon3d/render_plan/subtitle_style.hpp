@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // render_plan/subtitle_style.hpp — SubtitleTrack consumption of layer.style
 //
-// Lower a layer `style` block onto the SubtitleTrackBuilder with EXACTLY the
+// Lower a layer `style` block for the external captions authoring adapter with EXACTLY the
 // same semantics the text materializer (render_plan_compiler_text.cpp) applies
 // to text layers: fill → text color, shadow → one enabled TextShadow,
 // font_size → font size. Both paths share parse_hex_color (color_utils.hpp),

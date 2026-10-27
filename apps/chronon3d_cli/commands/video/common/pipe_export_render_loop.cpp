@@ -136,17 +136,6 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     static_cast<uint64_t>(frame_ms), std::memory_order_relaxed);
             }
 
-            if (!shot.fb) {
-                ctx.triple_arena->release(current_arena);
-                if (ctx.opts.cancellation_token &&
-                    ctx.opts.cancellation_token->is_cancelled()) {
-                    mark_pipe_cancelled(status, current_frame);
-                } else {
-                    mark_pipe_render_failed(status, current_frame);
-                }
-                break;
-            }
-
             if (ctx.counters) {
                 if (shot.fast_path_reused) {
                     ctx.counters->graph_skipped_frames.fetch_add(1, std::memory_order_relaxed);
@@ -173,6 +162,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 ctx.triple_arena->release(current_arena);
                 RenderFramePackage duplicate_package = DuplicateFramePackage{
                     .frame_number = current_frame,
+                    .stream_frame_number = static_cast<int>(current_frame - ctx.start),
                     .enqueued_at = std::chrono::steady_clock::now(),
                 };
                 if (!ctx.queue.push(duplicate_package, ctx.opts.cancellation_token)) {
@@ -197,6 +187,17 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     .duplicate_frame = true,
                 });
                 continue;
+            }
+
+            if (!shot.fb) {
+                ctx.triple_arena->release(current_arena);
+                if (ctx.opts.cancellation_token &&
+                    ctx.opts.cancellation_token->is_cancelled()) {
+                    mark_pipe_cancelled(status, current_frame);
+                } else {
+                    mark_pipe_render_failed(status, current_frame);
+                }
+                break;
             }
 
             EncodeOutcome enc = encode_frame(

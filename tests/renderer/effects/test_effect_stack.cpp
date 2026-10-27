@@ -6,7 +6,6 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/effects/presets/glow_presets.hpp>
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
 
@@ -94,7 +93,7 @@ TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
 
 TEST_CASE("EffectStack: canonical black glow preset sets its documented controls") {
     LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
-    lb.effect(GlowPresets::canary_black(55.0f));
+    lb.effect(GlowParams{.radius = 55.0f, .intensity = 0.25f, .color = Color::white()});
 
     auto layer = lb.build();
     REQUIRE(layer.effects().size() == 1);

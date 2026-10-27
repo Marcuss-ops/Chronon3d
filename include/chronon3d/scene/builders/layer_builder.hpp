@@ -12,6 +12,7 @@
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/effect_catalog_data.hpp>
+#include <chronon3d/effects/effect_instance.hpp>
 #include <chronon3d/scene/model/shape/material_2_5d.hpp>
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
@@ -26,12 +27,12 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 namespace chronon3d {
 
-namespace authoring { class SubtitleTrackBuilder; }
 
 class FontEngine;
 struct ExtensionContext;
@@ -176,10 +177,20 @@ public:
         m_layer.effects().push_back(std::move(instance));
         return *this;
     }
+    LayerBuilder& effect_parameter_track(
+        effects::EffectParameterTrack track) {
+        if (m_layer.effects().empty())
+            throw std::logic_error("effect parameter track requires a preceding effect");
+        m_layer.effects()[m_layer.effects().size() - 1].parameter_tracks.push_back(
+            std::move(track));
+        return *this;
+    }
     LayerBuilder& bloom(
         f32 threshold = 0.80f, f32 radius = 24.0f, f32 intensity = 0.60f);
     LayerBuilder& fake_3d_wave(Fake3DWaveParams params);
     LayerBuilder& blend(BlendMode mode);
+    LayerBuilder& lottie_precomp_groups(
+        std::vector<Layer::LottiePrecompGroupIsolation> groups);
 
     // 2D shapes and media.
     LayerBuilder& rect(std::string name, RectParams params);
@@ -220,12 +231,6 @@ public:
 
 private:
     friend class builders::testing::LayerBuilderInspector;
-    friend class authoring::SubtitleTrackBuilder;
-
-    [[nodiscard]] Frame current_frame_for_authoring() const noexcept {
-        return m_current_time.integral_frame();
-    }
-
     Layer m_layer;
     SampleTime m_current_time{SampleTime::from_frame_int(0, FrameRate{30, 1})};
     std::optional<Frame> m_until_frame{};

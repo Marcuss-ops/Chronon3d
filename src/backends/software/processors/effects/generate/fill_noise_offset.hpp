@@ -9,6 +9,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/backends/software/sampling/edge_mode.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <optional>
 
 namespace chronon3d::renderer {
@@ -16,8 +17,14 @@ namespace chronon3d::renderer {
 // ── Fill ────────────────────────────────────────────────────────────────────
 
 void apply_fill(Framebuffer& fb, const Color& color, float amount,
-                bool replace_mode,
+                FillMode mode,
                 const std::optional<raster::BBox>& clip = std::nullopt);
+inline void apply_fill(Framebuffer& fb, const Color& color, float amount,
+                       bool replace_mode,
+                       const std::optional<raster::BBox>& clip = std::nullopt) {
+    apply_fill(fb, color, amount,
+               replace_mode ? FillMode::Replace : FillMode::Mix, clip);
+}
 
 // ── Noise (deterministic, thread-safe) ──────────────────────────────────────
 

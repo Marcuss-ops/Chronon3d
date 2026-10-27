@@ -47,6 +47,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     constexpr size_t kArenaPoolCount = kCpuVideoPipelineDepth;
     auto session = std::make_unique<PipeExportSession>(kCpuVideoPipelineDepth);
     session->execution_plan = opts.resolved_execution_plan;
+    session->execution_context = execution;
     bool direct_yuv_requested =
         opts.resolved_execution_path ==
             FfmpegExportOptions::ResolvedExecutionPath::DirectYuv;
@@ -143,6 +144,12 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // AUDIT §5 — one staging-path authority (see make_partial_output_path).
     const auto partial_output_path = make_partial_output_path(final_output_path);
     session->opts.output.output = partial_output_path.string();
+    session->original_segment_paths.reserve(session->opts.output_segments.size());
+    for (auto& segment : session->opts.output_segments) {
+        const std::filesystem::path final_segment_path(segment.output_path);
+        session->original_segment_paths.push_back(final_segment_path.string());
+        segment.output_path = make_partial_output_path(final_segment_path).string();
+    }
     session->start_frame = start;
     session->end_frame = end;
     session->canvas_width = compiled.composition->width();
@@ -239,7 +246,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     if (session->opts.sink.sink_type == VideoSinkType::Ffmpeg ||
         session->opts.sink.sink_type == VideoSinkType::RawFile) {
-        if (!ensure_output_directory_exists(session->opts.output.output)) return session;
+        if (session->opts.output_segments.empty() &&
+            !ensure_output_directory_exists(session->opts.output.output)) return session;
+        for (const auto& segment : session->opts.output_segments) {
+            if (!ensure_output_directory_exists(segment.output_path)) return session;
+        }
         for (const auto& variant : session->opts.variants) {
             const auto variant_path = variant.output.empty()
                 ? session->opts.output.output : variant.output;

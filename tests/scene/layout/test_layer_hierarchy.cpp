@@ -42,7 +42,7 @@ TEST_CASE("Transform: anchor stays fixed when rotating around pivot") {
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
-// TODO(chronon3d): fix layer hierarchy resolution and re-enable.
+// TODO(chronon3d; issue #59): fix layer hierarchy resolution and re-enable.
 // TICKET-007.d (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
 //   Owner: chronon3d-owners.
 //   Motivation: pre-existing rot; layer hierarchy position-scale propagation bug.
@@ -76,7 +76,7 @@ TEST_CASE("Layer hierarchy: parent position and scale propagate to child") {
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
-// TODO(chronon3d): fix layer hierarchy resolution and re-enable.
+// TODO(chronon3d; issue #59): fix layer hierarchy resolution and re-enable.
 // TICKET-007.e (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
 //   Owner: chronon3d-owners.
 //   Motivation: pre-existing rot; parent-rotation propagation to child bug.
@@ -108,7 +108,7 @@ TEST_CASE("Layer hierarchy: parent rotation changes child world position") {
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
-// TODO(chronon3d): fix layer hierarchy resolution and re-enable.
+// TODO(chronon3d; issue #59): fix layer hierarchy resolution and re-enable.
 // TICKET-007.f (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
 //   Owner: chronon3d-owners.
 //   Motivation: pre-existing rot; opacity-through-hierarchy accumulation bug.
@@ -139,7 +139,7 @@ TEST_CASE("Layer hierarchy: opacity multiplies through parents") {
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // DISABLED: pre-existing bugs — position/opacity/parent_missing assertions fail.
-// TODO(chronon3d): fix layer hierarchy resolution and re-enable.
+// TODO(chronon3d; issue #59): fix layer hierarchy resolution and re-enable.
 // TICKET-007.g (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
 //   Owner: chronon3d-owners.
 //   Motivation: pre-existing rot; missing-parent fallback path bug.

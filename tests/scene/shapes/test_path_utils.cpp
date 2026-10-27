@@ -460,6 +460,52 @@ TEST_CASE("Boolean union resolves overlapping and degenerate compound path cases
     CHECK(empty.commands.empty());
 }
 
+TEST_CASE("Boolean path operators implement difference intersection and xor on CPU") {
+    const auto rectangle = [](float x, float y, float width, float height) {
+        return std::vector<PathCommand>{PathCommand::move_to({x, y}),
+            PathCommand::line_to({x + width, y}),
+            PathCommand::line_to({x + width, y + height}),
+            PathCommand::line_to({x, y + height}), PathCommand::close()};
+    };
+    const auto area = [](const PathShape& path) {
+        double twice_area = 0.0;
+        Vec2 first{};
+        Vec2 previous{};
+        bool active = false;
+        for (const auto& command : path.commands) {
+            if (command.type == PathCommandType::MoveTo) {
+                first = previous = command.p0;
+                active = true;
+            } else if (command.type == PathCommandType::LineTo && active) {
+                twice_area += static_cast<double>(previous.x) * command.p0.y -
+                              static_cast<double>(command.p0.x) * previous.y;
+                previous = command.p0;
+            } else if (command.type == PathCommandType::Close && active) {
+                twice_area += static_cast<double>(previous.x) * first.y -
+                              static_cast<double>(first.x) * previous.y;
+                active = false;
+            }
+        }
+        return std::abs(twice_area) * 0.5;
+    };
+    PathShape subject;
+    subject.fill_rule = PathFillRule::EvenOdd;
+    subject.commands = rectangle(0, 0, 10, 10);
+    const auto clip = rectangle(5, 5, 10, 10);
+    const auto evaluate = [&](PathOperatorKind kind, PathBooleanOperation operation) {
+        PathOperatorSpec spec;
+        spec.kind = kind;
+        spec.params = BooleanUnionParams{{clip}, operation};
+        return apply_path_operators(subject, {spec}).front();
+    };
+    CHECK(area(evaluate(PathOperatorKind::BooleanDifference,
+                        PathBooleanOperation::Difference)) == doctest::Approx(75.0));
+    CHECK(area(evaluate(PathOperatorKind::BooleanIntersection,
+                        PathBooleanOperation::Intersection)) == doctest::Approx(25.0));
+    CHECK(area(evaluate(PathOperatorKind::BooleanXor,
+                        PathBooleanOperation::Xor)) == doctest::Approx(150.0));
+}
+
 TEST_CASE("Offset path handles compound holes and collapsed insets") {
     PathShape donut;
     donut.fill_rule = PathFillRule::EvenOdd;

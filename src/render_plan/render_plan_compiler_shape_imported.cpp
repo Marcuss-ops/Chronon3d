@@ -244,7 +244,7 @@ for (std::size_t path_index = 0;
         for (auto transform = source.svg_transform_animations.rbegin();
              transform != source.svg_transform_animations.rend(); ++transform) {
             const Vec2 values = transform->operation == "rotate"
-                ? Vec2{0.0f, 0.0f}
+                ? Vec2{transform->pivot[0], transform->pivot[1]}
                 : sample_vec2(transform->animation,
                     transform->operation == "scale" ? Vec2{1.0f, 1.0f}
                     : Vec2{0.0f, 0.0f});
@@ -259,8 +259,9 @@ for (std::size_t path_index = 0;
                 if (transform->operation == "scale") {
                     return point * values;
                 }
-                return Vec2{cosine * point.x - sine * point.y,
-                            sine * point.x + cosine * point.y};
+                const Vec2 local = point - values;
+                return Vec2{cosine * local.x - sine * local.y,
+                            sine * local.x + cosine * local.y} + values;
             };
             for (auto& command : imported_path.commands) {
                 if (command.type == PathCommandType::Close) continue;
@@ -504,7 +505,10 @@ for (std::size_t path_index = 0;
                 break;
             }
             case PathOperatorKindPlan::Merge:
-            case PathOperatorKindPlan::BooleanUnion: {
+            case PathOperatorKindPlan::BooleanUnion:
+            case PathOperatorKindPlan::BooleanDifference:
+            case PathOperatorKindPlan::BooleanIntersection:
+            case PathOperatorKindPlan::BooleanXor: {
                 if (operation.target_id.empty())
                     throw std::runtime_error(
                         "SVG merge/boolean-union requires an exact element target id");
@@ -532,10 +536,20 @@ for (std::size_t path_index = 0;
                     }
                     planned_paths.push_back(std::move(subpath));
                 }
-                if (operation.kind == PathOperatorKindPlan::BooleanUnion)
-                    specs.push_back({PathOperatorKind::BooleanUnion,
-                        BooleanUnionParams{std::move(planned_paths)}, 0});
-                else
+                if (operation.kind != PathOperatorKindPlan::Merge) {
+                    auto params = BooleanUnionParams{std::move(planned_paths)};
+                    if (operation.kind == PathOperatorKindPlan::BooleanDifference) params.operation = PathBooleanOperation::Difference;
+                    else if (operation.kind == PathOperatorKindPlan::BooleanIntersection) params.operation = PathBooleanOperation::Intersection;
+                    else if (operation.kind == PathOperatorKindPlan::BooleanXor) params.operation = PathBooleanOperation::Xor;
+                    const auto path_kind = operation.kind == PathOperatorKindPlan::BooleanDifference
+                        ? PathOperatorKind::BooleanDifference
+                        : operation.kind == PathOperatorKindPlan::BooleanIntersection
+                            ? PathOperatorKind::BooleanIntersection
+                            : operation.kind == PathOperatorKindPlan::BooleanXor
+                                ? PathOperatorKind::BooleanXor : PathOperatorKind::BooleanUnion;
+                    specs.push_back({path_kind,
+                        std::move(params), 0});
+                } else
                     specs.push_back({PathOperatorKind::Merge,
                         MergeParams{std::move(planned_paths)}, 0});
                 break;

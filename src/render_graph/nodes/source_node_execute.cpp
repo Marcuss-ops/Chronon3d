@@ -319,22 +319,73 @@ NodeExecResult SourceNode::execute(
 }
 
 bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexcept {
-    // Frame-invariant + reusable across frames = eligible to skip the clear.
-    // TICKET-ae-cam-hash-collision Soluzione B (rendering-side) — bail
-    // when a camera is active even if the per-node flag is false: with
-    // a 2.5D camera the screen-space "full frame" assumption no longer
-    // holds (zoom changes the effective coverage), so full-frame
-    // seeding would produce stale FBs that bypass the cache-key fix.
-    // TICKET-TEXT-CLEANUP-8: m_uses_2_5d_projection removed.  2.5D
-    // projection is now conditioned on has_camera_2_5d globally.
-    // ImageShape contains only the source path and global opacity. The
-    // decoded pixel alpha coverage is not available in this graph-build
-    // phase, so it cannot prove an image opaque. In particular, a full-frame
-    // PNG cutout must leave the background subtree alive for composition.
-    // Keep this optimization disabled until the asset resolver exposes a
-    // trustworthy all-opaque coverage bit.
-    (void)ctx;
-    return false;
+    // A full-canvas PNG cutout must leave the background subtree alive. Use
+    // only the resolver-scoped prepared decode; never load or resolve assets
+    // from graph-build analysis, and never infer opacity from shape metadata.
+    if (m_node.shape.type() != ShapeType::Image ||
+        ctx.frame_input.has_camera_2_5d || m_defer_camera_projection ||
+        m_native_3d || !ctx.image_cache ||
+        !ctx.asset_resolver || ctx.frame_input.width <= 0 ||
+        ctx.frame_input.height <= 0) {
+        return false;
+    }
+    if (ctx.node_exec.clip_rect &&
+        (ctx.node_exec.clip_rect->x0 > 0 || ctx.node_exec.clip_rect->y0 > 0 ||
+         ctx.node_exec.clip_rect->x1 < ctx.frame_input.width ||
+         ctx.node_exec.clip_rect->y1 < ctx.frame_input.height)) {
+        return false;
+    }
+
+    const auto& image = m_node.shape.image();
+    const Mat4 source_matrix = ctx.node_exec.sampled_layer
+        ? detail::implicit_canvas_center_matrix(ctx) *
+          ctx.node_exec.sampled_layer->matrix * m_node.world_transform.to_mat4()
+        : m_matrix_override.value_or(m_node.world_transform.to_mat4());
+    const f32 opacity = ctx.node_exec.sampled_layer
+        ? ctx.node_exec.sampled_layer->opacity * m_node.world_transform.opacity
+        : m_opacity_override.value_or(m_node.world_transform.opacity);
+    if (image.size.x != static_cast<f32>(ctx.frame_input.width) ||
+        image.size.y != static_cast<f32>(ctx.frame_input.height) ||
+        !std::isfinite(image.opacity) || !std::isfinite(opacity) ||
+        image.opacity < 1.0f || opacity < 1.0f ||
+        !std::isfinite(image.tint.a) || image.tint.a < 1.0f ||
+        image.radius != 0.0f || image.crop.enabled || image.fit == FitMode::Contain ||
+        image.fit == FitMode::None) {
+        return false;
+    }
+
+    try {
+        const auto decoded = ctx.image_cache->find(
+            image.path, image.decode_options, *ctx.asset_resolver);
+        if (!decoded || !decoded->decoded_alpha_is_opaque) return false;
+
+        const auto placement = detail::evaluate_source_payload_placement(
+            source_matrix, opacity, ctx, m_apply_camera_projection,
+            m_defer_camera_projection, m_native_3d, m_name,
+            "full_frame_seed_alpha_coverage");
+        if (!placement || !detail::covers_full_frame_as_rectangle(
+                placement->render_matrix,
+                static_cast<f32>(ctx.frame_input.width),
+                static_cast<f32>(ctx.frame_input.height), false)) {
+            return false;
+        }
+
+        // Match execute()'s no-gap predicate: only identity orientation and
+        // integer translation can omit the source-surface clear.
+        const auto& matrix = placement->render_matrix;
+        const bool identity_scale_rot =
+            std::abs(matrix[0][0] - 1.0f) < 1e-4f &&
+            std::abs(matrix[0][1]) < 1e-4f &&
+            std::abs(matrix[1][0]) < 1e-4f &&
+            std::abs(matrix[1][1] - 1.0f) < 1e-4f;
+        if (!identity_scale_rot) return false;
+        return std::abs(matrix[3][0] - std::round(matrix[3][0])) < 1e-4f &&
+               std::abs(matrix[3][1] - std::round(matrix[3][1])) < 1e-4f;
+    } catch (...) {
+        // can_seed_full_frame is noexcept; cache/resolver lookup failures must
+        // disable the optimization and preserve the normal clear path.
+        return false;
+    }
 }
 
 } // namespace chronon3d::graph

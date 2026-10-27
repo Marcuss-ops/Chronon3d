@@ -89,7 +89,8 @@ void decode_shape_fill_and_stroke(
                         shape.type == ShapeContentTypePlan::Star ||
                         shape.type == ShapeContentTypePlan::Polygon ||
                         shape.type == ShapeContentTypePlan::Arrow ||
-                        shape.type == ShapeContentTypePlan::DotGrid;
+                        shape.type == ShapeContentTypePlan::DotGrid ||
+                        shape.type == ShapeContentTypePlan::RingSegment;
                     const bool closed_path = shape.type == ShapeContentTypePlan::Path &&
                         !shape.svg_asset && !shape.lottie_asset &&
                         std::any_of(shape.path.begin(), shape.path.end(), [](const auto& command) {
@@ -216,7 +217,9 @@ void decode_shape_fill_and_stroke(
                     shape.type != ShapeContentTypePlan::Arrow &&
                     shape.type != ShapeContentTypePlan::Arc &&
                     shape.type != ShapeContentTypePlan::Grid &&
-                    shape.type != ShapeContentTypePlan::DotGrid)
+                    shape.type != ShapeContentTypePlan::DotGrid &&
+                    shape.type != ShapeContentTypePlan::RingSegment &&
+                    shape.type != ShapeContentTypePlan::MonotoneLine)
                     throw std::runtime_error("brush strokes require a path-backed shape");
                 if (shape.svg_asset || shape.lottie_asset)
                     throw std::runtime_error("brush strokes are not supported on imported asset paths");
@@ -307,6 +310,7 @@ void decode_shape_fill_and_stroke(
                 shape.type == ShapeContentTypePlan::Polygon ||
                 shape.type == ShapeContentTypePlan::Arrow ||
                 shape.type == ShapeContentTypePlan::DotGrid ||
+                shape.type == ShapeContentTypePlan::RingSegment ||
                 ((shape.type == ShapeContentTypePlan::Line ||
                   shape.type == ShapeContentTypePlan::Path) &&
                  std::any_of(shape.path.begin(), shape.path.end(), [](const auto& command) {

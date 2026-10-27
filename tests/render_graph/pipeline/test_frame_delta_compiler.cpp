@@ -216,6 +216,30 @@ TEST_CASE("ExecutionResolver resolves YUV execution paths from a FrameDelta") {
     CHECK(plan.reason == "full_yuv_p010");
 }
 
+TEST_CASE("ExecutionResolver preserves proven packet duplicates on NV12 output") {
+    using namespace chronon3d::graph;
+    FrameExecutionPlan duplicate;
+    duplicate.path = FrameExecutionPath::DuplicateFrame;
+    duplicate.duplicate_encoded_frame = true;
+    duplicate.render = false;
+    duplicate.composite = false;
+    duplicate.encode = true;
+    duplicate.reason = "duplicate_static_frame";
+
+    const auto resolved = ExecutionResolver::resolve(
+        duplicate, {}, chronon3d::Scene{}, chronon3d::Camera2_5D{},
+        chronon3d::RenderSettings{}, {}, 0.0, nullptr,
+        chronon3d::Frame{1}, 32, 32, nullptr, true, false,
+        chronon3d::runtime::PixelFormat::Nv12);
+
+    CHECK(resolved.path == FrameExecutionPath::DuplicateFrame);
+    CHECK(resolved.duplicate_encoded_frame);
+    CHECK_FALSE(resolved.render);
+    CHECK_FALSE(resolved.composite);
+    CHECK(resolved.encode);
+    CHECK(resolved.reason == "duplicate_static_frame");
+}
+
 TEST_CASE("ExecutionResolver keeps strict native RGB sparse rendering fail-closed") {
     using namespace chronon3d;
     using namespace chronon3d::graph;

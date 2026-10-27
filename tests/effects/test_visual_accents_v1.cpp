@@ -2,7 +2,12 @@
 
 #include <chronon3d/graphics/paint_mask_generator.hpp>
 #include <chronon3d/graphics/stroke/brush_profile.hpp>
-#include <chronon3d/render_plan/effect_presets/abstract_background.hpp>
+#if __has_include(<chrononplugin/effects/presets/abstract_background.hpp>)
+#include <chrononplugin/effects/presets/abstract_background.hpp>
+#define CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE 1
+#else
+#define CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE 0
+#endif
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
@@ -16,7 +21,6 @@
 using namespace chronon3d;
 using namespace chronon3d::graphics;
 using namespace chronon3d::render_plan;
-using namespace chronon3d::render_plan::effect_presets;
 
 namespace {
 
@@ -108,6 +112,9 @@ TEST_CASE("Visual Accents V1: PaintMaskGenerator authority") {
         CHECK(left == generator.sample(Vec2{0.2f, 0.5f}));
     }
 }
+
+#if CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE
+using namespace chrononplugin::effects::presets;
 
 TEST_CASE("Visual Accents V1: Light leak profile resolver") {
     using namespace light_leak;
@@ -602,3 +609,4 @@ TEST_CASE("Visual Accents V1: abstract and cinematic background recipes") {
         CHECK_THROWS_AS(cinematic_bezier_ribbon(canvas, kWarmTint, 0.0f), std::invalid_argument);
     }
 }
+#endif

@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/assets/svg_styled_element.hpp>
+#include <array>
 #include <string>
 #include <string_view>
 #include <optional>
@@ -19,6 +20,16 @@ struct SvgPathLoadResult {
     std::string error;
 };
 
+struct SvgFilterEffectSpec {
+    enum class Kind { GaussianBlur, DropShadow, ColorMatrix, Blend };
+    Kind kind{Kind::GaussianBlur};
+    float radius{0.0f};
+    std::array<float, 2> offset{0.0f, 0.0f};
+    std::array<float, 4> color{0.0f, 0.0f, 0.0f, 1.0f};
+    std::array<float, 20> color_matrix{};
+    std::string blend_mode{"normal"};
+};
+
 /// Result of importing SVG geometry elements in document order.
 ///
 /// This is deliberately a geometry-only boundary: fill, stroke, styles, and CSS
@@ -31,6 +42,8 @@ struct SvgDocumentLoadResult {
     /// One root-scoped SVG Gaussian blur that maps directly to Chronon's
     /// existing layer GaussianBlur effect. Arbitrary filter graphs are rejected.
     std::optional<float> root_gaussian_blur;
+    /// Ordered CPU effect lowering for the bounded root SVG filter chain.
+    std::vector<SvgFilterEffectSpec> root_filter_effects;
     bool ok{false};
     std::string error;
 };

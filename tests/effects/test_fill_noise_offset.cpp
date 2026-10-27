@@ -68,6 +68,33 @@ TEST_CASE("Fill: replace mode preserves alpha") {
     CHECK(actual.a == doctest::Approx(0.5f));
 }
 
+TEST_CASE("Fill: Lottie opacity replaces source alpha") {
+    Framebuffer fb(2, 1);
+    fb.set_pixel(0, 0, Color{0.25f, 0.0f, 0.0f, 0.5f});
+    fb.set_pixel(1, 0, Color{1.0f, 1.0f, 1.0f, 1.0f});
+
+    apply_fill(fb, Color{0.0f, 0.0f, 1.0f, 1.0f}, 0.5f,
+               FillMode::ReplaceAlpha, raster::BBox{0, 0, 1, 1});
+    const auto half = fb.get_pixel(0, 0);
+    CHECK(half.r == doctest::Approx(0.0f));
+    CHECK(half.g == doctest::Approx(0.0f));
+    CHECK(half.b == doctest::Approx(0.25f));
+    CHECK(half.a == doctest::Approx(0.25f));
+
+    apply_fill(fb, Color{0.0f, 0.0f, 1.0f, 1.0f}, 1.0f,
+               FillMode::ReplaceAlpha, raster::BBox{1, 0, 2, 1});
+    const auto full = fb.get_pixel(1, 0);
+    CHECK(full.r == doctest::Approx(0.0f));
+    CHECK(full.g == doctest::Approx(0.0f));
+    CHECK(full.b == doctest::Approx(1.0f));
+    CHECK(full.a == doctest::Approx(1.0f));
+
+    apply_fill(fb, Color{0.0f, 0.0f, 1.0f, 1.0f}, 0.0f,
+               FillMode::ReplaceAlpha);
+    CHECK(fb.get_pixel(0, 0) == Color::transparent());
+    CHECK(fb.get_pixel(1, 0) == Color::transparent());
+}
+
 // =============================================================================
 // 3. Fill — Mix 25% (sezione 7.2)
 // =============================================================================

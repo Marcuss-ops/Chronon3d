@@ -151,6 +151,7 @@ chronon3d::GlyphSelectorSpec compile_text_selector(const TextSelectorPlan& plan,
     selector.offset = animated_text_value(plan.offset, 0.0f, "selector.offset", fps);
     selector.amount = animated_text_value(plan.amount, 100.0f, "selector.amount", fps);
     selector.exclude_spaces = plan.exclude_spaces;
+    selector.end_inclusive = plan.end_inclusive;
     selector.randomize_order = plan.randomize_order;
     selector.random_seed = plan.random_seed;
     selector.wiggly = chronon3d::WigglySelectorParams{

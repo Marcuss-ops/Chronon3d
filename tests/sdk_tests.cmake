@@ -26,6 +26,8 @@ set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_temporal_rate_analysis.cpp
     c_abi/test_render_plan_spring_bake.cpp
     c_abi/test_render_plan_shape_path_generator.cpp
+    c_abi/test_render_plan_geometry_extensions.cpp
+    c_abi/test_prepared_render_plan_lottie_boundary.cpp
     c_abi/test_render_plan_inline_mesh.cpp
     c_abi/test_render_plan_particles.cpp
     c_abi/test_render_plan_audio_mix.cpp
@@ -33,7 +35,11 @@ set(_chronon3d_c_abi_sources
     c_abi/test_render_plan_fingerprint_shape.cpp
     c_abi/test_render_plan_validator.cpp
     c_abi/test_render_plan_consolidation.cpp
-    c_abi/test_prepared_render_plan.cpp)
+    c_abi/test_prepared_render_plan.cpp
+    c_abi/test_prepared_render_plan_runtime.cpp
+    c_abi/test_prepared_render_plan_timeline.cpp
+    c_abi/test_render_plan_decoder_features.cpp
+    c_abi/test_render_plan_decoder_validation.cpp)
 if(TARGET chronon3d_c)
     list(APPEND _chronon3d_c_abi_links chronon3d_c)
     list(APPEND _chronon3d_c_abi_sources c_abi/test_c_api_v2.cpp)
@@ -44,6 +50,11 @@ chronon3d_add_test_suite(
     LINK_TARGETS ${_chronon3d_c_abi_links}
     SOURCES ${_chronon3d_c_abi_sources}
 )
+target_compile_definitions(chronon3d_c_abi_tests PRIVATE
+    CHRONON3D_TEST_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\")
 if(CHRONON3D_ENABLE_SVG)
     target_compile_definitions(chronon3d_c_abi_tests PRIVATE CHRONON_TEST_ENABLE_SVG=1)
+    target_sources(chronon3d_c_abi_tests PRIVATE
+        c_abi/test_prepared_render_plan_svg_filters.cpp
+    )
 endif()

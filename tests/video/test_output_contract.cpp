@@ -24,6 +24,7 @@ extern "C" {
 }
 
 #include <atomic>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -47,6 +48,70 @@ std::string temp_path(const char* suffix) {
 
 bool ffmpeg_available() {
     return std::system("ffmpeg -version >/dev/null 2>&1") == 0;
+}
+
+std::vector<std::uint64_t> decode_video_hashes(const std::string& path) {
+    std::vector<std::uint64_t> hashes;
+    AVFormatContext* demux = nullptr;
+    if (avformat_open_input(&demux, path.c_str(), nullptr, nullptr) < 0) return hashes;
+    if (avformat_find_stream_info(demux, nullptr) < 0) {
+        avformat_close_input(&demux);
+        return hashes;
+    }
+    const int index = av_find_best_stream(
+        demux, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    if (index < 0) {
+        avformat_close_input(&demux);
+        return hashes;
+    }
+    AVCodecParameters* params = demux->streams[index]->codecpar;
+    const AVCodec* codec = avcodec_find_decoder(params->codec_id);
+    AVCodecContext* decoder = avcodec_alloc_context3(codec);
+    if (!codec || !decoder || avcodec_parameters_to_context(decoder, params) < 0 ||
+        avcodec_open2(decoder, codec, nullptr) < 0) {
+        avcodec_free_context(&decoder);
+        avformat_close_input(&demux);
+        return hashes;
+    }
+    AVFrame* frame = av_frame_alloc();
+    AVPacket* packet = av_packet_alloc();
+    if (!frame || !packet) {
+        av_frame_free(&frame);
+        av_packet_free(&packet);
+        avcodec_free_context(&decoder);
+        avformat_close_input(&demux);
+        return hashes;
+    }
+    const auto append_frames = [&] {
+        while (avcodec_receive_frame(decoder, frame) >= 0) {
+            std::uint64_t hash = 14695981039346656037ULL;
+            for (int plane = 0; plane < 3; ++plane) {
+                const int height = plane == 0 ? frame->height : frame->height / 2;
+                const int width = plane == 0 ? frame->width : frame->width / 2;
+                for (int y = 0; y < height; ++y) {
+                    const auto* row = frame->data[plane] + y * frame->linesize[plane];
+                    for (int x = 0; x < width; ++x) {
+                        hash ^= row[x];
+                        hash *= 1099511628211ULL;
+                    }
+                }
+            }
+            hashes.push_back(hash);
+            av_frame_unref(frame);
+        }
+    };
+    while (av_read_frame(demux, packet) >= 0) {
+        if (packet->stream_index == index &&
+            avcodec_send_packet(decoder, packet) >= 0) append_frames();
+        av_packet_unref(packet);
+    }
+    (void)avcodec_send_packet(decoder, nullptr);
+    append_frames();
+    av_frame_free(&frame);
+    av_packet_free(&packet);
+    avcodec_free_context(&decoder);
+    avformat_close_input(&demux);
+    return hashes;
 }
 
 }  // namespace
@@ -235,6 +300,223 @@ TEST_CASE("MuxSession checksum is opt-in and authoritative when requested") {
     avcodec_free_context(&video_codec);
     std::error_code ec;
     std::filesystem::remove(artifact, ec);
+}
+
+TEST_CASE("MuxOutputSegmentWriter emits independent PTS-zero MP4s from one packet timeline") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+
+    const auto source_path = temp_path("segment_source.mp4");
+    const auto first_path = temp_path("segment_0.mp4");
+    const auto second_path = temp_path("segment_1.mp4");
+    const auto make_source =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i testsrc2=s=64x48:r=10 -frames:v 8 "
+        "-c:v libx264 -pix_fmt yuv420p -bf 0 -g 4 -keyint_min 4 "
+        "-sc_threshold 0 -force_key_frames 0,0.4 " + source_path;
+    REQUIRE(std::system(make_source.c_str()) == 0);
+
+    AVFormatContext* input = nullptr;
+    REQUIRE(avformat_open_input(&input, source_path.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(input, nullptr) >= 0);
+    const int video_index = av_find_best_stream(
+        input, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    REQUIRE(video_index >= 0);
+    AVStream* video_stream = input->streams[video_index];
+    struct SavedPacket {
+        chronon3d::media::OwnedAVPacket packet;
+    };
+    std::vector<SavedPacket> packets;
+    std::int64_t second_key_pts = AV_NOPTS_VALUE;
+    std::int64_t end_pts = AV_NOPTS_VALUE;
+    AVPacket* packet = av_packet_alloc();
+    REQUIRE(packet != nullptr);
+    while (av_read_frame(input, packet) >= 0) {
+        if (packet->stream_index == video_index) {
+            auto saved = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+            REQUIRE(saved != nullptr);
+            REQUIRE(av_packet_ref(saved.get(), packet) >= 0);
+            if ((packet->flags & AV_PKT_FLAG_KEY) != 0 && !packets.empty() &&
+                second_key_pts == AV_NOPTS_VALUE) {
+                second_key_pts = packet->pts;
+            }
+            end_pts = packet->pts + std::max<std::int64_t>(packet->duration, 1);
+            packets.push_back({std::move(saved)});
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    REQUIRE(packets.size() == 8);
+    REQUIRE(packets.front().packet->pts == 0);
+    REQUIRE(second_key_pts > 0);
+    REQUIRE(end_pts > second_key_pts);
+
+    chronon3d::media::MuxOutputSegmentWriter writer;
+    std::string reason;
+    REQUIRE(writer.open(video_stream->codecpar, video_stream->time_base,
+        {{first_path, 0, second_key_pts, 4},
+         {second_path, second_key_pts, end_pts, 4}}, false, reason));
+    CHECK(writer.segment_count() == 2);
+    for (const auto& saved : packets) {
+        REQUIRE(writer.submit_video(*saved.packet, video_stream->time_base));
+    }
+    REQUIRE(writer.finalize());
+    avformat_close_input(&input);
+
+    const auto source_hashes = decode_video_hashes(source_path);
+    const auto first_hashes = decode_video_hashes(first_path);
+    const auto second_hashes = decode_video_hashes(second_path);
+    REQUIRE(source_hashes.size() == 8);
+    REQUIRE(first_hashes.size() == 4);
+    REQUIRE(second_hashes.size() == 4);
+    for (std::size_t i = 0; i < 4; ++i) {
+        CHECK(first_hashes[i] == source_hashes[i]);
+        CHECK(second_hashes[i] == source_hashes[i + 4]);
+    }
+
+    std::error_code ec;
+    std::filesystem::remove(source_path, ec);
+    std::filesystem::remove(first_path, ec);
+    std::filesystem::remove(second_path, ec);
+}
+
+TEST_CASE("MuxOutputSegmentWriter mirror emits the whole-timeline clip alongside the segments") {
+    if (!ffmpeg_available()) {
+        MESSAGE("Skipping — ffmpeg CLI required");
+        return;
+    }
+
+    // P4 batch superjob: one still-open codec produces the per-item segments
+    // AND the fused whole-timeline clip (the mirror). The mirror must decode
+    // to exactly the source timeline (global PTS), while each segment keeps
+    // its PTS-zeroed window — so "batch consumed as one clip" and "one MP4 per
+    // item" hold at the same time from a single encode session.
+    const auto source_path = temp_path("mirror_source.mp4");
+    const auto first_path = temp_path("mirror_segment_0.mp4");
+    const auto second_path = temp_path("mirror_segment_1.mp4");
+    const auto mirror_path = temp_path("mirror_whole.mp4");
+    const auto make_source =
+        "ffmpeg -hide_banner -loglevel error -y "
+        "-f lavfi -i testsrc2=s=64x48:r=10 -frames:v 8 "
+        "-c:v libx264 -pix_fmt yuv420p -bf 0 -g 4 -keyint_min 4 "
+        "-sc_threshold 0 -force_key_frames 0,0.4 " + source_path;
+    REQUIRE(std::system(make_source.c_str()) == 0);
+
+    AVFormatContext* input = nullptr;
+    REQUIRE(avformat_open_input(&input, source_path.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_find_stream_info(input, nullptr) >= 0);
+    const int video_index = av_find_best_stream(
+        input, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    REQUIRE(video_index >= 0);
+    AVStream* video_stream = input->streams[video_index];
+    std::vector<chronon3d::media::OwnedAVPacket> packets;
+    std::int64_t second_key_pts = AV_NOPTS_VALUE;
+    std::int64_t end_pts = AV_NOPTS_VALUE;
+    AVPacket* packet = av_packet_alloc();
+    REQUIRE(packet != nullptr);
+    while (av_read_frame(input, packet) >= 0) {
+        if (packet->stream_index == video_index) {
+            auto saved = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+            REQUIRE(saved != nullptr);
+            REQUIRE(av_packet_ref(saved.get(), packet) >= 0);
+            if ((packet->flags & AV_PKT_FLAG_KEY) != 0 && !packets.empty() &&
+                second_key_pts == AV_NOPTS_VALUE) {
+                second_key_pts = packet->pts;
+            }
+            end_pts = packet->pts + std::max<std::int64_t>(packet->duration, 1);
+            packets.push_back(std::move(saved));
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    REQUIRE(packets.size() == 8);
+    REQUIRE(second_key_pts > 0);
+
+    // Fail-closed: the mirror shares the output namespace with the segments.
+    {
+        chronon3d::media::MuxOutputSegmentWriter collision;
+        std::string collision_reason;
+        CHECK_FALSE(collision.open(
+            video_stream->codecpar, video_stream->time_base,
+            {{first_path, 0, second_key_pts, 4},
+             {second_path, second_key_pts, end_pts, 4}},
+            false, collision_reason, first_path));
+    }
+
+    chronon3d::media::MuxOutputSegmentWriter writer;
+    std::string reason;
+    REQUIRE(writer.open(video_stream->codecpar, video_stream->time_base,
+        {{first_path, 0, second_key_pts, 4},
+         {second_path, second_key_pts, end_pts, 4}}, false, reason, mirror_path));
+    for (const auto& saved : packets) {
+        REQUIRE(writer.submit_video(*saved, video_stream->time_base));
+    }
+    REQUIRE(writer.finalize());
+    avformat_close_input(&input);
+
+    const auto source_hashes = decode_video_hashes(source_path);
+    const auto mirror_hashes = decode_video_hashes(mirror_path);
+    const auto first_hashes = decode_video_hashes(first_path);
+    const auto second_hashes = decode_video_hashes(second_path);
+    REQUIRE(source_hashes.size() == 8);
+    REQUIRE(mirror_hashes.size() == 8);
+    REQUIRE(first_hashes.size() == 4);
+    REQUIRE(second_hashes.size() == 4);
+    for (std::size_t i = 0; i < 8; ++i) {
+        CHECK(mirror_hashes[i] == source_hashes[i]);
+    }
+    for (std::size_t i = 0; i < 4; ++i) {
+        CHECK(first_hashes[i] == source_hashes[i]);
+        CHECK(second_hashes[i] == source_hashes[i + 4]);
+    }
+
+    std::error_code ec;
+    std::filesystem::remove(source_path, ec);
+    std::filesystem::remove(first_path, ec);
+    std::filesystem::remove(second_path, ec);
+    std::filesystem::remove(mirror_path, ec);
+}
+
+TEST_CASE("MuxOutputSegmentWriter refuses a non-keyframe segment boundary") {
+    const auto first_path = temp_path("bad_segment_0.mp4");
+    const auto second_path = temp_path("bad_segment_1.mp4");
+    AVCodecContext* video_codec = avcodec_alloc_context3(nullptr);
+    REQUIRE(video_codec != nullptr);
+    video_codec->codec_type = AVMEDIA_TYPE_VIDEO;
+    video_codec->codec_id = AV_CODEC_ID_MPEG4;
+    video_codec->width = 32;
+    video_codec->height = 32;
+    video_codec->pix_fmt = AV_PIX_FMT_YUV420P;
+    video_codec->time_base = AVRational{1, 10};
+    AVCodecParameters* params = avcodec_parameters_alloc();
+    REQUIRE(params != nullptr);
+    REQUIRE(avcodec_parameters_from_context(params, video_codec) >= 0);
+
+    chronon3d::media::MuxOutputSegmentWriter writer;
+    std::string reason;
+    REQUIRE(writer.open(params, video_codec->time_base,
+        {{first_path, 0, 2}, {second_path, 2, 4}}, false, reason));
+    for (std::int64_t pts = 0; pts < 3; ++pts) {
+        auto packet = chronon3d::media::OwnedAVPacket(av_packet_alloc());
+        REQUIRE(packet != nullptr);
+        REQUIRE(av_new_packet(packet.get(), 4) >= 0);
+        packet->pts = pts;
+        packet->dts = pts;
+        packet->duration = 1;
+        if (pts == 0) packet->flags |= AV_PKT_FLAG_KEY;
+        const bool submitted = writer.submit_video(*packet, video_codec->time_base);
+        if (pts < 2) CHECK(submitted);
+        else CHECK_FALSE(submitted);
+    }
+    CHECK_FALSE(writer.finalize());
+
+    avcodec_parameters_free(&params);
+    avcodec_free_context(&video_codec);
+    std::error_code ec;
+    std::filesystem::remove(first_path, ec);
+    std::filesystem::remove(second_path, ec);
 }
 
 // The fragmented-mp4 side of the same contract: moof/mdat fragments have no

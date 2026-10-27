@@ -7,6 +7,7 @@
 
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/effects/curves.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/effect_gpu_capability.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
@@ -200,8 +201,42 @@ NodeExecResult EffectStackNode::execute(
             ? std::optional<raster::BBox>{}
             : local_clip;
         EffectStack active_effects;
-        for (const auto& effect : m_effects)
-            if (effect.enabled) active_effects.push_back(effect);
+        for (const auto& authored_effect : m_effects) {
+            if (!authored_effect.enabled) continue;
+            auto effect = authored_effect;
+            for (const auto& track : effect.parameter_tracks) {
+                if (track.keyframes.empty()) continue;
+                const auto frame = ctx.frame_input.frame.integral();
+                float sample = track.keyframes.front().value;
+                if (frame >= track.keyframes.back().frame) {
+                    sample = track.keyframes.back().value;
+                } else {
+                    for (std::size_t key = 0; key + 1 < track.keyframes.size(); ++key) {
+                        const auto& left = track.keyframes[key];
+                        const auto& right = track.keyframes[key + 1];
+                        if (frame >= right.frame) continue;
+                        if (left.hold || right.frame <= left.frame) {
+                            sample = left.value;
+                        } else {
+                            const float amount = static_cast<float>(frame - left.frame) /
+                                static_cast<float>(right.frame - left.frame);
+                            sample = left.value + (right.value - left.value) * amount;
+                        }
+                        break;
+                    }
+                }
+                const auto* bounds = effects::find_animatable_effect_param(
+                    effect.descriptor.id, track.param);
+                if (!bounds || !std::isfinite(sample) ||
+                    !effects::set_animatable_effect_param(
+                        effect.params, effect.descriptor.id, track.param,
+                        std::clamp(sample, bounds->minimum, bounds->maximum))) {
+                    throw std::runtime_error(
+                        "effect parameter animation could not be sampled at this frame");
+                }
+            }
+            active_effects.push_back(std::move(effect));
+        }
         const auto echo_count = std::count_if(active_effects.begin(), active_effects.end(),
             [](const EffectInstance& effect) {
                 return effect.effect_type == effects::EffectType::Echo;
@@ -497,7 +532,7 @@ NodeExecResult EffectStackNode::execute(
         if (!native_handled && !gpu_only_input) {
             effect_context.software_fallback =
                 ctx.backend->supports_native_surfaces() && !active_effects.empty();
-            ctx.backend->apply_effect_stack(*result, m_effects, effect_context);
+            ctx.backend->apply_effect_stack(*result, active_effects, effect_context);
         }
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);

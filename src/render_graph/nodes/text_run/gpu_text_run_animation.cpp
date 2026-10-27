@@ -161,12 +161,12 @@ bool can_lower_gpu_text_animation(const TextRunShape& shape) noexcept {
     // cannot express without changing their meaning.
     return std::all_of(shape.glyphs.begin(), shape.glyphs.end(),
         [](const GlyphInstanceState& glyph) {
-            return std::abs(glyph.rotation.x) <= 1e-6f &&
-                   std::abs(glyph.rotation.y) <= 1e-6f &&
+            return std::abs(glyph.rotation.x) < 89.0f &&
+                   std::abs(glyph.rotation.y) < 89.0f &&
                    (std::abs(glyph.rotation.z) <= 1e-6f ||
                     (std::abs(glyph.anchor.x) <= 1e-6f &&
                      std::abs(glyph.anchor.y) <= 1e-6f)) &&
-                   std::abs(glyph.position.z) <= 1e-6f &&
+                   std::isfinite(glyph.position.z) &&
                    std::abs(glyph.anchor.z) <= 1e-6f &&
                    std::abs(glyph.skew) <= 1e-6f &&
                    std::abs(glyph.skew_axis) <= 1e-6f &&
@@ -221,6 +221,11 @@ void sample_gpu_text_animation(
             const auto value = position->value.evaluate(sample_time);
             run.animator_position_x += value.x;
             run.animator_position_y += value.y;
+            if (std::isfinite(value.z) && value.z > 0.0f) {
+                float depth_factor = 1.0f / (1.0f + value.z * 0.001f);
+                run.animator_scale_x *= depth_factor;
+                run.animator_scale_y *= depth_factor;
+            }
         } else if (const auto* scale = std::get_if<ScaleProperty>(&property)) {
             const auto value = scale->value.evaluate(sample_time);
             run.animator_scale_x *= value.x;
@@ -230,7 +235,15 @@ void sample_gpu_text_animation(
         } else if (const auto* blur = std::get_if<BlurProperty>(&property)) {
             run.animator_blur += std::max(0.0f, blur->radius.evaluate(sample_time));
         } else if (const auto* rotation = std::get_if<RotationProperty>(&property)) {
-            run.animator_rotation_z += rotation->degrees.evaluate(sample_time).z;
+            const auto deg = rotation->degrees.evaluate(sample_time);
+            run.animator_rotation_z += deg.z;
+            constexpr double kPi = 3.14159265358979323846;
+            const double ry_rad = static_cast<double>(deg.y) * (kPi / 180.0);
+            const double rx_rad = static_cast<double>(deg.x) * (kPi / 180.0);
+            const double ry_clamped = std::clamp(ry_rad, -kPi / 2.0 + 1e-3, kPi / 2.0 - 1e-3);
+            const double rx_clamped = std::clamp(rx_rad, -kPi / 2.0 + 1e-3, kPi / 2.0 - 1e-3);
+            run.animator_shear_x += static_cast<float>(std::tan(ry_clamped));
+            run.animator_shear_y += static_cast<float>(std::tan(rx_clamped));
         } else if (const auto* fill = std::get_if<FillColorProperty>(&property)) {
             run.flags |= runtime::kTextRunFlagAnimatorFill;
             run.animator_fill_color = ::chronon3d::text::pack_text_color(

@@ -45,6 +45,41 @@ RUN --mount=type=cache,id=chronon-vcpkg-archives,target=/root/.cache/vcpkg/archi
             exit 1; \
         } )
 
+# ── map renderer (ChrononPlugin/plugins/maps) ──────────────────────────────────
+# The native dynamic-map renderer (maps_dynamic_map_render) is the single map
+# lane since the Python renderer's retirement (TICKET-MAPS-NATIVE-PORT):
+# binary + boundary catalog install as one unit. ChrononPlugin and
+# ChrononTemplate are cloned at pinned refs exactly like ChrononMotion3d
+# below — advance the pins together with the plugin.
+FROM deps AS maps
+
+ARG CHRONONPLUGIN_REF=c000ee3b7cba8d8d35aa1faddd6c8ff32b067a3f
+ARG CHRONONTEMPLATE_REF=7812872e7c9ade2ce0202025be3d09478f438324
+
+# python3 is only needed at build time: the plugin's CMake registers the
+# parity-gate tests behind a Python interpreter. None of it reaches the image.
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+        libopencv-dev python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone https://github.com/Marcuss-ops/ChrononPlugin.git /src/chrononplugin \
+    && git -C /src/chrononplugin fetch --depth 1 origin "${CHRONONPLUGIN_REF}" \
+    && git -C /src/chrononplugin checkout --detach FETCH_HEAD
+RUN git clone https://github.com/Marcuss-ops/ChrononTemplate.git /src/chronontemplate \
+    && git -C /src/chronontemplate fetch --depth 1 origin "${CHRONONTEMPLATE_REF}" \
+    && git -C /src/chronontemplate checkout --detach FETCH_HEAD
+
+# The plugin resolves Clipper2/nlohmann_json from the manifest tree above and
+# prefers a system OpenCV (libopencv-dev), so no static bootstrap is needed.
+RUN cmake -S /src/chrononplugin/plugins/maps -B /src/chrononplugin/build/docker -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/chrononmaps \
+        -DCHRONON_MAPS_CATALOG_DIR=/src/chronontemplate/catalog \
+        -DClipper2_DIR=/opt/vcpkg_installed/x64-linux/share/clipper2 \
+        -Dnlohmann_json_DIR=/opt/vcpkg_installed/x64-linux/share/nlohmann_json \
+    && cmake --build /src/chrononplugin/build/docker --parallel \
+    && cmake --install /src/chrononplugin/build/docker
+
 FROM deps AS builder
 
 ARG CHRONONMOTION_REF=30f5750d00982b4c413706513667b8f92b483171
@@ -86,10 +121,17 @@ ENV LD_LIBRARY_PATH=/opt/chronon3d/lib
 
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         ca-certificates ffmpeg libstdc++6 libc-bin libvulkan1 \
+        libopencv-core406 libopencv-imgproc406 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --uid 10001 --create-home --shell /usr/sbin/nologin chronon
 
 COPY --from=builder /opt/chronon3d /opt/chronon3d
+COPY --from=maps /opt/chrononmaps /opt/chrononmaps
+
+# The native dynamic-map renderer and its boundary catalog (the single map
+# lane). PipelineGen resolves the renderer through these two variables.
+ENV VELOX_MAP_NATIVE_RENDERER_PATH=/opt/chrononmaps/bin/maps_dynamic_map_render
+ENV CHRONON_MAPS_CATALOG_DIR=/opt/chrononmaps/share/chrononplugin/maps-catalog
 
 RUN mkdir -p /work/assets /work/output \
     && chown -R chronon:chronon /work

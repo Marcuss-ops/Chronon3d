@@ -1,19 +1,77 @@
 # TICKET-DAEMON-JOB-LIFECYCLE — il renderer non è lento: lo è il ciclo di vita del job
 
-**Aggiornamento 2026-10-08 — calibrazione VRAM** (`RenderingGen/multilingual_overlays_v1/evidence/vram_calibration_suite_2026-10-08.json`, `complete=true`, 3 shape × 3 run, artefatti identici e device coerente in tutte le ripetizioni):
+**Snapshot storico 2026-10-08 — calibrazione VRAM** (`RenderingGen/multilingual_overlays_v1/evidence/vram_calibration_suite_2026-10-08.json`, complete, 3 shape × 3 run):
 
 - overlay 1080p: picco device 9854 MiB, attribuito al daemon 4940 MiB;
 - video-source 1080p: picco device 8828 MiB, attribuito 3956 MiB;
 - overlay 4K: picco device 14536 MiB, attribuito 9621 MiB.
 
-**Decisione:** `m_render_job_mutex` **resta**. Due job 4K concorrenti (~2 × 9.6 GB attribuiti) superano i 16 GB della RTX A4000. Il codice corrente ha già admission VRAM e un lock shared/exclusive (`daemon_render_concurrency.hpp`, `RenderJobAdmissionContext` in `daemon_service_ipc_render_job.cpp`): chunk DirectYUV disgiunti approvati dalla policy possono sovrapporsi, mentre monolitici/FullGraph restano esclusivi. Il residuo è certificare modello, isolamento e overlap sulle shape rappresentative, non implementare da zero admission o rimuovere globalmente il mutex. La matrice 2026-10-08 sostituisce quella del 2026-09-17, i cui piani non sono più caricabili (vedi commento nel manifest).
+Decisione attuale sul mutex e suite GPU aggiornata: vedi i closeout del
+2026-10-27 sotto. I numeri 2026-10-08 sono uno snapshot storico con piani e
+shape differenti.
 
-Stato: **OPEN / VERIFIED LOCALLY** — temporal schedule, bake delle static island,
+Stato: **CLOSED FOR CURRENT SCOPE (2026-10-27)** — temporal schedule, bake delle static island,
 concurrency e protocollo IPC `RENDER_BATCH` verificati con successo:
 `chronon3d_daemon_render_concurrency_tests` (25/25 casi passati, 163 asserzioni),
 `chronon3d_pixel_program_tests` (24/24 pass, 99 assert), `chronon3d_pixel_program_pointwise_encoder_tests`
-(4/4 pass, 24 assert). Resta la misura multi-shape su cluster GPU esterno.
+(4/4 pass, 24 assert). La matrice locale 3-shape/9-run è stata eseguita su GPU.
+La policy mantiene il mutex per i path esclusivi. DirectYUV e allocator interni
+del percorso video sono future misure condizionate a un requisito concreto di
+concorrenza; non bloccano il prodotto corrente. Il target “1000 overlay/min”
+non è confermato e non è un criterio di accettazione.
 Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
+
+### Aggiornamento evidence 2026-10-23 — pool a tre daemon
+
+Il report [`vram_three_runtime_pool_2026-10-23.json`](../../../RenderingGen/multilingual_overlays_v1/evidence/vram_three_runtime_pool_2026-10-23.json)
+registra tre daemon posseduti che renderizzano in parallelo lo stesso piano
+overlay 1920×1080: 418 campioni a 20 ms, incremento GPU di picco 3.1 GiB e
+incremento attribuito ai daemon di 3.15 GiB; i tre output sono identici. Il
+campione conferma l’overlap per questa sola shape. Il report dichiara
+esplicitamente che non autorizza la rimozione del mutex: mancano le altre shape
+(sorgente video FullGraph, DirectYUV e 4K) e i dati dell’allocator interno. La
+GPU locale è attualmente occupata da processi preesistenti, quindi non ho
+avviato nuove misure che contaminerebbero il campionamento.
+
+La matrice locale [`vram-calibration-suite-2026-10-26.json`](../../tools/fixtures/vram-calibration-suite-2026-10-26.json)
+specifica overlay-only, video-sorgente FullGraph e overlay 4K con tre
+ripetizioni ciascuno. Il dry-run ha validato **3 shape, 9 run** senza rendering.
+DirectYUV resta fuori perché non è disponibile un piano fixture certificabile.
+
+### Aggiornamento 2026-10-27 — suite VRAM GPU locale
+
+La matrice completa è stata eseguita con la build corrente di `chronon3d_cli`,
+due daemon Vulkan e NVENC su RTX A4000 16 GiB. Tutte le 9 ripetizioni sono
+completate; gli artefatti sono identici tra le ripetizioni e il device è
+coerente per ciascuna shape:
+
+| Shape | VRAM attribuita al daemon, MiB (min/p50/max) | Picco device, MiB (min/p50/max) |
+|---|---:|---:|
+| Overlay 1080p | 1204 / 1458 / 1458 | 1284 / 1536 / 1536 |
+| Video FullGraph 1080p | 741 / 778 / 786 | 830 / 834 / 838 |
+| Overlay 4K | 4630 / 4630 / 4630 | 4709 / 4709 / 4709 |
+
+La verifica finale sulla build appena ricompilata ha completato nuovamente tutte
+le ripetizioni. Il report aggregato con i nove datapoint è in
+[`rebuilt/suite.json`](../evidence/vram-calibration-2026-10-27/rebuilt/suite.json);
+video e sidecar per ogni render sono in
+[`rebuilt/runs/`](../evidence/vram-calibration-2026-10-27/rebuilt/runs/).
+Il contatore device-wide è influenzato dall'host condiviso; l'attribuzione
+daemon 4K è stabile tra le ripetizioni.
+I sidecar overlay espongono snapshot VMA per job (`vma_usage_bytes`: 249921536
+per 1080p e 906854400 per 4K, identici nei sei job di ciascuna shape). Il
+percorso video NVDEC/NVENC riporta invece questi campi come `null`: la copertura
+allocator interna non è quindi completa tra le shape. I sidecar contengono
+anche contatori framebuffer per classe. La suite locale non certifica DirectYUV
+né autorizza a rimuovere `m_render_job_mutex`. Queste misure aggiuntive sono
+condizionali a un futuro requisito di concorrenza e non bloccano la policy
+corrente.
+
+### Obiettivo proposto: 1000 overlay/min (non confermato)
+
+È una proposta priva di SLA approvato, quindi non è un criterio di accettazione
+e non blocca il ticket. La misurazione di throughput va aperta solo se un
+requisito di prodotto la conferma.
 
 ## Implementazione verificabile locale — static island / temporal / batch
 
@@ -42,7 +100,7 @@ Contesto: daemon `chronon3d` (IPC RENDER_JOB) + worker RenderingGen.
   build `-j16` concorrente per non superare il limite globale (267/368 azioni).
   Non viene registrata come PASS e il test binario aggiornato non è disponibile.
   Quella build e quelle verifiche sono superate dai risultati runtime riportati
-  sotto; pixel parity GPU e benchmark di throughput restano OPEN/NOT RUN.
+  sotto; nota storica precedente alla calibrazione GPU del 2026-10-27.
 
 ### Aggiornamento 2026-10-07 — rate analysis locale
 
@@ -242,13 +300,20 @@ certificate e la telemetria interna degli allocator (exit condition §5).
 5. **Solo dopo**: K da 1 a 2 dietro un tetto VRAM misurato per shape (l'harness a
    due runtime simultanei, §5).
 
-## 5. Exit condition della domanda "si può togliere il mutex?"
+## 5. Decisione corrente sul mutex (2026-10-27)
 
-**Repository closeout (2026-09-20):** the daemon admission context now owns the
-policy-selected lock and scheduler reservation through RAII, shutdown observes
-`m_running` atomically, and VMA allocator snapshots are carried into the video
-GPU timing sidecar. These changes make the gate fail-closed and measurable; they
-do not authorize removing the mutex without the external 3–5-shape GPU suite.
+Mantenerlo. La suite GPU locale misura tre shape e conferma output ripetibili;
+la policy admission esistente preserva l'esecuzione esclusiva dei job FullGraph.
+Non esiste uno SLA approvato che richieda di aumentare la concorrenza. Riaprire
+questa decisione solo quando un caso di produzione richiede DirectYUV parallelo
+o un target misurabile di throughput.
+
+### Criteri condizionali di riapertura
+
+The daemon admission context owns the policy-selected lock and scheduler
+reservation through RAII, and shutdown observes `m_running` atomically. The
+current VMA coverage and suite results are documented in the 2026-10-27 update
+above.
 
 L'harness di laboratorio che tiene **due runtime della stessa shape vivi
 contemporaneamente** (due daemon posseduti su socket distinti, campionamento
@@ -256,29 +321,10 @@ contemporaneamente** (due daemon posseduti su socket distinti, campionamento
 `cmd/vram-probe -mode two-runtime-pool` + `internal/vramprobe/pool.go`,
 evidenza in [`docs/evidence/vram-two-runtime-pool-2026-09-16.md`](../evidence/vram-two-runtime-pool-2026-09-16.md).
 
-Resta aperto, e sono i criteri di accettazione della decisione:
-
-1. **3–5 shape** misurate con lo stesso harness: overlay-only (fatto, §3b),
-   video-sorgente FullGraph, DirectYUV, 4K, ed eventualmente 3D. **Stato
-   2026-09-17:** l'esecuzione è ora una **suite** (matrice versionata, ≥3 run
-   per shape imposti dal loader, aggregazione min/p50/max dell'attribuzione per
-   processo, dry-run senza GPU) — `cmd/vram-probe -mode calibration-suite`,
-   [`docs/evidence/vram-calibration-suite-2026-09-17.md`](../evidence/vram-calibration-suite-2026-09-17.md).
-   Inventario precedente del checkout: **113 piani concreti, tutti 1920×1080**.
-   È stato aggiunto `tools/fixtures/vram-calibration-4k-overlay.plan.json`
-   (3840×2160, color + testo, 48 frame). La validazione CLI è PASS (`content_digest`
-   `4df908b0d4578545e27e6b1c2b6d36045500bed49f41ff44110bc4fef36435af`), ma il
-   piano non è ancora incluso/eseguito dalla suite VRAM né calibrato su GPU.
-   Restano quindi le 2 shape misurate (overlay-only, video-sorgente), la shape
-   4K autorata ma non misurata, e DirectYUV ancora da certificare estraendo
-   `execution_path` dal run invece di dichiararlo in una label;
-2. **telemetria interna degli allocator** al posto di `nvidia-smi`: su host
-   condiviso il contatore device-wide non è stabile (§3b), quindi il numero che
-   alimenta `derive_vram_working_set` deve venire dal runtime;
-3. **ripetizione** (≥3 run per shape) con attribuzione per processo, perché un
-   singolo campione non è una calibrazione;
-4. solo allora la decisione su `m_render_job_mutex`, e `derive_vram_working_set`
-   va **alimentato** da quella calibrazione, non sostituito.
+Riaprire solo se un requisito di produzione richiede DirectYUV concorrente o un
+throughput superiore: aggiungere una fixture per quel percorso, misurarne
+l'allocazione e aggiornare la policy admission. Una calibrazione su cluster
+esterno o l'estensione 3D non fanno parte del closeout corrente.
 
 ## 6. Ripro
 

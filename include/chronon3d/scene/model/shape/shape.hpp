@@ -261,6 +261,10 @@ struct ImageCrop {
 
 struct ImageShape {
     std::string path;
+    // Optional encoded source payload for compile-time imported assets (for
+    // example Bodymovin `data:image/...` resources). The content-addressed
+    // path remains the cache identity; bytes avoid temporary filesystem files.
+    std::shared_ptr<const std::vector<std::byte>> embedded_payload;
     Vec2 size{100.0f, 100.0f};
     FitMode fit{FitMode::Cover};
     Vec2 focal_point{0.5f, 0.5f};

@@ -113,7 +113,7 @@ std::optional<Color> parse_svg_color(std::string value, Color current) {
 
 std::map<std::string, std::string> style_properties(const boost::property_tree::ptree& node) {
     std::map<std::string, std::string> values;
-    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter", "color", "display", "visibility", "fill-rule", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "font-family", "font-size", "font-weight", "font-style", "direction", "text-anchor", "dominant-baseline", "baseline-shift", "letter-spacing", "word-spacing", "writing-mode"}) {
+    for (const auto* key : {"fill", "stroke", "stroke-width", "stroke-opacity", "fill-opacity", "opacity", "stop-color", "stop-opacity", "clip-path", "mask", "filter", "color", "display", "visibility", "fill-rule", "clip-rule", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "font-family", "font-size", "font-weight", "font-style", "direction", "text-anchor", "dominant-baseline", "baseline-shift", "letter-spacing", "word-spacing", "writing-mode"}) {
         if (auto value = node.get_optional<std::string>(std::string("<xmlattr>.") + key)) {
             auto normalized = trim(*value);
             std::transform(normalized.begin(), normalized.end(), normalized.begin(),

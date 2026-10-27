@@ -309,6 +309,7 @@ void apply_svg_text_style(const boost::property_tree::ptree& node,
                     transform_point(source.transform, source.p0),
                     transform_point(source.transform, source.p1), source.stops);
             }
+            state.fill_gradient->spread = source.spread;
             state.fill_pattern.reset();
             }
         } else if (const auto color = parse_svg_color(it->second, state.current_color)) {
@@ -355,6 +356,7 @@ void apply_svg_text_style(const boost::property_tree::ptree& node,
                     transform_point(source.transform, source.p0),
                     transform_point(source.transform, source.p1), source.stops);
             }
+            state.stroke_gradient->spread = source.spread;
             state.stroke = Color::black();
             state.stroke_pattern.reset();
             }
