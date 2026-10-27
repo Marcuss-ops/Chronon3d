@@ -1,0 +1,8 @@
+name: Linux vcpkg prerequisites
+description: Install and verify system tools required by Linux vcpkg builds.
+runs:
+  using: composite
+  steps:
+    - name: Install NASM for FFmpeg
+      shell: bash
+      run: bash tools/ci/bootstrap-linux-vcpkg.sh
