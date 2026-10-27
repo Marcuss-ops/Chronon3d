@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include "src/render_graph/executor/fused_batch_policy.hpp"
+#include "src/render_graph/executor/graph_dispatch/fused_batch_policy.hpp"
 
 using chronon3d::graph::detail::FusedBatchKind;
 using chronon3d::graph::detail::resolve_fused_batch_kind;
