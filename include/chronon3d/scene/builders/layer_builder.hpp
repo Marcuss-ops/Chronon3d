@@ -179,6 +179,8 @@ public:
         f32 threshold = 0.80f, f32 radius = 24.0f, f32 intensity = 0.60f);
     LayerBuilder& fake_3d_wave(Fake3DWaveParams params);
     LayerBuilder& blend(BlendMode mode);
+    LayerBuilder& lottie_precomp_groups(
+        std::vector<Layer::LottiePrecompGroupIsolation> groups);
 
     // 2D shapes and media.
     LayerBuilder& rect(std::string name, RectParams params);

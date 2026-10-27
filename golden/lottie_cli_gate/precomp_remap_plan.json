@@ -1,0 +1,1 @@
+{"schema":"chronon.render-plan.v3","version":3,"job_id":"lottie_precomp_remap_gate","canvas":{"width":320,"height":240,"fps_num":30,"fps_den":1,"duration_frames":60},"layers":[{"id":"remapped","type":"shape","size":[320,240],"shape":{"type":"path","lottie":"precomp_remap.json"}}],"output":{"path":"precomp_remap.mp4","format":"mp4","codec":"h264"}}

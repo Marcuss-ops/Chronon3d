@@ -6,6 +6,8 @@ namespace chronon3d::effects::ids {
 
 inline constexpr std::string_view BlurGaussian = "blur.gaussian";
 inline constexpr std::string_view ColorTint = "color.tint";
+inline constexpr std::string_view ColorLottieTint = "color.lottie_tint";
+inline constexpr std::string_view ColorLottieTritone = "color.lottie_tritone";
 inline constexpr std::string_view ColorBrightness = "color.brightness";
 inline constexpr std::string_view ColorContrast = "color.contrast";
 inline constexpr std::string_view LightDropShadow = "light.drop_shadow";

@@ -18,6 +18,19 @@ void refresh_effect_stack_node(
     }
 
     const Layer& layer = *layer_it->second->layer;
+    const auto& sampled_effects = layer.effects();
+    auto& node_effects = node.effects();
+    // The graph is reused across frame evaluations. Effect parameters that
+    // are sampled from RenderPlan tracks are already current on the resolved
+    // scene layer, so refresh the corresponding node instances before graph
+    // execution. Keeping the compiled stack's topology is safe here because
+    // changing effect count/type changes the graph topology and rebuilds it.
+    if (sampled_effects.size() == node_effects.size()) {
+        for (std::size_t index = 0; index < sampled_effects.size(); ++index) {
+            if (sampled_effects[index].effect_type == node_effects[index].effect_type)
+                node_effects[index] = sampled_effects[index];
+        }
+    }
     if (layer.anim_transform.blur.is_time_dependent()) {
         const SampleTime local_time = layer.local_time(ctx.frame_input.sample_time);
         const f32 blur_radius = layer.anim_transform.blur.evaluate(local_time);

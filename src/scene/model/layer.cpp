@@ -56,6 +56,7 @@ Layer::Layer(const Layer& other)
       m_material(std::make_unique<Material2_5D>(*other.m_material)),
       m_card3d_material(std::make_unique<Card3DMaterial>(*other.m_card3d_material)),
       m_card3d_material_configured(other.m_card3d_material_configured),
+      lottie_precomp_groups(other.lottie_precomp_groups),
       transition_in(other.transition_in),
       transition_out(other.transition_out),
       asset_manifest(other.asset_manifest),
@@ -100,6 +101,7 @@ Layer& Layer::operator=(const Layer& other) {
     *m_material = *other.m_material;
     *m_card3d_material = *other.m_card3d_material;
     m_card3d_material_configured = other.m_card3d_material_configured;
+    lottie_precomp_groups = other.lottie_precomp_groups;
     transition_in = other.transition_in;
     transition_out = other.transition_out;
     asset_manifest = other.asset_manifest;
@@ -136,6 +138,13 @@ uint64_t Layer::get_static_hash() const {
     h = hash_combine(h, screen_space ? 1 : 0);
     h = hash_combine(h, cache_static ? 1 : 0);
     h = hash_combine(h, static_cast<u64>(blend_mode));
+    for (const auto& group : lottie_precomp_groups) {
+        h = hash_combine(h, hash_string(group.id));
+        h = hash_combine(h, hash_value(group.opacity));
+        h = hash_combine(h, group.opacity_active ? 1ULL : 0ULL);
+        h = hash_combine(h, static_cast<u64>(group.blend_mode));
+        h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
+    }
     h = hash_combine(h, hash_mask(mask));
     h = hash_combine(h, hash_effect_stack(*m_effects));
     if (m_card3d_material_configured) {

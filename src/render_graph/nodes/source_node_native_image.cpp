@@ -153,6 +153,10 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     auto& gpu_asset_cache = *ctx.gpu_asset_cache;
     auto cached = image_cache.find(
         image.path, image.decode_options);
+    if (!cached && image.embedded_payload) {
+        cached = image_cache.get_or_load_embedded(
+            image.path, *image.embedded_payload, image.decode_options);
+    }
     if (!cached) {
         cached = image_cache.get_or_load(
             image.path, image.decode_options);

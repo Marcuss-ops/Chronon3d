@@ -135,8 +135,8 @@ GraphNodeId build_layer_output_node(
         cache::NodeCacheKey matte_key = cache::NodeCacheIdentityBuilder{
             "matte:" + std::string(layer.name)
         }
-            .frame((layer.cache_static || item.is_static) ? Frame{0}
-                                                          : ctx.frame_input.frame)
+            .frame((layer.cache_static || item.is_static) && item.matte_source_is_static
+                       ? Frame{0} : ctx.frame_input.frame)
             .output(ctx.frame_input.width, ctx.frame_input.height)
             .params(hash_combine(
                 hash_bytes(layer.track_matte.source_layer.data(),

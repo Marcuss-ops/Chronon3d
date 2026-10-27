@@ -418,6 +418,34 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
             const auto& layer = plan.layers[index];
             const auto author_layer = [&](LayerBuilder& builder) {
                 builder.font_engine(font_engine.get());
+                if (!layer.lottie_precomp_groups.empty()) {
+                    std::vector<chronon3d::Layer::LottiePrecompGroupIsolation> groups;
+                    groups.reserve(layer.lottie_precomp_groups.size());
+                    for (const auto& source_group : layer.lottie_precomp_groups) {
+                        float opacity = source_group.opacity;
+                        if (source_group.opacity_animation)
+                            opacity = detail::evaluate_scalar_track(
+                                *source_group.opacity_animation, ctx.effective_frame(),
+                                source_group.opacity, plan.canvas.fps);
+                        if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f)
+                            throw std::runtime_error(
+                                "Lottie precomp group opacity evaluated outside [0,1]");
+                        groups.push_back({source_group.id, opacity,
+                            source_group.opacity_active, source_group.blend_mode,
+                            source_group.opacity_animation.has_value()});
+                    }
+                    builder.lottie_precomp_groups(std::move(groups));
+                }
+                // Animated effect tracks make the layer graph time-varying;
+                // ensure effect nodes use frame-variant cache policy.
+                const bool animated_precomp_group = std::any_of(
+                    layer.lottie_precomp_groups.begin(),
+                    layer.lottie_precomp_groups.end(),
+                    [](const auto& group) {
+                        return group.opacity_animation.has_value();
+                    });
+                if (!layer.effect_param_tracks.empty() || animated_precomp_group)
+                    builder.cache_static(false);
                 if (layer.type != LayerType::Light && layer.type != LayerType::Adjustment) {
                     if (layer.casts_shadows) builder.casts_shadows(*layer.casts_shadows);
                     if (layer.accepts_shadows) builder.accepts_shadows(*layer.accepts_shadows);

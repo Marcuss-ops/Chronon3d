@@ -110,8 +110,16 @@ static void composite_multiply_safe(std::span<Color> dst, std::span<const Color>
         if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
         Color& d = dst[i];
         const Color& s = src[i];
-        const float new_a = s.a + d.a * (1.0f - s.a);
-        d.r *= s.r; d.g *= s.g; d.b *= s.b; d.a = new_a;
+        const float source_alpha = s.a;
+        const float backdrop_alpha = d.a;
+        // W3C source-over blend formula for premultiplied inputs:
+        // Co = Cb(1-As) + Cs(1-Ab) + B(Cb,Cs)AsAb.
+        // For Multiply, the last term simplifies to premul Cb*Cs.
+        d.r = d.r * (1.0f - source_alpha) + s.r * (1.0f - backdrop_alpha) + d.r * s.r;
+        d.g = d.g * (1.0f - source_alpha) + s.g * (1.0f - backdrop_alpha) + d.g * s.g;
+        d.b = d.b * (1.0f - source_alpha) + s.b * (1.0f - backdrop_alpha) + d.b * s.b;
+        const float new_a = source_alpha + backdrop_alpha * (1.0f - source_alpha);
+        d.a = new_a;
         if (new_a <= 0.0f) { d.r = 0.0f; d.g = 0.0f; d.b = 0.0f; d.a = 0.0f; }
     }
 }

@@ -1,0 +1,1 @@
+{"schema":"chronon.render-plan.v3","version":3,"job_id":"lottie_external_image_gate","canvas":{"width":320,"height":240,"fps_num":30,"fps_den":1,"duration_frames":60},"layers":[{"id":"external_image_test","type":"shape","size":[320,240],"shape":{"type":"path","lottie":"image_external.json"}}],"output":{"path":"lottie_external_image_gate.mp4","format":"mp4","codec":"h264"}}

@@ -274,8 +274,12 @@ TEST_CASE("render plan lowers a bounded static Lottie path through the resolver"
     CHECK(evaluated->scene.layers()[0].transform.scale.y == doctest::Approx(0.8f));
     CHECK(glm::degrees(glm::eulerAngles(evaluated->scene.layers()[0].transform.rotation).z) ==
           doctest::Approx(15.0f));
-    CHECK(evaluated->scene.layers()[0].transform.opacity == doctest::Approx(0.75f));
+    // Lottie layer opacity is represented as an isolated group so overlapping
+    // paints receive alpha once after compositing, rather than per path.
+    CHECK(evaluated->scene.layers()[0].transform.opacity == doctest::Approx(1.0f));
     REQUIRE(evaluated->scene.layers()[0].nodes.size() == 4);
+    REQUIRE(evaluated->scene.layers()[0].nodes[0].svg_groups.size() == 1);
+    CHECK(evaluated->scene.layers()[0].nodes[0].svg_groups[0].opacity == doctest::Approx(0.75f));
     CHECK(evaluated->scene.layers()[0].nodes[0].shape.path().commands.size() == 4);
     CHECK(evaluated->scene.layers()[0].nodes[1].shape.path().commands.size() == 4);
     CHECK(evaluated->scene.layers()[0].nodes[2].shape.path().commands.size() == 6);
@@ -777,7 +781,7 @@ TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks"
     std::filesystem::create_directories(directory.path / "shapes");
     {
         std::ofstream file(directory.path / "shapes/motion.json");
-        const std::string lottie_source = R"JSON({"v":"5.7.4","ip":0,"op":12,"fr":30,"layers":[{"ty":4,"ddd":0,
+        const std::string lottie_source = R"JSON({"v":"5.7.4","ip":0,"op":12,"fr":30,"w":64,"h":64,"layers":[{"ty":4,"ddd":0,
           "ks":{"a":{"a":0,"k":[5,0,0]},
             "p":{"a":1,"k":[{"t":0,"s":[10,20,0],"o":{"x":0.333,"y":0.333}},
               {"t":10,"s":[50,20,0],"i":{"x":0.667,"y":0.667}}]},
@@ -800,7 +804,7 @@ TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks"
       "output":{"path":"out.mp4"}})JSON"));
     REQUIRE(decoded);
     const auto prepared = compile_render_plan(*decoded, resolver);
-    REQUIRE(prepared);
+    REQUIRE_MESSAGE(prepared, prepared.error().code << ": " << prepared.error().message);
     const auto start = evaluate(prepared->compiled_composition,
                                 CompositionEvaluateContext{}, Frame{0});
     const auto end = evaluate(prepared->compiled_composition,
@@ -815,7 +819,11 @@ TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks"
     CHECK(end->scene.layers()[0].transform.position.x -
           start->scene.layers()[0].transform.position.x == doctest::Approx(40.0f));
     CHECK(middle->scene.layers()[0].transform.scale.x == doctest::Approx(1.5f));
-    CHECK(middle->scene.layers()[0].transform.opacity == doctest::Approx(0.5f));
+    CHECK(middle->scene.layers()[0].transform.opacity == doctest::Approx(1.0f));
+    REQUIRE(middle->scene.layers()[0].nodes[0].svg_groups.size() == 1);
+    REQUIRE(middle->scene.layers()[0].nodes[0].svg_groups[0].opacity_animation.has_value());
+    CHECK(middle->scene.layers()[0].nodes[0].svg_groups[0].opacity_animation->from == doctest::Approx(1.0f));
+    CHECK(middle->scene.layers()[0].nodes[0].svg_groups[0].opacity_animation->to == doctest::Approx(0.0f));
     CHECK(glm::degrees(glm::eulerAngles(middle->scene.layers()[0].transform.rotation).z) ==
           doctest::Approx(0.0f));
     CHECK(glm::degrees(glm::eulerAngles(end->scene.layers()[0].transform.rotation).z) ==

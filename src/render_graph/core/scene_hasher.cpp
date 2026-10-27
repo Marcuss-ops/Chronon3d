@@ -236,6 +236,13 @@ uint64_t SceneHasher::hash_layer(const Layer& layer) {
     h = hash_combine(h, layer.screen_space ? 1 : 0);
     h = hash_combine(h, layer.cache_static ? 1 : 0);
     h = hash_combine(h, static_cast<u64>(layer.blend_mode));
+    for (const auto& group : layer.lottie_precomp_groups) {
+        h = hash_combine(h, hash_string(group.id));
+        h = hash_combine(h, hash_value(group.opacity));
+        h = hash_combine(h, group.opacity_active ? 1ULL : 0ULL);
+        h = hash_combine(h, static_cast<u64>(group.blend_mode));
+        h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
+    }
     h = hash_combine(h, static_cast<u64>(layer.composite_operator));
     h = hash_combine(h, hash_transform(layer.transform));
     h = hash_combine(h, hash_mask(layer.mask));
@@ -274,6 +281,13 @@ uint64_t SceneHasher::hash_layer_structure(const Layer& layer) {
     // per-frame render value.
     h = hash_combine(h, layer.cache_static ? 1ULL : 0ULL);
     h = hash_combine(h, static_cast<u64>(layer.blend_mode));
+    h = hash_combine(h, static_cast<u64>(layer.lottie_precomp_groups.size()));
+    for (const auto& group : layer.lottie_precomp_groups) {
+        h = hash_combine(h, hash_string(group.id));
+        h = hash_combine(h, group.opacity_active ? 1ULL : 0ULL);
+        h = hash_combine(h, static_cast<u64>(group.blend_mode));
+        h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
+    }
     // The current compositor contract emits SourceOver for this pass;
     // do not invalidate the graph on an authored operator that the builder
     // does not consume yet.
@@ -339,6 +353,10 @@ bool SceneHasher::layer_is_static(const Layer& layer) {
     if (layer.kind == LayerKind::Video) return false;
     if (layer.kind == LayerKind::Precomp) return false;
     if (layer.anim_transform.is_time_dependent()) return false;
+    if (std::any_of(layer.lottie_precomp_groups.begin(),
+                    layer.lottie_precomp_groups.end(),
+                    [](const auto& group) { return group.opacity_animated; }))
+        return false;
     if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
     if (layer.time_remap.time_remap.is_time_dependent()) return false;
     for (const auto& n : layer.nodes) {
@@ -452,6 +470,10 @@ bool SceneHasher::layer_is_static_at(const Layer& layer, Frame frame) {
     if (layer.anim_transform.is_time_dependent() && !layer_animation_done_at(layer, frame)) {
         return false;
     }
+    if (std::any_of(layer.lottie_precomp_groups.begin(),
+                    layer.lottie_precomp_groups.end(),
+                    [](const auto& group) { return group.opacity_animated; }))
+        return false;
     // Layer transitions are authored in SECONDS and this boundary has no fps
     // to window them against, so any transition keeps the conservative
     // "frame-dependent" verdict (unchanged behaviour).  Overlay items — the

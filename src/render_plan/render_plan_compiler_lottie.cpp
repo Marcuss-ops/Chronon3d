@@ -182,9 +182,13 @@ std::optional<std::string> collect_lottie_shapes(
                 const float combined_opacity = parent_opacity *
                     (local_animation ? 1.0f : local_opacity);
                 const auto combined_animation = local_animation ? local_animation : parent_animation;
-                for (const auto& child : item["it"]) {
-                    if (child.is_object() && child.value("ty", std::string{}) == "tr") continue;
-                    if (!collect_shapes(child, combined, combined_opacity,
+                // Bodymovin stores shape contents in authored stack order,
+                // while later entries are behind earlier entries in the
+                // rendered group.  Collect in reverse so imported subpaths
+                // reach Chronon's painter in the same back-to-front order.
+                for (auto child = item["it"].rbegin(); child != item["it"].rend(); ++child) {
+                    if (child->is_object() && child->value("ty", std::string{}) == "tr") continue;
+                    if (!collect_shapes(*child, combined, combined_opacity,
                                         combined_animation, depth + 1)) return false;
                 }
                 return true;
@@ -598,8 +602,8 @@ std::optional<std::string> expand_static_lottie_layer(
         const auto& layer = doc["layers"][layer_index];
         if (layer.value("ty", -1) == 0)
             return std::string("Lottie precompositions require recursive asset expansion");
-        if (layer.value("ty", -1) != 4 || layer.value("ddd", 0) != 0 || layer.contains("ef") ||
-            layer.contains("tt") || layer.contains("tm") || layer.contains("exp"))
+        if (layer.value("ty", -1) != 4 || layer.value("ddd", 0) != 0 ||
+            layer.contains("tm") || layer.contains("exp"))
             return std::string("Lottie layer type, effects, expressions, or time remap are unsupported");
         if (layer.contains("masksProperties") &&
             (!layer["masksProperties"].is_array() || layer["masksProperties"].size() > 16))

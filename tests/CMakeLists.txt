@@ -6,7 +6,7 @@ include(doctest)
 # Effect recipes are owned by the sibling ChrononPlugin checkout. The product
 # core never links this path; exposing it here only lets in-workspace test
 # builds compile the plugin's RenderPlan recipe contract checks.
-set(CHRONONPLUGIN_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ChrononPlugin"
+set(CHRONONPLUGIN_SOURCE_DIR "${CMAKE_SOURCE_DIR}/../ChrononPlugin"
     CACHE PATH "ChrononPlugin source tree used by optional cross-repo tests")
 if(EXISTS "${CHRONONPLUGIN_SOURCE_DIR}/plugins/effects/include")
     include_directories("${CHRONONPLUGIN_SOURCE_DIR}/plugins/effects/include")

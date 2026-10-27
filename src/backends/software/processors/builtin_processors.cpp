@@ -32,6 +32,8 @@ std::unique_ptr<ShapeProcessor> create_grid_plane_processor();
 // Forward declarations for effect processors
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_tint_effect_processor();
+std::unique_ptr<EffectProcessor> create_lottie_tint_effect_processor();
+std::unique_ptr<EffectProcessor> create_lottie_tritone_effect_processor();
 std::unique_ptr<EffectProcessor> create_brightness_effect_processor();
 std::unique_ptr<EffectProcessor> create_contrast_effect_processor();
 std::unique_ptr<EffectProcessor> create_glow_effect_processor();
@@ -113,6 +115,8 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<RippleParams>(create_ripple_effect_processor());
     registry.register_effect_processor<DisplacementMapParams>(create_displacement_map_effect_processor());
     registry.register_effect_processor<TintParams>(create_tint_effect_processor());
+    registry.register_effect_processor<LottieTintParams>(create_lottie_tint_effect_processor());
+    registry.register_effect_processor<LottieTritoneParams>(create_lottie_tritone_effect_processor());
     registry.register_effect_processor<BrightnessParams>(create_brightness_effect_processor());
     registry.register_effect_processor<ContrastParams>(create_contrast_effect_processor());
     registry.register_effect_processor<DropShadowParams>(create_drop_shadow_effect_processor());

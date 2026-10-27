@@ -14,8 +14,10 @@
 #include "effects/distort/warp.hpp"
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/effects/color_pipeline.hpp>
+#include <chronon3d/effects/color_contract.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -40,6 +42,111 @@ public:
             LayerEffect e;
             e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
             apply_color_effects(fb, e, context.clip);
+        }
+    }
+};
+
+class SoftwareLottieTintEffectProcessor final : public EffectProcessor {
+    static float to_srgb(float value) {
+        value = std::max(value, 0.0f);
+        return value <= 0.0031308f ? 12.92f * value
+            : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
+    }
+    static float to_linear(float value) {
+        value = std::clamp(value, 0.0f, 1.0f);
+        return value <= 0.04045f ? value / 12.92f
+            : std::pow((value + 0.055f) / 1.055f, 2.4f);
+    }
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LottieTintParams>(&params);
+        if (!p) throw std::runtime_error("Lottie Tint processor received invalid parameters");
+        const std::array values{p->black_r, p->black_g, p->black_b,
+                                p->white_r, p->white_g, p->white_b, p->amount};
+        if (std::any_of(values.begin(), values.end(), [](float v) {
+                return !std::isfinite(v) || v < 0.0f || v > 1.0f;
+            }))
+            throw std::runtime_error("Lottie Tint parameters must be finite and in [0,1]");
+        const auto clip = context.clip;
+        const int x0 = clip ? std::clamp(clip->x0, 0, fb.width()) : 0;
+        const int x1 = clip ? std::clamp(clip->x1, 0, fb.width()) : fb.width();
+        const int y0 = clip ? std::clamp(clip->y0, 0, fb.height()) : 0;
+        const int y1 = clip ? std::clamp(clip->y1, 0, fb.height()) : fb.height();
+        const std::array black{p->black_r, p->black_g, p->black_b};
+        const std::array white{p->white_r, p->white_g, p->white_b};
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                if (row[x].a <= 1.0e-8f) continue;
+                auto rgb = color::unpremultiply_rgb(row[x]);
+                const float gray = to_srgb((rgb.r + rgb.g + rgb.b) / 3.0f);
+                for (std::size_t channel = 0; channel < 3; ++channel) {
+                    const float source = channel == 0 ? rgb.r : channel == 1 ? rgb.g : rgb.b;
+                    const float mapped = to_linear(black[channel] +
+                        gray * (white[channel] - black[channel]));
+                    const float output = std::lerp(source, mapped, p->amount);
+                    if (channel == 0) rgb.r = output;
+                    else if (channel == 1) rgb.g = output;
+                    else rgb.b = output;
+                }
+                row[x] = color::premultiply_rgb(rgb, row[x].a);
+            }
+        }
+    }
+};
+
+class SoftwareLottieTritoneEffectProcessor final : public EffectProcessor {
+    static float to_srgb(float value) {
+        value = std::max(value, 0.0f);
+        return value <= 0.0031308f ? 12.92f * value
+            : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
+    }
+    static float to_linear(float value) {
+        value = std::clamp(value, 0.0f, 1.0f);
+        return value <= 0.04045f ? value / 12.92f
+            : std::pow((value + 0.055f) / 1.055f, 2.4f);
+    }
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LottieTritoneParams>(&params);
+        if (!p) throw std::runtime_error("Lottie Tritone processor received invalid parameters");
+        const std::array values{p->dark_r, p->dark_g, p->dark_b,
+            p->mid_r, p->mid_g, p->mid_b, p->bright_r, p->bright_g,
+            p->bright_b, p->amount};
+        if (std::any_of(values.begin(), values.end(), [](float v) {
+                return !std::isfinite(v) || v < 0.0f || v > 1.0f;
+            }))
+            throw std::runtime_error("Lottie Tritone parameters must be finite and in [0,1]");
+        const std::array dark{p->dark_r, p->dark_g, p->dark_b};
+        const std::array mid{p->mid_r, p->mid_g, p->mid_b};
+        const std::array bright{p->bright_r, p->bright_g, p->bright_b};
+        const auto clip = context.clip;
+        const int x0 = clip ? std::clamp(clip->x0, 0, fb.width()) : 0;
+        const int x1 = clip ? std::clamp(clip->x1, 0, fb.width()) : fb.width();
+        const int y0 = clip ? std::clamp(clip->y0, 0, fb.height()) : 0;
+        const int y1 = clip ? std::clamp(clip->y1, 0, fb.height()) : fb.height();
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                if (row[x].a <= 1.0e-8f) continue;
+                auto rgb = color::unpremultiply_rgb(row[x]);
+                const float gray = to_srgb((rgb.r + rgb.g + rgb.b) / 3.0f);
+                const float lower = std::min(gray * 2.0f, 1.0f);
+                const float upper = std::max((gray - 0.5f) * 2.0f, 0.0f);
+                for (std::size_t channel = 0; channel < 3; ++channel) {
+                    const float mapped_srgb = gray <= 0.5f
+                        ? std::lerp(dark[channel], mid[channel], lower)
+                        : std::lerp(mid[channel], bright[channel], upper);
+                    const float source = channel == 0 ? rgb.r : channel == 1 ? rgb.g : rgb.b;
+                    const float output = std::lerp(source, to_linear(mapped_srgb), p->amount);
+                    if (channel == 0) rgb.r = output;
+                    else if (channel == 1) rgb.g = output;
+                    else rgb.b = output;
+                }
+                row[x] = color::premultiply_rgb(rgb, row[x].a);
+            }
         }
     }
 };
@@ -264,7 +371,7 @@ public:
                const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<FillParams>(&params)) {
             apply_fill(fb, p->color, p->amount,
-                       p->mode == FillMode::Replace, context.clip);
+                       p->mode, context.clip);
         }
     }
 };
@@ -364,6 +471,14 @@ std::unique_ptr<EffectProcessor> create_blur_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_tint_effect_processor() {
     return std::make_unique<SoftwareTintEffectProcessor>();
+};
+
+std::unique_ptr<EffectProcessor> create_lottie_tint_effect_processor() {
+    return std::make_unique<SoftwareLottieTintEffectProcessor>();
+};
+
+std::unique_ptr<EffectProcessor> create_lottie_tritone_effect_processor() {
+    return std::make_unique<SoftwareLottieTritoneEffectProcessor>();
 };
 
 std::unique_ptr<EffectProcessor> create_brightness_effect_processor() {
