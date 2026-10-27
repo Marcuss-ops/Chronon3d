@@ -84,7 +84,9 @@ struct RenderBackendError {
 // operation-level detail payload, while all construction is centralized so
 // the executor receives one stable error shape.
 [[nodiscard]] RenderBackendError make_render_backend_error(
-    RenderBackendErrorCode code, std::string message);
+    RenderBackendErrorCode code, std::string message) {
+    return {code, std::move(message)};
+}
 
 struct RenderOpOutcome {
     /// Number of items successfully processed (e.g. glyphs rasterized,
