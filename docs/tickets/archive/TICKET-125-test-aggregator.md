@@ -1,6 +1,6 @@
 | **TICKET-125 — Engine certification aggregator (Tests 10-16 core subset)** | |
 | --- | --- |
-| **Stato** | PARTIAL (catalog landed; per-test runtime verification deferred to working build host per F2/TICKET-INFRA-F2-DIVERGENCE blocker) |
+| **Stato** | RETIRED (2026-10-26) — historical catalog; referenced runtime gates and sunset registry are absent from this checkout, so the table is not an actionable Chronon3D blocker. |
 | **Priorità** | P0 (catalog coordination under the 11/11 canonical gate baseline `main@7eb5c2ba`) |
 | **Problema** | I deliverable di ENGINE CERTIFICATION (Tests 10-16 core subset: determinism, fix cronograph, SSoT audit, indexing, scaling, sunset registry) sono distribuiti su commit/changelog/tickets eterogenei senza un indice unico che garantisca tracciabilità per push iterativo (Rule #5 SHA-triple). Manca un aggregatore canonico che dichiari per ogni test: deliverable osservabile, PASS/FAIL criterion eseguibile come `bash` one-liner on working build host, stato corrente osservabile, forward-pointed ticket per gap onesti. |
 | **Evidenza** | AGENTS.md §"Test 8 — Test 18" specifiche verbatim sparse + `docs/CHANGELOG.md` prepended entries (Test 10 GATE-WIRED+selftest+PARTIAL VPS / Test 11 GATE-WIRED+§honesty PARTIAL / Test 12 GATE-WIRED+EXERCISABLE on VPS / Test 14 GATE-WIRED+selftest+PARTIAL VPS / Test 16 REGISTRY-COMPLETE) + `docs/FOLLOWUP_TICKETS.md` §Open Blockers rows per i forward-pointed (TICKET-INFRA-F2-DIVERGENCE P0 + TICKET-SUNSET-VERIFY P0) + `docs/CURRENT_STATUS.md` §Stato per area rows post-§Hygiene. |
@@ -78,6 +78,15 @@ Forward-pointed product-validation tickets (TICKET-TEST-9-PILOT-7GG, TICKET-TEST
 - **§honesty product validation split**: i Tests 8/9/15/17/18 sono stati migrati a PipelineGen — nessuna riga di prodotto è rimasta nel core con stato fabbricato.
 
 # Cross-link (anchor to canonical references)
+
+## Retirement note — 2026-10-26
+
+The documented gate scripts `check_single_source_of_truth.sh`,
+`check_fix_cronograph.sh`, and `check_linear_scaling.sh`, the Test 13 core
+ticket, and `docs/FEATURE_SUNSET.md` are absent from this checkout. Test 10 and
+14 retain only the determinism and linear-scaling harnesses; the historical
+six-row catalog does not describe current Chronon3D blockers. Retire this
+aggregator instead of claiming runtime certification from missing commands.
 
 - AGENTS.md §Test 10 / §Test 11 / §Test 12 spec sections + §Cat-3 + §Cat-5 + §honesty + §"Fare PR piccole e mirate" + §"INFO-level diagnostic style" Rule #2 + §"Regole di lint documentale"
 - Roadmap / V0.2 milestone (`docs/ROADMAP.md`)

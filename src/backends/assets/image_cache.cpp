@@ -10,6 +10,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <filesystem>
 #include <limits>
@@ -239,12 +240,14 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
     entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
     if (entry->fb_img) {
         entry->gpu_rgba.resize(static_cast<std::size_t>(entry->width) * entry->height * 4);
+        std::atomic<bool> all_alpha_opaque{true};
         // Each row is independent. Parallelizing this conversion is
         // safe because both destinations are pre-sized and indexed
         // by row; it removes the serial sRGB->linear bottleneck while
         // preserving the exact premultiplied-color operation.
         tbb::parallel_for(tbb::blocked_range<int>(0, entry->height),
             [&](const tbb::blocked_range<int>& rows) {
+                bool rows_alpha_opaque = true;
                 for (int y = rows.begin(); y < rows.end(); ++y) {
                     Color* dst_row = entry->fb_img->pixels_row(y);
                     float* gpu_row = entry->gpu_rgba.data() +
@@ -257,6 +260,7 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
                             , ocio_transform ? &*ocio_transform : nullptr
 #endif
                             );
+                        rows_alpha_opaque = rows_alpha_opaque && color.a == 1.0f;
                         dst_row[x] = color;
                         gpu_row[x * 4 + 0] = color.r;
                         gpu_row[x * 4 + 1] = color.g;
@@ -264,7 +268,12 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
                         gpu_row[x * 4 + 3] = color.a;
                     }
                 }
+                if (!rows_alpha_opaque) {
+                    all_alpha_opaque.store(false, std::memory_order_relaxed);
+                }
             });
+        entry->decoded_alpha_is_opaque =
+            all_alpha_opaque.load(std::memory_order_relaxed);
 #ifdef CHRONON3D_ENABLE_OCIO
         if (ocio_transform && std::any_of(entry->gpu_rgba.begin(),
             entry->gpu_rgba.end(), [](float value) { return !std::isfinite(value); })) {

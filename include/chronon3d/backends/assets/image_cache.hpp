@@ -24,6 +24,10 @@ namespace assets { class AssetResolver; }
 struct CachedImage {
     int width{0};
     int height{0};
+    // True only when every alpha sample in the decoded runtime image is 1.
+    // This is independent of ImageShape opacity and safe for full-frame seed
+    // decisions; unknown/invalid decoder data stays false.
+    bool decoded_alpha_is_opaque{false};
 #ifdef CHRONON3D_USE_BLEND2D
     BLImage bl_img;
 #endif

@@ -563,3 +563,261 @@ TEST_CASE("NativeAvEncoder partial open cleanup is idempotent") {
         encoder.shutdown_noexcept();
     }
 }
+
+namespace {
+
+struct TwoItemReuseResult {
+    bool adopted{false};
+};
+
+TwoItemReuseResult render_two_items(
+    const char* codec,
+    const std::shared_ptr<chronon3d::media::VideoDeviceRuntime>& device_runtime,
+    const std::filesystem::path& item_a_path,
+    const std::filesystem::path& item_b_path) {
+    TwoItemReuseResult result{};
+
+    chronon3d::cli::FfmpegPipeOptions base;
+    base.width = 320;
+    base.height = 240;
+    base.fps_num = 24;
+    base.fps_den = 1;
+    base.codec = codec;
+    // Single encode thread: frame threading would delay the content root's
+    // packet past mode decisions; these tests are about the session reuse
+    // contract, not encoder parallelism.
+    base.encode_threads = 1;
+
+    // Item A: a gray card, real frames. Its close parks the codec session
+    // (reuse opted in by the caller's env) under the encoder fingerprint.
+    {
+        auto options = base;
+        options.output_path = item_a_path.string();
+        chronon3d::cli::NativeAvEncoder encoder(device_runtime);
+        REQUIRE(encoder.open(options));
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int y = 0; y < options.height; ++y) {
+            auto* row = frame.pixels_row(y);
+            for (int x = 0; x < options.width; ++x) {
+                row[x] = chronon3d::Color{0.25f, 0.25f, 0.25f, 1.0f};
+            }
+        }
+        for (int index = 0; index < 24; ++index) {
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+
+    // Item B: the adopter. A fresh open with the same resolved configuration
+    // must adopt the parked codec instead of paying avcodec_open2 again.
+    {
+        auto options = base;
+        options.output_path = item_b_path.string();
+        chronon3d::cli::NativeAvEncoder encoder(device_runtime);
+        REQUIRE(encoder.open(options));
+        result.adopted = encoder.codec_session_adopted();
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int y = 0; y < options.height; ++y) {
+            auto* row = frame.pixels_row(y);
+            for (int x = 0; x < options.width; ++x) {
+                row[x] = chronon3d::Color{0.75f, 0.4f, 0.05f, 1.0f};
+            }
+        }
+        for (int index = 0; index < 24; ++index) {
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+    return result;
+}
+
+} // namespace
+
+TEST_CASE("Cross-item codec session reuse stays fail-closed") {
+    namespace fs = std::filesystem;
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+    const auto dir = fs::temp_directory_path() / "chronon3d_codec_session_reuse";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+    REQUIRE_FALSE(ec);
+
+    auto contract_check = [](const fs::path& mp4) {
+        auto contract =
+            chronon3d::media::video::resolve_output_contract("youtube_overlay_v1");
+        REQUIRE(contract.has_value());
+        contract->width = 320;
+        contract->height = 240;
+        contract->fps = chronon3d::FrameRate{24, 1};
+        contract->frame_count = 24;
+        contract->audio_required = false;
+        contract->audio_streams = 0;
+        const auto verification =
+            chronon3d::media::video::verify_output_contract(mp4, *contract);
+        CHECK(verification.passed);
+        CHECK(verification.frame_count == 24);
+    };
+
+    const auto item_a = dir / "item_a.mp4";
+    const auto item_b = dir / "item_b.mp4";
+
+    // Fail-closed without the opt-in: a same-options follower must NOT adopt,
+    // pays avcodec_open2 and renders a clean stream.
+    {
+        const auto result = render_two_items(
+            "libx264", nullptr, item_a, item_b);
+        CHECK_FALSE(result.adopted);
+        contract_check(item_a);
+        contract_check(item_b);
+    }
+
+    // Even WITH the documented opt-in flag set, the DEFAULT encoder config
+    // stays fail-closed. Fix 5 parks the codec unflushed only at a certified
+    // packet boundary (every frame submitted already produced its packet);
+    // libx264's default lookahead/B-frame tail keeps frames in the encoder
+    // until EOS, so item A's close() cannot reach the boundary, must send EOS
+    // to finalize its MP4 and parks nothing. A codec parked after EOS rejects
+    // every restarted frame (empirical, 2026-10-26, ticket P3 — the first
+    // write_frame of item B failed immediately when that gate was briefly
+    // opened), so nothing may be adopted here. The positive path (low-delay
+    // config reaching the boundary) is covered by the next test case.
+    {
+        ScopedEnvironmentValue reuse("CHRONON_ENCODER_SESSION_REUSE", "1");
+        const auto result = render_two_items(
+            "libx264", nullptr, item_a, item_b);
+        CHECK_FALSE(result.adopted);
+        contract_check(item_a);
+        contract_check(item_b);
+        const auto hashes_a = decoded_frame_hashes(item_a);
+        const auto hashes_b = decoded_frame_hashes(item_b);
+        REQUIRE_FALSE(hashes_a.empty());
+        REQUIRE_FALSE(hashes_b.empty());
+        CHECK(hashes_a != hashes_b);
+    }
+
+    fs::remove_all(dir, ec);
+}
+
+TEST_CASE("Cross-job adaptive rate control never reuses packet-complete sessions") {
+    namespace fs = std::filesystem;
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+    const auto dir = fs::temp_directory_path() / "chronon3d_codec_session_reuse_boundary";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+    REQUIRE_FALSE(ec);
+
+    // A low-delay encoder reaches a packet-complete boundary, but that
+    // does not reset adaptive CRF state. Cross-job reuse must remain closed
+    // even with opt-in; moving frames below pin independent-render parity.
+    ScopedEnvironmentValue reuse("CHRONON_ENCODER_SESSION_REUSE", "1");
+
+    auto contract_check = [](const fs::path& mp4) {
+        auto contract =
+            chronon3d::media::video::resolve_output_contract("youtube_overlay_v1");
+        REQUIRE(contract.has_value());
+        contract->width = 320;
+        contract->height = 240;
+        contract->fps = chronon3d::FrameRate{24, 1};
+        contract->frame_count = 24;
+        contract->audio_required = false;
+        contract->audio_streams = 0;
+        const auto verification =
+            chronon3d::media::video::verify_output_contract(mp4, *contract);
+        CHECK(verification.passed);
+        CHECK(verification.frame_count == 24);
+    };
+
+    const auto item_a = dir / "boundary_a.mp4";
+    const auto item_b = dir / "boundary_b.mp4";
+
+    chronon3d::cli::FfmpegPipeOptions base;
+    base.width = 320;
+    base.height = 240;
+    base.fps_num = 24;
+    base.fps_den = 1;
+    base.codec = "libx264";
+    base.encode_threads = 1;
+    base.tune = "zerolatency";
+    base.tune_explicit = true;
+
+    // Item A: a gray card, 24 real frames, finalized independently.
+    {
+        auto options = base;
+        options.output_path = item_a.string();
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(options));
+        CHECK_FALSE(encoder.codec_session_adopted());
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int y = 0; y < options.height; ++y) {
+            auto* row = frame.pixels_row(y);
+            for (int x = 0; x < options.width; ++x) {
+                row[x] = chronon3d::Color{0.25f, 0.25f, 0.25f, 1.0f};
+            }
+        }
+        for (int index = 0; index < 24; ++index) {
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+
+    // Item B must not inherit the gray card's codec/rate-control state.
+    {
+        auto options = base;
+        options.output_path = item_b.string();
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(options));
+        CHECK_FALSE(encoder.codec_session_adopted());
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int y = 0; y < options.height; ++y) {
+            auto* row = frame.pixels_row(y);
+            for (int x = 0; x < options.width; ++x) {
+                row[x] = chronon3d::Color{0.75f, 0.4f, 0.05f, 1.0f};
+            }
+        }
+        for (int index = 0; index < 24; ++index) {
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    }
+
+    contract_check(item_a);
+    contract_check(item_b);
+    const auto hashes_a = decoded_frame_hashes(item_a);
+    const auto hashes_b = decoded_frame_hashes(item_b);
+    REQUIRE_FALSE(hashes_a.empty());
+    REQUIRE_FALSE(hashes_b.empty());
+    CHECK(hashes_a != hashes_b);
+
+    // Opt-in must preserve the independent-render pixel oracle, including
+    // moving content rather than only two distinguishable cards.
+    const auto moving = dir / "boundary_moving.mp4";
+    const auto reference = dir / "boundary_reference.mp4";
+    auto render_moving = [&](const fs::path& output, bool expected_adoption) {
+        auto options = base;
+        options.output_path = output.string();
+        chronon3d::cli::NativeAvEncoder encoder;
+        REQUIRE(encoder.open(options));
+        CHECK(encoder.codec_session_adopted() == expected_adoption);
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int index = 0; index < 24; ++index) {
+            paint_frame(frame, index, 8);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    };
+    render_moving(moving, false);
+    reuse.set(std::string{"0"});
+    render_moving(reference, false);
+    contract_check(moving);
+    contract_check(reference);
+    CHECK(decoded_frame_hashes(moving) == decoded_frame_hashes(reference));
+
+    fs::remove_all(dir, ec);
+}

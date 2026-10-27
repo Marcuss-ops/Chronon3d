@@ -86,6 +86,7 @@ chronon3d_add_test_suite(
         render_graph/compiler/test_frame_graph_compiler_scheduling.cpp
         render_graph/compiler/test_frame_graph_compiler_reuse.cpp
         render_graph/compiler/test_frame_graph_compiler_runtime.cpp
+        render_graph/compiler/test_source_node_alpha_seed.cpp
         render_graph/compiler/test_frame_graph_compiler_golden.cpp
         render_graph/core/test_node_identity.cpp
         render_graph/features/test_transition.cpp

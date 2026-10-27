@@ -12,8 +12,11 @@ The render exposed and fixed a correctness defect in early-exit analysis:
 `ImageShape.opacity` was treated as proof that all decoded pixels are opaque.
 Transparent full-canvas images could therefore retire the title/background
 subtree below them. `SourceNode::can_seed_full_frame` now returns false until
-the asset resolver can prove decoded alpha coverage. This is conservative and
-may forgo an optimization for opaque full-frame images.
+the resolver-scoped `ImageCache` contains decoded, fully opaque alpha coverage.
+Prepared opaque full-canvas images may seed the frame only with full opacity,
+full-frame geometry, and no crop, contain-fit, rounded corners, or
+alpha-reducing tint. Transparent and not-yet-decoded images retain the clear
+and lower-layer composition.
 
 ## Certification status
 
@@ -37,9 +40,13 @@ may forgo an optimization for opaque full-frame images.
 
 ## Next acceptance work
 
-1. Add a regression test that keeps lower layers alive for a transparent
-   full-canvas source and preserves the opaque-image optimization only when
-   decoded alpha coverage is known.
+1. **Local alpha-seed regression closed:** `chronon3d_render_graph_tests`
+   verifies the graph builder keeps its initial clear for unknown/transparent
+   alpha, while decoded opaque alpha seeds only a full-canvas opaque image;
+   tint/contain cases remain conservative for both RGBA8 and linear-float
+   decoded images (15 assertions pass). This keeps
+   lower-layer composition alive for transparent cutouts while preserving the
+   verified opaque-image optimization.
 2. For T16, review matte edges against approved reference material. The
    1920×1080/30 fps Vulkan/NVENC output, finite-depth environment plane, and
    frame-75 random/sequential access comparison are complete (raw pixel-truth

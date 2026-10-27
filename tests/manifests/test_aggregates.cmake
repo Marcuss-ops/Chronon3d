@@ -35,6 +35,9 @@ if(CHRONON3D_USE_BLEND2D)
     chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_precomp_tests)
 endif()
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_cli_tests)
+# Mandatory gate (issue #51): the registry↔Vulkan parity tests must build and
+# run like the other fast suites instead of waiting for a full push run.
+chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_backend_registry_tests)
 add_custom_target(chronon3d_tests_fast DEPENDS ${CHRONON3D_FAST_TEST_DEPS})
 
 foreach(_target IN LISTS CHRONON3D_FAST_TEST_DEPS)
