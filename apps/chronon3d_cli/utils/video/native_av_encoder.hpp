@@ -399,6 +399,13 @@ private:
     [[nodiscard]] std::string compute_codec_session_fingerprint() const;
     [[nodiscard]] bool try_adopt_codec_session();
     void park_codec_session_for_reuse();
+    /// Fix 5 supported-configuration gate: the only session shape whose
+    /// reuse is pixel-identical to independent encodes. Constant-QP has no
+    /// adaptive rate-control state; zerolatency removes lookahead/B-frames
+    /// so every submitted frame produces its packet; a single encode thread
+    /// removes frame-threading nondeterminism. Everything else stays
+    /// fail-closed (parked never, adopted never).
+    [[nodiscard]] bool codec_session_config_supported() const;
 
     bool drain_packets();
     /// write_frame with an explicit intra force (P1 run-anchor seeding and the

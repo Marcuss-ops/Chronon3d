@@ -249,9 +249,14 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     // Phase 7 — frame buffers and final validation.
     if (!finalize_open(filename)) return false;
     // Cross-item session eligibility (fail-closed): only a healthy owned
-    // container under a complete fingerprint may be parked for the next job.
+    // container under a complete fingerprint AND the Fix 5 supported
+    // configuration may be parked for the next job. Adaptive rate control
+    // (CRF), B-frames/lookahead and frame threading all carry encoder state
+    // across jobs and change the next job's pixels; parking them would trade
+    // correctness for teardown savings.
     codec_session_eligible_ = !codec_session_fingerprint_.empty() &&
-        !borrows_mux_ && options_.output_segments.empty();
+        !borrows_mux_ && options_.output_segments.empty() &&
+        codec_session_config_supported();
     return true;
 }
 
@@ -620,6 +625,25 @@ bool NativeAvEncoder::apply_resolved_encoder_options() {
         // backends; NVENC + tune fails during resolution.
         if (!set_codec_option_checked(codec_, "tune", *tune)) return false;
     }
+    // Fix 5 supported-config path: constant-QP on the software encoder.
+    // The FFmpeg libx264 wrapper switches to CQP when `qp` is set; the
+    // resolver guarantees a validated qp in [0, 69] whenever this branch is
+    // reached (software + ConstantQp). NVENC CQP is handled in the
+    // gpu_nvenc_ branch below.
+    if (!gpu_nvenc_ &&
+        resolved.rate_control() == ResolvedEncoderRateControl::ConstantQp &&
+        (codec_name == "libx264" || codec_name == "libx264rgb")) {
+        const int qp = resolved.qp().value_or(-1);
+        if (qp < 0 || qp > 69) {
+            spdlog::error(
+                "[native_av] Internal error: software constant-QP without a "
+                "validated qp reached open()");
+            return false;
+        }
+        char qp_str[16];
+        snprintf(qp_str, sizeof(qp_str), "%d", qp);
+        if (!set_codec_option_checked(codec_, "qp", qp_str)) return false;
+    }
 
     // ── Native NVENC pipeline depth + resolved rate control ─────────────
     // The NVENC wrapper in this FFmpeg build (libavcodec 58 / 4.2-4.4) does
@@ -781,11 +805,38 @@ std::string NativeAvEncoder::compute_codec_session_fingerprint() const {
         static_cast<int>(options_.input_format));
 }
 
+bool NativeAvEncoder::codec_session_config_supported() const {
+    if (!resolved_encoder_config_) return false;
+    const auto& resolved = *resolved_encoder_config_;
+    const std::string& encoder_name = resolved.encoder_name();
+    // Software x264-family only: NVENC CQP keeps driver-side state (lookahead
+    // and B-frames are outside this wrapper's control) and is not certified.
+    if (gpu_nvenc_ || (encoder_name != "libx264" && encoder_name != "libx264rgb")) {
+        return false;
+    }
+    if (resolved.rate_control() != ResolvedEncoderRateControl::ConstantQp) {
+        return false;
+    }
+    if (!resolved.qp().has_value()) return false;
+    // Canonical tune spelling as emitted by the resolver (see the allowed
+    // x264 tune vocabulary); only zero-latency reaches the packet boundary.
+    const auto tune = resolved.tune();
+    if (!tune || *tune != "zerolatency") return false;
+    // Frame threading keeps work in flight and defeats both the packet
+    // boundary and determinism; 0 means engine-default (auto), also excluded.
+    if (options_.encode_threads != 1) return false;
+    return true;
+}
+
 bool NativeAvEncoder::try_adopt_codec_session() {
     if (codec_session_fingerprint_.empty() ||
         !detail::codec_session_reuse_enabled()) {
         return true;
     }
+    // Defense in depth: the park site already gated eligibility, and the
+    // fingerprint pins every session-shaping axis, but an adopter whose own
+    // configuration is not supported must never reuse — fail closed.
+    if (!codec_session_config_supported()) return true;
     auto session = detail::acquire_codec_session(codec_session_fingerprint_);
     if (!session || !session->codec) return true;
     // Fix 5 — only an UNFLUSHED parked session is adoptable: an EOS-flushed
