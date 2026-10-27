@@ -7,7 +7,7 @@ NodeExecResult ClearNode::execute(
     RenderGraphContext& ctx,
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> bboxes) {
-    return detail::execute_clear_node(ctx, inputs, bboxes);
+    return detail::execute_clear_node(ctx, inputs, bboxes, m_force_clear);
 }
 
 } // namespace chronon3d::graph

@@ -422,3 +422,13 @@ CHRONON_EFFECT(53, ColorMatrix, ColorMatrixParams, ids::ColorMatrix,
     "Color Matrix", EffectCategory::Color, EffectStage::Adjustment,
     EffectDomain::Color, AlphaPolicy::MayModify, DirtyPolicy::Preserve,
     BoundsPolicy::Preserve, false, true)
+
+CHRONON_EFFECT(54, LottieTint, LottieTintParams, ids::ColorLottieTint,
+    "Lottie Two-Color Tint", EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(55, LottieTritone, LottieTritoneParams, ids::ColorLottieTritone,
+    "Lottie Tritone", EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, false)

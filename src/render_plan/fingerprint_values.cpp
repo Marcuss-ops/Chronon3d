@@ -327,6 +327,7 @@ void add_text_animator(CanonicalPlanWriter& out, const TextAnimatorPlan& animato
         add_track(out, selector.offset);
         add_track(out, selector.amount);
         out.add_bool(selector.exclude_spaces);
+        out.add_bool(selector.end_inclusive);
         out.add_bool(selector.randomize_order);
         out.add_uint64(selector.random_seed);
         out.add_float(selector.wiggly_frequency);

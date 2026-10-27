@@ -27,6 +27,18 @@ namespace chronon3d {
 
 struct BlurParams          { f32   radius{0.0f}; };
 struct TintParams          { Color color{0,0,0,0}; f32 amount{1.0f}; };
+// Bodymovin/After Effects two-color Tint controls, stored in sRGB coordinates.
+struct LottieTintParams {
+    f32 black_r{0.0f}, black_g{0.0f}, black_b{0.0f};
+    f32 white_r{1.0f}, white_g{1.0f}, white_b{1.0f};
+    f32 amount{1.0f};
+};
+struct LottieTritoneParams {
+    f32 dark_r{0.0f}, dark_g{0.0f}, dark_b{0.0f};
+    f32 mid_r{0.5f}, mid_g{0.5f}, mid_b{0.5f};
+    f32 bright_r{1.0f}, bright_g{1.0f}, bright_b{1.0f};
+    f32 amount{1.0f};
+};
 struct BrightnessParams    { f32   value{0.0f}; };
 struct ContrastParams      { f32   value{1.0f}; };
 struct DropShadowParams    { Vec2 offset{0,8}; Color color{0,0,0,0.35f}; f32 radius{12}; };
@@ -132,7 +144,10 @@ struct CurvesParams {
 // ── Fill (Replace / Mix) ───────────────────────────────────────────────
 enum class FillMode {
     Replace,
-    Mix
+    Mix,
+    // Bodymovin/After Effects Fill replaces the layer color and applies its
+    // animated opacity to the source alpha, including zero opacity.
+    ReplaceAlpha
 };
 
 struct FillParams {
@@ -504,6 +519,8 @@ using EffectParams = std::variant<
     std::monostate,
     BlurParams,
     TintParams,
+    LottieTintParams,
+    LottieTritoneParams,
     BrightnessParams,
     ContrastParams,
     DropShadowParams,

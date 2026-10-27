@@ -64,7 +64,7 @@ SoftwareExecutionContext make_software_execution_context(
 
     context.text.resources = renderer->text_render_resources();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
-    context.text.fonts = &renderer->font_engine();
+    context.text.fonts = &runtime.font_engine();
 #endif
     context.settings = &renderer->render_settings();
     context.backend = runtime.backend_attached() ? &runtime.backend() : nullptr;

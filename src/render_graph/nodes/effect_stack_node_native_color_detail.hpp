@@ -210,6 +210,10 @@ lower_native_color_effect(const effects::EffectInstance& instance,
         const auto* p = std::get_if<FillParams>(&instance.params);
         if (!p || !finite_all({p->amount, p->color.r, p->color.g, p->color.b}))
             return std::nullopt;
+        // The Lottie-specific alpha-replacement mode is currently certified
+        // only by the software processor. Do not approximate it as an RGB mix
+        // in the native GPU path.
+        if (p->mode == FillMode::ReplaceAlpha) return std::nullopt;
         // Software Fill honors the clip and works on straight RGB inside
         // context.clip.
         out.honors_clip = true;

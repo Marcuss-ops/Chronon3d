@@ -75,6 +75,7 @@ struct TextSelectorPlan {
     AnimationTrackPlan offset;
     AnimationTrackPlan amount;
     bool exclude_spaces{true};
+    bool end_inclusive{false};
     bool randomize_order{false};
     std::uint64_t random_seed{0};
     float wiggly_frequency{1.0f};

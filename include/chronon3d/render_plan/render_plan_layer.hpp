@@ -2,9 +2,22 @@
 
 #include <chronon3d/render_plan/render_plan_effects.hpp>
 #include <chronon3d/render_plan/render_plan_layer_types.hpp>
+#include <cstddef>
+#include <memory>
+#include <vector>
 
 namespace chronon3d::render_plan {
 struct LayerPlan {
+    // Internal metadata for isolated Bodymovin precomp groups. It is lowered
+    // into Chronon's scene/compositor contracts and is not serialized.
+    struct LottiePrecompGroupPlan {
+        std::string id;
+        float opacity{1.0f};
+        bool opacity_active{false};
+        std::optional<AnimationTrackPlan> opacity_animation;
+        chronon3d::BlendMode blend_mode{chronon3d::BlendMode::Normal};
+    };
+    std::vector<LottiePrecompGroupPlan> lottie_precomp_groups;
     struct StaggerPlan {
         std::string group_id;
         std::uint32_t per_item_frames{0};
@@ -33,6 +46,9 @@ struct LayerPlan {
     std::optional<TrackMattePlan> track_matte;
     std::optional<TimeRemapPlan> time_remap;
     std::string asset;
+    // Embedded Bodymovin image payload; its identity is carried separately
+    // in `asset`, and the immutable bytes never become a temp file.
+    std::shared_ptr<const std::vector<std::byte>> embedded_image_payload;
     // Transfer encoding for byte-backed image layers; tagged EXR and video
     // sources use their own metadata and remain handled by their decoders.
     std::string input_color_space{"srgb"};

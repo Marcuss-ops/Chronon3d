@@ -50,6 +50,8 @@ chronon3d_add_test_suite(
     LINK_TARGETS ${_chronon3d_c_abi_links}
     SOURCES ${_chronon3d_c_abi_sources}
 )
+target_compile_definitions(chronon3d_c_abi_tests PRIVATE
+    CHRONON3D_TEST_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\")
 if(CHRONON3D_ENABLE_SVG)
     target_compile_definitions(chronon3d_c_abi_tests PRIVATE CHRONON_TEST_ENABLE_SVG=1)
     target_sources(chronon3d_c_abi_tests PRIVATE

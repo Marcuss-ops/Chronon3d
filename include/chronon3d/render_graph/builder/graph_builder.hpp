@@ -30,6 +30,7 @@ struct LayerGraphItem {
 
     usize        insertion_index{0};
     GraphNodeId  matte_node{k_invalid_node}; // pre-built matte source node, if any
+    bool         matte_source_is_static{false}; // matte output depends on both input timelines
     std::unordered_map<std::string,GraphNodeId> displacement_map_nodes;
     std::unordered_map<std::string,GraphNodeId> text_mask_source_nodes;
     bool         is_static{false};

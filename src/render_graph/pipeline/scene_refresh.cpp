@@ -308,7 +308,8 @@ SceneRefreshResult refresh_compiled_graph_payloads(
         // their prior node payload; their activity flag is still consumed by
         // GraphExecutor on every frame. An unbound or missing layer stays on
         // the conservative refresh path.
-        if (ctx.frame_parameters &&
+        if (graph_node.kind() != RenderGraphNodeKind::Effect &&
+            ctx.frame_parameters &&
             compiled.nodes[node_id].binding_meta.has_binding()) {
             const auto layer_index =
                 compiled.nodes[node_id].binding_meta.layer_index;
@@ -365,7 +366,23 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     compiled.refresh_scratch, node_id, *transform_node,
                     ctx.node_exec.counters);
                 bool typed_applied = false;
-                if (ctx.frame_parameters &&
+                bool lottie_group_applied = false;
+                if (!transform_node->layer_id().empty()) {
+                    for (const auto& [_, resolved] : resolved_by_name) {
+                        if (!resolved || !resolved->layer) continue;
+                        const auto& groups = resolved->layer->lottie_precomp_groups;
+                        const auto group = std::find_if(groups.begin(), groups.end(),
+                            [&](const auto& value) {
+                                return value.id == transform_node->layer_id() &&
+                                       value.opacity_animated;
+                            });
+                        if (group == groups.end()) continue;
+                        refresh_transform_node(*prepared, resolved_by_name, ctx);
+                        lottie_group_applied = true;
+                        break;
+                    }
+                }
+                if (!lottie_group_applied && ctx.frame_parameters &&
                     compiled.nodes[node_id].binding_meta.has_binding()) {
                     const auto layer_index = compiled.nodes[node_id].binding_meta.layer_index;
                     const auto& typed_layers = ctx.frame_parameters->layers;
@@ -378,10 +395,10 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                         }
                     }
                 }
-                if (!typed_applied && !ctx.frame_parameters) {
+                if (!lottie_group_applied && !typed_applied && !ctx.frame_parameters) {
                     refresh_transform_node(*prepared, resolved_by_name, ctx);
                 }
-                if (!typed_applied && ctx.frame_parameters) {
+                if (!lottie_group_applied && !typed_applied && ctx.frame_parameters) {
                     return missing_dynamic_data(
                         "typed transform parameters missing for node " +
                         std::to_string(id));

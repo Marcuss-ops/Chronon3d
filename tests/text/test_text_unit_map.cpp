@@ -76,6 +76,27 @@ TEST_CASE("TextUnitMap: words separated by space") {
     }
 }
 
+TEST_CASE("TextUnitMap: character selectors retain whitespace omitted by shaping") {
+    constexpr std::string_view source = "abc def";
+    PlacedGlyphRun run;
+    for (const size_t byte : {size_t{0}, size_t{1}, size_t{2},
+                              size_t{4}, size_t{5}, size_t{6}}) {
+        PlacedGlyph glyph;
+        glyph.glyph_id = static_cast<u32>(byte + 1);
+        glyph.cluster = static_cast<u32>(run.glyphs.size());
+        glyph.is_cluster_start = true;
+        glyph.byte_offset = static_cast<u32>(byte);
+        glyph.byte_len = 1;
+        run.glyphs.push_back(glyph);
+    }
+
+    const auto map = build_text_unit_map(run, source);
+    CHECK(map.grapheme_count == 7);
+    CHECK(map.glyph_to_grapheme[2] == 2);
+    CHECK(map.glyph_to_grapheme[3] == 4);
+    CHECK(map.glyph_to_grapheme[5] == 6);
+}
+
 TEST_CASE("TextUnitMap: lines separated by newline") {
     auto source = make_line_test_source();
 

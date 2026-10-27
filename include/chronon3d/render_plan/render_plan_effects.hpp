@@ -3,7 +3,7 @@
 #include <chronon3d/render_plan/render_plan_types.hpp>
 
 namespace chronon3d::render_plan {
-enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading, Scanlines, RetroTv, Halation, AnamorphicStreak };
+enum class EffectKindPlan : std::uint8_t { Lut3D, Echo, Keying, Threshold, Mosaic, GaussianBlur, DropShadow, Bloom, Glow, Noise, FractalNoise, CornerPin, Twirl, Bulge, MeshWarp, Sharpen, RoughenEdges, TurbulentDisplace, WaveWarp, Ripple, DisplacementMap, LightRays, ChromaticAberration, Halftone, DirectionalBlur, RadialBlur, Vignette, Catalog, LensDistortion, LuminanceResponse, FoldWarp, CreaseShading, Scanlines, RetroTv, Halation, AnamorphicStreak, Fill };
 enum class KeyingModePlan : std::uint8_t { Luma, Chroma };
 struct EffectPlan {
     EffectKindPlan kind{EffectKindPlan::Lut3D};
@@ -12,6 +12,7 @@ struct EffectPlan {
     std::vector<ParamValue> canonical_params;
     std::string asset;
     float amount{1.0f};
+    bool fill_opacity_replaces_alpha{false};
     float roughen_scale{8.0f};
     std::uint32_t roughen_complexity{1};
     std::uint32_t roughen_seed{0};

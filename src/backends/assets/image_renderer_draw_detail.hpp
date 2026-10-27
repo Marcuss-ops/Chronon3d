@@ -8,6 +8,10 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     const auto t_decode0 = profiling::now();
     // Rendering is lookup-only: preparation owns all backend I/O and decode.
     cached_hold = m_cache.get().find(image.path, image.decode_options);
+    if (!cached_hold && image.embedded_payload) {
+        cached_hold = m_cache.get().get_or_load_embedded(
+            image.path, *image.embedded_payload, image.decode_options);
+    }
     cached = cached_hold.get();
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
@@ -303,6 +307,10 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     const auto t_decode0 = profiling::now();
     // Rendering is lookup-only: preparation owns all backend I/O and decode.
     cached_hold = m_cache.get().find(image.path, image.decode_options);
+    if (!cached_hold && image.embedded_payload) {
+        cached_hold = m_cache.get().get_or_load_embedded(
+            image.path, *image.embedded_payload, image.decode_options);
+    }
     cached = cached_hold.get();
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);

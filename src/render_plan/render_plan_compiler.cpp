@@ -58,6 +58,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
             return *lottie_error;
         if (auto svg_error = detail::prepare_svg_layers(plan, resolver))
             return *svg_error;
+        // Lottie and SVG lowering can introduce parent, matte, text-mask, and
+        // effect-source relations that did not exist in the authored V3 plan.
+        // Revalidate the expanded graph before compiling it so generated
+        // dependency cycles fail as typed plan errors instead of reaching the
+        // render graph builder.
+        if (const auto relation_error = validate_render_plan_layer_relations(plan))
+            return *relation_error;
         const auto compile_total_t0 = chronon3d::profiling::now();
         double asset_prepare_ms = 0.0;
         double fingerprint_ms = 0.0;

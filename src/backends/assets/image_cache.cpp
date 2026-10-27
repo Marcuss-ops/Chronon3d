@@ -164,11 +164,14 @@ using ImageCacheStorage =
 // a dead convert timer and a second copy of this body).
 std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
     image::ImageBackend& backend, const std::string& path,
-    const std::string& resolved_path, ImageDecodeOptions options) {
+    const std::string& resolved_path, ImageDecodeOptions options,
+    std::span<const std::byte> embedded = {}) {
     const auto t0 = profiling::now();
     // Decode: backend loads + decodes the image bytes into raw RGBA.
     const auto decode_t0 = profiling::now();
-    auto buffer = backend.load_image(resolved_path);
+    auto buffer = embedded.empty()
+        ? backend.load_image(resolved_path)
+        : backend.load_image_from_memory(embedded);
     const double decode_us = profiling::duration_us(decode_t0, profiling::now());
     if (profiling::g_current_counters) {
         profiling::g_current_counters->image_decode_wall_us.fetch_add(
@@ -301,7 +304,7 @@ std::shared_ptr<const CachedImage> load_through_cache(
     ImageCacheStorage& cache, const ImageAssetKey& key,
     const std::string& path, const std::string& resolved_path,
     image::ImageBackend& backend, ImageDecodeOptions options,
-    bool count_cache_stats) {
+    bool count_cache_stats, std::span<const std::byte> embedded = {}) {
     // TICKET-CACHE-COUNTERS-V1 — count image decode-cache hit/miss so
     // decode-once (miss ≈ 1) vs decode-per-frame (miss ≈ frames) is visible
     // in telemetry for the static-asset benchmark.  Only the resolver-backed
@@ -315,7 +318,7 @@ std::shared_ptr<const CachedImage> load_through_cache(
     }
 
     auto shared = cache.compute_if_absent(key, [&]() {
-        return decode_and_stage(backend, path, resolved_path, options);
+        return decode_and_stage(backend, path, resolved_path, options, embedded);
     });
 
     if (!shared) {
@@ -337,6 +340,10 @@ ImageCache::ImageCache(size_t capacity_bytes)
 std::optional<ImageAssetKey> ImageCache::canonical_key(
     const std::string& path, ImageDecodeOptions options) const {
     ImageAssetKey key{.options = options};
+    if (path.starts_with("chronon3d-embedded:")) {
+        key.canonical_path = std::filesystem::path(path);
+        return key;
+    }
     if (!m_asset_resolver) {
         key.canonical_path = std::filesystem::path(path).lexically_normal();
         return key;
@@ -353,6 +360,10 @@ std::optional<ImageAssetKey> ImageCache::canonical_key(
     const std::string& path, ImageDecodeOptions options,
     const assets::AssetResolver& resolver) const {
     ImageAssetKey key{.options = options};
+    if (path.starts_with("chronon3d-embedded:")) {
+        key.canonical_path = std::filesystem::path(path);
+        return key;
+    }
     const auto resolved = resolver.resolve_lexical(path);
     if (!resolved) return std::nullopt;
     key.canonical_path = resolved->lexically_normal();
@@ -396,6 +407,29 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(
     }
 
     return load_through_cache(m_cache, *key, path, resolved_path, *backend, options, true);
+}
+
+std::shared_ptr<const CachedImage> ImageCache::get_or_load_embedded(
+    const std::string& identity, std::span<const std::byte> encoded,
+    ImageDecodeOptions options) {
+    constexpr std::string_view kEmbeddedPrefix = "chronon3d-embedded:";
+    if (!identity.starts_with(kEmbeddedPrefix) || encoded.empty()) {
+        spdlog::warn("ImageCache: invalid embedded image identity or empty payload");
+        return nullptr;
+    }
+    ImageAssetKey key{.options = options};
+    key.canonical_path = std::filesystem::path(identity);
+    std::shared_ptr<image::ImageBackend> backend;
+    {
+        std::shared_lock<std::shared_mutex> lock(*m_backend_mutex);
+        backend = m_backend;
+    }
+    if (!backend) {
+        spdlog::error("ImageCache: cannot decode embedded '{}' - no backend set", identity);
+        return nullptr;
+    }
+    return load_through_cache(
+        m_cache, key, identity, {}, *backend, options, true, encoded);
 }
 
 std::shared_ptr<const CachedImage> ImageCache::find(

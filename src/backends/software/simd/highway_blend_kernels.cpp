@@ -123,56 +123,26 @@ HWY_ATTR void composite_multiply_premul_impl(float* HWY_RESTRICT dst_ptr,
                                               const float* HWY_RESTRICT src_ptr,
                                               int pixel_count) {
     const hn::FixedTag<float, 4> d4;
-    int i = 0;
-
-    // ── 2-pixel AVX2 path ─────────────────────────────────────────
-#if HWY_TARGET == HWY_AVX2
-    if (pixel_count >= 2) {
-        const hn::ScalableTag<float> d;
-        for (; i + 1 < pixel_count; i += 2) {
-            if ((i & 14) == 0 && (i + 16) < pixel_count) {
-                chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
-                chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
-            }
-            if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
-            // Save original alpha BEFORE the Mul store overwrites it.
-            const float da0 = dst_ptr[i * 4 + 3];
-            const float da1 = dst_ptr[(i + 1) * 4 + 3];
-            const auto src_v = hn::LoadU(d, src_ptr + i * 4);
-            const auto dst_v = hn::LoadU(d, dst_ptr + i * 4);
-            auto result = hn::Mul(src_v, dst_v);
-            hn::StoreU(result, d, dst_ptr + i * 4);
-            // Fix alpha for both pixels using saved original da.
-            for (int p = 0; p < 2; ++p) {
-                const float sa = src_ptr[(i + p) * 4 + 3];
-                const float da = (p == 0) ? da0 : da1;
-                float new_a = sa + da * (1.0f - sa);
-                dst_ptr[(i + p) * 4 + 3] = new_a;
-                if (new_a <= 0.0f) {
-                    dst_ptr[(i + p) * 4 + 0] = 0.0f;
-                    dst_ptr[(i + p) * 4 + 1] = 0.0f;
-                    dst_ptr[(i + p) * 4 + 2] = 0.0f;
-                }
-            }
-        }
-    }
-#endif
-
-    // ── 1-pixel remainder ─────────────────────────────────────────
-    for (; i < pixel_count; ++i) {
+    const auto one = hn::Set(d4, 1.0f);
+    for (int i = 0; i < pixel_count; ++i) {
         if ((i & 15) == 0 && (i + 16) < pixel_count) {
             chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
             chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
         }
         if (src_ptr[i * 4 + 3] <= 0.0f) continue;
-        // Save original alpha BEFORE the Mul store overwrites it.
-        const float da_orig = dst_ptr[i * 4 + 3];
+        // W3C source-over blend formula for premultiplied inputs:
+        // Co = Cb(1-As) + Cs(1-Ab) + B(Cb,Cs)AsAb.
+        // For Multiply the final term is Cb*Cs.
+        const float sa = src_ptr[i * 4 + 3];
+        const float da = dst_ptr[i * 4 + 3];
         const auto s = hn::LoadU(d4, src_ptr + i * 4);
         const auto d = hn::LoadU(d4, dst_ptr + i * 4);
-        auto result = hn::Mul(s, d);
+        const auto result = hn::Add(
+            hn::Add(hn::Mul(d, hn::Set(d4, 1.0f - sa)),
+                    hn::Mul(s, hn::Set(d4, 1.0f - da))),
+            hn::Mul(s, d));
         hn::StoreU(result, d4, dst_ptr + i * 4);
-        const float sa = src_ptr[i * 4 + 3];
-        float new_a = sa + da_orig * (1.0f - sa);
+        const float new_a = sa + da * (1.0f - sa);
         dst_ptr[i * 4 + 3] = new_a;
         if (new_a <= 0.0f) {
             dst_ptr[i * 4 + 0] = 0.0f;

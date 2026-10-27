@@ -125,6 +125,7 @@ chronon3d_add_test_suite(
     NAME chronon3d_cache_tests
     TIER UNIT
     LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline chronon3d_graph_cache
+                 chronon3d_backend_assets chronon3d_backend_image
     SOURCES
         cache/test_cache_diagnostics.cpp
         cache/test_cache_policy.cpp
@@ -146,7 +147,10 @@ chronon3d_add_test_suite(
         cache/test_compiled_artifact_cache.cpp
         cache/test_image_cache_resolver_identity.cpp
         cache/test_image_cache_display_bound_downscale.cpp
+        cache/test_image_cache_embedded_payload.cpp
 )
+target_compile_definitions(chronon3d_cache_tests PRIVATE
+    CHRONON3D_TEST_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\")
 if(CHRONON3D_ENABLE_VIDEO)
     target_sources(chronon3d_cache_tests PRIVATE cache/test_hash_builder.cpp)
 endif()

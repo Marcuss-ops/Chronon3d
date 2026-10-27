@@ -1,0 +1,15 @@
+{
+  "reference_engine": "Lottie-web",
+  "reference_engine_version": "5.13.0",
+  "browser": "Chromium 155.0.8059.84",
+  "renderer": "SVG",
+  "background": "#000000",
+  "viewport": [320, 240],
+  "frames": [0, 30],
+  "input": "../mark_anim_reference.json",
+  "input_sha256": "31b2db1a88e4042a2157c98c9b4d97c3c73cd14925d07aab17470889e6721c23",
+  "references": {
+    "lottie_web_5_13_0_frame_0.png": "1f3fe53ddfd5027f1ed3308aa772411849d2e25256a6c8e01efd0be05ede308f",
+    "lottie_web_5_13_0_frame_30.png": "d0590ffa6ebcec83dc88f73c1c2496206e75e03be69e9db8e36e0f8343c8d4e1"
+  }
+}

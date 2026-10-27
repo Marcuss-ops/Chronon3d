@@ -1,40 +1,1008 @@
 #include "render_plan_compiler_detail.hpp"
 #include "render_plan_compiler_lottie_detail.hpp"
+#include <chronon3d/render_plan/color_utils.hpp>
+#include <chronon3d/render_plan/easing_contract.hpp>
+#include <chronon3d/assets/prepared_asset_manifest.hpp>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <limits>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 namespace chronon3d::render_plan::detail {
+
 using json = nlohmann::json;
 
-void shift_lottie_track(AnimationTrackPlan& track, std::int64_t offset) {
+namespace {
+
+std::optional<TrackMatteTypePlan> lottie_track_matte_type(const json& layer) {
+    if (!layer.contains("tt")) return std::nullopt;
+    if (!layer["tt"].is_number_integer())
+        throw std::runtime_error("Lottie track matte type must be an integer");
+    switch (layer["tt"].get<int>()) {
+        case 1: return TrackMatteTypePlan::Alpha;
+        case 2: return TrackMatteTypePlan::AlphaInverted;
+        case 3: return TrackMatteTypePlan::Luma;
+        case 4: return TrackMatteTypePlan::LumaInverted;
+        default: throw std::runtime_error("Lottie track matte type is outside supported values 1..4");
+    }
+}
+
+std::optional<std::string> attach_lottie_track_matte(
+    const json& authored, std::size_t layer_position,
+    const std::unordered_map<std::int64_t, std::string>& ids,
+    const std::vector<std::int64_t>& indices, const json& authored_layers,
+    LayerPlan& target) {
+    target.track_matte.reset();
+    const auto matte_type = lottie_track_matte_type(authored);
+    if (!matte_type) return std::nullopt;
+    std::int64_t matte_index{};
+    if (authored.contains("tp")) {
+        if (!authored["tp"].is_number_integer())
+            return std::string("Lottie track matte tp must be an integer layer index");
+        matte_index = authored["tp"].get<std::int64_t>();
+    } else {
+        // ThorVG follows Bodymovin's adjacent-layer convention: the consumer
+        // uses the immediately preceding authored layer as its matte source.
+        if (layer_position == 0)
+            return std::string("Lottie track matte has no preceding source layer");
+        matte_index = indices[layer_position - 1];
+    }
+    const auto matte_id = ids.find(matte_index);
+    if (matte_id == ids.end() || matte_index == indices[layer_position])
+        return std::string("Lottie track matte source layer is missing or self-referential");
+    const auto source_position = static_cast<std::size_t>(std::distance(
+        indices.begin(), std::find(indices.begin(), indices.end(), matte_index)));
+    if (source_position >= authored_layers.size() ||
+        (authored_layers[source_position].value("ty", -1) != 4 &&
+         authored_layers[source_position].value("ty", -1) != 2) ||
+        authored_layers[source_position].value("hd", false))
+        return std::string("Lottie track matte source must be a visible 2D shape or image layer");
+    target.track_matte = TrackMattePlan{
+        .source = matte_id->second,
+        .type = *matte_type};
+    return std::nullopt;
+}
+
+std::optional<std::string> decode_lottie_embedded_image(
+    std::string_view data_url, std::string& identity,
+    std::shared_ptr<const std::vector<std::byte>>& payload) {
+    constexpr std::size_t kMaxEncodedBytes = 10U * 1024U * 1024U;
+    constexpr std::size_t kMaxDecodedBytes = 8U * 1024U * 1024U;
+    std::string_view suffix;
+    std::string extension;
+    if (data_url.starts_with("data:image/png;base64,")) {
+        suffix = data_url.substr(22);
+        extension = "png";
+    } else if (data_url.starts_with("data:image/jpeg;base64,")) {
+        suffix = data_url.substr(23);
+        extension = "jpg";
+    } else {
+        return std::string("Lottie embedded images must use base64 PNG or JPEG data URLs");
+    }
+    if (suffix.empty() || suffix.size() > kMaxEncodedBytes || suffix.size() % 4U != 0U)
+        return std::string("Lottie embedded image payload is empty, malformed, or exceeds 10 MiB encoded");
+    const auto decode_digit = [](char ch) -> int {
+        if (ch >= 'A' && ch <= 'Z') return ch - 'A';
+        if (ch >= 'a' && ch <= 'z') return ch - 'a' + 26;
+        if (ch >= '0' && ch <= '9') return ch - '0' + 52;
+        if (ch == '+') return 62;
+        if (ch == '/') return 63;
+        return -1;
+    };
+    std::vector<std::byte> decoded;
+    decoded.reserve((suffix.size() / 4U) * 3U);
+    for (std::size_t offset = 0; offset < suffix.size(); offset += 4U) {
+        const bool last = offset + 4U == suffix.size();
+        const int a = decode_digit(suffix[offset]);
+        const int b = decode_digit(suffix[offset + 1U]);
+        const bool pad2 = suffix[offset + 2U] == '=';
+        const bool pad3 = suffix[offset + 3U] == '=';
+        const int c = pad2 ? 0 : decode_digit(suffix[offset + 2U]);
+        const int d = pad3 ? 0 : decode_digit(suffix[offset + 3U]);
+        if (a < 0 || b < 0 || c < 0 || d < 0 || (!last && (pad2 || pad3)) ||
+            (pad2 && !pad3) || (pad2 && (b & 0x0f) != 0) ||
+            (pad3 && !pad2 && (c & 0x03) != 0))
+            return std::string("Lottie embedded image payload has invalid base64 encoding");
+        const auto word = (static_cast<std::uint32_t>(a) << 18U) |
+            (static_cast<std::uint32_t>(b) << 12U) |
+            (static_cast<std::uint32_t>(c) << 6U) | static_cast<std::uint32_t>(d);
+        decoded.push_back(static_cast<std::byte>((word >> 16U) & 0xffU));
+        if (!pad2) decoded.push_back(static_cast<std::byte>((word >> 8U) & 0xffU));
+        if (!pad3) decoded.push_back(static_cast<std::byte>(word & 0xffU));
+        if (decoded.size() > kMaxDecodedBytes)
+            return std::string("Lottie embedded image payload exceeds 8 MiB decoded");
+    }
+    const bool png_signature = extension == "png" && decoded.size() >= 8U &&
+        decoded[0] == std::byte{0x89} && decoded[1] == std::byte{'P'} &&
+        decoded[2] == std::byte{'N'} && decoded[3] == std::byte{'G'} &&
+        decoded[4] == std::byte{0x0d} && decoded[5] == std::byte{0x0a} &&
+        decoded[6] == std::byte{0x1a} && decoded[7] == std::byte{0x0a};
+    const bool jpeg_signature = extension == "jpg" && decoded.size() >= 3U &&
+        decoded[0] == std::byte{0xff} && decoded[1] == std::byte{0xd8} &&
+        decoded[2] == std::byte{0xff};
+    if (!png_signature && !jpeg_signature)
+        return std::string("Lottie embedded image bytes do not match their declared PNG/JPEG MIME type");
+    const auto* data = reinterpret_cast<const char*>(decoded.data());
+    const auto digest = chronon3d::assets::sha256_string(
+        std::string_view(data, decoded.size()));
+    identity = "chronon3d-embedded:" + digest.hex() + "." + extension;
+    payload = std::make_shared<const std::vector<std::byte>>(std::move(decoded));
+    return std::nullopt;
+}
+
+std::optional<std::string> lottie_image_asset_path(
+    const LayerPlan& source, const json& composition_document,
+    const json& authored_layer, std::string& logical_path,
+    std::array<float, 2>& dimensions,
+    std::shared_ptr<const std::vector<std::byte>>& embedded_payload) {
+    if (!authored_layer.contains("refId") || !authored_layer["refId"].is_string() ||
+        !composition_document.contains("assets") || !composition_document["assets"].is_array())
+        return std::string("Lottie image layer has no asset reference table");
+    const auto ref = authored_layer["refId"].get<std::string>();
+    const auto asset = std::find_if(composition_document["assets"].begin(),
+        composition_document["assets"].end(), [&](const auto& item) {
+            return item.is_object() && item.value("id", std::string{}) == ref;
+        });
+    if (asset == composition_document["assets"].end())
+        return std::string("Lottie image refId could not be resolved");
+    if (!asset->contains("p") || !(*asset)["p"].is_string())
+        return std::string("Lottie image asset is missing its path");
+    const auto embedded = asset->value("e", 0);
+    if (embedded != 0 && embedded != 1)
+        return std::string("Lottie image asset embedded flag must be 0 or 1");
+    if (embedded == 1) {
+        const std::string data_url = (*asset)["p"].get<std::string>();
+        if (auto error = decode_lottie_embedded_image(
+                data_url, logical_path, embedded_payload)) return *error;
+        const double width = asset->value("w", 0.0);
+        const double height = asset->value("h", 0.0);
+        if (!std::isfinite(width) || !std::isfinite(height) || width <= 0.0 || height <= 0.0 ||
+            width > 16384.0 || height > 16384.0 || width * height > 16777216.0)
+            return std::string("Lottie embedded image dimensions exceed bounded pixel limits");
+        dimensions = {static_cast<float>(width), static_cast<float>(height)};
+        return std::nullopt;
+    }
+    const std::string file = (*asset)["p"].get<std::string>();
+    const std::string directory = asset->value("u", std::string{});
+    const std::filesystem::path file_path(file);
+    const std::filesystem::path directory_path(directory);
+    const auto has_traversal = [](const std::filesystem::path& path) {
+        return path.is_absolute() || std::any_of(path.begin(), path.end(),
+            [](const auto& component) { return component == ".."; });
+    };
+    if (file.empty() || has_traversal(file_path) || has_traversal(directory_path))
+        return std::string("Lottie image path must be a non-empty relative path without traversal");
+    if (!source.shape || !source.shape->lottie_asset)
+        return std::string("Lottie image layer has no logical source document path");
+    const auto lottie_path = std::filesystem::path(*source.shape->lottie_asset);
+    const auto relative = (lottie_path.parent_path() / directory_path / file_path).lexically_normal();
+    if (relative.empty() || relative.is_absolute() || has_traversal(relative))
+        return std::string("Lottie image asset path escapes the mounted asset root");
+    const double width = asset->value("w", 0.0);
+    const double height = asset->value("h", 0.0);
+    if (!std::isfinite(width) || !std::isfinite(height) || width <= 0.0 || height <= 0.0 ||
+        width > 32768.0 || height > 32768.0)
+        return std::string("Lottie image dimensions must be finite and in (0,32768]");
+    logical_path = relative.generic_string();
+    dimensions = {static_cast<float>(width), static_cast<float>(height)};
+    return std::nullopt;
+}
+
+std::optional<std::string> center_lottie_image_transform(
+    LayerPlan& layer, const json& composition, float anchor_x, float anchor_y,
+    const std::array<float, 2>& dimensions) {
+    const float canvas_width = composition.value("w", 0.0f);
+    const float canvas_height = composition.value("h", 0.0f);
+    if (!std::isfinite(canvas_width) || !std::isfinite(canvas_height) ||
+        canvas_width <= 0.0f || canvas_height <= 0.0f)
+        return std::string("Lottie image composition dimensions are invalid");
+
+    const bool centered_anchor = std::abs(anchor_x - dimensions[0] * 0.5f) < 1e-4f &&
+                                 std::abs(anchor_y - dimensions[1] * 0.5f) < 1e-4f;
+    const auto has_track = [&](std::string_view property) {
+        return layer.animation && std::any_of(layer.animation->tracks.begin(),
+            layer.animation->tracks.end(), [&](const auto& track) {
+                return track.property == property;
+            });
+    };
+    if (!centered_anchor && (has_track("position") || has_track("scale") ||
+                             has_track("rotation_z")))
+        return std::string("animated Lottie image transforms with a non-centered anchor are unsupported");
+
+    if (layer.position_dimensions >= 2) {
+        layer.position[0] -= canvas_width * 0.5f;
+        layer.position[1] -= canvas_height * 0.5f;
+        if (!centered_anchor) {
+            const float dx = (dimensions[0] * 0.5f - anchor_x) * layer.scale[0];
+            const float dy = (dimensions[1] * 0.5f - anchor_y) * layer.scale[1];
+            const float radians = layer.rotation[2] * 0.01745329251994329577f;
+            layer.position[0] += std::cos(radians) * dx - std::sin(radians) * dy;
+            layer.position[1] += std::sin(radians) * dx + std::cos(radians) * dy;
+        }
+    }
+    if (layer.animation) {
+        for (auto& track : layer.animation->tracks) {
+            if (track.property != "position") continue;
+            for (auto& key : track.keyframes) {
+                if (key.value.size() < 2)
+                    return std::string("Lottie image position keyframes require at least two components");
+                key.value[0] -= canvas_width * 0.5f;
+                key.value[1] -= canvas_height * 0.5f;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> center_lottie_layer_position(
+    LayerPlan& layer, const json& composition) {
+    const float canvas_width = composition.value("w", 0.0f);
+    const float canvas_height = composition.value("h", 0.0f);
+    if (!std::isfinite(canvas_width) || !std::isfinite(canvas_height) ||
+        canvas_width <= 0.0f || canvas_height <= 0.0f)
+        return std::string("Lottie composition dimensions are invalid");
+    if (layer.position_dimensions >= 2) {
+        layer.position[0] -= canvas_width * 0.5f;
+        layer.position[1] -= canvas_height * 0.5f;
+    }
+    if (layer.animation) {
+        for (auto& track : layer.animation->tracks) {
+            if (track.property != "position") continue;
+            for (auto& key : track.keyframes) {
+                if (key.value.size() < 2)
+                    return std::string("Lottie position keyframes require at least two components");
+                key.value[0] -= canvas_width * 0.5f;
+                key.value[1] -= canvas_height * 0.5f;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> preserve_nested_lottie_local_position(
+    LayerPlan& layer, const json& root_composition) {
+    const float canvas_width = root_composition.value("w", 0.0f);
+    const float canvas_height = root_composition.value("h", 0.0f);
+    if (!std::isfinite(canvas_width) || !std::isfinite(canvas_height) ||
+        canvas_width <= 0.0f || canvas_height <= 0.0f)
+        return std::string("Lottie root composition dimensions are invalid");
+    // Shape/Text layer lowering converts its stored position from top-left
+    // canvas coordinates to the centered scene basis. A nested Lottie layer's
+    // coordinates are local to its parent, so cancel that root-canvas shift;
+    // its local position is then composed with the parent's transform once.
+    if (layer.position_dimensions >= 2) {
+        layer.position[0] += canvas_width * 0.5f;
+        layer.position[1] += canvas_height * 0.5f;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> decode_lottie_precomp_time_remap(
+    const json& authored, const json& parent_composition, double composition_offset,
+    double time_scale, Frame container_start,
+    chronon3d::render_plan::TimeRemapPlan& remap) {
+    const double fps = parent_composition.value("fr", 0.0);
+    if (!std::isfinite(fps) || fps <= 0.0 || fps > 1000.0 ||
+        !std::isfinite(composition_offset) || !std::isfinite(time_scale) ||
+        time_scale <= 0.0 || time_scale > 1000.0)
+        return std::string("Lottie time-remap frame rate or timeline mapping is invalid");
+
+    std::vector<float> static_value;
+    bool animated = false;
+    if (!lottie_read_transform_property(authored, "tm", static_value, animated))
+        return std::string("Lottie precomp time-remap property is malformed");
+    if (!animated) {
+        if (static_value.size() != 1 || static_value.front() < 0.0f ||
+            static_value.front() > 1000000.0f)
+            return std::string("Lottie static time-remap value must be in [0,1000000] seconds");
+        const double source_frame = static_cast<double>(static_value.front()) * fps;
+        if (!std::isfinite(source_frame) || source_frame > 1000000.0 ||
+            std::floor(source_frame) != source_frame)
+            return std::string("Lottie static time-remap value must map to a bounded integral source frame");
+        remap.freeze_frame = Frame{static_cast<std::int64_t>(source_frame)};
+        return std::nullopt;
+    }
+
+    AnimationTrackPlan track;
+    if (!lottie_decode_transform_track(authored, "tm", "time_remap", 1.0f, track) ||
+        track.keyframes.empty())
+        return std::string("Lottie animated time-remap requires bounded scalar keyframes");
     for (auto& key : track.keyframes) {
-        const auto frame = key.frame.integral() + offset;
-        if (frame < 0 || frame > 1000000)
-            throw std::runtime_error("nested Lottie keyframe time exceeds [0,1000000]");
+        if (key.value.size() != 1 || key.value.front() < 0.0f ||
+            key.value.front() > 1000000.0f)
+            return std::string("Lottie animated time-remap values must be in [0,1000000] seconds");
+        const double parent_frame = composition_offset +
+            static_cast<double>(key.frame.integral()) * time_scale;
+        const double local_frame = parent_frame -
+            static_cast<double>(container_start.integral());
+        const double source_frame = static_cast<double>(key.value.front()) * fps;
+        if (!std::isfinite(local_frame) || !std::isfinite(source_frame) ||
+            std::floor(local_frame) != local_frame || std::floor(source_frame) != source_frame ||
+            local_frame < -1000000.0 || local_frame > 1000000.0 || source_frame < 0.0 ||
+            source_frame > 1000000.0)
+            return std::string("Lottie time-remap keyframes must map to bounded integral local/source frames");
+        key.frame = Frame{static_cast<std::int64_t>(local_frame)};
+        key.value.front() = static_cast<float>(source_frame);
+    }
+    track.property = "time_remap";
+    remap.animation = std::move(track);
+    return std::nullopt;
+}
+
+std::optional<std::string> decode_lottie_text_document(
+    const LayerPlan& source, const json& document, const json& text,
+    LayerPlan& layer) {
+    if (!text.contains("t") || !text["t"].is_string() ||
+        !text.contains("f") || !text["f"].is_string() ||
+        !text.contains("s") || !text["s"].is_number())
+        return std::string("Lottie static text requires string content, font, and numeric size");
+    const auto content = text["t"].get<std::string>();
+    const double font_size = text["s"].get<double>();
+    if (content.empty() || content.size() > 16384 || !std::isfinite(font_size) ||
+        font_size <= 0.0 || font_size > 4096.0)
+        return std::string("Lottie text content or font size exceeds its supported bounds");
+    const double tracking = text.value("tr", 0.0);
+    const double leading = text.value("lh", 0.0);
+    const int align = text.value("j", 0);
+    if (!std::isfinite(tracking) || std::abs(tracking) > 10000.0 ||
+        !std::isfinite(leading) || std::abs(leading) > 1e-6 ||
+        align < 0 || align > 2 || text.contains("sz") || text.contains("ps") ||
+        (text.contains("sw") && text["sw"].is_number() && text["sw"].get<double>() != 0.0))
+        return std::string("Lottie text box, custom leading, or text stroke is not supported");
+
+    const auto font_name = text["f"].get<std::string>();
+    if (font_name.empty() || font_name.size() > 256)
+        return std::string("Lottie text font name is empty or exceeds its bound");
+    json font = json::object();
+    if (document.contains("fonts") && document["fonts"].is_object() &&
+        document["fonts"].contains("list") && document["fonts"]["list"].is_array()) {
+        const auto found = std::find_if(document["fonts"]["list"].begin(),
+            document["fonts"]["list"].end(), [&](const auto& candidate) {
+                return candidate.is_object() && candidate.value("fName", std::string{}) == font_name;
+            });
+        if (found != document["fonts"]["list"].end()) font = *found;
+    }
+
+    auto& style = layer.style.emplace();
+    style.font_family = font.value("fFamily", font_name);
+    const auto font_style = font.value("fStyle", std::string("Regular"));
+    style.font_style = font_style.find("Italic") != std::string::npos ? "italic" : "normal";
+    style.font_weight = font_style.find("Black") != std::string::npos ? 900 :
+        font_style.find("Bold") != std::string::npos ? 700 :
+        font_style.find("Medium") != std::string::npos ? 500 :
+        font_style.find("Light") != std::string::npos ? 300 : 400;
+    style.font_size = static_cast<float>(font_size);
+    style.fill = "#000000";
+    style.fill_opacity = 1.0f;
+    if (text.contains("fc")) {
+        const auto& rgba = text["fc"];
+        if (!rgba.is_array() || rgba.size() < 3 || rgba.size() > 4)
+            return std::string("Lottie text fill color must contain three or four components");
+        static constexpr char digits[] = "0123456789abcdef";
+        std::string color = "#000000";
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            if (!rgba[channel].is_number())
+                return std::string("Lottie text fill color components must be numeric");
+            const double component = rgba[channel].get<double>();
+            if (!std::isfinite(component) || component < 0.0 || component > 1.0)
+                return std::string("Lottie text fill color components must be in [0,1]");
+            const auto byte = static_cast<unsigned>(std::lround(component * 255.0));
+            color[1 + channel * 2] = digits[(byte >> 4) & 0xf];
+            color[2 + channel * 2] = digits[byte & 0xf];
+        }
+        style.fill = std::move(color);
+        if (rgba.size() == 4) {
+            if (!rgba[3].is_number())
+                return std::string("Lottie text fill alpha must be numeric");
+            const double alpha = rgba[3].get<double>();
+            if (!std::isfinite(alpha) || alpha < 0.0 || alpha > 1.0)
+                return std::string("Lottie text fill alpha must be in [0,1]");
+            style.fill_opacity = static_cast<float>(alpha);
+        }
+    }
+    style.text_align = align == 1 ? "right" : align == 2 ? "center" : "left";
+    layer.text = content;
+    if (tracking != 0.0) {
+        chronon3d::TextSpanOverride span;
+        span.byte_start = 0;
+        span.byte_end = content.size();
+        // ThorVG reads Bodymovin tracking in tenths of a pixel.
+        span.tracking = static_cast<float>(tracking * 0.1);
+        layer.text_spans.push_back(std::move(span));
+    }
+    if (font.contains("fPath") && font["fPath"].is_string() &&
+        !font["fPath"].get<std::string>().empty()) {
+        const std::filesystem::path font_path(font["fPath"].get<std::string>());
+        const auto traverses = std::any_of(font_path.begin(), font_path.end(),
+            [](const auto& component) { return component == ".."; });
+        if (font_path.is_absolute() || traverses || !source.shape || !source.shape->lottie_asset)
+            return std::string("Lottie font path must remain relative to the mounted asset root");
+        const auto relative = (std::filesystem::path(*source.shape->lottie_asset).parent_path() /
+            font_path).lexically_normal();
+        if (relative.empty() || relative.is_absolute() || std::any_of(relative.begin(), relative.end(),
+                [](const auto& component) { return component == ".."; }))
+            return std::string("Lottie font path escapes the mounted asset root");
+        layer.font = relative.generic_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> decode_lottie_text_animators(
+    const json& text_data, LayerPlan& layer) {
+    if (!text_data.contains("a")) return std::nullopt;
+    const auto& animators = text_data["a"];
+    if (!animators.is_array() || animators.size() > 64)
+        return std::string("Lottie text animator list must contain at most 64 entries");
+    for (std::size_t index = 0; index < animators.size(); ++index) {
+        const auto& authored = animators[index];
+        if (!authored.is_object() || !authored.contains("s") || !authored["s"].is_object() ||
+            !authored.contains("a") || !authored["a"].is_object())
+            return std::string("Lottie text animator requires selector and property objects");
+        const auto& selector = authored["s"];
+        const auto& properties = authored["a"];
+        for (auto it = properties.begin(); it != properties.end(); ++it) {
+            if (it.key() != "p" && it.key() != "s" && it.key() != "r" &&
+                it.key() != "o" && it.key() != "fc" && it.key() != "t")
+                return std::string("Lottie text animator property is outside the bounded position/scale/rotation/opacity/fill/tracking subset");
+        }
+        if (properties.empty())
+            return std::string("Lottie text animator has no supported animated properties");
+        if (selector.value("b", 1) != 1)
+            return std::string("Lottie text selector based-on mode is unsupported");
+
+        const auto decode_scalar_track = [&](const json& object, const char* name,
+                                             const char* property, float fallback,
+                                             AnimationTrackPlan& track) -> bool {
+            if (!object.contains(name)) {
+                track.property = property;
+                AnimationKeyframePlan key;
+                key.frame = Frame{0};
+                key.value = {fallback};
+                track.keyframes.push_back(std::move(key));
+                return true;
+            }
+            std::vector<float> values;
+            bool animated{};
+            if (!lottie_read_transform_property(object, name, values, animated)) return false;
+            if (!animated) {
+                if (values.size() != 1) return false;
+                track.property = property;
+                AnimationKeyframePlan key;
+                key.frame = Frame{0};
+                key.value = {values.front()};
+                track.keyframes.push_back(std::move(key));
+            } else if (!lottie_decode_transform_track(object, name, property, 1.0f, track)) {
+                return false;
+            }
+            return !track.keyframes.empty() && std::all_of(
+                track.keyframes.begin(), track.keyframes.end(), [](const auto& key) {
+                    return key.value.size() == 1 && std::isfinite(key.value.front()) &&
+                        (!key.interpolation ||
+                         *key.interpolation == interpolation_name::kLinear ||
+                         *key.interpolation == interpolation_name::kHold);
+                });
+        };
+        AnimationTrackPlan start_track, end_track, offset_track, amount_track;
+        if (!decode_scalar_track(selector, "s", "", 0.0f, start_track) ||
+            !decode_scalar_track(selector, "e", "", 100.0f, end_track) ||
+            !decode_scalar_track(selector, "o", "", 0.0f, offset_track) ||
+            !decode_scalar_track(selector, "a", "", 100.0f, amount_track))
+            return std::string("Lottie text selector ranges must use bounded linear/hold scalar tracks");
+        const auto scalar_track_in_bounds = [](const AnimationTrackPlan& track,
+                                               float minimum, float maximum) {
+            return std::all_of(track.keyframes.begin(), track.keyframes.end(),
+                [minimum, maximum](const auto& key) {
+                    return key.value.front() >= minimum && key.value.front() <= maximum;
+                });
+        };
+        if (!scalar_track_in_bounds(start_track, -1000.0f, 1000.0f) ||
+            !scalar_track_in_bounds(end_track, -1000.0f, 1000.0f) ||
+            !scalar_track_in_bounds(offset_track, -1000.0f, 1000.0f) ||
+            !scalar_track_in_bounds(amount_track, 0.0f, 100.0f))
+            return std::string("Lottie text selector ranges exceed supported bounds");
+        const int based_on = selector.value("r", 1);
+        const int shape = selector.value("sh", 1);
+        if (based_on < 1 || based_on > 3 || shape < 1 || shape > 6)
+            return std::string("Lottie text selector unit or shape is unsupported");
+        const auto unsupported_selector_easing = [&](const char* name) -> bool {
+            if (!selector.contains(name)) return false;
+            std::vector<float> values;
+            bool animated{};
+            return !lottie_read_transform_property(selector, name, values, animated) ||
+                animated || values.size() != 1 || std::abs(values.front()) > 1e-6f;
+        };
+        if (unsupported_selector_easing("xe") || unsupported_selector_easing("ne"))
+            return std::string("Lottie text selector easing handles xe/ne are unsupported");
+        float smoothness = 100.0f;
+        if (selector.contains("sm")) {
+            std::vector<float> values;
+            bool animated{};
+            if (!lottie_read_transform_property(selector, "sm", values, animated) || animated ||
+                values.size() != 1) return std::string("Lottie text selector smoothness must be static");
+            smoothness = values.front();
+        }
+        if (std::abs(smoothness - 100.0f) > 1e-6f)
+            return std::string("Lottie text selector smoothness is unsupported");
+        const int randomize = selector.value("rn", 0);
+        if (randomize != 0 && randomize != 1)
+            return std::string("Lottie text selector randomize flag must be 0 or 1");
+
+        TextAnimatorPlan animator;
+        animator.id = "lottie_text_animator_" + std::to_string(index);
+        TextSelectorPlan selection;
+        selection.id = animator.id + "_selector";
+        selection.unit = based_on == 2 ? "word" : based_on == 3 ? "line" : "character";
+        static constexpr std::array<std::string_view, 6> shapes{
+            "square", "ramp_up", "ramp_down", "triangle", "round", "smooth"};
+        selection.shape = std::string(shapes[static_cast<std::size_t>(shape - 1)]);
+        selection.order = randomize ? "random" : "forward";
+        selection.randomize_order = randomize != 0;
+        selection.exclude_spaces = false;
+        selection.end_inclusive = true;
+        selection.start = std::move(start_track);
+        selection.end = std::move(end_track);
+        selection.offset = std::move(offset_track);
+        selection.amount = std::move(amount_track);
+        animator.selectors.push_back(std::move(selection));
+
+        const auto add_property = [&](const char* source, const char* target,
+                                      float divisor, std::size_t minimum_components,
+                                      std::size_t maximum_components) -> bool {
+            if (!properties.contains(source)) return true;
+            std::vector<float> values;
+            bool animated{};
+            AnimationTrackPlan track;
+            if (!lottie_read_transform_property(properties, source, values, animated)) return false;
+            if (!animated) {
+                if (values.size() < minimum_components || values.size() > maximum_components)
+                    return false;
+                track.property = target;
+                AnimationKeyframePlan key;
+                key.frame = Frame{0};
+                for (const float value : values) {
+                    const float scaled = value / divisor;
+                    if (!std::isfinite(scaled)) return false;
+                    key.value.push_back(scaled);
+                }
+                track.keyframes.push_back(std::move(key));
+            } else if (!lottie_decode_transform_track(properties, source, target, divisor, track)) {
+                return false;
+            }
+            if (track.keyframes.empty() || std::any_of(
+                    track.keyframes.begin(), track.keyframes.end(), [&](const auto& key) {
+                        return key.value.size() < minimum_components ||
+                            key.value.size() > maximum_components ||
+                            std::any_of(key.value.begin(), key.value.end(), [](float value) {
+                                return !std::isfinite(value);
+                            }) || (key.interpolation &&
+                                   *key.interpolation != interpolation_name::kLinear &&
+                                   *key.interpolation != interpolation_name::kHold);
+                    })) return false;
+            animator.properties.push_back(std::move(track));
+            return true;
+        };
+        if (!add_property("p", "position", 1.0f, 2, 3) ||
+            !add_property("s", "scale", 100.0f, 1, 3) ||
+            !add_property("r", "rotation", 1.0f, 1, 1) ||
+            !add_property("o", "opacity", 100.0f, 1, 1) ||
+            !add_property("fc", "fill_color", 1.0f, 4, 4) ||
+            !add_property("t", "tracking", 1.0f, 1, 1))
+            return std::string("Lottie text animator properties must use bounded linear/hold tracks and supported dimensions");
+        layer.text_animators.push_back(std::move(animator));
+    }
+    return std::nullopt;
+}
+
+bool lottie_static_effect_value(const json& effect, std::size_t index,
+                                std::vector<float>& values) {
+    if (!effect.contains("ef") || !effect["ef"].is_array() ||
+        index >= effect["ef"].size()) return false;
+    const auto& parameter = effect["ef"][index];
+    if (!parameter.is_object() || !parameter.contains("v") || !parameter["v"].is_object())
+        return false;
+    const auto& property = parameter["v"];
+    if (property.value("a", 0) != 0 || !property.contains("k")) return false;
+    const auto& key = property["k"];
+    values.clear();
+    if (key.is_number()) values.push_back(key.get<float>());
+    else if (key.is_array()) {
+        for (const auto& component : key) {
+            if (!component.is_number()) return false;
+            values.push_back(component.get<float>());
+        }
+    } else return false;
+    return std::all_of(values.begin(), values.end(),
+        [](float value) { return std::isfinite(value); });
+}
+
+std::optional<std::string> decode_lottie_layer_effects(
+    const json& authored, LayerPlan& layer) {
+    if (!authored.contains("ef")) return std::nullopt;
+    if (!authored["ef"].is_array() || authored["ef"].size() > 16)
+        return std::string("Lottie layer effects must be an array with at most 16 entries");
+    constexpr float blur_to_sigma = 0.3f;  // ThorVG Lottie compatibility conversion.
+    constexpr float degrees_to_radians = 0.01745329251994329577f;
+    for (const auto& effect : authored["ef"]) {
+        if (!effect.is_object() || !effect.contains("ty") || !effect["ty"].is_number_integer())
+            return std::string("Lottie effect entry is malformed");
+        if (effect.contains("en") && !effect["en"].is_boolean() &&
+            !effect["en"].is_number_integer())
+            return std::string("Lottie effect enabled flag must be an integer or boolean");
+        if (effect.contains("en") &&
+            ((effect["en"].is_boolean() && !effect["en"].get<bool>()) ||
+             (effect["en"].is_number_integer() && effect["en"].get<int>() == 0))) continue;
+        const int type = effect["ty"].get<int>();
+        std::vector<float> values;
+        if (type == 29) {  // After Effects Gaussian Blur.
+            float blurriness{}, direction{}, wrap{};
+            AnimationTrackPlan blur_track;
+            const bool blur_static = lottie_static_effect_value(effect, 0, values) &&
+                                     values.size() == 1;
+            if (!blur_static && (!effect.contains("ef") || !effect["ef"].is_array() ||
+                effect["ef"].empty() || !lottie_decode_transform_track(
+                    effect["ef"][0], "v", "lottie_blur", 1.0f, blur_track)))
+                return std::string("malformed Lottie Gaussian Blur property");
+            if (blur_static) blurriness = values[0];
+            else blurriness = blur_track.keyframes.front().value.front();
+            if (!lottie_static_effect_value(effect, 1, values) || values.size() != 1)
+                return std::string("Lottie Gaussian Blur direction must be static");
+            direction = values[0];
+            if (!lottie_static_effect_value(effect, 2, values) || values.size() != 1)
+                return std::string("Lottie Gaussian Blur edge mode must be static");
+            wrap = values[0];
+            if (blurriness < 0.0f || blurriness > 4096.0f ||
+                blurriness * blur_to_sigma > 256.0f || direction != 1.0f || wrap != 0.0f)
+                return std::string("Lottie Gaussian Blur supports bounded blur on both dimensions (direction 1) without edge wrapping");
+            LayerPlan::EffectPlan lowered;
+            lowered.kind = LayerPlan::EffectKindPlan::GaussianBlur;
+            lowered.radius = blurriness * blur_to_sigma;
+            layer.effects.push_back(std::move(lowered));
+            if (!blur_static) {
+                for (auto& key : blur_track.keyframes) {
+                    if (key.value.size() != 1 || key.value.front() < 0.0f ||
+                        key.value.front() * blur_to_sigma > 256.0f)
+                        return std::string("animated Lottie Gaussian Blur radius exceeds native bounds");
+                    key.value.front() *= blur_to_sigma;
+                }
+                layer.effect_param_tracks.push_back({"blur.gaussian", "radius",
+                    std::move(blur_track)});
+            }
+        } else if (type == 25) {  // After Effects Drop Shadow.
+            std::vector<float> color;
+            if (!lottie_static_effect_value(effect, 0, color) ||
+                (color.size() != 3 && color.size() != 4))
+                return std::string("animated or malformed Lottie Drop Shadow color is unsupported");
+            float opacity{}, angle{}, distance{}, softness{}, shadow_only{};
+            const auto scalar = [&](std::size_t index, float& value) {
+                if (!lottie_static_effect_value(effect, index, values) || values.size() != 1)
+                    return false;
+                value = values[0];
+                return true;
+            };
+            if (!scalar(1, opacity) || !scalar(2, angle) || !scalar(3, distance) ||
+                !scalar(5, shadow_only))
+                return std::string("animated or malformed Lottie Drop Shadow parameters are unsupported");
+            AnimationTrackPlan softness_track;
+            const bool softness_static = lottie_static_effect_value(effect, 4, values) &&
+                                         values.size() == 1;
+            if (softness_static) softness = values[0];
+            else if (!effect.contains("ef") || !effect["ef"].is_array() ||
+                effect["ef"].size() <= 4 || !lottie_decode_transform_track(
+                    effect["ef"][4], "v", "lottie_shadow_softness", 1.0f, softness_track))
+                return std::string("malformed Lottie Drop Shadow softness property");
+            else softness = softness_track.keyframes.front().value.front();
+            if (std::any_of(color.begin(), color.end(), [](float c) { return c < 0.0f || c > 1.0f; }) ||
+                opacity < 0.0f || opacity > 255.0f || angle < -360.0f || angle > 360.0f ||
+                distance < 0.0f || distance > 10000.0f || softness < 0.0f || softness > 4096.0f ||
+                shadow_only != 0.0f)
+                return std::string("Lottie Drop Shadow values are outside the supported bounds");
+            const float radians = angle * degrees_to_radians;
+            LayerPlan::EffectPlan lowered;
+            lowered.kind = LayerPlan::EffectKindPlan::DropShadow;
+            lowered.radius = softness * blur_to_sigma;
+            lowered.offset = {std::cos(radians) * distance,
+                              std::sin(radians) * distance};
+            lowered.effect_color = {
+                srgb_to_linear(color[0]), srgb_to_linear(color[1]),
+                srgb_to_linear(color[2]),
+                (color.size() == 4 ? color[3] : 1.0f) * opacity / 255.0f};
+            layer.effects.push_back(std::move(lowered));
+            if (!softness_static) {
+                for (auto& key : softness_track.keyframes) {
+                    if (key.value.size() != 1 || key.value.front() < 0.0f ||
+                        key.value.front() * blur_to_sigma > 256.0f)
+                        return std::string("animated Lottie Drop Shadow softness exceeds native bounds");
+                    key.value.front() *= blur_to_sigma;
+                }
+                layer.effect_param_tracks.push_back({"light.drop_shadow", "radius",
+                    std::move(softness_track)});
+            }
+        } else if (type == 21) {  // After Effects Fill; type/parameter order confirmed in ThorVG.
+            std::vector<float> color;
+            float opacity{};
+            AnimationTrackPlan color_track;
+            AnimationTrackPlan opacity_track;
+            const auto animated_parameter = [&](std::size_t index, const char* name,
+                                                AnimationTrackPlan& track) {
+                if (!effect.contains("ef") || !effect["ef"].is_array() ||
+                    index >= effect["ef"].size()) return false;
+                return lottie_decode_transform_track(effect["ef"][index], "v", name, 1.0f, track);
+            };
+            const bool color_static = lottie_static_effect_value(effect, 2, color);
+            if (!color_static && !animated_parameter(2, "fill_color", color_track))
+                return std::string("malformed Lottie Fill color property");
+            const bool opacity_static = lottie_static_effect_value(effect, 6, values) &&
+                values.size() == 1;
+            if (!opacity_static && !animated_parameter(6, "fill_opacity", opacity_track))
+                return std::string("malformed Lottie Fill opacity property");
+            if (!color_static) color = color_track.keyframes.front().value;
+            if (!opacity_static) opacity = opacity_track.keyframes.front().value.front();
+            else opacity = values[0];
+            if (color.size() != 4 ||
+                std::any_of(color.begin(), color.end(), [](float c) { return c < 0.0f || c > 1.0f; }) ||
+                opacity < 0.0f || opacity > 100.0f || std::abs(color[3] - 1.0f) > 1e-6f)
+                return std::string("Lottie Fill values are outside the supported bounds");
+            LayerPlan::EffectPlan lowered;
+            lowered.kind = LayerPlan::EffectKindPlan::Fill;
+            lowered.amount = opacity / 100.0f;
+            lowered.fill_opacity_replaces_alpha = true;
+            lowered.effect_color = {srgb_to_linear(color[0]), srgb_to_linear(color[1]),
+                                    srgb_to_linear(color[2]), 1.0f};
+            layer.effects.push_back(std::move(lowered));
+            constexpr std::string_view fill_id = "generate.fill";
+            const std::array<std::string_view, 3> channels{"color.r", "color.g", "color.b"};
+            if (!color_static) {
+                for (std::size_t channel = 0; channel < channels.size(); ++channel) {
+                    auto track = color_track;
+                    for (auto& key : track.keyframes) {
+                        if (key.value.size() != 4 || key.value[3] != 1.0f ||
+                            key.value[channel] < 0.0f || key.value[channel] > 1.0f)
+                            return std::string("animated Lottie Fill color must use bounded RGB and opaque alpha");
+                        key.value = {srgb_to_linear(key.value[channel])};
+                    }
+                    layer.effect_param_tracks.push_back({std::string(fill_id),
+                        std::string(channels[channel]), std::move(track)});
+                }
+            }
+            if (!opacity_static) {
+                for (auto& key : opacity_track.keyframes) {
+                    if (key.value.size() != 1 || key.value.front() < 0.0f || key.value.front() > 100.0f)
+                        return std::string("animated Lottie Fill opacity must be in [0,100]");
+                    key.value.front() /= 100.0f;
+                }
+                layer.effect_param_tracks.push_back({std::string(fill_id), "amount",
+                    std::move(opacity_track)});
+            }
+        } else if (type == 20) {  // After Effects Tint (Black, White, Amount).
+            LayerPlan::EffectPlan lowered;
+            lowered.kind = LayerPlan::EffectKindPlan::Catalog;
+            lowered.canonical_effect_id = "color.lottie_tint";
+            constexpr std::array<std::string_view, 7> names{
+                "black_r", "black_g", "black_b", "white_r", "white_g", "white_b", "amount"};
+            const auto append_parameter = [&](std::size_t slot, std::size_t name_offset,
+                                              std::size_t components, float divisor)
+                                              -> std::optional<std::string> {
+                if (lottie_static_effect_value(effect, slot, values)) {
+                    if (values.size() != components)
+                        return std::string("Lottie Tint parameter has unsupported dimensions");
+                    for (std::size_t channel = 0; channel < components; ++channel) {
+                        const float value = values[channel] / divisor;
+                        if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
+                            return std::string("Lottie Tint color/amount is outside supported bounds");
+                        lowered.canonical_params.push_back({std::string(names[name_offset + channel]), value});
+                    }
+                    return std::nullopt;
+                }
+                if (!effect.contains("ef") || !effect["ef"].is_array() ||
+                    slot >= effect["ef"].size())
+                    return std::string("Lottie Tint parameter is missing or malformed");
+                AnimationTrackPlan track;
+                if (!lottie_decode_transform_track(effect["ef"][slot], "v",
+                        "lottie_tint", 1.0f, track) || track.keyframes.empty())
+                    return std::string("malformed or unsupported animated Lottie Tint parameter");
+                const std::size_t value_components = track.keyframes.front().value.size();
+                if (value_components != components)
+                    return std::string("animated Lottie Tint parameter has unsupported dimensions");
+                for (std::size_t channel = 0; channel < components; ++channel) {
+                    auto component_track = track;
+                    component_track.property = std::string(names[name_offset + channel]);
+                    for (auto& key : component_track.keyframes) {
+                        if (key.value.size() != components || !std::isfinite(key.value[channel]) ||
+                            key.value[channel] < 0.0f || key.value[channel] > divisor)
+                            return std::string("animated Lottie Tint color/amount is outside supported bounds");
+                        key.value = {key.value[channel] / divisor};
+                    }
+                    lowered.canonical_params.push_back({std::string(names[name_offset + channel]),
+                        component_track.keyframes.front().value.front()});
+                    layer.effect_param_tracks.push_back({"color.lottie_tint",
+                        std::string(names[name_offset + channel]), std::move(component_track)});
+                }
+                return std::nullopt;
+            };
+            // ThorVG parser slot order is black, white, amount. Lottie-web's
+            // Tint implementation maps the averaged grayscale through these
+            // colors, so preserve the authored controls and let the native
+            // software color stage apply their exact transfer functions.
+            if (auto error = append_parameter(0, 0, 3, 1.0f)) return *error;
+            if (auto error = append_parameter(1, 3, 3, 1.0f)) return *error;
+            if (auto error = append_parameter(2, 6, 1, 100.0f)) return *error;
+            layer.effects.push_back(std::move(lowered));
+        } else if (type == 23) {  // After Effects Tritone (bright, mid, dark, blend).
+            LayerPlan::EffectPlan lowered;
+            lowered.kind = LayerPlan::EffectKindPlan::Catalog;
+            lowered.canonical_effect_id = "color.lottie_tritone";
+            constexpr std::array<std::string_view, 10> names{
+                "dark_r", "dark_g", "dark_b", "mid_r", "mid_g", "mid_b",
+                "bright_r", "bright_g", "bright_b", "amount"};
+            const auto append_parameter = [&](std::size_t slot, std::size_t name_offset,
+                                              std::size_t components, float divisor)
+                                              -> std::optional<std::string> {
+                if (lottie_static_effect_value(effect, slot, values)) {
+                    if (values.size() != components)
+                        return std::string("Lottie Tritone parameter has unsupported dimensions");
+                    for (std::size_t channel = 0; channel < components; ++channel) {
+                        const float value = values[channel] / divisor;
+                        if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
+                            return std::string("Lottie Tritone color/blend is outside supported bounds");
+                        lowered.canonical_params.push_back({std::string(names[name_offset + channel]), value});
+                    }
+                    return std::nullopt;
+                }
+                if (!effect.contains("ef") || !effect["ef"].is_array() || slot >= effect["ef"].size())
+                    return std::string("Lottie Tritone parameter is missing or malformed");
+                AnimationTrackPlan track;
+                if (!lottie_decode_transform_track(effect["ef"][slot], "v", "lottie_tritone", 1.0f, track) ||
+                    track.keyframes.empty())
+                    return std::string("malformed or unsupported animated Lottie Tritone parameter");
+                const std::size_t value_components = track.keyframes.front().value.size();
+                if (value_components != components)
+                    return std::string("animated Lottie Tritone parameter has unsupported dimensions");
+                for (std::size_t channel = 0; channel < components; ++channel) {
+                    auto component_track = track;
+                    component_track.property = std::string(names[name_offset + channel]);
+                    for (auto& key : component_track.keyframes) {
+                        if (key.value.size() != components || !std::isfinite(key.value[channel]) ||
+                            key.value[channel] < 0.0f || key.value[channel] > divisor)
+                            return std::string("animated Lottie Tritone value is outside supported bounds");
+                        key.value = {key.value[channel] / divisor};
+                    }
+                    lowered.canonical_params.push_back({std::string(names[name_offset + channel]),
+                        component_track.keyframes.front().value.front()});
+                    layer.effect_param_tracks.push_back({"color.lottie_tritone",
+                        std::string(names[name_offset + channel]), std::move(component_track)});
+                }
+                return std::nullopt;
+            };
+            // ThorVG's pinned parser orders the controls bright, midtone, dark,
+            // blend; the canonical plan stores dark-to-bright lookup samples.
+            if (auto error = append_parameter(0, 6, 3, 1.0f)) return *error;
+            if (auto error = append_parameter(1, 3, 3, 1.0f)) return *error;
+            if (auto error = append_parameter(2, 0, 3, 1.0f)) return *error;
+            if (auto error = append_parameter(3, 9, 1, 100.0f)) return *error;
+            layer.effects.push_back(std::move(lowered));
+        } else {
+            return std::string("Lottie effect type is not supported by the native EffectPlan mapping");
+        }
+    }
+
+    // The graph applies native layer effects after the layer transform. SVG
+    // filters (and After Effects layer effects as exported by Bodymovin) are
+    // evaluated in layer space before that transform. Fold the static 2D
+    // transform into the effect parameters so a scaled layer also scales its
+    // blur radius and shadow vector. This mirrors the compatibility mapping
+    // used by ThorVG/Lottie-web without adding a renderer dependency.
+    const bool has_geometric_effect = std::any_of(layer.effects.begin(), layer.effects.end(),
+        [](const auto& effect) {
+            return effect.kind == LayerPlan::EffectKindPlan::GaussianBlur ||
+                   effect.kind == LayerPlan::EffectKindPlan::DropShadow;
+        });
+    if (!has_geometric_effect) return std::nullopt;
+    if (!authored.contains("ks") || !authored["ks"].is_object())
+        return std::string("Lottie effect layer transform is missing");
+    std::vector<float> scale, rotation;
+    bool scale_animated{}, rotation_animated{};
+    if (!lottie_read_transform_property(authored["ks"], "s", scale, scale_animated) ||
+        !lottie_read_transform_property(authored["ks"], "r", rotation, rotation_animated) ||
+        scale.size() < 2 || scale.size() > 3 || rotation.size() != 1)
+        return std::string("Lottie effect layer scale/rotation is malformed");
+    if (scale_animated || rotation_animated)
+        return std::string("Lottie blur/shadow under animated scale or rotation is not representable by the native effect tracks");
+    const float sx = scale[0] / 100.0f;
+    const float sy = scale[1] / 100.0f;
+    if (!std::isfinite(sx) || !std::isfinite(sy) || sx <= 0.0f || sy <= 0.0f ||
+        sx > 1000.0f || sy > 1000.0f)
+        return std::string("Lottie effect layer scale is outside supported bounds");
+    const float tolerance = 1e-5f * std::max({1.0f, sx, sy});
+    const bool has_blur_radius = std::any_of(layer.effects.begin(), layer.effects.end(),
+        [](const auto& effect) {
+            return (effect.kind == LayerPlan::EffectKindPlan::GaussianBlur ||
+                    effect.kind == LayerPlan::EffectKindPlan::DropShadow) && effect.radius > 0.0f;
+        });
+    if (has_blur_radius && std::abs(sx - sy) > tolerance)
+        return std::string("Lottie blur/shadow with non-uniform layer scale is not representable by the native scalar radius");
+    const float angle = rotation.front() * 0.01745329251994329577f;
+    const float c = std::cos(angle), s = std::sin(angle);
+    const float radius_scale = (sx + sy) * 0.5f;
+    for (auto& effect : layer.effects) {
+        if (effect.kind != LayerPlan::EffectKindPlan::GaussianBlur &&
+            effect.kind != LayerPlan::EffectKindPlan::DropShadow) continue;
+        effect.radius *= radius_scale;
+        const float x = effect.offset[0] * sx;
+        const float y = effect.offset[1] * sy;
+        effect.offset = {c * x - s * y, s * x + c * y};
+    }
+    for (auto& param_track : layer.effect_param_tracks) {
+        if (param_track.param != "radius" ||
+            (param_track.effect_id != "blur.gaussian" && param_track.effect_id != "light.drop_shadow"))
+            continue;
+        for (auto& key : param_track.track.keyframes) {
+            if (key.value.size() != 1)
+                return std::string("Lottie animated blur/shadow radius must be scalar");
+            key.value.front() *= radius_scale;
+        }
+    }
+    return std::nullopt;
+}
+
+}  // namespace
+
+bool map_lottie_timeline_frame(double input, double offset, double scale,
+                               std::int64_t& output) {
+    if (!std::isfinite(input) || !std::isfinite(offset) || !std::isfinite(scale) ||
+        scale <= 0.0)
+        return false;
+    const double mapped = offset + input * scale;
+    if (!std::isfinite(mapped) || mapped < 0.0 || mapped > 1000000.0)
+        return false;
+    const double rounded = std::round(mapped);
+    if (std::abs(mapped - rounded) > 1e-8) return false;
+    output = static_cast<std::int64_t>(rounded);
+    return true;
+}
+
+void shift_lottie_track(AnimationTrackPlan& track, double offset, double scale) {
+    for (auto& key : track.keyframes) {
+        std::int64_t frame{};
+        if (!map_lottie_timeline_frame(static_cast<double>(key.frame.integral()),
+                                       offset, scale, frame))
+            throw std::runtime_error("time-stretched Lottie keyframe is outside [0,1000000] or maps to a fractional frame");
         key.frame = Frame{frame};
     }
 }
 
-void shift_lottie_tracks(LayerPlan& layer, std::int64_t offset) {
-    const auto shift = [offset](std::optional<AnimationTrackPlan>& value) {
-        if (value) shift_lottie_track(*value, offset);
+void shift_lottie_tracks(LayerPlan& layer, double offset, double scale) {
+    const auto shift = [offset, scale](std::optional<AnimationTrackPlan>& value) {
+        if (value) shift_lottie_track(*value, offset, scale);
     };
     if (layer.animation)
-        for (auto& track : layer.animation->tracks) shift_lottie_track(track, offset);
+        for (auto& track : layer.animation->tracks) shift_lottie_track(track, offset, scale);
+    for (auto& animator : layer.text_animators) {
+        for (auto& track : animator.properties) shift_lottie_track(track, offset, scale);
+        for (auto& selector : animator.selectors) {
+            shift_lottie_track(selector.start, offset, scale);
+            shift_lottie_track(selector.end, offset, scale);
+            shift_lottie_track(selector.offset, offset, scale);
+            shift_lottie_track(selector.amount, offset, scale);
+        }
+    }
+    for (auto& track : layer.effect_param_tracks)
+        shift_lottie_track(track.track, offset, scale);
     if (layer.time_remap) shift(layer.time_remap->animation);
     if (layer.shape) {
         for (auto& operation : layer.shape->operators) {
@@ -55,9 +1023,10 @@ void shift_lottie_tracks(LayerPlan& layer, std::int64_t offset) {
             shift(subpath.morph_animation);
             if (subpath.fill_gradient_animation)
                 for (auto& key : subpath.fill_gradient_animation->keyframes) {
-                    const auto frame = key.frame.integral() + offset;
-                    if (frame < 0 || frame > 1000000)
-                        throw std::runtime_error("nested Lottie gradient time exceeds [0,1000000]");
+                    std::int64_t frame{};
+                    if (!map_lottie_timeline_frame(
+                            static_cast<double>(key.frame.integral()), offset, scale, frame))
+                        throw std::runtime_error("time-stretched Lottie gradient keyframe is outside [0,1000000] or maps to a fractional frame");
                     key.frame = Frame{frame};
                 }
             if (subpath.lottie_group_transform) {
@@ -102,10 +1071,66 @@ std::optional<BlendMode> lottie_blend_mode(int mode) {
     }
 }
 
+std::uint32_t lottie_group_id(const std::string& layer_id) {
+    std::uint32_t hash = 2166136261u;
+    for (const unsigned char byte : layer_id) {
+        hash ^= byte;
+        hash *= 16777619u;
+    }
+    return hash == 0 ? 1u : hash;
+}
+
+std::optional<std::string> apply_lottie_isolated_opacity(
+    LayerPlan& layer, float opacity,
+    std::optional<AnimationTrackPlan> animation = std::nullopt) {
+    if (!std::isfinite(opacity) || opacity < 0.0f || opacity > 1.0f)
+        return std::string("Lottie layer opacity must be finite and in [0,1]");
+    if (opacity >= 1.0f && !animation) {
+        layer.opacity = 1.0f;
+        return std::nullopt;
+    }
+    if (layer.type != LayerType::Shape || !layer.shape ||
+        layer.shape->imported_subpaths.empty())
+        return std::string("Lottie isolated layer opacity requires imported shape paths");
+    if (animation) {
+        if (animation->property != "opacity" || animation->keyframes.size() != 2)
+            return std::string("Lottie isolated layer opacity supports exactly two keyframes");
+        for (const auto& key : animation->keyframes) {
+            if (key.value.size() != 1 || !std::isfinite(key.value[0]) ||
+                key.value[0] < 0.0f || key.value[0] > 1.0f ||
+                (key.interpolation &&
+                 *key.interpolation != interpolation_name::kLinear &&
+                 *key.interpolation != interpolation_name::kHold))
+                return std::string("Lottie isolated opacity keyframes must be bounded linear/hold scalars");
+        }
+        if (animation->keyframes[1].frame <= animation->keyframes[0].frame)
+            return std::string("Lottie isolated opacity keyframe times must increase");
+    }
+
+    const std::uint32_t id = lottie_group_id(layer.id);
+    for (auto& path : layer.shape->imported_subpaths) {
+        if (path.svg_groups.empty() && path.svg_group)
+            path.svg_groups.push_back(*path.svg_group);
+        ImportedSubpathPlan::SvgGroupIsolationPlan group{id, opacity};
+        group.opacity_animation = animation;
+        path.svg_groups.insert(path.svg_groups.begin(), std::move(group));
+        path.svg_group = path.svg_groups.back();
+    }
+    layer.opacity = 1.0f;
+    if (layer.animation) {
+        auto& tracks = layer.animation->tracks;
+        tracks.erase(std::remove_if(tracks.begin(), tracks.end(),
+            [](const auto& track) { return track.property == "opacity"; }), tracks.end());
+        if (tracks.empty()) layer.animation.reset();
+    }
+    return std::nullopt;
+}
+
 std::optional<std::string> lottie_layer_window(
     const json& composition, const json& layer,
-    std::int64_t composition_offset, std::int64_t clip_start,
-    std::int64_t clip_end, Frame& start, Frame& duration) {
+    double composition_offset, double time_scale,
+    std::int64_t clip_start, std::int64_t clip_end,
+    Frame& start, Frame& duration) {
     const double comp_in = composition.value("ip", 0.0);
     const double comp_out = composition.value("op", comp_in + 1.0);
     const double layer_in = layer.value("ip", comp_in);
@@ -117,8 +1142,16 @@ std::optional<std::string> lottie_layer_window(
         comp_in < 0.0 || layer_in < comp_in || layer_out > comp_out ||
         !(layer_out > layer_in) || comp_out > 1000000.0)
         return std::string("Lottie composition and layer in/out points must be integral, ordered, and bounded to the composition");
-    const auto first = composition_offset + static_cast<std::int64_t>(layer_in);
-    const auto last = composition_offset + static_cast<std::int64_t>(layer_out);
+    if (!std::isfinite(composition_offset) || !std::isfinite(time_scale) ||
+        time_scale <= 0.0 || time_scale > 1000.0)
+        return std::string("Lottie precomp time scale is outside the supported positive range");
+    const double mapped_first = composition_offset + layer_in * time_scale;
+    const double mapped_last = composition_offset + layer_out * time_scale;
+    if (!std::isfinite(mapped_first) || !std::isfinite(mapped_last) ||
+        mapped_first < 0.0 || mapped_last > 1000000.0)
+        return std::string("time-stretched Lottie layer window is outside [0,1000000]");
+    const auto first = static_cast<std::int64_t>(std::ceil(mapped_first - 1e-9));
+    const auto last = static_cast<std::int64_t>(std::ceil(mapped_last - 1e-9));
     const auto visible_first = std::max(first, clip_start);
     const auto visible_last = std::min(last, clip_end);
     if (visible_last <= visible_first)
@@ -139,7 +1172,13 @@ std::optional<std::string> expand_static_lottie(
     std::ifstream input(path, std::ios::binary);
     if (!input) return std::string("Lottie source could not be opened");
     try {
-        const auto doc = json::parse(input);
+        auto doc = json::parse(input);
+        // Older Bodymovin exports may omit root dimensions. The source layer
+        // size is the canonical fallback available at this lowering boundary.
+        if (!doc.contains("w") && source.size_dimensions >= 2)
+            doc["w"] = source.size[0];
+        if (!doc.contains("h") && source.size_dimensions >= 2)
+            doc["h"] = source.size[1];
         if (!doc.is_object() || doc.value("v", std::string{}).empty() ||
             !doc.contains("layers") || !doc["layers"].is_array() ||
             doc["layers"].empty() || doc["layers"].size() > 256 ||
@@ -158,12 +1197,14 @@ std::optional<std::string> expand_static_lottie(
                 throw std::runtime_error("Lottie expansion exceeds 256 scene layers");
             return source.id + "__lottie_" + std::to_string(generated_count - 1);
         };
-        std::function<std::optional<std::string>(const json&, std::int64_t,
+        std::function<std::optional<std::string>(const json&, double, double,
             std::int64_t, std::int64_t, std::optional<std::string>,
+            std::optional<chronon3d::render_plan::TimeRemapPlan>,
             std::size_t, bool)> expand_composition;
         expand_composition = [&](const json& composition,
-            std::int64_t composition_offset, std::int64_t clip_start,
+            double composition_offset, double time_scale, std::int64_t clip_start,
             std::int64_t clip_end, std::optional<std::string> inherited_parent,
+            std::optional<chronon3d::render_plan::TimeRemapPlan> inherited_time_remap,
             std::size_t depth, bool root) -> std::optional<std::string> {
             if (depth > 8 || !composition.is_object() ||
                 !composition.contains("layers") || !composition["layers"].is_array() ||
@@ -197,8 +1238,18 @@ std::optional<std::string> expand_static_lottie(
                 if (authored.value("hd", false)) continue;
                 Frame start{}, duration{};
                 if (auto error = lottie_layer_window(composition, authored,
-                        composition_offset, clip_start, clip_end, start, duration))
+                        composition_offset, time_scale, clip_start, clip_end, start, duration))
                     return *error;
+                if (inherited_time_remap) {
+                    const double comp_in = composition.value("ip", 0.0);
+                    const double comp_out = composition.value("op", 0.0);
+                    const double layer_in = authored.value("ip", comp_in);
+                    const double layer_out = authored.value("op", comp_out);
+                    if (layer_in != comp_in || layer_out != comp_out)
+                        return std::string("time-remapped precomps currently require child layers visible for the full source composition");
+                    start = Frame{clip_start};
+                    duration = Frame{clip_end - clip_start};
+                }
                 std::optional<std::string> parent = inherited_parent;
                 if (authored.contains("parent")) {
                     if (!authored["parent"].is_number_integer())
@@ -212,6 +1263,198 @@ std::optional<std::string> expand_static_lottie(
                 const auto blend = lottie_blend_mode(blend_value);
                 if (!blend) return std::string("Lottie blend mode is outside the supported Bodymovin range");
                 const auto type = authored.value("ty", -1);
+                if (type == 2) {
+                    if (authored.contains("tm") || authored.contains("exp"))
+                        return std::string("Lottie image layers with local time-remap or expressions are unsupported");
+                    LayerPlan layer = source;
+                    layer.id = ids.at(indices[i]);
+                    layer.type = LayerType::Image;
+                    layer.parent = parent;
+                    layer.start_frame = start;
+                    layer.duration_frames = duration;
+                    layer.animation.reset();
+                    layer.effects.clear();
+                    layer.masks.clear();
+                    layer.path_mask.reset();
+                    layer.blend_mode = blend;
+                    std::array<float, 2> dimensions{};
+                    std::shared_ptr<const std::vector<std::byte>> embedded_payload;
+                    if (auto error = lottie_image_asset_path(
+                            source, doc, authored, layer.asset, dimensions,
+                            embedded_payload)) return *error;
+                    layer.size = dimensions;
+                    layer.size_dimensions = 2;
+                    layer.embedded_image_payload = std::move(embedded_payload);
+                    layer.shape.reset();
+                    float anchor_x = 0.0f, anchor_y = 0.0f;
+                    if (auto error = decode_lottie_layer_transform(
+                            layer, authored, anchor_x, anchor_y)) return *error;
+                    if (auto error = center_lottie_image_transform(
+                            layer, composition, anchor_x, anchor_y, dimensions)) return *error;
+                    if (auto error = attach_lottie_track_matte(
+                            authored, i, ids, indices, authored_layers, layer)) return *error;
+                    if (auto error = decode_lottie_layer_effects(authored, layer)) return *error;
+                    if (inherited_time_remap) layer.time_remap = inherited_time_remap;
+                    else shift_lottie_tracks(layer, composition_offset, time_scale);
+                    if (result.size() >= 256)
+                        return std::string("Lottie expansion exceeds 256 scene layers");
+                    result.push_back(std::move(layer));
+                    continue;
+                }
+                if (type == 5) {
+                    if (inherited_time_remap)
+                        return std::string("text layers inside time-remapped precomps are unsupported");
+                    if (authored.value("ddd", 0) != 0 || authored.contains("tm") ||
+                        authored.contains("exp"))
+                        return std::string("Lottie text layers with 3D transforms, time remap, or expressions are unsupported");
+                    if (!authored.contains("t") || !authored["t"].is_object())
+                        return std::string("Lottie text layer has no text document");
+                    const auto& text_data = authored["t"];
+                    if (text_data.contains("p") &&
+                        (!text_data["p"].is_object() || !text_data["p"].empty()))
+                        return std::string("Lottie text-on-path is not supported");
+                    if (text_data.contains("m")) {
+                        if (!text_data["m"].is_object() ||
+                            text_data["m"].value("g", 1) != 1 ||
+                            !text_data["m"].contains("a"))
+                            return std::string("Lottie text grouping/alignment mode is unsupported");
+                        std::vector<float> alignment;
+                        bool alignment_animated{};
+                        if (!lottie_read_transform_property(text_data["m"], "a", alignment,
+                                                            alignment_animated) ||
+                            alignment_animated || alignment.size() != 2 ||
+                            std::abs(alignment[0]) > 1e-6f || std::abs(alignment[1]) > 1e-6f)
+                            return std::string("Lottie text animator alignment offsets are unsupported");
+                    }
+                    if (!text_data.contains("d") || !text_data["d"].is_object() ||
+                        !text_data["d"].contains("k") || !text_data["d"]["k"].is_array() ||
+                        text_data["d"]["k"].empty() || text_data["d"]["k"].size() > 256)
+                        return std::string("Lottie text document keyframes are missing or exceed the 256-keyframe bound");
+                    const auto& documents = text_data["d"]["k"];
+                    std::vector<std::int64_t> document_times;
+                    document_times.reserve(documents.size());
+                    bool first_text_segment = true;
+                    for (std::size_t doc_index = 0; doc_index < documents.size(); ++doc_index) {
+                        const auto& entry = documents[doc_index];
+                        if (!entry.is_object() || !entry.contains("t") || !entry["t"].is_number() ||
+                            !entry.contains("s") || !entry["s"].is_object())
+                            return std::string("Lottie text document keyframe is malformed");
+                        const double frame = entry["t"].get<double>();
+                        if (!std::isfinite(frame) || std::floor(frame) != frame ||
+                            frame < 0.0 || frame > 1000000.0 ||
+                            (doc_index > 0 && frame <= static_cast<double>(document_times.back())))
+                            return std::string("Lottie text document times must be increasing integral frames in [0,1000000]");
+                        if (doc_index + 1 < documents.size() &&
+                            (!entry.contains("h") || !entry["h"].is_number_integer() ||
+                             entry["h"].get<int>() != 1))
+                            return std::string("Lottie text document keyframes must use hold interpolation");
+                        std::int64_t mapped_frame{};
+                        if (!map_lottie_timeline_frame(frame, composition_offset,
+                                time_scale, mapped_frame))
+                            return std::string("time-stretched Lottie text keyframe maps outside [0,1000000] or to a fractional frame");
+                        document_times.push_back(mapped_frame);
+                    }
+                    if (documents.size() > 1 && documents[0].value("t", 0.0) > 0.0)
+                        return std::string("Lottie animated text must define its initial document at composition frame 0");
+                    for (std::size_t doc_index = 0; doc_index < documents.size(); ++doc_index) {
+                        const std::int64_t segment_start = std::max(start.integral(),
+                            document_times[doc_index]);
+                        const std::int64_t segment_end = std::min(
+                            start.integral() + duration.integral(),
+                            doc_index + 1 < documents.size()
+                                ? document_times[doc_index + 1]
+                                : start.integral() + duration.integral());
+                        if (segment_end <= segment_start) continue;
+                        LayerPlan layer = source;
+                        layer.id = first_text_segment ? ids.at(indices[i]) : make_id();
+                        first_text_segment = false;
+                        layer.type = LayerType::Text;
+                        layer.parent = parent;
+                        layer.start_frame = Frame{segment_start};
+                        layer.duration_frames = Frame{segment_end - segment_start};
+                        layer.animation.reset();
+                        layer.text.clear();
+                        layer.text_spans.clear();
+                        layer.style.reset();
+                        layer.font.clear();
+                        layer.shape.reset();
+                        layer.effects.clear();
+                        layer.masks.clear();
+                        layer.path_mask.reset();
+                        layer.blend_mode = blend;
+                        float anchor_x = 0.0f, anchor_y = 0.0f;
+                        if (auto error = decode_lottie_layer_transform(
+                                layer, authored, anchor_x, anchor_y)) return *error;
+                        // Chronon's text frame spans the full canvas. Its left/right
+                        // alignment is therefore relative to the frame edge, while
+                        // Bodymovin positions the corresponding text edge at the
+                        // layer position. Move the frame origin so those anchors
+                        // agree; centered text already shares the same anchor.
+                        const int text_align = documents[doc_index]["s"].value("j", 0);
+                        const float text_frame_origin = text_align == 0
+                            ? static_cast<float>(composition.value("w", 0.0)) * 0.5f
+                            : text_align == 1
+                                ? -static_cast<float>(composition.value("w", 0.0)) * 0.5f
+                                : 0.0f;
+                        if (std::abs(text_frame_origin) > 1e-6f) {
+                            if (layer.position_dimensions >= 2)
+                                layer.position[0] += text_frame_origin;
+                            if (layer.animation) {
+                                for (auto& track : layer.animation->tracks) {
+                                    if (track.property != "position") continue;
+                                    for (auto& key : track.keyframes) {
+                                        if (key.value.size() < 2)
+                                            return std::string("Lottie text position keyframes require at least two components");
+                                        key.value[0] += text_frame_origin;
+                                    }
+                                }
+                            }
+                        }
+                        if (auto error = decode_lottie_text_document(
+                                source, doc, documents[doc_index]["s"], layer)) return *error;
+                        // Chronon's full-canvas text frame is vertically centered;
+                        // Bodymovin's layer position is a typographic baseline.
+                        // Convert the centered frame origin to the baseline used by
+                        // the Lottie text renderer (the bounded text contract uses
+                        // a baseline offset of 0.3457 em from the centered frame).
+                        const float baseline_offset = layer.style
+                            ? layer.style->font_size.value_or(0.0f) * 0.3457f : 0.0f;
+                        if (baseline_offset > 0.0f && std::isfinite(baseline_offset)) {
+                            if (layer.position_dimensions >= 2)
+                                layer.position[1] -= baseline_offset;
+                            if (layer.animation) {
+                                for (auto& track : layer.animation->tracks) {
+                                    if (track.property != "position") continue;
+                                    for (auto& key : track.keyframes) {
+                                        if (key.value.size() < 2)
+                                            return std::string("Lottie text position keyframes require at least two components");
+                                        key.value[1] -= baseline_offset;
+                                    }
+                                }
+                            }
+                        }
+                        if (!root) {
+                            if (auto error = preserve_nested_lottie_local_position(layer, doc))
+                                return *error;
+                        } else if (layer.animation && std::any_of(
+                            layer.animation->tracks.begin(), layer.animation->tracks.end(),
+                            [](const AnimationTrackPlan& track) {
+                                return track.property == "position";
+                            })) {
+                            if (auto error = center_lottie_layer_position(layer, composition))
+                                return *error;
+                        }
+                        if (auto error = decode_lottie_text_animators(text_data, layer)) return *error;
+                        if (auto error = attach_lottie_track_matte(
+                                authored, i, ids, indices, authored_layers, layer)) return *error;
+                        if (auto error = decode_lottie_layer_effects(authored, layer)) return *error;
+                        shift_lottie_tracks(layer, composition_offset, time_scale);
+                        if (result.size() >= 256)
+                            return std::string("Lottie expansion exceeds 256 scene layers");
+                        result.push_back(std::move(layer));
+                    }
+                    continue;
+                }
                 if (type == 4) {
                     LayerPlan layer = source;
                     layer.id = ids.at(indices[i]);
@@ -224,6 +1467,9 @@ std::optional<std::string> expand_static_lottie(
                     layer.masks.clear();
                     layer.path_mask.reset();
                     layer.blend_mode = blend;
+                    if (auto error = attach_lottie_track_matte(
+                            authored, i, ids, indices, authored_layers, layer)) return *error;
+                    if (auto error = decode_lottie_layer_effects(authored, layer)) return *error;
                     if (!layer.shape) return std::string("Lottie source layer has no shape payload");
                     layer.shape->type = ShapeContentTypePlan::Path;
                     layer.shape->path.clear();
@@ -235,7 +1481,17 @@ std::optional<std::string> expand_static_lottie(
                     layer.shape->svg_asset.reset();
                     if (auto error = expand_static_lottie_layer(layer, composition, i))
                         return *error;
-                    shift_lottie_tracks(layer, composition_offset);
+                    const bool animated_position = layer.animation && std::any_of(
+                        layer.animation->tracks.begin(), layer.animation->tracks.end(),
+                        [](const AnimationTrackPlan& track) { return track.property == "position"; });
+                    if (!root) {
+                        if (auto error = preserve_nested_lottie_local_position(layer, doc))
+                            return *error;
+                    } else if (animated_position) {
+                        if (auto error = center_lottie_layer_position(layer, composition)) return *error;
+                    }
+                    if (inherited_time_remap) layer.time_remap = inherited_time_remap;
+                    else shift_lottie_tracks(layer, composition_offset, time_scale);
                     if (result.size() >= 256)
                         return std::string("Lottie expansion exceeds 256 scene layers");
                     result.push_back(std::move(layer));
@@ -243,17 +1499,29 @@ std::optional<std::string> expand_static_lottie(
                 }
                 if (type != 0)
                     return std::string("Lottie currently imports 2D shape layers and precompositions; other layer types are unsupported");
-                if (authored.contains("tm") || authored.contains("ef") ||
+                if (inherited_time_remap || authored.contains("ef") ||
                     authored.contains("tt") || authored.contains("exp"))
-                    return std::string("Lottie precomp time remap, effects, mattes, and expressions are unsupported");
-                if (blend_value != 0)
-                    return std::string("Lottie precomp blend modes require isolated group compositing");
+                    return std::string("nested time-remapped precomps, effects, mattes, and expressions are unsupported");
+                const bool precomp_group_blend = blend_value != 0;
                 const double stretch = authored.value("sr", 1.0);
                 const double start_time = authored.value("st", 0.0);
-                if (!std::isfinite(stretch) || stretch != 1.0 ||
+                if (!std::isfinite(stretch) || stretch <= 0.0 || stretch > 1000.0 ||
                     !std::isfinite(start_time) || std::floor(start_time) != start_time ||
                     std::abs(start_time) > 1000000.0)
-                    return std::string("Lottie precomps currently require integer startTime and timeStretch=1");
+                    return std::string("Lottie precomp startTime must be integral and timeStretch must be in (0,1000]");
+                std::optional<chronon3d::render_plan::TimeRemapPlan> child_time_remap;
+                if (authored.contains("tm")) {
+                    if (std::abs(stretch - 1.0) > 1e-9 || std::abs(start_time) > 1e-9)
+                        return std::string("Lottie precomp time-remap currently requires unit timeStretch and zero startTime");
+                    chronon3d::render_plan::TimeRemapPlan remap;
+                    if (auto error = decode_lottie_precomp_time_remap(
+                            authored, composition, composition_offset, time_scale,
+                            start, remap)) return *error;
+                    child_time_remap = std::move(remap);
+                }
+                const double nested_scale = time_scale * stretch;
+                if (!std::isfinite(nested_scale) || nested_scale <= 0.0 || nested_scale > 1000.0)
+                    return std::string("nested Lottie precomp time scale exceeds its bounded positive range");
                 LayerPlan carrier = source;
                 carrier.id = ids.at(indices[i]);
                 carrier.type = LayerType::Color;
@@ -272,12 +1540,6 @@ std::optional<std::string> expand_static_lottie(
                 float anchor_x = 0.0f, anchor_y = 0.0f;
                 if (auto error = decode_lottie_layer_transform(
                         carrier, authored, anchor_x, anchor_y)) return *error;
-                if (carrier.opacity.value_or(1.0f) != 1.0f ||
-                    (carrier.animation && std::any_of(carrier.animation->tracks.begin(),
-                        carrier.animation->tracks.end(), [](const auto& track) {
-                            return track.property == "opacity";
-                        })))
-                    return std::string("Lottie precomp group opacity requires isolated group compositing");
                 bool position_animated{}, anchor_animated{}, scale_animated{}, rotation_animated{}, opacity_animated{};
                 std::vector<float> ignored;
                 const auto& transform = authored["ks"];
@@ -287,6 +1549,44 @@ std::optional<std::string> expand_static_lottie(
                     !lottie_read_transform_property(transform, "r", ignored, rotation_animated) ||
                     !lottie_read_transform_property(transform, "o", ignored, opacity_animated))
                     return std::string("Lottie precomp transform properties are malformed");
+                const bool precomp_group_opacity =
+                    std::abs(carrier.opacity.value_or(1.0f) - 1.0f) > 1e-6f || opacity_animated;
+                float precomp_opacity = carrier.opacity.value_or(1.0f);
+                std::optional<AnimationTrackPlan> precomp_opacity_animation;
+                if (opacity_animated && carrier.animation) {
+                    const auto opacity_track = std::find_if(
+                        carrier.animation->tracks.begin(), carrier.animation->tracks.end(),
+                        [](const auto& track) { return track.property == "opacity"; });
+                    if (opacity_track == carrier.animation->tracks.end())
+                        return std::string("Lottie precomp opacity animation could not be decoded");
+                    LayerPlan opacity_track_holder;
+                    opacity_track_holder.animation.emplace();
+                    opacity_track_holder.animation->tracks.push_back(*opacity_track);
+                    shift_lottie_tracks(opacity_track_holder, composition_offset, time_scale);
+                    precomp_opacity_animation =
+                        std::move(opacity_track_holder.animation->tracks.front());
+                    if (precomp_opacity_animation->keyframes.empty() ||
+                        precomp_opacity_animation->keyframes.front().value.empty())
+                        return std::string("Lottie precomp opacity animation has no initial value");
+                    precomp_opacity =
+                        precomp_opacity_animation->keyframes.front().value.front();
+                }
+                if (!std::isfinite(precomp_opacity) || precomp_opacity < 0.0f ||
+                    precomp_opacity > 1.0f)
+                    return std::string("Lottie precomp opacity must be in [0,1]");
+                if (precomp_group_opacity) {
+                    carrier.opacity = 1.0f;
+                    // Opacity belongs to the isolated precomp surface. Leaving
+                    // this track on the transparent parent carrier would let
+                    // hierarchy resolution multiply it into every child.
+                    if (carrier.animation) {
+                        auto& tracks = carrier.animation->tracks;
+                        tracks.erase(std::remove_if(tracks.begin(), tracks.end(),
+                            [](const auto& track) { return track.property == "opacity"; }),
+                            tracks.end());
+                        if (tracks.empty()) carrier.animation.reset();
+                    }
+                }
                 if ((scale_animated || rotation_animated) &&
                     (std::abs(anchor_x) > 1e-6f || std::abs(anchor_y) > 1e-6f))
                     return std::string("animated precomp scale/rotation with non-zero anchor is unsupported");
@@ -308,7 +1608,33 @@ std::optional<std::string> expand_static_lottie(
                     carrier.position[0] -= dx;
                     carrier.position[1] -= dy;
                 }
-                shift_lottie_tracks(carrier, composition_offset);
+                // A root precomp without an authored parent is an absolute
+                // canvas transform and Color layers do not receive the
+                // Shape/Text center conversion in scene lowering. A root
+                // precomp with a parent is already a local transform in that
+                // parent's coordinate basis, so keep its authored position.
+                if (root && !parent) {
+                    const float canvas_width = composition.value("w", 0.0f);
+                    const float canvas_height = composition.value("h", 0.0f);
+                    if (!std::isfinite(canvas_width) || !std::isfinite(canvas_height) ||
+                        canvas_width <= 0.0f || canvas_height <= 0.0f)
+                        return std::string("Lottie root composition dimensions are invalid");
+                    if (position_animated) {
+                        if (carrier.animation)
+                            for (auto& track : carrier.animation->tracks)
+                                if (track.property == "position")
+                                    for (auto& key : track.keyframes) {
+                                        if (key.value.size() < 2)
+                                            return std::string("Lottie precomp position keyframes require two components");
+                                        key.value[0] -= canvas_width * 0.5f;
+                                        key.value[1] -= canvas_height * 0.5f;
+                                    }
+                    } else {
+                        carrier.position[0] -= canvas_width * 0.5f;
+                        carrier.position[1] -= canvas_height * 0.5f;
+                    }
+                }
+                shift_lottie_tracks(carrier, composition_offset, time_scale);
                 if (result.size() >= 256)
                     return std::string("Lottie expansion exceeds 256 scene layers");
                 result.push_back(std::move(carrier));
@@ -327,24 +1653,58 @@ std::optional<std::string> expand_static_lottie(
                     return std::string("Lottie precomp cycle detected");
                 json nested = doc;
                 nested["layers"] = (*asset)["layers"];
+                nested["w"] = asset->value("w", composition.value("w", 0));
+                nested["h"] = asset->value("h", composition.value("h", 0));
                 nested["ip"] = 0;
                 nested["op"] = doc.value("op", 1000000.0);
-                const auto nested_offset = composition_offset +
-                    static_cast<std::int64_t>(start_time);
+                const auto nested_offset = composition_offset + start_time * time_scale;
                 const auto nested_clip_start = start.integral();
                 const auto nested_clip_end = start.integral() + duration.integral();
+                const auto child_begin = result.size();
                 const auto child_error = expand_composition(nested, nested_offset,
-                    nested_clip_start, nested_clip_end, ids.at(indices[i]), depth + 1, false);
+                    nested_scale, nested_clip_start, nested_clip_end,
+                    ids.at(indices[i]), std::move(child_time_remap), depth + 1, false);
                 active_assets.erase(ref);
                 if (child_error) return *child_error;
+                if ((precomp_group_opacity || precomp_group_blend) &&
+                    result.size() > child_begin) {
+                    LayerPlan::LottiePrecompGroupPlan group;
+                    group.id = ids.at(indices[i]) + "__isolation";
+                    group.opacity = precomp_opacity;
+                    group.opacity_active = precomp_group_opacity;
+                    group.opacity_animation = std::move(precomp_opacity_animation);
+                    group.blend_mode = *blend;
+                    for (std::size_t child_index = child_begin;
+                         child_index < result.size(); ++child_index) {
+                        result[child_index].lottie_precomp_groups.insert(
+                            result[child_index].lottie_precomp_groups.begin(), group);
+                    }
+                }
             }
             return std::nullopt;
         };
         const auto root_ip = doc.value("ip", 0.0);
-        const std::int64_t root_offset = base_start - static_cast<std::int64_t>(root_ip);
-        if (auto error = expand_composition(doc, root_offset, base_start, base_end,
-                source.parent, 0, true)) return *error;
+        const double root_offset = static_cast<double>(base_start) - root_ip;
+        if (auto error = expand_composition(doc, root_offset, 1.0, base_start, base_end,
+                source.parent, std::nullopt, 0, true)) return *error;
         if (result.empty()) return std::string("Lottie contains no visible supported shape layers");
+        for (auto& layer : result) {
+            if (layer.type != LayerType::Shape || !layer.shape ||
+                layer.shape->imported_subpaths.empty()) continue;
+            std::optional<AnimationTrackPlan> opacity_animation;
+            if (layer.animation) {
+                const auto found = std::find_if(layer.animation->tracks.begin(),
+                    layer.animation->tracks.end(), [](const auto& track) {
+                        return track.property == "opacity";
+                    });
+                if (found != layer.animation->tracks.end()) opacity_animation = *found;
+            }
+            const float opacity = layer.opacity.value_or(1.0f);
+            if (opacity < 1.0f || opacity_animation) {
+                if (auto error = apply_lottie_isolated_opacity(
+                        layer, opacity, std::move(opacity_animation))) return *error;
+            }
+        }
         expanded_layers = std::move(result);
         return std::nullopt;
     } catch (const std::exception& error) {

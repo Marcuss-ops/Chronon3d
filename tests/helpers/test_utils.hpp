@@ -65,6 +65,11 @@ inline std::string bundled_font_path(const std::string& rel) {
 /// `SoftwareRenderer&` (lvalue ref) — gate-3 I5 compliance.
 inline void attach_software_backend(SoftwareRenderer* renderer,
                                     runtime::RuntimeContext& runtime) {
+    // Keep tests on the same explicit execution-context path as production.
+    // Backend wiring below borrows the renderer's FontEngine, so initialize
+    // the runtime-owned text service before asking the renderer for it.
+    renderer->attach_execution_context(
+        backends::software::make_software_execution_context(renderer, runtime));
     chronon3d::SoftwareBackendServices services{
         /* owner REMOVED IN TICKET-118 — was: renderer, */
         /* counters           = */ renderer->counters(),
