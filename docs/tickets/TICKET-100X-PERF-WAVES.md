@@ -1,6 +1,6 @@
 # Chronon 100× Performance Waves — Ticket Specs (B1/B2/B3)
 
-Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE NOT CERTIFIED; B3 SPEC (25 Oct 2026)` — this file is a ticket specification, not a blanket implementation status. The B1 DirectYUV static-template path is landed in source and the broader P1 static preset has one live PASS recorded in PipelineGen; B2 submission-depth and B3 MTSDF gates below are not certified by that P1 run. No claim of 100× single-clip latency or 100 overlay/min follows from B1 alone.
+Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE NOT CERTIFIED; B3 IMPLEMENTED / ACCEPTANCE PARTIAL (27 Oct 2026)` — this file is a ticket specification, not a blanket acceptance claim. The B1 DirectYUV static-template path is landed; B2 has a six-slot implementation but its required encoder-backed performance gate remains unverified; the native MTSDF path exists and its generator/font-identity/raster canaries pass, while its full outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
 Created: 2026-09-09
 Baseline evidence: job_1788973104795535356_86264102 sidecar + TICKET-ZERO-COPY-ZWAVES.md F1–F7
 Owner: Chronon rendering-core maintainers
@@ -28,7 +28,8 @@ waves below are the reachable remainder, in expected-gain order.
 ## TODO — cosa manca (agg. 2026-10-27)
 
 - [ ] Certificare il gate B2 sul workload specificato dalla scheda: drain wait ≤50µs/frame, NVENC ≥90%, render_loop ≥300 fps.
-- [ ] Implementare B3 (MTSDF) secondo la spec di questa scheda.
+- [x] Implementare il percorso GPU MTSDF (native MTSDF preparation/raster path exists; focused tests pass).
+- [ ] Certificare per B3 il golden outline/shadow e il budget VRAM del font set.
 - [ ] Nessun claim “100×” o “100 overlay/min” finché resta solo il B1 land.
 
 ## B1 — Persistent overlay layer for static text/watermark (≈1.4–1.6×)
@@ -95,7 +96,7 @@ batch).
 
 ## B3 — Single-pass MTSDF text rendering (≈1.1–1.2× after B1; enables animated text at scale)
 
-**Status (25 Oct 2026):** SPEC / NOT CERTIFIED. No evidence in this ticket establishes the one-draw-per-frame gate, outline/shadow golden equivalence, or the font-set VRAM budget; the P1 static-title result does not exercise B3's animated-text path.
+**Status (27 Oct 2026):** IMPLEMENTED / ACCEPTANCE PARTIAL. Chronon has a native MTSDF preparation and raster path (`gpu_text_run_mtsdf.cpp` and the MTSDF tile raster shader). Focused generator, font identity, and GPU raster canary tests pass. This does not establish the prior ticket's full text-run pass-count, outline/shadow golden equivalence, or font-set VRAM budget; the P1 static-title result does not exercise B3's animated-text path.
 
 **Problem.** The glyph atlas already stores `GlyphRepresentation::Mtsdf`
 (RGBA8 SDF pages, `gpu_glyph_atlas.hpp`) but the runtime feeds it CPU coverage
@@ -144,3 +145,28 @@ the steady-state per-clip VRAM drops (fewer text passes, tighter atlas) so
 4–6 clips render concurrently per GPU → 10-language batch in <30s of GPU
 time. VRAM budget work (`GpuMemoryBudget`, atlas `set_budget_bytes`) is the
 enabler and needs its own small ticket.
+
+## Verification checkpoint — 27 Oct 2026
+
+The fast-dev Vulkan build produced the CLI and three focused B3 tests passed:
+`chronon3d_text_tile_raster_canary_tests`,
+`chronon3d_mtsdf_generator_tests`, and
+`chronon3d_mtsdf_font_identity_tests` (3/3). The saved benchmark report is
+`docs/tickets/evidence/100x-perf-waves-b2-20261027.json`.
+
+On `chronon_text_full_static` for 19 seconds, the saturation benchmark rendered
+1,383 frames at **72.77 fps**; `frame_batch_drain_wait_us_per_frame` was
+**653.90 µs**, above the ≤50 µs gate, and therefore the render-loop rate was
+also below the ticket's ≥300 fps threshold. This benchmark did not run an
+encoder, so NVENC utilization is **not measured**. B2 is not accepted by this
+run. It is a diagnostic run rather than the required encoder-backed 456-frame
+acceptance workload.
+
+The P4 live parity test `TestSegmentedSessionMatchesIndependentSingleItemRenders`
+passed with the freshly built fast-dev Chronon binary. A separate attempt to run
+the full overlay golden on 27 Oct stopped before rendering: the canonical
+payload hit a TTS zero-duration/circuit-breaker failure. A no-audio retry after
+updating the Semantic Engine completed script generation but produced no
+`overlay_plan` and rendered zero items, so it is not a throughput sample. The
+100 overlay/min gate remains open until the canonical 100-item golden is
+rendered and validated on a healthy three-daemon pool.
