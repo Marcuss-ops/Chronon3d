@@ -35,7 +35,7 @@
 #include "helpers.hpp"
 #include "scene_internal.hpp"
 #include "scene_context_setup.hpp"        // Azione 19 — Phase 0 helper
-#include "scene_temporal_policy.hpp"
+#include "temporal/scene_temporal_policy.hpp"
 #include "scene_native_output.hpp"        // native output sync + residency
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include "../core/scene_fingerprint.hpp"
@@ -54,9 +54,9 @@
 #include <cassert>
 #include <cstring>
 #include <vector>
-#include "temporal_render_context.hpp"
+#include "temporal/temporal_render_context.hpp"
 #include "../nodes/native_surface.hpp"
-#include "scene_temporal_execution.hpp"
+#include "temporal/scene_temporal_execution.hpp"
 
 namespace chronon3d::graph {
 

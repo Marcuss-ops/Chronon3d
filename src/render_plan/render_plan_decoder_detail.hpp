@@ -11,6 +11,21 @@
 
 namespace chronon3d::render_plan::detail {
 
+struct DecodedAudioMix {
+    AudioMixPlan mix;
+    std::vector<std::string> warnings;
+};
+[[nodiscard]] Result<DecodedAudioMix, PlanDecodeError> decode_audio_mix(
+    const nlohmann::json& raw_mix, Frame canvas_duration);
+
+[[nodiscard]] std::optional<PlanDecodeError> decode_plan_globals(
+    const nlohmann::json& root, RenderPlan& plan);
+[[nodiscard]] std::optional<PlanDecodeError> decode_output_settings(
+    const nlohmann::json& raw_output, RenderPlan& plan);
+[[nodiscard]] std::optional<PlanDecodeError> decode_plan_layers(
+    const nlohmann::json& raw_layers, RenderPlan& plan);
+[[nodiscard]] std::optional<PlanDecodeError> find_unregistered_animation_property(
+    const nlohmann::json& root);
 [[nodiscard]] bool invalid_logical_path(const std::string& value);
 [[nodiscard]] bool is_3d_property(const std::string& property);
 [[nodiscard]] std::optional<std::string> find_3d_track(const nlohmann::json& layer);

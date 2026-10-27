@@ -111,6 +111,7 @@ set(CHRONON3D_VULKAN_ABI_HEADERS "${_chronon3d_shader_abi_headers}" CACHE INTERN
 # fragment instead of the whole 5k-line backend.
 add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend.cpp
+    vulkan_plan_batch.cpp
     vulkan_backend_lifecycle.cpp
     vulkan_backend_stats.cpp
     vulkan_backend_surface_api.cpp
@@ -118,6 +119,7 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_surface_api_effects_private.cpp
     vulkan_backend_impl_detail.cpp
     vulkan_backend_impl_surface_state.cpp
+    vulkan_surface_authority.cpp
     vulkan_backend_surface_upload.cpp
     vulkan_backend_cuda_surface_api_private.cpp
     vulkan_backend_lifecycle_private.cpp
@@ -133,6 +135,8 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_kernel_record_text_private.cpp
     vulkan_kernel_replay_private.cpp
     vulkan_backend_operations_private.cpp
+    vulkan_backend_operations_shapes_private.cpp
+    vulkan_backend_operations_transform_private.cpp
     vulkan_backend_operations_filter_private.cpp
     vulkan_backend_operations_color_private.cpp
     vulkan_backend_text_ops_private.cpp
@@ -142,6 +146,8 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_sync_private.cpp
     vulkan_backend_cuda_export_private.cpp
     vulkan_native_shape_dispatch.cpp
+    vulkan_native_shape_dispatch_path.cpp
+    vulkan_native_shape_dispatch_rect.cpp
     memory/vulkan_memory_manager.cpp
     debug/vulkan_debug_context.cpp
     ${_chronon3d_shader_headers}

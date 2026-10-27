@@ -1,4 +1,5 @@
 #include "render_plan_compiler_detail.hpp"
+#include "lottie_expansion/lottie_expansion.hpp"
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>

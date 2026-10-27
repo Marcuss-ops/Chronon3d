@@ -84,7 +84,6 @@ namespace chronon3d { struct EffectScratchResources; }
 #include <atomic>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
-#include <chronon3d/render_graph/render_backend.hpp>  // P0-1 — NodeExecutionError for frame_error slot
 #include <chronon3d/render_graph/builder/graph_build_dependencies.hpp>
 
 namespace chronon3d {

@@ -8,6 +8,7 @@
 #include "gpu_text_run_detail.hpp"
 #include "gpu_text_cached_policy.hpp"
 
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 

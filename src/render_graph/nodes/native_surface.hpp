@@ -22,6 +22,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
 #include <spdlog/spdlog.h>

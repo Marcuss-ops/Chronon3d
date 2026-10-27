@@ -63,6 +63,10 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_sources(chronon3d_cli_video_export PRIVATE
         utils/video/native_av_encoder_common.cpp
         utils/video/native_av_encoder_open.cpp
+        utils/video/native_av_encoder_open_support.cpp
+        utils/video/native_av_encoder_open_negotiate.cpp
+        utils/video/native_av_encoder_open_probe.cpp
+        utils/video/native_av_encoder_open_start.cpp
         utils/video/native_av_encoder_lifecycle.cpp
         utils/video/native_av_encoder_cuda_queue.cpp
         utils/video/native_av_encoder_direct_yuv.cpp
@@ -135,6 +139,8 @@ target_sources(chronon3d_cli_render PRIVATE
     utils/video/video_job_dry_run.cpp
     utils/video/video_job_execute_options.cpp
     utils/video/video_job_execute_dispatch.cpp
+    utils/video/video_job_execute_gop.cpp
+    utils/video/video_job_execute_packet_copy.cpp
     utils/video/video_job_time_rescale.cpp
 )
 set_target_properties(chronon3d_cli_render PROPERTIES UNITY_BUILD OFF)

@@ -4,10 +4,10 @@
 #include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/timeline/composition_definition.hpp>
 
 #include "render_plan_compiler_detail.hpp"
+#include "render_plan_compiler_entry_detail.hpp"
 #include "effect_kind_coverage.hpp"
 #include "audio_react_baker.hpp"
 #include "audio_react_plan_baker.hpp"
@@ -32,22 +32,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
     const compiler::CompiledProgram* canonical_program,
     const RuntimeCameraSampleProvider* runtime_camera) {
     try {
-        if (runtime_camera != nullptr &&
-            (!runtime_camera->sample || runtime_camera->fingerprint.empty())) {
-            return PlanDecodeError{"camera_sample_provider",
-                "runtime camera sampling requires a callable provider and stable fingerprint",
-                "invalid_camera_sample_provider", "render-plan-camera"};
-        }
-        if (runtime_camera != nullptr && !input_plan.camera) {
-            return PlanDecodeError{"camera_sample_provider",
-                "runtime camera sampling requires a camera descriptor for static lens and clipping defaults",
-                "camera_sample_provider_requires_camera", "render-plan-camera"};
-        }
-        if (runtime_camera != nullptr && input_plan.camera_samples) {
-            return PlanDecodeError{"camera_sample_provider",
-                "runtime camera sampling cannot be combined with serialized camera samples; provide one resolved camera source",
-                "runtime_camera_conflicts_with_samples", "render-plan-camera"};
-        }
+        if (auto error = compiler_entry_detail::validate_compile_request(
+                input_plan, runtime_camera))
+            return *error;
         auto expanded_plan = input_plan;
         auto& plan = expanded_plan;
         detail::materialize_media_background_cards(plan);
@@ -193,51 +180,13 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         // Camera V1 descriptors.
         definition.scene_content_fingerprint = scene_content_fingerprint;
 
-        const auto composition_t0 = chronon3d::profiling::now();
         CompiledComposition compiled_value;
         std::shared_ptr<const Composition> composition;
-        if (canonical_program != nullptr) {
-            // The CLI already owns the canonical CompiledProgram. The old
-            // video executor only needs a scene-evaluation compatibility
-            // object, so do not invoke compile_composition again here.
-            composition = std::make_shared<const Composition>(
-                definition.composition, definition.scene,
-                definition.scene_content_fingerprint);
-            compiled_value.composition = composition;
-            compiled_value.fingerprint = canonical_program->fingerprint();
-        } else {
-            // Standalone callers of the historical prepared-plan API retain
-            // its original composition compiler behavior.
-            Composition definition_composition(
-                definition.composition,
-                definition.scene,
-                definition.scene_content_fingerprint);
-            auto compiled =
-                chronon3d::compile_composition(definition_composition, {});
-            if (!compiled)
-                return PlanDecodeError{"composition", compiled.error().message};
-
-            compiled_value = std::move(compiled).value();
-            auto compiled_view =
-                std::make_shared<const CompiledComposition>(compiled_value);
-            composition = std::make_shared<Composition>(
-                definition.composition,
-                [compiled_view](const FrameContext& context) {
-                    auto evaluated = chronon3d::evaluate(
-                        *compiled_view,
-                        CompositionEvaluateContext{.frame_context = context},
-                        context.local_time());
-                    if (!evaluated) {
-                        throw std::runtime_error(
-                            "compiled render-plan evaluation failed: " +
-                            evaluated.error().message);
-                    }
-                    return std::move(evaluated.value().scene);
-                },
-                scene_content_fingerprint);
-        }
-        const double composition_stage_ms = chronon3d::profiling::duration_ms(
-            composition_t0, chronon3d::profiling::now());
+        double composition_stage_ms = 0.0;
+        if (auto composition_error = compiler_entry_detail::compile_composition_view(
+                definition, canonical_program,
+                compiled_value, composition, composition_stage_ms))
+            return *composition_error;
         if (canonical_program != nullptr) {
             compatibility_view_ms = composition_stage_ms;
         } else {
@@ -273,27 +222,6 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
     }
 }
 
-Result<CompiledComposition, PlanDecodeError> make_video_compatibility_view(
-    const RenderPlan& plan,
-    chronon3d::assets::AssetResolver& resolver,
-    const chronon3d::assets::PreparedAssetManifest& assets,
-    const compiler::CompiledProgram& program,
-    const RenderPlanFingerprintOptions& fingerprint_options,
-    const RuntimeCameraSampleProvider* runtime_camera) {
-    // Reuse the canonical prepared-plan machinery with an explicit program
-    // owner. The implementation's canonical_program branch performs asset
-    // and text materialization but skips the legacy composition compiler.
-    auto prepared = compile_render_plan(
-        plan, resolver, fingerprint_options, &program, runtime_camera);
-    if (!prepared) return std::move(prepared).error();
-    auto result = std::move(prepared).value().compiled_composition;
-    // The canonical compiler's manifest is authoritative. `assets` is kept
-    // as an explicit parameter to make the ownership contract visible at the
-    // boundary and to support callers that already preflighted assets.
-    if (!result.asset_manifest) {
-        result.asset_manifest = std::make_shared<const chronon3d::assets::PreparedAssetManifest>(assets);
-    }
-    return result;
-}
+
 
 }  // namespace chronon3d::render_plan

@@ -11,6 +11,11 @@
 
 namespace chronon3d::render_plan::detail {
 
+std::optional<Frame> optional_frame(const nlohmann::json& object, const char* key) {
+    if (!object.contains(key)) return std::nullopt;
+    return Frame{object.at(key).get<std::int64_t>()};
+}
+
 void decode_layer_asset_fields(LayerPlan& layer, const nlohmann::json& value) {
     layer.asset = value.value("asset", std::string{});
     layer.input_color_space = value.value("input_color_space", std::string{"srgb"});

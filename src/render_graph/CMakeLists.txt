@@ -47,6 +47,8 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/source_node_native_rect.cpp
     nodes/source_node_native_image.cpp
     nodes/multi_source_node.cpp
+    nodes/multi_source_node_execute.cpp
+    nodes/multi_source_node_execute_items.cpp
     nodes/transform_node.cpp
     nodes/transform_node_execution.cpp
     nodes/transform_policy.cpp
@@ -54,10 +56,15 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/transition_node.cpp
     nodes/clip_transition_node.cpp
     nodes/effect_stack_node.cpp
+    nodes/effect_stack_node_native_detail.cpp
+    nodes/effect_stack_node_native_color.cpp
+    nodes/effect_stack_node_native_echo.cpp
+    nodes/effect_stack_node_native_bulk.cpp
     nodes/clear_node.cpp
     nodes/clear_node_execution.cpp
     nodes/clear_policy.cpp
     nodes/composite_node.cpp
+    nodes/composite_node_native.cpp
     nodes/composite_dof_provenance.cpp
     nodes/composite_backdrop_software.cpp
     nodes/track_matte_node.cpp
@@ -79,7 +86,8 @@ add_library(chronon3d_graph_nodes OBJECT
     # and the fail-closed cached bridge. The former packed compatibility route
     # and its CPU bitmap upload TUs were removed after MTSDF certification.
     nodes/text_run/gpu_text_run_animation.cpp
-    nodes/text_run/gpu_text_run_mtsdf.cpp
+    nodes/text_run/text_run_packing.cpp
+    nodes/text_run/text_run_draw.cpp
     nodes/text_run/gpu_text_run_cached.cpp
     nodes/text_run/gpu_text_cached_policy.cpp
 )
@@ -110,11 +118,11 @@ add_library(chronon3d_graph_executor OBJECT
     executor/cache_evaluator.cpp
     executor/tile_pruning.cpp
     executor/node_runner.cpp
-    executor/fused_batch_policy.cpp
-    executor/node_runner_fused_batch.cpp  # P1.5 — fused batch implementation moved out of the detail header (kills text/transform/source include fanout in the executor hot TU)
+    executor/graph_dispatch/fused_batch_policy.cpp
+    executor/graph_dispatch/node_runner_fused_batch.cpp  # P1.5 — fused batch implementation moved out of the detail header (kills text/transform/source include fanout in the executor hot TU)
     executor/node_state_commit.cpp     # P1 step 3 — extract commit_node_state (5 per-node state-slot writes from cache_eval + bbox; byte-equivalent to inline pattern at Site 1 cache-hit fast-path + Site 3 main tail in executor/node_runner.cpp; Site 2 tile-skip stays inline per Cat-3 anti-dup)
     executor/text_bbox_reconcile.cpp   # P0 #1 — extracted post-render alpha_bbox reconciliation helper (replaces duplicate TU-local scan in executor/node_runner.cpp + closes static-bool race)
-    executor/node_skip_policy.cpp      # P1 step 1/3 — unified commit_transparent_skip (replaces 2 duplicate 64×10 transparent skip blocks in executor/node_runner.cpp; SkipReason enum drives the Clear-name branch)
+    executor/graph_dispatch/node_skip_policy.cpp      # P1 step 1/3 — unified commit_transparent_skip (replaces 2 duplicate 64×10 transparent skip blocks in executor/node_runner.cpp; SkipReason enum drives the Clear-name branch)
     executor/node_executor.cpp         # P1 step 2 — extract run_node (node.execute + OwnedFB→CachedFB + scratch/renderer/pool deleter + cache_write); byte-equivalent to the inline body previously at executor/node_runner.cpp:21-104
     executor/level_timings.cpp          # P1 refactor — per-level metrics accumulator + roll_up() helper (replaces 7-vector declaration + 60-line if-block in executor/executor_levels.cpp; forward-declared RenderCounters, src-local header)
     executor/executor_levels.cpp
@@ -197,8 +205,8 @@ target_link_libraries(chronon3d_graph_cache PUBLIC
 # ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
 add_library(chronon3d_graph_pipeline OBJECT
     pipeline/scene.cpp
-    pipeline/scene_temporal_execution.cpp
-    pipeline/scene_temporal_policy.cpp
+    pipeline/temporal/scene_temporal_execution.cpp
+    pipeline/temporal/scene_temporal_policy.cpp
     pipeline/scene_native_output.cpp
     pipeline/scene_context_setup.cpp    # Azione 19 - Phase 0 helper extracted
     pipeline/scene_dirty.cpp
@@ -230,7 +238,7 @@ add_library(chronon3d_graph_pipeline OBJECT
     pipeline/composition.cpp
     pipeline/composition_frame_prepare.cpp
     pipeline/composition_frame_single.cpp
-    pipeline/composition_frame_temporal.cpp
+    pipeline/temporal/composition_frame_temporal.cpp
     pipeline/composition_frame_finalize.cpp
     pipeline/register_pipeline_nodes.cpp
 )

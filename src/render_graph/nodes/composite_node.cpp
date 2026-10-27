@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include "native_surface.hpp"
+#include "composite_node_detail.hpp"
 #include "composite_backdrop_detail.hpp"
 // ctx.frame_error (runtime::RenderErrorSlot) is dereferenced below; the
 // context header only forward-declares the class.
@@ -25,300 +26,7 @@
 
 namespace chronon3d::graph {
 
-namespace {
 
-// ── try_native_affine_composite ──────────────────────────────────────────
-//
-// Composite `source` onto `destination` when the two surfaces differ in
-// size or origin.  Uses `transform_surface_affine` — the direct GPU path
-// that handles arbitrary affine transforms without intermediate surfaces.
-// Returns true when the native composite succeeded; false when the caller
-// should fall back to the CPU path.
-bool try_native_affine_composite(
-    RenderGraphContext& ctx, Framebuffer& destination,
-    const Framebuffer& source, const std::optional<raster::BBox>& clip) {
-    if (!ctx.backend || !ctx.surface_registry) return false;
-    if (source.width() == destination.width() &&
-        source.height() == destination.height() &&
-        source.origin_x() == destination.origin_x() &&
-        source.origin_y() == destination.origin_y()) {
-        return false;
-    }
-    const auto original_destination = destination.surface_handle();
-    if (!ensure_native_surface(ctx, destination, "CompositeNode.affine.destination")) return false;
-
-    OwnedFB source_copy;
-    runtime::RenderSurfaceHandle source_handle = source.surface_handle();
-    if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
-        source_copy = ctx.acquire_owned_fb(source);
-        if (!ensure_native_surface(ctx, *source_copy, "CompositeNode.affine.source_copy")) {
-            if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-                release_native_surface(ctx, destination);
-            }
-            return false;
-        }
-        source_handle = source_copy->surface_handle();
-    }
-
-    const float dx = static_cast<float>(source.origin_x() - destination.origin_x());
-    const float dy = static_cast<float>(source.origin_y() - destination.origin_y());
-    const float src_w = static_cast<float>(source.width());
-    const float src_h = static_cast<float>(source.height());
-
-    runtime::SurfaceAffineTransform transform{};
-    // The shader evaluates the source equation in canvas coordinates.  Do
-    // not use the destination-relative delta here: destination_origin is
-    // added by the shader before evaluation, so the source surface origin is
-    // the only offset that belongs in the equation.
-    runtime::set_canvas_source_mapping(
-        transform,
-        1.0f, 0.0f, -static_cast<float>(source.origin_x()),
-        0.0f, 1.0f, -static_cast<float>(source.origin_y()),
-        runtime::RectF{0.0f, 0.0f, src_w, src_h});
-    transform.opacity = 1.0f;
-    transform.bilinear = 0u; // Direct 1:1 pixel sampling
-    // The destination is seeded with the canvas background. Preserve those
-    // pixels where the projected source has no coverage (fit=contain bars).
-    transform.blend_source_over = 1u;
-    transform.destination_origin_x = destination.origin_x();
-    transform.destination_origin_y = destination.origin_y();
-
-    std::int32_t eff_x0 = static_cast<std::int32_t>(dx);
-    std::int32_t eff_y0 = static_cast<std::int32_t>(dy);
-    std::int32_t eff_x1 = static_cast<std::int32_t>(dx + src_w);
-    std::int32_t eff_y1 = static_cast<std::int32_t>(dy + src_h);
-
-    if (clip) {
-        const runtime::SurfaceCoordinateMapper mapper{
-            destination.origin_x(), destination.origin_y()};
-        const auto local_clip = mapper.canvas_to_surface(runtime::RectF{
-            static_cast<float>(clip->x0), static_cast<float>(clip->y0),
-            static_cast<float>(clip->x1), static_cast<float>(clip->y1)});
-        const std::int32_t local_clip_x0 = static_cast<std::int32_t>(local_clip.x0);
-        const std::int32_t local_clip_y0 = static_cast<std::int32_t>(local_clip.y0);
-        const std::int32_t local_clip_x1 = static_cast<std::int32_t>(local_clip.x1);
-        const std::int32_t local_clip_y1 = static_cast<std::int32_t>(local_clip.y1);
-
-        eff_x0 = std::max(eff_x0, local_clip_x0);
-        eff_y0 = std::max(eff_y0, local_clip_y0);
-        eff_x1 = std::min(eff_x1, local_clip_x1);
-        eff_y1 = std::min(eff_y1, local_clip_y1);
-    }
-
-    if (eff_x1 <= eff_x0 || eff_y1 <= eff_y0) {
-        if (source_copy) release_native_surface(ctx, *source_copy);
-        return true;
-    }
-
-    transform.clip_enabled = 1u;
-    transform.clip_rect[0] = eff_x0;
-    transform.clip_rect[1] = eff_y0;
-    transform.clip_rect[2] = eff_x1;
-    transform.clip_rect[3] = eff_y1;
-
-    const auto composited = ctx.backend->transform_surface_affine(
-        destination.surface_handle(), source_handle, transform);
-    if (source_copy) release_native_surface(ctx, *source_copy);
-    if (!composited.ok()) {
-        spdlog::error(
-            "[native-composite] affine operation failed: [{}] {}",
-            chronon3d::graph::render_backend_error_code_name(composited.error().code),
-            composited.error().message);
-        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, destination);
-        }
-        return false;
-    }
-    return true;
-}
-
-bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
-                          Framebuffer& source, BlendMode mode,
-                          CompositeOperator op,
-                          const std::optional<raster::BBox>& clip) {
-    // Vulkan's surface compositor supports both the ordinary source-over
-    // path and additive overlays. Keeping Add on the CPU fallback would call
-    // composite_layer(), whose legacy contract intentionally rejects it.
-    if ((mode != BlendMode::Normal && mode != BlendMode::Add &&
-         mode != BlendMode::Multiply && mode != BlendMode::Screen &&
-         mode != BlendMode::Overlay) ||
-        op != CompositeOperator::SourceOver ||
-        source.width() != destination.width() ||
-        source.height() != destination.height() ||
-        source.origin_x() != destination.origin_x() ||
-        source.origin_y() != destination.origin_y()) {
-        return false;
-    }
-    const auto original_handle = destination.surface_handle();
-    const auto original_source_handle = source.surface_handle();
-    if (!ensure_native_surface(ctx, destination, "CompositeNode.destination") ||
-        !ensure_native_surface(ctx, source, "CompositeNode.source")) {
-        if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, destination);
-        }
-        if (original_source_handle == runtime::kInvalidRenderSurfaceHandle) {
-            release_native_surface(ctx, source);
-        }
-        return false;
-    }
-    const auto result = ctx.backend->composite_surfaces(
-        destination.surface_handle(), source.surface_handle(), mode, op, clip);
-    if (result.ok()) {
-        return true;
-    }
-    spdlog::error(
-        "[native-composite] surface operation failed: [{}] {}",
-        chronon3d::graph::render_backend_error_code_name(result.error().code),
-        result.error().message);
-    if (original_handle == runtime::kInvalidRenderSurfaceHandle) {
-        release_native_surface(ctx, destination);
-    }
-    if (original_source_handle == runtime::kInvalidRenderSurfaceHandle) {
-        release_native_surface(ctx, source);
-    }
-    return false;
-}
-
-// seed_native_destination() replaces the destination pixels with a same-size
-// copy from the source.  This is deliberately routed through copy_surface,
-// not transform_surface_affine: the seed is a full-frame 1:1 copy and the
-// Vulkan copy/composite kernel is the native path that also works when the
-// destination is part of the CUDA/NVENC surface chain.
-bool seed_native_destination(
-    RenderGraphContext& ctx, Framebuffer& destination,
-    const Framebuffer& source) {
-    if (!ctx.backend || !ctx.surface_registry) {
-        return false;
-    }
-    const auto original_destination = destination.surface_handle();
-    // The CPU copy made by acquire_owned_fb is always a valid source of
-    // truth. If the bottom did not retain a native handle, promote the result
-    // directly instead of rejecting the whole frame.
-    if (source.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
-        !ctx.backend->is_native_surface_valid(source.surface_handle())) {
-        return ensure_native_surface(ctx, destination,
-                                     "CompositeNode.seed.source-fallback");
-    }
-    // A seed is only a 1:1 copy when both framebuffers have the same extent.
-    // Composite intermediates can be cropped to a layer's local bounds while
-    // their source still covers the full canvas; in that case the destination's
-    // CPU pixels are the correct authority to promote to a native surface.
-    if (destination.width() != source.width() ||
-        destination.height() != source.height()) {
-        return ensure_native_surface(ctx, destination,
-                                     "CompositeNode.seed.extent-fallback");
-    }
-    // A pooled framebuffer can retain a logical handle whose registered
-    // surface still has the previous crop's physical extent. Do not ask the
-    // backend to seed that stale surface and then recover from a rejected
-    // copy: materialize the current CPU pixels into a correctly-sized surface
-    // before issuing any GPU operation.
-    if (original_destination != runtime::kInvalidRenderSurfaceHandle &&
-        original_destination != ctx.policy.native_video_encode_surface) {
-        const auto record = ctx.surface_registry->lookup(original_destination);
-        if (record &&
-            (record->desc.width != static_cast<std::uint32_t>(destination.width()) ||
-             record->desc.height != static_cast<std::uint32_t>(destination.height()))) {
-            spdlog::debug(
-                "[native-seed] replacing stale surface handle={} extent={}x{} "
-                "framebuffer={}x{}",
-                original_destination, record->desc.width, record->desc.height,
-                destination.width(), destination.height());
-            destination.clear_surface_handle();
-            destination.mark_cpu_authoritative();
-            return ensure_native_surface(ctx, destination,
-                                        "CompositeNode.seed.stale-extent");
-        }
-    }
-    if (!ensure_empty_native_surface(ctx, destination)) {
-        // The CPU framebuffer is still authoritative at this point. Promote
-        // it directly so native NVENC can proceed even when a backend cannot
-        // allocate an empty same-size target during startup.
-        if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
-            destination.clear_surface_handle();
-        }
-        return ensure_native_surface(ctx, destination,
-                                     "CompositeNode.seed.fallback");
-    }
-
-    // `copy_surface` maps to replace-mode composite on Vulkan. It preserves
-    // the source pixels exactly and avoids affine sampling/coordinate setup.
-    const auto seeded = ctx.backend->copy_surface(
-        destination.surface_handle(), source.surface_handle(), std::nullopt);
-    if (!seeded.ok()) {
-        // A rejected seed is a hard error at the only call site (see below):
-        // on a native backend, composite of a canvas-sized SourceOver chain is
-        // fail-closed and CPU fallback is forbidden by policy, so a per-frame
-        // warn here would spam without changing the outcome.  Log the first
-        // occurrences and roll up at 1000 boundaries instead.
-        static std::atomic<std::uint64_t> g_seed_failures{0};
-        const std::uint64_t nth =
-            g_seed_failures.fetch_add(1, std::memory_order_relaxed) + 1;
-        if (nth <= 3 || nth % 1000 == 0) {
-            const auto destination_record = ctx.surface_registry
-                ? ctx.surface_registry->lookup(destination.surface_handle())
-                : std::nullopt;
-            const auto source_record = ctx.surface_registry
-                ? ctx.surface_registry->lookup(source.surface_handle())
-                : std::nullopt;
-            spdlog::warn(
-                "[native-seed] copy_surface rejected by backend (failure #{}): "
-                "{}; destination_fb={}x{} handle={} registry={}x{}; "
-                "source_fb={}x{} handle={} registry={}x{}",
-                nth, seeded.error().message,
-                destination.width(), destination.height(),
-                destination.surface_handle(),
-                destination_record ? destination_record->desc.width : 0,
-                destination_record ? destination_record->desc.height : 0,
-                source.width(), source.height(), source.surface_handle(),
-                source_record ? source_record->desc.width : 0,
-                source_record ? source_record->desc.height : 0);
-        }
-        // Some Vulkan drivers reject a replace-copy while the destination is
-        // being imported into the CUDA/NVENC chain. The CPU pixels in
-        // `destination` are valid (acquire_owned_fb copied them above), so
-        // promote those pixels as a correctness-preserving native fallback.
-        // `ensure_native_surface` accepts a still-valid attached handle. A
-        // failed copy can mean that the handle is bound to a stale extent, so
-        // detach it before promoting the authoritative CPU copy. The old
-        // frame-transient resource remains owned by the frame registry and is
-        // reclaimed with the rest of this frame; other framebuffer aliases of
-        // the handle remain valid.
-        destination.clear_surface_handle();
-        destination.mark_cpu_authoritative();
-        return ensure_native_surface(ctx, destination,
-                                     "CompositeNode.seed.copy-fallback");
-    }
-    return true;
-}
-
-// materialize_native_or_fail() — the ensure(destination)+ensure(source)+
-// fail-closed dance shared by the operator and fallback composite branches.
-// On a native backend a materialization failure is a hard error: the GPU
-// program must never silently degrade to a CPU blend (P0.2 contract).
-[[nodiscard]] std::optional<NodeExecutionError> materialize_native_or_fail(
-    RenderGraphContext& ctx, Framebuffer& destination,
-    const Framebuffer& source, std::string_view context) {
-    if (!ctx.backend || !ctx.surface_registry ||
-        !ctx.backend->supports_native_surfaces()) {
-        return std::nullopt;
-    }
-    const bool destination_ready =
-        ensure_native_surface(ctx, destination, "CompositeNode.destination");
-    auto& mutable_source = const_cast<Framebuffer&>(source);
-    const bool source_ready =
-        ensure_native_surface(ctx, mutable_source, "CompositeNode.source");
-    if (!destination_ready || !source_ready) {
-        return NodeExecutionError{
-            RenderBackendErrorCode::ExecutionFailure,
-            "CompositeNode",
-            std::string(context) +
-            " could not materialize native surfaces; CPU fallback is forbidden"};
-    }
-    return std::nullopt;
-}
-
-} // namespace
 
 NodeExecResult CompositeNode::execute(
     RenderGraphContext& ctx,
@@ -500,7 +208,7 @@ NodeExecResult CompositeNode::execute(
         }
         result = ctx.acquire_owned_fb(*bottom);
         if (native_backend && result->surface_handle() != bottom->surface_handle()) {
-            if (!seed_native_destination(ctx, *result, *bottom)) {
+            if (!detail::seed_native_destination(ctx, *result, *bottom)) {
                 return NodeExecutionError{
                     RenderBackendErrorCode::ExecutionFailure,
                     "CompositeNode",
@@ -510,7 +218,7 @@ NodeExecResult CompositeNode::execute(
     } else {
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         if (ctx.backend) {
-            if (!try_native_affine_composite(ctx, *result, *bottom, std::nullopt)) {
+            if (!detail::try_native_affine_composite(ctx, *result, *bottom, std::nullopt)) {
                 // try_native_affine_composite returns false both when the
                 // native affine path is unavailable (software backend, or
                 // source/destination already same size) and when it failed.
@@ -616,12 +324,12 @@ NodeExecResult CompositeNode::execute(
 
         // Check if stencil/silhouette operator — these use the underlying
         // composite operator field instead of a blend mode when applicable.
-        const bool native_composite = try_native_composite(
+        const bool native_composite = detail::try_native_composite(
             ctx, *result, *top, m_mode, m_operator, clip);
         const bool native_dimension_composite = !native_composite &&
             m_mode == BlendMode::Normal &&
             m_operator == CompositeOperator::SourceOver &&
-            try_native_affine_composite(ctx, *result, *top, clip);
+            detail::try_native_affine_composite(ctx, *result, *top, clip);
         if (ctx.policy.require_native_gpu &&
             !native_composite && !native_dimension_composite) {
             if (std::getenv("CHRONON3D_PATH_DIAG"))
@@ -661,7 +369,7 @@ NodeExecResult CompositeNode::execute(
             // appropriate matte-style coverage to the backdrop.
             if (ctx.backend && ctx.surface_registry &&
                 ctx.backend->supports_native_surfaces()) {
-                if (auto err = materialize_native_or_fail(
+                if (auto err = detail::materialize_native_or_fail(
                         ctx, *result, *top,
                         "non-SourceOver composite")) {
                     return *err;
@@ -678,7 +386,7 @@ NodeExecResult CompositeNode::execute(
         // the framebuffer sentinel 0 and fails later in resolve_image().
         if (ctx.backend && ctx.surface_registry &&
             ctx.backend->supports_native_surfaces()) {
-            if (auto err = materialize_native_or_fail(
+            if (auto err = detail::materialize_native_or_fail(
                     ctx, *result, *top, "composite fallback")) {
                 return *err;
             }

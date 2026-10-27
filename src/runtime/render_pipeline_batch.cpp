@@ -18,7 +18,7 @@
 #include <chronon3d/backends/software/software_execution_context.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include "../render_graph/pipeline/temporal_render_pipeline.hpp"
+#include "../render_graph/pipeline/temporal/temporal_render_pipeline.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>

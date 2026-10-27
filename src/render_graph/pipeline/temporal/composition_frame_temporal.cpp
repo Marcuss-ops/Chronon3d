@@ -1,4 +1,4 @@
-#include "composition_frame_internal.hpp"
+#include "../composition_frame_internal.hpp"
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/tracing/tracing_categories.hpp>
 #include <chronon3d/animation/temporal/temporal_samples.hpp>

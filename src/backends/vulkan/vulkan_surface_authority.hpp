@@ -148,12 +148,7 @@ public:
     std::unordered_set<std::size_t> cuda_pending_surfaces{};
     std::unordered_set<std::size_t> cuda_ready_surfaces{};
 
-    bool acquire_pending_cuda_surface(std::size_t slot) {
-        if (!cuda_pending_surfaces.contains(slot)) return false;
-        cuda_ready_surfaces.insert(slot);
-        cuda_pending_surfaces.erase(slot);
-        return true;
-    }
+bool acquire_pending_cuda_surface(std::size_t slot);
     std::unordered_set<std::size_t> cuda_export_ready_surfaces{};
 #endif
     struct DeferredSurfaceRelease {
@@ -204,398 +199,125 @@ public:
     /// Register ``handle`` as a compiled occupant of ``slot``. Called for
     /// every allocation of the plan before the exact binds so the slot's
     /// group is exactly the plan's occupant set.
-    void register_planned_occupant(
-        std::size_t slot, runtime::RenderSurfaceHandle handle) {
-        if (handle == runtime::kInvalidRenderSurfaceHandle) {
-            return;
-        }
-        auto& occupants = planned_alias_groups[slot].occupants;
-        if (std::find(occupants.begin(), occupants.end(), handle) ==
-            occupants.end()) {
-            occupants.push_back(handle);
-        }
-    }
+void register_planned_occupant(
+        std::size_t slot, runtime::RenderSurfaceHandle handle);
 
     /// Convenience for callers/tests that know one alias pair explicitly.
-    void register_planned_alias(runtime::RenderSurfaceHandle handle_a,
+void register_planned_alias(runtime::RenderSurfaceHandle handle_a,
                                 runtime::RenderSurfaceHandle handle_b,
-                                std::size_t slot) {
-        if (handle_a == runtime::kInvalidRenderSurfaceHandle ||
-            handle_b == runtime::kInvalidRenderSurfaceHandle ||
-            handle_a == handle_b) {
-            return;
-        }
-        register_planned_occupant(slot, handle_a);
-        register_planned_occupant(slot, handle_b);
-    }
+                                std::size_t slot);
 
     /// The plan's alias declarations are per-plan, so the compiled batch
     /// rebuilds them from scratch at every bind.  Empties each group in place:
     /// map nodes and per-group capacity survive for the next rebuild.
-    void clear_planned_aliases() noexcept {
-        for (auto& entry : planned_alias_groups) {
-            entry.second.occupants.clear();
-        }
-    }
+void clear_planned_aliases() noexcept;
 
-    [[nodiscard]] bool is_registered_alias(
+[[nodiscard]] bool is_registered_alias(
         runtime::RenderSurfaceHandle handle,
         runtime::RenderSurfaceHandle other,
-        std::size_t slot) const noexcept {
-        // An alias is two DISTINCT valid handles of one plan group: a self-pair
-        // or an invalid handle never authorizes anything.
-        if (handle == runtime::kInvalidRenderSurfaceHandle ||
-            other == runtime::kInvalidRenderSurfaceHandle ||
-            handle == other) {
-            return false;
-        }
-        const auto it = planned_alias_groups.find(slot);
-        if (it == planned_alias_groups.end()) return false;
-        const auto& occupants = it->second.occupants;
-        return std::find(occupants.begin(), occupants.end(), handle) !=
-                   occupants.end() &&
-               std::find(occupants.begin(), occupants.end(), other) !=
-                   occupants.end();
-    }
+        std::size_t slot) const noexcept;
 
-    [[nodiscard]] bool valid(runtime::RenderSurfaceHandle handle) const noexcept {
-        const auto binding = surface_bindings.find(handle);
-        if (binding == surface_bindings.end()) return false;
-        const auto surface = physical_surfaces.find(binding->second);
-        return surface != physical_surfaces.end() &&
-               surface->second.image.image != VK_NULL_HANDLE;
-    }
+[[nodiscard]] bool valid(runtime::RenderSurfaceHandle handle) const noexcept;
 
-    [[nodiscard]] std::size_t physical_count() const noexcept {
-        return physical_surfaces.size();
-    }
+[[nodiscard]] std::size_t physical_count() const noexcept;
 
-    [[nodiscard]] std::size_t binding_count() const noexcept {
-        return surface_bindings.size();
-    }
+[[nodiscard]] std::size_t binding_count() const noexcept;
 
-    [[nodiscard]] std::size_t deferred_release_count() const noexcept {
-        return deferred_surface_releases.size();
-    }
+[[nodiscard]] std::size_t deferred_release_count() const noexcept;
 
     /// Record that the frame-batch slot ``slot`` referenced ``handle``.
-    void note_recording_slot(runtime::RenderSurfaceHandle handle,
-                             std::size_t slot) {
-        if (handle == runtime::kInvalidRenderSurfaceHandle ||
-            slot >= kFrameBatchSlotCount) {
-            return;
-        }
-        recording_slot_masks[handle] |= frame_slot_bit(slot);
-    }
+void note_recording_slot(runtime::RenderSurfaceHandle handle,
+                             std::size_t slot);
 
-    [[nodiscard]] std::uint8_t recording_slot_mask(
-        runtime::RenderSurfaceHandle handle) const noexcept {
-        const auto it = recording_slot_masks.find(handle);
-        return it == recording_slot_masks.end() ? std::uint8_t{0} : it->second;
-    }
+[[nodiscard]] std::uint8_t recording_slot_mask(
+        runtime::RenderSurfaceHandle handle) const noexcept;
 
-    [[nodiscard]] bool can_retire_surface(
-        runtime::RenderSurfaceHandle handle, std::span<const bool> busy) const noexcept {
-        return recording_slots_retired(recording_slot_mask(handle), busy);
-    }
+[[nodiscard]] bool can_retire_surface(
+        runtime::RenderSurfaceHandle handle, std::span<const bool> busy) const noexcept;
 
-    void forget_recording_slots(runtime::RenderSurfaceHandle handle) {
-        recording_slot_masks.erase(handle);
-    }
+void forget_recording_slots(runtime::RenderSurfaceHandle handle);
 
-    void enqueue_deferred_release(DeferredSurfaceRelease release) {
-        deferred_surface_releases.push_back(release);
-        pending_release_high_water = std::max(
-            pending_release_high_water,
-            static_cast<std::uint64_t>(deferred_surface_releases.size()));
-    }
+void enqueue_deferred_release(DeferredSurfaceRelease release);
 
-    void note_binding_created() noexcept {
-        retained_bindings_high_water = std::max(
-            retained_bindings_high_water,
-            static_cast<std::uint64_t>(surface_bindings.size()));
-    }
+void note_binding_created() noexcept;
 
-    void note_release_delay(std::uint64_t requested_frame_index,
-                            std::uint64_t released_frame_index) noexcept {
-        if (released_frame_index < requested_frame_index) return;
-        const auto delay = released_frame_index - requested_frame_index;
-        release_delay_frames = delay >
-                std::numeric_limits<std::uint64_t>::max() - release_delay_frames
-            ? std::numeric_limits<std::uint64_t>::max()
-            : release_delay_frames + delay;
-        release_delay_frames_high_water = std::max(
-            release_delay_frames_high_water, delay);
-    }
+void note_release_delay(std::uint64_t requested_frame_index,
+                            std::uint64_t released_frame_index) noexcept;
 
-    [[nodiscard]] bool note_overflow_if_needed(std::size_t capacity) noexcept {
-        if (deferred_surface_releases.size() <= capacity) return false;
-        ++overflow_wait_count;
-        return true;
-    }
+[[nodiscard]] bool note_overflow_if_needed(std::size_t capacity) noexcept;
 
     // ── Generation token (lock-free reads) ───────────────────────────────
 
-    [[nodiscard]] bool slot_token_tracked(std::size_t slot) const noexcept {
-        return slot < kTrackedSurfaceSlots;
-    }
+[[nodiscard]] bool slot_token_tracked(std::size_t slot) const noexcept;
 
-    [[nodiscard]] std::uint64_t slot_token(std::size_t slot) const noexcept {
-        return slot_token_tracked(slot)
-            ? slot_tokens[slot].load(std::memory_order_acquire)
-            : 0;
-    }
+[[nodiscard]] std::uint64_t slot_token(std::size_t slot) const noexcept;
 
-    void bump_slot_token(std::size_t slot) noexcept {
-        if (slot_token_tracked(slot)) {
-            slot_tokens[slot].fetch_add(1, std::memory_order_acq_rel);
-        }
-    }
+void bump_slot_token(std::size_t slot) noexcept;
 
     // ── Lease lifecycle (store lock held) ────────────────────────────────
 
     /// Pin the handle's physical slot and hand back the resolved image.
     /// Throws when the handle is not bound — a recording op must never
     /// silently record against a surface it never resolved.
-    [[nodiscard]] SurfaceLease acquire_lease(
-        runtime::RenderSurfaceHandle handle) {
-        const auto binding = surface_bindings.find(handle);
-        if (binding == surface_bindings.end()) {
-            throw std::invalid_argument(
-                "Vulkan recording lease references an unbound surface " +
-                std::to_string(handle));
-        }
-        const auto physical = physical_surfaces.find(binding->second);
-        if (physical == physical_surfaces.end()) {
-            throw std::invalid_argument(
-                "Vulkan recording lease has no backing physical image");
-        }
-        ++slot_pins[binding->second];
-        return SurfaceLease{&physical->second.image, binding->second,
-                            slot_token(binding->second), handle, true};
-    }
+[[nodiscard]] SurfaceLease acquire_lease(
+        runtime::RenderSurfaceHandle handle);
 
-    void release_lease(const SurfaceLease& lease) noexcept {
-        if (!lease.valid) return;
-        const auto it = slot_pins.find(lease.slot);
-        if (it == slot_pins.end()) return;
-        if (it->second > 1) {
-            --it->second;
-        } else {
-            slot_pins.erase(it);
-        }
-    }
+void release_lease(const SurfaceLease& lease) noexcept;
 
-    [[nodiscard]] bool slot_pinned(std::size_t slot) const noexcept {
-        const auto it = slot_pins.find(slot);
-        return it != slot_pins.end() && it->second != 0;
-    }
+[[nodiscard]] bool slot_pinned(std::size_t slot) const noexcept;
 
     /// Lock-free. A recording op calls this between the state lookup and the
     /// ring registration; false means the slot changed or was erased, so the
     /// lease must be re-acquired (or the op must fail loudly).
-    [[nodiscard]] bool revalidate(const SurfaceLease& lease) const noexcept {
-        if (!lease.valid || lease.image == nullptr) return false;
-        // Untracked slots (beyond the token array) rely on the pin alone.
-        if (!slot_token_tracked(lease.slot)) return true;
-        return slot_token(lease.slot) == lease.token;
-    }
+[[nodiscard]] bool revalidate(const SurfaceLease& lease) const noexcept;
 
-    void clear_leases() noexcept { slot_pins.clear(); }
+void clear_leases() noexcept;
 
     /// Writer-side half of the pin invariant: a slot under an in-flight
     /// recording lease must not be re-materialized or erased. Failing loudly
     /// here is strictly better than destroying a VkImage another thread is
     /// still recording into.
-    void require_not_leased(std::size_t slot, const char* mutation) const {
-        if (!slot_pinned(slot)) return;
-        throw std::logic_error(
-            std::string{"Vulkan surface slot "} + std::to_string(slot) +
-            " cannot " + mutation +
-            " while a recording lease holds it (audit N4 pin invariant)");
-    }
+void require_not_leased(std::size_t slot, const char* mutation) const;
 
-    [[nodiscard]] bool is_job_persistent(
-        runtime::RenderSurfaceHandle handle) const noexcept {
-        const auto binding = surface_bindings.find(handle);
-        if (binding == surface_bindings.end()) return false;
-        const auto physical = physical_surfaces.find(binding->second);
-        return physical != physical_surfaces.end() &&
-               physical->second.desc.lifetime == runtime::LifetimeClass::JobPersistent;
-    }
+[[nodiscard]] bool is_job_persistent(
+        runtime::RenderSurfaceHandle handle) const noexcept;
 
-    [[nodiscard]] bool slot_in_use(std::size_t slot) const noexcept {
-        for (const auto& [handle, bound_slot] : surface_bindings) {
-            (void)handle;
-            if (bound_slot == slot) return true;
-        }
-        return false;
-    }
+[[nodiscard]] bool slot_in_use(std::size_t slot) const noexcept;
 
-    [[nodiscard]] std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const {
-        const auto it = surface_bindings.find(handle);
-        if (it == surface_bindings.end()) {
-            throw std::invalid_argument(
-                "Vulkan surface handle " + std::to_string(handle) +
-                " is not bound to a physical slot (bindings=" +
-                std::to_string(surface_bindings.size()) +
-                ", physical_surfaces=" +
-                std::to_string(physical_surfaces.size()) + ")");
-        }
-        return it->second;
-    }
+[[nodiscard]] std::size_t bound_slot(runtime::RenderSurfaceHandle handle) const;
 
-    ImageT& resolve(runtime::RenderSurfaceHandle handle) {
-        const auto slot = bound_slot(handle);
-        const auto physical = physical_surfaces.find(slot);
-        if (physical == physical_surfaces.end()) {
-            throw std::invalid_argument("Vulkan physical slot has no backing image");
-        }
-        return physical->second.image;
-    }
+ImageT& resolve(runtime::RenderSurfaceHandle handle);
 
-    [[nodiscard]] bool slot_has_initialized_occupant(
-        std::size_t slot, runtime::RenderSurfaceHandle self) const noexcept {
-        const auto physical = physical_surfaces.find(slot);
-        if (physical == physical_surfaces.end() ||
-            !physical->second.image.initialized) {
-            return false;
-        }
-        for (const auto& [handle, bound_slot] : surface_bindings) {
-            if (handle != self && bound_slot == slot) return true;
-        }
-        return false;
-    }
+[[nodiscard]] bool slot_has_initialized_occupant(
+        std::size_t slot, runtime::RenderSurfaceHandle self) const noexcept;
 
     // Compiled/materialized path. The caller already has an exact physical
     // slot from CommandPlan/CompiledResourceTable. Placement is immutable here:
     // no pinning, diversion, reuse search or next_slot mutation is permitted.
-    ImageT& bind(runtime::RenderSurfaceHandle handle,
+ImageT& bind(runtime::RenderSurfaceHandle handle,
                  std::size_t slot,
                  const runtime::SurfaceDesc& desc,
-                 std::span<const runtime::RenderSurfaceHandle> planned_occupants = {}) {
-        require_owner();
-        return bind_planned_exact(handle, slot, desc, planned_occupants);
-    }
+                 std::span<const runtime::RenderSurfaceHandle> planned_occupants = {});
 
     // Explicit compatibility/unplanned path. This is the only API allowed to
     // select or reselect a physical slot dynamically. Demolition Debt exit
     // condition: compiled execution never calls ensure(); once all direct
     // callers are planned, this policy can be removed entirely.
-    ImageT& ensure(runtime::RenderSurfaceHandle handle,
-                   const runtime::SurfaceDesc& desc) {
-        require_owner();
-        if (handle == runtime::kInvalidRenderSurfaceHandle ||
-            (desc.format != runtime::PixelFormat::Rgba32Float &&
-             desc.format != runtime::PixelFormat::Rgba8Unorm &&
-             desc.format != runtime::PixelFormat::R8Unorm &&
-             desc.format != runtime::PixelFormat::Nv12 &&
-             desc.format != runtime::PixelFormat::P010) ||
-            desc.width == 0 || desc.height == 0) {
-            throw std::invalid_argument(
-                "Vulkan surface requires a valid non-empty description");
-        }
+ImageT& ensure(runtime::RenderSurfaceHandle handle,
+                   const runtime::SurfaceDesc& desc);
 
-        const auto binding = surface_bindings.find(handle);
-        if (binding != surface_bindings.end()) {
-            auto& physical = physical_surfaces.at(binding->second);
-            const bool exportable = desc.residency.exportable ||
-                                    desc.residency.encoder_compatible;
-            if (physical.image.image == VK_NULL_HANDLE ||
-                physical.image.width != desc.width ||
-                physical.image.height != desc.height ||
-                physical.desc.format != desc.format ||
-                physical.image.exportable != exportable) {
-                require_not_leased(binding->second, "re-materialize");
-                materializer_.materialize(physical.image, desc, exportable);
-                bump_slot_token(binding->second);
-                physical.desc = desc;
-            }
-            physical.image.text_atlas_encoding = desc.text_atlas_encoding;
-            owner_->ensure_descriptor_set();
-            return physical.image;
-        }
+void prune_unused_slots();
 
-        // Persistent assets never alias transient slots. For transients, prefer
-        // an exact compatible unused slot, then any unused transient slot.
-        if (desc.lifetime != runtime::LifetimeClass::JobPersistent) {
-            for (auto& [slot, physical] : physical_surfaces) {
-                if (!slot_in_use(slot) &&
-                    owner_->surface_compatible(physical.desc, desc)) {
-                    owner_->ensure_descriptor_set();
-                    return bind_unplanned(handle, slot, desc);
-                }
-            }
-            for (auto& [slot, physical] : physical_surfaces) {
-                if (!slot_in_use(slot) &&
-                    physical.desc.lifetime != runtime::LifetimeClass::JobPersistent) {
-                    owner_->ensure_descriptor_set();
-                    return bind_unplanned(handle, slot, desc);
-                }
-            }
-        }
-
-        owner_->ensure_descriptor_set();
-        return bind_unplanned(handle, next_slot++, desc);
-    }
-
-    void prune_unused_slots() {
-        prune_unused_slots_impl(false, kMaxRetainedTransientSlots);
-    }
-
-    void prune_unused_slots(std::size_t max_retained) {
-        prune_unused_slots_impl(false, max_retained);
-    }
+void prune_unused_slots(std::size_t max_retained);
 
     // A compiled plan can leave behind transient slots that were previously
     // bound by create_surface() but are no longer occupied after the backend
     // derives its content-aware placement. Reclaim those slots immediately;
     // the normal prune policy intentionally retains a warm pool.
-    void reclaim_unused_transient_slots() {
-        prune_unused_slots_impl(true, 0);
-    }
+void reclaim_unused_transient_slots();
 
 private:
-    void prune_unused_slots_impl(bool force, std::size_t max_retained) {
-        require_owner();
-        std::size_t unused_transient = 0;
-        for (const auto& [slot, physical] : physical_surfaces) {
-            (void)slot;
-            if (physical.desc.lifetime != runtime::LifetimeClass::JobPersistent &&
-                !slot_in_use(slot) && !slot_pinned(slot)) {
-                ++unused_transient;
-            }
-        }
-        if (!force && unused_transient <= max_retained) return;
-
-        for (auto it = physical_surfaces.begin(); it != physical_surfaces.end();) {
-            // A leased slot is skipped: destroying its image would pull the
-            // VkImage out from under an in-flight recording.
-            if (slot_in_use(it->first) || slot_pinned(it->first) ||
-                it->second.desc.lifetime == runtime::LifetimeClass::JobPersistent) {
-                ++it;
-                continue;
-            }
-            materializer_.destroy(it->second.image);
-            bump_slot_token(it->first);
-            it = physical_surfaces.erase(it);
-            --unused_transient;
-            if (unused_transient == 0 ||
-                (!force && unused_transient <= max_retained)) {
-                break;
-            }
-        }
-
-        std::size_t max_active_slot = 0;
-        for (const auto& [slot, physical] : physical_surfaces) {
-            max_active_slot = std::max(max_active_slot, slot);
-        }
-        if (!physical_surfaces.empty()) {
-            next_slot = std::max(max_active_slot + 1, kUnplannedSlotBase);
-        } else {
-            next_slot = kUnplannedSlotBase;
-        }
-    }
+void prune_unused_slots_impl(bool force, std::size_t max_retained);
 
 public:
     // ── Per-frame-batch-slot transient retirement ────────────────────────
@@ -614,13 +336,8 @@ public:
 
     /// Record a transient surface materialized while ``slot`` was the active
     /// frame-batch slot.  Idempotent: a handle appears at most once per slot.
-    void record_frame_slot_transient(std::size_t slot,
-                                     runtime::RenderSurfaceHandle handle) {
-        if (slot >= kFrameBatchSlotCount ||
-            handle == runtime::kInvalidRenderSurfaceHandle) return;
-        auto& list = frame_slot_transient_handles[slot];
-        if (std::find(list.begin(), list.end(), handle) == list.end()) list.push_back(handle);
-    }
+void record_frame_slot_transient(std::size_t slot,
+                                     runtime::RenderSurfaceHandle handle);
 
     /// Retire the handles recorded for a completed frame-batch slot: drop each
     /// logical binding and clear the retained image's ``initialized`` flag so
@@ -629,132 +346,25 @@ public:
     /// of bindings released so the caller can account for them.  Handles that
     /// were never recorded for this slot — host surfaces, another slot's
     /// transients, persistent assets — are never touched.
-    std::size_t retire_frame_slot_transients(
-        std::size_t slot, std::span<const bool> busy = {}) {
-        if (slot >= kFrameBatchSlotCount) return 0;
-        const detail::SurfaceRetirementCallbacks callbacks{
-            this,
-            [](void* context, std::size_t physical_slot) {
-                auto& authority = *static_cast<VulkanSurfaceAuthority*>(context);
-                const auto it = authority.physical_surfaces.find(physical_slot);
-                if (it != authority.physical_surfaces.end() &&
-                    !authority.slot_in_use(physical_slot)) {
-                    it->second.image.initialized = false;
-                }
-            },
-            [](void* context, std::size_t limit) {
-                static_cast<VulkanSurfaceAuthority*>(context)->prune_unused_slots(limit);
-            }};
-        return detail::retire_frame_slot_transients(
-            surface_bindings, unplanned_surface_handles, recording_slot_masks,
-            frame_slot_transient_handles, slot, busy, callbacks,
-            kMaxRetainedTransientSlots);
-    }
+std::size_t retire_frame_slot_transients(
+        std::size_t slot, std::span<const bool> busy = {});
 
 protected:
-    void require_owner() {
-        if (owner_ == nullptr) {
-            throw std::logic_error("Vulkan surface authority has no owner");
-        }
-        materializer_.set_owner(owner_);
-    }
+void require_owner();
 
-    ImageT& bind_planned_exact(runtime::RenderSurfaceHandle handle,
+ImageT& bind_planned_exact(runtime::RenderSurfaceHandle handle,
                                std::size_t slot,
                                const runtime::SurfaceDesc& desc,
                                std::span<const runtime::RenderSurfaceHandle>
-                                   planned_occupants) {
-        const auto previous = surface_bindings.find(handle);
-        if (previous != surface_bindings.end() && previous->second != slot) {
-            const auto old_surface = physical_surfaces.find(previous->second);
-            if (old_surface != physical_surfaces.end() &&
-                old_surface->second.image.initialized &&
-                old_surface->second.desc.lifetime !=
-                    runtime::LifetimeClass::FrameTransient) {
-                // The plan may re-slot a transient binding after its content
-                // has retired. Persistent or initialized external content is
-                // never silently replaced.
-                throw std::logic_error(
-                    "Vulkan planned persistent surface attempted to change physical slot");
-            }
-            surface_bindings.erase(previous);
-        }
+                                   planned_occupants);
 
-        // Planned graph resources must not alias a persistent video slot even
-        // before that slot has received its first GPU write.  The old check
-        // considered only initialized occupants, allowing the first plan
-        // materialization to steal the NVENC ring's physical image.
-        for (const auto& [bound_handle, bound_slot] : surface_bindings) {
-            const bool planned_alias = std::find(
-                planned_occupants.begin(), planned_occupants.end(), bound_handle) !=
-                planned_occupants.end();
-            if (bound_handle != handle && bound_slot == slot && !planned_alias &&
-                !is_registered_alias(handle, bound_handle, slot)) {
-                throw std::logic_error(
-                    "Vulkan planned surface physical slot is already reserved");
-            }
-        }
-        return materialize_binding(handle, slot, desc);
-    }
-
-    ImageT& bind_unplanned(runtime::RenderSurfaceHandle handle,
+ImageT& bind_unplanned(runtime::RenderSurfaceHandle handle,
                            std::size_t slot,
-                           const runtime::SurfaceDesc& desc) {
-        const auto previous = surface_bindings.find(handle);
-        if (previous != surface_bindings.end() && previous->second != slot) {
-            const auto old_slot = previous->second;
-            const auto old_it = physical_surfaces.find(old_slot);
-            const bool pinned = old_it != physical_surfaces.end() &&
-                                old_it->second.image.initialized;
-            if (pinned) {
-                slot = old_slot;
-            } else {
-                surface_bindings.erase(previous);
-            }
-        }
-        // A logical binding reserves its physical slot even before the image
-        // has received its first upload.  Checking only initialized occupants
-        // lets a transient graph surface alias a persistent NVENC/source
-        // surface during the first frame; retiring the transient then clears
-        // the shared image and invalidates the encode ring on frame four.
-        while (slot_in_use(slot) ||
-               (physical_surfaces.contains(slot) &&
-                physical_surfaces.at(slot).desc.lifetime ==
-                    runtime::LifetimeClass::JobPersistent)) {
-            slot = next_slot++;
-        }
-        return materialize_binding(handle, slot, desc);
-    }
+                           const runtime::SurfaceDesc& desc);
 
-    ImageT& materialize_binding(runtime::RenderSurfaceHandle handle,
+ImageT& materialize_binding(runtime::RenderSurfaceHandle handle,
                                 std::size_t slot,
-                                const runtime::SurfaceDesc& desc) {
-        require_not_leased(slot, "be re-materialized");
-        auto& physical = physical_surfaces[slot];
-        owner_->stats.physical_surfaces_peak = std::max(
-            owner_->stats.physical_surfaces_peak,
-            static_cast<std::uint64_t>(physical_surfaces.size()));
-
-        // DEMOLISHED (P1.4): the plan_preallocated fast-path was dead —
-        // plan_preallocated was always false.  Lazy materialization below is
-        // the only path.
-
-        const bool exportable = desc.residency.exportable ||
-                                desc.residency.encoder_compatible;
-        if (physical.image.image == VK_NULL_HANDLE ||
-            physical.image.width != desc.width ||
-            physical.image.height != desc.height ||
-            physical.desc.format != desc.format ||
-            physical.image.exportable != exportable) {
-            materializer_.materialize(physical.image, desc, exportable);
-        }
-        physical.desc = desc;
-        physical.image.text_atlas_encoding = desc.text_atlas_encoding;
-        surface_bindings[handle] = slot;
-        note_binding_created();
-        bump_slot_token(slot);
-        return physical.image;
-    }
+                                const runtime::SurfaceDesc& desc);
 };
 
 } // namespace chronon3d::backends::vulkan
