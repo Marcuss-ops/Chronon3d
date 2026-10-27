@@ -53,7 +53,7 @@ tracked in [`TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`](tickets/TICKET-WAVE-CLOSEOUT
 | ID | Area | Stato | Scheda |
 |---|---|---|---|
 | TICKET-MAIN-TRUTH-STAGE-1-2 | main/build/docs | BLOCKED | [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md) — remote Chronon3D jobs do not allocate a runner; restore runner dispatch, then certify the reviewed SHA |
-| TEST-FONT-ASSET-PATH / CERT-SEQUENCE-WBH | testing/cert | PARTIAL | [TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) + [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — font/asset fixture debt RESOLVED; protocol and toolchain manifest delivered; clean same-SHA WBH certification remains |
+| CERT-SEQUENCE-WBH | testing/cert | PARTIAL | [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — protocol, toolchain manifest and local qualification delivered; clean same-SHA certification remains |
 | FFMPEG-PIPE-SINK-DEMOLITION | video cleanup | BLOCKED | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — exits 2/4/5 verified 2026-10-23 (zero pipe callers, anti-resurrection gate 209/209); exit 3 CI-green evidence outstanding |
 | FUSED-STORAGE-IMAGE-DEMOLITION | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; one same-SHA native-image video certificate is PASS, broader overlay corpus parity remains |
 
