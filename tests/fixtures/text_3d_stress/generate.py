@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / "plans"
+OUT = HERE / "generated"
 OUT.mkdir(parents=True, exist_ok=True)
 W, H, N = 960, 540, 72
 FONT = "assets/fonts/Inter-Bold.ttf"

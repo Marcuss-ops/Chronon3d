@@ -13,7 +13,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PLAN = ROOT / "tests/fixtures/svg_motion_showcase/scene.plan.json"
+PLAN_BASE = ROOT / "tests/fixtures/svg_motion_showcase/scene.plan.base.json"
+PLAN_GENERATOR = ROOT / "tests/fixtures/svg_motion_showcase/generate_plan.py"
 FRAME_BYTES = 1920 * 1080 * 4
 
 
@@ -86,14 +87,16 @@ def main() -> int:
     assets_root = args.assets_root.resolve()
     if not cli.is_file():
         parser.error(f"Chronon3D CLI does not exist: {cli}")
-    if not PLAN.is_file():
-        parser.error(f"showcase plan does not exist: {PLAN}")
+    if not PLAN_BASE.is_file() or not PLAN_GENERATOR.is_file():
+        parser.error(f"showcase plan source or generator is missing: {PLAN_BASE}")
 
     with tempfile.TemporaryDirectory(prefix="chronon-svg-showcase-") as temporary:
+        plan_path = Path(temporary) / "scene.plan.json"
+        run_checked([sys.executable, str(PLAN_GENERATOR), str(PLAN_BASE), str(plan_path)], cwd=ROOT)
         outputs = [Path(temporary) / f"showcase-{index}.mp4" for index in (1, 2)]
         for output in outputs:
             command = [
-                str(cli), "render", "--plan", str(PLAN), "--assets-root",
+                str(cli), "render", "--plan", str(plan_path), "--assets-root",
                 str(assets_root), "--backend", "software", "--encoder-backend",
                 "pipe", "--output", str(output),
             ]

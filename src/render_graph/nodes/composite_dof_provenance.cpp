@@ -21,7 +21,7 @@ void publish_dof_provenance_native(
     const std::optional<raster::BBox>& clip,
     i32 framebuffer_width, i32 framebuffer_height) {
     if (!ctx.backend || !ctx.surface_registry ||
-        !ctx.backend->supports_native_surfaces()) {
+        !ctx.backend_stats_api()->supports_native_surfaces()) {
         return;
     }
     if (layer.surface_handle() == runtime::kInvalidRenderSurfaceHandle) return;
@@ -31,7 +31,7 @@ void publish_dof_provenance_native(
         auto depth = std::make_shared<Framebuffer>(framebuffer_width, framebuffer_height);
         bool ready = ensure_empty_native_surface(ctx, *depth);
         // Empty clip rect + reset: every pixel becomes the "no depth" sentinel.
-        ready = ready && ctx.backend->dof_depth_stamp_surface(
+        ready = ready && ctx.backend_surface_api()->dof_depth_stamp_surface(
             depth->surface_handle(), layer.surface_handle(),
             0.0f, -1.0f, 0, 0, 0, 0, 0, 0, true).ok();
         if (!ready) {
@@ -46,7 +46,7 @@ void publish_dof_provenance_native(
     const i32 cy0 = std::clamp(clip ? clip->y0 : 0, 0, framebuffer_height);
     const i32 cx1 = std::clamp(clip ? clip->x1 : framebuffer_width, 0, framebuffer_width);
     const i32 cy1 = std::clamp(clip ? clip->y1 : framebuffer_height, 0, framebuffer_height);
-    const auto stamp = ctx.backend->dof_depth_stamp_surface(
+    const auto stamp = ctx.backend_surface_api()->dof_depth_stamp_surface(
         native.surface->surface_handle(), layer.surface_handle(),
         camera_depth, source_radius, cx0, cy0, cx1, cy1,
         layer.origin_x(), layer.origin_y(), false);

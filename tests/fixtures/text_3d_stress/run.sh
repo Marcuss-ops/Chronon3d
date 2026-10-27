@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../" && pwd)"
 CLI="$ROOT/Chronon3d/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli"
-PLAN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/plans" && pwd)"
+PLAN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/generated" && pwd)"
 OUT="$ROOT/ChrononTemplate/out/text_3d_stress_suite_v1"
 mkdir -p "$OUT"
 [[ -x "$CLI" ]] || { echo "Missing built CLI: $CLI" >&2; exit 2; }

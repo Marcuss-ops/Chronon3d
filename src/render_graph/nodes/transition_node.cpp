@@ -139,7 +139,7 @@ NodeExecResult TransitionNode::execute(
 
     const bool has_native_backend = ctx.backend &&
                                     ctx.surface_registry &&
-                                    ctx.backend->supports_native_surfaces();
+                                    ctx.backend_stats_api()->supports_native_surfaces();
 
     if (m_spec.transition_id.empty() || m_spec.transition_id == "none") {
         if (has_native_backend &&
@@ -149,7 +149,7 @@ NodeExecResult TransitionNode::execute(
             const bool src_ready = ensure_native_surface(ctx, mutable_src, "TransitionNode.none.source");
             const bool dst_ready = ensure_native_surface(ctx, *out_fb, "TransitionNode.none.destination");
             if (src_ready && dst_ready) {
-                auto res = ctx.backend->copy_surface(out_fb->surface_handle(), src->surface_handle());
+                auto res = ctx.backend_surface_api()->copy_surface(out_fb->surface_handle(), src->surface_handle());
                 if (res.ok()) {
                     out_fb->mark_gpu_authoritative();
                     return NodeExecResult{std::move(out_fb)};
@@ -200,7 +200,7 @@ NodeExecResult TransitionNode::execute(
                         "' surfaces could not be materialized"};
                 }
             } else {
-                auto res = ctx.backend->transform_surface(
+                auto res = ctx.backend_surface_api()->transform_surface(
                     out_fb->surface_handle(), src->surface_handle(),
                     blend.offset_x, blend.offset_y, blend.opacity);
                 if (res.ok()) {

@@ -475,7 +475,7 @@ SVG merge is subpath concatenation, not a boolean geometry operation.
   frame 10 `027e5a800091544efb3437baebcdd771f6a0bae1bfe5e07d518dbfdc574c6f69`;
   two complete gate renders match.
 - The 1920×1080, 30 fps, 12 second company-growth showcase was freshly rendered
-  from `tests/fixtures/svg_motion_showcase/scene.plan.json` and visually checked
+  from the generated `tests/fixtures/svg_motion_showcase/scene.plan.base.json` fixture and visually checked
   at frames 12, 180 and 359. Their decoded PNG SHA-256 values are respectively
   `348d551abda64ac270b56b9e401f65192d7fc24d1d55db9665215ff815f8bf51`,
   `845e2ad53305420577e7157f8366c259856789658b46e66bd549fa69b86b5285`, and

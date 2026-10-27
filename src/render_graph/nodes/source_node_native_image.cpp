@@ -408,7 +408,7 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     transform.clip_rect[2] = static_cast<std::int32_t>(local_clip.x1);
     transform.clip_rect[3] = static_cast<std::int32_t>(local_clip.y1);
 
-    const auto result = ctx.backend->transform_surface_affine(
+    const auto result = ctx.backend_surface_api()->transform_surface_affine(
         fb.surface_handle(), src_handle, transform);
     if (!result.ok()) {
         release_native_surface(ctx, fb);

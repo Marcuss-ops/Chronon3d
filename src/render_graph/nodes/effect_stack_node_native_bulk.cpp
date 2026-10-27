@@ -60,13 +60,13 @@ inline runtime::RenderSurfaceHandle bulk_alloc_destination(RenderGraphContext& c
     const bool has_borrowed = borrowed_source != runtime::kInvalidRenderSurfaceHandle;
     const bool has_result_surface =
         result.surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-        ctx.backend->is_native_surface_valid(result.surface_handle());
+        ctx.backend_surface_api()->is_native_surface_valid(result.surface_handle());
     if (!has_borrowed && !has_result_surface) return runtime::kInvalidRenderSurfaceHandle;
     source_out = has_borrowed ? borrowed_source : result.surface_handle();
     const auto desc = native_surface_desc(ctx, result.width(), result.height());
     const auto destination = ctx.surface_registry->create(desc);
     if (destination == runtime::kInvalidRenderSurfaceHandle) return destination;
-    if (!ctx.backend->create_surface(destination, desc).ok()) {
+    if (!ctx.backend_surface_api()->create_surface(destination, desc).ok()) {
         ctx.surface_registry->release(destination);
         return runtime::kInvalidRenderSurfaceHandle;
     }
@@ -75,7 +75,7 @@ inline runtime::RenderSurfaceHandle bulk_alloc_destination(RenderGraphContext& c
 
 inline void bulk_release_surface(RenderGraphContext& ctx,
                             runtime::RenderSurfaceHandle h) {
-    (void)ctx.backend->release_surface(h);
+    (void)ctx.backend_surface_api()->release_surface(h);
     ctx.surface_registry->release(h);
 }
 
@@ -96,11 +96,11 @@ inline runtime::RenderSurfaceHandle bulk_upload_aux(RenderGraphContext& ctx,
     const auto desc = native_surface_desc(ctx, w, h);
     const auto aux = ctx.surface_registry->create(desc);
     if (aux == runtime::kInvalidRenderSurfaceHandle) return aux;
-    if (!ctx.backend->create_surface(aux, desc).ok()) {
+    if (!ctx.backend_surface_api()->create_surface(aux, desc).ok()) {
         ctx.surface_registry->release(aux);
         return runtime::kInvalidRenderSurfaceHandle;
     }
-    if (!ctx.backend->upload_surface(aux, desc, rgba).ok()) {
+    if (!ctx.backend_surface_api()->upload_surface(aux, desc, rgba).ok()) {
         bulk_release_surface(ctx, aux);
         return runtime::kInvalidRenderSurfaceHandle;
     }
@@ -145,7 +145,7 @@ bool try_native_full_frame_radial_blur(RenderGraphContext& ctx,
         p->center.x * static_cast<float>(std::max(0, result.width() - 1)) + 0.5f;
     const float cy_px =
         p->center.y * static_cast<float>(std::max(0, result.height() - 1)) + 0.5f;
-    const auto dispatched = ctx.backend->radial_blur_surface(
+    const auto dispatched = ctx.backend_surface_api()->radial_blur_surface(
         destination, source, cx_px, cy_px, p->amount, taps);
     if (!dispatched.ok()) {
         bulk_release_surface(ctx, destination);
@@ -451,7 +451,7 @@ bool try_native_full_frame_warp_bulk(RenderGraphContext& ctx,
     const auto destination = bulk_alloc_destination(ctx, result, borrowed_source, source);
     if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
     const auto aux = (bulk.mode == 12) ? map_source : source;
-    const auto dispatched = ctx.backend->warp_bulk_surface(destination, source, aux, bulk);
+    const auto dispatched = ctx.backend_surface_api()->warp_bulk_surface(destination, source, aux, bulk);
     if (!dispatched.ok()) {
         bulk_release_surface(ctx, destination);
         return false;
@@ -613,7 +613,7 @@ bool try_native_full_frame_generate_bulk(RenderGraphContext& ctx,
     runtime::RenderSurfaceHandle source = runtime::kInvalidRenderSurfaceHandle;
     const auto destination = bulk_alloc_destination(ctx, result, borrowed_source, source);
     if (destination == runtime::kInvalidRenderSurfaceHandle) return false;
-    const auto dispatched = ctx.backend->generate_bulk_surface(destination, source, bulk);
+    const auto dispatched = ctx.backend_surface_api()->generate_bulk_surface(destination, source, bulk);
     if (!dispatched.ok()) {
         bulk_release_surface(ctx, destination);
         return false;
@@ -675,7 +675,7 @@ bool try_native_full_frame_lut_bulk(RenderGraphContext& ctx,
             bulk_release_surface(ctx, destination);
             return false;
         }
-        const auto dispatched = ctx.backend->lut_bulk_surface(destination, source, aux, bulk);
+        const auto dispatched = ctx.backend_surface_api()->lut_bulk_surface(destination, source, aux, bulk);
         bulk_release_surface(ctx, aux);
         if (!dispatched.ok()) {
             bulk_release_surface(ctx, destination);
@@ -732,7 +732,7 @@ bool try_native_full_frame_lut_bulk(RenderGraphContext& ctx,
             bulk_release_surface(ctx, destination);
             return false;
         }
-        const auto dispatched = ctx.backend->lut_bulk_surface(destination, source, aux, bulk);
+        const auto dispatched = ctx.backend_surface_api()->lut_bulk_surface(destination, source, aux, bulk);
         bulk_release_surface(ctx, aux);
         if (!dispatched.ok()) {
             bulk_release_surface(ctx, destination);

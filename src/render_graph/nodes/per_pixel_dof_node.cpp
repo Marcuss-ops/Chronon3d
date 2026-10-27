@@ -234,7 +234,7 @@ NodeExecResult PerPixelDofNode::execute(
         const bool has_native_source =
             input.surface_handle() != runtime::kInvalidRenderSurfaceHandle;
         const bool can_copy_native = ctx.backend && ctx.surface_registry &&
-            ctx.backend->supports_native_surfaces() &&
+            ctx.backend_stats_api()->supports_native_surfaces() &&
             (ctx.policy.require_native_gpu || has_native_source);
         if (can_copy_native) {
             auto& mutable_input = const_cast<Framebuffer&>(input);
@@ -261,21 +261,21 @@ NodeExecResult PerPixelDofNode::execute(
                 return OwnedFB{};
             }
             copy->set_surface_handle(native_handle);
-            const auto created = ctx.backend->create_surface(
+            const auto created = ctx.backend_surface_api()->create_surface(
                 native_handle, source_record->desc);
             if (!created.ok()) {
-                (void)ctx.backend->release_surface(native_handle);
+                (void)ctx.backend_surface_api()->release_surface(native_handle);
                 (void)ctx.surface_registry->release(native_handle);
                 copy->clear_surface_handle();
                 native_clone_failed = true;
                 return OwnedFB{};
             }
-            const auto copied = ctx.backend->copy_surface(
+            const auto copied = ctx.backend_surface_api()->copy_surface(
                 native_handle, input.surface_handle());
             if (!copied.ok()) {
                 spdlog::error("[PerPixelDofNode] native pass-through copy failed: {}",
                               copied.error().message);
-                (void)ctx.backend->release_surface(native_handle);
+                (void)ctx.backend_surface_api()->release_surface(native_handle);
                 (void)ctx.surface_registry->release(native_handle);
                 copy->clear_surface_handle();
                 native_clone_failed = true;
@@ -346,7 +346,7 @@ NodeExecResult PerPixelDofNode::execute(
         // publish_dof_provenance_native). A mix of CPU and native depth cannot
         // be blurred correctly, so it is reported instead of approximated.
         if (native_depth_partial || !ctx.backend || !ctx.surface_registry ||
-            !ctx.backend->supports_native_surfaces()) {
+            !ctx.backend_stats_api()->supports_native_surfaces()) {
             return NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
                 "PerPixelDofNode",
@@ -390,12 +390,12 @@ NodeExecResult PerPixelDofNode::execute(
 
         const auto depth_handle = native_depth.surface->surface_handle();
         const bool normalize_opaque = blurred->is_opaque();
-        const auto horizontal = ctx.backend->dof_blur_surface(
+        const auto horizontal = ctx.backend_surface_api()->dof_blur_surface(
             scratch->surface_handle(), blurred->surface_handle(), depth_handle,
             false, roi.x0, roi.y0, roi.x1, roi.y1,
             coverage.max_radius, normalize_opaque);
         const auto vertical = horizontal.ok()
-            ? ctx.backend->dof_blur_surface(
+            ? ctx.backend_surface_api()->dof_blur_surface(
                   blurred->surface_handle(), scratch->surface_handle(), depth_handle,
                   true, roi.x0, roi.y0, roi.x1, roi.y1,
                   coverage.max_radius, normalize_opaque)
@@ -503,7 +503,7 @@ NodeExecResult PerPixelDofNode::execute(
         // alloc go away.  Implicit C++20 range-to-span conversion would also
         // work, but explicit construction documents intent and guards
         // against future type drift on `dof_depth`.
-        ctx.backend->apply_per_pixel_dof(
+        ctx.backend_frame_api()->apply_per_pixel_dof(
             *result, std::span<const float>{dof_depth},
             evaluated_dof, camera.lens, clip);
     }

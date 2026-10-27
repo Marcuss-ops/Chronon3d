@@ -154,6 +154,10 @@ struct EffectProcessorHandle;
 
 namespace chronon3d::graph {
 class RenderBackend;
+class RenderBackendStatsApi;
+class RenderBackendFrameApi;
+class RenderBackendSurfaceApi;
+class RenderBackendTextureApi;
 struct NodeExecutionError;
 class CompiledGraphCache;
 class CompiledSceneProgram;
@@ -570,6 +574,10 @@ struct RenderGraphContext {
 
     /// Execution-time backend access through the typed context seam.
     [[nodiscard]] RenderBackend* execution_backend() const noexcept;
+    [[nodiscard]] RenderBackendStatsApi* backend_stats_api() const noexcept;
+    [[nodiscard]] RenderBackendFrameApi* backend_frame_api() const noexcept;
+    [[nodiscard]] RenderBackendSurfaceApi* backend_surface_api() const noexcept;
+    [[nodiscard]] RenderBackendTextureApi* backend_texture_api() const noexcept;
     [[nodiscard]] std::shared_ptr<cache::FramebufferPool>
     execution_framebuffer_pool() const noexcept;
     [[nodiscard]] cache::NodeCache* execution_node_cache() const noexcept;

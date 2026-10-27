@@ -12,7 +12,8 @@
   trail. The central mark has a topology-matched three-state SVG path morph.
   A restrained camera push-in runs on the same composition timeline.
 - Sources: `company_growth.svg` contains the diagram and stable target IDs;
-  `scene.plan.json` contains the camera and typography. The font reference uses
+  `scene.plan.base.json` contains the camera and typography; `generate_plan.py`
+  expands the deterministic camera motion into frame samples when rendering. The font reference uses
   the existing `tests/fixtures/Inter-Bold.ttf` fixture asset; its embedded
   metadata identifies the face as Roboto Bold. The repository bootstrap pins
   this test asset to the `google/fonts` snapshot in
@@ -40,8 +41,10 @@ From the repository root, run with an SVG and native FFmpeg enabled Chronon3D
 CLI:
 
 ```sh
+python3 tests/fixtures/svg_motion_showcase/generate_plan.py \
+  tests/fixtures/svg_motion_showcase/scene.plan.base.json /tmp/scene.plan.json
 chronon3d_cli render \
-  --plan tests/fixtures/svg_motion_showcase/scene.plan.json \
+  --plan /tmp/scene.plan.json \
   --assets-root . --backend software \
   --encoder-backend pipe \
   --output outputs/svg_motion_showcase/company_growth.mp4

@@ -6,10 +6,14 @@ fixture_dir=$(cd "$(dirname "$0")" && pwd)
 out_dir=$(mktemp -d "${TMPDIR:-/tmp}/chronon-image-residency.XXXXXX")
 trap 'rm -rf "$out_dir"' EXIT
 
+python3 "$fixture_dir/generate_camera_plan.py" "$out_dir/camera-only.plan.json"
+
 for backend in software vulkan; do
   for plan in static animated camera-only; do
+    plan_path="$fixture_dir/$plan.plan.json"
+    [[ "$plan" != camera-only ]] || plan_path="$out_dir/camera-only.plan.json"
     for frame in 75 149; do
-      "$cli" render --plan "$fixture_dir/$plan.plan.json" \
+      "$cli" render --plan "$plan_path" \
         --assets-root "$fixture_dir" --backend "$backend" \
         --start-frame "$frame" --end-frame "$frame" \
         --output "$out_dir/$plan-$backend-$frame.mp4" --report

@@ -105,7 +105,7 @@ bool try_native_rect_fill(RenderGraphContext& ctx, Framebuffer& fb,
         return true;  // fully off-canvas: surface attached, nothing to fill
     }
 
-    const auto result = ctx.backend->fill_rect_surface(
+    const auto result = ctx.backend_surface_api()->fill_rect_surface(
         fb.surface_handle(), x0, y0, x1, y1, fill_color);
     if (!result.ok()) {
         release_native_surface(ctx, fb);

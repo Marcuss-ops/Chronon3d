@@ -552,3 +552,33 @@ exclude_paths = [
   "^docs/ROADMAP\\.md$",
 ]
 allow_missing = []
+
+[[contract]]
+name = "render_backend_stats_api_domain"
+file = "include/chronon3d/render_graph/render_backend_stats_api.hpp"
+required_patterns = ["class RenderBackendStatsApi", "lane_name", "capabilities", "counters"]
+
+[[contract]]
+name = "render_backend_frame_api_domain"
+file = "include/chronon3d/render_graph/render_backend_frame_api.hpp"
+required_patterns = ["class RenderBackendFrameApi", "begin_frame_batch", "apply_per_pixel_dof"]
+
+[[contract]]
+name = "render_backend_surface_api_domain"
+file = "include/chronon3d/render_graph/render_backend_surface_api.hpp"
+required_patterns = ["class RenderBackendSurfaceApi", "create_surface", "upload_surface", "composite_surfaces"]
+
+[[contract]]
+name = "render_backend_texture_api_domain"
+file = "include/chronon3d/render_graph/render_backend_texture_api.hpp"
+required_patterns = ["class RenderBackendTextureApi", "draw_text_batch", "execute_layer_batch"]
+
+[[contract]]
+name = "render_backend_facade_composes_domain_apis"
+file = "include/chronon3d/render_graph/render_backend.hpp"
+required_patterns = [
+  "class RenderBackend : public RenderBackendStatsApi",
+  "public RenderBackendFrameApi",
+  "public RenderBackendSurfaceApi",
+  "public RenderBackendTextureApi",
+]

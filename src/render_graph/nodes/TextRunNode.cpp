@@ -111,7 +111,7 @@ NodeExecResult TextRunNode::execute(
         auto empty = ctx.acquire_owned_fb(
             ctx.frame_input.width, ctx.frame_input.height, /*clear=*/true);
         if (ctx.backend && ctx.surface_registry &&
-            ctx.backend->supports_native_surfaces() &&
+            ctx.backend_stats_api()->supports_native_surfaces() &&
             !ensure_empty_native_surface(ctx, *empty)) {
             return NodeExecResult{NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
@@ -125,7 +125,7 @@ NodeExecResult TextRunNode::execute(
         !ctx.frame_input.has_camera_2_5d) {
         auto cached = ctx.acquire_owned_fb(*m_cached_result);
         if (ctx.backend && ctx.surface_registry &&
-            ctx.backend->supports_native_surfaces() &&
+            ctx.backend_stats_api()->supports_native_surfaces() &&
             !ensure_native_surface(ctx, *cached, "TextRunNode.cache")) {
             return NodeExecResult{NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
@@ -167,7 +167,7 @@ NodeExecResult TextRunNode::execute(
               surface_width, surface_height, /*clear=*/true)
         : ctx.acquire_owned_fb(surface_width, surface_height, /*clear=*/true);
     if (ctx.backend && ctx.surface_registry &&
-        ctx.backend->supports_native_surfaces() &&
+        ctx.backend_stats_api()->supports_native_surfaces() &&
         !ensure_empty_native_surface(ctx, *fb)) {
         return NodeExecResult{NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,

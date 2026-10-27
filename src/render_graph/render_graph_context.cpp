@@ -1,4 +1,5 @@
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 
 namespace chronon3d::graph {
 
@@ -39,6 +40,22 @@ const DofSourceCoverage& NodeExecutionContext::dof_sources() const noexcept {
 }
 
 RenderBackend* RenderGraphContext::execution_backend() const noexcept {
+    return backend;
+}
+
+RenderBackendStatsApi* RenderGraphContext::backend_stats_api() const noexcept {
+    return backend;
+}
+
+RenderBackendFrameApi* RenderGraphContext::backend_frame_api() const noexcept {
+    return backend;
+}
+
+RenderBackendSurfaceApi* RenderGraphContext::backend_surface_api() const noexcept {
+    return backend;
+}
+
+RenderBackendTextureApi* RenderGraphContext::backend_texture_api() const noexcept {
     return backend;
 }
 

@@ -29,7 +29,7 @@ NodeExecResult ShadowNode::execute_native(
     };
 
     if (!ctx.backend || !ctx.surface_registry ||
-        !ctx.backend->supports_native_surfaces()) {
+        !ctx.backend_stats_api()->supports_native_surfaces()) {
         return fail(RenderBackendErrorCode::UnsupportedCapability,
                     "native shadow pass requires a native surface backend");
     }
@@ -45,7 +45,7 @@ NodeExecResult ShadowNode::execute_native(
     const bool source_is_native =
         source_handle != runtime::kInvalidRenderSurfaceHandle &&
         ctx.surface_registry->lookup(source_handle).has_value() &&
-        ctx.backend->is_native_surface_valid(source_handle);
+        ctx.backend_surface_api()->is_native_surface_valid(source_handle);
     if (!source_is_native || source.is_cpu_authoritative()) {
         if (!source.data() || !source.is_cpu_authoritative()) {
             return fail(RenderBackendErrorCode::UnsupportedCapability,
@@ -138,19 +138,19 @@ NodeExecResult ShadowNode::execute_native(
         const int layer_dy = static_cast<int>(std::round(dy * offset_scale));
         const float alpha = std::clamp(
             m_settings.opacity * layer_opacity * opacity_scale, 0.0f, 1.0f);
-        auto shifted_result = ctx.backend->transform_surface(
+        auto shifted_result = ctx.backend_surface_api()->transform_surface(
             shifted->surface_handle(), native_source->surface_handle(),
             native_source->origin_x() + layer_dx,
             native_source->origin_y() + layer_dy, alpha);
         if (!shifted_result.ok()) return shifted_result;
-        auto tint_result = ctx.backend->color_transform_surface(
+        auto tint_result = ctx.backend_surface_api()->color_transform_surface(
             tinted->surface_handle(), shifted->surface_handle(), colorize);
         if (!tint_result.ok()) return tint_result;
-        auto horizontal = ctx.backend->blur_surface(
+        auto horizontal = ctx.backend_surface_api()->blur_surface(
             blur_scratch->surface_handle(), tinted->surface_handle(),
             blur_radius, true);
         if (!horizontal.ok()) return horizontal;
-        return ctx.backend->blur_surface(
+        return ctx.backend_surface_api()->blur_surface(
             blurred->surface_handle(), blur_scratch->surface_handle(),
             blur_radius, false);
     };
@@ -160,7 +160,7 @@ NodeExecResult ShadowNode::execute_native(
     if (!contact.ok()) {
         return fail(contact.error().code, contact.error().message);
     }
-    auto composed = ctx.backend->composite_surfaces(
+    auto composed = ctx.backend_surface_api()->composite_surfaces(
         output->surface_handle(), blurred->surface_handle(),
         BlendMode::Normal, CompositeOperator::SourceOver);
     if (!composed.ok()) {
@@ -172,7 +172,7 @@ NodeExecResult ShadowNode::execute_native(
     if (!ambient.ok()) {
         return fail(ambient.error().code, ambient.error().message);
     }
-    composed = ctx.backend->composite_surfaces(
+    composed = ctx.backend_surface_api()->composite_surfaces(
         output->surface_handle(), blurred->surface_handle(),
         BlendMode::Normal, CompositeOperator::SourceOver);
     if (!composed.ok()) {

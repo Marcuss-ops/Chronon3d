@@ -31,7 +31,7 @@ bool try_native_echo(
         params->decay > 1.0f || params->time_offset_frames == 0 ||
         params->time_offset_frames > 120 || history_key.empty() ||
         !ctx.execution || !ctx.backend || !ctx.surface_registry ||
-        !ctx.backend->supports_native_surfaces() ||
+        !ctx.backend_stats_api()->supports_native_surfaces() ||
         ctx.frame_input.width <= 0 || ctx.frame_input.height <= 0 ||
         result.width() != ctx.frame_input.width ||
         result.height() != ctx.frame_input.height) {
@@ -44,7 +44,7 @@ bool try_native_echo(
         return false;
     }
     const auto source_handle = source.surface_handle();
-    if (!ctx.backend->is_native_surface_valid(source_handle)) return false;
+    if (!ctx.backend_surface_api()->is_native_surface_valid(source_handle)) return false;
 
     const auto width = ctx.frame_input.width;
     const auto height = ctx.frame_input.height;
@@ -64,9 +64,9 @@ bool try_native_echo(
     const auto create_surface = [&]() -> runtime::RenderSurfaceHandle {
         const auto handle = ctx.surface_registry->create(desc);
         if (handle == runtime::kInvalidRenderSurfaceHandle) return handle;
-        const auto created = ctx.backend->create_surface(handle, desc);
+        const auto created = ctx.backend_surface_api()->create_surface(handle, desc);
         if (!created.ok()) {
-            (void)ctx.backend->release_surface(handle);
+            (void)ctx.backend_surface_api()->release_surface(handle);
             (void)ctx.surface_registry->release(handle);
             return runtime::kInvalidRenderSurfaceHandle;
         }
@@ -77,7 +77,7 @@ bool try_native_echo(
         for (std::size_t i = 0; i < temporary_count; ++i) {
             const auto handle = temporaries[i];
             if (handle == runtime::kInvalidRenderSurfaceHandle) continue;
-            (void)ctx.backend->release_surface(handle);
+            (void)ctx.backend_surface_api()->release_surface(handle);
             (void)ctx.surface_registry->release(handle);
         }
         temporary_count = 0;
@@ -103,9 +103,9 @@ bool try_native_echo(
     // accumulation target, so it must be cleared between uses of this
     // frame-slot scratch tuple. This removes three full-frame transparent
     // initialization dispatches from each invocation.
-    bool succeeded = run(ctx.backend->initialize_transparent_surface(trail));
+    bool succeeded = run(ctx.backend_surface_api()->initialize_transparent_surface(trail));
     if (succeeded) {
-        succeeded = run(ctx.backend->transform_surface(
+        succeeded = run(ctx.backend_surface_api()->transform_surface(
             current, source_handle, source.origin_x(), source.origin_y(), 1.0f));
     }
     if (!succeeded) {
@@ -130,18 +130,18 @@ bool try_native_echo(
         if (!sample || sample->desc.width != static_cast<std::uint32_t>(width) ||
             sample->desc.height != static_cast<std::uint32_t>(height)) continue;
         const float weight = std::pow(params->decay, static_cast<float>(i));
-        succeeded = run(ctx.backend->composite_surface_weighted(
+        succeeded = run(ctx.backend_surface_api()->composite_surface_weighted(
             trail, sample->handle, weight, clip));
     }
     if (succeeded)
-        succeeded = run(ctx.backend->copy_surface(composed, trail));
+        succeeded = run(ctx.backend_surface_api()->copy_surface(composed, trail));
     if (succeeded)
-        succeeded = run(ctx.backend->composite_surfaces(
+        succeeded = run(ctx.backend_surface_api()->composite_surfaces(
             composed, current, BlendMode::Normal, CompositeOperator::SourceOver));
     if (succeeded)
-        succeeded = run(ctx.backend->copy_surface(output, current));
+        succeeded = run(ctx.backend_surface_api()->copy_surface(output, current));
     if (succeeded)
-        succeeded = run(ctx.backend->copy_surface(output, composed, clip));
+        succeeded = run(ctx.backend_surface_api()->copy_surface(output, composed, clip));
     if (!succeeded) {
         release_temporaries();
         return false;

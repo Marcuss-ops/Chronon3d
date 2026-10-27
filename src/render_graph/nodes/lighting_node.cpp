@@ -41,7 +41,7 @@ NodeExecResult LightingNode::execute(
     const bool native_input =
         !per_pixel_lights && ctx.policy.require_native_gpu && ctx.backend && ctx.surface_registry &&
         inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-        ctx.backend->is_native_surface_valid(inputs[0]->surface_handle());
+        ctx.backend_surface_api()->is_native_surface_valid(inputs[0]->surface_handle());
     if (native_input) {
         auto result = ctx.acquire_owned_fb(
             inputs[0]->width(), inputs[0]->height(), false,
@@ -53,7 +53,7 @@ NodeExecResult LightingNode::execute(
                 std::string(name()),
                 "native lighting output promotion failed"});
         }
-        const auto applied = ctx.backend->lighting_surface(
+        const auto applied = ctx.backend_surface_api()->lighting_surface(
             result->surface_handle(), inputs[0]->surface_handle(), multiplier);
         if (applied.ok()) {
             result->set_opaque(inputs[0]->is_opaque());

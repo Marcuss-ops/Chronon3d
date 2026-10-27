@@ -367,7 +367,7 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
                                  runtime::RenderSurfaceHandle borrowed_source,
                                  const Framebuffer* borrowed_source_framebuffer) {
     if (!ctx.backend || !ctx.surface_registry || effect_stack.size() != 1 ||
-        !ctx.backend->supports_native_surfaces())
+        !ctx.backend_stats_api()->supports_native_surfaces())
         return false;
     const auto& instance = effect_stack[0];
     if (!instance.enabled) return false;
@@ -399,7 +399,7 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
         return h;
     };
     const auto release = [&](runtime::RenderSurfaceHandle h) {
-        (void)ctx.backend->release_surface(h);
+        (void)ctx.backend_surface_api()->release_surface(h);
         ctx.surface_registry->release(h);
     };
     const auto cleanup = [&] { for (const auto h : std::span(owned).first(owned_count)) release(h); };
@@ -416,11 +416,11 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
 
     RenderOpResult status = source_is_existing
         ? RenderOpResult(RenderOpOutcome{})
-        : ctx.backend->create_surface(source, desc);
+        : ctx.backend_surface_api()->create_surface(source, desc);
     if (status.ok() && source_needs_expansion) {
-        status = ctx.backend->initialize_transparent_surface(source);
+        status = ctx.backend_surface_api()->initialize_transparent_surface(source);
         if (status.ok())
-            status = ctx.backend->transform_surface(
+            status = ctx.backend_surface_api()->transform_surface(
                 source, borrowed_source,
                 borrowed_source_framebuffer->origin_x() - result.origin_x(),
                 borrowed_source_framebuffer->origin_y() - result.origin_y(), 1.0f);
@@ -428,12 +428,12 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Effects);
         std::vector<float> packed_rgba;
-        status = ctx.backend->upload_surface(
+        status = ctx.backend_surface_api()->upload_surface(
             source, desc, framebuffer_rgba_view(result, packed_rgba));
     }
-    if (status.ok()) status = ctx.backend->create_surface(output, desc);
+    if (status.ok()) status = ctx.backend_surface_api()->create_surface(output, desc);
     if (status.ok())
-        status = ctx.backend->color_transform_surface(output, source, lowering->transform);
+        status = ctx.backend_surface_api()->color_transform_surface(output, source, lowering->transform);
 
     // Clip-honoring processors leave pixels outside the clip untouched.
     auto final_surface = output;
@@ -447,10 +447,10 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
             ? RenderOpResult(make_render_backend_error(
                   RenderBackendErrorCode::ExecutionFailure,
                   "native color effect: clip surface allocation failed"))
-            : ctx.backend->create_surface(final_surface, desc);
-        if (status.ok()) status = ctx.backend->copy_surface(final_surface, source);
+            : ctx.backend_surface_api()->create_surface(final_surface, desc);
+        if (status.ok()) status = ctx.backend_surface_api()->copy_surface(final_surface, source);
         if (status.ok() && !local.is_empty())
-            status = ctx.backend->copy_surface(final_surface, output, local);
+            status = ctx.backend_surface_api()->copy_surface(final_surface, output, local);
     }
     if (!status.ok()) {
         spdlog::error("[native-color] {} failed: {}",
@@ -474,7 +474,7 @@ bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
                                     runtime::RenderSurfaceHandle borrowed_source,
                                     const Framebuffer* borrowed_source_framebuffer) {
     if (!ctx.backend || !ctx.surface_registry || effect_stack.size() != 1 ||
-        !ctx.backend->supports_native_surfaces()) return false;
+        !ctx.backend_stats_api()->supports_native_surfaces()) return false;
     const auto& instance = effect_stack[0];
     const auto* p = std::get_if<ChromaticAberrationParams>(&instance.params);
     if (!instance.enabled || instance.effect_type != effects::EffectType::ChromaticAberration || !p)
@@ -522,7 +522,7 @@ bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
         return handle;
     };
     const auto release = [&](runtime::RenderSurfaceHandle handle) {
-        (void)ctx.backend->release_surface(handle);
+        (void)ctx.backend_surface_api()->release_surface(handle);
         ctx.surface_registry->release(handle);
     };
     const auto cleanup = [&] { for (const auto handle : std::span(owned).first(owned_count)) release(handle); };
@@ -537,20 +537,20 @@ bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
     }
 
     RenderOpResult status = source_is_existing
-        ? RenderOpResult(RenderOpOutcome{}) : ctx.backend->create_surface(source, desc);
+        ? RenderOpResult(RenderOpOutcome{}) : ctx.backend_surface_api()->create_surface(source, desc);
     if (status.ok() && source_needs_expansion) {
-        status = ctx.backend->initialize_transparent_surface(source);
-        if (status.ok()) status = ctx.backend->transform_surface(
+        status = ctx.backend_surface_api()->initialize_transparent_surface(source);
+        if (status.ok()) status = ctx.backend_surface_api()->transform_surface(
             source, borrowed_source,
             borrowed_source_framebuffer->origin_x() - result.origin_x(),
             borrowed_source_framebuffer->origin_y() - result.origin_y(), 1.0f);
     } else if (status.ok() && !source_is_existing) {
         profiling::GpuUploadProducerScope upload_scope(profiling::GpuUploadProducer::Effects);
         std::vector<float> packed_rgba;
-        status = ctx.backend->upload_surface(source, desc, framebuffer_rgba_view(result, packed_rgba));
+        status = ctx.backend_surface_api()->upload_surface(source, desc, framebuffer_rgba_view(result, packed_rgba));
     }
-    if (status.ok()) status = ctx.backend->create_surface(output, desc);
-    if (status.ok()) status = ctx.backend->chromatic_transform_surface(output, source, *p);
+    if (status.ok()) status = ctx.backend_surface_api()->create_surface(output, desc);
+    if (status.ok()) status = ctx.backend_surface_api()->chromatic_transform_surface(output, source, *p);
 
     auto final_surface = output;
     const bool partial_clip = clip && !clip_covers_result(clip, result);
@@ -562,10 +562,10 @@ bool try_native_full_frame_chromatic(RenderGraphContext& ctx,
         status = final_surface == runtime::kInvalidRenderSurfaceHandle
             ? RenderOpResult(make_render_backend_error(RenderBackendErrorCode::ExecutionFailure,
                   "native chromatic effect: clip surface allocation failed"))
-            : ctx.backend->create_surface(final_surface, desc);
-        if (status.ok()) status = ctx.backend->copy_surface(final_surface, source);
+            : ctx.backend_surface_api()->create_surface(final_surface, desc);
+        if (status.ok()) status = ctx.backend_surface_api()->copy_surface(final_surface, source);
         if (status.ok() && !local.is_empty())
-            status = ctx.backend->copy_surface(final_surface, output, local);
+            status = ctx.backend_surface_api()->copy_surface(final_surface, output, local);
     }
     if (!status.ok()) {
         spdlog::error("[native-chromatic] failed: {}", status.error().message);
