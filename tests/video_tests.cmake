@@ -5,24 +5,26 @@ if(NOT CHRONON3D_ENABLE_VIDEO)
     return()
 endif()
 
-set(_video_contracts_link_targets
-    chronon3d_cli_render chronon3d_cli_core
-    chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
-    chronon3d_scene chronon3d_backend_software
-    chronon3d_media_video chronon3d_backend_image
-    CLI11::CLI11 fmt::fmt)
-if(TARGET chronon3d_cli_dev)
-    list(APPEND _video_contracts_link_targets chronon3d_cli_dev)
-endif()
+if(CHRONON3D_BUILD_CLI)
+    set(_video_contracts_link_targets
+        chronon3d_cli_render chronon3d_cli_core
+        chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
+        chronon3d_scene chronon3d_backend_software
+        chronon3d_media_video chronon3d_backend_image
+        CLI11::CLI11 fmt::fmt)
+    if(TARGET chronon3d_cli_dev)
+        list(APPEND _video_contracts_link_targets chronon3d_cli_dev)
+    endif()
 
-chronon3d_add_test_suite(
-    NAME chronon3d_video_contracts_tests
-    TIER INTEGRATION
-    LINK_TARGETS ${_video_contracts_link_targets}
-    SOURCES video/test_video_contracts.cpp
-)
-target_include_directories(chronon3d_video_contracts_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
+    chronon3d_add_test_suite(
+        NAME chronon3d_video_contracts_tests
+        TIER INTEGRATION
+        LINK_TARGETS ${_video_contracts_link_targets}
+        SOURCES video/test_video_contracts.cpp
+    )
+    target_include_directories(chronon3d_video_contracts_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
+endif()
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG AND TARGET chronon3d_media_native)
     chronon3d_add_test_suite(

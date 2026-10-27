@@ -185,7 +185,7 @@ jobs:
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
       - run: cmake --preset linux-ci-lean-gate -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-      - run: cmake --build --preset linux-ci-lean-gate --target chronon3d_pipeline
+      - run: cmake --build --preset linux-ci-lean-gate --target chronon3d_cli
       - name: Compile each header standalone
         run: |
           # Canonical interface of the gate (tools/check_public_headers.py
