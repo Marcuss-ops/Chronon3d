@@ -10,16 +10,24 @@
 #include <atomic>
 #include <cstdlib>
 #include <string>
-#include <unistd.h>
 
 namespace chronon3d::backends::vulkan {
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+namespace {
+#ifdef _WIN32
+constexpr VkExternalSemaphoreHandleTypeFlagBits kCudaSemaphoreHandleType =
+    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
+constexpr VkExternalSemaphoreHandleTypeFlagBits kCudaSemaphoreHandleType =
+    VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
+}  // namespace
 
 VkSemaphore VulkanBackend::Impl::make_external_binary_semaphore() {
     VkExportSemaphoreCreateInfo export_info{
         VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO};
-    export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    export_info.handleTypes = kCudaSemaphoreHandleType;
     const VkSemaphoreCreateInfo info{
         VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, &export_info, 0};
     VkSemaphore semaphore = VK_NULL_HANDLE;
@@ -35,7 +43,7 @@ VkSemaphore VulkanBackend::Impl::make_external_binary_semaphore() {
 VkSemaphore VulkanBackend::Impl::make_external_timeline_semaphore() {
     VkExportSemaphoreCreateInfo export_info{
         VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO};
-    export_info.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+    export_info.handleTypes = kCudaSemaphoreHandleType;
     const VkSemaphoreTypeCreateInfo timeline_type{
         VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO, &export_info,
         VK_SEMAPHORE_TYPE_TIMELINE, 0};
@@ -122,14 +130,45 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
         throw std::runtime_error(
             "External Vulkan allocation must be dedicated (offset == 0)");
     }
+    VulkanExternalFds descriptors;
+#ifdef _WIN32
+    auto get_handle = reinterpret_cast<PFN_vkGetMemoryWin32HandleKHR>(
+        vkGetDeviceProcAddr(device, "vkGetMemoryWin32HandleKHR"));
+    if (!get_handle) {
+        throw std::runtime_error("vkGetMemoryWin32HandleKHR is unavailable");
+    }
+    VkMemoryGetWin32HandleInfoKHR memory_info{
+        VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR};
+    memory_info.memory = alloc_info.deviceMemory;
+    memory_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+    check(get_handle(device, &memory_info, &descriptors[0]),
+          "vkGetMemoryWin32HandleKHR");
+    auto get_semaphore_handle = reinterpret_cast<PFN_vkGetSemaphoreWin32HandleKHR>(
+        vkGetDeviceProcAddr(device, "vkGetSemaphoreWin32HandleKHR"));
+    if (!get_semaphore_handle) {
+        throw std::runtime_error("vkGetSemaphoreWin32HandleKHR is unavailable");
+    }
+    const auto& image = image_it->second.image;
+    VkSemaphoreGetWin32HandleInfoKHR cuda_to_vulkan_info{
+        VK_STRUCTURE_TYPE_SEMAPHORE_GET_WIN32_HANDLE_INFO_KHR};
+    cuda_to_vulkan_info.semaphore = image.cuda_to_vulkan;
+    cuda_to_vulkan_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+    VkSemaphoreGetWin32HandleInfoKHR vulkan_to_cuda_info{
+        VK_STRUCTURE_TYPE_SEMAPHORE_GET_WIN32_HANDLE_INFO_KHR};
+    vulkan_to_cuda_info.semaphore = image.vulkan_to_cuda;
+    vulkan_to_cuda_info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+    check(get_semaphore_handle(device, &cuda_to_vulkan_info, &descriptors[1]),
+          "vkGetSemaphoreWin32HandleKHR(cuda to Vulkan)");
+    check(get_semaphore_handle(device, &vulkan_to_cuda_info, &descriptors[2]),
+          "vkGetSemaphoreWin32HandleKHR(Vulkan to CUDA)");
+#else
     auto get_fd = reinterpret_cast<PFN_vkGetMemoryFdKHR>(
         vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR"));
     if (!get_fd) throw std::runtime_error("vkGetMemoryFdKHR is unavailable");
-    VkMemoryGetFdInfoKHR info{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
-    info.memory = alloc_info.deviceMemory;
-    info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
-    VulkanExternalFds descriptors;
-    check(get_fd(device, &info, &descriptors[0]), "vkGetMemoryFdKHR");
+    VkMemoryGetFdInfoKHR memory_info{VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR};
+    memory_info.memory = alloc_info.deviceMemory;
+    memory_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+    check(get_fd(device, &memory_info, &descriptors[0]), "vkGetMemoryFdKHR");
     auto get_semaphore_fd = reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(
         vkGetDeviceProcAddr(device, "vkGetSemaphoreFdKHR"));
     if (!get_semaphore_fd) {
@@ -148,6 +187,7 @@ CudaExternalMemoryInfo VulkanBackend::Impl::export_cuda_external_memory(
           "vkGetSemaphoreFdKHR(cuda to Vulkan)");
     check(get_semaphore_fd(device, &vulkan_to_cuda_info, &descriptors[2]),
           "vkGetSemaphoreFdKHR(Vulkan to CUDA)");
+#endif
     VkMemoryRequirements requirements{};
     vkGetImageMemoryRequirements(device, image_it->second.image.image,
                                  &requirements);
@@ -290,3 +330,4 @@ void VulkanBackend::Impl::copy_surface_to_cuda_encoder(
 #endif // CHRONON3D_ENABLE_CUDA_INTEROP
 
 } // namespace chronon3d::backends::vulkan
+

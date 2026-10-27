@@ -42,7 +42,11 @@ void VulkanBackend::Impl::make_image(Image& target,
                                      VkFormat format) {
     VkExternalMemoryImageCreateInfo external_image{
         VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+#ifdef _WIN32
+    external_image.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
     external_image.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
     VkImageCreateInfo info{
         VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, nullptr, 0, VK_IMAGE_TYPE_2D,
         format, {width, height, 1}, 1, 1,
@@ -50,13 +54,11 @@ void VulkanBackend::Impl::make_image(Image& target,
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
             VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         VK_SHARING_MODE_EXCLUSIVE, 0, nullptr, VK_IMAGE_LAYOUT_UNDEFINED};
-    // VulkanMemoryManager configures device-local memory with
-    // VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT so CUDA/NVENC surfaces can
-    // be exported. That allocator policy also applies to ordinary device
-    // local images; every image using it must advertise the matching handle
-    // type or validation reports VUID-vkBindImageMemory-memory-02728 and the
-    // NVIDIA driver may lose the device on the first text-atlas upload.
+    // VulkanMemoryManager configures device-local memory with the platform's
+    // CUDA-exportable handle type; images must advertise the same type.
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     info.pNext = &external_image;
+#endif
 
     const auto mem_class = exportable
         ? VulkanMemoryClass::ExternalExportable

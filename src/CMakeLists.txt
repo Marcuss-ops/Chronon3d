@@ -31,14 +31,14 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 
     add_library(chronon3d_ffmpeg_light INTERFACE)
     target_include_directories(chronon3d_ffmpeg_light INTERFACE
-        "${CHRONON3D_FFMPEG_INCLUDE_DIR}")
+        $<BUILD_INTERFACE:${CHRONON3D_FFMPEG_INCLUDE_DIR}>)
     target_link_libraries(chronon3d_ffmpeg_light INTERFACE
         "${CHRONON3D_FFMPEG_SWSCALE_LIBRARY}"
         "${CHRONON3D_FFMPEG_AVUTIL_LIBRARY}")
 
     add_library(chronon3d_ffmpeg_full INTERFACE)
     target_include_directories(chronon3d_ffmpeg_full INTERFACE
-        "${CHRONON3D_FFMPEG_INCLUDE_DIR}")
+        $<BUILD_INTERFACE:${CHRONON3D_FFMPEG_INCLUDE_DIR}>)
     target_link_libraries(chronon3d_ffmpeg_full INTERFACE
         "${CHRONON3D_FFMPEG_SWSCALE_LIBRARY}"
         "${CHRONON3D_FFMPEG_SWRESAMPLE_LIBRARY}"

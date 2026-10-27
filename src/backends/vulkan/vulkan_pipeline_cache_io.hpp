@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -12,7 +13,14 @@
 #include <span>
 #include <string>
 #include <system_error>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 #include <vector>
 
 namespace chronon3d::backends::vulkan::pipeline_cache_io {
@@ -66,6 +74,27 @@ inline bool write_atomic(const std::filesystem::path& file, std::span<const char
     std::error_code error;
     std::filesystem::create_directories(file.parent_path(), error);
     if (error) return false;
+#ifdef _WIN32
+    static std::atomic<std::uint64_t> sequence{0};
+    const auto temporary = std::filesystem::path(
+        file.wstring() + L".tmp." + std::to_wstring(::GetCurrentProcessId()) + L"." +
+        std::to_wstring(sequence.fetch_add(1, std::memory_order_relaxed)));
+    {
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (!output) return false;
+        output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        output.flush();
+        if (!output) {
+            output.close();
+            std::filesystem::remove(temporary, error);
+            return false;
+        }
+    }
+    if (::MoveFileExW(temporary.c_str(), file.c_str(),
+                      MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return true;
+    (void)::DeleteFileW(temporary.c_str());
+    return false;
+#else
     std::string temporary = file.string() + ".tmp.XXXXXX";
     const int descriptor = ::mkstemp(temporary.data());
     if (descriptor < 0) return false;
@@ -81,6 +110,8 @@ inline bool write_atomic(const std::filesystem::path& file, std::span<const char
     if (success && ::rename(temporary.c_str(), file.c_str()) == 0) return true;
     (void)::unlink(temporary.c_str());
     return false;
+#endif
 }
 
 } // namespace chronon3d::backends::vulkan::pipeline_cache_io
+

@@ -39,6 +39,22 @@ portate, e istanziamento GPU per le particelle).
   la verifica sul device fisico e il gate di produzione restano aperti.
   Dettagli: [`evidenza pass Vulkan`](../evidence/lights-shadows/T05-native-vulkan-20261026/README.md).
 
+### Gate T05 — tentativo RTX Windows 2026-10-26
+
+- Preparata una build CLI Windows persistente con Clang, Vulkan, CUDA interop e
+  FFmpeg/NVENC nativo. Il binario e la cache CMake sono in
+  `Chronon3d-shadow-windows/build/win-shadow-clang`; i passaggi per riusarli
+  senza reinstallare dipendenze sono in
+  [`setup RTX Windows`](../evidence/lights-shadows/T05-native-vulkan-20261026/WINDOWS-RTX4060TI-SETUP.md).
+- Sulla RTX 4060 Ti, Vulkan, CUDA/Vulkan interop e NVENC si inizializzano; il
+  piano strict-native viene risolto. Il render T05 fallisce poi al nodo
+  `Lighting`: input privo sia di superficie nativa valida sia di pixel CPU.
+  NVENC riceve zero frame, quindi non esiste un'immagine utile per valutare le
+  ombre. Log: `build/win-shadow-clang/t05-run-native.log` nel worktree Windows.
+- Stato T05 resta **PARTIAL**. Il pass nativo ha la regressione Vulkan coperta,
+  ma la pipeline strict-native Windows non ha ancora prodotto il frame T05 e
+  manca la revisione visiva A/B di qualità.
+
 ### Requisito ambiente per certificazione hardware
 
 Per chiudere il gate T05 serve eseguire la regressione e il render del RenderPlan

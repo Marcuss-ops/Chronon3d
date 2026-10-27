@@ -206,9 +206,17 @@ VulkanBackend::VulkanBackend(std::uint32_t requested_device_index) {
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     const std::array<const char*, 4> cuda_extensions{
         VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+#ifdef _WIN32
+        VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
+#else
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+#endif
         VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
+#ifdef _WIN32
+        VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME};
+#else
         VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME};
+#endif
     const bool cuda_interop_extensions_available = std::all_of(
         cuda_extensions.begin(), cuda_extensions.end(), has_device_extension);
     if (cuda_interop_extensions_available) {

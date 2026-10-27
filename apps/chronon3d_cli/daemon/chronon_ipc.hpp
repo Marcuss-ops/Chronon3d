@@ -66,10 +66,12 @@
 #include <mutex>
 #include <vector>
 
+#ifndef _WIN32
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <poll.h>
 #include <unistd.h>
+#endif
 
 #ifndef MSG_NOSIGNAL
 // Non-Linux platforms that lack MSG_NOSIGNAL fall back to plain send();
@@ -134,38 +136,34 @@ inline void write_be32(std::uint8_t* p, std::uint32_t v) noexcept {
     p[3] = static_cast<std::uint8_t>( v        & 0xffu);
 }
 
-/// Read exactly `n` bytes from a stream socket.  Handles EINTR and partial
-/// reads.  Returns false on EOF (clean disconnect) or transport error.
+#ifdef _WIN32
+inline bool read_exact(int, std::uint8_t*, std::size_t) noexcept { return false; }
+inline bool write_exact(int, const std::uint8_t*, std::size_t) noexcept { return false; }
+#else
+/// Read exactly `n` bytes from a stream socket. Handles EINTR and partial reads.
 inline bool read_exact(int fd, std::uint8_t* buf, std::size_t n) noexcept {
     std::size_t done = 0;
     while (done < n) {
         const ssize_t r = ::recv(fd, buf + done, n - done, 0);
-        if (r > 0) {
-            done += static_cast<std::size_t>(r);
-            continue;
-        }
-        if (r == 0) return false;              // EOF
-        if (errno == EINTR) continue;          // retry after signal
-        return false;
-    }
-    return true;
-}
-
-/// Write exactly `n` bytes to a stream socket.  Handles EINTR and partial
-/// writes.  Returns false on transport error.
-inline bool write_exact(int fd, const std::uint8_t* buf, std::size_t n) noexcept {
-    std::size_t done = 0;
-    while (done < n) {
-        const ssize_t w = ::send(fd, buf + done, n - done, MSG_NOSIGNAL);
-        if (w > 0) {
-            done += static_cast<std::size_t>(w);
-            continue;
-        }
+        if (r > 0) { done += static_cast<std::size_t>(r); continue; }
+        if (r == 0) return false;
         if (errno == EINTR) continue;
         return false;
     }
     return true;
 }
+/// Write exactly `n` bytes to a stream socket. Handles EINTR and partial writes.
+inline bool write_exact(int fd, const std::uint8_t* buf, std::size_t n) noexcept {
+    std::size_t done = 0;
+    while (done < n) {
+        const ssize_t w = ::send(fd, buf + done, n - done, MSG_NOSIGNAL);
+        if (w > 0) { done += static_cast<std::size_t>(w); continue; }
+        if (errno == EINTR) continue;
+        return false;
+    }
+    return true;
+}
+#endif
 
 } // namespace detail
 
@@ -243,6 +241,42 @@ inline Reply dispatch_request_safely(const RequestHandler& handler,
 }
 
 } // namespace detail
+
+#ifdef _WIN32
+// Windows build stub: the persistent daemon transport currently uses Unix-domain sockets.
+// Direct one-shot CLI rendering remains available; daemon mode reports unsupported.
+class UnixSocketServer {
+public:
+    UnixSocketServer() = default;
+    ~UnixSocketServer() { close(); }
+    UnixSocketServer(const UnixSocketServer&) = delete;
+    UnixSocketServer& operator=(const UnixSocketServer&) = delete;
+    void listen(std::string_view path) {
+        m_path = std::string(path);
+        throw std::system_error(std::make_error_code(std::errc::operation_not_supported),
+                                "ipc Unix sockets are unsupported on Windows");
+    }
+    int serve(const RequestHandler&) noexcept { return -1; }
+    int serve_concurrent(const RequestHandler&) noexcept { return -1; }
+    [[nodiscard]] const std::string& path() const noexcept { return m_path; }
+    void close() noexcept { m_path.clear(); }
+private:
+    std::string m_path;
+};
+class UnixSocketClient {
+public:
+    UnixSocketClient() = default;
+    ~UnixSocketClient() { close(); }
+    UnixSocketClient(const UnixSocketClient&) = delete;
+    UnixSocketClient& operator=(const UnixSocketClient&) = delete;
+    void connect(std::string_view) {
+        throw std::system_error(std::make_error_code(std::errc::operation_not_supported),
+                                "ipc Unix sockets are unsupported on Windows");
+    }
+    std::optional<Reply> request(Command, std::string_view = {}) noexcept { return std::nullopt; }
+    void close() noexcept {}
+};
+#else
 
 /// Blocking UNIX-domain socket server.  Binds + listens on a filesystem
 /// path, then serves clients one connection at a time until a handler
@@ -476,4 +510,7 @@ private:
     int m_fd{-1};
 };
 
+#endif // _WIN32
+
 } // namespace chronon3d::cli::ipc
+

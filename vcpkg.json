@@ -18,7 +18,13 @@
                          "magic-enum",
                          "clipper2",
                          "zstd",
-                         "flatbuffers"
+                         "flatbuffers",
+                         {
+                             "name": "ffmpeg",
+                             "features": [
+                                 "nvcodec"
+                             ]
+                         }
                      ],
     "features":  {
                      "ipc":  {

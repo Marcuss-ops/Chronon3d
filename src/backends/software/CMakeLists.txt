@@ -84,6 +84,8 @@ add_subdirectory(diagnostics)
 add_subdirectory(simd)
 add_subdirectory(kernels)
 add_subdirectory(specialized)
+# clang-cl cannot compile Highway per-target dispatch with its MSVC PCH ABI.
+target_compile_definitions(chronon3d_backend_software PRIVATE HWY_COMPILE_ONLY_STATIC)
 
 # ── AVX2 backend for the SIMD registry (ADR-025 kAvx2Set) ────────────────
 # Per-file compile gate via a CMake try-compile so the binary never
@@ -127,3 +129,5 @@ if(CHRONON3D_ISA_HAVE_AVX2)
 endif()
 unset(_CRON_ISA_AVX2_TMP)
 unset(_cron_avx2_flags)
+
+

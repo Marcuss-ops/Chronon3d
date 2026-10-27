@@ -24,7 +24,9 @@
 
 #include <chrono>
 #include <cstdlib>
+#ifndef _WIN32
 #include <dlfcn.h>
+#endif
 #include <filesystem>
 #include <span>
 #include <system_error>
@@ -35,6 +37,7 @@ namespace chronon3d::media::video {
 namespace {
 
 void ensure_nvrtc_builtins_loaded() {
+#ifndef _WIN32
     Dl_info info{};
     if (dladdr(reinterpret_cast<void*>(&nvrtcCompileProgram), &info) == 0 ||
         !info.dli_fname) return;
@@ -47,6 +50,7 @@ void ensure_nvrtc_builtins_loaded() {
         (void)dlopen(entry.path().c_str(), RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
         break;
     }
+#endif
 }
 
 } // namespace
@@ -323,3 +327,4 @@ bool CudaNv12Compositor::synchronize() noexcept {
 } // namespace chronon3d::media::video
 
 #endif
+
