@@ -1,6 +1,6 @@
 # NVML sampler — il tail di teardown che nessun timer vedeva (2026-09-17)
 
-Ambito: [`TICKET-DAEMON-JOB-LIFECYCLE`](../tickets/TICKET-DAEMON-JOB-LIFECYCLE.md)
+Ambito: `TICKET-DAEMON-JOB-LIFECYCLE` (scheda chiusa e rimossa; storico in git)
 §4 leva 1 (l'~1 s intermittente) e §6 (attribuzione con i timer esistenti).
 Host: RTX A4000 16 GB, driver 595.91.07. Ogni numero è **misurato**.
 

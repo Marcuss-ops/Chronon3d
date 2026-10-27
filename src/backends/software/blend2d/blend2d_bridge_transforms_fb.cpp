@@ -6,6 +6,7 @@
 #include "blend2d_bridge.hpp"
 #include "blend2d_bridge_detail.hpp"
 #include <chronon3d/scene/model/core/mask_utils.hpp>
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>
@@ -219,7 +220,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
             };
 
             if (y1_st - y0_st >= 16) {
-                tbb::parallel_for(tbb::blocked_range<int>(y0_st, y1_st, 16), [&](const tbb::blocked_range<int>& range) {
+                parallel_for_tracked(tbb::blocked_range<int>(y0_st, y1_st, 16), [&](const tbb::blocked_range<int>& range) {
                     process_rows_st(range.begin(), range.end());
                 });
             } else {
@@ -263,7 +264,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
     };
 
     if (y1 - y0 >= 16) {
-        tbb::parallel_for(tbb::blocked_range<int>(y0, y1, 16), [&](const tbb::blocked_range<int>& range) {
+        parallel_for_tracked(tbb::blocked_range<int>(y0, y1, 16), [&](const tbb::blocked_range<int>& range) {
             process_rows(range.begin(), range.end());
         });
     } else {
@@ -362,7 +363,7 @@ void composite_framebuffer_tiled(Framebuffer& dst_fb, const Framebuffer& src_fb,
         }
     };
     if (y1 - y0 >= 16) {
-        tbb::parallel_for(tbb::blocked_range<int>(y0, y1, 16),
+        parallel_for_tracked(tbb::blocked_range<int>(y0, y1, 16),
             [&](const tbb::blocked_range<int>& rows) { process_rows(rows.begin(), rows.end()); });
     } else {
         process_rows(y0, y1);

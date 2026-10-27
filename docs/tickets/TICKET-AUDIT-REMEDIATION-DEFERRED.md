@@ -11,6 +11,13 @@ ticket is the honest residue.
 
 ---
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] F8 (P1): split dei due lock solo dopo che il contratto pin/lease è certificato.
+- [ ] F12 (P2): mappe string-keyed per frame, solo con indice/key stabile dimostrato.
+- [ ] F13 (P2): dominio cache motion blur allocato per frame — non toccare finché serve l'isolamento per determinismo.
+- [ ] F14 (P2): `make_shared<Framebuffer>` nei fallback non pooled — solo dopo che la proprietà è dimostrata.
+
 ## F8 — double nested lock per batched surface operation — **DEFERRED (P1)**
 
 **Evidence.** `src/backends/vulkan/vulkan_backend_impl.hpp:369-391` —

@@ -45,6 +45,24 @@ bool find_streams(InputFile& input, std::string& reason) {
     return true;
 }
 
+/// Open a SOURCE-AUDIO file (audio-aware assembly). Unlike find_streams this
+/// requires an audio stream and NO video: the anchor's audio owner is a plain
+/// media file (the same one the render path muxes with `--gop-source`).
+bool open_audio_source(InputFile& input, std::string& reason) {
+    if (avformat_find_stream_info(input.format, nullptr) < 0) {
+        reason = "failed to read audio source stream information";
+        return false;
+    }
+    for (unsigned i = 0; i < input.format->nb_streams; ++i) {
+        if (input.format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            input.audio_index = static_cast<int>(i);
+            return true;
+        }
+    }
+    reason = "audio source has no audio stream";
+    return false;
+}
+
 void free_codec_context(AVCodecContext* value) noexcept {
     if (value) avcodec_free_context(&value);
 }
@@ -162,6 +180,40 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
     // reference segment.
     MuxStreamConfig streams;
     if (!build_mux_stream_config(inputs, streams, result.reason)) return result;
+
+    // AUDIO-AWARE ASSEMBLY — the family anchor's single source-audio owner.
+    // The source stream is declared on the mux BEFORE the header is written
+    // and copied verbatim over the assembled video AFTER the segment packets
+    // (the exact ordering and packet-copy semantics of the render path's
+    // `--gop-source` mux), so the assembled artifact is what a single-job
+    // render of the same plan produces. Mutually exclusive with audio-bearing
+    // segments: one artifact carries exactly ONE audio owner.
+    std::unique_ptr<InputFile> audio_source;
+    std::unique_ptr<AVCodecParameters, decltype(&free_codec_parameters)> audio_source_params{
+        nullptr, &free_codec_parameters};
+    if (!request.audio_source_path.empty()) {
+        if (streams.audio) {
+            result.reason = "audio source mux requires video-only segments: one artifact carries one audio owner";
+            return result;
+        }
+        audio_source = std::make_unique<InputFile>();
+        if (avformat_open_input(&audio_source->format, request.audio_source_path.c_str(),
+                                nullptr, nullptr) < 0) {
+            result.reason = "failed to open audio source: " + request.audio_source_path;
+            return result;
+        }
+        if (!open_audio_source(*audio_source, result.reason)) return result;
+        const auto* source_stream = audio_source->format->streams[audio_source->audio_index];
+        AVCodecParameters* params = avcodec_parameters_alloc();
+        if (!params || avcodec_parameters_copy(params, source_stream->codecpar) < 0) {
+            if (params) avcodec_parameters_free(&params);
+            result.reason = "failed to create audio source mux parameters";
+            return result;
+        }
+        audio_source_params.reset(params);
+        streams.audio = AudioStreamConfig{audio_source_params.get(), source_stream->time_base,
+                                          request.audio_target_sample_rate};
+    }
 
     std::error_code ec;
     if (const auto parent = std::filesystem::path(request.output_path).parent_path();
@@ -324,6 +376,46 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
                 ? segment_last_audio_timestamp : audio_offset + detail::stream_duration(audio_stream);
             timeline_offset_us = std::max(timeline_offset_us,
                 av_rescale_q(audio_end, audio_stream->time_base, AV_TIME_BASE_Q));
+        }
+    }
+    // AUDIO-AWARE ASSEMBLY — copy the source stream over the assembled video:
+    // whole stream, verbatim packets (the render path's `--gop-source` mux
+    // with no trim window), submitted after the video exactly like
+    // NativeAvEncoder::mux_source_audio at close time.
+    if (audio_source && audio_source->format) {
+        const auto* source_stream = audio_source->format->streams[audio_source->audio_index];
+        AVPacket* raw = av_packet_alloc();
+        if (!raw) { result.reason = "failed to allocate audio source packet"; return result; }
+        int read_result = 0;
+        while ((read_result = av_read_frame(audio_source->format, raw)) >= 0) {
+            if (raw->stream_index == audio_source->audio_index) {
+                if ((raw->flags & AV_PKT_FLAG_CORRUPT) != 0) {
+                    av_packet_unref(raw); av_packet_free(&raw);
+                    result.reason = "audio source contains a corrupt packet";
+                    return result;
+                }
+                AVPacket* copy = av_packet_alloc();
+                if (!copy || av_packet_ref(copy, raw) < 0) {
+                    if (copy) av_packet_free(&copy);
+                    av_packet_unref(raw); av_packet_free(&raw);
+                    result.reason = "failed to copy audio source packet";
+                    return result;
+                }
+                OwnedAVPacket owned(copy);
+                if (!mux.submit_audio(EncodedPacket{std::move(owned), source_stream->time_base, false})) {
+                    av_packet_unref(raw); av_packet_free(&raw);
+                    result.reason = "failed to write audio source packet";
+                    return result;
+                }
+            }
+            av_packet_unref(raw);
+        }
+        av_packet_free(&raw);
+        if (read_result != AVERROR_EOF ||
+            (audio_source->format->pb && audio_source->format->pb->error < 0 &&
+             audio_source->format->pb->error != AVERROR_EOF)) {
+            result.reason = "failed to read audio source packets";
+            return result;
         }
     }
     if (!mux.finalize()) {

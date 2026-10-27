@@ -21,7 +21,9 @@ using CounterGetter = std::function<uint64_t(const char*)>;
 // ── Internal helper: hot work attribution section ────────────────────────
 static void write_hot_work_attribution(
     std::ofstream& out,
-    const CounterGetter& get_counter)
+    const CounterGetter& get_counter,
+    double measured_phase_ms,
+    double measured_wall_ms)
 {
     const uint64_t clr_memcpy = get_counter("clearnode_memcpy_wall_ms");
     const uint64_t clr_clear  = get_counter("clearnode_clear_wall_ms");
@@ -96,12 +98,18 @@ static void write_hot_work_attribution(
             << "\n";
     }
 
-    const uint64_t total_attr = clr_memcpy + clr_clear + c_blend + xform_wall + conv_ms + pipe_ms;
-    if (n_exec > 0) {
-        const double cov = static_cast<double>(total_attr) / static_cast<double>(n_exec) * 100.0;
-        out << "\nAttribution coverage: " << total_attr << " / " << n_exec
-            << " (" << fmt::format("{:.1f}%", cov) << ")\n";
-    }
+    // Coverage is rebased on the measured phase totals (P1): the phase
+    // breakdown (setup_renderer / rendering_loop decomposition) is what
+    // explains the wall now, and the pixel-work rows above are its detail.
+    // The old node_execute-based ratio explained 0% of the wall and is gone
+    // together with its base.
+    out << "\nAttribution coverage (measured phases): "
+        << fmt::format("{:.1f} / {:.1f} ms ({:.1f}%)",
+                       measured_phase_ms, measured_wall_ms,
+                       measured_wall_ms > 0.0
+                           ? measured_phase_ms / measured_wall_ms * 100.0
+                           : 0.0)
+        << "\n";
 }
 
 static void write_cleardiag_section(
@@ -139,7 +147,8 @@ static void write_cleardiag_section(
 static void write_bottleneck_diagnosis(
     std::ofstream& out,
     const CounterGetter& get_counter,
-    const chronon3d::telemetry::RenderTelemetryRecord& run)
+    const chronon3d::telemetry::RenderTelemetryRecord& run,
+    double measured_phase_ms)
 {
     const uint64_t sys_cores  = get_counter("system_logical_cores");
     const uint64_t cpu_user   = get_counter("process_cpu_user_ms");
@@ -153,16 +162,11 @@ static void write_bottleneck_diagnosis(
     const uint64_t cache_m    = get_counter("cache_misses");
     const uint64_t dirty_px   = get_counter("dirty_pixels");
     const uint64_t tbb_peak_c = get_counter("tbb_active_workers_peak");
-    const uint64_t n_exec     = get_counter("node_execute_actual_wall_ms");
     const uint64_t touched_px = get_counter("pixels_touched");
     const uint64_t used_par_c = get_counter("used_parallel_clear");
     const uint64_t used_par_t = get_counter("used_parallel_transform");
     const uint64_t used_par_p = get_counter("used_parallel_composite");
     const uint64_t conv_ms    = get_counter("frame_conversion_copy_wall_ms");
-    const uint64_t clr_memcpy = get_counter("clearnode_memcpy_wall_ms");
-    const uint64_t clr_clear  = get_counter("clearnode_clear_wall_ms");
-    const uint64_t c_blend    = get_counter("compositenode_blend_wall_ms");
-    const uint64_t pipe_ms    = get_counter("video_pipe_write_wall_ms");
     const uint64_t tbb_sum    = get_counter("tbb_active_workers_avg_sum");
     const uint64_t tbb_cnt    = get_counter("tbb_active_workers_avg_count");
     const double tbb_avg = tbb_cnt > 0
@@ -181,15 +185,11 @@ static void write_bottleneck_diagnosis(
     const double ffmpeg_share = render_ms > 0
         ? static_cast<double>(ffmpeg_blk) / render_ms * 100.0 : 0.0;
 
-    const double xform_share = (touched_px > 0 && run.transform_pixels > 0)
-        ? std::min(1.0, static_cast<double>(run.transform_pixels) /
-                        static_cast<double>(touched_px)) : 0.0;
-    const uint64_t xform_wall = static_cast<uint64_t>(
-        static_cast<double>(n_exec) * xform_share);
-
-    const uint64_t total_attr = clr_memcpy + clr_clear + c_blend + xform_wall + conv_ms + pipe_ms;
-    const double attr_cov = n_exec > 0
-        ? static_cast<double>(total_attr) / static_cast<double>(n_exec) * 100.0 : 0.0;
+    // Hot attribution is rebased on the measured phase totals (P1): the
+    // coverage is how much of the wall the phase breakdown explains, not a
+    // pixel-work estimate over node_execute (which explained 0%).
+    const double attr_cov = run.wall_time_ms > 0.0
+        ? measured_phase_ms / run.wall_time_ms * 100.0 : 0.0;
 
     auto status = [](const char* label, const char* st) {
         return fmt::format("{:<26} {}", label, st);
@@ -364,7 +364,18 @@ std::string generate_execution_report(const RenderReportContext& ctx) {
             << " | Dirty Ratio: " << f.dirty_area_ratio << "\n";
     }
 
-    write_hot_work_attribution(out, get_counter);
+    // P1 rebase: coverage is measured from the phase totals this report
+    // already prints — setup_renderer + rendering_loop tile the wall.
+    double measured_phase_ms = 0.0;
+    for (const auto& p : phases) {
+        if (p.phase_name == "setup_renderer" ||
+            p.phase_name == "rendering_loop") {
+            measured_phase_ms += p.duration_ms;
+        }
+    }
+
+    write_hot_work_attribution(out, get_counter, measured_phase_ms,
+                               run.wall_time_ms);
     write_cleardiag_section(out, get_counter);
 
     const auto top_bottlenecks = chronon3d::telemetry::analyze_bottlenecks(run);
@@ -415,7 +426,7 @@ std::string generate_execution_report(const RenderReportContext& ctx) {
     out << "steady_state_allocations_per_frame: "
         << run.steady_state_allocations_per_frame << "\n";
 
-    write_bottleneck_diagnosis(out, get_counter, run);
+    write_bottleneck_diagnosis(out, get_counter, run, measured_phase_ms);
 
     out.flush();
     out.close();

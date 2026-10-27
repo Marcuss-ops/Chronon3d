@@ -1,5 +1,8 @@
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
+#include <chronon3d/core/parallel_tracked.hpp>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
@@ -346,26 +349,39 @@ NodeExecResult MultiSourceNode::execute(
         }
         const i32 width = ctx.frame_input.width;
         const i32 height = ctx.frame_input.height;
-        for (i32 y = 0; y < height; ++y) {
-            for (i32 x = 0; x < width; ++x) {
-                const Color src = surface.get_pixel(x, y);
-                if (src.a <= 0.0f && group_alpha >= 1.0f) continue;
-                const Color dst = destination.get_pixel(x, y);
-                const f32 scaled_a = src.a * group_alpha;
-                if (scaled_a <= 0.0f) continue;
-                const f32 keep = 1.0f - scaled_a;
-                const f32 out_a = scaled_a + dst.a * keep;
-                if (out_a <= 0.0f) {
-                    destination.set_pixel(x, y, Color::transparent());
-                    continue;
+        // C-2/P4: rows are disjoint — each pixel touches only its own (x,y)
+        // on both surfaces — so the blend runs through the canonical
+        // parallel wrapper with unchanged per-pixel arithmetic.
+        const auto blend_rows = [&](i32 y_begin, i32 y_end) {
+            for (i32 y = y_begin; y < y_end; ++y) {
+                for (i32 x = 0; x < width; ++x) {
+                    const Color src = surface.get_pixel(x, y);
+                    if (src.a <= 0.0f && group_alpha >= 1.0f) continue;
+                    const Color dst = destination.get_pixel(x, y);
+                    const f32 scaled_a = src.a * group_alpha;
+                    if (scaled_a <= 0.0f) continue;
+                    const f32 keep = 1.0f - scaled_a;
+                    const f32 out_a = scaled_a + dst.a * keep;
+                    if (out_a <= 0.0f) {
+                        destination.set_pixel(x, y, Color::transparent());
+                        continue;
+                    }
+                    Color out;
+                    out.r = src.r * group_alpha + dst.r * keep;
+                    out.g = src.g * group_alpha + dst.g * keep;
+                    out.b = src.b * group_alpha + dst.b * keep;
+                    out.a = out_a;
+                    destination.set_pixel(x, y, out);
                 }
-                Color out;
-                out.r = src.r * group_alpha + dst.r * keep;
-                out.g = src.g * group_alpha + dst.g * keep;
-                out.b = src.b * group_alpha + dst.b * keep;
-                out.a = out_a;
-                destination.set_pixel(x, y, out);
             }
+        };
+        if (height >= 16) {
+            parallel_for_tracked(tbb::blocked_range<i32>(0, height),
+                [&](const tbb::blocked_range<i32>& range) {
+                    blend_rows(range.begin(), range.end());
+                });
+        } else {
+            blend_rows(0, height);
         }
         return true;
     };
@@ -629,31 +645,53 @@ NodeExecResult MultiSourceNode::execute(
                 if (!mask_draw.ok())
                     return NodeExecResult{NodeExecutionError{
                         mask_draw.error().code, m_name, mask_draw.error().message}};
-                for (i32 y = 0; y < ctx.frame_input.height; ++y) {
-                    for (i32 x = 0; x < ctx.frame_input.width; ++x) {
-                        const f32 coverage = std::clamp(mask_surface->get_pixel(x, y).a, 0.0f, 1.0f);
-                        if (coverage >= 1.0f) continue;
-                        Color pixel = source_surface->get_pixel(x, y);
-                        pixel.r *= coverage;
-                        pixel.g *= coverage;
-                        pixel.b *= coverage;
-                        pixel.a *= coverage;
-                        source_surface->set_pixel(x, y, pixel);
+                const auto mask_rows = [&](i32 y_begin, i32 y_end) {
+                    for (i32 y = y_begin; y < y_end; ++y) {
+                        for (i32 x = 0; x < ctx.frame_input.width; ++x) {
+                            const f32 coverage = std::clamp(mask_surface->get_pixel(x, y).a, 0.0f, 1.0f);
+                            if (coverage >= 1.0f) continue;
+                            Color pixel = source_surface->get_pixel(x, y);
+                            pixel.r *= coverage;
+                            pixel.g *= coverage;
+                            pixel.b *= coverage;
+                            pixel.a *= coverage;
+                            source_surface->set_pixel(x, y, pixel);
+                        }
                     }
+                };
+                if (ctx.frame_input.height >= 16) {
+                    parallel_for_tracked(
+                        tbb::blocked_range<i32>(0, ctx.frame_input.height),
+                        [&](const tbb::blocked_range<i32>& range) {
+                            mask_rows(range.begin(), range.end());
+                        });
+                } else {
+                    mask_rows(0, ctx.frame_input.height);
                 }
             }
-            for (i32 y = 0; y < ctx.frame_input.height; ++y) {
-                for (i32 x = 0; x < ctx.frame_input.width; ++x) {
-                    const Color src = source_surface->get_pixel(x, y);
-                    if (src.a <= 0.0f) continue;
-                    const Color dst = draw_target->get_pixel(x, y);
-                    const f32 keep = 1.0f - src.a;
-                    draw_target->set_pixel(x, y, Color{
-                        src.r + dst.r * keep,
-                        src.g + dst.g * keep,
-                        src.b + dst.b * keep,
-                        src.a + dst.a * keep});
+            const auto composite_rows = [&](i32 y_begin, i32 y_end) {
+                for (i32 y = y_begin; y < y_end; ++y) {
+                    for (i32 x = 0; x < ctx.frame_input.width; ++x) {
+                        const Color src = source_surface->get_pixel(x, y);
+                        if (src.a <= 0.0f) continue;
+                        const Color dst = draw_target->get_pixel(x, y);
+                        const f32 keep = 1.0f - src.a;
+                        draw_target->set_pixel(x, y, Color{
+                            src.r + dst.r * keep,
+                            src.g + dst.g * keep,
+                            src.b + dst.b * keep,
+                            src.a + dst.a * keep});
+                    }
                 }
+            };
+            if (ctx.frame_input.height >= 16) {
+                parallel_for_tracked(
+                    tbb::blocked_range<i32>(0, ctx.frame_input.height),
+                    [&](const tbb::blocked_range<i32>& range) {
+                        composite_rows(range.begin(), range.end());
+                    });
+            } else {
+                composite_rows(0, ctx.frame_input.height);
             }
         } else {
             const bool native_image = item.node->shape.type() == ShapeType::Image &&

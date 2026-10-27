@@ -26,6 +26,11 @@ Ground truth dichiarata dall'audit: `build/chronon/linux-video-test/compile_comm
 
 ---
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Certificazione same-SHA dello scope audit (il blocker Vulkan di §7 è fuori scope).
+- [ ] La voce parcheggiata per decisione di contratto si riesamina solo quando la decisione arriva.
+
 ## 1. P0-1 — Feature-gated TU senza copertura in presets osservati
 
 **Verifica (riprodotta):** i 17 TU citati sono **assenti** da
@@ -113,7 +118,7 @@ lease (regressione ~70% memset in arena teardown). Nessun warning per-frame
 ## 4. P1-1 — MTSDF `face_mutex` process-wide
 
 **Stato: ACTIVE (nessun refactor speculativo).** Il ticket
-[`TICKET-HOTPATH-TEXT-MTSDF-CONTENTION`](TICKET-HOTPATH-TEXT-MTSDF-CONTENTION.md)
+`TICKET-HOTPATH-TEXT-MTSDF-CONTENTION` (scheda chiusa e rimossa: il lavoro strutturale è atterrato; storico in git)
 è già implementato nella parte strutturale: la sezione critica contiene solo il
 lavoro FreeType-owned, il resto è fuori dal lock. La granularità per-face è
 gated dalla Demolition Debt con exit condition misurabile

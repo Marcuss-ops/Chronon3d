@@ -30,6 +30,12 @@ correzioni non sono intercambiabili e vanno separate.
 
 ---
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] P1-3: shadow canonica sul run (union mask del TextRun → spread opzionale → gaussiana separabile → source-over lineare), con delta frame time misurato + golden.
+- [ ] P2: aperto — gli interventi elencati nella roadmap della scheda, dopo P1-3.
+- [ ] Estendere il corpus ai casi editoriali del ticket (il frame 75 T16 ha chiuso solo il requisito dell'artifact reale).
+
 ## 1. Fatti verificati (file:riga, non teoria)
 
 | # | Fatto | Esito | Evidenza |

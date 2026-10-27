@@ -1,5 +1,9 @@
 # TICKET — Wave closeout demolition debt
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Rimuovere il coupling residuo runtime-header da `SoftwareExecutionContext` (exit work della scheda).
+
 ## DOF graph node consolidation
 
 - **Status:** CLOSED (2026-10-21).

@@ -4,6 +4,13 @@ This ticket records the RenderPlan/motion backlog and its verifiable repository
 contracts. Branch and upstream metadata are intentionally not asserted. Test
 status below is updated only from commands actually executed in this workspace.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Gate 0: ripristinare il runner dispatch e sbloccare l'implementazione.
+- [ ] Gate 1 GradientMesh native parity (priorità massima); Gate 2 colored Field2D; Gate 3 composable SDF fills; Gate 4 VectorField; Gate 5 pattern geometrici; Gate 6 accettazione end-to-end.
+- [ ] Audit diff sorgente + test residui; certificazione Vulkan strict per mesh generate; oracle ombre CPU/Vulkan.
+- [ ] C ABI executable link e test execution: NOT RUN.
+
 ## 0. Reconcile implementation surface
 
 - [x] Audit the present RenderPlan type/schema/decoder/compiler surface; do not

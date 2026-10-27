@@ -10,6 +10,12 @@ l'opzione `CHRONON3D_ENABLE_GEO`. `maps_geo_core_test` compila ed esegue i test
 del parser, query, timeline, booleani e cambi di territorio. L'API di camera,
 anchor e reveal resta fuori dal perimetro implementato.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] `GeoAnchor`, `GeoCamera`, `GeoBorderReveal`, `GeoLabel` solver/`GeoAssetPreflight`: differiti, da implementare (o confermare fuori perimetro).
+- [ ] `ShapeTextureFill`: pixel output per fit mode (Cover/Contain/Stretch) NON RUN.
+- [ ] Query composte e render di `TerritoryChange`.
+
 ## Acceptance criteria (per voce)
 
 Stato usando `PASS` / `FAIL` / `PARTIAL` / `NOT RUN`.

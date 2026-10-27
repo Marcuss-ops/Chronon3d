@@ -62,7 +62,7 @@ contract tests, executor level tests, and the developer architecture gate.
 Benchmark evidence for the normal/rendering hotspot work remains under
 [`TICKET-HOTSPOT-DECOMPOSITION`](tickets/TICKET-HOTSPOT-DECOMPOSITION.md);
 daemon job reuse remains data-gated in
-[`TICKET-DAEMON-JOB-LIFECYCLE`](tickets/TICKET-DAEMON-JOB-LIFECYCLE.md).
+`TICKET-DAEMON-JOB-LIFECYCLE` (scheda chiusa e rimossa il 2026-10-27; storico in git).
 
 ## STAGE 4 — Determinism contract
 

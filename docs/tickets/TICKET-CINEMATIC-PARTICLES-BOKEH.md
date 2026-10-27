@@ -1,5 +1,9 @@
 # Cinematic particles and bokeh environment
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Parità Vulkan (promotion gate): verificare su host Vulkan; fin lì la capability resta fail-closed.
+
 ## Scope
 
 Add a bounded deterministic environment-particle mode with depth-driven bokeh.

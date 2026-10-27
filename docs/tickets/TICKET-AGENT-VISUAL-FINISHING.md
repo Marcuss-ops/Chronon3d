@@ -1,5 +1,10 @@
 # Agent Visual Finishing — CPU-only parity work
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Accettazione qualità matte su footage reale di progetto e edge revisionati.
+- [ ] Verifica su progetti Chronon rappresentativi con export reali (le probe 64×64 non bastano).
+
 ## Update 2026-10-03 — runtime export, scopes, OCIO, and subject mask probes
 
 - Real 64×64 CPU/native exports were decoded with `ffprobe`: PQ H.264 High 10,

@@ -14,6 +14,12 @@ Owner: rendering-core
 > `CHRONON3D_RUN_CUDA_TESTS=1`); GPU-host baseline renders remain the
 > remaining evidence step (see `TICKET-AUDIT-ROADMAP-WAVES.md` Wave 4).
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Test di equivalenza fra le due authority NV12, eseguito su GPU.
+- [ ] Il commit di refactor NV12/NVRTC deve mostrare zero delta di output e nessuna regressione benchmark.
+- [ ] Aggiungere a questa scheda la nota di misura di `FrameConversionService`.
+
 ## Context
 
 Technical audit of `main` @ `6d6d9d5a6` ("Fix native video rendering pipeline")

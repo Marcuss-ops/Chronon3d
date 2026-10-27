@@ -6,6 +6,12 @@
 current `main` head before implementation because the other workstation may
 have advanced it.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] P0: `textLength`/`lengthAdjust` su `<text>` e `<tspan>` annidati; `letter-spacing`/`word-spacing`/`rotate` cluster-aware; regole di combinazione con style run, whitespace, coordinate list e anchor.
+- [ ] P1: contratto pattern-paint bounded completo (gruppi e gradient/stroke nel tile, `objectBoundingBox`, `href` con check di cicli).
+- [ ] P1: TextPath shaping preservato attraverso chunk compatibili + attributi SVG residui.
+
 ## Goal and constraints
 
 Close the remaining useful SVG text gaps using Chronon's existing C++ importer,

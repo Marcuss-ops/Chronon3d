@@ -13,6 +13,8 @@
 #include <Imath/half.h>
 #endif
 
+#include <atomic>
+#include <cstdint>
 #include <vector>
 #include <filesystem>
 #include <algorithm>
@@ -21,6 +23,10 @@
 #include <stdexcept>
 #include <string>
 #include <spdlog/spdlog.h>
+
+#include <chronon3d/core/parallel_tracked.hpp>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 
 namespace chronon3d {
 

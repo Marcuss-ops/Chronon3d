@@ -9,6 +9,13 @@ remain open. This ticket tracks both the implementation already underway and
 the remaining acceptance work; passing generic tests does not certify the
 supplied video.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Confrontare i chart renderati ai timestamp di riferimento; bounds/residui glow; pivot veicolo e framing grafico; flicker temporale sui contorni.
+- [ ] Parità CPU/GPU dove la capability è disponibile; anteprima 854×480 della scena 19.63s; campioni frame dei primi 8 secondi side-by-side.
+- [ ] Eseguire le gate di certificazione IDLE-01–05 e FX-01–05; focused importer/C ABI tests + evidenza CI same-source.
+- [ ] Rerun del preset senza il workaround a opacità costante; rebuild e verifica del dirty-rectangle fallback per path animati.
+
 ## Obiettivo
 
 Build an editable, reusable `documentary_svg_peak_v1` ChrononTemplate scene

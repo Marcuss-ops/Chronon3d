@@ -8,6 +8,12 @@ whole-video `RENDER_JOB` and now exposes its lifecycle over IPC when a client
 supplies `job_id`. The FlatBuffers job API currently tracks one prepared frame
 and does not yet implement plan-backed whole-video execution.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Sostituire il composition descriptor placeholder con una factory plan-backed (stessa semantica del piano CLI canonico).
+- [ ] Instradare i piani completi via scheduler/worker bounded con encoder ownership (risorse Vulkan/CUDA/NVENC preservate per la vita del daemon).
+- [ ] Aggiungere LRU di prepared-plan fingerprinted.
+
 ## Implementato
 
 - `DaemonRuntime` owns the persistent `RenderEngine` and `CompositionSession`.

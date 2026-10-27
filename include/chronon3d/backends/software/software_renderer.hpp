@@ -55,6 +55,21 @@ public:
     /// Reset runtime-owned node/frame values only; topology and history survive.
     void reset_frame_value_cache();
 
+    /// Warm-reuse identity for the runtime node cache
+    /// (TICKET-PERF-REVOLUTIONARY-IDEAS P2).  NodeCache keys are
+    /// content-addressed and carry the EvaluationVersion, so evaluated node
+    /// values stay exact across jobs that render the same content.  The job
+    /// setup path records the identity that populated the cache and skips the
+    /// per-job `reset_frame_value_cache()` when the next job matches it; a
+    /// different identity keeps the reset because node scopes are only unique
+    /// within one composition.
+    void set_frame_value_cache_identity(std::string identity) {
+        m_frame_value_cache_identity = std::move(identity);
+    }
+    [[nodiscard]] const std::string& frame_value_cache_identity() const noexcept {
+        return m_frame_value_cache_identity;
+    }
+
     /// Fix 4 (TICKET-OVERLAY-THROUGHPUT): record that `compiled` has already
     /// completed runtime::prepare_render on this renderer, so render_compiled()
     /// reuses the session memo instead of preparing the same composition a
@@ -185,6 +200,7 @@ public:
     std::shared_ptr<media::MediaFrameProvider> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;
     const CompositionRegistry* m_registry{nullptr};
+    std::string m_frame_value_cache_identity;
     std::unique_ptr<TextRenderResources> m_text_render_resources;
     std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
     SoftwareRenderSession m_session;

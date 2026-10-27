@@ -389,12 +389,22 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         if (warm_renderer) {
             // The daemon owns one renderer per device for its full lifetime.
             // Reuse its graph/pipeline/font/framebuffer caches for video too;
-            // only temporal frame values and job-specific settings reset.
+            // temporal history and job-specific settings reset per job.
+            // Evaluated node values are RETAINED when the same composition
+            // fingerprint populated them (NodeCache keys are content-addressed
+            // and EvaluationVersioned — P2), so a repeated clip hits the node
+            // cache instead of re-evaluating; a different fingerprint keeps
+            // the per-job reset.
             // Telemetry counters are also renderer-owned, so reset them at
             // this job boundary. Otherwise a later clip's receipt reports the
             // process-total NVENC/Vulkan frame counts and strict per-job gates
             // reject a valid render after the first clip.
-            warm_renderer->reset_frame_value_cache();
+            const std::string identity =
+                "compfp:" + std::to_string(compiled.fingerprint);
+            if (warm_renderer->frame_value_cache_identity() != identity) {
+                warm_renderer->reset_frame_value_cache();
+                warm_renderer->set_frame_value_cache_identity(identity);
+            }
             warm_renderer->reset_temporal_history();
             warm_renderer->reset_counters();
             warm_renderer->set_settings(settings);

@@ -25,6 +25,12 @@ waves below are the reachable remainder, in expected-gain order.
 
 ---
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Certificare il gate B2 sul workload specificato dalla scheda: drain wait ≤50µs/frame, NVENC ≥90%, render_loop ≥300 fps.
+- [ ] Implementare B3 (MTSDF) secondo la spec di questa scheda.
+- [ ] Nessun claim “100×” o “100 overlay/min” finché resta solo il B1 land.
+
 ## B1 — Persistent overlay layer for static text/watermark (≈1.4–1.6×)
 
 **Status:** `LAND (DirectYUV)` — `DirectYuvProgram` caches the prepared `DirectYuvTemplate` across static cue intervals $[cue\_from, cue\_until)$, skipping `composition_->evaluate(context)` and per-frame quad reconstruction entirely (`template_evals ≈ number_of_cues`, `template_reuses = frames - cues`).

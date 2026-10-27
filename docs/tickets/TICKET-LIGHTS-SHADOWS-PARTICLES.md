@@ -65,6 +65,13 @@ fallisce sugli identificatori `near`/`far` e sugli schema JSON generati troppo
 lunghi. Il WSL locale usa solo `llvmpipe` per Vulkan. Finché uno di questi
 blocchi non è risolto, T05 resta **PARTIAL**.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Ombre reali: portare `ShadowNode` da reference CPU al percorso nativo (oggi c'è solo la proiezione screen-space).
+- [ ] Animazione di posizione/direzione della luce.
+- [ ] Istanziamento GPU delle particelle.
+- [ ] Verifica su device fisico + gate di produzione (T05 resta PARTIAL finché questi blocchi restano aperti).
+
 ## Audit di partenza (2026-10-08)
 
 ### Avanzamento verificato (2026-10-10)

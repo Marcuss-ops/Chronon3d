@@ -127,7 +127,7 @@ framebuffer implementation is header-defined and must not depend on graph
 tracker internals.
 
 ## Cross-references
-- [TICKET-NODE-MEMORY-METRICS](../tickets/TICKET-NODE-MEMORY-METRICS.md):
+- `TICKET-NODE-MEMORY-METRICS` (scheda chiusa e rimossa il 2026-10-27; storico in git):
   implementation and certification tracking.
 - AGENTS.md: §Regole permanenti "ogni nuovo simbolo in `include/chronon3d/`
   va giustificato" + §Fare PR piccole e mirate.

@@ -7,6 +7,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "../software/blend2d/blend2d_bridge.hpp"
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <spdlog/spdlog.h>

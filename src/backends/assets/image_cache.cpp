@@ -217,7 +217,9 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
     }
 #endif
 
+    spdlog::warn("[imgprof] decode={:.1f}ms", profiling::elapsed_ms(t0));
     downscale_for_runtime(*buffer, options.max_dimension);
+    spdlog::warn("[imgprof] downscale={:.1f}ms", profiling::elapsed_ms(t0));
 
     auto entry = std::make_shared<CachedImage>();
     entry->width = buffer->width;
@@ -295,10 +297,12 @@ std::pair<std::shared_ptr<CachedImage>, size_t> decode_and_stage(
         const std::string_view bytes(
             reinterpret_cast<const char*>(entry->gpu_rgba.data()),
             entry->gpu_rgba.size() * sizeof(float));
+        spdlog::warn("[imgprof] convert={:.1f}ms", profiling::elapsed_ms(t0));
         entry->gpu_key = runtime::GpuAssetKey{
             assets::sha256_string(bytes), runtime::PixelFormat::Rgba32Float,
             static_cast<std::uint32_t>(entry->width),
             static_cast<std::uint32_t>(entry->height)};
+        spdlog::warn("[imgprof] sha256={:.1f}ms", profiling::elapsed_ms(t0));
     }
 
     const double convert_us = profiling::duration_us(convert_t0, profiling::now());

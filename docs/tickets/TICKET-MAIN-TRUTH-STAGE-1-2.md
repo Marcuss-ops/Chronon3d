@@ -5,6 +5,12 @@
 **Data:** 2026-09-04  
 **Baseline censita:** `main@eb56a6f6c59e6d5ae3eefa1f1cbd69e3ee1f58d1`
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Ripristinare il runner dispatch di GitHub Actions (i job non allocano il runner).
+- [ ] `Chronon CI` green sullo SHA risultante di `main`.
+- [ ] Registrare la post-push main-tip verification dopo il commit.
+
 ## Update 2026-10-05 — runner dispatch remains blocked
 
 Fetched `main@b67a750e6` and queried the latest Actions runs for that exact

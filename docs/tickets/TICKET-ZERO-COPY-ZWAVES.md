@@ -29,6 +29,11 @@ protocol), so each wave below states what is **already satisfied** and what
 
 ---
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Z1: typed encoder capability split.
+- [ ] Z3: eseguire `tools/verify_z3_equivalence.sh` su host GPU (codice completo, certificazione pendente).
+
 ## Z0 — Copy census (DONE, 2026-09-07)
 
 Every gate counter, its authoritative increment site, the lane that triggers

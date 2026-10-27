@@ -6,6 +6,14 @@ Obiettivo: portare il checkout corrente al massimo stato verificabile, senza
 marcare `PASS` criteri non eseguiti. Questa checklist è il registro operativo:
 ogni voce viene marcata solo dopo il comando o l'evidenza corrispondente.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Completare il target aggregato `chronon3d_tests`.
+- [ ] Eseguire sullo stesso SHA: suite release/full-validation, matrice FFmpeg (`doctor`, codec/routing, native fail-closed), cert C ABI/SDK se la lane compila, cert video/GPU se l'host espone Vulkan/CUDA/NVENC; registrare l'evidenza reale.
+- [ ] `Composition::SceneFunction` → lowering typed con equivalence corpus; chiudere i caller legacy di `SoftwareRenderer::runtime()`; certificare le exit condition FFmpeg pipe; gate “feature assente = costo fisico zero”; progettare `PixelProgram → DeviceProgram` senza nuova authority.
+- [ ] Certificazione same-SHA CI del `main` corrente.
+- [ ] Installare `cmake-format` ed eseguire `check_cmake_format.sh`.
+
 ## 0. Repository e sincronizzazione
 
 - [x] `main` verificato e sincronizzato con `origin/main`.

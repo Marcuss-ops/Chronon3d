@@ -4,6 +4,10 @@
 **Priorità:** P1 demolition debt  
 **Authority:** `src/media/video/video_sink_factory.cpp` + `src/media/CMakeLists.txt`
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Exit condition 3: CI green — poi cancellazione fisica di `VideoSinkEncoderAdapter(Ffmpeg)` e del target pipe.
+
 ## 2026-09-04 negative census (authoritative)
 
 | Target | Stato | Evidenza |

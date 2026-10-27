@@ -6,6 +6,11 @@ errors, and the canonical RenderPlan / scene / asset paths. Build and test
 execution remains `NOT RUN` under the user's earlier instruction; author and
 review focused regressions without claiming runtime verification.
 
+## TODO — cosa manca (agg. 2026-10-27)
+
+- [ ] Lottie: gruppi annidati e trasformazioni complete (oltre il supporto bounded attuale).
+- [ ] Verifica output SVG sibling-path con golden renderati (dopo il fix differito).
+
 ## A. Masks and mattes
 
 - [x] Record current behavior and limitations: the original V3 path mask and
