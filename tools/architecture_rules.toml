@@ -308,7 +308,7 @@ skip_comments = true
 [[scan]]
 name = "render_backend_error_construction_adapter_only"
 scan_paths = ["include", "src", "apps", "tests"]
-allow_list = ["include/chronon3d/render_graph/render_backend.hpp"]
+allow_list = ["include/chronon3d/render_graph/render_backend_types.hpp"]
 patterns = ["\\bRenderBackendError\\s*\\{"]
 skip_comments = true
 

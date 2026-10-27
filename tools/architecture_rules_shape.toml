@@ -51,6 +51,8 @@ allow_list = [
   "src/backends/software/blend2d/blend2d_paint.cpp",
   "src/backends/software/processors/software_shape_processor.cpp",
   "src/backends/vulkan/vulkan_native_shape_dispatch.cpp",
+  "src/backends/vulkan/vulkan_native_shape_dispatch_path.cpp",
+  "src/backends/vulkan/vulkan_native_shape_dispatch_rect.cpp",
   "src/render_plan/render_plan_compiler.cpp",
   "src/render_plan/render_plan_compiler_shape.cpp",
   "src/compiler/scene_materializer.cpp",
