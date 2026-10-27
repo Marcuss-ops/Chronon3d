@@ -66,7 +66,7 @@ NodeExecResult EffectStackNode::execute(
     const bool gpu_only_input =
         ctx.policy.require_native_gpu &&
         inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-        (!ctx.backend || ctx.backend->is_native_surface_valid(
+        (!ctx.backend || ctx.backend_surface_api()->is_native_surface_valid(
             inputs[0]->surface_handle()));
     OwnedFB result;
     if (has_echo) {
@@ -192,8 +192,8 @@ NodeExecResult EffectStackNode::execute(
         auto input_surface = inputs[0]->surface_handle();
         bool native_source_available =
             input_surface != runtime::kInvalidRenderSurfaceHandle &&
-            ctx.backend->supports_native_surfaces() &&
-            ctx.backend->is_native_surface_valid(input_surface);
+            ctx.backend_stats_api()->supports_native_surfaces() &&
+            ctx.backend_surface_api()->is_native_surface_valid(input_surface);
         const auto native_clip = gpu_only_input
             ? std::optional<raster::BBox>{}
             : local_clip;
@@ -248,7 +248,7 @@ NodeExecResult EffectStackNode::execute(
         }
         const bool strict_native_stack =
             (ctx.policy.is_gpu_native_required() || (gpu_only_input && has_echo)) &&
-            active_effects.size() > 1 && ctx.backend->supports_native_surfaces() &&
+            active_effects.size() > 1 && ctx.backend_stats_api()->supports_native_surfaces() &&
             ctx.surface_registry && echo_count <= 1;
         bool native_source_promotion_failed = false;
         if ((strict_native_stack || ctx.policy.is_gpu_native_required()) &&
@@ -335,7 +335,7 @@ NodeExecResult EffectStackNode::execute(
                         inputs.size() > 1 && inputs[1]) {
                         map_source = inputs[1]->surface_handle();
                         if (map_source == runtime::kInvalidRenderSurfaceHandle ||
-                            !ctx.backend->is_native_surface_valid(map_source)) {
+                            !ctx.backend_surface_api()->is_native_surface_valid(map_source)) {
                             map_source = runtime::kInvalidRenderSurfaceHandle;
                             if (ensure_native_surface(ctx, *inputs[1]))
                                 map_source = inputs[1]->surface_handle();
@@ -395,7 +395,7 @@ NodeExecResult EffectStackNode::execute(
                 const auto previous_source = current_source;
                 const auto next_source = result->surface_handle();
                 if (current_source_owned && previous_source != next_source) {
-                    (void)ctx.backend->release_surface(previous_source);
+                    (void)ctx.backend_surface_api()->release_surface(previous_source);
                     ctx.surface_registry->release(previous_source);
                 }
                 current_source = next_source;
@@ -403,7 +403,7 @@ NodeExecResult EffectStackNode::execute(
                 current_source_owned = true;
             }
             if (!native_handled && current_source_owned) {
-                (void)ctx.backend->release_surface(current_source);
+                (void)ctx.backend_surface_api()->release_surface(current_source);
                 ctx.surface_registry->release(current_source);
                 result->clear_surface_handle();
             }
@@ -454,7 +454,7 @@ NodeExecResult EffectStackNode::execute(
                     inputs.size() > 1 && inputs[1]) {
                     single_map_source = inputs[1]->surface_handle();
                     if (single_map_source == runtime::kInvalidRenderSurfaceHandle ||
-                        !ctx.backend->is_native_surface_valid(single_map_source)) {
+                        !ctx.backend_surface_api()->is_native_surface_valid(single_map_source)) {
                         single_map_source = runtime::kInvalidRenderSurfaceHandle;
                         if (ensure_native_surface(ctx, *inputs[1]))
                             single_map_source = inputs[1]->surface_handle();
@@ -528,8 +528,8 @@ NodeExecResult EffectStackNode::execute(
         }
         if (!native_handled && !gpu_only_input) {
             effect_context.software_fallback =
-                ctx.backend->supports_native_surfaces() && !active_effects.empty();
-            ctx.backend->apply_effect_stack(*result, active_effects, effect_context);
+                ctx.backend_stats_api()->supports_native_surfaces() && !active_effects.empty();
+            ctx.backend_frame_api()->apply_effect_stack(*result, active_effects, effect_context);
         }
         if (ctx.node_exec.counters) {
             ctx.node_exec.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);

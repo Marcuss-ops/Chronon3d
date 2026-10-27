@@ -23,34 +23,34 @@ const char* render_backend_error_code_name(RenderBackendErrorCode code) noexcept
             render_backend_error_code_name(code), message, std::move(component));
     }
 
-[[nodiscard]] std::string RenderBackend::lane_name() const {
+[[nodiscard]] std::string RenderBackendStatsApi::lane_name() const {
         return "software";
     }
 
-[[nodiscard]] RenderCapabilities RenderBackend::capabilities() const noexcept {
+[[nodiscard]] RenderCapabilities RenderBackendStatsApi::capabilities() const noexcept {
         return RenderCapabilities{};
     }
 
-RenderCounters* RenderBackend::counters() { return nullptr; }
+RenderCounters* RenderBackendStatsApi::counters() { return nullptr; }
 
-std::shared_ptr<cache::FramebufferPool> RenderBackend::framebuffer_pool() { return nullptr; }
+std::shared_ptr<cache::FramebufferPool> RenderBackendStatsApi::framebuffer_pool() { return nullptr; }
 
-void RenderBackend::export_gpu_telemetry_counters(
+void RenderBackendStatsApi::export_gpu_telemetry_counters(
         std::vector<std::pair<std::string, std::uint64_t>>& /*out*/) const {}
 
-[[nodiscard]] bool RenderBackend::supports_native_video_surface() const noexcept {
+[[nodiscard]] bool RenderBackendStatsApi::supports_native_video_surface() const noexcept {
         return false;
     }
 
-[[nodiscard]] bool RenderBackend::supports_native_surfaces() const noexcept {
+[[nodiscard]] bool RenderBackendStatsApi::supports_native_surfaces() const noexcept {
         return false;
     }
 
-[[nodiscard]] bool RenderBackend::is_batching_supported() const noexcept {
+[[nodiscard]] bool RenderBackendStatsApi::is_batching_supported() const noexcept {
         return supports_native_surfaces();
     }
 
-RenderOpResult RenderBackend::create_video_encode_surface(
+RenderOpResult RenderBackendSurfaceApi::create_video_encode_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/) {
         return RenderOpResult(make_render_backend_error(
@@ -58,7 +58,7 @@ RenderOpResult RenderBackend::create_video_encode_surface(
             "RenderBackend::create_video_encode_surface: unsupported"));
     }
 
-RenderOpResult RenderBackend::copy_surface_to_video_encode(
+RenderOpResult RenderBackendSurfaceApi::copy_surface_to_video_encode(
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*destination*/) {
         return RenderOpResult(make_render_backend_error(
@@ -66,19 +66,19 @@ RenderOpResult RenderBackend::copy_surface_to_video_encode(
             "RenderBackend::copy_surface_to_video_encode: unsupported"));
     }
 
-void RenderBackend::begin_frame_batch() {}
+void RenderBackendFrameApi::begin_frame_batch() {}
 
-void RenderBackend::end_frame_batch() {}
+void RenderBackendFrameApi::end_frame_batch() {}
 
-void RenderBackend::begin_plan_batch(const runtime::CommandPlan& /*plan*/) {}
+void RenderBackendFrameApi::begin_plan_batch(const runtime::CommandPlan& /*plan*/) {}
 
-void RenderBackend::bind_compiled_parameters(std::span<const std::byte> /*parameters*/) {}
+void RenderBackendFrameApi::bind_compiled_parameters(std::span<const std::byte> /*parameters*/) {}
 
-void RenderBackend::begin_command_batch() {}
+void RenderBackendFrameApi::begin_command_batch() {}
 
-void RenderBackend::end_command_batch() {}
+void RenderBackendFrameApi::end_command_batch() {}
 
-RenderOpResult RenderBackend::draw_node(
+RenderOpResult RenderBackendFrameApi::draw_node(
         Framebuffer& /*fb*/,
         const RenderNode& /*node*/,
         const RenderState& /*state*/,
@@ -91,21 +91,21 @@ RenderOpResult RenderBackend::draw_node(
             "RenderBackend::draw_node: node drawing is not supported by this backend"));
     }
 
-[[nodiscard]] std::optional<RenderBackendError> RenderBackend::validate_render_node(
+[[nodiscard]] std::optional<RenderBackendError> RenderBackendFrameApi::validate_render_node(
         const RenderNode& /*node*/) const {
         return std::nullopt;
     }
 
 [[nodiscard]] std::shared_ptr<const renderer::ProcessorRegistrySnapshot>
-    RenderBackend::processor_snapshot() const noexcept {
+    RenderBackendStatsApi::processor_snapshot() const noexcept {
         return nullptr;
     }
 
-[[nodiscard]] bool RenderBackend::requires_processor_snapshot() const noexcept {
+[[nodiscard]] bool RenderBackendStatsApi::requires_processor_snapshot() const noexcept {
         return false;
     }
 
-RenderOpResult RenderBackend::create_surface(
+RenderOpResult RenderBackendSurfaceApi::create_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/) {
         return RenderOpResult(make_render_backend_error(
@@ -113,21 +113,21 @@ RenderOpResult RenderBackend::create_surface(
             "RenderBackend::create_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::release_surface(
+RenderOpResult RenderBackendSurfaceApi::release_surface(
         runtime::RenderSurfaceHandle /*handle*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::release_surface: native surfaces are not supported"));
     }
 
-[[nodiscard]] bool RenderBackend::is_native_surface_valid(
+[[nodiscard]] bool RenderBackendSurfaceApi::is_native_surface_valid(
         runtime::RenderSurfaceHandle /*handle*/) const noexcept { return false; }
 
-void RenderBackend::release_frame_transient_surfaces() noexcept {}
+void RenderBackendFrameApi::release_frame_transient_surfaces() noexcept {}
 
-void RenderBackend::retire_frame_transient_surfaces() noexcept {}
+void RenderBackendFrameApi::retire_frame_transient_surfaces() noexcept {}
 
-RenderOpResult RenderBackend::upload_surface(
+RenderOpResult RenderBackendSurfaceApi::upload_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,
         std::span<const float> /*rgba*/) {
@@ -136,7 +136,7 @@ RenderOpResult RenderBackend::upload_surface(
             "RenderBackend::upload_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::upload_surface_region(
+RenderOpResult RenderBackendSurfaceApi::upload_surface_region(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,
         std::int32_t /*x*/, std::int32_t /*y*/,
@@ -147,7 +147,7 @@ RenderOpResult RenderBackend::upload_surface_region(
             "RenderBackend::upload_surface_region: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::upload_surface_async(
+RenderOpResult RenderBackendSurfaceApi::upload_surface_async(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,
         std::span<const float> /*rgba*/,
@@ -157,7 +157,7 @@ RenderOpResult RenderBackend::upload_surface_async(
             "RenderBackend::upload_surface_async: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::upload_surface_rows_async(
+RenderOpResult RenderBackendSurfaceApi::upload_surface_rows_async(
         runtime::RenderSurfaceHandle /*handle*/,
         const runtime::SurfaceDesc& /*desc*/,
         const raster::BBox& /*clip*/,
@@ -168,13 +168,13 @@ RenderOpResult RenderBackend::upload_surface_rows_async(
             "RenderBackend::upload_surface_rows_async: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::wait_upload(const runtime::UploadTicket& /*ticket*/) {
+RenderOpResult RenderBackendSurfaceApi::wait_upload(const runtime::UploadTicket& /*ticket*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::wait_upload: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::download_surface(
+RenderOpResult RenderBackendSurfaceApi::download_surface(
         runtime::RenderSurfaceHandle /*handle*/,
         std::span<float> /*rgba*/) {
         return RenderOpResult(make_render_backend_error(
@@ -182,7 +182,7 @@ RenderOpResult RenderBackend::download_surface(
             "RenderBackend::download_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::composite_surfaces(
+RenderOpResult RenderBackendSurfaceApi::composite_surfaces(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         BlendMode /*mode*/,
@@ -193,7 +193,7 @@ RenderOpResult RenderBackend::composite_surfaces(
             "RenderBackend::composite_surfaces: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::composite_surface_weighted(
+RenderOpResult RenderBackendSurfaceApi::composite_surface_weighted(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         float /*opacity*/,
@@ -203,7 +203,7 @@ RenderOpResult RenderBackend::composite_surface_weighted(
             "RenderBackend::composite_surface_weighted: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::accumulate_surface_weighted(
+RenderOpResult RenderBackendSurfaceApi::accumulate_surface_weighted(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         float /*weight*/) {
@@ -212,7 +212,7 @@ RenderOpResult RenderBackend::accumulate_surface_weighted(
             "RenderBackend::accumulate_surface_weighted: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::copy_surface(
+RenderOpResult RenderBackendSurfaceApi::copy_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         const std::optional<raster::BBox>& /*clip*/) {
@@ -221,7 +221,7 @@ RenderOpResult RenderBackend::copy_surface(
             "RenderBackend::copy_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::fill_rect_surface(
+RenderOpResult RenderBackendSurfaceApi::fill_rect_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         std::int32_t /*x0*/, std::int32_t /*y0*/,
         std::int32_t /*x1*/, std::int32_t /*y1*/,
@@ -231,14 +231,14 @@ RenderOpResult RenderBackend::fill_rect_surface(
             "RenderBackend::fill_rect_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::initialize_transparent_surface(
+RenderOpResult RenderBackendSurfaceApi::initialize_transparent_surface(
         runtime::RenderSurfaceHandle /*destination*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::initialize_transparent_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::transform_surface(
+RenderOpResult RenderBackendSurfaceApi::transform_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         int /*offset_x*/, int /*offset_y*/, float /*opacity*/) {
@@ -247,7 +247,7 @@ RenderOpResult RenderBackend::transform_surface(
             "RenderBackend::transform_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::transform_surface_affine(
+RenderOpResult RenderBackendSurfaceApi::transform_surface_affine(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         const runtime::SurfaceAffineTransform& /*transform*/) {
@@ -256,7 +256,7 @@ RenderOpResult RenderBackend::transform_surface_affine(
             "RenderBackend::transform_surface_affine: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::blur_surface(
+RenderOpResult RenderBackendSurfaceApi::blur_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         float /*radius*/, bool /*horizontal*/, bool /*box_kernel*/) {
@@ -265,7 +265,7 @@ RenderOpResult RenderBackend::blur_surface(
             "RenderBackend::blur_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::dof_depth_stamp_surface(
+RenderOpResult RenderBackendSurfaceApi::dof_depth_stamp_surface(
         runtime::RenderSurfaceHandle /*depth*/,
         runtime::RenderSurfaceHandle /*layer*/,
         float /*depth_z*/, float /*radius*/,
@@ -276,7 +276,7 @@ RenderOpResult RenderBackend::dof_depth_stamp_surface(
             "RenderBackend::dof_depth_stamp_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::dof_blur_surface(
+RenderOpResult RenderBackendSurfaceApi::dof_blur_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*depth*/,
@@ -288,7 +288,7 @@ RenderOpResult RenderBackend::dof_blur_surface(
             "RenderBackend::dof_blur_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::directional_blur_surface(
+RenderOpResult RenderBackendSurfaceApi::directional_blur_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         float /*dir_x*/, float /*dir_y*/, float /*length*/, int /*tap_count*/) {
@@ -297,7 +297,7 @@ RenderOpResult RenderBackend::directional_blur_surface(
             "RenderBackend::directional_blur_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::radial_blur_surface(
+RenderOpResult RenderBackendSurfaceApi::radial_blur_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         float /*center_x_px*/, float /*center_y_px*/,
@@ -307,7 +307,7 @@ RenderOpResult RenderBackend::radial_blur_surface(
             "RenderBackend::radial_blur_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::warp_bulk_surface(
+RenderOpResult RenderBackendSurfaceApi::warp_bulk_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*aux*/,
@@ -317,7 +317,7 @@ RenderOpResult RenderBackend::warp_bulk_surface(
             "RenderBackend::warp_bulk_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::generate_bulk_surface(
+RenderOpResult RenderBackendSurfaceApi::generate_bulk_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         const GenerateBulkParams& /*params*/) {
@@ -326,7 +326,7 @@ RenderOpResult RenderBackend::generate_bulk_surface(
             "RenderBackend::generate_bulk_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::lut_bulk_surface(
+RenderOpResult RenderBackendSurfaceApi::lut_bulk_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*aux*/,
@@ -336,7 +336,7 @@ RenderOpResult RenderBackend::lut_bulk_surface(
             "RenderBackend::lut_bulk_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::sharpen_combine_surface(
+RenderOpResult RenderBackendSurfaceApi::sharpen_combine_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*blurred*/,
@@ -346,7 +346,7 @@ RenderOpResult RenderBackend::sharpen_combine_surface(
             "RenderBackend::sharpen_combine_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::glow_surfaces(
+RenderOpResult RenderBackendSurfaceApi::glow_surfaces(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*scratch_horizontal*/,
@@ -357,7 +357,7 @@ RenderOpResult RenderBackend::glow_surfaces(
             "RenderBackend::glow_surfaces: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::bloom_surfaces(
+RenderOpResult RenderBackendSurfaceApi::bloom_surfaces(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         runtime::RenderSurfaceHandle /*scratch_horizontal*/,
@@ -368,7 +368,7 @@ RenderOpResult RenderBackend::bloom_surfaces(
             "RenderBackend::bloom_surfaces: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::yuv_overlay_surface(
+RenderOpResult RenderBackendSurfaceApi::yuv_overlay_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         runtime::PixelFormat /*format*/,
@@ -379,7 +379,7 @@ RenderOpResult RenderBackend::yuv_overlay_surface(
             "RenderBackend::yuv_overlay_surface: native YUV is not supported"));
     }
 
-RenderOpResult RenderBackend::color_adjust_surface(
+RenderOpResult RenderBackendSurfaceApi::color_adjust_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         float /*brightness*/, float /*contrast*/,
@@ -389,7 +389,7 @@ RenderOpResult RenderBackend::color_adjust_surface(
             "RenderBackend::color_adjust_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::color_transform_surface(
+RenderOpResult RenderBackendSurfaceApi::color_transform_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         const NativeColorTransform& /*transform*/) {
@@ -398,7 +398,7 @@ RenderOpResult RenderBackend::color_transform_surface(
             "RenderBackend::color_transform_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::chromatic_transform_surface(
+RenderOpResult RenderBackendSurfaceApi::chromatic_transform_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         const ChromaticAberrationParams& /*params*/) {
@@ -407,7 +407,7 @@ RenderOpResult RenderBackend::chromatic_transform_surface(
             "RenderBackend::chromatic_transform_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::lighting_surface(
+RenderOpResult RenderBackendSurfaceApi::lighting_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*source*/,
         const Color& /*multiplier*/) {
@@ -416,7 +416,7 @@ RenderOpResult RenderBackend::lighting_surface(
             "RenderBackend::lighting_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::matte_surface(
+RenderOpResult RenderBackendSurfaceApi::matte_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*target*/,
         runtime::RenderSurfaceHandle /*matte*/,
@@ -426,7 +426,7 @@ RenderOpResult RenderBackend::matte_surface(
             "RenderBackend::matte_surface: native surfaces are not supported"));
     }
 
-RenderOpResult RenderBackend::draw_text_run(
+RenderOpResult RenderBackendTextureApi::draw_text_run(
         Framebuffer& /*fb*/,
         const chronon3d::TextRunShape& /*shape*/,
         const glm::mat4& /*model_matrix*/,
@@ -438,7 +438,7 @@ RenderOpResult RenderBackend::draw_text_run(
         ));
     }
 
-RenderOpResult RenderBackend::draw_text_run_surface(
+RenderOpResult RenderBackendTextureApi::draw_text_run_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*atlas*/,
         std::span<const runtime::GlyphInstance> /*glyphs*/) {
@@ -447,7 +447,7 @@ RenderOpResult RenderBackend::draw_text_run_surface(
             "RenderBackend::draw_text_run_surface: not supported by this backend"));
     }
 
-RenderOpResult RenderBackend::draw_text_run_surface_timed(
+RenderOpResult RenderBackendTextureApi::draw_text_run_surface_timed(
         runtime::RenderSurfaceHandle destination,
         runtime::RenderSurfaceHandle atlas,
         std::span<const runtime::GlyphInstance> glyphs,
@@ -460,7 +460,7 @@ RenderOpResult RenderBackend::draw_text_run_surface_timed(
         return draw_text_run_surface(destination, atlas, glyphs);
     }
 
-RenderOpResult RenderBackend::draw_text_batch(
+RenderOpResult RenderBackendTextureApi::draw_text_batch(
         runtime::RenderSurfaceHandle /*destination*/,
         std::span<const runtime::GlyphStatic> /*glyphs*/,
         std::span<const runtime::TextRunDynamic> /*runs*/,
@@ -470,7 +470,7 @@ RenderOpResult RenderBackend::draw_text_batch(
             "RenderBackend::draw_text_batch: not supported by this backend"));
     }
 
-RenderOpResult RenderBackend::execute_layer_batch(
+RenderOpResult RenderBackendTextureApi::execute_layer_batch(
         runtime::RenderSurfaceHandle /*destination*/,
         std::span<const runtime::LayerInstance> /*instances*/,
         std::span<const runtime::RenderSurfaceHandle> /*resources*/,
@@ -481,7 +481,7 @@ RenderOpResult RenderBackend::execute_layer_batch(
             "RenderBackend::execute_layer_batch: not supported by this backend"));
     }
 
-RenderOpResult RenderBackend::execute_layer_batch(
+RenderOpResult RenderBackendTextureApi::execute_layer_batch(
         runtime::RenderSurfaceHandle destination,
         const runtime::GpuLayerBatch& batch,
         std::span<const runtime::RenderSurfaceHandle> resources,

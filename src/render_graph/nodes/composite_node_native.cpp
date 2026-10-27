@@ -97,7 +97,7 @@ bool try_native_affine_composite(
     transform.clip_rect[2] = eff_x1;
     transform.clip_rect[3] = eff_y1;
 
-    const auto composited = ctx.backend->transform_surface_affine(
+    const auto composited = ctx.backend_surface_api()->transform_surface_affine(
         destination.surface_handle(), source_handle, transform);
     if (source_copy) release_native_surface(ctx, *source_copy);
     if (!composited.ok()) {
@@ -142,7 +142,7 @@ bool try_native_composite(RenderGraphContext& ctx, Framebuffer& destination,
         }
         return false;
     }
-    const auto result = ctx.backend->composite_surfaces(
+    const auto result = ctx.backend_surface_api()->composite_surfaces(
         destination.surface_handle(), source.surface_handle(), mode, op, clip);
     if (result.ok()) {
         return true;
@@ -171,7 +171,7 @@ bool seed_native_destination(
     // truth. If the bottom did not retain a native handle, promote the result
     // directly instead of rejecting the whole frame.
     if (source.surface_handle() == runtime::kInvalidRenderSurfaceHandle ||
-        !ctx.backend->is_native_surface_valid(source.surface_handle())) {
+        !ctx.backend_surface_api()->is_native_surface_valid(source.surface_handle())) {
         return ensure_native_surface(ctx, destination,
                                      "CompositeNode.seed.source-fallback");
     }
@@ -219,7 +219,7 @@ bool seed_native_destination(
 
     // `copy_surface` maps to replace-mode composite on Vulkan. It preserves
     // the source pixels exactly and avoids affine sampling/coordinate setup.
-    const auto seeded = ctx.backend->copy_surface(
+    const auto seeded = ctx.backend_surface_api()->copy_surface(
         destination.surface_handle(), source.surface_handle(), std::nullopt);
     if (!seeded.ok()) {
         // A rejected seed is a hard error at the only call site (see below):
@@ -272,7 +272,7 @@ bool seed_native_destination(
     RenderGraphContext& ctx, Framebuffer& destination,
     const Framebuffer& source, std::string_view context) {
     if (!ctx.backend || !ctx.surface_registry ||
-        !ctx.backend->supports_native_surfaces()) {
+        !ctx.backend_stats_api()->supports_native_surfaces()) {
         return std::nullopt;
     }
     const bool destination_ready =

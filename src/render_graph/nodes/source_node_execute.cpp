@@ -130,7 +130,7 @@ NodeExecResult SourceNode::execute(
     // full-canvas. This is still device-local and avoids the software
     // fallback; static images retain the tight ROI optimization.
     const bool native_surface_backend =
-        ctx.backend && ctx.backend->supports_native_video_surface();
+        ctx.backend && ctx.backend_stats_api()->supports_native_video_surface();
     const bool stable_native_image_extent =
         m_node.shape.type() == ShapeType::Image &&
         native_surface_backend &&
@@ -182,7 +182,7 @@ NodeExecResult SourceNode::execute(
                 const Color fill_color =
                     native_promotion::premultiply(m_node.color, opacity, &alpha_zero);
                 if (!alpha_zero) {
-                    const auto res = ctx.backend->fill_rect_surface(
+                    const auto res = ctx.backend_surface_api()->fill_rect_surface(
                         fb->surface_handle(), 0, 0, fb->width(), fb->height(), fill_color);
                     if (res.ok()) {
                         fb->set_opaque(opacity >= 1.0f);
@@ -279,14 +279,14 @@ NodeExecResult SourceNode::execute(
             // Ensure the destination exists before dispatch so the backend
             // can select its native shape path instead of seeing a CPU-only
             // framebuffer and reporting a misleading unsupported capability.
-            if (ctx.backend->supports_native_surfaces() &&
+            if (ctx.backend_stats_api()->supports_native_surfaces() &&
                 ctx.surface_registry && !ensure_empty_native_surface(ctx, *fb)) {
                 return NodeExecutionError{
                     RenderBackendErrorCode::ExecutionFailure,
                     m_name,
                     "failed to materialize native source surface"};
             }
-            const auto draw_result = ctx.backend->draw_node(
+            const auto draw_result = ctx.backend_frame_api()->draw_node(
                 *fb, m_node, state, ctx.frame_input.camera,
                 ctx.frame_input.width, ctx.frame_input.height);
             if (!draw_result.ok()) {

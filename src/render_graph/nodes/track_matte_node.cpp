@@ -70,45 +70,45 @@ bool try_native_matte(RenderGraphContext& ctx,
         return false;
     }
     const auto cleanup = [&] {
-        (void)ctx.backend->release_surface(destination);
-        (void)ctx.backend->release_surface(target_surface);
-        (void)ctx.backend->release_surface(matte_surface);
+        (void)ctx.backend_surface_api()->release_surface(destination);
+        (void)ctx.backend_surface_api()->release_surface(target_surface);
+        (void)ctx.backend_surface_api()->release_surface(matte_surface);
         ctx.surface_registry->release(destination);
         ctx.surface_registry->release(target_surface);
         ctx.surface_registry->release(matte_surface);
     };
-    auto created_target = ctx.backend->create_surface(target_surface, desc);
+    auto created_target = ctx.backend_surface_api()->create_surface(target_surface, desc);
     auto uploaded_target = created_target;
     if (created_target.ok()) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Composition);
-        uploaded_target = ctx.backend->upload_surface(
+        uploaded_target = ctx.backend_surface_api()->upload_surface(
             target_surface, desc, target_pixels);
     }
     auto created_matte = uploaded_target.ok()
-        ? ctx.backend->create_surface(matte_surface, desc)
+        ? ctx.backend_surface_api()->create_surface(matte_surface, desc)
         : uploaded_target;
     auto uploaded_matte = created_matte;
     if (created_matte.ok()) {
         profiling::GpuUploadProducerScope upload_scope(
             profiling::GpuUploadProducer::Composition);
-        uploaded_matte = ctx.backend->upload_surface(
+        uploaded_matte = ctx.backend_surface_api()->upload_surface(
             matte_surface, desc, matte_pixels);
     }
     auto created_destination = uploaded_matte.ok()
-        ? ctx.backend->create_surface(destination, desc)
+        ? ctx.backend_surface_api()->create_surface(destination, desc)
         : uploaded_matte;
     const bool luma = type == TrackMatteType::Luma || type == TrackMatteType::LumaInverted;
     const bool inverted = type == TrackMatteType::AlphaInverted || type == TrackMatteType::LumaInverted;
     const auto applied = created_destination.ok()
-        ? ctx.backend->matte_surface(destination, target_surface, matte_surface, luma, inverted)
+        ? ctx.backend_surface_api()->matte_surface(destination, target_surface, matte_surface, luma, inverted)
         : created_destination;
     if (!applied.ok()) {
         cleanup();
         return false;
     }
-    (void)ctx.backend->release_surface(target_surface);
-    (void)ctx.backend->release_surface(matte_surface);
+    (void)ctx.backend_surface_api()->release_surface(target_surface);
+    (void)ctx.backend_surface_api()->release_surface(matte_surface);
     ctx.surface_registry->release(target_surface);
     ctx.surface_registry->release(matte_surface);
     output.set_surface_handle(destination);

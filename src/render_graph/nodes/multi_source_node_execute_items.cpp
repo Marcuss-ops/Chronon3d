@@ -47,12 +47,12 @@ NodeExecResult execute_multi_source_items(
             const auto source = surface.surface_handle();
             if (destination_handle == runtime::kInvalidRenderSurfaceHandle ||
                 source == runtime::kInvalidRenderSurfaceHandle ||
-                !ctx.backend->is_native_surface_valid(destination_handle) ||
-                !ctx.backend->is_native_surface_valid(source)) {
+                !ctx.backend_surface_api()->is_native_surface_valid(destination_handle) ||
+                !ctx.backend_surface_api()->is_native_surface_valid(source)) {
                 group_failure = "svg_group_native_unsupported: group surface is not GPU resident";
                 return false;
             }
-            const auto result = ctx.backend->composite_surface_weighted(
+            const auto result = ctx.backend_surface_api()->composite_surface_weighted(
                 destination_handle, source, group_alpha);
             if (!result.ok()) {
                 group_failure = "SVG isolated group native composite failed: " +
@@ -211,7 +211,7 @@ NodeExecResult execute_multi_source_items(
                     continue;
                 }
 
-                if (!ctx.backend->capabilities().text_run) {
+                if (!ctx.backend_stats_api()->capabilities().text_run) {
                     spdlog::error(
                         "[multi-source] node='{}' contains text run items "
                         "but active backend does not support draw_text_run; "
@@ -224,7 +224,7 @@ NodeExecResult execute_multi_source_items(
                 }
     if (std::getenv("CHRONON3D_PATH_DIAG"))
         spdlog::info("[native-multisource-diag] node={} surface_support={} registry={} surface={} cpu={} items={}",
-            node_name, ctx.backend->supports_native_surfaces(), ctx.surface_registry != nullptr,
+            node_name, ctx.backend_stats_api()->supports_native_surfaces(), ctx.surface_registry != nullptr,
             fb->surface_handle(), fb->data() != nullptr, items.size());
 
                 // 2.5D-aware placement: if camera is active, project
@@ -334,7 +334,7 @@ NodeExecResult execute_multi_source_items(
                 return NodeExecResult{NodeExecutionError{
                     RenderBackendErrorCode::UnsupportedCapability, node_name,
                     "svg_element_mask_requires_software_surface"}};
-            const auto source_draw = ctx.backend->draw_node(
+            const auto source_draw = ctx.backend_frame_api()->draw_node(
                 *source_surface, *item.node, state, ctx.frame_input.camera,
                 ctx.frame_input.width, ctx.frame_input.height);
             if (!source_draw.ok())
@@ -354,7 +354,7 @@ NodeExecResult execute_multi_source_items(
                 RenderNode mask_node;
                 mask_node.name = "svg_element_mask";
                 mask_node.shape = Shape{mask_path};
-                const auto mask_draw = ctx.backend->draw_node(
+                const auto mask_draw = ctx.backend_frame_api()->draw_node(
                     *mask_surface, mask_node, mask_state, ctx.frame_input.camera,
                     ctx.frame_input.width, ctx.frame_input.height);
                 if (!mask_draw.ok())
@@ -412,7 +412,7 @@ NodeExecResult execute_multi_source_items(
             const bool native_image = item.node->shape.type() == ShapeType::Image &&
                 detail::try_native_image(ctx, *draw_target, *item.node, state);
             if (!native_image) {
-                const auto draw_result = ctx.backend->draw_node(
+                const auto draw_result = ctx.backend_frame_api()->draw_node(
                     *draw_target, *item.node, state, ctx.frame_input.camera,
                     ctx.frame_input.width, ctx.frame_input.height);
                 if (!draw_result.ok()) {

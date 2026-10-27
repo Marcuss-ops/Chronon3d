@@ -66,7 +66,7 @@ NodeExecResult CompositeNode::execute(
         if (!top || m_operator != CompositeOperator::SourceOver || m_mode != BlendMode::Normal)
             return NodeExecutionError{RenderBackendErrorCode::InvalidInput,
                 "CompositeNode", "backdrop blur requires a normal source-over shape layer"};
-        if (ctx.backend && ctx.surface_registry && ctx.backend->supports_native_surfaces() &&
+        if (ctx.backend && ctx.surface_registry && ctx.backend_stats_api()->supports_native_surfaces() &&
             m_backdrop_blur->brightness == 1.0f && m_backdrop_blur->saturation == 1.0f &&
             m_backdrop_blur->rim_light == 0.0f && m_backdrop_blur->refraction == 0.0f &&
             m_backdrop_blur->surface_noise == 0.0f &&
@@ -85,15 +85,15 @@ NodeExecResult CompositeNode::execute(
                 !ensure_native_surface(ctx, const_cast<Framebuffer&>(*top), "CompositeNode.backdrop.mask"))
                 return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
                     "CompositeNode", "failed to materialize backdrop blur surfaces"};
-            const auto h = ctx.backend->blur_surface(horizontal->surface_handle(),
+            const auto h = ctx.backend_surface_api()->blur_surface(horizontal->surface_handle(),
                 bottom->surface_handle(), m_backdrop_blur->blur, true);
-            const auto v = h.ok() ? ctx.backend->blur_surface(blurred->surface_handle(),
+            const auto v = h.ok() ? ctx.backend_surface_api()->blur_surface(blurred->surface_handle(),
                 horizontal->surface_handle(), m_backdrop_blur->blur, false) : h;
-            const auto m = v.ok() ? ctx.backend->matte_surface(masked->surface_handle(),
+            const auto m = v.ok() ? ctx.backend_surface_api()->matte_surface(masked->surface_handle(),
                 blurred->surface_handle(), top->surface_handle(), false, false) : v;
-            const auto c = m.ok() ? ctx.backend->composite_surfaces(result->surface_handle(),
+            const auto c = m.ok() ? ctx.backend_surface_api()->composite_surfaces(result->surface_handle(),
                 masked->surface_handle(), BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt) : m;
-            const auto overlay = c.ok() ? ctx.backend->composite_surfaces(result->surface_handle(),
+            const auto overlay = c.ok() ? ctx.backend_surface_api()->composite_surfaces(result->surface_handle(),
                 top->surface_handle(), BlendMode::Normal, CompositeOperator::SourceOver, std::nullopt) : c;
             if (!overlay.ok())
                 return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
@@ -191,12 +191,12 @@ NodeExecResult CompositeNode::execute(
     if (bottom_matches_canvas) {
         const bool native_backend =
             ctx.backend && ctx.surface_registry &&
-            ctx.backend->supports_native_surfaces();
+            ctx.backend_stats_api()->supports_native_surfaces();
         auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
         bool bottom_native_valid =
             bottom->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
             native_backend &&
-            ctx.backend->is_native_surface_valid(bottom->surface_handle());
+            ctx.backend_surface_api()->is_native_surface_valid(bottom->surface_handle());
         if (native_backend && !bottom_native_valid) {
             if (!ensure_native_surface(ctx, mutable_bottom, "CompositeNode.bottom")) {
                 return NodeExecutionError{
@@ -230,7 +230,7 @@ NodeExecResult CompositeNode::execute(
                 // software dimension-mismatch composite — e.g. shadow
                 // receivers smaller than the canvas — fail hard.)
                 if (ctx.surface_registry &&
-                    ctx.backend->supports_native_surfaces()) {
+                    ctx.backend_stats_api()->supports_native_surfaces()) {
                     const bool destination_ready = ensure_native_surface(
                         ctx, *result, "CompositeNode.dimension.destination");
                     auto& mutable_bottom = const_cast<Framebuffer&>(*bottom);
@@ -245,7 +245,7 @@ NodeExecResult CompositeNode::execute(
                             "dimension-mismatched inputs"};
                     }
                 }
-                ctx.backend->composite_layer(
+                ctx.backend_frame_api()->composite_layer(
                     *result, *bottom, BlendMode::Normal);
             }
         }
@@ -348,7 +348,7 @@ NodeExecResult CompositeNode::execute(
                 "CompositeNode",
                 "native residency violation: composite inputs could not be materialized"};
         }
-        if (ctx.backend && ctx.backend->supports_native_surfaces() &&
+        if (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces() &&
             m_operator == CompositeOperator::SourceOver &&
             !native_composite && !native_dimension_composite) {
             return NodeExecutionError{
@@ -368,14 +368,14 @@ NodeExecResult CompositeNode::execute(
             // The operator is passed along so the backend can apply the
             // appropriate matte-style coverage to the backdrop.
             if (ctx.backend && ctx.surface_registry &&
-                ctx.backend->supports_native_surfaces()) {
+                ctx.backend_stats_api()->supports_native_surfaces()) {
                 if (auto err = detail::materialize_native_or_fail(
                         ctx, *result, *top,
                         "non-SourceOver composite")) {
                     return *err;
                 }
             }
-            ctx.backend->composite_layer(*result, *top, m_mode, clip, m_operator);
+            ctx.backend_frame_api()->composite_layer(*result, *top, m_mode, clip, m_operator);
             if (result->surface_handle() != runtime::kInvalidRenderSurfaceHandle)
                 result->mark_gpu_authoritative();
     } else {
@@ -385,13 +385,13 @@ NodeExecResult CompositeNode::execute(
         // before dispatching that fallback; otherwise the backend receives
         // the framebuffer sentinel 0 and fails later in resolve_image().
         if (ctx.backend && ctx.surface_registry &&
-            ctx.backend->supports_native_surfaces()) {
+            ctx.backend_stats_api()->supports_native_surfaces()) {
             if (auto err = detail::materialize_native_or_fail(
                     ctx, *result, *top, "composite fallback")) {
                 return *err;
             }
         }
-        ctx.backend->composite_layer(*result, *top, m_mode, clip);
+        ctx.backend_frame_api()->composite_layer(*result, *top, m_mode, clip);
         if (result->surface_handle() != runtime::kInvalidRenderSurfaceHandle)
             result->mark_gpu_authoritative();
     }

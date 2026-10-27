@@ -87,7 +87,7 @@ graph::RenderOpResult draw_cached_text_run(
     const bool unsupported_animation =
         !shape.animators.empty() && !lowerable_gpu_animation;
     const bool native_surfaces_supported =
-        ctx.backend != nullptr && ctx.backend->supports_native_surfaces();
+        ctx.backend != nullptr && ctx.backend_stats_api()->supports_native_surfaces();
     const auto route_decision = detail::resolve_text_execution_route(
         unsupported_animation,
         native_surfaces_supported,

@@ -27,7 +27,7 @@ Working checklist for the 30 hotspot splits in the user-provided refactor plan. 
 - [x] **15. GPU text run** — the cached bridge, glyph packing/preparation, and MTSDF draw path now live in separate translation units; graph node target rebuilt successfully.
 - [x] **16. Temporal pipeline** — grouped temporal execution, policy, context, frame orchestration, and internal headers under `pipeline/temporal/`; the graph pipeline target compiled successfully.
 - [x] **17. Native effect stack details** — moved the glow/shadow, color, echo, and bulk effect implementations into dedicated `.cpp` translation units with a declaration-only private API; graph node target rebuilt successfully.
-- [ ] **18. Backend/context headers** — partial: `render_graph_context.hpp` no longer pulls in `render_backend.hpp`; result/error contracts moved to `render_backend_types.hpp`; native color and bulk-operation parameter layouts now live in `render_backend_surface_types.hpp`; text-run consumers use lighter contract headers and method callers include the full backend API. Explicit native-surface/backend includes were added at their consumers. Graph node/executor and Vulkan targets built. The virtual method API remains together in `render_backend.hpp`; splitting that contract into domain APIs is still pending.
+- [x] **18. Backend/context headers** — split the backend virtual contract into stats, frame, surface, and texture APIs; `render_backend.hpp` now composes those contracts as the compatibility facade. `render_graph_context.hpp` exposes domain API accessors and node callers use those accessors. Architecture rules enforce the domain boundaries and facade composition. Full CLI build and architecture gate passed.
 
 ## D. Video export and CLI
 
@@ -44,8 +44,8 @@ Working checklist for the 30 hotspot splits in the user-provided refactor plan. 
 ## F. Tests and contracts
 
 - [x] **25. Render Plan tests** — decoder tests are separated into validation/features and numbered parts; prepared-plan coverage is divided into runtime, timeline, Lottie, SVG-filter, and numbered parts with shared local support headers. Existing test sources are organized in CMake manifests.
-- [ ] **26. Plan JSON fixtures** — replace giant committed JSON fixtures with deterministic builders/generators.
-- [ ] **27. Generated schema and C ABI** — establish a single source and reproducible generation/check flow for the V3 extensions schema and `chronon3d_c.abi`.
+- [x] **26. Plan JSON fixtures** — replaced the 10 text stress plans, animated-image camera plan, and 360-frame SVG motion plan with deterministic generators and compact source data. Generated fixture JSON now goes under ignored or temporary directories. Compared outputs against the removed fixtures: text plans retained identical structure (maximum floating-point delta `5.68434e-14`), animated camera samples matched exactly, and SVG camera samples matched exactly.
+- [x] **27. Schema and C ABI artifacts** — the checked-in V3 extensions JSON schema is the canonical source consumed directly by the build; added `tools/sdk/generate_cabi_symbol_baseline.sh` to reproducibly generate a reviewable candidate export-symbol baseline from `CABI_SO`, while the versioned `cabi_symbol_baseline_v2.txt` remains the reviewed ABI contract checked by `check_cabi_abi_gate.sh`. The generated `chronon3d_c.abi` artifact is ignored rather than hand-maintained.
 
 ## G. Build system
 
@@ -78,3 +78,6 @@ Working checklist for the 30 hotspot splits in the user-provided refactor plan. 
 - Vulkan backend target rebuilt after extracting native surface-operation parameter layouts into `render_backend_surface_types.hpp` (`38/38` objects, `-j10`).
 - Full configured CLI build: `cmake --build build/chronon/linux-video-fast-dev --target chronon3d_cli -j10` passed (296/296 steps). This validated the current Render Plan, Vulkan, Render Graph, runtime, media, CLI, and SDK object graph. Existing FFmpeg `AVCodec::pix_fmts` deprecation warnings remain.
 - Full build caught and fixed two split-integration defects: stale runtime includes after moving temporal headers, and the missing `optional_frame` definition after splitting decoder fields. The link also caught and fixed the non-inline header definition of `make_render_backend_error`.
+- Full configured CLI build after the backend API-domain split: `cmake --build build/chronon/linux-video-fast-dev --target chronon3d_cli -j10` passed (218/218 steps); existing FFmpeg `AVCodec::pix_fmts` deprecation warnings only.
+- Architecture gate after API-domain rules were added: `python3 tools/check_architecture.py` passed (214/214 rules); `bash -n tools/sdk/generate_cabi_symbol_baseline.sh` and `git diff --check` passed.
+- Fixture generator parity checks: text stress plans preserve structure within serialization float precision; animated-image and SVG camera sample sequences matched the previous committed plans.

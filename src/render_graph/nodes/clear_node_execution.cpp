@@ -34,7 +34,7 @@ NodeExecResult execute_clear_node(
     // (or, in strict mode, fail after the composite has already been built).
     const auto clear_path = detail::resolve_clear_execution_path(
         ctx.policy.require_native_gpu,
-        ctx.backend && ctx.backend->supports_native_video_surface(),
+        ctx.backend && ctx.backend_stats_api()->supports_native_video_surface(),
         ctx.backend != nullptr,
         ctx.surface_registry != nullptr);
     if (clear_path == detail::ClearExecutionPath::Reject) {

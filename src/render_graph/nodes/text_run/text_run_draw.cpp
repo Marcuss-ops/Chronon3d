@@ -104,7 +104,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
             [&](const runtime::GpuPreparedTextRun::Batch& batch) {
                 return batch.page != runtime::kInvalidRenderSurfaceHandle &&
                     ctx.surface_registry->lookup(batch.page).has_value() &&
-                    ctx.backend->is_native_surface_valid(batch.page);
+                    ctx.backend_surface_api()->is_native_surface_valid(batch.page);
             });
     };
     if (!pages_are_bound(*prepared)) {
@@ -187,7 +187,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                 });
         const auto dispatch = [&]() -> graph::RenderOpResult {
           if (!has_resolved_glyph_motion) {
-            return ctx.backend->draw_text_batch(
+            return ctx.backend_texture_api()->draw_text_batch(
                 destination.surface_handle(), batch.glyphs,
                 std::span<const runtime::TextRunDynamic>(&run, 1),
                 std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
@@ -260,7 +260,7 @@ graph::RenderOpResult draw_cached_text_run_mtsdf(
                         ::chronon3d::text::pack_text_color(state.fill);
                 }
             }
-            return ctx.backend->draw_text_batch(
+            return ctx.backend_texture_api()->draw_text_batch(
                 destination.surface_handle(), glyphs, glyph_runs,
                 std::span<const runtime::RenderSurfaceHandle>(&batch.page, 1));
         }();

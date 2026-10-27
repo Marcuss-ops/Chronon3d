@@ -50,7 +50,7 @@ NodeExecResult MultiSourceNode::execute(
     // the first draw: otherwise native path/shape dispatch rejects the empty
     // handle, the legacy path leaves a CPU-only result, and the following
     // CompositeNode cannot preserve GPU residency.
-    if (ctx.backend->supports_native_surfaces() && ctx.surface_registry &&
+    if (ctx.backend_stats_api()->supports_native_surfaces() && ctx.surface_registry &&
         !ensure_empty_native_surface(ctx, *fb)) {
         return NodeExecResult{NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,
@@ -96,7 +96,7 @@ NodeExecResult MultiSourceNode::execute(
     for (const auto& item : m_items)
         if (item.group || !item.groups.empty()) { has_group_items = true; break; }
     const bool native_group_surfaces = has_group_items &&
-        ctx.backend->supports_native_surfaces() && ctx.surface_registry;
+        ctx.backend_stats_api()->supports_native_surfaces() && ctx.surface_registry;
     if (has_group_items && ctx.policy.is_gpu_native_required() &&
         !native_group_surfaces) {
         return NodeExecResult{NodeExecutionError{
