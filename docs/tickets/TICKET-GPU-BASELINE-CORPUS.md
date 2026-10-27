@@ -48,6 +48,13 @@ smoke case is `B00=DarkGridBackground`.
 
 ## Evidence
 
+### Manifest audit (2026-10-26)
+
+The versioned JSON contains 17 cases with unique, non-empty IDs and scene
+names. `tests/test_gpu_corpus_manifest.py` passes locally. Runtime certification
+remains blocked because this checkout does not contain the B00–B11/GPU_TEXT
+content pack and the local CLI does not register those scenes.
+
 The current same-SHA hardware smoke is recorded in
 [`gpu-b00-native-smoke-a16c86de2`](../evidence/gpu-b00-native-smoke-a16c86de2.md).
 The 120-frame `DarkGridBackground` case on an RTX A4000/NVENC lane reached
