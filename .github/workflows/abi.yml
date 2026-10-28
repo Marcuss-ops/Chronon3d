@@ -57,7 +57,10 @@ jobs:
 
       - name: Configure pinned ABI baseline
         working-directory: abi-baseline
-        run: cmake --preset linux-hardened-release -DCHRONON3D_BUILD_C_API=ON
+        run: |
+          cmake --preset linux-hardened-release \
+            -DCHRONON3D_BUILD_C_API=ON \
+            -DCHRONON3D_VCPKG_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build pinned C ABI baseline
         working-directory: abi-baseline

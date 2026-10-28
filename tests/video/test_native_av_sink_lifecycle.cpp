@@ -38,7 +38,9 @@ void certify_native_lifecycle(VideoCodec codec, const char* output_name) {
     auto sink = create_video_sink(config);
     REQUIRE(sink != nullptr);
     REQUIRE(sink->name() == "native-av");
-    REQUIRE(sink->open(config));
+    const bool opened = sink->open(config);
+    INFO(sink->last_error_message());
+    REQUIRE(opened);
     CHECK(sink->state() == VideoSinkState::Open);
 
     std::vector<std::uint8_t> pixels(
@@ -87,7 +89,9 @@ TEST_CASE("NativeAvSink RGB conversion pixels agree with emitted BT709 metadata"
     config.encoder.codec = VideoCodec::H264; config.encoder.crf = 0;
     config.output.output_path = path;
     auto sink = create_video_sink(config);
-    REQUIRE(sink->open(config));
+    const bool opened = sink->open(config);
+    INFO(sink->last_error_message());
+    REQUIRE(opened);
     std::vector<std::uint8_t> rgb(64U * 64U * 3U);
     for (std::size_t i = 0; i < rgb.size(); i += 3) rgb[i] = 255;
     REQUIRE(sink->submit(VideoFrameView{.data = rgb.data(), .width = 64,
@@ -220,7 +224,9 @@ void certify_keyframe_cadence(int frame_rate_num, int frame_rate_den,
 
     auto sink = create_video_sink(config);
     REQUIRE(sink != nullptr);
-    REQUIRE(sink->open(config));
+    const bool opened = sink->open(config);
+    INFO(sink->last_error_message());
+    REQUIRE(opened);
 
     // The producer-side fact: what the encoder was configured to emit.
     CHECK(sink->diagnostics().keyframe_interval_frames == expected_interval);
@@ -302,7 +308,9 @@ TEST_CASE("NativeAvSink: duration boundary matrix retains every submitted packet
 
         auto sink = create_video_sink(config);
         REQUIRE(sink != nullptr);
-        REQUIRE(sink->open(config));
+        const bool opened = sink->open(config);
+        INFO(sink->last_error_message());
+        REQUIRE(opened);
         std::vector<std::uint8_t> pixels(64U * 64U * 4U, 0x40U);
         for (int index = 0; index < frame_count; ++index) {
             const VideoFrameView frame{

@@ -25,9 +25,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
             ninja-build ccache pkg-config mono-complete ffmpeg mold
-        # libavcodec/libavformat/libavutil/libswscale are now declared as the
-        # vcpkg `native-ffmpeg` manifest feature (vcpkg.json); the ffmpeg CLI
-        # binary remains a system package for the integration contract.
+        # FFmpeg libraries are declared as base dependencies in vcpkg.json;
+        # the ffmpeg CLI binary remains a system package for the integration
+        # contract.
 
       - uses: lukka/get-cmake@latest
         with:
@@ -46,10 +46,8 @@ jobs:
           cmake --preset linux-video-test \
             -DCHRONON3D_ENABLE_VULKAN=OFF \
             -DCHRONON3D_ENABLE_CUDA_INTEROP=OFF \
-            -DCHRONON3D_ENABLE_TEXT=OFF \
-            -DCHRONON3D_USE_BLEND2D=OFF \
             -DCHRONON3D_ENABLE_IPC=OFF \
-            -DVCPKG_MANIFEST_FEATURES='cli;native-ffmpeg;tests'
+            -DVCPKG_MANIFEST_FEATURES='cli;blend2d;text;tests;native-ffmpeg'
 
       - name: Build native sink certification target
         run: |
