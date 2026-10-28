@@ -89,9 +89,13 @@ struct JobCounters {
 /// Per-job route telemetry. EffectType values are explicitly assigned and
 /// sparse; the fixed array is indexed by the stable numeric value, with slot 0
 /// reserved for Unknown. Counters observe route decisions only and never
-/// participate in dispatch/admission. kEffectTypeCount must cover the catalog's
-/// highest explicitly assigned enum value (currently 47).
-inline constexpr std::size_t kEffectTypeCount = 48;
+/// participate in dispatch/admission. kEffectTypeCount covers every value the
+/// catalog can assign: it is derived from effect_catalog.def via
+/// effects::kEffectTypeMaxValue, so a new catalog row can never silently lose
+/// its telemetry slot again (the former hand-maintained 48 stopped covering
+/// the catalog at value 48).
+inline constexpr std::size_t kEffectTypeCount =
+    static_cast<std::size_t>(effects::kEffectTypeMaxValue) + 1;
 struct AtomicEffectUsagePair {
     std::atomic<std::uint64_t> native_frames{0};
     std::atomic<std::uint64_t> admission_rejected_frames{0};

@@ -32,4 +32,20 @@ struct effect_type_for {
     static constexpr EffectType value = EffectType::Unknown;
 };
 
+// ── kEffectTypeMaxValue ─────────────────────────────────────────────────────
+// Highest explicitly assigned catalog value, derived from effect_catalog.def.
+// Single source of truth for sizing value-indexed tables (route telemetry in
+// runtime/job/job_session.hpp). Never hand-maintained: adding a catalog row
+// updates this automatically, so no catalog value can silently lose its slot.
+inline constexpr std::uint8_t kEffectTypeMaxValue = [] {
+    std::uint8_t max_value = 0;
+#define CHRONON_EFFECT(val, enum_name, ...)                                        \
+    max_value = static_cast<std::uint8_t>(val) > max_value                         \
+                    ? static_cast<std::uint8_t>(val)                               \
+                    : max_value;
+#include "effect_catalog.def"
+#undef CHRONON_EFFECT
+    return max_value;
+}();
+
 } // namespace chronon3d::effects

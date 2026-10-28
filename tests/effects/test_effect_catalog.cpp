@@ -18,7 +18,7 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     EffectCatalog catalog;
 
     const auto available_ids = catalog.available();
-    REQUIRE(available_ids.size() == 55);
+    REQUIRE(available_ids.size() == 57);
     CHECK(catalog.contains(effect_ids::BlurGaussian));
     CHECK(catalog.contains(effect_ids::ColorBrightness));
     CHECK(catalog.contains(effect_ids::ColorContrast));
@@ -27,6 +27,15 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     CHECK(catalog.contains(effect_ids::ColorHueRotate));
     CHECK(catalog.contains(effect_ids::ColorInvert));
     CHECK(catalog.contains(effect_ids::ColorMatrix));
+    CHECK(catalog.contains(effect_ids::ColorPosterize));
+    CHECK(catalog.contains(effect_ids::ColorColorMap));
+    CHECK(effect_type_for<ColorMapParams>::value == EffectType::ColorMap);
+    CHECK((std::is_same_v<effect_params_for<EffectType::ColorMap>::type,
+                          ColorMapParams>));
+    CHECK(EffectType::ColorMap == static_cast<EffectType>(57));
+    CHECK(effect_type_for<PosterizeParams>::value == EffectType::Posterize);
+    CHECK((std::is_same_v<effect_params_for<EffectType::Posterize>::type,
+                          PosterizeParams>));
     CHECK(catalog.contains(effect_ids::ColorLottieTint));
     CHECK(catalog.contains(effect_ids::ColorLottieTritone));
     CHECK(catalog.contains(effect_ids::ColorVignette));
@@ -77,6 +86,19 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     CHECK(vig.category == EffectCategory::Color);
     CHECK(vig.stage == EffectStage::Adjustment);
     CHECK(vig.builtin);
+}
+
+TEST_CASE("Posterize catalog parameters validate and expose bounded animation") {
+    CHECK(EffectType::Posterize == static_cast<EffectType>(56));
+    PosterizeParams params;
+    params.validate();
+    CHECK_THROWS_AS((PosterizeParams{.levels = 1}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((PosterizeParams{.levels = 257}).validate(), std::invalid_argument);
+
+    CHECK(find_animatable_effect_param(effect_ids::ColorPosterize, "levels") != nullptr);
+    CHECK(set_animatable_effect_param(params, effect_ids::ColorPosterize, "levels", 12.0f));
+    CHECK(params.levels == 12);
+    CHECK(get_animatable_effect_param(params, effect_ids::ColorPosterize, "levels") == 12.0f);
 }
 
 TEST_CASE("ColorMatrix catalog parameters preserve row-major mapping and bounded animation") {

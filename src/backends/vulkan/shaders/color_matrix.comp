@@ -23,6 +23,10 @@
 //                 p[1] shadow/midtone/highlight response, RGB flag.
 // mode 10 (ColorMatrix): p[0..3] hold each RGBA input column across output
 //                        rows; p[4] holds the four row biases. Alpha clamps.
+// mode 11 (Posterize): p[0].x is the number of evenly spaced RGB levels.
+// mode 12 (ColorMap): p[0..4].rgb are five evenly spaced straight-RGB stops,
+//                     p[0].w is the source→mapped blend amount; luminance
+//                     picks the segment and alpha is preserved.
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
@@ -227,6 +231,30 @@ void main() {
         float out_alpha = clamp(result.a, 0.0, 1.0);
         imageStore(destination_image, coord,
                    out_alpha <= 1.0e-8 ? vec4(0.0) : vec4(result.rgb * out_alpha, out_alpha));
+        return;
+    }
+    if (params.options.x > 10.5 && params.options.x < 11.5) {
+        if (source.a <= 1.0e-8) {
+            imageStore(destination_image, coord, vec4(0.0));
+            return;
+        }
+        float scale = params.p[0].x - 1.0;
+        rgb = floor(clamp(rgb, vec3(0.0), vec3(1.0)) * scale + 0.5) / scale;
+        imageStore(destination_image, coord, vec4(rgb * source.a, source.a));
+        return;
+    }
+    if (params.options.x > 11.5 && params.options.x < 12.5) {
+        if (source.a <= 1.0e-8) {
+            imageStore(destination_image, coord, vec4(0.0));
+            return;
+        }
+        float luma = dot(vec3(0.2126, 0.7152, 0.0722), rgb);
+        float scaled = clamp(luma, 0.0, 1.0) * 4.0;
+        int lower = min(3, int(scaled));
+        float t = scaled - float(lower);
+        vec3 mapped = mix(params.p[lower].rgb, params.p[lower + 1].rgb, t);
+        mapped = mix(rgb, mapped, clamp(params.p[0].w, 0.0, 1.0));
+        imageStore(destination_image, coord, vec4(mapped * source.a, source.a));
         return;
     }
     if (params.options.x < 0.5) {

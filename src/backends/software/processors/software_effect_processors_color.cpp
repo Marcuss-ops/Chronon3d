@@ -365,6 +365,75 @@ public:
     }
 };
 
+class SoftwarePosterizeEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<PosterizeParams>(&params);
+        if (!p) throw std::runtime_error("Posterize processor received invalid parameters");
+        p->validate();
+        const float scale = static_cast<float>(p->levels - 1);
+        const int x0 = context.clip ? std::clamp(context.clip->x0, 0, fb.width()) : 0;
+        const int x1 = context.clip ? std::clamp(context.clip->x1, 0, fb.width()) : fb.width();
+        const int y0 = context.clip ? std::clamp(context.clip->y0, 0, fb.height()) : 0;
+        const int y1 = context.clip ? std::clamp(context.clip->y1, 0, fb.height()) : fb.height();
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                const float alpha = row[x].a;
+                if (alpha <= 0.0f) continue;
+                auto straight = color::unpremultiply_rgb(row[x]);
+                const auto quantize = [scale](float value) {
+                    return std::floor(std::clamp(value, 0.0f, 1.0f) * scale + 0.5f) / scale;
+                };
+                straight.r = quantize(straight.r);
+                straight.g = quantize(straight.g);
+                straight.b = quantize(straight.b);
+                row[x] = color::premultiply_rgb(straight, alpha);
+            }
+        }
+    }
+};
+
+class SoftwareColorMapEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<ColorMapParams>(&params);
+        if (!p) throw std::runtime_error("ColorMap processor received invalid parameters");
+        p->validate();
+        const int x0 = context.clip ? std::clamp(context.clip->x0, 0, fb.width()) : 0;
+        const int x1 = context.clip ? std::clamp(context.clip->x1, 0, fb.width()) : fb.width();
+        const int y0 = context.clip ? std::clamp(context.clip->y0, 0, fb.height()) : 0;
+        const int y1 = context.clip ? std::clamp(context.clip->y1, 0, fb.height()) : fb.height();
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            for (int x = x0; x < x1; ++x) {
+                const float alpha = row[x].a;
+                if (alpha <= 0.0f) continue;
+                auto straight = color::unpremultiply_rgb(row[x]);
+                const float luma =
+                    0.2126f * straight.r + 0.7152f * straight.g + 0.0722f * straight.b;
+                const float scaled = std::clamp(luma, 0.0f, 1.0f) * 4.0f;
+                const int lower = std::min(3, static_cast<int>(scaled));
+                const float t = scaled - static_cast<float>(lower);
+                const std::size_t lo = static_cast<std::size_t>(lower) * 3;
+                const std::size_t hi = static_cast<std::size_t>(lower + 1) * 3;
+                const float mapped_r = p->stops[lo] +
+                                       (p->stops[hi] - p->stops[lo]) * t;
+                const float mapped_g = p->stops[lo + 1] +
+                                       (p->stops[hi + 1] - p->stops[lo + 1]) * t;
+                const float mapped_b = p->stops[lo + 2] +
+                                       (p->stops[hi + 2] - p->stops[lo + 2]) * t;
+                straight.r += (mapped_r - straight.r) * p->amount;
+                straight.g += (mapped_g - straight.g) * p->amount;
+                straight.b += (mapped_b - straight.b) * p->amount;
+                row[x] = color::premultiply_rgb(straight, alpha);
+            }
+        }
+    }
+};
+
 class SoftwareFillEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -535,6 +604,14 @@ std::unique_ptr<EffectProcessor> create_lift_gamma_gain_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_color_matrix_effect_processor() {
     return std::make_unique<SoftwareColorMatrixEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_posterize_effect_processor() {
+    return std::make_unique<SoftwarePosterizeEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_color_map_effect_processor() {
+    return std::make_unique<SoftwareColorMapEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_fill_effect_processor() {

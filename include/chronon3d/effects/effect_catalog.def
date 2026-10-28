@@ -432,3 +432,13 @@ CHRONON_EFFECT(55, LottieTritone, LottieTritoneParams, ids::ColorLottieTritone,
     "Lottie Tritone", EffectCategory::Color, EffectStage::Adjustment,
     EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
     BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(56, Posterize, PosterizeParams, ids::ColorPosterize,
+    "Posterize", EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, true)
+
+CHRONON_EFFECT(57, ColorMap, ColorMapParams, ids::ColorColorMap,
+    "Color Map", EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
+    BoundsPolicy::Preserve, false, true)
