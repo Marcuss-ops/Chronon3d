@@ -252,10 +252,13 @@ inline bool ensure_native_surface(
 /// Attach a device-local destination whose contents are produced completely
 /// by the next native kernel. Affine image transforms may use a clipped
 /// dispatch and therefore do not necessarily write every destination pixel.
-/// Clear both newly allocated and reused surfaces so pixels outside the
-/// current dispatch cannot leak from an earlier occupant or frame.
-inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
-                                        Framebuffer& framebuffer) {
+/// A framebuffer can inherit a surface handle from another live framebuffer
+/// when acquire_owned_fb clones GPU-only storage. Never clear or release that
+/// possibly shared handle here: detach it and allocate a fresh destination.
+/// FrameTransient retirement reclaims the detached backing after its last
+/// graph use, while the new surface starts transparent for clipped dispatches.
+static inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
+                                               Framebuffer& framebuffer) {
     if (!ctx.backend || !ctx.surface_registry || !ctx.backend_stats_api()->supports_native_surfaces()) return false;
     if (framebuffer.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         const auto handle = framebuffer.surface_handle();
@@ -266,6 +269,14 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
             // reuse the encode target while both owners still agree.
             if (ctx.surface_registry->lookup(handle) &&
                 ctx.backend_surface_api()->is_native_surface_valid(handle)) {
+                if (native_surface_promotion_diag_enabled()) {
+                    const auto record = ctx.surface_registry->lookup(handle);
+                    spdlog::info(
+                        "[native-surface] reusing encode handle={} surface={}x{} framebuffer={}x{}",
+                        handle, record ? record->desc.width : 0,
+                        record ? record->desc.height : 0,
+                        framebuffer.width(), framebuffer.height());
+                }
                 return true;
             }
             if (native_surface_promotion_diag_enabled()) {
@@ -275,22 +286,28 @@ inline bool ensure_empty_native_surface(RenderGraphContext& ctx,
                     handle);
             }
             framebuffer.clear_surface_handle();
-        }
-        if (ctx.surface_registry->lookup(handle) &&
-            ctx.backend_surface_api()->is_native_surface_valid(handle)) {
-            const auto cleared = ctx.backend_surface_api()->initialize_transparent_surface(handle);
-            if (!cleared.ok()) {
-                spdlog::error("[native-surface] reused transparent clear failed for {}x{}: {}",
-                              framebuffer.width(), framebuffer.height(),
-                              cleared.error().message);
-                return false;
+        } else {
+            const auto record = ctx.surface_registry->lookup(handle);
+            const bool backend_valid =
+                ctx.backend_surface_api()->is_native_surface_valid(handle);
+            const bool matching_extent = record &&
+                record->desc.width == static_cast<std::uint32_t>(framebuffer.width()) &&
+                record->desc.height == static_cast<std::uint32_t>(framebuffer.height());
+            if (record && !matching_extent) {
+                spdlog::warn(
+                    "[native-surface] detached reused extent handle={} surface={}x{} framebuffer={}x{}",
+                    handle, record->desc.width, record->desc.height,
+                    framebuffer.width(), framebuffer.height());
+            } else if (record && backend_valid && native_surface_promotion_diag_enabled()) {
+                spdlog::debug(
+                    "[native-surface] detached potentially shared handle={} extent={}x{}",
+                    handle, record->desc.width, record->desc.height);
             }
-            return true;
+            // Both the framebuffer handle and the backend binding may be
+            // shared with another live graph value. Do not release either;
+            // the frame-transient registry owns their eventual retirement.
+            framebuffer.clear_surface_handle();
         }
-        if (ctx.surface_registry->lookup(handle)) {
-            (void)ctx.surface_registry->release(handle);
-        }
-        framebuffer.clear_surface_handle();
     }
     const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height());
     const auto handle = ctx.surface_registry->create(desc);

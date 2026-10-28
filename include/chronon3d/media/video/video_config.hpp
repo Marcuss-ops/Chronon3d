@@ -293,6 +293,46 @@ struct ValidationResult {
     explicit operator bool() const noexcept { return valid; }
 };
 
+/// True when the FFmpeg encoder name is a hardware encoder
+/// (h264_nvenc, hevc_qsv, h264_amf, h264_videotoolbox, ...).
+///
+/// A hardware encoder must NEVER be selected implicitly: a build without the
+/// requested software encoder silently falling back to a hardware one would
+/// receive software-shaped options (x264 tunes, "crf") that the hardware
+/// encoder rejects at avcodec_open2 with a misleading error. See
+/// encoder_fallback_policy below.
+[[nodiscard]] inline bool is_hardware_encoder_name(std::string_view name) noexcept {
+    return name.find("_nvenc") != std::string_view::npos ||
+           name.find("_qsv") != std::string_view::npos ||
+           name.find("_amf") != std::string_view::npos ||
+           name.find("_videotoolbox") != std::string_view::npos;
+}
+
+/// Policy for the codec-id fallback when the preferred encoder name is
+/// missing from the linked FFmpeg build.
+enum class EncoderFallbackPolicy : uint8_t {
+    /// Same encoder (or no preference): use it.
+    UseChosen = 0,
+    /// Different software encoder for the same codec id (e.g. libx264rgb for
+    /// libx264): acceptable substitution, option vocabularies overlap.
+    UseChosenSoftware = 1,
+    /// The only fallback is a hardware encoder the configuration did not
+    /// request: fail closed with a clear error instead of opening a
+    /// cross-family encoder whose options cannot work.
+    FailClosed = 2,
+};
+
+/// Decide what to do when avcodec_find_encoder_by_name(preferred) failed and
+/// the codec-id fallback chose `chosen_name` (see NativeAvSink::open).
+[[nodiscard]] inline EncoderFallbackPolicy encoder_fallback_policy(
+    std::string_view preferred_name, const char* chosen_name) noexcept {
+    const std::string_view chosen = chosen_name ? std::string_view{chosen_name} : std::string_view{};
+    if (chosen.empty()) return EncoderFallbackPolicy::FailClosed;
+    if (chosen == preferred_name) return EncoderFallbackPolicy::UseChosen;
+    if (is_hardware_encoder_name(chosen)) return EncoderFallbackPolicy::FailClosed;
+    return EncoderFallbackPolicy::UseChosenSoftware;
+}
+
 /// Resolve VideoCodec::Auto to a concrete codec based on the output container.
 ///
 /// Rules:

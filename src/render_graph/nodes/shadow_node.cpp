@@ -7,6 +7,13 @@
 #include <vector>
 
 namespace chronon3d::graph {
+namespace {
+
+// Vulkan's separable blur kernel accepts radii through 192 pixels. Depth-aware
+// shadows can otherwise exceed that after projection expands world-space Z.
+constexpr float kMaxNativeShadowBlurRadius = 192.0f;
+
+} // namespace
 
 NodeExecResult ShadowNode::execute_native(
     RenderGraphContext& ctx, const Framebuffer& source) const {
@@ -48,8 +55,16 @@ NodeExecResult ShadowNode::execute_native(
         ctx.backend_surface_api()->is_native_surface_valid(source_handle);
     if (!source_is_native || source.is_cpu_authoritative()) {
         if (!source.data() || !source.is_cpu_authoritative()) {
+            const bool source_registered =
+                ctx.surface_registry->lookup(source_handle).has_value();
+            const bool source_backend_valid =
+                ctx.backend_surface_api()->is_native_surface_valid(source_handle);
             return fail(RenderBackendErrorCode::UnsupportedCapability,
-                        "native shadow source has no current GPU surface or CPU pixels");
+                        "native shadow source has no current GPU surface or CPU pixels; "
+                        "surface_handle=" + std::to_string(source_handle) +
+                        " registered=" + (source_registered ? "true" : "false") +
+                        " native_surface_valid=" + (source_backend_valid ? "true" : "false") +
+                        " cpu_authoritative=" + (source.is_cpu_authoritative() ? "true" : "false"));
         }
         promoted_source = ctx.acquire_owned_fb(source);
         if (!promoted_source) {
@@ -148,11 +163,11 @@ NodeExecResult ShadowNode::execute_native(
         if (!tint_result.ok()) return tint_result;
         auto horizontal = ctx.backend_surface_api()->blur_surface(
             blur_scratch->surface_handle(), tinted->surface_handle(),
-            blur_radius, true);
+            std::clamp(blur_radius, 0.0f, kMaxNativeShadowBlurRadius), true);
         if (!horizontal.ok()) return horizontal;
         return ctx.backend_surface_api()->blur_surface(
             blurred->surface_handle(), blur_scratch->surface_handle(),
-            blur_radius, false);
+            std::clamp(blur_radius, 0.0f, kMaxNativeShadowBlurRadius), false);
     };
 
     const auto contact = render_layer(m_settings.contact_opacity,

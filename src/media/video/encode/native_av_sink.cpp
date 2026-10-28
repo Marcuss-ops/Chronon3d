@@ -197,6 +197,24 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
         : nullptr;
     if (!encoder && resolved_codec != VideoCodec::H264Nvenc) {
         encoder = avcodec_find_encoder(codec_id(resolved_codec));
+        // The codec-id fallback may return a hardware encoder (e.g. h264_nvenc
+        // when libx264 is absent from this FFmpeg build). Opening it would
+        // silently cross the software/hardware family boundary and feed it
+        // software-shaped options (x264 tunes, "crf") that it rejects at
+        // avcodec_open2 with a misleading error. Fail closed instead, naming
+        // the two actionable routes.
+        if (encoder != nullptr && preferred_name != nullptr &&
+            encoder_fallback_policy(preferred_name, encoder->name) ==
+                EncoderFallbackPolicy::FailClosed) {
+            return fail(
+                VideoSinkError::EncoderFailed,
+                std::string("preferred encoder '") + preferred_name +
+                    "' is unavailable in this FFmpeg build and the codec-id fallback is the hardware encoder '" +
+                    encoder->name +
+                    "'; refusing the silent cross-family substitution — request the hardware codec "
+                    "explicitly (e.g. --codec " +
+                    encoder->name + ") or use the native encoder backend");
+        }
     }
     if (!encoder) {
         return fail(VideoSinkError::EncoderFailed,

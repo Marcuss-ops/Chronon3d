@@ -9,6 +9,18 @@ certification remains open.
 
 - [ ] Certificazione same-SHA su macchina pulita (protocollo e toolchain manifest già consegnati).
 
+### Stato osservato 2026-10-28
+
+- La certificazione clean same-SHA resta aperta: il checkout contiene modifiche
+  locali e la build completa non è stata eseguita. Gli oggetti delle unità
+  toccate dal renderer sono stati compilati in modo mirato con Ninja `-j12`;
+  questo verifica la compilazione, non sostituisce WBH. Il render RTX T05 documentato
+  in [`evidenza T05`](../evidence/lights-shadows/T05-native-vulkan-20261028/README.md)
+  è una prova GPU mirata, non WBH.
+- Il remote `main` osservato è `be6b4dc3a799fe3b38fe6e54e7bddcae5a60cd5e`;
+  i workflow su quel commit sono ancora in corso e non includono le modifiche
+  locali. Nessun run certifica quindi il tree renderer corrente.
+
 ## Problema
 
 Formalizzare il protocollo WBH (Working-Build-Host) per la certificazione dei test first-principles in modo riproducibile tra macchine diverse.

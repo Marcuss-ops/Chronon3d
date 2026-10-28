@@ -65,12 +65,38 @@ fallisce sugli identificatori `near`/`far` e sugli schema JSON generati troppo
 lunghi. Il WSL locale usa solo `llvmpipe` per Vulkan. Finché uno di questi
 blocchi non è risolto, T05 resta **PARTIAL**.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — stato aggiornato 2026-10-28
 
-- [ ] Ombre reali: portare `ShadowNode` da reference CPU al percorso nativo (oggi c'è solo la proiezione screen-space).
-- [ ] Animazione di posizione/direzione della luce.
+- [x] Pass `ShadowNode` Vulkan strict-native implementato e un frame esportato
+  su RTX A4000/NVENC (evidenza sotto).
+- [ ] A/B strict-native valido e revisione di qualità su uno shot di produzione;
+  il frame corrente non mostra un'ombra chiaramente visibile.
 - [ ] Istanziamento GPU delle particelle.
-- [ ] Verifica su device fisico + gate di produzione (T05 resta PARTIAL finché questi blocchi restano aperti).
+- [ ] Regressione e certificazione same-SHA dopo review/commit.
+
+### Aggiornamento 2026-10-28 — prova RTX A4000
+
+- Il host Linux espone una NVIDIA RTX A4000, Vulkan NVIDIA e NVENC. La CLI
+  strict-native ha completato il piano C3D di un frame (`required_gpu_native_full_graph`):
+  quattro nodi `Shadow` risultano GPU-only e NVENC accetta un frame/produce un
+  pacchetto H.264. Il PNG decodificato è in
+  [`evidenza frame strict-native`](../evidence/lights-shadows/T05-native-vulkan-20261028/README.md).
+- Questa prova sostituisce il precedente blocco ambientale “WSL senza GPU” per
+  questo host, ma non certifica la qualità. La revisione del frame non mostra
+  un'ombra portata chiaramente visibile.
+- Dopo la correzione del riuso della backing cropped, entrambi i render
+  strict-native on/off terminano e NVENC muxa un frame. Il controllo off
+  decodifica però in un'immagine completamente nera (media RGB 0), mentre il
+  frame on mostra il piano e i due caster: la coppia non è un A/B valido. I
+  log del controllo riportano sostituzioni di superfici 1920×1080/218×287 e
+  1920×1080/336×395, senza errore Vulkan; va ancora corretta la causa del
+  contenuto nero e ripetuto il confronto.
+- Il test backend Vulkan isolato resta verde per proiezione/blur; il percorso
+  affine `Screen` e i chiamanti della superficie nativa sono stati ricompilati
+  in modo mirato, senza build completa. La suite completa e la certificazione
+  same-SHA non sono state eseguite.
+- L'instanziamento GPU delle particelle è ancora assente. T05 resta
+  **PARTIAL — OPEN**; questa prova non chiude il ticket.
 
 ## Audit di partenza (2026-10-08)
 

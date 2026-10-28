@@ -47,3 +47,34 @@ TEST_CASE("VideoSinkFactory: native FFmpeg build keeps raw output on RawVideoSin
     REQUIRE(sink != nullptr);
     CHECK(sink->name() == "raw-video-sink");
 }
+
+TEST_CASE("NativeAvSink: codec-id fallback never silently selects a hardware encoder") {
+    using namespace chronon3d::media::video;
+
+    // Hardware names are recognized across vendors (NVENC/QSV/AMF/VideoToolbox).
+    CHECK(is_hardware_encoder_name("h264_nvenc"));
+    CHECK(is_hardware_encoder_name("hevc_qsv"));
+    CHECK(is_hardware_encoder_name("h264_amf"));
+    CHECK(is_hardware_encoder_name("h264_videotoolbox"));
+    CHECK_FALSE(is_hardware_encoder_name("libx264"));
+    CHECK_FALSE(is_hardware_encoder_name("libx264rgb"));
+    CHECK_FALSE(is_hardware_encoder_name("libvpx-vp9"));
+
+    // Same name as preferred: use it.
+    CHECK(encoder_fallback_policy("libx264", "libx264") ==
+          EncoderFallbackPolicy::UseChosen);
+    // Software alternative for the same codec id: acceptable substitution.
+    CHECK(encoder_fallback_policy("libx264", "libx264rgb") ==
+          EncoderFallbackPolicy::UseChosenSoftware);
+    // The only fallback is a hardware encoder the configuration did not
+    // request: fail closed (the historical silent substitution fed x264
+    // options to h264_nvenc and failed at avcodec_open2 with a misleading
+    // error).
+    CHECK(encoder_fallback_policy("libx264", "h264_nvenc") ==
+          EncoderFallbackPolicy::FailClosed);
+    // No usable fallback is fail-closed too.
+    CHECK(encoder_fallback_policy("libx264", nullptr) ==
+          EncoderFallbackPolicy::FailClosed);
+    CHECK(encoder_fallback_policy("libx264", "") ==
+          EncoderFallbackPolicy::FailClosed);
+}

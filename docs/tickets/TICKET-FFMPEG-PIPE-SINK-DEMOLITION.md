@@ -8,6 +8,21 @@
 
 - [ ] Exit condition 3: CI green — poi cancellazione fisica di `VideoSinkEncoderAdapter(Ffmpeg)` e del target pipe.
 
+### Stato CI osservato 2026-10-28
+
+- Sul precedente SHA `cfdd5b15d`, `chronon3d-runtime` falliva compilando il pin ChrononPlugin
+  `c000ee3`, dove `plugins/maps/src/map_camera.cpp` usa `std::int64_t` senza
+  `<cstdint>`. Il worktree locale ha già avanzato il pin Docker a `5e33bd0`, il
+  commit ChrononPlugin che aggiunge l'include; la singola unità locale passa
+  `c++ -std=c++20 -fsyntax-only`. Questo fix è stato pubblicato su Chronon3D
+  `main` come `be6b4dc3a`.
+- I run sul nuovo SHA `be6b4dc3a799fe3b38fe6e54e7bddcae5a60cd5e`, inclusa la
+  lane [Native Video Certification](https://github.com/Marcuss-ops/Chronon3d/actions/runs/40663388401),
+  sono ancora in corso. L'exit 3 resta aperta finché la coverage codec/routing
+  non conclude green sullo stesso SHA.
+- Le modifiche locali di questa tranche non sono coperte da quei run. Exit 3
+  resta aperta: non rimuovere ancora l'adapter/target pipe.
+
 ## 2026-09-04 negative census (authoritative)
 
 | Target | Stato | Evidenza |

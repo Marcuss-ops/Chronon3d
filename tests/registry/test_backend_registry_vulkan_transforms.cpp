@@ -19,6 +19,8 @@
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/runtime/render_surface.hpp>
@@ -148,6 +150,53 @@ TEST_CASE("Vulkan native transform applies integer translation and opacity") {
     CHECK(output[(1 * 4 + 1) * 4] == doctest::Approx(0.5f));
     CHECK(output[(2 * 4 + 2) * 4 + 3] == doctest::Approx(0.5f));
     CHECK(output[(0 * 4 + 0) * 4] == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Vulkan native transform marks its output GPU-authoritative") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    constexpr std::uint32_t size = 4;
+    const auto desc = SurfaceDesc::make(
+        size, size, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto source_surface = registry.create(desc);
+    REQUIRE(source_surface != kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.create_surface(source_surface, desc).ok());
+    const std::vector<float> pixels(size * size * 4, 0.5f);
+    REQUIRE(backend.upload_surface(source_surface, desc, pixels).ok());
+
+    Framebuffer source(size, size);
+    source.set_surface_handle(source_surface);
+    source.mark_gpu_authoritative();
+    graph::RenderGraphContext ctx;
+    ctx.frame_input.width = size;
+    ctx.frame_input.height = size;
+    ctx.policy.require_native_gpu = true;
+    ctx.backend = &backend;
+    ctx.surface_registry = &registry;
+
+    Mat4 matrix{1.0f};
+    matrix[3][0] = 1.0f;
+    graph::TransformNode node(matrix, 1.0f, SamplingMode::Nearest);
+    const std::array<FramebufferRef, 1> inputs{FramebufferRef{source}};
+    auto result = node.execute(ctx, inputs, {});
+    REQUIRE(result.ok());
+    auto output = result.take_value();
+    REQUIRE(output);
+    CHECK(output->surface_handle() != kInvalidRenderSurfaceHandle);
+    CHECK(output->is_gpu_authoritative());
+    CHECK_FALSE(output->is_cpu_authoritative());
+
+    const auto output_surface = output->surface_handle();
+    output->clear_surface_handle();
+    (void)backend.release_surface(output_surface);
+    (void)registry.release(output_surface);
+    (void)backend.release_surface(source_surface);
+    (void)registry.release(source_surface);
+    source.clear_surface_handle();
 }
 
 TEST_CASE("Vulkan native affine transform matches inverse mapping") {

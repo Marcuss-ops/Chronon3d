@@ -9,7 +9,7 @@ namespace chronon3d::graph::detail {
 
 bool try_native_affine_composite(
     RenderGraphContext&, Framebuffer&, const Framebuffer&,
-    const std::optional<raster::BBox>&);
+    const std::optional<raster::BBox>&, BlendMode = BlendMode::Normal);
 bool try_native_composite(
     RenderGraphContext&, Framebuffer&, Framebuffer&,
     BlendMode, CompositeOperator, const std::optional<raster::BBox>&);
