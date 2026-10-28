@@ -248,6 +248,21 @@ void append_particles_layer_for_scene(
     if (!sampled.ok())
         throw std::runtime_error("particle sampling failed: " + sampled.error);
     builder.accepts_lights(false).accepts_shadows(false);
+    const auto attach_gpu_instances = [&] {
+        if (!sampled.particles.empty()) {
+            auto& node = builder.last_node_handle().node();
+            node.gpu_particle_instances.reserve(sampled.particles.size());
+            for (const auto& particle : sampled.particles) {
+                node.gpu_particle_instances.push_back({
+                    particle.position, particle.color, particle.size,
+                    particle.rotation, particle.sprite_scale,
+                    layer.particle_emitter->environment
+                        ? (1.0f - particle.depth) * 100.0f : 0.0f});
+            }
+            node.gpu_particle_bokeh = layer.particle_emitter->bokeh;
+            node.gpu_particle_sprite_path = resolved_particle_sprite_paths[index];
+        }
+    };
     // Opaque, normal-blend particles can share path nodes
     // while retaining their authored color order. Runs of
     // equal paint become one path with multiple contours;
@@ -295,6 +310,7 @@ void append_particles_layer_for_scene(
             batch->commands.push_back(PathCommand::close());
         }
         flush_batch();
+        attach_gpu_instances();
         return;
     }
     for (const auto& particle : sampled.particles) {
@@ -326,6 +342,7 @@ void append_particles_layer_for_scene(
         builder.circle("particle_" + std::to_string(particle.index),
                        std::move(params));
     }
+    attach_gpu_instances();
     return;
 
 }

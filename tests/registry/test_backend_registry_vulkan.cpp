@@ -552,6 +552,103 @@ TEST_CASE("Vulkan alpha and luma matte match the CPU coverage formulas") {
     CHECK(output[7] == doctest::Approx(0.5f * luma).epsilon(1e-5));
 }
 
+TEST_CASE("Vulkan particle instances render procedural discs in one layer batch") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle destination = 481;
+    constexpr RenderSurfaceHandle transparent_source = 482;
+    const auto desc = SurfaceDesc::make(
+        8, 8, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(destination, desc).ok());
+    REQUIRE(backend.create_surface(transparent_source, desc).ok());
+    REQUIRE(backend.initialize_transparent_surface(destination).ok());
+    REQUIRE(backend.initialize_transparent_surface(transparent_source).ok());
+
+    LayerInstance first;
+    first.kind = PrimitiveKind::Particle;
+    first.resource_index = 0;
+    first.dst_x0 = 2.0f; first.dst_y0 = 2.0f;
+    first.dst_x1 = 6.0f; first.dst_y1 = 6.0f;
+    first.tint = Color{0.5f, 0.0f, 0.0f, 0.5f};
+    LayerInstance second = first;
+    second.dst_x0 = 3.0f; second.dst_y0 = 3.0f;
+    second.dst_x1 = 7.0f; second.dst_y1 = 7.0f;
+    second.tint = Color{0.0f, 0.0f, 0.5f, 0.5f};
+    const std::array<LayerInstance, 2> instances{first, second};
+    const std::array<RenderSurfaceHandle, 1> resources{transparent_source};
+
+    backend.begin_frame_batch();
+    const auto rendered = backend.execute_layer_batch(
+        destination, instances, resources, {}, {});
+    backend.end_frame_batch();
+    REQUIRE(rendered.ok());
+
+    std::vector<float> pixels(8 * 8 * 4, 0.0f);
+    REQUIRE(backend.download_surface(destination, pixels).ok());
+    const std::size_t overlap = (4U * 8U + 4U) * 4U;
+    CHECK(pixels[overlap + 0] == doctest::Approx(0.25f).epsilon(1e-5));
+    CHECK(pixels[overlap + 2] == doctest::Approx(0.5f).epsilon(1e-5));
+    CHECK(pixels[overlap + 3] == doctest::Approx(0.75f).epsilon(1e-5));
+    const std::size_t outside = (1U * 8U + 1U) * 4U;
+    CHECK(pixels[outside + 3] == doctest::Approx(0.0f));
+    CHECK(backend.stats().layer_batch_calls == 1);
+    CHECK(backend.stats().layer_instances_processed == 2);
+    (void)backend.release_surface(destination);
+    (void)backend.release_surface(transparent_source);
+}
+
+TEST_CASE("Vulkan particle sprite instances apply affine sampling, tint, and opacity") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle destination = 483;
+    constexpr RenderSurfaceHandle sprite = 484;
+    const auto canvas_desc = SurfaceDesc::make(
+        8, 8, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    const auto sprite_desc = SurfaceDesc::make(
+        1, 1, PixelFormat::Rgba32Float, ResourceUsage::Storage,
+        LifetimeClass::FrameTransient, ColorMetadata{});
+    REQUIRE(backend.create_surface(destination, canvas_desc).ok());
+    REQUIRE(backend.create_surface(sprite, sprite_desc).ok());
+    REQUIRE(backend.initialize_transparent_surface(destination).ok());
+    const std::array<float, 4> sprite_pixel{0.2f, 0.3f, 0.4f, 1.0f};
+    REQUIRE(backend.upload_surface(sprite, sprite_desc, sprite_pixel).ok());
+
+    LayerInstance instance;
+    instance.kind = PrimitiveKind::ParticleSprite;
+    instance.resource_index = 0;
+    instance.transform_index = 1;
+    instance.dst_x0 = 2.0f; instance.dst_y0 = 2.0f;
+    instance.dst_x1 = 6.0f; instance.dst_y1 = 6.0f;
+    instance.opacity = 0.5f;
+    instance.tint = Color{0.5f, 1.0f, 0.5f, 1.0f};
+    const std::array<LayerInstance, 1> instances{instance};
+    const std::array<RenderSurfaceHandle, 1> resources{sprite};
+    std::array<float, 32> transforms{};
+    transforms[16] = 0.25f;
+    transforms[21] = 0.25f;
+    transforms[28] = -0.5f;
+    transforms[29] = -0.5f;
+
+    backend.begin_frame_batch();
+    const auto rendered = backend.execute_layer_batch(
+        destination, instances, resources, transforms, {});
+    backend.end_frame_batch();
+    REQUIRE(rendered.ok());
+    std::vector<float> pixels(8 * 8 * 4, 0.0f);
+    REQUIRE(backend.download_surface(destination, pixels).ok());
+    const std::size_t center = (4U * 8U + 4U) * 4U;
+    CHECK(pixels[center + 0] == doctest::Approx(0.05f).epsilon(1e-5));
+    CHECK(pixels[center + 1] == doctest::Approx(0.15f).epsilon(1e-5));
+    CHECK(pixels[center + 2] == doctest::Approx(0.10f).epsilon(1e-5));
+    CHECK(pixels[center + 3] == doctest::Approx(0.5f).epsilon(1e-5));
+    (void)backend.release_surface(destination);
+    (void)backend.release_surface(sprite);
+}
+
 TEST_CASE("Vulkan text-run kernel samples a packed glyph atlas into the canvas") {
     using namespace chronon3d;
     backends::vulkan::VulkanBackend backend;

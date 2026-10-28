@@ -5,6 +5,7 @@
 #include <chronon3d/cache/node_cache_identity_builder.hpp>
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
@@ -93,8 +94,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
                 return node.inline_mesh_animated;
             });
+        const auto gpu_particle_node = std::find_if(
+            layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
+                return !node.gpu_particle_instances.empty();
+            });
         const bool source_is_static = is_static && !has_animated_svg_group &&
-            !has_animated_inline_mesh;
+            !has_animated_inline_mesh && gpu_particle_node == layer.nodes.end();
 
         if (ctx.policy.diagnostics_enabled) {
             spdlog::debug(
@@ -109,6 +114,37 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 item.transform.position.x,
                 item.transform.position.y
             );
+        }
+
+        // The CPU scene keeps its original shape nodes for software parity.
+        // Strict GPU execution replaces the emitter's per-particle source
+        // nodes with one SourceNode carrying the sampled instance stream.
+        if (ctx.policy.require_native_gpu &&
+            gpu_particle_node != layer.nodes.end()) {
+            const auto node = *gpu_particle_node;
+            cache::NodeCacheKey source_key = cache::NodeCacheIdentityBuilder{
+                "layer.gpu_particles:" + std::string(layer.name)
+            }
+                .frame(ctx.frame_input.frame)
+                .output(ctx.frame_input.width, ctx.frame_input.height)
+                .params(hash_render_node_content_only(node))
+                .source(hash_combine(hash_string(node.name),
+                                     hash_render_node_placement_only(node)))
+                .camera_if(ctx.frame_input.has_camera_2_5d,
+                           ctx.frame_input.camera_2_5d)
+                .build();
+            const auto source_placement = evaluate_source_placement(item, node, ctx);
+            const Mat4 shape_matrix = finalize_source_placement_matrix(
+                source_placement, item, node, ctx);
+            const f32 shape_opacity = source_placement.opacity;
+            return graph.add_node(std::make_unique<SourceNode>(
+                std::string(node.name), node, source_key,
+                std::optional<Mat4>(shape_matrix),
+                std::optional<f32>(shape_opacity),
+                frame_variant_cache("gpu_particle_batch"),
+                !item.layer->screen_space,
+                item.projected && !item.native_3d && !item.layer->screen_space,
+                item.native_3d), node_ctx);
         }
 
         // The resolver owns source-stage matrix selection. Projected

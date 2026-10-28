@@ -9,7 +9,7 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D dst_image;
 layout(binding = 1, rgba32f) uniform readonly image2D src_image;
 
-// 96 bytes per instance, matching C++ GpuLayerInstance
+// 112 bytes per instance, matching C++ GpuLayerInstance
 struct GpuLayerInstance {
     vec4 dst_rect;      // dst_x0, dst_y0, dst_x1, dst_y1 in destination pixels
     vec4 src_rect;      // src_u0, src_v0, src_u1, src_v1 (normalized 0..1)
@@ -19,7 +19,8 @@ struct GpuLayerInstance {
     uint has_affine;    // 0 = axis-aligned dst_rect, 1 = affine transform
     uint blend_mode;    // 0 = normal (premultiplied over), 1 = add, 2 = replace
     uint resource_idx;  // resource index
-    uint pad;
+    uint primitive_kind; // 1 = procedural particle disc
+    vec4 particle_color; // premultiplied RGBA for procedural particles
 };
 
 layout(binding = 3, std430) buffer LayerInstances {
@@ -75,7 +76,27 @@ void main() {
         vec4 src_col = vec4(0.0);
         bool hit = false;
 
-        if (inst.has_affine == 0u) {
+        if (inst.primitive_kind == 1u) {
+            if (float(pixel.x) >= inst.dst_rect.x && float(pixel.x) < inst.dst_rect.z &&
+                float(pixel.y) >= inst.dst_rect.y && float(pixel.y) < inst.dst_rect.w) {
+                float rw = inst.dst_rect.z - inst.dst_rect.x;
+                float rh = inst.dst_rect.w - inst.dst_rect.y;
+                if (rw > 0.0 && rh > 0.0) {
+                    vec2 point = vec2(
+                        (float(pixel.x) + 0.5 - inst.dst_rect.x) / rw,
+                        (float(pixel.y) + 0.5 - inst.dst_rect.y) / rh) * 2.0 - 1.0;
+                    float distance_from_center = length(point);
+                    if (distance_from_center < 1.0) {
+                        float coverage = inst.limits.w > 0.5
+                            ? 1.0 - distance_from_center
+                            : clamp((1.0 - distance_from_center) *
+                                    min(rw, rh) * 0.5 + 0.5, 0.0, 1.0);
+                        src_col = inst.particle_color * coverage;
+                        hit = true;
+                    }
+                }
+            }
+        } else if (inst.has_affine == 0u) {
             if (float(pixel.x) >= inst.dst_rect.x && float(pixel.x) < inst.dst_rect.z &&
                 float(pixel.y) >= inst.dst_rect.y && float(pixel.y) < inst.dst_rect.w) {
                 float rw = inst.dst_rect.z - inst.dst_rect.x;
@@ -102,6 +123,10 @@ void main() {
                 src_col *= inst.limits.z;
                 hit = true;
             }
+        }
+
+        if (inst.primitive_kind == 2u && hit) {
+            src_col.rgb *= inst.particle_color.rgb;
         }
 
         if (hit && src_col.a > 0.0) {

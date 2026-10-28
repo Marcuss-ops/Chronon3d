@@ -15,6 +15,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/math/color.hpp>
 #include <chronon3d/runtime/render_surface_handle.hpp>
 
 #include <cstdint>
@@ -36,6 +37,8 @@ enum class PrimitiveKind : std::uint8_t {
     Rect         = 2,
     RoundedRect  = 3,
     Video        = 4,
+    Particle     = 5,
+    ParticleSprite = 6,
     Other        = 15,
 };
 
@@ -57,6 +60,7 @@ struct LayerInstance {
 
     BlendMode       blend{BlendMode::Normal};
     float           corner_radius{0.0f};
+    Color           tint{1.0f, 1.0f, 1.0f, 1.0f};
 
     [[nodiscard]] bool operator==(const LayerInstance&) const noexcept = default;
 };
