@@ -42,7 +42,6 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 TOP_HELP="$TMP_DIR/top_help.txt"
 RENDER_HELP="$TMP_DIR/render_help.txt"
 PREVIEW_HELP="$TMP_DIR/preview_help.txt"
-CREATE_HELP="$TMP_DIR/create_help.txt"
 
 if ! "$CLI_BIN" --help >"$TOP_HELP" 2>&1; then
     echo "CLI_RENDER_SURFACE_FAIL"
@@ -53,7 +52,7 @@ fi
 
 require_command() {
     local name="$1"
-    if ! grep -Eq "^[[:space:]]+${name}([[:space:]]|$)" "$TOP_HELP"; then
+    if ! grep -Eq "^  ${name}[[:space:]]{2,}" "$TOP_HELP"; then
         echo "  [FAIL] required command missing: $name"
         return 1
     fi
@@ -62,7 +61,7 @@ require_command() {
 
 forbid_command() {
     local name="$1"
-    if grep -Eq "^[[:space:]]+${name}([[:space:]]|$)" "$TOP_HELP"; then
+    if grep -Eq "^  ${name}[[:space:]]{2,}" "$TOP_HELP"; then
         echo "  [FAIL] retired command exposed: $name"
         return 1
     fi
@@ -83,7 +82,7 @@ require_option() {
 FAILED=0
 require_command render || FAILED=1
 require_command preview || FAILED=1
-require_command create || FAILED=1
+require_command list || FAILED=1
 forbid_command still || FAILED=1
 forbid_command video || FAILED=1
 
@@ -110,18 +109,11 @@ else
     done
 fi
 
-if ! "$CLI_BIN" create --help >"$CREATE_HELP" 2>&1; then
-    echo "  [FAIL] create --help failed"
-    FAILED=1
-else
-    require_option "$CREATE_HELP" --template || FAILED=1
-fi
-
 if [ "$FAILED" -ne 0 ]; then
     echo "CLI_RENDER_SURFACE_FAIL"
     exit 1
 fi
 
 echo "CLI_RENDER_SURFACE_PASS"
-echo "[INFO] ${GATE_NAME}: render owns image/video controls; preview/create present; still/video absent"
+echo "[INFO] ${GATE_NAME}: render owns image/video controls; list/preview present; still/video absent"
 exit 0
