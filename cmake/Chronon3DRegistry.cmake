@@ -93,8 +93,6 @@ set(CHRONON3D_REGISTRY_INTERFACE_LIBS
 # the mandatory compiled-artifact cache; it is therefore not an IPC-only
 # dependency even when the IPC feature is disabled.
 set(CHRONON3D_SDK_PUBLIC_DEPS
-    "Boost::spirit|boost_spirit"
-    "Boost::math|boost_math"
     "glm::glm|glm"
     "fmt::fmt|fmt"
     "spdlog::spdlog_header_only|spdlog"

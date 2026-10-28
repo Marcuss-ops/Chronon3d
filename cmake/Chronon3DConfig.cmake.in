@@ -27,6 +27,21 @@ if(EXISTS "${_chronon3d_vendor_root}/${_chronon3d_vendor_triplet}/share"
     list(PREPEND CMAKE_PREFIX_PATH "${_chronon3d_vendor_root}/${_chronon3d_vendor_triplet}")
 endif()
 
+# Boost.Spirit and Boost.Math are header-only. vcpkg's component ports expose
+# these imported targets during the build but do not install package config
+# files, so recreate their interface targets for exported static-library
+# link-only requirements when the SDK is consumed out of tree.
+if(NOT TARGET Boost::spirit)
+    add_library(Boost::spirit INTERFACE IMPORTED)
+    set_target_properties(Boost::spirit PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
+endif()
+if(NOT TARGET Boost::math)
+    add_library(Boost::math INTERFACE IMPORTED)
+    set_target_properties(Boost::math PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
+endif()
+
 # Required third-party dependencies that propagate through the SDK link
 # graph.  find_dependency() resolves them at config-time so consumers
 # don't have to call find_package() for each one themselves.
