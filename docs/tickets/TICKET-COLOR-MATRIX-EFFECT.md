@@ -1,8 +1,9 @@
 # Color Matrix effect
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Eseguire i test (build ok ma test NON eseguiti in questa pass): schema, effetti, parità software/Vulkan del contratto premoltiplicato.
+- [ ] Ricostruire i target toccati ed eseguire i test (build ok ma test NON eseguiti nella pass del 2026-10-27): schema, effetti/registry, parità software/Vulkan del contratto premoltiplicato.
+- [ ] Registrare lo stato dimostrato (comandi + esiti) e aggiornare `docs/stato/chronon3d.md`.
 
 ## Scope
 

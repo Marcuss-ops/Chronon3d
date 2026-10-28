@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/types/render_surface_handle.hpp>
 #include <chronon3d/core/profiling/render_counter_types.hpp>
 
 #include <atomic>

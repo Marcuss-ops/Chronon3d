@@ -31,7 +31,7 @@
 
 #include <chronon3d/internal/render_graph/render_graph.hpp>     // GraphNodeId
 #include <chronon3d/core/memory/framebuffer_handle.hpp>        // CachedFB, FramebufferRef, PoolFbDeleter, OwnedFB
-#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/types/render_surface_handle.hpp>
 #include <chronon3d/cache/node_cache.hpp>                      // NodeCacheKey
 #include <chronon3d/math/raster_utils.hpp>                     // raster::BBox full def (std::optional<raster::BBox> in signature — explicit dependency, not transitive-resolved)
 #include <chronon3d/render_graph/render_graph_context.hpp>     // RenderGraphContext full def (param)

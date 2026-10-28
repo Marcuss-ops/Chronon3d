@@ -2,7 +2,7 @@
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/render_plan/render_budget.hpp>
-#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/types/render_surface_handle.hpp>
 #include <string>
 #include <optional>
 #include <chronon3d/math/raster_utils.hpp>

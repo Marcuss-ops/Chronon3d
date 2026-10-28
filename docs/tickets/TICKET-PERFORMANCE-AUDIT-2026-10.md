@@ -2,9 +2,9 @@
 
 Status: ACTIVE. Scope: local Chronon3d worktree; preserve all pre-existing changes.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Eseguire i test Vulkan placement/carrier e registrare risultati rappresentativi.
+- [ ] Ricostruire ed eseguire i test Vulkan placement/carrier (l'esecuzione precedente è stata interrotta) e registrare risultati rappresentativi e impedimenti.
 - [ ] Rebuild finale dei target toccati e gate C++/architettura/tool.
 - [ ] Registrare risultati finali e blocker residui esatti.
 

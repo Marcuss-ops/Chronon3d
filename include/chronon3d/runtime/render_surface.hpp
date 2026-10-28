@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/runtime/resource_desc.hpp>
-#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/types/render_surface_handle.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 
 #include <cstddef>
