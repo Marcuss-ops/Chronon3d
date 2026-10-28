@@ -17,7 +17,8 @@ namespace chronon3d::graph::detail {
 
 bool try_native_affine_composite(
     RenderGraphContext& ctx, Framebuffer& destination,
-    const Framebuffer& source, const std::optional<raster::BBox>& clip) {
+    const Framebuffer& source, const std::optional<raster::BBox>& clip,
+    BlendMode mode = BlendMode::Normal) {
     if (!ctx.backend || !ctx.surface_registry) return false;
     if (source.width() == destination.width() &&
         source.height() == destination.height() &&
@@ -26,7 +27,32 @@ bool try_native_affine_composite(
         return false;
     }
     const auto original_destination = destination.surface_handle();
-    if (!ensure_native_surface(ctx, destination, "CompositeNode.affine.destination")) return false;
+    OwnedFB affine_layer;
+    Framebuffer* affine_destination = &destination;
+    if (mode != BlendMode::Normal) {
+        // Affine sampling has source-over semantics. Rasterize the cropped
+        // source onto a transparent canvas first, then apply the requested
+        // blend mode against the already-seeded destination.
+        affine_layer = ctx.acquire_owned_fb(destination.width(), destination.height(), false);
+        if (!ensure_empty_native_surface(ctx, *affine_layer)) return false;
+        affine_destination = affine_layer.get();
+    }
+    // A dimension-mismatched bottom arrives in a fresh, uninitialized result;
+    // create it transparent because strict GPU mode has no CPU pixels to
+    // upload. A dimension-mismatched top arrives after the bottom has already
+    // seeded the destination, so preserve that valid native surface.
+    if (affine_destination == &destination) {
+        const bool destination_is_native =
+            original_destination != runtime::kInvalidRenderSurfaceHandle &&
+            ctx.surface_registry->lookup(original_destination).has_value() &&
+            ctx.backend_surface_api()->is_native_surface_valid(original_destination);
+        if (destination_is_native) {
+            if (!ensure_native_surface(ctx, destination,
+                                       "CompositeNode.affine.destination")) return false;
+        } else if (!ensure_empty_native_surface(ctx, destination)) {
+            return false;
+        }
+    }
 
     OwnedFB source_copy;
     runtime::RenderSurfaceHandle source_handle = source.surface_handle();
@@ -61,8 +87,8 @@ bool try_native_affine_composite(
     // The destination is seeded with the canvas background. Preserve those
     // pixels where the projected source has no coverage (fit=contain bars).
     transform.blend_source_over = 1u;
-    transform.destination_origin_x = destination.origin_x();
-    transform.destination_origin_y = destination.origin_y();
+    transform.destination_origin_x = affine_destination->origin_x();
+    transform.destination_origin_y = affine_destination->origin_y();
 
     std::int32_t eff_x0 = static_cast<std::int32_t>(dx);
     std::int32_t eff_y0 = static_cast<std::int32_t>(dy);
@@ -98,7 +124,7 @@ bool try_native_affine_composite(
     transform.clip_rect[3] = eff_y1;
 
     const auto composited = ctx.backend_surface_api()->transform_surface_affine(
-        destination.surface_handle(), source_handle, transform);
+        affine_destination->surface_handle(), source_handle, transform);
     if (source_copy) release_native_surface(ctx, *source_copy);
     if (!composited.ok()) {
         spdlog::error(
@@ -109,6 +135,18 @@ bool try_native_affine_composite(
             release_native_surface(ctx, destination);
         }
         return false;
+    }
+    if (affine_layer) {
+        const auto blended = ctx.backend_surface_api()->composite_surfaces(
+            destination.surface_handle(), affine_layer->surface_handle(), mode,
+            CompositeOperator::SourceOver, clip);
+        if (!blended.ok()) {
+            spdlog::error(
+                "[native-composite] affine blend failed: [{}] {}",
+                chronon3d::graph::render_backend_error_code_name(blended.error().code),
+                blended.error().message);
+            return false;
+        }
     }
     return true;
 }
@@ -200,10 +238,13 @@ bool seed_native_destination(
                 "framebuffer={}x{}",
                 original_destination, record->desc.width, record->desc.height,
                 destination.width(), destination.height());
-            destination.clear_surface_handle();
-            destination.mark_cpu_authoritative();
-            return ensure_native_surface(ctx, destination,
-                                        "CompositeNode.seed.stale-extent");
+            // The destination is a pooled GPU-only framebuffer whose prior
+            // occupant had a cropped extent. The current bottom surface is
+            // still authoritative and will be copied below; do not try to
+            // upload nonexistent CPU pixels from this destination.
+            if (!ensure_empty_native_surface(ctx, destination)) {
+                return false;
+            }
         }
     }
     if (!ensure_empty_native_surface(ctx, destination)) {

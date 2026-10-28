@@ -327,14 +327,15 @@ NodeExecResult CompositeNode::execute(
         const bool native_composite = detail::try_native_composite(
             ctx, *result, *top, m_mode, m_operator, clip);
         const bool native_dimension_composite = !native_composite &&
-            m_mode == BlendMode::Normal &&
             m_operator == CompositeOperator::SourceOver &&
-            detail::try_native_affine_composite(ctx, *result, *top, clip);
+            detail::try_native_affine_composite(ctx, *result, *top, clip, m_mode);
         if (ctx.policy.require_native_gpu &&
             !native_composite && !native_dimension_composite) {
             if (std::getenv("CHRONON3D_PATH_DIAG"))
-                spdlog::error("[native-residency-diag] frame={} bottom={}x{} origin={},{} handle={} cpu={} top={}x{} origin={},{} handle={} cpu={} opaque={}",
-                    static_cast<int>(ctx.frame_input.frame), result->width(), result->height(),
+                spdlog::error("[native-residency-diag] frame={} node={} mode={} operator={} bottom={}x{} origin={},{} handle={} cpu={} top={}x{} origin={},{} handle={} cpu={} opaque={}",
+                    static_cast<int>(ctx.frame_input.frame), m_unique_id,
+                    static_cast<int>(m_mode), static_cast<int>(m_operator),
+                    result->width(), result->height(),
                     result->origin_x(), result->origin_y(), result->surface_handle(),
                     result->data() != nullptr, top->width(), top->height(), top->origin_x(),
                     top->origin_y(), top->surface_handle(), top->data() != nullptr, top->is_opaque());

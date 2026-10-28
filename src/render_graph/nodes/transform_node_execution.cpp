@@ -93,6 +93,7 @@ std::optional<NodeExecResult> try_integer_translation(
                 input->origin_y() + ity - result->origin_y(), opacity);
             if (transformed.ok()) {
                 if (!terminal_destination) result->set_surface_handle(handle);
+                result->mark_gpu_authoritative();
                 return NodeExecResult{std::move(result)};
             }
             spdlog::warn("[transform-native] integer transform failed node='{}' source={} dest={} error='{}'",
@@ -462,6 +463,7 @@ NodeExecResult TransformNode::execute(
                 handle, input->surface_handle(), transform);
             if (cleared.ok() && transformed.ok()) {
                 if (!terminal_destination) result->set_surface_handle(handle);
+                result->mark_gpu_authoritative();
                 return NodeExecResult{std::move(result)};
             }
             if (!cleared.ok()) {

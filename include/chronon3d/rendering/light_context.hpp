@@ -60,6 +60,11 @@ struct LightContext {
 
     [[nodiscard]] bool empty() const { return !ambient_enabled && !directional_enabled; }
     [[nodiscard]] bool has_point_lights() const { return !point_lights.empty(); }
+    [[nodiscard]] bool has_spatial_lights() const {
+        return std::any_of(point_lights.begin(), point_lights.end(), [](const auto& light) {
+            return light.kind != PointLightKind::Directional;
+        });
+    }
 
     void enable(bool value = true) { enabled = value; }
 

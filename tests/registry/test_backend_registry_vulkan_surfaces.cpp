@@ -19,6 +19,7 @@
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/shadow_node.hpp>
+#include <chronon3d/render_graph/nodes/lighting_node.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
@@ -135,6 +136,124 @@ TEST_CASE("strict Vulkan ShadowNode projects and blurs caster alpha natively") {
     repeated_output->clear_surface_handle();
     (void)backend.release_surface(handle);
     (void)registry.release(handle);
+    source.clear_surface_handle();
+}
+
+TEST_CASE("strict Vulkan ShadowNode bounds depth-expanded blur to kernel limits") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    constexpr std::uint32_t size = 8;
+    const auto desc = SurfaceDesc::make(
+        size, size, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto surface = registry.create(desc);
+    REQUIRE(surface != kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.create_surface(surface, desc).ok());
+    std::vector<float> pixels(size * size * 4, 0.0f);
+    pixels[(3U * size + 3U) * 4U + 0U] = 1.0f;
+    pixels[(3U * size + 3U) * 4U + 3U] = 1.0f;
+    REQUIRE(backend.upload_surface(surface, desc, pixels).ok());
+
+    Framebuffer source(size, size);
+    source.set_surface_handle(surface);
+    source.mark_gpu_authoritative();
+    graph::RenderGraphContext ctx;
+    ctx.frame_input.width = size;
+    ctx.frame_input.height = size;
+    ctx.policy.require_native_gpu = true;
+    ctx.backend = &backend;
+    ctx.surface_registry = &registry;
+
+    rendering::ShadowSettings settings;
+    auto node = graph::ShadowNode::create(
+        "deep-caster", 0.0f, -10000.0f, Vec3{1.0f, 1.0f, 0.0f}, settings);
+    const std::array<FramebufferRef, 1> inputs{FramebufferRef{source}};
+    auto result = node->execute(ctx, inputs, {});
+    REQUIRE(result.ok());
+    auto output = result.take_value();
+    REQUIRE(output);
+    CHECK(output->is_gpu_authoritative());
+
+    (void)backend.release_surface(output->surface_handle());
+    (void)registry.release(output->surface_handle());
+    output->clear_surface_handle();
+    (void)backend.release_surface(surface);
+    (void)registry.release(surface);
+    source.clear_surface_handle();
+}
+
+TEST_CASE("strict Vulkan lighting keeps directional layer lights GPU-native") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    constexpr std::uint32_t width = 4;
+    constexpr std::uint32_t height = 4;
+    const auto desc = SurfaceDesc::make(
+        width, height, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto surface = registry.create(desc);
+    REQUIRE(surface != kInvalidRenderSurfaceHandle);
+    REQUIRE(backend.create_surface(surface, desc).ok());
+
+    std::vector<float> initialized(width * height * 4, 0.0f);
+    for (std::size_t pixel = 0; pixel < initialized.size() / 4; ++pixel) {
+        initialized[pixel * 4 + 0] = 0.4f;
+        initialized[pixel * 4 + 1] = 0.2f;
+        initialized[pixel * 4 + 2] = 0.1f;
+        initialized[pixel * 4 + 3] = 1.0f;
+    }
+    REQUIRE(backend.upload_surface(surface, desc, initialized).ok());
+
+    Framebuffer source(width, height);
+    source.set_surface_handle(surface);
+    source.mark_gpu_authoritative();
+
+    graph::RenderGraphContext ctx;
+    ctx.frame_input.width = width;
+    ctx.frame_input.height = height;
+    ctx.policy.require_native_gpu = true;
+    ctx.backend = &backend;
+    ctx.surface_registry = &registry;
+    auto& lights = ctx.frame_input.light_context;
+    lights.point_lights.push_back(rendering::PointLightSource{
+        .kind = rendering::PointLightKind::Directional,
+        .direction = Vec3{0.0f, 0.0f, -1.0f},
+        .color = Color{0.8f, 0.7f, 0.6f, 1.0f},
+    });
+
+    const auto node = graph::LightingNode::create(
+        "directional-layer-light", Mat4{1.0f}, Material2_5D{});
+    const std::array<FramebufferRef, 1> inputs{FramebufferRef{source}};
+    auto result = node->execute(ctx, inputs, {});
+    REQUIRE(result.ok());
+    auto output = result.take_value();
+    REQUIRE(output);
+    CHECK(output->is_gpu_authoritative());
+    CHECK(output->surface_handle() != surface);
+    CHECK(backend.is_native_surface_valid(surface));
+
+    std::vector<float> source_after(initialized.size(), 0.0f);
+    REQUIRE(backend.download_surface(surface, source_after).ok());
+    CHECK(source_after == initialized);
+
+    std::vector<float> actual(initialized.size(), 0.0f);
+    REQUIRE(backend.download_surface(output->surface_handle(), actual).ok());
+    const Color expected = rendering::evaluate_lighting_at(
+        Color{0.4f, 0.2f, 0.1f, 1.0f}, Vec3{0.0f, 0.0f, 1.0f},
+        Vec3{0.5f, 0.5f, 0.0f}, lights, Material2_5D{});
+    CHECK(actual[0] == doctest::Approx(expected.r).epsilon(1e-5));
+    CHECK(actual[1] == doctest::Approx(expected.g).epsilon(1e-5));
+    CHECK(actual[2] == doctest::Approx(expected.b).epsilon(1e-5));
+
+    (void)backend.release_surface(output->surface_handle());
+    (void)registry.release(output->surface_handle());
+    (void)backend.release_surface(surface);
+    (void)registry.release(surface);
     source.clear_surface_handle();
 }
 

@@ -303,7 +303,13 @@ void VulkanBackend::Impl::lighting(
     auto& src_image = resolve_image(source);
     if (!src_image.initialized ||
         dst.width != src_image.width || dst.height != src_image.height) {
-        throw std::invalid_argument("Vulkan lighting references incompatible surfaces");
+        throw std::invalid_argument(
+            "Vulkan lighting references incompatible surfaces: destination=" +
+            std::to_string(destination) + " " + std::to_string(dst.width) + "x" +
+            std::to_string(dst.height) + " source=" + std::to_string(source) +
+            " " + std::to_string(src_image.width) + "x" +
+            std::to_string(src_image.height) + " initialized=" +
+            (src_image.initialized ? "true" : "false"));
     }
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
