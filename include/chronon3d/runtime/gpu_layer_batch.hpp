@@ -16,7 +16,7 @@
 
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/types/render_surface_handle.hpp>
 
 #include <cstdint>
 #include <optional>

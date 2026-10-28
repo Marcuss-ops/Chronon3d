@@ -369,8 +369,6 @@ local regression tests do not lift it or authorize new product feature work.
   out at 600s. Strict Vulkan parity and other new generator APIs remain blocked
   by the exact-main-SHA CI/feature-freeze gate.
 
-## Progress log
-
 - **v12 — 2026-09-30:** continued the Chronon3D fast aggregate at `-j 8`.
   Confirmed `chronon3d_tests_fast` includes `chronon3d_cli_tests`; the configured
   build has `CHRONON3D_ENABLE_NATIVE_FFMPEG=OFF`. Fixed the concrete no-FFmpeg

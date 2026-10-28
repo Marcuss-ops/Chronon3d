@@ -1,8 +1,20 @@
 # TICKET — Wave closeout demolition debt
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Rimuovere il coupling residuo runtime-header da `SoftwareExecutionContext` (exit work della scheda).
+- [x] Edge `render_settings.hpp` → `runtime/render_surface_handle.hpp` rimosso
+      (2026-10-28): header spostato in `chronon3d/core/types/` (casa neutra
+      dei tipi, commento originale dello header: "tiny header... not installed
+      con lo SDK") e 7 includer aggiornati; nessuna referenza residua.
+- [ ] Edge `software_render_session.hpp` → `runtime/job/job_session.hpp`
+      (l'ultimo sulla superficie pubblica software): richiede la migrazione
+      "Spostare e separare runtime::JobSession" — il cluster di stato è
+      `job_session.hpp` + `dirty_history.hpp`, `frame_history.hpp`,
+      `frame/{frame_queue,frame_slot_pool,frame_error_slot,gpu_completion_tracker}.hpp`,
+      `resource_plan.hpp`, `render_surface.hpp`, `internal/runtime/history_state.hpp`
+      (~33 includer totali). Spostare il cluster in una casa neutra
+      (es. `chronon3d/session/`) senza shim, poi build software senza
+      `#include <chronon3d/runtime/...>`.
 
 ## DOF graph node consolidation
 
@@ -20,8 +32,6 @@
 
 This ticket records the compatibility boundaries retained while the typed
 compiler/runtime and final video-plan contracts replace older entry points.
-
-## Legacy composition adapter
 
 - **Owner:** runtime/compiler migration.
 - **Reason:** `RenderEngine::prepare(Composition)` accepts an arbitrary

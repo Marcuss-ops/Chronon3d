@@ -3,7 +3,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/types/render_surface_handle.hpp>
 
 #include <optional>
 #include <vector>
