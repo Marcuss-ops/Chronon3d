@@ -121,6 +121,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/field2d.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/gradient.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/gradient_mesh.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/pattern_tile.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/vector_field2d.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/shape_style/fill_style.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/shape_style/fill_style_lerp.hpp"
