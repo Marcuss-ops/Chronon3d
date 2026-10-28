@@ -77,7 +77,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/detail/framebuffer_impl.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_handle.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/render_surface_handle.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/types/render_surface_handle.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/framebuffer_slot_view.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/memory/memory_utils.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/profiling/counters.hpp"
