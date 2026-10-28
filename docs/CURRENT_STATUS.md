@@ -18,7 +18,7 @@
 | GPU-native video | same-SHA host certification at source commit `5e49b7e4a`: Vulkan↔CUDA interop and CUDA→NVENC probes PASS; FullGraph, DirectYUV H.264/H.265, prepared-MTSDF text, and native-image routes PASS with zero readback/staging; GitHub CI remains separate |
 | Strict motion corpus (2026-10-10) | 479/479 PASS same-tree (`e3f14fbf4`+wave / RG `5e1b7f5`+harness): web_rect 12, light_leak 12, entity_caption 56, image 126, phrase 203, presentation 70 — strict vulkan/nvenc/native/require_gpu_native, h264 1280x720 48f; clean-SHA re-cert owed after commit |
 | GPU text route | packed compatibility route CLOSED 2026-09-22; prepared MTSDF is the only native graph route, with explicit software/reject handling |
-| Remote main (observed 2026-10-28) | `066adf9631b9240b4a2d5e857cc499695089fdce` — published renderer/evidence baseline; it advances the ChrononPlugin runtime pin past the failing `std::int64_t` include in the old Maps revision. Particle GPU instancing is now committed locally as `6eecd4105`; targeted `-j14` compilation passed, while same-SHA CI and the T05 GPU A/B review remain open pending publication. |
+| Remote main (observed 2026-10-28) | `0829fbd63f9736bd32b234407562dd8d6b74c776` — particle GPU instancing is published on `main`. Targeted `-j14` compilation passed; same-SHA workflows are queued and the T05 GPU A/B review remains open. The preceding renderer/evidence baseline advances the ChrononPlugin runtime pin past the failing `std::int64_t` include in the old Maps revision. |
 
 ## Area authority census
 
