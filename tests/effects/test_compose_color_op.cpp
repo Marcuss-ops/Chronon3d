@@ -33,6 +33,32 @@ using namespace chronon3d::renderer;
 // 1. ComposeOp::Multiply — identity (section 2.1)
 // =============================================================================
 
+TEST_CASE("ColorMatrix transforms straight RGBA then premultiplies once") {
+    Framebuffer fb(1, 1);
+    fb.set_pixel(0, 0, Color{0.4f, 0.2f, 0.1f, 0.5f});
+    ColorMatrixParams matrix;
+    matrix.values[4] = 0.1f;
+    matrix.values[18] = 0.5f;
+    ColorPipeline pipeline;
+    pipeline.add_stage(ColorMatrixStage{matrix});
+    pipeline.apply(fb);
+    check_color_near(fb.get_pixel(0, 0), Color{0.225f, 0.1f, 0.05f, 0.25f}, kScalarEpsilon);
+}
+
+TEST_CASE("ColorMatrix clamps alpha without clamping HDR RGB") {
+    for (const float alpha_bias : {-2.0f, 2.0f}) {
+        Framebuffer fb(1, 1);
+        fb.set_pixel(0, 0, Color{2.0f, 0.5f, 4.0f, 1.0f});
+        ColorMatrixParams matrix;
+        matrix.values[19] = alpha_bias;
+        ColorPipeline pipeline;
+        pipeline.add_stage(ColorMatrixStage{matrix});
+        pipeline.apply(fb);
+        const auto expected = alpha_bias < 0 ? Color::transparent() : Color{2.0f, 0.5f, 4.0f, 1.0f};
+        check_color_near(fb.get_pixel(0, 0), expected, kScalarEpsilon);
+    }
+}
+
 TEST_CASE("ComposeOp::Multiply: blend=1 is identity") {
     StraightRgb inputs[] = {
         {0.0f, 0.0f, 0.0f},

@@ -1,4 +1,8 @@
+#ifdef CHRONON3D_VULKAN_SURFACE_AUTHORITY_TEST_INSTANTIATION
+#include "vulkan_surface_authority.hpp"
+#else
 #include "vulkan_backend_impl.hpp"
+#endif
 
 namespace chronon3d::backends::vulkan {
 
@@ -550,6 +554,8 @@ ImageT& VulkanSurfaceAuthority<ImageT, OwnerT>::materialize_binding(runtime::Ren
         return physical.image;
     }
 
+#ifndef CHRONON3D_VULKAN_SURFACE_AUTHORITY_TEST_INSTANTIATION
 template class VulkanSurfaceAuthority<VulkanBackend::Impl::Image, VulkanBackend::Impl>;
+#endif
 
 } // namespace chronon3d::backends::vulkan

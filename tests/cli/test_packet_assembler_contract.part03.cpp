@@ -737,7 +737,8 @@ TEST_CASE("Audio-aware assembly muxes one source stream over video-only segments
     CHECK(audio_packets > 0);     // the source stream copied into the parent
 
     // "Exactly once" is a COUNT, not a presence: the parent carries the
-    // source's audio packets verbatim — no duplication, no loss, no invention.
+    // source's nonnegative-PTS audio packets verbatim, matching single-job
+    // mux semantics (the AAC priming packet lies before the stream origin).
     AVFormatContext* audio_format = nullptr;
     REQUIRE(avformat_open_input(&audio_format, audio_source.c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(audio_format, nullptr) >= 0);
@@ -752,12 +753,19 @@ TEST_CASE("Audio-aware assembly muxes one source stream over video-only segments
     AVPacket* source_packet = av_packet_alloc();
     REQUIRE(source_packet != nullptr);
     std::uint64_t source_audio_packets = 0;
+    std::uint64_t priming_packets = 0;
     while (av_read_frame(audio_format, source_packet) >= 0) {
-        if (source_packet->stream_index == source_audio_index) ++source_audio_packets;
+        if (source_packet->stream_index == source_audio_index) {
+            const auto pts = source_packet->pts != AV_NOPTS_VALUE
+                ? source_packet->pts : source_packet->dts;
+            if (pts != AV_NOPTS_VALUE && pts >= 0) ++source_audio_packets;
+            else ++priming_packets;
+        }
         av_packet_unref(source_packet);
     }
     av_packet_free(&source_packet);
     avformat_close_input(&audio_format);
+    CHECK(priming_packets > 0); // fixture exercises the AAC-origin regression
     CHECK(audio_packets == source_audio_packets);
 
     for (const auto& path : {first, second, audio_source, output})

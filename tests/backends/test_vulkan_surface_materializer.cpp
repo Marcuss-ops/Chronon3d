@@ -2,7 +2,11 @@
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 
-#include "../../src/backends/vulkan/vulkan_surface_authority.hpp"
+// The test specializes the production template for fake image/owner types.
+// Its definitions must be visible here, without instantiating the real backend.
+#define CHRONON3D_VULKAN_SURFACE_AUTHORITY_TEST_INSTANTIATION
+#include "../../src/backends/vulkan/vulkan_surface_authority.cpp"
+#undef CHRONON3D_VULKAN_SURFACE_AUTHORITY_TEST_INSTANTIATION
 
 #include <atomic>
 #include <cstddef>

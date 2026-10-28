@@ -151,6 +151,37 @@ TEST_CASE("Vulkan native color effects match the software processors") {
     }
 }
 
+TEST_CASE("Vulkan ColorMatrix preserves the premultiplied software contract") {
+    auto processor = renderer::create_color_matrix_effect_processor();
+    SUBCASE("identity including transparent and HDR input") {
+        check_parity(*processor, ColorMatrixParams{});
+    }
+    SUBCASE("RGBA mixing and biases with transformed alpha") {
+        const ColorMatrixParams matrix{{
+            0.5f, 0.2f, 0.1f, 0.3f, 0.1f,
+            -0.2f, 0.7f, 0.4f, 0.0f, 0.05f,
+            0.1f, 0.0f, 1.2f, -0.1f, 0.2f,
+            0.2f, 0.1f, 0.0f, 0.5f, 0.1f}};
+        check_parity(*processor, matrix);
+        check_parity(*processor, matrix, raster::BBox{2, 1, 6, 3});
+    }
+    SUBCASE("alpha clamps at both bounds") {
+        auto matrix = ColorMatrixParams{};
+        matrix.values[19] = 2.0f;
+        check_parity(*processor, matrix);
+        matrix.values[19] = -2.0f;
+        check_parity(*processor, matrix);
+    }
+    SUBCASE("invalid coefficients fail closed") {
+        auto matrix = ColorMatrixParams{};
+        for (const float invalid : {17.0f, -17.0f, INFINITY, NAN}) {
+            matrix.values[4] = invalid;
+            CHECK_THROWS(processor->apply(*make_source(), matrix, {}));
+            CHECK_FALSE(vulkan_strict(matrix, std::nullopt).ok);
+        }
+    }
+}
+
 TEST_CASE("Vulkan native color effects honor the software clip contract") {
     const raster::BBox clip{2, 1, 6, 3};
     auto brightness = renderer::create_brightness_effect_processor();

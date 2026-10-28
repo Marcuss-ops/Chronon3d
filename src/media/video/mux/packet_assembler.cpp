@@ -394,6 +394,14 @@ SegmentAssemblyResult assemble_segments(const SegmentAssemblyRequest& request) {
                     result.reason = "audio source contains a corrupt packet";
                     return result;
                 }
+                // Match NativeAvEncoder::mux_source_audio with start_pts=0:
+                // negative AAC priming packets precede the requested stream
+                // origin and must not appear only in the chunked artifact.
+                const auto pts = raw->pts != AV_NOPTS_VALUE ? raw->pts : raw->dts;
+                if (pts == AV_NOPTS_VALUE || pts < 0) {
+                    av_packet_unref(raw);
+                    continue;
+                }
                 AVPacket* copy = av_packet_alloc();
                 if (!copy || av_packet_ref(copy, raw) < 0) {
                     if (copy) av_packet_free(&copy);

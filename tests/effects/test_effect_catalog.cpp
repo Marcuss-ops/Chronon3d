@@ -6,6 +6,7 @@
 #include <chronon3d/effects/effect_category.hpp>
 #include <chronon3d/effects/effect_stage.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
 #include <stdexcept>
 #include <string>
 using namespace chronon3d;
@@ -76,6 +77,31 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     CHECK(vig.category == EffectCategory::Color);
     CHECK(vig.stage == EffectStage::Adjustment);
     CHECK(vig.builtin);
+}
+
+TEST_CASE("ColorMatrix catalog parameters preserve row-major mapping and bounded animation") {
+    const auto defaults = make_default_animatable_effect_params(effect_ids::ColorMatrix);
+    REQUIRE(defaults.has_value());
+    REQUIRE(std::holds_alternative<ColorMatrixParams>(*defaults));
+    auto matrix = std::get<ColorMatrixParams>(*defaults);
+    for (std::size_t i = 0; i < kColorMatrixParamNames.size(); ++i) {
+        const auto name = kColorMatrixParamNames[i];
+        const auto* spec = find_animatable_effect_param(effect_ids::ColorMatrix, name);
+        REQUIRE(spec != nullptr);
+        CHECK(spec->minimum == -16.0f);
+        CHECK(spec->maximum == 16.0f);
+        for (const float value : {-16.0f, 0.25f, 16.0f}) {
+            REQUIRE(set_animatable_effect_param(matrix, effect_ids::ColorMatrix, name, value));
+            CHECK(matrix.values[i] == value);
+            CHECK(get_animatable_effect_param(matrix, effect_ids::ColorMatrix, name) == value);
+        }
+        for (const float invalid : {-16.01f, 16.01f, INFINITY, NAN}) {
+            CHECK_FALSE(set_animatable_effect_param(matrix, effect_ids::ColorMatrix, name, invalid));
+            CHECK(matrix.values[i] == 16.0f);
+        }
+    }
+    CHECK_FALSE(set_animatable_effect_param(matrix, effect_ids::ColorMatrix, "m44", 1.0f));
+    CHECK_FALSE(get_animatable_effect_param(matrix, effect_ids::ColorMatrix, "m44").has_value());
 }
 
 TEST_CASE("EffectCatalog rejects duplicate ids") {

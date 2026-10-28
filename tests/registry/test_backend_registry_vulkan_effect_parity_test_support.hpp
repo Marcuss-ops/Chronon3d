@@ -28,6 +28,7 @@
 
 namespace chronon3d::renderer {
 std::unique_ptr<EffectProcessor> create_brightness_effect_processor();
+std::unique_ptr<EffectProcessor> create_color_matrix_effect_processor();
 std::unique_ptr<EffectProcessor> create_bloom_effect_processor();
 std::unique_ptr<EffectProcessor> create_glow_effect_processor();
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
