@@ -4,14 +4,14 @@
 // per_pixel_dof.hpp — Per-pixel depth-of-field blur (separable two-pass)
 //
 // Applies a variable-radius blur to a framebuffer using a per-pixel depth
-// buffer.  Each pixel's blur radius is computed from its world_z via
-// compute_dof_blur_radius(), giving smooth depth-dependent defocus.
+// buffer. Each output pixel's CoC selects its dense Gaussian kernel, giving
+// smooth depth-dependent defocus without scattering neighboring depths into it.
 //
 // Algorithm: separable two-pass variable-radius blur
 //   Pass 1 (horizontal): For each pixel, gather along its row with 1D
-//         smoothstep falloff weighted by the pixel's own blur radius.
+//         Gaussian falloff weighted by the output pixel's own blur radius.
 //   Pass 2 (vertical):   For each pixel, gather along its column from
-//         the horizontally-blurred result, same weighting.
+//         the horizontally-blurred result, using the same pixel's radius.
 //
 // Complexity: O(2r) per pixel instead of O(r²) for the disc kernel.
 // For a blur radius of 24, this is ~48 vs ~2304 samples per pixel (~48× faster).
