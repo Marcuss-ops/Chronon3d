@@ -60,6 +60,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/sampling/edge_mode.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/video/video_source.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/core/hash/hash_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/hash/hash_primitives.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/alpha.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/blend_mode.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/compositor/composite_operator.hpp"
