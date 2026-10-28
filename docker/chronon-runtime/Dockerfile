@@ -53,7 +53,7 @@ RUN --mount=type=cache,id=chronon-vcpkg-archives,target=/root/.cache/vcpkg/archi
 # below — advance the pins together with the plugin.
 FROM deps AS maps
 
-ARG CHRONONPLUGIN_REF=c000ee3b7cba8d8d35aa1faddd6c8ff32b067a3f
+ARG CHRONONPLUGIN_REF=5e33bd09283fdf728803b1305ee1399b7ba84124
 ARG CHRONONTEMPLATE_REF=7812872e7c9ade2ce0202025be3d09478f438324
 
 # python3 is only needed at build time: the plugin's CMake registers the
