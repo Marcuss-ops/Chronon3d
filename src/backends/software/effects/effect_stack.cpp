@@ -83,6 +83,22 @@ bool append_fusible_stage(
                 return false;
             pipeline.add_stage(ColorMatrixStage{params});
             return true;
+        } else if constexpr (std::is_same_v<Params, PosterizeParams>) {
+            if (effect.effect_type != effects::EffectType::Posterize ||
+                params.levels < 2 || params.levels > 256)
+                return false;
+            pipeline.add_stage(PosterizeStage{params.levels});
+            return true;
+        } else if constexpr (std::is_same_v<Params, ColorMapParams>) {
+            if (effect.effect_type != effects::EffectType::ColorMap ||
+                !std::isfinite(params.amount) || params.amount < 0.0f ||
+                params.amount > 1.0f ||
+                std::any_of(params.stops.begin(), params.stops.end(),
+                            [](float value) { return !std::isfinite(value) ||
+                                                     value < 0.0f || value > 1.0f; }))
+                return false;
+            pipeline.add_stage(ColorMapStage{params.stops, params.amount});
+            return true;
         } else {
             return false;
         }

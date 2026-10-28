@@ -21,6 +21,8 @@ inline constexpr std::string_view ColorLevels   = "color.levels";
 inline constexpr std::string_view ColorTemperatureTint = "color.temperature_tint";
 inline constexpr std::string_view ColorLiftGammaGain = "color.lift_gamma_gain";
 inline constexpr std::string_view ColorMatrix = "color.matrix";
+inline constexpr std::string_view ColorPosterize = "color.posterize";
+inline constexpr std::string_view ColorColorMap  = "color.color_map";
 
 // ── A4: Fill, Noise, Offset ──
 inline constexpr std::string_view GenerateFill   = "generate.fill";

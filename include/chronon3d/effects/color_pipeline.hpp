@@ -62,6 +62,8 @@ struct ComposeStage {
 };
 
 struct ColorMatrixStage { ColorMatrixParams params{}; };
+struct PosterizeStage { std::uint32_t levels{6}; };
+struct ColorMapStage { std::array<float, 15> stops{}; float amount{1.0f}; };
 
 using ColorStage = std::variant<
     std::monostate,
@@ -70,7 +72,9 @@ using ColorStage = std::variant<
     CurvesStage,
     Lut3DParams,
     ComposeStage,
-    ColorMatrixStage
+    ColorMatrixStage,
+    PosterizeStage,
+    ColorMapStage
 >;
 
 // ── ColorPipeline ─────────────────────────────────────────────────────────

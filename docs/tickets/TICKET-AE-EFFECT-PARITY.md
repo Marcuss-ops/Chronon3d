@@ -6,8 +6,10 @@ OPEN (2026-10-28). Provenienza: gap analysis "AE + Premiere parity"
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Nessun codice scritto: implementare i 6 effetti (`stretch_warp`, `posterize`, `color_map`, `min_max`, `linear_wipe`, `lens_flare`) secondo lo scope 1–7 (catalogo X-macro, params struct, processor software, routing Vulkan/fusibile, decoder, test).
-- [ ] Verificare lo scostamento `kEffectTypeCount` (48) vs catalogo (55) e riallineare nello stesso cambio.
+- [ ] Implementare i 4 effetti rimanenti (`stretch_warp`, `min_max`, `linear_wipe`, `lens_flare`) secondo lo scope 1–7. `posterize` e `color_map` sono a catalogo, processor, pipeline software, route Vulkan strict-native e (posterize) PixelProgram; i test sono presenti, verifica complessiva ancora da eseguire.
+- [x] `color.posterize` (valore catalogo 56): fusibile e quantizza RGB straight in 2–256 livelli, preservando alpha; routing Vulkan nativo e opcode PixelProgram 13 aggiunti (2026-10-28).
+- [x] `color.color_map` (valore catalogo 57): cinque stop RGB equispaziati sulla luminanza più `amount` 0–1 animabile, alpha preservata; processor software, stage fuso, mode Vulkan nativo 12 e test CPU/software (2026-10-28).
+- [x] Eliminato lo scostamento `kEffectTypeCount`: capacità derivata dal massimo valore X-macro del catalogo (55) + regressione sullo slot `LottieTritone`; build `chronon3d_dev_fast` e test runtime mirato verdi (2026-10-28).
 - [ ] Indipendente dal P1: può procedere subito.
 
 ## Goal
@@ -39,8 +41,9 @@ Per ogni effetto, ingresso canonico già collaudato (famiglia
    coverage in `src/render_plan/effect_kind_coverage.hpp` (static_assert su
    `EffectKind`).
 6. **Allineamento `kEffectTypeCount`** in
-   `include/chronon3d/runtime/job/job_session.hpp` (oggi 48 mentre il catalogo
-   arriva a 55): verificare lo scostamento e riallineare nello stesso cambio.
+   `include/chronon3d/runtime/job/job_session.hpp`: completato separatamente
+   derivando la capacità dal valore massimo in `effect_catalog.def`; regressione
+   su `LottieTritone` (valore 55) in `tests/runtime/test_render_session_reset_and_isolation.cpp`.
 7. Test in `tests/effects/` (mapping catalogo, range parametri,
    identità/determinismo, fail-closed GPU).
 
@@ -58,14 +61,15 @@ Precondizione trasversale: feature freeze attiva — nessuna feature entra in
 produzione finché la CI non è verde sullo SHA esatto (`docs/stato/README.md`);
 i test fail-closed GPU richiedono l'host GPU NVIDIA.
 
-1. **Allineamento `kEffectTypeCount`** (oggi 48 vs 55 righe del catalogo) in
-   `include/chronon3d/runtime/job/job_session.hpp`: verificare l'origine dello
-   scostamento e riallineare in un cambio isolato. Primo passo: senza di esso
-   la coerenza del registry non è dimostrabile.
-   Verifica: coverage completa N/N già sul catalogo esistente.
-2. **Per ognuno dei 6 effetti** (ordine suggerito dal più semplice al più
-   complesso: `color.posterize` → `color.color_map` → `stylize.min_max` →
-   `transition.linear_wipe` → `distort.stretch_warp` → `light.lens_flare`),
+1. [x] **Allineamento `kEffectTypeCount`**: capacità derivata da
+   `effects::kEffectTypeMaxValue`, a sua volta generato dall'X-macro in
+   `effect_catalog.def`; test runtime dimostra che lo slot `LottieTritone`
+   (valore 55) è presente e registrato. Build e test mirato passati
+   (2026-10-28).
+2. **Per ognuno degli effetti rimanenti** (ordine suggerito:
+   `stylize.min_max` → `transition.linear_wipe` → `distort.stretch_warp` →
+   `light.lens_flare`; `color.posterize` e `color.color_map` sono implementati,
+   verifica complessiva ancora da eseguire),
    ingresso canonico già collaudato della famiglia `TICKET-POSTPROCESS-FX`:
    a. riga in `effect_catalog.def` (X-macro: params type, id, category,
       stage, domain, alpha/dirty/bounds, temporal, fusible);
@@ -88,8 +92,9 @@ i test fail-closed GPU richiedono l'host GPU NVIDIA.
 
 ## Accettazione
 
-- [ ] Registry effetti coerente: N/N righe strict-native, coverage completa,
-      `kEffectTypeCount` allineato.
+- [ ] Registry effetti coerente: tutti i 6 nuovi effetti strict-native o
+      fusibili come dichiarato, coverage completa e `kEffectTypeCount`
+      derivato dal catalogo (questa parte è già implementata/testata).
 - [ ] Ogni effetto deterministico e testato su software + Vulkan.
 - [ ] Nessuna regressione sulle fingerprint dei programmi esistenti (le
       invarianti di fusione restano stabili).

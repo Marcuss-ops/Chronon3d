@@ -214,6 +214,22 @@ void apply_color_op(float* rgba, const PixelProgramOp& op,
             b = b + op.params[0] * (1.0f - 2.0f*b);
         }
         break;
+    case PixelProgramOpKind::Posterize: {
+        if (a <= 1.0e-8f) {
+            r = g = b = a = 0.0f;
+            break;
+        }
+        if (a < 0.0f) break;
+        const float levels = op.params[0];
+        const auto quantize = [levels](float value) {
+            return std::floor(std::clamp(value, 0.0f, 1.0f) * (levels - 1.0f) + 0.5f) /
+                   (levels - 1.0f);
+        };
+        r = quantize(r / a) * a;
+        g = quantize(g / a) * a;
+        b = quantize(b / a) * a;
+        break;
+    }
     case PixelProgramOpKind::Blend:
         break;
     }
@@ -290,6 +306,11 @@ bool PixelProgram::is_valid() const noexcept {
                 op.params[0] < 0.0f || op.params[0] > 1.0f ||
                 op.params[1] < 0.0f || op.params[1] > 1.0f ||
                 op.params[2] < 0.0f || op.params[2] > 1.0f) return false;
+            break;
+        case PixelProgramOpKind::Posterize:
+            if (!finite_params(op, 1) || op.params[0] < 2.0f ||
+                op.params[0] > 256.0f || std::floor(op.params[0]) != op.params[0])
+                return false;
             break;
         case PixelProgramOpKind::Blend:
             break;
