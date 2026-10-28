@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include "src/render_graph/pipeline/scene_temporal_policy.hpp"
+#include "src/render_graph/pipeline/temporal/scene_temporal_policy.hpp"
 
 TEST_CASE("isolated temporal settings disable parent-frame side effects") {
     chronon3d::RenderSettings settings;

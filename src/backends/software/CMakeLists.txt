@@ -121,7 +121,9 @@ if(CHRONON3D_ISA_HAVE_AVX2)
     # would otherwise be present in any TU that consumed the same flag).
     set_source_files_properties(
         ${CMAKE_CURRENT_SOURCE_DIR}/simd/avx2_pixel_kernels.cpp
-        PROPERTIES COMPILE_OPTIONS "${_cron_avx2_flags}"
+        PROPERTIES
+            COMPILE_OPTIONS "${_cron_avx2_flags}"
+            SKIP_PRECOMPILE_HEADERS ON
     )
     target_sources(chronon3d_backend_software PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/simd/avx2_pixel_kernels.cpp

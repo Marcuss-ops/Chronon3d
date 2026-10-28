@@ -28,6 +28,12 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     find_library(CHRONON3D_FFMPEG_SWRESAMPLE_LIBRARY
         NAMES swresample
         REQUIRED)
+    # vcpkg can build FFmpeg with GPL codec adapters enabled by the optional
+    # `native-ffmpeg` feature. Since this project links static FFmpeg archives
+    # directly, add their encoder libraries after avcodec so the adapters
+    # resolve at the final link.
+    find_library(CHRONON3D_FFMPEG_X264_LIBRARY NAMES x264)
+    find_library(CHRONON3D_FFMPEG_X265_LIBRARY NAMES x265)
 
     add_library(chronon3d_ffmpeg_light INTERFACE)
     target_include_directories(chronon3d_ffmpeg_light INTERFACE
@@ -45,6 +51,14 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         "${CHRONON3D_FFMPEG_AVCODEC_LIBRARY}"
         "${CHRONON3D_FFMPEG_AVFORMAT_LIBRARY}"
         "${CHRONON3D_FFMPEG_AVUTIL_LIBRARY}")
+    foreach(_chronon3d_ffmpeg_codec_library IN ITEMS
+            CHRONON3D_FFMPEG_X264_LIBRARY
+            CHRONON3D_FFMPEG_X265_LIBRARY)
+        if(${_chronon3d_ffmpeg_codec_library})
+            target_link_libraries(chronon3d_ffmpeg_full INTERFACE
+                "${${_chronon3d_ffmpeg_codec_library}}")
+        endif()
+    endforeach()
 endif()
 
 add_subdirectory(core)

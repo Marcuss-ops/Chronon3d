@@ -45,6 +45,18 @@
                                                       "cli11"
                                                   ]
                              },
+                     "native-ffmpeg":  {
+                                           "description": "Native FFmpeg H.264/H.265 encoders for video certification",
+                                           "dependencies":  [
+                                                                {
+                                                                    "name": "ffmpeg",
+                                                                    "features": [
+                                                                                    "x264",
+                                                                                    "x265"
+                                                                                ]
+                                                                }
+                                                            ]
+                                       },
                      "crash-handler":  {
                                            "description":  "Crash handler with cpptrace stacktraces (CHRONON3D_ENABLE_CRASH_HANDLER)",
                                            "dependencies":  [
