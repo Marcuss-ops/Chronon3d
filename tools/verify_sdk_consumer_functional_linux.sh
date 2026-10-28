@@ -138,8 +138,8 @@ echo ""
 echo "== 2. Architectural gates =="
 
 declare -a ARCH_GATES=(
-    "tools/check_doc_sync.sh"
-    "tools/check_test_suite_registration.sh"
+    "tools/check_doc_sha_dedup.sh"
+    "tools/check_test_hygiene_registry_selftest.sh"
     "tools/check_test_hygiene.sh"
 )
 for gate_script in "${ARCH_GATES[@]}"; do
@@ -359,19 +359,21 @@ if [ ! -f "$CONSUMER_SRC/main_full.cpp" ]; then
 else
     for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
         # word-boundary grep for symbol names; literal substring grep for
-        # path prefixes.
+        # path prefixes. Ignore comments: documenting a forbidden boundary
+        # in this audit must not count as using that API in the consumer.
+        CODE_LINES="$(grep -Ev '^[[:space:]]*//' "$CONSUMER_SRC/main_full.cpp" 2>/dev/null || true)"
         if [[ "$pattern" == *"/"* ]]; then
             # Path-like pattern: literal substring check
-            HITS="$(grep -F "$pattern" "$CONSUMER_SRC/main_full.cpp" 2>/dev/null | wc -l)"
+            HITS="$(printf '%s\n' "$CODE_LINES" | grep -F "$pattern" | wc -l)"
         else
             # Symbol-like pattern: word-boundary check
-            HITS="$(grep -wE "$pattern" "$CONSUMER_SRC/main_full.cpp" 2>/dev/null | wc -l)"
+            HITS="$(printf '%s\n' "$CODE_LINES" | grep -wE "$pattern" | wc -l)"
         fi
         if [ "$HITS" -eq 0 ]; then
             _gate_pass "no_$pattern (0 references in consumer source)"
         else
             _gate_fail "no_$pattern" "$HITS reference(s) found in consumer source (boundary violation)"
-            grep -nE "$pattern" "$CONSUMER_SRC/main_full.cpp" 2>/dev/null | head -3
+            printf '%s\n' "$CODE_LINES" | grep -nE "$pattern" | head -3
         fi
     done
 fi
