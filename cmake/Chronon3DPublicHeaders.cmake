@@ -117,6 +117,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/mesh.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/vertex.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/distance_field2d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/field2d.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/gradient.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/gradient_mesh.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/vector_field2d.hpp"
