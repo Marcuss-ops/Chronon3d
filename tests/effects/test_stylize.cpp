@@ -3,6 +3,7 @@
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
 #include <chronon3d/compositor/alpha.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
@@ -27,6 +28,36 @@ void write_raw(const Framebuffer& fb, const char* path) {
     }
     REQUIRE(out.good());
 }
+}
+
+TEST_CASE("Posterize quantizes straight RGB, preserves alpha, and honors the clip") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(4, 1);
+    fb.set_pixel(0, 0, Color{0.4f, 0.2f, 0.1f, 0.5f});
+    fb.set_pixel(1, 0, Color{1.2f, -0.2f, 0.5f, 1.0f});
+    fb.set_pixel(2, 0, Color{0.0f, 0.0f, 0.0f, 0.0f});
+    fb.set_pixel(3, 0, Color{0.2f, 0.1f, 0.0f, 0.5f});
+    const Color outside_clip = fb.get_pixel(3, 0);
+
+    EffectStack stack;
+    stack.emplace_back(PosterizeParams{.levels = 5});
+    effects::EffectExecutionContext context;
+    context.clip = raster::BBox{0, 0, 2, 1};
+    apply_effect_stack(fb, stack, context, registry);
+
+    const Color quantized = fb.get_pixel(0, 0);
+    CHECK(quantized.r == doctest::Approx(0.375f));
+    CHECK(quantized.g == doctest::Approx(0.25f));
+    CHECK(quantized.b == doctest::Approx(0.125f));
+    CHECK(quantized.a == 0.5f);
+    const Color hdr = fb.get_pixel(1, 0);
+    CHECK(hdr.r == doctest::Approx(1.0f));
+    CHECK(hdr.g == doctest::Approx(0.0f));
+    CHECK(hdr.b == doctest::Approx(0.5f));
+    CHECK(hdr.a == 1.0f);
+    CHECK(fb.get_pixel(2, 0) == Color::transparent());
+    CHECK(fb.get_pixel(3, 0) == outside_clip);
 }
 
 TEST_CASE("Threshold applies a deterministic luma cutoff and preserves alpha") {

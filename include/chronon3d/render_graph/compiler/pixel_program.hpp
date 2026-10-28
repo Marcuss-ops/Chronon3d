@@ -25,7 +25,7 @@ enum class PixelProgramOpKind : std::uint8_t {
     ColorMatrix = 0, Opacity = 1, Blend = 2,
     Vignette = 3, Noise = 4, Levels = 5, Threshold = 6,
     Brightness = 7, Contrast = 8, Saturation = 9, Exposure = 10,
-    Tint = 11, Invert = 12,
+    Tint = 11, Invert = 12, Posterize = 13,
 };
 
 struct PixelProgramOp {
@@ -33,7 +33,7 @@ struct PixelProgramOp {
     // params ABI: ColorMatrix[0..11]; Opacity[0]; Vignette[radius,softness,
     // amount,r,g,b]; Noise[amount,seed_bits,frame_bits,size,shadow,mid,high,rgb];
     // Levels[red,green,blue,master], five values each; Threshold[threshold,softness];
-    // scalar color ops[0]; Tint[r,g,b,amount]. Remaining slots are reserved zero.
+    // scalar color ops[0]; Tint[r,g,b,amount]; Posterize[levels]. Remaining slots are reserved zero.
     std::array<float, 24> params{};
     std::uint8_t blend_mode{0};
     constexpr PixelProgramOp() = default;
@@ -85,6 +85,9 @@ struct PixelProgramOp {
     }
     static PixelProgramOp invert(float value) noexcept {
         PixelProgramOp op(PixelProgramOpKind::Invert); op.params[0]=value; return op;
+    }
+    static PixelProgramOp posterize(float levels) noexcept {
+        PixelProgramOp op(PixelProgramOpKind::Posterize); op.params[0]=levels; return op;
     }
 };
 

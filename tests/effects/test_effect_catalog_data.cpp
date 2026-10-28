@@ -12,6 +12,7 @@
 #include <chronon3d/effects/effect_type.hpp>
 #include "tests/effects/test_helpers.hpp"
 using namespace test_fx;
+#include <algorithm>
 #include <set>
 #include <string>
 using namespace chronon3d;
@@ -108,6 +109,8 @@ TEST_CASE("EffectCatalog: effect_type_for maps param type to EffectType") {
     CHECK(effect_type_for<LuminanceResponseParams>::value == EffectType::LuminanceResponse);
     CHECK(effect_type_for<FoldWarpParams>::value == EffectType::FoldWarp);
     CHECK(effect_type_for<CreaseShadingParams>::value == EffectType::CreaseShading);
+    CHECK(effect_type_for<PosterizeParams>::value == EffectType::Posterize);
+    CHECK(effect_type_for<ColorMapParams>::value == EffectType::ColorMap);
 }
 
 // =============================================================================
@@ -173,6 +176,8 @@ TEST_CASE("EffectCatalog: roundtrip Type->Params->Type is identity") {
     test_roundtrip.operator()<EffectType::LuminanceResponse>();
     test_roundtrip.operator()<EffectType::FoldWarp>();
     test_roundtrip.operator()<EffectType::CreaseShading>();
+    test_roundtrip.operator()<EffectType::Posterize>();
+    test_roundtrip.operator()<EffectType::ColorMap>();
 }
 
 // =============================================================================
@@ -209,6 +214,36 @@ TEST_CASE("EffectCatalog: detect_effect_type works via visitor") {
 // =============================================================================
 // 7. Catalog entries have correct traits (cross-check parziale)
 // =============================================================================
+
+TEST_CASE("EffectCatalog: ColorMap is a fusible color adjustment") {
+    const auto found = std::find_if(builtin_effect_catalog().begin(),
+                                    builtin_effect_catalog().end(),
+        [](const EffectCatalogEntry& entry) {
+            return entry.type == EffectType::ColorMap;
+        });
+    REQUIRE(found != builtin_effect_catalog().end());
+    CHECK(found->id == ids::ColorColorMap);
+    CHECK(found->domain == EffectDomain::Color);
+    CHECK(found->alpha_policy == AlphaPolicy::Preserve);
+    CHECK(found->dirty_policy == DirtyPolicy::Preserve);
+    CHECK(found->bounds_policy == BoundsPolicy::Preserve);
+    CHECK(found->fusible_color);
+}
+
+TEST_CASE("EffectCatalog: Posterize is a fusible color adjustment") {
+    const auto found = std::find_if(builtin_effect_catalog().begin(),
+                                    builtin_effect_catalog().end(),
+        [](const EffectCatalogEntry& entry) {
+            return entry.type == EffectType::Posterize;
+        });
+    REQUIRE(found != builtin_effect_catalog().end());
+    CHECK(found->id == ids::ColorPosterize);
+    CHECK(found->domain == EffectDomain::Color);
+    CHECK(found->alpha_policy == AlphaPolicy::Preserve);
+    CHECK(found->dirty_policy == DirtyPolicy::Preserve);
+    CHECK(found->bounds_policy == BoundsPolicy::Preserve);
+    CHECK(found->fusible_color);
+}
 
 TEST_CASE("EffectCatalog: Exposure/Levels have correct traits") {
     for (const auto& entry : builtin_effect_catalog()) {

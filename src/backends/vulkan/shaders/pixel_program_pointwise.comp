@@ -9,7 +9,7 @@
 //   * ops are applied in order, per pixel, exactly like the CPU reference;
 //   * kinds are PixelProgramOpKind values (see pixel_program.hpp):
 //       0 ColorMatrix, 1 Opacity, 3 Vignette, 7 Brightness, 8 Contrast,
-//       9 Saturation, 10 Exposure, 11 Tint, 12 Invert.
+//       9 Saturation, 10 Exposure, 11 Tint, 12 Invert, 13 Posterize.
 //   * unsupported kinds are rejected by the host encoder, never reached here.
 //
 // Op layout (std430, 112 bytes): header.x = kind; params[0..5] hold the 24
@@ -121,6 +121,15 @@ void main() {
             if (c.a > 0.0 && op_param(k, 0u) > 0.0) {
                 float amount = op_param(k, 0u);
                 c.rgb = c.rgb + amount * (1.0 - 2.0 * c.rgb);
+            }
+        } else if (kind == 13u) {
+            if (c.a <= 1.0e-8) {
+                c = vec4(0.0);
+            } else if (c.a > 0.0) {
+                float scale = op_param(k, 0u) - 1.0;
+                vec3 straight = c.rgb / c.a;
+                straight = floor(clamp(straight, vec3(0.0), vec3(1.0)) * scale + 0.5) / scale;
+                c.rgb = straight * c.a;
             }
         }
     }

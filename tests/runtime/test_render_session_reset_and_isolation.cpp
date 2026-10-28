@@ -254,6 +254,21 @@ TEST_CASE("WP-3 PR 3.2 + 3.3 + 3.1: reset_job clears frame_history, dirty_teleme
     CHECK_NOTHROW((void)session.program_store());
 }
 
+TEST_CASE("Effect usage counter capacity covers the highest catalog value") {
+    using chronon3d::effects::EffectType;
+    using chronon3d::runtime::EffectUsageCounters;
+    using chronon3d::runtime::kEffectTypeCount;
+
+    static_assert(kEffectTypeCount ==
+                  static_cast<std::size_t>(chronon3d::effects::kEffectTypeMaxValue) + 1);
+    const auto highest = static_cast<std::size_t>(EffectType::LottieTritone);
+    REQUIRE(highest < kEffectTypeCount);
+
+    EffectUsageCounters counters;
+    counters.record_native(EffectType::LottieTritone);
+    CHECK(counters.by_type[highest].native_frames.load(std::memory_order_relaxed) == 1);
+}
+
 TEST_CASE("Effect usage counters remain per-session and reset at the job boundary") {
     JobSession first;
     JobSession second;

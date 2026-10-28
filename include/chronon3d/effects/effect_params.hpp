@@ -94,6 +94,39 @@ struct ColorMatrixParams {
         1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0};
 };
 
+// Posterize each straight-RGB channel to a fixed number of evenly spaced
+// values over [0, 1]. Alpha is preserved and HDR values are clamped by design.
+struct PosterizeParams {
+    std::uint32_t levels{6};
+    void validate() const {
+        if (levels < 2 || levels > 256)
+            throw std::invalid_argument("Posterize levels must be in [2, 256]");
+    }
+};
+
+// Map straight-RGB luminance through five evenly spaced colour stops
+// (0, 0.25, 0.5, 0.75, 1), then blend the result with the source by `amount`.
+// Mirrors AE's CC Toner / colour-map controlled look without a LUT asset.
+// Alpha is preserved.
+struct ColorMapParams {
+    std::array<float, 15> stops{
+        0.0f, 0.0f, 0.0f,
+        0.25f, 0.25f, 0.25f,
+        0.5f, 0.5f, 0.5f,
+        0.75f, 0.75f, 0.75f,
+        1.0f, 1.0f, 1.0f};
+    // Blend between the source colour (0) and the mapped colour (1).
+    float amount{1.0f};
+    void validate() const {
+        for (const float value : stops) {
+            if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
+                throw std::invalid_argument("ColorMap stops must be finite in [0, 1]");
+        }
+        if (!std::isfinite(amount) || amount < 0.0f || amount > 1.0f)
+            throw std::invalid_argument("ColorMap amount must be finite in [0, 1]");
+    }
+};
+
 // ── Adjustment-layer color correction params (AE-5) ─────────────────────
 struct SaturationParams    { f32 value{1.0f}; };  // 1.0 = unchanged, 0 = greyscale
 struct HueRotateParams     { f32 degrees{0.0f}; }; // 0 = unchanged, 180 = invert hue
@@ -557,7 +590,7 @@ using EffectParams = std::variant<
     SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
-    LiftGammaGainParams, ColorMatrixParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
+    LiftGammaGainParams, ColorMatrixParams, PosterizeParams, ColorMapParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
 >;
 
 } // namespace chronon3d

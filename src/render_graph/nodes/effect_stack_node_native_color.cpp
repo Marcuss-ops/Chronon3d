@@ -306,6 +306,33 @@ lower_native_color_effect(const effects::EffectInstance& instance,
         }
         return out;
     }
+    case effects::EffectType::Posterize: {
+        const auto* p = std::get_if<PosterizeParams>(&instance.params);
+        if (!p || p->levels < 2 || p->levels > 256) return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::Posterize;
+        out.transform.p[0][0] = static_cast<float>(p->levels);
+        out.transform.straight_alpha = true;
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::ColorMap: {
+        const auto* p = std::get_if<ColorMapParams>(&instance.params);
+        if (!p || !std::isfinite(p->amount) || p->amount < 0.0f ||
+            p->amount > 1.0f ||
+            std::any_of(p->stops.begin(), p->stops.end(),
+                        [](float value) { return !std::isfinite(value) ||
+                                                 value < 0.0f || value > 1.0f; }))
+            return std::nullopt;
+        out.transform.mode = NativeColorTransform::Mode::ColorMap;
+        for (std::size_t stop = 0; stop < 5; ++stop) {
+            for (std::size_t channel = 0; channel < 3; ++channel)
+                out.transform.p[stop][channel] = p->stops[stop * 3 + channel];
+        }
+        out.transform.p[0][3] = p->amount;
+        out.transform.straight_alpha = true;
+        out.honors_clip = true;
+        return out;
+    }
     case effects::EffectType::Threshold: {
         const auto* p = std::get_if<ThresholdParams>(&instance.params);
         if (!p || !finite_all({p->threshold, p->softness})) return std::nullopt;

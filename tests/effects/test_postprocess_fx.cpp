@@ -41,6 +41,7 @@ TEST_CASE("Post-process FX: catalog registration") {
     CHECK(catalog.contains(effect_ids::StylizeRetroTv));
     CHECK(catalog.contains(effect_ids::LightHalation));
     CHECK(catalog.contains(effect_ids::LightAnamorphicStreak));
+    CHECK(catalog.contains(effect_ids::ColorPosterize));
 
     static_assert(static_cast<std::uint8_t>(EffectType::Scanlines) == 49);
     static_assert(static_cast<std::uint8_t>(EffectType::RetroTv) == 50);

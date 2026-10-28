@@ -516,6 +516,19 @@ private:
                     seed = hash_combine(seed, hash_value(value));
             break;
         }
+        case Posterize: {
+            if (auto* p = std::get_if<PosterizeParams>(&e.params))
+                seed = hash_combine(seed, hash_value(p->levels));
+            break;
+        }
+        case ColorMap: {
+            if (auto* p = std::get_if<ColorMapParams>(&e.params)) {
+                for (const float value : p->stops)
+                    seed = hash_combine(seed, hash_value(value));
+                seed = hash_combine(seed, hash_value(p->amount));
+            }
+            break;
+        }
         case Unknown:
             break;
         }
