@@ -5,7 +5,7 @@
 #include <chronon3d/runtime/frame/frame_execution_slot.hpp>
 #include <chronon3d/runtime/frame/frame_slot_pool.hpp>
 #include <chronon3d/runtime/frame/gpu_completion_tracker.hpp>
-#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/types/render_surface_handle.hpp>
 
 #include <chrono>
 #include <condition_variable>

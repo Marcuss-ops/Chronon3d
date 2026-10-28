@@ -156,9 +156,10 @@ TEST_CASE("PixelProgram v2: all requested color opcodes validate; temporal/spati
     CHECK(static_cast<unsigned>(K::Exposure) == 10);
     CHECK(static_cast<unsigned>(K::Tint) == 11);
     CHECK(static_cast<unsigned>(K::Invert) == 12);
+    CHECK(static_cast<unsigned>(K::Posterize) == 13);
     const std::array<float, 20> levels{
         0,1,1,0,1, 0,1,1,0,1, 0,1,1,0,1, 0,1,1,0,1};
-    const std::array<pp::PixelProgramOp, 11> ops{
+    const std::array<pp::PixelProgramOp, 12> ops{
         pp::PixelProgramOp::vignette(0.4f,0.3f,0.5f,0,0,0),
         pp::PixelProgramOp::noise({0.1f,std::bit_cast<float>(std::uint32_t{9}),
             std::bit_cast<float>(std::uint32_t{3}),2.0f,1,1,1,0}),
@@ -166,14 +167,43 @@ TEST_CASE("PixelProgram v2: all requested color opcodes validate; temporal/spati
         pp::PixelProgramOp::brightness(0.1f), pp::PixelProgramOp::contrast(1.2f),
         pp::PixelProgramOp::saturation(0.8f), pp::PixelProgramOp::exposure(0.2f),
         pp::PixelProgramOp::tint(0.1f,0.2f,0.3f,0.5f), pp::PixelProgramOp::invert(0.5f),
-        pp::PixelProgramOp::opacity(0.9f)};
+        pp::PixelProgramOp::posterize(6.0f), pp::PixelProgramOp::opacity(0.9f)};
     pp::PixelProgram program;
     REQUIRE(pp::make_pointwise_stack(program, ops, 16, 4, 4));
     CHECK(program.is_valid());
-    CHECK(program.ops.size() == 12);
+    CHECK(program.ops.size() == 13);
     const std::array blend_only{pp::PixelProgramOp(K::Blend)};
     CHECK_FALSE(pp::make_pointwise_stack(program, blend_only, 1));
     CHECK(program.is_valid()); // failed builder leaves prior valid program intact
+    const std::array invalid_posterize{pp::PixelProgramOp::posterize(2.5f)};
+    CHECK_FALSE(pp::make_pointwise_stack(program, invalid_posterize, 1));
+    CHECK(program.is_valid());
+}
+
+TEST_CASE("PixelProgram Posterize quantizes straight RGB and handles tiny alpha") {
+    pp::PixelProgram program;
+    const std::array ops{pp::PixelProgramOp::posterize(5.0f)};
+    REQUIRE(pp::make_pointwise_stack(program, ops, 3));
+    const float source[12]{
+        0.4f, 0.2f, 0.1f, 0.5f,
+        1.2f, -0.2f, 0.5f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0e-9f};
+    float destination[12]{};
+    REQUIRE(program.execute_fused_candidate(destination, source, 3));
+    // Straight RGB (0.8, 0.4, 0.2) quantized to the nearest of five levels
+    // becomes (0.75, 0.5, 0.25), then premultiplied by alpha 0.5.
+    CHECK(destination[0] == doctest::Approx(0.375f));
+    CHECK(destination[1] == doctest::Approx(0.25f));
+    CHECK(destination[2] == doctest::Approx(0.125f));
+    CHECK(destination[3] == doctest::Approx(0.5f));
+    CHECK(destination[4] == doctest::Approx(1.0f));
+    CHECK(destination[5] == doctest::Approx(0.0f));
+    CHECK(destination[6] == doctest::Approx(0.5f));
+    CHECK(destination[7] == doctest::Approx(1.0f));
+    CHECK(destination[8] == 0.0f);
+    CHECK(destination[9] == 0.0f);
+    CHECK(destination[10] == 0.0f);
+    CHECK(destination[11] == 0.0f);
 }
 
 TEST_CASE("PixelProgram v2: comparison harness binds same inputs/frame/slot and exact SHA-256") {

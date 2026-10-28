@@ -5,7 +5,7 @@
 // encoding contract is unit-testable on any host.
 //
 // Fail-closed contract:
-//   * only the nine pointwise kinds the shader implements are accepted;
+//   * only the ten pointwise kinds the shader implements are accepted;
 //   * Blend is legal only as the final op and is returned as trailing_blend
 //     (composited outside this stack, never emitted into the table);
 //   * Vignette needs the frame extent to match pixel_count;
@@ -45,6 +45,7 @@ static_assert(sizeof(PointwiseGpuOp) == 112,
     case K::Exposure:
     case K::Tint:
     case K::Invert:
+    case K::Posterize:
         return true;
     default:
         return false;

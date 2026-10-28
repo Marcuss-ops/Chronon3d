@@ -75,6 +75,36 @@ inline void apply_color_matrix_stage(color::StraightRgb& rgb, float& alpha,
     alpha = std::clamp(out[3], 0.0f, 1.0f);
 }
 
+inline void apply_posterize_stage(color::StraightRgb& rgb,
+                                  const PosterizeStage& stage) {
+    const float scale = static_cast<float>(stage.levels - 1);
+    const auto quantize = [scale](float value) {
+        return std::floor(std::clamp(value, 0.0f, 1.0f) * scale + 0.5f) / scale;
+    };
+    rgb.r = quantize(rgb.r);
+    rgb.g = quantize(rgb.g);
+    rgb.b = quantize(rgb.b);
+}
+
+inline void apply_color_map_stage(color::StraightRgb& rgb,
+                                  const ColorMapStage& stage) {
+    const float luma = 0.2126f * rgb.r + 0.7152f * rgb.g + 0.0722f * rgb.b;
+    const float scaled = std::clamp(luma, 0.0f, 1.0f) * 4.0f;
+    const int lower = std::min(3, static_cast<int>(scaled));
+    const float t = scaled - static_cast<float>(lower);
+    const std::size_t lo_index = static_cast<std::size_t>(lower) * 3;
+    const std::size_t hi_index = static_cast<std::size_t>(lower + 1) * 3;
+    const float mapped_r = stage.stops[lo_index] +
+                           (stage.stops[hi_index] - stage.stops[lo_index]) * t;
+    const float mapped_g = stage.stops[lo_index + 1] +
+                           (stage.stops[hi_index + 1] - stage.stops[lo_index + 1]) * t;
+    const float mapped_b = stage.stops[lo_index + 2] +
+                           (stage.stops[hi_index + 2] - stage.stops[lo_index + 2]) * t;
+    rgb.r += (mapped_r - rgb.r) * stage.amount;
+    rgb.g += (mapped_g - rgb.g) * stage.amount;
+    rgb.b += (mapped_b - rgb.b) * stage.amount;
+}
+
 inline std::array<float, 3> sample_lut(const Lut3DParams& lut, float r, float g, float b) {
     const auto n = static_cast<int>(lut.dimension);
     const auto coordinate = [&](float value, std::size_t channel) {
@@ -145,6 +175,14 @@ void matrix_fn(color::StraightRgb& rgb, float& alpha, const void* stage) {
                              static_cast<const ColorMatrixStage*>(stage)->params);
 }
 
+void posterize_fn(color::StraightRgb& rgb, float&, const void* stage) {
+    apply_posterize_stage(rgb, *static_cast<const PosterizeStage*>(stage));
+}
+
+void color_map_fn(color::StraightRgb& rgb, float&, const void* stage) {
+    apply_color_map_stage(rgb, *static_cast<const ColorMapStage*>(stage));
+}
+
 /// Maps a variant stage to its direct entry point.  A stage without a kernel
 /// (std::monostate) resolves to nullptr and is skipped — same behaviour as the
 /// previous per-pixel chain.
@@ -155,6 +193,8 @@ void matrix_fn(color::StraightRgb& rgb, float& alpha, const void* stage) {
     if (std::get_if<Lut3DParams>(&stage)) return &lut_fn;
     if (std::get_if<ComposeStage>(&stage)) return &compose_fn;
     if (std::get_if<ColorMatrixStage>(&stage)) return &matrix_fn;
+    if (std::get_if<PosterizeStage>(&stage)) return &posterize_fn;
+    if (std::get_if<ColorMapStage>(&stage)) return &color_map_fn;
     return nullptr;
 }
 

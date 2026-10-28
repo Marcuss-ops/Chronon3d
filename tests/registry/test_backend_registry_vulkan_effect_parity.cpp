@@ -182,6 +182,32 @@ TEST_CASE("Vulkan ColorMatrix preserves the premultiplied software contract") {
     }
 }
 
+TEST_CASE("Vulkan Posterize matches software quantization and alpha contract") {
+    auto processor = renderer::create_posterize_effect_processor();
+    auto tiny_alpha_source = *make_source();
+    tiny_alpha_source.set_pixel(4, 2, Color{1.0e-9f, 2.0e-9f, 3.0e-9f, 1.0e-9f});
+    const auto expected = software_oracle(*processor, PosterizeParams{.levels = 5},
+                                          std::nullopt, 0, 0, nullptr, Frame{},
+                                          &tiny_alpha_source);
+    const auto actual = vulkan_strict(PosterizeParams{.levels = 5}, std::nullopt,
+                                      0, 0, Frame{}, &tiny_alpha_source);
+    INFO("strict Vulkan error: " << actual.error);
+    REQUIRE(actual.ok);
+    REQUIRE(actual.pixels.size() == expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i)
+        CHECK(actual.pixels[i] == doctest::Approx(expected[i]).epsilon(kTolerance));
+    check_parity(*processor, PosterizeParams{.levels = 2});
+    check_parity(*processor, PosterizeParams{.levels = 5});
+    check_parity(*processor, PosterizeParams{.levels = 6}, raster::BBox{2, 1, 6, 3});
+    check_parity(*processor, PosterizeParams{.levels = 256});
+
+    for (const std::uint32_t invalid : {1u, 257u}) {
+        const PosterizeParams params{.levels = invalid};
+        CHECK_THROWS(processor->apply(*make_source(), params, {}));
+        CHECK_FALSE(vulkan_strict(params, std::nullopt).ok);
+    }
+}
+
 TEST_CASE("Vulkan native color effects honor the software clip contract") {
     const raster::BBox clip{2, 1, 6, 3};
     auto brightness = renderer::create_brightness_effect_processor();

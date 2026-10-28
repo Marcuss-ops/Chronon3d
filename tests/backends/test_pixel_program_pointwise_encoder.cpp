@@ -27,6 +27,7 @@ TEST_CASE("pointwise stack encodes in order and strips the trailing blend") {
         PixelProgramOp::exposure(-1.0f),
         PixelProgramOp::tint(1.0f, 0.5f, 0.0f, 0.3f),
         PixelProgramOp::invert(1.0f),
+        PixelProgramOp::posterize(6.0f),
         PixelProgramOp::opacity(0.8f),
         PixelProgramOp::blend(0)};
 
@@ -35,14 +36,16 @@ TEST_CASE("pointwise stack encodes in order and strips the trailing blend") {
     std::string reason;
     REQUIRE(encode_pointwise_ops(ops, encoded, trailing_blend, reason));
     CHECK(trailing_blend);
-    REQUIRE(encoded.size() == 7);
+    REQUIRE(encoded.size() == 8);
     CHECK(encoded[0].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Brightness));
     CHECK(encoded[1].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Contrast));
     CHECK(encoded[2].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Saturation));
     CHECK(encoded[3].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Exposure));
     CHECK(encoded[4].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Tint));
     CHECK(encoded[5].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Invert));
-    CHECK(encoded[6].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Opacity));
+    CHECK(encoded[6].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Posterize));
+    CHECK(encoded[6].params[0] == 6.0f);
+    CHECK(encoded[7].kind == static_cast<std::uint32_t>(PixelProgramOpKind::Opacity));
 }
 
 TEST_CASE("param slots are carried verbatim into the std430 record") {

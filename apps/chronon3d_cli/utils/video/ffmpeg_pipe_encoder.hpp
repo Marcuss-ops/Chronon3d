@@ -11,7 +11,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/runtime/frame_format.hpp>  // canonical pixel-format vocabulary
-#include <chronon3d/runtime/render_surface_handle.hpp>
+#include <chronon3d/core/types/render_surface_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/color/output_transform.hpp>
 #include <chronon3d/color/hdr_mastering_metadata.hpp>

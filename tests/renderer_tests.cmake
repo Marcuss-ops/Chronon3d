@@ -164,6 +164,7 @@ chronon3d_add_test_suite(
         effects/test_directional_blur.cpp
         effects/test_effect_catalog.cpp
         effects/test_effect_catalog_data.cpp
+        effects/test_color_map.cpp
         effects/test_effect_execution_context.cpp
         effects/test_exposure_levels.cpp
         effects/test_fill_noise_offset.cpp

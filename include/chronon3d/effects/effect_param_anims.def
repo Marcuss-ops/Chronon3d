@@ -63,6 +63,8 @@ CHRONON_ANIM_PARAM(ids::GenerateFourColorGradient, FourColorGradientParams, blen
 CHRONON_ANIM_PARAM(ids::GenerateLightRays, LightRaysParams, length, 0.0f, 4096.0f)
 CHRONON_ANIM_PARAM(ids::GenerateLightRays, LightRaysParams, density, 0.0f, 10.0f)
 CHRONON_ANIM_PARAM(ids::ColorLut3D, Lut3DParams, amount, 0.0f, 1.0f)
+CHRONON_ANIM_PARAM(ids::ColorPosterize, PosterizeParams, levels, 2.0f, 256.0f)
+CHRONON_ANIM_PARAM(ids::ColorColorMap, ColorMapParams, amount, 0.0f, 1.0f)
 CHRONON_ANIM_PARAM(ids::TemporalEcho, EchoParams, decay, 0.0f, 1.0f)
 CHRONON_ANIM_PARAM(ids::MatteKeying, KeyingParams, threshold, 0.0f, 1.0f)
 CHRONON_ANIM_PARAM(ids::MatteKeying, KeyingParams, softness, 0.0f, 1.0f)
