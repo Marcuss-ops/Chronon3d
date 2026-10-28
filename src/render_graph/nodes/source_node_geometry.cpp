@@ -62,6 +62,9 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
 ) const {
+    if (!m_node.gpu_particle_instances.empty()) {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
     const Mat4 base_matrix = effective_matrix(ctx);
     const f32 opacity = effective_opacity(ctx);
     const bool exclude_from_projection = m_node.shape.type() == ShapeType::FakeBox3D;

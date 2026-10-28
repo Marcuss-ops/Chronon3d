@@ -19,9 +19,10 @@ struct alignas(16) GpuLayerInstance {
     std::uint32_t blend_mode{0};
     std::uint32_t resource_idx{0};
     std::uint32_t pad{0};
+    float particle_color[4]{1.0f, 1.0f, 1.0f, 1.0f};
 };
-static_assert(sizeof(GpuLayerInstance) == 96,
-              "GpuLayerInstance must be 96 bytes");
+static_assert(sizeof(GpuLayerInstance) == 112,
+              "GpuLayerInstance must be 112 bytes");
 
 } // namespace
 
@@ -68,6 +69,7 @@ void VulkanBackend::Impl::execute_layer_batch(
 
         std::size_t end_idx = start_idx + 1;
         while (end_idx < instances.size() &&
+               end_idx - start_idx < 512 &&
                instances[end_idx].resource_index == res_idx) {
             ++end_idx;
         }
@@ -120,7 +122,21 @@ void VulkanBackend::Impl::execute_layer_batch(
             gpu_inst.limits[0] = static_cast<float>(src_image.width);
             gpu_inst.limits[1] = static_cast<float>(src_image.height);
             gpu_inst.limits[2] = inst.opacity;
-            gpu_inst.limits[3] = 1.0f;
+            gpu_inst.limits[3] = inst.kind == runtime::PrimitiveKind::Particle
+                ? inst.corner_radius : 1.0f;
+            if (inst.kind == runtime::PrimitiveKind::Particle) {
+                gpu_inst.pad = 1u;
+                gpu_inst.particle_color[0] = inst.tint.r;
+                gpu_inst.particle_color[1] = inst.tint.g;
+                gpu_inst.particle_color[2] = inst.tint.b;
+                gpu_inst.particle_color[3] = inst.tint.a;
+            } else if (inst.kind == runtime::PrimitiveKind::ParticleSprite) {
+                gpu_inst.pad = 2u;
+                gpu_inst.particle_color[0] = inst.tint.r;
+                gpu_inst.particle_color[1] = inst.tint.g;
+                gpu_inst.particle_color[2] = inst.tint.b;
+                gpu_inst.particle_color[3] = inst.tint.a;
+            }
 
             if (inst.transform_index > 0 &&
                 (inst.transform_index + 1) * 16 <= transforms.size()) {
@@ -194,6 +210,25 @@ void VulkanBackend::Impl::execute_layer_batch(
                            static_cast<std::int32_t>(count),
                            instance_buffer, instance_updated,
                            dispatch_x0, dispatch_y0, dispatch_x1, dispatch_y1);
+        if (end_idx < instances.size()) {
+            runtime::ResourceTransition transition;
+            transition.range = runtime::image_range(
+                runtime::ResourceAspect::Color);
+            transition.before = runtime::ResourceState{
+                .stages = runtime::PipelineStage::ComputeShader,
+                .access = runtime::AccessMask::ShaderWrite,
+                .layout = runtime::ResourceLayout::General,
+                .queue = runtime::QueueClass::Compute,
+            };
+            transition.after = runtime::ResourceState{
+                .stages = runtime::PipelineStage::ComputeShader,
+                .access = runtime::AccessMask::ShaderRead |
+                          runtime::AccessMask::ShaderWrite,
+                .layout = runtime::ResourceLayout::General,
+                .queue = runtime::QueueClass::Compute,
+            };
+            emit_resource_transition(cmd, dst_image.image, transition);
+        }
         dst_image.initialized = true;
         start_idx = end_idx;
         ++group_index;

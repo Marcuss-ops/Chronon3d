@@ -71,7 +71,13 @@ blocchi non è risolto, T05 resta **PARTIAL**.
   su RTX A4000/NVENC (evidenza sotto).
 - [ ] A/B strict-native valido e revisione di qualità su uno shot di produzione;
   il frame corrente non mostra un'ombra chiaramente visibile.
-- [ ] Istanziamento GPU delle particelle.
+- [x] Istanziamento GPU per particelle circolari, bokeh e sprite nel percorso
+  Vulkan strict-native: un `SourceNode` per emettitore invia le istanze campionate
+  a un dispatch `LayerBatch`; gli sprite riusano la superficie asset preparata.
+  Il ramo CPU conserva la materializzazione esistente e il ramo strict fallisce
+  esplicitamente se il backend non offre il batching.
+- [ ] Eseguire la regressione Vulkan e la parità pixel sullo SHA pubblicato;
+  misurare anche C2 (1k/10k/100k particelle) prima di dichiarare un guadagno.
 - [ ] Regressione e certificazione same-SHA dopo review/commit.
 
 ### Aggiornamento 2026-10-28 — prova RTX A4000
@@ -95,8 +101,25 @@ blocchi non è risolto, T05 resta **PARTIAL**.
   affine `Screen` e i chiamanti della superficie nativa sono stati ricompilati
   in modo mirato, senza build completa. La suite completa e la certificazione
   same-SHA non sono state eseguite.
-- L'instanziamento GPU delle particelle è ancora assente. T05 resta
-  **PARTIAL — OPEN**; questa prova non chiude il ticket.
+- L'instanziamento GPU è implementato nel tree corrente; la regressione runtime,
+  la parità visiva e la certificazione same-SHA sono ancora da eseguire. T05
+  resta **PARTIAL — OPEN**.
+
+### Istanziamento particelle strict-native — implementazione 2026-10-28
+
+- Ogni layer particelle conserva i nodi CPU di riferimento e porta anche gli
+  stati campionati dell'emettitore. Il graph builder, solo con
+  `require_native_gpu`, li instrada a un singolo source per emettitore.
+- Il kernel Vulkan `LayerBatch` rasterizza dischi/bokeh proceduralmente o
+  campiona uno sprite condiviso con tinta, scala e rotazione per istanza. Il
+  backend spezza i buffer in gruppi da 512 per rispettare il limite di update
+  Vulkan; l'ordine painter resta stabile fra i gruppi.
+- La regressione verifica compositing e conteggio delle istanze del kernel.
+  Shader/SPIR-V/ABI, backend, graph builder, materializer e unità di test sono
+  stati compilati in modo mirato con Ninja `-j14`. La suite non è stata
+  collegata o eseguita: il target locale richiede 343 passaggi. Parità visiva,
+  prova hardware same-SHA e misure C2 restano aperte; la feature è implementata,
+  ma T05 resta **PARTIAL — OPEN**.
 
 ## Audit di partenza (2026-10-08)
 

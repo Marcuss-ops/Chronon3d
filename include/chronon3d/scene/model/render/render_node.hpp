@@ -38,6 +38,14 @@ enum class TransformPolicy {
 };
 
 struct RenderNode {
+    struct GpuParticleInstance {
+        Vec2 position{0.0f, 0.0f};
+        Color color{1.0f, 1.0f, 1.0f, 1.0f};
+        f32 size{1.0f};
+        f32 rotation{0.0f};
+        f32 sprite_scale{1.0f};
+        f32 z{0.0f};
+    };
     std::pmr::string name;
     Transform world_transform;
     SurfacePolicy surface_policy{SurfacePolicy::IntrinsicSize};
@@ -58,6 +66,11 @@ struct RenderNode {
     // The asset field names an optional RGBA image sampled through vertex UVs.
     std::string inline_mesh_texture_asset;
     bool inline_mesh_animated{false};
+    // Optional per-emitter payload. CPU shape nodes remain the software
+    // authority; strict Vulkan consumes this array in one instanced dispatch.
+    std::vector<GpuParticleInstance> gpu_particle_instances;
+    bool gpu_particle_bokeh{false};
+    std::string gpu_particle_sprite_path;
     struct SvgGroupIsolation {
         struct OpacityAnimation {
             std::int64_t start_frame{0};

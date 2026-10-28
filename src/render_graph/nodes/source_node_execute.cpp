@@ -23,6 +23,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/runtime/gpu_layer_batch.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/media/media_placement.hpp>
@@ -144,7 +145,8 @@ NodeExecResult SourceNode::execute(
     const auto producer_surface = detail::resolve_producer_surface_bounds(
         ctx.frame_input.width,
         ctx.frame_input.height,
-        m_node.shape.type() == ShapeType::Image
+        m_node.shape.type() == ShapeType::Image &&
+                m_node.gpu_particle_instances.empty()
             ? detail::ProducerSurfaceKind::Image
             : detail::ProducerSurfaceKind::Background,
         source_bbox ? &*source_bbox : nullptr);
@@ -263,6 +265,214 @@ NodeExecResult SourceNode::execute(
 
         if (ctx.frame_input.has_camera_2_5d) {
             state.projection  = ctx.frame_input.projection_ctx;
+        }
+
+        if (!m_node.gpu_particle_instances.empty() &&
+            ctx.policy.require_native_gpu) {
+            if (!ctx.backend ||
+                !ctx.backend_stats_api()->supports_native_surfaces() ||
+                !ctx.surface_registry ||
+                !ctx.backend_texture_api() ||
+                !ctx.execution_backend() ||
+                !ctx.execution_backend()->is_batching_supported() ||
+                !ensure_empty_native_surface(ctx, *fb)) {
+                return NodeExecResult{NodeExecutionError{
+                    RenderBackendErrorCode::UnsupportedCapability,
+                    m_name,
+                    "strict GPU particle instancing requires native Vulkan surfaces and layer batches"}};
+            }
+
+            // The stored instances are local to the emitter. Remove the
+            // marker node's transform (its last CPU particle) from the
+            // resolved source transform before applying each particle pose.
+            const Mat4 particle_matrix = placement->render_matrix *
+                glm::inverse(m_node.world_transform.to_mat4());
+            const float axis_x_scale = glm::length(Vec2{
+                particle_matrix[0][0], particle_matrix[1][0]});
+            const float axis_y_scale = glm::length(Vec2{
+                particle_matrix[0][1], particle_matrix[1][1]});
+            std::shared_ptr<const CachedImage> sprite_image;
+            runtime::RenderSurfaceHandle sprite_surface =
+                runtime::kInvalidRenderSurfaceHandle;
+            if (!m_node.gpu_particle_sprite_path.empty()) {
+                if (!ctx.image_cache || !ctx.gpu_asset_cache) {
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::UnsupportedCapability,
+                        m_name,
+                        "native particle sprites require the prepared image and GPU asset caches"}};
+                }
+                sprite_image = ctx.image_cache->find(
+                    m_node.gpu_particle_sprite_path,
+                    m_node.shape.image().decode_options);
+                if (!sprite_image && ctx.asset_resolver) {
+                    sprite_image = ctx.image_cache->find(
+                        m_node.gpu_particle_sprite_path,
+                        m_node.shape.image().decode_options, *ctx.asset_resolver);
+                }
+                if (!sprite_image || !sprite_image->valid() ||
+                    sprite_image->gpu_rgba.empty()) {
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::InvalidInput,
+                        m_name,
+                        "native particle sprite was not prepared: " +
+                            m_node.gpu_particle_sprite_path}};
+                }
+                const auto& key = sprite_image->gpu_key;
+                const runtime::SurfaceDesc desc{
+                    key.width, key.height, key.format,
+                    runtime::ResourceUsage::Storage,
+                    runtime::LifetimeClass::JobPersistent,
+                    sprite_image->gpu_rgba.size() * sizeof(float)};
+                const auto acquired = ctx.gpu_asset_cache->acquire(
+                    key, desc, sprite_image->gpu_rgba);
+                if (!acquired.ok()) {
+                    return NodeExecResult{NodeExecutionError{
+                        RenderBackendErrorCode::ExecutionFailure,
+                        m_name,
+                        "native particle sprite promotion failed: " + acquired.error}};
+                }
+                sprite_surface = acquired.handle;
+            }
+            std::vector<runtime::LayerInstance> instances;
+            std::vector<float> transforms(16, 0.0f);
+            instances.reserve(m_node.gpu_particle_instances.size());
+            for (const auto& particle : m_node.gpu_particle_instances) {
+                const Vec4 position = particle_matrix * Vec4{
+                    particle.position.x, particle.position.y, particle.z, 1.0f};
+                const float radius_x = particle.size * 0.5f * axis_x_scale;
+                const float radius_y = particle.size * 0.5f * axis_y_scale;
+                if (!std::isfinite(position.x) || !std::isfinite(position.y) ||
+                    !std::isfinite(radius_x) || !std::isfinite(radius_y) ||
+                    radius_x <= 0.0f || radius_y <= 0.0f) {
+                    continue;
+                }
+                runtime::LayerInstance instance;
+                instance.kind = m_node.gpu_particle_sprite_path.empty()
+                    ? runtime::PrimitiveKind::Particle
+                    : runtime::PrimitiveKind::ParticleSprite;
+                instance.resource_index = 0;
+                const float sprite_size = particle.size * particle.sprite_scale;
+                const float radius = sprite_size * 0.5f;
+                if (sprite_image && (!std::isfinite(sprite_size) || sprite_size <= 0.0f))
+                    continue;
+                instance.dst_x0 = position.x - radius_x;
+                instance.dst_y0 = position.y - radius_y;
+                instance.dst_x1 = position.x + radius_x;
+                instance.dst_y1 = position.y + radius_y;
+                instance.opacity = 1.0f;
+                instance.blend = BlendMode::Normal;
+                const float alpha = std::clamp(particle.color.a * opacity, 0.0f, 1.0f);
+                instance.tint = m_node.gpu_particle_sprite_path.empty()
+                    ? Color{particle.color.r * alpha, particle.color.g * alpha,
+                            particle.color.b * alpha, alpha}
+                    : Color{particle.color.r, particle.color.g,
+                            particle.color.b, 1.0f};
+                instance.corner_radius = m_node.gpu_particle_bokeh ? 1.0f : 0.0f;
+                if (sprite_image) {
+                    instance.kind = runtime::PrimitiveKind::ParticleSprite;
+                    instance.opacity = alpha;
+                    const Mat4 local_to_canvas = particle_matrix *
+                        glm::translate(Mat4(1.0f), Vec3{
+                            particle.position.x, particle.position.y, particle.z}) *
+                        glm::rotate(Mat4(1.0f), particle.rotation,
+                                    Vec3{0.0f, 0.0f, 1.0f}) *
+                        glm::translate(Mat4(1.0f), Vec3{
+                            -radius, -radius, 0.0f});
+                    const auto corner = [&](float x, float y) {
+                        const Vec4 p = local_to_canvas * Vec4{x, y, 0.0f, 1.0f};
+                        return Vec2{p.x, p.y};
+                    };
+                    const std::array<Vec2, 4> corners{
+                        corner(0.0f, 0.0f), corner(sprite_size, 0.0f),
+                        corner(0.0f, sprite_size), corner(sprite_size, sprite_size)};
+                    instance.dst_x0 = instance.dst_x1 = corners[0].x;
+                    instance.dst_y0 = instance.dst_y1 = corners[0].y;
+                    for (const auto& p : corners) {
+                        instance.dst_x0 = std::min(instance.dst_x0, p.x);
+                        instance.dst_y0 = std::min(instance.dst_y0, p.y);
+                        instance.dst_x1 = std::max(instance.dst_x1, p.x);
+                        instance.dst_y1 = std::max(instance.dst_y1, p.y);
+                    }
+                    const float a00 = local_to_canvas[0][0];
+                    const float a01 = local_to_canvas[1][0];
+                    const float a10 = local_to_canvas[0][1];
+                    const float a11 = local_to_canvas[1][1];
+                    const float determinant = a00 * a11 - a01 * a10;
+                    if (!std::isfinite(determinant) ||
+                        std::abs(determinant) < 1e-6f) {
+                        continue;
+                    }
+                    const float inv00 = a11 / determinant;
+                    const float inv01 = -a01 / determinant;
+                    const float inv10 = -a10 / determinant;
+                    const float inv11 = a00 / determinant;
+                    const float inv_tx = -(inv00 * local_to_canvas[3][0] +
+                                           inv01 * local_to_canvas[3][1]);
+                    const float inv_ty = -(inv10 * local_to_canvas[3][0] +
+                                           inv11 * local_to_canvas[3][1]);
+                    const auto fit = compute_media_placement(
+                        Vec2{static_cast<float>(sprite_image->width),
+                             static_cast<float>(sprite_image->height)},
+                        Vec2{sprite_size, sprite_size}, FitMode::Cover);
+                    if (fit.dst_rect.size.x <= 0.0f || fit.dst_rect.size.y <= 0.0f)
+                        continue;
+                    const float sx = fit.src_rect.size.x / fit.dst_rect.size.x;
+                    const float sy = fit.src_rect.size.y / fit.dst_rect.size.y;
+                    std::array<float, 16> transform{};
+                    transform[0] = sx * inv00;
+                    transform[4] = sx * inv01;
+                    transform[12] = fit.src_rect.origin.x +
+                        sx * (inv_tx - fit.dst_rect.origin.x);
+                    transform[1] = sy * inv10;
+                    transform[5] = sy * inv11;
+                    transform[13] = fit.src_rect.origin.y +
+                        sy * (inv_ty - fit.dst_rect.origin.y);
+                    instance.transform_index = static_cast<std::uint32_t>(
+                        transforms.size() / 16U);
+                    transforms.insert(transforms.end(), transform.begin(), transform.end());
+                }
+                if (ctx.node_exec.clip_rect) {
+                    instance.dst_x0 = std::max(instance.dst_x0,
+                        static_cast<float>(ctx.node_exec.clip_rect->x0));
+                    instance.dst_y0 = std::max(instance.dst_y0,
+                        static_cast<float>(ctx.node_exec.clip_rect->y0));
+                    instance.dst_x1 = std::min(instance.dst_x1,
+                        static_cast<float>(ctx.node_exec.clip_rect->x1));
+                    instance.dst_y1 = std::min(instance.dst_y1,
+                        static_cast<float>(ctx.node_exec.clip_rect->y1));
+                }
+                if (instance.dst_x0 < instance.dst_x1 &&
+                    instance.dst_y0 < instance.dst_y1) {
+                    instances.push_back(instance);
+                }
+            }
+
+            if (!instances.empty()) {
+                runtime::RenderSurfaceHandle resource_handle = sprite_surface;
+                if (resource_handle == runtime::kInvalidRenderSurfaceHandle) {
+                    auto transparent_source = ctx.acquire_owned_fb(1, 1, false);
+                    if (!transparent_source ||
+                        !ensure_empty_native_surface(ctx, *transparent_source)) {
+                        return NodeExecResult{NodeExecutionError{
+                            RenderBackendErrorCode::ExecutionFailure,
+                            m_name,
+                            "failed to allocate the native particle batch source"}};
+                    }
+                    resource_handle = transparent_source->surface_handle();
+                }
+                const std::array<runtime::RenderSurfaceHandle, 1> resources{resource_handle};
+                const auto rendered = ctx.backend_texture_api()->execute_layer_batch(
+                    fb->surface_handle(), instances, resources, transforms, {});
+                if (!rendered.ok()) {
+                    return NodeExecResult{NodeExecutionError{
+                        rendered.error().code, m_name,
+                        "native particle instancing failed: " +
+                            rendered.error().message}};
+                }
+            }
+            fb->set_opaque(false);
+            fb->set_content_cleared(true);
+            return NodeExecResult{std::move(fb)};
         }
 
         // Formatted per-frame logging is forbidden in the hot loop (P1.0).
