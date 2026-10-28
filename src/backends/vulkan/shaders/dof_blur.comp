@@ -3,12 +3,11 @@
 // Native per-pixel DOF blur, one separable pass.  Replicates the CPU kernel in
 // src/backends/software/simd/highway_dof_kernels.cpp (dof_h_gather_impl /
 // dof_v_gather_impl) with identical math:
-//   - weight(dist, r) = 1 - t^2 (3 - 2t), t = min(dist * (1/r), 1)
-//   - r < 0 : neighbour has no depth -> weight 0 (skipped)
-//   - r < 0.5 : neighbour contributes only to its own pixel
-//   - normalize_opaque: weight is multiplied by the neighbour alpha
-//   - an in-focus centre (r in [0, 0.5) and alpha > 0, not normalize_opaque)
-//     is copied through unchanged
+//   - the destination pixel's radius selects a dense Gaussian kernel:
+//     weight(dist, r) = exp(-4.5 * t^2), t = min(dist * (1/r), 1)
+//   - r < 0 : destination has no depth -> copied unchanged
+//   - r < 0.5 : destination is in focus -> copied unchanged
+//   - normalize_opaque: weight is multiplied by the sampled alpha
 //   - total weight <= 1e-6 keeps the centre pixel
 // Neighbours are restricted to the ROI rectangle, exactly like the CPU kernel.
 // vertical == 0 : horizontal pass, source -> destination.
@@ -29,11 +28,9 @@ layout(push_constant) uniform DofBlurParams {
     int normalize_opaque;
 } params;
 
-float dof_weight(float dist, float neighbour_radius) {
-    if (neighbour_radius < 0.0) return 0.0;
-    if (neighbour_radius < 0.5) return dist == 0.0 ? 1.0 : 0.0;
-    float t = min(dist * (1.0 / neighbour_radius), 1.0);
-    return 1.0 - t * t * (3.0 - 2.0 * t);
+float dof_weight(float dist, float radius) {
+    float t = min(dist * (1.0 / radius), 1.0);
+    return exp(-4.5 * t * t);
 }
 
 void main() {
@@ -52,9 +49,9 @@ void main() {
     vec4 centre = imageLoad(source_image, pixel);
     float centre_radius = imageLoad(depth_image, pixel).g;
 
-    // In-focus passthrough (CPU: dst = src_row[x] for normalize_opaque == false).
-    if (params.normalize_opaque == 0 && centre.a > 0.0 &&
-        centre_radius >= 0.0 && centre_radius < 0.5) {
+    // Preserve the focal plane exactly. Gathering neighboring depths here
+    // creates dark/bright stamps over otherwise sharp text and edges.
+    if (centre_radius < 0.5) {
         imageStore(destination_image, pixel, centre);
         return;
     }
@@ -67,11 +64,9 @@ void main() {
     float total_weight = 0.0;
     for (int k = k0; k <= k1; ++k) {
         ivec2 np = pixel + step * (k - axis_pos);
-        float neighbour_radius = imageLoad(depth_image, np).g;
-        if (neighbour_radius < 0.0) continue;
         vec4 s = imageLoad(source_image, np);
         float dist = abs(float(k - axis_pos));
-        float kernel_w = dof_weight(dist, neighbour_radius);
+        float kernel_w = dof_weight(dist, centre_radius);
         float w = params.normalize_opaque != 0 ? kernel_w * s.a : kernel_w;
         sum += s * w;
         total_weight += w;
