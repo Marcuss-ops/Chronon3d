@@ -198,6 +198,7 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/fill.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/line_shape.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/material_2_5d.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/path_commands.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/path.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/rect_shape.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/rounded_rect_shape.hpp"
