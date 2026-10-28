@@ -90,7 +90,7 @@ declare -a REQUIRED_SURFACES=(
     "camera"
     "timeline"
     "render"
-    "png"
+    "png_save"
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
