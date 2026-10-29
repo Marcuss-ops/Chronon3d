@@ -12,6 +12,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -72,6 +73,19 @@ void synchronize_native_output(RenderGraphContext& ctx,
                     "[native-output-diag] encode_surface_rgb_mean={} max={} nonzero_channels={}/{}",
                     rgb_sum / static_cast<double>(pixels * 3), max_channel,
                     nonzero_channels, pixels * 3);
+                constexpr std::array<std::array<int, 2>, 5> samples{{
+                    {{100, 100}}, {{300, 800}}, {{500, 800}},
+                    {{900, 800}}, {{1600, 300}}}};
+                for (const auto& point : samples) {
+                    const auto x = std::clamp(point[0], 0, framebuffer->width() - 1);
+                    const auto y = std::clamp(point[1], 0, framebuffer->height() - 1);
+                    const auto offset =
+                        (static_cast<std::size_t>(y) * framebuffer->width() + x) * 4;
+                    spdlog::info(
+                        "[native-output-diag] encode_sample x={} y={} rgba=({}, {}, {}, {})",
+                        x, y, readback[offset], readback[offset + 1],
+                        readback[offset + 2], readback[offset + 3]);
+                }
             } else {
                 spdlog::warn("[native-output-diag] encode surface readback failed: {}",
                              downloaded.error().message);
@@ -446,12 +460,24 @@ std::shared_ptr<Framebuffer> NativeSourceResidency::finish_frame_encode(
                 exec_fb.reset();
             }
         } else {
-            spdlog::error(
-                "[native-residency] terminal output is not bound to the encode "
-                "surface on frame {} (source={}, encode={}); refusing degraded "
-                "copy lane",
-                static_cast<int>(frame), source, encode_surface);
-            exec_fb.reset();
+            // Some terminal graph nodes retain a distinct native surface for
+            // a true pass-through result. Preserve strict-native execution by
+            // copying device-to-device into the exportable NVENC surface; no
+            // framebuffer readback or CPU staging is introduced.
+            const auto copied = backend_.copy_surface_to_video_encode(
+                source, encode_surface);
+            if (!copied.ok()) {
+                spdlog::error(
+                    "[native-residency] native source-to-encode surface copy "
+                    "failed on frame {} (source={}, encode={}): {}",
+                    static_cast<int>(frame), source, encode_surface,
+                    copied.error().message);
+                exec_fb.reset();
+            } else {
+                release_temporary_native_output(ctx_, exec_fb, source);
+                exec_fb->set_surface_handle(encode_surface);
+                exec_fb->mark_gpu_authoritative();
+            }
         }
     } else if (encode_surface != runtime::kInvalidRenderSurfaceHandle) {
         spdlog::error("[backend] native encode copy has no source surface for frame {}",

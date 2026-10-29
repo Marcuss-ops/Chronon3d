@@ -3,13 +3,14 @@
   "date_utc": "2026-10-29",
   "source": {
     "repository": "Chronon3D",
-    "head": "556a4ae58933d0c6b72eb22829b415e08ffc43d4",
+    "head": "bb819884345333df3a7662d16630ec47467ab2cd",
     "working_tree_dirty_at_run": true,
-    "cli_sha256": "9ba3c94ed246fd57ff39b61279267b5cb46411c867921fa7cf076a4486988ba6",
+    "cli_sha256": "30ea796714dfdfeabd3b53376391ffd29b2b9c0cd26cc814b5fd55ccedea497f",
     "plan": "docs/evidence/camera-authority-migration/T16/dof-ablation/t16_three_depth_dof_on.plan.json",
     "plan_sha256": "d3a10211509578d4dbaca96fc33e3d9fb6de266458e405c3ccc2242abcb05fc1",
     "hardware": "NVIDIA RTX A4000 16376 MiB",
-    "build": "Release CLI rebuilt successfully from current working tree with -j12"
+    "build": "Release CLI build: -j16 stopped before OOM when available RAM fell below 6 GiB; resumed at -j8 and succeeded.",
+    "working_tree_code_patch_sha256": "b7a2cfccf9a048dbb33677097428438e0754ef10d9f3d1b588ac30a0ce8de8ee"
   },
   "runs": {
     "software_raw_frame_75": {
@@ -39,7 +40,7 @@
       "decoded_frames": 150,
       "resolution": "1920x1080",
       "frame_rate": "30/1",
-      "mp4": "docs/evidence/final-documentary-parallax-20261029/current-t16-150-barrier-build.mp4",
+      "mp4": "docs/evidence/final-documentary-parallax-20261029/current-t16-150-final-verify.mp4",
       "sha256": "42b4f320cdbf41699a354e516e3c5cafb550051f0c6d803c6de34c94c3bb93a9",
       "blackdetect": "no black interval detected at d=0.001,pix_th=0.015",
       "dof_off_frame0": {
@@ -67,8 +68,8 @@
         "sha256": "e9837ddccb5e785877fb9617ec3b59eb191e86d2565cc9a100b03e493f0535b2",
         "result": "visible background, title, and foreground subject"
       },
-      "root_cause": "A Vulkan memory dependency between Render Graph levels was missing on the strict-native path. Recording a broad write-to-read/write dependency at each level restored the output without snapshots or per-level submission on the available reproduction.",
-      "limitation": "Issue #67 exact 240-frame plan/source and RTX 4060 Ti are unavailable; this is a current-source RTX A4000 reproduction.",
+      "root_cause": "Two native-path defects were present: there was no Vulkan memory dependency between Render Graph levels, and the terminal DoF output could retain a distinct surface from the NVENC encode surface with no native device-to-device copy lane. The level barrier and terminal encode-surface copy restore the available T16 output.",
+      "limitation": "Issue #67 exact 240-frame plan/source and RTX 4060 Ti remain unavailable; this is a current-source RTX A4000 T16 150-frame reproduction.",
       "final_smoke_after_incremental_rebuild": {
         "mp4": "docs/evidence/final-documentary-parallax-20261029/current-three-layers-final-smoke.mp4",
         "decoded_frames": 1,
@@ -89,6 +90,22 @@
           "rgb_max_absolute_error": 63,
           "result": "Vulkan closely matches software; visible softness/edge halo is also present in software"
         }
+      },
+      "log": "docs/evidence/final-documentary-parallax-20261029/current-t16-150-final-verify.log",
+      "verification": {
+        "cli_sha256": "30ea796714dfdfeabd3b53376391ffd29b2b9c0cd26cc814b5fd55ccedea497f",
+        "accepted_frames": 150,
+        "muxed_packets": 150,
+        "decoded_frames": 150,
+        "ffprobe": "H.264, 1920x1080, 30/1 fps, 5.000 seconds",
+        "blackdetect": "no intervals at d=0.001,pix_th=0.015",
+        "repeatability": "SHA-256 matches the prior successful 150-frame T16 run",
+        "receipt": "docs/evidence/final-documentary-parallax-20261029/current-t16-150-final-verify.mp4.timing.json",
+        "execution_path": "full_graph_native",
+        "execution_reason": "required_gpu_native_full_graph",
+        "execution_downgrades": 0,
+        "cpu_pixel_readback_bytes": 0,
+        "encoder_staging_copy_bytes": 0
       }
     }
   },
@@ -123,7 +140,7 @@
     },
     "T08_mp4_gpu_stress": {
       "status": "PARTIAL",
-      "evidence": "Available T16 strict-native NVENC export passed 150/150 frames at 1920x1080/30 fps; full decode and blackdetect passed. Original issue #67 240-frame plan, three consecutive jobs, and exact RTX 4060 Ti environment were unavailable."
+      "evidence": "Fresh current-source strict-native NVENC export passed 150/150 frames at 1920x1080/30 fps; full ffprobe decode and blackdetect passed and output SHA matches the earlier passing run. Issue #67 exact 240-frame plan, three consecutive jobs, and RTX 4060 Ti rerun remain unavailable."
     }
   },
   "verdict": {

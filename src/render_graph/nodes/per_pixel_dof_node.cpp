@@ -254,6 +254,35 @@ NodeExecResult PerPixelDofNode::execute(
                 native_clone_failed = true;
                 return OwnedFB{};
             }
+            const auto encode_destination = copy->surface_handle();
+            if (encode_destination != runtime::kInvalidRenderSurfaceHandle &&
+                encode_destination == ctx.policy.native_video_encode_surface) {
+                const auto destination_record =
+                    ctx.surface_registry->lookup(encode_destination);
+                if (!destination_record ||
+                    destination_record->desc.format.pixel != source_record->desc.format.pixel ||
+                    destination_record->desc.width != source_record->desc.width ||
+                    destination_record->desc.height != source_record->desc.height) {
+                    native_clone_failed = true;
+                    return OwnedFB{};
+                }
+                if (encode_destination != input.surface_handle()) {
+                    const auto copied = ctx.backend->copy_surface_to_video_encode(
+                        input.surface_handle(), encode_destination);
+                    if (!copied.ok()) {
+                        spdlog::error(
+                            "[PerPixelDofNode] native terminal copy to encode surface failed: {}",
+                            copied.error().message);
+                        native_clone_failed = true;
+                        return OwnedFB{};
+                    }
+                }
+                copy->set_origin(input.origin_x(), input.origin_y());
+                copy->set_opaque(input.is_opaque());
+                copy->set_content_cleared(input.is_content_cleared());
+                copy->mark_gpu_authoritative();
+                return copy;
+            }
             const auto native_handle = ctx.surface_registry->create(
                 source_record->desc);
             if (native_handle == runtime::kInvalidRenderSurfaceHandle) {
@@ -270,16 +299,23 @@ NodeExecResult PerPixelDofNode::execute(
                 native_clone_failed = true;
                 return OwnedFB{};
             }
-            const auto copied = ctx.backend_surface_api()->copy_surface(
-                native_handle, input.surface_handle());
-            if (!copied.ok()) {
-                spdlog::error("[PerPixelDofNode] native pass-through copy failed: {}",
-                              copied.error().message);
-                (void)ctx.backend_surface_api()->release_surface(native_handle);
-                (void)ctx.surface_registry->release(native_handle);
-                copy->clear_surface_handle();
-                native_clone_failed = true;
-                return OwnedFB{};
+            if (native_handle != input.surface_handle()) {
+                // This copy is inserted by the node at runtime; it is not a
+                // pass in the compiled Render Graph command plan. Use the
+                // auxiliary path so Vulkan emits the conservative barriers
+                // needed after the preceding composite, instead of claiming
+                // a planned pass whose resource hazards are not in that plan.
+                const auto copied = ctx.backend_surface_api()->copy_surface_auxiliary(
+                    native_handle, input.surface_handle());
+                if (!copied.ok()) {
+                    spdlog::error("[PerPixelDofNode] native pass-through copy failed: {}",
+                                  copied.error().message);
+                    (void)ctx.backend_surface_api()->release_surface(native_handle);
+                    (void)ctx.surface_registry->release(native_handle);
+                    copy->clear_surface_handle();
+                    native_clone_failed = true;
+                    return OwnedFB{};
+                }
             }
             copy->mark_gpu_authoritative();
         } else {
@@ -406,7 +442,10 @@ NodeExecResult PerPixelDofNode::execute(
                 "[PerPixelDofNode] native DOF blur failed: horizontal='{}' vertical='{}'",
                 horizontal.ok() ? "ok" : horizontal.error().message,
                 vertical.ok() ? "ok" : vertical.error().message);
-            release_native_surface(ctx, *blurred);
+            if (blurred->surface_handle() !=
+                ctx.policy.native_video_encode_surface) {
+                release_native_surface(ctx, *blurred);
+            }
             return NodeExecutionError{
                 RenderBackendErrorCode::ExecutionFailure,
                 "PerPixelDofNode",
