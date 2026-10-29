@@ -1,0 +1,63 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "nv12-delta-small-shape-72f",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 72
+  },
+  "output": {
+    "path": "tiny-shape-delta-72f.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "moving-rect",
+      "type": "shape",
+      "size": [
+        40,
+        40
+      ],
+      "position": [
+        100,
+        200
+      ],
+      "start_frame": 0,
+      "duration_frames": 72,
+      "enable_3d": false,
+      "screen_space": true,
+      "opacity": 1.0,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          1.0,
+          0.2,
+          0.1,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 100
+              },
+              {
+                "frame": 71,
+                "value": 171
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

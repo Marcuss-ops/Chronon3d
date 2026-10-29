@@ -11,12 +11,12 @@ ticket is the honest residue.
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] F8 (P1): split dei due lock solo dopo che il contratto pin/lease è certificato.
-- [ ] F12 (P2): mappe string-keyed per frame, solo con indice/key stabile dimostrato.
-- [ ] F13 (P2): dominio cache motion blur allocato per frame — non toccare finché serve l'isolamento per determinismo.
-- [ ] F14 (P2): `make_shared<Framebuffer>` nei fallback non pooled — solo dopo che la proprietà è dimostrata.
+- [ ] **F8 (P1)** — logica: split dei due lock solo dopo che il contratto pin/lease è certificato (suite N4 verde) e una misura lock-wait vs lock-hold dimostra che l'acquisizione annidata è materiale. Dove: `src/backends/vulkan/vulkan_backend_impl.hpp` (`pin_recording_leases_locked`) + `vulkan_surface_authority.hpp`. Gate: N4 green + misura before/after registrata.
+- [ ] **F12 (P2)** — logica: mappe string-keyed per frame solo con identità layer interned e stabile cross-frame (mai `resolved_index` o `string_view` che dangle). Dove: `layer_bbox_collector.cpp`, `include/chronon3d/runtime/dirty_history.hpp`, refresh lanes (`source.cpp`, `multi_source.cpp`, `scene_refresh.cpp`). Gate: pixel-parity golden render-graph + dirty-rect determinism corpus.
+- [ ] **F13 (P2)** — logica: il dominio cache motion blur allocato per frame È il determinismo del temporal sample; pooling solo con design certificato contro la matrice determinismo (1/4/8 workers byte-identici). Dove: `src/render_graph/pipeline/composition.cpp:309-321`. Gate: motion-blur golden corpus + matrice determinismo.
+- [ ] **F14 (P2)** — logica: `make_shared<Framebuffer>` nei fallback non pooled richiede un ADR che nomini la cache family (ResidencyCache) e l'owner, più una baseline che dimostri il costo sul lane `require_native_gpu`. Dove: `src/render_graph/framebuffer_acquire_shared_detail.hpp` (4 siti). Gate: ADR + baseline + gate allocazioni steady-state.
 
 ## F8 — double nested lock per batched surface operation — **DEFERRED (P1)**
 

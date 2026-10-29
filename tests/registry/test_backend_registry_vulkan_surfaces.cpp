@@ -257,6 +257,146 @@ TEST_CASE("strict Vulkan lighting keeps directional layer lights GPU-native") {
     source.clear_surface_handle();
 }
 
+TEST_CASE("GPU-only framebuffer clone without a planned slot copies native pixels") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    for (const auto [width, height] : {
+             std::pair<std::uint32_t, std::uint32_t>{4, 4},
+             {218, 287}, {336, 395}}) {
+        const auto desc = SurfaceDesc::make(
+            width, height, PixelFormat::Rgba32Float,
+            ResourceUsage::Storage, LifetimeClass::FrameTransient);
+        const auto source_handle = registry.create(desc);
+        REQUIRE(source_handle != kInvalidRenderSurfaceHandle);
+        REQUIRE(backend.create_surface(source_handle, desc).ok());
+
+        std::vector<float> expected(static_cast<std::size_t>(width) * height * 4, 0.0f);
+        for (std::size_t pixel = 0; pixel < expected.size() / 4; ++pixel) {
+            expected[pixel * 4 + 0] = 0.4f;
+            expected[pixel * 4 + 1] = 0.2f;
+            expected[pixel * 4 + 2] = 0.1f;
+            expected[pixel * 4 + 3] = 1.0f;
+        }
+        REQUIRE(backend.upload_surface(source_handle, desc, expected).ok());
+
+        graph::RenderGraphContext ctx;
+        ctx.frame_input.width = width;
+        ctx.frame_input.height = height;
+        ctx.policy.require_native_gpu = true;
+        ctx.backend = &backend;
+        ctx.surface_registry = &registry;
+        Framebuffer source(width, height, static_cast<Color*>(nullptr));
+        source.set_surface_handle(source_handle);
+        source.mark_gpu_authoritative();
+
+        auto clone = ctx.acquire_owned_fb(source);
+        REQUIRE(clone);
+        CHECK(clone->surface_handle() != source_handle);
+        CHECK(clone->is_gpu_authoritative());
+        CHECK(backend.is_native_surface_valid(source_handle));
+        CHECK(backend.is_native_surface_valid(clone->surface_handle()));
+
+        std::vector<float> source_after(expected.size(), 0.0f);
+        std::vector<float> clone_after(expected.size(), 0.0f);
+        REQUIRE(backend.download_surface(source_handle, source_after).ok());
+        REQUIRE(backend.download_surface(clone->surface_handle(), clone_after).ok());
+        CHECK(source_after == expected);
+        CHECK(clone_after == expected);
+
+        (void)backend.release_surface(clone->surface_handle());
+        (void)registry.release(clone->surface_handle());
+        (void)backend.release_surface(source_handle);
+        (void)registry.release(source_handle);
+        source.clear_surface_handle();
+        clone->clear_surface_handle();
+    }
+}
+
+TEST_CASE("GPU-only clone preserves a native lighting result in the same frame batch") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    for (const auto [width, height] : {
+             std::pair<std::uint32_t, std::uint32_t>{218, 287},
+             {336, 395}}) {
+        const auto desc = SurfaceDesc::make(
+            width, height, PixelFormat::Rgba32Float,
+            ResourceUsage::Storage, LifetimeClass::FrameTransient);
+        const auto source_handle = registry.create(desc);
+        const auto lighting_handle = registry.create(desc);
+        REQUIRE(source_handle != kInvalidRenderSurfaceHandle);
+        REQUIRE(lighting_handle != kInvalidRenderSurfaceHandle);
+        REQUIRE(backend.create_surface(source_handle, desc).ok());
+        REQUIRE(backend.create_surface(lighting_handle, desc).ok());
+        const auto snapshot_desc = SurfaceDesc::make(
+            width, height, PixelFormat::Rgba32Float,
+            ResourceUsage::Storage, LifetimeClass::JobPersistent);
+        const auto lit_snapshot_handle = registry.create(snapshot_desc);
+        const auto clone_snapshot_handle = registry.create(snapshot_desc);
+        REQUIRE(lit_snapshot_handle != kInvalidRenderSurfaceHandle);
+        REQUIRE(clone_snapshot_handle != kInvalidRenderSurfaceHandle);
+        REQUIRE(backend.create_surface(lit_snapshot_handle, snapshot_desc).ok());
+        REQUIRE(backend.create_surface(clone_snapshot_handle, snapshot_desc).ok());
+        std::vector<float> source(static_cast<std::size_t>(width) * height * 4);
+        for (std::size_t pixel = 0; pixel < source.size() / 4; ++pixel) {
+            source[pixel * 4 + 0] = 0.4f;
+            source[pixel * 4 + 1] = 0.2f;
+            source[pixel * 4 + 2] = 0.1f;
+            source[pixel * 4 + 3] = 1.0f;
+        }
+        REQUIRE(backend.upload_surface(source_handle, desc, source).ok());
+
+        graph::RenderGraphContext ctx;
+        ctx.frame_input.width = width;
+        ctx.frame_input.height = height;
+        ctx.policy.require_native_gpu = true;
+        ctx.backend = &backend;
+        ctx.surface_registry = &registry;
+        Framebuffer lit(width, height, static_cast<Color*>(nullptr));
+        lit.set_surface_handle(lighting_handle);
+        lit.mark_gpu_authoritative();
+
+        backend.begin_frame_batch();
+        REQUIRE(backend.lighting_surface(
+            lighting_handle, source_handle, Color{0.5f, 0.25f, 0.75f, 1.0f}).ok());
+        auto clone = ctx.acquire_owned_fb(lit);
+        REQUIRE(clone);
+        REQUIRE(backend.copy_surface(lit_snapshot_handle, lighting_handle).ok());
+        REQUIRE(backend.copy_surface(
+            clone_snapshot_handle, clone->surface_handle()).ok());
+        backend.end_frame_batch();
+
+        std::vector<float> lit_pixels(source.size(), 0.0f);
+        std::vector<float> clone_pixels(source.size(), 0.0f);
+        REQUIRE(backend.download_surface(lit_snapshot_handle, lit_pixels).ok());
+        const auto clone_read = backend.download_surface(
+            clone_snapshot_handle, clone_pixels);
+        INFO("clone snapshot handle=" << clone_snapshot_handle << " readback error="
+             << (clone_read.ok() ? std::string{} : clone_read.error().message));
+        REQUIRE(clone_read.ok());
+        CHECK(clone->surface_handle() != lighting_handle);
+        CHECK(clone_pixels == lit_pixels);
+
+        (void)backend.release_surface(lit_snapshot_handle);
+        (void)registry.release(lit_snapshot_handle);
+        (void)backend.release_surface(clone_snapshot_handle);
+        (void)registry.release(clone_snapshot_handle);
+        (void)backend.release_surface(clone->surface_handle());
+        (void)registry.release(clone->surface_handle());
+        (void)backend.release_surface(lighting_handle);
+        (void)registry.release(lighting_handle);
+        (void)backend.release_surface(source_handle);
+        (void)registry.release(source_handle);
+        lit.clear_surface_handle();
+        clone->clear_surface_handle();
+    }
+}
+
 TEST_CASE("Vulkan color adjust matches the CPU scalar oracle") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     constexpr std::uint32_t width = 2;

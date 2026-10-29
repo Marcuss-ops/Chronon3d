@@ -1,9 +1,10 @@
 # RenderPlan feature acceptance and blockers
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Eseguire focused schema validation, C ABI/render-plan tests, effects tests e build mirata (questa scheda registra scope e blocker, non un PASS).
-- [ ] Il gate di accettazione più ampio resta in `archive/TICKET-VULKAN-EFFECT-PARITY.md`, inclusa la certificazione same-SHA GPU-host.
+- [ ] **Rerun focused gate sul tree corrente** — il batch locale del 2026-10-29 ha passato core/RenderPlan, CLI, effects, render graph e suite mirate; `chronon3d_c` shared-library link e `chronon3d_c_abi_tests` erano PASS (302 casi, 8,092 assertion, 278.26 s). Dopo quel batch sono stati aggiunti al sidecar per-job i contatori NV12 delta effettivi e la copertura serializer; ricostruire/rieseguire almeno il target CLI/test sidecar nel batch finale. Catalogo effetti: 57 righe, 51 native, 6 fail-closed. Evidenza precedente in `docs/CURRENT_STATUS.md` e nel batch locale del 2026-10-29 in `../TODO-RIPRESA-100X-E-TICKET-APER-TI.md`; non è un PASS del tree corrente.
+- [ ] **Gate di accettazione più ampio** — logica: resta in `archive/TICKET-VULKAN-EFFECT-PARITY.md`, inclusa la certificazione same-SHA GPU-host. Dove: workflow CI GPU-host. Gate: run same-SHA green.
+- [ ] **Criteri bloccati (non qui)** — logica: dynamic text/counters richiede una API coordinata RenderPlan V3 (dynamic text provider, cache identity, shaping per-frame); lens flare richiede un nuovo effetto + oracle software; full Vulkan parity resta nel ticket di parità. Mai patch decoder-only. Dove: `LayerPlan::text` in `include/chronon3d/render_plan/`, `include/chronon3d/effects/effect_catalog.def`. Gate: ticket dedicati.
 
 ## Implemented / verifiable acceptance criteria
 
@@ -29,4 +30,11 @@ The only nearby implemented effect is `LightRaysParams` (radial ray sampling fro
 
 ## Verification status
 
-Pending focused schema validation, C ABI/render-plan tests, effects tests, and targeted build. This ticket records scope and blockers, not a PASS result.
+Prior local focused verification **PASS** (2026-10-29, dirty worktree based on
+`a214fad27efdaa597ccf4e4a8ae34baa6677146e`): core/RenderPlan, CLI, effects,
+render graph, focused backend suites and C ABI are recorded in the current
+status and root execution checklist. A subsequent CLI sidecar metrics change
+needs a fresh build and focused rerun before claiming current-tree PASS.
+Same-SHA GPU CI/full parity remain unverified. Dynamic text/counters and a true
+optical lens flare remain separate architectural work; no decoder-only
+implementation was added.

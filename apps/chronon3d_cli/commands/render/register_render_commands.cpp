@@ -432,6 +432,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                 options.input = active_plan;
                 options.assets_root = render_args.assets_root;
                 options.prepared_package = state->prepared_package;
+                options.no_dirty_rects = render_args.pipeline.no_dirty_rects;
                 if (!state->captions_file.empty() && options.assets_root.empty() &&
                     options.prepared_package.empty())
                     options.assets_root = std::filesystem::absolute(state->plan_file)
@@ -523,7 +524,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             auto video_execution = std::make_shared<media::VideoJobExecutionContext>();
             video_execution->video_runtimes = ctx.video_runtimes;
             ctx.exit_code = run_render_plan_file(
-                ctx.registry, std::move(request), {}, std::move(video_execution));
+                ctx.registry, std::move(request), {}, std::move(video_execution),
+                render_args.pipeline.no_dirty_rects);
             return;
         }
         if (!state->captions_file.empty()) {

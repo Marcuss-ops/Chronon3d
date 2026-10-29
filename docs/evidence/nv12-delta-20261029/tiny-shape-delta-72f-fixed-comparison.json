@@ -1,0 +1,26 @@
+{
+  "partial": {
+    "frames": 72,
+    "nv12_frames": 72,
+    "partial_handoff_frames": 39,
+    "written_yuv_bytes": 102843972,
+    "full_frame_bytes": 223948800,
+    "mp4_sha256": "38aeeba507659036d9a2c1f275326cf6e07a4a016b34fba4e4fc9455ed3cabcc",
+    "saved_bytes": 121104828,
+    "saved_percent": 54.07701581790123
+  },
+  "full": {
+    "frames": 72,
+    "nv12_frames": 72,
+    "partial_handoff_frames": 0,
+    "written_yuv_bytes": 223948800,
+    "full_frame_bytes": 223948800,
+    "mp4_sha256": "38aeeba507659036d9a2c1f275326cf6e07a4a016b34fba4e4fc9455ed3cabcc"
+  },
+  "pixel_parity": {
+    "decoded_frames_partial": 72,
+    "decoded_frames_full": 72,
+    "exact_per_frame_md5_match": true,
+    "differing_frames": 0
+  }
+}

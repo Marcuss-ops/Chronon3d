@@ -6,6 +6,7 @@
 #include <vector>
 
 using chronon3d::media::video::Nv12ConversionPlan;
+using chronon3d::media::video::nv12_conversion_written_bytes;
 using chronon3d::media::video::plan_nv12_conversion;
 using chronon3d::raster::BBox;
 
@@ -45,6 +46,7 @@ TEST_CASE("nv12 region policy: an unproven partial request is widened, not honou
     CHECK(plan.partial_rejected);
     REQUIRE(plan.regions.size() == 1);
     CHECK(same(plan.regions[0], whole_frame(1920, 1080)));
+    CHECK(nv12_conversion_written_bytes(plan) == 3'110'400);
 }
 
 TEST_CASE("nv12 region policy: a proven partial request is honoured and normalized") {
@@ -142,4 +144,30 @@ TEST_CASE("nv12 region policy: every published region stays inside the frame") {
             CHECK(same(plan.regions[0], whole_frame(1920, 1080)));
         }
     }
+}
+
+TEST_CASE("nv12 byte accounting measures full and partial plane writes") {
+    const auto full = plan_nv12_conversion(
+        {}, 1920, 1080, /*destination_retains_previous_frame=*/false);
+    CHECK(nv12_conversion_written_bytes(full) == 3'110'400);
+
+    const auto partial = plan_nv12_conversion(
+        kRequested, 1920, 1080,
+        /*destination_retains_previous_frame=*/true);
+    CHECK_FALSE(partial.full_frame);
+    CHECK(nv12_conversion_written_bytes(partial) == 62'400);
+}
+
+TEST_CASE("nv12 byte accounting handles odd frame edges and repeated launches") {
+    const std::vector<BBox> odd_frame_request{whole_frame(3, 3)};
+    const auto odd_frame = plan_nv12_conversion(
+        odd_frame_request, 3, 3,
+        /*destination_retains_previous_frame=*/true);
+    CHECK(nv12_conversion_written_bytes(odd_frame) == 17);
+
+    const std::vector<BBox> overlapping{{0, 0, 2, 2}, {0, 0, 2, 2}};
+    const auto repeated = plan_nv12_conversion(
+        overlapping, 4, 4,
+        /*destination_retains_previous_frame=*/true);
+    CHECK(nv12_conversion_written_bytes(repeated) == 12);
 }

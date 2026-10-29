@@ -173,6 +173,10 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     timings.gpu.release_delay_frames_high_water = 4u;
     timings.gpu.overflow_wait_count = 3u;
     timings.gpu.nvenc_frames = 100u;
+    timings.gpu.native_surface_yuv_frames = 98u;
+    timings.gpu.native_surface_yuv_bytes = 123456u;
+    timings.gpu.nv12_partial_handoff_frames = 73u;
+    timings.gpu.rgba_to_nv12_frames = 100u;
     timings.effect_usage["effect.color.curves"] = {3u, 1u, 4u, 5000000u, 1u, 2000000u};
     timings.gpu.cuda_composite_frames = 42u;
     timings.gpu.upload_breakdown["text_atlas"] = 999u;
@@ -213,6 +217,10 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("effect_usage").at("effect.color.curves").at("fallback_count") == 1u);
     CHECK(job.at("effect_usage").at("effect.color.curves").at("fallback_effect_time_ns") == 2000000u);
     CHECK(job.at("gpu").at("nvenc_frames") == 100u);
+    CHECK(job.at("gpu").at("native_surface_yuv_frames") == 98u);
+    CHECK(job.at("gpu").at("native_surface_yuv_bytes") == 123456u);
+    CHECK(job.at("gpu").at("nv12_partial_handoff_frames") == 73u);
+    CHECK(job.at("gpu").at("rgba_to_nv12_frames") == 100u);
     CHECK(job.at("gpu").at("cuda_composite_frames") == 42u);
     CHECK(job.at("gpu").at("upload_breakdown").at("text_atlas") == 999u);
     CHECK(job.at("prepare").at("asset_preflight_ms") == 4.5);
@@ -288,6 +296,10 @@ TEST_CASE("A5 sidecar: the job section key set is frozen") {
     for (const char* key : {"encoder_backend", "decoder_backend",
                             "effective_backend", "gpu_readback_bytes",
                             "nvenc_frames", "cuda_composite_frames",
+                            "native_surface_yuv_frames",
+                            "native_surface_yuv_bytes",
+                            "nv12_partial_handoff_frames",
+                            "rgba_to_nv12_frames",
                             "pending_release_high_water",
                             "retained_bindings_high_water", "release_delay_frames",
                             "release_delay_frames_high_water", "overflow_wait_count",

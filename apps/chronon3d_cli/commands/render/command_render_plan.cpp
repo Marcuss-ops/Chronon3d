@@ -49,7 +49,8 @@ int run_render_plan_file(
     const CompositionRegistry& registry,
     runtime::job::RenderJobRequest request,
     std::shared_ptr<SoftwareRenderer> warm_renderer,
-    std::shared_ptr<media::VideoJobExecutionContext> video_execution) {
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution,
+    bool no_dirty_rects) {
     // CLI boundary: parse happened at the flag layer, normalize happens here
     // — exactly once per job, exactly like the IPC boundary.
     const auto normalized = runtime::job::normalize_render_job(request);
@@ -62,6 +63,7 @@ int run_render_plan_file(
     state.normalized_request = std::move(normalized).value();
     state.warm_renderer = std::move(warm_renderer);
     state.video_execution = std::move(video_execution);
+    state.no_dirty_rects = no_dirty_rects;
     return execute_render_plan(registry, state);
 }
 

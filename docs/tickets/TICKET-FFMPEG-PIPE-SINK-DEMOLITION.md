@@ -4,9 +4,10 @@
 **Priorità:** P1 demolition debt  
 **Authority:** `src/media/video/video_sink_factory.cpp` + `src/media/CMakeLists.txt`
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Exit condition 3: CI green — poi cancellazione fisica di `VideoSinkEncoderAdapter(Ffmpeg)` e del target pipe.
+- [ ] **Exit condition 3 — CI green codec/routing** — logica: la coverage richiesta esiste (`tests/video/test_native_av_sink_factory.cpp`, `test_native_av_sink_lifecycle.cpp`, lane `Native Video Certification`); manca solo l'evidenza CI green sullo SHA pubblicato (i run su `be6b4dc3a` sono in corso; le modifiche locali non sono coperte). Gate: codec/routing coverage green sullo stesso SHA.
+- [ ] **Poi: cancellazione fisica** — logica: solo dopo exit 3. Dove: `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp` + `VideoSinkEncoderAdapter(Ffmpeg)` + ramo `#else` di `VideoSinkFactory` (`src/media/video/video_sink_factory.cpp`), target pipe in `src/media/CMakeLists.txt`, doc/options `ffmpeg-mode pipe`. Gate: gate anti-resurrezione F40 esteso ai file rimossi + `check_architecture.py` green + commit SHA con evidenza WBH/CI.
 
 ### Stato CI osservato 2026-10-28
 

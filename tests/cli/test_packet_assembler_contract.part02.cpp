@@ -162,6 +162,7 @@ TEST_CASE("HEVC length-prefixed GOPs are certified copy-eligible (hvcC)") {
 }
 #endif
 
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 TEST_CASE("P0-5A: the declared splice target is encoder-owned and fail-closed") {
     const auto declared = chronon3d::cli::resolve_encoder_bitstream_contract(
         p0_5a_pipe_options("unused-p0-5a.mp4"));
@@ -184,6 +185,7 @@ TEST_CASE("P0-5A: the declared splice target is encoder-owned and fail-closed") 
     CHECK_FALSE(declared->valid());
 #endif
 }
+#endif
 
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 TEST_CASE("P0-5A: an unmaterialized encoder target cannot certify a splice") {

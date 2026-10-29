@@ -6,15 +6,8 @@
       (2026-10-28): header spostato in `chronon3d/core/types/` (casa neutra
       dei tipi, commento originale dello header: "tiny header... not installed
       con lo SDK") e 7 includer aggiornati; nessuna referenza residua.
-- [ ] Edge `software_render_session.hpp` → `runtime/job/job_session.hpp`
-      (l'ultimo sulla superficie pubblica software): richiede la migrazione
-      "Spostare e separare runtime::JobSession" — il cluster di stato è
-      `job_session.hpp` + `dirty_history.hpp`, `frame_history.hpp`,
-      `frame/{frame_queue,frame_slot_pool,frame_error_slot,gpu_completion_tracker}.hpp`,
-      `resource_plan.hpp`, `render_surface.hpp`, `internal/runtime/history_state.hpp`
-      (~33 includer totali). Spostare il cluster in una casa neutra
-      (es. `chronon3d/session/`) senza shim, poi build software senza
-      `#include <chronon3d/runtime/...>`.
+- [ ] **Edge `software_render_session.hpp` → `runtime/job/job_session.hpp`** — logica: è l'ultimo edge sulla superficie pubblica software; `SoftwareRenderSession` embedde `runtime::JobSession` **by value**, quindi serve la migrazione “Spostare e separare runtime::JobSession” (ridisegno, non un taglio include): spostare il cluster di stato in una casa neutra (es. `chronon3d/session/`) senza shim. Dove: cluster `job_session.hpp` + `dirty_history.hpp`, `frame_history.hpp`, `frame/{frame_queue,frame_slot_pool,frame_error_slot,gpu_completion_tracker}.hpp`, `resource_plan.hpp`, `render_surface.hpp`, `internal/runtime/history_state.hpp` (~33 includer). Gate: build software senza `#include <chronon3d/runtime/...>`.
+- [ ] **Catena C20/C22/C23 (compatibility composition)** — logica: C22 (equivalence corpus a 8 casi: animated transform, opacity, text, camera, visibility, frame-varying callbacks, assets, batch ordering) è l'unico bloccante; a C22 verde, C23 demolisce `compatibility_composition`, `render_compatibility*`, l'adapter di preparation e la timeline compatibility includes. Dove: `render_engine*.cpp/hpp`, `render_pipeline_batch.cpp`. Gate: hash frame-by-frame identici fra `compatibility_composition` e `CompiledProgram` → demolizione.
 
 ## DOF graph node consolidation
 

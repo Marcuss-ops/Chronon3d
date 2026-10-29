@@ -1,0 +1,20 @@
+{
+  "exit_code": 1,
+  "nvidia_smi_encoder_util_samples": 12,
+  "nvidia_smi_encoder_util_avg_pct": 0.0,
+  "nvidia_smi_encoder_util_max_pct": 0.0,
+  "sample_values_pct": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ]
+}

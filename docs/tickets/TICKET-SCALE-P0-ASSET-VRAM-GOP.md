@@ -11,10 +11,10 @@ policy `DeviceSelectionRequirements`) più due debiti MTSDF/Vulkan.
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-29)
 
-- [ ] Parità del corpus overlay più ampio (native-image) oltre il singolo video same-SHA già certificato.
-- [ ] Demolition 5G: parità fra percorso a segmenti e direct mux sul `gop_parity_corpus()`.
+- [ ] **Parità del corpus overlay più ampio (native-image)** — logica: la certificazione attuale copre un singolo video same-SHA; la parità native-image va estesa all'intero corpus overlay. Dove: harness di parità esistente + corpus overlay. Gate: parità su tutti i casi del corpus, stesso SHA.
+- [x] **Demolition 5G — parità segmenti vs direct mux** — `DONE` secondo la sezione di verifica 2026-09-15 e l'exit-condition registrata sotto: 5 forme del `gop_parity_corpus()`, un solo executor `execute_direct_mux_gop_plan`, test `P0-5B` e parità 5E/5F PASS. Rimane separato il gate 5H same-SHA su GPU reale.
 
 ## P0-1 — `ImageCache` non trattiene più l'`AssetResolver` job-scoped
 

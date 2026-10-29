@@ -5,6 +5,7 @@
 #include "encoder_bitstream_contract.hpp"
 #include <chronon3d/media/video/packet_assembler.hpp>
 #include <chronon3d/media/video/direct_yuv_frame.hpp>
+#include <chronon3d/media/video/nv12_frame_continuity.hpp>
 #include <chronon3d/media/frame_conversion/conversion_cache_key.hpp>
 #include "cuda_context_guard.hpp"
 #include <chronon3d/media/video/video_device_runtime.hpp>
@@ -337,6 +338,19 @@ private:
     AVBufferRef* cuda_frames_ref_{nullptr};
 #endif
     std::shared_ptr<media::VideoDeviceRuntime> device_runtime_;
+    // Delta-temporal RGBA->NV12 boundary (per-physical-buffer destination
+    // continuity). The pooled encode frame keeps the pixels of the stream
+    // frame it last held; this tracker accumulates each frame's damage across
+    // the buffer's reuse gap and proves which regions may be converted
+    // selectively (media/video/nv12_frame_continuity.hpp). CPU-safe: owned
+    // unconditionally so every write path can keep the note log contiguous.
+    media::video::Nv12FrameContinuity frame_continuity_;
+    std::int64_t continuity_note_index_{0};
+    /// Appends one stream frame to the continuity note log and returns its
+    /// index. `unchanged` marks a DuplicateFrame (P1) — no pixel changes.
+    /// An empty `damage` is unknown damage (whole-frame), never "no change".
+    [[nodiscard]] std::int64_t note_stream_frame(
+        std::span<const raster::BBox> damage, bool unchanged);
     bool gpu_nvenc_{false};
     bool open_complete_{false};
     BitstreamTargetContract bitstream_contract_{};

@@ -198,11 +198,11 @@ le conversioni reali. Ora:
 I tre contatori sono esposti nel report `*.timing.json` sotto `job.gpu`
 e vengono letti da `tools/verify_zero_copy_end_to_end.sh`.
 
-**Implicazione**: il percorso di encode nativo attuale (`write_native_surface_impl`
-→ `composite_surface_to_nv12`) fa ancora una conversione RGBA→NV12 per frame,
-quindi `rgba_to_nv12_frames` e `gpu_surface_copy_frames` risultano `≠ 0` finché
-non viene usato il percorso direct-YUV (`composite_direct_nv12*`), che compone
-l'overlay direttamente nel dominio NV12 senza passare da RGBA.
+**Stato osservato 2026-10-28**: il percorso FullGraph usa ancora una
+conversione colore RGBA→NV12 (`rgba_to_nv12_frames > 0`); la conversione non è
+una copia D2D Vulkan→CUDA. Quando il grafo scrive direttamente nella encode
+surface, `gpu_surface_copy_frames = 0`. DirectYUV resta la lane che evita
+anche la conversione colore, quando il piano include una sorgente video NV12.
 
 ## Percorso zero-copy target (DirectYUV)
 
@@ -215,11 +215,10 @@ NVDEC (NV12/P010) → media::video::CudaNv12Compositor::composite_direct_nv12*
     → NVENC (nessuna copia RGBA intermedia, nessuna blit D2D)
 ```
 
-Per attivarlo nel pipeline di export serve sostituire, in
-`NativeAvEncoder::write_native_surface_impl`, la coppia
-`copy_surface_to_cuda_encoder` + `composite_surface_to_nv12` con
-`composite_direct_nv12*` (o far scrivere il grafo Vulkan direttamente
-sulla superficie CUDA-exportable).
+FullGraph e DirectYUV sono lane diverse: FullGraph accetta un composito RGBA
+generico e converte il frame in NV12 per l'encode; DirectYUV riceve il video
+NV12/P010 decodificato e compone overlay compatibili nel dominio YUV. Il gate Z3
+controlla che il FullGraph scriva nella encode surface senza una copia D2D.
 
 ## Integrazione CI
 
@@ -247,6 +246,21 @@ bash tools/verify_z3_equivalence.sh --record /tmp/z3-ref --video
 bash tools/verify_z3_equivalence.sh --record /tmp/z3-cand --video
 bash tools/verify_z3_equivalence.sh --compare /tmp/z3-ref /tmp/z3-cand
 ```
+
+### Esecuzione locale 2026-10-28
+
+- Build: `linux-video-fast-dev` CLI, base `111c539a9a38150f69d2ad118c03c84903fa1c1f`, worktree con modifiche locali.
+- GPU: NVIDIA RTX A4000. Due registrazioni del binario corrente per
+  `DarkGridBackground` (`CHRONON3D_Z3_PNG_FRAMES=2`, video 3 frame, warmup 1)
+  in `/tmp/chronon-z3-current-a` e `...-b`.
+- `bash tools/verify_z3_equivalence.sh --compare ...`: **EQUIVALENCE_PASS**;
+  frame digest `9a54926ec959cde6…` uguale, gate 6 `gpu_surface_copy_frames=0`,
+  gate 4 `rgba_to_nv12_frames=1` invariato, `surface_handoff_path=direct`,
+  `effective_backend=vulkan`, `encoder_backend=nvenc`.
+- Limite: entrambe le registrazioni usano il binario corrente e il runner
+  conferma che anche il lato chiamato “reference” ha già gate 6 a zero. È una
+  verifica ripetuta sul tree corrente, non una misura del delta storico prima
+  e dopo Z3 né una certificazione same-SHA clean-checkout.
 
 ## Confronto con Benchmark Separati
 

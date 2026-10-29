@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
@@ -48,6 +49,34 @@ void synchronize_native_output(RenderGraphContext& ctx,
     // returns a CPU framebuffer; the encoder consumes the device surface.
     if (ctx.policy.native_video_encode_surface !=
         runtime::kInvalidRenderSurfaceHandle) {
+        if (native_surface_promotion_diag_enabled() &&
+            ctx.backend->is_native_surface_valid(framebuffer->surface_handle())) {
+            const auto pixels = static_cast<std::size_t>(framebuffer->width()) *
+                static_cast<std::size_t>(framebuffer->height());
+            std::vector<float> readback(pixels * 4);
+            const auto downloaded = ctx.backend->download_surface(
+                framebuffer->surface_handle(), readback);
+            if (downloaded.ok()) {
+                double rgb_sum = 0.0;
+                float max_channel = 0.0f;
+                std::uint64_t nonzero_channels = 0;
+                for (std::size_t i = 0; i < pixels; ++i) {
+                    for (std::size_t channel = 0; channel < 3; ++channel) {
+                        const float value = readback[i * 4 + channel];
+                        rgb_sum += value;
+                        max_channel = std::max(max_channel, value);
+                        nonzero_channels += value != 0.0f;
+                    }
+                }
+                spdlog::info(
+                    "[native-output-diag] encode_surface_rgb_mean={} max={} nonzero_channels={}/{}",
+                    rgb_sum / static_cast<double>(pixels * 3), max_channel,
+                    nonzero_channels, pixels * 3);
+            } else {
+                spdlog::warn("[native-output-diag] encode surface readback failed: {}",
+                             downloaded.error().message);
+            }
+        }
         framebuffer->mark_gpu_authoritative();
         return;
     }

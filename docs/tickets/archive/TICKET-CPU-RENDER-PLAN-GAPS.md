@@ -1,9 +1,9 @@
 # Ticket: close CPU RenderPlan gaps
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Ombre native Vulkan, particelle GPU istanziate e parità capability Vulkan: restano NOT RUN su host senza Vulkan — eseguire su host capace.
-- [ ] DEFERRED: map plate nativi (gate prestazioni acquisizione).
+- [x] **Eseguire su host capace: ombre native Vulkan, particelle GPU istanziate, parità capability** — PASS sul build `linux-video-fast-dev` con RTX A4000: `chronon3d_backend_registry_tests` completo 1/1 CTest PASS (223.09 s); include i due oracle strict Vulkan ShadowNode, le due prove particle-instancing/sprite e i test registry/capability.
+- [x] **DEFERRED / fuori scope Chronon3D — map plate nativi** — Chronon3D non contiene più il modulo geo; il port, i plate e il criterio di performance appartengono a `TICKET-MAPS-NATIVE-PORT.md`/ChrononPlugin. Si conserva il deferimento senza introdurre dipendenze o modifiche a un altro repository.
 
 ## Goal
 
@@ -92,9 +92,9 @@ Each checkbox is marked only after its implementation, focused regression,
   SVG + C ABI + scene + software focused test suites, and CPU builds with
   `-j12`; record exact results below.
 - [x] **VERIFY-2:** audit the identified gaps against current source and mark
-  each one `PASS`, `PARTIAL`, or `NOT RUN` with evidence. Vulkan-native shadows,
-  instanced GPU particles and Vulkan capability parity stay `NOT RUN` on a
-  machine without a Vulkan runtime/device.
+  each one `PASS`, `PARTIAL`, or `NOT RUN` with evidence. CPU gates are PASS;
+  Vulkan-native shadows, instanced GPU particles and registry/capability parity
+  were subsequently run on the RTX A4000 Vulkan host (see 2026-10-29 closeout).
 
 ## Evidence log
 
@@ -156,6 +156,20 @@ Each checkbox is marked only after its implementation, focused regression,
   scaffolding are complete. Phases 2–7 remain optional per
   `TICKET-MAPS-NATIVE-PORT.md`, which measures tile acquisition rather than C++
   map rasterization as the current bottleneck.
-- **NOT RUN — Vulkan-only parity:** native GPU shadows, instanced GPU particles,
-  and registry/Vulkan capability parity require a Vulkan runtime/device. Both
-  build configurations used here set `CHRONON3D_ENABLE_VULKAN=OFF`.
+- **PASS — Vulkan-only parity:** strict-native ShadowNode, particle instancing,
+  and registry/capability checks passed on the current Vulkan-enabled build and
+  RTX A4000 host; full backend registry CTest 1/1, 223.09 s.
+
+## Closeout — 2026-10-29
+
+**Status: COMPLETE for the Chronon3D CPU RenderPlan and Vulkan host acceptance
+scope.** The earlier NOT RUN hardware note is superseded: the complete
+`chronon3d_backend_registry_tests` CTest passed on the current Vulkan-enabled
+`linux-video-fast-dev` build (RTX A4000, 1/1, 223.09 s). The suite includes
+`strict Vulkan ShadowNode projects and blurs caster alpha natively`,
+`strict Vulkan ShadowNode bounds depth-expanded blur to kernel limits`, both
+Vulkan particle-instance cases, and registry preference/capability cases.
+
+The remaining map-plate work belongs to the separate ChrononPlugin ticket and is
+explicitly deferred from Chronon3D. No ChrononMotion3D, RenderingGen, or
+ChrononPlugin source was changed for this closeout.

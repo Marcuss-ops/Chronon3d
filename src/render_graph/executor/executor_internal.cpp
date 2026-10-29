@@ -216,7 +216,65 @@ std::shared_ptr<Framebuffer> execute_internal(
         execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining,
                        parent_counters, parent_pool, res, compiled);
     }
-
+    if (std::getenv("CHRONON3D_T05_SURFACE_SNAPSHOT") && ctx.backend &&
+        ctx.backend->supports_native_video_surface() &&
+        !state.surface_content_snapshots.empty()) {
+        bool batch_closed = false;
+        try {
+            // All per-node copies were recorded in the graph's existing frame
+            // batch. Submit once after the graph is complete, read the retained
+            // JobPersistent snapshots, then reopen the outer frame scope for
+            // NativeSourceResidency's normal encode hand-off.
+            ctx.backend->end_frame_batch();
+            batch_closed = true;
+            for (const auto& snapshot : state.surface_content_snapshots) {
+                const auto width = static_cast<std::size_t>(snapshot.width);
+                const auto height = static_cast<std::size_t>(snapshot.height);
+                std::vector<float> rgba(width * height * 4);
+                const auto downloaded = ctx.backend->download_surface(
+                    snapshot.handle, rgba);
+                if (downloaded.ok()) {
+                    double rgb_sum = 0.0;
+                    float max_channel = 0.0f;
+                    std::uint64_t nonzero_channels = 0;
+                    for (std::size_t pixel = 0; pixel < width * height; ++pixel) {
+                        for (std::size_t channel = 0; channel < 3; ++channel) {
+                            const float value = rgba[pixel * 4 + channel];
+                            rgb_sum += value;
+                            max_channel = std::max(max_channel, value);
+                            nonzero_channels += value != 0.0f;
+                        }
+                    }
+                    spdlog::info(
+                        "[native-content-diag] frame={} node_id={} node={} source_handle={} handle={} extent={}x{} rgb_mean={} max={} nonzero={}/{}",
+                        static_cast<int>(ctx.frame_input.frame), snapshot.node,
+                        snapshot.name, snapshot.source_handle, snapshot.handle, width, height,
+                        rgb_sum / static_cast<double>(width * height * 3),
+                        max_channel, nonzero_channels, width * height * 3);
+                } else {
+                    spdlog::warn(
+                        "[native-content-diag] readback failed for node={} handle={}: {}",
+                        snapshot.name, snapshot.handle, downloaded.error().message);
+                }
+                (void)ctx.backend->release_surface(snapshot.handle);
+                if (ctx.surface_registry)
+                    (void)ctx.surface_registry->release(snapshot.handle);
+            }
+            state.surface_content_snapshots.clear();
+            ctx.backend->begin_frame_batch();
+            batch_closed = false;
+        } catch (const std::exception& error) {
+            spdlog::error("[native-content-diag] snapshot readback failed: {}",
+                          error.what());
+            if (batch_closed) {
+                try { ctx.backend->begin_frame_batch(); }
+                catch (const std::exception& reopen_error) {
+                    spdlog::error("[native-content-diag] frame batch reopen failed: {}",
+                                  reopen_error.what());
+                }
+            }
+        }
+    }
     if (parent_pool && state.node_memory_tracker) {
         const auto pool = parent_pool->stats();
         state.node_memory_tracker->record_pool(NodeMemoryPoolSnapshot{

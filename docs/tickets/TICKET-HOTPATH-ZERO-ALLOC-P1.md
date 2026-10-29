@@ -1,10 +1,10 @@
 # TICKET-HOTPATH-ZERO-ALLOC-P1 — Zero-allocation hot path, wave P1
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] D1: `NodeCacheKey::scope` da `std::string` a id intero.
-- [ ] D3: eliminare il per-node context clone applicando `ADR-DRAFT-NODE-CONTEXT-OWNERSHIP` (owner-scoped payload refs).
-- [ ] (D2 è stale e resta solo come storico: non è lavoro.)
+- [ ] **D1 — `NodeCacheKey::scope` da `std::string` a id intero** — logica: la stringa viene materializzata per chiave per nodo per frame; un id intero stabile (interning cross-frame, stesso vincolo di identità di F12) elimina l'allocazione senza cambiare l'identità della chiave. Dove: definizione di `NodeCacheKey` (cache del render graph, `src/render_graph/cache/`) + i call site che costruiscono la chiave. Gate: test cache + determinism corpus invariati, zero allocazioni per chiave misurate.
+- [ ] **D3 — eliminare il per-node context clone via `ADR-DRAFT-NODE-CONTEXT-OWNERSHIP`** — logica: `clone_for_node_execution` paga 3 `LOCK XADD` per nodo×frame; l'ADR propone `JobExecutionContext` owner + `NodeExecutionContext` non-owning (POD `FrameInput` by value). Prima di implementare: exit conditions dell'ADR (misura per-node clone cost su overlay matrix, owner-lifetime assertion, equivalence test byte-identici sul corpus golden). Dove: `src/render_graph/executor/` (clone + tutti i nodi che leggono `ctx.static_context`/`ctx.processor_snapshot`). Gate: exit conditions ADR soddisfatte → migrazione meccanica + equivalence corpus.
+- [x] D2 scartata come stale dopo verifica del tree: `RenderGraphContext::frame_error` è già `runtime::RenderErrorSlot*`; non c'è migrazione da fare.
 
 ## Contesto
 

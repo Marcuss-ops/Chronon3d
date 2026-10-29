@@ -9,9 +9,9 @@ compiler output e graph lowering, senza introdurre una seconda pipeline
 temporanea. Ogni riga diventa `DONE` solo quando il codice, i caller e il gate
 sono coerenti.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Wave 3: il render-plan runtime deve eseguire direttamente topology e parameter (il path compat è ancora load-bearing — la chiusura precedente era prematura).
+- [ ] **Wave 3 — render-plan runtime esegue direttamente topology e parameter** — logica: il path compat è ancora load-bearing per l'esecuzione (la chiusura precedente era prematura); il runtime deve consumare direttamente topology+parameter senza il bridge. Dove: `src/render_graph/` (builder/compiler/optimizer), `src/compiler/compiler.cpp` + `program_sampler.cpp`, `src/render_graph/cache/scene_program_store.cpp`. Gate: le 4 snapshot di equivalenza (`d72a4efc2`) restano identiche e il path compat non è più raggiungibile dal runtime.
 
 ## Todo / acceptance criteria
 

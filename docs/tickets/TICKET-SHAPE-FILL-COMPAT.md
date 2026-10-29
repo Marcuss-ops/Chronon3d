@@ -4,10 +4,10 @@ Status: ACTIVE
 
 Owner: Scene model and graphics-style maintainers.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Completare la migrazione del Fill legacy: rimuovere le forwarding `sample_gradient*` e i consumatori residui.
-- [ ] Exit check: scan zero-match su `include/`, `src/`, `apps/`.
+- [ ] **Completare la migrazione del Fill legacy** — logica: seguire l'ordine della census 2026-09-24 (gruppo B produzione per file con pixel gate → gruppo A storage → delete `to_fill()`). Le forwarding `sample_gradient*` e i consumatori residui si rimuovono per ultimi. Dove: elenco 15 file della census (`blend2d_paint.cpp`, `blend2d_path_stroker.cpp`, `shape_rasterizer*`, `scene_materializer.cpp`, `source_node_execute.cpp`, `render_plan_compiler.cpp:346`, `path.hpp`, `shape_stroke.hpp`, `render_node.hpp`, `fill_style.hpp`, `fill.hpp`). Gate: dopo ogni file, `chronon3d_render_plan_shape_tests` + `chronon3d_deterministic_tests` + `chronon3d_backends_software_tests` + `chronon3d_scene_tests` verdi senza drift pixel.
+- [ ] **Exit check zero-match** — logica: scan finale su `include/`, `src/`, `apps/` per `FillType`, `GradientFill`, `fill_type_for_gradient`, `Fill` di scena. Attenzione: `fill.hpp` è header pubblico installato (`cmake/Chronon3DPublicHeaders.cmake`) — la rimozione è SDK surface change con finestra ABI propria. Dove: + aggiornamento regola `legacy_scene_fill_api_is_scoped_to_compatibility_boundary` in `tools/architecture_rules_shape.toml`. Gate: zero-match + build `linux-fast-dev` green.
 
 ## Reason
 

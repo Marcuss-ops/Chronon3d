@@ -12,13 +12,13 @@ lights, 19 cinematic leaks), but its ZIP/CSV/contact sheet are not in this
 checkout. Those counts are planning input only; individual palettes, crops,
 parameters, and expected outputs cannot be certified from the pasted summary.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Sbloccare il feature freeze: runner dispatch ripristinato, CI green sullo SHA esatto, worktree riconciliato e baseline rivista.
-- [ ] Aggiungere i 43 reference PNG, la contact sheet e il CSV per-reference.
-- [ ] Validare i conteggi attesi (16 `wave_*`, 8 `neon_*` unici, 19 `cinematic_*`) e mappare ogni record alle primitive esistenti.
-- [ ] Adottare o emendare i bounds proposti; specificare `LayeredFoldField`; verificare il lowering di `LightCone` e `GlowPath`.
-- [ ] Per ogni composer accettato: esempio autored + lowering documentato; solo helper di authoring approvati, nessun nuovo schema/effect id senza Gate 2.
+- [ ] **Sbloccare il feature freeze** — logica: precondizione trasversale (`docs/stato/README.md`) — nessuna feature entra senza CI green sullo SHA esatto; serve runner dispatch ripristinato + worktree riconciliato + baseline rivista. Gate: CI green same-SHA.
+- [ ] **Corredo reference** — logica: senza i 43 reference PNG + contact sheet + CSV per-reference non c'è materiale di validazione visiva. Gate: corredo completo caricato e indicizzato.
+- [ ] **Validare conteggi e mappatura** — logica: verificare 16 `wave_*`, 8 `neon_*` unici, 19 `cinematic_*` e mappare ogni record alle primitive esistenti (nessun duplicato di capability). Gate: CSV validato contro la mappa primitive.
+- [ ] **Bounds + `LayeredFoldField` + lowering** — logica: adottare o emendare i bounds proposti, specificare `LayeredFoldField`, verificare il lowering di `LightCone` e `GlowPath` sulle primitive esistenti. Dove: graph builder + primitive shape/gradient esistenti. Gate: lowering verificato o rejection esplicita.
+- [ ] **Per ogni composer accettato** — logica: esempio autored + lowering documentato; solo helper di authoring approvati, nessun nuovo schema/effect id senza Gate 2. Gate: esempi renderizzati + documentazione.
 
 ## Repository facts verified for this contract
 

@@ -297,6 +297,11 @@ bool NativeAvEncoder::write_direct_yuv(const media::video::DirectYuvFrame& direc
                          runtime::kInvalidRenderSurfaceHandle,
                          direct.program,
                          chronon3d::media::HwFrameRef(direct.decoded)});
+    // P3 (direct-yuv lane): the batch recomposites the whole background plus
+    // overlays into the pooled frame, so no inter-frame damage bound exists
+    // here. Note it as unknown damage: a pooled buffer reused across direct
+    // frames degrades to a whole-frame conversion, never to a torn delta.
+    (void)note_stream_frame({}, /*unchanged=*/false);
     cuda_pending_peak_ = std::max<std::uint64_t>(
         cuda_pending_peak_, pending_cuda_frames_.size());
     if (counters_) {

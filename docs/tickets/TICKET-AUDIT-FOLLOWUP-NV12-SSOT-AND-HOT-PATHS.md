@@ -14,11 +14,11 @@ Owner: rendering-core
 > `CHRONON3D_RUN_CUDA_TESTS=1`); GPU-host baseline renders remain the
 > remaining evidence step (see `TICKET-AUDIT-ROADMAP-WAVES.md` Wave 4).
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Test di equivalenza fra le due authority NV12, eseguito su GPU.
-- [ ] Il commit di refactor NV12/NVRTC deve mostrare zero delta di output e nessuna regressione benchmark.
-- [ ] Aggiungere a questa scheda la nota di misura di `FrameConversionService`.
+- [x] **Eseguire su GPU la matrice determinismo/contratto NV12** — RTX A4000, `CHRONON3D_RUN_CUDA_TESTS=1`; `chronon3d_nv12_compositor_contract_tests` PASS 6/6 casi, 85/85 asserzioni; confronto di 10/10 combinazioni e istanze indipendenti bit-exact. Evidenza di output/gate in `docs/ZERO_COPY_GATES.md`. Questo certifica la singola authority attuale, non la storica equivalenza pre-unificazione.
+- [ ] **Zero delta + benchmark sul commit NV12/NVRTC** — logica: il refactor deve dimostrare nessun drift di output e nessuna regressione (`batch_wall_ms` nel messaggio di commit). Gate: confronto output pre/post + benchmark registrato.
+- [ ] **Nota di misura `FrameConversionService`** — logica: measure-first — profilare hit-rate cache + allocation churn su timeline animata rappresentativa prima di convertire il buffer in cache-owned storage (≈12 MB/frame 4K NV12 ai miss). Dove: `src/media/frame_conversion/frame_conversion_service.cpp`. Gate: numeri registrati in questa scheda + decisione keep-as-is vs pooled buffer.
 
 ## Context
 
@@ -70,6 +70,14 @@ the audit's own recommendation was to measure first:
   before converting the buffer to cache-owned storage.
 - Remaining per-frame host allocations on the DirectYUV path that are NOT
   covered by the scratch-vector fix already landed with this ticket.
+
+### GPU matrix closeout — 2026-10-29
+
+The unified NV12 CUDA authority passed its current GPU contract/determinism
+matrix on an RTX A4000: 6/6 cases and 85/85 assertions. The historical two-
+authority comparison cannot be reconstructed from this checkout, so this is
+recorded as current-authority certification only. The output-delta/benchmark
+and `FrameConversionService` measure-first follow-ups remain open.
 
 ### Required before acting
 

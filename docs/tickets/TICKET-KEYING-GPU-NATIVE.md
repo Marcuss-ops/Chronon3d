@@ -1,8 +1,9 @@
 # Luma/Chroma Key: native GPU support
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Certificazione same-SHA su host GPU (CI bloccato per billing; evidenza locale NVIDIA già registrata).
+- [ ] **Certificazione same-SHA su host GPU** — logica: la parità locale NVIDIA è chiusa ma su worktree dirty; serve lo stesso run (selection keying di `chronon3d_backend_registry_tests`, framehash luma/chroma) su SHA pubblicato. Dove: host GPU dedicato o CI GPU (oggi bloccata per billing — vedi `docs/stato/README.md`). Gate: run green con SHA + device, framehash = golden software.
+- [ ] **Integrazione RenderingGen** — logica: RenderingGen è fuori da questa repo e deve consumare la capability nativa dichiarata. Gate: evidenza di consumo dal renderer esterno.
 
 ## Current behavior
 

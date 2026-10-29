@@ -11,6 +11,8 @@
 #include <chronon3d/runtime/job/job_session.hpp>
 #include <spdlog/spdlog.h>
 
+#include "nodes/native_surface.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -145,24 +147,104 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
 
     if (node_exec.planned_physical_slot) {
         auto out = acquire_owned_fb(other.width(), other.height(), false);
-        if (out && out->data() != other.data()) {
-            FramebufferCopyAuthority::copy_rows(*out, other);
+        if (out) {
+            if (out->data() && other.data() && out->data() != other.data()) {
+                FramebufferCopyAuthority::copy_rows(*out, other);
+            }
             out->set_origin(other.origin_x(), other.origin_y());
             out->set_opaque(other.is_opaque());
             out->set_content_cleared(other.is_content_cleared());
+            // Planned transient slots also carry passthrough values. A
+            // GPU-only value has no CPU rows to copy, so it must be copied to
+            // an independent surface before a later writer can recycle this
+            // slot. Sharing the numeric handle is not ownership: detaching
+            // that handle would invalidate the still-live input framebuffer.
+            const auto source_handle = other.surface_handle();
+            const bool source_is_current_native =
+                source_handle != runtime::kInvalidRenderSurfaceHandle &&
+                !other.is_cpu_authoritative() && backend && surface_registry &&
+                backend_surface_api()->is_native_surface_valid(source_handle);
+            if (source_is_current_native) {
+                // A planned physical slot is a writable output. Never publish
+                // a second framebuffer aliasing its input surface: downstream
+                // native composites would then read and write the same image.
+                // The terminal slot is treated the same way, with the copy
+                // landing directly on its pre-bound NVENC surface.
+                if (ensure_empty_native_surface(*this, *out)) {
+                    const auto destination_handle = out->surface_handle();
+                    if (destination_handle != source_handle) {
+                        const auto copied = backend_surface_api()->copy_surface_auxiliary(
+                            destination_handle, source_handle, std::nullopt);
+                        if (!copied.ok()) {
+                            spdlog::error(
+                                "[native-residency] planned-slot passthrough copy failed: {}",
+                                copied.error().message);
+                            release_native_surface(*this, *out);
+                            out->mark_cpu_authoritative();
+                        }
+                    }
+                    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+                        spdlog::info(
+                            "[native-residency] clone-without-slot source={} destination={} extent={}x{} copied={}",
+                            source_handle, out->surface_handle(), other.width(),
+                            other.height(), out->surface_handle() != source_handle);
+                    }
+                } else {
+                    out->clear_surface_handle();
+                    out->mark_cpu_authoritative();
+                }
+            } else {
+                out->set_surface_handle(source_handle);
+            }
+            if (out->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+                !other.is_cpu_authoritative()) {
+                out->mark_gpu_authoritative();
+            } else if (other.is_cpu_authoritative()) {
+                out->mark_cpu_authoritative();
+            }
         }
         return out;
     }
 
     if (!other.data() && other.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
         auto* fresh = new Framebuffer(other.width(), other.height(), static_cast<Color*>(nullptr));
-        fresh->set_surface_handle(other.surface_handle());
         fresh->set_origin(other.origin_x(), other.origin_y());
         fresh->set_opaque(other.is_opaque());
         fresh->set_content_cleared(other.is_content_cleared());
-        if (!other.is_cpu_authoritative()) {
-            fresh->mark_gpu_authoritative();
+        const auto source_handle = other.surface_handle();
+        const bool source_is_current_native =
+            !other.is_cpu_authoritative() && backend && surface_registry &&
+            backend_surface_api()->is_native_surface_valid(source_handle);
+        if (source_is_current_native) {
+            OwnedFB out(fresh, PoolFbDeleter(DeleteFramebuffer{}));
+            if (ensure_empty_native_surface(*this, *out)) {
+                const auto destination_handle = out->surface_handle();
+                if (destination_handle != source_handle) {
+                    const auto copied = backend_surface_api()->copy_surface_auxiliary(
+                        destination_handle, source_handle, std::nullopt);
+                    if (!copied.ok()) {
+                        spdlog::error(
+                            "[native-residency] passthrough clone copy failed: {}",
+                            copied.error().message);
+                        release_native_surface(*this, *out);
+                        out->mark_cpu_authoritative();
+                        return out;
+                    }
+                }
+                if (std::getenv("CHRONON3D_PATH_DIAG")) {
+                    spdlog::info(
+                        "[native-residency] gpu-only clone source={} destination={} extent={}x{} copied={}",
+                        source_handle, out->surface_handle(), other.width(),
+                        other.height(), out->surface_handle() != source_handle);
+                }
+                out->mark_gpu_authoritative();
+            } else {
+                out->mark_cpu_authoritative();
+            }
+            return out;
         }
+        fresh->set_surface_handle(source_handle);
+        if (!other.is_cpu_authoritative()) fresh->mark_gpu_authoritative();
         return OwnedFB(fresh, PoolFbDeleter(DeleteFramebuffer{}));
     }
 

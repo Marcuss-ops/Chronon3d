@@ -9,12 +9,12 @@ remain open. This ticket tracks both the implementation already underway and
 the remaining acceptance work; passing generic tests does not certify the
 supplied video.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Confrontare i chart renderati ai timestamp di riferimento; bounds/residui glow; pivot veicolo e framing grafico; flicker temporale sui contorni.
-- [ ] Parità CPU/GPU dove la capability è disponibile; anteprima 854×480 della scena 19.63s; campioni frame dei primi 8 secondi side-by-side.
-- [ ] Eseguire le gate di certificazione IDLE-01–05 e FX-01–05; focused importer/C ABI tests + evidenza CI same-source.
-- [ ] Rerun del preset senza il workaround a opacità costante; rebuild e verifica del dirty-rectangle fallback per path animati.
+- [ ] **Confronto chart ai timestamp di riferimento** — logica: verificare bounds/residui glow, pivot veicolo e framing grafico, flicker temporale sui contorni contro la reference video. Dove: scena documentary SVG + renderer software. Gate: diff visivo documentato per ogni difetto risolto/accettato.
+- [ ] **Parità CPU/GPU dove la capability è disponibile** + anteprima 854×480 della scena 19.63s + campioni frame dei primi 8 secondi side-by-side. Gate: campioni prodotti e allegati.
+- [ ] **Gate di certificazione IDLE-01–05 e FX-01–05** — logica: eseguire le gate della roadmap SVG più focused importer/C ABI tests + evidenza CI same-source. Dove: `scripts/ci/check_svg_text_stroke_raw_gate.py`, `scripts/ci/check_svg_trim_sampled_raw_gate.py`. Gate: tutte le gate verdi + CI same-source.
+- [ ] **Rerun senza workaround opacità costante** — logica: il workaround maschera il dirty-rectangle fallback per path animati; va rieseguito il preset senza workaround e verificato il fallback. Gate: rerun pulito + fallback verificato.
 
 ## Obiettivo
 
@@ -132,6 +132,39 @@ for spatial motion that the current native plan cannot express.
   path-content-change fallback was added to redraw the full frame only when a
   path-bearing layer changes; its rebuild and raw repeat gate are pending
   because the local vcpkg tree is missing the `boost_spirit` CMake package.
+
+Verification attempt on 2026-10-28: the only current video-fast-dev CLI is
+configured with `CHRONON3D_ENABLE_SVG=OFF`, so the sampled Trim Paths gate
+rejects its plan with “Chronon was built without SVG import support.” Reconfiguring
+SVG on confirms that `boost_spiritConfig.cmake` is absent from this vcpkg
+installation. A classic install would pull 61 Boost ports while the filesystem
+has 4.7 GB free; it was stopped before changing the installed package set. The
+build cache was restored to SVG-off. This attempt is not a gate pass; use a
+pre-provisioned SVG-enabled build or restore Boost.Spirit, then rerun the gates.
+The rebuilt `chronon3d_svg_path_loader_tests` suite passed (CTest 1/1, 2.17 s);
+this covers loader unit/integration behavior but does not replace either raw CLI
+gate. Linking the SVG-enabled CLI then failed while creating the 2.8 GB CLI core
+archive (`ar: unable to copy file`), so the raw gates remain unrun.
+
+### Local raw-gate rerun — 2026-10-29
+
+Built an isolated SVG-enabled CLI in `/dev/shm/chronon3d-t05-debug` to provide
+enough space for the large static archive. CMake used temporary config packages
+pointing Boost.Spirit/Boost.Math at the existing system headers; the main
+`linux-video-fast-dev` cache remains SVG-off. SVG-on CLI build completed all 105
+actions. The two previously blocked raw gates now pass:
+
+- `check_svg_trim_sampled_raw_gate.py`: PASS; imported Trim Paths coverage at
+  frames 0/15/30/45/60 is `[0, 0, 67, 96, 96]`; all 61 raw RGBA frames match in
+  the two repeated renders.
+- `check_svg_text_stroke_raw_gate.py`: PASS; 2674 solid and 119 dashed pixels;
+  repeated RGBA frame matches exactly.
+
+These close the local sampled Trim Paths and software text-stroke gates. The
+documentary-video ticket remains PARTIAL: requested reference timing/framing,
+full source-video composition review, GPU parity, and same-source CI remain
+open. The full importer's CI and C ABI acceptance also remains open as recorded
+in the SVG render-plan ticket.
 
 ## Acceptance gates
 

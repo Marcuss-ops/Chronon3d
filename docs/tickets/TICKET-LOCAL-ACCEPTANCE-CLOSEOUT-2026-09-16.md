@@ -6,13 +6,12 @@ Obiettivo: portare il checkout corrente al massimo stato verificabile, senza
 marcare `PASS` criteri non eseguiti. Questa checklist è il registro operativo:
 ogni voce viene marcata solo dopo il comando o l'evidenza corrispondente.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Completare il target aggregato `chronon3d_tests`.
-- [ ] Eseguire sullo stesso SHA: suite release/full-validation, matrice FFmpeg (`doctor`, codec/routing, native fail-closed), cert C ABI/SDK se la lane compila, cert video/GPU se l'host espone Vulkan/CUDA/NVENC; registrare l'evidenza reale.
-- [ ] `Composition::SceneFunction` → lowering typed con equivalence corpus; chiudere i caller legacy di `SoftwareRenderer::runtime()`; certificare le exit condition FFmpeg pipe; gate “feature assente = costo fisico zero”; progettare `PixelProgram → DeviceProgram` senza nuova authority.
-- [ ] Certificazione same-SHA CI del `main` corrente.
-- [ ] Installare `cmake-format` ed eseguire `check_cmake_format.sh`.
+- [ ] **Completare il target aggregato `chronon3d_tests`** — logica: il aggregatore è la porta per l'esecuzione batch delle suite; va completato senza perdere asserzioni. Dove: CMake tests + `tools/gates/manifest.sh`. Gate: target che esegue tutte le suite registrate.
+- [ ] **Esecuzione sullo stesso SHA: suite release/full-validation + matrice FFmpeg** — logica: `doctor`, codec/routing, native fail-closed; cert C ABI/SDK se la lane compila; cert video/GPU se l'host espone Vulkan/CUDA/NVENC. Gate: evidenza reale registrata (un test non eseguito resta `NOT RUN`).
+- [ ] **Debito residuo aperto** — logica: (a) `Composition::SceneFunction` → lowering typed con equivalence corpus (catena C20–C23 di `TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`); (b) chiudere i caller legacy di `SoftwareRenderer::runtime()`; (c) certificare le exit condition FFmpeg pipe (exit 3); (d) gate “feature assente = costo fisico zero”; (e) progettare `PixelProgram → DeviceProgram` senza nuova authority. Gate: per ogni voce, rispettivo gate documentato.
+- [ ] **Certificazione same-SHA CI del `main` corrente** + **installare `cmake-format` ed eseguire `check_cmake_format.sh`**. Gate: CI green + check verde.
 
 ## 0. Repository e sincronizzazione
 
@@ -148,6 +147,24 @@ ogni voce viene marcata solo dopo il comando o l'evidenza corrispondente.
 - [x] Eseguire i gate developer registrati in `tools/gates/manifest.sh`: 10/10
       PASS con `TMPDIR=.tmp` scrivibile; il gate steady-state segnala solo
       evidenza storica su una revisione precedente.
+- [x] Rerun mirato sul tree dirty `a214fad27efdaa597ccf4e4a8ae34baa6677146e`
+      (2026-10-29): dopo due failure `No space left on device` sul relink di
+      archivi da 2–3 GiB, il solo archivio statico SDK incompleto è stato
+      ricreato in `/dev/shm` usando la lista oggetti generata da Ninja e
+      riagganciato al build tree; nessun sorgente o artefatto preesistente è
+      stato rimosso manualmente. Exit 0 per build e link dei dieci target
+      core, backend registry, CLI, media video, zero-copy, CUDA NV12, particle,
+      render graph, effects e text-tile canary; CLI eseguibile ricostruita
+      separatamente (exit 0). CTest: 9/10 PASS iniziale; il solo failure era
+      l'aspettativa obsoleta di 48 effetti. Aggiornato il census: 57 catalogati,
+      51 native, 6 esplicitamente fail-closed; il test ora controlla il set
+      esatto dei 6. Rerun `chronon3d_render_graph_tests` PASS, 433/433 casi e
+      19335/19335 assertion. Gli altri nove CTest della batch sono PASS
+      (core 37.21 s, backend registry RTX A4000 226.20 s, CLI 65.43 s,
+      media-video 28.25 s, zero-copy 0.16 s, CUDA NV12 7.48 s, effects
+      10.13 s, particle 0.15 s, text-tile 0.84 s). L'aggregato
+      `chronon3d_tests`, SDK C ABI on, T05 acceptance e benchmark B2 restano
+      separati/non ancora eseguiti in questo batch.
 
 ## 4. Acceptance e certificazione raggiungibile
 
@@ -186,3 +203,23 @@ ogni voce viene marcata solo dopo il comando o l'evidenza corrispondente.
   serve una configurazione `CHRONON3D_BUILD_C_API=ON` e spazio libero sufficiente.
 - **Condizionato da host/CI/content pack:** la parte GPU/video della sezione 4.
 - **Non autorizzato prima delle equivalence:** sezione 5.
+
+
+## Local aggregate target recheck — 2026-10-29
+
+The aggregate `chronon3d_tests` target is present in
+`tests/manifests/test_aggregates.cmake`, but a current-tree build attempt on
+`linux-video-fast-dev` did not complete. Command:
+
+```text
+cmake --build build/chronon/linux-video-fast-dev -j10 --target chronon3d_tests
+```
+
+Ninja stopped while relinking `libchronon3d_cli_video_export.a`; GNU `ar`
+reported `No space left on device`. The filesystem had 3.7 GiB free (99% used)
+and the build directory already occupied 44 GiB. Independent compile steps
+continued briefly, but the aggregate returned failure at 23/448 steps. No tests
+were run by this target attempt. The previous 89/89 CTest result on
+`linux-fast-dev` is historical evidence from a different configured tree and
+does not turn this build attempt into a pass. Keep this item open until the
+aggregate can be built and its registered suites executed on the current tree.

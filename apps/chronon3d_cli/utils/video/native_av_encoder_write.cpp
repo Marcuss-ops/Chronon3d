@@ -41,6 +41,20 @@ static int resolve_color_matrix(const FfmpegPipeOptions& opt) {
     }
 }
 
+std::int64_t NativeAvEncoder::note_stream_frame(
+    std::span<const raster::BBox> damage, bool unchanged) {
+    // The writer thread is the single consumer of the render frame queue and
+    // reaches every stream frame exactly once, so the note log is contiguous
+    // by construction and the tracker may rely on that for its gap detection.
+    const std::int64_t index = continuity_note_index_++;
+    if (unchanged) {
+        frame_continuity_.note_unchanged_frame(index);
+    } else {
+        frame_continuity_.note_frame_damage(index, damage);
+    }
+    return index;
+}
+
 bool NativeAvEncoder::write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) {
     (void)owner;
     return write_frame(fb);
@@ -304,6 +318,11 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
     // Cross-item session restart: the forced keyframe has been consumed.
     session_restart_intra_pending_ = false;
     ++codec_frames_submitted_;
+    // Delta-temporal boundary: the CPU-path frame is a full composite with no
+    // damage bound available at this level. Note it as unknown damage so any
+    // pooled NV12 buffer reused across it degrades to a whole-frame conversion
+    // instead of trusting a stale continuity claim.
+    (void)note_stream_frame({}, /*unchanged=*/false);
     // P1: remember what the codec just consumed — the duplicate path reuses
     // exactly these buffers (cheap ref, no copy) when a duplicate run starts.
     duplicate_seed_source_.reset(av_frame_clone(frame_));
@@ -417,6 +436,10 @@ bool NativeAvEncoder::write_duplicate_frame(int frame_number) {
             frame_number, frames_written_);
         return false;
     }
+    // P1: a duplicate frame is proven identical to its predecessor — no pixel
+    // of any encode buffer changes. Recording it as "unchanged" keeps the
+    // continuity note log contiguous without widening later delta plans.
+    (void)note_stream_frame({}, /*unchanged=*/true);
 
     // Run bookkeeping: the first duplicate after a real frame opens the run.
     const bool run_start = !duplicate_run_active_;

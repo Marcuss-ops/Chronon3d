@@ -169,6 +169,9 @@ struct GpuMetrics {
     std::optional<std::uint64_t> gpu_native_encode_frames;
     std::optional<std::uint64_t> nv12_to_rgba_frames;
     std::optional<std::uint64_t> rgba_to_nv12_frames;
+    std::optional<std::uint64_t> native_surface_yuv_frames;
+    std::optional<std::uint64_t> native_surface_yuv_bytes;
+    std::optional<std::uint64_t> nv12_partial_handoff_frames;
     std::optional<std::uint64_t> gpu_surface_copy_frames;
     std::optional<std::uint64_t> cpu_pixel_readback_count;
     std::optional<std::uint64_t> cpu_pixel_readback_bytes;

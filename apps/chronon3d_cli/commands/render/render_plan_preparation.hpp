@@ -45,6 +45,7 @@ struct RenderPlanPreparationOptions {
     std::string json;        // inline JSON document (used when `input` is empty)
     std::string assets_root; // explicit; empty falls back to CHRONON3D_CLI_ASSETS_ROOT
     std::string prepared_package; // optional immutable overlay preparation sidecar
+    bool no_dirty_rects{false}; // CLI diagnostic override; preserve full-frame conversion
     // In-process callers may supply CM3D's resolved camera for the video
     // compatibility executor. The CLI's JSON-only entry points leave this
     // empty and retain offline-plan compatibility.

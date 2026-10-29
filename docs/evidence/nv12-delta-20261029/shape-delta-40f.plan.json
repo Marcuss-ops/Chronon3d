@@ -1,0 +1,83 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "nv12-delta-validation-shape-40f",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 40
+  },
+  "output": {
+    "path": "shape-delta-40f.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "color",
+      "size": [
+        1920,
+        1080
+      ],
+      "color": [
+        0.03,
+        0.03,
+        0.03,
+        1.0
+      ],
+      "position": [
+        0,
+        0
+      ],
+      "start_frame": 0,
+      "duration_frames": 40
+    },
+    {
+      "id": "moving-rect",
+      "type": "shape",
+      "size": [
+        240,
+        180
+      ],
+      "position": [
+        100,
+        200
+      ],
+      "start_frame": 0,
+      "duration_frames": 40,
+      "enable_3d": false,
+      "screen_space": true,
+      "opacity": 1.0,
+      "shape": {
+        "type": "rect",
+        "fill": [
+          1.0,
+          0.2,
+          0.1,
+          1.0
+        ]
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 100
+              },
+              {
+                "frame": 39,
+                "value": 140
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -4,12 +4,12 @@ This ticket records the RenderPlan/motion backlog and its verifiable repository
 contracts. Branch and upstream metadata are intentionally not asserted. Test
 status below is updated only from commands actually executed in this workspace.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Gate 0: ripristinare il runner dispatch e sbloccare l'implementazione.
-- [ ] Gate 1 GradientMesh native parity (priorità massima); Gate 2 colored Field2D; Gate 3 composable SDF fills; Gate 4 VectorField; Gate 5 pattern geometrici; Gate 6 accettazione end-to-end.
-- [ ] Audit diff sorgente + test residui; certificazione Vulkan strict per mesh generate; oracle ombre CPU/Vulkan.
-- [ ] C ABI executable link e test execution: NOT RUN.
+- [ ] **Gate 0 — ripristinare il runner dispatch** — logica: precondizione (feature freeze): senza CI green sullo SHA esatto nessuna implementazione procede. Gate: runner allocato + CI green.
+- [ ] **Gate 1 GradientMesh native parity (priorità massima)** — logica: è il gate più alto valore; poi Gate 2 colored Field2D → Gate 3 composable SDF fills → Gate 4 VectorField → Gate 5 pattern geometrici → Gate 6 accettazione end-to-end. Dove: generatori procedurali (§14 della scheda) + lane Vulkan strict-native per le mesh generate. Gate: per ogni gate, parità dichiarata + golden.
+- [ ] **Audit diff sorgente + test residui** — logica: chiudere il residuo di diff/test dopo l'implementazione; certificazione Vulkan strict per mesh generate; oracle ombre CPU/Vulkan. Gate: audit chiuso + oracle verdi.
+- [ ] **C ABI executable link e test execution: NOT RUN** — logica: eseguire realmente il link e i test; finora mai eseguiti. Gate: CTest verde con esito registrato.
 
 ## 0. Reconcile implementation surface
 

@@ -11,7 +11,9 @@
 #include <chronon3d/render_graph/executor/execution_workspace.hpp>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -34,6 +36,15 @@ template <typename Container>
 // ── Internal data structures ────────────────────────────────────────
 
 struct ExecutionState {
+    struct SurfaceContentSnapshot {
+        GraphNodeId node{};
+        std::string name;
+        runtime::RenderSurfaceHandle source_handle{runtime::kInvalidRenderSurfaceHandle};
+        runtime::RenderSurfaceHandle handle{runtime::kInvalidRenderSurfaceHandle};
+        std::uint32_t width{};
+        std::uint32_t height{};
+    };
+
     struct LocalStorage {
         std::vector<CachedFB> temp;
         std::vector<u64> resolved_key_digest;
@@ -61,6 +72,8 @@ struct ExecutionState {
     // duration of a single graph execution; no static/process-wide state.
     TextBboxReporter text_bbox_reporter;
     NodeMemoryTracker* node_memory_tracker{nullptr};
+    std::mutex surface_snapshot_mutex;
+    std::vector<SurfaceContentSnapshot> surface_content_snapshots;
 
     explicit ExecutionState(ExecutionWorkspace& workspace,
                             NodeMemoryTracker* tracker = nullptr)

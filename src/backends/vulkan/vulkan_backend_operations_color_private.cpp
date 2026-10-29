@@ -4,7 +4,23 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <cstdlib>
+#include <type_traits>
+
 namespace chronon3d::backends::vulkan {
+namespace {
+
+template <typename HandleT>
+std::uint64_t t05_handle_value(HandleT handle) noexcept {
+    if constexpr (std::is_pointer_v<HandleT>) {
+        return static_cast<std::uint64_t>(
+            reinterpret_cast<std::uintptr_t>(handle));
+    } else {
+        return static_cast<std::uint64_t>(handle);
+    }
+}
+
+} // namespace
 
 void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
                                runtime::RenderSurfaceHandle source,
@@ -210,6 +226,20 @@ void VulkanBackend::Impl::color_adjust(
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst, src_image);
+        if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
+            spdlog::info(
+                "[t05-descriptor] op=color-adjust pass={} set=0x{:x} "
+                "src_image=0x{:x} src_view=0x{:x} src_alloc=0x{:x} "
+                "src_extent={}x{} src_init={} dst_image=0x{:x} "
+                "dst_view=0x{:x} dst_alloc=0x{:x} dst_extent={}x{} dst_init={}",
+                frame_batch.pass_count, t05_handle_value(descriptors),
+                t05_handle_value(src_image.image), t05_handle_value(src_image.view),
+                t05_handle_value(src_image.allocation), src_image.width,
+                src_image.height, src_image.initialized,
+                t05_handle_value(dst.image), t05_handle_value(dst.view),
+                t05_handle_value(dst.allocation), dst.width, dst.height,
+                dst.initialized);
+        }
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst, &src_image});
         record_color_adjust(cmd, descriptors, dst, src_image,
@@ -236,6 +266,20 @@ void VulkanBackend::Impl::color_transform(
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst, src_image);
+        if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
+            spdlog::info(
+                "[t05-descriptor] op=color-transform pass={} set=0x{:x} "
+                "src_image=0x{:x} src_view=0x{:x} src_alloc=0x{:x} "
+                "src_extent={}x{} src_init={} dst_image=0x{:x} "
+                "dst_view=0x{:x} dst_alloc=0x{:x} dst_extent={}x{} dst_init={}",
+                frame_batch.pass_count, t05_handle_value(descriptors),
+                t05_handle_value(src_image.image), t05_handle_value(src_image.view),
+                t05_handle_value(src_image.allocation), src_image.width,
+                src_image.height, src_image.initialized,
+                t05_handle_value(dst.image), t05_handle_value(dst.view),
+                t05_handle_value(dst.allocation), dst.width, dst.height,
+                dst.initialized);
+        }
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst, &src_image});
         record_color_transform(cmd, descriptors, dst, src_image, transform);
@@ -301,6 +345,11 @@ void VulkanBackend::Impl::lighting(
     const Color& multiplier) {
     auto& dst = resolve_image(destination);
     auto& src_image = resolve_image(source);
+    if (dst.image == src_image.image) {
+        throw std::invalid_argument(
+            "Vulkan lighting destination aliases its source image: destination=" +
+            std::to_string(destination) + " source=" + std::to_string(source));
+    }
     if (!src_image.initialized ||
         dst.width != src_image.width || dst.height != src_image.height) {
         throw std::invalid_argument(
@@ -311,9 +360,34 @@ void VulkanBackend::Impl::lighting(
             std::to_string(src_image.height) + " initialized=" +
             (src_image.initialized ? "true" : "false"));
     }
+    if (std::getenv("CHRONON3D_T05_SURFACE_ID_DIAG")) {
+        spdlog::info(
+            "[t05-surface-identity] op=lighting src={} src_image=0x{:x} "
+            "dst={} dst_image=0x{:x} src_init={} dst_init={} pass={} plan={} "
+            "multiplier={:.6f},{:.6f},{:.6f}",
+            source, t05_handle_value(src_image.image), destination,
+            t05_handle_value(dst.image), src_image.initialized,
+            dst.initialized, frame_batch.pass_count,
+            frame_batch.command_plan != nullptr,
+            multiplier.r, multiplier.g, multiplier.b);
+    }
     if (frame_batch.active) {
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst, src_image);
+        if (std::getenv("CHRONON3D_T05_DESCRIPTOR_DIAG")) {
+            spdlog::info(
+                "[t05-descriptor] op=lighting pass={} set=0x{:x} "
+                "src_image=0x{:x} src_view=0x{:x} src_alloc=0x{:x} "
+                "src_extent={}x{} src_init={} dst_image=0x{:x} "
+                "dst_view=0x{:x} dst_alloc=0x{:x} dst_extent={}x{} dst_init={}",
+                frame_batch.pass_count, t05_handle_value(descriptors),
+                t05_handle_value(src_image.image), t05_handle_value(src_image.view),
+                t05_handle_value(src_image.allocation), src_image.width,
+                src_image.height, src_image.initialized,
+                t05_handle_value(dst.image), t05_handle_value(dst.view),
+                t05_handle_value(dst.allocation), dst.width, dst.height,
+                dst.initialized);
+        }
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst, &src_image});
         record_lighting(cmd, descriptors, dst, src_image, multiplier);

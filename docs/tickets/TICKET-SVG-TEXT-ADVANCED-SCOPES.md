@@ -4,13 +4,13 @@
 **Parent:** [TICKET-SVG-RENDER-PLAN.md](TICKET-SVG-RENDER-PLAN.md)
 **Owner:** Chronon3D C++ renderer
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] `textLength` annidati (parent/child) sull'intero testo shaped, incluse run styled separate; `spacing` e `spacingAndGlyphs`.
-- [ ] `rotate` per-carattere continuo attraverso `<tspan>` annidati + comportamento sotto antenati ruotati/skew.
-- [ ] `textLength` su `textPath` e certificazione della spaziatura con pixel coverage.
-- [ ] Writing-mode verticale bounded oppure reject con diagnostica tipizzata.
-- [ ] Pixel gate separati per target parent/child, run ruotati annidati, spaziatura textPath e repeat deterministici.
+- [ ] **`textLength` annidati (parent/child) + `spacing`/`spacingAndGlyphs`** — logica: risolvere i vincoli parent/child sull'intero testo shaped (inner-to-outer), incluse run styled separate; preservare anchor e coordinate list o rifiutare le combinazioni non rappresentabili. Dove: importer SVG text + shaping/layout HarfBuzz esistente. Gate: misura raw-pixel separata per target parent e child entro tolleranza documentata.
+- [ ] **`rotate` per-carattere continuo attraverso `<tspan>` annidati** — logica: indicizzazione continua dei caratteri + comportamento definito sotto antenati ruotati/skew. Gate: pixel gate su run ruotati annidati.
+- [ ] **`textLength` su `textPath`** — logica: applicare il vincolo anche sul path e certificare letter/word spacing con pixel coverage, preservando lo shaping attraverso cluster compatibili dove il posizionamento lo consente. Gate: pixel gate spaziatura textPath.
+- [ ] **Writing-mode verticale bounded oppure reject tipizzato** — logica: scegliere una delle due semantiche dichiarate; mai accettazione silenziosa. Gate: test positivo verticale oppure diagnostica tipizzata stabile.
+- [ ] **Pixel gate separati** — logica: target parent/child indipendenti, run ruotati annidati, spaziatura textPath, repeat deterministici. Gate: tutti i gate verdi sulla stessa build (loader + C ABI + software raw-pixel).
 
 ## Goal
 

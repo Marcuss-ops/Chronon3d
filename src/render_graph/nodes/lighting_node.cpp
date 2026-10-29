@@ -37,6 +37,15 @@ NodeExecResult LightingNode::execute(
     const Color multiplier = rendering::evaluate_lighting_at(
         Color{1.0f, 1.0f, 1.0f, 1.0f}, normal_world,
         Vec3{0.5f, 0.5f, layer_z}, light_context, m_material);
+    if (std::getenv("CHRONON3D_PATH_DIAG")) {
+        spdlog::info(
+            "[lighting-eval] layer={} enabled={} ambient_enabled={} directional_enabled={} point_lights={} normal=({:.4f},{:.4f},{:.4f}) multiplier=({:.4f},{:.4f},{:.4f},{:.4f}) material_accepts={} diffuse={:.4f}",
+            m_layer_name, light_context.enabled,
+            light_context.ambient_enabled, light_context.directional_enabled,
+            light_context.point_lights.size(), normal_world.x, normal_world.y,
+            normal_world.z, multiplier.r, multiplier.g, multiplier.b, multiplier.a,
+            m_material.accepts_lights, m_material.diffuse);
+    }
 
     // A constant multiplier is only exact for a flat scene light. Per-pixel
     // point lights vary across the layer, so they force the CPU path.

@@ -5,9 +5,9 @@
 PARTIAL — protocol and toolchain manifest delivered; clean same-SHA machine
 certification remains open.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Certificazione same-SHA su macchina pulita (protocollo e toolchain manifest già consegnati).
+- [ ] **Certificazione same-SHA su macchina pulita** — logica: protocollo e toolchain manifest sono già consegnati; serve un checkout pulito sullo SHA esatto, build completa (non solo le unità mirate) e passaggio dei gate WBH in ordine. Dove: `docs/CERT-SEQUENCE-WBH-PROTOCOL.md`, `tools/wbh_toolchain_manifest.env`, `tools/check_wbh_toolchain.py`, CI `Chronon CI` (oggi non allocata). Gate: almeno una certificazione macchina-verificata registrata (criterio di accettazione residuo della scheda).
 
 ### Stato osservato 2026-10-28
 

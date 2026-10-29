@@ -1,9 +1,9 @@
 # Agent Visual Finishing — CPU-only parity work
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Accettazione qualità matte su footage reale di progetto e edge revisionati.
-- [ ] Verifica su progetti Chronon rappresentativi con export reali (le probe 64×64 non bastano).
+- [ ] **Accettazione qualità matte su footage reale** — logica: tutte le probe attuali sono 64×64 o sintetiche; la qualità edge (semantic matte, optical flow, propagated mattes) va revisionata su footage reale di progetto con edge annotati. Dove: pipeline matte già atterrata (provider semantico, optical-flow pyramid alpha-weighted, propagated mattes) + footage di progetto. Gate: revisione edge approvata su casi reali, non solo metriche automatiche.
+- [ ] **Verifica su progetti Chronon rappresentativi con export reali** — logica: il workflow OCIO/display-view e l'export runtime sono provati al confine ma non su progetti interi. Dove: progetti Chronon rappresentativi + export reali (non still PNG). Gate: export completati senza regressioni, qualità approvata.
 
 ## Update 2026-10-03 — runtime export, scopes, OCIO, and subject mask probes
 

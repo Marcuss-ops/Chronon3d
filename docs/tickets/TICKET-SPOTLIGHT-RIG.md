@@ -7,10 +7,12 @@ dedicato al light rig). Stato registrato in `docs/stato/chronon3d.md` §13.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Tipi `SpotLight`/`PointLight` in `light_context.hpp` + contributo software (attenuazione, coseno del cone).
-- [ ] Lighting loop multi-luce in lane Vulkan strict-native con binding std430 verificato.
-- [ ] Luce multipla in RenderPlan come array tipizzato con cap dichiarato, ordine deterministico, decoder fail-closed.
-- [ ] Ombre per-spot: solo dopo `TICKET-SHADOW-NATIVE-CATCHER.md`.
+- [ ] **Tipi `SpotLight`/`PointLight` + contributo software** — logica: nuovi tipi in `light_context.hpp` (position, direction, cone_angle, penumbra, falloff, color, intensity) con contributo spot in lane software (attenuazione + coseno del cone). Verifica: valori numerici attesi su casi noti (dentro/fuori cone, penumbra ai bordi).
+- [ ] **Lighting loop multi-luce Vulkan strict-native** — logica: loop multi-luce negli shader con binding parametri stile `TextRunDynamic` (layout std430 verificato). Verifica: parità MAE/p99 nella famiglia CAM-04 contro lane software.
+- [ ] **Luce multipla in RenderPlan** — logica: array tipizzato con cap dichiarato (stile `kEffectTypeCount`), ordine deterministico, decoder fail-closed. Dove: schema/decoder RenderPlan. Verifica: payload oltre il cap respinto; round-trip deterministico.
+- [ ] **Controller comune** — logica: la rotazione del rig via transform parent aggiorna tutte le sorgenti coerentemente. Verifica: assert geometriche sul bake.
+- [ ] **Ombre per-spot** — solo dopo `TICKET-SHADOW-NATIVE-CATCHER.md`; se il P1 non è a terra alla fine, follow-up esplicito nel `## Stato` di chiusura.
+- [ ] **Chiusura formale** — golden ≥4 spot con colori/cone indipendenti; `## Stato` → `COMPLETE`; spostamento in `docs/tickets/archive/`; `docs/stato/chronon3d.md` §13.
 
 ## Goal
 

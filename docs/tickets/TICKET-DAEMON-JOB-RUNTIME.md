@@ -8,11 +8,11 @@ whole-video `RENDER_JOB` and now exposes its lifecycle over IPC when a client
 supplies `job_id`. The FlatBuffers job API currently tracks one prepared frame
 and does not yet implement plan-backed whole-video execution.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Sostituire il composition descriptor placeholder con una factory plan-backed (stessa semantica del piano CLI canonico).
-- [ ] Instradare i piani completi via scheduler/worker bounded con encoder ownership (risorse Vulkan/CUDA/NVENC preservate per la vita del daemon).
-- [ ] Aggiungere LRU di prepared-plan fingerprinted.
+- [ ] **Factory plan-backed al posto del composition descriptor placeholder** — logica: il FlatBuffers API oggi traccia un prepared frame con descrittore placeholder; serve una factory che condivida la semantica del piano CLI canonico (stesso `RenderPlan` → prepared job). Dove: `src/daemon/` (`DaemonRuntime`/`CompositionSession`), factory composizione del protocollo FlatBuffers. Gate: `PrepareJob` accetta un piano reale e prepara lo stesso artefatto della CLI.
+- [ ] **Scheduler/worker bounded + encoder ownership per piani completi** — logica: `RenderJob` oggi è sincrono e renderizza un frame senza encoderizzare; per il whole-video servono worker limitati con ownership dell'encoder e preservazione delle risorse Vulkan/CUDA/NVENC per la vita del daemon. Dove: `CompositionSession` + pipeline encoder (NativeAvSink). Gate: job whole-video completato via IPC con video codificato consegnato.
+- [ ] **LRU di prepared-plan fingerprinted** — logica: riuso dei piani preparati con invalidazione per fingerprint, senza duplicare il registry. Dove: cache preparati dentro `CompositionSession` (nessun nuovo singleton — vedi regola AGENTS.md). Gate: test di riuso/eviction + bounded memory.
 
 ## Implementato
 

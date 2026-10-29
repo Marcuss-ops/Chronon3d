@@ -10,11 +10,12 @@ l'opzione `CHRONON3D_ENABLE_GEO`. `maps_geo_core_test` compila ed esegue i test
 del parser, query, timeline, booleani e cambi di territorio. L'API di camera,
 anchor e reveal resta fuori dal perimetro implementato.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] `GeoAnchor`, `GeoCamera`, `GeoBorderReveal`, `GeoLabel` solver/`GeoAssetPreflight`: differiti, da implementare (o confermare fuori perimetro).
-- [ ] `ShapeTextureFill`: pixel output per fit mode (Cover/Contain/Stretch) NON RUN.
-- [ ] Query composte e render di `TerritoryChange`.
+- [ ] **Voci differite 5/6/9/10** (`GeoAnchor`, `GeoCamera`, `GeoBorderReveal`, `GeoLabel` solver/`GeoAssetPreflight`) — logica: decidere se implementarle o dichiararle fuori perimetro in modo esplicito; oggi sono `NOT RUN` senza decisione. Dove: implementazione ora in `ChrononPlugin/plugins/maps/` (fuori dal core Chronon3D). Gate: per ogni voce, PASS/FAIL documentato oppure esclusione motivata nella tabella di accettazione.
+- [ ] **`ShapeTextureFill` pixel per fit mode** — logica: il lowering è validato (4 doctest `chronon3d_scene_tests`) ma il pixel output per Cover/Contain/Stretch non è mai stato renderizzato. Dove: `shape_texture_fill` nei scene builders + test pixel in `tests/scene/`. Gate: golden pixel per ciascun fit mode.
+- [ ] **Query composte + render `TerritoryChange`** — logica: il modulo mappe copre query semplici; mancano le query composte e il render dello stato shared/gained/lost. Dove: `ChrononPlugin/plugins/maps/` (parser/query/timeline) + pipeline di render dedicata. Gate: test query composte + golden render TerritoryChange.
+- [ ] **Workaround Clipper2 portabile** — logica: il workaround `-Wno-error=maybe-uninitialized` vive in overlay fuori repo; va portato in repo (overlay versionato) o risolto con Clipper2 più recente. Dove: overlay port vcpkg nel repo. Gate: build `CHRONON3D_ENABLE_GEO` equivalente senza file esterni.
 
 ## Acceptance criteria (per voce)
 

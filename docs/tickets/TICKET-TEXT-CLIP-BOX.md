@@ -5,9 +5,10 @@
 **Owner:** text domain
 **Reference test:** `tests/text/test_text_clip_oversized.cpp` (authored-size `CHECK`; pixel-containment `WARN` while renderer clipping remains open)
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Enforcement renderer del clipping (`TextOverflow::Clip`) per testo oversized (P3; oggi c'è solo la diagnostica WARN).
+- [ ] **Enforcement renderer del clipping** — logica: quando `TextOverflow::Clip` è attivo il renderer deve tagliare l'ink visibile al box dichiarato SENZA ridurre il font (policy già decisa: niente auto-fit, niente ellipsis). Dove: path di rasterizzazione testo (dominio text), con il rilevamento invariante già presente in `src/text/text_visibility_audit.cpp` + `src/text/text_visibility_reporting.cpp`. Gate: `tests/text/test_text_clip_oversized.cpp` con pixel containment promosso da WARN a CHECK e font size invariato.
+- [ ] **(Opzionale) Telemetria strutturata** — logica: promuovere `[text-vis] CLIP_DROPS_INK` a campo strutturato (node/layer id + box vs ink bbox) mantenendo il warn-once. Dove: `src/text/text_visibility_reporting.cpp` + layer telemetry. Gate: campo presente nei sidecar.
 
 ## Semantica della limitation (machine-verified)
 

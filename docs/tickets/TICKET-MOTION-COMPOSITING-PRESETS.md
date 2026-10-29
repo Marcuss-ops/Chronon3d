@@ -6,10 +6,11 @@ errors, and the canonical RenderPlan / scene / asset paths. Build and test
 execution remains `NOT RUN` under the user's earlier instruction; author and
 review focused regressions without claiming runtime verification.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Lottie: gruppi annidati e trasformazioni complete (oltre il supporto bounded attuale).
-- [ ] Verifica output SVG sibling-path con golden renderati (dopo il fix differito).
+- [ ] **Lottie: gruppi annidati e trasformazioni complete** — logica: il lowering attuale accetta una flat shape layer con transform statiche identity; servono gruppi annidati, paint-order/grouping Bodymovin esatto, fixture positive/negative complete e golden frame renderati. Dove: lowering Lottie nel compiler (espansione gruppi, ordinamento pittura), fixture in `tests/`. Gate: golden renderati + fixture estese, nessuna regressione sui fixture esistenti.
+- [ ] **Verifica output SVG sibling-path con golden renderati** — logica: il lowering multi-style è atterrato ma la verifica renderizzata era deferita al build/test run. Dove: SVG importer → sibling path nodes + software renderer. Gate: golden renderati che confermano fill/stroke/opacity/ordine.
+- [ ] **Rieseguire la suite completa (stato `NOT RUN`)** — logica: build/test erano esplicitamente deferiti; nessuna voce può chiusura senza esecuzione. Gate: build + focused regressions verdi.
 
 ## A. Masks and mattes
 

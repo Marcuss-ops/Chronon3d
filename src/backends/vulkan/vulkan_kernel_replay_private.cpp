@@ -186,6 +186,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         signal_values.clear();
         signal_semaphores.push_back(timeline_semaphore);
         signal_values.push_back(signal_value);
+        append_pending_upload_wait();
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
         for (const auto physical_slot : surfaces.cuda_ready_surfaces) {
             const auto it = surfaces.physical_surfaces.find(physical_slot);

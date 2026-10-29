@@ -1,0 +1,67 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "t05-c2-particles-1000",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "output": {
+    "path": "c2-1000.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "color",
+      "size": [
+        1920,
+        1080
+      ],
+      "color": [
+        0.025,
+        0.035,
+        0.06,
+        1.0
+      ],
+      "duration_frames": 1
+    },
+    {
+      "id": "particles",
+      "type": "particles",
+      "position": [
+        960.0,
+        540.0
+      ],
+      "duration_frames": 1,
+      "particle_emitter": {
+        "count": 1000,
+        "seed": 20261029,
+        "emitter_size": [
+          1600.0,
+          850.0
+        ],
+        "velocity_min": [
+          -12.0,
+          -12.0
+        ],
+        "velocity_max": [
+          12.0,
+          12.0
+        ],
+        "lifetime": [
+          2.0,
+          6.0
+        ],
+        "size": [
+          1.0,
+          5.0
+        ]
+      }
+    }
+  ]
+}

@@ -5,7 +5,7 @@ Owner: working session (repo owner + agent)
 Created: 2026-09-05
 Baseline: `main@2a3ee8d4e98a17c6ec365e4db6b07bd834397420`
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
 - [ ] CI clean-SHA verification.
 - [ ] Follow-up con evidenza render su host GPU (i contatori per il corpus sono già preparati).
