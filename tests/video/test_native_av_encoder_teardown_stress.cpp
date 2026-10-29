@@ -918,3 +918,136 @@ TEST_CASE("Cross-job CQP zerolatency session reuses with pixel parity") {
 
     fs::remove_all(dir, ec);
 }
+
+TEST_CASE("Cross-job NVENC constant-QP session reuses with pixel parity") {
+    namespace fs = std::filesystem;
+    if (std::system("ffmpeg -hide_banner -version >/dev/null 2>&1") != 0) {
+        MESSAGE("Skipping — ffmpeg executable is not available");
+        return;
+    }
+    const auto dir = fs::temp_directory_path() /
+                     "chronon3d_codec_session_reuse_nvenc";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+    REQUIRE_FALSE(ec);
+
+    // The overlay throughput lane resolves h264_nvenc + constant-QP (rc=constqp,
+    // preset p1); its per-item cost is dominated by the encoder
+    // open/teardown. Fix 5 admits this shape into the cross-item cache:
+    // constqp has no driver-side adaptive rate state, and the container
+    // boundary is self-certified per job by the frames==packets equality at
+    // close() (an in-flight surfaces queue falls back to the flush path and
+    // parks nothing). The acceptance oracle is unchanged from the software
+    // CQP test: adopted-session renders must decode to pixels IDENTICAL to
+    // independent renders, on moving content.
+    auto runtimes = std::make_shared<chronon3d::media::VideoRuntimeRegistry>();
+    auto device_runtime = runtimes->get_or_create(0, nullptr, -1);
+    if (!device_runtime) {
+        MESSAGE("Skipping h264_nvenc — no video device runtime");
+        fs::remove_all(dir, ec);
+        return;
+    }
+    {
+        chronon3d::cli::FfmpegPipeOptions probe;
+        probe.width = 320;
+        probe.height = 240;
+        probe.fps_num = 24;
+        probe.fps_den = 1;
+        probe.codec = "h264_nvenc";
+        probe.output_path = (dir / "nvenc_probe.mp4").string();
+        chronon3d::cli::NativeAvEncoder probe_encoder(device_runtime);
+        if (!probe_encoder.open(probe)) {
+            MESSAGE("Skipping h264_nvenc — encoder open failed on this host");
+            fs::remove_all(dir, ec);
+            return;
+        }
+        probe_encoder.shutdown_noexcept();
+    }
+
+    ScopedEnvironmentValue reuse("CHRONON_ENCODER_SESSION_REUSE", "1");
+
+    auto contract_check = [](const fs::path& mp4) {
+        auto contract =
+            chronon3d::media::video::resolve_output_contract("youtube_overlay_v1");
+        REQUIRE(contract.has_value());
+        contract->width = 320;
+        contract->height = 240;
+        contract->fps = chronon3d::FrameRate{24, 1};
+        contract->frame_count = 24;
+        contract->audio_required = false;
+        contract->audio_streams = 0;
+        const auto verification =
+            chronon3d::media::video::verify_output_contract(mp4, *contract);
+        CHECK(verification.passed);
+        CHECK(verification.frame_count == 24);
+    };
+
+    auto make_options = [](const fs::path& output) {
+        chronon3d::cli::FfmpegPipeOptions options;
+        options.width = 320;
+        options.height = 240;
+        options.fps_num = 24;
+        options.fps_den = 1;
+        options.codec = "h264_nvenc";
+        options.output_path = output.string();
+        options.qp = 23;
+        options.qp_explicit = true;
+        return options;
+    };
+
+    // Moving content: the painted phase advances every frame (the golden
+    // overlay mix's dominant shape), so any leaked NVENC session state across
+    // the item boundary changes the decoded pixels.
+    auto render_moving = [&](const fs::path& output, bool expected_adoption) {
+        auto options = make_options(output);
+        chronon3d::cli::NativeAvEncoder encoder(device_runtime);
+        REQUIRE(encoder.open(options));
+        CHECK(encoder.codec_session_adopted() == expected_adoption);
+        chronon3d::Framebuffer frame(options.width, options.height);
+        for (int index = 0; index < 24; ++index) {
+            paint_frame(frame, index, 8);
+            REQUIRE(encoder.write_frame(frame));
+        }
+        REQUIRE(encoder.close());
+    };
+
+    const auto item_a = dir / "nvenc_a.mp4";
+    const auto item_b = dir / "nvenc_b.mp4";
+    const auto item_c = dir / "nvenc_c.mp4";
+    const auto reference_1 = dir / "nvenc_reference_1.mp4";
+    const auto reference_2 = dir / "nvenc_reference_2.mp4";
+
+    // A renders first (nothing to adopt) and only parks its session if close
+    // reached the certified packet boundary; B and C adopt it in a chain.
+    render_moving(item_a, false);
+    render_moving(item_b, true);
+    render_moving(item_c, true);
+
+    // Independent-render oracle: same content, fresh sessions, reuse off.
+    reuse.set(std::string{"0"});
+    render_moving(reference_1, false);
+    render_moving(reference_2, false);
+
+    contract_check(item_a);
+    contract_check(item_b);
+    contract_check(item_c);
+    contract_check(reference_1);
+    contract_check(reference_2);
+
+    // NVENC output may legitimately differ between two independent sessions
+    // (hardware timing surfaces), so the oracle is: every adopted-chain item
+    // decodes to the SAME bytes as at least one independent fresh-session
+    // render of the identical frame sequence — reproducing the engine-level
+    // segmented-vs-independent parity contract at the cross-job boundary.
+    const auto hashes_ref_1 = decoded_frame_hashes(reference_1);
+    const auto hashes_ref_2 = decoded_frame_hashes(reference_2);
+    REQUIRE_FALSE(hashes_ref_1.empty());
+    REQUIRE_FALSE(hashes_ref_2.empty());
+    CHECK(hashes_ref_1 == hashes_ref_2);
+    CHECK(decoded_frame_hashes(item_a) == hashes_ref_1);
+    CHECK(decoded_frame_hashes(item_b) == hashes_ref_1);
+    CHECK(decoded_frame_hashes(item_c) == hashes_ref_1);
+
+    fs::remove_all(dir, ec);
+}

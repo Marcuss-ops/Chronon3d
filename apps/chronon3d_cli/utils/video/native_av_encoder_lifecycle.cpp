@@ -33,8 +33,9 @@ CodecSession::~CodecSession() {
 bool codec_session_reuse_enabled() noexcept {
     // Cross-job codec adoption is opt-in via CHRONON_ENCODER_SESSION_REUSE=1
     // AND additionally gated per configuration (Fix 5 supported-config gate
-    // in NativeAvEncoder::codec_session_config_supported): only a constant-QP
-    // zero-latency single-thread software session may be parked or adopted.
+    // in NativeAvEncoder::codec_session_config_supported): a constant-QP
+    // zero-latency single-thread software session or a constant-QP NVENC
+    // session may be parked or adopted.
     //
     // Safety invariant (why the default/CRF path stays fail-closed): a
     // completed MP4 requires sending end-of-stream to its encoder, after
@@ -51,9 +52,9 @@ bool codec_session_reuse_enabled() noexcept {
     // Packet completeness is insufficient: the moving-content regression
     // proves that an unflushed x264 CRF session retains adaptive state and
     // changes decoded pixels in the following job, even after codec flush —
-    // hence the supported-config gate (CQP has no adaptive state). P4's
-    // one-session segmented writer is unaffected: it never adopts a codec
-    // across independent jobs.
+    // hence the supported-config gate (CQP has no adaptive state, in both
+    // the software x264 and the NVENC shapes). P4's one-session segmented
+    // writer is unaffected: it never adopts a codec across independent jobs.
     if (const char* flag = std::getenv("CHRONON_ENCODER_SESSION_REUSE")) {
         return flag[0] == '1' && flag[1] == '\0';
     }

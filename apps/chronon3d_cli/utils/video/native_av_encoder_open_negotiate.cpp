@@ -453,16 +453,32 @@ std::string NativeAvEncoder::compute_codec_session_fingerprint() const {
 bool NativeAvEncoder::codec_session_config_supported() const {
     if (!resolved_encoder_config_) return false;
     const auto& resolved = *resolved_encoder_config_;
-    const std::string& encoder_name = resolved.encoder_name();
-    // Software x264-family only: NVENC CQP keeps driver-side state (lookahead
-    // and B-frames are outside this wrapper's control) and is not certified.
-    if (gpu_nvenc_ || (encoder_name != "libx264" && encoder_name != "libx264rgb")) {
-        return false;
-    }
     if (resolved.rate_control() != ResolvedEncoderRateControl::ConstantQp) {
         return false;
     }
     if (!resolved.qp().has_value()) return false;
+    const std::string& encoder_name = resolved.encoder_name();
+    if (gpu_nvenc_) {
+        // NVENC constant-QP family (h264_nvenc/hevc_nvenc): constqp carries no
+        // adaptive rate-control feedback on the driver side (the CRF-history
+        // leak x264 showed does not exist there), the wrapper sets no
+        // lookahead and no B-frame tail in this build's defaults, and the
+        // container boundary is self-certified at close(): the strict
+        // frames==packets equality is evaluated before park, so any in-flight
+        // frame (surfaces queue, lookahead) falls back to the historical
+        // flush path and parks nothing — fail-closed by construction, not by
+        // assumption. `forced-idr` is set for every NVENC open, so the
+        // cross-item restart's pict_type request becomes a real IDR and the
+        // adopted session reproduces exactly the per-item forced-keyframe/PTS
+        // restart contract the segmented P4 writer certifies
+        // (TestSegmentedSessionMatchesIndependentSingleItemRenders).
+        // The fingerprint pins every other axis (preset p1, async depth,
+        // resolution, fps, color, direct-yuv, input format).
+        return encoder_name == "h264_nvenc" || encoder_name == "hevc_nvenc";
+    }
+    if (encoder_name != "libx264" && encoder_name != "libx264rgb") {
+        return false;
+    }
     // Canonical tune spelling as emitted by the resolver (see the allowed
     // x264 tune vocabulary); only zero-latency reaches the packet boundary.
     const auto tune = resolved.tune();
