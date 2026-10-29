@@ -1,0 +1,94 @@
+[2026-10-29 17:46:52.088] [info] [asset-profile] kind=0 path=textures/character-base.png bytes=335 cache=miss invalidated=0 stat=0.01ms hash=3.42ms hashed_bytes=335 total=3.55ms
+[2026-10-29 17:46:52.088] [info] [asset-digest-cache] hits=0 misses=1 invalidations=0 bytes_hashed=335 lookup_ms=0.00 write_ms=0.00 full_hash_ms=3.42
+[2026-10-29 17:46:52.088] [info] [plan-profile] read=0.70ms parse=0.21ms decode=50.10ms resolver=0.09ms compile_validate=4.17ms total=55.30ms
+[2026-10-29 17:46:52.089] [info] [asset-profile] kind=0 path=textures/character-base.png bytes=335 cache=hit invalidated=0 stat=0.01ms hash=0.00ms hashed_bytes=0 total=0.07ms
+[2026-10-29 17:46:52.089] [info] [asset-digest-cache] hits=1 misses=0 invalidations=0 bytes_hashed=0 lookup_ms=0.00 write_ms=0.00 full_hash_ms=0.00
+[2026-10-29 17:46:52.089] [info] [plan-compile-profile] assets=0.15ms fingerprint=0.07ms media_resolution=0.01ms materialize=0.04ms composition_compile=0.00ms compatibility_view=0.01ms total=0.58ms
+[2026-10-29 17:46:52.089] [info] [video] execution plan resolved (reason: required_gpu_native_full_graph); decode=1 composite=2 encode=1 interop=2 handoff=1 codec=3
+[2026-10-29 17:46:52.128] [info] [video-runtime] created persistent runtime for device 0 (CUDA ordinal 0)
+[2026-10-29 17:46:52.128] [info] [video] encoder feed capability: host_frame=false direct_yuv=false native_surface=true
+[2026-10-29 17:46:52.380] [info] [native_av] CUDA context contract: native=0x5585137114d0 ffmpeg=0x5585137114d0
+[2026-10-29 17:46:52.391] [info] [native_av] NVENC tuning applied: rc=driver-default preset=slow async_depth=4 nvenc_surfaces=8 qp=-1 bitrate=0
+[h264_nvenc @ 0x55851369b280] Defined rc_lookahead requires more surfaces, increasing used surfaces 8 -> 34
+[2026-10-29 17:46:52.454] [info] [native_av] encoder bitstream contract: codec=27 profile=100 level=-99 pix_fmt=117 parameter_sets=53 materialized=true
+[2026-10-29 17:46:52.455] [info] [native_av] Opened native encoder: 640x360 @ 30fps, codec=h264_nvenc, rc=driver-default, preset=slow, output='docs/evidence/inline-mesh-vulkan-20261029/current-source-main-31f.partial.mp4'
+[2026-10-29 17:46:53.075] [warning] [imgprof] decode=0.3ms
+[2026-10-29 17:46:53.075] [warning] [imgprof] downscale=0.3ms
+[2026-10-29 17:46:53.077] [warning] [imgprof] convert=3.0ms
+[2026-10-29 17:46:53.077] [warning] [imgprof] sha256=3.2ms
+[2026-10-29 17:46:53.078] [info] ImageCache: loaded 'textures/character-base.png' (64x64) in 3.255ms
+[2026-10-29 17:46:53.078] [warning] [imgprof] decode=0.1ms
+[2026-10-29 17:46:53.078] [warning] [imgprof] downscale=0.1ms
+[2026-10-29 17:46:53.078] [warning] [imgprof] convert=0.5ms
+[2026-10-29 17:46:53.078] [warning] [imgprof] sha256=0.5ms
+[2026-10-29 17:46:53.078] [info] ImageCache: loaded 'textures/orm.png' (4x4) in 0.515ms
+[2026-10-29 17:46:53.217] [info] [pool-warm] Pre-allocated and pre-imported 6 execution slots (640x360) for native NVENC
+[2026-10-29 17:46:53.227] [info] [temp-lifetime] frame=0 after_level=0 live=[0,1,] retired=[]
+[2026-10-29 17:46:53.227] [info] [exec-level-diag] frame=0 level=0 nodes=2 input_ms=0.002 dispatch_ms=1.386 fb_release_ms=0.001
+[2026-10-29 17:46:53.227] [info] [graph-edge] frame=0 level=1 consumer_id=2 input_index=0 producer_id=1 producer_level=0
+[2026-10-29 17:46:53.227] [info] [temp-lifetime] frame=0 after_level=1 live=[0,2,] retired=[1,]
+[2026-10-29 17:46:53.228] [info] [exec-level-diag] frame=0 level=1 nodes=1 input_ms=0.008 dispatch_ms=0.272 fb_release_ms=0.002
+[2026-10-29 17:46:53.228] [info] [graph-edge] frame=0 level=2 consumer_id=3 input_index=0 producer_id=0 producer_level=0
+[2026-10-29 17:46:53.228] [info] [graph-edge] frame=0 level=2 consumer_id=3 input_index=1 producer_id=2 producer_level=1
+[2026-10-29 17:46:53.228] [info] [temp-lifetime] frame=0 after_level=2 live=[3,] retired=[0,2,]
+[2026-10-29 17:46:53.228] [info] [exec-level-diag] frame=0 level=2 nodes=1 input_ms=0.012 dispatch_ms=0.108 fb_release_ms=0.002
+[2026-10-29 17:46:53.228] [info] [video] Exporting via Arena-backed SIMD pipeline
+[2026-10-29 17:46:53.229] [info] [temp-lifetime] frame=1 after_level=0 live=[0,1,] retired=[]
+[2026-10-29 17:46:53.229] [info] [exec-level-diag] frame=1 level=0 nodes=2 input_ms=0.000 dispatch_ms=0.691 fb_release_ms=0.000
+[2026-10-29 17:46:53.229] [info] [graph-edge] frame=1 level=1 consumer_id=2 input_index=0 producer_id=1 producer_level=0
+[2026-10-29 17:46:53.229] [info] [temp-lifetime] frame=1 after_level=1 live=[0,2,] retired=[1,]
+[2026-10-29 17:46:53.229] [info] [exec-level-diag] frame=1 level=1 nodes=1 input_ms=0.007 dispatch_ms=0.219 fb_release_ms=0.001
+[2026-10-29 17:46:53.229] [info] [graph-edge] frame=1 level=2 consumer_id=3 input_index=0 producer_id=0 producer_level=0
+[2026-10-29 17:46:53.229] [info] [graph-edge] frame=1 level=2 consumer_id=3 input_index=1 producer_id=2 producer_level=1
+[2026-10-29 17:46:53.229] [info] [temp-lifetime] frame=1 after_level=2 live=[3,] retired=[0,2,]
+[2026-10-29 17:46:53.229] [info] [exec-level-diag] frame=1 level=2 nodes=1 input_ms=0.011 dispatch_ms=0.075 fb_release_ms=0.001
+[2026-10-29 17:46:53.229] [info] [video]   3/31 frames
+[2026-10-29 17:46:53.230] [info] [temp-lifetime] frame=2 after_level=0 live=[0,1,] retired=[]
+[2026-10-29 17:46:53.230] [info] [exec-level-diag] frame=2 level=0 nodes=2 input_ms=0.000 dispatch_ms=0.240 fb_release_ms=0.000
+[2026-10-29 17:46:53.230] [info] [graph-edge] frame=2 level=1 consumer_id=2 input_index=0 producer_id=1 producer_level=0
+[2026-10-29 17:46:53.230] [info] [temp-lifetime] frame=2 after_level=1 live=[0,2,] retired=[1,]
+[2026-10-29 17:46:53.230] [info] [exec-level-diag] frame=2 level=1 nodes=1 input_ms=0.006 dispatch_ms=0.042 fb_release_ms=0.001
+[2026-10-29 17:46:53.230] [info] [graph-edge] frame=2 level=2 consumer_id=3 input_index=0 producer_id=0 producer_level=0
+[2026-10-29 17:46:53.230] [info] [graph-edge] frame=2 level=2 consumer_id=3 input_index=1 producer_id=2 producer_level=1
+[2026-10-29 17:46:53.230] [info] [temp-lifetime] frame=2 after_level=2 live=[3,] retired=[0,2,]
+[2026-10-29 17:46:53.230] [info] [exec-level-diag] frame=2 level=2 nodes=1 input_ms=0.011 dispatch_ms=0.084 fb_release_ms=0.002
+[2026-10-29 17:46:53.232] [info] [video]   6/31 frames
+[2026-10-29 17:46:53.234] [info] [video]   9/31 frames
+[2026-10-29 17:46:53.237] [info] [video]   12/31 frames
+[2026-10-29 17:46:53.239] [info] [video]   15/31 frames
+[2026-10-29 17:46:53.241] [info] [video]   18/31 frames
+[2026-10-29 17:46:53.243] [info] [video]   21/31 frames
+[2026-10-29 17:46:53.245] [info] [video]   24/31 frames
+[2026-10-29 17:46:53.246] [info] [vulkan-lifecycle] frame=25 vram_bytes=84770816 live_surfaces=14 surface_bindings=11 registry_live_handles=83 physical_images=14 deferred_releases=0 vma_allocations=22 surfaces_created=83 surfaces_released=72 queue_packages=1 execution_slots_busy=2 command_batch_active=false
+[2026-10-29 17:46:53.247] [info] [video]   27/31 frames
+[2026-10-29 17:46:53.249] [info] [video]   30/31 frames
+[2026-10-29 17:46:53.250] [info] [video]   31/31 frames
+[2026-10-29 17:46:53.253] [info] [video] writer join complete
+[2026-10-29 17:46:53.253] [info] [drain-debug] start drain, capacity=6
+[2026-10-29 17:46:53.253] [info] [drain-debug] slot_id=0 has completion, waiting
+[2026-10-29 17:46:53.253] [info] [drain-debug] slot_id=0 wait complete
+[2026-10-29 17:46:53.253] [info] [drain-debug] reap done, busy_count=0
+[2026-10-29 17:46:53.253] [info] [video] trimming framebuffer pool
+[2026-10-29 17:46:53.253] [info] [video] Released framebuffer pool — memory trimmed
+[2026-10-29 17:46:53.253] [info] [video] frame-loop cleanup complete
+[2026-10-29 17:46:53.253] [info] [video] Encoder write blocked duration: 0.00 ms
+[2026-10-29 17:46:53.253] [info] [video_diag] conversion_and_copy_duration_ms: 0 ms
+[2026-10-29 17:46:53.253] [info] [video_diag] conversion_bytes_written=0 encoder_staging_copy_bytes=0 encoder_slot_reuses=0
+[2026-10-29 17:46:53.253] [info] [native_av] close: sending encoder flush
+[2026-10-29 17:46:53.263] [info] [native_av] close: encoder flush accepted
+[2026-10-29 17:46:53.275] [info] [native_av] close: packets drained=true
+[2026-10-29 17:46:53.275] [info] [native_av] close: finalizing mux session
+[2026-10-29 17:46:53.275] [info] [native_av] close: mux session finalized
+[2026-10-29 17:46:53.276] [info] [native_av] Closed native encoder — 31 frames accepted, encoder_packets=31 mux_packets=31 packet_pts=0..30, YUV cache: 0 hits / 0 misses
+[2026-10-29 17:46:53.276] [info] [video_native] convert=1.07ms  send_frame=7.58ms  backpressure=0.00ms  flush=22.45ms  receive_packet=11.90ms  mux_write=0.18ms  trailer=0.30ms
+[2026-10-29 17:46:53.276] [info] [video] render_ms=33.43 encode_ms=25.60 writer_encode_ms=11.10 wall_ms=1186.86 nvml_stop_ms=-1.00
+[2026-10-29 17:46:53.276] [info] [video] FFmpeg queue wait duration: 0.07 ms
+[2026-10-29 17:46:53.280] [info] [video] copy_eligible=true sha256=9d3ad734bccdfbc09569088508a3e10fb3fb06152af637b13530c0ab10da717b
+[2026-10-29 17:46:53.280] [info] [video] Wrote docs/evidence/inline-mesh-vulkan-20261029/current-source-main-31f.mp4
+[2026-10-29 17:46:53.280] [info] [startup-profile] total=1044.08ms logger=0.11ms cli_bootstrap=3.96ms cli_parse=nullms composition=0.17ms plan_read=0.70ms json_parse=0.21ms plan_decode_validate=50.10ms asset_resolve=0.09ms plan_compile=4.17ms unaccounted=144.64ms
+[2026-10-29 17:46:53.283] [info] [video] Wrote exact per-frame timing sidecar: docs/evidence/inline-mesh-vulkan-20261029/current-source-main-31f.mp4.timing.json
+[2026-10-29 17:46:53.332] [info] [INFO] job-lifecycle: queue_close_ms=0.0 writer_join_ms=0.0 encoder_reset_ms=48.4 decoder_reset_ms=0.0 full_graph_reset_ms=0.0 sink_ctx_reset_ms=0.0 device_runtime_reset_ms=0.0 device_reservation_reset_ms=0.0
+[2026-10-29 17:46:53.332] [info] [INFO] job-lifecycle: sidecar_write_ms=3.7 session_teardown_ms=48.6
+[2026-10-29 17:46:53.332] [info] [INFO] job-lifecycle: post_sidecar_to_receipt_ms=48.7
+[2026-10-29 17:46:53.332] [info] [INFO] job-lifecycle: execute_ms=1243.1 caller_tail_ms=0.0 receipt_deferred=0
+[2026-10-29 17:46:53.332] [info] [INFO] job-lifecycle: slot_pool_close_ms=0.0 surface_release_ms=0.0

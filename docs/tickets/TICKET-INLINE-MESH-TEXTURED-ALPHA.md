@@ -189,3 +189,11 @@ Dopo `TICKET-SHADOW-NATIVE-CATCHER.md`, in parallelo agli effetti P2.
   strict-native hanno SHA identico. Lo stato resta `PARTIAL` in attesa della CI
   sullo SHA pushato. Evidenza completa:
   [`inline-mesh-vulkan-20261029`](../evidence/inline-mesh-vulkan-20261029/README.md).
+- Rerun dal commit pulito e pushato `0e7303577524d8b1c1819213de022390cca6775e`
+  (2026-10-29): il CLI Release ha renderizzato di nuovo la fixture Motion3D in
+  strict-native Vulkan/NVENC. Decodifica 31/31 frame 640×360, 31 hash di frame
+  distinti; receipt `full_graph_native`, zero downgrade, zero CPU readback e
+  zero staging-copy NVENC. SHA MP4 `9d3ad734bccdfbc09569088508a3e10fb3fb06152af637b13530c0ab10da717b`,
+  identico alla prova precedente. Log, MP4 e timing receipt sono nello stesso
+  pacchetto [`inline-mesh-vulkan-20261029`](../evidence/inline-mesh-vulkan-20261029/README.md).
+  Il gate CI sullo SHA esatto resta senza esito; il ticket rimane `PARTIAL`.
