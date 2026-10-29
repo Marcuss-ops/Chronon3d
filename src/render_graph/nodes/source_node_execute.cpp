@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <algorithm>
 #include <cstdlib>
 #include <limits>
 
@@ -482,7 +483,9 @@ NodeExecResult SourceNode::execute(
         const bool native_image = !native_filled &&
             m_node.shape.type() == ShapeType::Image &&
             detail::try_native_image(ctx, *fb, m_node, state);
-        if (!native_filled && !native_image) {
+        const bool native_mesh = !native_filled && !native_image &&
+            detail::try_native_inline_mesh(ctx, *fb, m_node, state);
+        if (!native_filled && !native_image && !native_mesh) {
             // Generic Vulkan producers (circle, rounded rect, line, path)
             // also have native implementations, but unlike the rect/image
             // fast paths they materialize the surface inside draw_node().
@@ -496,6 +499,60 @@ NodeExecResult SourceNode::execute(
                     m_name,
                     "failed to materialize native source surface"};
             }
+            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+                const auto* mesh = m_node.shape.type() == ShapeType::Mesh
+                    ? &m_node.shape.mesh_shape() : nullptr;
+                Vec3 vmin{}, vmax{};
+                if (mesh && mesh->inline_mesh) {
+                    for (const auto& v : mesh->inline_mesh->vertices()) {
+                        vmin.x = std::min(vmin.x, v.position.x); vmax.x = std::max(vmax.x, v.position.x);
+                        vmin.y = std::min(vmin.y, v.position.y); vmax.y = std::max(vmax.y, v.position.y);
+                        vmin.z = std::min(vmin.z, v.position.z); vmax.z = std::max(vmax.z, v.position.z);
+                    }
+                }
+                std::fprintf(stderr,
+                    "[typed-draw] node='%s' shape=%d verts=%zu idx=%zu opacity=%.3f pos=(%.2f,%.2f,%.2f) scale=(%.2f,%.2f) cam25d=%d bbox=(%.2f,%.2f,%.2f)-(%.2f,%.2f,%.2f) color=(%.2f,%.2f,%.2f,%.2f) applycam=%d projready=%d\n",
+                    m_name.c_str(), static_cast<int>(m_node.shape.type()),
+                    mesh && mesh->inline_mesh ? mesh->inline_mesh->vertices().size() : 0,
+                    mesh && mesh->inline_mesh ? mesh->inline_mesh->indices().size() : 0,
+                    static_cast<double>(state.opacity),
+                    static_cast<double>(m_node.world_transform.position.x),
+                    static_cast<double>(m_node.world_transform.position.y),
+                    static_cast<double>(m_node.world_transform.position.z),
+                    static_cast<double>(m_node.world_transform.scale.x),
+                    static_cast<double>(m_node.world_transform.scale.y),
+                    ctx.frame_input.has_camera_2_5d ? 1 : 0,
+                    static_cast<double>(vmin.x), static_cast<double>(vmin.y), static_cast<double>(vmin.z),
+                    static_cast<double>(vmax.x), static_cast<double>(vmax.y), static_cast<double>(vmax.z),
+                    static_cast<double>(m_node.color.r), static_cast<double>(m_node.color.g),
+                    static_cast<double>(m_node.color.b), static_cast<double>(m_node.color.a),
+                    m_apply_camera_projection ? 1 : 0,
+                    ctx.frame_input.projection_ctx.ready ? 1 : 0);
+                std::fprintf(stderr,
+                    "[typed-state] node='%s' proj_ready=%d focal=%.2f cam=(%.2f,%.2f,%.2f) wm=[%.2f,%.2f,%.2f | %.2f,%.2f,%.2f] m=[%.2f,%.2f,%.2f | %.2f,%.2f,%.2f] clip=(%d,%d,%d,%d) matrix3d=%d\n",
+                    m_name.c_str(), state.projection.ready ? 1 : 0,
+                    static_cast<double>(state.projection.focal),
+                    static_cast<double>(ctx.frame_input.camera.transform.position.x),
+                    static_cast<double>(ctx.frame_input.camera.transform.position.y),
+                    static_cast<double>(ctx.frame_input.camera.transform.position.z),
+                    static_cast<double>(state.world_matrix[3][0]),
+                    static_cast<double>(state.world_matrix[3][1]),
+                    static_cast<double>(state.world_matrix[3][2]),
+                    static_cast<double>(state.world_matrix[0][0]),
+                    static_cast<double>(state.world_matrix[1][1]),
+                    static_cast<double>(state.world_matrix[2][2]),
+                    static_cast<double>(state.matrix[3][0]),
+                    static_cast<double>(state.matrix[3][1]),
+                    static_cast<double>(state.matrix[3][2]),
+                    static_cast<double>(state.matrix[0][0]),
+                    static_cast<double>(state.matrix[1][1]),
+                    static_cast<double>(state.matrix[2][2]),
+                    state.clip_rect ? static_cast<i32>(state.clip_rect->x0) : -1,
+                    state.clip_rect ? static_cast<i32>(state.clip_rect->y0) : -1,
+                    state.clip_rect ? static_cast<i32>(state.clip_rect->x1) : -1,
+                    state.clip_rect ? static_cast<i32>(state.clip_rect->y1) : -1,
+                    state.uses_2_5d_projection ? 1 : 0);
+            }
             const auto draw_result = ctx.backend_frame_api()->draw_node(
                 *fb, m_node, state, ctx.frame_input.camera,
                 ctx.frame_input.width, ctx.frame_input.height);
@@ -504,6 +561,21 @@ NodeExecResult SourceNode::execute(
                     draw_result.error().code,
                     m_name,
                     draw_result.error().message}};
+            }
+            if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr && fb->data()) {
+                std::size_t nz = 0;
+                for (int yy = 0; yy < fb->height(); ++yy) {
+                    const Color* row = fb->pixels_row(yy);
+                    for (int xx = 0; xx < fb->width(); ++xx) {
+                        if (row[xx].r != 0.0f || row[xx].g != 0.0f ||
+                            row[xx].b != 0.0f || row[xx].a != 0.0f) {
+                            ++nz;
+                        }
+                    }
+                }
+                std::fprintf(stderr,
+                    "[typed-postdraw] node='%s' nonzero=%zu\n",
+                    m_name.c_str(), nz);
             }
         }
         if (std::getenv("CHRONON3D_PATH_DIAG"))

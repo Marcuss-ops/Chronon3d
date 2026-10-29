@@ -740,6 +740,14 @@ struct VulkanBackend::Impl {
                              std::span<const runtime::RenderSurfaceHandle> resources,
                              std::span<const float> transforms,
                              std::span<const float> paints);
+    void draw_inline_mesh(runtime::RenderSurfaceHandle destination,
+                          runtime::RenderSurfaceHandle texture,
+                              std::span<const float> projected_lit_vertices,
+                          std::span<const std::uint32_t> indices,
+                          std::int32_t x0, std::int32_t y0,
+                          std::int32_t x1, std::int32_t y1,
+                          const Color& tint,
+                          std::optional<float> alpha_cutoff);
     void ensure_images(std::uint32_t width, std::uint32_t height);
     void ensure_staging(VkDeviceSize bytes);
     void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index);

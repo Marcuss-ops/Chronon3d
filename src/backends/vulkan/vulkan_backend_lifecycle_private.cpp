@@ -29,6 +29,7 @@
 #include "text_run_comp_spv.hpp"
 #include "fill_rect_comp_spv.hpp"
 #include "layer_batch_comp_spv.hpp"
+#include "inline_mesh_comp_spv.hpp"
 #include "text_tile_bin_comp_spv.hpp"
 #include "text_tile_raster_comp_spv.hpp"
 #include <fstream>
@@ -95,6 +96,7 @@ namespace chronon3d::backends::vulkan {
         CHRONON_HASH_SHADER(text_run);
         CHRONON_HASH_SHADER(fill_rect);
         CHRONON_HASH_SHADER(layer_batch);
+        CHRONON_HASH_SHADER(inline_mesh);
         CHRONON_HASH_SHADER(text_tile_bin);
         CHRONON_HASH_SHADER(text_tile_raster);
 #undef CHRONON_HASH_SHADER

@@ -46,6 +46,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/source_node_execute.cpp
     nodes/source_node_native_rect.cpp
     nodes/source_node_native_image.cpp
+    nodes/source_node_native_mesh.cpp
     nodes/multi_source_node.cpp
     nodes/multi_source_node_execute.cpp
     nodes/multi_source_node_execute_items.cpp

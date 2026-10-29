@@ -1,0 +1,118 @@
+#version 450
+
+// Strict-native indexed inline-mesh rasterizer. Geometry is projected using
+// the resolved RenderPlan camera on the host; triangle coverage, perspective
+// UV interpolation, texture sampling, alpha cutoff, depth choice and blending
+// are performed by this Vulkan compute kernel.
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(binding = 0, rgba32f) uniform image2D destination_image;
+layout(binding = 1, rgba32f) uniform readonly image2D texture_image;
+layout(binding = 3, std430) readonly buffer MeshData { float data[]; } mesh;
+
+layout(push_constant) uniform InlineMeshParams {
+    int vertex_count;
+    int index_count;
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+    float tint_r;
+    float tint_g;
+    float tint_b;
+    float tint_a;
+    float alpha_cutoff;
+    int has_alpha_cutoff;
+} params;
+
+vec2 vertex_screen(uint index) {
+    uint base = index * 8u;
+    return vec2(mesh.data[base], mesh.data[base + 1u]);
+}
+
+float vertex_inverse_depth(uint index) {
+    return mesh.data[index * 8u + 2u];
+}
+
+vec2 vertex_uv(uint index) {
+    uint base = index * 8u;
+    return vec2(mesh.data[base + 3u], mesh.data[base + 4u]);
+}
+
+vec3 vertex_light(uint index) {
+    uint base = index * 8u;
+    return vec3(mesh.data[base + 5u], mesh.data[base + 6u], mesh.data[base + 7u]);
+}
+
+uint mesh_index(uint index) {
+    uint offset = uint(params.vertex_count) * 8u + index;
+    return floatBitsToUint(mesh.data[offset]);
+}
+
+float edge(vec2 a, vec2 b, vec2 p) {
+    return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+}
+
+vec4 sample_texture(vec2 uv) {
+    ivec2 size = imageSize(texture_image);
+    vec2 p = clamp(vec2(uv.x, 1.0 - uv.y), vec2(0.0), vec2(1.0)) *
+             vec2(max(size - ivec2(1), ivec2(0)));
+    ivec2 p0 = ivec2(floor(p));
+    ivec2 p1 = min(p0 + ivec2(1), size - ivec2(1));
+    vec2 f = fract(p);
+    return mix(mix(imageLoad(texture_image, p0), imageLoad(texture_image, ivec2(p1.x, p0.y)), f.x),
+               mix(imageLoad(texture_image, ivec2(p0.x, p1.y)), imageLoad(texture_image, p1), f.x), f.y);
+}
+
+void main() {
+    ivec2 pixel = ivec2(params.x0, params.y0) + ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(destination_image);
+    if (pixel.x >= params.x1 || pixel.y >= params.y1 ||
+        pixel.x >= size.x || pixel.y >= size.y ||
+        params.index_count < 3 || params.vertex_count < 3) return;
+
+    vec2 p = vec2(pixel) + vec2(0.5);
+    float nearest_depth = 3.402823e+38;
+    vec4 nearest_color = vec4(0.0);
+    bool covered = false;
+    for (int i = 0; i + 2 < params.index_count; i += 3) {
+        uint ia = mesh_index(uint(i));
+        uint ib = mesh_index(uint(i + 1));
+        uint ic = mesh_index(uint(i + 2));
+        if (ia >= uint(params.vertex_count) || ib >= uint(params.vertex_count) ||
+            ic >= uint(params.vertex_count)) continue;
+        vec2 a = vertex_screen(ia), b = vertex_screen(ib), c = vertex_screen(ic);
+        float area = edge(a, b, c);
+        if (abs(area) < 1e-6) continue;
+        float w0 = edge(b, c, p) / area;
+        float w1 = edge(c, a, p) / area;
+        float w2 = edge(a, b, p) / area;
+        if (w0 < -1e-5 || w1 < -1e-5 || w2 < -1e-5) continue;
+
+        float inverse_depth = w0 * vertex_inverse_depth(ia) +
+                              w1 * vertex_inverse_depth(ib) +
+                              w2 * vertex_inverse_depth(ic);
+        if (!(inverse_depth > 0.0)) continue;
+        float depth = 1.0 / inverse_depth;
+        if (depth >= nearest_depth) continue;
+        vec2 uv = (w0 * vertex_inverse_depth(ia) * vertex_uv(ia) +
+                   w1 * vertex_inverse_depth(ib) * vertex_uv(ib) +
+                   w2 * vertex_inverse_depth(ic) * vertex_uv(ic)) / inverse_depth;
+        vec3 light = (w0 * vertex_inverse_depth(ia) * vertex_light(ia) +
+                      w1 * vertex_inverse_depth(ib) * vertex_light(ib) +
+                      w2 * vertex_inverse_depth(ic) * vertex_light(ic)) / inverse_depth;
+        vec4 texel = sample_texture(uv);
+        float alpha = texel.a * params.tint_a;
+        if (params.has_alpha_cutoff != 0 && alpha < params.alpha_cutoff) continue;
+        if (alpha <= 1e-6) continue;
+        nearest_depth = depth;
+        nearest_color = vec4(texel.rgb * light * vec3(params.tint_r, params.tint_g, params.tint_b) *
+                             params.tint_a, alpha);
+        covered = true;
+    }
+
+    if (covered) {
+        vec4 destination = imageLoad(destination_image, pixel);
+        imageStore(destination_image, pixel,
+                   nearest_color + destination * (1.0 - nearest_color.a));
+    }
+}

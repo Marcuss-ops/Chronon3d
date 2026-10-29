@@ -70,6 +70,8 @@ void RenderBackendFrameApi::begin_frame_batch() {}
 
 void RenderBackendFrameApi::end_frame_batch() {}
 
+void RenderBackendFrameApi::synchronize_native_dependencies() {}
+
 void RenderBackendFrameApi::begin_plan_batch(const runtime::CommandPlan& /*plan*/) {}
 
 void RenderBackendFrameApi::bind_compiled_parameters(std::span<const std::byte> /*parameters*/) {}
@@ -487,6 +489,20 @@ RenderOpResult RenderBackendTextureApi::execute_layer_batch(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::execute_layer_batch: not supported by this backend"));
     }
+
+RenderOpResult RenderBackendTextureApi::draw_inline_mesh_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*texture*/,
+        std::span<const float> /*projected_lit_vertices*/,
+        std::span<const std::uint32_t> /*indices*/,
+        std::int32_t /*x0*/, std::int32_t /*y0*/,
+        std::int32_t /*x1*/, std::int32_t /*y1*/,
+        const Color& /*premultiplied_tint*/,
+        std::optional<float> /*alpha_cutoff*/) {
+    return RenderOpResult(make_render_backend_error(
+        RenderBackendErrorCode::UnsupportedCapability,
+        "RenderBackend::draw_inline_mesh_surface: not supported by this backend"));
+}
 
 RenderOpResult RenderBackendTextureApi::execute_layer_batch(
         runtime::RenderSurfaceHandle destination,
