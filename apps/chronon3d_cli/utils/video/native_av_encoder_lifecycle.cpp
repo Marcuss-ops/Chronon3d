@@ -74,6 +74,11 @@ std::shared_ptr<CodecSession> acquire_codec_session(
     return session;
 }
 
+void drop_parked_codec_session() noexcept {
+    std::lock_guard<std::mutex> lock(g_codec_session_cache_mutex);
+    g_codec_session_cache.reset();  // the CodecSession destructor frees the codec
+}
+
 void release_codec_session(std::shared_ptr<CodecSession> session) noexcept {
     // Fail-closed: only an UNFLUSHED session may enter the cache. An
     // EOS-flushed codec rejects new frames forever, so caching one would hand
@@ -134,7 +139,7 @@ bool NativeAvEncoder::close() {
     // container is complete without end-of-stream. First receive whatever the
     // encoder has already finished but the write path left uncollected (the
     // tail submits can lag one drain); this is receive-only, no EOS.
-    const bool preflush_drained = drain_packets();
+    bool preflush_drained = drain_packets();
     // Skip the EOS flush at the boundary and keep the codec UNFLUSHED for the
     // park/adopt cache: an EOS-flushed codec rejects new frames forever
     // (FFmpeg, verified empirically 2026-10-26), so only an unflushed,
@@ -142,6 +147,11 @@ bool NativeAvEncoder::close() {
     // historical flush path and never parks. A frame-threaded encoder keeps
     // work in flight, so the strict frames==packets equality is what
     // certifies the boundary; anything else falls back to flush (fail-closed).
+    // (The NVENC surfaces queue holds packets inside the wrapper's output
+    // FIFO until flush or more input, so an in-flight tail fails the strict
+    // equality: the constqp NVENC family therefore configures delay=0 —
+    // wrapper-side buffering only, no reordering — which certifies the
+    // boundary at close() by construction.)
     const bool reuse_unflushed =
         preflush_drained && codec_session_eligible_ &&
         detail::codec_session_reuse_enabled() && !duplicate_run_active_ &&

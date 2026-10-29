@@ -372,6 +372,21 @@ bool NativeAvEncoder::apply_resolved_encoder_options() {
                 if (!detail::set_codec_option_checked(codec_, "qp", qp_str)) {
                     return false;
                 }
+                // Cross-item session reuse (Fix 5): the wrapper's output FIFO
+                // retains un-received packets until flush or more input, so a
+                // buffered tail defeats the strict frames==packets boundary
+                // certification at close() and the session can never park.
+                // delay=0 removes the wrapper-side output buffering (no
+                // reordering, bitstream shape unchanged): every submitted
+                // frame's packet is retrievable at the closed boundary, making
+                // the park/adopt certification determinate for the constqp
+                // family. Non-constqp NVENC keeps the historical buffering.
+                if (!detail::set_codec_option_checked(codec_, "delay", "0")) {
+                    spdlog::warn(
+                        "[native_av] NVENC constqp: delay=0 unsupported in this "
+                        "FFmpeg build; cross-item session reuse stays "
+                        "uncertifiable (flush-at-close fallback applies)");
+                }
                 break;
             }
             case ResolvedEncoderRateControl::Vbr:

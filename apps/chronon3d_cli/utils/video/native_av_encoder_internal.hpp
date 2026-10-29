@@ -77,6 +77,14 @@ struct CodecSession {
 [[nodiscard]] std::shared_ptr<CodecSession> acquire_codec_session(
     const std::string& fingerprint) noexcept;
 
+/// Discards the parked cross-item session, if any, freeing its codec
+/// immediately under the cache lock. The teardown order depends on it: the
+/// parked codec references the device runtime's CUDA frames pool, so at
+/// process/test shutdown the runtime is destroyed first and the global
+/// CodecSession destructor would then close an NVENC context underneath a
+/// dead CUDA context (observed as a deadlocked process exit, 2026-10-29).
+void drop_parked_codec_session() noexcept;
+
 /// Parks a healthy finished session for the next same-configuration open.
 /// The single cache slot is replaced atomically (the displaced session is
 /// destroyed). A null session, disabled reuse, an empty fingerprint or a
