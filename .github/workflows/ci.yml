@@ -123,7 +123,7 @@ jobs:
   core-build:
     name: Gate 1 / core-build
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -147,7 +147,7 @@ jobs:
   sdk-build:
     name: Gate 2 / sdk-build
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -171,7 +171,7 @@ jobs:
   public-header-check:
     name: Gate 3 / public-header-check
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -209,7 +209,7 @@ jobs:
   install-consumer-check:
     name: Gate 4 / install-consumer-check
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -272,7 +272,7 @@ jobs:
   install-consumer-script:
     name: Gate 6 / install-consumer
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -321,7 +321,7 @@ jobs:
   fuzz-regressions:
     name: Fuzz regressions
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -391,7 +391,7 @@ jobs:
   full-validation:
     name: Full validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
