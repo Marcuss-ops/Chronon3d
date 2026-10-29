@@ -30,6 +30,9 @@ public:
 
     virtual void begin_frame_batch();
     virtual void end_frame_batch();
+    /// Publish native GPU writes between Render Graph levels without
+    /// submitting the frame's command buffer.
+    virtual void synchronize_native_dependencies();
     virtual void begin_plan_batch(const runtime::CommandPlan& plan);
     virtual void bind_compiled_parameters(std::span<const std::byte> parameters);
     virtual void begin_command_batch();

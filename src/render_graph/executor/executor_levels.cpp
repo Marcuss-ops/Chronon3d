@@ -93,6 +93,10 @@ void execute_levels(
             consumer_remaining, parent_counters, parent_pool,
             compiled);
 
+        if (ctx.policy.require_native_gpu && ctx.backend) {
+            ctx.backend->synchronize_native_dependencies();
+        }
+
         const auto t_dispatch1 = profiling::now();
 
         const auto t_fb0 = profiling::now();
