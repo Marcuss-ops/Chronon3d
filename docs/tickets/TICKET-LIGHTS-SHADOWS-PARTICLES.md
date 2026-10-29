@@ -109,6 +109,33 @@ La sonda aiuta a distinguere riuso/alias del backing, ma non prova la stabilità
   la parità visiva e la certificazione same-SHA sono ancora da eseguire. T05
   resta **PARTIAL — OPEN**.
 
+### Aggiornamento 2026-10-29 — race di dispatch nativo e gate RTX 4060 Ti
+
+- Il repro clean-baseline con dispatch concorrente ha prodotto un frame caster-on
+  degradato su cinque (media RGB 5,0228; 94,3636% pixel neri), benché render e
+  NVENC riportassero successo. Il frame conservava il rettangolo arancione ma
+  perdeva piano e secondo caster.
+- Il backend Vulkan registra le operazioni dei nodi sul command buffer attivo
+  condiviso. Il dispatcher eseguiva in parallelo i nodi dello stesso livello;
+  Vulkan richiede sincronizzazione esterna per accessi concorrenti a command
+  buffer e command pool. Il dispatcher ora mantiene seriali i livelli per
+  backend con native surface; il percorso software resta parallelo.
+- Con `CHRONON3D_CPU_RENDER_THREADS=12` sono stati ripetuti cinque render
+  caster-on e cinque caster-off sul binario aggiornato, tutti strict Vulkan e
+  native NVENC. Gate pixel: **10/10 frame PASS**; ogni A/B cambia l'11,3552% dei
+  pixel. Caster-on media RGB 52,1426; caster-off 53,1802; zero pixel neri e
+  alpha opaco in tutti i frame. Evidenza e script:
+  [`acceptance 2026-10-29`](../evidence/lights-shadows/T05-native-vulkan-20261029/README.md).
+- I test mirati ownership/lifetime graph passano (4 casi, 46 asserzioni); la
+  regressione sul predicato di dispatch seriale è stata compilata. La suite graph
+  completa resta 434/438 per tre overlay senza fixture `assets/images/checker.png`
+  e un crash in `test_velocity_buffer_motion_blur.cpp:149`. La suite core non
+  completa con il problema di compilazione noto su
+  `test_glyph_atlas_metadata.cpp` e doctest.
+- La regressione nera è corretta e l'immagine A/B passa il gate pixel; la review
+  qualitativa dell'ombra sullo shot di produzione, le suite complete e le altre
+  tranche del ticket restano aperte. T05 quindi resta **PARTIAL — OPEN**.
+
 ### Istanziamento particelle strict-native — implementazione 2026-10-28
 
 - Ogni layer particelle conserva i nodi CPU di riferimento e porta anche gli

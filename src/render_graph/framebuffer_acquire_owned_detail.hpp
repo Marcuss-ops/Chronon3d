@@ -19,6 +19,80 @@
 
 namespace chronon3d::graph {
 
+namespace {
+
+bool copy_gpu_only_surface_to(
+    RenderGraphContext& ctx, const Framebuffer& source, Framebuffer& destination) {
+    const auto source_handle = source.surface_handle();
+    const auto source_record = ctx.surface_registry
+        ? ctx.surface_registry->lookup(source_handle)
+        : std::nullopt;
+    if (!ctx.backend || !ctx.surface_registry ||
+        source_handle == runtime::kInvalidRenderSurfaceHandle ||
+        source.is_cpu_authoritative() ||
+        !source_record.has_value() ||
+        !ctx.backend_surface_api()->is_native_surface_valid(source_handle)) {
+        return false;
+    }
+
+    auto desc = source_record->desc;
+    desc.width = static_cast<std::uint32_t>(destination.width());
+    desc.height = static_cast<std::uint32_t>(destination.height());
+    desc.bytes = desc.tight_bytes();
+    desc.usage = runtime::ResourceUsage::Storage;
+    desc.lifetime = runtime::LifetimeClass::FrameTransient;
+
+    auto* api = ctx.backend_surface_api();
+    auto destination_handle = destination.surface_handle();
+    const auto destination_record = destination_handle != source_handle &&
+                                    ctx.surface_registry
+        ? ctx.surface_registry->lookup(destination_handle)
+        : std::nullopt;
+    const bool reusable_destination = destination_record.has_value() &&
+        destination_record->desc.width == desc.width &&
+        destination_record->desc.height == desc.height &&
+        destination_record->desc.format == desc.format &&
+        api->is_native_surface_valid(destination_handle);
+    bool created_destination = false;
+    if (!reusable_destination) {
+        destination_handle = ctx.surface_registry->create(desc);
+        if (destination_handle == runtime::kInvalidRenderSurfaceHandle) return false;
+        const auto created = api->create_surface(destination_handle, desc);
+        if (!created.ok()) {
+            (void)ctx.surface_registry->release(destination_handle);
+            return false;
+        }
+        created_destination = true;
+    }
+
+    if (!api->copy_surface(destination_handle, source_handle).ok()) {
+        if (created_destination) {
+            (void)api->release_surface(destination_handle);
+            (void)ctx.surface_registry->release(destination_handle);
+        }
+        return false;
+    }
+
+    destination.set_surface_handle(destination_handle);
+    destination.set_origin(source.origin_x(), source.origin_y());
+    destination.set_opaque(source.is_opaque());
+    destination.set_content_cleared(source.is_content_cleared());
+    destination.mark_gpu_authoritative();
+    return true;
+}
+
+OwnedFB clone_gpu_only_surface(RenderGraphContext& ctx, const Framebuffer& source) {
+    auto* clone = new Framebuffer(
+        source.width(), source.height(), static_cast<Color*>(nullptr));
+    if (!copy_gpu_only_surface_to(ctx, source, *clone)) {
+        delete clone;
+        return {};
+    }
+    return OwnedFB(clone, PoolFbDeleter(DeleteFramebuffer{}));
+}
+
+} // namespace
+
 OwnedFB RenderGraphContext::acquire_owned_fb(
     int w,
     int h,
@@ -147,10 +221,15 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
 
     if (node_exec.planned_physical_slot) {
         auto out = acquire_owned_fb(other.width(), other.height(), false);
-        if (out) {
-            if (out->data() && other.data() && out->data() != other.data()) {
-                FramebufferCopyAuthority::copy_rows(*out, other);
+        if (!other.data() &&
+            other.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+            if (!out || !copy_gpu_only_surface_to(*this, other, *out)) {
+                return {};
             }
+            return out;
+        }
+        if (out && out->data() && other.data() && out->data() != other.data()) {
+            FramebufferCopyAuthority::copy_rows(*out, other);
             out->set_origin(other.origin_x(), other.origin_y());
             out->set_opaque(other.is_opaque());
             out->set_content_cleared(other.is_content_cleared());
@@ -207,45 +286,11 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     }
 
     if (!other.data() && other.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        auto* fresh = new Framebuffer(other.width(), other.height(), static_cast<Color*>(nullptr));
-        fresh->set_origin(other.origin_x(), other.origin_y());
-        fresh->set_opaque(other.is_opaque());
-        fresh->set_content_cleared(other.is_content_cleared());
-        const auto source_handle = other.surface_handle();
-        const bool source_is_current_native =
-            !other.is_cpu_authoritative() && backend && surface_registry &&
-            backend_surface_api()->is_native_surface_valid(source_handle);
-        if (source_is_current_native) {
-            OwnedFB out(fresh, PoolFbDeleter(DeleteFramebuffer{}));
-            if (ensure_empty_native_surface(*this, *out)) {
-                const auto destination_handle = out->surface_handle();
-                if (destination_handle != source_handle) {
-                    const auto copied = backend_surface_api()->copy_surface_auxiliary(
-                        destination_handle, source_handle, std::nullopt);
-                    if (!copied.ok()) {
-                        spdlog::error(
-                            "[native-residency] passthrough clone copy failed: {}",
-                            copied.error().message);
-                        release_native_surface(*this, *out);
-                        out->mark_cpu_authoritative();
-                        return out;
-                    }
-                }
-                if (std::getenv("CHRONON3D_PATH_DIAG")) {
-                    spdlog::info(
-                        "[native-residency] gpu-only clone source={} destination={} extent={}x{} copied={}",
-                        source_handle, out->surface_handle(), other.width(),
-                        other.height(), out->surface_handle() != source_handle);
-                }
-                out->mark_gpu_authoritative();
-            } else {
-                out->mark_cpu_authoritative();
-            }
-            return out;
-        }
-        fresh->set_surface_handle(source_handle);
-        if (!other.is_cpu_authoritative()) fresh->mark_gpu_authoritative();
-        return OwnedFB(fresh, PoolFbDeleter(DeleteFramebuffer{}));
+        // GPU-only source: clone into a distinct native surface so the
+        // frame-scoped source stays untouched and no output aliases its
+        // handle. Fail closed instead of wrapping the same surface a second
+        // time or racing out-of-frame teardown.
+        return clone_gpu_only_surface(*this, other);
     }
 
     OwnedFB out;
@@ -258,10 +303,9 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
         if (other.data()) {
             FramebufferCopyAuthority::copy_rows(*out, other);
         }
-        out->set_surface_handle(other.surface_handle());
-        if (!other.is_cpu_authoritative()) {
-            out->mark_gpu_authoritative();
-        }
+        // The pixel copy has independent CPU storage and no ownership of the
+        // source's frame-scoped GPU surface.
+        out->clear_surface_handle();
     }
     return out;
 }
@@ -279,15 +323,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src)
         return out;
     }
     if (!src->data() && src->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        auto* placeholder = new Framebuffer(src->width(), src->height(), static_cast<Color*>(nullptr));
-        placeholder->set_surface_handle(src->surface_handle());
-        placeholder->set_origin(src->origin_x(), src->origin_y());
-        placeholder->set_opaque(src->is_opaque());
-        placeholder->set_content_cleared(src->is_content_cleared());
-        if (!src->is_cpu_authoritative()) {
-            placeholder->mark_gpu_authoritative();
-        }
-        return OwnedFB(placeholder, PoolFbDeleter(DeleteFramebuffer{}));
+        return clone_gpu_only_surface(*this, *src);
     }
     if (src.use_count() == 1 && src->storage_transferable()) {
         auto* placeholder = new Framebuffer(1, 1, false);

@@ -227,7 +227,38 @@ TEST_CASE("FramebufferPool::acquire_from is row-wise exact and preserves fb meta
     CHECK(copied->origin_x() == src.origin_x());
     CHECK(copied->origin_y() == src.origin_y());
     CHECK(copied->is_opaque());
-    CHECK(!copied->is_cpu_authoritative());
+    CHECK(copied->surface_handle() == runtime::kInvalidRenderSurfaceHandle);
+    CHECK(copied->is_cpu_authoritative());
+}
+
+TEST_CASE("CPU framebuffer copies do not alias frame-scoped native surfaces") {
+    Framebuffer src(32, 8, false);
+    fill_pattern(src);
+    src.set_surface_handle(0x1234U);
+    src.mark_gpu_authoritative();
+
+    auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
+    REQUIRE(pool != nullptr);
+    auto pooled_copy = pool->acquire_from(src);
+    REQUIRE(pooled_copy != nullptr);
+    CHECK(pooled_copy->surface_handle() == runtime::kInvalidRenderSurfaceHandle);
+    CHECK(pooled_copy->is_cpu_authoritative());
+    CHECK(pixels_equal(*pooled_copy, src));
+
+    RenderGraphContext pooled_context;
+    pooled_context.framebuffer_pool = pool;
+    auto owned_pool_copy = pooled_context.acquire_owned_fb(src);
+    REQUIRE(owned_pool_copy != nullptr);
+    CHECK(owned_pool_copy->surface_handle() == runtime::kInvalidRenderSurfaceHandle);
+    CHECK(owned_pool_copy->is_cpu_authoritative());
+    CHECK(pixels_equal(*owned_pool_copy, src));
+
+    RenderGraphContext fresh_context;
+    auto owned_fresh_copy = fresh_context.acquire_owned_fb(src);
+    REQUIRE(owned_fresh_copy != nullptr);
+    CHECK(owned_fresh_copy->surface_handle() == runtime::kInvalidRenderSurfaceHandle);
+    CHECK(owned_fresh_copy->is_cpu_authoritative());
+    CHECK(pixels_equal(*owned_fresh_copy, src));
 }
 
 TEST_CASE("FramebufferCopyAuthority: self-copy and null/identical-pointer copies are no-ops") {

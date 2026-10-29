@@ -279,10 +279,9 @@ OwnedFB FramebufferPool::acquire_from(const Framebuffer& other) {
     fb->set_origin(other.origin_x(), other.origin_y());
     fb->set_opaque(other.is_opaque());
     fb->set_content_cleared(other.is_content_cleared());
-    fb->set_surface_handle(other.surface_handle());
-    if (!other.is_cpu_authoritative()) {
-        fb->mark_gpu_authoritative();
-    }
+    // This is an independent CPU copy. Carrying the source's native handle
+    // aliases a frame-scoped surface and lets either framebuffer release it.
+    fb->clear_surface_handle();
     return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));
 }
 

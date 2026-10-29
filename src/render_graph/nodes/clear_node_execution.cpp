@@ -6,6 +6,7 @@
 // ============================================================================
 
 #include "clear_node_execution.hpp"
+#include "../native_surface_frame_lifetime.hpp"
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -34,7 +35,7 @@ NodeExecResult execute_clear_node(
     // (or, in strict mode, fail after the composite has already been built).
     const auto clear_path = detail::resolve_clear_execution_path(
         ctx.policy.require_native_gpu,
-        ctx.backend && ctx.backend_stats_api()->supports_native_video_surface(),
+        detail::has_frame_scoped_native_surfaces(ctx.backend_stats_api()),
         ctx.backend != nullptr,
         ctx.surface_registry != nullptr);
     if (clear_path == detail::ClearExecutionPath::Reject) {

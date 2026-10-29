@@ -6,6 +6,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
+#include "../native_surface_frame_lifetime.hpp"
 #include <spdlog/spdlog.h>
 
 #include <array>
@@ -36,8 +37,16 @@ void dispatch_level_nodes(
     // object and the 7 dead out-param pointers on execute_single_node are
     // gone. Whole-level phase durations (dispatch/input/schedule/framebuffer)
     // are still folded into RenderCounters by execute_levels().
-    const bool use_parallel = should_execute_level_in_parallel(
-        level.size(), scheduler.concurrency());
+    // Native GPU backends expose one frame-batch command buffer to graph
+    // nodes. Recording into that command buffer (and its command pool) from
+    // parallel graph workers violates Vulkan's external-synchronization
+    // requirements and can race backend descriptor/resource state. Keep
+    // native-surface graph dispatch ordered until the backend provides
+    // per-worker command recording with explicit submission ordering.
+    const bool native_surface_backend =
+        detail::has_frame_scoped_native_surfaces(ctx.backend_stats_api());
+    const bool use_parallel = should_parallelize_render_level(
+        level.size(), scheduler.concurrency(), native_surface_backend);
 
     if (parent_counters) {
         if (use_parallel) {

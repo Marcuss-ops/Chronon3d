@@ -38,6 +38,7 @@
 // it inside a namespace would re-nest its declarations
 // ("graph::graph::detail") and break name lookup.
 #include "graph_dispatch/node_runner_fused_batch_detail.hpp"
+#include "../native_surface_frame_lifetime.hpp"
 
 namespace chronon3d::graph {
 

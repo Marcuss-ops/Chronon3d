@@ -169,7 +169,7 @@ public:
         if (parallel) {
             set("CHRONON3D_SCHEDULER_WORKERS", "4");
         } else {
-            unsetenv("CHRONON3D_SCHEDULER_WORKERS");
+            unset("CHRONON3D_SCHEDULER_WORKERS");
         }
     }
 
@@ -200,15 +200,31 @@ private:
     }
 
     static void set(const char* name, const char* value) {
+#if defined(_WIN32)
+        (void)::_putenv_s(name, value);
+#else
         (void)::setenv(name, value, 1);
+#endif
+    }
+
+    static void unset(const char* name) {
+#if defined(_WIN32)
+        (void)::_putenv_s(name, "");
+#else
+        (void)::unsetenv(name);
+#endif
     }
 
     static void restore(const char* name, const Variable& variable) noexcept {
+#if defined(_WIN32)
+        (void)::_putenv_s(name, variable.present ? variable.value.c_str() : "");
+#else
         if (variable.present) {
             (void)::setenv(name, variable.value.c_str(), 1);
         } else {
             (void)::unsetenv(name);
         }
+#endif
     }
 
     std::unique_lock<std::mutex> m_lock;
