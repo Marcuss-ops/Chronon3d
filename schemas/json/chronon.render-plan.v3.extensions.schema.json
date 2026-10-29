@@ -2282,6 +2282,16 @@
           "minimum": 0,
           "maximum": 4294967295
         },
+        "ease_low": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "ease_high": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
         "noise_frequency": {
           "type": "number",
           "exclusiveMinimum": 0,

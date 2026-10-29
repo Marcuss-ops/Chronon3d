@@ -741,7 +741,8 @@ TEST_CASE("render plan V3 decodes and fingerprints deterministic Wiggly selector
       "layers":[{"id":"title","type":"text","text":"Wiggle",
         "style":{"font":"fonts/roboto.ttf","font_size":24,"fill":"#FFFFFF"},
         "text_animators":[{"id":"w","selectors":[{"shape":"wiggly",
-          "wiggly_frequency":0.75,"wiggly_amplitude":0.4,"wiggly_seed":1234}],
+          "wiggly_frequency":0.75,"wiggly_amplitude":0.4,"wiggly_seed":1234,
+          "ease_low":12,"ease_high":88}],
           "properties":[{"property":"position_y","keyframes":[{"frame":0,"value":4}]}]}]}],
       "output":{"path":"out.png"}})JSON");
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
@@ -751,6 +752,8 @@ TEST_CASE("render plan V3 decodes and fingerprints deterministic Wiggly selector
     CHECK(selector.wiggly_frequency == doctest::Approx(0.75f));
     CHECK(selector.wiggly_amplitude == doctest::Approx(0.4f));
     CHECK(selector.wiggly_seed == 1234u);
+    CHECK(selector.ease_low == doctest::Approx(12.f));
+    CHECK(selector.ease_high == doctest::Approx(88.f));
     const auto original_fingerprint = decoded->content_fingerprint;
     source["layers"][0]["text_animators"][0]["selectors"][0]["wiggly_seed"] = 5678;
     const auto changed = chronon3d::render_plan::decode_render_plan(source);
@@ -758,6 +761,10 @@ TEST_CASE("render plan V3 decodes and fingerprints deterministic Wiggly selector
     CHECK(changed->content_fingerprint != original_fingerprint);
 
     source["layers"][0]["text_animators"][0]["selectors"][0]["wiggly_amplitude"] = 1.1;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
+    source["layers"][0]["text_animators"][0]["selectors"][0]["wiggly_amplitude"] = 0.4;
+    source["layers"][0]["text_animators"][0]["selectors"][0]["ease_low"] = 90;
+    source["layers"][0]["text_animators"][0]["selectors"][0]["ease_high"] = 10;
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source).has_value());
 }
 

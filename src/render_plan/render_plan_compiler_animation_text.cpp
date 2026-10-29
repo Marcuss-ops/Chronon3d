@@ -156,6 +156,8 @@ chronon3d::GlyphSelectorSpec compile_text_selector(const TextSelectorPlan& plan,
     selector.random_seed = plan.random_seed;
     selector.wiggly = chronon3d::WigglySelectorParams{
         plan.wiggly_frequency, plan.wiggly_amplitude, plan.wiggly_seed};
+    selector.ease_low = plan.ease_low;
+    selector.ease_high = plan.ease_high;
     selector.noise = chronon3d::WigglySelectorParams{
         plan.noise_frequency, plan.noise_amplitude, plan.noise_seed};
     selector.index_step = plan.index_step;

@@ -81,6 +81,8 @@ struct TextSelectorPlan {
     float wiggly_frequency{1.0f};
     float wiggly_amplitude{0.25f};
     std::uint64_t wiggly_seed{0};
+    float ease_low{0.0f};
+    float ease_high{100.0f};
     float noise_frequency{1.0f};
     float noise_amplitude{0.25f};
     std::uint64_t noise_seed{0};
