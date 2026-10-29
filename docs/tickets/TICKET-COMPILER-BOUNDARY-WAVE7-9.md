@@ -16,9 +16,9 @@ Removal scope: delete the legacy compiler authorities and the private prepared
 plan bridge only after the equivalence gate is green. No Wave 7-9 change may
 delete those authorities prematurely.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Completare il debito boundary wave 7–9; il plan bridge legacy si tocca solo con equivalence gate verde.
+- [ ] **Completare il debito boundary wave 7–9** — logica: l'equivalence gate (compiler golden snapshots == legacy execution output per text, transition, precomposition e video plan) è la precondizione di ogni rimozione; il plan bridge legacy si tocca SOLO con gate verde, mai prima. Dove: `include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp`, `src/compiler/compiled_program.cpp` (single TU), i 7 consumer migrati elencati sopra, enforcement in `tools/architecture_rules_wave2.toml`. Gate: equivalence gate verde → rimozione bridge header + friendship + `prepared_plan_` + consumer include, poi riconciliazione matrix `docs/architecture/RENDER-SESSION-MIGRATION-MATRIX.md`.
 
 ## Wave 2 closeout — public plan accessors removed (2026-09-07)
 

@@ -1,6 +1,6 @@
 # Chronon 100× Performance Waves — Ticket Specs (B1/B2/B3)
 
-Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE NOT CERTIFIED; B3 IMPLEMENTED / ACCEPTANCE PARTIAL (27 Oct 2026)` — this file is a ticket specification, not a blanket acceptance claim. The B1 DirectYUV static-template path is landed; B2 has a six-slot implementation but its required encoder-backed performance gate remains unverified; the native MTSDF path exists and its generator/font-identity/raster canaries pass, while its full outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
+Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE FAILED; B3 IMPLEMENTED / ACCEPTANCE PARTIAL (29 Oct 2026)` — this file is a ticket specification, not a blanket acceptance claim. B2 remains below the 300 render-loop fps gate and the canonical NVENC utilization sidecar is null; the latest five-run polling sample averages 98.48% on active `nvidia-smi` samples. MTSDF outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
 Created: 2026-09-09
 Baseline evidence: job_1788973104795535356_86264102 sidecar + TICKET-ZERO-COPY-ZWAVES.md F1–F7
 Owner: Chronon rendering-core maintainers
@@ -25,12 +25,12 @@ waves below are the reachable remainder, in expected-gain order.
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-29)
 
-- [ ] Certificare il gate B2 sul workload specificato dalla scheda: drain wait ≤50µs/frame, NVENC ≥90%, render_loop ≥300 fps.
+- [ ] **Gate B2 — FAIL (ultimo rerun 2026-10-29):** fixture title-drift di 456 frame, strict Vulkan/NVENC, current-tree Release. Tutti i run hanno encoded 456/456; `render_loop_fps` medio **238.703** (206.280–252.653), +3.40% rispetto al precedente 230.861 ma ancora 20.43% sotto il target 300. End-to-end medio 150.447 fps; drain medio 12.8 µs/job. Sidecar `nvenc_utilization_avg` nullo; polling `nvidia-smi` sui campioni encoder attivi 98.48%, metrica non canonica. SHA output identico sui cinque run. Risultati: [`b2-final-current-release-20261029-runs.json`](../evidence/100x-perf-waves-b2-20261029/b2-final-current-release-20261029-runs.json). La variazione non chiude il gate.
 - [x] Implementare il percorso GPU MTSDF (native MTSDF preparation/raster path exists; focused tests pass).
-- [ ] Certificare per B3 il golden outline/shadow e il budget VRAM del font set.
-- [ ] Nessun claim “100×” o “100 overlay/min” finché resta solo il B1 land.
+- [ ] **Certificare B3:** manca equivalenza visiva outline/shadow vs Coverage e budget ≤256 MB/font set, oltre al gate `text_pass_draws_per_frame == 1`.
+- [ ] Golden canonico 100-item e throughput 100 overlay/min non eseguiti; nessun claim 100×.
 
 ## B1 — Persistent overlay layer for static text/watermark (≈1.4–1.6×)
 
@@ -148,10 +148,10 @@ enabler and needs its own small ticket.
 
 ## Verification checkpoint — 27 Oct 2026
 
-The fast-dev Vulkan build produced the CLI and three focused B3 tests passed:
+The fast-dev Vulkan build produced the CLI; the three focused B3 tests pass on the current local tree:
 `chronon3d_text_tile_raster_canary_tests`,
 `chronon3d_mtsdf_generator_tests`, and
-`chronon3d_mtsdf_font_identity_tests` (3/3). The saved benchmark report is
+`chronon3d_mtsdf_font_identity_tests` (3/3). Final serial rerun on 29 Oct: raster canary PASS (0.90 s), MTSDF generator PASS (2.45 s), font identity PASS (0.10 s). The first link attempt hit a stale 1.58 GB mold temporary left by the failed linker; after removing that temporary, all three CTest gates passed. The saved benchmark report is
 `docs/tickets/evidence/100x-perf-waves-b2-20261027.json`.
 
 On `chronon_text_full_static` for 19 seconds, the saturation benchmark rendered
@@ -170,3 +170,49 @@ updating the Semantic Engine completed script generation but produced no
 `overlay_plan` and rendered zero items, so it is not a throughput sample. The
 100 overlay/min gate remains open until the canonical 100-item golden is
 rendered and validated on a healthy three-daemon pool.
+
+
+### Session workload — 2026-10-29
+
+[`static-text-456f.plan.json`](../evidence/100x-perf-waves-b2-20261029/static-text-456f.plan.json) is a deterministic 1920×1080/24 fps, 456-frame Inter Bold static-title fixture. The all-static version let duplicate-frame reuse bypass 455 encodes. The current probe adds a slow 20 px title drift so every frame is distinct while the words and styling stay fixed. Five strict Vulkan/NVENC runs all completed 456/456 encodes at 230.469–232.771 render-loop fps; mean drain wait was 19.8 µs/job; active-sample `nvidia-smi` NVENC utilization averaged 87.27%. B2 remains below 300 fps, and its native utilization sidecar remains null. This is session fixture evidence, not the historical production composition.
+
+For T05/C2, three non-environment particle plans at 1080p/one frame were rendered strict Vulkan/NVENC MP4. End-to-end wall times: 1k=2.046524 s, 10k=2.607469 s, 100k=7.998100 s, including startup and encoder/mux close. These are fixture measurements, not kernel times or before/after speedups; decoded RGB hashes and logs are in `docs/evidence/lights-shadows/T05-native-vulkan-20261029/c2-results.json`.
+
+
+### Final B2 rerun — 2026-10-29
+
+Five sequential strict Vulkan/NVENC runs of the moving-title 456-frame fixture
+all exited 0 and encoded 456/456 frames. Render-loop FPS was 230.797, 231.939,
+232.999, 232.752 and 231.654 (mean 232.028); end-to-end FPS mean was 131.616.
+Mean frame-batch drain wait was 11.4 µs/frame. `nvidia-smi` active-sample
+encoder utilization averaged 96.62% (83.11–100% by run), while the canonical
+NVENC sidecar field remained null. All five output hashes matched
+(`2115ab511cda1da89e6a51ca6e3832e8934f89b9e437bddb2bd302ca59de51ad`).
+Compared with the prior final Release mean 243.226 fps, this is −4.60%; compared
+with Debug 231.506 fps, +0.23%. The 300 fps threshold is still missed by
+22.66%, so B2 remains **NOT ACCEPTED**. Results: `docs/evidence/100x-perf-waves-b2-20261029/b2-final-20261029-runs.json`.
+
+### Post-diagnostic final rerun — 2026-10-29
+
+After the T05 investigation, the same five-run fixture was repeated as a final
+measurement. All runs exited 0 and encoded 456/456 frames with a stable output
+hash (`2115ab511cda1da89e6a51ca6e3832e8934f89b9e437bddb2bd302ca59de51ad`).
+Render-loop FPS was 228.754, 230.255, 230.968, 231.612 and 232.716, mean
+230.861; this is 0.50% below the prior 232.028 mean, so there is no measured
+improvement. Mean end-to-end FPS was 125.332, drain wait 14.2 µs/job, and
+active-sample `nvidia-smi` encoder utilization was 100% in each run; canonical
+NVENC utilization remained null. The 300 fps gate still fails. Evidence:
+`docs/evidence/100x-perf-waves-b2-20261029/b2-post-diagnostic-20261029-runs.json`.
+
+### Current-tree Release final rerun — 2026-10-29
+
+After the latest T05 Release acceptance and focused Lighting tests, the B2
+fixture was run five times using the rebuilt `linux-video-release` CLI. Every
+run encoded 456/456 frames and produced the same output SHA. Mean render-loop
+rate was 238.703 fps (206.280–252.653), which is +3.40% over the previous
+230.861 fps mean and remains 20.43% below the 300 fps gate. Mean end-to-end
+rate was 150.447 fps; mean frame-batch drain was 12.8 µs/job. Active-sample
+`nvidia-smi` encoder utilization averaged 98.48%, while the timing sidecar
+field remains null. The result is a measured improvement in this fixture but
+B2 remains **NOT ACCEPTED**. Evidence:
+`docs/evidence/100x-perf-waves-b2-20261029/b2-final-current-release-20261029-runs.json`.

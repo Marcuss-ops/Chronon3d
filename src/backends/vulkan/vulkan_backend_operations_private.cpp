@@ -36,9 +36,15 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
                                     BlendMode mode,
                                     const std::optional<raster::BBox>& clip,
                                     bool replace, float source_scale,
-                                    bool weighted_source_over) {
+                                    bool weighted_source_over,
+                                    bool participates_in_command_plan) {
     auto& dst_image = resolve_image(destination);
     auto& src_image = resolve_image(source);
+    if (dst_image.image == src_image.image) {
+        throw std::invalid_argument(
+            "Vulkan composite destination aliases its source image: destination=" +
+            std::to_string(destination) + " source=" + std::to_string(source));
+    }
     if (!src_image.initialized ||
         dst_image.width != src_image.width ||
         dst_image.height != src_image.height) {
@@ -57,12 +63,16 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image});
+        if (participates_in_command_plan) {
+            emit_pass_sync(cmd, {&dst_image, &src_image});
+        } else {
+            emit_unplanned_compute_sync(cmd, {&dst_image, &src_image});
+        }
         record_composite(cmd, descriptors, dst_image, src_image,
                          blend_mode, source_scale, kIdentityTint, clip,
                          premultiplied_source_over);
         dst_image.initialized = true;
-        ++frame_batch.pass_count;
+        if (participates_in_command_plan) ++frame_batch.pass_count;
         ++stats.passes_executed;
         return;
     }

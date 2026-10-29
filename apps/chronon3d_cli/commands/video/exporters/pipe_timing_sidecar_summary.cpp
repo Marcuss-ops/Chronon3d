@@ -402,6 +402,9 @@ void serialize_job_section(nlohmann::json& job,
     put_gpu_u64("gpu_native_encode_frames", timings.gpu.gpu_native_encode_frames);
     put_gpu_u64("nv12_to_rgba_frames", timings.gpu.nv12_to_rgba_frames);
     put_gpu_u64("rgba_to_nv12_frames", timings.gpu.rgba_to_nv12_frames);
+    put_gpu_u64("native_surface_yuv_frames", timings.gpu.native_surface_yuv_frames);
+    put_gpu_u64("native_surface_yuv_bytes", timings.gpu.native_surface_yuv_bytes);
+    put_gpu_u64("nv12_partial_handoff_frames", timings.gpu.nv12_partial_handoff_frames);
     put_gpu_u64("gpu_surface_copy_frames", timings.gpu.gpu_surface_copy_frames);
     put_gpu_u64("cpu_pixel_readback_count", timings.gpu.cpu_pixel_readback_count);
     put_gpu_u64("cpu_pixel_readback_bytes", timings.gpu.cpu_pixel_readback_bytes);

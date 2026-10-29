@@ -5,10 +5,10 @@ Owner: working session (repo owner + agent)
 Created: 2026-09-04
 Baseline: `main@2fc814d0f5304ce32fd0b725fd5f30731636c555`
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Chiudere l'Exit checkpoint su un checkout pulito (gli stages 1–5 risultano DONE per ispezione/census).
-- [ ] Debito separato: migrare i dipendenti font senza cambiare i contratti (owner: font domain).
+- [ ] **Exit checkpoint su checkout pulito** — logica: gli stages 1–5 sono chiusi per ispezione/census, ma il close rule richiede che il commit di chiusura sia il tip reale di `main` con `Chronon CI` green same-SHA (gli ultimi tentativi sono falliti pre-runner, `steps=[]`). Dove: push su `main` + GitHub Actions. Gate: CI green sullo SHA risultante + post-push main-tip verification registrata.
+- [ ] **Debito font domain (separato)** — logica: 29 test text/font falliscono perché `3bed1ea0e` ha demolito la font asset fleet senza migrare i dipendenti; va fatta la migrazione SENZA cambiare i contratti. Dove: consumer font nei preset/typewriter/text_run_builder (owner: font domain). Gate: le 29 suite tornano verdi, contratti invariati.
 
 ## Purpose
 

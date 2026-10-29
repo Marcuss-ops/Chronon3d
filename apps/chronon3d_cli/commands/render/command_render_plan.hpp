@@ -41,7 +41,8 @@ int run_render_plan_file(
     const CompositionRegistry& registry,
     runtime::job::RenderJobRequest request,
     std::shared_ptr<SoftwareRenderer> warm_renderer = {},
-    std::shared_ptr<media::VideoJobExecutionContext> video_execution = {});
+    std::shared_ptr<media::VideoJobExecutionContext> video_execution = {},
+    bool no_dirty_rects = false);
 void register_render_plan_command(CLI::App& app, CliContext& ctx);
 
 /// RENDER_JOB (daemon IPC): execute an already-normalized render job. Phase 9

@@ -264,7 +264,12 @@ namespace chronon3d::backends::vulkan {
         ++stats.submissions;
         slot.ticket = signal_value;
         slot.in_flight = true;
-        if (wait_for_completion) wait_upload_slot(slot);
+        if (wait_for_completion) {
+            wait_upload_slot(slot);
+            uploads.pending_timeline_ticket = 0;
+        } else {
+            uploads.pending_timeline_ticket = signal_value;
+        }
         return signal_value;
     }
 

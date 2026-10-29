@@ -41,6 +41,7 @@ set(_cli_test_sources
     cli/test_semantic_script.cpp
     cli/test_daemon_ipc_exception_boundary.cpp
     cli/test_variant_batch.cpp
+    cli/test_bake_layer_cache.cpp
 )
 
 # Video exporter tests are appended only when the implementation target exists.

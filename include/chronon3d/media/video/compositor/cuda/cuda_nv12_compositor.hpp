@@ -119,17 +119,35 @@ public:
     ///
     /// `dirty_regions` requests a partial conversion. That is honoured only
     /// when `destination_retains_previous_frame` proves the untouched pixels
-    /// are already this frame's (see media/video/nv12_region_policy.hpp); a
-    /// pooled encoder frame does not provide that proof, so callers on that
-    /// path pass no regions and the whole frame is converted.
+    /// are already this frame's (see media/video/nv12_region_policy.hpp). A
+    /// pooled encoder frame can use it only when its per-buffer continuity
+    /// tracker proves that condition; otherwise the request is widened to a
+    /// full-frame conversion.
     bool composite_surface_to_nv12(
         CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
         std::uint32_t width, std::uint32_t height, CUstream stream,
         std::span<const raster::BBox> dirty_regions = {},
         std::uint32_t transfer_encode = TransferSrgb,
         bool destination_retains_previous_frame = false);
+    /// Same conversion contract, plus exact Y+UV plane bytes written by its
+    /// normalized launches (overlapping regions count each write).
+    bool composite_surface_to_nv12_measured(
+        CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
+        std::uint32_t width, std::uint32_t height, CUstream stream,
+        std::span<const raster::BBox> dirty_regions,
+        std::uint32_t transfer_encode,
+        bool destination_retains_previous_frame,
+        std::uint64_t& converted_plane_bytes);
 
 private:
+    bool composite_surface_to_nv12_impl(
+        CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
+        std::uint32_t width, std::uint32_t height, CUstream stream,
+        std::span<const raster::BBox> dirty_regions,
+        std::uint32_t transfer_encode,
+        bool destination_retains_previous_frame,
+        std::uint64_t* converted_plane_bytes);
+
     CUcontext context_{nullptr};
     // Keep the loaded module alive for this compositor's CUfunction handles.
     // The PTX source artifact belongs to ProgramCache; this device/context

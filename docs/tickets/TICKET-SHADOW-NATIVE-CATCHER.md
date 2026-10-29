@@ -8,11 +8,13 @@ registrato in `docs/stato/chronon3d.md` §13.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Pass ombre nativo in lane Vulkan strict-native: il nodo `Shadow` oggi fallisce fail-closed.
-- [ ] Shadow catcher catch-only con semantica alpha corretta sui bordi.
-- [ ] Accumulatore temporale weighted-add nativo (prerequisito dello shutter full-frame).
-- [ ] Fix fail-open DOF: la rotta raw con `camera.dof.enabled` oggi esce 0 con frame RGBA a zero.
-- [ ] A/B software vs Vulkan su produzione approvata + repeatability strict (serve host GPU NVIDIA).
+> Logica e punti di intervento completi nel «Piano di chiusura passo-passo» qui sotto; sintesi con dove mettere le mani:
+
+- [ ] **Pass ombre nativo in lane Vulkan strict-native** — il nodo `Shadow` oggi fallisce fail-closed. Dove: shadow map + nodo `Shadow` nella lane Vulkan (`src/backends/vulkan/`), decoder del piano.
+- [ ] **Shadow catcher catch-only** con semantica alpha corretta sui bordi. Dove: materiali/shape renderer (ground solid catch-only).
+- [ ] **Accumulatore temporale weighted-add nativo** (prerequisito dello shutter full-frame). Dove: operatori di composizione Vulkan accanto al solo source-over.
+- [ ] **Fix fail-open DOF**: la rotta raw con `camera.dof.enabled` oggi esce 0 con frame RGBA a zero — scegliere errore esplicito fail-closed oppure frame disegnato, mai successo trasparente. Dove: rotta raw + nodo DOF (`PerPixelDofNode` o il percorso raw corrispondente).
+- [ ] **A/B software vs Vulkan su produzione approvata** + repeatability strict (serve host GPU NVIDIA).
 
 ## Goal
 

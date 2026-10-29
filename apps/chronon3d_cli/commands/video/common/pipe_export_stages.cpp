@@ -110,26 +110,39 @@ RenderOutcome render_frame(
     out.dirty_ratio = ctx.sw_renderer->last_dirty_area_ratio();
     out.dirty_rect_enabled = ctx.sw_renderer->last_dirty_rect_enabled();
     out.dirty_rect = ctx.sw_renderer->last_dirty_rect();
-    // NOTE: `dirty_rect` above is the CPU-side renderer's PREDICTED damage; it
-    // feeds diagnostics and the software paths only. It is deliberately not
-    // promoted into `out.dirty_regions`, which is the region set for the GPU
-    // surface handoff: the encoder's NV12 destination is a pooled frame that
-    // does not retain the previous frame, so a partial conversion derived from
-    // a prediction publishes a torn frame (background/foreground/watermark
-    // clips encoded as a flat field while the graph had rendered every layer).
-    // The graph composites the full surface on this lane, so the boundary must
-    // convert the full surface. `out.dirty_regions` stays empty until a
-    // producer can prove destination continuity
-    // (media/video/nv12_region_policy.hpp).
-    out.tile_execution_used = ctx.sw_renderer->last_tile_execution_used();
-    out.fast_path_reused = ctx.sw_renderer->last_fast_path_reused();
-    out.graph_reused = ctx.sw_renderer->last_graph_reused();
     // P1 (TICKET-STATIC-OVERLAY-DURATION-INVARIANT): the resolver selected
-    // FrameExecutionPath::DuplicateFrame — the frame is provably identical to
-    // the previous one and must not be rendered or encoded again.
+    // FrameExecutionPath::DuplicateFrame — this frame is identical to its
+    // predecessor and must not be published as damage to the NV12 handoff.
     out.duplicate_frame =
         ctx.sw_renderer->last_execution_decision() ==
         graph::FrameExecutionPath::DuplicateFrame;
+    // P2: promote the renderer's damage bound into the GPU surface handoff
+    // region set — but only under the machinery's own trust gate. The bound
+    // is `use_dirty_rects`-qualified: temporal adjacency held (prev_frame ==
+    // frame - 1) and the is_safe_for_dirty_rects policy accepted the layer
+    // set, the same contract that makes the software path's tile skip sound
+    // (outside the bound the compositor output is provably unchanged).
+    // The remaining half of the proof — that the pooled NV12 destination
+    // already holds this frame's pixels outside the converted regions — is
+    // established at the encoder boundary by
+    // media/video/nv12_frame_continuity.hpp: the damage of every stream frame
+    // is accumulated across the buffer's reuse gap, so a partial conversion
+    // is never derived from a single frame's prediction. Anything unproven
+    // widens to a whole-frame conversion (media/video/nv12_region_policy.hpp)
+    // instead of publishing a torn frame.
+    if (out.dirty_rect_enabled && out.dirty_rect && !out.duplicate_frame) {
+        const raster::BBox& r = *out.dirty_rect;
+        const int full_w = ctx.compiled.composition->width();
+        const int full_h = ctx.compiled.composition->height();
+        const bool covers_frame =
+            r.x0 <= 0 && r.y0 <= 0 && r.x1 >= full_w && r.y1 >= full_h;
+        if (!covers_frame && !r.is_empty()) {
+            out.dirty_regions.push_back(r);
+        }
+    }
+    out.tile_execution_used = ctx.sw_renderer->last_tile_execution_used();
+    out.fast_path_reused = ctx.sw_renderer->last_fast_path_reused();
+    out.graph_reused = ctx.sw_renderer->last_graph_reused();
     return out;
 }
 

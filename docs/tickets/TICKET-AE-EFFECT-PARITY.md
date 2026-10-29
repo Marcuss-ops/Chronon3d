@@ -6,7 +6,7 @@ PARTIAL (2026-10-28). Provenienza: gap analysis "AE + Premiere parity"
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Implementare i 4 effetti rimanenti (`stretch_warp`, `min_max`, `linear_wipe`, `lens_flare`) secondo lo scope 1–7. `posterize` e `color_map` sono a catalogo, processor, pipeline software, route Vulkan strict-native e (posterize) PixelProgram; i test sono presenti, verifica complessiva ancora da eseguire.
+- [ ] **Implementare i 4 effetti rimanenti** (`stylize.min_max` → `transition.linear_wipe` → `distort.stretch_warp` → `light.lens_flare`) — logica: ingresso canonico della famiglia `TICKET-POSTPROCESS-FX` per ciascuno (riga X-macro → params struct → processor software → routing Vulkan strict-native o fusibile → decoder + coverage). Dove: `include/chronon3d/effects/effect_catalog.def`, `effect_ids.hpp`, `src/backends/software/processors/`, `src/render_plan/render_plan_decoder_effects.cpp` (`kEffectDecoders`), `src/render_plan/effect_kind_coverage.hpp`, test in `tests/effects/`. Gate: per effetto, mapping/range/identità/determinismo/fail-closed GPU verdi.
 - [x] `color.posterize` (valore catalogo 56): fusibile e quantizza RGB straight in 2–256 livelli, preservando alpha; routing Vulkan nativo e opcode PixelProgram 13 aggiunti (2026-10-28).
 - [x] `color.color_map` (valore catalogo 57): cinque stop RGB equispaziati sulla luminanza più `amount` 0–1 animabile, alpha preservata; processor software, stage fuso, mode Vulkan nativo 12 e test CPU/software (2026-10-28).
 - [x] Eliminato lo scostamento `kEffectTypeCount`: capacità derivata dal massimo valore X-macro del catalogo (55) + regressione sullo slot `LottieTritone`; build `chronon3d_dev_fast` e test runtime mirato verdi (2026-10-28).

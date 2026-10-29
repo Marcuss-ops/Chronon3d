@@ -109,6 +109,31 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
     std::span<const raster::BBox> dirty_regions,
     std::uint32_t transfer_encode,
     bool destination_retains_previous_frame) {
+    return composite_surface_to_nv12_impl(
+        out_y, out_yp, out_uv, out_uvp, width, height, stream, dirty_regions,
+        transfer_encode, destination_retains_previous_frame, nullptr);
+}
+
+bool CudaNv12Compositor::composite_surface_to_nv12_measured(
+    CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
+    std::uint32_t width, std::uint32_t height, CUstream stream,
+    std::span<const raster::BBox> dirty_regions,
+    std::uint32_t transfer_encode,
+    bool destination_retains_previous_frame,
+    std::uint64_t& converted_plane_bytes) {
+    return composite_surface_to_nv12_impl(
+        out_y, out_yp, out_uv, out_uvp, width, height, stream, dirty_regions,
+        transfer_encode, destination_retains_previous_frame,
+        &converted_plane_bytes);
+}
+
+bool CudaNv12Compositor::composite_surface_to_nv12_impl(
+    CUdeviceptr out_y, int out_yp, CUdeviceptr out_uv, int out_uvp,
+    std::uint32_t width, std::uint32_t height, CUstream stream,
+    std::span<const raster::BBox> dirty_regions,
+    std::uint32_t transfer_encode,
+    bool destination_retains_previous_frame,
+    std::uint64_t* converted_plane_bytes) {
     using cuda_nv12_detail::check_cuda;
 
     const CUfunction kernel = surface_u8_ ? rgba_u8_to_nv12_kernel_ : rgba_to_nv12_kernel_;
@@ -128,12 +153,15 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
     bridge_->wait_for_vulkan(active);
     CUsurfObject surface = bridge_->surface_object();
     // Region authority (nv12_region_policy.hpp): a sub-region is converted only
-    // when the caller proved the destination already holds the previous frame
-    // outside it. The predicted dirty rect of the CPU-side renderer is not that
-    // proof, and neither is a pooled encoder frame — so the frame is widened to
-    // full instead of publishing a torn frame.
+    // when the caller proved the destination already holds this frame outside
+    // it. A CPU-side predicted dirty rect alone is not that proof; the native
+    // pooled-buffer path supplies it only from Nv12FrameContinuity's recorded
+    // per-buffer history. Unknown continuity widens to full frame.
     const auto conversion = plan_nv12_conversion(
         dirty_regions, width, height, destination_retains_previous_frame);
+    if (converted_plane_bytes) {
+        *converted_plane_bytes = nv12_conversion_written_bytes(conversion);
+    }
     if (conversion.partial_rejected) {
         static std::atomic<bool> rejection_warned{false};
         bool expected = false;
@@ -185,9 +213,11 @@ bool CudaNv12Compositor::composite_surface_to_nv12(
         // staging conversion.  composite_direct_nv12* keeps this at zero.
         counters->rgba_to_nv12_frames.fetch_add(1, std::memory_order_relaxed);
         if (partial_handoff) {
-            // Non-zero means a producer claimed destination continuity. On the
-            // pooled encoder-frame path that claim is not established by the
-            // pipeline, so this counter is a defect signal, not a usage stat.
+            // Delta-temporal RGBA->NV12 handoff: the region set was accepted
+            // because nv12_frame_continuity.hpp proved the pooled destination
+            // still holds the pixels outside it (accumulated inter-frame
+            // damage). A partial conversion without that proof is widened to a
+            // whole frame by nv12_region_policy.hpp and never reaches here.
             counters->nv12_partial_handoff_frames.fetch_add(
                 1, std::memory_order_relaxed);
         }

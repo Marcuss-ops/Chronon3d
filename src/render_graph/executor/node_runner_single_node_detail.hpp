@@ -250,6 +250,19 @@ void execute_single_node(
                 &state.physical_slots[allocation.physical_slot];
         }
     }
+    if (std::getenv("CHRONON3D_PATH_DIAG") && id < resource_table.resources.size()) {
+        const auto& allocation = resource_table.resources[id];
+        std::string inputs;
+        for (const auto& input : pr.inputs) {
+            if (!inputs.empty()) inputs += ',';
+            inputs += input ? std::to_string(input->surface_handle()) : "null";
+        }
+        spdlog::info(
+            "[native-slot-diag] frame={} node_id={} name={} physical_slot={} slot_ptr={} inputs=[{}]",
+            static_cast<int>(ctx.frame_input.frame), id, node.name(),
+            allocation.physical_slot,
+            static_cast<const void*>(node_ctx.node_exec.planned_physical_slot), inputs);
+    }
 
     if (id < compiled.nodes.size() && compiled.nodes[id].reachable) {
         node_ctx.node_exec.current_identity = NodeIdentity{
@@ -361,6 +374,44 @@ void execute_single_node(
         &compiled.nodes[id].stable_node_id,
         local_nodes_executed
     );
+    if (std::getenv("CHRONON3D_T05_SURFACE_SNAPSHOT") && cache_eval.result &&
+        ctx.backend && ctx.surface_registry &&
+        cache_eval.result->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+        ctx.backend->is_native_surface_valid(cache_eval.result->surface_handle())) {
+        const auto width = static_cast<std::uint32_t>(cache_eval.result->width());
+        const auto height = static_cast<std::uint32_t>(cache_eval.result->height());
+        const auto desc = runtime::SurfaceDesc::make(
+            width, height, runtime::PixelFormat::Rgba32Float,
+            runtime::ResourceUsage::Storage, runtime::LifetimeClass::JobPersistent);
+        const auto snapshot_handle = ctx.surface_registry->create(desc);
+        if (snapshot_handle == runtime::kInvalidRenderSurfaceHandle) {
+            spdlog::warn("[native-content-diag] snapshot allocation failed for node={}",
+                         node.name());
+        } else if (const auto created = ctx.backend->create_surface(snapshot_handle, desc);
+                   created.ok()) {
+            const auto copied = ctx.backend_surface_api()->copy_surface_auxiliary(
+                snapshot_handle, cache_eval.result->surface_handle(), std::nullopt);
+            if (copied.ok()) {
+                std::lock_guard lock(state.surface_snapshot_mutex);
+                state.surface_content_snapshots.push_back(
+                    ExecutionState::SurfaceContentSnapshot{
+                        id, std::string(node.name()),
+                        cache_eval.result->surface_handle(), snapshot_handle,
+                        width, height});
+            } else {
+                spdlog::warn(
+                    "[native-content-diag] snapshot copy failed for node={} handle={}: {}",
+                    node.name(), snapshot_handle, copied.error().message);
+                (void)ctx.backend->release_surface(snapshot_handle);
+                (void)ctx.surface_registry->release(snapshot_handle);
+            }
+        } else {
+            spdlog::warn(
+                "[native-content-diag] snapshot surface creation failed for node={} handle={}: {}",
+                node.name(), snapshot_handle, created.error().message);
+            (void)ctx.surface_registry->release(snapshot_handle);
+        }
+    }
     if (std::getenv("CHRONON3D_PATH_DIAG") && cache_eval.result)
         spdlog::info("[native-graph-node-diag] frame={} node_id={} node={} kind={} surface={} cpu={} opaque={} size={}x{}",
             static_cast<int>(ctx.frame_input.frame), id,

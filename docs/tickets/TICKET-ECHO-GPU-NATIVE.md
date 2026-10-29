@@ -1,8 +1,8 @@
 # Echo effect: native GPU support
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Certificazione same-SHA su host GPU (l'evidenza locale llvmpipe/NVIDIA non basta).
+- [ ] **Certificazione same-SHA su host GPU** — logica: tutta l'evidenza presente (llvmpipe, RTX A4000/4060 Ti) è su worktree dirty o SHA locali: non è certificazione. Serve un run della selection Echo di `chronon3d_backend_registry_tests` su worktree pulito, sullo SHA pubblicato, su host GPU. Gate: run green registrato con SHA + device; poi `## Stato` → `COMPLETE`.
 
 ## Current behavior
 

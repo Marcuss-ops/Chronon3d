@@ -30,11 +30,11 @@ correzioni non sono intercambiabili e vanno separate.
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] P1-3: shadow canonica sul run (union mask del TextRun → spread opzionale → gaussiana separabile → source-over lineare), con delta frame time misurato + golden.
-- [ ] P2: aperto — gli interventi elencati nella roadmap della scheda, dopo P1-3.
-- [ ] Estendere il corpus ai casi editoriali del ticket (il frame 75 T16 ha chiuso solo il requisito dell'artifact reale).
+- [ ] **P1-3 — shadow canonica sul run** — logica: union mask del TextRun → spread opzionale → gaussiana separabile → source-over lineare (niente passi shadow separati per glifo). Dove: pipeline testo (run raster → mask → blur → composite), golden esistenti in `docs/evidence/`. Gate: golden shadow + delta frame time misurato e registrato.
+- [ ] **P2 — roadmap della scheda** — logica: gli interventi P2 elencati nella roadmap, solo dopo P1-3. Gate: per ogni voce, il rispettivo gate della scheda.
+- [ ] **Estendere il corpus editoriale** — logica: il frame 75 T16 ha chiuso solo il requisito dell'artifact reale; il corpus deve coprire i casi editoriali del ticket. Dove: corpus di test + fixture. Gate: casi editoriali coperti e verificati.
 
 ## 1. Fatti verificati (file:riga, non teoria)
 

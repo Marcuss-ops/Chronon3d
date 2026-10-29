@@ -16,12 +16,12 @@ sono stati estratti in `ChrononPlugin/plugins/maps/` (namespace
 renderer `map_plate_render` resta uno stub fail-closed nel plugin. La raster
 vector plate compila lì, ma la prova pixel bit-exact del port resta aperta.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Portare le famiglie di composizione residue nel renderer `map_plate_render`.
-- [ ] Prova pixel bit-exact del port (raster vector plate): oggi aperta.
-- [ ] Demolire il percorso Python in ChrononTemplate.
-- [ ] Campioni NVENC/OpenCL e animazioni etichette: NON RUN.
+- [ ] **Portare le famiglie di composizione residue nel renderer `map_plate_render`** — logica: le famiglie già portate coprono l'acquisizione tile; restano le composizioni residue (stile/overlay/etichette) da instradare nel renderer nativo. Dove: `ChrononPlugin/plugins/maps/` (renderer catalog `maps-renderer-catalog.v1.json`), riferimento stato `docs/stato/chronon-plugin.md`. Gate: ogni famiglia mappata o dichiarata fuori perimetro.
+- [ ] **Prova pixel bit-exact del port (raster vector plate)** — logica: il port deve essere bit-exact vs il riferimento Python, altrimenti la parità non è dimostrata. Gate: confronto pixel bit-exact sui plate di test.
+- [ ] **Demolire il percorso Python in ChrononTemplate** — logica: solo dopo la parità bit-exact; il path Python non deve restare seconda authority. Gate: zero riferimenti + canary ChrononTemplate invariati.
+- [ ] **Campioni NVENC/OpenCL e animazioni etichette: NON RUN** — logica: eseguire su host con NVENC/OpenCL. Gate: esito registrato (PASS/NOT RUN motivato).
 
 ## 1. Perché (misure, non stime)
 

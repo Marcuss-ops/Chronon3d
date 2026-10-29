@@ -7,10 +7,12 @@ Stato registrato in `docs/stato/chronon3d.md` §13.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Flag `preview_scale` (1/2, 1/4) in `RenderSettings`/CLI/daemon applicato al solo output display.
-- [ ] Portare il downscale display-bound di RenderingGen P2 nel runtime senza duplicazioni.
-- [ ] Verificare l'interazione col dirty caching nel passaggio preview → full (nessun ricalcolo superfluo).
-- [ ] Misura ≥2× di throughput vs full su scena 3D pesante (metodo dichiarato); pixel invariati con `preview_scale` disabilitato.
+> Logica e punti di intervento completi nel «Piano di chiusura passo-passo» qui sotto; sintesi con dove mettere le mani:
+
+- [ ] **Flag `preview_scale` (1/2, 1/4)** in `RenderSettings`/CLI/daemon applicato al solo output display. Dove: `include/chronon3d/runtime/render_settings.hpp` (o la casa tipi equivalente), parsing CLI (`apps/chronon3d_cli/`), IPC daemon. Verifica: parsing e pass-through al runtime, nessun effetto sui golden.
+- [ ] **Portare il downscale display-bound di RenderingGen P2 nel runtime senza duplicazioni** (3 casi / 23 asserzioni, `docs/stato/renderinggen.md` §2). Verifica: test condivisi o ricollocati, mai copiati.
+- [ ] **Interazione col dirty caching** nel passaggio preview → full (nessun ricalcolo superfluo). Dove: dirty history/refresh lanes del render graph. Verifica: test di transizione senza artefatti di cache.
+- [ ] **Misura ≥2× di throughput vs full** su scena 3D pesante (riferimento: torture render 601 frame, `docs/stato/chronon-template.md` §1.3), metodo dichiarato; pixel invariati con `preview_scale` disabilitato.
 
 ## Goal
 

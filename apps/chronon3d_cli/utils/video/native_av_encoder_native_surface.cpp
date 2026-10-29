@@ -159,17 +159,38 @@ bool NativeAvEncoder::write_native_surface_impl(
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
         }
+        // Delta-temporal RGBA->NV12 handoff. The pooled encode frame is keyed
+        // by its physical Y-plane pointer: the tracker knows which stream
+        // frame's pixels that buffer still holds and accumulates the damage of
+        // every frame since, so only that union needs converting. Anything it
+        // cannot prove falls back to the whole frame (fail-safe, never torn).
+        const void* buffer_key =
+            reinterpret_cast<const void*>(gpu_frame->data[0]);
+        const std::int64_t frame_index =
+            note_stream_frame(dirty_regions, /*unchanged=*/false);
+        const auto scope = frame_continuity_.plan_conversion(
+            buffer_key, frame_index,
+            static_cast<std::uint32_t>(options_.width),
+            static_cast<std::uint32_t>(options_.height));
+        const std::span<const raster::BBox> convert_regions =
+            scope.full_frame
+                ? std::span<const raster::BBox>{}
+                : std::span<const raster::BBox>{scope.regions};
         const auto conversion_t0 = std::chrono::steady_clock::now();
-        if (!compositor_it->second->composite_surface_to_nv12(
+        std::uint64_t converted_plane_bytes = 0;
+        if (!compositor_it->second->composite_surface_to_nv12_measured(
                 reinterpret_cast<CUdeviceptr>(gpu_frame->data[0]),
                 gpu_frame->linesize[0],
                 reinterpret_cast<CUdeviceptr>(gpu_frame->data[1]),
                 gpu_frame->linesize[1],
                 static_cast<std::uint32_t>(options_.width),
                 static_cast<std::uint32_t>(options_.height), cuda_stream_,
-                dirty_regions,
-                media::video::transfer_encode_for(output_frame_format_.transfer))) {
+                convert_regions,
+                media::video::transfer_encode_for(output_frame_format_.transfer),
+                scope.destination_retains_previous_frame,
+                converted_plane_bytes)) {
             spdlog::error("[native_av] direct RGBA->NV12 CUDA compositor failed");
+            frame_continuity_.invalidate(buffer_key);
             av_frame_unref(gpu_frame);
             reusable_cuda_frames_.push_back(gpu_frame);
             return false;
@@ -192,8 +213,7 @@ bool NativeAvEncoder::write_native_surface_impl(
         if (counters_) {
             counters_->native_surface_yuv_frames.fetch_add(1, std::memory_order_relaxed);
             counters_->native_surface_yuv_bytes.fetch_add(
-                static_cast<std::uint64_t>(options_.width) *
-                    static_cast<std::uint64_t>(options_.height) * 3 / 2,
+                converted_plane_bytes,
                 std::memory_order_relaxed);
         }
         gpu_frame->color_range = codec_->color_range;
@@ -218,6 +238,9 @@ bool NativeAvEncoder::write_native_surface_impl(
         }
         pending_cuda_frames_.push_back(
             PendingCudaFrame{gpu_frame, ready, destination, nullptr, {}});
+        // The buffer now holds this stream frame's pixels; later frames reuse
+        // it through the accumulated-damage plan computed above.
+        frame_continuity_.commit(buffer_key, frame_index);
         cuda_pending_peak_ = std::max<std::uint64_t>(
             cuda_pending_peak_, pending_cuda_frames_.size());
         if (counters_) {

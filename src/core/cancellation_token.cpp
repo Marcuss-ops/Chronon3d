@@ -49,7 +49,12 @@ void write_self_pipe(int fd, const char* data, std::size_t size) noexcept {
 #if defined(_WIN32)
     (void)::_write(fd, data, static_cast<unsigned int>(size));
 #else
-    (void)::write(fd, data, size);
+    // The cancellation flag above is authoritative; the pipe is only a wakeup
+    // hint. Keep the async-signal-safe write result observable to compilers
+    // that diagnose ignored system-call results, without logging or retrying
+    // from the signal handler.
+    const auto written = ::write(fd, data, size);
+    (void)written;
 #endif
 }
 

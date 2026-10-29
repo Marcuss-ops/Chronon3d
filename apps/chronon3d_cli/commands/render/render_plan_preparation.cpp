@@ -366,6 +366,11 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
 
         RenderSettings settings;
         settings.fail_on_missing_assets = true;
+        if (options.no_dirty_rects) {
+            settings.dirty.enabled = false;
+            settings.dirty.use_bitmask = false;
+            settings.dirty.use_tiles = false;
+        }
         if (plan.temporal_motion_blur) {
             settings.motion_blur.mode = MotionBlurMode::TemporalAccumulation;
             settings.motion_blur.samples = static_cast<int>(plan.temporal_motion_blur->samples);

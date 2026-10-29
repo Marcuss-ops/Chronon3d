@@ -7,9 +7,9 @@
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Dopo la review su `main`: implementare “one content dimension, one predicate” oppure scartare la proposta.
+- [ ] **Decisione su `main`: implementare “one content dimension, one predicate” oppure scartare la proposta** — logica: il ticket è `PROPOSED` (solo design); la review su `main` deve decidere se la semantica unica contenuto/predicato vale il cambio. Dove se approvata: `include/chronon3d/scene/model/layer/layer.hpp:36-48` (modello), `src/compiler/graph_builder/graph_builder_layer_pipeline.cpp:86,109`, `src/render_graph/builder/graph_builder_coordinates.hpp:96-103`, `graph_builder_source_pass.cpp:72`, refresh lanes (`source.cpp:67`, `multi_source.cpp:28`, `scene_refresh.cpp:151,172`) — coerenti con `docs/adr/ADR-031-layer-content-ref.md`. Gate: o ADR aggiornata a ACCEPTED + migrazione + equivalence corpus, oppure chiusura come scartata con motivazione.
 
 ## 1. Problem, with evidence
 

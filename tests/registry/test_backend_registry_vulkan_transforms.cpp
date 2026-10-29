@@ -83,6 +83,37 @@ TEST_CASE("Vulkan async upload returns a timeline ticket and waits before readba
     CHECK(backend.stats().submissions >= 2);
 }
 
+TEST_CASE("Vulkan frame batch waits on asynchronous uploads before compute") {
+    using namespace chronon3d;
+    backends::vulkan::VulkanBackend backend;
+    const runtime::SurfaceDesc source_desc{
+        2, 2, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::JobPersistent, 0};
+    const runtime::SurfaceDesc destination_desc{
+        4, 4, runtime::PixelFormat::Rgba32Float,
+        runtime::ResourceUsage::Storage,
+        runtime::LifetimeClass::JobPersistent, 0};
+    const std::vector<float> pixels(16, 1.0f);
+    std::vector<float> output(64, 0.0f);
+
+    REQUIRE(backend.create_surface(126, source_desc).ok());
+    REQUIRE(backend.create_surface(127, destination_desc).ok());
+    for (int iteration = 0; iteration < 8; ++iteration) {
+        backend.begin_frame_batch();
+        runtime::UploadTicket ticket{};
+        REQUIRE(backend.upload_surface_async(126, source_desc, pixels, ticket).ok());
+        REQUIRE(ticket.valid());
+        // Intentionally do not host-wait on the upload ticket. The frame
+        // submission must wait on the transfer timeline before sampling.
+        REQUIRE(backend.transform_surface(127, 126, 1, 1, 0.5f).ok());
+        backend.end_frame_batch();
+        REQUIRE(backend.download_surface(127, output).ok());
+        CHECK(output[(1 * 4 + 1) * 4] == doctest::Approx(0.5f));
+        CHECK(output[(0 * 4 + 0) * 4] == doctest::Approx(0.0f));
+    }
+}
+
 TEST_CASE("Vulkan surface release waits for asynchronous work") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     const chronon3d::runtime::SurfaceDesc desc{

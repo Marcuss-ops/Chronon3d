@@ -344,6 +344,13 @@ struct VulkanBackend::Impl {
     std::vector<std::uint64_t> submit_wait_values_;
     std::vector<std::uint64_t> submit_signal_values_;
 
+    void append_pending_upload_wait() {
+        if (uploads.pending_timeline_ticket == 0) return;
+        submit_wait_semaphores_.push_back(timeline_semaphore);
+        submit_wait_stages_.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        submit_wait_values_.push_back(uploads.pending_timeline_ticket);
+    }
+
     Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical,
          VkQueue graphics, std::uint32_t family, VkCommandPool pool,
          bool calibrated_timestamps_supported,
@@ -622,7 +629,8 @@ struct VulkanBackend::Impl {
                    runtime::RenderSurfaceHandle source, BlendMode mode,
                    const std::optional<raster::BBox>& clip = std::nullopt,
                    bool replace = false, float source_scale = 1.0f,
-                   bool weighted_source_over = false);
+                   bool weighted_source_over = false,
+                   bool participates_in_command_plan = true);
     void fill_rect(runtime::RenderSurfaceHandle destination,
                    std::int32_t x0, std::int32_t y0,
                    std::int32_t x1, std::int32_t y1,

@@ -28,6 +28,9 @@ struct VulkanUploadAuthority {
     VulkanBufferAllocation staging{};
     std::array<UploadSlot, kSlotCount> slots{};
     std::size_t next_slot{0};
+    // Highest asynchronous upload still requiring an explicit GPU-side
+    // dependency before a graphics/compute submission may sample its image.
+    std::uint64_t pending_timeline_ticket{0};
 };
 
 } // namespace chronon3d::backends::vulkan

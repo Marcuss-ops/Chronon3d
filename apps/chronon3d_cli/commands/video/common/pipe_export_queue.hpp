@@ -31,12 +31,19 @@ struct FullGraphFramePackage {
     runtime::GpuSlotPool::Lease slot;
     std::shared_ptr<Framebuffer> cpu_fallback;
     std::shared_ptr<FramebufferArena> cpu_arena;
-    /// Regions the RGBA->NV12 encoder boundary may convert selectively. Only a
-    /// producer that can prove the pooled encoder frame already holds this
-    /// frame's pixels outside these regions may fill it; otherwise the frame is
-    /// converted whole (see media/video/nv12_region_policy.hpp). The pipeline
-    /// currently passes none, so the field is the seam for a future producer
-    /// with that proof, not a dirty-rect passthrough.
+    /// This frame's inter-frame damage: a superset of every pixel where the
+    /// frame differs from the previous stream frame, in stream order. The
+    /// producer fills it from the use_dirty_rects-qualified renderer bound
+    /// (temporal adjacency + is_safe_for_dirty_rects policy — the same
+    /// contract that makes the software tile skip sound).
+    ///
+    /// Empty means *unknown* damage, never "no change": the RGBA->NV12
+    /// boundary then converts the whole frame. Destination continuity for a
+    /// partial conversion is not the producer's claim — the encoder proves it
+    /// per pooled buffer by accumulating this damage across the buffer's reuse
+    /// gap (media/video/nv12_frame_continuity.hpp) and widening anything
+    /// unproven to a whole-frame conversion
+    /// (media/video/nv12_region_policy.hpp).
     std::vector<raster::BBox> dirty_regions;
 };
 

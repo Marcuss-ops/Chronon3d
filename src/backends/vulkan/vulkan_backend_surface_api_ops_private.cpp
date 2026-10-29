@@ -110,6 +110,24 @@ graph::RenderOpResult VulkanBackend::copy_surface(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::copy_surface_auxiliary(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle source,
+    const std::optional<raster::BBox>& clip) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 2> touched{destination, source};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->composite(destination, source, BlendMode::Normal, clip, true,
+                          1.0f, false, false);
+    });
+#else
+    (void)destination; (void)source; (void)clip;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::copy_surface_auxiliary: Vulkan support is disabled"));
+#endif
+}
+
 graph::RenderOpResult VulkanBackend::fill_rect_surface(
     runtime::RenderSurfaceHandle destination,
     std::int32_t x0, std::int32_t y0,

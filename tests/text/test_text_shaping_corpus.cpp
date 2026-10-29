@@ -14,6 +14,7 @@
 
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 
 using namespace chronon3d;
 using namespace test_text_quality;
@@ -510,7 +511,7 @@ TEST_CASE("ShapingCorpus: CJK 你好世界 shapes with valid advances") {
 // 8. Emoji family — ZWJ sequence must not be broken
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("ShapingCorpus: emoji family ZWJ sequence stays in one cluster") {
+TEST_CASE("ShapingCorpus: emoji family ZWJ sequence stays in one grapheme") {
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RuntimeContext::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
@@ -523,14 +524,24 @@ TEST_CASE("ShapingCorpus: emoji family ZWJ sequence stays in one cluster") {
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
 
-    // The ZWJ sequence should be treated as one or more clusters but must not
-    // be silently dropped / replaced by .notdef.  If a system emoji font is
-    // present, expect the whole sequence to be merged into one cluster; if
-    // the font is absent, the fail-loud missing-glyph audit must be active.
+    // Unicode grapheme boundaries are the editing/animation unit; a fallback
+    // font may still emit several HarfBuzz clusters for its visible emoji.
+    // Accept either one ligature cluster, all four visible emoji glyphs, or
+    // an explicit missing-glyph report when no usable emoji font is present.
     bool whole_sequence_cluster = false;
+    std::size_t visible_emoji_glyphs = 0;
+    std::string cluster_report;
+    CHECK(chronon3d::detail::grapheme_cluster_count(family) == 1);
     for (const auto& p : m.paragraphs) {
         for (const auto& r : p.runs) {
+            cluster_report += " font=" + r.font_family + " glyphs=";
+            for (const auto glyph : r.glyph_ids) {
+                cluster_report += std::to_string(glyph) + ",";
+                if (glyph > 1) ++visible_emoji_glyphs;
+            }
             for (const auto& cl : r.clusters) {
+                cluster_report += " [" + std::to_string(cl.byte_offset) + "+" +
+                    std::to_string(cl.byte_len) + "]";
                 if (cl.byte_len == family.size()) {
                     whole_sequence_cluster = true;
                 }
@@ -538,7 +549,9 @@ TEST_CASE("ShapingCorpus: emoji family ZWJ sequence stays in one cluster") {
         }
     }
     INFO("missing_glyphs=", m.missing_glyphs);
-    CHECK((whole_sequence_cluster || m.missing_glyphs > 0));
+    INFO("clusters=" << cluster_report);
+    CHECK((whole_sequence_cluster || visible_emoji_glyphs >= 4 ||
+           m.missing_glyphs > 0));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

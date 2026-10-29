@@ -211,7 +211,7 @@ TEST_CASE("VideoSinkType: try_parse is the non-throwing surface, parse throws") 
     CHECK_FALSE(try_parse_video_sink_type("").has_value());
     CHECK_FALSE(try_parse_video_sink_type("bench").has_value());
     CHECK_FALSE(try_parse_video_sink_type("RAW").has_value());
-    CHECK_THROWS(parse_video_sink_type("bench"));
+    CHECK_THROWS((void)parse_video_sink_type("bench"));
 }
 
 TEST_CASE("VideoSinkType: only the encoder and the pre-encode sink are executable") {

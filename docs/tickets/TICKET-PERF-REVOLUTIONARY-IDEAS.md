@@ -22,8 +22,8 @@ Questo ticket raccoglie idee per salti di prestazione (2x, 10x, 100x). Ogni idea
 ## TODO — cosa manca (agg. 2026-10-27)
 
 - [x] Aggiornare l'esito reale delle suite mirate del primo lotto: nessun verde senza test verdi. Esito 2026-10-27 pomeriggio: 12 suite mirate verdi (Debug), 3 fallimenti residui ambientali (corpus glifi, MP4 warm-cold CLI, capability GPU) su path non toccati. Dettaglio in §7 e §5b/P4.
-- [ ] C-10: compilazione delle espressioni in AST/bytecode (prossimo intervento architetturale).
-- [ ] C-1…C-4, C-7…C-9: decidere/misurare su golden (C-1 cambia i numeri del blur, C-2 va misurata sul corpus, C-3 è una riscrittura del rasterizer) o toccano il lane Vulkan/tooling.
+- [ ] **C-10 — compilazione espressioni in AST/bytecode** — logica: le espressioni vengono riparse da stringa a ogni frame per ogni proprietà (collegato a `ADR-DRAFT-HUD-STRUCTURED-BUFFER`); la compilazione a AST/bytecode è il prossimo intervento architetturale. Dove: evaluation espressioni nel graph eval path (`composition_->evaluate`). Gate: benchmark golden con riduzione misurata di `loop_graph_eval`/`loop_other`.
+- [ ] **C-1…C-4, C-7…C-9 — decidere/misurare su golden** — logica: ogni voce cambia numeri o riscrive kernel: C-1 (backdrop blur) cambia i numeri del blur → serve revisione golden; C-2 (bbox utile) va misurata sul corpus prima; C-3 (mesh rasterizer) è una riscrittura completa; C-4/C-5 toccano il lane Vulkan/tooling. Dove: kernel software (`backdrop blur`, `apply_roughen_edges`, `pack_framebuffer_rgba`, maschere RGBA32F) + golden esistenti. Gate: per ogni voce, misura before/after su golden + approvazione dei numeri cambiati.
 
 ## 1. Dati misurati (baseline 2026-10-08, RTX A4000, Vulkan, 1 run per shape)
 

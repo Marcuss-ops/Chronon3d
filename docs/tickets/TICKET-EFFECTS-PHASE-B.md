@@ -6,7 +6,7 @@ for blur/glow/bloom/drop shadow are implemented. Local effects and render-graph
 suites pass; landscape/portrait video E2E and Vulkan pixel certification remain
 open.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
 - [x] Implementare DropShadow in strict Vulkan con alpha-mask, offset, doppia
       blur e compositing source-over; il test di parità è in

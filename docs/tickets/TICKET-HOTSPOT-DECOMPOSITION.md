@@ -5,9 +5,9 @@ Owner: CLI/render maintainers
 Scope: orchestration boundaries, high-churn render paths, and compile-time text
 headers identified by the 2026-09 audit.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Chiudere e registrare l'esito dei criteri di accettazione delle wave residue B–E (packet/mux boundary, render node policies, backend boundaries, text header compile-time).
+- [ ] **Chiudere e registrare l'esito dei criteri delle wave residue B–E** — logica: ogni wave ha criteri di accettazione dichiarati ma l'esito non è registrato; finché manca la registrazione la wave resta aperta. Dove per wave: B (packet/mux boundary) → `src/media/video/mux/packet_assembler.cpp` + `apps/chronon3d_cli/utils/video/gop_target_contract.{hpp,cpp}`; C (render node policies) → `src/render_graph/pipeline/scene.cpp` + `executor/node_runner_fused_batch.cpp`; D (backend boundaries) → `src/render_graph/core/render_graph_hashing.cpp` + `src/runtime/execution_plan_cache.cpp`; E (text header compile-time) → header text + `src/render_graph/CMakeLists.txt`. Gate: per ogni wave, criterio verificato + esito (PASS/PARTIAL/NOT RUN) con evidenza datata.
 
 ## Progress snapshot — 2026-10-02 — shared-lock contention
 

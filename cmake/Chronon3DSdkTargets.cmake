@@ -65,6 +65,14 @@ if(CHRONON3D_BUILD_C_API)
         chronon3d_render_plan
         chronon3d_compiler
     )
+    if(UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        # FFmpeg's static x86 assembly contains PC-relative references to its
+        # own data symbols. Keep archive symbols local to this DSO so the
+        # linker can resolve those references at link time instead of
+        # emitting unsupported dynamic PC32 relocations. The C ABI exports
+        # only its explicitly annotated API symbols.
+        target_link_options(chronon3d_c PRIVATE "LINKER:--exclude-libs,ALL")
+    endif()
     # Windows export contract: define CHRONON3D_BUILD_DLL only while building
     # the shared library so chronon3d.h expands CHRONON3D_API to
     # __declspec(dllexport); consumers see __declspec(dllimport).  No-op on

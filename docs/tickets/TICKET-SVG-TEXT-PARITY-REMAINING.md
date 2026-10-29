@@ -6,11 +6,11 @@
 current `main` head before implementation because the other workstation may
 have advanced it.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] P0: `textLength`/`lengthAdjust` su `<text>` e `<tspan>` annidati; `letter-spacing`/`word-spacing`/`rotate` cluster-aware; regole di combinazione con style run, whitespace, coordinate list e anchor.
-- [ ] P1: contratto pattern-paint bounded completo (gruppi e gradient/stroke nel tile, `objectBoundingBox`, `href` con check di cicli).
-- [ ] P1: TextPath shaping preservato attraverso chunk compatibili + attributi SVG residui.
+- [ ] **P0 — `textLength`/`lengthAdjust` + spacing/rotate cluster-aware** — logica: vincoli annidati inner-to-outer su `<text>`/`<tspan>`, `letter-spacing`/`word-spacing`/`rotate` ereditati con comportamento cluster-aware (mai splitting silenzioso di ligature/grapheme); definire le combinazioni con style run, whitespace, coordinate list e anchor. Dove: importer SVG text + shaping HarfBuzz + layout. Gate: loader/C ABI + raw gates (larghezze parent/child misurate separatamente, due mode `lengthAdjust` confrontati, cluster split fail-closed, repeat byte-identici).
+- [ ] **P1 — contratto pattern-paint bounded completo** — logica: estendere i figli del pattern a gruppi e gradient/stroke nel tile, `objectBoundingBox`, `href` con check di cicli; preservare transform, alpha composition, fill rules e phase attraverso paint/cache/fingerprint. Gate: fixture per ogni forma supportata e ogni rejection + raw fill/stroke gates (phase, bounds, alpha, repeat).
+- [ ] **P1 — TextPath shaping + attributi residui** — logica: preservare lo shaping attraverso chunk compatibili prima del posizionamento sul path (oggi cluster shaped indipendenti), mappare i cluster alle distanze senza inversione RTL; decidere `method`/`spacing`/`side` supportati con rejection esplicita. Gate: fixture LTR/RTL/joining + raw gates ordine glifi/progressione/repeat.
 
 ## Goal and constraints
 

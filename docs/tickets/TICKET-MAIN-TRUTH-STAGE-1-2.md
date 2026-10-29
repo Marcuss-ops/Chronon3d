@@ -1,15 +1,38 @@
 # TICKET-MAIN-TRUTH-STAGE-1-2 — main truth + Wave 0 closeout
 
-**Stato:** BLOCKED — GitHub Actions runner dispatch
+**Stato:** PARTIAL — runner execution restored on latest observed SHA; same-SHA certification is not green
 **Priorità:** P0  
 **Data:** 2026-09-04  
 **Baseline censita:** `main@eb56a6f6c59e6d5ae3eefa1f1cbd69e3ee1f58d1`
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-29)
 
-- [ ] Ripristinare il runner dispatch di GitHub Actions (i job non allocano il runner).
-- [ ] `Chronon CI` green sullo SHA risultante di `main`.
-- [ ] Registrare la post-push main-tip verification dopo il commit.
+- [x] **Runner dispatch osservato funzionante** — sullo SHA remoto `a214fad27efdaa597ccf4e4a8ae34baa6677146e`, i workflow del 2026-10-28 hanno allocato runner ed eseguito gli step; il blocco storico `steps=[]`, `runner_id=0` non descrive più l'ultimo stato osservato.
+- [ ] **`Chronon CI` green sullo SHA risultante di `main`** — logica: close rule del ticket: nessun passaggio VERIFY→DONE senza CI same-SHA green. Gate: run green sul tip di `main`.
+- [ ] **Registrare la post-push main-tip verification** — logica: evidenza datata dopo il commit, come richiesto dai criteri di accettazione residui. Dove: questa scheda + `docs/stato/chronon3d.md`. Gate: riga di stato con SHA + esito.
+
+## Update 2026-10-29 — latest observed Actions state
+
+Read-only `gh run list` confirms the latest listed batch is on
+`a214fad27efdaa597ccf4e4a8ae34baa6677146e`: Reproducible release artifact
+passed; Chronon CI, Developer Gates and CFI were cancelled; Chronon Nightly,
+CodeQL, `chronon3d-runtime`, and Resource leak certification failed. The
+runtime build failed during the Docker CMake/build step. Resource leak logs
+reported `-Wunused-result` for `write()` in `src/core/cancellation_token.cpp`;
+the local source now stores the return value to satisfy the hardened warning
+policy. The Chronon CI Linux Release job also exposed a P0-5A test whose helper
+was hidden behind `CHRONON3D_ENABLE_NATIVE_FFMPEG` while its caller was not,
+plus an ignored `[[nodiscard]]` parse result inside `CHECK_THROWS`; both local
+test-source defects are corrected. Gate 7's complete job log showed its
+primary SDK install failure: `Chronon3DPublicHeaders.cmake` still installed the
+removed `runtime/render_surface_handle.hpp` path; the consumer `find_package`
+and missing-library failures were downstream effects. The manifest now names
+the canonical `core/types/render_surface_handle.hpp`; a static audit found no
+other live missing header entries (the two remaining textual matches are an
+intentionally hidden file and an include-directory exclusion). This fix also
+needs the final SDK gate rerun. The CI cancellation/timeout and runtime failure
+still need triage. These runs establish runner allocation, but they do not
+certify this dirty worktree or satisfy the same-SHA green close rule.
 
 ## Update 2026-10-05 — runner dispatch remains blocked
 
@@ -54,6 +77,18 @@ Sul baseline censito, `src/backends/vulkan/vulkan_kernel_store.hpp` non dichiara
 - `test_vulkan_kernel_store.cpp` blocca l'esistenza dell'owner e il suo stato iniziale nullo.
 
 Questo fix NON implementa il futuro hardening del persistent cache (UUID/device keying, ABI fingerprint, corruption handling, atomic save, daemon concurrency). Quello resta Stage 7.
+
+## Runtime link failure follow-up — 2026-10-29
+
+Il log del job runtime sullo SHA `a214fad` mostra `ld.gold` rifiutare relocation
+`R_X86_64_PC32` da `libavcodec.a`/`libavutil.a` verso simboli dati FFmpeg durante
+il link di `libchronon3d_c.so`. Il port FFmpeg già usa `--enable-pic`; l'archivio
+locale conferma relocation PC32 nell'assembly x86 e simboli FFmpeg interni
+visibili come `GLOBAL DEFAULT`. È stato aggiunto
+`LINKER:--exclude-libs,ALL` soltanto a `chronon3d_c`: i simboli dagli archivi
+statici diventano locali alla DSO, mentre l'API C esplicitamente annotata resta
+esportata. **Fix in verifica**: serve il link SDK/runtime nel batch finale; il
+job remoto e il ticket main truth restano aperti fino al risultato same-SHA.
 
 ## Frame-slot migration census
 
@@ -113,3 +148,14 @@ or test failure.
 ## Close rule
 
 Passare `VERIFY -> DONE` solo quando il commit di questo closeout è realmente il tip di `main` e la CI same-SHA è verde. Il ticket FFmpeg subprocess resta indipendente: questo ticket può chiudere anche con quel demolition debt OPEN, purché il path sia classificato e non sia una seconda production authority nei build native.
+
+
+## SDK C ABI closeout — 2026-10-29
+
+Configured `CHRONON3D_BUILD_C_API=ON` and built `chronon3d_c` successfully
+after adding GNU/Clang Linux `--exclude-libs,ALL` to hide FFmpeg static-archive
+symbols from the shared-library export. Built and ran `chronon3d_c_abi_tests`
+from `/dev/shm/chronon3d-final-bin` to avoid filling the workspace filesystem:
+CTest 1/1 PASS (278.26 s). This closes the local SDK link/ABI check only; the
+ticket remains PARTIAL until reviewed changes are on `main` and same-SHA CI is
+green.

@@ -78,6 +78,7 @@ chronon3d_add_test_suite(
             video/test_composition_capability.cpp
             video/test_direct_yuv_text_contract.cpp
             video/test_nv12_region_policy.cpp
+            video/test_nv12_frame_continuity.cpp
 )
 
 # Video/export suites are selectable with ctest -L video.

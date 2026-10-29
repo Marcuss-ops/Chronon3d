@@ -36,10 +36,10 @@ replaces source alpha on the Lottie path, including zero opacity; generic Fill
 mixing remains unchanged. The native GPU path rejects this Lottie-specific Fill
 mode until it has matching alpha semantics.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Certificazione same-SHA CI.
-- [ ] Residuo dichiarato in coda: testo bezier/procedurale.
+- [ ] **Certificazione same-SHA CI** — logica: tutta l'evidenza presente è locale; il close formale richiede CI green sullo SHA pubblicato. Gate: run green same-SHA.
+- [x] **Residuo testo Bezier/procedurale chiuso come esclusione bounded** — Bezier animator timing, easing/smoothness del selector, text-on-path, box text, custom leading, stroke testo e procedural selectors sono dichiarati fail-closed nel contratto della sezione Point-text; non vengono promessi né reinterpretati in modo lossy.
 
 ## Contratto
 
@@ -300,9 +300,14 @@ mode until it has matching alpha semantics.
   ASan/UBSan: invalid JSON, missing source, root and expanded-layer limits,
   source-byte limit, invalid time-remap values, excessive precomp nesting,
   unsupported expressions, precomp cycles, and cyclic track mattes.
-- [ ] Same-SHA CI certification remains outstanding. Bezier/procedural text
-  animator properties/selectors, nested time-remaps, and unsupported child
-  effect/matte combinations remain outside the supported contract.
+- [ ] Same-SHA CI certification remains outstanding. Nested time-remaps and
+  unsupported child effect/matte combinations remain explicit capability
+  limits; Bezier/procedural text is recorded as a bounded exclusion in TODO.
+
+The unsupported text features are deliberate bounded exclusions, not pending
+implementation work. Only the same-SHA CI certificate remains open in this
+ticket; nested time-remaps and unsupported child effect/matte combinations
+are likewise explicit capability limits above.
 
 Latest local verification (2026-10-26, worktree based on `182addf8e413cff7ac8d96843a2c67b4975c018a`): software video CLI rebuilt with
 `ninja -C build/chronon/linux-video-fast-dev -j12 chronon3d_cli`; the

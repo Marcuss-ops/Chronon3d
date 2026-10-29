@@ -7,9 +7,10 @@ standalone template and its host verification remain pending because the
 template was removed before it acquired the subprocess argument/output
 contract.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Generare il renderer standalone reale dal template e verificarlo con REAL-GREEN-PASS sull'host di verifica indicato.
+- [ ] **Ripristinare il template standalone reale** — logica: `templates/basic/` è stato cancellato (`537081224`) e la versione in history non accetta `--render <comp> -o <out>`; senza un template con quel contratto il wrapper P1 non è verificabile end-to-end. Dove: `templates/basic/chronon.json` + `templates/basic/src/root.cpp` (contratto subprocess: argomenti, exit code, output). Gate: template generato da `chronon create` che compila e rispetta il contratto.
+- [ ] **Verifica REAL-GREEN-PASS sull'host di verifica** — logica: il dispatch CLI (`apps/chronon3d_cli/commands/render/register_render_commands.cpp`, test `tests/cli/test_chronon_project_render_dispatch.cpp`) è già verificato al confine processo; manca il passaggio reale col binary prodotto dal template. Gate: `chronon render HelloWorld -o hello.mp4` produce l'output sull'host indicato (TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX-clean).
 
 ## Problema
 

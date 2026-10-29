@@ -98,6 +98,7 @@ struct BakeLayerArgs {
     std::string comp_id;
     std::string assets_root;
     std::string layer_id;
+    std::string backend{"auto"};
     int frame{0};
     std::string output;
     bool quiet{false};
@@ -105,6 +106,8 @@ struct BakeLayerArgs {
     bool diagnostic_overlay{false};
     bool diagnostic_overlay_only{false};
     bool exr_bake{false};
+    /// Bake-once / composite-many cache root. Empty disables the cache.
+    std::string cache_dir;
 };
 
 struct CameraPathArgs {

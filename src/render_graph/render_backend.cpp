@@ -221,6 +221,13 @@ RenderOpResult RenderBackendSurfaceApi::copy_surface(
             "RenderBackend::copy_surface: native surfaces are not supported"));
     }
 
+RenderOpResult RenderBackendSurfaceApi::copy_surface_auxiliary(
+        runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle source,
+        const std::optional<raster::BBox>& clip) {
+    return copy_surface(destination, source, clip);
+}
+
 RenderOpResult RenderBackendSurfaceApi::fill_rect_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         std::int32_t /*x0*/, std::int32_t /*y0*/,

@@ -118,6 +118,7 @@ TEST_CASE("strict GPU effect capability census covers every catalog effect once"
         CHECK(seen.insert(row.effect).second);
     CHECK(graph::kGpuEffectCapabilityRows.size() == catalog_count);
     std::size_t native = 0;
+    std::set<effects::EffectType> unsupported;
     for (const auto& row : graph::kGpuEffectCapabilityRows)
         if (row.route == graph::GpuEffectRoute::NativeZeroReadback) ++native;
     CHECK(native == graph::gpu_capability_detail::kNativeRoutes.size());

@@ -9,9 +9,9 @@ Strict-native Vulkan hardware certification remains with the user. Arbitrary
 filter graphs and browser-complete SMIL timing are outside this bounded
 importer contract.
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Eseguire il gate completo su un checkout CI clean-SHA.
+- [ ] **Eseguire il gate completo su un checkout CI clean-SHA** — logica: tutta l'accettazione locale (loader, C ABI, raw-pixel gates, golden) è verificata localmente; il close formale richiede lo stesso esito su clean SHA in CI (stesso requisito dei ticket figli di testo). Gate: acceptance gates verdi su CI clean-SHA → chiusura.
 
 ## Obiettivo
 Allow a render plan shape to refer to an SVG asset through the mounted

@@ -4,6 +4,8 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <cstdlib>
+
 namespace chronon3d::backends::vulkan {
 
 // record_composite split per issue #51 into geometry → material →
@@ -156,6 +158,21 @@ void VulkanBackend::Impl::record_composite(
 
         transform.dispatch_origin_x = x0;
         transform.dispatch_origin_y = y0;
+
+        if (std::getenv("CHRONON3D_T05_TRANSFORM_DIAG")) {
+            spdlog::info(
+                "[t05-transform-dispatch] src={}x{} initialized={} "
+                "dst={}x{} initialized={} pass={} command_plan={} "
+                "clip_enabled={} clip=[{},{},{},{}] dispatch_origin={},{} "
+                "dispatch_end={},{} groups={}x{}",
+                source.width, source.height, source.initialized,
+                destination.width, destination.height, destination.initialized,
+                frame_batch.pass_count, frame_batch.command_plan != nullptr,
+                transform.clip_enabled, transform.clip_rect[0],
+                transform.clip_rect[1], transform.clip_rect[2],
+                transform.clip_rect[3], x0, y0, x1, y1,
+                (x1 - x0 + 15) / 16, (y1 - y0 + 15) / 16);
+        }
 
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(transform), &transform);

@@ -562,6 +562,31 @@ TEST_CASE("RenderGraphContext::acquire_owned_fb grows a reused physical slot for
     CHECK(larger->allocated_height() >= 720);
 }
 
+TEST_CASE("planned slot clone preserves GPU-only passthrough surface authority") {
+    RenderGraphContext ctx;
+    auto* slot_ptr = new Framebuffer(64, 64, static_cast<Color*>(nullptr));
+    OwnedFB slot(slot_ptr, PoolFbDeleter(DeleteFramebuffer{}));
+    slot->set_surface_handle(7002);
+    slot->mark_gpu_authoritative();
+    ctx.node_exec.planned_physical_slot = &slot;
+
+    Framebuffer source(32, 24, static_cast<Color*>(nullptr));
+    source.set_surface_handle(9001);
+    source.set_origin(12, 34);
+    source.set_opaque(true);
+    source.set_content_cleared(true);
+    source.mark_gpu_authoritative();
+
+    auto clone = ctx.acquire_owned_fb(source);
+    REQUIRE(clone != nullptr);
+    CHECK(clone->surface_handle() == 9001);
+    CHECK(clone->is_gpu_authoritative());
+    CHECK(clone->origin_x() == 12);
+    CHECK(clone->origin_y() == 34);
+    CHECK(clone->is_opaque());
+    CHECK(clone->is_content_cleared());
+}
+
 TEST_CASE("RenderGraphContext::acquire_framebuffer(const Framebuffer&) reuses reusable_bottom without copy") {
     auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
 

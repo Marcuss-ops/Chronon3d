@@ -4,9 +4,9 @@
 
 IMPLEMENTED / MANIFEST-LOCKED / HOST-CERTIFICATION-PENDING (2026-09-11)
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Reperire il content pack attivo (assente da questo checkout) e lanciare il runner sull'host GPU → certificazione baseline.
+- [ ] **Reperire il content pack e certificare il baseline sull'host GPU** — logica: runner e manifest (17 casi, gate `tests/test_gpu_corpus_manifest.py`) sono pronti; questo checkout è `CHRONON3D_BUILD_CONTENT=OFF` e non contiene il corpus B00–B11/GPU_TEXT, quindi ogni caso decade in `command_failed_before_sidecar`. Serve il content pack attivo + un run su host GPU. Dove: `tools/benchmark_gpu_baseline.sh` + `docs/benchmarks/gpu-corpus-v1.json` (scene risolte dal content pack). Gate: 17/17 sidecar `*.timing.json` con frame count corretto e ≥95% wall-time attribuito; `job.full_file_reread_count = 0` per le run certificate append-only.
 
 ## Contract
 

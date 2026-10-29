@@ -26,10 +26,10 @@ Ground truth dichiarata dall'audit: `build/chronon/linux-video-test/compile_comm
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Certificazione same-SHA dello scope audit (il blocker Vulkan di §7 è fuori scope).
-- [ ] La voce parcheggiata per decisione di contratto si riesamina solo quando la decisione arriva.
+- [ ] **Certificazione same-SHA dello scope audit** — logica: tutte le fix della remediation sono atterrare localmente ma senza run CI same-SHA; serve certificare lo scope su SHA pubblicato (il blocker Vulkan di §7 resta fuori scope). Dove: le unità elencate nella remediation (`src/assets/svg_importer.cpp`, `src/backends/image/exr_mmap.cpp`, `src/core/color/ocio_color_transform.cpp`, `src/daemon/daemon_runtime.cpp`, ecc.). Gate: build + focused tests verdi sullo SHA certificato.
+- [ ] **Voce parcheggiata per decisione di contratto** — logica: non è lavoro eseguibile finché la decisione di contratto non arriva; riesaminare solo allora. Gate: decisione registrata → riesame.
 
 ## 1. P0-1 — Feature-gated TU senza copertura in presets osservati
 

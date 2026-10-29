@@ -4,11 +4,11 @@
 **Priority**: `P2` (non-blocking; contract completeness)
 **Area**: CLI render/video job normalization (Phase 9 CLI/IPC parity)
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Bare strict su host capace → `full_graph_native`, zero readback.
-- [ ] Bare strict senza host capace → fail-close `required_gpu_capability_unavailable`, nessun artifact.
-- [ ] Certificazione same-SHA della lane strict su host GPU.
+- [ ] **Bare strict su host capace → `full_graph_native`, zero readback** — logica: verificare che `--gpu-hot-path-mode require_gpu_native` senza altri flag instradi su `execution_path=full_graph_native` / `surface_handoff_path=direct` con `gpu_native_surface_frames > 0` e `cpu_pixel_readback_bytes == 0`. Dove: `apps/chronon3d_cli/commands/render/register_render_commands.cpp` + `src/media/video/video_execution_resolver.cpp` (derivation già atterrata in `eae160fe7`), sidecar telemetry come `tools/verify_native_image_video.sh`. Gate: sidecar con la forma attesa, stesso SHA.
+- [ ] **Bare strict senza host capace → fail-close** — logica: la stessa richiesta su host senza feed nativo deve fallire con `required_gpu_capability_unavailable` prima del setup, senza artifact. Gate: errore tipizzato registrato, zero output.
+- [ ] **Certificazione same-SHA della lane strict** — logica: i due item sopra sullo stesso SHA pubblicato (evidenza locale attuale è su worktree dirty). Gate: run same-SHA registrato → chiusura del ticket (purge-eligible).
 
 ## Resolution — landed in `eae160fe7`
 

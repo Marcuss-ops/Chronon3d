@@ -1,6 +1,10 @@
 #include "../../commands.hpp"
 #include "../../command_registry.hpp"
+#include "../../utils/common/cli_mappers.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
+#include "bake_layer_cache.hpp"
+#include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/compiler/compiler_pass_pipeline.hpp>
 #include <chronon3d/compiler/compiler.hpp>
@@ -20,6 +24,12 @@ struct BakeLayerState { std::shared_ptr<BakeLayerArgs> args{std::make_shared<Bak
 }
 
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args) {
+    if (args.backend != "auto" && args.backend != "software" &&
+        args.backend != "vulkan") {
+        spdlog::error("[bake-layer] Invalid backend '{}'; expected auto, software, or vulkan",
+                      args.backend);
+        return 1;
+    }
     auto resolved = resolve_composition(registry, args.comp_id);
     if (!resolved) {
         spdlog::error("[bake-layer] Unknown composition: {}", args.comp_id);
@@ -33,7 +43,10 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     const auto assets_root = args.assets_root.empty()
         ? std::optional<std::filesystem::path>{}
         : std::optional<std::filesystem::path>{args.assets_root};
-    auto renderer = create_renderer(registry, settings, std::nullopt, assets_root);
+    Config renderer_config = Config::from_environment();
+    renderer_config.set_backend_preference(parse_backend_preference(args.backend));
+    auto renderer = create_renderer(
+        registry, settings, std::move(renderer_config), assets_root);
     auto& runtime = *renderer->execution_context().runtime;
 
     const auto frame = static_cast<Frame>(args.frame);
@@ -69,6 +82,43 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
         spdlog::error("[bake-layer] Layer '{}' not found in composition '{}'",
                       args.layer_id, args.comp_id);
         return 1;
+    }
+
+    // P3 bake-once / composite-many: resolve the content-addressed cache
+    // entry BEFORE the graph is moved into the compiler. The node digest is
+    // the engine's own content identity (including the effective frame for
+    // temporal nodes); the format, diagnostic and asset-tree inputs are folded
+    // in beside it.
+    std::optional<BakeLayerCache> bake_cache;
+    std::string cache_entry_name;
+    if (!args.cache_dir.empty()) {
+        BakeLayerCacheKeyInput cache_input;
+        cache_input.node_content_digest =
+            graph.node(selection.selected_output).cache_key(graph_ctx).digest();
+        cache_input.width = comp.width();
+        cache_input.height = comp.height();
+        cache_input.exr_bake = args.exr_bake;
+        cache_input.diagnostic_overlay = args.diagnostic_overlay;
+        cache_input.diagnostic_overlay_only = args.diagnostic_overlay_only;
+        cache_input.assets_fingerprint =
+            assets_tree_fingerprint(runtime.resolver().mount_root());
+        cache_input.comp_id = args.comp_id;
+        cache_input.layer_id = args.layer_id;
+        bake_cache.emplace(args.cache_dir);
+        cache_entry_name = bake_layer_cache_filename(cache_input);
+        if (const auto hit = bake_cache->lookup(cache_entry_name)) {
+            if (!bake_cache->materialize(*hit, args.output)) {
+                spdlog::error("[bake-layer] Failed to materialize cached bake to {}",
+                              args.output);
+                return 1;
+            }
+            if (!args.quiet) {
+                spdlog::info("[bake-layer] Cache hit {}: layer '{}' frame {} → {} "
+                             "(baked once, composited without re-render)",
+                             cache_entry_name, args.layer_id, frame, args.output);
+            }
+            return 0;
+        }
     }
 
     if (!args.quiet) {
@@ -123,6 +173,15 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
         return 1;
     }
 
+    // Publish the fresh bake so the next identical request is a file copy.
+    // A failed store is not an error: the bake succeeded, the cache simply
+    // misses next time.
+    if (bake_cache && !bake_cache->store_from(args.output, cache_entry_name) &&
+        !args.quiet) {
+        spdlog::warn("[bake-layer] Could not publish bake into cache {}",
+                     bake_cache->root().string());
+    }
+
     if (!args.quiet) {
         spdlog::info("[bake-layer] Baked layer '{}' to {} ({}x{})",
                      args.layer_id, args.output, fb->width(), fb->height());
@@ -139,6 +198,9 @@ void register_bake_layer_commands(CLI::App& app, CliContext& ctx) {
     bake->add_option("--assets-root", bake_args.assets_root,
                      "Root directory for resolving relative assets");
     bake->add_option("--layer", bake_args.layer_id, "Layer id to bake")->required();
+    bake->add_option("--backend", bake_args.backend,
+                     "Render backend: auto, software, or vulkan")
+        ->default_val("auto");
     bake->add_option("--frame", bake_args.frame, "Frame to bake")->default_val(0);
     bake->add_option("-o,--output", bake_args.output, "Output image path")->required();
     bake->add_flag("--quiet", bake_args.quiet, "Suppress informational messages");
@@ -148,6 +210,9 @@ void register_bake_layer_commands(CLI::App& app, CliContext& ctx) {
     bake->add_flag("--diagnostic-overlay-only", bake_args.diagnostic_overlay_only,
                   "Like --diagnostic-overlay but on transparent background (no scene content)");
     bake->add_flag("--exr-bake", bake_args.exr_bake, "Bake layer as OpenEXR with DWAA compression (linear 16-bit float)");
+    bake->add_option("--cache-dir", bake_args.cache_dir,
+                     "Bake-once/composite-many cache root: repeated identical bakes "
+                     "are served from here without re-rendering");
     bake->callback([state, &ctx]() {
         ctx.exit_code = command_bake_layer(ctx.registry, *state->args);
     });

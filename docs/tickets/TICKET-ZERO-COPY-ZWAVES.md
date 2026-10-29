@@ -29,10 +29,10 @@ protocol), so each wave below states what is **already satisfied** and what
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Z1: typed encoder capability split.
-- [ ] Z3: eseguire `tools/verify_z3_equivalence.sh` su host GPU (codice completo, certificazione pendente).
+- [x] **Z1 — typed encoder capability split** — `EncoderFeed`/`EncoderCapabilitySet` e la matrice DirectYUV sono le autorità tipizzate del resolver; test locali verdi in `chronon3d_zero_copy_capability_tests` (47/47) e `chronon3d_cli_tests` (suite completa PASS).
+- [x] **Z3 — eseguire `tools/verify_z3_equivalence.sh` su host GPU** — RTX A4000, 2 registrazioni ridotte del binario corrente, 2 frame PNG + export NVENC da 3 frame: `EQUIVALENCE_PASS`, pixel resi identici, `gpu_surface_copy_frames=0`, `rgba_to_nv12_frames=1`. Il runner segnala che anche la registrazione di riferimento ha già gate 6 a zero: prova la parità ripetuta e il gate attuale, non quantifica la differenza storica pre/post Z3. Evidenza: `docs/ZERO_COPY_GATES.md`.
 
 ## Z0 — Copy census (DONE, 2026-09-07)
 
@@ -375,3 +375,43 @@ was recorded:
 and direct surface handoff. This certifies the measured FullGraph native lane
 only. `rgba_to_nv12_frames=120` remains expected there; DirectYUV corpus
 certification and the single-backing Z3/Z5 endgame remain open.
+
+## Delta NV12 closeout audit — 2026-10-29
+
+The FullGraph RGBA→NV12 path now tracks per-physical-buffer continuity and
+converts the union of bounded damage since that buffer's prior stream frame;
+unknown buffers, gaps, unbounded damage, and large unions widen to full-frame.
+The graph producer forwards its dirty bound only when the same execution
+qualified dirty rectangles. During review, `DuplicateFrame` was found to be
+assigned after the producer's duplicate filter, allowing a stale rectangle to
+enter a package in that path. The flag assignment now precedes filtering.
+`Nv12FrameContinuity` focused tests and CLI/video suites had passed earlier in
+this worktree. A current-tree focused sidecar run later passed 5/5 cases and
+107 assertions; the complete CLI test binary passed 273/273 cases and 5,563
+assertions. Strict Vulkan/NVENC probes of a moving title (72 frames) and moving
+rectangle (40 frames) decoded fully but conservatively widened to full-frame
+conversion. A later 72-frame, 40×40 moving-shape fixture crossed the 34-slot
+encoder ring and exercised the partial path: 39/72 partial handoffs,
+102,843,972 written Y+UV bytes versus 223,948,800 for full conversion (54.077%
+saved). The same plan exported with `render --plan --no-dirty-rects` produced 0
+partial handoffs. All 72 decoded frames match per-frame MD5 exactly and both
+MP4s have the same SHA-256. The flag plumbing was corrected after the initial
+reference attempt exposed that it was not reaching render-plan preparation.
+Evidence is in `docs/evidence/nv12-delta-20261029/`; the bounded-fixture
+partial-export parity and byte-savings gate now passes. B2/B3 performance
+acceptance, the broad native-image corpus, and same-SHA GPU certification remain
+separate.
+
+### NV12 conversion-byte telemetry correction — 2026-10-29
+
+The `native_surface_yuv_bytes` job counter previously reported a full-frame
+Y+UV estimate even when the delta path launched kernels for proven partial
+regions. It now counts the actual Y samples and UV pairs written by the
+normalized conversion plan, including odd frame edges and repeated overlapping
+launches. The measured compositor overload reports the byte count from the
+same plan it launches, so telemetry adds no duplicate planning pass. CPU-safe
+policy tests cover full-frame, partial, odd-sized and overlapping-region
+accounting. The serializer publishes these counters, and the bounded fixture
+confirms that the partial-handoff counter records 39 frames (not the duplicate
+encoder-side count previously observed). Its full-frame reference comparison
+passes as documented above.

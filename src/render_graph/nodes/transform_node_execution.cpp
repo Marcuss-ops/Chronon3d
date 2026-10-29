@@ -11,6 +11,7 @@
 #include <span>
 #include <array>
 #include <bit>
+#include <cstdlib>
 #include <cstring>
 
 #include "native_surface.hpp"
@@ -452,6 +453,31 @@ NodeExecResult TransformNode::execute(
                     "TransformNode: unable to allocate native affine output handle"));
         }();
         if (created.ok()) {
+            if (std::getenv("CHRONON3D_T05_TRANSFORM_DIAG")) {
+                spdlog::info(
+                    "[t05-transform] node='{}' source={} destination={} "
+                    "destination_size={}x{} origin={},{} terminal={} "
+                    "clip_enabled={} clip=[{},{},{},{}] "
+                    "source_x=[{:.9g},{:.9g},{:.9g},{:.9g}] "
+                    "source_y=[{:.9g},{:.9g},{:.9g},{:.9g}] "
+                    "max_source={:.9g},{:.9g} opacity={:.9g} bilinear={} "
+                    "denominator_bits={},{},{} blend_source_over={} "
+                    "clear_target={}",
+                    name(), input->surface_handle(), handle,
+                    result->width(), result->height(), result->origin_x(),
+                    result->origin_y(), terminal_destination,
+                    transform.clip_enabled, transform.clip_rect[0],
+                    transform.clip_rect[1], transform.clip_rect[2],
+                    transform.clip_rect[3], transform.source_x[0],
+                    transform.source_x[1], transform.source_x[2],
+                    transform.source_x[3], transform.source_y[0],
+                    transform.source_y[1], transform.source_y[2],
+                    transform.source_y[3], transform.max_x, transform.max_y,
+                    transform.opacity, transform.bilinear,
+                    transform.padding[0], transform.padding[1],
+                    transform.padding[2], transform.blend_source_over,
+                    !terminal_destination);
+            }
             // A new storage image has undefined contents. The affine pass
             // writes only its clipped/source-covered rectangle, so establish
             // transparent pixels before dispatch to prevent an opaque black

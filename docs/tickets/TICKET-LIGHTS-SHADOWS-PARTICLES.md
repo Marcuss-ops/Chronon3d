@@ -65,20 +65,24 @@ fallisce sugli identificatori `near`/`far` e sugli schema JSON generati troppo
 lunghi. Il WSL locale usa solo `llvmpipe` per Vulkan. Finché uno di questi
 blocchi non è risolto, T05 resta **PARTIAL**.
 
-## TODO — stato aggiornato 2026-10-28
+## TODO — stato aggiornato 2026-10-29
 
 - [x] Pass `ShadowNode` Vulkan strict-native implementato e un frame esportato
   su RTX A4000/NVENC (evidenza sotto).
-- [ ] A/B strict-native valido e revisione di qualità su uno shot di produzione;
-  il frame corrente non mostra un'ombra chiaramente visibile.
+- [ ] **A/B strict-native stabile + revisione qualità** — logica: l'accettazione senza probe del 29 Oct è completa 5/5 off e 5/5 on, ma il rerun Release guarded successivo è sceso a 2/5 per entrambi (sync-validation: 2/5 off, 3/5 on). Gli snapshot sondati hanno output Transform/Lighting talvolta zero; la causa non è provata. Stabilizzare l'esecuzione, ripetere l'A/B e revisionare l'ombra su shot di produzione. Dove: native surface path e backing cropped reuse.
 - [x] Istanziamento GPU per particelle circolari, bokeh e sprite nel percorso
   Vulkan strict-native: un `SourceNode` per emettitore invia le istanze campionate
   a un dispatch `LayerBatch`; gli sprite riusano la superficie asset preparata.
   Il ramo CPU conserva la materializzazione esistente e il ramo strict fallisce
   esplicitamente se il backend non offre il batching.
-- [ ] Eseguire la regressione Vulkan e la parità pixel sullo SHA pubblicato;
-  misurare anche C2 (1k/10k/100k particelle) prima di dichiarare un guadagno.
-- [ ] Regressione e certificazione same-SHA dopo review/commit.
+- [x] **Regressione Vulkan locale + misura C2** — suite backend registry completa sul tree corrente PASS (1/1 CTest, 223.09 s; include il pass nativo e la regressione upload→frame-batch 8 iterazioni/50 assert); C2 strict Vulkan/NVENC misurato a 1k/10k/100k. Evidenze in `docs/evidence/lights-shadows/T05-native-vulkan-20261029/`. Questi risultati locali non sostituiscono la certificazione sullo SHA pubblicato.
+- [ ] **Regressione e certificazione same-SHA dopo review/commit.**
+
+Per localizzare il backing fisico quando l'output è zero, il batch conclusivo
+può abilitare `CHRONON3D_T05_SURFACE_ID_DIAG=1`: affine Transform e Lighting
+registrano handle logico, identità `VkImage`, pass, piano sync e stato
+initialized. Correlare con `[native-content-diag]` e i normali run senza probe.
+La sonda aiuta a distinguere riuso/alias del backing, ma non prova la stabilità.
 
 ### Aggiornamento 2026-10-28 — prova RTX A4000
 
@@ -116,10 +120,25 @@ blocchi non è risolto, T05 resta **PARTIAL**.
   Vulkan; l'ordine painter resta stabile fra i gruppi.
 - La regressione verifica compositing e conteggio delle istanze del kernel.
   Shader/SPIR-V/ABI, backend, graph builder, materializer e unità di test sono
-  stati compilati in modo mirato con Ninja `-j14`. La suite non è stata
-  collegata o eseguita: il target locale richiede 343 passaggi. Parità visiva,
-  prova hardware same-SHA e misure C2 restano aperte; la feature è implementata,
-  ma T05 resta **PARTIAL — OPEN**.
+  stati compilati; la regressione RTX A4000 ora passa: 2 casi / 22 asserzioni
+  per batching di dischi e sampling sprite con affine/tinta/opacità. Parità
+  visiva, prova hardware same-SHA e misure C2 restano aperte; la feature è
+  implementata, ma T05 resta **PARTIAL — OPEN**.
+
+### Aggiornamento 2026-10-28 — regression clone e indice del piano
+
+- Build `chronon3d_cli`, `chronon3d_core_tests` e
+  `chronon3d_backend_registry_tests` riuscita con Ninja `-j12` dopo
+  l'introduzione della copia ausiliaria che non consuma l'indice del
+  `CommandPlan`.
+- La regressione Lighting→clone nello stesso batch passa su RTX A4000 (1 caso /
+  34 asserzioni), con snapshot `JobPersistent` prima del submit; il clone GPU
+  non pianificato da superficie caricata passa a 3 dimensioni (1 caso / 36
+  asserzioni); il clone con slot pianificato passa (1 caso / 7 asserzioni).
+- La suite particelle Vulkan passa (2 casi / 22 asserzioni). Non sono ancora
+  state rieseguite le scene T05 complete: il fix dell'indice è candidato e il
+  controllo caster-off, la ripetibilità, la review qualità e C2 restano aperti
+  fino ai rerun finali.
 
 ## Audit di partenza (2026-10-08)
 
@@ -245,3 +264,194 @@ blocchi non è risolto, T05 resta **PARTIAL**.
   `chronon3d_cli_tests`, `chronon3d_particles` (nuovo se serve), più la suite
   ChrononMotion3D `motion_authoring`.
 - Ogni claim con exit code e numero di casi.
+
+### Audit statico aggiuntivo — 2026-10-29
+
+Il route T05 osservato in CLI entra nel normale `begin_frame_batch()` (il trace
+locale precedente ha mostrato `command_plan == nullptr`). Le operazioni di
+superficie passano da `run_batched_surface_op()`, che acquisisce il submission
+mutex durante l'intera registrazione; descriptor allocation, aggiornamento dei
+binding e `frame_batch.pass_count` non vengono quindi eseguiti in parallelo da
+questo percorso. Questo restringe l'ipotesi di race sul command buffer/indice,
+ma non identifica la causa del contenuto zero ai nodi Transform. Ownership e
+riuso delle immagini, lifetime dei framebuffer e stato del grafo restano da
+isolare; T05 rimane **PARTIAL — OPEN**.
+
+### Lifetime and affine-transform audit — 2026-10-29
+
+Static review found no missing `Image::initialized` reset in the Vulkan image
+materializer or transient-retirement path: rematerialization clears the flag,
+and retiring an unleased transient clears it before slot reuse. This does not
+prove the wider graph lifetime correct. Added the opt-in
+`CHRONON3D_T05_TRANSFORM_DIAG=1` trace at the native affine Transform call; it
+records source/destination handles, output extent and origin, dispatch origin,
+local clip, source-coordinate mapping, projective denominator bits, opacity,
+sampling mode and source-over mode. The backend emits the actual clamped
+dispatch rectangle/groups and destination initialization state separately, so
+the recorded dispatch is not inferred from node inputs. Use it in the final strict-native rerun to
+compare empty and visible Transform outputs. It also marks the terminal
+encode-surface case, which skips the transparent clear to preserve existing
+contents; verify that its dispatch covers the intended output. The cause
+remains open until that rerun identifies a concrete mismatch and the fix passes
+the repeated caster on/off gate.
+
+### Transform/content snapshot rerun — 2026-10-29
+
+One strict Vulkan/NVENC `caster-off` render completed with the Transform and
+surface-snapshot probes enabled. Dispatches had valid bounds and initialized
+surfaces. Readback snapshots showed non-zero floor and hero Transform outputs
+(means 0.433264 and 0.221241) followed by zero Lighting outputs; the secondary
+caster remained visible through Lighting (mean 0.166338). The 1408×595 empty
+Transform is fed by a transparent Clear node and is not by itself evidence of
+lost authored content. This localizes one observed loss after Transform, near
+the Lighting read/write or resource-lifetime boundary, but one probed frame
+does not establish the root cause. Full per-node results are in
+`docs/evidence/lights-shadows/T05-native-vulkan-20261028/README.md`; five
+strict-native repeats without snapshots pass as recorded below. The root cause,
+shadow quality and C2 remain open. T05 stays **PARTIAL — OPEN**.
+
+### Repeated no-probe acceptance — 2026-10-29
+
+Five strict Vulkan/NVENC reruns per mode, without diagnostic probes, all encoded
+and decoded. Caster-off: 5/5 complete, identical decoded RGB hash, mean
+53.180168/255. Caster-on: 5/5 complete, three decoded hashes, means
+53.445176–53.529876/255. None was black or backdrop-only, improving the
+observed complete-output rate from 3/5 to 5/5 in both modes versus the 28 Oct
+rerun. The visual on/off pair differs by mean absolute channel value
+0.470675/255, with 105,575 pixels (>3 code values) changed over the
+subjects/floor area; the cast shadow is visible but subtle.
+
+A separate `CHRONON3D_PATH_DIAG=1` render reported the same finite lighting
+multiplier `(0.5790, 0.5303, 0.4549)` for floor and both casters. Clone logs
+showed distinct source/destination surface handles for passthrough copies;
+this reduces support for a bad multiplier or simple logical-handle alias, but
+does not prove which physical resource was read by each Lighting dispatch.
+The snapshot-only zero Lighting observations therefore remain unexplained and
+the general lifetime-black cause is not claimed solved. Full logs, MP4s,
+per-run hashes and pixel statistics are in
+`docs/evidence/lights-shadows/T05-native-vulkan-20261029/`.
+
+### C2 particle measurements — 2026-10-29
+
+The reproducible 1080p/one-frame plans were rendered in strict Vulkan with
+native NVENC and decoded for a pixel digest. End-to-end CLI wall time, including
+startup and encoder close/mux, was 2.047 s at 1k, 2.607 s at 10k, and 7.998 s
+at 100k particles. Decoded RGB means were 10.184, 11.812, and 24.978/255,
+respectively. These are the first measurements for these fixtures, not a
+before/after speedup claim; the wall time is not isolated GPU kernel time.
+Commands, side-by-side output digests and logs are in
+`docs/evidence/lights-shadows/T05-native-vulkan-20261029/c2-results.json`.
+The separate particle instancing/parity acceptance remains tied to the broader
+GPU and same-SHA gates.
+
+
+### Release lifetime-black reruns — 2026-10-29
+
+The newer Release acceptance supersedes the earlier 5/5 + 5/5 no-probe result
+above as the current status. With physical Vulkan image-alias guards enabled,
+`release-guarded` completed 2/5 caster-off and 2/5 caster-on renders; all
+outputs decoded, and none of the guards fired. A separate run with Vulkan sync
+validation completed 2/5 off and 3/5 on, with no `VUID-`, `SYNC-HAZARD`, or
+validation-error log entries. These are acceptance failures despite successful
+process exits and decode.
+
+An async-upload timeline wait was added to normal and frame-batch submissions,
+with an 8-iteration regression test (50 assertions) passing on the backend
+registry target. It did not stabilize T05. Release snapshots show valid source
+color surfaces but intermittent zero output already at Transform, and occasional
+zero Composite output; the loss therefore is not localized only to Lighting.
+The physical alias guards and sync validation did not identify a hazard. The
+root cause is still unknown and T05 remains **PARTIAL — OPEN**.
+
+Evidence: `docs/evidence/lights-shadows/T05-native-vulkan-20261029/`
+(`acceptance-results-release-guarded.json`,
+`acceptance-results-release-sync-check.json`, probe snapshots and
+`diagnostic-release-synced-off-*.log`). The async upload regression is in
+`tests/registry/test_backend_registry_vulkan_transforms.cpp`.
+
+### Follow-up surface-lifetime audit — 2026-10-29
+
+Reviewed the unplanned frame-batch route used by the failing render. Each
+surface operation acquires leases for its source and destination before it
+records commands; `resolve_image()` records the active frame slot for every
+resolved handle; and `release_surface()` defers deletion while the frame batch
+is active. Deferred deletion checks every recorded slot against in-flight and
+currently-recording slots before erasing a binding. This rules out the simple
+claim that an ordinary `release_surface()` frees a surface immediately after
+one operation records it. It does not prove the entire graph ownership or
+physical-slot history correct, and it does not explain the intermittent zero
+Transform outputs. No lifetime fix is justified by this audit alone; T05
+remains **PARTIAL — OPEN** pending a concrete reproducer/root-cause trace.
+
+
+### Final no-probe acceptance and identity snapshot — 2026-10-29
+
+The final five-run no-probe batch (`acceptance-results-final.json`) does not
+reproduce the earlier 5/5 + 5/5 result: caster-off produced 4/5 complete
+frames; run 5 decoded to mean RGB 5.0228/255 (max 191, 349,132/6,220,800
+nonzero channels). Caster-on produced 3/5 complete frames; run 3 mean was
+0.9409/255 (max 127) and run 5 mean 0.6592/255 (max 28). Every renderer and
+decoder exited 0, so process success is not acceptance. The three complete
+on-renders have mean RGB 53.5169/255.
+
+A separate identity/snapshot probe of a successful caster-on render found
+distinct source/destination `VkImage` objects and initialized images for the
+observed transforms and Lighting operations. Source color, Lighting and final
+composite snapshots had nonzero content; an empty Transform/DepthGrade chain
+was transparent as expected. This healthy sample does not localize the failure
+in the degraded no-probe runs, so it neither proves nor fixes the lifetime
+race. The T05 lifetime-black root cause, stable 5/5 acceptance and shadow
+quality review remain **OPEN**.
+
+Evidence: `acceptance-results-final.json`, `acceptance-final-*.log/.mp4`, and
+the opt-in snapshot log `/dev/shm/t05-final-id-on.log` (temporary local
+diagnostic).
+
+
+### Follow-up probe batch — 2026-10-29
+
+Five caster-off renders with graph-edge, surface-snapshot, transform-dispatch,
+and physical `VkImage` identity probes reproduced 1/5 fully black, 2/5
+near-black/degraded, and 1/5 full-quality frames (probe mode alters timing, so
+this is diagnostic only). In all cases, graph inputs resolved and color-source
+snapshots were populated. The failing samples showed nonzero affine Transform
+outputs followed by zero Lighting outputs for particular layers; the recorded
+source and destination `VkImage` values were distinct, initialized, and had
+matching layer extents, with nonempty dispatch rectangles. No Vulkan validation
+error was present. The loss is now narrowed to content production/visibility at
+the per-layer GPU pass boundary, but this evidence does not yet distinguish a
+shader/descriptor execution issue from image synchronization or lifetime reuse.
+No production fix is justified yet; T05 remains **PARTIAL — OPEN**.
+
+The descriptor-binding follow-up was subsequently built and run with
+`CHRONON3D_T05_DESCRIPTOR_DIAG=1` (log: `/dev/shm/t05-current-descriptor-probe.log`).
+The three Lighting dispatches used distinct descriptor sets, source/destination
+views, images, and VMA allocations; each source/destination pair had matching
+extents and both images were marked initialized. `write_descriptors()` maps
+binding 0 to the destination view and binding 1 to the source view, matching
+`lighting.comp`. In this probe, Transform nodes 8/13/18 had nonzero content;
+Lighting nodes 14/19 read back as zero while node 9 remained nonzero. This
+rules out an obvious host-side source/destination swap or descriptor-set reuse,
+but does not prove shader execution, device-side contents at dispatch, or
+synchronization/lifetime correctness. The probe changes timing and is not an
+acceptance run. The lifetime-black root cause and a stable 5/5 Release
+acceptance remain open; T05 stays **PARTIAL — OPEN**.
+
+### Final current-tree Release rerun after descriptor diagnostics — 2026-10-29
+
+Rebuilt `chronon3d_cli` in `linux-video-release` from the current working tree
+and reran the five caster-off plus five caster-on strict-native acceptance
+renders without probes. All 10 renderer and decoder processes exited 0. The
+acceptance classifier counted 3/5 complete off frames and 5/5 on frames;
+off-run RGB means were 17.9229, 53.1802, 53.1802, 5.0228, and 53.1802, while
+on-run means were 53.5299, 53.5169, 53.5169, 53.5169, and 51.6293. Against the
+immediately prior no-probe batch (4/5 off, 3/5 on), this is −1 complete off
+frame and +2 complete on frames. The result remains intermittent and does not
+identify the lifetime-black cause; T05 stays **PARTIAL — OPEN**.
+
+Evidence: `acceptance-results-current-release-20261029.json` and matching
+`acceptance-current-release-20261029-{off,on}-*.log/.mp4` files.
+The current-tree backend-registry Lighting focus also passes 3/3 cases and
+69/69 assertions (`lighting-focused-current.log`); it covers directional
+Lighting, alpha/multiplier parity, and a GPU-only clone in the same frame batch.
+This unit-level success does not override the intermittent graph acceptance.

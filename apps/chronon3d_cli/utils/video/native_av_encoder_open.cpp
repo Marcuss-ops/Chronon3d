@@ -174,6 +174,10 @@ void NativeAvEncoder::reset_open_state(const FfmpegPipeOptions& options) {
     codec_packets_received_ = 0;
     codec_frames_submitted_ = 0;
     mux_packets_written_ = 0;
+    // P1: a new session starts with no encoded stream and no pooled buffer
+    // holding a known frame — every buffer begins as "unknown" again.
+    frame_continuity_.reset();
+    continuity_note_index_ = 0;
     first_encoder_packet_pts_ = -1;
     last_encoder_packet_pts_ = -1;
     // P1 run-anchor duplication state (pooled re-open must not inherit a

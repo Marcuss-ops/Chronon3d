@@ -10,9 +10,10 @@
 // That fact is not free, and it is not implied by the graph's dirty set:
 //
 //   * a persistent surface the renderer patches in place satisfies it;
-//   * a pooled encoder frame obtained fresh from the hwframe pool does NOT.
-//     Its bytes outside the converted region are whatever the recycled buffer
-//     happened to hold, so a partial handoff silently publishes a torn frame.
+//   * a pooled encoder frame obtained fresh from the hwframe pool does not
+//     satisfy it by itself. Its bytes outside the converted region are whatever
+//     the recycled buffer happened to hold. A per-buffer continuity tracker can
+//     establish the proof after a known conversion and bounded damage history.
 //
 // Observed failure this contract prevents: multi-layer clips (background +
 // foreground + watermark) rendered every layer, yet the encoded frame was a
@@ -46,10 +47,29 @@ struct Nv12ConversionPlan {
 
     /// True when a non-empty request was widened to the full frame because the
     /// caller could not prove the destination retains the previous frame.
-    /// Producers must treat this as a contract violation to fix, not as a
-    /// benign fallback.
+    /// The request is safely widened to a whole-frame conversion.
     bool partial_rejected{false};
 };
+
+/// Counts the Y and UV plane bytes written by the conversion kernels for this
+/// plan. Overlapping regions are counted more than once because each launch
+/// rewrites those samples. The plan's regions are expected to be clamped and
+/// aligned by `plan_nv12_conversion`.
+[[nodiscard]] inline std::uint64_t nv12_conversion_written_bytes(
+    const Nv12ConversionPlan& plan) noexcept {
+    std::uint64_t bytes = 0;
+    for (const auto& region : plan.regions) {
+        const auto width = static_cast<std::uint64_t>(
+            std::max(0, region.x1 - region.x0));
+        const auto height = static_cast<std::uint64_t>(
+            std::max(0, region.y1 - region.y0));
+        const auto luma_bytes = width * height;
+        const auto chroma_width = (width + 1) / 2;
+        const auto chroma_height = (height + 1) / 2;
+        bytes += luma_bytes + chroma_width * chroma_height * 2;
+    }
+    return bytes;
+}
 
 /// Normalizes a requested region set into admissible conversion launches.
 ///

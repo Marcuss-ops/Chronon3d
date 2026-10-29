@@ -1,9 +1,18 @@
 # TICKET-VIDEO-CODEC-BOUNDARY — the codec boundary gets one decision language
 
-## TODO — cosa manca (agg. 2026-10-27)
+## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] `BoundaryReencode` (finding CB-2): implementare il boundary re-encoder che consuma il modello di dipendenze GOP; poi demolire `hybrid_pipeline_unavailable`.
-- [ ] Decisione per-layer vs per-job (esperimento 4): oggi resta un flag di job.
+- [ ] **`BoundaryReencode` (finding CB-2)** — logica: il resolver decide già `BoundaryReencode` per gli intervalli ibridi ma nessun boundary re-encoder esiste che consumi il modello di dipendenze GOP (PTS/DTS/time-base preservati fino al `GopExecutionPlan`); quando atterra, il downgrade `hybrid_pipeline_unavailable` diventa il candidato da demolire. Dove: executor video CLI (`apps/chronon3d_cli/utils/video/`), `src/media/video/video_execution_resolver.cpp`, `MinimumWorkSchedule`/`GopExecutionPlan`. Gate: test boundary su intervalli ibridi + parity harness del BoundaryReencode (P0-5B di `TICKET-SCALE-P0`) + demolizione del downgrade con receipt strutturata.
+- [x] **Decisione per-layer vs per-job (esperimento 4)** — confermato per-job: codec, changed intervals, stream timestamps, muxer e GOP execution plan appartengono alla singola esportazione; una decisione per-layer richiederebbe output/mux separati e un contratto non esistente. Se servirà una policy diversa per un layer, va espresso come job di export separato.
+
+### Decisione per-job — 2026-10-29
+
+`VideoExecutionDecision` resta al confine del job. Il resolver riceve le
+capability del dispositivo e la schedule GOP dell'intera esportazione; non
+esistono stream/muxer indipendenti per layer. Spostare ora la scelta nei layer
+duplicherebbe la policy e non cambierebbe il piano realmente eseguito. La
+checkbox dell'esperimento 4 è chiusa; `BoundaryReencode` resta un follow-up
+distinto finché non esiste un executor che preservi PTS/DTS/time-base.
 
 ## Contesto
 

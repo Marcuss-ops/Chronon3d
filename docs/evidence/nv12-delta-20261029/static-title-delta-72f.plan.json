@@ -1,0 +1,71 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "nv12-delta-validation-20261029-static-title-72f",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 72
+  },
+  "output": {
+    "path": "static-title-delta-72f.mp4",
+    "format": "mp4",
+    "codec": "h264"
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "color",
+      "size": [
+        1920,
+        1080
+      ],
+      "color": [
+        0.015,
+        0.02,
+        0.03,
+        1.0
+      ],
+      "duration_frames": 72
+    },
+    {
+      "id": "static-title",
+      "type": "text",
+      "text": "CHRONON",
+      "position": [
+        160,
+        330
+      ],
+      "size": [
+        1600,
+        360
+      ],
+      "style": {
+        "font": "tests/fixtures/Inter-Bold.ttf",
+        "font_size": 180,
+        "fill": "#F1DDDD"
+      },
+      "duration_frames": 72,
+      "animation": {
+        "tracks": [
+          {
+            "property": "position_x",
+            "easing": "linear",
+            "keyframes": [
+              {
+                "frame": 0,
+                "value": 160
+              },
+              {
+                "frame": 71,
+                "value": 180
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

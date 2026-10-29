@@ -61,6 +61,11 @@ public:
     virtual RenderOpResult copy_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         const std::optional<raster::BBox>& clip = std::nullopt);
+    // Copies used to preserve an internal framebuffer value do not represent
+    // a compiled graph pass and must not consume a CommandPlan transition.
+    virtual RenderOpResult copy_surface_auxiliary(
+        runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+        const std::optional<raster::BBox>& clip = std::nullopt);
     virtual RenderOpResult fill_rect_surface(
         runtime::RenderSurfaceHandle destination, std::int32_t x0, std::int32_t y0,
         std::int32_t x1, std::int32_t y1, const Color& color);
