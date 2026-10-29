@@ -19,6 +19,13 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
             throw std::runtime_error("inline_mesh is only valid for mesh layers");
         const auto& raw_mesh = value.at("inline_mesh");
         InlineMeshPlan mesh;
+        if (raw_mesh.contains("metallic_roughness_texture")) {
+            if (!raw_mesh["metallic_roughness_texture"].is_string())
+                throw std::runtime_error("inline_mesh.metallic_roughness_texture must be a logical path string");
+            mesh.metallic_roughness_texture_asset = raw_mesh["metallic_roughness_texture"].get<std::string>();
+            if (invalid_logical_path(mesh.metallic_roughness_texture_asset))
+                throw std::runtime_error("inline_mesh.metallic_roughness_texture must be a safe logical path");
+        }
         if (raw_mesh.contains("primitive")) {
             if (raw_mesh.contains("vertices") || raw_mesh.contains("indices"))
                 throw std::runtime_error("inline_mesh primitive and raw vertices/indices are mutually exclusive");
@@ -112,6 +119,14 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
         }
         if (raw_mesh.contains("material")) {
             const auto& raw_material = raw_mesh.at("material");
+            if (!raw_material.is_object()) throw std::runtime_error("inline_mesh.material must be an object");
+            static const std::unordered_set<std::string> material_fields{
+                "diffuse", "specular", "shininess", "rim_intensity", "base_color",
+                "metallic", "roughness", "emissive", "double_sided"};
+            static const std::unordered_set<std::string> alpha_material_fields{"alpha_cutoff"};
+            for (auto it = raw_material.begin(); it != raw_material.end(); ++it)
+                if (!material_fields.contains(it.key()) && !alpha_material_fields.contains(it.key()))
+                    throw std::runtime_error("inline_mesh.material has unknown field '" + it.key() + "'");
             InlineMeshMaterialPlan material;
             material.diffuse = raw_material.value("diffuse", material.diffuse);
             material.specular = raw_material.value("specular", material.specular);
@@ -124,6 +139,17 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
                     decoded[component] = color.at(component).get<float>();
                 material.base_color = decoded;
             }
+            if (raw_material.contains("metallic")) material.metallic = raw_material.at("metallic").get<float>();
+            if (raw_material.contains("roughness")) material.roughness = raw_material.at("roughness").get<float>();
+            if (raw_material.contains("emissive")) {
+                const auto& color = raw_material.at("emissive");
+                std::array<float, 3> decoded{};
+                for (std::size_t component = 0; component < decoded.size(); ++component)
+                    decoded[component] = color.at(component).get<float>();
+                material.emissive = decoded;
+            }
+            if (raw_material.contains("double_sided")) material.double_sided = raw_material.at("double_sided").get<bool>();
+            if (raw_material.contains("alpha_cutoff")) material.alpha_cutoff = raw_material.at("alpha_cutoff").get<float>();
             if (!std::isfinite(material.diffuse) || material.diffuse < 0.0f || material.diffuse > 1.0f ||
                 !std::isfinite(material.specular) || material.specular < 0.0f || material.specular > 1.0f ||
                 !std::isfinite(material.shininess) || material.shininess < 1.0f || material.shininess > 1024.0f ||
@@ -132,6 +158,14 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
             if (material.base_color && !std::all_of(material.base_color->begin(), material.base_color->end(),
                     [](float component) { return std::isfinite(component) && component >= 0.0f && component <= 1.0f; }))
                 throw std::runtime_error("inline_mesh.material.base_color components must be finite and in [0, 1]");
+            if ((material.metallic && (!std::isfinite(*material.metallic) || *material.metallic < 0.0f || *material.metallic > 1.0f)) ||
+                (material.roughness && (!std::isfinite(*material.roughness) || *material.roughness < 0.0f || *material.roughness > 1.0f)))
+                throw std::runtime_error("inline_mesh.material metallic/roughness must be finite and in [0, 1]");
+            if (material.emissive && !std::all_of(material.emissive->begin(), material.emissive->end(),
+                    [](float component) { return std::isfinite(component) && component >= 0.0f && component <= 10000.0f; }))
+                throw std::runtime_error("inline_mesh.material.emissive components must be finite and in [0, 10000]");
+            if (material.alpha_cutoff && (!std::isfinite(*material.alpha_cutoff) || *material.alpha_cutoff < 0.0f || *material.alpha_cutoff > 1.0f))
+                throw std::runtime_error("inline_mesh.material.alpha_cutoff must be finite and in [0, 1]");
             mesh.material = material;
         }
         if (raw_mesh.contains("animation")) {
@@ -165,6 +199,23 @@ void decode_layer_inline_mesh(LayerPlan& layer, const nlohmann::json& value) {
                                 "inline_mesh.animation positions are outside the finite contract range");
                     }
                     sample.positions.push_back(position);
+                }
+                if (raw_sample.contains("normals")) {
+                    const auto& raw_normals = raw_sample.at("normals");
+                    if (!raw_normals.is_array() || raw_normals.size() != mesh.vertices.size())
+                        throw std::runtime_error("inline_mesh.animation normals must carry one entry per base vertex");
+                    sample.normals.reserve(raw_normals.size());
+                    for (const auto& raw_normal : raw_normals) {
+                        if (!raw_normal.is_array() || raw_normal.size() != 3)
+                            throw std::runtime_error("inline_mesh.animation normals must be 3D vectors");
+                        std::array<float, 3> normal{};
+                        for (std::size_t i = 0; i < 3; ++i) {
+                            normal[i] = raw_normal.at(i).get<float>();
+                            if (!std::isfinite(normal[i]) || std::abs(normal[i]) > 1.0f)
+                                throw std::runtime_error("inline_mesh.animation normals must be finite and within [-1, 1]");
+                        }
+                        sample.normals.push_back(normal);
+                    }
                 }
                 mesh.animation.push_back(std::move(sample));
             }

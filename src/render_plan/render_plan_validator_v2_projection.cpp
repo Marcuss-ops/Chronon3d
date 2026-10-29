@@ -69,6 +69,9 @@ nlohmann::json validation_detail::v2_projection(const nlohmann::json& root) {
         return projected;
     projected.erase("camera");
     projected.erase("lighting_rig");
+    // The V3 extension schema validates this scene-wide lighting contract;
+    // remove it from the frozen V2 projection after that validation pass.
+    projected.erase("environment_light");
 
     for (auto& layer : projected["layers"]) {
         if (!layer.is_object()) continue;

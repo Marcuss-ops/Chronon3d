@@ -1,14 +1,20 @@
 # TICKET-AUDIT-ROADMAP-WAVES — Audit roadmap closeout (Waves 1–6)
 
-Status: IN PROGRESS (code landed; build/CI verification pending)
+Status: PARTIAL (local build and architecture verification pass; exact-SHA CI and GPU render evidence remain external)
 Owner: working session (repo owner + agent)
 Created: 2026-09-05
 Baseline: `main@2a3ee8d4e98a17c6ec365e4db6b07bd834397420`
 
 ## TODO — cosa manca (agg. 2026-10-27)
 
-- [ ] Build/CI verification dello SHA landed.
+- [ ] CI clean-SHA verification.
 - [ ] Follow-up con evidenza render su host GPU (i contatori per il corpus sono già preparati).
+
+Local verification (2026-10-28):
+
+- `cmake --build build/chronon/linux-video-fast-dev --target chronon3d_cli -j12` — PASS; final link completed and a subsequent `ninja -n` reported no work.
+- `python3 tools/check_architecture.py` — `GATE_PASS`, 214/214 rules.
+- `chronon3d_vulkan_surface_materializer_tests` — 1/1 CTest PASS; the suite uses fake image/surface owners and is CPU-side placement evidence, not GPU render certification.
 
 ## Purpose
 

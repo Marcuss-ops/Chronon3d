@@ -90,6 +90,7 @@ void add_layer_identity_and_mesh(CanonicalPlanWriter& out, const LayerPlan& laye
     out.add_string(layer.text);
     out.add_bool(layer.inline_mesh.has_value());
     if (layer.inline_mesh) {
+        out.add_string(layer.inline_mesh->metallic_roughness_texture_asset);
         out.add_size(layer.inline_mesh->vertices.size());
         for (const auto& vertex : layer.inline_mesh->vertices) {
             for (const float value : vertex.position) out.add_float(value);
@@ -106,6 +107,13 @@ void add_layer_identity_and_mesh(CanonicalPlanWriter& out, const LayerPlan& laye
             add_optional(writer, material.base_color, [](auto& nested, const auto& color) {
                 for (const float value : color) nested.add_float(value);
             });
+            add_optional(writer, material.metallic, [](auto& nested, float value) { nested.add_float(value); });
+            add_optional(writer, material.roughness, [](auto& nested, float value) { nested.add_float(value); });
+            add_optional(writer, material.emissive, [](auto& nested, const auto& color) {
+                for (const float value : color) nested.add_float(value);
+            });
+            add_optional(writer, material.double_sided, [](auto& nested, bool value) { nested.add_bool(value); });
+            add_optional(writer, material.alpha_cutoff, [](auto& nested, float value) { nested.add_float(value); });
         });
         out.add_size(layer.inline_mesh->animation.size());
         for (const auto& sample : layer.inline_mesh->animation) {
@@ -113,6 +121,9 @@ void add_layer_identity_and_mesh(CanonicalPlanWriter& out, const LayerPlan& laye
             out.add_size(sample.positions.size());
             for (const auto& position : sample.positions)
                 for (const float value : position) out.add_float(value);
+            out.add_size(sample.normals.size());
+            for (const auto& normal : sample.normals)
+                for (const float value : normal) out.add_float(value);
         }
     }
 }

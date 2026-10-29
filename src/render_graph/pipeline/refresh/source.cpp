@@ -84,7 +84,10 @@ void refresh_source_node(
         const auto& before = *sampled_mesh->animation_before;
         const auto& after = *sampled_mesh->animation_after;
         if (!base_mesh || before.positions.size() != base_mesh->vertices().size() ||
-            after.positions.size() != base_mesh->vertices().size())
+            after.positions.size() != base_mesh->vertices().size() ||
+            (!before.normals.empty() && before.normals.size() != base_mesh->vertices().size()) ||
+            (!after.normals.empty() && after.normals.size() != base_mesh->vertices().size()) ||
+            before.normals.empty() != after.normals.empty())
             throw std::runtime_error("animated inline mesh sample does not match source topology");
         std::vector<Vec3> positions;
         std::vector<Vec3> normals(base_mesh->vertices().size(), Vec3{0.0f});
@@ -98,12 +101,25 @@ void refresh_source_node(
                 a[2] + (b[2] - a[2]) * sampled_mesh->animation_mix);
         }
         const auto& indices = base_mesh->indices();
-        for (std::size_t i = 0; i + 2 < indices.size(); i += 3) {
-            const auto a = indices[i], b = indices[i + 1], c = indices[i + 2];
-            if (a >= positions.size() || b >= positions.size() || c >= positions.size())
-                throw std::runtime_error("animated inline mesh contains an out-of-range index");
-            const Vec3 face = glm::cross(positions[b] - positions[a], positions[c] - positions[a]);
-            normals[a] += face; normals[b] += face; normals[c] += face;
+        if (!before.normals.empty()) {
+            for (std::size_t i = 0; i < normals.size(); ++i) {
+                const auto& a = before.normals[i];
+                const auto& b = after.normals[i];
+                Vec3 normal{a[0] + (b[0] - a[0]) * sampled_mesh->animation_mix,
+                            a[1] + (b[1] - a[1]) * sampled_mesh->animation_mix,
+                            a[2] + (b[2] - a[2]) * sampled_mesh->animation_mix};
+                if (glm::dot(normal, normal) <= 1e-12f)
+                    throw std::runtime_error("animated inline mesh has a degenerate interpolated normal");
+                normals[i] = glm::normalize(normal);
+            }
+        } else {
+            for (std::size_t i = 0; i + 2 < indices.size(); i += 3) {
+                const auto a = indices[i], b = indices[i + 1], c = indices[i + 2];
+                if (a >= positions.size() || b >= positions.size() || c >= positions.size())
+                    throw std::runtime_error("animated inline mesh contains an out-of-range index");
+                const Vec3 face = glm::cross(positions[b] - positions[a], positions[c] - positions[a]);
+                normals[a] += face; normals[b] += face; normals[c] += face;
+            }
         }
         auto deformed = std::make_shared<Mesh>(base_mesh->name());
         for (std::size_t i = 0; i < positions.size(); ++i) {

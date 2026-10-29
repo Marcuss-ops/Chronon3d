@@ -1,11 +1,14 @@
 #include <chronon3d/compiler/compiler.hpp>
 
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/assets/hdri_environment.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/temporal_rate_analysis.hpp>
 #include "compiler_stages.hpp"
+#include "../render_plan/render_plan_camera_adapter.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <utility>
@@ -125,6 +128,29 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     const render_plan::RenderPlan& plan,
     assets::AssetResolver& resolver,
     const CompileOptions& options) const {
+    if (plan.environment_light) {
+        const auto environment = assets::load_hdri_env_v1(
+            resolver, plan.environment_light->probe_asset);
+        if (!environment) {
+            return make_compile_error(
+                CompileErrorCode::InvalidInput,
+                "environment_light.probe_asset",
+                environment.error().message,
+                "render-plan-lighting");
+        }
+        for (std::size_t i = 0; i < plan.environment_light->irradiance_sh.size(); ++i) {
+            const float supplied = plan.environment_light->irradiance_sh[i];
+            const float stored = environment->irradiance_sh[i];
+            const float tolerance = 1.0e-5f * std::max({1.0f, std::abs(supplied), std::abs(stored)});
+            if (std::abs(supplied - stored) > tolerance) {
+                return make_compile_error(
+                    CompileErrorCode::InvalidInput,
+                    "environment_light.irradiance_sh",
+                    "RenderPlan SH values do not match the referenced HDRIENV1 asset",
+                    "render-plan-lighting");
+            }
+        }
+    }
     auto asset_res = chronon3d::assets::prepare_asset_manifest(plan, resolver);
     if (!asset_res) {
         return make_compile_error(
@@ -146,6 +172,18 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     data->metadata.asset_manifest = std::move(asset_res).value();
     data->metadata.render_budget = lower_budget(plan.budget);
     data->metadata.lighting_rig = plan.lighting_rig;
+    if (plan.camera) {
+        data->metadata.camera_2_5d = render_plan::detail::make_camera_value(
+            *plan.camera, plan.canvas);
+    } else if (std::any_of(plan.layers.begin(), plan.layers.end(),
+                   [](const render_plan::LayerPlan& layer) {
+                       return layer.type == render_plan::LayerType::Mesh;
+                   })) {
+        render_plan::CameraPlan fallback;
+        fallback.position = {0.0f, 0.0f, -5.0f};
+        data->metadata.camera_2_5d = render_plan::detail::make_camera_value(
+            fallback, plan.canvas);
+    }
 
     stages::lower_scene(plan, *data);
     data->temporal_schedule = build_temporal_update_schedule(plan, *data);

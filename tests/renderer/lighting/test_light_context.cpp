@@ -52,6 +52,29 @@ TEST_CASE("Material2_5D: accepts_lights=true → shade < 1 for back-facing") {
     CHECK(r >= 0.0f);
 }
 
+TEST_CASE("software environment specular samples the reflection direction and roughness mip") {
+    auto probe = std::make_shared<assets::HdriEnvV1>();
+    probe->mips.resize(2);
+    for (auto& mip : probe->mips) {
+        mip.size = 1;
+        for (auto& face : mip.faces) face = {0.f, 0.f, 0.f};
+    }
+    probe->mips[0].faces[4] = {0.9f, 0.f, 0.f};
+    probe->mips[1].faces[4] = {0.f, 0.f, 0.7f};
+    LightContext light;
+    light.enabled = true;
+    light.environment_enabled = true;
+    light.environment_probe = probe;
+    Material2_5D material;
+    material.accepts_lights = true;
+    material.diffuse = 0.f;
+    material.specular = 1.f;
+    material.roughness = 1.f;
+    const auto lit = evaluate_lighting(Color::white(), Vec3{0.f, 0.f, 1.f}, light, material);
+    CHECK(lit.r == doctest::Approx(0.f));
+    CHECK(lit.b == doctest::Approx(0.7f));
+}
+
 TEST_CASE("Lighting eval: disabled light leaves base color unchanged") {
     LightContext light;
     Material2_5D mat;

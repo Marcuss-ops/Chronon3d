@@ -1,5 +1,6 @@
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/assets/hdri_environment.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -14,6 +15,7 @@
 #include "render_plan_effect_preparation.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <memory>
 #include <stdexcept>
@@ -32,6 +34,24 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
     const compiler::CompiledProgram* canonical_program,
     const RuntimeCameraSampleProvider* runtime_camera) {
     try {
+        std::shared_ptr<const chronon3d::assets::HdriEnvV1> environment_probe;
+        if (input_plan.environment_light) {
+            const auto environment = chronon3d::assets::load_hdri_env_v1(
+                resolver, input_plan.environment_light->probe_asset);
+            if (!environment)
+                return PlanDecodeError{"environment_light.probe_asset", environment.error().message,
+                    "environment_asset_invalid", "render-plan-lighting"};
+            for (std::size_t i = 0; i < input_plan.environment_light->irradiance_sh.size(); ++i) {
+                const float supplied = input_plan.environment_light->irradiance_sh[i];
+                const float stored = environment->irradiance_sh[i];
+                const float tolerance = 1.0e-5f * std::max({1.0f, std::abs(supplied), std::abs(stored)});
+                if (std::abs(supplied - stored) > tolerance)
+                    return PlanDecodeError{"environment_light.irradiance_sh",
+                        "RenderPlan SH values do not match the referenced HDRIENV1 asset",
+                        "environment_sh_asset_mismatch", "render-plan-lighting"};
+            }
+            environment_probe = std::make_shared<const chronon3d::assets::HdriEnvV1>(*environment);
+        }
         if (auto error = compiler_entry_detail::validate_compile_request(
                 input_plan, runtime_camera))
             return *error;
@@ -133,7 +153,9 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         definition.composition = spec;
         const bool has_3d_layer = std::any_of(
             plan.layers.begin(), plan.layers.end(),
-            [](const LayerPlan& layer) { return layer.enable_3d; });
+            [](const LayerPlan& layer) {
+                return layer.enable_3d || layer.type == LayerType::Mesh;
+            });
         std::string resolved_ocio_config_path;
         if (plan.color_management) {
             const auto config_path = resolver.resolve_lexical(
@@ -161,6 +183,7 @@ Result<PreparedRenderPlan, PlanDecodeError> compile_render_plan(
         }
         definition.scene = detail::make_scene_evaluator(detail::SceneMaterializationInputs{
             .plan = plan,
+            .environment_probe = environment_probe,
             .resolved_video_paths = resolved_media.video_paths,
             .resolved_particle_sprite_paths = resolved_media.particle_sprite_paths,
             .prepared_texts = prepared_text.texts,

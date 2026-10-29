@@ -17,6 +17,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
     const CompiledProgram& program, std::pmr::memory_resource* resource) const {
     const auto& meta = program.metadata();
     SceneBuilder scene(resource);
+    if (meta.camera_2_5d) scene.set_evaluated_camera(*meta.camera_2_5d);
     if (meta.lighting_rig) {
         const auto& source = *meta.lighting_rig;
         rendering::LightingRig rig;
@@ -106,6 +107,7 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     InlineMeshParams params;
                     params.name = layer.name;
                     params.texture_asset = layer.asset;
+                    params.metallic_roughness_texture_asset = layer.inline_mesh->metallic_roughness_texture_asset;
                     params.vertices.reserve(layer.inline_mesh->vertices.size());
                     for (const auto& vertex : layer.inline_mesh->vertices)
                         params.vertices.push_back(Vertex{
@@ -125,6 +127,12 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                         material.specular = source.specular;
                         material.shininess = source.shininess;
                         material.rim_intensity = source.rim_intensity;
+                        material.metallic = source.metallic;
+                        material.roughness = source.roughness;
+                        material.double_sided = source.double_sided.value_or(false);
+                        material.alpha_cutoff = source.alpha_cutoff;
+                        if (source.emissive)
+                            material.emissive = Color{(*source.emissive)[0], (*source.emissive)[1], (*source.emissive)[2], 1.0f};
                         if (source.base_color)
                             material.base_color = Color{(*source.base_color)[0], (*source.base_color)[1],
                                                         (*source.base_color)[2], (*source.base_color)[3]};

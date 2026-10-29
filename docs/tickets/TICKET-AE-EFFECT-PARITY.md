@@ -1,7 +1,7 @@
 # TICKET-AE-EFFECT-PARITY — Effetti AE nativi mancanti (famiglia P2)
 
 ## Stato
-OPEN (2026-10-28). Provenienza: gap analysis "AE + Premiere parity"
+PARTIAL (2026-10-28). Provenienza: gap analysis "AE + Premiere parity"
 (MotionNations 30 video). Stato registrato in `docs/stato/chronon3d.md` §13.
 
 ## TODO — cosa manca (agg. 2026-10-28)
@@ -10,6 +10,7 @@ OPEN (2026-10-28). Provenienza: gap analysis "AE + Premiere parity"
 - [x] `color.posterize` (valore catalogo 56): fusibile e quantizza RGB straight in 2–256 livelli, preservando alpha; routing Vulkan nativo e opcode PixelProgram 13 aggiunti (2026-10-28).
 - [x] `color.color_map` (valore catalogo 57): cinque stop RGB equispaziati sulla luminanza più `amount` 0–1 animabile, alpha preservata; processor software, stage fuso, mode Vulkan nativo 12 e test CPU/software (2026-10-28).
 - [x] Eliminato lo scostamento `kEffectTypeCount`: capacità derivata dal massimo valore X-macro del catalogo (55) + regressione sullo slot `LottieTritone`; build `chronon3d_dev_fast` e test runtime mirato verdi (2026-10-28).
+- [x] Il census strict-GPU segue il registry dinamico: il conteggio fisso 49 è rimpiazzato dal confronto con `kNativeRoutes.size()` dopo l'aggiunta dei route Posterize/ColorMap; `chronon3d_render_graph_tests` 1/1 CTest PASS (2026-10-28).
 - [ ] Indipendente dal P1: può procedere subito.
 
 ## Goal

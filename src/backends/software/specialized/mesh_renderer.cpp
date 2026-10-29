@@ -179,7 +179,8 @@ void render_clipped_lit_triangle(
     const Material2_5D& source_material,
     const rendering::RimLight* rim,
     float roughness_factor, float metallic_factor,
-    const assets::MeshImage* roughness_map) {
+    const assets::MeshImage* roughness_map,
+    const Framebuffer* base_color_texture) {
     LitStackPolygon polygon;
     for (usize i = 0; i < 3; ++i) polygon.verts[i] = triangle[i];
     polygon.size = 3;
@@ -204,8 +205,8 @@ void render_clipped_lit_triangle(
         if (!roughness_map || roughness_map->decoded_rgba.empty() ||
             roughness_map->decoded_width == 0 || roughness_map->decoded_height == 0)
             return 1.0f;
-        const float u = uv.x - std::floor(uv.x);
-        const float v = uv.y - std::floor(uv.y);
+        const float u = std::clamp(uv.x, 0.0f, 1.0f);
+        const float v = std::clamp(1.0f - uv.y, 0.0f, 1.0f);
         const float px = u * static_cast<float>(roughness_map->decoded_width - 1);
         const float py = v * static_cast<float>(roughness_map->decoded_height - 1);
         const auto x0 = static_cast<std::uint32_t>(std::floor(px));
@@ -220,6 +221,43 @@ void render_clipped_lit_triangle(
         const float top = green(x0, y0) + tx * (green(x1, y0) - green(x0, y0));
         const float bottom = green(x0, y1) + tx * (green(x1, y1) - green(x0, y1));
         return top + ty * (bottom - top);
+    };
+    const auto sample_metallic = [&](Vec2 uv) {
+        if (!roughness_map || roughness_map->decoded_rgba.empty() ||
+            roughness_map->decoded_width == 0 || roughness_map->decoded_height == 0)
+            return 1.0f;
+        const float u = std::clamp(uv.x, 0.0f, 1.0f);
+        const float v = std::clamp(1.0f - uv.y, 0.0f, 1.0f);
+        const float px = u * static_cast<float>(roughness_map->decoded_width - 1);
+        const float py = v * static_cast<float>(roughness_map->decoded_height - 1);
+        const auto x0 = static_cast<std::uint32_t>(std::floor(px));
+        const auto y0 = static_cast<std::uint32_t>(std::floor(py));
+        const auto x1 = std::min(x0 + 1, roughness_map->decoded_width - 1);
+        const auto y1 = std::min(y0 + 1, roughness_map->decoded_height - 1);
+        const float tx = px - static_cast<float>(x0), ty = py - static_cast<float>(y0);
+        const auto blue = [&](std::uint32_t x, std::uint32_t y) {
+            const auto index = (static_cast<std::size_t>(y) * roughness_map->decoded_width + x) * 4 + 2;
+            return static_cast<float>(roughness_map->decoded_rgba[index]) / 255.0f;
+        };
+        const float top = blue(x0, y0) + tx * (blue(x1, y0) - blue(x0, y0));
+        const float bottom = blue(x0, y1) + tx * (blue(x1, y1) - blue(x0, y1));
+        return top + ty * (bottom - top);
+    };
+    const auto sample_base_color = [&](Vec2 uv) {
+        if (!base_color_texture || base_color_texture->width() <= 0 || base_color_texture->height() <= 0)
+            return Color{1.f, 1.f, 1.f, 1.f};
+        const float px = std::clamp(uv.x, 0.f, 1.f) * static_cast<float>(base_color_texture->width() - 1);
+        const float py = std::clamp(1.f - uv.y, 0.f, 1.f) * static_cast<float>(base_color_texture->height() - 1);
+        const int x0 = static_cast<int>(std::floor(px)), y0 = static_cast<int>(std::floor(py));
+        const int x1 = std::min(x0 + 1, base_color_texture->width() - 1);
+        const int y1 = std::min(y0 + 1, base_color_texture->height() - 1);
+        const float tx = px - static_cast<float>(x0), ty = py - static_cast<float>(y0);
+        const auto mix = [](const Color& a, const Color& b, float t) {
+            return Color{a.r + (b.r-a.r)*t, a.g + (b.g-a.g)*t,
+                         a.b + (b.b-a.b)*t, a.a + (b.a-a.a)*t};
+        };
+        return mix(mix(base_color_texture->pixels_row(y0)[x0], base_color_texture->pixels_row(y0)[x1], tx),
+                   mix(base_color_texture->pixels_row(y1)[x0], base_color_texture->pixels_row(y1)[x1], tx), ty);
     };
     const auto edge = [](const Vec2& a, const Vec2& b, const Vec2& p) {
         return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
@@ -254,21 +292,39 @@ void render_clipped_lit_triangle(
                 const auto& v0 = polygon.verts[ids[0]];
                 const auto& v1 = polygon.verts[ids[1]];
                 const auto& v2 = polygon.verts[ids[2]];
-                const Vec3 normal = rendering::safe_normalize(q0 * v0.normal + q1 * v1.normal + q2 * v2.normal);
+                Vec3 normal = rendering::safe_normalize(q0 * v0.normal + q1 * v1.normal + q2 * v2.normal);
+                if (source_material.double_sided && normal.z < 0.0f) normal = -normal;
                 const Vec2 uv = q0 * v0.uv + q1 * v1.uv + q2 * v2.uv;
-                const Color base{
+                Color base{
                     q0 * v0.base_color.r + q1 * v1.base_color.r + q2 * v2.base_color.r,
                     q0 * v0.base_color.g + q1 * v1.base_color.g + q2 * v2.base_color.g,
                     q0 * v0.base_color.b + q1 * v1.base_color.b + q2 * v2.base_color.b,
                     q0 * v0.base_color.a + q1 * v1.base_color.a + q2 * v2.base_color.a};
+                const Color texel = sample_base_color(uv);
+                base.r *= texel.r; base.g *= texel.g; base.b *= texel.b; base.a *= texel.a;
+                if (source_material.alpha_cutoff && base.a < *source_material.alpha_cutoff) continue;
                 Material2_5D material = source_material;
                 if (roughness_factor >= 0.0f) {
                     const float roughness = std::clamp(
                         roughness_factor * sample_roughness(uv), 0.04f, 1.0f);
                     material.shininess = std::clamp(2.0f / (roughness * roughness) - 2.0f, 1.0f, 256.0f);
-                    material.specular *= 0.04f * (1.0f - metallic_factor) + metallic_factor;
+                    const float metallic = std::clamp(metallic_factor * sample_metallic(uv), 0.0f, 1.0f);
+                    material.specular *= 0.04f * (1.0f - metallic) + metallic;
+                    material.diffuse *= 1.0f - metallic;
                 }
-                const Color src = rendering::evaluate_lighting(base, normal, light, material, rim);
+                if (source_material.roughness) {
+                    const float roughness = std::clamp(*source_material.roughness * sample_roughness(uv), 0.04f, 1.0f);
+                    material.shininess = std::clamp(2.0f / (roughness * roughness) - 2.0f, 1.0f, 1024.0f);
+                    const float metallic = std::clamp(source_material.metallic.value_or(0.0f) * sample_metallic(uv), 0.0f, 1.0f);
+                    material.specular = 0.04f * (1.0f - metallic) + metallic;
+                    material.diffuse *= 1.0f - metallic;
+                }
+                Color src = rendering::evaluate_lighting(base, normal, light, material, rim);
+                if (source_material.emissive_enabled) {
+                    src.r = std::clamp(src.r + source_material.emissive_color.r, 0.0f, 1.0f);
+                    src.g = std::clamp(src.g + source_material.emissive_color.g, 0.0f, 1.0f);
+                    src.b = std::clamp(src.b + source_material.emissive_color.b, 0.0f, 1.0f);
+                }
                 if (src.a <= 0.0f || !std::isfinite(src.r) || !std::isfinite(src.g) ||
                     !std::isfinite(src.b) || !std::isfinite(src.a)) continue;
                 if (use_depth) depth_buffer[depth_index] = depth;
@@ -349,6 +405,16 @@ void render_mesh_textured(
     std::span<float> depth_buffer, const Framebuffer& texture,
     f32 near_plane, f32 far_plane)
 {
+    render_mesh_textured(fb, mesh, model, view, proj, tint, depth_buffer,
+                         texture, near_plane, far_plane, std::nullopt);
+}
+
+void render_mesh_textured(
+    Framebuffer& fb, const Mesh& mesh, const Mat4& model,
+    const Mat4& view, const Mat4& proj, const Color& tint,
+    std::span<float> depth_buffer, const Framebuffer& texture,
+    f32 near_plane, f32 far_plane, std::optional<f32> alpha_cutoff)
+{
     const auto& vertices = mesh.vertices();
     const auto& indices = mesh.indices();
     if (vertices.empty() || indices.size() < 3 || texture.width() <= 0 || texture.height() <= 0) return;
@@ -422,8 +488,10 @@ void render_mesh_textured(
                 const float q2 = w2 * projected[2].inverse_depth / inv_depth;
                 const Vec2 uv = q0 * projected[0].uv + q1 * projected[1].uv + q2 * projected[2].uv;
                 const Color texel = sample(uv);
+                const float alpha = texel.a * tint.a;
+                if (alpha_cutoff && alpha < *alpha_cutoff) continue;
                 const Color src{texel.r * tint.r * tint.a, texel.g * tint.g * tint.a,
-                                texel.b * tint.b * tint.a, texel.a * tint.a};
+                                texel.b * tint.b * tint.a, alpha};
                 if (src.a <= 1e-6f) continue;
                 if (use_depth) depth_buffer[depth_index] = depth;
                 Color& dst = row[x];
@@ -443,17 +511,26 @@ void render_mesh_filled_lit(
     std::span<float> depth_buffer, const rendering::LightContext& light,
     const rendering::RimLight& rim, const RenderNode::InlineMeshMaterial& source_material,
     f32 near_plane, f32 far_plane, f32 roughness_factor,
-    f32 metallic_factor, const assets::MeshImage* metallic_roughness)
+    f32 metallic_factor, const assets::MeshImage* metallic_roughness,
+    const Framebuffer* base_color_texture)
 {
     const auto& vertices = mesh.vertices();
     const auto& indices = mesh.indices();
-    if (vertices.empty() || indices.size() < 3 || !light.enabled) return;
+    if (vertices.empty() || indices.size() < 3) return;
     Material2_5D material;
     material.accepts_lights = true;
     material.diffuse = source_material.diffuse;
     material.specular = source_material.specular;
     material.shininess = source_material.shininess;
     material.ambient_multiplier = 1.0f;
+    material.double_sided = source_material.double_sided;
+    material.alpha_cutoff = source_material.alpha_cutoff;
+    material.metallic = source_material.metallic;
+    material.roughness = source_material.roughness;
+    if (source_material.emissive) {
+        material.emissive_enabled = true;
+        material.emissive_color = *source_material.emissive;
+    }
     rendering::RimLight active_rim = rim;
     if (active_rim.enabled) active_rim.intensity *= source_material.rim_intensity;
     Color base = color;
@@ -490,7 +567,7 @@ void render_mesh_filled_lit(
         render_clipped_lit_triangle(fb, triangle, proj, depth_buffer,
             near_plane, far_plane, light, material,
             active_rim.enabled ? &active_rim : nullptr,
-            roughness_factor, metallic_factor, metallic_roughness);
+            roughness_factor, metallic_factor, metallic_roughness, base_color_texture);
     }
 }
 

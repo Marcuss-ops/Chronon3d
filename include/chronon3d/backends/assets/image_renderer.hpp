@@ -22,7 +22,9 @@ public:
     bool draw_image(const ImageShape& image, const RenderState& state, Framebuffer& fb);
     bool draw_image_tiled(const ImageShape& image, const RenderState& state, Framebuffer& fb);
     [[nodiscard]] std::shared_ptr<const CachedImage> find_prepared_image(
-        const std::string& path) const { return m_cache.get().find(path); }
+        const std::string& path, ImageDecodeOptions options = {}) const {
+        return m_cache.get().find(path, std::move(options));
+    }
 
     void clear_cache() {
         m_cache.get().clear();

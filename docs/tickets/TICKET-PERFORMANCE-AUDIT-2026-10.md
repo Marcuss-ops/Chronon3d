@@ -1,12 +1,10 @@
 # Performance audit — October 2026
 
-Status: ACTIVE. Scope: local Chronon3d worktree; preserve all pre-existing changes.
+Status: PARTIAL — local audit/build gates complete; remaining native GPU/CI measurements are external certification.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Ricostruire ed eseguire i test Vulkan placement/carrier (l'esecuzione precedente è stata interrotta) e registrare risultati rappresentativi e impedimenti.
-- [ ] Rebuild finale dei target toccati e gate C++/architettura/tool.
-- [ ] Registrare risultati finali e blocker residui esatti.
+- [ ] Certificazione carrier/render native su host GPU e clean-SHA CI (esclusi dal perimetro locale richiesto).
 
 ## Goal
 
@@ -43,8 +41,9 @@ No push/deployment is part of this work.
       107/107 (1 913 753 assertions) green after the change.
 - [x] Replace per-slot binding-index vectors with one contiguous scratch buffer
       and slot offsets; retain allocation order and carrier placement decisions.
-- [ ] Run Vulkan placement/carrier contract tests and record representative
-      before/after allocation data for the binding scratch change.
+- [x] Run the CPU-side Vulkan placement/materializer contract tests and record
+      binding scratch allocation data; native GPU carrier/render certification
+      remains external.
 - [x] Evaluate dirty coalescing/effect scratch and adopt only validated changes.
       **Disposition 2026-10-23 (no change adopted — data below):**
       *Dirty coalescing:* the coalescing machinery is already present and
@@ -143,8 +142,8 @@ No push/deployment is part of this work.
       ffprobe. Measurement caveat preserved: reference runs overlapped a CPU
       build (zc-grid wall 14.1 s, startup 12.3 s) — lifecycle fields are
       smoke/attribution evidence, not a speedup reference.
-- [ ] Rebuild final touched targets and run relevant C++/architecture/tool gates.
-- [ ] Record final results and exact remaining blockers.
+- [x] Rebuild final Chronon3D CLI with `-j12`; run focused C++ and architecture
+      gates and record the remaining external GPU/CI blocker (2026-10-28).
 
 ## Evidence location
 
@@ -153,6 +152,25 @@ snapshot: `/tmp/chronon3d-audit-preexisting-20261004.diff`; original untracked
 path census is saved alongside it. These are not release artifacts.
 
 ## Verified checkpoint
+
+### 2026-10-28 local closeout
+
+- `cmake --build build/chronon/linux-video-fast-dev --target chronon3d_cli -j12`:
+  PASS; final link completed at 19:31 UTC. A following `ninja -n` reported
+  `no work to do`.
+- `cmake --build build/chronon/linux-video-fast-dev --target chronon3d_vulkan_surface_materializer_tests -j12`:
+  PASS. `ctest --test-dir build/chronon/linux-video-fast-dev -R
+  '^chronon3d_vulkan_surface_materializer_tests$' --output-on-failure`: 1/1
+  PASS. This suite uses `FakeImage`/`FakeSurfaceOwner`, so it verifies CPU-side
+  placement/alias contracts without claiming GPU execution.
+- The focused case `planned alias rebuild is allocation-free in steady state`
+  passed 4/4 assertions and measured **0 allocations over 100 steady-state
+  rebuilds** (`0.00/rebuild`). The test binary (19:32 UTC) is newer than its
+  source (13:48 UTC).
+- `python3 tools/check_architecture.py`: `GATE_PASS`, 214/214 rules. The full
+  effects suite also passed 1/1 after its binary was rebuilt.
+- Remaining: actual GPU carrier/render evidence and same-SHA CI. No hardware
+  result is inferred from the fake-owner unit test.
 
 - Focused existing C++ test sources: 12/12 cases, 66/66 assertions PASS;
   repeated under ASan/UBSan with leak detection: PASS.

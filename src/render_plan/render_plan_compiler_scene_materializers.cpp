@@ -34,6 +34,32 @@ std::array<float, 3> inline_mesh_position_at(
             a[1] + (b[1] - a[1]) * t,
             a[2] + (b[2] - a[2]) * t};
 }
+
+std::array<float, 3> inline_mesh_normal_at(
+    const InlineMeshPlan& mesh, std::size_t vertex, double frame) {
+    if (mesh.animation.empty() || mesh.animation.front().normals.empty())
+        return mesh.vertices[vertex].normal;
+    const auto upper = std::lower_bound(
+        mesh.animation.begin(), mesh.animation.end(), frame,
+        [](const InlineMeshFrameSamplePlan& sample, double value) {
+            return static_cast<double>(sample.frame) < value;
+        });
+    if (upper == mesh.animation.begin()) return upper->normals[vertex];
+    if (upper == mesh.animation.end()) return mesh.animation.back().normals[vertex];
+    if (static_cast<double>(upper->frame) == frame) return upper->normals[vertex];
+    const auto& lower = *std::prev(upper);
+    const float t = static_cast<float>((frame - static_cast<double>(lower.frame)) /
+                                       static_cast<double>(upper->frame - lower.frame));
+    const auto& a = lower.normals[vertex];
+    const auto& b = upper->normals[vertex];
+    std::array<float, 3> result{a[0] + (b[0]-a[0])*t,
+                                a[1] + (b[1]-a[1])*t,
+                                a[2] + (b[2]-a[2])*t};
+    const float length = std::sqrt(result[0]*result[0] + result[1]*result[1] + result[2]*result[2]);
+    if (!(length > 1e-6f)) throw std::runtime_error("animated inline mesh normal is degenerate at the requested frame");
+    for (auto& component : result) component /= length;
+    return result;
+}
 } // namespace
 
 void append_image_layer_for_scene(
@@ -431,6 +457,7 @@ void append_mesh_layer_for_scene(
     InlineMeshParams params;
     params.name = layer.id;
     params.texture_asset = layer.asset;
+    params.metallic_roughness_texture_asset = layer.inline_mesh->metallic_roughness_texture_asset;
     params.vertices.reserve(layer.inline_mesh->vertices.size());
     const double mesh_frame = ctx.effective_frame();
     for (std::size_t vertex_index = 0;
@@ -438,9 +465,11 @@ void append_mesh_layer_for_scene(
         const auto& vertex = layer.inline_mesh->vertices[vertex_index];
         const auto position = inline_mesh_position_at(
             *layer.inline_mesh, vertex_index, mesh_frame);
+        const auto normal = inline_mesh_normal_at(
+            *layer.inline_mesh, vertex_index, mesh_frame);
         params.vertices.push_back(Vertex{
             Vec3{position[0], position[1], position[2]},
-            Vec3{vertex.normal[0], vertex.normal[1], vertex.normal[2]},
+            Vec3{normal[0], normal[1], normal[2]},
             Vec2{vertex.uv[0], vertex.uv[1]}});
     }
     params.indices = layer.inline_mesh->indices;
@@ -462,6 +491,12 @@ void append_mesh_layer_for_scene(
         material.specular = source.specular;
         material.shininess = source.shininess;
         material.rim_intensity = source.rim_intensity;
+        material.metallic = source.metallic;
+        material.roughness = source.roughness;
+        material.double_sided = source.double_sided.value_or(false);
+        material.alpha_cutoff = source.alpha_cutoff;
+        if (source.emissive)
+            material.emissive = Color{(*source.emissive)[0], (*source.emissive)[1], (*source.emissive)[2], 1.0f};
         if (source.base_color)
             material.base_color = Color{(*source.base_color)[0], (*source.base_color)[1],
                                         (*source.base_color)[2], (*source.base_color)[3]};

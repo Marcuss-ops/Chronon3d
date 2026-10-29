@@ -1,5 +1,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
+#include <chronon3d/assets/mesh_loader.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/depth_buffer_pool.hpp>
 #include "../primitive_renderer.hpp"
@@ -10,6 +11,7 @@
 #include <cmath>
 #include <limits>
 #include <vector>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace chronon3d::renderer {
 
@@ -23,8 +25,34 @@ public:
         Color node_color = node.color.to_linear();
         node_color.a *= state.opacity;
         const f32 aspect = static_cast<f32>(width) / static_cast<f32>(height);
-        const Mat4 view = camera.view_matrix();
-        const Mat4 projection = camera.projection_matrix(aspect);
+        Mat4 view = camera.view_matrix();
+        Mat4 projection = camera.projection_matrix(aspect);
+        Mat4 mesh_model = state.projection.ready
+            ? state.world_matrix : state.matrix;
+        if (state.projection.ready) {
+            // Scene graph placement is expressed in canvas-centered pixel
+            // coordinates. The perspective camera is centered at the origin,
+            // so remove the canvas offset before applying its view matrix.
+            mesh_model = glm::translate(Mat4(1.0f),
+                Vec3(-static_cast<f32>(width) * 0.5f,
+                     -static_cast<f32>(height) * 0.5f, 0.0f)) * mesh_model;
+        }
+        f32 near_plane = camera.near_plane;
+        f32 far_plane = camera.far_plane;
+        if (state.projection.ready && state.projection.focal > 0.0f && height > 0) {
+            // RenderPlan's Camera2_5D uses positive camera-space Z, while the
+            // legacy mesh rasterizer and glm::perspective use negative Z.
+            // Reuse the resolved RenderPlan camera and flip only that axis so
+            // glTF coordinates near the origin are in front of the same
+            // camera that positioned the rest of the scene.
+            Mat4 flip_camera_z{1.0f};
+            flip_camera_z[2][2] = -1.0f;
+            view = flip_camera_z * state.projection.view;
+            const f32 focal = state.projection.focal;
+            const f32 fov_y = 2.0f * std::atan(
+                static_cast<f32>(height) / (2.0f * focal));
+            projection = glm::perspective(fov_y, aspect, near_plane, far_plane);
+        }
         // Reusable depth buffer from the session pool — no per-frame malloc.
         // Fall back to a local vector for callers without a pool (e.g.
         // legacy tests) so depth testing is never silently disabled.
@@ -40,7 +68,49 @@ public:
         }
 
         if (mesh_shape.inline_mesh) {
-            if (!node.inline_mesh_texture_asset.empty()) {
+            if (node.inline_mesh_material) {
+                const Framebuffer* base_texture = nullptr;
+                if (!node.inline_mesh_texture_asset.empty()) {
+                    if (!rctx.image_renderer)
+                        throw std::runtime_error("textured inline mesh requires the prepared image renderer");
+                    const auto image = rctx.image_renderer->find_prepared_image(node.inline_mesh_texture_asset);
+                    if (!image || !image->valid() || !image->fb_img)
+                        throw std::runtime_error("inline mesh texture was not prepared: " + node.inline_mesh_texture_asset);
+                    base_texture = image->fb_img.get();
+                }
+                std::optional<assets::MeshImage> metallic_roughness;
+                if (!node.inline_mesh_metallic_roughness_texture_asset.empty()) {
+                    if (!rctx.image_renderer)
+                        throw std::runtime_error("metallic-roughness inline mesh requires the prepared image renderer");
+                    ImageDecodeOptions options;
+                    options.color_space = ColorSpace::LinearSRGB;
+                    const auto image = rctx.image_renderer->find_prepared_image(
+                        node.inline_mesh_metallic_roughness_texture_asset, options);
+                    if (!image || !image->valid() || !image->fb_img)
+                        throw std::runtime_error("inline mesh metallic-roughness texture was not prepared: " +
+                                                 node.inline_mesh_metallic_roughness_texture_asset);
+                    metallic_roughness.emplace();
+                    metallic_roughness->decoded_width = static_cast<std::uint32_t>(image->width);
+                    metallic_roughness->decoded_height = static_cast<std::uint32_t>(image->height);
+                    metallic_roughness->decoded_rgba.resize(static_cast<std::size_t>(image->width) * image->height * 4);
+                    for (int y = 0; y < image->height; ++y) {
+                        const Color* row = image->fb_img->pixels_row(y);
+                        for (int x = 0; x < image->width; ++x) {
+                            const auto offset = (static_cast<std::size_t>(y) * image->width + x) * 4;
+                            const Color c = row[x];
+                            metallic_roughness->decoded_rgba[offset + 0] = static_cast<std::uint8_t>(std::clamp(c.r, 0.f, 1.f) * 255.f + .5f);
+                            metallic_roughness->decoded_rgba[offset + 1] = static_cast<std::uint8_t>(std::clamp(c.g, 0.f, 1.f) * 255.f + .5f);
+                            metallic_roughness->decoded_rgba[offset + 2] = static_cast<std::uint8_t>(std::clamp(c.b, 0.f, 1.f) * 255.f + .5f);
+                            metallic_roughness->decoded_rgba[offset + 3] = static_cast<std::uint8_t>(std::clamp(c.a, 0.f, 1.f) * 255.f + .5f);
+                        }
+                    }
+                }
+                chronon3d::renderer::render_mesh_filled_lit(
+                    fb, *mesh_shape.inline_mesh, mesh_model, view, projection, node_color,
+                    depth_buffer, state.light_context, state.rim_light, *node.inline_mesh_material,
+                    near_plane, far_plane, -1.f, 0.f,
+                    metallic_roughness ? &*metallic_roughness : nullptr, base_texture);
+            } else if (!node.inline_mesh_texture_asset.empty()) {
                 if (!rctx.image_renderer)
                     throw std::runtime_error("textured inline mesh requires the prepared image renderer");
                 const auto image = rctx.image_renderer->find_prepared_image(
@@ -48,23 +118,15 @@ public:
                 if (!image || !image->valid() || !image->fb_img)
                     throw std::runtime_error("inline mesh texture was not prepared: " +
                                              node.inline_mesh_texture_asset);
-                render_mesh_textured(fb, *mesh_shape.inline_mesh, state.matrix, view, projection,
-                    node_color, depth_buffer, *image->fb_img, camera.near_plane, camera.far_plane);
-            } else if (node.inline_mesh_material) {
-                Color base = node_color;
-                if (node.inline_mesh_material->base_color) {
-                    const Color tint = node.inline_mesh_material->base_color->to_linear();
-                    base = Color{node_color.r * tint.r, node_color.g * tint.g,
-                                 node_color.b * tint.b, node_color.a * tint.a};
-                }
-                chronon3d::renderer::render_mesh_filled_lit(
-                    fb, *mesh_shape.inline_mesh, state.matrix, view, projection, base,
-                    depth_buffer, state.light_context, state.rim_light,
-                    *node.inline_mesh_material, camera.near_plane, camera.far_plane);
+                render_mesh_textured(fb, *mesh_shape.inline_mesh, mesh_model, view, projection,
+                    node_color, depth_buffer, *image->fb_img, near_plane, far_plane,
+                    node.inline_mesh_material
+                        ? node.inline_mesh_material->alpha_cutoff
+                        : std::optional<f32>{});
             } else {
                 chronon3d::renderer::render_mesh_filled(
-                    fb, *mesh_shape.inline_mesh, state.matrix, view, projection, node_color,
-                    depth_buffer, camera.near_plane, camera.far_plane);
+                    fb, *mesh_shape.inline_mesh, mesh_model, view, projection, node_color,
+                    depth_buffer, near_plane, far_plane);
             }
         }
         if (mesh_shape.prepared) {
@@ -92,14 +154,14 @@ public:
                 }
                 if (state.light_context.enabled) {
                     chronon3d::renderer::render_mesh_filled_lit(
-                        fb, *part.geometry, state.matrix, view, projection, color,
+                        fb, *part.geometry, mesh_model, view, projection, color,
                         depth_buffer, state.light_context, state.rim_light, material,
-                        camera.near_plane, camera.far_plane,
+                        near_plane, far_plane,
                         roughness_factor, metallic_factor, metallic_roughness);
                 } else {
                     chronon3d::renderer::render_mesh_filled(
-                        fb, *part.geometry, state.matrix, view, projection, color,
-                        depth_buffer, camera.near_plane, camera.far_plane);
+                        fb, *part.geometry, mesh_model, view, projection, color,
+                        depth_buffer, near_plane, far_plane);
                 }
             }
         }

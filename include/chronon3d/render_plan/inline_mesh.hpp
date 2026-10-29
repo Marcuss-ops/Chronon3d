@@ -26,6 +26,13 @@ struct InlineMeshMaterialPlan {
     float shininess{32.0f};
     float rim_intensity{1.0f};
     std::optional<std::array<float, 4>> base_color;
+    // Exact metallic-roughness values are retained alongside legacy Phong
+    // approximations so downstream IBL consumers do not need to infer them.
+    std::optional<float> metallic;
+    std::optional<float> roughness;
+    std::optional<std::array<float, 3>> emissive;
+    std::optional<bool> double_sided;
+    std::optional<float> alpha_cutoff;
 };
 
 struct InlineMeshVertex {
@@ -39,17 +46,22 @@ struct InlineMeshVertex {
 struct InlineMeshFrameSamplePlan {
     std::int64_t frame{0};
     std::vector<std::array<float, 3>> positions;
+    // Optional authored/deformed normals, present consistently for all samples.
+    std::vector<std::array<float, 3>> normals;
 };
 
 /// One static, indexed TRIANGLES primitive in mesh-local coordinates.
 struct InlineMeshPlan {
     std::vector<InlineMeshVertex> vertices;
     std::vector<std::uint32_t> indices;
+    /// Optional linear metallic-roughness image; green carries roughness and
+    /// blue carries metallic according to glTF metallicRoughness.
+    std::string metallic_roughness_texture_asset;
     // Presence opts the mesh into lighting; omitted preserves legacy flat color.
     std::optional<InlineMeshMaterialPlan> material;
-    // Optional baked position track (V3 only). The software renderer linearly
-    // samples positions per frame, regenerates normals, and retains the base
-    // mesh UVs, indices, and texture asset.
+    // Optional baked geometry track (V3 only). The software renderer samples
+    // positions and optional normals while retaining base UVs, indices,
+    // material, and texture assets.
     std::vector<InlineMeshFrameSamplePlan> animation;
 };
 

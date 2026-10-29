@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
+#include <chronon3d/assets/hdri_environment.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -72,23 +73,69 @@ using namespace chronon3d::graph;
         : light.directional_color;
     const f32 rim_factor = std::pow(1.0f - rim_ndotv, rim_power);
     const f32 rim_total = rim_factor * rim_intensity;
+    std::array<f32, 3> environment_specular{};
+    if (light.environment_probe && !light.environment_probe->mips.empty() && material.specular > 0.f) {
+        const Vec3 reflected = glm::reflect(-v, n);
+        const f32 c = std::cos(light.environment_rotation_y);
+        const f32 s = std::sin(light.environment_rotation_y);
+        const std::array<float, 3> probe_direction{
+            c * reflected.x - s * reflected.z, reflected.y,
+            s * reflected.x + c * reflected.z};
+        const f32 roughness = material.roughness.value_or(
+            std::clamp(std::sqrt(2.f / (material.shininess + 2.f)), .04f, 1.f));
+        environment_specular = assets::sample_hdri_env_v1(
+            *light.environment_probe, probe_direction,
+            roughness * static_cast<f32>(light.environment_probe->mips.size() - 1));
+        for (f32& component : environment_specular)
+            component *= material.specular * light.environment_intensity;
+    }
+
+    // HDRI_ENV_V1 stores Lambert-convolved real SH in the Motion Y-up basis:
+    // [L00, L1-1(y), L10(z), L11(x), L2-2(xy), L2-1(yz), L20, L21(xz), L22].
+    // Rotate the lookup normal into probe space and divide irradiance by pi
+    // to obtain diffuse outgoing radiance for a Lambertian surface.
+    Color environment{0.0f, 0.0f, 0.0f, 1.0f};
+    if (light.environment_enabled) {
+        const f32 c = std::cos(light.environment_rotation_y);
+        const f32 s = std::sin(light.environment_rotation_y);
+        const Vec3 probe_n = safe_normalize(Vec3{c * n.x - s * n.z, n.y, s * n.x + c * n.z});
+        const f32 x = probe_n.x, y = probe_n.y, z = probe_n.z;
+        const f32 basis[9] = {0.2820947918f, 0.4886025119f * y, 0.4886025119f * z,
+            0.4886025119f * x, 1.0925484306f * x * y, 1.0925484306f * y * z,
+            0.3153915653f * (3.0f * z * z - 1.0f), 1.0925484306f * x * z,
+            0.5462742153f * (x * x - y * y)};
+        f32 rgb[3]{};
+        for (std::size_t k = 0; k < 9; ++k)
+            for (std::size_t channel = 0; channel < 3; ++channel)
+                rgb[channel] += basis[k] * light.environment_irradiance_sh[k * 3 + channel];
+        constexpr f32 inv_pi = 0.3183098861837907f;
+        environment = Color{std::max(0.0f, rgb[0] * inv_pi * light.environment_intensity),
+                            std::max(0.0f, rgb[1] * inv_pi * light.environment_intensity),
+                            std::max(0.0f, rgb[2] * inv_pi * light.environment_intensity), 1.0f};
+    }
 
     const f32 r = std::clamp(
         ambient * light.ambient_color.r +
         diffuse * light.directional_color.r +
+        environment.r * material.diffuse +
         specular * 0.98f +
+        environment_specular[0] +
         rim_total * rim_color.r * 0.6f,
         0.0f, 1.0f);
     const f32 g = std::clamp(
         ambient * light.ambient_color.g +
         diffuse * light.directional_color.g +
+        environment.g * material.diffuse +
         specular * 0.98f +
+        environment_specular[1] +
         rim_total * rim_color.g * 0.6f,
         0.0f, 1.0f);
     const f32 b = std::clamp(
         ambient * light.ambient_color.b +
         diffuse * light.directional_color.b +
+        environment.b * material.diffuse +
         specular * 0.98f +
+        environment_specular[2] +
         rim_total * rim_color.b * 0.6f,
         0.0f, 1.0f);
 
@@ -210,6 +257,13 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(light.ambient));
     seed = hash_combine(seed, hash_color(light.directional_color));
     seed = hash_combine(seed, hash_value(light.diffuse));
+    seed = hash_combine(seed, hash_value(light.environment_enabled));
+    for (const f32 coefficient : light.environment_irradiance_sh)
+        seed = hash_combine(seed, hash_value(coefficient));
+    seed = hash_combine(seed, hash_value(light.environment_intensity));
+    seed = hash_combine(seed, hash_value(light.environment_rotation_y));
+    if (light.environment_probe)
+        seed = hash_combine(seed, hash_value(light.environment_probe->content_hash));
     seed = hash_combine(seed, hash_shadow_settings(light.shadows));
     seed = hash_combine(seed, hash_value(light.point_lights.size()));
     for (const auto& source : light.point_lights)
@@ -225,6 +279,15 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(material.ambient_multiplier));
     seed = hash_combine(seed, hash_value(material.specular));
     seed = hash_combine(seed, hash_value(material.shininess));
+    const bool has_extended_material = material.emissive_enabled || material.double_sided || material.alpha_cutoff.has_value();
+    if (has_extended_material) {
+        seed = hash_combine(seed, hash_value(true));
+        seed = hash_combine(seed, hash_color(material.emissive_color));
+        seed = hash_combine(seed, hash_value(material.emissive_enabled));
+        seed = hash_combine(seed, hash_value(material.double_sided));
+        seed = hash_combine(seed, hash_value(material.alpha_cutoff.has_value()));
+        if (material.alpha_cutoff) seed = hash_combine(seed, hash_value(*material.alpha_cutoff));
+    }
     return seed;
 }
 

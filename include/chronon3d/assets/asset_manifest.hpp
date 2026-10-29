@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <chronon3d/assets/asset_metadata.hpp>
 
 namespace chronon3d::assets {
 
@@ -49,6 +50,9 @@ struct InternalAssetRef {
     // Display-derived runtime resolution bound for image assets (see
     // ImageDecodeOptions::max_dimension). 0 = no display bound.
     int         max_dimension{0};
+    // Source encoding required by consumers such as linear metallic/roughness
+    // data maps. Included in the image-cache key during runtime preparation.
+    ColorSpace  color_space{ColorSpace::SRGB};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -86,9 +90,9 @@ public:
     /// `max_dimension` mirrors the display-derived decode bound so the
     /// preparation warm-up decodes the same cache entry the render node uses.
     void add_image(std::string path, std::string owner, bool required = true,
-                   int max_dimension = 0) {
+                   int max_dimension = 0, ColorSpace color_space = ColorSpace::SRGB) {
         add({AssetKind::Image, std::move(path), std::move(owner), required,
-             max_dimension});
+             max_dimension, color_space});
     }
 
     /// Add a video asset (owner-keyed; `AssetKind::Video`).

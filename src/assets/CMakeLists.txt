@@ -4,6 +4,7 @@
 
 set(CHRONON3D_ASSET_SOURCES
     asset_resolver.cpp
+    hdri_environment.cpp
     mesh_loader.cpp
     prepared_asset_manifest.cpp
     prepared_asset_digest.cpp

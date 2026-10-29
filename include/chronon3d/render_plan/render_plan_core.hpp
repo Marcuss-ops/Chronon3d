@@ -45,6 +45,7 @@ struct RenderPlan {
     std::optional<CameraPlan> camera;
     std::optional<std::vector<CameraSamplePlan>> camera_samples;
     std::optional<LightingRigPlan> lighting_rig;
+    std::optional<EnvironmentLightPlan> environment_light;
     struct ColorManagementPlan {
         std::string ocio_config;
         std::string working_space;

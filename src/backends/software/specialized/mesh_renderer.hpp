@@ -5,6 +5,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
+#include <optional>
 #include <span>
 
 namespace chronon3d {
@@ -25,6 +26,12 @@ void render_mesh_textured(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
                          std::span<float> depth_buffer, const Framebuffer& texture,
                          f32 near_plane = 0.1f, f32 far_plane = 1000.0f);
 
+void render_mesh_textured(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
+                         const Mat4& view, const Mat4& proj, const Color& tint,
+                         std::span<float> depth_buffer, const Framebuffer& texture,
+                         f32 near_plane, f32 far_plane,
+                         std::optional<f32> alpha_cutoff);
+
 void render_mesh_filled_lit(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
                             const Mat4& view, const Mat4& proj, const Color& color,
                             std::span<float> depth_buffer,
@@ -35,7 +42,8 @@ void render_mesh_filled_lit(Framebuffer& fb, const Mesh& mesh, const Mat4& model
                             f32 far_plane = 1000.0f,
                             f32 roughness_factor = -1.0f,
                             f32 metallic_factor = 0.0f,
-                            const assets::MeshImage* metallic_roughness = nullptr);
+                            const assets::MeshImage* metallic_roughness = nullptr,
+                            const Framebuffer* base_color_texture = nullptr);
 
 /// Compatibility overload that owns a temporary depth buffer for one mesh.
 void render_mesh_filled(Framebuffer& fb, const Mesh& mesh, const Mat4& model,

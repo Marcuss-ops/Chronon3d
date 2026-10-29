@@ -7,6 +7,7 @@
 #include <chronon3d/compiler/temporal_update_schedule.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 #include <cstdint>
 #include <optional>
@@ -66,6 +67,7 @@ struct ProgramMetadata {
     assets::ContentDigest request_digest{};
     RenderBudget render_budget{};
     std::optional<render_plan::LightingRigPlan> lighting_rig;
+    std::optional<Camera2_5D> camera_2_5d;
 };
 
 struct ProgramFingerprint {

@@ -22,6 +22,7 @@
 #include <chronon3d/backends/video/video_source.hpp>
 #include <glm/glm.hpp>
 #include <optional>
+#include <array>
 #include <type_traits>
 #include <functional>
 #include <string>
@@ -85,6 +86,18 @@ class SceneBuilder {
                                     f32 intensity = 1.0f);
     /// Add a per-pixel light (point, spot or directional) to the scene's light context.
     SceneBuilder& point_light_source(rendering::PointLightSource source);
+    SceneBuilder& environment_irradiance(
+        std::array<f32, 27> sh, f32 intensity, f32 rotation_y,
+        std::shared_ptr<const assets::HdriEnvV1> probe = {}) {
+        auto& light = scene_.light_context();
+        light.enabled = true;
+        light.environment_enabled = true;
+        light.environment_irradiance_sh = std::move(sh);
+        light.environment_intensity = intensity;
+        light.environment_rotation_y = rotation_y;
+        light.environment_probe = std::move(probe);
+        return *this;
+    }
 
 
     /// Apply a LightingRig preset, configuring the scene's light context,
