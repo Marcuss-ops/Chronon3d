@@ -11,7 +11,7 @@ namespace chronon3d::runtime {
 FrameSlotPool::FrameSlotPool(
     std::size_t capacity,
     GpuCompletionTracker& gpu_tracker)
-    : FrameSlotPool(capacity, gpu_tracker, 4u * 1024u * 1024u) {}
+    : FrameSlotPool(capacity, gpu_tracker, 16u * 1024u * 1024u) {}
 
 FrameSlotPool::FrameSlotPool(
     std::size_t capacity,

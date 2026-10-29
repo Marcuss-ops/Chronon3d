@@ -19,7 +19,7 @@ namespace chronon3d::runtime {
 
 struct FrameSlotPayload final {
     explicit FrameSlotPayload(
-        std::size_t arena_capacity_bytes = 4u * 1024u * 1024u)
+        std::size_t arena_capacity_bytes = 16u * 1024u * 1024u)
         : arena(arena_capacity_bytes, true) {}
 
     FrameArena arena;

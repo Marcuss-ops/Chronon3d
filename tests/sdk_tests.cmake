@@ -58,3 +58,12 @@ if(CHRONON3D_ENABLE_SVG)
         c_abi/test_prepared_render_plan_svg_filters.cpp
     )
 endif()
+
+# Temporary diagnostic probe (remove after c_abi crash is resolved).
+add_executable(probe_decode c_abi/probe_decode.cpp)
+target_link_libraries(probe_decode PRIVATE
+    chronon3d_render_plan
+    chronon3d_compiler
+    nlohmann_json::nlohmann_json)
+target_compile_definitions(probe_decode PRIVATE
+    CHRONON3D_TEST_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\")

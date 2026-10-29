@@ -494,7 +494,7 @@ private:
     explicit JobSession(TemporalSampleTag);
     void initialize_slot_authorities(
         std::size_t capacity,
-        std::size_t arena_capacity_bytes = 4u * 1024u * 1024u);
+        std::size_t arena_capacity_bytes = 16u * 1024u * 1024u);
 
     struct JobStatus {
         mutable std::mutex mutex;
