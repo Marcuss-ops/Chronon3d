@@ -509,4 +509,33 @@ void VulkanBackend::Impl::transition(VkCommandBuffer command,
     emit_resource_transition(command, image, transition_record);
 }
 
+void VulkanBackend::synchronize_native_dependencies() {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    Impl::DomainLock domain_lock(*m_impl, Impl::LockDomain::Dual);
+    m_impl->require_healthy();
+    if (!m_impl->frame_batch.active) return;
+
+    const VkMemoryBarrier2KHR barrier{
+        VK_STRUCTURE_TYPE_MEMORY_BARRIER_2_KHR,
+        nullptr,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+        VK_ACCESS_2_MEMORY_WRITE_BIT_KHR,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+        VK_ACCESS_2_MEMORY_READ_BIT_KHR | VK_ACCESS_2_MEMORY_WRITE_BIT_KHR};
+    const VkDependencyInfoKHR dependency{
+        VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+        nullptr,
+        0,
+        1,
+        &barrier,
+        0,
+        nullptr,
+        0,
+        nullptr};
+    require_pipeline_barrier2(m_impl->device)(
+        m_impl->active_command_buffer(), &dependency);
+    ++m_impl->stats.barriers_emitted;
+#endif
+}
+
 } // namespace chronon3d::backends::vulkan

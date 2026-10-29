@@ -1,0 +1,141 @@
+{
+  "schema": "chronon.documentary-certification.v1",
+  "date_utc": "2026-10-29",
+  "source": {
+    "repository": "Chronon3D",
+    "head": "556a4ae58933d0c6b72eb22829b415e08ffc43d4",
+    "working_tree_dirty_at_run": true,
+    "cli_sha256": "9ba3c94ed246fd57ff39b61279267b5cb46411c867921fa7cf076a4486988ba6",
+    "plan": "docs/evidence/camera-authority-migration/T16/dof-ablation/t16_three_depth_dof_on.plan.json",
+    "plan_sha256": "d3a10211509578d4dbaca96fc33e3d9fb6de266458e405c3ccc2242abcb05fc1",
+    "hardware": "NVIDIA RTX A4000 16376 MiB",
+    "build": "Release CLI rebuilt successfully from current working tree with -j12"
+  },
+  "runs": {
+    "software_raw_frame_75": {
+      "status": "PASS",
+      "resolution": "1920x1080",
+      "alpha_nonzero_pixels": 2073600,
+      "unique_rgba": 86771,
+      "sha256": "c620f8ff8862bfd688dcf8282fe73880b23ce98af0f673c4e048de262e1b9db1"
+    },
+    "vulkan_raw_frame_75": {
+      "status": "PASS",
+      "resolution": "1920x1080",
+      "alpha_nonzero_pixels": 2073600,
+      "unique_rgba": 87395,
+      "software_rgba8_comparison": {
+        "mae_per_channel": 0.051352961033950616,
+        "p99_absolute_channel_error": 1,
+        "max_absolute_channel_error": 63,
+        "pixels_differing": 229709,
+        "pixel_count": 2073600
+      },
+      "sha256": "d56dcdf39c37434a402c666c24161b6ebb6c8765d260e9faf9448d20e7495279"
+    },
+    "strict_native_vulkan_nvenc_t16_150_frames": {
+      "status": "PASS_FOR_AVAILABLE_T16_PLAN",
+      "accepted_frames": 150,
+      "decoded_frames": 150,
+      "resolution": "1920x1080",
+      "frame_rate": "30/1",
+      "mp4": "docs/evidence/final-documentary-parallax-20261029/current-t16-150-barrier-build.mp4",
+      "sha256": "42b4f320cdbf41699a354e516e3c5cafb550051f0c6d803c6de34c94c3bb93a9",
+      "blackdetect": "no black interval detected at d=0.001,pix_th=0.015",
+      "dof_off_frame0": {
+        "mp4": "docs/evidence/final-documentary-parallax-20261029/current-dof-off-barrier-build.mp4",
+        "sha256": "f28fdbbd817b15e08f675caf45681a4af6e056d9b69834b668448a4e0eb0bd85",
+        "decoded_mean_rgb": [
+          71.2102,
+          59.9327,
+          58.079
+        ],
+        "result": "visible complete composition"
+      },
+      "dof_on_frame0": {
+        "mp4": "docs/evidence/final-documentary-parallax-20261029/current-dof-on-barrier-build.mp4",
+        "sha256": "12343ca24c0b073363b6e81b7d1682d4baa7d686c3e1e6c5f2e0b00e76c779ab",
+        "decoded_mean_rgb": [
+          71.7969,
+          60.5039,
+          58.6292
+        ],
+        "result": "visible complete composition; soft halo around cutout remains a quality concern"
+      },
+      "three_layer_frame0": {
+        "mp4": "docs/evidence/final-documentary-parallax-20261029/current-three-layers-barrier-build.mp4",
+        "sha256": "e9837ddccb5e785877fb9617ec3b59eb191e86d2565cc9a100b03e493f0535b2",
+        "result": "visible background, title, and foreground subject"
+      },
+      "root_cause": "A Vulkan memory dependency between Render Graph levels was missing on the strict-native path. Recording a broad write-to-read/write dependency at each level restored the output without snapshots or per-level submission on the available reproduction.",
+      "limitation": "Issue #67 exact 240-frame plan/source and RTX 4060 Ti are unavailable; this is a current-source RTX A4000 reproduction.",
+      "final_smoke_after_incremental_rebuild": {
+        "mp4": "docs/evidence/final-documentary-parallax-20261029/current-three-layers-final-smoke.mp4",
+        "decoded_frames": 1,
+        "resolution": "1920x1080",
+        "decoded_mean_rgb": [
+          70.4976,
+          59.4725,
+          57.7717
+        ],
+        "result": "visible complete three-layer composition"
+      },
+      "dof_on_software_frame0": {
+        "mp4": "docs/evidence/final-documentary-parallax-20261029/current-dof-on-software-frame0.mp4",
+        "sha256": "eb6000689cadd35d83b1540c9a730b97a9514d4d7d72cb864ea4415ca4e8161c",
+        "comparison_to_vulkan_dof_on_frame0": {
+          "rgb_mae": 0.3878623328,
+          "rgb_p99_absolute_error": 3,
+          "rgb_max_absolute_error": 63,
+          "result": "Vulkan closely matches software; visible softness/edge halo is also present in software"
+        }
+      }
+    }
+  },
+  "tests": {
+    "T01_parallax": {
+      "status": "PARTIAL",
+      "evidence": "Historical CAM-02 isolated camera test passed; documentary scene integration not run."
+    },
+    "T02_title_occlusion_alpha": {
+      "status": "PARTIAL",
+      "evidence": "Current T16 software and Vulkan raw frame visibly show subject in front of title; no full edge/alpha gate run."
+    },
+    "T03_depth_of_field": {
+      "status": "PARTIAL",
+      "evidence": "Strict-native DoF-off and DoF-on one-frame MP4s decode as visible complete compositions; the 150-frame DoF-on T16 render decodes without black intervals. The subject cutout still shows a visible soft halo, and no edge-quality acceptance threshold has been agreed. Plan inspection: camera-space focus distance is 1000; foreground subject plane is approximately 901 units from the camera (camera z=-1000, subject layer z=-99), so the plan itself places the subject in front of the focus plane. The visible softness is consistent with that authoring, but the desired edge look remains a visual decision."
+    },
+    "T04_floating_animation": {
+      "status": "NOT_RUN",
+      "evidence": "Required independent food-product assets/scene unavailable."
+    },
+    "T05_shutter_motion_blur": {
+      "status": "FAIL",
+      "evidence": "Existing documented 150-frame gate: 111 pass, 39 fail; focused frame-75 check alone passed."
+    },
+    "T06_determinism_cache_random_access": {
+      "status": "NOT_RUN",
+      "evidence": "Requested 240-frame sequential/random/repeat job not run on this current scene."
+    },
+    "T07_landscape_portrait": {
+      "status": "NOT_RUN",
+      "evidence": "Portrait-authored plan and paired renders unavailable."
+    },
+    "T08_mp4_gpu_stress": {
+      "status": "PARTIAL",
+      "evidence": "Available T16 strict-native NVENC export passed 150/150 frames at 1920x1080/30 fps; full decode and blackdetect passed. Original issue #67 240-frame plan, three consecutive jobs, and exact RTX 4060 Ti environment were unavailable."
+    }
+  },
+  "verdict": {
+    "CORE_READY": "NOT_CERTIFIED",
+    "NATIVE_READY": "PARTIAL: available T16 plan passes; issue #67 exact reproduction not available",
+    "CINEMATIC_READY": "NOT_CERTIFIED"
+  },
+  "limitations": [
+    "The exact 240-frame plan and source checkout referenced by issue #67 are unavailable in this workspace.",
+    "The original issue environment was an RTX 4060 Ti; the available reproduction passed on an RTX A4000.",
+    "The requested burger, fries, and cup transparent production assets are unavailable.",
+    "DoF renders without black frames, but the subject cutout shows a visible soft halo and lacks an agreed quality gate.",
+    "Portrait framing, random-access determinism, motion-blur full-sequence parity, and three consecutive native stress jobs remain unverified."
+  ]
+}
