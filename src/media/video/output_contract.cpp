@@ -7,6 +7,7 @@
 #include <cmath>
 #include <filesystem>
 #include <limits>
+#include <numeric>
 #include <string>
 #include <string_view>
 
@@ -33,19 +34,49 @@ namespace {
     // frames = duration_ticks * duration_time_base * frames_per_second.
     // Round to the nearest whole frame, matching the verifier's historical
     // llround policy without converting the authoritative media time to double.
-    const __int128 numerator =
-        static_cast<__int128>(duration.ticks()) *
-        static_cast<__int128>(duration.time_base.numerator) *
-        static_cast<__int128>(frame_rate.numerator);
-    const __int128 denominator =
-        static_cast<__int128>(duration.time_base.denominator) *
-        static_cast<__int128>(frame_rate.denominator);
-    if (numerator <= 0 || denominator <= 0) {
+    // Cancel common factors first, then multiply with checked 64-bit arithmetic.
+    // This keeps the calculation exact and portable to MSVC, which has no
+    // standard 128-bit integer type.
+    std::uint64_t factors[] = {
+        static_cast<std::uint64_t>(duration.ticks()),
+        static_cast<std::uint64_t>(duration.time_base.numerator),
+        static_cast<std::uint64_t>(frame_rate.numerator)};
+    std::uint64_t denominator =
+        static_cast<std::uint64_t>(duration.time_base.denominator);
+    const std::uint64_t frame_rate_denominator =
+        static_cast<std::uint64_t>(frame_rate.denominator);
+
+    const auto cancel = [&factors](std::uint64_t& divisor) {
+        for (auto& factor : factors) {
+            const auto common = std::gcd(factor, divisor);
+            factor /= common;
+            divisor /= common;
+        }
+    };
+    cancel(denominator);
+    auto rate_denominator = frame_rate_denominator;
+    cancel(rate_denominator);
+
+    constexpr auto max = std::numeric_limits<std::uint64_t>::max();
+    if (denominator > max / rate_denominator) {
         return 0;
     }
+    denominator *= rate_denominator;
 
-    const __int128 rounded = (numerator + denominator / 2) / denominator;
-    if (rounded > static_cast<__int128>(std::numeric_limits<std::int64_t>::max())) {
+    std::uint64_t numerator = 1;
+    for (const auto factor : factors) {
+        if (factor != 0 && numerator > max / factor) {
+            return 0;
+        }
+        numerator *= factor;
+    }
+
+    const auto quotient = numerator / denominator;
+    const auto remainder = numerator % denominator;
+    const auto round_up_threshold = denominator / 2 + denominator % 2;
+    const auto rounded = quotient + (remainder >= round_up_threshold ? 1u : 0u);
+    if (rounded > static_cast<std::uint64_t>(
+                      std::numeric_limits<std::int64_t>::max())) {
         return 0;
     }
     return static_cast<std::int64_t>(rounded);
