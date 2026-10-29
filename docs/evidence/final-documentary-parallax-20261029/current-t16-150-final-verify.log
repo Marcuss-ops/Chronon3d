@@ -1,0 +1,169 @@
+[2026-10-29 17:42:06.349] [info] [asset-profile] kind=0 path=output/T16_Hero_Title/camera_background.png bytes=91261 cache=miss invalidated=0 stat=0.01ms hash=3.29ms hashed_bytes=91261 total=3.37ms
+[2026-10-29 17:42:06.350] [info] [asset-profile] kind=0 path=output/T16_Hero_Title/camera_title.png bytes=253353 cache=miss invalidated=0 stat=0.01ms hash=1.13ms hashed_bytes=253353 total=1.20ms
+[2026-10-29 17:42:06.369] [info] [asset-profile] kind=0 path=output/T16_Hero_Title/subject_cutout_refined.png bytes=4642106 cache=miss invalidated=0 stat=0.01ms hash=19.25ms hashed_bytes=4642106 total=19.31ms
+[2026-10-29 17:42:06.369] [info] [asset-digest-cache] hits=0 misses=3 invalidations=0 bytes_hashed=4986720 lookup_ms=0.00 write_ms=0.01 full_hash_ms=23.66
+[2026-10-29 17:42:06.370] [info] [plan-profile] read=0.53ms parse=2.11ms decode=55.51ms resolver=0.11ms compile_validate=24.42ms total=82.70ms
+[2026-10-29 17:42:06.370] [info] [asset-profile] kind=0 path=output/T16_Hero_Title/camera_background.png bytes=91261 cache=hit invalidated=0 stat=0.01ms hash=0.00ms hashed_bytes=0 total=0.06ms
+[2026-10-29 17:42:06.370] [info] [asset-profile] kind=0 path=output/T16_Hero_Title/camera_title.png bytes=253353 cache=hit invalidated=0 stat=0.01ms hash=0.00ms hashed_bytes=0 total=0.05ms
+[2026-10-29 17:42:06.370] [info] [asset-profile] kind=0 path=output/T16_Hero_Title/subject_cutout_refined.png bytes=4642106 cache=hit invalidated=0 stat=0.01ms hash=0.00ms hashed_bytes=0 total=0.05ms
+[2026-10-29 17:42:06.370] [info] [asset-digest-cache] hits=3 misses=0 invalidations=0 bytes_hashed=0 lookup_ms=0.00 write_ms=0.00 full_hash_ms=0.00
+[2026-10-29 17:42:06.370] [info] [plan-compile-profile] assets=0.24ms fingerprint=0.25ms media_resolution=0.00ms materialize=0.02ms composition_compile=0.00ms compatibility_view=0.01ms total=0.72ms
+[2026-10-29 17:42:06.371] [info] [video] execution plan resolved (reason: required_gpu_native_full_graph); decode=1 composite=2 encode=1 interop=2 handoff=1 codec=3
+[2026-10-29 17:42:06.407] [info] [video-runtime] created persistent runtime for device 0 (CUDA ordinal 0)
+[2026-10-29 17:42:06.407] [info] [video] encoder feed capability: host_frame=false direct_yuv=false native_surface=true
+[2026-10-29 17:42:06.733] [info] [native_av] CUDA context contract: native=0x55a01b8e8080 ffmpeg=0x55a01b8e8080
+[2026-10-29 17:42:06.744] [info] [native_av] NVENC tuning applied: rc=driver-default preset=slow async_depth=4 nvenc_surfaces=8 qp=-1 bitrate=0
+[h264_nvenc @ 0x55a01b75e380] Defined rc_lookahead requires more surfaces, increasing used surfaces 8 -> 34
+[2026-10-29 17:42:06.830] [info] [native_av] encoder bitstream contract: codec=27 profile=100 level=-99 pix_fmt=117 parameter_sets=53 materialized=true
+[2026-10-29 17:42:06.830] [info] [native_av] Opened native encoder: 1920x1080 @ 30fps, codec=h264_nvenc, rc=driver-default, preset=slow, output='docs/evidence/final-documentary-parallax-20261029/current-t16-150-final-verify.partial.mp4'
+[2026-10-29 17:42:07.631] [warning] [imgprof] decode=133.3ms
+[2026-10-29 17:42:07.631] [warning] [imgprof] downscale=133.4ms
+[2026-10-29 17:42:07.718] [warning] [imgprof] convert=220.0ms
+[2026-10-29 17:42:07.852] [warning] [imgprof] sha256=354.7ms
+[2026-10-29 17:42:07.852] [info] ImageCache: loaded 'output/T16_Hero_Title/camera_background.png' (1920x1080) in 354.826ms
+[2026-10-29 17:42:07.908] [warning] [imgprof] decode=53.7ms
+[2026-10-29 17:42:07.908] [warning] [imgprof] downscale=53.7ms
+[2026-10-29 17:42:07.948] [warning] [imgprof] convert=93.8ms
+[2026-10-29 17:42:08.020] [warning] [imgprof] sha256=165.8ms
+[2026-10-29 17:42:08.020] [info] ImageCache: loaded 'output/T16_Hero_Title/camera_title.png' (1900x610) in 165.893ms
+[2026-10-29 17:42:08.802] [warning] [imgprof] decode=782.1ms
+[2026-10-29 17:42:09.104] [info] ImageCache: downscaled runtime image (2136x2847 -> 1537x2048, cap=2048)
+[2026-10-29 17:42:09.104] [warning] [imgprof] downscale=1083.8ms
+[2026-10-29 17:42:09.214] [warning] [imgprof] convert=1194.0ms
+[2026-10-29 17:42:09.411] [warning] [imgprof] sha256=1391.0ms
+[2026-10-29 17:42:09.411] [info] ImageCache: loaded 'output/T16_Hero_Title/subject_cutout_refined.png' (1537x2048) in 1391.147ms
+[2026-10-29 17:42:09.912] [info] [pool-warm] Pre-allocated and pre-imported 6 execution slots (1920x1080) for native NVENC
+[2026-10-29 17:42:09.963] [info] [temp-lifetime] frame=0 after_level=0 live=[0,1,5,9,] retired=[]
+[2026-10-29 17:42:09.963] [info] [exec-level-diag] frame=0 level=0 nodes=4 input_ms=0.001 dispatch_ms=2.475 fb_release_ms=0.001
+[2026-10-29 17:42:09.963] [info] [graph-edge] frame=0 level=1 consumer_id=2 input_index=0 producer_id=1 producer_level=0
+[2026-10-29 17:42:09.963] [info] [graph-edge] frame=0 level=1 consumer_id=6 input_index=0 producer_id=5 producer_level=0
+[2026-10-29 17:42:09.963] [info] [graph-edge] frame=0 level=1 consumer_id=10 input_index=0 producer_id=9 producer_level=0
+[2026-10-29 17:42:09.965] [info] [temp-lifetime] frame=0 after_level=1 live=[0,2,6,10,] retired=[1,5,9,]
+[2026-10-29 17:42:09.965] [info] [exec-level-diag] frame=0 level=1 nodes=3 input_ms=0.018 dispatch_ms=1.060 fb_release_ms=0.004
+[2026-10-29 17:42:09.965] [info] [graph-edge] frame=0 level=2 consumer_id=3 input_index=0 producer_id=2 producer_level=1
+[2026-10-29 17:42:09.965] [info] [graph-edge] frame=0 level=2 consumer_id=7 input_index=0 producer_id=6 producer_level=1
+[2026-10-29 17:42:09.965] [info] [graph-edge] frame=0 level=2 consumer_id=11 input_index=0 producer_id=10 producer_level=1
+[2026-10-29 17:42:09.965] [info] [temp-lifetime] frame=0 after_level=2 live=[0,3,7,11,] retired=[2,6,10,]
+[2026-10-29 17:42:09.965] [info] [exec-level-diag] frame=0 level=2 nodes=3 input_ms=0.015 dispatch_ms=0.875 fb_release_ms=0.002
+[2026-10-29 17:42:09.965] [info] [graph-edge] frame=0 level=3 consumer_id=4 input_index=0 producer_id=0 producer_level=0
+[2026-10-29 17:42:09.965] [info] [graph-edge] frame=0 level=3 consumer_id=4 input_index=1 producer_id=3 producer_level=2
+[2026-10-29 17:42:09.981] [info] [temp-lifetime] frame=0 after_level=3 live=[4,7,11,] retired=[0,3,]
+[2026-10-29 17:42:09.981] [info] [exec-level-diag] frame=0 level=3 nodes=1 input_ms=0.011 dispatch_ms=15.054 fb_release_ms=0.005
+[2026-10-29 17:42:09.981] [info] [graph-edge] frame=0 level=4 consumer_id=8 input_index=0 producer_id=4 producer_level=3
+[2026-10-29 17:42:09.981] [info] [graph-edge] frame=0 level=4 consumer_id=8 input_index=1 producer_id=7 producer_level=2
+[2026-10-29 17:42:09.981] [info] [temp-lifetime] frame=0 after_level=4 live=[8,11,] retired=[4,7,]
+[2026-10-29 17:42:09.981] [info] [exec-level-diag] frame=0 level=4 nodes=1 input_ms=0.013 dispatch_ms=0.524 fb_release_ms=0.002
+[2026-10-29 17:42:09.981] [info] [graph-edge] frame=0 level=5 consumer_id=12 input_index=0 producer_id=8 producer_level=4
+[2026-10-29 17:42:09.981] [info] [graph-edge] frame=0 level=5 consumer_id=12 input_index=1 producer_id=11 producer_level=2
+[2026-10-29 17:42:09.982] [info] [temp-lifetime] frame=0 after_level=5 live=[12,] retired=[8,11,]
+[2026-10-29 17:42:09.982] [info] [exec-level-diag] frame=0 level=5 nodes=1 input_ms=0.011 dispatch_ms=0.499 fb_release_ms=0.002
+[2026-10-29 17:42:09.982] [info] [graph-edge] frame=0 level=6 consumer_id=13 input_index=0 producer_id=12 producer_level=5
+[2026-10-29 17:42:09.982] [info] [copy_cuda_diag] src_slot=1048599 dst_slot=1048579 src_w=1920 src_h=1080 src_fmt=109 dst_w=1920 dst_h=1080 batch_active=true
+[2026-10-29 17:42:09.983] [info] [temp-lifetime] frame=0 after_level=6 live=[13,] retired=[12,]
+[2026-10-29 17:42:09.983] [info] [exec-level-diag] frame=0 level=6 nodes=1 input_ms=0.007 dispatch_ms=1.142 fb_release_ms=0.002
+[2026-10-29 17:42:09.983] [info] [video] Exporting via Arena-backed SIMD pipeline
+[2026-10-29 17:42:09.987] [info] [temp-lifetime] frame=1 after_level=0 live=[0,1,5,9,] retired=[]
+[2026-10-29 17:42:09.987] [info] [exec-level-diag] frame=1 level=0 nodes=4 input_ms=0.001 dispatch_ms=1.568 fb_release_ms=0.001
+[2026-10-29 17:42:09.987] [info] [graph-edge] frame=1 level=1 consumer_id=2 input_index=0 producer_id=1 producer_level=0
+[2026-10-29 17:42:09.987] [info] [graph-edge] frame=1 level=1 consumer_id=6 input_index=0 producer_id=5 producer_level=0
+[2026-10-29 17:42:09.987] [info] [graph-edge] frame=1 level=1 consumer_id=10 input_index=0 producer_id=9 producer_level=0
+[2026-10-29 17:42:09.988] [info] [temp-lifetime] frame=1 after_level=1 live=[0,2,6,10,] retired=[1,5,9,]
+[2026-10-29 17:42:09.988] [info] [exec-level-diag] frame=1 level=1 nodes=3 input_ms=0.038 dispatch_ms=1.209 fb_release_ms=0.003
+[2026-10-29 17:42:09.988] [info] [graph-edge] frame=1 level=2 consumer_id=3 input_index=0 producer_id=2 producer_level=1
+[2026-10-29 17:42:09.988] [info] [graph-edge] frame=1 level=2 consumer_id=7 input_index=0 producer_id=6 producer_level=1
+[2026-10-29 17:42:09.988] [info] [graph-edge] frame=1 level=2 consumer_id=11 input_index=0 producer_id=10 producer_level=1
+[2026-10-29 17:42:09.990] [info] [temp-lifetime] frame=1 after_level=2 live=[0,3,7,11,] retired=[2,6,10,]
+[2026-10-29 17:42:09.990] [info] [exec-level-diag] frame=1 level=2 nodes=3 input_ms=0.015 dispatch_ms=1.235 fb_release_ms=0.002
+[2026-10-29 17:42:09.990] [info] [graph-edge] frame=1 level=3 consumer_id=4 input_index=0 producer_id=0 producer_level=0
+[2026-10-29 17:42:09.990] [info] [graph-edge] frame=1 level=3 consumer_id=4 input_index=1 producer_id=3 producer_level=2
+[2026-10-29 17:42:10.005] [info] [temp-lifetime] frame=1 after_level=3 live=[4,7,11,] retired=[0,3,]
+[2026-10-29 17:42:10.005] [info] [exec-level-diag] frame=1 level=3 nodes=1 input_ms=0.011 dispatch_ms=15.313 fb_release_ms=0.005
+[2026-10-29 17:42:10.005] [info] [graph-edge] frame=1 level=4 consumer_id=8 input_index=0 producer_id=4 producer_level=3
+[2026-10-29 17:42:10.005] [info] [graph-edge] frame=1 level=4 consumer_id=8 input_index=1 producer_id=7 producer_level=2
+[2026-10-29 17:42:10.006] [info] [temp-lifetime] frame=1 after_level=4 live=[8,11,] retired=[4,7,]
+[2026-10-29 17:42:10.006] [info] [exec-level-diag] frame=1 level=4 nodes=1 input_ms=0.013 dispatch_ms=0.690 fb_release_ms=0.002
+[2026-10-29 17:42:10.006] [info] [graph-edge] frame=1 level=5 consumer_id=12 input_index=0 producer_id=8 producer_level=4
+[2026-10-29 17:42:10.006] [info] [graph-edge] frame=1 level=5 consumer_id=12 input_index=1 producer_id=11 producer_level=2
+[2026-10-29 17:42:10.006] [info] [temp-lifetime] frame=1 after_level=5 live=[12,] retired=[8,11,]
+[2026-10-29 17:42:10.006] [info] [exec-level-diag] frame=1 level=5 nodes=1 input_ms=0.011 dispatch_ms=0.695 fb_release_ms=0.002
+[2026-10-29 17:42:10.006] [info] [graph-edge] frame=1 level=6 consumer_id=13 input_index=0 producer_id=12 producer_level=5
+[2026-10-29 17:42:10.006] [info] [copy_cuda_diag] src_slot=1048615 dst_slot=1048580 src_w=1920 src_h=1080 src_fmt=109 dst_w=1920 dst_h=1080 batch_active=true
+[2026-10-29 17:42:10.008] [info] [temp-lifetime] frame=1 after_level=6 live=[13,] retired=[12,]
+[2026-10-29 17:42:10.008] [info] [exec-level-diag] frame=1 level=6 nodes=1 input_ms=0.007 dispatch_ms=1.219 fb_release_ms=0.002
+[2026-10-29 17:42:10.013] [info] [temp-lifetime] frame=2 after_level=0 live=[0,1,5,9,] retired=[]
+[2026-10-29 17:42:10.013] [info] [exec-level-diag] frame=2 level=0 nodes=4 input_ms=0.001 dispatch_ms=0.743 fb_release_ms=0.001
+[2026-10-29 17:42:10.013] [info] [graph-edge] frame=2 level=1 consumer_id=2 input_index=0 producer_id=1 producer_level=0
+[2026-10-29 17:42:10.013] [info] [graph-edge] frame=2 level=1 consumer_id=6 input_index=0 producer_id=5 producer_level=0
+[2026-10-29 17:42:10.013] [info] [graph-edge] frame=2 level=1 consumer_id=10 input_index=0 producer_id=9 producer_level=0
+[2026-10-29 17:42:10.014] [info] [temp-lifetime] frame=2 after_level=1 live=[0,2,6,10,] retired=[1,5,9,]
+[2026-10-29 17:42:10.014] [info] [exec-level-diag] frame=2 level=1 nodes=3 input_ms=0.016 dispatch_ms=0.966 fb_release_ms=0.003
+[2026-10-29 17:42:10.014] [info] [graph-edge] frame=2 level=2 consumer_id=3 input_index=0 producer_id=2 producer_level=1
+[2026-10-29 17:42:10.014] [info] [graph-edge] frame=2 level=2 consumer_id=7 input_index=0 producer_id=6 producer_level=1
+[2026-10-29 17:42:10.014] [info] [graph-edge] frame=2 level=2 consumer_id=11 input_index=0 producer_id=10 producer_level=1
+[2026-10-29 17:42:10.014] [info] [temp-lifetime] frame=2 after_level=2 live=[0,3,7,11,] retired=[2,6,10,]
+[2026-10-29 17:42:10.014] [info] [exec-level-diag] frame=2 level=2 nodes=3 input_ms=0.016 dispatch_ms=0.577 fb_release_ms=0.002
+[2026-10-29 17:42:10.014] [info] [graph-edge] frame=2 level=3 consumer_id=4 input_index=0 producer_id=0 producer_level=0
+[2026-10-29 17:42:10.014] [info] [graph-edge] frame=2 level=3 consumer_id=4 input_index=1 producer_id=3 producer_level=2
+[2026-10-29 17:42:10.028] [info] [temp-lifetime] frame=2 after_level=3 live=[4,7,11,] retired=[0,3,]
+[2026-10-29 17:42:10.028] [info] [exec-level-diag] frame=2 level=3 nodes=1 input_ms=0.011 dispatch_ms=13.299 fb_release_ms=0.005
+[2026-10-29 17:42:10.028] [info] [graph-edge] frame=2 level=4 consumer_id=8 input_index=0 producer_id=4 producer_level=3
+[2026-10-29 17:42:10.028] [info] [graph-edge] frame=2 level=4 consumer_id=8 input_index=1 producer_id=7 producer_level=2
+[2026-10-29 17:42:10.028] [info] [temp-lifetime] frame=2 after_level=4 live=[8,11,] retired=[4,7,]
+[2026-10-29 17:42:10.028] [info] [exec-level-diag] frame=2 level=4 nodes=1 input_ms=0.013 dispatch_ms=0.526 fb_release_ms=0.002
+[2026-10-29 17:42:10.028] [info] [graph-edge] frame=2 level=5 consumer_id=12 input_index=0 producer_id=8 producer_level=4
+[2026-10-29 17:42:10.028] [info] [graph-edge] frame=2 level=5 consumer_id=12 input_index=1 producer_id=11 producer_level=2
+[2026-10-29 17:42:10.029] [info] [temp-lifetime] frame=2 after_level=5 live=[12,] retired=[8,11,]
+[2026-10-29 17:42:10.029] [info] [exec-level-diag] frame=2 level=5 nodes=1 input_ms=0.011 dispatch_ms=0.492 fb_release_ms=0.002
+[2026-10-29 17:42:10.029] [info] [graph-edge] frame=2 level=6 consumer_id=13 input_index=0 producer_id=12 producer_level=5
+[2026-10-29 17:42:10.029] [info] [copy_cuda_diag] src_slot=1048623 dst_slot=1048581 src_w=1920 src_h=1080 src_fmt=109 dst_w=1920 dst_h=1080 batch_active=true
+[2026-10-29 17:42:10.030] [info] [temp-lifetime] frame=2 after_level=6 live=[13,] retired=[12,]
+[2026-10-29 17:42:10.030] [info] [exec-level-diag] frame=2 level=6 nodes=1 input_ms=0.007 dispatch_ms=0.999 fb_release_ms=0.002
+[2026-10-29 17:42:10.051] [info] [copy_cuda_diag] src_slot=1048631 dst_slot=1048582 src_w=1920 src_h=1080 src_fmt=109 dst_w=1920 dst_h=1080 batch_active=true
+[2026-10-29 17:42:10.073] [info] [copy_cuda_diag] src_slot=1048639 dst_slot=1048583 src_w=1920 src_h=1080 src_fmt=109 dst_w=1920 dst_h=1080 batch_active=true
+[2026-10-29 17:42:10.268] [info] [video]   15/150 frames
+[2026-10-29 17:42:10.503] [info] [vulkan-lifecycle] frame=25 vram_bytes=1042489344 live_surfaces=33 surface_bindings=25 registry_live_handles=359 physical_images=33 deferred_releases=2 vma_allocations=35 surfaces_created=409 surfaces_released=384 queue_packages=1 execution_slots_busy=2 command_batch_active=false
+[2026-10-29 17:42:10.592] [info] [video]   30/150 frames
+[2026-10-29 17:42:10.916] [info] [video]   45/150 frames
+[2026-10-29 17:42:11.046] [info] [vulkan-lifecycle] frame=50 vram_bytes=1042931712 live_surfaces=33 surface_bindings=25 registry_live_handles=709 physical_images=33 deferred_releases=2 vma_allocations=35 surfaces_created=809 surfaces_released=784 queue_packages=1 execution_slots_busy=2 command_batch_active=false
+[2026-10-29 17:42:11.236] [info] [video]   60/150 frames
+[2026-10-29 17:42:11.555] [info] [video]   75/150 frames
+[2026-10-29 17:42:11.577] [info] [vulkan-lifecycle] frame=75 vram_bytes=1043374080 live_surfaces=33 surface_bindings=25 registry_live_handles=1059 physical_images=33 deferred_releases=2 vma_allocations=35 surfaces_created=1209 surfaces_released=1184 queue_packages=1 execution_slots_busy=2 command_batch_active=false
+[2026-10-29 17:42:11.874] [info] [video]   90/150 frames
+[2026-10-29 17:42:12.109] [info] [vulkan-lifecycle] frame=100 vram_bytes=1043816448 live_surfaces=33 surface_bindings=25 registry_live_handles=1409 physical_images=33 deferred_releases=2 vma_allocations=35 surfaces_created=1609 surfaces_released=1584 queue_packages=1 execution_slots_busy=2 command_batch_active=false
+[2026-10-29 17:42:12.194] [info] [video]   105/150 frames
+[2026-10-29 17:42:12.515] [info] [video]   120/150 frames
+[2026-10-29 17:42:12.642] [info] [vulkan-lifecycle] frame=125 vram_bytes=1044480000 live_surfaces=33 surface_bindings=25 registry_live_handles=1759 physical_images=33 deferred_releases=2 vma_allocations=35 surfaces_created=2009 surfaces_released=1984 queue_packages=1 execution_slots_busy=2 command_batch_active=false
+[2026-10-29 17:42:12.840] [info] [video]   135/150 frames
+[2026-10-29 17:42:13.163] [info] [video]   150/150 frames
+[2026-10-29 17:42:13.184] [info] [vulkan-lifecycle] frame=150 vram_bytes=1044922368 live_surfaces=33 surface_bindings=25 registry_live_handles=2109 physical_images=33 deferred_releases=2 vma_allocations=35 surfaces_created=2409 surfaces_released=2384 queue_packages=1 execution_slots_busy=2 command_batch_active=false
+[2026-10-29 17:42:13.187] [info] [video] writer join complete
+[2026-10-29 17:42:13.187] [info] [drain-debug] start drain, capacity=6
+[2026-10-29 17:42:13.187] [info] [drain-debug] slot_id=4 has completion, waiting
+[2026-10-29 17:42:13.187] [info] [drain-debug] slot_id=4 wait complete
+[2026-10-29 17:42:13.187] [info] [drain-debug] slot_id=5 has completion, waiting
+[2026-10-29 17:42:13.187] [info] [drain-debug] slot_id=5 wait complete
+[2026-10-29 17:42:13.187] [info] [drain-debug] reap done, busy_count=0
+[2026-10-29 17:42:13.187] [info] [video] trimming framebuffer pool
+[2026-10-29 17:42:13.187] [info] [video] Released framebuffer pool — memory trimmed
+[2026-10-29 17:42:13.187] [info] [video] frame-loop cleanup complete
+[2026-10-29 17:42:13.188] [info] [video] Encoder write blocked duration: 0.00 ms
+[2026-10-29 17:42:13.188] [info] [video_diag] conversion_and_copy_duration_ms: 0 ms
+[2026-10-29 17:42:13.188] [info] [video_diag] conversion_bytes_written=0 encoder_staging_copy_bytes=0 encoder_slot_reuses=0
+[2026-10-29 17:42:13.188] [info] [native_av] close: sending encoder flush
+[2026-10-29 17:42:13.259] [info] [native_av] close: encoder flush accepted
+[2026-10-29 17:42:13.340] [info] [native_av] close: packets drained=true
+[2026-10-29 17:42:13.340] [info] [native_av] close: finalizing mux session
+[2026-10-29 17:42:13.341] [info] [native_av] close: mux session finalized
+[2026-10-29 17:42:13.341] [info] [native_av] Closed native encoder — 150 frames accepted, encoder_packets=150 mux_packets=150 packet_pts=0..149, YUV cache: 0 hits / 0 misses
+[2026-10-29 17:42:13.341] [info] [video_native] convert=12.21ms  send_frame=57.81ms  backpressure=0.56ms  flush=153.61ms  receive_packet=79.03ms  mux_write=8.34ms  trailer=0.79ms
+[2026-10-29 17:42:13.349] [info] [video] render_ms=3272.18 encode_ms=164.33 writer_encode_ms=109.43 wall_ms=6977.96 nvml_stop_ms=-1.00
+[2026-10-29 17:42:13.349] [info] [video] FFmpeg queue wait duration: 0.85 ms
+[2026-10-29 17:42:13.373] [info] [video] copy_eligible=true sha256=42b4f320cdbf41699a354e516e3c5cafb550051f0c6d803c6de34c94c3bb93a9
+[2026-10-29 17:42:13.373] [info] [video] Wrote docs/evidence/final-documentary-parallax-20261029/current-t16-150-final-verify.mp4
+[2026-10-29 17:42:13.373] [info] [startup-profile] total=1171.61ms logger=0.05ms cli_bootstrap=3.04ms cli_parse=nullms composition=0.12ms plan_read=0.53ms json_parse=2.11ms plan_decode_validate=55.51ms asset_resolve=0.11ms plan_compile=24.42ms unaccounted=157.20ms
+[2026-10-29 17:42:13.386] [info] [video] Wrote exact per-frame timing sidecar: docs/evidence/final-documentary-parallax-20261029/current-t16-150-final-verify.mp4.timing.json
+[2026-10-29 17:42:13.453] [info] [INFO] job-lifecycle: queue_close_ms=0.0 writer_join_ms=0.0 encoder_reset_ms=65.7 decoder_reset_ms=0.0 full_graph_reset_ms=0.0 sink_ctx_reset_ms=0.0 device_runtime_reset_ms=0.0 device_reservation_reset_ms=0.0
+[2026-10-29 17:42:13.453] [info] [INFO] job-lifecycle: sidecar_write_ms=14.2 session_teardown_ms=66.0
+[2026-10-29 17:42:13.453] [info] [INFO] job-lifecycle: post_sidecar_to_receipt_ms=66.1
+[2026-10-29 17:42:13.453] [info] [INFO] job-lifecycle: execute_ms=7082.7 caller_tail_ms=0.0 receipt_deferred=0
+[2026-10-29 17:42:13.453] [info] [INFO] job-lifecycle: slot_pool_close_ms=0.0 surface_release_ms=0.0

@@ -2,17 +2,18 @@
 
 ## Current result
 
-The strict-native black-frame defect is fixed for the available T16 reproduction on this RTX A4000. A Vulkan memory dependency is now recorded between native Render Graph levels. With no snapshot diagnostics enabled, the three-layer strict-native MP4 decodes to a visible background, title, and foreground subject; DoF-off and DoF-on frame checks also decode visibly. The available 150-frame T16 strict-native NVENC export completed, all 150 frames decode at 1920×1080/30 fps, and `blackdetect` found no black interval. Evidence files are `current-three-layers-barrier-build.mp4`, `current-dof-off-barrier-build.mp4`, `current-dof-on-barrier-build.mp4`, and `current-t16-150-barrier-build.mp4`.
+The strict-native black-frame defect is fixed for the available T16 reproduction on this RTX A4000. A Vulkan memory dependency is recorded between native Render Graph levels. The terminal DoF pass also copies its device-local result into the NVENC surface when those surfaces differ, without CPU readback. The latest rebuilt CLI completed the 150-frame strict-native NVENC export; all 150 frames decode at 1920×1080/30 fps, and `blackdetect` found no black interval. Its output is byte-identical to the earlier passing run (`SHA-256 42b4f320cdbf41699a354e516e3c5cafb550051f0c6d803c6de34c94c3bb93a9`). The fresh log and MP4 are `current-t16-150-final-verify.log` and `current-t16-150-final-verify.mp4`; earlier frame diagnostics remain in the same directory.
 
 This resolves the reproduced black-output failure on the available plan, but it is not a full production certification. The exact issue #67 source checkout and its 240-frame plan are absent, as are the requested food product assets. I rendered the same DoF-on frame through software and strict-native Vulkan: RGB MAE is 0.388 and p99 absolute error is 3, and the visible softness/edge halo appears in both. That rules out a Vulkan-only DoF regression; it does not prove the shared DoF appearance is desirable, so DoF quality remains uncertified. Historical failing outputs below are retained as pre-fix evidence.
 
 ## Reproduction environment
 
-- Chronon3D HEAD: `556a4ae58933d0c6b72eb22829b415e08ffc43d4` (working tree dirty)
-- Current Release CLI SHA-256: `9ba3c94ed246fd57ff39b61279267b5cb46411c867921fa7cf076a4486988ba6`
+- Chronon3D HEAD: `bb819884345333df3a7662d16630ec47467ab2cd` plus the recorded working-tree fixes (working tree dirty at render)
+- Current Release CLI SHA-256: `30ea796714dfdfeabd3b53376391ffd29b2b9c0cd26cc814b5fd55ccedea497f`
 - GPU: NVIDIA RTX A4000, 16,376 MiB VRAM; 10,543 MiB free at last check
-- Build: `cmake --build build/chronon/linux-video-release --target chronon3d_cli -j12` succeeded
-- Host memory at last check: 24 GiB available; no OOM observed
+- Build: `cmake --build build/chronon/linux-video-release --parallel 16 --target chronon3d_cli` was stopped when available RAM fell below 6 GiB; resumed with `--parallel 8` and succeeded. No OOM occurred.
+- Strict-native render: 150 NVENC frames accepted and muxed (`packet_pts=0..149`); `ffprobe` decoded 150 H.264 frames; `blackdetect=d=0.001:pix_th=0.015` found no black interval. Its receipt says `execution_path=full_graph_native`, zero downgrades, zero CPU pixel readback bytes, and zero encoder staging-copy bytes.
+- Fresh verification MP4 SHA-256: `42b4f320cdbf41699a354e516e3c5cafb550051f0c6d803c6de34c94c3bb93a9`.
 - Main scene: `docs/evidence/camera-authority-migration/T16/dof-ablation/t16_three_depth_dof_on.plan.json`
 - Main scene SHA-256: `d3a10211509578d4dbaca96fc33e3d9fb6de266458e405c3ccc2242abcb05fc1`
 
@@ -37,7 +38,7 @@ DoF-on used the T16 plan above with the same strict-native arguments and frame r
 
 Additional comparisons are saved as `current-background-only-frame0.*`, `current-background-title-frame0.*`, `current-three-layers-frame0.*`, `current-three-layers-2d-foreground.*`, `current-three-layers-identity*.log`, and corresponding plans/logs. These are diagnostics, not acceptance artifacts.
 
-The original issue #67 reproduction is separate: RTX 4060 Ti, source SHA `84c8a4498a456f3aaf6d12353b725d3824a10379`, 240 frames. Its plan and checkout were unavailable, so the passing A4000/150-frame run is the available current-source reproduction, not a retest of that exact artifact.
+The original issue #67 reproduction is separate: RTX 4060 Ti, source SHA `84c8a4498a456f3aaf6d12353b725d3824a10379`, 240 frames. Its plan and checkout are unavailable, so the passing A4000/150-frame run is the available current-source reproduction, not a retest of that exact artifact. Issue #67 therefore remains open pending the exact 240-frame plan and RTX 4060 Ti rerun.
 
 ## Checklist status
 
