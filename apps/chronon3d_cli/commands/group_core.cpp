@@ -147,6 +147,7 @@ void register_daemon(CLI::App& app, CliContext& ctx) {
 } // namespace
 
 void register_commands(CLI::App& app, CliContext& ctx) {
+    register_create_commands(app, ctx);
     register_list(app, ctx);
     register_benchmark_machine(app, ctx);
     register_benchmark(app, ctx);

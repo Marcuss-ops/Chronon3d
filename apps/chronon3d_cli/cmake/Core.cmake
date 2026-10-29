@@ -1,5 +1,11 @@
+# Install the project starter alongside the CLI and bake the source-tree
+# location for developer builds. CHRONON3D_TEMPLATES_DIR remains the runtime
+# override used by packaged or relocated deployments.
+include(GNUInstallDirs)
+
 add_library(chronon3d_cli_core STATIC
     commands/group_core.cpp
+    commands/create/register_create_commands.cpp
     commands/watch/register_watch_commands.cpp
     commands/preview/register_preview_commands.cpp
     commands/basic/command_list.cpp
@@ -25,6 +31,12 @@ target_include_directories(chronon3d_cli_core PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
 )
+target_compile_definitions(chronon3d_cli_core PRIVATE
+    CHRONON3D_BAKED_TEMPLATES_DIR="${PROJECT_SOURCE_DIR}/templates"
+    CHRONON3D_INSTALL_TEMPLATES_DIR="${CMAKE_INSTALL_FULL_DATADIR}/chronon3d/templates"
+)
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/templates/"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/chronon3d/templates")
 target_link_libraries(chronon3d_cli_core PRIVATE
     chronon3d_pipeline
     CLI11::CLI11
