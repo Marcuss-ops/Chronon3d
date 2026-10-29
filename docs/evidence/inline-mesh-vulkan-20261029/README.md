@@ -76,3 +76,23 @@ pass locally. The ticket remains **PARTIAL** until CI passes on the exact
 pushed SHA; this checkout's working tree was dirty during local verification.
 This is a small diagnostic fixture and does not certify every PBR, shadow, or
 production-content combination.
+
+## Current-source rerun after push (2026-10-29)
+
+The Release CLI was rebuilt from the clean, pushed Chronon3D source at
+`0e7303577524d8b1c1819213de022390cca6775e` after the
+native terminal-surface copy fix. The same Motion3D producer fixture rendered
+again through strict-native Vulkan + NVENC:
+
+- `ffprobe` decoded 31/31 H.264 frames at 640×360 and 30 fps.
+- The timing receipt reports `full_graph_native`, zero execution downgrades,
+  zero CPU pixel readback, and zero encoder staging-copy bytes.
+- Every decoded frame hash is distinct, and the resulting MP4 SHA-256 is
+  `9d3ad734bccdfbc09569088508a3e10fb3fb06152af637b13530c0ab10da717b`, matching
+  the earlier deterministic run.
+- Evidence: `current-source-main-31f.mp4`, its `.timing.json` receipt, and
+  `current-source-main-31f.log`.
+
+The strict-native mesh integration is now locally verified on the pushed
+source. The ticket remains **PARTIAL** only for the same-SHA CI gate and broad
+production/PBR coverage beyond this fixture.
