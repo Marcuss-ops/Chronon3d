@@ -5,6 +5,9 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
+#include <spdlog/cfg/env.h>
+
+#include <cstdlib>
 #include <filesystem>
 
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
@@ -38,6 +41,12 @@ int main(int argc, char** argv) {
     // noise and drowns real failures; asset-loading problems surface as
     // warnings/errors, not debug lines.
     spdlog::set_level(spdlog::level::warn);
+
+    // Optional per-run override for localization diagnostics:
+    // SPDLOG_LEVEL=info ./tests/... --test-case="...").
+    if (std::getenv("SPDLOG_LEVEL") != nullptr) {
+        spdlog::cfg::load_env_levels();
+    }
 
     int res = context.run();
 
