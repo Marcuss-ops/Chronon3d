@@ -19,6 +19,8 @@
 #include "../../../blend2d/blend2d_bridge.hpp"
 #include <chronon3d/core/profiling/profiling.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
@@ -26,6 +28,57 @@
 namespace chronon3d::renderer::text_run_stages {
 
 namespace {
+
+// Apply the authoring box clip in run-local coordinates before the image is
+// transformed onto the framebuffer.  Clipping here keeps rotation, scale and
+// shear correct without introducing a second rasterizer or a framebuffer
+// scissor approximation.
+void clip_text_surface_to_box(
+    BLImage& image,
+    float offset_x,
+    float offset_y,
+    Vec2 box)
+{
+    if (!(box.x > 0.0f) || !(box.y > 0.0f) ||
+        !std::isfinite(box.x) || !std::isfinite(box.y)) {
+        box = Vec2{0.0f, 0.0f};
+    }
+
+    BLImageData data{};
+    if (image.getData(&data) != BL_SUCCESS ||
+        data.format != BL_FORMAT_PRGB32 || data.pixelData == nullptr) {
+        return;
+    }
+
+    auto* pixels = static_cast<std::uint8_t*>(data.pixelData);
+    for (int y = 0; y < image.height(); ++y) {
+        auto* row = pixels + static_cast<std::size_t>(y) * data.stride;
+        const float local_top = offset_y + static_cast<float>(y);
+        const float local_bottom = local_top + 1.0f;
+        const float cover_y = std::clamp(
+            std::min(local_bottom, box.y) - std::max(local_top, 0.0f),
+            0.0f, 1.0f);
+        for (int x = 0; x < image.width(); ++x) {
+            const float local_left = offset_x + static_cast<float>(x);
+            const float local_right = local_left + 1.0f;
+            const float cover_x = std::clamp(
+                std::min(local_right, box.x) - std::max(local_left, 0.0f),
+                0.0f, 1.0f);
+            const float coverage = cover_x * cover_y;
+            if (coverage >= 1.0f) continue;
+
+            auto* rgba = row + static_cast<std::size_t>(x) * 4;
+            if (coverage <= 0.0f) {
+                rgba[0] = rgba[1] = rgba[2] = rgba[3] = 0;
+                continue;
+            }
+            for (int channel = 0; channel < 4; ++channel) {
+                rgba[channel] = static_cast<std::uint8_t>(
+                    std::lround(static_cast<float>(rgba[channel]) * coverage));
+            }
+        }
+    }
+}
 
 // Transform the local geometric ink bbox (prepared in prepare_text_run via
 // compute_text_run_visual_bounds) into canvas-space using the same model
@@ -110,9 +163,21 @@ std::optional<raster::BBox> compute_canvas_ink_bbox(
     // reconciliation. Use the geometric local-space bounds computed in
     // prepare_text_run rather than scanning rendered pixels, so placement
     // is deterministic and independent of rasterization.
+    float ink_min_x = s.min_x;
+    float ink_min_y = s.min_y;
+    float ink_max_x = s.max_x;
+    float ink_max_y = s.max_y;
+    if (params.shape.layout_spec.overflow == TextOverflow::Clip) {
+        const auto box = params.shape.layout_spec.box;
+        ink_min_x = std::max(ink_min_x, 0.0f);
+        ink_min_y = std::max(ink_min_y, 0.0f);
+        ink_max_x = std::min(ink_max_x, box.x);
+        ink_max_y = std::min(ink_max_y, box.y);
+        clip_text_surface_to_box(s.img, s.offset_x, s.offset_y, box);
+    }
     std::optional<raster::BBox> actual_ink_bbox = compute_canvas_ink_bbox(
         params.model_matrix, s.offset_x, s.offset_y,
-        s.min_x, s.min_y, s.max_x, s.max_y);
+        ink_min_x, ink_min_y, ink_max_x, ink_max_y);
 
     static const bool text_debug_env =
         std::getenv("CHRONON3D_TEXT_DEBUG") != nullptr;

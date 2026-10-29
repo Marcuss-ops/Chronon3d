@@ -2,14 +2,15 @@
 
 Stato: OPEN (forward-point of TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE / Blocco 4.2)
 
-P1 implementation: **LANDED and CLI-fixture E2E verified**. The real generated
-standalone template and its host verification remain pending because the
-template was removed before it acquired the subprocess argument/output
-contract.
+P1 implementation and standalone template subprocess contract are present in
+the working tree; CLI tests and project generation pass. The generated project
+cannot yet configure against the installed SDK: exported targets reference
+`Vulkan::Vulkan` and `GPUOpen::VulkanMemoryAllocator`, but the package config
+does not define those targets. The standalone build/render gate remains open.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **Ripristinare il template standalone reale** — logica: `templates/basic/` è stato cancellato (`537081224`) e la versione in history non accetta `--render <comp> -o <out>`; senza un template con quel contratto il wrapper P1 non è verificabile end-to-end. Dove: `templates/basic/chronon.json` + `templates/basic/src/root.cpp` (contratto subprocess: argomenti, exit code, output). Gate: template generato da `chronon create` che compila e rispetta il contratto.
+- [x] **Ripristinare il template standalone reale** — `templates/basic/` include `chronon.json`, una composizione `HelloWorld` e un renderer standalone che accetta `--render <comp> -o <out>`. `chronon create` genera i file attesi; il gate di compilazione resta bloccato dal packaging SDK descritto sotto.
 - [ ] **Verifica REAL-GREEN-PASS sull'host di verifica** — logica: il dispatch CLI (`apps/chronon3d_cli/commands/render/register_render_commands.cpp`, test `tests/cli/test_chronon_project_render_dispatch.cpp`) è già verificato al confine processo; manca il passaggio reale col binary prodotto dal template. Gate: `chronon render HelloWorld -o hello.mp4` produce l'output sull'host indicato (TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX-clean).
 
 ## Problema
@@ -122,6 +123,17 @@ Aggiungere un loader per `chronon.json` che:
   verifies the CLI callback and process boundary, but not the absent production
   template binary.
 - The ticket remains OPEN for real template integration: the referenced
-  standalone template/binary contract is absent, so the build-produced project
-  executable cannot be tested from this checkout. No external render or GPU
-  certification is claimed.
+  standalone project executable cannot yet be built because the installed SDK
+  package omits imported CMake targets required by its exported Vulkan backend.
+  No MP4 or GPU certification is claimed.
+
+## Aggiornamento locale — 2026-10-29
+
+- Ripristinati il comando `chronon create`, il template basic e il contratto
+  subprocess del renderer; CLI e test CLI compilano e passano, e la generazione
+  del progetto è stata verificata.
+- Installato l'SDK in un prefix temporaneo e tentato il configure CMake del
+  progetto generato. Il config dell'SDK importa `Chronon3DTargets.cmake` senza
+  avere creato `Vulkan::Vulkan` e `GPUOpen::VulkanMemoryAllocator`; il configure
+  fallisce prima della compilazione del template. Il gate REAL-GREEN-PASS resta
+  aperto.
