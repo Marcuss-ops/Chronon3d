@@ -34,6 +34,18 @@ struct CompiledFrameGraph;  // Forward declaration — the live identity
     return level_size > 1 && scheduler_concurrency > 1;
 }
 
+/// Native surface backends currently record graph operations into shared
+/// command-buffer state, so their graph nodes must remain ordered even when
+/// the CPU scheduler has spare workers.
+[[nodiscard]] inline bool should_parallelize_render_level(
+    std::size_t level_size,
+    int scheduler_concurrency,
+    bool has_native_surfaces) noexcept
+{
+    return !has_native_surfaces &&
+           should_execute_level_in_parallel(level_size, scheduler_concurrency);
+}
+
 /// Execute all DAG levels (PR-B: routed through the supplied scheduler).
 ///
 /// @param scheduler   Thread-pool authority for the entire render process.

@@ -3,6 +3,7 @@
 #include "executor_compiled_program.hpp"
 #include "executor_levels.hpp"
 #include "framebuffer_lifetime.hpp"
+#include "../native_surface_frame_lifetime.hpp"
 
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -80,7 +81,7 @@ std::shared_ptr<Framebuffer> execute_internal(
         // this route; the static graph nodes are cheap GPU work and must be
         // evaluated again against surfaces valid for the current frame.
         if (bake.runtime &&
-            !(ctx.backend && ctx.backend->supports_native_video_surface())) {
+            !detail::has_frame_scoped_native_surfaces(ctx.backend_stats_api())) {
             std::lock_guard lock(bake.runtime->mutex);
             ready = static_cast<bool>(bake.runtime->baked_surface);
         }

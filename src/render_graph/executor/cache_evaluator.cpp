@@ -1,4 +1,5 @@
 #include "execution_state.hpp"
+#include "../native_surface_frame_lifetime.hpp"
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
@@ -48,8 +49,7 @@ CacheEvalResult evaluate_cache(
     // exhausting VRAM.  CPU layout/glyph caches remain active; only the
     // framebuffer cache is disabled for this export path so ownership returns
     // to FramebufferPool at the frame boundary.
-    if (ctx.backend &&
-        ctx.backend->supports_native_video_surface()) {
+    if (detail::has_frame_scoped_native_surfaces(ctx.backend_stats_api())) {
         cr.use_cache = false;
     }
 

@@ -32,7 +32,7 @@ void execute_single_node(
         // handle after the frame slot retires it. Keep static baking for
         // software and non-video paths, where the framebuffer storage can
         // safely outlive this execution.
-        if (ctx.backend && ctx.backend->supports_native_video_surface()) return;
+        if (detail::has_frame_scoped_native_surfaces(ctx.backend_stats_api())) return;
         if (id >= state.static_bake_root_index.size()) return;
         const auto bake_index = state.static_bake_root_index[id];
         if (bake_index >= compiled.program.static_bakes.size()) return;

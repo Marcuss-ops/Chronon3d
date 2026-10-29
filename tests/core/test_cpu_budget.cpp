@@ -35,6 +35,24 @@ using chronon3d::cpu_machine_class_name;
 using chronon3d::parse_cpu_budget_mode;
 using chronon3d::cpu_budget_mode_name;
 
+namespace {
+void set_environment(const char* name, const char* value) {
+#if defined(_WIN32)
+    (void)::_putenv_s(name, value);
+#else
+    (void)::setenv(name, value, 1);
+#endif
+}
+
+void unset_environment(const char* name) {
+#if defined(_WIN32)
+    (void)::_putenv_s(name, "");
+#else
+    (void)::unsetenv(name);
+#endif
+}
+} // namespace
+
 TEST_CASE("CpuBudget: totals and empty predicate") {
     // F4.2: designated initializer (positional `{12, 2, 2}` would now
     // ambiguously map to total_threads/render/decode since total_threads
@@ -109,8 +127,8 @@ TEST_CASE("CpuBudget: env vars override preset") {
         const std::string& old_value;
         const char* var_name;
         ~EnvGuard() {
-            if (!old_value.empty()) ::setenv(var_name, old_value.c_str(), 1);
-            else ::unsetenv(var_name);
+            if (!old_value.empty()) set_environment(var_name, old_value.c_str());
+            else unset_environment(var_name);
         }
     };
 
@@ -119,10 +137,10 @@ TEST_CASE("CpuBudget: env vars override preset") {
         EnvGuard g_d{old_decode, "CHRONON3D_CPU_DECODE_THREADS"};
         EnvGuard g_e{old_encode, "CHRONON3D_CPU_ENCODE_THREADS"};
         EnvGuard g_m{old_mode, "CHRONON3D_CPU_BUDGET_MODE"};
-        ::setenv("CHRONON3D_CPU_RENDER_THREADS", "8", 1);
-        ::setenv("CHRONON3D_CPU_DECODE_THREADS", "4", 1);
-        ::setenv("CHRONON3D_CPU_ENCODE_THREADS", "4", 1);
-        ::setenv("CHRONON3D_CPU_BUDGET_MODE", "dynamic", 1);
+        set_environment("CHRONON3D_CPU_RENDER_THREADS", "8");
+        set_environment("CHRONON3D_CPU_DECODE_THREADS", "4");
+        set_environment("CHRONON3D_CPU_ENCODE_THREADS", "4");
+        set_environment("CHRONON3D_CPU_BUDGET_MODE", "dynamic");
 
         CpuBudget b = cpu_budget_from_environment(16);
         CHECK(b.total_threads == 16);
@@ -142,8 +160,8 @@ TEST_CASE("CpuBudget: invalid env vars fall back to defaults") {
         const std::string& old_value;
         const char* var_name;
         ~EnvGuard() {
-            if (!old_value.empty()) ::setenv(var_name, old_value.c_str(), 1);
-            else ::unsetenv(var_name);
+            if (!old_value.empty()) set_environment(var_name, old_value.c_str());
+            else unset_environment(var_name);
         }
     };
 
@@ -151,9 +169,9 @@ TEST_CASE("CpuBudget: invalid env vars fall back to defaults") {
         EnvGuard g_r{old_render, "CHRONON3D_CPU_RENDER_THREADS"};
         EnvGuard g_d{old_decode, "CHRONON3D_CPU_DECODE_THREADS"};
         EnvGuard g_e{old_encode, "CHRONON3D_CPU_ENCODE_THREADS"};
-        ::setenv("CHRONON3D_CPU_RENDER_THREADS", "abc", 1);
-        ::setenv("CHRONON3D_CPU_DECODE_THREADS", "-3", 1);
-        ::setenv("CHRONON3D_CPU_ENCODE_THREADS", "xyz", 1);
+        set_environment("CHRONON3D_CPU_RENDER_THREADS", "abc");
+        set_environment("CHRONON3D_CPU_DECODE_THREADS", "-3");
+        set_environment("CHRONON3D_CPU_ENCODE_THREADS", "xyz");
 
         CpuBudget b = cpu_budget_from_environment(16);
         CHECK(b.total_threads == 16);
@@ -178,14 +196,14 @@ TEST_CASE("CpuBudget: CHRONON3D_SCHEDULER_WORKERS overrides render threads") {
         const std::string& old_value;
         const char* var_name;
         ~EnvGuard() {
-            if (!old_value.empty()) ::setenv(var_name, old_value.c_str(), 1);
-            else ::unsetenv(var_name);
+            if (!old_value.empty()) set_environment(var_name, old_value.c_str());
+            else unset_environment(var_name);
         }
     };
 
     {
         EnvGuard g{old_sched, "CHRONON3D_SCHEDULER_WORKERS"};
-        ::setenv("CHRONON3D_SCHEDULER_WORKERS", "7", 1);
+        set_environment("CHRONON3D_SCHEDULER_WORKERS", "7");
         // CpuBudget is built once and injected into Config; the legacy
         // env override is now folded into cpu_budget_from_environment().
         auto budget = cpu_budget_from_environment(16);

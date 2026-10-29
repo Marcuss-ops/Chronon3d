@@ -19,6 +19,7 @@
 #include <vector>
 
 using chronon3d::graph::should_execute_level_in_parallel;
+using chronon3d::graph::should_parallelize_render_level;
 
 class NoopTestRenderBackend final : public chronon3d::graph::RenderBackend {
 public:
@@ -68,6 +69,13 @@ TEST_CASE("should_execute_level_in_parallel: boundary values") {
     CHECK(should_execute_level_in_parallel(2, 2) == true);
     CHECK(should_execute_level_in_parallel(2, 1) == false);
     CHECK(should_execute_level_in_parallel(1, 2) == false);
+}
+
+TEST_CASE("native surface backends serialize graph-level dispatch") {
+    CHECK_FALSE(should_parallelize_render_level(8, 12, true));
+    CHECK_FALSE(should_parallelize_render_level(1, 12, true));
+    CHECK(should_parallelize_render_level(8, 12, false));
+    CHECK_FALSE(should_parallelize_render_level(8, 1, false));
 }
 
 TEST_CASE("fully recorded compiled-program failure is published to the frame error channel") {

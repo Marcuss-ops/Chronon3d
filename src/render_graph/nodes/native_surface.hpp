@@ -107,7 +107,7 @@ inline std::span<const float> framebuffer_rgba_view(
 /// (leaving the framebuffer untouched) when the backend/registry are absent,
 /// or any native step fails.  Returns true immediately when the framebuffer
 /// already carries a handle.
-inline bool ensure_native_surface(
+static inline bool ensure_native_surface(
     RenderGraphContext& ctx, Framebuffer& framebuffer,
     std::string_view promotion_reason = "unspecified",
     bool synchronous_upload = false) {
@@ -122,7 +122,9 @@ inline bool ensure_native_surface(
                 return true;
             }
             if (!framebuffer.data()) {
-                return true;
+                // An encode handle is only planned until the backend has
+                // materialized it; no CPU pixels means no valid promotion.
+                return false;
             }
             const auto desc = native_surface_desc(ctx, framebuffer.width(), framebuffer.height());
             std::vector<float> packed;
