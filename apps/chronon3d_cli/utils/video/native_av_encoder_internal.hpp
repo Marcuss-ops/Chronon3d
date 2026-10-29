@@ -37,11 +37,13 @@ using NativeAvClock = std::chrono::steady_clock;
 //
 // Cross-job adoption is opt-in (CHRONON_ENCODER_SESSION_REUSE=1) and
 // additionally gated on the Fix 5 supported configuration (software x264,
-// constant-QP, zerolatency, one thread): EOS-flushed codecs reject new
-// frames, and packet-complete unflushed codecs with adaptive rate control
-// (CRF) retain history and change the next job's pixels. A certified packet
-// boundary alone does not prove independent-render parity — CQP has no
-// adaptive state, which is what makes the supported shape shareable.
+// constant-QP, zerolatency, one thread; or NVENC h264/hevc constant-QP): 
+// EOS-flushed codecs reject new frames, and packet-complete unflushed codecs
+// with adaptive rate control (CRF) retain history and change the next job's
+// pixels. A certified packet boundary alone does not prove independent-render
+// parity — CQP has no adaptive state (software or NVENC), which is what makes
+// the supported shape shareable; on NVENC the boundary is additionally
+// self-certified per job by the frames==packets equality at close().
 // P4's single-session segmented writer does not use this cross-job cache.
 
 /// One cached, still-open codec session with the contract of its live
