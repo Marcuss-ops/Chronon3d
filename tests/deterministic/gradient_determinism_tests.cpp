@@ -63,8 +63,9 @@ static void log_first_divergent_pixel(const chronon3d::Framebuffer& a,
                 CAPTURE(y);
                 CAPTURE(W);
                 CAPTURE(H);
-                CAPTURE(ca.r); CAPTURE(ca.g); CAPTURE(ca.b); CAPTURE(ca.a);
-                CAPTURE(cb.r); CAPTURE(cb.g); CAPTURE(cb.b); CAPTURE(cb.a);
+                // Pixel values are already reported verbatim by the
+                // MESSAGE below; doctest CAPTURE would collide on __LINE__
+                // under clang-cl when several expand on the same line.
                 MESSAGE("first divergent pixel @ (" << x << ", " << y << ") in "
                         << W << "x" << H << " fb — "
                         << a_label << "=(" << ca.r << "," << ca.g << ","

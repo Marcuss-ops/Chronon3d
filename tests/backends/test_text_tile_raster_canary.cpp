@@ -739,43 +739,43 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     const auto at = [&](std::uint32_t x, std::uint32_t y) {
         return pixels[y * kDstSize + x];
     };
-    const auto near = [](float a, float b) { return std::fabs(a - b) < 0.01f; };
+    const auto near_px = [](float a, float b) { return std::fabs(a - b) < 0.01f; };
     const auto expected_bg = background();
 
     // Glyph A, full-alpha half (screen x 10..13, y 12..19; left half of atlas).
     const Pixel full = at(11, 14);
-    CHECK(near(full.r, 1.0f));
-    CHECK(near(full.g, 1.0f));
-    CHECK(near(full.b, 1.0f));
-    CHECK(near(full.a, 1.0f));
+    CHECK(near_px(full.r, 1.0f));
+    CHECK(near_px(full.g, 1.0f));
+    CHECK(near_px(full.b, 1.0f));
+    CHECK(near_px(full.a, 1.0f));
 
     // Glyph A, half-alpha half (screen x=16..17, y=14): premultiplied
     // 0.5 over background → 0.5 + bg * 0.5.  This is THE premultiplied
     // contract the tile raster must honor.
     const Pixel half = at(16, 14);
-    CHECK(near(half.r, 0.5f + 0.5f * expected_bg.r));
-    CHECK(near(half.g, 0.5f + 0.5f * expected_bg.g));
-    CHECK(near(half.b, 0.5f + 0.5f * expected_bg.b));
-    CHECK(near(half.a, 1.0f));
+    CHECK(near_px(half.r, 0.5f + 0.5f * expected_bg.r));
+    CHECK(near_px(half.g, 0.5f + 0.5f * expected_bg.g));
+    CHECK(near_px(half.b, 0.5f + 0.5f * expected_bg.b));
+    CHECK(near_px(half.a, 1.0f));
 
     // Glyph B, MTSDF red: tint premultiplied → (1, 0, 0, 1).
     const Pixel mtsdf = at(35, 35);
-    CHECK(near(mtsdf.r, 1.0f));
-    CHECK(near(mtsdf.g, 0.0f));
-    CHECK(near(mtsdf.b, 0.0f));
-    CHECK(near(mtsdf.a, 1.0f));
+    CHECK(near_px(mtsdf.r, 1.0f));
+    CHECK(near_px(mtsdf.g, 0.0f));
+    CHECK(near_px(mtsdf.b, 0.0f));
+    CHECK(near_px(mtsdf.a, 1.0f));
 
     // Untouched background outside the glyphs.
     const Pixel far_bg = at(0, 0);
-    CHECK(near(far_bg.r, expected_bg.r));
-    CHECK(near(far_bg.g, expected_bg.g));
-    CHECK(near(far_bg.b, expected_bg.b));
-    CHECK(near(far_bg.a, expected_bg.a));
+    CHECK(near_px(far_bg.r, expected_bg.r));
+    CHECK(near_px(far_bg.g, expected_bg.g));
+    CHECK(near_px(far_bg.b, expected_bg.b));
+    CHECK(near_px(far_bg.a, expected_bg.a));
     const Pixel just_outside = at(19, 14); // local x 9 ∉ [0, 8)
-    CHECK(near(just_outside.r, expected_bg.r));
-    CHECK(near(just_outside.g, expected_bg.g));
-    CHECK(near(just_outside.b, expected_bg.b));
-    CHECK(near(just_outside.a, expected_bg.a));
+    CHECK(near_px(just_outside.r, expected_bg.r));
+    CHECK(near_px(just_outside.g, expected_bg.g));
+    CHECK(near_px(just_outside.b, expected_bg.b));
+    CHECK(near_px(just_outside.a, expected_bg.a));
 
     // ── Contract 4: fractional (bilinear) atlas sampling ─────────────────
     // Glyph C ramps (i + 0.5) / 8 across its rect and its run is translated
@@ -793,12 +793,12 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     // Composite over the fixture background (0.25, 0.5, 0.75, 1): the fill is
     // premultiplied white at coverage 0.5, so dst = 0.5 + bg * 0.5.
     const Pixel fractional = at(4, 44);
-    CHECK(near(fractional.r, 0.625f));
-    CHECK(near(fractional.g, 0.75f));
-    CHECK(near(fractional.b, 0.875f));
-    CHECK(near(fractional.a, 1.0f));
-    CHECK(near(at(3, 44).r, 0.53235f));
-    CHECK(near(at(7, 44).r, 0.90588f));
+    CHECK(near_px(fractional.r, 0.625f));
+    CHECK(near_px(fractional.g, 0.75f));
+    CHECK(near_px(fractional.b, 0.875f));
+    CHECK(near_px(fractional.a, 1.0f));
+    CHECK(near_px(at(3, 44).r, 0.53235f));
+    CHECK(near_px(at(7, 44).r, 0.90588f));
     // Monotone profile: no duplicated adjacent value, which is what a
     // nearest read of a per-texel ramp would give.
     for (std::uint32_t x = 1; x < 8; ++x) {
@@ -813,15 +813,15 @@ TEST_CASE("text tile path Vulkan canary (TEST 123)") {
     // if the tap escaped the rect they would read 0.4375 instead, i.e.
     // dst.r ≈ 0.578.
     const Pixel right_edge = at(7, 48);
-    CHECK(near(right_edge.r, 0.4375f));
-    CHECK(near(right_edge.g, 0.625f));
-    CHECK(near(right_edge.b, 0.8125f));
-    CHECK(near(right_edge.a, 1.0f));
+    CHECK(near_px(right_edge.r, 0.4375f));
+    CHECK(near_px(right_edge.g, 0.625f));
+    CHECK(near_px(right_edge.b, 0.8125f));
+    CHECK(near_px(right_edge.a, 1.0f));
     const Pixel bottom_edge = at(0, 55);
-    CHECK(near(bottom_edge.r, 0.4375f));
-    CHECK(near(bottom_edge.g, 0.625f));
-    CHECK(near(bottom_edge.b, 0.8125f));
-    CHECK(near(bottom_edge.a, 1.0f));
+    CHECK(near_px(bottom_edge.r, 0.4375f));
+    CHECK(near_px(bottom_edge.g, 0.625f));
+    CHECK(near_px(bottom_edge.b, 0.8125f));
+    CHECK(near_px(bottom_edge.a, 1.0f));
 
     // Tile binning sanity: the glyph A tiles must have received indices.
     const auto* counts = static_cast<const std::uint32_t*>(count_buf.mapped);

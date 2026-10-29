@@ -23,10 +23,14 @@ using namespace chronon3d;
 
 using namespace chronon3d::renderer;
 
+// Note: `GradientFill` must be spelled chronon3d::GradientFill — wingdi.h
+// declares its own C function of that name in the global namespace, so
+// unqualified lookup is ambiguous on Windows.
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 /// Build a simple red→blue linear gradient fill for a shape stroke.
-static GradientFill make_linear_rb_gradient() {
+static chronon3d::GradientFill make_linear_rb_gradient() {
     return graphics::GradientDefinition::linear(
         {0.0f, 0.5f}, {1.0f, 0.5f}, {
             {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
@@ -35,7 +39,7 @@ static GradientFill make_linear_rb_gradient() {
 }
 
 /// Build a white→black radial gradient fill for a shape stroke.
-static GradientFill make_radial_wb_gradient() {
+static chronon3d::GradientFill make_radial_wb_gradient() {
     return graphics::GradientDefinition::radial(
         {0.5f, 0.5f}, 0.5f, {
             {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
@@ -44,7 +48,7 @@ static GradientFill make_radial_wb_gradient() {
 }
 
 /// Build a Shape with the given type and an optional gradient on the stroke.
-static Shape make_shape(ShapeType type, const std::optional<GradientFill>& grad = std::nullopt,
+static Shape make_shape(ShapeType type, const std::optional<chronon3d::GradientFill>& grad = std::nullopt,
                         f32 stroke_w = 10.0f) {
     Shape s;
     s.set_type(type);
@@ -360,7 +364,7 @@ TEST_CASE("resolve_stroke_gradient_color: Text type returns transparent") {
 }
 
 TEST_CASE("resolve_stroke_gradient_color: gradient with single stop uses that color") {
-    GradientFill g = graphics::GradientDefinition::linear(
+    chronon3d::GradientFill g = graphics::GradientDefinition::linear(
         {0.0f, 0.5f}, {1.0f, 0.5f}, {{0.0f, {0.2f, 0.4f, 0.6f, 1.0f}}});
 
     Shape s = make_shape(ShapeType::Rect, g);
@@ -412,7 +416,7 @@ TEST_CASE("canonical gradient hash includes spread, geometry, and opacity stops"
 
 TEST_CASE("resolve_stroke_gradient_color: zero-length gradient direction returns first stop") {
     // When from == to, the direction length is 0, and t stays 0.
-    GradientFill g = graphics::GradientDefinition::linear(
+    chronon3d::GradientFill g = graphics::GradientDefinition::linear(
         {0.5f, 0.5f}, {0.5f, 0.5f}, {
             {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
             {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
@@ -437,7 +441,7 @@ TEST_CASE("resolve_stroke_gradient_color: dithers the sampled stop per pixel") {
     // on the sampled coordinate rather than on the authored colour.  A
     // single-stop gradient keeps the analytic colour constant so the dither
     // is the only variable between the two samples.
-    GradientFill g = graphics::GradientDefinition::linear(
+    chronon3d::GradientFill g = graphics::GradientDefinition::linear(
         {0.0f, 0.5f}, {1.0f, 0.5f}, {{0.0f, {0.2f, 0.4f, 0.6f, 1.0f}}});
     Shape s = make_shape(ShapeType::Rect, g);
     const Vec2 sz{200.0f, 200.0f};
@@ -503,7 +507,7 @@ TEST_CASE("safe_shape_size_for_fill: Circle with positive radius returns diamete
 // ══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("resolve_gradient_color: zero-size sz does not produce NaN/Inf") {
-    GradientFill g = graphics::GradientDefinition::linear(
+    chronon3d::GradientFill g = graphics::GradientDefinition::linear(
         {0.0f, 0.5f}, {1.0f, 0.5f}, {
             {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
             {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
@@ -525,7 +529,7 @@ TEST_CASE("resolve_gradient_color: zero-size sz does not produce NaN/Inf") {
 }
 
 TEST_CASE("resolve_gradient_color: zero-size sz with radial gradient does not crash") {
-    GradientFill g = graphics::GradientDefinition::radial(
+    chronon3d::GradientFill g = graphics::GradientDefinition::radial(
         {0.5f, 0.5f}, 0.5f, {
             {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
             {1.0f, {0.0f, 0.0f, 0.0f, 1.0f}},

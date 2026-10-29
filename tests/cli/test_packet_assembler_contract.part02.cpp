@@ -32,7 +32,7 @@ TEST_CASE("CPU GOP trim snaps to complete random-access groups") {
     CHECK(copied->video_packets < 30);
 
     AVFormatContext* format = nullptr;
-    REQUIRE(avformat_open_input(&format, output.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&format, output.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     int video_index = -1;
     for (unsigned int index = 0; index < format->nb_streams; ++index) {
@@ -68,7 +68,7 @@ TEST_CASE("CPU GOP trim snaps to complete random-access groups") {
     // the pure resolver table.
     chronon3d::cli::BitstreamTargetContract target;
     format = nullptr;
-    REQUIRE(avformat_open_input(&format, source.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&format, source.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     const AVCodecParameters* source_params = nullptr;
     for (unsigned int index = 0; index < format->nb_streams; ++index) {

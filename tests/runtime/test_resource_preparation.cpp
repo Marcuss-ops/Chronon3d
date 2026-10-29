@@ -48,7 +48,7 @@ public:
 
     [[nodiscard]] std::optional<std::filesystem::path>
     resolve(const std::filesystem::path& path) const override {
-        const auto it = m_present.find(path);
+        const auto it = m_present.find(path.string());
         if (it == m_present.end()) return std::nullopt;
         return std::filesystem::path{*it};
     }

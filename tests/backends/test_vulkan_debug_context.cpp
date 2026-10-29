@@ -13,13 +13,32 @@
 #include <cmath>
 #include <cstring>
 
+// Portability: setenv/unsetenv are POSIX-only; Windows uses _putenv_s
+// (convention: see tests/runtime/test_scheduler_determinism.cpp).
+namespace {
+void env_unset(const char* name) {
+#if defined(_WIN32)
+    (void)::_putenv_s(name, "");
+#else
+    (void)::unsetenv(name);
+#endif
+}
+void env_set(const char* name, const char* value) {
+#if defined(_WIN32)
+    (void)::_putenv_s(name, value);
+#else
+    (void)::setenv(name, value, 1);
+#endif
+}
+} // anonymous namespace
+
 TEST_SUITE("VulkanDebugContext") {
 
 TEST_CASE("VulkanDebugConfig default values") {
-    ::unsetenv("CHRONON3D_VULKAN_VALIDATION");
-    ::unsetenv("CHRONON3D_VULKAN_SYNC_VALIDATION");
-    ::unsetenv("CHRONON3D_VULKAN_GPU_ASSISTED_VALIDATION");
-    ::unsetenv("CHRONON3D_VULKAN_DEBUG_NAMES");
+    env_unset("CHRONON3D_VULKAN_VALIDATION");
+    env_unset("CHRONON3D_VULKAN_SYNC_VALIDATION");
+    env_unset("CHRONON3D_VULKAN_GPU_ASSISTED_VALIDATION");
+    env_unset("CHRONON3D_VULKAN_DEBUG_NAMES");
 
     const auto cfg = chronon3d::backends::vulkan::VulkanDebugConfig::from_environment();
     CHECK_FALSE(cfg.enable_validation);
@@ -29,10 +48,10 @@ TEST_CASE("VulkanDebugConfig default values") {
 }
 
 TEST_CASE("VulkanDebugConfig environment parsing") {
-    ::setenv("CHRONON3D_VULKAN_VALIDATION", "1", 1);
-    ::setenv("CHRONON3D_VULKAN_SYNC_VALIDATION", "true", 1);
-    ::setenv("CHRONON3D_VULKAN_GPU_ASSISTED_VALIDATION", "ON", 1);
-    ::setenv("CHRONON3D_VULKAN_DEBUG_NAMES", "0", 1);
+    env_set("CHRONON3D_VULKAN_VALIDATION", "1");
+    env_set("CHRONON3D_VULKAN_SYNC_VALIDATION", "true");
+    env_set("CHRONON3D_VULKAN_GPU_ASSISTED_VALIDATION", "ON");
+    env_set("CHRONON3D_VULKAN_DEBUG_NAMES", "0");
 
     const auto cfg = chronon3d::backends::vulkan::VulkanDebugConfig::from_environment();
     CHECK(cfg.enable_validation);
@@ -40,10 +59,10 @@ TEST_CASE("VulkanDebugConfig environment parsing") {
     CHECK(cfg.enable_gpu_assisted);
     CHECK_FALSE(cfg.enable_debug_names);
 
-    ::unsetenv("CHRONON3D_VULKAN_VALIDATION");
-    ::unsetenv("CHRONON3D_VULKAN_SYNC_VALIDATION");
-    ::unsetenv("CHRONON3D_VULKAN_GPU_ASSISTED_VALIDATION");
-    ::unsetenv("CHRONON3D_VULKAN_DEBUG_NAMES");
+    env_unset("CHRONON3D_VULKAN_VALIDATION");
+    env_unset("CHRONON3D_VULKAN_SYNC_VALIDATION");
+    env_unset("CHRONON3D_VULKAN_GPU_ASSISTED_VALIDATION");
+    env_unset("CHRONON3D_VULKAN_DEBUG_NAMES");
 }
 
 TEST_CASE("VulkanDebugContext lifecycle and reporting") {

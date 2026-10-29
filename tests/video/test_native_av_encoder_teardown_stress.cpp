@@ -30,19 +30,34 @@ public:
         set(std::move(value));
     }
 
+    static void env_set(const char* name, const char* value) {
+#if defined(_WIN32)
+        (void)::_putenv_s(name, value);
+#else
+        (void)::setenv(name, value, 1);
+#endif
+    }
+    static void env_unset(const char* name) {
+#if defined(_WIN32)
+        (void)::_putenv_s(name, "");
+#else
+        (void)::unsetenv(name);
+#endif
+    }
+
     ~ScopedEnvironmentValue() {
         if (m_previous) {
-            ::setenv(m_name.c_str(), m_previous->c_str(), 1);
+            env_set(m_name.c_str(), m_previous->c_str());
         } else {
-            ::unsetenv(m_name.c_str());
+            env_unset(m_name.c_str());
         }
     }
 
     void set(std::optional<std::string> value) {
         if (value) {
-            ::setenv(m_name.c_str(), value->c_str(), 1);
+            env_set(m_name.c_str(), value->c_str());
         } else {
-            ::unsetenv(m_name.c_str());
+            env_unset(m_name.c_str());
         }
     }
 
@@ -72,10 +87,17 @@ std::string decoded_frame_hashes(const std::filesystem::path& mp4) {
     const std::string command =
         "ffmpeg -v error -i '" + mp4.string() + "' -map 0:v -f framemd5 - 2>/dev/null";
     std::string output;
-    if (FILE* pipe = popen(command.c_str(), "r")) {
+#if defined(_WIN32)
+#define CHRONON3D_POPEN  _popen
+#define CHRONON3D_PCLOSE _pclose
+#else
+#define CHRONON3D_POPEN  popen
+#define CHRONON3D_PCLOSE pclose
+#endif
+    if (FILE* pipe = CHRONON3D_POPEN(command.c_str(), "r")) {
         char buffer[512];
         while (std::fgets(buffer, sizeof(buffer), pipe)) output += buffer;
-        pclose(pipe);
+        CHRONON3D_PCLOSE(pipe);
     }
     std::string hashes;
     std::istringstream stream(output);

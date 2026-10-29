@@ -35,8 +35,16 @@
 #include <fstream>
 #include <memory>
 #include <stdexcept>
-#include <sys/wait.h>
 #include <string>
+#if !defined(_WIN32)
+#include <sys/wait.h>  // POSIX-only; the test body never uses it on Windows
+#endif
+
+// POSIX-only certification test: it drives the `nm -C` tool against the
+// POSIX `ar` archive (magic `!\u003carch\u003e\n`) with popen/pclose + WEXITSTATUS.
+// Windows has no nm toolchain for these archives; the suite is skipped
+// there (convention: see tests/cli/test_chronon_project_render_dispatch.cpp).
+#if !defined(_WIN32)
 
 // Stringify macro to convert the macro CHRONON3D_SDK_ARCHIVE_PATH
 // (passed by cmake via target_compile_definitions) into a string literal.
@@ -198,3 +206,5 @@ TEST_CASE(
             << archive_path
             << " (" << nm_out.size() << " bytes of demangled symbols)");
 }
+
+#endif // !defined(_WIN32)

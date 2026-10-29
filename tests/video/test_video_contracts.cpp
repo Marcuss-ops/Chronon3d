@@ -114,15 +114,29 @@ struct CliRunResult {
     int exit_code;
     std::string stdout_output;
 };
+// Portability: popen/pclose are _popen/_pclose on Windows (convention:
+// tests/video/test_native_video_retained_replay.cpp), and _pclose already
+// returns the child exit code directly (no WIFEXITED/WEXITSTATUS).
+#ifdef _WIN32
+#  define CHRONON3D_POPEN  _popen
+#  define CHRONON3D_PCLOSE _pclose
+#else
+#  define CHRONON3D_POPEN  popen
+#  define CHRONON3D_PCLOSE pclose
+#endif
 CliRunResult cli_invoke(const std::string& cmd) {
     CliRunResult r{};
-    FILE* pipe = popen(cmd.c_str(), "r");
+    FILE* pipe = CHRONON3D_POPEN(cmd.c_str(), "r");
     if (!pipe) return {-1, ""};
     char buf[8192];
     while (fgets(buf, sizeof(buf), pipe) != nullptr) r.stdout_output += buf;
-    r.exit_code = pclose(pipe);
+#ifdef _WIN32
+    r.exit_code = CHRONON3D_PCLOSE(pipe);
+#else
+    r.exit_code = CHRONON3D_PCLOSE(pipe);
     if (WIFEXITED(r.exit_code)) r.exit_code = WEXITSTATUS(r.exit_code);
     else r.exit_code = -1;
+#endif
     return r;
 }
 

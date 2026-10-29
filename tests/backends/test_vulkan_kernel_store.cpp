@@ -7,13 +7,21 @@
 #include "../../src/backends/vulkan/vulkan_external_fds.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <atomic>
 #include <cstring>
-#include <fcntl.h>
+#include <filesystem>
 #include <fstream>
 #include <thread>
 #include <vector>
+#include <system_error>
+
+// POSIX-only enum for external-fd export tests (convention: see
+// tests/cli/test_chronon_project_render_dispatch.cpp).
+#ifndef _WIN32
+#define CHRONON3D_EXTERNAL_FD_TESTS_ENABLED 1
+#endif
 
 namespace chronon3d::backends::vulkan {
 
@@ -65,6 +73,7 @@ TEST_CASE("registry is the sole kernel to pipeline resolution authority") {
     CHECK(seen[2]);
 }
 
+#if defined(CHRONON3D_EXTERNAL_FD_TESTS_ENABLED)
 TEST_CASE("external descriptors close on partial export failure and transfer individually") {
     std::array<int, 3> handles{};
     for (auto& handle : handles) {
@@ -89,6 +98,7 @@ TEST_CASE("external descriptors close on partial export failure and transfer ind
     } catch (const std::runtime_error&) {}
     CHECK(::fcntl(partial, F_GETFD) == -1);
 }
+#endif // CHRONON3D_EXTERNAL_FD_TESTS_ENABLED
 
 TEST_CASE("pipeline cache rejects truncated wrong-device and oversized headers") {
     VkPhysicalDeviceProperties device{};
@@ -117,12 +127,17 @@ TEST_CASE("pipeline cache rejects truncated wrong-device and oversized headers")
 }
 
 TEST_CASE("pipeline cache concurrent writers publish only complete blobs") {
-    std::string pattern = (std::filesystem::temp_directory_path() / "chronon-cache-test-XXXXXX").string();
-    REQUIRE(::mkdtemp(pattern.data()) != nullptr);
+    // Portable unique temp directory (mkdtemp is POSIX-only).
+    const auto path = std::filesystem::temp_directory_path() /
+        ("chronon-cache-test-" + std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::error_code create_error;
+    REQUIRE(std::filesystem::create_directories(path, create_error));
+    REQUIRE(!create_error);
     struct Cleanup {
         std::filesystem::path path;
         ~Cleanup() { std::error_code error; std::filesystem::remove_all(path, error); }
-    } cleanup{pattern};
+    } cleanup{path};
     const auto file = cleanup.path / "cache.bin";
     VkPhysicalDeviceProperties device{};
     device.vendorID = 123;

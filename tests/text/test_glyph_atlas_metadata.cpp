@@ -85,7 +85,7 @@ TEST_CASE("glyph_atlas: lookup preserves x_offset / y_offset / advance_x / fill_
     entry_in.y_offset         = kTestYOffset;
     entry_in.advance_x        = kTestAdvanceX;
     entry_in.fill_color_rgba  = kTestFillRgba;
-    REQUIRE(entry_in.image != nullptr);
+    REQUIRE(static_cast<bool>(entry_in.image));
     REQUIRE(entry_in.image->width() == 4);
     REQUIRE(entry_in.image->height() == 4);
 
@@ -96,7 +96,7 @@ TEST_CASE("glyph_atlas: lookup preserves x_offset / y_offset / advance_x / fill_
     REQUIRE(hit.has_value());
 
     const chronon3d::GlyphAtlasEntry& entry_out = *hit;
-    CHECK(entry_out.image != nullptr);
+    CHECK(static_cast<bool>(entry_out.image));
     CHECK(entry_out.image->width() == 4);
     CHECK(entry_out.image->height() == 4);
 

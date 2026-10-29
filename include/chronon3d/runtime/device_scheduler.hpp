@@ -13,6 +13,17 @@
 #include <string>
 #include <vector>
 
+// Windows SDK collision: wingdi/winspool macros rename the C function
+// DeviceCapabilities to DeviceCapabilitiesA under UNICODE, and any TU that
+// transitively includes windows.h (e.g. via spdlog) then compiles this
+// header's struct and the out-of-line method definitions under the `A` name
+// while other TUs build the plain mangling — an unrecoverable link-time
+// mismatch. Undefine the SDK macro once here so every TU spelling the type
+// through this header agrees on one C++ name.
+#if defined(_WIN32) && defined(DeviceCapabilities)
+#undef DeviceCapabilities
+#endif
+
 namespace chronon3d::runtime {
 
 using DeviceId = std::uint32_t;

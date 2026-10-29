@@ -41,16 +41,21 @@ public:
         if (saved_ != nullptr) {
             set(saved_);
         } else {
-            unsetenv("CHRONON3D_FORCE_CPU_ISA");
+            set(nullptr);
         }
     }
 
     static void set(const char* value) {
+#if defined(_WIN32)
+        (void)::_putenv_s("CHRONON3D_FORCE_CPU_ISA",
+                          value != nullptr ? value : "");
+#else
         if (value != nullptr) {
-            setenv("CHRONON3D_FORCE_CPU_ISA", value, 1);
+            (void)setenv("CHRONON3D_FORCE_CPU_ISA", value, 1);
         } else {
-            unsetenv("CHRONON3D_FORCE_CPU_ISA");
+            (void)unsetenv("CHRONON3D_FORCE_CPU_ISA");
         }
+#endif
     }
 
 private:

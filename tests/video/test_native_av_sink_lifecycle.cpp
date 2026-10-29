@@ -98,7 +98,7 @@ TEST_CASE("NativeAvSink RGB conversion pixels agree with emitted BT709 metadata"
         .height = 64, .pixel_format = PixelFormat::RGB24, .pts = 0}));
     REQUIRE(sink->close());
     AVFormatContext* format = nullptr;
-    REQUIRE(avformat_open_input(&format, path.c_str(), nullptr, nullptr) == 0);
+    REQUIRE(avformat_open_input(&format, path.string().c_str(), nullptr, nullptr) == 0);
     struct InputGuard { AVFormatContext*& p; ~InputGuard() { avformat_close_input(&p); } } input{format};
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     const int stream = av_find_best_stream(format, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
