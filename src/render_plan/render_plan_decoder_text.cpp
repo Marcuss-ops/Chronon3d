@@ -59,7 +59,7 @@ void validate_text_track(const AnimationTrackPlan& track,
 TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     reject_unknown_fields(value, {"id", "semantic_id", "unit", "shape", "order", "combine",
         "start", "end", "offset", "amount", "exclude_spaces", "end_inclusive", "randomize_order", "random_seed",
-        "wiggly_frequency", "wiggly_amplitude", "wiggly_seed", "noise_frequency",
+        "wiggly_frequency", "wiggly_amplitude", "wiggly_seed", "ease_low", "ease_high", "noise_frequency",
         "noise_amplitude", "noise_seed", "index_step"}, "text selector");
     if (value.contains("id") && (!value.at("id").is_string() || value.at("id").get<std::string>().size() > 256))
         throw std::runtime_error("text selector id must be a string of at most 256 bytes");
@@ -126,6 +126,12 @@ TextSelectorPlan decode_text_selector(const nlohmann::json& value) {
     selector.wiggly_frequency = value.value("wiggly_frequency", 1.0f);
     selector.wiggly_amplitude = value.value("wiggly_amplitude", 0.25f);
     selector.wiggly_seed = bounded_seed("wiggly_seed");
+    selector.ease_low = value.value("ease_low", 0.0f);
+    selector.ease_high = value.value("ease_high", 100.0f);
+    if (!std::isfinite(selector.ease_low) || selector.ease_low < 0.0f || selector.ease_low > 100.0f ||
+        !std::isfinite(selector.ease_high) || selector.ease_high < 0.0f || selector.ease_high > 100.0f ||
+        selector.ease_low > selector.ease_high)
+        throw std::runtime_error("text selector ease_low/ease_high must be ordered percentages in [0, 100]");
     selector.noise_frequency = value.value("noise_frequency", 1.0f);
     selector.noise_amplitude = value.value("noise_amplitude", 0.25f);
     selector.noise_seed = bounded_seed("noise_seed");

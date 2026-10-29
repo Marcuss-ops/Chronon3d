@@ -333,6 +333,8 @@ void add_text_animator(CanonicalPlanWriter& out, const TextAnimatorPlan& animato
         out.add_float(selector.wiggly_frequency);
         out.add_float(selector.wiggly_amplitude);
         out.add_uint64(selector.wiggly_seed);
+        out.add_float(selector.ease_low);
+        out.add_float(selector.ease_high);
         out.add_float(selector.noise_frequency);
         out.add_float(selector.noise_amplitude);
         out.add_uint64(selector.noise_seed);
