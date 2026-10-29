@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <memory_resource>
@@ -54,16 +55,34 @@ void* allocate(std::size_t size) {
     throw std::bad_alloc{};
 }
 
+// Over-allocation variant of posix_memalign (not available on Windows):
+// raw malloc'd block is padded so `aligned` is on the boundary and the
+// original pointer is stored immediately before it. All deletes stay on
+// std::free; the align_val_t variants recover the raw pointer from the
+// metadata slot.
 void* allocate_aligned(std::size_t size, std::size_t alignment) {
     if (alignment <= alignof(std::max_align_t)) {
         return allocate(size);
     }
-    void* p = nullptr;
-    if (posix_memalign(&p, alignment, size == 0 ? alignment : size) != 0) {
+    const std::size_t effective = size == 0 ? alignment : size;
+    void* raw = std::malloc(
+        effective + alignment + sizeof(void*));
+    if (raw == nullptr) {
         throw std::bad_alloc{};
     }
+    std::uintptr_t addr = reinterpret_cast<std::uintptr_t>(raw) +
+                          sizeof(void*);
+    addr = (addr + (alignment - 1)) & ~(alignment - 1);
+    void* aligned = reinterpret_cast<void*>(addr);
+    *(reinterpret_cast<void**>(aligned) - 1) = raw;
     record_allocation(size);
-    return p;
+    return aligned;
+}
+
+void aligned_free(void* p) noexcept {
+    if (p == nullptr) return;
+    void* raw = *(reinterpret_cast<void**>(p) - 1);
+    std::free(raw);
 }
 
 } // namespace
@@ -101,13 +120,13 @@ void operator delete(void* p) noexcept { std::free(p); }
 void operator delete[](void* p) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 void operator delete[](void* p, std::size_t) noexcept { std::free(p); }
-void operator delete(void* p, std::align_val_t) noexcept { std::free(p); }
-void operator delete[](void* p, std::align_val_t) noexcept { std::free(p); }
+void operator delete(void* p, std::align_val_t) noexcept { aligned_free(p); }
+void operator delete[](void* p, std::align_val_t) noexcept { aligned_free(p); }
 void operator delete(void* p, std::size_t, std::align_val_t) noexcept {
-    std::free(p);
+    aligned_free(p);
 }
 void operator delete[](void* p, std::size_t, std::align_val_t) noexcept {
-    std::free(p);
+    aligned_free(p);
 }
 
 namespace {

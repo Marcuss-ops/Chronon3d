@@ -85,16 +85,25 @@ namespace {
 }
 
 // RAII env-var setter (saves + restores the previous value).
+// Windows has no setenv/unsetenv; use _putenv_s with an empty string to
+// unset (convention: see tests/core/test_cpu_budget.cpp).
+inline void env_set(const char* name, const char* value) {
+#if defined(_WIN32)
+    (void)::_putenv_s(name, value ? value : "");
+#else
+    if (value) (void)::setenv(name, value, 1);
+    else       (void)::unsetenv(name);
+#endif
+}
+
 class EnvVarGuard {
 public:
     EnvVarGuard(const char* name, const char* value)
         : name_(name), prev_(std::getenv(name)) {
-        if (value) ::setenv(name, value, 1);
-        else       ::unsetenv(name);
+        env_set(name, value);
     }
     ~EnvVarGuard() {
-        if (prev_) ::setenv(name_, prev_, 1);
-        else       ::unsetenv(name_);
+        env_set(name_, prev_);
     }
     EnvVarGuard(const EnvVarGuard&) = delete;
     EnvVarGuard& operator=(const EnvVarGuard&) = delete;

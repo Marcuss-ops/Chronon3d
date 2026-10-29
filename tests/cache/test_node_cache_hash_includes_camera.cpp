@@ -101,12 +101,12 @@ TEST_CASE("CameraFingerprint: digest changes when cam.zoom changes") {
 
 // 2. Camera fingerprint digest - distinguishes by position.z
 TEST_CASE("CameraFingerprint: digest changes when cam.position.z changes") {
-    const u64 near = camera_fingerprint_digest(make_cam_z(kAeCam04ZNear));
-    const u64 mid  = camera_fingerprint_digest(make_cam_z(kAeCam04ZMid));
-    const u64 far  = camera_fingerprint_digest(make_cam_z(kAeCam04ZFar));
-    CHECK_NE(near, mid);
-    CHECK_NE(mid,  far);
-    CHECK_NE(near, far);
+    const u64 near_z = camera_fingerprint_digest(make_cam_z(kAeCam04ZNear));
+    const u64 mid_z  = camera_fingerprint_digest(make_cam_z(kAeCam04ZMid));
+    const u64 far_z  = camera_fingerprint_digest(make_cam_z(kAeCam04ZFar));
+    CHECK_NE(near_z, mid_z);
+    CHECK_NE(mid_z,  far_z);
+    CHECK_NE(near_z, far_z);
 }
 
 TEST_CASE("CameraFingerprint: digest changes for every pose axis") {

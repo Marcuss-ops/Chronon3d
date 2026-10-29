@@ -47,7 +47,7 @@ Scene make_chain_scene() {
     return s;
 }
 
-bool near(f32 a, f32 b, f32 eps = 0.001f) {
+bool near_eq(f32 a, f32 b, f32 eps = 0.001f) {
     return std::fabs(a - b) <= eps;
 }
 
@@ -93,8 +93,8 @@ TEST_CASE("apply_joints: A->B is offset-only (parent rotation 0)") {
     CHECK(res.applied == 1);
     CHECK(res.skipped_missing == 0);
     CHECK(res.cycle_ids.empty());
-    CHECK(near(s.layers()[1].transform.position.x, 100.0f));
-    CHECK(near(s.layers()[1].transform.position.y, 50.0f));
+    CHECK(near_eq(s.layers()[1].transform.position.x, 100.0f));
+    CHECK(near_eq(s.layers()[1].transform.position.y, 50.0f));
 }
 
 TEST_CASE("apply_joints: parent rotation rotates the offset") {
@@ -108,8 +108,8 @@ TEST_CASE("apply_joints: parent rotation rotates the offset") {
     r.add(j);
     auto res = apply_joints(s, r);
     CHECK(res.applied == 1);
-    CHECK(near(s.layers()[1].transform.position.x, 0.0f));
-    CHECK(near(s.layers()[1].transform.position.y, 1.0f));
+    CHECK(near_eq(s.layers()[1].transform.position.x, 0.0f));
+    CHECK(near_eq(s.layers()[1].transform.position.y, 1.0f));
 }
 
 TEST_CASE("apply_joints: chained A->B then B->C propagates") {
@@ -126,11 +126,11 @@ TEST_CASE("apply_joints: chained A->B then B->C propagates") {
     CHECK(res.applied == 2);
     CHECK(res.cycle_ids.empty());
     // B ends up at A(0,0) + (10, 0)  = (10, 0)
-    CHECK(near(s.layers()[1].transform.position.x, 10.0f));
-    CHECK(near(s.layers()[1].transform.position.y, 0.0f));
+    CHECK(near_eq(s.layers()[1].transform.position.x, 10.0f));
+    CHECK(near_eq(s.layers()[1].transform.position.y, 0.0f));
     // C ends up at B(10, 0) + (0, 5) = (10, 5)
-    CHECK(near(s.layers()[2].transform.position.x, 10.0f));
-    CHECK(near(s.layers()[2].transform.position.y, 5.0f));
+    CHECK(near_eq(s.layers()[2].transform.position.x, 10.0f));
+    CHECK(near_eq(s.layers()[2].transform.position.y, 5.0f));
 }
 
 TEST_CASE("apply_joints: rotation chains additively through parents") {
@@ -145,9 +145,9 @@ TEST_CASE("apply_joints: rotation chains additively through parents") {
     auto res = apply_joints(s, r);
     CHECK(res.applied == 2);
     // B's rotation = parent (0) + j1.rotation_deg (90) = 90
-    CHECK(near(s.layers()[1].transform.rotation.z, 90.0f));
+    CHECK(near_eq(s.layers()[1].transform.rotation.z, 90.0f));
     // C's rotation = B's rotation (90) + j2.rotation_deg (0) = 90
-    CHECK(near(s.layers()[2].transform.rotation.z, 90.0f));
+    CHECK(near_eq(s.layers()[2].transform.rotation.z, 90.0f));
 }
 
 // ── apply_joints: cycles ───────────────────────────────────────────────
@@ -162,7 +162,7 @@ TEST_CASE("apply_joints: self-loop is reported as cycle and not applied") {
     CHECK(res.cycle_ids.size() == 1);
     CHECK(res.cycle_ids[0].value == "AA");
     // A's original position must be unchanged.
-    CHECK(near(s.layers()[0].transform.position.x, 0.0f));
+    CHECK(near_eq(s.layers()[0].transform.position.x, 0.0f));
 }
 
 TEST_CASE("apply_joints: longer cycle A->B->A only flags the cyclic joint") {
@@ -208,7 +208,7 @@ TEST_CASE("apply_joints: applying twice yields the same end state") {
 
     CHECK(r1.applied == 1);
     CHECK(r2.applied == 1);
-    CHECK(near(state_after_first.x,  state_after_second.x));
-    CHECK(near(state_after_first.y,  state_after_second.y));
-    CHECK(near(state_after_first.z,  state_after_second.z));
+    CHECK(near_eq(state_after_first.x,  state_after_second.x));
+    CHECK(near_eq(state_after_first.y,  state_after_second.y));
+    CHECK(near_eq(state_after_first.z,  state_after_second.z));
 }

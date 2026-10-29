@@ -29,7 +29,7 @@ TEST_CASE("P0-5A: remux lane keeps the source contract, encoder lane fails close
     CHECK_FALSE(remux->encoder_materialized);
 
     AVFormatContext* format = nullptr;
-    REQUIRE(avformat_open_input(&format, source.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&format, source.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     const AVCodecParameters* params = nullptr;
     for (unsigned int index = 0; index < format->nb_streams; ++index) {
@@ -129,7 +129,7 @@ TEST_CASE("P0-5A: the opened encoder materializes its own bitstream contract") {
         return;
     }
     AVFormatContext* format = nullptr;
-    if (avformat_open_input(&format, output.c_str(), nullptr, nullptr) < 0) {
+    if (avformat_open_input(&format, output.string().c_str(), nullptr, nullptr) < 0) {
         MESSAGE("Skipping demux comparison — produced container not readable");
         return;
     }
@@ -569,7 +569,7 @@ TEST_CASE("B3 CPU native segment assembly normalizes timestamps and checksums ou
     REQUIRE(result.output_checksum.size() == 64);
 
     AVFormatContext* format = nullptr;
-    REQUIRE(avformat_open_input(&format, output.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&format, output.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     int video_index = -1;
     for (unsigned int index = 0; index < format->nb_streams; ++index) {
@@ -616,7 +616,7 @@ TEST_CASE("Segment assembly rejects a truncated packet payload instead of publis
     }
     REQUIRE(encoder.close());
     AVFormatContext* format = nullptr;
-    REQUIRE(avformat_open_input(&format, input.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&format, input.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     AVPacket* packet = av_packet_alloc();
     REQUIRE(packet != nullptr);
@@ -629,7 +629,7 @@ TEST_CASE("Segment assembly rejects a truncated packet payload instead of publis
     const auto command = "ffmpeg -hide_banner -loglevel error -y -i " + input.string() +
         " -c copy -movflags +faststart " + fast.string();
     REQUIRE(std::system(command.c_str()) == 0);
-    REQUIRE(avformat_open_input(&format, fast.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&format, fast.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     packet = av_packet_alloc(); REQUIRE(packet != nullptr);
     REQUIRE(av_read_frame(format, packet) >= 0);
@@ -655,7 +655,7 @@ TEST_CASE("Segment assembly retains audio delay on a common timeline") {
     REQUIRE(std::system(command.c_str()) == 0);
     const auto delay = [](const std::filesystem::path& path) {
         AVFormatContext* format = nullptr;
-        REQUIRE(avformat_open_input(&format, path.c_str(), nullptr, nullptr) >= 0);
+        REQUIRE(avformat_open_input(&format, path.string().c_str(), nullptr, nullptr) >= 0);
         REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
         double video = 0, audio = 0;
         for (unsigned i = 0; i < format->nb_streams; ++i) {
@@ -711,7 +711,7 @@ TEST_CASE("Audio-aware assembly muxes one source stream over video-only segments
     REQUIRE(std::filesystem::exists(output));
 
     AVFormatContext* format = nullptr;
-    REQUIRE(avformat_open_input(&format, output.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&format, output.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     int video_index = -1, audio_index = -1;
     for (unsigned int index = 0; index < format->nb_streams; ++index) {
@@ -740,7 +740,7 @@ TEST_CASE("Audio-aware assembly muxes one source stream over video-only segments
     // source's nonnegative-PTS audio packets verbatim, matching single-job
     // mux semantics (the AAC priming packet lies before the stream origin).
     AVFormatContext* audio_format = nullptr;
-    REQUIRE(avformat_open_input(&audio_format, audio_source.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&audio_format, audio_source.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(audio_format, nullptr) >= 0);
     int source_audio_index = -1;
     for (unsigned int index = 0; index < audio_format->nb_streams; ++index) {
@@ -887,7 +887,7 @@ TEST_CASE("P0-5C: an encoder writes through a caller-owned MuxSession") {
     std::filesystem::remove(source, cleanup_error);
 
     AVFormatContext* format = nullptr;
-    REQUIRE(avformat_open_input(&format, output.c_str(), nullptr, nullptr) >= 0);
+    REQUIRE(avformat_open_input(&format, output.string().c_str(), nullptr, nullptr) >= 0);
     REQUIRE(avformat_find_stream_info(format, nullptr) >= 0);
     int video_index = -1;
     for (unsigned int index = 0; index < format->nb_streams; ++index) {

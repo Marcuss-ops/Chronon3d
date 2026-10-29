@@ -19,7 +19,16 @@
 #include <system_error>
 #include <thread>
 #include <utility>
-#include <unistd.h>
+
+// Portability: getpid via <process.h> on Windows (convention: see
+// tests/video/test_native_video_retained_replay.cpp).
+#ifdef _WIN32
+#  include <process.h>
+#  define CHRONON3D_GETPID _getpid
+#else
+#  include <unistd.h>
+#  define CHRONON3D_GETPID getpid
+#endif
 
 using namespace chronon3d::cli::ipc;
 
@@ -58,7 +67,7 @@ TEST_CASE("daemon IPC converts a rejected request without unwinding dispatch") {
 
 TEST_CASE("daemon IPC delivers a typed rejection and keeps serving") {
     const auto path = (std::filesystem::temp_directory_path() /
-        ("chronon3d-daemon-ipc-exception-" + std::to_string(::getpid()))).string();
+        ("chronon3d-daemon-ipc-exception-" + std::to_string(CHRONON3D_GETPID()))).string();
     UnixSocketServer server;
     server.listen(path);
     // First render request is the capability rejection; the next one is a
@@ -119,7 +128,7 @@ TEST_CASE("daemon IPC delivers a typed rejection and keeps serving") {
 TEST_CASE("daemon socket survives a rejected render job and accepts the next one") {
     using namespace std::chrono_literals;
 
-    const auto suffix = std::to_string(static_cast<long>(::getpid()));
+    const auto suffix = std::to_string(static_cast<long>(CHRONON3D_GETPID()));
     const auto socket_path = std::filesystem::temp_directory_path() /
         ("chronon3d-daemon-rejection-" + suffix + ".sock");
     const auto plan_path = std::filesystem::temp_directory_path() /
@@ -280,7 +289,7 @@ TEST_CASE("daemon socket survives a rejected render job and accepts the next one
 TEST_CASE("daemon RENDER_BATCH preserves segment order and isolates a failed segment retry") {
     using namespace std::chrono_literals;
 
-    const auto suffix = std::to_string(static_cast<long>(::getpid()));
+    const auto suffix = std::to_string(static_cast<long>(CHRONON3D_GETPID()));
     const auto socket_path = std::filesystem::temp_directory_path() /
         ("chronon3d-daemon-batch-retry-" + suffix + ".sock");
     const auto plan_path = std::filesystem::temp_directory_path() /
@@ -396,7 +405,7 @@ TEST_CASE("daemon runs the deferred receipt step after releasing the render lane
     // leaves only after the step completed, because the worker reads the
     // receipt file right after the reply.
     // -----------------------------------------------------------------------
-    const auto suffix = std::to_string(static_cast<long>(::getpid()));
+    const auto suffix = std::to_string(static_cast<long>(CHRONON3D_GETPID()));
     const auto socket_path = std::filesystem::temp_directory_path() /
         ("chronon3d-daemon-receipt-deferral-" + suffix + ".sock");
     const auto plan_path = std::filesystem::temp_directory_path() /

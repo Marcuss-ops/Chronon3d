@@ -131,6 +131,10 @@ chronon3d_add_test_suite(
     SOURCES
         runtime/test_gpu_layer_batch.cpp
         runtime/test_device_scheduler.cpp
+    # DeviceScheduler lives in the runtime OBJECT library, which is not
+    # aggregated by the unit-tier pipeline default (convention: see
+    # tests/text_domain_tests.cmake).
+    EXTRA_LINK_TARGETS chronon3d_runtime
 )
 chronon3d_add_test_suite(
     NAME chronon3d_gpu_command_plan_tests

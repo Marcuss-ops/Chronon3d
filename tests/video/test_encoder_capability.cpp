@@ -1,6 +1,8 @@
 #define DOCTEST_CONFIG_SUPER_FAST_ASSERTS
 #include <doctest/doctest.h>
 
+#include <ostream>
+
 #include <chronon3d/media/video/encoder_capability.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 
