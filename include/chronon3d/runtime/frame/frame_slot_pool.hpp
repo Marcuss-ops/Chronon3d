@@ -45,7 +45,7 @@ private:
     std::size_t producer_cursor_{0};
     // Slot ids remain bounded and pointer-stable, but payload storage is
     // sized to the actual pipeline depth.  Keeping a 256-element array here
-    // eagerly constructs 256 strict 4 MiB arenas (~1 GiB) for the normal
+    // eagerly constructs 256 strict 16 MiB arenas (~4 GiB) for the normal
     // three-slot pipeline.
     std::array<FrameExecutionSlot, kMaxFrameExecutionSlots> slots_{};
     std::vector<std::unique_ptr<FrameSlotPayload>> payloads_{};
