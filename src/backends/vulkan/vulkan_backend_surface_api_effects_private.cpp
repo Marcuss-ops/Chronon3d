@@ -410,6 +410,30 @@ graph::RenderOpResult VulkanBackend::execute_layer_batch(
 #endif
 }
 
+graph::RenderOpResult VulkanBackend::draw_inline_mesh_surface(
+    runtime::RenderSurfaceHandle destination,
+    runtime::RenderSurfaceHandle texture,
+    std::span<const float> projected_lit_vertices,
+    std::span<const std::uint32_t> indices,
+    std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
+    const Color& tint,
+    std::optional<float> alpha_cutoff) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    const std::array<runtime::RenderSurfaceHandle, 1> reads{texture};
+    return run_batched_surface_op(touched, reads, [&] {
+        m_impl->draw_inline_mesh(destination, texture, projected_lit_vertices,
+                                 indices, x0, y0, x1, y1, tint, alpha_cutoff);
+    });
+#else
+    (void)destination; (void)texture; (void)projected_lit_vertices; (void)indices;
+    (void)x0; (void)y0; (void)x1; (void)y1; (void)tint; (void)alpha_cutoff;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::draw_inline_mesh_surface: Vulkan support is disabled"));
+#endif
+}
+
 // DEMOLISHED (P1.4): VulkanBackend::preallocate_plan_surfaces removed —
 // native surface materialization is the lazy VulkanSurfaceAuthority path.
 

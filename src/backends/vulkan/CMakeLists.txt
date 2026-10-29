@@ -25,6 +25,7 @@ set(_chronon3d_shaders
     text_run
     fill_rect
     layer_batch
+    inline_mesh
     text_tile_bin
     text_tile_raster
     pixel_program_pointwise
@@ -71,6 +72,7 @@ set(_chronon3d_shader_abi_prefixes
     text_run:TextRun
     fill_rect:FillRect
     layer_batch:LayerBatch
+    inline_mesh:InlineMesh
     text_tile_bin:TextTileBin
     text_tile_raster:TextTileRaster
     pixel_program_pointwise:PixelProgramPointwise
@@ -141,6 +143,7 @@ add_library(chronon3d_backend_vulkan OBJECT
     vulkan_backend_operations_color_private.cpp
     vulkan_backend_text_ops_private.cpp
     vulkan_backend_layer_ops_private.cpp
+    vulkan_backend_inline_mesh_private.cpp
     vulkan_backend_resources_private.cpp
     vulkan_backend_submission_private.cpp
     vulkan_backend_sync_private.cpp

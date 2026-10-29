@@ -330,6 +330,7 @@ public:
     /// submit+wait semantics, preserving single-pass test compatibility.
     void begin_frame_batch() override;
     void end_frame_batch() override;
+    void synchronize_native_dependencies() override;
 
     /// Plan-driven frame-batch entry point for the command-plan executor.
     /// Every planned pass consumes the canonical ResourceTransition stream
@@ -548,6 +549,14 @@ public:
         std::span<const runtime::RenderSurfaceHandle> resources,
         std::span<const float> transforms,
         std::span<const float> paints) override;
+    graph::RenderOpResult draw_inline_mesh_surface(
+        runtime::RenderSurfaceHandle destination,
+        runtime::RenderSurfaceHandle texture,
+        std::span<const float> projected_lit_vertices,
+        std::span<const std::uint32_t> indices,
+        std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
+        const Color& premultiplied_tint,
+        std::optional<float> alpha_cutoff) override;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     graph::RenderOpResult create_cuda_external_surface(

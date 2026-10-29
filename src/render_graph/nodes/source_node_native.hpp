@@ -47,4 +47,8 @@ inline constexpr f32 kSeedFrameEpsilon = 1e-3f;
     RenderGraphContext& ctx, Framebuffer& fb,
     const ::chronon3d::RenderNode& node, const RenderState& state);
 
+[[nodiscard]] bool try_native_inline_mesh(
+    RenderGraphContext& ctx, Framebuffer& fb,
+    const ::chronon3d::RenderNode& node, const RenderState& state);
+
 } // namespace chronon3d::graph::detail

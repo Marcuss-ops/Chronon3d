@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-29",
+  "repository": "Chronon3D",
+  "base_sha": "556a4ae58933d0c6b72eb22829b415e08ffc43d4",
+  "working_tree_dirty": true,
+  "preset": "build/chronon/linux-video-test",
+  "vulkan_enabled": true,
+  "cuda_interop_enabled": true,
+  "device": "NVIDIA RTX A4000",
+  "driver": "595.99.02",
+  "plan": "../ChrononMotion3D/docs/evidence/ticket-roundtrip-scaled-20261029/gltf/animated-gltf.plan.json",
+  "plan_sha256": "78a64f52525cb89b5b7e4e53f121054a77561758290334bb1d664cc7adce57c5",
+  "resolution": [640, 360],
+  "fps": 30,
+  "frames": 31,
+  "software_raw": {
+    "status": "PASS",
+    "bytes": 28569600
+  },
+  "strict_native_nvenc": {
+    "status": "PASS_ROUTE_AND_DECODE",
+    "codec": "h264",
+    "frames_decoded": 31,
+    "accepted_frames": 31,
+    "mux_packets": 31,
+    "mp4_sha256": "9d3ad734bccdfbc09569088508a3e10fb3fb06152af637b13530c0ab10da717b",
+    "repeat_mp4_sha256": "9d3ad734bccdfbc09569088508a3e10fb3fb06152af637b13530c0ab10da717b"
+  },
+  "software_vs_vulkan_decoded_h264": {
+    "full_frame_rgb_mae": 0.0210087645609319,
+    "software_subject_mask_rgb_mae": 1.4924236377181779,
+    "software_subject_mask_rgb_p95_abs": 5,
+    "software_subject_mask_rgb_p99_abs": 8,
+    "software_subject_mask_rgb_max_abs": 17,
+    "frame0_sample_xy": [320, 119],
+    "frame0_software_sample_rgba": [108, 45, 14, 255],
+    "frame0_vulkan_sample_rgba": [117, 42, 10, 255],
+    "status": "PASS_CAM04_DECODED_ENCODED_GATE"
+  },
+  "focused_inline_mesh_gpu_test": {
+    "status": "PASS",
+    "test_cases": 1,
+    "assertions": 23
+  },
+  "inline_mesh_aggregate_budget_test": {
+    "status": "PASS",
+    "test_cases": 1,
+    "assertions": 8
+  },
+  "backend_registry_ctest": {
+    "first_run": "FAIL_STALE_EXPECTED_KERNEL_COUNT_24_ACTUAL_25",
+    "corrective_test_change": "expected registry size changed to 25",
+    "rerun": "PASS_AFTER_LIGHTING_FIX",
+    "test_cases": 119,
+    "assertions": 1914121,
+    "wall_seconds": 128.92
+  }
+}
