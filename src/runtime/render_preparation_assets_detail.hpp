@@ -139,6 +139,7 @@ RenderPreparationResult prepare_render_scene(
             // resolves, so preparation never decodes a second representation.
             ImageDecodeOptions decode_options{};
             decode_options.max_dimension = ref.max_dimension;
+            decode_options.color_space = ref.color_space;
             const auto image = renderer->execution_context().runtime->image_cache().get_or_load(ref.path, decode_options);
             if (!image || !image->valid()) {
                 result.preparation_error = make_preparation_error(
@@ -163,6 +164,7 @@ RenderPreparationResult prepare_render_scene(
         for (const auto& ref : image_refs_view) {
             ImageDecodeOptions decode_options{};
             decode_options.max_dimension = ref.max_dimension;
+            decode_options.color_space = ref.color_space;
             const auto image = renderer->execution_context().runtime->image_cache().find(ref.path, decode_options);
             if (!image || !image->valid() || image->gpu_rgba.empty()) {
                 continue;

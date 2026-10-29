@@ -1,6 +1,7 @@
 #include <chronon3d/render_plan/easing_contract.hpp>
 #include "render_plan_compiler_detail.hpp"
 #include "render_plan_compiler_animation_internal.hpp"
+#include "render_plan_camera_adapter.hpp"
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
@@ -385,47 +386,6 @@ std::optional<graphics::GradientDefinition> fill_gradient_at(
 }
 
 namespace {
-
-chronon3d::Camera2_5D make_camera_value(
-    const CameraPlan& source, const CanvasSpec& canvas) {
-    chronon3d::Camera2_5D camera;
-    camera.enabled = true;
-    camera.is_animated = false;
-    camera.position = {source.position[0], source.position[1], source.position[2]};
-    camera.rotation = {source.rotation_deg[0], source.rotation_deg[1], source.rotation_deg[2]};
-    camera.fov_deg = source.fov_deg;
-    camera.zoom = 1000.0f * source.zoom;
-    camera.lens_shift = {source.lens_shift[0], source.lens_shift[1]};
-    camera.optics_mode = source.type == "orthographic"
-        ? chronon3d::CameraOpticsMode::Zoom
-        : (source.focal_length_mm > 0.0f
-            ? chronon3d::CameraOpticsMode::PhysicalLens
-            : chronon3d::CameraOpticsMode::FieldOfView);
-    if (source.type == "orthographic") camera.zoom = 1000.0f * source.zoom;
-    if (source.focal_length_mm > 0.0f) {
-        camera.lens.focal_length = source.focal_length_mm;
-        camera.lens.sensor_width = source.sensor_width_mm;
-        const float aspect = canvas.width > 0 && canvas.height > 0
-            ? static_cast<float>(canvas.width) / static_cast<float>(canvas.height)
-            : 16.0f / 9.0f;
-        camera.lens.sensor_height = source.sensor_width_mm / aspect;
-    }
-    const float authored_f_stop = source.dof_f_stop > 0.0f
-        ? source.dof_f_stop : source.f_stop;
-    if (authored_f_stop > 0.0f) camera.lens.f_stop = authored_f_stop;
-    camera.dof.enabled = source.dof_enabled;
-    camera.dof.focus_distance = source.dof_focus_distance;
-    camera.dof.aperture = source.dof_aperture;
-    camera.dof.max_blur = source.dof_max_blur;
-    camera.dof.iris_blades = static_cast<std::uint32_t>(source.dof_iris_blades);
-    camera.dof.highlight_gain = source.dof_highlight_gain;
-    camera.dof.use_physical_model = source.focal_length_mm > 0.0f && authored_f_stop > 0.0f;
-    if (source.dof_enabled) {
-        camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
-            camera, source.dof_focus_distance);
-    }
-    return camera;
-}
 
 std::optional<chronon3d::Camera2_5D> make_camera_base(const RenderPlan& plan) {
     if (!plan.camera) return std::nullopt;

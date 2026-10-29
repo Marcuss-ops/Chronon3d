@@ -60,11 +60,17 @@ struct RenderNode {
         f32 shininess{32.0f};
         f32 rim_intensity{1.0f};
         std::optional<Color> base_color;
+        std::optional<f32> metallic;
+        std::optional<f32> roughness;
+        std::optional<Color> emissive;
+        bool double_sided{false};
+        std::optional<f32> alpha_cutoff;
     };
     std::optional<InlineMeshMaterial> inline_mesh_material;
     // RenderPlan inline-mesh frame samples are frame-varying source geometry.
     // The asset field names an optional RGBA image sampled through vertex UVs.
     std::string inline_mesh_texture_asset;
+    std::string inline_mesh_metallic_roughness_texture_asset;
     bool inline_mesh_animated{false};
     // Optional per-emitter payload. CPU shape nodes remain the software
     // authority; strict Vulkan consumes this array in one instanced dispatch.

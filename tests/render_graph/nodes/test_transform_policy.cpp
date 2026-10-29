@@ -1,11 +1,31 @@
 #include <doctest/doctest.h>
 
+#include <chronon3d/math/transform.hpp>
 #include "src/render_graph/nodes/transform_policy.hpp"
 
 using chronon3d::graph::detail::TransformExecutionPath;
 using chronon3d::graph::detail::resolve_transform_execution_path;
 using chronon3d::graph::detail::clip_transform_bounds;
 using chronon3d::graph::detail::normalize_transform_source_rect;
+
+TEST_CASE("RenderState combine preserves resolved camera projection for child nodes") {
+    chronon3d::RenderState parent;
+    parent.projection.ready = true;
+    parent.projection.focal = 73.0f;
+    parent.projection.view[3][0] = 4.0f;
+    parent.world_matrix[3][1] = 9.0f;
+    parent.uses_2_5d_projection = true;
+
+    chronon3d::Transform child;
+    child.position = {2.0f, 3.0f, 4.0f};
+    const auto combined = chronon3d::combine(parent, child);
+
+    CHECK(combined.projection.ready);
+    CHECK(combined.projection.focal == doctest::Approx(73.0f));
+    CHECK(combined.projection.view[3][0] == doctest::Approx(4.0f));
+    CHECK(combined.world_matrix[3][1] == doctest::Approx(9.0f));
+    CHECK(combined.uses_2_5d_projection);
+}
 
 TEST_CASE("Transform policy selects native when all runtime resources exist") {
     CHECK(resolve_transform_execution_path(false, true, true, true) ==

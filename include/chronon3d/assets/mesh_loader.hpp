@@ -97,8 +97,8 @@ struct MeshMaterial {
     /// glTF metallic-roughness PBR factors; roughness uses 1=rough, 0=smooth.
     float metallic_factor{1.0f};
     float roughness_factor{1.0f};
-    /// Index into PreparedMeshSource::images. glTF stores roughness in G and
-    /// metallic in B; the software renderer currently retains but does not sample it.
+    /// Index into PreparedMeshSource::images. The software renderer samples
+    /// roughness from G and metallic from B.
     std::optional<std::uint32_t> metallic_roughness_texture_index;
 };
 

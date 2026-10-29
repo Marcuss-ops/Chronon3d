@@ -6,9 +6,13 @@
 #include <chronon3d/scene/model/shape/material_2_5d.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <memory>
 #include <vector>
+
+namespace chronon3d::assets { struct HdriEnvV1; }
 
 namespace chronon3d::rendering {
 
@@ -53,12 +57,18 @@ struct LightContext {
     f32  ambient{0.20f};
     Color directional_color{1.0f, 1.0f, 1.0f, 1.0f};
     f32  diffuse{0.80f};
+    // Lambert-convolved RGB SH coefficients, interleaved by band then RGB.
+    bool environment_enabled{false};
+    std::array<f32, 27> environment_irradiance_sh{};
+    f32 environment_intensity{1.0f};
+    f32 environment_rotation_y{0.0f};
+    std::shared_ptr<const assets::HdriEnvV1> environment_probe{};
     ShadowSettings shadows{};
     // Per-pixel lights from light layers. Independent of `enabled`: a scene
     // with only point lights is lit by those lights alone.
     std::vector<PointLightSource> point_lights{};
 
-    [[nodiscard]] bool empty() const { return !ambient_enabled && !directional_enabled; }
+    [[nodiscard]] bool empty() const { return !ambient_enabled && !directional_enabled && !environment_enabled; }
     [[nodiscard]] bool has_point_lights() const { return !point_lights.empty(); }
     [[nodiscard]] bool has_spatial_lights() const {
         return std::any_of(point_lights.begin(), point_lights.end(), [](const auto& light) {

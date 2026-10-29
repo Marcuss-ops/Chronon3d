@@ -129,6 +129,11 @@ std::optional<PlanDecodeError> validate_render_budget(
         }
 
         if (layer.inline_mesh) {
+            if (!add_bytes(asset_reference_bytes,
+                           layer.inline_mesh->metallic_roughness_texture_asset.size(),
+                           budget.max_asset_reference_bytes))
+                return fail(prefix + ".inline_mesh.metallic_roughness_texture",
+                            "render budget max_asset_reference_bytes exceeded");
             const auto& mesh = *layer.inline_mesh;
             if (layer.type != LayerType::Mesh)
                 return fail(prefix + ".inline_mesh", "inline_mesh is valid only for mesh layers");
@@ -142,6 +147,14 @@ std::optional<PlanDecodeError> validate_render_budget(
                 if (material.base_color && !std::all_of(material.base_color->begin(), material.base_color->end(),
                         [](float value) { return std::isfinite(value) && value >= 0.0f && value <= 1.0f; }))
                     return fail(prefix + ".inline_mesh.material.base_color", "components must be finite and in [0, 1]");
+                if ((material.metallic && (!std::isfinite(*material.metallic) || *material.metallic < 0.0f || *material.metallic > 1.0f)) ||
+                    (material.roughness && (!std::isfinite(*material.roughness) || *material.roughness < 0.0f || *material.roughness > 1.0f)))
+                    return fail(prefix + ".inline_mesh.material", "metallic and roughness must be finite and in [0, 1]");
+                if (material.emissive && !std::all_of(material.emissive->begin(), material.emissive->end(),
+                        [](float component) { return std::isfinite(component) && component >= 0.0f && component <= 10000.0f; }))
+                    return fail(prefix + ".inline_mesh.material.emissive", "components must be finite and in [0, 10000]");
+                if (material.alpha_cutoff && (!std::isfinite(*material.alpha_cutoff) || *material.alpha_cutoff < 0.0f || *material.alpha_cutoff > 1.0f))
+                    return fail(prefix + ".inline_mesh.material.alpha_cutoff", "must be finite and in [0, 1]");
             }
             if (mesh.vertices.size() < 3 || mesh.vertices.size() > kInlineMeshMaxVertices)
                 return fail(prefix + ".inline_mesh.vertices", "vertex count must be in [3, 250000]");
@@ -167,9 +180,14 @@ std::optional<PlanDecodeError> validate_render_budget(
                 for (const auto& sample : mesh.animation) {
                     if (sample.frame < 0 || sample.frame > kInlineMeshMaxAnimationFrame ||
                         sample.frame <= previous_frame ||
-                        sample.positions.size() != mesh.vertices.size())
+                        sample.positions.size() != mesh.vertices.size() ||
+                        (!sample.normals.empty() && sample.normals.size() != mesh.vertices.size()))
                         return fail(prefix + ".inline_mesh.animation",
-                                    "samples must carry one position per base vertex with strictly increasing frames in [0, 1000000]");
+                                    "samples must carry one position and optional complete normals per base vertex with strictly increasing frames in [0, 1000000]");
+                    if (!mesh.animation.empty() &&
+                        sample.normals.empty() != mesh.animation.front().normals.empty())
+                        return fail(prefix + ".inline_mesh.animation[].normals",
+                                    "normal arrays must be present consistently across all samples");
                     previous_frame = sample.frame;
                     const auto sample_positions = static_cast<std::uint64_t>(sample.positions.size());
                     if (sample_positions > kInlineMeshMaxAggregateBytes / kBytesPerPosition ||
@@ -181,6 +199,16 @@ std::optional<PlanDecodeError> validate_render_budget(
                             if (!std::isfinite(component) || std::abs(component) > 1'000'000.0f)
                                 return fail(prefix + ".inline_mesh.animation[].positions",
                                             "animated positions must be finite and within [-1000000, 1000000]");
+                    const auto sample_normals = static_cast<std::uint64_t>(sample.normals.size());
+                    if (sample_normals > kInlineMeshMaxAggregateBytes / kBytesPerPosition ||
+                        animation_bytes > kInlineMeshMaxAggregateBytes - sample_normals * kBytesPerPosition)
+                        return fail(prefix + ".inline_mesh.animation", "inline mesh animation exceeds the 64 MiB aggregate byte limit");
+                    animation_bytes += sample_normals * kBytesPerPosition;
+                    for (const auto& normal : sample.normals)
+                        for (const float component : normal)
+                            if (!std::isfinite(component) || std::abs(component) > 1.0f)
+                                return fail(prefix + ".inline_mesh.animation[].normals",
+                                            "animated normals must be finite and within [-1, 1]");
                 }
             }
             if (vertex_count > kInlineMeshMaxAggregateBytes / kBytesPerVertex ||

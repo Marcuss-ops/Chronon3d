@@ -392,6 +392,7 @@ void apply_scene_layer_video_position(LayerBuilder& builder, const LayerPlan& la
 std::function<chronon3d::Scene(const chronon3d::FrameContext&)>
 make_scene_evaluator(SceneMaterializationInputs inputs) {
     return [plan = std::move(inputs.plan),
+            environment_probe = std::move(inputs.environment_probe),
             resolved_video_paths = std::move(inputs.resolved_video_paths),
             resolved_particle_sprite_paths = std::move(inputs.resolved_particle_sprite_paths),
             prepared_texts = std::move(inputs.prepared_texts),
@@ -408,7 +409,7 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
         SceneBuilder scene(ctx);
         scene.font_engine(font_engine.get());
             configure_scene_camera_and_lighting(
-                scene, plan, has_3d_layer, camera_evaluator, ctx);
+                scene, plan, has_3d_layer, camera_evaluator, ctx, environment_probe);
 
         // Point/spot/directional sources are scene-level, not layer geometry.
         std::vector<rendering::PointLightSource> point_sources;

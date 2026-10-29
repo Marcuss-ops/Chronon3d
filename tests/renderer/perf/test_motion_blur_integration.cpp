@@ -9,7 +9,7 @@
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include <chronon3d/internal/render_graph/node_memory_tracker.hpp>
-#include "src/render_graph/pipeline/temporal_render_pipeline.hpp"
+#include "src/render_graph/pipeline/temporal/temporal_render_pipeline.hpp"
 
 #include <algorithm>
 #include <array>

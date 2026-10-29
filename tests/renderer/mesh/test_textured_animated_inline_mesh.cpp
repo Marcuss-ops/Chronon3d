@@ -29,4 +29,12 @@ TEST_CASE("textured inline mesh preserves image alpha through UV rasterization")
     CHECK(pixel.a == doctest::Approx(0.5f));
     CHECK(pixel.r == doctest::Approx(0.5f));
     CHECK(pixel.g == doctest::Approx(0.f));
+
+    Framebuffer masked{64, 64};
+    std::vector<float> masked_depth(64 * 64, 0.f);
+    renderer::render_mesh_textured(masked, mesh, Mat4{1.f}, Mat4{1.f}, projection,
+                                   Color::white(), masked_depth, texture,
+                                   0.1f, 1000.f, 0.75f);
+    const auto discarded = masked.get_pixel(32, 32);
+    CHECK(discarded.a == doctest::Approx(0.f));
 }

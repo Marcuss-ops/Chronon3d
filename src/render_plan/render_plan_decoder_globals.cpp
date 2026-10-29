@@ -120,6 +120,58 @@ if (root.contains("lighting_rig")) {
         return PlanDecodeError{"lighting_rig", "lighting rig values are outside their supported finite ranges", "invalid_lighting_rig", "render-plan-lighting"};
     plan.lighting_rig = rig;
 }
+if (root.contains("environment_light")) {
+    if (plan.schema != kRenderPlanSchemaV3)
+        return PlanDecodeError{"environment_light", "environment_light is available only in render-plan V3",
+            "v3_environment_light_in_v2", "render-plan-lighting"};
+    const auto& raw = root.at("environment_light");
+    EnvironmentLightPlan environment;
+    environment.probe_asset = raw.at("probe_asset").get<std::string>();
+    environment.intensity = raw.value("intensity", 1.0f);
+    environment.rotation_y = raw.value("rotation_y", 0.0f);
+    if (environment.probe_asset.empty() || detail::invalid_logical_path(environment.probe_asset))
+        return PlanDecodeError{"environment_light.probe_asset",
+            "probe_asset must be a non-empty logical path inside the mounted asset root",
+            "invalid_environment_probe_path", "render-plan-lighting"};
+    if (raw.contains("irradiance_sh")) {
+        const auto& coefficients = raw.at("irradiance_sh");
+        if (!coefficients.is_array() || coefficients.size() != environment.irradiance_sh.size())
+            return PlanDecodeError{"environment_light.irradiance_sh",
+                "irradiance_sh must contain exactly 27 RGB-interleaved values",
+                "invalid_environment_sh", "render-plan-lighting"};
+        for (std::size_t i = 0; i < environment.irradiance_sh.size(); ++i)
+            environment.irradiance_sh[i] = coefficients.at(i).get<float>();
+    } else {
+        return PlanDecodeError{"environment_light.irradiance_sh", "irradiance_sh is required",
+            "missing_environment_sh", "render-plan-lighting"};
+    }
+    const auto finite_sh = std::all_of(environment.irradiance_sh.begin(), environment.irradiance_sh.end(),
+        [](float value) { return std::isfinite(value) && std::abs(value) <= 1.0e6f; });
+    if (!std::isfinite(environment.intensity) || environment.intensity < 0.f || environment.intensity > 16.f ||
+        !std::isfinite(environment.rotation_y) || std::abs(environment.rotation_y) > 1.0e6f || !finite_sh)
+        return PlanDecodeError{"environment_light", "environment light values are outside supported finite ranges",
+            "invalid_environment_light", "render-plan-lighting"};
+    if (raw.contains("rotation_animation")) {
+        environment.rotation_animation = detail::decode_animation_track(raw.at("rotation_animation"));
+        const auto& track = *environment.rotation_animation;
+        if (track.property != "rotation_y" || track.keyframes.empty() || track.keyframes.size() > 1'000'000)
+            return PlanDecodeError{"environment_light.rotation_animation",
+                "rotation_animation must be a non-empty rotation_y track with at most 1000000 keys",
+                "invalid_environment_rotation_animation", "render-plan-lighting"};
+        std::int64_t previous = -1;
+        for (std::size_t i = 0; i < track.keyframes.size(); ++i) {
+            const auto& key = track.keyframes[i];
+            const auto frame = key.frame.integral();
+            if (key.value.size() != 1 || frame < 0 || frame >= plan.canvas.duration.integral() ||
+                frame <= previous || !std::isfinite(key.value[0]) || std::abs(key.value[0]) > 1.0e6f)
+                return PlanDecodeError{"environment_light.rotation_animation.keyframes[" + std::to_string(i) + "]",
+                    "rotation keyframes must be ordered, within the composition, and carry one finite angle",
+                    "invalid_environment_rotation_keyframe", "render-plan-lighting"};
+            previous = frame;
+        }
+    }
+    plan.environment_light = std::move(environment);
+}
 if (root.contains("camera_samples")) {
     if (!plan.camera)
         return PlanDecodeError{"camera_samples",

@@ -147,6 +147,7 @@ struct PreparedTextLayers {
 
 struct SceneMaterializationInputs {
     RenderPlan plan;
+    std::shared_ptr<const chronon3d::assets::HdriEnvV1> environment_probe;
     std::vector<std::string> resolved_video_paths;
     std::vector<std::string> resolved_particle_sprite_paths;
     std::vector<std::optional<chronon3d::PreparedText>> prepared_texts;
@@ -191,7 +192,8 @@ void append_text_layer_for_scene(
 void configure_scene_camera_and_lighting(
     chronon3d::SceneBuilder&, const RenderPlan&, bool,
     const CameraTrackEvaluator&,
-    const chronon3d::FrameContext&);
+    const chronon3d::FrameContext&,
+    std::shared_ptr<const chronon3d::assets::HdriEnvV1>);
 
 [[nodiscard]] std::function<chronon3d::Scene(const chronon3d::FrameContext&)>
 make_scene_evaluator(SceneMaterializationInputs inputs);

@@ -9,7 +9,8 @@ namespace chronon3d::render_plan::detail {
 void configure_scene_camera_and_lighting(
     chronon3d::SceneBuilder& scene, const RenderPlan& plan, bool has_3d_layer,
     const CameraTrackEvaluator& camera_evaluator,
-    const chronon3d::FrameContext& ctx) {
+    const chronon3d::FrameContext& ctx,
+    std::shared_ptr<const chronon3d::assets::HdriEnvV1> environment_probe) {
     if (plan.lighting_rig) {
         const auto& source = *plan.lighting_rig;
         chronon3d::rendering::LightingRig rig;
@@ -30,6 +31,18 @@ void configure_scene_camera_and_lighting(
         rig.rim.intensity = source.rim_intensity;
         rig.rim.power = source.rim_power;
         scene.apply_lighting_rig(rig);
+    }
+    if (plan.environment_light) {
+        float rotation_y = plan.environment_light->rotation_y;
+        if (plan.environment_light->rotation_animation) {
+            rotation_y = evaluate_scalar_track(
+                *plan.environment_light->rotation_animation,
+                static_cast<double>(ctx.effective_frame()), rotation_y,
+                plan.canvas.fps);
+        }
+        scene.environment_irradiance(plan.environment_light->irradiance_sh,
+                                     plan.environment_light->intensity,
+                                     rotation_y, std::move(environment_probe));
     }
 
     // Layer positions are already center-relative; the fallback camera stays

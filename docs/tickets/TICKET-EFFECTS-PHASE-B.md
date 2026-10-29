@@ -1,15 +1,18 @@
 # TICKET-EFFECTS-PHASE-B — Blur, drop shadow, bloom and GPU routing
 
 ## Stato
-IN PROGRESS — CPU contracts, spatial halos, and explicit Vulkan capability
-rows are implemented. Vulkan blur/glow/bloom have native zero-readback paths;
-drop shadow remains unsupported in strict GPU mode. Video E2E and pixel parity
-gates remain open.
+PARTIAL — CPU contracts, spatial halos, and native Vulkan zero-readback paths
+for blur/glow/bloom/drop shadow are implemented. Local effects and render-graph
+suites pass; landscape/portrait video E2E and Vulkan pixel certification remain
+open.
 
 ## TODO — cosa manca (agg. 2026-10-27)
 
-- [ ] Drop shadow in strict GPU: implementarlo o dichiarare capability reject esplicita (oggi è semplicemente unsupported).
-- [ ] Build + focused effects/render-graph tests + video E2E landscape/portrait.
+- [x] Implementare DropShadow in strict Vulkan con alpha-mask, offset, doppia
+      blur e compositing source-over; il test di parità è in
+      `tests/registry/test_backend_registry_vulkan_effect_parity.cpp`.
+- [ ] Short video E2E software landscape/portrait per blur, shadow e bloom.
+- [x] Build CLI `-j12` e suite locali effects/render-graph — PASS 2026-10-28.
 - [ ] Parità pixel software/Vulkan per blur/glow/bloom.
 
 ## Contratto
@@ -43,15 +46,12 @@ existing contracts; no silent parameter reinterpretation is allowed.
   RequireDirectYuv returns a typed capability error (composition capability
   unit suite passed).
 - [x] Vulkan dispatch has one explicit capability row per effect. Native
-  blur/glow and the newly added bright-pass/blur/add bloom path use zero-readback
-  dispatch; drop shadow remains typed `UnsupportedCapability`. Strict GPU mode
-  still refuses any stack that cannot be handled natively. Bloom pixel parity
-  is still open.
-- [ ] Build, focused effects/render-graph tests, and short landscape/portrait
-  videos pass for blur, shadow, and bloom. Focused effects and render-graph
-  suites pass; current video CLI rebuild is blocked by 8.1 GB available disk
-  space being insufficient for the large static archive link. (Glow V1 has
-  separate software/video coverage.)
+  blur/glow, bright-pass/blur/add bloom, and alpha-mask drop shadow use
+  zero-readback dispatch; strict GPU mode refuses effects without a native row.
+- [x] Rebuild CLI with `-j12`; focused effects and render-graph suites pass
+  locally (2026-10-28).
+- [ ] Short landscape/portrait video E2E for blur, shadow, and bloom (software
+  lane); Vulkan pixel parity remains a separate host-GPU certification gate.
 
 ## Demolition debt
 

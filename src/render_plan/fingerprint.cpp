@@ -14,9 +14,10 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
+    const bool has_v39_fields = plan.environment_light.has_value();
     const bool has_v38_fields = plan.camera_samples.has_value() ||
                                 plan.temporal_motion_blur.has_value();
-    out.add_string(has_v38_fields
+    out.add_string(has_v39_fields ? "chronon3d.render-plan.content-fingerprint.v39" : has_v38_fields
         ? "chronon3d.render-plan.content-fingerprint.v38"
         : "chronon3d.render-plan.content-fingerprint.v37");
     out.add_string(plan.schema);
@@ -60,6 +61,16 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         writer.add_float(rig.rim_intensity);
         writer.add_float(rig.rim_power);
     });
+    if (plan.environment_light) {
+        out.add_bool(true);
+        const auto& light = *plan.environment_light;
+        out.add_string(light.probe_asset);
+        out.add_float(light.intensity);
+        out.add_float(light.rotation_y);
+        for (const float value : light.irradiance_sh) out.add_float(value);
+        add_optional(out, light.rotation_animation,
+            [](auto& nested, const AnimationTrackPlan& track) { add_track(nested, track); });
+    }
     add_optional(out, plan.audio, [](auto& writer, const AudioMixPlan& mix) {
         add_audio_mix(writer, mix);
     });

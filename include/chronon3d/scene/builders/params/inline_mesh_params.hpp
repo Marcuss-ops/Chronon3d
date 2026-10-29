@@ -16,6 +16,7 @@ struct InlineMeshParams {
     std::vector<Vertex> vertices;
     std::vector<u32> indices;
     std::string texture_asset;
+    std::string metallic_roughness_texture_asset;
 };
 
 }  // namespace chronon3d

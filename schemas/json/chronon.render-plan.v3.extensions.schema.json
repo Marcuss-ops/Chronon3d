@@ -4028,6 +4028,49 @@
         }
       }
     },
+    "environment_light": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["probe_asset", "irradiance_sh"],
+      "properties": {
+        "probe_asset": {"type": "string", "minLength": 1, "maxLength": 512},
+        "intensity": {"type": "number", "minimum": 0, "maximum": 16},
+        "rotation_y": {"type": "number", "minimum": -1000000, "maximum": 1000000},
+        "irradiance_sh": {
+          "type": "array", "minItems": 27, "maxItems": 27,
+          "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}
+        },
+        "rotation_animation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["property", "keyframes"],
+          "properties": {
+            "property": {"const": "rotation_y"},
+            "easing": {"$ref": "#/$defs/animation_easing"},
+            "loop_mode": {"enum": ["none", "cycle", "pingpong", "offset"]},
+            "keyframes": {
+              "type": "array", "minItems": 1, "maxItems": 1000000,
+              "items": {
+                "type": "object", "additionalProperties": false,
+                "required": ["frame", "value"],
+                "properties": {
+                  "frame": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "value": {
+                    "oneOf": [
+                      {"type": "number", "minimum": -1000000, "maximum": 1000000},
+                      {"type": "array", "minItems": 1, "maxItems": 1,
+                       "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}}
+                    ]
+                  },
+                  "interpolation": {"type": "string"},
+                  "easing": {"$ref": "#/$defs/animation_easing"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "temporal_motion_blur": {
       "type": "object",
       "additionalProperties": false,
@@ -4456,6 +4499,7 @@
               { "required": ["primitive"], "not": { "anyOf": [{ "required": ["vertices"] }, { "required": ["indices"] }] } }
             ],
             "properties": {
+              "metallic_roughness_texture": { "type": "string", "minLength": 1, "maxLength": 4096 },
               "primitive": {
                 "type": "object",
                 "additionalProperties": false,
@@ -4568,11 +4612,35 @@
                   },
                   "base_color": {
                     "$ref": "#/$defs/rgba_color"
+                  },
+                  "metallic": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "roughness": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "emissive": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": { "type": "number", "minimum": 0, "maximum": 10000 }
+                  },
+                  "double_sided": {
+                    "type": "boolean"
+                  },
+                  "alpha_cutoff": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
                   }
                 }
               },
               "animation": {
-                "description": "Baked per-frame position track (V3 only): strictly increasing frames, one position per base vertex. C3D samples positions and retains UV coordinates and mesh material.",
+                "description": "Baked per-frame geometry track (V3 only): strictly increasing frames, one position per base vertex, and optional consistently supplied normals. C3D retains base UV coordinates, topology, textures, and material.",
                 "type": "array",
                 "minItems": 1,
                 "maxItems": 4096,
@@ -4591,6 +4659,17 @@
                         "minItems": 3,
                         "maxItems": 3,
                         "items": { "type": "number", "minimum": -1000000, "maximum": 1000000 }
+                      }
+                    },
+                    "normals": {
+                      "type": "array",
+                      "minItems": 3,
+                      "maxItems": 250000,
+                      "items": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "items": { "type": "number", "minimum": -1, "maximum": 1 }
                       }
                     }
                   }
