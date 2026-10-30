@@ -123,12 +123,96 @@ float checker_axis(float coordinate, float cell_size, float feather) {
     return cell_sign * (1.0 - toward_neighbor) - cell_sign * toward_neighbor;
 }
 
+vec4 ae_fetch(ivec2 coord, ivec2 size, bool thresholded) {
+    vec4 c = offset_fetch(coord, size, thresholded ? 0 : 1);
+    if (!thresholded) return c;
+    float luma = c.a > 0.0 ? dot(c.rgb, vec3(0.2126, 0.7152, 0.0722)) / c.a : 0.0;
+    float gain = luma > params.p[0].z
+        ? clamp((luma - params.p[0].z) / max(1.0 - params.p[0].z, 1.0e-6), 0.0, 1.0) : 0.0;
+    return c * gain;
+}
+
+vec4 ae_sample(vec2 position, ivec2 size, bool thresholded) {
+    vec2 uv = position - vec2(0.5);
+    ivec2 base = ivec2(floor(uv));
+    vec2 t = uv - vec2(base);
+    return mix(mix(ae_fetch(base, size, thresholded),
+                   ae_fetch(base + ivec2(1, 0), size, thresholded), t.x),
+               mix(ae_fetch(base + ivec2(0, 1), size, thresholded),
+                   ae_fetch(base + ivec2(1, 1), size, thresholded), t.x), t.y);
+}
+
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(destination_image);
     if (coord.x >= size.x || coord.y >= size.y) return;
 
     vec4 source = imageLoad(source_image, coord);
+    int ae_mode = int(params.options.x + 0.5);
+    if (ae_mode == 13) {
+        float progress = params.p[0].x;
+        vec2 direction = params.p[0].yz;
+        float reveal = 0.0;
+        if (progress >= 1.0) reveal = 1.0;
+        else if (progress > 0.0) {
+            float lo = min(0.0, direction.x) + min(0.0, direction.y);
+            float hi = max(0.0, direction.x) + max(0.0, direction.y);
+            float coordinate = (dot((vec2(coord) + 0.5) / vec2(size), direction) - lo) / max(hi - lo, 1.0e-6);
+            if (params.p[0].w <= 0.0) reveal = coordinate < progress ? 1.0 : 0.0;
+            else {
+                float t = clamp((coordinate - (progress - params.p[0].w * 0.5)) / params.p[0].w, 0.0, 1.0);
+                reveal = 1.0 - t * t * (3.0 - 2.0 * t);
+            }
+        }
+        imageStore(destination_image, coord, reveal <= 0.0 ? vec4(0.0) : source * reveal);
+        return;
+    }
+    if (ae_mode == 14) {
+        int radius = int(params.p[0].x);
+        bool maximum = params.p[0].y > 0.5;
+        bool vertical = params.p[0].z > 0.5;
+        vec4 value = source;
+        for (int tap = -radius; tap <= radius; ++tap) {
+            vec4 sample_value = offset_fetch(coord + (vertical ? ivec2(0, tap) : ivec2(tap, 0)), size, 0);
+            value = maximum ? max(value, sample_value) : min(value, sample_value);
+        }
+        imageStore(destination_image, coord, value);
+        return;
+    }
+    if (ae_mode == 15) {
+        vec2 direction = params.p[0].zw;
+        vec2 position = vec2(coord) + 0.5;
+        float lo = min(0.0, direction.x * size.x) + min(0.0, direction.y * size.y);
+        float hi = max(0.0, direction.x * size.x) + max(0.0, direction.y * size.y);
+        float boundary = mix(lo, hi, params.p[0].x);
+        float distance = max(0.0, dot(position, direction) - boundary) * params.p[0].y;
+        imageStore(destination_image, coord, distance > 0.0 ? ae_sample(position - direction * distance, size, false) : source);
+        return;
+    }
+    if (ae_mode == 16) {
+        if (params.p[0].w == 0.0) {
+            imageStore(destination_image, coord, source);
+            return;
+        }
+        vec2 position = vec2(coord) + 0.5;
+        vec2 center = params.p[0].xy * vec2(size);
+        float radius = params.p[1].x * min(size.x, size.y);
+        vec4 light = ae_sample(2.0 * center - position, size, true) * params.p[1].z;
+        for (int tap = 0; tap < 16; ++tap) {
+            float theta = 2.0 * 3.14159265358979323846 * float(tap) / 16.0;
+            light += ae_sample(position + radius * vec2(cos(theta), sin(theta)), size, true) * (params.p[1].y / 16.0);
+            float offset = radius * (2.0 * float(tap) / 15.0 - 1.0);
+            light += ae_sample(position + vec2(offset, 0.0), size, true) * (params.p[1].w / 16.0);
+        }
+        light *= params.p[0].w;
+        if (light.a <= 0.0) {
+            imageStore(destination_image, coord, source);
+            return;
+        }
+        float alpha = clamp(light.a, 0.0, 1.0);
+        imageStore(destination_image, coord, vec4(light.rgb * (alpha / light.a) + source.rgb * (1.0 - alpha), alpha + source.a * (1.0 - alpha)));
+        return;
+    }
     if (params.options.x > 6.5 && params.options.x < 7.5) {
         ivec2 size = imageSize(source_image);
         if (all(equal(params.p[0].xy, vec2(0.0)))) {

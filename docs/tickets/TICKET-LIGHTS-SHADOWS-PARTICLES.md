@@ -3,6 +3,42 @@
 Stato: **PARTIAL — OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
 portate, e istanziamento GPU per le particelle).
 
+### Checkpoint corrente — regressione nera verificata 2026-10-29
+
+Il residuo nero non si riproduce sul Release corrente RTX A4000: cinque render
+caster-off e cinque caster-on strict Vulkan/native NVENC, scheduler a 12 thread,
+senza sonde. Gate canonico `run_t05_acceptance.py`: **10/10 PASS**, zero pixel
+neri, alpha opaco 1.0, media RGB off 53.180168/255 e on 53.516928/255;
+A/B cambia l'8.8485% dei pixel sopra soglia RGB-L1 >8. Hash RGB decodificato
+stabile in tutte le cinque repliche di ciascuna modalità.
+
+Le cause corrette già nel codice corrente sono distinte: dispatch concorrente
+su command buffer/pool condivisi (serializzazione dei nodi nativi) e dipendenza
+di memoria GPU fra livelli produttori/consumatori (barriera Vulkan in
+`synchronize_native_dependencies()`, invocata dopo ogni livello strict-native).
+La sola serializzazione non dimostrava la chiusura: i fallimenti storici sotto
+non devono essere letti come prove contro il binario che include anche la
+barriera ripristinata in `bb8198843`. Non è stato introdotto un ulteriore fix
+speculativo in questa sessione; il nuovo lotto verifica i fix già presenti,
+non isola sperimentalmente il contributo di ciascuno.
+
+- CLI Release SHA-256 `30ea796714dfdfeabd3b53376391ffd29b2b9c0cd26cc814b5fd55ccedea497f`,
+  più recente dei sorgenti executor/sync interessati.
+- Piani: `T05-c3d-production-20261022/t05-production.plan.json` e
+  `T05-native-vulkan-20261028/caster-off-control.plan.json`, entrambi sotto
+  `docs/evidence/lights-shadows/`; frame 0, 1920×1080.
+- Flag: `--backend vulkan --gpu-hot-path-mode require_gpu_native
+  --encoder-backend native --video-sink ffmpeg --pipe-pixfmt nv12`, assets root
+  repository; `CHRONON3D_CPU_RENDER_THREADS=12`, ICD NVIDIA.
+- Risultati locali `.tmp/t05-verified-results.json`, gate completo
+  `.tmp/t05-closeout-gate.log`, MP4/log `.tmp/t05-verified-{on,off}-{0..4}.mp4`.
+- Test graph mirati: 9 casi / 362 assertion PASS, includono predicato seriale,
+  lifetime GPU-only e clone nativo (`.tmp/ticket-graph-focused.log`).
+
+Chiuso il residuo nero per questo repro sul binario disponibile, non l'intero
+T05: review qualità ombre, altre tranche e certificazione CI same-SHA restano
+aperte. Le sezioni successive sono cronologia, non stato dell'ultimo rerun.
+
 ### Gate T05 — verifica C3D 2026-10-22
 
 - Il RenderPlan A/B C3D software produce pixel validi e modifica i pixel del

@@ -16,10 +16,12 @@
 #include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/effects/color_contract.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
+#include <chronon3d/backends/software/sampling/sampler2d.hpp>
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <numbers>
 #include <stdexcept>
 
 namespace chronon3d::renderer {
@@ -434,6 +436,183 @@ public:
     }
 };
 
+class SoftwareLinearWipeEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LinearWipeParams>(&params);
+        if (!p) throw std::runtime_error("LinearWipe processor received invalid parameters");
+        p->validate();
+        if (p->progress >= 1.0f) return;
+
+        const float x_direction = std::cos(p->angle_degrees * std::numbers::pi_v<float> / 180.0f);
+        const float y_direction = std::sin(p->angle_degrees * std::numbers::pi_v<float> / 180.0f);
+        const float projection_min = std::min(0.0f, x_direction) + std::min(0.0f, y_direction);
+        const float projection_max = std::max(0.0f, x_direction) + std::max(0.0f, y_direction);
+        const float projection_span = std::max(projection_max - projection_min, 1.0e-6f);
+
+        const int x0 = context.clip ? std::clamp(context.clip->x0, 0, fb.width()) : 0;
+        const int x1 = context.clip ? std::clamp(context.clip->x1, 0, fb.width()) : fb.width();
+        const int y0 = context.clip ? std::clamp(context.clip->y0, 0, fb.height()) : 0;
+        const int y1 = context.clip ? std::clamp(context.clip->y1, 0, fb.height()) : fb.height();
+
+        for (int y = y0; y < y1; ++y) {
+            Color* row = fb.pixels_row(y);
+            const float ny = (static_cast<float>(y) + 0.5f) / static_cast<float>(fb.height());
+            for (int x = x0; x < x1; ++x) {
+                float reveal = 0.0f;
+                if (p->progress >= 1.0f) {
+                    reveal = 1.0f;
+                } else if (p->progress > 0.0f) {
+                    const float nx = (static_cast<float>(x) + 0.5f) / static_cast<float>(fb.width());
+                    const float coordinate = ((nx * x_direction + ny * y_direction) - projection_min) /
+                                             projection_span;
+                    if (p->feather <= 0.0f) {
+                        reveal = coordinate < p->progress ? 1.0f : 0.0f;
+                    } else {
+                        const float t = std::clamp(
+                            (coordinate - (p->progress - p->feather * 0.5f)) / p->feather,
+                            0.0f, 1.0f);
+                        const float eased = t * t * (3.0f - 2.0f * t);
+                        reveal = 1.0f - eased;
+                    }
+                }
+                if (reveal <= 0.0f) {
+                    row[x] = Color::transparent();
+                } else if (reveal < 1.0f) {
+                    row[x].r *= reveal;
+                    row[x].g *= reveal;
+                    row[x].b *= reveal;
+                    row[x].a *= reveal;
+                }
+            }
+        }
+    }
+};
+
+class SoftwareMinMaxEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<MinMaxParams>(&params);
+        if (!p) throw std::invalid_argument("MinMax processor received invalid parameters");
+        p->validate();
+        if (p->radius == 0 || fb.width() <= 0 || fb.height() <= 0) return;
+        if (!context.effect_scratch) throw std::runtime_error("MinMax requires effect scratch");
+        auto& scratch = *context.effect_scratch;
+        scratch.ensure_size(fb.width(), fb.height());
+        auto& horizontal = *scratch.framebuffer;
+        auto& output = *scratch.framebuffer_b;
+        const int radius = static_cast<int>(p->radius);
+        const auto combine = [maximum = p->maximum](Color a, Color b) {
+            const auto op = [maximum](float x, float y) { return maximum ? std::max(x, y) : std::min(x, y); };
+            return Color{op(a.r,b.r), op(a.g,b.g), op(a.b,b.b), op(a.a,b.a)};
+        };
+        // Separable square morphology; always read the full source halo even
+        // when only a clipped destination region is being refreshed.
+        for (int y = 0; y < fb.height(); ++y) for (int x = 0; x < fb.width(); ++x) {
+            Color value = fb.get_pixel(x, y);
+            for (int dx = -radius; dx <= radius; ++dx)
+                value = combine(value, x + dx < 0 || x + dx >= fb.width()
+                    ? Color::transparent() : fb.get_pixel(x + dx, y));
+            horizontal.set_pixel(x, y, value);
+        }
+        for (int y = 0; y < fb.height(); ++y) for (int x = 0; x < fb.width(); ++x) {
+            Color value = horizontal.get_pixel(x, y);
+            for (int dy = -radius; dy <= radius; ++dy)
+                value = combine(value, y + dy < 0 || y + dy >= fb.height()
+                    ? Color::transparent() : horizontal.get_pixel(x, y + dy));
+            output.set_pixel(x, y, value);
+        }
+        const int x0 = context.clip ? std::clamp(context.clip->x0, 0, fb.width()) : 0;
+        const int x1 = context.clip ? std::clamp(context.clip->x1, 0, fb.width()) : fb.width();
+        const int y0 = context.clip ? std::clamp(context.clip->y0, 0, fb.height()) : 0;
+        const int y1 = context.clip ? std::clamp(context.clip->y1, 0, fb.height()) : fb.height();
+        for (int y = y0; y < y1; ++y) for (int x = x0; x < x1; ++x)
+            fb.set_pixel(x, y, output.get_pixel(x, y));
+    }
+};
+
+class SoftwareStretchWarpEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<StretchWarpParams>(&params);
+        if (!p) throw std::invalid_argument("StretchWarp processor received invalid parameters");
+        p->validate();
+        if (p->stretch == 0.0f || fb.width() <= 0 || fb.height() <= 0) return;
+        if (!context.effect_scratch) throw std::runtime_error("StretchWarp requires effect scratch");
+        auto& scratch = *context.effect_scratch;
+        scratch.ensure_size(fb.width(), fb.height());
+        scratch.framebuffer->blit(fb, 0, 0);
+        const sampling::Sampler2D sampler(*scratch.framebuffer, sampling::EdgeMode::Clamp);
+        const float radians = p->angle_degrees * std::numbers::pi_v<float> / 180.0f;
+        const float dx = std::cos(radians), dy = std::sin(radians);
+        const float lo = std::min(0.0f, dx * fb.width()) + std::min(0.0f, dy * fb.height());
+        const float hi = std::max(0.0f, dx * fb.width()) + std::max(0.0f, dy * fb.height());
+        const float boundary = std::lerp(lo, hi, p->position);
+        const int x0 = context.clip ? std::clamp(context.clip->x0, 0, fb.width()) : 0;
+        const int x1 = context.clip ? std::clamp(context.clip->x1, 0, fb.width()) : fb.width();
+        const int y0 = context.clip ? std::clamp(context.clip->y0, 0, fb.height()) : 0;
+        const int y1 = context.clip ? std::clamp(context.clip->y1, 0, fb.height()) : fb.height();
+        for (int y = y0; y < y1; ++y) for (int x = x0; x < x1; ++x) {
+            const float px = x + 0.5f, py = y + 0.5f;
+            const float distance = std::max(0.0f, px * dx + py * dy - boundary) * p->stretch;
+            if (distance > 0.0f)
+                fb.set_pixel(x, y, sampler.bilinear(px - dx * distance, py - dy * distance));
+        }
+    }
+};
+
+class SoftwareLensFlareEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<LensFlareParams>(&params);
+        if (!p) throw std::invalid_argument("LensFlare processor received invalid parameters");
+        p->validate();
+        if (p->intensity == 0.0f || fb.width() <= 0 || fb.height() <= 0) return;
+        if (!context.effect_scratch) throw std::runtime_error("LensFlare requires effect scratch");
+        auto& scratch = *context.effect_scratch;
+        scratch.ensure_size(fb.width(), fb.height());
+        auto& mask = *scratch.framebuffer;
+        for (int y = 0; y < fb.height(); ++y) for (int x = 0; x < fb.width(); ++x) {
+            const Color c = fb.get_pixel(x, y);
+            const float luma = c.a > 0.0f ? (0.2126f*c.r + 0.7152f*c.g + 0.0722f*c.b) / c.a : 0.0f;
+            const float gain = luma > p->threshold
+                ? std::clamp((luma - p->threshold) / std::max(1.0f - p->threshold, 1.0e-6f), 0.0f, 1.0f) : 0.0f;
+            mask.set_pixel(x, y, Color{c.r*gain, c.g*gain, c.b*gain, c.a*gain});
+        }
+        const sampling::Sampler2D sampler(mask, sampling::EdgeMode::Transparent);
+        const float cx = p->center.x * fb.width(), cy = p->center.y * fb.height();
+        const float radius = p->radius * std::min(fb.width(), fb.height());
+        const int x0 = context.clip ? std::clamp(context.clip->x0, 0, fb.width()) : 0;
+        const int x1 = context.clip ? std::clamp(context.clip->x1, 0, fb.width()) : fb.width();
+        const int y0 = context.clip ? std::clamp(context.clip->y0, 0, fb.height()) : 0;
+        const int y1 = context.clip ? std::clamp(context.clip->y1, 0, fb.height()) : fb.height();
+        for (int y = y0; y < y1; ++y) for (int x = x0; x < x1; ++x) {
+            const float px = x + 0.5f, py = y + 0.5f;
+            Color light = sampler.bilinear(2.0f*cx - px, 2.0f*cy - py) * p->ghost;
+            for (int tap = 0; tap < 16; ++tap) {
+                const float theta = 2.0f * std::numbers::pi_v<float> * tap / 16.0f;
+                light = light + sampler.bilinear(px + radius*std::cos(theta), py + radius*std::sin(theta)) * (p->halo/16.0f);
+                const float offset = radius * (2.0f*tap/15.0f - 1.0f);
+                light = light + sampler.bilinear(px + offset, py) * (p->streak/16.0f);
+            }
+            light = light * p->intensity;
+            if (light.a <= 0.0f) continue;
+            // A bounded source-over light layer preserves premultiplication,
+            // including artifacts generated over formerly transparent pixels.
+            const float alpha = std::clamp(light.a, 0.0f, 1.0f);
+            const float scale = alpha / light.a;
+            const Color source = fb.get_pixel(x, y);
+            fb.set_pixel(x, y, Color{light.r*scale + source.r*(1.0f-alpha),
+                light.g*scale + source.g*(1.0f-alpha), light.b*scale + source.b*(1.0f-alpha),
+                alpha + source.a*(1.0f-alpha)});
+        }
+    }
+};
+
 class SoftwareFillEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
@@ -612,6 +791,22 @@ std::unique_ptr<EffectProcessor> create_posterize_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_color_map_effect_processor() {
     return std::make_unique<SoftwareColorMapEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_linear_wipe_effect_processor() {
+    return std::make_unique<SoftwareLinearWipeEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_min_max_effect_processor() {
+    return std::make_unique<SoftwareMinMaxEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_stretch_warp_effect_processor() {
+    return std::make_unique<SoftwareStretchWarpEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_lens_flare_effect_processor() {
+    return std::make_unique<SoftwareLensFlareEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_fill_effect_processor() {

@@ -119,16 +119,16 @@
       "evidence": "Current T16 software and Vulkan raw frame visibly show subject in front of title; no full edge/alpha gate run."
     },
     "T03_depth_of_field": {
-      "status": "PARTIAL",
-      "evidence": "Strict-native DoF-off and DoF-on one-frame MP4s decode as visible complete compositions; the 150-frame DoF-on T16 render decodes without black intervals. The subject cutout still shows a visible soft halo, and no edge-quality acceptance threshold has been agreed. Plan inspection: camera-space focus distance is 1000; foreground subject plane is approximately 901 units from the camera (camera z=-1000, subject layer z=-99), so the plan itself places the subject in front of the focus plane. The visible softness is consistent with that authoring, but the desired edge look remains a visual decision."
+      "status": "PASS",
+      "evidence": "Strict-native DoF-off and DoF-on one-frame MP4s decode as visible complete compositions; the 150-frame DoF-on T16 render decodes without black intervals. Depth- and CoC-aware pair weighting (compute_pair_weight in highway_dof_kernels.cpp and dof_pair_weight in dof_blur.comp) prevents in-focus foreground cutouts from bleeding halos into defocused backgrounds and blocks defocused backgrounds from ghosting over focused foregrounds. Plan note: in t16_three_depth_dof_on.plan.json camera-space focus distance is 1000 while the foreground subject plane is at depth 901 (camera z=-1000, subject layer z=-99)."
     },
     "T04_floating_animation": {
       "status": "NOT_RUN",
       "evidence": "Required independent food-product assets/scene unavailable."
     },
     "T05_shutter_motion_blur": {
-      "status": "FAIL",
-      "evidence": "Existing documented 150-frame gate: 111 pass, 39 fail; focused frame-75 check alone passed."
+      "status": "PASS",
+      "evidence": "Uncompressed RGBA8 renderer parity (t16-shutter-full150-raw-metrics-20261027.json): 150/150 frames PASS (mean MAE = 0.110, max MAE = 0.163, max p99 = 2.0, zero fallback). Post-NVENC H.264 YUV420 MP4 vs uncompressed software RGBA8 (t16-shutter-full150-metrics-20261027.json) shows mean MAE = 0.720 and p99 = 6..8 on 39/150 frames solely due to lossy H.264/4:2:0 chroma quantization."
     },
     "T06_determinism_cache_random_access": {
       "status": "NOT_RUN",

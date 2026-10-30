@@ -672,6 +672,19 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(fovOnlyCamera.optics_mode == chronon3d::CameraOpticsMode::FieldOfView);
     CHECK(fovOnlyCamera.fov_deg == doctest::Approx(fovOnlyPlan.camera->fov_deg));
 
+    // Slerp quaternion interpolation on subframe camera_samples across +/-170 deg wrap
+    auto slerpPlan = fovOnlyPlan;
+    slerpPlan.camera_samples = std::vector<chronon3d::render_plan::CameraSamplePlan>{
+        {0.0, fovOnlyPlan.camera.value()},
+        {1.0, fovOnlyPlan.camera.value()}
+    };
+    slerpPlan.camera_samples->at(0).camera.rotation_deg = {0.f, 0.f, 170.f};
+    slerpPlan.camera_samples->at(1).camera.rotation_deg = {0.f, 0.f, -170.f};
+    const auto slerpEvaluator = chronon3d::render_plan::detail::make_camera_evaluator(slerpPlan);
+    REQUIRE(slerpEvaluator);
+    const auto midCamera = slerpEvaluator(0.5);
+    // Shortest-path slerp between +170 deg and -170 deg passes through +/-180 deg, NOT 0 deg!
+    CHECK(std::abs(midCamera.rotation.z) == doctest::Approx(180.f).epsilon(1e-3f));
 }
 
 TEST_CASE("ChrononMotion baked SVG Merge and Morph operators satisfy V3 schema") {

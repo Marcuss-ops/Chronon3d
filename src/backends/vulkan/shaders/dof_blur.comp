@@ -33,6 +33,32 @@ float dof_weight(float dist, float radius) {
     return exp(-4.5 * t * t);
 }
 
+float dof_pair_weight(
+    float dist,
+    float centre_radius,
+    float centre_depth,
+    float neighbour_radius,
+    float neighbour_depth)
+{
+    if (neighbour_radius < 0.0) {
+        return 0.0;
+    }
+    if (centre_radius >= 0.0 && centre_radius < 0.5) {
+        if (dist == 0.0) return 1.0;
+        if (neighbour_radius >= 0.5 &&
+            neighbour_depth > 0.0 &&
+            centre_depth > 0.0 &&
+            neighbour_depth + 1e-3 < centre_depth) {
+            return dof_weight(dist, neighbour_radius);
+        }
+        return 0.0;
+    }
+    if (neighbour_radius < 0.5) {
+        return dist == 0.0 ? 1.0 : 0.0;
+    }
+    return dof_weight(dist, neighbour_radius);
+}
+
 void main() {
     ivec2 size = imageSize(destination_image);
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -47,11 +73,12 @@ void main() {
     ivec2 step = is_vertical ? ivec2(0, 1) : ivec2(1, 0);
 
     vec4 centre = imageLoad(source_image, pixel);
-    float centre_radius = imageLoad(depth_image, pixel).g;
+    vec2 centre_dr = imageLoad(depth_image, pixel).rg;
+    float centre_depth = centre_dr.x;
+    float centre_radius = centre_dr.y;
 
-    // Preserve the focal plane exactly. Gathering neighboring depths here
-    // creates dark/bright stamps over otherwise sharp text and edges.
-    if (centre_radius < 0.5) {
+    if (params.normalize_opaque == 0 && centre.a > 0.0 &&
+        centre_radius >= 0.0 && centre_radius < 0.5) {
         imageStore(destination_image, pixel, centre);
         return;
     }
@@ -64,9 +91,12 @@ void main() {
     float total_weight = 0.0;
     for (int k = k0; k <= k1; ++k) {
         ivec2 np = pixel + step * (k - axis_pos);
+        vec2 neighbour_dr = imageLoad(depth_image, np).rg;
+        if (neighbour_dr.y < 0.0) continue;
         vec4 s = imageLoad(source_image, np);
         float dist = abs(float(k - axis_pos));
-        float kernel_w = dof_weight(dist, centre_radius);
+        float kernel_w = dof_pair_weight(
+            dist, centre_radius, centre_depth, neighbour_dr.y, neighbour_dr.x);
         float w = params.normalize_opaque != 0 ? kernel_w * s.a : kernel_w;
         sum += s * w;
         total_weight += w;

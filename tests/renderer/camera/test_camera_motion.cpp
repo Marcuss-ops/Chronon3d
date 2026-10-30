@@ -5,6 +5,7 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
+#include <src/render_plan/render_plan_compiler_detail.hpp>
 
 #include <cmath>
 #include <filesystem>
@@ -137,4 +138,33 @@ TEST_CASE("runtime camera provider changes rendered pixels") {
     CHECK(first->width() == 96);
     CHECK(first->height() == 64);
     CHECK(test::framebuffer_hash(*first) != test::framebuffer_hash(*second));
+}
+
+TEST_CASE("RenderPlan camera_samples sub-frame evaluation uses quaternion slerp across wrap") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+
+    RenderPlan plan;
+    plan.job_id = "camera-samples-slerp-wrap";
+    plan.canvas = {.width = 96, .height = 64,
+                   .fps = FrameRate{30, 1}, .duration = Frame{2}};
+    LayerPlan bg;
+    bg.id = "bg";
+    bg.type = LayerType::Color;
+    bg.color = {0.1f, 0.1f, 0.1f, 1.0f};
+    plan.layers.push_back(bg);
+
+    CameraSamplePlan s0;
+    s0.frame = 0.0;
+    s0.camera.rotation_deg = {0.0f, 0.0f, 170.0f};
+    CameraSamplePlan s1;
+    s1.frame = 1.0;
+    s1.camera.rotation_deg = {0.0f, 0.0f, -170.0f};
+    plan.camera = s0.camera;
+    plan.camera_samples = std::vector<CameraSamplePlan>{s0, s1};
+
+    const auto eval = chronon3d::render_plan::detail::make_camera_evaluator(plan);
+    const auto cam = eval(0.5);
+    CHECK(cam.enabled);
+    CHECK(std::abs(cam.rotation.z) == doctest::Approx(180.0f).epsilon(1e-3f));
 }

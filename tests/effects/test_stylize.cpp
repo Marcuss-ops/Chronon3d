@@ -60,6 +60,129 @@ TEST_CASE("Posterize quantizes straight RGB, preserves alpha, and honors the cli
     CHECK(fb.get_pixel(3, 0) == outside_clip);
 }
 
+TEST_CASE("LinearWipe reveals along angle, feathers the edge, and honors the clip") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer fb(4, 2);
+    fb.clear(Color{0.8f, 0.4f, 0.2f, 1.0f});
+    const Color outside_clip = fb.get_pixel(3, 0);
+
+    EffectStack stack;
+    stack.emplace_back(LinearWipeParams{.progress = 0.5f, .angle_degrees = 0.0f, .feather = 0.0f});
+    effects::EffectExecutionContext context;
+    // BBox uses half-open bounds: x1=3 leaves column 3 outside the clip.
+    context.clip = raster::BBox{0, 0, 3, 1};
+    apply_effect_stack(fb, stack, context, registry);
+
+    CHECK(fb.get_pixel(0, 0).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(1, 0).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(2, 0).a == doctest::Approx(0.0f));
+    CHECK(fb.get_pixel(3, 0) == outside_clip);
+    CHECK(fb.get_pixel(0, 1).r == doctest::Approx(0.8f));
+    CHECK(fb.get_pixel(0, 1).g == doctest::Approx(0.4f));
+
+    stack.clear();
+    fb.clear(Color{0.8f, 0.4f, 0.2f, 1.0f});
+    stack.emplace_back(LinearWipeParams{.progress = 0.5f, .angle_degrees = 0.0f, .feather = 0.5f});
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(1, 0).a == doctest::Approx(0.84375f));
+    CHECK(fb.get_pixel(2, 0).a == doctest::Approx(0.15625f));
+    CHECK(fb.get_pixel(2, 0).r == doctest::Approx(0.125f));
+
+    stack.clear();
+    fb.clear(Color{0.8f, 0.4f, 0.2f, 1.0f});
+    stack.emplace_back(LinearWipeParams{.progress = 0.0f, .angle_degrees = 0.0f, .feather = 0.0f});
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(0, 0).a == doctest::Approx(0.0f));
+    CHECK(fb.get_pixel(3, 1).a == doctest::Approx(1.0f));
+
+    stack.clear();
+    const Color unchanged{0.8f, 0.4f, 0.2f, 1.0f};
+    fb.clear(unchanged);
+    stack.emplace_back(LinearWipeParams{.progress = 1.0f, .angle_degrees = 180.0f, .feather = 1.0f});
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(0, 0) == unchanged);
+    CHECK(fb.get_pixel(3, 1) == unchanged);
+
+    stack.clear();
+    fb.clear(Color{0.8f, 0.4f, 0.2f, 1.0f});
+    stack.emplace_back(LinearWipeParams{.progress = 0.5f, .angle_degrees = 90.0f, .feather = 0.0f});
+    context.clip.reset();
+    apply_effect_stack(fb, stack, context, registry);
+    CHECK(fb.get_pixel(0, 0).a == doctest::Approx(1.0f));
+    CHECK(fb.get_pixel(0, 1).a == doctest::Approx(0.0f));
+}
+
+TEST_CASE("AE spatial effects have exact neutral modes and deterministic premultiplied output") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    Framebuffer source(8, 6);
+    source.clear(Color::transparent());
+    source.set_pixel(2, 2, Color{0.5f, 0.25f, 0.125f, 0.5f});
+    source.set_pixel(3, 2, Color{1, 1, 1, 1});
+    EffectScratchResources scratch;
+    effects::EffectExecutionContext context;
+    context.effect_scratch = &scratch;
+    for (const EffectParams params : {EffectParams{MinMaxParams{}},
+            EffectParams{StretchWarpParams{}}, EffectParams{LensFlareParams{}}}) {
+        Framebuffer result = source;
+        EffectStack stack;
+        std::visit([&](const auto& p) {
+            using T = std::decay_t<decltype(p)>;
+            if constexpr (!std::is_same_v<T, std::monostate>) stack.emplace_back(p);
+        }, params);
+        apply_effect_stack(result, stack, context, registry);
+        for (int y=0; y<6; ++y) for (int x=0; x<8; ++x)
+            CHECK(result.get_pixel(x,y) == source.get_pixel(x,y));
+    }
+    for (const EffectParams params : {EffectParams{MinMaxParams{.radius=1}},
+            EffectParams{MinMaxParams{.radius=1, .maximum=false}},
+            EffectParams{StretchWarpParams{.position=0.25f, .stretch=1.0f}},
+            EffectParams{LensFlareParams{.threshold=0.5f, .intensity=1.0f}}}) {
+        EffectStack stack;
+        std::visit([&](const auto& p) {
+            using T = std::decay_t<decltype(p)>;
+            if constexpr (!std::is_same_v<T, std::monostate>) stack.emplace_back(p);
+        }, params);
+        Framebuffer full=source, repeat=source, clipped=source;
+        context.clip.reset();
+        apply_effect_stack(full, stack, context, registry);
+        apply_effect_stack(repeat, stack, context, registry);
+        context.clip=raster::BBox{1,1,5,4};
+        apply_effect_stack(clipped, stack, context, registry);
+        bool changed=false;
+        for (int y=0; y<6; ++y) for (int x=0; x<8; ++x) {
+            const Color c=full.get_pixel(x,y);
+            CHECK(c == repeat.get_pixel(x,y));
+            CHECK(c.a >= 0.0f); CHECK(c.a <= 1.0f);
+            CHECK(c.r >= 0.0f); CHECK(c.r <= c.a + 1e-6f);
+            CHECK(c.g <= c.a + 1e-6f); CHECK(c.b <= c.a + 1e-6f);
+            CHECK(clipped.get_pixel(x,y) == (x>=1 && x<5 && y>=1 && y<4 ? c : source.get_pixel(x,y)));
+            changed = changed || c != source.get_pixel(x,y);
+        }
+        CHECK(changed);
+    }
+}
+
+TEST_CASE("MinMax square morphology matches known dilation and erosion pixels") {
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+    EffectScratchResources scratch;
+    effects::EffectExecutionContext context;
+    context.effect_scratch=&scratch;
+    Framebuffer fb(5,5);
+    fb.clear(Color::transparent());
+    fb.set_pixel(2,2,Color{0.5f,0.25f,0.125f,0.5f});
+    EffectStack stack; stack.emplace_back(MinMaxParams{.radius=1});
+    apply_effect_stack(fb,stack,context,registry);
+    CHECK(fb.get_pixel(1,1) == Color(0.5f,0.25f,0.125f,0.5f));
+    CHECK(fb.get_pixel(0,0) == Color::transparent());
+    stack.clear(); stack.emplace_back(MinMaxParams{.radius=1,.maximum=false});
+    apply_effect_stack(fb,stack,context,registry);
+    CHECK(fb.get_pixel(2,2) == Color(0.5f,0.25f,0.125f,0.5f));
+    CHECK(fb.get_pixel(1,1) == Color::transparent());
+}
+
 TEST_CASE("Threshold applies a deterministic luma cutoff and preserves alpha") {
     SoftwareRegistry registry;
     register_builtin_processors(registry);

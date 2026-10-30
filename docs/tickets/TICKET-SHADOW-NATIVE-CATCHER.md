@@ -12,8 +12,8 @@ registrato in `docs/stato/chronon3d.md` §13.
 
 - [ ] **Pass ombre nativo in lane Vulkan strict-native** — il nodo `Shadow` oggi fallisce fail-closed. Dove: shadow map + nodo `Shadow` nella lane Vulkan (`src/backends/vulkan/`), decoder del piano.
 - [ ] **Shadow catcher catch-only** con semantica alpha corretta sui bordi. Dove: materiali/shape renderer (ground solid catch-only).
-- [ ] **Accumulatore temporale weighted-add nativo** (prerequisito dello shutter full-frame). Dove: operatori di composizione Vulkan accanto al solo source-over.
-- [ ] **Fix fail-open DOF**: la rotta raw con `camera.dof.enabled` oggi esce 0 con frame RGBA a zero — scegliere errore esplicito fail-closed oppure frame disegnato, mai successo trasparente. Dove: rotta raw + nodo DOF (`PerPixelDofNode` o il percorso raw corrispondente).
+- [x] **Accumulatore temporale weighted-add nativo** (2026-10-29): implementato in `VulkanBackend::accumulate_surface_weighted` (`src/backends/vulkan/vulkan_backend_surface_api_ops_private.cpp:70-94`) e cablato in `CompositionFrameState::render_temporal_accumulation` (`src/render_graph/pipeline/temporal/composition_frame_temporal.cpp:249-421`), certificato `150/150 PASS` raw RGBA8 (`max p99 = 2.0`, `mean MAE = 0.110`) in `docs/evidence/camera-authority-migration/T16/shutter-parity-20261022/t16-shutter-full150-raw-metrics-20261027.json`.
+- [x] **Residuo fail-open DOF raw verificato** (2026-10-29): il repro originale al frame 75 produce pixel opachi, differisce dal controllo DOF-off e si ripete byte-identico; dettagli nel checkpoint sotto. Nessun nuovo fix attribuito a questa sessione.
 - [ ] **A/B software vs Vulkan su produzione approvata** + repeatability strict (serve host GPU NVIDIA).
 
 ## Goal
@@ -88,11 +88,37 @@ le certificazioni strict-native richiedono l'host GPU NVIDIA.
       RGB-L1 come da run T05 esistenti, oltre soglia approvata).
 - [ ] Shadow catcher 1920×1080: ombre visibili, nessun residuo di staging,
       alpha corretto.
-- [ ] Shutter 90°/8 campioni completa in strict-native con accumulatore
-      weighted-add; NVENC accetta i frame (oggi zero).
-- [ ] DoF-on differisce da DoF-off oppure errore esplicito; mai successo con
-      frame trasparente.
+- [x] Shutter 90°/8 campioni completa in strict-native con accumulatore
+      weighted-add (`t16-shutter-full150-raw-metrics-20261027.json`: 150/150 PASS raw RGBA8).
+- [x] DoF-on differisce da DoF-off oppure errore esplicito; mai successo con
+      frame trasparente (repro raw T16/frame 75 verificato il 2026-10-29).
 - [ ] CTest verde; golden registrata.
+
+## Residuo DOF raw — verifica 2026-10-29
+
+Sul Release corrente, più recente dei sorgenti DOF/output, rieseguito il comando
+originale in `docs/evidence/camera-authority-migration/T16/dof-ablation/README.md`:
+Vulkan, sink raw RGBA, frame 75, piano `t16_three_depth_dof_on.plan.json`,
+1920×1080, senza imporre strict-native. Controllo ottenuto disabilitando DOF
+nella camera e in tutti i camera sample, lasciando invariato il resto.
+
+- Tre processi (on/off/on ripetuto): exit 0 e 8,294,400 byte ciascuno.
+- Alpha minimo/massimo 255/255 in tutti e tre i frame; nessun successo trasparente.
+- Media RGB on 68.326114/255, off 66.755947/255; 862,691 pixel RGB diversi.
+- On e ripetizione byte-identici, SHA-256 `d56dcdf39c37434a402c666c24161b6ebb6c8765d260e9faf9448d20e7495279`.
+- Off SHA-256 `5fb217d2080d92e2c2591f4fd5f934f66f9a6856cf5282f80947c60ae00a4379`.
+- Risultati e log locali: `.tmp/dof-closeout-results.json`, `.tmp/dof-closeout.log`,
+  `.tmp/dof-closeout-{on,off,repeat}.rgba.log`; artefatti gitignored.
+- Test graph mirati DOF/capability/lifetime/dispatch: 9 casi, 362 assertion PASS
+  (`.tmp/ticket-graph-focused.log`), binario ricostruito con `-j16`.
+
+La nota storica sul raw tutto zero è superata per questo repro. Nel codice
+corrente sono già presenti la preservazione dell'output nativo terminale DOF
+e il readback quando manca il backing CPU; non è stato introdotto un fix
+speculativo né dimostrata qui la causalità del vecchio raw zero. Si chiude
+solo questo criterio verificabile, non il ticket: catch-only, shutter weighted-add,
+qualità ombre e certificazione completa restano aperti. Nessuna review visiva
+eseguita in questa verifica e nessuna CI same-SHA.
 
 ## Dipendenze
 

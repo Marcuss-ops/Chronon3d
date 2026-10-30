@@ -123,7 +123,13 @@
             "stylize.retro_tv",
             "light.halation",
             "light.anamorphic_streak",
-            "color.matrix"
+            "color.matrix",
+            "color.posterize",
+            "color.color_map",
+            "transition.linear_wipe",
+            "stylize.min_max",
+            "distort.stretch_warp",
+            "light.lens_flare"
           ]
         },
         "param": {
@@ -323,7 +329,13 @@
             "stylize.retro_tv",
             "light.halation",
             "light.anamorphic_streak",
-            "color.matrix"
+            "color.matrix",
+            "color.posterize",
+            "color.color_map",
+            "transition.linear_wipe",
+            "stylize.min_max",
+            "distort.stretch_warp",
+            "light.lens_flare"
           ]
         },
         "params": {

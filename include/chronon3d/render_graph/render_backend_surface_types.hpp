@@ -12,7 +12,8 @@ struct NativeColorTransform {
     enum class Mode : std::uint8_t {
         Affine = 0, Levels = 1, Threshold = 2, Keying = 3, Vignette = 4,
         Mosaic = 5, LiftGammaGain = 6, Offset = 7, Noise = 8, Checkerboard = 9,
-        ColorMatrix = 10, Posterize = 11, ColorMap = 12
+        ColorMatrix = 10, Posterize = 11, ColorMap = 12,
+        LinearWipe = 13, MinMax = 14, StretchWarp = 15, LensFlare = 16
     };
     Mode mode{Mode::Affine};
     std::array<std::array<float, 4>, 5> p{{

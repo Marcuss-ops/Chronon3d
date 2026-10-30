@@ -13,6 +13,7 @@
 #include <bit>
 #include <cmath>
 #include <initializer_list>
+#include <numbers>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -333,6 +334,61 @@ lower_native_color_effect(const effects::EffectInstance& instance,
         out.honors_clip = true;
         return out;
     }
+    case effects::EffectType::LinearWipe: {
+        const auto* p = std::get_if<LinearWipeParams>(&instance.params);
+        if (!p) return std::nullopt;
+        try {
+            p->validate();
+        } catch (const std::invalid_argument&) {
+            return std::nullopt;
+        }
+        const float radians = p->angle_degrees * std::numbers::pi_v<float> / 180.0f;
+        out.transform.mode = NativeColorTransform::Mode::LinearWipe;
+        out.transform.p[0] = {p->progress, std::cos(radians), std::sin(radians), p->feather};
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::MinMax: {
+        const auto* p = std::get_if<MinMaxParams>(&instance.params);
+        if (!p) return std::nullopt;
+        try {
+            p->validate();
+        } catch (const std::invalid_argument&) {
+            return std::nullopt;
+        }
+        out.transform.mode = NativeColorTransform::Mode::MinMax;
+        out.transform.p[0] = {static_cast<float>(p->radius), p->maximum ? 1.0f : 0.0f, 0.0f, 0.0f};
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::StretchWarp: {
+        const auto* p = std::get_if<StretchWarpParams>(&instance.params);
+        if (!p) return std::nullopt;
+        try {
+            p->validate();
+        } catch (const std::invalid_argument&) {
+            return std::nullopt;
+        }
+        const float radians = p->angle_degrees * std::numbers::pi_v<float> / 180.0f;
+        out.transform.mode = NativeColorTransform::Mode::StretchWarp;
+        out.transform.p[0] = {p->position, p->stretch, std::cos(radians), std::sin(radians)};
+        out.honors_clip = true;
+        return out;
+    }
+    case effects::EffectType::LensFlare: {
+        const auto* p = std::get_if<LensFlareParams>(&instance.params);
+        if (!p) return std::nullopt;
+        try {
+            p->validate();
+        } catch (const std::invalid_argument&) {
+            return std::nullopt;
+        }
+        out.transform.mode = NativeColorTransform::Mode::LensFlare;
+        out.transform.p[0] = {p->center.x, p->center.y, p->threshold, p->intensity};
+        out.transform.p[1] = {p->radius, p->halo, p->ghost, p->streak};
+        out.honors_clip = true;
+        return out;
+    }
     case effects::EffectType::Threshold: {
         const auto* p = std::get_if<ThresholdParams>(&instance.params);
         if (!p || !finite_all({p->threshold, p->softness})) return std::nullopt;
@@ -417,8 +473,8 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
     if (!source_is_existing && !source_needs_expansion && result.data() == nullptr)
         return false;  // nothing to upload and no native source
 
-    // At most source + output + clip destination: fixed stack ownership list.
-    std::array<runtime::RenderSurfaceHandle, 3> owned{};
+    // Source, output, optional separable scratch and clip destination.
+    std::array<runtime::RenderSurfaceHandle, 4> owned{};
     std::size_t owned_count = 0;
     const auto make = [&]() {
         const auto h = ctx.surface_registry->create(desc);
@@ -459,8 +515,18 @@ bool try_native_full_frame_color(RenderGraphContext& ctx,
             source, desc, framebuffer_rgba_view(result, packed_rgba));
     }
     if (status.ok()) status = ctx.backend_surface_api()->create_surface(output, desc);
-    if (status.ok())
+    if (status.ok() && instance.effect_type == effects::EffectType::MinMax) {
+        const auto intermediate = make();
+        status = ctx.backend_surface_api()->create_surface(intermediate, desc);
+        if (status.ok())
+            status = ctx.backend_surface_api()->color_transform_surface(intermediate, source, lowering->transform);
+        auto vertical = lowering->transform;
+        vertical.p[0][2] = 1.0f;
+        if (status.ok())
+            status = ctx.backend_surface_api()->color_transform_surface(output, intermediate, vertical);
+    } else if (status.ok()) {
         status = ctx.backend_surface_api()->color_transform_surface(output, source, lowering->transform);
+    }
 
     // Clip-honoring processors leave pixels outside the clip untouched.
     auto final_surface = output;

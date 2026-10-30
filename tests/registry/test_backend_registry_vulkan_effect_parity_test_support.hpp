@@ -142,8 +142,11 @@ VulkanRun vulkan_strict(const EffectParams& params,
                         const std::optional<raster::BBox>& clip,
                         int origin_x = 0, int origin_y = 0,
                         Frame frame = Frame{},
-                        const Framebuffer* source_override = nullptr) {
-    backends::vulkan::VulkanBackend backend;
+                        const Framebuffer* source_override = nullptr,
+                        backends::vulkan::VulkanBackend* shared_backend = nullptr) {
+    auto owned_backend = shared_backend ? nullptr
+        : std::make_unique<backends::vulkan::VulkanBackend>();
+    auto& backend = shared_backend ? *shared_backend : *owned_backend;
     runtime::RenderSurfaceRegistry surfaces;
     RenderGraphContext ctx;
     ctx.frame_input.width = kW;
