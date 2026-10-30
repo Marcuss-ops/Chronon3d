@@ -37,4 +37,20 @@ void apply_anamorphic_streak(Framebuffer& fb, const AnamorphicStreakParams& para
                              ::chronon3d::EffectScratchResources& scratch,
                              const std::optional<raster::BBox>& clip = std::nullopt);
 
+// ── Continuous film grain & archival dust — 35mm dynamic grain + lint scratches ──
+struct FilmGrainDustParams {
+    float intensity{0.08f};     // grain amplitude [0, 0.5]
+    float dust_density{0.25f};  // archival dust/scratches [0, 1.0]
+    uint32_t seed{1337};
+};
+
+void apply_film_grain_and_dust(Framebuffer& fb, const FilmGrainDustParams& params,
+                               float time_seconds,
+                               const std::optional<raster::BBox>& clip = std::nullopt);
+
+// ── Multi-pass optical bloom — highlight diffusion with warm halation cast ────
+void apply_optical_bloom(Framebuffer& fb, const BloomParams& params,
+                         ::chronon3d::EffectScratchResources& scratch,
+                         const std::optional<raster::BBox>& clip = std::nullopt);
+
 } // namespace chronon3d::renderer
