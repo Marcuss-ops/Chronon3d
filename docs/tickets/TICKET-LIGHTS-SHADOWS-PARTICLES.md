@@ -3,14 +3,18 @@
 Stato: **PARTIAL — OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
 portate, e istanziamento GPU per le particelle).
 
-### Checkpoint corrente — regressione nera verificata 2026-10-29
+### Checkpoint corrente — regressione nera verificata 2026-10-30
 
 Il residuo nero non si riproduce sul Release corrente RTX A4000: cinque render
 caster-off e cinque caster-on strict Vulkan/native NVENC, scheduler a 12 thread,
-senza sonde. Gate canonico `run_t05_acceptance.py`: **10/10 PASS**, zero pixel
+senza sonde. Gate canonico `run_t05_acceptance.py`: **10/10 render PASS** (30/30 check), zero pixel
 neri, alpha opaco 1.0, media RGB off 53.180168/255 e on 53.516928/255;
 A/B cambia l'8.8485% dei pixel sopra soglia RGB-L1 >8. Hash RGB decodificato
-stabile in tutte le cinque repliche di ciascuna modalità.
+stabile in tutte le cinque repliche di ciascuna modalità. Ripetuto il
+2026-10-30 sul binario finale SHA-256
+`67b8c1d5ed32160b4d33a32d1e996ecfe20d981690a407da0802a2f12e6212d4`:
+5/5 off + 5/5 on, gate **30/30 PASS**, stessi valori e hash RGB decodificato identico per modalità (`bb1bd061…` off, `46c38550…` on); artefatti in
+[`closeout-20261030/t05/`](../evidence/closeout-20261030/t05/).
 
 Le cause corrette già nel codice corrente sono distinte: dispatch concorrente
 su command buffer/pool condivisi (serializzazione dei nodi nativi) e dipendenza
@@ -105,7 +109,7 @@ blocchi non è risolto, T05 resta **PARTIAL**.
 
 - [x] Pass `ShadowNode` Vulkan strict-native implementato e un frame esportato
   su RTX A4000/NVENC (evidenza sotto).
-- [ ] **A/B strict-native stabile + revisione qualità** — logica: l'accettazione senza probe del 29 Oct è completa 5/5 off e 5/5 on, ma il rerun Release guarded successivo è sceso a 2/5 per entrambi (sync-validation: 2/5 off, 3/5 on). Gli snapshot sondati hanno output Transform/Lighting talvolta zero; la causa non è provata. Stabilizzare l'esecuzione, ripetere l'A/B e revisionare l'ombra su shot di produzione. Dove: native surface path e backing cropped reuse.
+- [ ] **A/B strict-native stabile + revisione qualità** — 2026-10-30: 5/5 off + 5/5 on, gate 30/30 PASS senza sonde sul binario finale `67b8c1d5…`; il precedente rerun guarded (2/5+2/5) non si riproduce sul binario corrente. Resta la revisione qualità dell'ombra su shot di produzione. Dove: native surface path e backing cropped reuse.
 - [x] Istanziamento GPU per particelle circolari, bokeh e sprite nel percorso
   Vulkan strict-native: un `SourceNode` per emettitore invia le istanze campionate
   a un dispatch `LayerBatch`; gli sprite riusano la superficie asset preparata.

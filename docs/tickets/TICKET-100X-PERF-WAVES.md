@@ -25,9 +25,9 @@ waves below are the reachable remainder, in expected-gain order.
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-29)
+## TODO — cosa manca (agg. 2026-10-30)
 
-- [ ] **Gate B2 — FAIL (ultimo rerun 2026-10-29):** fixture title-drift di 456 frame, strict Vulkan/NVENC, current-tree Release. Tutti i run hanno encoded 456/456; `render_loop_fps` medio **238.703** (206.280–252.653), +3.40% rispetto al precedente 230.861 ma ancora 20.43% sotto il target 300. End-to-end medio 150.447 fps; drain medio 12.8 µs/job. Sidecar `nvenc_utilization_avg` nullo; polling `nvidia-smi` sui campioni encoder attivi 98.48%, metrica non canonica. SHA output identico sui cinque run. Risultati: [`b2-final-current-release-20261029-runs.json`](../evidence/100x-perf-waves-b2-20261029/b2-final-current-release-20261029-runs.json). La variazione non chiude il gate.
+- [ ] **Gate B2 — FAIL (ultimo rerun 2026-10-30):** fixture title-drift di 456 frame, strict Vulkan/NVENC, binario finale SHA-256 `67b8c1d5…`. Run canonico: encoded 456/456, exit 0, `render_loop_fps` **238.200**, end-to-end 139.284 fps, drain 12 µs/job; ancora **20.60%** sotto il target 300. Sidecar `nvenc_utilization_avg` nullo; polling `nvidia-smi` sui campioni encoder attivi 95.43%, metrica non canonica. Output SHA `2520fabe…`. Varianti 16 thread (238.50), depth 12 (235.81), depth 6 (233.57) e 16 surface NVENC (236.30) dentro la banda di varianza 232–239: modifiche ripristinate. Risultati: [`b2-final-20261030-runs.json`](../evidence/100x-perf-waves-b2-20261029/b2-final-20261030-runs.json). Il gate resta aperto.
 - [x] Implementare il percorso GPU MTSDF (native MTSDF preparation/raster path exists; focused tests pass).
 - [ ] **Certificare B3:** manca equivalenza visiva outline/shadow vs Coverage e budget ≤256 MB/font set, oltre al gate `text_pass_draws_per_frame == 1`.
 - [ ] Golden canonico 100-item e throughput 100 overlay/min non eseguiti; nessun claim 100×.
@@ -216,3 +216,20 @@ rate was 150.447 fps; mean frame-batch drain was 12.8 µs/job. Active-sample
 field remains null. The result is a measured improvement in this fixture but
 B2 remains **NOT ACCEPTED**. Evidence:
 `docs/evidence/100x-perf-waves-b2-20261029/b2-final-current-release-20261029-runs.json`.
+
+### Final-binary rerun — 2026-10-30
+
+The source-identical Release CLI (`SHA-256 67b8c1d5…`) was rerun on the same
+456-frame fixture with the canonical `run_b2_benchmark.py` harness. It exited 0
+and encoded 456/456 frames at **238.200 render-loop fps** (end-to-end 139.284,
+drain 12 µs/job, active-sample `nvidia-smi` 95.43%, canonical sidecar null;
+output SHA `2520fabe…`). The gate is still 20.60% below 300 fps, so B2 remains
+**NOT ACCEPTED**.
+
+Targeted variants did not move the gate: 16 CPU render threads 238.50 fps,
+12-slot depth 235.81, 6-slot depth 233.57, 16 NVENC surfaces 236.30 — all inside
+the 232–239 fps run-to-run band. The depth and surface changes were reverted;
+the final binary is the baseline depth-4 / 8-surface configuration. The remaining
+cost is the ~2.5 ms `prepare`/`avcodec_send_frame` serialization, not queue
+depth. Evidence:
+`docs/evidence/100x-perf-waves-b2-20261029/b2-final-20261030-runs.json`.
