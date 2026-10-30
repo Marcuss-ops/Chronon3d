@@ -369,4 +369,141 @@ void apply_anamorphic_streak(Framebuffer& fb, const AnamorphicStreakParams& para
     }
 }
 
+
+// ── Continuous Film Grain & Archival Dust ───────────────────────────────────
+void apply_film_grain_and_dust(Framebuffer& fb, const FilmGrainDustParams& params,
+                               float time_seconds,
+                               const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(params.intensity) || params.intensity <= 0.0f ||
+        fb.width() <= 0 || fb.height() <= 0) return;
+
+    const int w = fb.width(), h = fb.height();
+    int x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+
+    const uint32_t timeQuantum = static_cast<uint32_t>(std::floor(time_seconds * 30.0f));
+    const uint32_t baseSeed = params.seed ^ (timeQuantum * 0x9E3779B9u);
+
+    for (int y = y0; y < y1; ++y) {
+        for (int x = x0; x < x1; ++x) {
+            Color c = fb.pixel(x, y);
+            // Deterministic splitmix pseudo-gaussian noise
+            float n0 = hash_01(static_cast<float>(x), static_cast<float>(y), baseSeed);
+            float n1 = hash_01(static_cast<float>(x + 31), static_cast<float>(y + 17), baseSeed + 13u);
+            float n2 = hash_01(static_cast<float>(x + 89), static_cast<float>(y + 53), baseSeed + 97u);
+            float noise = ((n0 + n1 + n2) / 3.0f - 0.5f) * params.intensity * 2.0f;
+
+            // Preserve alpha, modulate RGB
+            c.r = std::clamp(c.r + noise, 0.0f, 1.0f);
+            c.g = std::clamp(c.g + noise, 0.0f, 1.0f);
+            c.b = std::clamp(c.b + noise, 0.0f, 1.0f);
+            fb.set_pixel(x, y, c);
+        }
+    }
+
+    // Dynamic archival dust hairs/scratches
+    if (params.dust_density > 0.0f) {
+        const int dustCount = static_cast<int>((x1 - x0) * (y1 - y0) * 0.00003f * params.dust_density);
+        uint32_t dSeed = baseSeed + 4242u;
+        for (int i = 0; i < dustCount; ++i) {
+            dSeed = dSeed * 1664525u + 1013904223u;
+            int sx = x0 + static_cast<int>(dSeed % (x1 - x0));
+            dSeed = dSeed * 1664525u + 1013904223u;
+            int sy = y0 + static_cast<int>(dSeed % (y1 - y0));
+            dSeed = dSeed * 1664525u + 1013904223u;
+            float bright = 0.55f + 0.35f * static_cast<float>(dSeed & 0xFF) / 255.0f;
+
+            if ((dSeed & 1) != 0) {
+                // Short hair scratch (2-4 pixels)
+                dSeed = dSeed * 1664525u + 1013904223u;
+                int len = 2 + (dSeed % 3);
+                for (int l = 0; l < len; ++l) {
+                    int px = std::clamp(sx + l, 0, w - 1);
+                    int py = std::clamp(sy + (l % 2), 0, h - 1);
+                    Color cur = fb.pixel(px, py);
+                    cur.r = std::min(1.0f, cur.r + bright * 0.4f);
+                    cur.g = std::min(1.0f, cur.g + bright * 0.4f);
+                    cur.b = std::min(1.0f, cur.b + bright * 0.4f);
+                    fb.set_pixel(px, py, cur);
+                }
+            } else {
+                Color cur = fb.pixel(sx, sy);
+                cur.r = std::min(1.0f, cur.r + bright * 0.5f);
+                cur.g = std::min(1.0f, cur.g + bright * 0.5f);
+                cur.b = std::min(1.0f, cur.b + bright * 0.5f);
+                fb.set_pixel(sx, sy, cur);
+            }
+        }
+    }
+}
+
+// ── Multi-pass Optical Bloom ────────────────────────────────────────────────
+void apply_optical_bloom(Framebuffer& fb, const BloomParams& params,
+                         ::chronon3d::EffectScratchResources& scratch,
+                         const std::optional<raster::BBox>& clip) {
+    if (!std::isfinite(params.threshold) || !std::isfinite(params.radius) || !std::isfinite(params.intensity) ||
+        params.radius <= 0.0f || params.intensity <= 0.0f ||
+        fb.width() <= 0 || fb.height() <= 0) return;
+
+    const int w = fb.width(), h = fb.height();
+    int x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+
+    scratch.ensure_size(w, h);
+    Framebuffer& mask = *scratch.framebuffer;
+    Framebuffer& blur_h = *scratch.framebuffer_b;
+    mask.clear({0.0f, 0.0f, 0.0f, 0.0f});
+
+    // 1. Highlight extraction with smooth knee
+    for (int y = y0; y < y1; ++y) {
+        for (int x = x0; x < x1; ++x) {
+            Color c = fb.pixel(x, y);
+            float luma = kLumaR * c.r + kLumaG * c.g + kLumaB * c.b;
+            if (luma > params.threshold) {
+                float ramp = (luma - params.threshold) / std::max(0.001f, 1.0f - params.threshold);
+                float weight = ramp * ramp * (3.0f - 2.0f * ramp);
+                mask.set_pixel(x, y, {c.r * weight, c.g * weight, c.b * weight, c.a * weight});
+            }
+        }
+    }
+
+    // 2. Separable box blur approximation of Gaussian bloom
+    const int radius = std::clamp(static_cast<int>(std::round(params.radius)), 1, 64);
+    for (int y = y0; y < y1; ++y) {
+        for (int x = x0; x < x1; ++x) {
+            blur_h.set_pixel(x, y, horizontal_average(mask, static_cast<float>(x), y, radius, 11));
+        }
+    }
+
+    // 3. Vertical pass and additive warm optical halation composite
+    const Color warmTint{1.04f, 0.98f, 0.92f, 1.0f};
+    for (int y = y0; y < y1; ++y) {
+        for (int x = x0; x < x1; ++x) {
+            Color acc{0.0f, 0.0f, 0.0f, 0.0f};
+            int count = 0;
+            const int step = std::max(1, radius / 5);
+            for (int dy = -radius; dy <= radius; dy += step) {
+                int sy = std::clamp(y + dy, 0, h - 1);
+                Color s = blur_h.pixel(x, sy);
+                acc.r += s.r; acc.g += s.g; acc.b += s.b;
+                count++;
+            }
+            if (count > 0) {
+                float inv = 1.0f / static_cast<float>(count);
+                Color base = fb.pixel(x, y);
+                base.r = std::clamp(base.r + acc.r * inv * params.intensity * warmTint.r, 0.0f, 1.0f);
+                base.g = std::clamp(base.g + acc.g * inv * params.intensity * warmTint.g, 0.0f, 1.0f);
+                base.b = std::clamp(base.b + acc.b * inv * params.intensity * warmTint.b, 0.0f, 1.0f);
+                fb.set_pixel(x, y, base);
+            }
+        }
+    }
+}
+
 } // namespace chronon3d::renderer
