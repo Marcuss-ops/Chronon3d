@@ -1,5 +1,7 @@
 #pragma once
 #include <chronon3d/core/dirty_fallback_reason.hpp>
+#include <array>
+#include <cstddef>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -268,6 +270,11 @@ struct FrameTextTiming {
 /// values are explicitly labelled "observed": a delta can be attributed to
 /// the frame that observed slot completion, not necessarily the frame that
 /// originally submitted that slot.
+/// Mirror of runtime::kGpuPassKindCount for the telemetry header, which does
+/// not depend on the GPU command-plan header. A static_assert at the Vulkan
+/// attribution site keeps the two counts identical.
+inline constexpr std::size_t kFrameGpuPassKindCount = 13;
+
 struct FrameGpuTiming {
     double timestamp_execute_ms{0.0};
     double submit_cpu_ms{0.0};
@@ -284,6 +291,11 @@ struct FrameGpuTiming {
     double queue_wait_ms{0.0};
     int64_t device_start_trace_ns{0};
     int64_t device_end_trace_ns{0};
+    // Exact per-pass-kind device time for this frame, indexed like
+    // runtime::GpuPassKind. Zero means the kind did not execute (or no
+    // compiled per-pass queries existed), never a fabricated zero.
+    std::array<double, kFrameGpuPassKindCount> pass_execute_ms{};
+    std::array<std::uint32_t, kFrameGpuPassKindCount> pass_counts{};
 };
 
 /// Architectural breakdown of a single frame's render time (render_ms), in ms.

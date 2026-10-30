@@ -5,6 +5,8 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstdlib>
 
 namespace chronon3d::backends::vulkan {
@@ -35,13 +37,17 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
         const auto publish_timing = [&](double execute_ms,
                                         std::uint64_t start,
                                         std::uint64_t end,
-                                        bool timestamp_valid) {
+                                        bool timestamp_valid,
+                                        const std::array<double, runtime::kGpuPassKindCount>& pass_ms,
+                                        const std::array<std::uint32_t, runtime::kGpuPassKindCount>& pass_counts_in) {
             if (!frame_valid) return;
             VulkanFrameGpuTiming timing;
             timing.frame_index = frame_index;
             timing.frame_batch_slot = static_cast<std::uint32_t>(slot);
             timing.timestamp_valid = timestamp_valid;
             timing.execute_ms = execute_ms;
+            timing.pass_execute_ms = pass_ms;
+            timing.pass_counts = pass_counts_in;
             if (timestamp_valid && end >= start) {
                 timing.device_span_ms = static_cast<double>(end - start) *
                     timestamp_period_ns / 1'000'000.0;
@@ -62,6 +68,8 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             completed_frame_timings.push_back(timing);
         };
 
+        std::array<double, runtime::kGpuPassKindCount> pass_execute_ms{};
+        std::array<std::uint32_t, runtime::kGpuPassKindCount> pass_counts{};
         if (pass_count != 0) {
             std::vector<std::uint64_t> stamps(2 * pass_count, 0);
             const auto query_count = static_cast<std::uint32_t>(2 * pass_count);
@@ -70,7 +78,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 stamps.size() * sizeof(std::uint64_t), stamps.data(),
                 sizeof(std::uint64_t), VK_QUERY_RESULT_64_BIT);
             if (result != VK_SUCCESS) {
-                publish_timing(0.0, 0, 0, false);
+                publish_timing(0.0, 0, 0, false, {}, {});
                 return;
             }
 
@@ -87,6 +95,15 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 execute_ms += elapsed_ns / 1'000'000.0;
                 stats.gpu_execute_us +=
                     static_cast<std::uint64_t>(elapsed_ns / 1000.0);
+                const auto kind_index = static_cast<std::size_t>(
+                    frame_batch.submitted_pass_kinds[slot][pass]);
+                if (kind_index < runtime::kGpuPassKindCount) {
+                    pass_execute_ms[kind_index] += elapsed_ns / 1'000'000.0;
+                    ++pass_counts[kind_index];
+                    stats.gpu_pass_us[kind_index] +=
+                        static_cast<std::uint64_t>(elapsed_ns / 1000.0);
+                    ++stats.gpu_pass_count[kind_index];
+                }
                 if (!have_range) {
                     first_start = start;
                     have_range = true;
@@ -102,7 +119,8 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                     }
                 }
             }
-            publish_timing(execute_ms, first_start, last_end, have_range);
+            publish_timing(execute_ms, first_start, last_end, have_range,
+                           pass_execute_ms, pass_counts);
             return;
         }
 
@@ -112,7 +130,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             sizeof(stamps), stamps, sizeof(std::uint64_t),
             VK_QUERY_RESULT_64_BIT);
         if (result != VK_SUCCESS) {
-            publish_timing(0.0, 0, 0, false);
+            publish_timing(0.0, 0, 0, false, {}, {});
             return;
         }
         const bool valid = stamps[1] >= stamps[0];
@@ -134,7 +152,7 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 CHRONON_TRACE_GPU_END(end_ns);
             }
         }
-        publish_timing(execute_ms, stamps[0], stamps[1], valid);
+        publish_timing(execute_ms, stamps[0], stamps[1], valid, {}, {});
     }
 
     // End the active frame batch's command buffer and submit it exactly once
@@ -156,6 +174,17 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
                 vkCmdWriteTimestamp(frame_batch.command_buffers[slot],
                                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                                     timestamp_pool, final_query);
+                // Capture the compiled pass kinds now: the plan pointer is
+                // only valid until the recording owner releases it, while the
+                // query results are read later at fence retirement.
+                const auto& planned_passes =
+                    frame_batch.command_plan->passes.passes;
+                const auto pass_total = std::min(
+                    frame_batch.pass_count, planned_passes.size());
+                for (std::size_t i = 0; i < pass_total; ++i) {
+                    frame_batch.submitted_pass_kinds[slot][i] =
+                        static_cast<std::uint8_t>(planned_passes[i].kind);
+                }
                 frame_batch.submitted_pass_counts[slot] = frame_batch.pass_count;
             } else {
                 vkCmdWriteTimestamp(frame_batch.command_buffers[slot],

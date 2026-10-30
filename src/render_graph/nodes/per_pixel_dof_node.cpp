@@ -455,11 +455,19 @@ NodeExecResult PerPixelDofNode::execute(
         return NodeExecResult{std::move(blurred)};
     }
 
-    // Check that the depth buffer was populated during compositing.
-    if (dof_depth.empty()) {
-        // No depth data — fall through without blur.
-        return cloned_result();
+    // A graph that requested depth tracking must not silently return a sharp
+    // frame if its depth storage disappeared. An untracked standalone node may
+    // legitimately receive no depth and remains a pass-through.
+    const auto expected_depth_size =
+        static_cast<std::size_t>(ctx.frame_input.width) *
+        static_cast<std::size_t>(ctx.frame_input.height);
+    if (ctx.policy.track_dof_depth && dof_depth.size() != expected_depth_size) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "PerPixelDofNode",
+            "DOF depth tracking was requested but its depth buffer is missing or invalid"};
     }
+    if (dof_depth.empty()) return cloned_result();
 
     // Find only sources that can produce a visible blur.  A focused background
     // may legitimately have valid depth over the entire canvas; using all

@@ -20,6 +20,7 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include "../render_graph/pipeline/temporal/temporal_render_pipeline.hpp"
+#include "../render_plan/render_plan_camera_adapter.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
@@ -40,6 +41,7 @@
 #include <exception>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <vector>
 #include <stdexcept>
 #include <thread>
@@ -145,6 +147,18 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
                     1};
         });
 
+    // The cached topology is immutable. Only animated-camera programs need a
+    // per-render scene copy so all graph consumers (including dirty/reuse
+    // policy) observe the same resolved camera without mutating the cache.
+    std::optional<Scene> camera_scene;
+    if (!metadata.camera_samples.empty()) camera_scene.emplace(topology->clone());
+    const auto scene_at = [&](double sample_frame) -> const Scene& {
+        if (!camera_scene) return *topology;
+        camera_scene->set_camera_2_5d(render_plan::detail::sample_resolved_camera(
+            metadata.camera_samples, sample_frame));
+        return *camera_scene;
+    };
+
     const auto& settings = *m_context.settings;
     if (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation &&
         settings.motion_blur.samples > 1 &&
@@ -208,7 +222,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
                 .framebuffer_pool = workspace.framebuffer_pool(i),
             };
             const auto rendered = graph::render_scene_via_graph_temporal(
-                *m_context.backend, *m_context.scratch.node_cache, *topology,
+                *m_context.backend, *m_context.scratch.node_cache, scene_at(sample.time.frame),
                 Camera{}, width, height, frame, frame_offset, sample_settings,
                 m_context.registry.compositions, m_context.video_decoder,
                 static_cast<float>(canvas_fps.fps()), metadata.job_id, m_renderer,
@@ -225,15 +239,6 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
                     "Render Plan temporal motion-blur CPU accumulation requires "
                     "host framebuffer pixels; strict GPU-native samples require "
                     "a native weighted-add accumulator");
-            {
-                int nonzero = 0;
-                for (int yy = 0; yy < height; yy += 7)
-                    for (int xx = 0; xx < width; xx += 7)
-                        if (rendered->get_pixel(xx, yy).a > 0.05f) ++nonzero;
-                std::fprintf(stderr, "[mb-probe] sample %zu time=%.3f weight=%.4f nonzero=%d fb=%dx%d\n",
-                             i, sample.time.frame, (double)sample.weight, nonzero,
-                             rendered->width(), rendered->height());
-            }
             const float weight = sample.weight;
             weight_sum += weight;
             tbb::parallel_for(tbb::blocked_range<i32>(0, height, 16),
@@ -269,7 +274,8 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     }
 
     return chronon3d::graph::render_scene_via_graph(
-        *m_context.backend, *m_context.scratch.node_cache, *topology, Camera{},
+        *m_context.backend, *m_context.scratch.node_cache,
+        scene_at(static_cast<double>(frame.integral())), Camera{},
         static_cast<i32>(metadata.width), static_cast<i32>(metadata.height), frame, 0.0f,
         *m_context.settings, m_context.registry.compositions,
         m_context.video_decoder, static_cast<float>(canvas_fps.fps()),

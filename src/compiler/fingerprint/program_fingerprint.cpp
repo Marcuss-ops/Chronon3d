@@ -18,7 +18,12 @@
 namespace chronon3d::compiler::stages {
 
 std::uint64_t fingerprint(const render_plan::RenderPlan& plan, const CompiledProgramData& program) {
-    std::uint64_t value = plan.content_fingerprint ^ 0x9e3779b97f4a7c15ULL;
+    // In-memory RenderPlans need the same content identity as decoded plans;
+    // otherwise distinct camera paths with equal topology collide in the
+    // runtime scene cache when their optional precomputed fingerprint is zero.
+    const auto content = plan.content_fingerprint != 0
+        ? plan.content_fingerprint : render_plan::compute_render_plan_content_fingerprint(plan);
+    std::uint64_t value = content ^ 0x9e3779b97f4a7c15ULL;
     const auto mix = [](std::uint64_t x) { return core::hash::splitmix64(x); };
     const auto combine = [&value, &mix](std::size_t count) {
         value = mix(value ^ mix(static_cast<std::uint64_t>(count)));

@@ -128,6 +128,19 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     const render_plan::RenderPlan& plan,
     assets::AssetResolver& resolver,
     const CompileOptions& options) const {
+    if (plan.camera_samples) {
+        if (!plan.camera || plan.camera_samples->empty() || plan.camera_samples->size() > 1'000'000)
+            return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples",
+                "camera samples require a base camera and a non-empty bounded sequence", "render-plan-camera");
+        double previous = -std::numeric_limits<double>::infinity();
+        for (const auto& sample : *plan.camera_samples) {
+            if (!std::isfinite(sample.frame) || sample.frame <= previous ||
+                sample.frame < -1'000'000.0 || sample.frame > 1'000'000.0)
+                return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples",
+                    "camera sample frames must be finite, strictly increasing, and within [-1000000, 1000000]", "render-plan-camera");
+            previous = sample.frame;
+        }
+    }
     if (plan.environment_light) {
         const auto environment = assets::load_hdri_env_v1(
             resolver, plan.environment_light->probe_asset);
@@ -175,6 +188,15 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     if (plan.camera) {
         data->metadata.camera_2_5d = render_plan::detail::make_camera_value(
             *plan.camera, plan.canvas);
+        if (plan.camera_samples) {
+            auto& samples = data->metadata.camera_samples;
+            samples.reserve(plan.camera_samples->size());
+            for (const auto& sample : *plan.camera_samples) {
+                auto camera = render_plan::detail::make_camera_value(sample.camera, plan.canvas);
+                camera.is_animated = plan.camera_samples->size() > 1;
+                samples.emplace_back(sample.frame, std::move(camera));
+            }
+        }
     } else if (std::any_of(plan.layers.begin(), plan.layers.end(),
                    [](const render_plan::LayerPlan& layer) {
                        return layer.type == render_plan::LayerType::Mesh;

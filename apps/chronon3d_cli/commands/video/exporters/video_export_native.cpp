@@ -142,6 +142,12 @@ PipeExportResult render_and_encode_native(
                     gpu.device_start_trace_ns;
                 it->gpu_timing.device_end_trace_ns =
                     gpu.device_end_trace_ns;
+                static_assert(
+                    chronon3d::telemetry::kFrameGpuPassKindCount ==
+                        chronon3d::runtime::kGpuPassKindCount,
+                    "telemetry and backend GPU pass-kind counts must match");
+                it->gpu_timing.pass_execute_ms = gpu.pass_execute_ms;
+                it->gpu_timing.pass_counts = gpu.pass_counts;
             }
         }
 #endif

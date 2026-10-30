@@ -4,6 +4,10 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 
+#include <algorithm>
+#include <utility>
+#include <vector>
+
 namespace chronon3d::render_plan::detail {
 
 inline chronon3d::Camera2_5D make_camera_value(
@@ -44,6 +48,42 @@ inline chronon3d::Camera2_5D make_camera_value(
         camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
             camera, source.dof_focus_distance);
     }
+    return camera;
+}
+
+// Shared interpolation authority for both the compatibility evaluator and the
+// typed program sampler. Samples are validated and ordered at the boundary.
+inline chronon3d::Camera2_5D sample_resolved_camera(
+    const std::vector<std::pair<double, chronon3d::Camera2_5D>>& samples,
+    double frame) {
+    const auto upper = std::lower_bound(samples.begin(), samples.end(), frame,
+        [](const auto& sample, double value) { return sample.first < value; });
+    if (upper == samples.begin()) return upper->second;
+    if (upper == samples.end()) return samples.back().second;
+    if (upper->first == frame) return upper->second;
+    const auto& right = upper->second;
+    const auto& left = std::prev(upper)->second;
+    const double span = upper->first - std::prev(upper)->first;
+    const float t = static_cast<float>((frame - std::prev(upper)->first) / span);
+    auto camera = left;
+    camera.position = glm::mix(left.position, right.position, t);
+    camera.rotation = math::camera_rotation_euler(
+        glm::slerp(left.rotation_quaternion(), right.rotation_quaternion(), t));
+    camera.fov_deg = glm::mix(left.fov_deg, right.fov_deg, t);
+    camera.zoom = glm::mix(left.zoom, right.zoom, t);
+    camera.lens_shift = glm::mix(left.lens_shift, right.lens_shift, t);
+    camera.lens.focal_length = glm::mix(left.lens.focal_length, right.lens.focal_length, t);
+    camera.lens.f_stop = glm::mix(left.lens.f_stop, right.lens.f_stop, t);
+    camera.lens.sensor_width = glm::mix(left.lens.sensor_width, right.lens.sensor_width, t);
+    camera.lens.sensor_height = glm::mix(left.lens.sensor_height, right.lens.sensor_height, t);
+    camera.dof.focus_distance = glm::mix(left.dof.focus_distance, right.dof.focus_distance, t);
+    camera.dof.aperture = glm::mix(left.dof.aperture, right.dof.aperture, t);
+    camera.dof.max_blur = glm::mix(left.dof.max_blur, right.dof.max_blur, t);
+    camera.dof.highlight_gain = glm::mix(left.dof.highlight_gain, right.dof.highlight_gain, t);
+    camera.is_animated = true;
+    if (camera.dof.enabled && !camera.dof.use_physical_model)
+        camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
+            camera, camera.dof.focus_distance);
     return camera;
 }
 

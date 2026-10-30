@@ -46,7 +46,8 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
             builder.from(Frame{layer.start_frame})
                 .duration(Frame{layer.duration_frames})
                 .transform(transform)
-                .opacity(layer.opacity);
+                .opacity(layer.opacity)
+                .enable_3d(layer.enable_3d);
             switch (layer.kind) {
                 case NodeKind::Color: {
                     RectParams params;

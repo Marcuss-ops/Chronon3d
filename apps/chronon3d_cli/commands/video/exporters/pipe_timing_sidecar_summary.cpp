@@ -394,6 +394,14 @@ void serialize_job_section(nlohmann::json& job,
     for (const auto& [key, value] : timings.gpu.upload_breakdown) {
         upload_breakdown[key] = value;
     }
+    auto& pass_breakdown = gpu["pass_breakdown_ms"];
+    for (const auto& [key, value] : timings.gpu.pass_breakdown_ms) {
+        pass_breakdown[key] = value;
+    }
+    auto& pass_counts = gpu["pass_counts"];
+    for (const auto& [key, value] : timings.gpu.pass_counts) {
+        pass_counts[key] = value;
+    }
     put_gpu_u64("gpu_submissions", timings.gpu.gpu_submissions);
     put_gpu_u64("passes_executed", timings.gpu.passes_executed);
     put_gpu_u64("gpu_nodes", timings.gpu.gpu_nodes);

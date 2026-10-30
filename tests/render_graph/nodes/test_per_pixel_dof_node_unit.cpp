@@ -51,6 +51,28 @@ TEST_CASE("PR2-Unit-DoF: authored iris/highlight shaping fails closed at the ker
     CHECK_THROWS_AS(reject_unsupported_dof_shape(both), std::runtime_error);
 }
 
+TEST_CASE("DOF rejects missing tracked depth but permits untracked passthrough") {
+    auto camera = make_cam2_5d(50.f, 0.05f, 8.f);
+    auto node = graph::PerPixelDofNode::create(camera);
+    graph::RenderGraphContext ctx;
+    ctx.frame_input = ctt::make_render_frame_info(4, 4);
+    ctx.framebuffer_pool = cache::FramebufferPool::create_shared(1024 * 1024);
+    Framebuffer input(4, 4);
+    input.clear(Color{1.f, 0.f, 0.f, 1.f});
+    std::array<FramebufferRef, 1> inputs{FramebufferRef{input}};
+    std::array<std::optional<raster::BBox>, 1> bounds{};
+
+    ctx.policy.track_dof_depth = true;
+    CHECK_FALSE(node->execute(ctx, inputs, bounds));
+    ctx.node_exec.dof_depth.assign(15, 1.f);
+    CHECK_FALSE(node->execute(ctx, inputs, bounds));
+    ctx.node_exec.dof_depth.clear();
+    ctx.policy.track_dof_depth = false;
+    const auto passthrough = node->execute(ctx, inputs, bounds);
+    REQUIRE(passthrough);
+    CHECK(passthrough.value()->get_pixel(0, 0).r == doctest::Approx(1.f));
+}
+
 TEST_CASE("PR2-Unit-DoF: cache_key varies with focus_z / aperture / max_blur") {
     using chronon3d::graph::PerPixelDofNode;
 

@@ -63,6 +63,7 @@ struct StaticLayerProgram {
     std::int64_t time_remap_freeze_frame{-1};
     std::uint32_t time_remap_track_index{kInvalidProgramIndex};
     bool has_transform_animation{false};
+    bool enable_3d{false};
 };
 
 }  // namespace chronon3d::compiler
