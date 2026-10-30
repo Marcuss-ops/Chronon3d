@@ -36,6 +36,7 @@ namespace chronon3d::renderer {
 
 struct DofScratchBuffers {
     std::vector<float> blur_radii;
+    std::vector<float> camera_depths;
     std::vector<Color> hpass;
     std::vector<Color> output;
     i32 origin_x{0};
@@ -50,6 +51,7 @@ struct DofScratchBuffers {
         height = h;
         const std::size_t pixels = static_cast<std::size_t>(w) * h;
         blur_radii.resize(pixels);
+        camera_depths.resize(pixels);
         hpass.resize(pixels);
         output.resize(pixels);
     }
@@ -117,7 +119,9 @@ inline void apply_per_pixel_dof(
     const i32 roi_w = x1 - x0;
     const i32 roi_h = y1 - y0;
     auto& blur_radii = buffers->blur_radii;
+    auto& camera_depths = buffers->camera_depths;
     std::fill(blur_radii.begin(), blur_radii.end(), -1.0f);
+    std::fill(camera_depths.begin(), camera_depths.end(), -1.0f);
     float max_r = 0.0f;
     for (i32 y = y0; y < y1; ++y) {
         for (i32 x = x0; x < x1; ++x) {
@@ -126,6 +130,7 @@ inline void apply_per_pixel_dof(
             if (std::isfinite(z) && z > 0.0f &&
                 z < kUnsetDofDepth * 0.5f) {
                 blur_radii[idx] = compute_dof_blur_radius(dof, lens, z);
+                camera_depths[idx] = z;
             }
             max_r = std::max(max_r, blur_radii[idx]);
         }
@@ -190,8 +195,10 @@ inline void apply_per_pixel_dof(
                 Color* dst_row = &hpass[static_cast<size_t>(y - y0) * roi_w];
                 const float* radius_row =
                     &blur_radii[static_cast<size_t>(y - y0) * roi_w];
+                const float* depth_row =
+                    &camera_depths[static_cast<size_t>(y - y0) * roi_w];
 
-                dof_h_gather_simd(src_row, dst_row, radius_row, max_r,
+                dof_h_gather_simd(src_row, dst_row, radius_row, depth_row, max_r,
                                   fb.is_opaque(),
                                   x0, x1, w, y, w, x0, x1);
             }
@@ -261,7 +268,7 @@ inline void apply_per_pixel_dof(
 
                 for (i32 y = ty0; y < ty1; ++y) {
                     dof_v_gather_simd(hpass.data(), output.data(),
-                                      blur_radii.data(), max_r,
+                                      blur_radii.data(), camera_depths.data(), max_r,
                                       fb.is_opaque(),
                                       tx0, tx1, y, h, w,
                                       x0, x1, y0, y1, roi_w);

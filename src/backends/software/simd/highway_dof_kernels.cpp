@@ -49,6 +49,42 @@ HWY_INLINE float compute_weight(float dist, float inv_r) {
     return gaussian_falloff(t);
 }
 
+// Depth- and CoC-aware pair weight (replicated identically in dof_blur.comp):
+//   - Unset neighbour (neighbour_radius < 0): weight 0.
+//   - Focused centre (0 <= centre_radius < 0.5):
+//       only accepts self (dist == 0) or defocused foreground samples strictly
+//       closer to the camera (neighbour_radius >= 0.5 && neighbour_depth < centre_depth).
+//       Defocused background behind the focal plane never bleeds over sharp foreground.
+//   - Defocused or unset centre (centre_radius >= 0.5 or centre_radius < 0):
+//       focused neighbours (0 <= neighbour_radius < 0.5) contribute only at dist == 0
+//       (preventing sharp cutouts/text from bleeding halos into blurred background);
+//       defocused neighbours contribute with their own CoC radius.
+HWY_INLINE float compute_pair_weight(
+    float dist,
+    float centre_radius,
+    float centre_depth,
+    float neighbour_radius,
+    float neighbour_depth)
+{
+    if (neighbour_radius < 0.0f) {
+        return 0.0f;
+    }
+    if (centre_radius >= 0.0f && centre_radius < 0.5f) {
+        if (dist == 0.0f) return 1.0f;
+        if (neighbour_radius >= 0.5f &&
+            neighbour_depth > 0.0f &&
+            centre_depth > 0.0f &&
+            neighbour_depth + 1e-3f < centre_depth) {
+            return compute_weight(dist, 1.0f / neighbour_radius);
+        }
+        return 0.0f;
+    }
+    if (neighbour_radius < 0.5f) {
+        return dist == 0.0f ? 1.0f : 0.0f;
+    }
+    return compute_weight(dist, 1.0f / neighbour_radius);
+}
+
 // ── SIMD horizontal gather kernel ─────────────────────────────────────────
 //
 // Processes PPB = Lanes(df)/4 neighbor pixels per SIMD iteration.
@@ -58,6 +94,7 @@ HWY_ATTR void dof_h_gather_impl(
     const Color* HWY_RESTRICT src_row,
     Color* HWY_RESTRICT dst_row,
     const float* HWY_RESTRICT blur_radii_row,
+    const float* HWY_RESTRICT depth_row,
     float max_radius,
     bool normalize_opaque,
     int x0, int x1, int w, int y, int fb_w, int roi_x0, int roi_x1)
@@ -71,9 +108,10 @@ HWY_ATTR void dof_h_gather_impl(
     for (int x = x0; x < x1; ++x) {
         const size_t local_x = static_cast<size_t>(x - roi_x0);
         const size_t dst_idx = local_x;
-        // Each output uses its own CoC. Keep unset and focused pixels intact.
         const float centre_radius = blur_radii_row[dst_idx];
-        if (centre_radius < 0.5f) {
+        const float centre_depth = depth_row[dst_idx];
+        if (!normalize_opaque && src_row[x].a > 0.0f &&
+            centre_radius >= 0.0f && centre_radius < 0.5f) {
             dst_row[local_x] = src_row[x];
             continue;
         }
@@ -98,9 +136,12 @@ HWY_ATTR void dof_h_gather_impl(
             alignas(64) float w_broadcast[HWY_MAX_LANES_D(DF)] = {};
             for (int i = 0; i < PPB; ++i) {
                 if (kx + i < roi_x0 || kx + i >= roi_x1) continue;
+                const size_t n_idx = static_cast<size_t>(kx + i - roi_x0);
                 const float dist = std::abs(
                     static_cast<float>(kx + i) - static_cast<float>(x));
-                const float kernel_w = compute_weight(dist, 1.0f / centre_radius);
+                const float kernel_w = compute_pair_weight(
+                    dist, centre_radius, centre_depth,
+                    blur_radii_row[n_idx], depth_row[n_idx]);
                 const float w = normalize_opaque
                     ? kernel_w * src_row[kx + i].a : kernel_w;
                 // Broadcast weight to the 4 RGBA lanes for this pixel
@@ -117,9 +158,6 @@ HWY_ATTR void dof_h_gather_impl(
         }
 
         // 4. Reduce partial sums: extract per-channel totals.
-        //    We use Store + stride-4 extraction instead of ReduceSum because
-        //    ReduceSum sums ALL lanes — we need per-channel (stride-4)
-        //    reduction for RGBA-interleaved data.
         alignas(64) float sum_arr[HWY_MAX_LANES_D(DF)];
         hn::Store(v_sum, df, sum_arr);
 
@@ -134,10 +172,13 @@ HWY_ATTR void dof_h_gather_impl(
         // ── Scalar tail: remaining neighbors (< PPB) ───────────────────
         for (; kx <= sx1; ++kx) {
             if (kx < roi_x0 || kx >= roi_x1) continue;
+            const size_t n_idx = static_cast<size_t>(kx - roi_x0);
             const Color& s = src_row[kx];
             const float dist = std::abs(
                 static_cast<float>(kx) - static_cast<float>(x));
-            const float kernel_w = compute_weight(dist, 1.0f / centre_radius);
+            const float kernel_w = compute_pair_weight(
+                dist, centre_radius, centre_depth,
+                blur_radii_row[n_idx], depth_row[n_idx]);
             const float w = normalize_opaque ? kernel_w * s.a : kernel_w;
 
             sum_r += s.r * w;
@@ -166,6 +207,7 @@ HWY_ATTR void dof_v_gather_impl(
     const Color* HWY_RESTRICT hpass,
     Color* HWY_RESTRICT output,
     const float* HWY_RESTRICT blur_radii,
+    const float* HWY_RESTRICT depth,
     float max_radius,
     bool normalize_opaque,
     int x0, int x1, int y, int h, int fb_w,
@@ -181,7 +223,9 @@ HWY_ATTR void dof_v_gather_impl(
         const size_t idx = static_cast<size_t>(y - roi_y0) * roi_w +
                            static_cast<size_t>(x - roi_x0);
         const float centre_radius = blur_radii[idx];
-        if (centre_radius < 0.5f) {
+        const float centre_depth = depth[idx];
+        if (!normalize_opaque && hpass[idx].a > 0.0f &&
+            centre_radius >= 0.0f && centre_radius < 0.5f) {
             output[idx] = hpass[idx];
             continue;
         }
@@ -214,9 +258,13 @@ HWY_ATTR void dof_v_gather_impl(
             alignas(64) float w_broadcast[HWY_MAX_LANES_D(DF)] = {};
             for (int i = 0; i < PPB; ++i) {
                 if (ky + i < roi_y0 || ky + i >= roi_y1) continue;
+                const size_t n_idx = static_cast<size_t>(ky + i - roi_y0) * roi_w +
+                                     static_cast<size_t>(x - roi_x0);
                 const float dist = std::abs(
                     static_cast<float>(ky + i) - static_cast<float>(y));
-                const float kernel_w = compute_weight(dist, 1.0f / centre_radius);
+                const float kernel_w = compute_pair_weight(
+                    dist, centre_radius, centre_depth,
+                    blur_radii[n_idx], depth[n_idx]);
                 const float w = normalize_opaque
                     ? kernel_w * batch[i].a : kernel_w;
                 w_broadcast[i * kRGBA + 0] = w;
@@ -245,11 +293,14 @@ HWY_ATTR void dof_v_gather_impl(
         // ── Scalar tail ────────────────────────────────────────────────
         for (; ky <= sy1; ++ky) {
             if (ky < roi_y0 || ky >= roi_y1) continue;
-            const Color& s = hpass[static_cast<size_t>(ky - roi_y0) * roi_w +
-                                   static_cast<size_t>(x - roi_x0)];
+            const size_t n_idx = static_cast<size_t>(ky - roi_y0) * roi_w +
+                                 static_cast<size_t>(x - roi_x0);
+            const Color& s = hpass[n_idx];
             const float dist = std::abs(
                 static_cast<float>(ky) - static_cast<float>(y));
-            const float kernel_w = compute_weight(dist, 1.0f / centre_radius);
+            const float kernel_w = compute_pair_weight(
+                dist, centre_radius, centre_depth,
+                blur_radii[n_idx], depth[n_idx]);
             const float w = normalize_opaque ? kernel_w * s.a : kernel_w;
 
             sum_r += s.r * w;
@@ -282,25 +333,27 @@ HWY_EXPORT(dof_v_gather_impl);
 void dof_h_gather_simd(const Color* HWY_RESTRICT src_row,
                        Color* HWY_RESTRICT dst_row,
                        const float* HWY_RESTRICT blur_radii_row,
+                       const float* HWY_RESTRICT depth_row,
                        float max_radius,
                        bool normalize_opaque,
                        int x0, int x1, int w, int y, int fb_w,
                        int roi_x0, int roi_x1) {
     HWY_DYNAMIC_DISPATCH(dof_h_gather_impl)(
-        src_row, dst_row, blur_radii_row, max_radius, normalize_opaque,
+        src_row, dst_row, blur_radii_row, depth_row, max_radius, normalize_opaque,
         x0, x1, w, y, fb_w, roi_x0, roi_x1);
 }
 
 void dof_v_gather_simd(const Color* HWY_RESTRICT hpass,
                        Color* HWY_RESTRICT output,
                        const float* HWY_RESTRICT blur_radii,
+                       const float* HWY_RESTRICT depth,
                        float max_radius,
                        bool normalize_opaque,
                        int x0, int x1, int y, int h, int fb_w,
                        int roi_x0, int roi_x1, int roi_y0, int roi_y1,
                        int roi_w) {
     HWY_DYNAMIC_DISPATCH(dof_v_gather_impl)(
-        hpass, output, blur_radii, max_radius, normalize_opaque,
+        hpass, output, blur_radii, depth, max_radius, normalize_opaque,
         x0, x1, y, h, fb_w, roi_x0, roi_x1, roi_y0, roi_y1, roi_w);
 }
 

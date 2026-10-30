@@ -442,3 +442,23 @@ CHRONON_EFFECT(57, ColorMap, ColorMapParams, ids::ColorColorMap,
     "Color Map", EffectCategory::Color, EffectStage::Adjustment,
     EffectDomain::Color, AlphaPolicy::Preserve, DirtyPolicy::Preserve,
     BoundsPolicy::Preserve, false, true)
+
+CHRONON_EFFECT(58, LinearWipe, LinearWipeParams, ids::TransitionLinearWipe,
+    "Linear Wipe", EffectCategory::Composite, EffectStage::Adjustment,
+    EffectDomain::Composite, AlphaPolicy::MayModify, DirtyPolicy::FullFrame,
+    BoundsPolicy::Preserve, true, false)
+
+CHRONON_EFFECT(59, MinMax, MinMaxParams, ids::StylizeMinMax,
+    "Min Max", EffectCategory::Stylize, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::FullFrame,
+    BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(60, StretchWarp, StretchWarpParams, ids::DistortStretchWarp,
+    "Stretch Warp", EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::FullFrame,
+    BoundsPolicy::Preserve, false, false)
+
+CHRONON_EFFECT(61, LensFlare, LensFlareParams, ids::LightLensFlare,
+    "Lens Flare", EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify, DirtyPolicy::FullFrame,
+    BoundsPolicy::Preserve, false, false)

@@ -1,4 +1,7 @@
 #include "test_backend_registry_vulkan_effect_parity_test_support.hpp"
+#include <chronon3d/backends/software/builtin_processors.hpp>
+#include <chronon3d/backends/software/software_registry.hpp>
+#include "src/backends/software/effects/render_effects_processor.hpp"
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 TEST_CASE("Vulkan native color effects match the software processors") {
@@ -179,6 +182,72 @@ TEST_CASE("Vulkan ColorMatrix preserves the premultiplied software contract") {
             CHECK_THROWS(processor->apply(*make_source(), matrix, {}));
             CHECK_FALSE(vulkan_strict(matrix, std::nullopt).ok);
         }
+    }
+}
+
+TEST_CASE("Vulkan AE effects match software including endpoints clipping and invalid input") {
+    renderer::SoftwareRegistry registry;
+    renderer::register_builtin_processors(registry);
+    EffectScratchResources scratch;
+    // Reuse the device across the parameter matrix instead of repeatedly
+    // creating Vulkan instances and exhausting driver resources.
+    backends::vulkan::VulkanBackend backend;
+    const auto run = [&](const EffectParams& params, const std::optional<raster::BBox>& clip) {
+        return vulkan_strict(params, clip, 0, 0, Frame{}, nullptr, &backend);
+    };
+    const auto check = [&](const EffectParams& params) {
+        auto source = make_source();
+        for (const auto clip : {std::optional<raster::BBox>{},
+                               std::optional<raster::BBox>{raster::BBox{2, 1, 6, 3}}}) {
+            auto expected = *source;
+            effects::EffectExecutionContext context;
+            context.clip = clip;
+            context.effect_scratch = &scratch;
+            EffectStack stack;
+            effects::EffectInstance effect;
+            effect.params = params;
+            effect.effect_type = effects::detect_effect_type(params);
+            stack.push_back(effect);
+            renderer::apply_effect_stack(expected, stack, context, registry);
+            const auto actual = run(params, clip);
+            INFO("effect=" << static_cast<int>(effect.effect_type) << " error=" << actual.error);
+            REQUIRE(actual.ok);
+            REQUIRE(actual.pixels.size() == kW * kH * 4);
+            const auto repeat = run(params, clip);
+            REQUIRE(repeat.ok);
+            CHECK(actual.pixels == repeat.pixels);
+            for (int y = 0; y < kH; ++y) for (int x = 0; x < kW; ++x) {
+                const auto c = expected.get_pixel(x, y);
+                const float channels[]{c.r, c.g, c.b, c.a};
+                for (int channel = 0; channel < 4; ++channel)
+                    CHECK(actual.pixels[(y * kW + x) * 4 + channel] ==
+                          doctest::Approx(channels[channel]).epsilon(kTolerance));
+            }
+        }
+    };
+    SUBCASE("LinearWipe") {
+        for (float angle : {0.0f, 45.0f, 90.0f, 180.0f, 270.0f, 360.0f})
+            for (float progress : {0.0f, 0.5f, 1.0f})
+                for (float feather : {0.0f, 0.5f})
+                    check(LinearWipeParams{progress, angle, feather});
+        CHECK_FALSE(run(LinearWipeParams{.progress = NAN}, {}).ok);
+    }
+    SUBCASE("MinMax") {
+        for (auto radius : {0u, 1u, 64u}) for (bool maximum : {false, true})
+            check(MinMaxParams{radius, maximum});
+        CHECK_FALSE(run(MinMaxParams{.radius = 65}, {}).ok);
+    }
+    SUBCASE("StretchWarp") {
+        for (float angle : {0.0f, 45.0f, 90.0f, 180.0f, 270.0f})
+            for (float stretch : {0.0f, 0.5f, 1.0f})
+                check(StretchWarpParams{0.25f, stretch, angle});
+        CHECK_FALSE(run(StretchWarpParams{.stretch = INFINITY}, {}).ok);
+    }
+    SUBCASE("LensFlare") {
+        check(LensFlareParams{});
+        for (float threshold : {0.0f, 0.8f, 1.0f})
+            check(LensFlareParams{.center = {0.25f, 0.75f}, .threshold = threshold, .intensity = 2.0f});
+        CHECK_FALSE(run(LensFlareParams{.radius = 0.0f}, {}).ok);
     }
 }
 

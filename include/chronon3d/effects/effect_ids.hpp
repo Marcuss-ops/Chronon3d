@@ -23,6 +23,10 @@ inline constexpr std::string_view ColorLiftGammaGain = "color.lift_gamma_gain";
 inline constexpr std::string_view ColorMatrix = "color.matrix";
 inline constexpr std::string_view ColorPosterize = "color.posterize";
 inline constexpr std::string_view ColorColorMap  = "color.color_map";
+inline constexpr std::string_view TransitionLinearWipe = "transition.linear_wipe";
+inline constexpr std::string_view StylizeMinMax = "stylize.min_max";
+inline constexpr std::string_view DistortStretchWarp = "distort.stretch_warp";
+inline constexpr std::string_view LightLensFlare = "light.lens_flare";
 
 // ── A4: Fill, Noise, Offset ──
 inline constexpr std::string_view GenerateFill   = "generate.fill";

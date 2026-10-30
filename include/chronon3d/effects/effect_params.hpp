@@ -127,6 +127,69 @@ struct ColorMapParams {
     }
 };
 
+// Directional alpha wipe over the full layer surface. Progress 0 is hidden,
+// progress 1 is fully revealed; angle 0 reveals left-to-right and 90 top-to-
+// bottom. Feather is the transition width as a fraction of the projected
+// frame span. RGB stays premultiplied and is scaled with alpha.
+struct LinearWipeParams {
+    float progress{1.0f};
+    float angle_degrees{0.0f};
+    float feather{0.0f};
+    void validate() const {
+        if (!std::isfinite(progress) || progress < 0.0f || progress > 1.0f ||
+            !std::isfinite(angle_degrees) || angle_degrees < 0.0f || angle_degrees > 360.0f ||
+            !std::isfinite(feather) || feather < 0.0f || feather > 1.0f)
+            throw std::invalid_argument("LinearWipe parameters are outside their supported ranges");
+    }
+};
+
+// Square-neighborhood component morphology on premultiplied RGBA, with
+// transparent pixels beyond the layer. Maximum dilates; minimum erodes.
+struct MinMaxParams {
+    std::uint32_t radius{0}; // [0, 64] pixels; zero is exact identity
+    bool maximum{true};
+    void validate() const {
+        if (radius > 64)
+            throw std::invalid_argument("MinMax radius must be in [0, 64]");
+    }
+};
+
+// Directional pixel stretch (CC Scale Wipe-style), not a wave/fold alias.
+// Pixels beyond position sample the boundary; stretch controls the blend.
+// Direction is in screen pixels (0 right, 90 down), independent of aspect.
+struct StretchWarpParams {
+    float position{0.5f};
+    float stretch{0.0f};
+    float angle_degrees{0.0f};
+    void validate() const {
+        if (!std::isfinite(position) || position < 0.0f || position > 1.0f ||
+            !std::isfinite(stretch) || stretch < 0.0f || stretch > 1.0f ||
+            !std::isfinite(angle_degrees) || angle_degrees < 0.0f || angle_degrees > 360.0f)
+            throw std::invalid_argument("StretchWarp parameters are outside their supported ranges");
+    }
+};
+
+// Highlight-driven lens artifacts around a normalized optical center.
+// Thresholded premultiplied source energy drives a halo, mirrored ghost,
+// and horizontal streak. Generated light is source-over with matching alpha.
+struct LensFlareParams {
+    Vec2 center{0.5f, 0.5f};
+    float threshold{0.8f};
+    float intensity{0.0f}; // [0, 8]; zero is exact identity
+    float radius{0.15f}; // [0.001, 1], fraction of min(width, height)
+    float halo{0.5f};
+    float ghost{0.5f};
+    float streak{0.5f};
+    void validate() const {
+        for (float value : {center.x, center.y, threshold, halo, ghost, streak})
+            if (!std::isfinite(value) || value < 0.0f || value > 1.0f)
+                throw std::invalid_argument("LensFlare normalized parameters must be finite in [0, 1]");
+        if (!std::isfinite(intensity) || intensity < 0.0f || intensity > 8.0f ||
+            !std::isfinite(radius) || radius < 0.001f || radius > 1.0f)
+            throw std::invalid_argument("LensFlare intensity or radius is outside its supported range");
+    }
+};
+
 // ── Adjustment-layer color correction params (AE-5) ─────────────────────
 struct SaturationParams    { f32 value{1.0f}; };  // 1.0 = unchanged, 0 = greyscale
 struct HueRotateParams     { f32 degrees{0.0f}; }; // 0 = unchanged, 180 = invert hue
@@ -590,7 +653,7 @@ using EffectParams = std::variant<
     SharpenParams, RoughenEdgesParams, TurbulentDisplaceParams, WaveWarpParams, RippleParams, DisplacementMapParams,
     ChromaticAberrationParams, VignetteEffectParams, HalftoneParams,
     LensDistortionParams, LuminanceResponseParams, FoldWarpParams, CreaseShadingParams,
-    LiftGammaGainParams, ColorMatrixParams, PosterizeParams, ColorMapParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
+    LiftGammaGainParams, ColorMatrixParams, PosterizeParams, ColorMapParams, LinearWipeParams, MinMaxParams, StretchWarpParams, LensFlareParams, ScanlinesParams, RetroTvParams, HalationParams, AnamorphicStreakParams
 >;
 
 } // namespace chronon3d

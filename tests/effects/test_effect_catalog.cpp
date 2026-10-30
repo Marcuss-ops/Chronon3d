@@ -18,7 +18,8 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     EffectCatalog catalog;
 
     const auto available_ids = catalog.available();
-    REQUIRE(available_ids.size() == 57);
+    // Effect IDs start at 1; zero is the non-catalog `Unknown` sentinel.
+    REQUIRE(available_ids.size() == static_cast<std::size_t>(kEffectTypeMaxValue));
     CHECK(catalog.contains(effect_ids::BlurGaussian));
     CHECK(catalog.contains(effect_ids::ColorBrightness));
     CHECK(catalog.contains(effect_ids::ColorContrast));
@@ -29,6 +30,11 @@ TEST_CASE("EffectCatalog registers built-in effects with stable ids") {
     CHECK(catalog.contains(effect_ids::ColorMatrix));
     CHECK(catalog.contains(effect_ids::ColorPosterize));
     CHECK(catalog.contains(effect_ids::ColorColorMap));
+    CHECK(catalog.contains(effect_ids::TransitionLinearWipe));
+    CHECK(effect_type_for<LinearWipeParams>::value == EffectType::LinearWipe);
+    CHECK(EffectType::LinearWipe == static_cast<EffectType>(58));
+    CHECK((std::is_same_v<effect_params_for<EffectType::LinearWipe>::type,
+                          LinearWipeParams>));
     CHECK(effect_type_for<ColorMapParams>::value == EffectType::ColorMap);
     CHECK((std::is_same_v<effect_params_for<EffectType::ColorMap>::type,
                           ColorMapParams>));
@@ -99,6 +105,42 @@ TEST_CASE("Posterize catalog parameters validate and expose bounded animation") 
     CHECK(set_animatable_effect_param(params, effect_ids::ColorPosterize, "levels", 12.0f));
     CHECK(params.levels == 12);
     CHECK(get_animatable_effect_param(params, effect_ids::ColorPosterize, "levels") == 12.0f);
+}
+
+TEST_CASE("LinearWipe catalog parameters validate and expose bounded animation") {
+    LinearWipeParams params;
+    params.validate();
+    CHECK(find_animatable_effect_param(effect_ids::TransitionLinearWipe, "progress") != nullptr);
+    CHECK(find_animatable_effect_param(effect_ids::TransitionLinearWipe, "angle_degrees") != nullptr);
+    CHECK(find_animatable_effect_param(effect_ids::TransitionLinearWipe, "feather") != nullptr);
+    CHECK(set_animatable_effect_param(params, effect_ids::TransitionLinearWipe, "progress", 0.25f));
+    CHECK(get_animatable_effect_param(params, effect_ids::TransitionLinearWipe, "progress") == 0.25f);
+    CHECK_THROWS_AS((LinearWipeParams{.progress = 1.1f}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((LinearWipeParams{.angle_degrees = 361.0f}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((LinearWipeParams{.feather = -0.1f}).validate(), std::invalid_argument);
+}
+
+TEST_CASE("AE missing effects expose canonical bounded parameter contracts") {
+    EffectCatalog catalog;
+    for (const auto id : {effect_ids::StylizeMinMax, effect_ids::DistortStretchWarp,
+                          effect_ids::LightLensFlare}) {
+        CHECK(catalog.contains(id));
+        auto params=make_default_animatable_effect_params(id);
+        REQUIRE(params);
+        for (const auto& row : kAnimatableEffectParams) {
+            if (row.effect_id != id) continue;
+            CHECK(set_animatable_effect_param(*params,id,row.param,row.minimum));
+            CHECK(get_animatable_effect_param(*params,id,row.param) == row.minimum);
+            CHECK(set_animatable_effect_param(*params,id,row.param,row.maximum));
+            CHECK(get_animatable_effect_param(*params,id,row.param) == row.maximum);
+        }
+    }
+    CHECK_THROWS_AS((MinMaxParams{.radius=65}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((StretchWarpParams{.stretch=NAN}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((StretchWarpParams{.position=-0.1f}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((LensFlareParams{.intensity=9}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((LensFlareParams{.radius=0}).validate(), std::invalid_argument);
+    CHECK_THROWS_AS((LensFlareParams{.ghost=INFINITY}).validate(), std::invalid_argument);
 }
 
 TEST_CASE("ColorMatrix catalog parameters preserve row-major mapping and bounded animation") {

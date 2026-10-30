@@ -442,6 +442,50 @@ TEST_CASE("PerPixelDOF: defocused foreground spills into focused background") {
     CHECK(fb.get_pixel(29, 16).r > 0.0f);
 }
 
+TEST_CASE("PerPixelDOF: focused foreground cutout does not bleed halo into defocused background or suffer background ghosting") {
+    const i32 w = 64, h = 48;
+    Framebuffer fb(w, h);
+    // Opaque blue background everywhere
+    fb.clear(Color{0.0f, 0.0f, 1.0f, 1.0f});
+    fb.set_opaque(true);
+
+    // Sharp red subject cutout in the center (x=24..40, y=16..32)
+    for (i32 y = 16; y < 32; ++y) {
+        for (i32 x = 24; x < 40; ++x) {
+            fb.set_pixel(x, y, Color{1.0f, 0.0f, 0.0f, 1.0f});
+        }
+    }
+
+    // Background is far at depth 1500 (defocused, radius=12); cutout is in focus at depth 900.
+    auto depth = make_depth_buffer(w, h, 1500.0f);
+    for (i32 y = 16; y < 32; ++y) {
+        for (i32 x = 24; x < 40; ++x) {
+            depth[static_cast<size_t>(y) * w + x] = 900.0f;
+        }
+    }
+    DepthOfFieldSettings dof{
+        .enabled = true,
+        .focus_z = 900.0f,
+        .aperture = 0.02f,
+        .max_blur = 12.0f};
+
+    renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens);
+
+    // 1. Cutout edge pixels must stay 100% sharp red (no background blue ghosting over subject)
+    const Color cutout_edge = fb.get_pixel(24, 24);
+    CHECK(cutout_edge.r == doctest::Approx(1.0f));
+    CHECK(cutout_edge.b == doctest::Approx(0.0f));
+
+    // 2. Background pixels immediately adjacent to the cutout must stay 100% blue
+    //    (no red halo bleeding from the in-focus subject into the defocused background)
+    const Color bg_adjacent_left = fb.get_pixel(22, 24);
+    const Color bg_adjacent_right = fb.get_pixel(41, 24);
+    CHECK(bg_adjacent_left.r == doctest::Approx(0.0f));
+    CHECK(bg_adjacent_left.b == doctest::Approx(1.0f));
+    CHECK(bg_adjacent_right.r == doctest::Approx(0.0f));
+    CHECK(bg_adjacent_right.b == doctest::Approx(1.0f));
+}
+
 TEST_CASE("PerPixelDOF: focus plane pixels remain sharp while defocused blur") {
     const i32 w = 64, h = 32;
     Framebuffer fb(w, h);

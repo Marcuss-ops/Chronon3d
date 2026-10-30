@@ -11,6 +11,7 @@
 #define CHRONONPLUGIN_EFFECT_PRESETS_AVAILABLE 0
 #endif
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
 #include "../../src/render_plan/render_plan_compiler_detail.hpp"
 #include <array>
 #include <cmath>
@@ -1021,6 +1022,34 @@ TEST_CASE("render plan compiles and samples a catalog-addressed effect track") {
     REQUIRE(amount_track.keyframes.size() == 2);
     CHECK(amount_track.keyframes[0].value == doctest::Approx(0.0f));
     CHECK(amount_track.keyframes[1].value == doctest::Approx(1.0f));
+}
+
+TEST_CASE("AE parity catalog effects compile to their canonical parameter types") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+    for (const auto& [id,param,value,type] : std::array{
+            std::tuple{"transition.linear_wipe","progress",0.5f,effects::EffectType::LinearWipe},
+            std::tuple{"stylize.min_max","radius",2.0f,effects::EffectType::MinMax},
+            std::tuple{"distort.stretch_warp","stretch",0.5f,effects::EffectType::StretchWarp},
+            std::tuple{"light.lens_flare","intensity",1.0f,effects::EffectType::LensFlare}}) {
+        auto source=render_plan_test::base_plan({render_plan_test::shape_layer({{"type","rect"}})});
+        source["layers"][0]["effects"]=nlohmann::json::array({{
+            {"type","catalog"},{"effect_id",id},
+            {"params",nlohmann::json::array({{{"param",param},{"value",value}}})}}});
+        const auto decoded=decode_render_plan(source);
+        if (!decoded) MESSAGE(decoded.error().message);
+        REQUIRE(decoded);
+        assets::AssetResolver resolver;
+        const auto prepared=compile_render_plan(*decoded,resolver);
+        if (!prepared) MESSAGE(prepared.error().message);
+        REQUIRE(prepared);
+        const auto evaluated=evaluate(prepared->compiled_composition,{},Frame{0});
+        REQUIRE(evaluated);
+        REQUIRE(evaluated->scene.layers()[0].effects().size()==1);
+        const auto& effect=evaluated->scene.layers()[0].effects()[0];
+        CHECK(effect.effect_type==type);
+        CHECK(effects::get_animatable_effect_param(effect.params,id,param)==value);
+    }
 }
 
 TEST_CASE("render plan samples inline data-feed values at the requested frame") {

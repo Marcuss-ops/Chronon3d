@@ -2,6 +2,8 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <algorithm>
+#include <cmath>
 
 namespace chronon3d {
 
@@ -26,8 +28,19 @@ inline Quat camera_rotation_quat(const Vec3& euler_degrees) {
 }
 
 inline Vec3 camera_rotation_euler(const Quat& rotation) {
-    const Vec3 radians = glm::eulerAngles(rotation);
-    return glm::degrees(radians);
+    const Mat4 m = glm::toMat4(glm::normalize(rotation));
+    const float sinY = std::clamp(-m[0][2], -1.0f, 1.0f);
+    const float y = std::asin(sinY);
+    const float cosY = std::cos(y);
+    float x = 0.0f;
+    float z = 0.0f;
+    if (std::abs(cosY) > 1e-6f) {
+        x = std::atan2(m[1][2], m[2][2]);
+        z = std::atan2(m[0][1], m[0][0]);
+    } else {
+        x = std::atan2(sinY * m[1][0], m[1][1]);
+    }
+    return glm::degrees(Vec3{x, y, z});
 }
 
 inline Mat4 camera_view_matrix(const Vec3& position, const Quat& rotation) {

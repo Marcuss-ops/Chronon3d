@@ -139,6 +139,31 @@ TEST_CASE("V3 effect parameter tracks validate catalog parameters and affect fin
     CHECK_FALSE(chronon3d::render_plan::decode_render_plan(invalid_catalog_param));
 }
 
+TEST_CASE("AE parity effects decode through the canonical catalog and fingerprint parameters") {
+    for (const auto& [id,param,value] : std::array{
+            std::tuple{"transition.linear_wipe", "progress", 0.5f},
+            std::tuple{"stylize.min_max", "radius", 2.0f},
+            std::tuple{"distort.stretch_warp", "stretch", 0.5f},
+            std::tuple{"light.lens_flare", "intensity", 1.0f}}) {
+        auto source=render_plan_test::base_plan(nlohmann::json::array({
+            render_plan_test::shape_layer({{"type","rect"}})}));
+        source["layers"][0]["effects"]=nlohmann::json::array({{
+            {"type","catalog"},{"effect_id",id},
+            {"params",nlohmann::json::array({{{"param",param},{"value",value}}})}}});
+        const auto decoded=chronon3d::render_plan::decode_render_plan(source);
+        if (!decoded) MESSAGE(decoded.error().message);
+        REQUIRE(decoded);
+        CHECK(decoded->layers[0].effects[0].canonical_effect_id == id);
+        auto changed=source;
+        changed["layers"][0]["effects"][0]["params"][0]["value"]=value+0.25f;
+        const auto other=chronon3d::render_plan::decode_render_plan(changed);
+        REQUIRE(other);
+        CHECK(other->content_fingerprint != decoded->content_fingerprint);
+        source["layers"][0]["effects"][0]["params"][0]["value"]=-1.0f;
+        CHECK_FALSE(chronon3d::render_plan::decode_render_plan(source));
+    }
+}
+
 TEST_CASE("effect parameter setters round animated integer parameters deterministically") {
     chronon3d::MosaicParams mosaic;
     CHECK(chronon3d::effects::set_animatable_effect_param(

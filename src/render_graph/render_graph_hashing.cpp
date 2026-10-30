@@ -521,6 +521,37 @@ private:
                 seed = hash_combine(seed, hash_value(p->levels));
             break;
         }
+        case LinearWipe: {
+            if (auto* p = std::get_if<LinearWipeParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->progress));
+                seed = hash_combine(seed, hash_value(p->angle_degrees));
+                seed = hash_combine(seed, hash_value(p->feather));
+            }
+            break;
+        }
+        case MinMax: {
+            if (auto* p = std::get_if<MinMaxParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->radius));
+                seed = hash_combine(seed, hash_value(p->maximum));
+            }
+            break;
+        }
+        case StretchWarp: {
+            if (auto* p = std::get_if<StretchWarpParams>(&e.params)) {
+                seed = hash_combine(seed, hash_value(p->position));
+                seed = hash_combine(seed, hash_value(p->stretch));
+                seed = hash_combine(seed, hash_value(p->angle_degrees));
+            }
+            break;
+        }
+        case LensFlare: {
+            if (auto* p = std::get_if<LensFlareParams>(&e.params)) {
+                seed = hash_combine(seed, hash_vec2(p->center));
+                for (float value : {p->threshold, p->intensity, p->radius, p->halo, p->ghost, p->streak})
+                    seed = hash_combine(seed, hash_value(value));
+            }
+            break;
+        }
         case ColorMap: {
             if (auto* p = std::get_if<ColorMapParams>(&e.params)) {
                 for (const float value : p->stops)

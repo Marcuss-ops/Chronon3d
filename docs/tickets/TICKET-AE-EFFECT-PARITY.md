@@ -1,12 +1,26 @@
 # TICKET-AE-EFFECT-PARITY — Effetti AE nativi mancanti (famiglia P2)
 
 ## Stato
-PARTIAL (2026-10-28). Provenienza: gap analysis "AE + Premiere parity"
+PARTIAL (updated 2026-10-29). Provenienza: gap analysis "AE + Premiere parity"
 (MotionNations 30 video). Stato registrato in `docs/stato/chronon3d.md` §13.
+
+`color.posterize` and `color.color_map` remain implemented as recorded below.
+The existing uncommitted implementations of `transition.linear_wipe`,
+`stylize.min_max`, `distort.stretch_warp`, and `light.lens_flare` now pass local
+software/catalog/hash/decoder/compiler verification (2026-10-29). All four
+now have strict-native Vulkan routes and pass the focused software/Vulkan
+pixel matrix (16,108 assertions; checkpoint below). This closes the local
+four-effect parity implementation, not full certification: CI same-SHA remains
+NOT RUN.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] **Implementare i 4 effetti rimanenti** (`stylize.min_max` → `transition.linear_wipe` → `distort.stretch_warp` → `light.lens_flare`) — logica: ingresso canonico della famiglia `TICKET-POSTPROCESS-FX` per ciascuno (riga X-macro → params struct → processor software → routing Vulkan strict-native o fusibile → decoder + coverage). Dove: `include/chronon3d/effects/effect_catalog.def`, `effect_ids.hpp`, `src/backends/software/processors/`, `src/render_plan/render_plan_decoder_effects.cpp` (`kEffectDecoders`), `src/render_plan/effect_kind_coverage.hpp`, test in `tests/effects/`. Gate: per effetto, mapping/range/identità/determinismo/fail-closed GPU verdi.
+- [x] `stylize.min_max`: contratto bounded, morfologia RGBA separabile software, mapping/range/identità/determinismo e GPU capability fail-closed verificati localmente.
+- [x] `transition.linear_wipe`: software, feather/angolo/clip/endpoint, animazione, decoder/compiler e hash verificati localmente; GPU capability fail-closed verificata.
+- [x] `distort.stretch_warp`: pixel stretching direzionale tramite Sampler2D canonico (non un alias WaveWarp/FoldWarp), catalogo/decoder/compiler e test software verificati; GPU capability fail-closed verificata.
+- [x] `light.lens_flare`: soglia/halo/ghost/streak bounded, catalogo/decoder/compiler, alpha premoltiplicata e determinismo software verificati; GPU capability fail-closed verificata.
+- [x] Implementare e verificare localmente la parità Vulkan dei quattro effetti sopra: route NativeZeroReadback, confronto pixel e input invalidi PASS. Certificazione completa e CI same-SHA restano separate.
+- [ ] Per ogni effetto completato: verificare mapping, range, identità, determinismo, alpha/dirty bounds e comportamento GPU fail-closed o nativo; CI same-SHA resta gate separato.
 - [x] `color.posterize` (valore catalogo 56): fusibile e quantizza RGB straight in 2–256 livelli, preservando alpha; routing Vulkan nativo e opcode PixelProgram 13 aggiunti (2026-10-28).
 - [x] `color.color_map` (valore catalogo 57): cinque stop RGB equispaziati sulla luminanza più `amount` 0–1 animabile, alpha preservata; processor software, stage fuso, mode Vulkan nativo 12 e test CPU/software (2026-10-28).
 - [x] Eliminato lo scostamento `kEffectTypeCount`: capacità derivata dal massimo valore X-macro del catalogo (55) + regressione sullo slot `LottieTritone`; build `chronon3d_dev_fast` e test runtime mirato verdi (2026-10-28).
@@ -100,6 +114,56 @@ i test fail-closed GPU richiedono l'host GPU NVIDIA.
 - [ ] Nessuna regressione sulle fingerprint dei programmi esistenti (le
       invarianti di fusione restano stabili).
 - [ ] CTest verde.
+
+## Verifica locale del lavoro già iniziato — 2026-10-29
+
+Base `d37725c97b1c47c133d62c6f5d6a4cd8fdca2471`, worktree dirty;
+nessun commit/push o certificazione same-SHA. Preset esistente
+`build/chronon/linux-video-test`: Debug, Vulkan ON, SVG OFF, Linux x86_64.
+I sorgenti dei quattro effetti erano già modificati all'ingresso di questa
+sessione; questo checkpoint ne verifica lo stato, non ne attribuisce una nuova
+implementazione.
+
+- Build: `cmake --build build/chronon/linux-video-test --target chronon3d_effects_tests chronon3d_render_graph_tests chronon3d_c_abi_tests -j16` — PASS, exit 0. Log locale: `.tmp/ae-parity-closeout-build.log`.
+- Binary freshness verificata prima dei test. `ctest --test-dir build/chronon/linux-video-test -R '^chronon3d_(effects|render_graph)_tests$' --output-on-failure` — PASS, 2/2 suite, 91.79 s. Render graph: 439/439 casi, 19,474 assertion; effects: 304/304 casi, 5,540,351 assertion. Log locale: `.tmp/ae-parity-closeout-tests.log`.
+- `build/chronon/linux-video-test/tests/chronon3d_c_abi_tests --test-case='AE parity*' --no-skip --no-colors` — PASS, 2/2 casi selezionati, 44/44 assertion. Copre decode, range, content fingerprint e compilazione ai tipi canonici; NON è un run completo della suite C ABI né una prova prepared-render pixel. Log: `.tmp/ae-parity-closeout-cabi.log`.
+- `python3 tools/check_architecture.py` — PASS, 214/214 regole; log `.tmp/ae-parity-architecture.log`.
+- Catalogo corrente: 61 effetti, 51 route native e 10 Unsupported esplicite. I test esistenti di fingerprint/fusione della suite passano senza aggiornamento dei golden.
+
+I log sono artefatti locali gitignored, non certificati pubblicati. Restano
+aperti parità GPU dei quattro effetti, golden di accettazione e CI same-SHA.
+
+## Parità Vulkan dei quattro effetti — 2026-10-29
+
+Checkpoint successivo alle verifiche software sopra (che restano storiche).
+LinearWipe usa il kernel color-transform con reveal premoltiplicato;
+MinMax due pass separabili RGBA con scratch nativo e bordo trasparente;
+StretchWarp campionamento bilineare clamp; LensFlare threshold/halo/ghost/streak
+con source-over premoltiplicato. Riutilizzati lowering e dispatch canonici;
+nessun fallback CPU. Capability census: 55 route native e 6 Unsupported.
+
+- Build `cmake --build build/chronon/linux-video-test --target chronon3d_backend_registry_tests chronon3d_render_graph_tests chronon3d_cli -j16` PASS.
+- Ricompilazione finale backend registry con `-j16` PASS (`.tmp/ae-native-rebuild.log`).
+- Con `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json`, binario backend
+  registry fresco, `--test-case='Vulkan AE effects*' --no-skip --no-colors`:
+  **1 caso / 16,108 assertion PASS**, tutte le quattro subcase eseguite.
+  Log `.tmp/ae-native-parity-test.log`, exit 0. Host NVIDIA RTX A4000.
+- Matrice: LinearWipe angoli 0/45/90/180/270/360, progress 0/0.5/1,
+  feather 0/0.5; MinMax radius 0/1/64 e min/max; StretchWarp cinque angoli
+  e stretch 0/0.5/1; LensFlare default e soglie 0/0.8/1.
+  Ogni combinazione confronta tutti i canali RGBA con il processor software
+  registrato, full frame e clip, quindi una replica byte-identica; NaN/Inf
+  e range invalidi falliscono strict-native.
+- Il primo tentativo LinearWipe ha fallito `vkCreateInstance` (-9) dopo 1,716
+  assertion verdi: il test creava un device per ogni campione. Il test finale
+  riusa un backend per subcase senza eliminare casi o indebolire assertion.
+- Test graph capability/hash/lifetime/dispatch/DOF mirati: 9 casi e 362
+  assertion PASS (`.tmp/ticket-graph-focused.log`).
+
+Worktree dirty su base `d37725c97`; log locali gitignored, nessun commit/push.
+Nessun run completo backend registry dopo questa modifica, golden di produzione
+né CI same-SHA: il ticket resta PARTIAL per questi gate, non per route Vulkan
+mancanti. I riferimenti Unsupported nelle verifiche precedenti sono storici.
 
 ## Dipendenze
 

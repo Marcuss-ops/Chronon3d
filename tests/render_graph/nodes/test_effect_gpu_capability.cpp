@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/render_graph/effect_gpu_capability.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/effects/effect_param_animation.hpp>
 
 #include <set>
 
@@ -104,6 +106,39 @@ TEST_CASE("strict GPU effect capability rows are explicit and fail closed") {
     }
 
     CHECK(graph::gpu_effect_capability(EffectType::Unknown) == nullptr);
+
+    for (const auto type : {EffectType::LinearWipe, EffectType::MinMax,
+                            EffectType::StretchWarp, EffectType::LensFlare}) {
+        const auto* row = graph::gpu_effect_capability(type);
+        REQUIRE(row != nullptr);
+        CHECK(row->route == GpuEffectRoute::NativeZeroReadback);
+        CHECK_FALSE(row->diagnostic.empty());
+    }
+}
+
+TEST_CASE("AE effect graph hashes include every authored scalar parameter") {
+    using namespace effects;
+    for (const auto id : {ids::TransitionLinearWipe, ids::StylizeMinMax,
+                          ids::DistortStretchWarp, ids::LightLensFlare}) {
+        const auto defaults=make_default_animatable_effect_params(id);
+        REQUIRE(defaults);
+        const auto hash=[](const EffectParams& params) {
+            EffectStack stack;
+            std::visit([&](const auto& p) {
+                using T=std::decay_t<decltype(p)>;
+                if constexpr (!std::is_same_v<T,std::monostate>) stack.emplace_back(p);
+            },params);
+            return graph::hash_effect_stack(stack);
+        };
+        for (const auto& row : kAnimatableEffectParams) {
+            if (row.effect_id != id) continue;
+            auto low=*defaults, high=*defaults;
+            REQUIRE(set_animatable_effect_param(low,id,row.param,row.minimum));
+            REQUIRE(set_animatable_effect_param(high,id,row.param,row.maximum));
+            CHECK(hash(low) != hash(high));
+            CHECK(hash(low) == hash(low));
+        }
+    }
 }
 
 TEST_CASE("strict GPU effect capability census covers every catalog effect once") {

@@ -418,7 +418,8 @@ CameraTrackEvaluator make_camera_evaluator(const RenderPlan& plan) {
         const float t = static_cast<float>((frame - std::prev(upper)->first) / span);
         auto camera = left;
         camera.position = glm::mix(left.position, right.position, t);
-        camera.rotation = glm::mix(left.rotation, right.rotation, t);
+        camera.rotation = math::camera_rotation_euler(
+            glm::slerp(left.rotation_quaternion(), right.rotation_quaternion(), t));
         camera.fov_deg = glm::mix(left.fov_deg, right.fov_deg, t);
         camera.zoom = glm::mix(left.zoom, right.zoom, t);
         camera.lens_shift = glm::mix(left.lens_shift, right.lens_shift, t);
