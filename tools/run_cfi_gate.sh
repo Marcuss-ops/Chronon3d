@@ -14,7 +14,7 @@ command -v clang++ >/dev/null 2>&1 || {
 }
 
 cmake --preset linux-cfi
-cmake --build --preset linux-cfi -j12
+cmake --build --preset linux-cfi -j4
 
 compile_db="build/chronon/linux-cfi/compile_commands.json"
 [[ -f "$compile_db" ]] || {

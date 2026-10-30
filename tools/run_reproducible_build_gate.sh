@@ -49,7 +49,7 @@ configure_and_build() {
         cmake --preset "$preset" -B "$build_dir" --fresh "${cache_args[@]}"
     echo "[repro] build: $target in $build_dir"
     env SOURCE_DATE_EPOCH="$source_date_epoch" \
-        cmake --build "$build_dir" --target "$target" -j12
+        cmake --build "$build_dir" --target "$target" -j4
 }
 
 stage_artifact() {

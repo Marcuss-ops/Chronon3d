@@ -11,6 +11,9 @@ env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+  # Hosted runners have 4 vCPUs; capping the build keeps peak memory bounded
+  # (the uncapped Linux Debug lane lost the runner to an OOM kill).
+  CMAKE_BUILD_PARALLEL_LEVEL: "4"
   CHRONON3D_UPDATE_GOLDENS: ${{ secrets.CHRONON3D_UPDATE_GOLDENS || '' }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

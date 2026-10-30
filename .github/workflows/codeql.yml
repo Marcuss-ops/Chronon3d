@@ -13,6 +13,7 @@ env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+  CMAKE_BUILD_PARALLEL_LEVEL: "4"
 
 jobs:
   analyze:
@@ -53,7 +54,7 @@ jobs:
         run: cmake --preset linux-ci-lean-gate
 
       - name: Build
-        run: cmake --build --preset linux-ci-lean-gate --target chronon3d_cli -j12
+        run: cmake --build --preset linux-ci-lean-gate --target chronon3d_cli -j4
 
       - uses: github/codeql-action/analyze@v4
         with:

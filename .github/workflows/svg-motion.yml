@@ -11,12 +11,13 @@ env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+  CMAKE_BUILD_PARALLEL_LEVEL: "4"
 
 jobs:
   svg-motion-pixel-truth:
     name: Same-SHA SVG import and encoded-frame gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,7 +87,7 @@ jobs:
   svg-motion-heavy-gates:
     name: Heavy SVG pixel-truth gates (animations, isolation, showcase, determinism)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 90
     needs: svg-motion-pixel-truth
     steps:
       - uses: actions/checkout@v4
