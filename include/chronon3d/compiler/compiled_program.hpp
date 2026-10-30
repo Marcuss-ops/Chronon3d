@@ -13,6 +13,7 @@
 #include <optional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::compiler {
@@ -68,6 +69,8 @@ struct ProgramMetadata {
     RenderBudget render_budget{};
     std::optional<render_plan::LightingRigPlan> lighting_rig;
     std::optional<Camera2_5D> camera_2_5d;
+    // Pre-resolved immutable camera samples, in strictly increasing frame order.
+    std::vector<std::pair<double, Camera2_5D>> camera_samples;
 };
 
 struct ProgramFingerprint {

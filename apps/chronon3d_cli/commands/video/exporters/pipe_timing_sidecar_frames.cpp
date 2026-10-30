@@ -7,7 +7,10 @@
 
 #include "pipe_timing_sidecar_detail.hpp"
 
+#include <chronon3d/runtime/gpu_command_plan.hpp>
+
 #include <algorithm>
+#include <utility>
 
 namespace chronon3d::cli::pipe_timing_detail {
 
@@ -126,6 +129,16 @@ nlohmann::json build_text_section(const FrameTelemetry& f) {
 }
 
 nlohmann::json build_gpu_observed_section(const FrameTelemetry& f) {
+    nlohmann::json pass_breakdown = nlohmann::json::object();
+    nlohmann::json pass_counts = nlohmann::json::object();
+    for (std::size_t i = 0;
+         i < chronon3d::telemetry::kFrameGpuPassKindCount; ++i) {
+        if (f.gpu_timing.pass_counts[i] == 0) continue;
+        const auto* name = chronon3d::runtime::gpu_pass_kind_name(
+            static_cast<chronon3d::runtime::GpuPassKind>(i));
+        pass_breakdown[name] = f.gpu_timing.pass_execute_ms[i];
+        pass_counts[name] = f.gpu_timing.pass_counts[i];
+    }
     return nlohmann::json{
         {"timestamp_execute_ms", f.gpu_timing.timestamp_execute_ms},
         {"submit_cpu_ms", f.gpu_timing.submit_cpu_ms},
@@ -139,6 +152,8 @@ nlohmann::json build_gpu_observed_section(const FrameTelemetry& f) {
         {"queue_wait_ms", f.gpu_timing.queue_wait_ms},
         {"device_start_trace_ns", f.gpu_timing.device_start_trace_ns},
         {"device_end_trace_ns", f.gpu_timing.device_end_trace_ns},
+        {"pass_breakdown_ms", std::move(pass_breakdown)},
+        {"pass_counts", std::move(pass_counts)},
         {"attribution", f.gpu_timing.timestamp_attributed
             ? "originating_frame_batch_slot_completion"
             : "observed_at_frame_batch_slot_completion"}

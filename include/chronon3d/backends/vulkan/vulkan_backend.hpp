@@ -101,6 +101,11 @@ struct VulkanBackendStats {
     // the device exposes no timestamp support). This is the GPU execution
     // time, distinct from the CPU-side submit/wait metrics above.
     std::uint64_t gpu_execute_us{0};
+    // Per-pass-kind GPU execution time (microseconds) and completed pass
+    // count, indexed by runtime::GpuPassKind. Populated from the compiled
+    // per-pass timestamp queries; value 10 is reserved and stays zero.
+    std::array<std::uint64_t, runtime::kGpuPassKindCount> gpu_pass_us{};
+    std::array<std::uint64_t, runtime::kGpuPassKindCount> gpu_pass_count{};
     // Detailed native Vulkan execution metrics
     std::uint64_t vk_cmd_dispatch_count{0};
     std::uint64_t vk_cmd_draw_count{0};
@@ -141,6 +146,10 @@ struct VulkanFrameGpuTiming {
     double queue_wait_ms{0.0};
     std::int64_t device_start_trace_ns{0};
     std::int64_t device_end_trace_ns{0};
+    // Exact device-elapsed time per compiled pass kind. A frame with no
+    // compiled per-pass queries leaves these zero (never fabricated).
+    std::array<double, runtime::kGpuPassKindCount> pass_execute_ms{};
+    std::array<std::uint32_t, runtime::kGpuPassKindCount> pass_counts{};
 };
 
 /// Hardware descriptors returned by the backend-owned physical-device

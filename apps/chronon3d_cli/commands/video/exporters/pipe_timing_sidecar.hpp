@@ -161,6 +161,11 @@ struct GpuMetrics {
     std::optional<std::uint64_t> native_surface_reuse_count;
     // Common backend upload accounting, keyed by gpu_upload_<producer>_<metric>.
     std::map<std::string, std::uint64_t> upload_breakdown;
+    // Per-pass-kind GPU time (ms) and executed count, aggregated from the
+    // Vulkan compiled-pass timestamp queries. Empty when the backend exposed
+    // no timestamp queries for this job.
+    std::map<std::string, double> pass_breakdown_ms;
+    std::map<std::string, std::uint64_t> pass_counts;
     std::optional<std::uint64_t> gpu_submissions;
     std::optional<std::uint64_t> passes_executed;
     std::optional<std::uint64_t> gpu_nodes;

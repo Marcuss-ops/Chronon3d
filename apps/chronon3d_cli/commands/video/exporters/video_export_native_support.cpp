@@ -8,6 +8,7 @@
 
 #include <cstdlib>
 #include <cstdint>
+#include <string_view>
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
 #include <cuda.h>
@@ -167,6 +168,22 @@ void project_backend_gpu_counters(
             timings.gpu.native_surface_empty_create_count = value;
         } else if (name == "native_surface_reuse_count") {
             timings.gpu.native_surface_reuse_count = value;
+        } else if (name.rfind("gpu_pass_", 0) == 0) {
+            const auto stem = name.substr(9);
+            constexpr auto us_suffix = std::string_view("_us");
+            constexpr auto count_suffix = std::string_view("_count");
+            if (stem.size() > us_suffix.size() &&
+                stem.compare(stem.size() - us_suffix.size(), us_suffix.size(),
+                             us_suffix) == 0) {
+                timings.gpu.pass_breakdown_ms[
+                    stem.substr(0, stem.size() - us_suffix.size())] =
+                    static_cast<double>(value) / 1000.0;
+            } else if (stem.size() > count_suffix.size() &&
+                       stem.compare(stem.size() - count_suffix.size(),
+                                    count_suffix.size(), count_suffix) == 0) {
+                timings.gpu.pass_counts[
+                    stem.substr(0, stem.size() - count_suffix.size())] = value;
+            }
         } else if (name.rfind("gpu_upload_", 0) == 0) {
             timings.gpu.upload_breakdown[name] = value;
         } else if (name == "gpu_submissions") {

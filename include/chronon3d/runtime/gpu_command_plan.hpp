@@ -15,6 +15,7 @@
 #include <chronon3d/render_graph/pipeline/execution_decision.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -47,6 +48,31 @@ enum class GpuPassKind : std::uint8_t {
     YuvOverlay = 11,
     Bloom = 12,
 };
+
+/// Number of slots in a per-kind pass breakdown. Value 10 stays reserved, so
+/// the array is intentionally larger than the live enum population.
+inline constexpr std::size_t kGpuPassKindCount = 13;
+
+/// Stable lower-case name used by telemetry/sidecar keys. Never reuse a
+/// retired value; unknown/reserved kinds collapse to "unknown".
+[[nodiscard]] inline constexpr const char* gpu_pass_kind_name(
+    GpuPassKind kind) noexcept {
+    switch (kind) {
+        case GpuPassKind::Composite: return "composite";
+        case GpuPassKind::Transform: return "transform";
+        case GpuPassKind::AffineTransform: return "affine_transform";
+        case GpuPassKind::Blur: return "blur";
+        case GpuPassKind::Glow: return "glow";
+        case GpuPassKind::ColorAdjust: return "color_adjust";
+        case GpuPassKind::Matte: return "matte";
+        case GpuPassKind::FusedComposite: return "fused_composite";
+        case GpuPassKind::LayerBatch: return "layer_batch";
+        case GpuPassKind::Scale: return "scale";
+        case GpuPassKind::YuvOverlay: return "yuv_overlay";
+        case GpuPassKind::Bloom: return "bloom";
+        default: return "unknown";
+    }
+}
 
 struct CompositePass {
     RenderSurfaceHandle destination{kInvalidRenderSurfaceHandle};

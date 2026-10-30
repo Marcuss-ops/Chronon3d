@@ -66,6 +66,20 @@ def main() -> int:
     sidecar_path = Path(str(output) + ".timing.json")
     sidecar = json.loads(sidecar_path.read_text()) if sidecar_path.is_file() else {}
     active = [value for value in samples if value > 0]
+    # Per-pass-kind GPU time is emitted on every frame's gpu_observed section.
+    # Keep both the job-wide aggregate and the per-frame median, so a single
+    # slow phase cannot hide behind a cumulative sum.
+    frame_pass_ms = {}
+    for frame in sidecar.get("frame_times_ms", []):
+        observed = frame.get("gpu_observed", {}) or {}
+        for name, value in (observed.get("pass_breakdown_ms", {}) or {}).items():
+            frame_pass_ms.setdefault(name, []).append(float(value))
+    frame_pass_median = {
+        name: statistics.median(values) for name, values in frame_pass_ms.items()
+    }
+    frame_pass_total = {
+        name: sum(values) for name, values in frame_pass_ms.items()
+    }
     result = {
         "command": command,
         "exit_code": exit_code,
@@ -75,6 +89,10 @@ def main() -> int:
         "fast_path_reused_frames": sidecar.get("summary", {}).get("fast_path_reused_frames"),
         "frame_batch_drain_wait_us": sidecar.get("job", {}).get("gpu", {}).get("frame_batch_drain_wait_us"),
         "nvenc_frames": sidecar.get("job", {}).get("gpu", {}).get("nvenc_frames"),
+        "gpu_pass_breakdown_ms": sidecar.get("job", {}).get("gpu", {}).get("pass_breakdown_ms"),
+        "gpu_pass_counts": sidecar.get("job", {}).get("gpu", {}).get("pass_counts"),
+        "gpu_pass_breakdown_frame_median_ms": frame_pass_median,
+        "gpu_pass_breakdown_frame_total_ms": frame_pass_total,
         "sidecar_nvenc_utilization_avg": sidecar.get("job", {}).get("hardware", {}).get("nvenc_utilization_avg"),
         "nvidia_smi_samples_pct": samples,
         "nvidia_smi_avg_pct_including_idle": statistics.mean(samples) if samples else None,

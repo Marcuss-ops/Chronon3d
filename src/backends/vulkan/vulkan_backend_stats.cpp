@@ -199,6 +199,13 @@ void VulkanBackend::export_gpu_telemetry_counters(
     out.emplace_back("readback_us", m_impl->stats.readback_us);
     out.emplace_back("cpu_gpu_sync_us", m_impl->stats.gpu_wait_cpu_us + m_impl->stats.readback_us);
     out.emplace_back("gpu_execute_us", m_impl->stats.gpu_execute_us);
+    for (std::size_t i = 0; i < runtime::kGpuPassKindCount; ++i) {
+        const auto kind_name = std::string("gpu_pass_") +
+            runtime::gpu_pass_kind_name(static_cast<runtime::GpuPassKind>(i));
+        out.emplace_back(kind_name + "_us", m_impl->stats.gpu_pass_us[i]);
+        out.emplace_back(kind_name + "_count",
+                         m_impl->stats.gpu_pass_count[i]);
+    }
     out.emplace_back("gpu_nodes", m_impl->stats.passes_executed);
     out.emplace_back("layer_batch_calls", m_impl->stats.layer_batch_calls);
     out.emplace_back("layer_instances", m_impl->stats.layer_instances_processed);
