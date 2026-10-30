@@ -13,12 +13,13 @@ env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
   ABI_BASELINE_REF: '6d09935be9f07ad48784e5725462f08b5cdb0f51'
+  CMAKE_BUILD_PARALLEL_LEVEL: "4"
 
 jobs:
   libabigail:
     name: libabigail / C ABI
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout current source
         uses: actions/checkout@v4
@@ -53,7 +54,7 @@ jobs:
         run: cmake --preset linux-hardened-release -DCHRONON3D_BUILD_C_API=ON
 
       - name: Build current C ABI shared library
-        run: cmake --build --preset linux-hardened-release --target chronon3d_c -j12
+        run: cmake --build --preset linux-hardened-release --target chronon3d_c -j4
 
       - name: Configure pinned ABI baseline
         working-directory: abi-baseline
@@ -64,7 +65,7 @@ jobs:
 
       - name: Build pinned C ABI baseline
         working-directory: abi-baseline
-        run: cmake --build --preset linux-hardened-release --target chronon3d_c -j12
+        run: cmake --build --preset linux-hardened-release --target chronon3d_c -j4
 
       - name: Compare ABI baseline
         env:

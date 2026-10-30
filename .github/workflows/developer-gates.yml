@@ -11,6 +11,7 @@ env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+  CMAKE_BUILD_PARALLEL_LEVEL: "4"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 permissions:
@@ -24,7 +25,7 @@ jobs:
   developer-gates:
     name: Canonical developer gate manifest (FULL)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v4
