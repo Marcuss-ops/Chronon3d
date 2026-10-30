@@ -118,12 +118,22 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
     // writing its device pointers as if they were host memory) fails before
     // the first FullGraph frame.  Convert into a host staging frame, then
     // upload it through FFmpeg's CUDA frames context.
+    //
+    // The staging pixel format MUST equal the CUDA frames context
+    // `sw_format` (NV12, see open_negotiate: `ref_cuda_frames(...,
+    // AV_PIX_FMT_NV12, ...)`).  av_hwframe_transfer_data performs no
+    // YUV420P->NV12 conversion: feeding it planar YUV420P made it copy the
+    // U and V planes into the interleaved UV plane, producing the half
+    // pink / half green native NVENC output (F1).
+    const bool hdr_output = options_.color_transform.output == color::ColorSpace::PQ ||
+                            options_.color_transform.output == color::ColorSpace::HLG;
+    const bool nv12_staging = gpu_nvenc_ && !hdr_output;
     AVFrame* conversion_frame = frame_;
     AVFrame* cpu_staging = nullptr;
     if (gpu_nvenc_) {
         cpu_staging = av_frame_alloc();
         if (!cpu_staging) return false;
-        cpu_staging->format = AV_PIX_FMT_YUV420P;
+        cpu_staging->format = nv12_staging ? AV_PIX_FMT_NV12 : AV_PIX_FMT_YUV420P;
         cpu_staging->width = options_.width;
         cpu_staging->height = options_.height;
         if (av_frame_get_buffer(cpu_staging, 32) < 0 ||
@@ -189,24 +199,30 @@ bool NativeAvEncoder::write_frame_impl(const Framebuffer& fb, bool force_intra) 
                 1, std::memory_order_relaxed);
         }
 
-        const bool hdr_output = options_.color_transform.output == color::ColorSpace::PQ ||
-                                options_.color_transform.output == color::ColorSpace::HLG;
+        video::FramePlanes planes{};
+        if (nv12_staging) {
+            // NV12: Y plane + one interleaved UV plane.  data[1] is the UV
+            // plane; linesize[1] is its byte stride, not the old V stride.
+            planes.y         = conversion_frame->data[0];
+            planes.uv        = conversion_frame->data[1];
+            planes.stride_y  = conversion_frame->linesize[0];
+            planes.stride_uv = conversion_frame->linesize[1];
+        } else {
+            planes.y         = conversion_frame->data[0];
+            planes.u         = conversion_frame->data[1];
+            planes.v         = conversion_frame->data[2];
+            planes.stride_y  = conversion_frame->linesize[0];
+            planes.stride_u  = conversion_frame->linesize[1];
+            planes.stride_v  = conversion_frame->linesize[2];
+        }
         video::ConvertFrameRequest req{
             .src           = *conversion_source,
-            .planes        = video::FramePlanes{
-                .y         = conversion_frame->data[0],
-                .u         = conversion_frame->data[1],
-                .v         = conversion_frame->data[2],
-                .uv        = nullptr,
-                .stride_y  = conversion_frame->linesize[0],
-                .stride_u  = conversion_frame->linesize[1],
-                .stride_v  = conversion_frame->linesize[2],
-                .stride_uv = 0,
-            },
+            .planes        = planes,
             .width         = options_.width,
             .height        = options_.height,
-            .format        = hdr_output ? video::EncoderPixelFormat::Yuv420P10
-                                       : video::EncoderPixelFormat::YUV420P,
+            .format        = nv12_staging ? video::EncoderPixelFormat::NV12
+                            : hdr_output ? video::EncoderPixelFormat::Yuv420P10
+                                         : video::EncoderPixelFormat::YUV420P,
             .matrix        = static_cast<video::YuvMatrix>(color_matrix),
             .range         = video::ColorRange::Limited,
             .apply_gamma   = hdr_output || (!ocio_applied &&

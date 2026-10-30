@@ -1,0 +1,15 @@
+run=1 mode=on frame=0 mean_rgb=53.5169 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=1 mode=off frame=0 mean_rgb=53.1802 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=1 frame=0 ab_changed_ratio_gt8=0.088485 PASS
+run=2 mode=on frame=0 mean_rgb=53.5169 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=2 mode=off frame=0 mean_rgb=53.1802 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=2 frame=0 ab_changed_ratio_gt8=0.088485 PASS
+run=3 mode=on frame=0 mean_rgb=53.5169 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=3 mode=off frame=0 mean_rgb=53.1802 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=3 frame=0 ab_changed_ratio_gt8=0.088485 PASS
+run=4 mode=on frame=0 mean_rgb=53.5169 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=4 mode=off frame=0 mean_rgb=53.1802 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=4 frame=0 ab_changed_ratio_gt8=0.088485 PASS
+run=5 mode=on frame=0 mean_rgb=53.5169 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=5 mode=off frame=0 mean_rgb=53.1802 black_ratio=0.000000 opaque_ratio=1.000000 PASS
+run=5 frame=0 ab_changed_ratio_gt8=0.088485 PASS
