@@ -262,11 +262,6 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
     JobTraceSession job_trace(job);
 
     if (job.mode == RenderMode::Video) {
-        if (!job.compiled || !job.compiled->composition) {
-            return make_render_job_error(
-                RenderJobErrorCode::InvalidJob,
-                "Video RenderJob requires the legacy compiled export view");
-        }
         if (!job.selected_frames.empty()) {
             return make_render_job_error(
                 RenderJobErrorCode::InvalidJob,
@@ -305,7 +300,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
             try {
                 rc = render_and_encode_ffmpeg(
                     *job.registry,
-                    *job.compiled,
+                    job.compiled.get(),
                     job.comp_id,
                     job.settings,
                     job.first_frame,

@@ -18,7 +18,8 @@ std::optional<BitstreamTargetContract> resolve_gop_target_contract(
     const auto codec = resolve_cli_ffmpeg_codec(
         opts.encoder.codec, opts.encoder.hardware_encoder);
     const auto pipe_options =
-        make_pipe_options(compiled, opts, codec, cpu_budget);
+        make_pipe_options(compiled.composition->width(),
+                          compiled.composition->height(), opts, codec, cpu_budget);
     if (!pipe_options) return std::nullopt;
     return resolve_encoder_bitstream_contract(*pipe_options);
 }

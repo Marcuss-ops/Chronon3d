@@ -30,7 +30,7 @@ namespace chronon3d::cli {
 /// Low-level FFmpeg export used by the canonical RenderJob executor.
 [[nodiscard]] int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
+    const CompiledComposition* compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,

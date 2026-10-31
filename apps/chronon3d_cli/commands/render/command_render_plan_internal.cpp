@@ -209,9 +209,11 @@ int execute_render_plan(const CompositionRegistry& registry, RenderPlanState& ar
         options.assets_root = normalized_job.assets_root.string();
         options.prepared_package = normalized_job.prepared_package_path.string();
         options.no_dirty_rects = args.no_dirty_rects;
+        // Typed FullGraph and DirectYUV execute directly from CompiledProgram.
+        // Keep the composition view only for GOP inspection/re-encode lanes,
+        // whose packet scheduler still consumes CompiledComposition.
         options.force_video_compatibility_view =
-            normalized_job.output.sink_type == "raw" ||
-            video_output(normalized_job.output_path.string());
+            !normalized_job.output.gop_source.empty();
         auto preparation = prepare_render_plan(options);
         if (!preparation) {
             spdlog::error("Render plan preparation failed: {}",

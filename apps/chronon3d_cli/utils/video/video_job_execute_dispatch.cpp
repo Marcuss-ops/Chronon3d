@@ -85,7 +85,8 @@ media::VideoCapabilities cli_effective_capabilities(
 // classification step that turns that candidate into the final plan. The
 // lower-level pipeline receives the result and must not repeat this decision.
 media::VideoExecutionDecision finalize_composition_execution(
-    const CompiledComposition& compiled,
+    const CompiledComposition* compiled,
+    const compiler::CompiledProgram* program,
     const FfmpegExportOptions& opts,
     media::VideoExecutionDecision decision) {
     if (decision.plan.composite != media::CompositePath::DirectYuv) {
@@ -95,8 +96,14 @@ media::VideoExecutionDecision finalize_composition_execution(
     const auto policy = opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv
         ? media::video::DirectYuvPolicy::Require
         : media::video::DirectYuvPolicy::Auto;
-    const auto capability = media::video::DirectYuvProgram::resolve_support(
-        compiled, policy);
+    const auto capability = program
+        ? media::video::DirectYuvProgram::resolve_support(*program, policy)
+        : (compiled
+            ? media::video::DirectYuvProgram::resolve_support(*compiled, policy)
+            : media::video::DirectYuvProgram::CapabilityReport{
+                  .eligible = false,
+                  .support = media::video::DirectYuvSupport::Unsupported,
+                  .reason = "compiled composition unavailable for legacy DirectYUV classification"});
     if (capability.eligible) {
         return decision;
     }
@@ -126,7 +133,7 @@ media::VideoExecutionDecision finalize_composition_execution(
 
 int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
+    const CompiledComposition* compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -145,6 +152,10 @@ int render_and_encode_ffmpeg(
         spdlog::error("[video] Empty frame range [{}, {})", start, end);
         return 1;
     }
+    if (!program && (!compiled || !compiled->composition)) {
+        spdlog::error("[video] no executable CompiledProgram or legacy composition was supplied");
+        return 1;
+    }
     if (opts.sink.ffmpeg_mode != "pipe") {
         spdlog::error("[video] Unsupported ffmpeg mode '{}'. Only 'pipe' is available",
                       opts.sink.ffmpeg_mode);
@@ -154,6 +165,10 @@ int render_and_encode_ffmpeg(
     // any resolver downgrade can silently replace the requested copy/re-encode
     // lane with a different plan (see gop_copy_preflight_unavailable).
     if (!opts.gop_source.empty()) {
+        if (!compiled || !compiled->composition) {
+            spdlog::error("[video] GOP execution requires the legacy composition view");
+            return 1;
+        }
         std::error_code ec;
         const bool readable = std::filesystem::is_regular_file(opts.gop_source, ec)
             && !ec;
@@ -178,7 +193,7 @@ int render_and_encode_ffmpeg(
         auto decision = media::resolve_video_execution(
             cli_execution_requirements(opts), media::OutputSpec{},
             cli_effective_capabilities(opts));
-        decision = finalize_composition_execution(compiled, opts, decision);
+        decision = finalize_composition_execution(compiled, program, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
@@ -192,8 +207,12 @@ int render_and_encode_ffmpeg(
                      static_cast<int>(decision.plan.handoff),
                      static_cast<int>(decision.codec_path));
     } else {
+        if (!compiled || !compiled->composition) {
+            spdlog::error("[video] GOP inspection requires the legacy composition view");
+            return 1;
+        }
         const media::GopAnalysisSummary summary = detail::inspect_source_once(
-            opts, compiled, start_sec, end_sec, cpu_budget);
+            opts, *compiled, start_sec, end_sec, cpu_budget);
         if (summary.available) {
             spdlog::info("[video] gop preflight: {} GOPs ({} copy-eligible, {} re-encode{}), splice_safe={}",
                          summary.total_gops, summary.copy_gops,
@@ -208,7 +227,7 @@ int render_and_encode_ffmpeg(
             opts.gop_copy_only,
             !opts.gop_copy_only,
             summary);
-        decision = finalize_composition_execution(compiled, opts, decision);
+        decision = finalize_composition_execution(compiled, program, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
         render_opts.resolved_execution_reason = std::string{decision.reason};
         render_opts.resolved_execution_valid = decision.valid;
@@ -273,7 +292,7 @@ int render_and_encode_ffmpeg(
     if (!opts.gop_source.empty() && !opts.gop_copy_only) {
         std::string direct_mux_reason;
         if (detail::execute_direct_mux_gop_plan(
-                registry, compiled, composition_id, settings, start, end,
+                registry, *compiled, composition_id, settings, start, end,
                 render_opts, cpu_budget, execution, direct_mux_reason)) {
             return 0;
         }

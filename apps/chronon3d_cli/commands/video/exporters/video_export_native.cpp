@@ -27,7 +27,7 @@
 namespace chronon3d::cli {
 PipeExportResult render_and_encode_native(
     const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
+    const CompiledComposition* compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -53,7 +53,7 @@ PipeExportResult render_and_encode_native(
     auto session = setup_pipe_export_session(
         registry, compiled, settings, opts, start, end, cpu_budget,
         std::move(video_runtimes), device_scheduler, std::move(execution),
-        std::move(warm_renderer));
+        std::move(warm_renderer), program);
     if (!session || !session->encoder ||
         (!session->renderer_ptr() && !session->direct_yuv_selected()) ||
         (session->direct_yuv_session && session->direct_yuv_session->required_but_unavailable)) {
@@ -75,7 +75,7 @@ PipeExportResult render_and_encode_native(
     const auto warmup_t0 = profiling::now();
     RenderSettings render_opts = settings;
     if (!session->direct_yuv_selected()) {
-        (void)warmup_pipe_renderer(*session->renderer_ptr(), compiled, opts);
+        (void)warmup_pipe_renderer(*session->renderer_ptr(), compiled, opts, program);
         if (!session->renderer_ptr()->backend().supports_native_surfaces()) {
             warmup_pipe_pool(*session);
         }
