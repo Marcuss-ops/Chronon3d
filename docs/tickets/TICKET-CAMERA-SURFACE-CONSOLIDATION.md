@@ -181,8 +181,10 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
 - [ ] **S2 — Collasso applier → dati (CM3D).** Un meccanismo: CameraRig + waypoint +
   `presets::`. Ogni eliminazione header: (1) grep degli include per mappare i consumer;
   (2) migrazione del chiamante al preset/pack; (3) include dei test aggiornati;
-  (4) `-Wall -Wextra -Werror` + ctest `release`/`release-fast` verde. **Vietato** creare
-  un secondo resolver/sampler: una sola autorità di valutazione (regola del ticket AE).
+  (4) `-Wall -Wextra -Werror` + ctest `release`/`release-fast` verde. Il canary F3
+  Z è PASS (Motion→RenderPlan→C3D, documentato in `ChrononMotion3D/docs/BOUNDARY_C3D.md`),
+  quindi il blocco è rimosso. **Vietato** creare un secondo resolver/sampler: una sola
+  autorità di valutazione (regola del ticket AE).
 - [x] **S3 — Dismissione legacy DOF (2026-10-31).** La prova pre-S3 (grep che dimostri che
   nessun producer authorizza ancora `dof_aperture` o il gain 0.672), rimuovere il sito,
   il commento LEGACY e il codice ponte è stata eseguita; il contratto camera unico
@@ -195,9 +197,9 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
   contratti restano gli unici punti pinned. Diagnostica censita, nessun consumer
   a zero, nessuna rimozione.
 - [ ] **S5 — Coordinamento demolition-debt ATTIVI:** integer transform bake (tutti i
-  producer → resolved samples) e view video di compatibilità (exit = §3 G del ticket AE);
-  le migrazioni pack **non cominciano prima del fix F3 Z convention**
-  (`planPosition` vs `planAnimationPosition`) o il showcase finisce dietro la carta di nuovo.
+  producer → resolved samples) e view video di compatibilità (exit = §3 G del ticket AE).
+  Il fix F3 Z è verificato, quindi le migrazioni pack possono avanzare; il debt resta
+  ACTIVE finché passa l'equivalenza del corpus compatibility/typed.
 - [x] **S6 — Allineamento documenti.** `FOLLOWUP_TICKETS.md` indicizza questo ticket;
   le voci F1/F2 non sono più elencate come blocker aperti: il ticket camera §5 e
   l'[evidenza del 30-10](../evidence/closeout-20261030/README.md) documentano F1
