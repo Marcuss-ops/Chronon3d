@@ -11,10 +11,10 @@
 | FFmpeg pipe demolition | P1 | BLOCKED — codec/routing same-SHA green gate remains; explicit diagnostic pipe stays | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) |
 | GPU benchmark corpus | P1 | WAITING EXTERNAL — manifest and runner are ready; the active content pack is absent from this checkout | [GPU-BASELINE-CORPUS](tickets/TICKET-GPU-BASELINE-CORPUS.md) |
 | Fused-storage/native-image parity | P1 | PARTIAL — broader overlay corpus parity remains after the focused native-image certificate | [SCALE-P0-ASSET-VRAM-GOP](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) |
-| Native NVENC + software backend (wrong YUV planes) | P1 | OPEN (F1) — workaround: `--encoder-backend pipe --pipe-pixfmt nv12` | [CAMERA-DEFINITIVE-CLOSURE §5](tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md) |
-| Software DoF performance (~30 s/frame 1080p) | P2 | OPEN (F2) | [CAMERA-DEFINITIVE-CLOSURE §5](tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md) |
 | Motion lowering Z convention (`planPosition` vs `planAnimationPosition`) | P2 | OPEN (F3, ChrononMotion3D) | [CAMERA-DEFINITIVE-CLOSURE §5](tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md) |
 | AE-style camera functional parity | P1 | OPEN — camera/Null/rig/DoF matrix, typed-video cleanup and measured performance | [AE-CAMERA-FUNCTIONAL-PARITY](tickets/TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md) |
+| Camera surface consolidation (CM3D+C3D) | P2 | OPEN — inventory, collapse of authoring appliers into one mechanism, legacy DoF field removal, projection-consumer audit; no contract changes | [CAMERA-SURFACE-CONSOLIDATION](tickets/TICKET-CAMERA-SURFACE-CONSOLIDATION.md) |
+| Maintenance hotspots (W0–W5) | P1 | ACTIVE — umbrella: GPU lifetime/teardown, text hot-path fixes, certification-truthfulness decisions (B.1/B.2/F.2), effects-lane arch gate; coordinates C22/C23 and MAIN-TRUTH owners | [MAINTENANCE-HOTSPOTS-BONIFICATION](tickets/TICKET-MAINTENANCE-HOTSPOTS-BONIFICATION.md) |
 
 Camera ownership migration, the current daemon admission policy, and node
 memory instrumentation are closed for the present product scope. The optional

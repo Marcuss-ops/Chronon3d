@@ -348,7 +348,7 @@ TEST_CASE("Resolved transform sample JSON is strict and preserves fractional tim
         {"schema", "chronon.render-plan.v3"}, {"version", 3}, {"job_id", "resolved-json"},
         {"canvas", {{"width", 96}, {"height", 64}, {"fps_num", 30}, {"fps_den", 1}, {"duration_frames", 3}}},
         {"layers", nlohmann::json::array({{
-            {"id", "plane"}, {"type", "color"}, {"color", "#CC331A"},
+            {"id", "plane"}, {"type", "color"}, {"color", {0.8, 0.2, 0.1, 1.0}},
             {"transform_samples", nlohmann::json::array({{
                 {"frame", 0.123456789012345}, {"position", {2., 3., 4.}},
                 {"scale", {1., 1., 1.}}, {"rotation_deg", {0., 0., 0.}}, {"opacity", .75}
@@ -357,7 +357,7 @@ TEST_CASE("Resolved transform sample JSON is strict and preserves fractional tim
         {"output", {{"path", "resolved.png"}, {"format", "png"}}}
     };
     const auto decoded = decode_render_plan(json);
-    INFO(decoded ? "" : decoded.error().message);
+    INFO((decoded ? "" : decoded.error().message));
     REQUIRE(decoded);
     REQUIRE(decoded->layers[0].transform_samples.size() == 1);
     CHECK(decoded->layers[0].transform_samples[0].frame == 0.123456789012345);
@@ -541,6 +541,34 @@ TEST_CASE("Camera projection preserves oversized image pixels outside the source
         CHECK(pixel.a == doctest::Approx(1.f));
         CHECK(pixel.b > pixel.r);
     }
+
+    // A foreground plate must not discard the oversized background outside its
+    // projected bounds, and fractional alpha must still reveal the background.
+    Framebuffer foreground(64, 64);
+    foreground.clear(Color{1.f, 0.f, 0.f, 0.5f});
+    REQUIRE(save_png(foreground, (root / "foreground.png").string()));
+    LayerPlan overlay;
+    overlay.id = "foreground";
+    overlay.type = LayerType::Image;
+    overlay.asset = (root / "foreground.png").string();
+    overlay.size = {32.f, 32.f};
+    overlay.size_dimensions = 2;
+    overlay.position = {0.f, 0.f, 0.f};
+    overlay.position_dimensions = 3;
+    overlay.enable_3d = true;
+    plan.layers.push_back(overlay);
+    const auto composed = compile_render_plan(plan, resolver);
+    const std::string composed_error = composed ? std::string{} : composed.error().message;
+    REQUIRE_MESSAGE(composed, composed_error);
+    const auto composed_frame = renderer.render_compiled(composed->compiled_composition, Frame{0});
+    REQUIRE(composed_frame);
+    const auto corner = composed_frame->get_pixel(4, 4);
+    CHECK(corner.a == doctest::Approx(1.f));
+    CHECK(corner.b > corner.r);
+    const auto centre = composed_frame->get_pixel(48, 32);
+    CHECK(centre.a == doctest::Approx(1.f));
+    CHECK(centre.r > corner.r);
+    CHECK(centre.b > 0.05f);
 }
 
 TEST_CASE("RenderPlan camera_samples sub-frame evaluation uses quaternion slerp across wrap") {

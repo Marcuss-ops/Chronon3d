@@ -22,8 +22,8 @@ namespace chronon3d::graph::detail {
 bool try_native_inline_mesh(
     RenderGraphContext& ctx, Framebuffer& fb,
     const ::chronon3d::RenderNode& node, const RenderState& state) {
-    if (!ctx.policy.require_native_gpu || !ctx.backend || !ctx.image_cache ||
-        !ctx.gpu_asset_cache || !ctx.surface_registry ||
+    if (!ctx.backend || !ctx.backend_stats_api()->supports_native_surfaces() ||
+        !ctx.image_cache || !ctx.gpu_asset_cache || !ctx.surface_registry ||
         node.shape.type() != ShapeType::Mesh ||
         !node.shape.mesh_shape().inline_mesh) return false;
 
@@ -123,30 +123,17 @@ bool try_native_inline_mesh(
         if (glm::dot(face, face) > 1e-8f) fallback_normal = glm::normalize(face);
     }
 
-    // Match the resolved software mesh material lighting. The factor stays
-    // per vertex so flat-shaded glTF meshes preserve the CPU oracle exactly,
-    // while interpolated vertex normals retain smooth directional lighting.
-    std::vector<float> projected(source_vertices.size() * 8, 0.0f);
-    std::vector<bool> valid(source_vertices.size(), false);
-    float min_x = static_cast<float>(fb.width());
-    float min_y = static_cast<float>(fb.height());
-    float max_x = 0.0f, max_y = 0.0f;
-    for (std::size_t i = 0; i < source_vertices.size(); ++i) {
-        const auto& vertex = source_vertices[i];
-        const Vec4 view_position = view_model * Vec4(vertex.position, 1.0f);
-        const float depth = -view_position.z;
-        if (!std::isfinite(depth) || depth < near_plane || depth > far_plane) continue;
-        const Vec4 clip = projection * view_position;
-        if (!std::isfinite(clip.w) || clip.w <= 1e-6f) continue;
-        const float x = (clip.x / clip.w + 1.0f) * 0.5f * static_cast<float>(fb.width());
-        const float y = (1.0f - (clip.y / clip.w + 1.0f) * 0.5f) * static_cast<float>(fb.height());
-        if (!std::isfinite(x) || !std::isfinite(y)) continue;
-        const auto offset = i * 8;
-        projected[offset + 0] = x;
-        projected[offset + 1] = y;
-        projected[offset + 2] = 1.0f / depth;
-        projected[offset + 3] = vertex.uv.x;
-        projected[offset + 4] = vertex.uv.y;
+    // Clip in view space before dividing by w. UV and per-vertex lighting
+    // must follow the new edge vertices, otherwise a triangle crossing a
+    // near/far plane disappears or acquires discontinuous shading.
+    struct ClipVertex {
+        Vec4 view_position;
+        Vec2 uv;
+        Vec3 light;
+    };
+    std::vector<ClipVertex> vertices;
+    vertices.reserve(source_vertices.size());
+    for (const auto& vertex : source_vertices) {
         const Vec3 input_normal = glm::dot(vertex.normal, vertex.normal) > 1e-8f
             ? vertex.normal : fallback_normal;
         const Vec3 normal = rendering::transform_normal(mesh_model, input_normal);
@@ -155,34 +142,94 @@ bool try_native_inline_mesh(
                                            state.light_context, lighting_material,
                                            &state.rim_light)
             : Color{1.0f, 1.0f, 1.0f, 1.0f};
-        projected[offset + 5] = lighting.r;
-        projected[offset + 6] = lighting.g;
-        projected[offset + 7] = lighting.b;
-        valid[i] = true;
+        vertices.push_back({view_model * Vec4(vertex.position, 1.0f), vertex.uv,
+                            Vec3{lighting.r, lighting.g, lighting.b}});
+    }
+    std::vector<float> projected(source_vertices.size() * 8, 0.0f);
+    std::vector<bool> valid(source_vertices.size(), false);
+    float min_x = static_cast<float>(fb.width());
+    float min_y = static_cast<float>(fb.height());
+    float max_x = 0.0f, max_y = 0.0f;
+    const auto project = [&](const ClipVertex& vertex, std::size_t index) {
+        const float depth = -vertex.view_position.z;
+        if (!std::isfinite(depth) || depth <= 0.f) return false;
+        const Vec4 clip = projection * vertex.view_position;
+        if (!std::isfinite(clip.w) || clip.w <= 1e-6f) return false;
+        const float x = (clip.x / clip.w + 1.0f) * 0.5f * static_cast<float>(fb.width());
+        const float y = (1.0f - (clip.y / clip.w + 1.0f) * 0.5f) * static_cast<float>(fb.height());
+        if (!std::isfinite(x) || !std::isfinite(y)) return false;
+        const auto offset = index * 8;
+        projected[offset] = x;
+        projected[offset + 1] = y;
+        projected[offset + 2] = 1.0f / depth;
+        projected[offset + 3] = vertex.uv.x;
+        projected[offset + 4] = vertex.uv.y;
+        projected[offset + 5] = vertex.light.x;
+        projected[offset + 6] = vertex.light.y;
+        projected[offset + 7] = vertex.light.z;
         min_x = std::min(min_x, x); min_y = std::min(min_y, y);
         max_x = std::max(max_x, x); max_y = std::max(max_y, y);
+        return true;
+    };
+    for (std::size_t i = 0; i < vertices.size(); ++i) {
+        const float depth = -vertices[i].view_position.z;
+        if (depth >= near_plane && depth <= far_plane) valid[i] = project(vertices[i], i);
     }
-
     std::vector<std::uint32_t> indices;
     indices.reserve(source_indices.size());
     for (std::size_t i = 0; i < source_indices.size(); i += 3) {
         const auto a = source_indices[i], b = source_indices[i + 1], c = source_indices[i + 2];
-        if (a >= valid.size() || b >= valid.size() || c >= valid.size())
+        if (a >= vertices.size() || b >= vertices.size() || c >= vertices.size())
             throw std::invalid_argument("inline mesh index is outside the vertex array");
         if (valid[a] && valid[b] && valid[c]) {
-            indices.push_back(a); indices.push_back(b); indices.push_back(c);
+            indices.insert(indices.end(), {a, b, c});
+            continue;
         }
+        std::vector<ClipVertex> polygon{vertices[a], vertices[b], vertices[c]};
+        const auto clip_depth = [&](float plane, bool near) {
+            std::vector<ClipVertex> clipped;
+            if (polygon.empty()) return clipped;
+            for (std::size_t j = 0; j < polygon.size(); ++j) {
+                const auto& v0 = polygon[j];
+                const auto& v1 = polygon[(j + 1) % polygon.size()];
+                const float d0 = -v0.view_position.z, d1 = -v1.view_position.z;
+                if (!std::isfinite(d0) || !std::isfinite(d1)) return std::vector<ClipVertex>{};
+                const bool in0 = near ? d0 >= plane : d0 <= plane;
+                const bool in1 = near ? d1 >= plane : d1 <= plane;
+                if (in0 != in1) {
+                    const float t = (plane - d0) / (d1 - d0);
+                    clipped.push_back({glm::mix(v0.view_position, v1.view_position, t),
+                                       glm::mix(v0.uv, v1.uv, t),
+                                       glm::mix(v0.light, v1.light, t)});
+                }
+                if (in1) clipped.push_back(v1);
+            }
+            return clipped;
+        };
+        polygon = clip_depth(near_plane, true);
+        polygon = clip_depth(far_plane, false);
+        if (polygon.size() < 3) continue;
+        if (projected.size() / 8 > std::numeric_limits<std::uint32_t>::max() - polygon.size())
+            throw std::length_error("clipped inline mesh exceeds index limits");
+        const auto first = static_cast<std::uint32_t>(projected.size() / 8);
+        projected.resize(projected.size() + polygon.size() * 8);
+        bool all_projected = true;
+        for (std::size_t j = 0; j < polygon.size(); ++j)
+            all_projected = project(polygon[j], first + j) && all_projected;
+        if (!all_projected) continue;
+        for (std::uint32_t j = 1; j + 1 < polygon.size(); ++j)
+            indices.insert(indices.end(), {first, first + j, first + j + 1});
     }
     if (indices.empty()) return true;
 
-    std::int32_t x0 = std::clamp(static_cast<std::int32_t>(std::floor(min_x)),
-                                 0, fb.width());
-    std::int32_t y0 = std::clamp(static_cast<std::int32_t>(std::floor(min_y)),
-                                 0, fb.height());
-    std::int32_t x1 = std::clamp(static_cast<std::int32_t>(std::ceil(max_x)),
-                                 0, fb.width());
-    std::int32_t y1 = std::clamp(static_cast<std::int32_t>(std::ceil(max_y)),
-                                 0, fb.height());
+    const auto x0f = std::clamp(std::floor(min_x), 0.f, static_cast<float>(fb.width()));
+    const auto y0f = std::clamp(std::floor(min_y), 0.f, static_cast<float>(fb.height()));
+    const auto x1f = std::clamp(std::ceil(max_x), 0.f, static_cast<float>(fb.width()));
+    const auto y1f = std::clamp(std::ceil(max_y), 0.f, static_cast<float>(fb.height()));
+    std::int32_t x0 = static_cast<std::int32_t>(x0f);
+    std::int32_t y0 = static_cast<std::int32_t>(y0f);
+    std::int32_t x1 = static_cast<std::int32_t>(x1f);
+    std::int32_t y1 = static_cast<std::int32_t>(y1f);
     if (state.clip_rect) {
         x0 = std::max(x0, state.clip_rect->x0 - fb.origin_x());
         y0 = std::max(y0, state.clip_rect->y0 - fb.origin_y());

@@ -479,6 +479,12 @@ NodeExecResult PerPixelDofNode::execute(
             "PerPixelDofNode",
             "DOF depth tracking was requested but its depth buffer is missing or invalid"};
     }
+    if (ctx.policy.track_dof_depth && ctx.policy.require_native_gpu) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "PerPixelDofNode",
+            "DOF depth tracking requires device-local depth on the native GPU path"};
+    }
     if (dof_depth.empty()) return cloned_result();
 
     // Find only sources that can produce a visible blur.  A focused background

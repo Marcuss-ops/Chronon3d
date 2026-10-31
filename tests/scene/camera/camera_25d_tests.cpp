@@ -221,6 +221,42 @@ TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before render
     CHECK(fb->get_pixel(145, 145).b > 0.8f); // outside near rect, blue is visible
 }
 
+TEST_CASE("Camera 2.5D: a non-rendering Null does not break depth sorting") {
+    auto renderer = test::make_renderer();
+    Composition comp({.name = "DepthSortingWithNull", .width = 200,
+                      .height = 200, .duration = 2}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.ambient_light(Color{1.f, 1.f, 1.f, 1.f}, 1.f);
+        s.set_evaluated_camera(camera().enabled().position({0, 0, -1000}).zoom(1000.f).build());
+        // Author red first so a broken bin draws blue over it at frame 0.
+        // At frame 1 red moves behind blue and the depth order must change.
+        const float red_z = ctx.frame() == 0 ? -200.f : 700.f;
+        s.layer("near_red", [red_z](LayerBuilder& l) {
+            l.enable_3d().position({0, 0, red_z});
+            l.rect("red", {.size = {60, 60}, .color = Color::red(), .pos = {0, 0, 0}});
+        });
+        s.null_layer("camera_rig", [](LayerBuilder& l) { l.position({0, 0, 0}); });
+        s.layer("far_blue", [](LayerBuilder& l) {
+            l.enable_3d().position({0, 0, 500});
+            l.rect("blue", {.size = {150, 150}, .color = Color::blue(), .pos = {0, 0, 0}});
+        });
+        return s.build();
+    });
+    const auto frame = renderer.render(comp, 0);
+    REQUIRE(frame);
+    const auto center = frame->get_pixel(100, 100);
+    CHECK(center.r > 0.8f);
+    CHECK(center.b < 0.2f);
+    CHECK(frame->get_pixel(145, 145).b > 0.8f);
+    const auto frame1 = renderer.render(comp, 1);
+    REQUIRE(frame1);
+    CHECK(frame1->get_pixel(100, 100).b > 0.8f);
+    CHECK(frame1->get_pixel(100, 100).r < 0.2f);
+    const auto frame0_again = renderer.render(comp, 0);
+    REQUIRE(frame0_again);
+    CHECK(frame0_again->get_pixel(100, 100).r > 0.8f);
+}
+
 TEST_CASE("Test 9.8 — Camera 2.5D: Native 3D shapes do not undergo double projection") {
     // Native 3D shapes (e.g. mesh/FakeBox3D) bypass the layer's 2D canvas transform,
     // projecting directly into the camera space.

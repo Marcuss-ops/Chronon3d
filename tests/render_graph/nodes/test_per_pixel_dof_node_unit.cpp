@@ -109,6 +109,15 @@ TEST_CASE("DOF rejects incomplete native depth provenance") {
     result = node->execute(ctx, inputs, bounds);
     REQUIRE_FALSE(result);
     CHECK(result.error().message == "DOF depth tracking was requested but its depth buffer is missing or invalid");
+
+    // Even a CPU buffer with no valid depth samples cannot certify tracked
+    // native depth: a sharp pass-through would silently accept missing GPU provenance.
+    for (float depth : {0.f, 50.f}) {
+        ctx.node_exec.dof_depth.assign(16, depth);
+        result = node->execute(ctx, inputs, bounds);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().message == "DOF depth tracking requires device-local depth on the native GPU path");
+    }
 }
 
 TEST_CASE("PR2-Unit-DoF: cache_key varies with focus_z / aperture / max_blur") {

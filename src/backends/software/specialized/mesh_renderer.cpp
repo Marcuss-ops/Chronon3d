@@ -441,65 +441,90 @@ void render_mesh_textured(
         return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
     };
     for (std::size_t tri = 0; tri + 2 < indices.size(); tri += 3) {
-        std::array<ProjectedVertex, 3> projected{};
+        LitStackPolygon polygon;
+        polygon.size = 3;
         bool valid = true;
         for (std::size_t corner = 0; corner < 3; ++corner) {
             const auto index = indices[tri + corner];
             if (index >= vertices.size()) { valid = false; break; }
             const auto& vertex = vertices[index];
-            const Vec4 view_position = view_model * Vec4(vertex.position, 1.0f);
-            const float depth = -view_position.z;
-            if (!std::isfinite(depth) || depth < near_plane || depth > far_plane) { valid = false; break; }
-            const Vec4 clip = proj * view_position;
-            if (!std::isfinite(clip.w) || clip.w <= 1e-6f) { valid = false; break; }
-            projected[corner] = {
+            const Vec4 position = view_model * Vec4(vertex.position, 1.0f);
+            if (!std::isfinite(position.x) || !std::isfinite(position.y) ||
+                !std::isfinite(position.z) || !std::isfinite(position.w)) {
+                valid = false;
+                break;
+            }
+            polygon.verts[corner] = {position, {}, {}, vertex.uv, {}};
+        }
+        if (!valid ||
+            !clip_lit_polygon(polygon, [near_plane](const ViewVertex& v) { return -near_plane - v.z; }) ||
+            !clip_lit_polygon(polygon, [far_plane](const ViewVertex& v) { return v.z + far_plane; }) ||
+            polygon.size < 3) continue;
+
+        std::array<ProjectedVertex, kMaxClipVerts> clipped{};
+        for (usize corner = 0; corner < polygon.size; ++corner) {
+            const auto& vertex = polygon.verts[corner];
+            const float depth = -vertex.view_position.z;
+            const Vec4 clip = proj * vertex.view_position;
+            if (!(depth > 0.f) || !std::isfinite(clip.w) || clip.w <= 1e-6f ||
+                !std::isfinite(clip.x) || !std::isfinite(clip.y)) { valid = false; break; }
+            clipped[corner] = {
                 Vec2{(clip.x / clip.w + 1.0f) * 0.5f * static_cast<float>(fb.width()),
                      (1.0f - (clip.y / clip.w + 1.0f) * 0.5f) * static_cast<float>(fb.height())},
                 1.0f / depth, vertex.uv};
         }
         if (!valid) continue;
-        const Vec2 a = projected[0].screen, b = projected[1].screen, c = projected[2].screen;
-        const float area = edge(a, b, c);
-        if (std::abs(area) < 1e-6f) continue;
-        // Raster samples live at pixel centres (x + .5, y + .5). Bound the
-        // candidate range against those centres; using ceil(min)/floor(max)
-        // dropped one-pixel strips along every shared mesh edge.
-        const int x0 = std::max(0, static_cast<int>(std::ceil(std::min({a.x, b.x, c.x}) - 0.5f)));
-        const int x1 = std::min(fb.width() - 1, static_cast<int>(std::floor(std::max({a.x, b.x, c.x}) - 0.5f)));
-        const int y0 = std::max(0, static_cast<int>(std::ceil(std::min({a.y, b.y, c.y}) - 0.5f)));
-        const int y1 = std::min(fb.height() - 1, static_cast<int>(std::floor(std::max({a.y, b.y, c.y}) - 0.5f)));
-        for (int y = y0; y <= y1; ++y) {
-            Color* row = fb.pixels_row(y);
-            for (int x = x0; x <= x1; ++x) {
-                const Vec2 p{static_cast<float>(x) + .5f, static_cast<float>(y) + .5f};
-                const float w0 = edge(b, c, p) / area;
-                const float w1 = edge(c, a, p) / area;
-                const float w2 = edge(a, b, p) / area;
-                if (w0 < -1e-5f || w1 < -1e-5f || w2 < -1e-5f) continue;
-                const float inv_depth = w0 * projected[0].inverse_depth +
-                    w1 * projected[1].inverse_depth + w2 * projected[2].inverse_depth;
-                if (!(inv_depth > 0.0f)) continue;
-                const float depth = 1.0f / inv_depth;
-                const auto depth_index = static_cast<std::size_t>(y) * fb.width() + x;
-                const bool use_depth = depth_buffer.size() == static_cast<std::size_t>(fb.width()) * fb.height();
-                if (use_depth && depth_buffer[depth_index] > 0.0f && depth >= depth_buffer[depth_index]) continue;
-                const float q0 = w0 * projected[0].inverse_depth / inv_depth;
-                const float q1 = w1 * projected[1].inverse_depth / inv_depth;
-                const float q2 = w2 * projected[2].inverse_depth / inv_depth;
-                const Vec2 uv = q0 * projected[0].uv + q1 * projected[1].uv + q2 * projected[2].uv;
-                const Color texel = sample(uv);
-                const float alpha = texel.a * tint.a;
-                if (alpha_cutoff && alpha < *alpha_cutoff) continue;
-                const Color src{texel.r * tint.r * tint.a, texel.g * tint.g * tint.a,
-                                texel.b * tint.b * tint.a, alpha};
-                if (src.a <= 1e-6f) continue;
-                if (use_depth) depth_buffer[depth_index] = depth;
-                Color& dst = row[x];
-                const float inverse_alpha = 1.0f - src.a;
-                dst.r = src.r + dst.r * inverse_alpha;
-                dst.g = src.g + dst.g * inverse_alpha;
-                dst.b = src.b + dst.b * inverse_alpha;
-                dst.a = src.a + dst.a * inverse_alpha;
+        for (usize fan = 1; fan + 1 < polygon.size; ++fan) {
+            const std::array<ProjectedVertex, 3> projected{clipped[0], clipped[fan], clipped[fan + 1]};
+            const Vec2 a = projected[0].screen, b = projected[1].screen, c = projected[2].screen;
+            const float area = edge(a, b, c);
+            if (std::abs(area) < 1e-6f) continue;
+            // Raster samples live at pixel centres (x + .5, y + .5). Bound the
+            // candidate range against those centres; using ceil(min)/floor(max)
+            // dropped one-pixel strips along every shared mesh edge.
+            const int x0 = std::max(0, static_cast<int>(std::ceil(std::min({a.x, b.x, c.x}) - 0.5f)));
+            const int x1 = std::min(fb.width() - 1, static_cast<int>(std::floor(std::max({a.x, b.x, c.x}) - 0.5f)));
+            const int y0 = std::max(0, static_cast<int>(std::ceil(std::min({a.y, b.y, c.y}) - 0.5f)));
+            const int y1 = std::min(fb.height() - 1, static_cast<int>(std::floor(std::max({a.y, b.y, c.y}) - 0.5f)));
+            for (int y = y0; y <= y1; ++y) {
+                Color* row = fb.pixels_row(y);
+                for (int x = x0; x <= x1; ++x) {
+                    const Vec2 p{static_cast<float>(x) + .5f, static_cast<float>(y) + .5f};
+                    const float w0 = edge(b, c, p) / area;
+                    const float w1 = edge(c, a, p) / area;
+                    const float w2 = edge(a, b, p) / area;
+                    if (w0 < -1e-5f || w1 < -1e-5f || w2 < -1e-5f) continue;
+                    // Partition internal fan edges without the outer-edge
+                    // tolerance: the preceding triangle owns the shared edge,
+                    // so translucent pixels are blended once even without a
+                    // depth buffer and there is no gap beside the edge.
+                    if ((fan > 1 && w2 <= 0.f) ||
+                        (fan + 2 < polygon.size && w1 < 0.f)) continue;
+                    const float inv_depth = w0 * projected[0].inverse_depth +
+                        w1 * projected[1].inverse_depth + w2 * projected[2].inverse_depth;
+                    if (!(inv_depth > 0.0f)) continue;
+                    const float depth = 1.0f / inv_depth;
+                    const auto depth_index = static_cast<std::size_t>(y) * fb.width() + x;
+                    const bool use_depth = depth_buffer.size() == static_cast<std::size_t>(fb.width()) * fb.height();
+                    if (use_depth && depth_buffer[depth_index] > 0.0f && depth >= depth_buffer[depth_index]) continue;
+                    const float q0 = w0 * projected[0].inverse_depth / inv_depth;
+                    const float q1 = w1 * projected[1].inverse_depth / inv_depth;
+                    const float q2 = w2 * projected[2].inverse_depth / inv_depth;
+                    const Vec2 uv = q0 * projected[0].uv + q1 * projected[1].uv + q2 * projected[2].uv;
+                    const Color texel = sample(uv);
+                    const float alpha = texel.a * tint.a;
+                    if (alpha_cutoff && alpha < *alpha_cutoff) continue;
+                    const Color src{texel.r * tint.r * tint.a, texel.g * tint.g * tint.a,
+                                    texel.b * tint.b * tint.a, alpha};
+                    if (src.a <= 1e-6f) continue;
+                    if (use_depth) depth_buffer[depth_index] = depth;
+                    Color& dst = row[x];
+                    const float inverse_alpha = 1.0f - src.a;
+                    dst.r = src.r + dst.r * inverse_alpha;
+                    dst.g = src.g + dst.g * inverse_alpha;
+                    dst.b = src.b + dst.b * inverse_alpha;
+                    dst.a = src.a + dst.a * inverse_alpha;
+                }
             }
         }
     }

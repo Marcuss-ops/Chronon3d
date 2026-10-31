@@ -381,7 +381,9 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
         }
 
         if (layer.kind == LayerKind::Null) {
-            flush_3d_bin();
+            // A Null has no pixels and cannot be a compositing barrier. Keep
+            // adjacent 3D layers in the same depth-sorted bin even when a rig
+            // or parent Null appears between them in scene order.
             continue;
         }
 
