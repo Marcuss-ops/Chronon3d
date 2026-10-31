@@ -33,10 +33,16 @@
 <!-- /protocollo-chiusura-completa:2026-10-29:v1 -->
 
 ## Stato
-PARTIAL (updated 2026-10-29). Provenienza: blocco già noto in `docs/stato/chronon-motion3d.md`
-§3 ("Soggetto animato textured/alpha... bloccato su un cambio coordinato del
-contratto/runtime Chronon3D") e prerequisito per il glTF animato della parità
-AE. Stato registrato in `docs/stato/chronon3d.md` §13.
+PARTIAL (updated 2026-10-31). Implementazione, route strict-native, determinismo
+dei due render e parità software/GPU sono verificate localmente **anche sul
+sorgente pushato** (`0e7303577`, 31/31 frame, MP4 byte-identico, MAE 0.0210
+full-frame / 1.492 sulla maschera soggetto; evidenza
+[`inline-mesh-vulkan-20261029`](../evidence/inline-mesh-vulkan-20261029/README.md)).
+Provenienza: blocco già noto in `docs/stato/chronon-motion3d.md` §3 ("Soggetto
+animato textured/alpha... bloccato su un cambio coordinato del contratto/runtime
+Chronon3D") e prerequisito per il glTF animato della parità AE. Resta `PARTIAL`
+solo per la CI same-SHA e per la copertura PBR/produzione oltre la fixture
+diagnostica. Stato registrato in `docs/stato/chronon3d.md` §13.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
@@ -52,9 +58,9 @@ AE. Stato registrato in `docs/stato/chronon3d.md` §13.
 ## Goal
 
 Rendere renderizzabili i soggetti 3D animati con texture e alpha: mesh inline
-testurizzata (semantica vertex/UV/alpha) con contratto geometria/skin per
-frame, e supporto nativo inline-mesh nella lane `vulkan_native` (oggi la lane
-vulkan non disegna inline mesh: solo la lane software funziona).
+testurizzata (semantica vertex/UV/alpha) con contratto geometria/skin per frame,
+e supporto nativo inline-mesh nella lane `vulkan_native` (atterrato e verificato
+localmente il 2026-10-29; resta la certificazione CI same-SHA).
 
 ## Scope (questa repo)
 

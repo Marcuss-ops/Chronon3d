@@ -2,9 +2,14 @@
 
 This checklist covers three user-prioritized motion-design gaps. Preserve
 deterministic frame evaluation, bounded inputs, strict unsupported-feature
-errors, and the canonical RenderPlan / scene / asset paths. Build and test
-execution remains `NOT RUN` under the user's earlier instruction; author and
-review focused regressions without claiming runtime verification.
+errors, and the canonical RenderPlan / scene / asset paths.
+
+## Stato
+PARTIAL (updated 2026-10-31) — C ABI 1/1 CTest PASS (264,71 s) e renderer core
+1/1 CTest PASS (13,57 s) il 2026-10-29 sul preset Debug con
+`CHRONON3D_ENABLE_SVG=OFF`; i gate frame SVG/Lottie, i golden renderizzati e la
+suite completa restano `NOT RUN`/aperti. Evidenza:
+[`motion-compositing-presets-20261029`](../evidence/motion-compositing-presets-20261029/README.md).
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
@@ -107,4 +112,6 @@ review focused regressions without claiming runtime verification.
   fixtures plus rejection cases for masks, groups, animation, gradients,
   mismatched styles, and dashes. Nested groups, animated properties, and
   rendered golden verification remain open.
-- Verification status: `NOT RUN` (build/tests were explicitly deferred).
+- Verification status: focused C ABI and renderer-core suites PASS on
+  2026-10-29; full suite, SVG-enabled CLI, Lottie encoder route and rendered
+  goldens remain `NOT RUN`.

@@ -1,6 +1,6 @@
 # Chronon 100× Performance Waves — Ticket Specs (B1/B2/B3)
 
-Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE FAILED; B3 IMPLEMENTED / ACCEPTANCE PARTIAL` — this file is a ticket specification, not a blanket acceptance claim. The Linux NVML sampler now loads the correct library and reports actual NVENC samples in the sidecar, but the latest five-run B2 fixture remains below both the 300 render-loop fps and 90% utilization gates. MTSDF outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
+Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE FAILED; B3 IMPLEMENTED / ACCEPTANCE PARTIAL` — this file is a ticket specification, not a blanket acceptance claim. The Linux NVML sampler now loads the correct library and reports actual NVENC samples in the sidecar (77.78% on the 2026-10-30 verify run), but the latest B2 runs (238.200–240.03 render-loop fps) remain below both the 300 render-loop fps and 90% utilization gates. MTSDF outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
 Created: 2026-09-09
 Baseline evidence: job_1788973104795535356_86264102 sidecar + TICKET-ZERO-COPY-ZWAVES.md F1–F7
 Owner: Chronon rendering-core maintainers

@@ -2,8 +2,8 @@
 
 Stato: OPEN (forward-point of TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE / Blocco 4.2)
 
-P1 implementation and standalone template subprocess contract are present in
-the working tree; CLI tests and project generation pass. The generated project
+P1 implementation and standalone template subprocess contract are committed
+(`81e9d2a50`, `templates/basic/`); CLI tests and project generation pass. The generated project
 cannot yet configure against the installed SDK: exported targets reference
 `Vulkan::Vulkan` and `GPUOpen::VulkanMemoryAllocator`, but the package config
 does not define those targets. The standalone build/render gate remains open.
