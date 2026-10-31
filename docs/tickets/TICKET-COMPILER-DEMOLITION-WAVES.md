@@ -12,7 +12,7 @@ sono coerenti.
 ## TODO — cosa manca (agg. 2026-10-31)
 
 - [ ] **Wave 3 — render-plan runtime esegue direttamente topology e parameter** — logica: il path compat è ancora load-bearing per l'esecuzione (la chiusura precedente era prematura); il runtime deve consumare direttamente topology+parameter senza il bridge. Dove: `src/render_graph/` (builder/compiler/optimizer), `src/compiler/compiler.cpp` + `program_sampler.cpp`, `src/render_graph/cache/scene_program_store.cpp`. Gate: le 4 snapshot di equivalenza (`d72a4efc2`) restano identiche e il path compat non è più raggiungibile dal runtime.
-- [ ] **Wave 3 video — eliminare l'esecuzione CompiledComposition dai consumer typed** — FullGraph e classificazione/preparazione/esecuzione DirectYUV accettano ora `CompiledProgram`; restano i fallback per job legacy e i consumer GOP che richiedono `CompiledComposition`. Per chiudere: migrare GOP e gli entrypoint legacy, poi rimuovere la vista di compatibilità dal RenderPlan CLI. Gate: equivalenza pixel/export, cancellation durante temporal sampling, DirectYUV/GOP parity e build same-SHA.
+- [ ] **Wave 3 video — eliminare i consumer CLI legacy** — l'intero percorso RenderPlan video (FullGraph, DirectYUV e GOP) consuma `CompiledProgram` e non materializza più `CompiledComposition`. Restano gli entrypoint CLI legacy non RenderPlan e le API compatibili pubbliche. Per chiudere: censire i consumer legacy e rimuoverli o isolarli. Gate: equivalenza pixel/export, cancellation durante temporal sampling, DirectYUV/GOP parity e build same-SHA.
 
 ## Todo / acceptance criteria
 
@@ -90,6 +90,9 @@ sono coerenti.
 - [x] Wave 3 video — il percorso DirectYUV typed classifica e prepara la scena
   da `SceneMaterializer` + `TypedProgramSampler`; `DirectYuvProgram` campiona
   il programma a ogni frame. Le entrypoint legacy restano per i job senza IR.
+- [x] Wave 3 video — GOP preflight, target contract e direct-mux re-encode
+  leggono i metadati `CompiledProgram`; la vista CompiledComposition non è più
+  creata nella preparazione RenderPlan.
 - [x] Wave 8 — `PreparedRenderJob` non possiede più uno stadio di evaluation:
   il lease viene passato al `RenderPipeline`, che coordina sampling, graph
   execution e output; il payload contiene solo stato typed/frame-local.
@@ -219,10 +222,10 @@ deleted.
 - Build `linux-video-fast-dev`, target `chronon3d_cli`, `-j12`, with
   `CHRONON3D_ENABLE_CUDA_INTEROP=OFF`: `PASS` (2026-10-31). The default video
   preset cannot configure on this host because CUDA headers/library are absent.
-- FullGraph and DirectYUV typed routes consume `CompiledProgram`; GOP and
-  legacy execution retain `CompiledComposition`. Build `linux-video-fast-dev`,
-  target `chronon3d_cli`, `-j12`: `PASS` (2026-10-31). No pixel-equivalence or
-  video runtime test was run in this change.
+- FullGraph, DirectYUV and GOP RenderPlan routes consume `CompiledProgram`;
+  legacy non-RenderPlan entrypoints retain their compatibility API. Build
+  `linux-video-fast-dev`, target `chronon3d_cli`, `-j12`: `PASS` (2026-10-31).
+  No pixel-equivalence or video runtime test was run in this change.
 - Build `linux-fast-dev` dei target compiler, graph pipeline, CLI render e test
   boundary: `PASS`.
 - Gate architetturale: `PASS` (122/122 regole).

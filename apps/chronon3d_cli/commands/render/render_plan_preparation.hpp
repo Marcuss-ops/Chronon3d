@@ -46,12 +46,8 @@ struct RenderPlanPreparationOptions {
     std::string assets_root; // explicit; empty falls back to CHRONON3D_CLI_ASSETS_ROOT
     std::string prepared_package; // optional immutable overlay preparation sidecar
     bool no_dirty_rects{false}; // CLI diagnostic override; preserve full-frame conversion
-    // CLI output overrides can select a video/raw sink even when the plan's
-    // own still-image output would otherwise skip the video compatibility view.
-    bool force_video_compatibility_view{false};
     // In-process callers may supply CM3D's resolved camera. The canonical
-    // compiler materializes its presentation/shutter samples; video also
-    // retains the exact callback in its compatibility scene view.
+    // compiler materializes its presentation/shutter samples.
     // JSON-only callers retain offline-plan compatibility.
     std::optional<render_plan::RuntimeCameraSampleProvider> runtime_camera;
 };
@@ -89,10 +85,6 @@ struct PreparedRenderPlanContext {
     render_plan::RenderPlan decoded;
     std::optional<PreparedOverlayPackageSummary> prepared_package;
     std::shared_ptr<const compiler::CompiledProgram> program;
-    // Video export still consumes the composition-shaped executor until its
-    // encoder bridge is numeric-program native. This is a temporary view
-    // materialized from `program`; it is not a second compiler result.
-    std::shared_ptr<const CompiledComposition> video_compatibility_view;
     chronon3d::assets::AssetResolver resolver;
     std::string effective_assets_root;
     chronon3d::RenderSettings settings;
