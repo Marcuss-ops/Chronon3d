@@ -158,6 +158,44 @@ Composition make_alpha_dof_scene(float opacity) {
         });
 }
 
+Composition make_overlapping_occlusion_dof_scene(
+    bool far_layer_first, float near_opacity = 1.0f, bool dof_enabled = true) {
+    return composition({.width = 96, .height = 96, .duration = 1},
+        [far_layer_first, near_opacity, dof_enabled](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            s.set_evaluated_camera(camera().enabled(true)
+                .position({0.0f, 0.0f, -1000.0f})
+                .zoom(1000.0f)
+                .rotation({0.0f, 0.0f, 0.0f})
+                .dof(DepthOfFieldSettings{
+                    .enabled = dof_enabled, .focus_z = 0.0f,
+                    .aperture = 0.05f, .max_blur = 16.0f}).build());
+            const auto add_far = [&] {
+                s.layer("far", [](LayerBuilder& l) {
+                    l.enable_3d(true).position({0.0f, 0.0f, 0.0f});
+                    l.rect("background", {
+                        .size = {2000.0f, 2000.0f},
+                        .color = {0.95f, 0.04f, 0.03f, 1.0f},
+                        .pos = {0.0f, 0.0f, 0.0f}
+                    });
+                });
+            };
+            const auto add_near = [&] {
+                s.layer("near", [near_opacity](LayerBuilder& l) {
+                    l.enable_3d(true).position({0.0f, 0.0f, -400.0f}).opacity(near_opacity);
+                    l.rect("occluder", {
+                        .size = {20.0f, 20.0f},
+                        .color = {0.02f, 0.92f, 0.06f, 1.0f},
+                        .pos = {0.0f, 0.0f, 0.0f}
+                    });
+                });
+            };
+            if (far_layer_first) { add_far(); add_near(); }
+            else { add_near(); add_far(); }
+            return s.build();
+        });
+}
+
 Composition make_position_animation_dof_scene() {
     return composition({.width = 128, .height = 128, .duration = 300},
         [](const FrameContext& ctx) {
@@ -315,6 +353,44 @@ TEST_CASE("PR2-RG-DoF: alpha threshold controls depth provenance") {
             CHECK(sources > 0);
         }
     }
+}
+
+TEST_CASE("PR2-RG-DoF: nearest 2.5D card occludes the far plane in either layer order") {
+    for (const bool far_layer_first : {true, false}) {
+        auto r = ctt::make_renderer();
+        r.reset_counters();
+        auto fb = r.render(make_overlapping_occlusion_dof_scene(far_layer_first), 0);
+        REQUIRE(fb != nullptr);
+        const Color center = fb->get_pixel(48, 48);
+        CHECK(center.g > center.r * 1.5f);
+        CHECK(center.g > center.b * 1.5f);
+        CHECK(center.a == doctest::Approx(1.0f));
+        CHECK(r.counters()->dof_blur_source_pixels.load(std::memory_order_relaxed) > 0);
+    }
+}
+
+TEST_CASE("PR2-RG-DoF: fractional-alpha occluder composites over the far plane in either layer order") {
+    for (const bool far_layer_first : {true, false}) {
+        auto r = ctt::make_renderer();
+        auto fb = r.render(make_overlapping_occlusion_dof_scene(far_layer_first, 0.5f), 0);
+        REQUIRE(fb != nullptr);
+        const Color center = fb->get_pixel(48, 48);
+        CHECK(center.r > 0.05f);
+        CHECK(center.g > 0.05f);
+        CHECK(center.a == doctest::Approx(1.0f));
+    }
+}
+
+TEST_CASE("PR2-RG-DoF: fractional-alpha control without blur") {
+    auto r = ctt::make_renderer();
+    auto fb = r.render(make_overlapping_occlusion_dof_scene(true, 0.5f, false), 0);
+    REQUIRE(fb != nullptr);
+    const Color center = fb->get_pixel(48, 48);
+    const Color corner = fb->get_pixel(4, 4);
+    INFO("center RGBA = " << center.r << ", " << center.g << ", " << center.b << ", " << center.a);
+    INFO("corner RGBA = " << corner.r << ", " << corner.g << ", " << corner.b << ", " << corner.a);
+    CHECK(center.a == doctest::Approx(1.0f));
+    CHECK(corner.r > 0.1f);
 }
 
 TEST_CASE("PR2-RG-DoF: moving source keeps ROI bounded across 300 frames") {
