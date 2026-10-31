@@ -19,7 +19,7 @@
 
 #include <doctest/doctest.h>
 #include <chronon3d/math/camera_projection_resolver.hpp>
-#include <chronon3d/math/camera_projection_frustum.hpp>
+#include <chronon3d/math/detail/camera_projection_frustum.hpp>
 #include <cmath>
 using namespace chronon3d;
 

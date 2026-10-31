@@ -1,5 +1,7 @@
 #pragma once
 
+// Internal projection detail — package closure, not SDK API. See
+// docs/evidence/camera-surface-consolidation/ for the consumer census.
 // ============================================================================
 // camera_projection_matrix.hpp — Backward-compat matrix builders
 //

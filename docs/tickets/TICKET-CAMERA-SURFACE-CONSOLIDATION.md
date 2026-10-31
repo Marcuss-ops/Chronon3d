@@ -11,6 +11,11 @@
 - **Repository:** `ChrononMotion3D` (autoring), `Chronon3d` (consumo), `ChrononTemplate`
   (solo come destinazione dei pack editoriali, senza toccarne le API).
 - **Owner:** manutentore del confine ChrononMotion3D / Chronon3d.
+- **Stato 2026-10-31:** S0 (guardrail), S1 (censimento consumer) e S4
+  (projection detail) completati sul working tree; i gate C3D
+  (`chronon3d_camera_tests`, `check_public_headers.py`) restano da rilanciare
+  sul build host. S2 resta bloccato dal fix F3 e S3 dalla migrazione coordinata
+  di schema/producer/consumer. Nessun test rimosso.
 
 ---
 
@@ -155,15 +160,19 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
 
 ## 5. Piano ordinato (gate di verifica per step)
 
-- [ ] **S0 — Guardrail anti-rigrow prima di tutto.** Nuova sezione in
+- [x] **S0 — Guardrail anti-rigrow prima di tutto.** Nuova sezione in
   `BOUNDARY_C3D.md` (e allineamento `ARCHITECTURE.md`): "ogni header `Camera*` nuovo in
   `motion/` è (a) preset-dato o (b) servizio geometrico con riga nel registro; mosse
   editoriali note = pack, non header; ogni campo che passa il confine = gamme
   fail-closed identiche, unità authored unica, default che non arminino kernel assenti".
   Gate: `chrononmotion_boundary` PASS; doc aggiornata nella stessa PR.
-- [ ] **S1 — Inventario file-by-file con tabella consumatori** → `docs/evidence/`
-  camera-surface-consolidation. Confluisce col censimento **A** del ticket AE: *una sola
-  tabella, in entrambi i ticket con link, mai due censimenti divisi*.
+  **Eseguito 2026-10-31:** sezione S0 in `BOUNDARY_C3D.md`, regola nel ledger
+  `CHRONONMOTION.md` e matrice camera in
+  `Chronon3d/docs/architecture/RUNTIME-OWNERSHIP-MATRIX.md`.
+- [x] **S1 — Inventario file-by-file con tabella consumatori** →
+  [docs/evidence/camera-surface-consolidation](../evidence/camera-surface-consolidation/README.md).
+  Confluisce col censimento **A** del ticket AE: *una sola tabella, in entrambi i
+  ticket con link, mai due censimenti divisi*.
 - [ ] **S2 — Collasso applier → dati (CM3D).** Un meccanismo: CameraRig + waypoint +
   `presets::`. Ogni eliminazione header: (1) grep degli include per mappare i consumer;
   (2) migrazione del chiamante al preset/pack; (3) include dei test aggiornati;
@@ -173,8 +182,12 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
   nessun producer authorizza ancora `dof_aperture` o il gain 0.672), rimuovere il sito,
   il commento LEGACY e il codice ponte;
   aggiornare `BOUNDARY_C3D.md` C1/C5 (e `render_plan_layer_types.hpp`) nella stessa PR.
-- [ ] **S4 — Audit projection/diagnostica C3D.** Tabella consumer per ciascun file;
+- [x] **S4 — Audit projection/diagnostica C3D.** Tabella consumer per ciascun file;
   spostare in `namespace detail` o dismettere; nulla si elimina senza grep consumer a zero.
+  **Eseguito 2026-10-31:** `camera_projection_{matrix,clip,frustum}` spostati in
+  `include/chronon3d/math/detail/` e riclassificati nel manifest SDK; resolver e
+  contratti restano gli unici punti pinned. Diagnostica censita, nessun consumer
+  a zero, nessuna rimozione.
 - [ ] **S5 — Coordinamento demolition-debt ATTIVI:** integer transform bake (tutti i
   producer → resolved samples) e view video di compatibilità (exit = §3 G del ticket AE);
   le migrazioni pack **non cominciano prima del fix F3 Z convention**
