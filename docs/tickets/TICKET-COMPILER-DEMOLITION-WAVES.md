@@ -13,6 +13,12 @@ sono coerenti.
 
 - [ ] **Wave 3 — render-plan runtime esegue direttamente topology e parameter** — logica: il path compat è ancora load-bearing per l'esecuzione (la chiusura precedente era prematura); il runtime deve consumare direttamente topology+parameter senza il bridge. Dove: `src/render_graph/` (builder/compiler/optimizer), `src/compiler/compiler.cpp` + `program_sampler.cpp`, `src/render_graph/cache/scene_program_store.cpp`. Gate: le 4 snapshot di equivalenza (`d72a4efc2`) restano identiche e il path compat non è più raggiungibile dal runtime.
 - [ ] **Wave 3 video — eliminare i consumer CLI legacy** — l'intero percorso RenderPlan video (FullGraph, DirectYUV e GOP) consuma `CompiledProgram` e non materializza più `CompiledComposition`. Restano gli entrypoint CLI legacy non RenderPlan e le API compatibili pubbliche. Per chiudere: censire i consumer legacy e rimuoverli o isolarli. Gate: equivalenza pixel/export, cancellation durante temporal sampling, DirectYUV/GOP parity e build same-SHA.
+- [ ] **Wave 1 — scomporre i grandi file rimasti** — i target storici `render_plan.hpp`, `composition.cpp` e `scene_temporal_execution.cpp` sono già stati ridotti/spostati; il census attuale ha ancora unità oltre 1.000 righe (`lottie_expansion/expansion.cpp`). Prima isolare responsabilità e consumer, poi spezzare senza cambiare semantica.
+
+Aggiornamento 2026-10-31: il bridge video RenderPlan è stato cancellato dal
+codice e dai test che lo esercitavano; il gate di equivalenza pixel/video resta
+aperto. `temporal_rate_analysis.hpp` ora contiene soltanto DTO e dichiarazioni;
+il calcolo vive in `src/render_plan/temporal_rate_analysis.cpp`.
 
 ## Todo / acceptance criteria
 
@@ -90,6 +96,9 @@ sono coerenti.
 - [x] Wave 3 video — il percorso DirectYUV typed classifica e prepara la scena
   da `SceneMaterializer` + `TypedProgramSampler`; `DirectYuvProgram` campiona
   il programma a ogni frame. Le entrypoint legacy restano per i job senza IR.
+- [x] Wave 1 — l'analisi temporale RenderPlan è stata spostata da un header
+  inline da 534 righe a un translation unit; l'header espone solo report e API
+  e forward-declara `RenderPlan`, evitando il parsing del piano nei consumer DTO.
 - [x] Wave 3 video — GOP preflight, target contract e direct-mux re-encode
   leggono i metadati `CompiledProgram`; la vista CompiledComposition non è più
   creata nella preparazione RenderPlan.
@@ -121,20 +130,17 @@ sono coerenti.
   request parity, targeted render-graph tests e build `linux-fast-dev`.
 - Removal scope: legacy CLI adapter, public graph facade, obsolete CMake
   sources/targets e compatibility payload non più referenziati.
-- Status: `ACTIVE` 2026-10-10 (correction of premature close). The 4
-  `be14cbd86` snapshot residuals are verified gone (`compiler.cpp` clean,
-  no `chronon3d_render_plan` link, `program_sampler.cpp` deleted,
-  `typed_program_sampler` bridge-free, session/execution payloads clean).
-  What remains is NOT deletable as-is: the compat path is load-bearing via
-  the `Composition` object model (no `Composition`→`CompiledProgram` lowering
-  exists), FFmpeg legacy/GOP paths (take `CompiledComposition`) and
-  DirectYUV preparation/inspection.
-  Removal scope for the real Wave 3: build the lowering, migrate
-  `RenderEngine`/`SoftwareRenderer`/CLI legacy+GOP exporter/SDK/tests, then delete
-  `render_compiled_composition_frame*`, `render_compatibility*`,
-  `make_video_compatibility_view` and `compatibility_composition` plumbing —
-  with pixel/export parity and `build linux-fast-dev` as equivalence gate. The
-  typed FullGraph CLI route is migrated; fallback removal is still pending.
+- Status: `ACTIVE` 2026-10-31. The 4 `be14cbd86` snapshot residuals are
+  verified gone. RenderPlan FullGraph, DirectYUV and GOP now consume
+  `CompiledProgram`; `make_video_compatibility_view` and the CLI materialized
+  view have been removed. What remains is the authoring `Composition` object
+  model and non-RenderPlan legacy entrypoints (`RenderEngine`,
+  `SoftwareRenderer`, SDK and CLI). No `Composition`→`CompiledProgram`
+  lowering exists, so these APIs cannot be deleted without replacing their
+  authoring input contract. Next removal scope: migrate or isolate those
+  entrypoints, then delete `render_compiled_composition_frame*`,
+  `render_compatibility*` and `compatibility_composition`; equivalence and
+  pixel/export gates remain NOT RUN.
 
 ## Verified residual census — `be14cbd86` + delta 2026-09-09
 

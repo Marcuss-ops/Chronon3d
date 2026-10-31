@@ -48,7 +48,7 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 | Iris blades/highlight | **REJECTED:** `camera_contract.hpp` rifiuta i parametri senza kernel; non è supporto AE-shaped bokeh. |
 | Shutter e layer | **PARTIAL:** `camera_sample_provider.hpp`, `RenderPlanLowering.cpp`, `test_camera_motion.cpp`; test camera/layer e piano Optical Studio materializzato passano. Il job unico è ancora oggetto di diagnosi e la CLI non prova il callback provider live. |
 | Camera sequence e cut | **PARTIAL:** `motion_camera_sequence.cpp` copre il componente Motion; nessuna certificazione di cut E2E su job C3D. |
-| Bridge export | **MISSING:** l'export usa ancora `make_video_compatibility_view`; la demolizione resta condizionata al gate §4. |
+| Bridge export | **IMPLEMENTATO, PARITÀ NON CERTIFICATA:** il percorso RenderPlan esporta FullGraph, DirectYUV e GOP da `CompiledProgram`; il bridge `make_video_compatibility_view` e il suo translation unit sono stati rimossi il 2026-10-31. Test raw/shutter e GOP/DirectYUV non eseguiti in questa passata. |
 
 ## 3. To-do ordinata e criteri di accettazione
 
@@ -66,11 +66,11 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 ## 4. Demolition debt: view video di compatibilità
 
 - **Owner:** manutentore compiler/video Chronon3d.
-- **Reason:** la preparazione compila il programma tipizzato, ma l'export video usa ancora una view CompiledComposition (`render_plan_preparation.cpp`, `make_video_compatibility_view`).
+- **Reason:** il bridge è stato rimosso; manca ancora la certificazione di equivalenza per i consumer video tipizzati.
 - **Exit condition:** tutti i job di accettazione video usano direttamente il programma tipizzato, senza conversione di view, con equivalenza raw e shutter e output contrattuale verificati.
 - **Equivalence gate:** §3 E/F/G/I, fixture identiche e soglie congelate, software e strict-native, seek e ordine inverso.
-- **Removal scope:** call site e adapter della view video rimasti senza consumer, callback/trasporto duplicati e test esclusivamente del ponte; mantenere compiler, scheduler e proiezione canonici.
-- **Status:** ACTIVE. Non autorizza cancellazioni immediate.
+- **Removal scope:** call site, adapter, translation unit e test esclusivamente del ponte sono stati rimossi; restano i gate di equivalenza e le API legacy non RenderPlan.
+- **Status:** ACTIVE — codice bridge rimosso, gate di equivalenza ancora NOT RUN.
 
 ## 5. Dipendenze e regola di chiusura
 

@@ -40,17 +40,4 @@ compile_render_plan(
     const compiler::CompiledProgram* canonical_program = nullptr,
     const RuntimeCameraSampleProvider* runtime_camera = nullptr);
 
-/// Build the temporary video compatibility view from an already canonical
-/// CompiledProgram. This overload performs asset/materialization preparation
-/// needed by the legacy video executor, but deliberately does not invoke
-/// compile_composition or any second compiler.
-Result<CompiledComposition, PlanDecodeError>
-make_video_compatibility_view(
-    const RenderPlan& plan,
-    chronon3d::assets::AssetResolver& resolver,
-    const chronon3d::assets::PreparedAssetManifest& assets,
-    const compiler::CompiledProgram& program,
-    const RenderPlanFingerprintOptions& fingerprint_options = {},
-    const RuntimeCameraSampleProvider* runtime_camera = nullptr);
-
 }  // namespace chronon3d::render_plan

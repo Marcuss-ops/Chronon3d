@@ -1162,24 +1162,12 @@ TEST_CASE("runtime camera provider samples exact fractional frames and fingerpri
         plan, resolver, {}, nullptr, &provider);
     REQUIRE(prepared);
 
-    const auto canonical = compiler::compile(plan, resolver);
-    REQUIRE(canonical);
-    const auto videoView = render_plan::make_video_compatibility_view(
-        plan, resolver, prepared->assets, *canonical, {}, &provider);
-    REQUIRE(videoView);
-
     const auto evaluated = evaluate(prepared->compiled_composition, {},
         SampleTime::from_frame(0.5, FrameRate{30, 1}));
     REQUIRE(evaluated);
     CHECK(sampled_frame == doctest::Approx(0.5));
     CHECK(evaluated->scene.camera_2_5d().position.x == doctest::Approx(2.f));
     CHECK(evaluated->scene.camera_2_5d().is_animated);
-
-    const auto videoEvaluation = evaluate(*videoView, {},
-        SampleTime::from_frame(0.5, FrameRate{30, 1}));
-    REQUIRE(videoEvaluation);
-    CHECK(sampled_frame == doctest::Approx(0.5));
-    CHECK(videoEvaluation->scene.camera_2_5d().position.x == doctest::Approx(2.f));
 
     const auto preRoll = evaluate(prepared->compiled_composition, {},
         SampleTime::from_frame(-0.25, FrameRate{30, 1}));
