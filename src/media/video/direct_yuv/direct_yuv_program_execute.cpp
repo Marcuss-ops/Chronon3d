@@ -1,4 +1,5 @@
 #include <chronon3d/media/video/direct_yuv_program.hpp>
+#include "direct_yuv_program_scene.hpp"
 #include "direct_yuv_text_contract.hpp"
 #include "text_texture_cache.hpp"
 
@@ -81,9 +82,17 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     (void)decoder; (void)frame;
     return nullptr;
 #else
+    if (!typed_program_ && !composition_) return nullptr;
+    const FrameRate rate = typed_program_
+        ? FrameRate{typed_program_->metadata().fps_numerator,
+                    typed_program_->metadata().fps_denominator}
+        : composition_->frame_rate();
+    const Frame duration = typed_program_
+        ? Frame{typed_program_->metadata().duration_frames}
+        : composition_->duration();
     const auto decode_t0 = profiling::now();
     auto decoded = decoder.decode_native_frame_at(
-        video_path_, composition_->frame_rate().presentation_time(frame), width_, height_);
+        video_path_, rate.presentation_time(frame), width_, height_);
     const double decode_ms = profiling::duration_ms(decode_t0, profiling::now());
     if (!decoded) {
         // A decode error is a failed frame, not an implicit hold-last-frame
@@ -92,8 +101,6 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
         spdlog::error("[direct-yuv] native decode failed at frame={}", frame.integral());
         return nullptr;
     }
-    if (!composition_) return nullptr;
-
     auto result = acquire_frame();
     result->decoded = std::move(decoded);
     result->decode_ms = decode_ms;
@@ -121,19 +128,22 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
     if (template_frame->resource_owners.capacity() < overlay_instances_hint_) {
         template_frame->resource_owners.reserve(overlay_instances_hint_);
     }
-    const auto rate = composition_->frame_rate();
-    const auto duration = composition_->duration();
-    const auto context = make_frame_context({
-        .global_time = SampleTime::from_frame(static_cast<double>(frame.integral()), rate),
-        .duration = duration,
-        .width = width_,
-        .height = height_,
-    });
-
     const auto scene_t0 = profiling::now();
     Scene scene;
     try {
-        scene = composition_->evaluate(context);
+        if (typed_program_ && typed_topology_) {
+            scene = detail::sample_program_scene(
+                *typed_program_, *typed_topology_, frame);
+        } else {
+            const auto context = make_frame_context({
+                .global_time = SampleTime::from_frame(
+                    static_cast<double>(frame.integral()), rate),
+                .duration = duration,
+                .width = width_,
+                .height = height_,
+            });
+            scene = composition_->evaluate(context);
+        }
     } catch (const std::exception& error) {
         // FAIL-CLOSED: a failed timeline evaluation must fail the frame — and
         // therefore the render job — never silently fall back to an empty
@@ -338,7 +348,7 @@ std::shared_ptr<DirectYuvFrame> DirectYuvProgram::execute(
 
     if (all_overlay_layers_static_ && video_layers_.empty()) {
         Frame cue_from = Frame{0};
-        Frame cue_until = composition_->duration();
+        Frame cue_until = duration;
         for (const auto& layer : scene.layers()) {
             if (layer.video_source) continue;
             const Frame l_from = std::max<Frame>(Frame{0}, layer.from);

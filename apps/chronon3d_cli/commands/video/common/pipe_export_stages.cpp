@@ -70,10 +70,10 @@ NativeSurfacePrep prepare_frame(
     std::string reason;
     const auto render_width = ctx.program
         ? static_cast<int>(ctx.program->metadata().width)
-        : ctx.compiled.composition->width();
+        : ctx.compiled->composition->width();
     const auto render_height = ctx.program
         ? static_cast<int>(ctx.program->metadata().height)
-        : ctx.compiled.composition->height();
+        : ctx.compiled->composition->height();
     if (!ctx.device_runtime->acquire_slot_surfaces(
             execution_slot, *surface_registry, ctx.backend,
             static_cast<std::uint32_t>(render_width),
@@ -116,7 +116,7 @@ RenderOutcome render_frame(
     } else {
         out.fb = graph::render_compiled_composition_frame_temporal(
             ctx.backend, ctx.node_cache, video_settings, &ctx.registry,
-            ctx.video_decoder, ctx.compiled, current_frame,
+            ctx.video_decoder, *ctx.compiled, current_frame,
             ctx.sw_renderer, ctx.opts.cancellation_token, nullptr);
     }
     const auto frame_t1 = profiling::now();
@@ -151,10 +151,10 @@ RenderOutcome render_frame(
         const raster::BBox& r = *out.dirty_rect;
         const int full_w = ctx.program
             ? static_cast<int>(ctx.program->metadata().width)
-            : ctx.compiled.composition->width();
+            : ctx.compiled->composition->width();
         const int full_h = ctx.program
             ? static_cast<int>(ctx.program->metadata().height)
-            : ctx.compiled.composition->height();
+            : ctx.compiled->composition->height();
         const bool covers_frame =
             r.x0 <= 0 && r.y0 <= 0 && r.x1 >= full_w && r.y1 >= full_h;
         if (!covers_frame && !r.is_empty()) {

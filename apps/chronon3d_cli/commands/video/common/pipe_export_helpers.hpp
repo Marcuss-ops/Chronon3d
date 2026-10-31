@@ -56,7 +56,8 @@ void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::excep
 /// is outside the canonical vocabulary. There is no silent fallback: an
 /// unknown format must fail the export, not quietly become RGBA.
 [[nodiscard]] std::optional<FfmpegPipeOptions> make_pipe_options(
-    const CompiledComposition& compiled,
+    int width,
+    int height,
     const FfmpegExportOptions& opts,
     const std::string& codec,
     const chronon3d::CpuBudget& cpu_budget);
@@ -77,8 +78,9 @@ void track_pipe_encoder_process(
 [[nodiscard]] chronon3d::runtime::RendererWarmupResult
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
-    const CompiledComposition& compiled,
-    const FfmpegExportOptions& opts);
+    const CompiledComposition* compiled,
+    const FfmpegExportOptions& opts,
+    const compiler::CompiledProgram* program = nullptr);
 
 [[nodiscard]] double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder);
 

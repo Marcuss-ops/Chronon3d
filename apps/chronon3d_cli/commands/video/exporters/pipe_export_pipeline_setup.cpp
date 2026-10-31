@@ -33,7 +33,7 @@ using detail::VariantFanoutEncoder;
 
 std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
+    const CompiledComposition* compiled,
     const RenderSettings& settings,
     const FfmpegExportOptions& opts,
     Frame start,
@@ -42,10 +42,20 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes,
     runtime::DeviceScheduler* device_scheduler,
     std::shared_ptr<media::VideoJobExecutionContext> execution,
-    std::shared_ptr<SoftwareRenderer> warm_renderer)
+    std::shared_ptr<SoftwareRenderer> warm_renderer,
+    const compiler::CompiledProgram* program)
 {
     constexpr size_t kArenaPoolCount = kCpuVideoPipelineDepth;
     auto session = std::make_unique<PipeExportSession>(kCpuVideoPipelineDepth);
+    if (!program && (!compiled || !compiled->composition)) {
+        spdlog::error("[video] setup requires a typed program or legacy composition");
+        return session;
+    }
+    const int canvas_width = program ? static_cast<int>(program->metadata().width)
+                                     : compiled->composition->width();
+    const int canvas_height = program ? static_cast<int>(program->metadata().height)
+                                      : compiled->composition->height();
+    const auto program_fingerprint = program ? program->fingerprint() : compiled->fingerprint;
     session->execution_plan = opts.resolved_execution_plan;
     session->execution_context = execution;
     bool direct_yuv_requested =
@@ -77,8 +87,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         const std::string hot =
             opts.gpu_hot_path_mode == GpuHotPathMode::RequireDirectYuv ? "require_direct_yuv" : "";
         auto requirements = resolve_device_requirements(
-            static_cast<std::uint32_t>(compiled.composition->width()),
-            static_cast<std::uint32_t>(compiled.composition->height()),
+            static_cast<std::uint32_t>(canvas_width),
+            static_cast<std::uint32_t>(canvas_height),
             direct_yuv_requested, native_nvenc, opts.encoder.codec, hot);
         // P0-2: build the charge through the same derived-working-set model the
         // post-preparation reconciliation uses.  No compiled footprint exists
@@ -88,8 +98,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         session->vram_working_set = derive_vram_working_set(
             /*planned_physical_bytes=*/0,
             /*peak_live_bytes=*/0,
-            static_cast<std::uint32_t>(compiled.composition->width()),
-            static_cast<std::uint32_t>(compiled.composition->height()),
+            static_cast<std::uint32_t>(canvas_width),
+            static_cast<std::uint32_t>(canvas_height),
             direct_yuv_requested, native_nvenc);
         requirements.resources.vram_bytes =
             session->vram_working_set.estimated_peak_bytes;
@@ -152,8 +162,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
     session->start_frame = start;
     session->end_frame = end;
-    session->canvas_width = compiled.composition->width();
-    session->canvas_height = compiled.composition->height();
+    session->canvas_width = canvas_width;
+    session->canvas_height = canvas_height;
     session->total_frames = static_cast<int64_t>(end - start);
     session->trace_job_id = static_cast<std::uint64_t>(
         std::hash<std::string>{}(session->original_output_path)) ^ profiling::timestamp_ns();
@@ -221,7 +231,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             auto child_encoder = create_video_encoder(child_opts, {
                 .device_runtime = session->device_runtime});
             if (!child_encoder) return session;
-            auto child_options = make_pipe_options(compiled, child_opts, child_codec, cpu_budget);
+            auto child_options = make_pipe_options(canvas_width, canvas_height, child_opts, child_codec, cpu_budget);
             if (!child_options) {
                 // Invalid pipe pixel format in this variant: fail the whole
                 // session (encoder is still null, so the caller detects it).
@@ -280,10 +290,15 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     if (direct_yuv_requested) {
         const auto input_t0 = profiling::now();
         runtime::LaneReason direct_reason;
-        session->direct_yuv_session->program = media::video::DirectYuvProgram::prepare(
-            compiled, session->device_runtime->image_cache(), session->device_runtime,
-            *session->direct_yuv_session->asset_resolver,
-            direct_reason);
+        session->direct_yuv_session->program = program
+            ? media::video::DirectYuvProgram::prepare(
+                  *program, session->device_runtime->image_cache(),
+                  session->device_runtime,
+                  *session->direct_yuv_session->asset_resolver, direct_reason)
+            : media::video::DirectYuvProgram::prepare(
+                  *compiled, session->device_runtime->image_cache(),
+                  session->device_runtime,
+                  *session->direct_yuv_session->asset_resolver, direct_reason);
         session->input_open_ms = profiling::duration_ms(input_t0, profiling::now());
         if (!session->direct_yuv_selected()) {
             // Path classification already happened once in the dispatcher.
@@ -322,7 +337,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             "native_surface={}",
             feed_cap.host_frame, feed_cap.direct_yuv, feed_cap.native_surface);
     }
-    auto pipe_options = make_pipe_options(compiled, session->opts, codec, cpu_budget);
+    auto pipe_options = make_pipe_options(canvas_width, canvas_height, session->opts, codec, cpu_budget);
     if (!pipe_options) {
         // Invalid pipe pixel format: release the encoder so the caller's
         // readiness check (`!session->encoder`) reports a loud failure instead
@@ -400,7 +415,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             // process-total NVENC/Vulkan frame counts and strict per-job gates
             // reject a valid render after the first clip.
             const std::string identity =
-                "compfp:" + std::to_string(compiled.fingerprint);
+                "progf:" + std::to_string(program_fingerprint);
             if (warm_renderer->frame_value_cache_identity() != identity) {
                 warm_renderer->reset_frame_value_cache();
                 warm_renderer->set_frame_value_cache_identity(identity);
@@ -470,9 +485,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const auto prep_start = profiling::now();
     if (!session->direct_yuv_selected()) {
         const auto font_t0 = profiling::now();
-        const auto preparation = runtime::prepare_render(
-            sw_renderer, compiled,
-            runtime::RenderPreparationOptions{.warmup_renderer = false});
+        const auto preparation = program
+            ? runtime::prepare_render(sw_renderer, *program,
+                runtime::RenderPreparationOptions{.warmup_renderer = false})
+            : runtime::prepare_render(sw_renderer, *compiled,
+                runtime::RenderPreparationOptions{.warmup_renderer = false});
         session->prepare_breakdown.prepare_render_ms = profiling::duration_ms(font_t0, profiling::now());
         if (!preparation.ok()) {
             spdlog::error("[video] Render preparation FAILED:\n{}", preparation.diagnostic());
@@ -500,7 +517,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         if (!session->full_graph_session->triple_arena) {
             const auto arena_t0 = profiling::now();
             const size_t arena_size = compute_pipe_arena_size(
-                compiled.composition->width(), compiled.composition->height());
+                canvas_width, canvas_height);
             session->full_graph_session->triple_arena =
                 std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
             session->prepare_breakdown.triple_arena_alloc_ms =

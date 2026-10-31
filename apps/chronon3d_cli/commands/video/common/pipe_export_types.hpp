@@ -111,7 +111,7 @@ struct RenderLoopContext {
     const RenderSettings& settings;
     const CompositionRegistry& registry;
     media::MediaFrameProvider* video_decoder;
-    const CompiledComposition& compiled;
+    const CompiledComposition* compiled;
     const compiler::CompiledProgram* program{nullptr};
     Frame start;
     Frame end;

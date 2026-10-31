@@ -76,7 +76,8 @@ size_t compute_pipe_arena_size(int width, int height) {
 }
 
 std::optional<FfmpegPipeOptions> make_pipe_options(
-    const CompiledComposition& compiled,
+    int width,
+    int height,
     const FfmpegExportOptions& opts,
     const std::string& codec,
     const chronon3d::CpuBudget& cpu_budget)
@@ -162,8 +163,8 @@ std::optional<FfmpegPipeOptions> make_pipe_options(
                 !is_native_encoder_transport(opts.encoder.encoder_backend)) ? "zerolatency" : "");
 
     FfmpegPipeOptions pipe_options{
-        .width = compiled.composition->width(),
-        .height = compiled.composition->height(),
+        .width = width,
+        .height = height,
         // F3.1 — rational-only: fps_num/fps_den are copied verbatim (the
         // scalar fps member was removed from both options structs).
         .fps_num = opts.output.fps_num,
@@ -259,8 +260,9 @@ void track_pipe_encoder_process(
 chronon3d::runtime::RendererWarmupResult
 warmup_pipe_renderer(
     SoftwareRenderer & renderer,
-    const CompiledComposition& compiled,
-    const FfmpegExportOptions& opts)
+    const CompiledComposition* compiled,
+    const FfmpegExportOptions& opts,
+    const compiler::CompiledProgram* program)
 {
     if (!opts.warmup.warmup_renderer) {
         return runtime::RendererWarmupResult{};
@@ -279,18 +281,24 @@ warmup_pipe_renderer(
     // double-accumulated its timings into the sidecar prepare section. The
     // dummy-frame warmup renders from the assets the setup barrier already
     // published on this renderer, so it needs no second preparation.
-    const auto warmup_result = runtime::warmup_renderer(
-        renderer, compiled,
-        runtime::RendererWarmupOptions{
-            .width = compiled.composition->width(),
-            .height = compiled.composition->height(),
+    const int width = program ? static_cast<int>(program->metadata().width)
+                              : compiled->composition->width();
+    const int height = program ? static_cast<int>(program->metadata().height)
+                               : compiled->composition->height();
+    const runtime::RendererWarmupOptions warmup_options{
+            .width = width,
+            .height = height,
             .framebuffer_count = opts.warmup.warmup_framebuffers,
             .preallocate_framebuffers = true,
             .touch_memory = true,
             .render_dummy_frame = opts.warmup.warmup_dummy_frame,
             .dummy_frame = 0,
             .quiet = false,
-        });
+        };
+    const auto warmup_result = program
+        ? runtime::warmup_renderer(renderer, *program, warmup_options)
+        : runtime::warmup_renderer(renderer, *compiled,
+            warmup_options);
     const auto warmup_t1 = profiling::now();
 
     if (renderer.counters()) {

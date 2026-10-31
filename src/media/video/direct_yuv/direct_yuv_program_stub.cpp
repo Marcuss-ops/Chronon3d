@@ -9,8 +9,26 @@ DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
     return report;
 }
 
+DirectYuvProgram::CapabilityReport DirectYuvProgram::resolve_support(
+    const compiler::CompiledProgram&, DirectYuvPolicy) {
+    CapabilityReport report;
+    report.reason = "DirectYUV requires native FFmpeg support";
+    return report;
+}
+
 std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     const CompiledComposition&,
+    ImageCache&,
+    std::shared_ptr<::chronon3d::media::VideoDeviceRuntime>,
+    const assets::AssetResolver&,
+    runtime::LaneReason& reason) {
+    reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                 "unsupported_feature", "native_ffmpeg_required"};
+    return nullptr;
+}
+
+std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
+    const compiler::CompiledProgram&,
     ImageCache&,
     std::shared_ptr<::chronon3d::media::VideoDeviceRuntime>,
     const assets::AssetResolver&,

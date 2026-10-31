@@ -373,7 +373,7 @@ bool execute_direct_mux_gop_plan(
             child.borrowed_mux = BorrowedMuxTarget{&session, *declared};
 
             const auto rendered = render_and_encode_native(
-                registry, compiled, composition_id, settings, render_start,
+                registry, &compiled, composition_id, settings, render_start,
                 render_end, child, cpu_budget,
                 execution ? execution->video_runtimes : nullptr,
                 execution ? execution->device_scheduler : nullptr,

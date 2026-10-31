@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/backends/video/video_source.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/media/video/composition_capability.hpp>
 #include <chronon3d/media/video/cuda_image_resource.hpp>
 #include <chronon3d/media/video/direct_yuv_frame.hpp>
@@ -9,9 +10,11 @@
 #include <chronon3d/media/video/cuda_layer_resource.hpp>
 #include <chronon3d/runtime/lane_decision.hpp>
 #include <chronon3d/text/mtsdf_profile.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/compiled_composition.hpp>
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -70,12 +73,24 @@ public:
         const CompiledComposition& compiled,
         DirectYuvPolicy policy);
 
+    [[nodiscard]] static CapabilityReport resolve_support(
+        const compiler::CompiledProgram& program,
+        DirectYuvPolicy policy);
+
     static std::shared_ptr<DirectYuvProgram> prepare(
         const CompiledComposition& compiled,
         ImageCache& image_cache,
         std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
         const assets::AssetResolver& asset_resolver,
         ::chronon3d::runtime::LaneReason& reason);
+
+    static std::shared_ptr<DirectYuvProgram> prepare(
+        const compiler::CompiledProgram& program,
+        ImageCache& image_cache,
+        std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
+        const assets::AssetResolver& asset_resolver,
+        ::chronon3d::runtime::LaneReason& reason);
+
 
     static std::shared_ptr<DirectYuvProgram> prepare(
         const CompiledComposition& compiled,
@@ -101,11 +116,25 @@ public:
 
 private:
     DirectYuvProgram() = default;
+    static std::shared_ptr<DirectYuvProgram> prepare_impl(
+        const CompiledComposition* compiled,
+        const compiler::CompiledProgram* typed_program,
+        std::shared_ptr<const Scene> typed_topology,
+        int width, int height, Frame duration, FrameRate rate,
+        std::function<Scene(Frame)> scene_evaluator,
+        ImageCache& image_cache,
+        std::shared_ptr<::chronon3d::media::VideoDeviceRuntime> video_runtime,
+        const assets::AssetResolver& asset_resolver,
+        ::chronon3d::runtime::LaneReason& reason);
     std::string video_path_;
     std::vector<DirectVideoLayer> video_layers_;
     int width_{0};
     int height_{0};
     std::shared_ptr<const Composition> composition_;
+    // Borrowed from the owning render job; its DirectYuvProgram is scoped to
+    // the export session and never outlives this reference.
+    const compiler::CompiledProgram* typed_program_{nullptr};
+    std::shared_ptr<const Scene> typed_topology_;
     std::unordered_map<std::string, DirectLayerResourceEntry> layer_resources_;
     /// AUDIT-04B: allocation-free per-frame lookup index over layer_resources_.
     /// string_views point at the map's stable node keys (filled once in

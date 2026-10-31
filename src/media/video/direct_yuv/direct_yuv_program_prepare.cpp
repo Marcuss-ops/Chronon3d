@@ -1,4 +1,5 @@
 #include <chronon3d/media/video/direct_yuv_program.hpp>
+#include "direct_yuv_program_scene.hpp"
 #include "direct_yuv_text_contract.hpp"
 #include "text_texture_cache.hpp"
 
@@ -27,6 +28,7 @@ extern "C" {
 #include <cmath>
 #include <unordered_set>
 #include <utility>
+#include <string_view>
 
 namespace chronon3d::media::video {
 namespace media = ::chronon3d::media;
@@ -61,18 +63,70 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
     const assets::AssetResolver& asset_resolver,
     runtime::LaneReason& reason) {
-#ifndef CHRONON3D_ENABLE_CUDA_INTEROP
-    (void)compiled; (void)image_cache; (void)video_runtime; (void)asset_resolver;
-    reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
-                                 "unsupported_feature", "cuda_interop_not_compiled"};
-    return nullptr;
-}
-#else
     if (!compiled.composition) {
         reason = runtime::LaneReason{runtime::LaneDecision::Failed,
                                      "error", "compiled_composition_empty"};
         return nullptr;
     }
+    const auto composition = compiled.composition;
+    const auto evaluate = [composition](Frame frame) {
+        return composition->evaluate(make_frame_context({
+            .global_time = SampleTime::from_frame(
+                static_cast<double>(frame.integral()), composition->frame_rate()),
+            .duration = composition->duration(),
+            .width = composition->width(),
+            .height = composition->height(),
+        }));
+    };
+    return prepare_impl(&compiled, nullptr, {}, composition->width(),
+                        composition->height(), composition->duration(),
+                        composition->frame_rate(), evaluate, image_cache,
+                        std::move(video_runtime), asset_resolver, reason);
+}
+
+std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
+    const compiler::CompiledProgram& program,
+    ImageCache& image_cache,
+    std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
+    const assets::AssetResolver& asset_resolver,
+    runtime::LaneReason& reason) {
+    auto topology = detail::materialize_program_topology(program);
+    const auto evaluate = [&program, topology](Frame frame) {
+        return detail::sample_program_scene(program, *topology, frame);
+    };
+    const auto& metadata = program.metadata();
+    return prepare_impl(nullptr, &program, std::move(topology),
+                        static_cast<int>(metadata.width),
+                        static_cast<int>(metadata.height),
+                        Frame{metadata.duration_frames},
+                        FrameRate{metadata.fps_numerator, metadata.fps_denominator},
+                        evaluate, image_cache, std::move(video_runtime),
+                        asset_resolver, reason);
+}
+
+std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare_impl(
+    const CompiledComposition* compiled,
+    const compiler::CompiledProgram* typed_program,
+    std::shared_ptr<const Scene> typed_topology,
+    int width,
+    int height,
+    Frame duration,
+    FrameRate rate,
+    std::function<Scene(Frame)> scene_evaluator,
+    ImageCache& image_cache,
+    std::shared_ptr<media::VideoDeviceRuntime> video_runtime,
+    const assets::AssetResolver& asset_resolver,
+    runtime::LaneReason& reason) {
+#ifndef CHRONON3D_ENABLE_CUDA_INTEROP
+    (void)compiled; (void)typed_program; (void)typed_topology;
+    (void)width; (void)height; (void)duration; (void)rate;
+    (void)scene_evaluator; (void)image_cache; (void)video_runtime;
+    (void)asset_resolver;
+    reason = runtime::LaneReason{runtime::LaneDecision::FallbackUnsupported,
+                                 "unsupported_feature", "cuda_interop_not_compiled"};
+    return nullptr;
+}
+#else
     // Lane selection is final before this preparation boundary. The resolver
     // and compiled-composition classifier already produced the immutable
     // DirectYUV decision; preparation may fail for missing assets, upload
@@ -84,21 +138,10 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         return nullptr;
     }
 
-    const auto duration = compiled.composition->duration();
-    const auto rate = compiled.composition->frame_rate();
-    const int width = compiled.composition->width();
-    const int height = compiled.composition->height();
-
     const auto scene_t0 = profiling::now();
-    const auto context_0 = make_frame_context({
-        .global_time = SampleTime::from_frame(0.0, rate),
-        .duration = duration,
-        .width = width,
-        .height = height,
-    });
     Scene scene_0;
     try {
-        scene_0 = compiled.composition->evaluate(context_0);
+        scene_0 = scene_evaluator(Frame{0});
     } catch (const std::exception& error) {
         reason = runtime::LaneReason{runtime::LaneDecision::Failed,
                                      "error", "scene_evaluation_failed"};
@@ -311,7 +354,20 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
         return true;
     };
 
-    const auto layer_is_static = [](const Layer& layer) -> bool {
+    const auto layer_is_static = [typed_program](const Layer& layer) -> bool {
+        if (typed_program) {
+            for (const auto& source : typed_program->layers()) {
+                const auto expected_name = source.name.empty()
+                    ? "layer_" + std::to_string(source.id) : source.name;
+                if (std::string_view{layer.name} !=
+                    std::string_view{expected_name}) continue;
+                return !source.has_transform_animation &&
+                    source.transform_samples.empty() &&
+                    source.animation_program_index ==
+                        compiler::StaticLayerProgram::kInvalidProgramIndex;
+            }
+            return true;
+        }
         const auto& t = layer.anim_transform;
         const auto animated = [](const auto& value) {
             return value.is_animated() || value.has_expression();
@@ -338,16 +394,10 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
                 if (pending.erase(std::string(layer.name)) == 0) continue;
                 if (!layer_is_static(layer)) {
                     const Frame start = std::max<Frame>(Frame{0}, layer.from);
-                    const auto ctx_f = make_frame_context({
-                        .global_time = SampleTime::from_frame(
-                            static_cast<double>(std::min<Frame>(start, duration - Frame{1}).integral()), rate),
-                        .duration = duration,
-                        .width = width,
-                        .height = height,
-                    });
                     Scene scene_rep;
                     try {
-                        scene_rep = compiled.composition->evaluate(ctx_f);
+                        scene_rep = scene_evaluator(
+                            std::min<Frame>(start, duration - Frame{1}));
                     } catch (const std::exception& error) {
                         // FAIL-CLOSED: evaluation failure during asset
                         // discovery is a fatal program-preparation error.
@@ -388,7 +438,9 @@ std::shared_ptr<DirectYuvProgram> DirectYuvProgram::prepare(
     program->video_layers_ = std::move(video_layers);
     program->width_ = width;
     program->height_ = height;
-    program->composition_ = compiled.composition;
+    program->composition_ = compiled ? compiled->composition : nullptr;
+    program->typed_program_ = typed_program;
+    program->typed_topology_ = std::move(typed_topology);
     program->layer_resources_ = std::move(layer_resources);
     program->persistent_resources_ = std::move(persistent_resources);
     program->scene_eval_ms_ = scene_eval_ms;

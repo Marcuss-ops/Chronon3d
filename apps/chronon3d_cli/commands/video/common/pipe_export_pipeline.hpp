@@ -22,7 +22,7 @@ namespace chronon3d::cli {
 /// and owned by the session.
 [[nodiscard]] std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
+    const CompiledComposition* compiled,
     const RenderSettings& settings,
     const FfmpegExportOptions& opts,
     Frame start,
@@ -31,7 +31,8 @@ namespace chronon3d::cli {
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes = nullptr,
     runtime::DeviceScheduler* device_scheduler = nullptr,
     std::shared_ptr<media::VideoJobExecutionContext> execution = nullptr,
-    std::shared_ptr<SoftwareRenderer> warm_renderer = nullptr);
+    std::shared_ptr<SoftwareRenderer> warm_renderer = nullptr,
+    const compiler::CompiledProgram* program = nullptr);
 
 /// Phase 5: Pre-warm the framebuffer pool (separate from warmup_pipe_renderer).
 void warmup_pipe_pool(PipeExportSession& session);
@@ -46,7 +47,7 @@ void warmup_pipe_slots(PipeExportSession& session);
 [[nodiscard]] RenderLoopOutput run_pipe_export_loop(
     PipeExportSession& session,
     const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
+    const CompiledComposition* compiled,
     const RenderSettings& settings,
     Frame start,
     Frame end,
@@ -66,7 +67,7 @@ void warmup_pipe_slots(PipeExportSession& session);
 
 [[nodiscard]] PipeExportResult render_and_encode_native(
     const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
+    const CompiledComposition* compiled,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
