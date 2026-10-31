@@ -224,48 +224,40 @@ CameraPlan decode_camera(const nlohmann::json& value) {
         camera.lens_shift = decode_json_vector<2>(value.at("lens_shift"), "camera.lens_shift must contain exactly 2 numbers");
     camera.f_stop = value.value("f_stop", camera.f_stop);
     camera.iris_blades = value.value("iris_blades", camera.iris_blades);
-    if (!std::isfinite(camera.sensor_width_mm) || camera.sensor_width_mm < 1.f || camera.sensor_width_mm > 100.f ||
-        !std::isfinite(camera.lens_shift[0]) || !std::isfinite(camera.lens_shift[1]) ||
-        std::abs(camera.lens_shift[0]) > 1.f || std::abs(camera.lens_shift[1]) > 1.f ||
-        !std::isfinite(camera.focal_length_mm) ||
-        (camera.focal_length_mm != 0.0f &&
-         (camera.focal_length_mm < 12.0f || camera.focal_length_mm > 200.0f)) ||
-        !std::isfinite(camera.f_stop) ||
-        (camera.f_stop != 0.0f && (camera.f_stop < 0.7f || camera.f_stop > 32.0f)) ||
-        camera.iris_blades < 0 || camera.iris_blades > 12)
-        throw std::runtime_error("camera lens values are outside supported bounds");
+    // Range admission for every decoded camera value is the single
+    // camera_contract_problem() call below. Decoder-local range checks are
+    // demolished so the admission contract has exactly one seat.
     if (value.contains("dof")) {
         const auto& raw_dof = value.at("dof");
         if (!raw_dof.is_object())
             throw std::runtime_error("camera.dof must be an object");
+        // The nested lens fields remain accepted for wire compatibility, but
+        // are normalized into the single camera-level authorities. Conflicts
+        // fail closed instead of creating a second typed value.
+        if (raw_dof.contains("aperture"))
+            throw std::runtime_error(
+                "camera.dof.aperture was retired: author camera.f_stop instead "
+                "(legacy gain = 0.672 / f_stop, CM3D blurGainFromFStop)");
         camera.dof_enabled = raw_dof.value("enabled", false);
         camera.dof_focus_distance = raw_dof.value("focus_distance", camera.dof_focus_distance);
-        camera.dof_aperture = raw_dof.value("aperture", camera.dof_aperture);
         camera.dof_max_blur = raw_dof.value("max_blur", camera.dof_max_blur);
-        camera.dof_f_stop = raw_dof.value("f_stop", camera.dof_f_stop);
-        camera.dof_iris_blades = raw_dof.value("iris_blades", camera.dof_iris_blades);
+        if (raw_dof.contains("f_stop")) {
+            const float nested_f_stop = raw_dof.at("f_stop").get<float>();
+            if (nested_f_stop > 0.f && camera.f_stop > 0.f && nested_f_stop != camera.f_stop)
+                throw std::runtime_error(
+                    "camera.f_stop and camera.dof.f_stop must agree when both are authored");
+            if (camera.f_stop == 0.f) camera.f_stop = nested_f_stop;
+        }
+        if (raw_dof.contains("iris_blades")) {
+            const int nested_iris_blades = raw_dof.at("iris_blades").get<int>();
+            if (nested_iris_blades != 0 && camera.iris_blades != 0 &&
+                nested_iris_blades != camera.iris_blades)
+                throw std::runtime_error(
+                    "camera.iris_blades and camera.dof.iris_blades must agree when both are authored");
+            if (camera.iris_blades == 0) camera.iris_blades = nested_iris_blades;
+        }
         camera.dof_highlight_gain = raw_dof.value("highlight_gain", camera.dof_highlight_gain);
-        if (!std::isfinite(camera.dof_focus_distance) || camera.dof_focus_distance <= 0.0f ||
-            camera.dof_focus_distance > 10000000.0f ||
-            !std::isfinite(camera.dof_aperture) || camera.dof_aperture < 0.0f ||
-            camera.dof_aperture > 1.0f || !std::isfinite(camera.dof_max_blur) ||
-            camera.dof_max_blur < 0.0f || camera.dof_max_blur > 256.0f ||
-            !std::isfinite(camera.dof_f_stop) ||
-            (camera.dof_f_stop != 0.0f &&
-             (camera.dof_f_stop < 0.7f || camera.dof_f_stop > 32.0f)) ||
-            camera.dof_iris_blades < 0 || camera.dof_iris_blades > 12 ||
-            !std::isfinite(camera.dof_highlight_gain) ||
-            camera.dof_highlight_gain < 0.0f || camera.dof_highlight_gain > 8.0f)
-            throw std::runtime_error("camera.dof values are outside supported bounds");
     }
-    if (!std::isfinite(camera.fov_deg) || camera.fov_deg < 10.0f || camera.fov_deg > 120.0f)
-        throw std::runtime_error("camera.fov_deg must be finite and in [10, 120]");
-    if (!std::isfinite(camera.near) || camera.near <= 0.0f)
-        throw std::runtime_error("camera.near must be finite and > 0");
-    if (!std::isfinite(camera.far) || camera.far <= camera.near)
-        throw std::runtime_error("camera.far must be finite and > near");
-    if (!std::isfinite(camera.zoom) || camera.zoom <= 0.0f)
-        throw std::runtime_error("camera.zoom must be finite and > 0");
     if (const auto problem = camera_contract_problem(camera))
         throw std::runtime_error(*problem);
     return camera;

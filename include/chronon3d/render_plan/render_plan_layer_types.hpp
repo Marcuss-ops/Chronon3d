@@ -114,19 +114,10 @@ struct CameraPlan {
     int iris_blades{0};
     bool dof_enabled{false};
     float dof_focus_distance{1000.0f};
-    // LEGACY TRANSPORT FIELD gain domain (blur px ∝ focus_miss · gain), not
-    // an authored unit: producers derive it from f/stop through the sanctioned
-    // bridge gain = 0.672 / f_stop                    (CM3D blurGainFromFStop,
-    // CameraRig.hpp) and never author it directly. The single authored
-    // aperture unit is `dof_f_stop` below; this field exists only so older
-    // plans keep decoding until the gain transport retires.
-    float dof_aperture{0.015f};
     float dof_max_blur{24.0f};
-    // Physical DoF overrides (0 = not authored, inherit the camera-level
-    // lens value). Shaped-bokeh requests fail closed at render time (see
-    // reject_unsupported_dof_shape): no kernel implements them yet.
-    float dof_f_stop{0.0f};
-    int dof_iris_blades{0};
+    // Unsupported shaped-bokeh request. `iris_blades` is the single camera
+    // authority for the shape; the wire decoder normalizes the legacy nested
+    // `dof.iris_blades` spelling into it.
     float dof_highlight_gain{0.0f};
 };
 

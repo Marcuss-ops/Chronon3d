@@ -132,7 +132,6 @@
             "enabled": { "type": "boolean" },
             "focus_distance": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000,
               "description": "Camera-space distance along the optical axis from the camera position to the focus plane (scene units). Not a world-Z coordinate." },
-            "aperture": { "type": "number", "minimum": 0, "maximum": 1 },
             "max_blur": { "type": "number", "minimum": 0, "maximum": 256 },
             "f_stop": { "type": "number", "minimum": 0, "maximum": 32 },
             "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12 },

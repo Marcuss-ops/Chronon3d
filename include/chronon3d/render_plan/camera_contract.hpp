@@ -25,14 +25,11 @@ namespace chronon3d::render_plan {
         !std::isfinite(c.focal_length_mm) || (c.focal_length_mm != 0.f && (c.focal_length_mm < 12.f || c.focal_length_mm > 200.f)))
         return "camera physical lens values are outside supported bounds";
     const auto valid_stop = [](float value) { return std::isfinite(value) && (value == 0.f || (value >= .7f && value <= 32.f)); };
-    if (!valid_stop(c.f_stop) || !valid_stop(c.dof_f_stop)) return "camera f-stop must be zero or in [0.7, 32]";
+    if (!valid_stop(c.f_stop)) return "camera f-stop must be zero or in [0.7, 32]";
     if (!std::isfinite(c.dof_focus_distance) || c.dof_focus_distance <= 0.f || c.dof_focus_distance > 10'000'000.f ||
-        !std::isfinite(c.dof_aperture) || c.dof_aperture < 0.f || c.dof_aperture > 1.f ||
         !std::isfinite(c.dof_max_blur) || c.dof_max_blur < 0.f || c.dof_max_blur > 256.f)
-        return "camera DoF focus/aperture/blur values are outside supported bounds";
-    if (c.f_stop > 0.f && c.dof_f_stop > 0.f && c.f_stop != c.dof_f_stop)
-        return "camera and DoF f-stop must agree when both are authored";
-    if (c.iris_blades != 0 || c.dof_iris_blades != 0 || !std::isfinite(c.dof_highlight_gain) || c.dof_highlight_gain != 0.f)
+        return "camera DoF focus/blur values are outside supported bounds";
+    if (c.iris_blades != 0 || !std::isfinite(c.dof_highlight_gain) || c.dof_highlight_gain != 0.f)
         return "unsupported camera capability: iris blades and highlight gain have no renderer kernel";
     return std::nullopt;
 }

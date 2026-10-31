@@ -519,26 +519,38 @@ TEST_CASE("resolved camera samples carry DOF and physical optics") {
         {"size", {320, 180}}, {"color", {0, 0, 0, 1}}
     }}));
     source["canvas"]["duration_frames"] = 2;
+    // Shaped bokeh (iris blades / highlight gain) fails closed at the camera
+    // contract, so the admissible fixture carries the supported value set only.
     source["camera"] = {{"type", "perspective"}, {"fov_deg", 50}, {"near", 1}, {"far", 10000},
         {"zoom", 1}, {"focal_length_mm", 50}, {"sensor_width_mm", 32},
-        {"lens_shift", {0.04, -0.02}}, {"f_stop", 2.0}, {"iris_blades", 6},
-        {"dof", {{"enabled", true}, {"focus_distance", 1400}, {"aperture", 0.02}, {"max_blur", 24},
-            {"f_stop", 2.0}, {"iris_blades", 6}, {"highlight_gain", 1.5}}}};
+        {"lens_shift", {0.04, -0.02}}, {"f_stop", 2.0},
+        {"dof", {{"enabled", true}, {"focus_distance", 1400}, {"max_blur", 24}, {"f_stop", 2.0}}}};
+    const nlohmann::json camera_sample_0 = {
+        {"focal_length_mm", 50},
+        {"dof", {{"enabled", true}, {"focus_distance", 480},
+                  {"max_blur", 12}, {"f_stop", 2.0}}}};
+    const nlohmann::json camera_sample_1 = {
+        {"focal_length_mm", 85}, {"f_stop", 2.8},
+        {"sensor_width_mm", 24}, {"lens_shift", {-0.1, 0.03}},
+        {"dof", {{"enabled", true}, {"focus_distance", 720}, {"max_blur", 20}}}};
     source["camera_samples"] = nlohmann::json::array({
-        {{"frame", 0}, {"camera", {{"focal_length_mm", 50}, {"f_stop", 2.0},
-            {"dof", {{"enabled", true}, {"focus_distance", 480}, {"aperture", 0.04}, {"max_blur", 12}}}}}},
-        {{"frame", 1}, {"camera", {{"focal_length_mm", 85}, {"f_stop", 2.8},
-            {"sensor_width_mm", 24}, {"lens_shift", {-0.1, 0.03}},
-            {"dof", {{"enabled", true}, {"focus_distance", 720}, {"aperture", 0.06}, {"max_blur", 20}}}}}}});
+        {{"frame", 0}, {"camera", camera_sample_0}},
+        {{"frame", 1}, {"camera", camera_sample_1}}});
     const auto decoded = chronon3d::render_plan::decode_render_plan(source);
     REQUIRE(decoded);
     REQUIRE(decoded->camera_samples);
+    CHECK(decoded->camera->f_stop == doctest::Approx(2.0f));
+    CHECK(decoded->camera_samples->at(0).camera.f_stop == doctest::Approx(2.0f));
     CHECK(decoded->camera_samples->at(1).camera.focal_length_mm == doctest::Approx(85.f));
     CHECK(decoded->camera_samples->at(1).camera.sensor_width_mm == doctest::Approx(24.f));
     CHECK(decoded->camera_samples->at(1).camera.lens_shift[0] == doctest::Approx(-0.1f));
     CHECK(decoded->camera_samples->at(1).camera.lens_shift[1] == doctest::Approx(0.03f));
     CHECK(decoded->camera_samples->at(1).camera.dof_focus_distance == doctest::Approx(720.f));
-    CHECK(decoded->camera_samples->at(1).camera.dof_aperture == doctest::Approx(0.06f));
+
+    // The legacy gain transport key retired together with its plan field.
+    auto retired_aperture = source;
+    retired_aperture["camera"]["dof"]["aperture"] = 0.02;
+    CHECK_FALSE(chronon3d::render_plan::decode_render_plan(retired_aperture));
 
     auto bad_order = source;
     bad_order["camera_samples"][1]["frame"] = 0;

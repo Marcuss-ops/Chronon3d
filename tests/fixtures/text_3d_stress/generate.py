@@ -67,7 +67,7 @@ def plan(name, layers, *, cam=None, cam_tracks=None):
             "camera_rotation_y": ("rotation_deg", 1), "camera_rotation_z": ("rotation_deg", 2),
             "camera_fov_deg": ("fov_deg", None), "camera_zoom": ("zoom", None),
             "camera_focus_distance": ("dof", "focus_distance"),
-            "camera_aperture": ("dof", "aperture"), "camera_max_blur": ("dof", "max_blur"),
+            "camera_max_blur": ("dof", "max_blur"),
             "camera_focal_length_mm": ("focal_length_mm", None),
             "camera_f_stop": ("f_stop", None),
         }
