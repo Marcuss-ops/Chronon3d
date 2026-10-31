@@ -429,15 +429,16 @@ forbidden_patterns = [
 
 [[contract]]
 name = "render_plan_video_uses_one_canonical_compilation"
-description = "CLI video preparation must consume the canonical CompiledProgram"
+description = "RenderPlan CLI preparation consumes only the canonical CompiledProgram"
 file = "apps/chronon3d_cli/commands/render/render_plan_preparation.cpp"
 required_patterns = [
   "compiler::compile\\(plan, resolver, compile_options\\)",
-  "make_video_compatibility_view",
+  "context\\.program = std::make_shared<const compiler::CompiledProgram>",
 ]
 forbidden_patterns = [
   "compile_render_plan\\(",
   "compile_composition\\(",
+  "make_video_compatibility_view",
 ]
 
 [[contract]]
