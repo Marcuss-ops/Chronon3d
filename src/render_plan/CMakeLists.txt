@@ -49,7 +49,6 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler.cpp
     render_plan_compiler_validate.cpp
     render_plan_compiler_compose.cpp
-    render_plan_compiler_video_compatibility.cpp
     render_plan_compiler_assets.cpp
     render_plan_compiler_svg.cpp
     render_plan_compiler_svg_paths.cpp
@@ -82,6 +81,7 @@ add_library(chronon3d_render_plan OBJECT
     audio_react_baker.cpp
     audio_react_plan_baker.cpp
     render_plan_effect_preparation.cpp
+    temporal_rate_analysis.cpp
     audio_mix_compiler.cpp
 )
 set_target_properties(chronon3d_render_plan PROPERTIES UNITY_BUILD OFF)
