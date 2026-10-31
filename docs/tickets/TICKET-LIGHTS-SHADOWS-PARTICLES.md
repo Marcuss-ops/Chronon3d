@@ -1,7 +1,10 @@
 # TICKET-LIGHTS-SHADOWS-PARTICLES — luci reali, ombre portate, particelle veloci
 
 Stato: **PARTIAL — OPEN** (scope scelto dall'utente il 2026-10-08: luci reali con ombre
-portate, e istanziamento GPU per le particelle).
+portate, e istanziamento GPU per le particelle). **T05 image gate PASS il
+2026-10-30:** 5/5 caster-off + 5/5 caster-on, gate 30/30, zero pixel neri e hash
+RGB stabile per modalità; restano review qualità ombre, altre tranche e CI
+same-SHA.
 
 ### Checkpoint corrente — regressione nera verificata 2026-10-30
 

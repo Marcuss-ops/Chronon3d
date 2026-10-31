@@ -1,6 +1,6 @@
 # TICKET-AE-CAMERA-FUNCTIONAL-PARITY — Camera 3D, Null, rig e DoF
 
-- **Stato:** OPEN — specifica e piano, non implementazione certificata (2026-10-30).
+- **Stato:** OPEN — specifica e piano; il contratto di ammissione ottica condiviso è atterrato il 2026-10-31, la parità funzionale AE non è certificata.
 - **Priorità:** P1, dopo i gate locali di [CAMERA-DEFINITIVE-CLOSURE](TICKET-CAMERA-DEFINITIVE-CLOSURE.md).
 - **Owner:** manutentore del confine ChrononMotion3D / Chronon3d; reviewer visivo da assegnare prima della certificazione.
 - **Obiettivo:** parità funzionale di un sottoinsieme dichiarato di camera After Effects, NON pixel identici, compatibilità universale AE o stessa velocità presunta.
@@ -43,7 +43,7 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 |---|---|
 | Camera libera/target, roll e parent | **PARTIAL:** `CameraRig.hpp` e `RenderPlanLoweringCamera.cpp`; `motion_camera_v1.cpp`, `motion_camera_bake_roundtrip.cpp`. Parent e look-at verificati per fixture, non catene arbitrarie, pivot, degenerazioni o confronto AE. |
 | Dolly, pan, tilt, orbit, framing e traiettorie | **PARTIAL:** primitive `CameraRig.hpp`; `motion_camera_v1.cpp`, `motion_camera_trajectory.cpp`, `motion_camera_framing.cpp`; le combinazioni complete e dolly-zoom AE non sono certificate. |
-| FOV/focale/ottica | **PARTIAL:** `camera_contract.hpp`, `RenderPlanLoweringCamera.cpp`; `motion_projection_parity.cpp` e `motion_authoring_renderplan.cpp`. Limiti aggiuntivi e parità AE ancora da verificare. |
+| FOV/focale/ottica | **PARTIAL:** `camera_contract.hpp` è l'ammissione condivisa applicata ai due confini compiler (test dedicato, 2026-10-31); `RenderPlanLoweringCamera.cpp`, `motion_projection_parity.cpp` e `motion_authoring_renderplan.cpp`. Parità AE e limiti combinati ancora da verificare. |
 | DoF e focus | **PARTIAL:** `motion_camera_focus_sequence.cpp`, `test_per_pixel_dof.cpp`, ROI e raw nell'evidenza closeout; fault injection native e qualità alpha completa ancora aperte. |
 | Iris blades/highlight | **REJECTED:** `camera_contract.hpp` rifiuta i parametri senza kernel; non è supporto AE-shaped bokeh. |
 | Shutter e layer | **PARTIAL:** `camera_sample_provider.hpp`, `RenderPlanLowering.cpp`, `test_camera_motion.cpp`; test camera/layer e piano Optical Studio materializzato passano. Il job unico è ancora oggetto di diagnosi e la CLI non prova il callback provider live. |

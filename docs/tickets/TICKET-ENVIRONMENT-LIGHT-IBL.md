@@ -1,7 +1,7 @@
 # TICKET-ENVIRONMENT-LIGHT-IBL — Environment light (HDRI/IBL) nel motore
 
 ## Stato
-PARTIAL (2026-10-28). Provenienza: gap analysis "AE + Premiere parity" sui 30
+PARTIAL (updated 2026-10-31). Provenienza: gap analysis "AE + Premiere parity" sui 30
 tutorial MotionNations (2026-10-28). Stato registrato in
 `docs/stato/chronon3d.md` §13. ChrononMotion3D e Chronon3D hanno concordato il
 `HDRI_ENV_V1` binary layout; the reader, CPU cubemap/mip/SH output, fixture,
@@ -11,7 +11,9 @@ validation are implemented. The compiler resolves the mounted asset, decodes
 its binary payload, and checks RenderPlan SH consistency. Software diffuse SH
 reaches the common software lighting evaluator for 2.5D and mesh shading.
 Software specular mip lookup is implemented and covered by the renderer-core
-test. Visible CLI output and strict-native GPU sampling remain open.
+test. Visible **software** CLI output is verified via the raw-sink probe
+(`ticket-roundtrip-current-source-20261029`: all 20,000 opaque mesh pixels
+change with the SH probe); strict-native GPU sampling/parity remains open.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
@@ -108,7 +110,10 @@ le certificazioni di parità richiedono l'host GPU NVIDIA.
 - [x] Lighting software valuta SH Lambert-convolved nella basis Y-up condivisa
       con Motion, applica intensity/rotazione Y statica e include i parametri
       nell'hash del lighting context; aggiunto test CPU su SH costante.
-- [ ] CLI produce output HDRI visibile.
+- [x] CLI produce output HDRI visibile in software: raw-sink probe 2026-10-29 su
+tutti i 20.000 pixel opachi della mesh; evidenza
+[`ticket-roundtrip-current-source-20261029`](../../../ChrononMotion3D/docs/evidence/ticket-roundtrip-current-source-20261029/README.md).
+La resa strict-native resta aperta.
 - [ ] Parità software/Vulkan su golden dedicata (MAE/p99 nei range della
       famiglia CAM-04).
 - [x] Rotation angle animabile con per-keyframe easing; fingerprint include la track.

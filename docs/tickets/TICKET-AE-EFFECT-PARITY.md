@@ -1,17 +1,16 @@
 # TICKET-AE-EFFECT-PARITY — Effetti AE nativi mancanti (famiglia P2)
 
 ## Stato
-PARTIAL (updated 2026-10-29). Provenienza: gap analysis "AE + Premiere parity"
+PARTIAL (updated 2026-10-31). Provenienza: gap analysis "AE + Premiere parity"
 (MotionNations 30 video). Stato registrato in `docs/stato/chronon3d.md` §13.
 
 `color.posterize` and `color.color_map` remain implemented as recorded below.
-The existing uncommitted implementations of `transition.linear_wipe`,
-`stylize.min_max`, `distort.stretch_warp`, and `light.lens_flare` now pass local
-software/catalog/hash/decoder/compiler verification (2026-10-29). All four
-now have strict-native Vulkan routes and pass the focused software/Vulkan
-pixel matrix (16,108 assertions; checkpoint below). This closes the local
-four-effect parity implementation, not full certification: CI same-SHA remains
-NOT RUN.
+The `transition.linear_wipe`, `stylize.min_max`, `distort.stretch_warp`, and
+`light.lens_flare` implementations are committed (`40d269056`) and pass local
+software/catalog/hash/decoder/compiler verification. All four have
+strict-native Vulkan routes and pass the focused software/Vulkan pixel matrix
+(16,108 assertions; checkpoint below). This closes the local four-effect parity
+implementation, not full certification: CI same-SHA remains NOT RUN.
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
