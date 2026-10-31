@@ -106,6 +106,10 @@ desktop.ini
 docs/evidence/**/*.rgb
 docs/evidence/**/*.rgba
 
+# Incomplete encoder writes (2026-10-30): crash/gdb leftovers such as
+# *.partial.mp4 are not reviewable evidence; keep them local.
+*.partial.*
+
 renders/
 render_output/
 frames/

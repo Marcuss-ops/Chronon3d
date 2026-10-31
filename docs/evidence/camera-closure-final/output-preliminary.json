@@ -1,0 +1,32 @@
+{
+  "dof": {
+    "probe": {
+      "programs": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1",
+          "nb_read_frames": "150"
+        }
+      ]
+    },
+    "sha256": "a5a3501d74ddde99225de8a5f677f5a6e51938498be7882b3027805c42d20c57",
+    "bytes": 1680154
+  },
+  "sharp": {
+    "probe": {
+      "programs": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1",
+          "nb_read_frames": "150"
+        }
+      ]
+    },
+    "sha256": "58aab9d466cd7d3ca7d1b324fe9ef5eb49d22584b84100d8ca19904c542f0371",
+    "bytes": 2721145
+  }
+}

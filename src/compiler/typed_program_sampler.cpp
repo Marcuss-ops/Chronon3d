@@ -1,6 +1,7 @@
 #include <chronon3d/compiler/typed_program_sampler.hpp>
 
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/render_plan/resolved_transform_samples.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -191,7 +192,15 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
             }
         }
 
-        if (layer.has_transform_animation) {
+        if (!layer.transform_samples.empty()) {
+            const auto resolved = render_plan::sample_resolved_transform(layer.transform_samples, frame_number);
+            position = {resolved.position[0], resolved.position[1], resolved.position[2]};
+            scale = {resolved.scale[0], resolved.scale[1], resolved.scale[2]};
+            rotation = {resolved.rotation_deg[0], resolved.rotation_deg[1], resolved.rotation_deg[2]};
+            sampled.opacity = resolved.opacity;
+            sampled.dirty = true;
+        }
+        if (layer.has_transform_animation || !layer.transform_samples.empty()) {
             // A 3D text plane is compiled with a negative X base scale so its
             // glyphs face the camera in readable order. Scale animation
             // replaces the base value, so retain that authored orientation

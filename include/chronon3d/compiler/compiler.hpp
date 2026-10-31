@@ -4,6 +4,7 @@
 #include <chronon3d/compiler/compile_error.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/camera_sample_provider.hpp>
 #include <chronon3d/render_plan/render_plan_fingerprint.hpp>
 
 namespace chronon3d::assets {
@@ -20,6 +21,9 @@ struct RenderJobSource {
 
 struct CompileOptions {
     render_plan::RenderPlanFingerprintOptions fingerprint{};
+    // Evaluated at the consumer's presentation/shutter calendar during
+    // compilation; the immutable program retains values, never callbacks.
+    const render_plan::RuntimeCameraSampleProvider* runtime_camera{nullptr};
 };
 
 /// Compiler facade. It is deliberately independent from execution resources.

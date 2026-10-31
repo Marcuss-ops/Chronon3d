@@ -102,6 +102,18 @@ TEST_CASE("nvml sampler: a stop is always measured, and a never-started one is f
     sampler.stop();
     const auto stats = sampler.stats();
     CHECK(stats.sampler_stop_ms >= 0.0);
+    CHECK(stats.nvenc_sample_count <= stats.sample_count);
+    CHECK(stats.nvdec_sample_count <= stats.sample_count);
+    if (stats.nvenc_sample_count > 0) {
+        CHECK(stats.nvenc_utilization_avg >= 0.0);
+        CHECK(stats.nvenc_utilization_avg <= 100.0);
+        CHECK(stats.nvenc_utilization_peak >= stats.nvenc_utilization_avg);
+    }
+    if (stats.nvdec_sample_count > 0) {
+        CHECK(stats.nvdec_utilization_avg >= 0.0);
+        CHECK(stats.nvdec_utilization_avg <= 100.0);
+        CHECK(stats.nvdec_utilization_peak >= stats.nvdec_utilization_avg);
+    }
 
     // A second stop performs no work and therefore reports no new measurement:
     // "not stopped by this call" stays distinguishable from "stopped in 0 ms".

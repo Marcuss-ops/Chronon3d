@@ -462,6 +462,41 @@ TEST_CASE("VRAM glyph atlas keeps glyphs resident and preserves placement metric
     CHECK_FALSE(atlas.metrics(glyph_a).has_value());
 }
 
+TEST_CASE("VRAM glyph atlas initializes coverage and MTSDF pages at their native sizes") {
+    using namespace chronon3d::runtime;
+    chronon3d::backends::vulkan::VulkanBackend backend;
+    MESSAGE("Vulkan device: ", backend.stats().device_name);
+    RenderSurfaceRegistry registry;
+    GpuGlyphAtlas atlas;
+    atlas.attach(registry, backend);
+
+    const std::vector<float> glyph(4 * 4, 0.5f);
+    const GpuGlyphMetrics metrics{0, 0, 4.0f};
+    for (const auto representation : {GlyphRepresentation::Coverage,
+                                      GlyphRepresentation::Mtsdf}) {
+        DistanceFieldProfile profile;
+        profile.representation = representation;
+        const auto key = GpuGlyphKey::make("font.ttf", 65, 0, representation, 0, 32);
+        const auto location = atlas.acquire(key, 4, 4, glyph, metrics, profile);
+        REQUIRE(location.has_value());
+        const auto handle = atlas.page_handle(location->atlas_page);
+        REQUIRE(handle.has_value());
+        const auto surface = registry.lookup(*handle);
+        REQUIRE(surface.has_value());
+        const auto format = representation == GlyphRepresentation::Coverage
+            ? PixelFormat::R8Unorm : PixelFormat::Rgba8Unorm;
+        CHECK(surface->desc.format == format);
+        CHECK(surface->desc.tight_bytes() ==
+              tight_surface_bytes(format, GpuGlyphAtlas::kPageSize,
+                                  GpuGlyphAtlas::kPageSize));
+        CHECK(backend.is_native_surface_valid(*handle));
+        REQUIRE(atlas.acquire(key, 4, 4, glyph, metrics, profile).has_value());
+    }
+    CHECK(atlas.stats().page_count == 2);
+    CHECK(atlas.stats().entries == 2);
+    atlas.clear();
+}
+
 TEST_CASE("VRAM glyph atlas batch residency matches per-glyph lookups") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     chronon3d::runtime::RenderSurfaceRegistry registry;

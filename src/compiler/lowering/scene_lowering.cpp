@@ -84,6 +84,7 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
         lowered.scale = layer.scale;
         lowered.rotation = layer.rotation;
         lowered.enable_3d = layer.enable_3d;
+        lowered.transform_samples = layer.transform_samples;
         lowered.size_dimensions = static_cast<std::uint8_t>(layer.size_dimensions);
         lowered.position_dimensions = static_cast<std::uint8_t>(layer.position_dimensions);
         if (layer.type == render_plan::LayerType::Video &&

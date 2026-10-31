@@ -267,8 +267,13 @@ NodeExecResult PerPixelDofNode::execute(
                     return OwnedFB{};
                 }
                 if (encode_destination != input.surface_handle()) {
-                    const auto copied = ctx.backend->copy_surface_to_video_encode(
-                        input.surface_handle(), encode_destination);
+                    // Temporal sample outputs use this terminal handle too, but
+                    // remain ordinary Vulkan storage images, not CUDA exports.
+                    const auto copied = destination_record->desc.residency.encoder_compatible
+                        ? ctx.backend->copy_surface_to_video_encode(
+                            input.surface_handle(), encode_destination)
+                        : ctx.backend_surface_api()->copy_surface_auxiliary(
+                            encode_destination, input.surface_handle());
                     if (!copied.ok()) {
                         spdlog::error(
                             "[PerPixelDofNode] native terminal copy to encode surface failed: {}",

@@ -1,0 +1,37 @@
+{
+  "render-dof-final.log": {
+    "validation_enabled": true,
+    "error_lines": [],
+    "gate": "PASS"
+  },
+  "render-sharp-final.log": {
+    "validation_enabled": true,
+    "error_lines": [],
+    "gate": "PASS"
+  },
+  "raw-vulkan-30-final.log": {
+    "validation_enabled": true,
+    "error_lines": [],
+    "gate": "PASS"
+  },
+  "raw-vulkan-75-final.log": {
+    "validation_enabled": true,
+    "error_lines": [],
+    "gate": "PASS"
+  },
+  "raw-vulkan-149-final.log": {
+    "validation_enabled": true,
+    "error_lines": [],
+    "gate": "PASS"
+  },
+  "raw-shutter-repeat-1.log": {
+    "validation_enabled": true,
+    "error_lines": [],
+    "gate": "PASS"
+  },
+  "raw-shutter-repeat-2.log": {
+    "validation_enabled": true,
+    "error_lines": [],
+    "gate": "PASS"
+  }
+}

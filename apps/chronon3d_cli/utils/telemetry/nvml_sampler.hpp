@@ -44,6 +44,8 @@ struct NvmlStats {
     std::uint64_t vram_used_peak_mb{0};
     std::uint64_t vram_total_mb{0};
     std::uint64_t sample_count{0};
+    std::uint64_t nvdec_sample_count{0};
+    std::uint64_t nvenc_sample_count{0};
     // Measured cost of `stop()`, in milliseconds: the teardown tail this
     // sampler charges to the job. It exists because that tail was previously
     // INVISIBLE — no timer covered it — and an invisible cost on the serialized
@@ -138,17 +140,23 @@ public:
         double sum_gpu = 0, sum_dec = 0, sum_enc = 0, sum_mem = 0;
         for (const auto& sample : m_samples) {
             sum_gpu += sample.gpu;
-            sum_dec += sample.dec;
-            sum_enc += sample.enc;
+            if (sample.dec) {
+                sum_dec += *sample.dec;
+                ++s.nvdec_sample_count;
+                if (*sample.dec > s.nvdec_utilization_peak) s.nvdec_utilization_peak = *sample.dec;
+            }
+            if (sample.enc) {
+                sum_enc += *sample.enc;
+                ++s.nvenc_sample_count;
+                if (*sample.enc > s.nvenc_utilization_peak) s.nvenc_utilization_peak = *sample.enc;
+            }
             sum_mem += sample.mem;
             if (sample.gpu > s.gpu_utilization_peak) s.gpu_utilization_peak = sample.gpu;
-            if (sample.dec > s.nvdec_utilization_peak) s.nvdec_utilization_peak = sample.dec;
-            if (sample.enc > s.nvenc_utilization_peak) s.nvenc_utilization_peak = sample.enc;
             if (sample.vram_used_mb > s.vram_used_peak_mb) s.vram_used_peak_mb = sample.vram_used_mb;
         }
         s.gpu_utilization_avg = sum_gpu / m_samples.size();
-        s.nvdec_utilization_avg = sum_dec / m_samples.size();
-        s.nvenc_utilization_avg = sum_enc / m_samples.size();
+        if (s.nvdec_sample_count) s.nvdec_utilization_avg = sum_dec / s.nvdec_sample_count;
+        if (s.nvenc_sample_count) s.nvenc_utilization_avg = sum_enc / s.nvenc_sample_count;
         s.memory_utilization_avg = sum_mem / m_samples.size();
         return s;
     }
@@ -156,8 +164,8 @@ public:
 private:
     struct Sample {
         double gpu{0};
-        double dec{0};
-        double enc{0};
+        std::optional<double> dec;
+        std::optional<double> enc;
         double mem{0};
         std::uint64_t vram_used_mb{0};
     };
@@ -199,8 +207,11 @@ private:
     nvmlReturn_t (*p_nvmlDeviceGetMemoryInfo)(nvmlDevice_t, nvmlMemory_t*){nullptr};
 
     void init_nvml() {
+#ifdef _WIN32
         m_lib = nvml_load("nvml.dll");
-        if (!m_lib) m_lib = nullptr;
+#else
+        m_lib = nvml_load("libnvidia-ml.so.1");
+#endif
         if (!m_lib) return;
 
         p_nvmlInit = reinterpret_cast<nvmlReturn_t(*)()>(nvml_symbol(m_lib, "nvmlInit_v2"));
@@ -263,10 +274,9 @@ private:
         if (!m_initialized || !m_device) return;
         Sample sample;
         nvmlUtilization_t util{};
-        if (p_nvmlDeviceGetUtilizationRates(m_device, &util) == 0) {
-            sample.gpu = util.gpu;
-            sample.mem = util.memory;
-        }
+        if (p_nvmlDeviceGetUtilizationRates(m_device, &util) != 0) return;
+        sample.gpu = util.gpu;
+        sample.mem = util.memory;
         if (p_nvmlDeviceGetDecoderUtilization) {
             unsigned int dec_val = 0, sampling_us = 0;
             if (p_nvmlDeviceGetDecoderUtilization(m_device, &dec_val, &sampling_us) == 0) {
@@ -280,18 +290,17 @@ private:
             }
         }
         nvmlMemory_t mem{};
-        if (p_nvmlDeviceGetMemoryInfo(m_device, &mem) == 0) {
-            sample.vram_used_mb = mem.used / (1024 * 1024);
-            if (m_vram_total_mb == 0) m_vram_total_mb = mem.total / (1024 * 1024);
-        }
+        if (p_nvmlDeviceGetMemoryInfo(m_device, &mem) != 0) return;
+        sample.vram_used_mb = mem.used / (1024 * 1024);
+        if (m_vram_total_mb == 0) m_vram_total_mb = mem.total / (1024 * 1024);
         // Perfetto counter tracks (chronon.gpu): raw NVML samples emitted on
         // the sampler thread at the configured cadence.  No-op when tracing
         // is compiled out or no trace session is running.
         CHRONON_TRACE_COUNTER("chronon.gpu", "vram_used_mb",
             static_cast<int64_t>(sample.vram_used_mb));
         CHRONON_TRACE_COUNTER("chronon.gpu", "gpu_utilization", sample.gpu);
-        CHRONON_TRACE_COUNTER("chronon.gpu", "nvdec_utilization", sample.dec);
-        CHRONON_TRACE_COUNTER("chronon.gpu", "nvenc_utilization", sample.enc);
+        if (sample.dec) CHRONON_TRACE_COUNTER("chronon.gpu", "nvdec_utilization", *sample.dec);
+        if (sample.enc) CHRONON_TRACE_COUNTER("chronon.gpu", "nvenc_utilization", *sample.enc);
 
         std::lock_guard<std::mutex> lock(m_mutex);
         m_samples.push_back(sample);

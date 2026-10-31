@@ -134,7 +134,10 @@ if (frame_runtime && frame_runtime->backend_attached() &&
         static_cast<std::uint32_t>(rh),
         runtime::PixelFormat::Rgba32Float,
         runtime::ResourceUsage::Storage,
-        runtime::LifetimeClass::JobPersistent);
+        // Spans this frame's sample batches but is explicitly released below.
+        // PipelineSlot prevents frame retirement while allowing its physical
+        // backing to be reused or reclaimed after the handle is released.
+        runtime::LifetimeClass::PipelineSlot);
     native_sample_surface.handle =
         frame_runtime->surface_registry().create(desc);
     if (native_sample_surface.handle ==
@@ -259,9 +262,11 @@ const auto t_mb0 = profiling::now();
                 runtime::ResourceUsage::Storage,
                 // This accumulator crosses several independent
                 // Vulkan frame batches (one per temporal sample).
-                // FrameTransient slots are retired between batches,
-                // so keep its physical image job-persistent.
-                runtime::LifetimeClass::JobPersistent);
+                // FrameTransient slots are retired between batches. This
+                // accumulator is released after the frame, so PipelineSlot
+                // preserves it across samples without retaining one physical
+                // JobPersistent image per output frame.
+                runtime::LifetimeClass::PipelineSlot);
             const auto accumulator = surface_registry.create(desc);
             if (accumulator != runtime::kInvalidRenderSurfaceHandle) {
                 const auto created = backend.create_surface(accumulator, desc);

@@ -58,7 +58,7 @@ void VulkanBackend::Impl::glow(runtime::RenderSurfaceHandle destination,
         // One command-plan pass => consume its canonical transition stream
         // exactly once. Internal dispatch dependencies use the same
         // ResourceTransition -> Sync2 translator.
-        emit_pass_sync(cmd, {&dst, &src_image, &horizontal, &vertical});
+        emit_pass_sync(cmd, {&dst, &src_image, &horizontal, &vertical}, runtime::GpuPassKind::Glow);
         record_glow_prepare(cmd, prepare_descriptor, horizontal, src_image,
                             intensity, tint);
         horizontal.initialized = true;
@@ -158,7 +158,7 @@ void VulkanBackend::Impl::bloom(runtime::RenderSurfaceHandle destination,
     const auto composite_descriptor = allocate_pass_descriptor_set();
     write_descriptors(composite_descriptor, dst, horizontal);
     const auto command = active_command_buffer();
-    emit_pass_sync(command, {&dst, &src_image, &horizontal, &vertical});
+    emit_pass_sync(command, {&dst, &src_image, &horizontal, &vertical}, runtime::GpuPassKind::Bloom);
     record_bloom_threshold(command, threshold_descriptor, horizontal, src_image, threshold);
     horizontal.initialized = true;
 
@@ -241,7 +241,7 @@ void VulkanBackend::Impl::color_adjust(
                 dst.initialized);
         }
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst, &src_image});
+        emit_pass_sync(cmd, {&dst, &src_image}, runtime::GpuPassKind::ColorAdjust);
         record_color_adjust(cmd, descriptors, dst, src_image,
                             brightness, contrast, tint, tint_amount);
         dst.initialized = true;
@@ -281,7 +281,7 @@ void VulkanBackend::Impl::color_transform(
                 dst.initialized);
         }
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst, &src_image});
+        emit_pass_sync(cmd, {&dst, &src_image}, runtime::GpuPassKind::ColorAdjust);
         record_color_transform(cmd, descriptors, dst, src_image, transform);
         dst.initialized = true;
         ++frame_batch.pass_count;
@@ -332,7 +332,7 @@ void VulkanBackend::Impl::chromatic_transform(
     const auto descriptors = allocate_pass_descriptor_set();
     write_descriptors(descriptors, dst, src_image);
     const auto command = active_command_buffer();
-    emit_pass_sync(command, {&dst, &src_image});
+    emit_pass_sync(command, {&dst, &src_image}, runtime::GpuPassKind::ColorAdjust);
     record_chromatic_transform(command, descriptors, dst, src_image, params);
     dst.initialized = true;
     ++frame_batch.pass_count;
@@ -389,7 +389,7 @@ void VulkanBackend::Impl::lighting(
                 dst.initialized);
         }
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst, &src_image});
+        emit_pass_sync(cmd, {&dst, &src_image}, runtime::GpuPassKind::ColorAdjust);
         record_lighting(cmd, descriptors, dst, src_image, multiplier);
         dst.initialized = true;
         ++frame_batch.pass_count;
@@ -415,7 +415,7 @@ void VulkanBackend::Impl::matte(runtime::RenderSurfaceHandle destination,
         const auto descriptors = allocate_pass_descriptor_set();
         write_matte_descriptors(descriptors, dst, target_image, matte_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst, &target_image, &matte_image});
+        emit_pass_sync(cmd, {&dst, &target_image, &matte_image}, runtime::GpuPassKind::Matte);
         record_matte(cmd, descriptors, dst, target_image, matte_image,
                      luma, inverted);
         dst.initialized = true;

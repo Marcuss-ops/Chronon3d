@@ -140,6 +140,16 @@ struct LayerPlan {
     std::optional<TransitionPlan> transition_out;
     std::optional<FitMode> fit;
     std::optional<ImageCropPlan> crop;
+    // Motion-resolved world TRS in renderer coordinates at absolute fractional
+    // presentation frames. Mutually exclusive with transform animation tracks.
+    struct ResolvedTransformSample {
+        double frame{0.0};
+        std::array<float, 3> position{0.f, 0.f, 0.f};
+        std::array<float, 3> scale{1.f, 1.f, 1.f};
+        std::array<float, 3> rotation_deg{0.f, 0.f, 0.f};
+        float opacity{1.f};
+    };
+    std::vector<ResolvedTransformSample> transform_samples;
     std::optional<AnimationPlan> animation;
     std::optional<GradientAnimationPlan> fill_gradient_animation;
     std::vector<TextAnimatorPlan> text_animators;

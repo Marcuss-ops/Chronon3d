@@ -1,0 +1,15 @@
+{
+  "host": "Linux NVIDIA RTX A4000 driver 595.99.02",
+  "scope": "local dirty-tree evidence; not CI same-SHA",
+  "Chronon3d": {
+    "head": "9b5d23833ee48c1b5b8e0a3ca76b90303eb10825",
+    "tracked_diff_sha256": "d936b620fe8426a3b653bb45314b1c19aacc22f8ccd48a8c3466d1136df644d3",
+    "dirty": true
+  },
+  "ChrononMotion3D": {
+    "head": "b778afc8b21ec61c7d2d5152319ca7bea8d01872",
+    "tracked_diff_sha256": "4542fb815c9dae8dfd44786a603b8d77160b13c1fa1cec4a34fe4fed59227506",
+    "dirty": true
+  },
+  "binary_sha256": "21a43cda336086e8e5c83d558d20254dc7fde54a09b2a1c3945e3f989f481766"
+}

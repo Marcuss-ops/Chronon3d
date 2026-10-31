@@ -1,0 +1,152 @@
+Render a composition
+
+
+build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli render [OPTIONS] [input]
+
+
+POSITIONALS:
+  input TEXT                  Composition name
+
+OPTIONS:
+  -h,     --help              Print this help message and exit
+          --plan TEXT         Render a chronon.render-plan.v2 file through the canonical
+                              executor
+          --captions TEXT     Timed text file (SRT, ASS, or JSON) expanded into text layers
+          --caption-preset TEXT 
+                              Caption motion preset: minimal_white, karaoke, word_pop, or
+                              typewriter
+          --caption-font TEXT Explicit logical font asset when the plan has no text style
+          --prepared-package TEXT 
+                              Immutable prepared overlay package sidecar
+          --frames TEXT       Frame range: 0 | 0-90 | 0-90x5
+          --frame TEXT        Single frame number (alias for --frames)
+          --start-frame UINT  First frame (render --plan route)
+          --end-frame UINT    Last frame, inclusive (render --plan route)
+  -o,     --output TEXT       Output path (use #### for frame number)
+          --assets-root TEXT  Root directory for resolving relative assets
+          --backend TEXT:{auto,software,vulkan} [auto]  
+                              Render backend: auto, software, or vulkan (strict)
+          --props-file TEXT   Flat JSON object containing composition props
+          --props-json TEXT   Inline flat JSON object containing composition props (mutually
+                              exclusive with --props-file)
+          --profile TEXT:{draft,maximum,preview,production} [production]  
+                              Render profile: draft | preview | production | maximum
+  -v,     --log-level TEXT    Log level: trace | debug | info | warn | error
+          --trace TEXT        Write a Perfetto timeline trace to this .pftrace path (job-end
+                              only, RING_BUFFER)
+          --trace-level TEXT:{pipeline,nodes,full} [pipeline]  
+                              Trace capture level: pipeline (default), nodes, or full
+          --gpu-hot-path-mode TEXT:{auto,require_gpu_native,require_direct_yuv} [auto]  
+                              GPU hot-path mode: auto, require_gpu_native, or
+                              require_direct_yuv
+          --help-advanced     Print advanced render options and exit
+[Option Group: Video output]
+  Encoder controls used when the output extension selects video mode
+  
+  
+OPTIONS:
+          --fps INT:INT in [1 - 240] 
+                              Output frame rate (frames per second; normalised to
+                              fps_num/fps_den)
+          --rate-control TEXT:{crf,qp,bitrate} 
+                              Rate control: crf, qp, or bitrate
+          --crf INT:INT in [0 - 51] 
+                              Encoder CRF quality (0-51)
+          --qp INT:INT in [0 - 63] 
+                              Encoder constant QP quality (0-63)
+          --bitrate INT:INT in [1 - 9223372036854775807] 
+                              Target bitrate in bits/second
+          --codec TEXT        Video codec/encoder name
+          --encode-preset, --preset TEXT 
+                              Encoder preset
+          --tune TEXT         Encoder tune
+          --hardware TEXT     Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf
+          --keep-frames       Keep temporary PNG frames
+          --frames-dir TEXT   Override temporary frames directory
+          --chunks INT:INT in [1 - 1024] 
+                              Render frame range in N chunks
+          --gop-source TEXT   Compressed video source for GOP smart-copy analysis
+          --audio-sample-rate INT:INT in [0 - 192000] 
+                              Output audio sample rate in Hz (0 = keep the source rate)
+          --gop-copy-only     Copy compressed video/audio packets without rendering (explicit
+                              source-equivalence contract)
+          --fragmented-mp4    Emit the output container as a fragmented MP4 (moof/mdat
+                              fragments; bytes final when appended, streamable while the mux is
+                              open)
+          --changed-interval TEXT 
+                              Changed source interval: start:end[:content|trim] (repeatable)
+          --ffmpeg-mode TEXT:{pipe,png} 
+                              FFmpeg mode: pipe or png
+          --video-sink TEXT:{ffmpeg,raw,null-render,null-convert} 
+                              Output sink: ffmpeg (encode+mux) or raw (pre-encode frames, no
+                              encoder)
+          --ffmpeg-verbose    Show FFmpeg logs
+          --pipe-pixfmt TEXT:{rgba,yuv420p,nv12,p010,p010le} 
+                              Pipe pixel format
+          --color-output TEXT:{srgb,rec709,linearsrgb,pq,hlg} 
+                              Video output color space (HDR PQ/HLG require the native CPU
+                              encoder)
+          --reference-white-nits FLOAT:POSITIVE 
+                              Reference white luminance for PQ/HLG output (nits)
+          --pipe-writer TEXT:{classic,io_uring} 
+                              Pipe writer: classic or io_uring
+          --encoder-backend TEXT:{native,pipe} 
+                              Encoder backend: pipe or native
+          --dry-run           Validate without rendering (video settings; render-plan
+                              validation with --plan)
+[Option Group: Advanced]
+  Low-level renderer, memory, cache and diagnostic controls
+  
+  
+OPTIONS:
+          --diagnostic, --layout-preview 
+                              Enable layout preview overlays
+          --diagnostic-plan   Log graph preflight diagnostics before each frame
+          --diagnostic-plan-output TEXT 
+                              Write graph preflight report to a path pattern
+          --no-dirty-rects    Disable dirty-rectangle invalidation
+          --tile-size INT     Tile size for dirty-rect execution
+          --motion-blur       Enable temporal motion blur
+          --motion-blur-mode INT:INT in [0 - 2] 
+                              Motion blur mode: 0=off, 1=temporal, 2=velocity
+          --motion-blur-samples INT 
+                              Subframe samples
+          --shutter-angle FLOAT 
+                              Shutter angle in degrees
+          --shutter-phase FLOAT 
+                              Shutter phase in degrees
+          --motion-blur-pattern INT:INT in [0 - 2] 
+                              Sample pattern: 0=Uniform, 1=Stratified, 2=Halton
+          --motion-blur-filter INT:INT in [0 - 2] 
+                              Reconstruction filter: 0=Box, 1=Triangle, 2=Gaussian
+          --ssaa FLOAT        Super-sampling factor
+          --benchmark-all     Write detailed graph-node phase durations
+          --report            Generate an execution report log
+          --debug-text-layout Draw text layout debug overlay and emit structured logs
+          --diagnostic-overlay 
+                              Draw bbox, anchor and baseline overlays
+          --diagnostic-overlay-only 
+                              Draw diagnostic overlay on a transparent background
+          --debug-text-layout-json TEXT 
+                              Write per-TextRun bounds JSON
+          --force-scalar-normal-blend 
+                              Force scalar Normal blend for regression diagnosis
+          --warmup-renderer   Preallocate framebuffers and prime caches
+          --warmup-framebuffers UINT 
+                              Number of framebuffers to preallocate
+          --warmup-dummy-frame 
+                              Render a dummy frame to prime caches
+          --fb-pool-budget-mb UINT 
+                              Framebuffer pool retention budget in MB
+          --fb-pool-clear-policy TEXT:{keep-warm,trim-after-job,trim-on-memory-pressure} 
+                              keep-warm | trim-after-job | trim-on-memory-pressure
+          --program-cache-capacity UINT 
+                              SceneProgramCache entries per Precomp node
+          --program-cache-tune 
+                              Auto-tune SceneProgramCache capacity
+          --program-cache-tune-interval UINT 
+                              Frames between auto-tune checks
+          --program-cache-tune-min UINT 
+                              Minimum capacity when down-tuning
+          --program-cache-tune-max UINT 
+                              Maximum capacity when up-tuning

@@ -53,9 +53,11 @@ struct VulkanSubmissionAuthority {
     std::array<VkFence, kSlotCount> fences{};
     std::array<bool, kSlotCount> in_flight{};
     std::array<std::size_t, kSlotCount> submitted_pass_counts{};
-    // Compiled plan pass kinds captured at submit time, so the fence-retirement
-    // path can attribute each timestamp pair without re-reading a plan whose
-    // owner may already be gone. Indexed [slot][pass].
+    // Pass kind of every recorded pass, captured by emit_pass_sync at the
+    // boundary (a compiled CommandPlan and the graph execution path both go
+    // through it), so fence retirement can attribute each timestamp pair
+    // without re-reading a plan whose owner may already be gone. Indexed
+    // [slot][pass].
     std::array<std::array<std::uint8_t, kCompiledPassTimingCapacity>, kSlotCount>
         submitted_pass_kinds{};
     std::array<std::uint64_t, kSlotCount> submitted_frame_indices{};

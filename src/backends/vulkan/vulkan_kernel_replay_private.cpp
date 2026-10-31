@@ -164,27 +164,21 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             const auto queries_per_slot = static_cast<std::uint32_t>(
                 2 + 2 * FrameBatchState::kCompiledPassTimingCapacity);
             const auto slot_base = static_cast<std::uint32_t>(slot) * queries_per_slot;
+            // Pass kinds are captured by emit_pass_sync at recording time, so
+            // submission only closes the final query and publishes the count.
+            // A compiled CommandPlan is not required: the graph path records
+            // the same pass boundaries without one.
             const bool compiled_per_pass =
-                frame_batch.command_plan != nullptr &&
                 !command_batch_active &&
-                frame_batch.pass_count != 0;
+                frame_batch.pass_count != 0 &&
+                frame_batch.pass_count <=
+                    FrameBatchState::kCompiledPassTimingCapacity;
             if (compiled_per_pass) {
                 const auto final_query = slot_base + 2 +
                     static_cast<std::uint32_t>(2 * frame_batch.pass_count - 1);
                 vkCmdWriteTimestamp(frame_batch.command_buffers[slot],
                                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                                     timestamp_pool, final_query);
-                // Capture the compiled pass kinds now: the plan pointer is
-                // only valid until the recording owner releases it, while the
-                // query results are read later at fence retirement.
-                const auto& planned_passes =
-                    frame_batch.command_plan->passes.passes;
-                const auto pass_total = std::min(
-                    frame_batch.pass_count, planned_passes.size());
-                for (std::size_t i = 0; i < pass_total; ++i) {
-                    frame_batch.submitted_pass_kinds[slot][i] =
-                        static_cast<std::uint8_t>(planned_passes[i].kind);
-                }
                 frame_batch.submitted_pass_counts[slot] = frame_batch.pass_count;
             } else {
                 vkCmdWriteTimestamp(frame_batch.command_buffers[slot],

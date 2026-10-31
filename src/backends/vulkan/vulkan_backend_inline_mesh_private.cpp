@@ -83,7 +83,7 @@ void VulkanBackend::Impl::draw_inline_mesh(
     vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
 
     const auto command = active_command_buffer();
-    emit_pass_sync(command, {&dst_image, &texture_image});
+    emit_pass_sync(command, {&dst_image, &texture_image}, runtime::GpuPassKind::Composite);
     const VkBufferMemoryBarrier2KHR upload_barrier{
         VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
         VK_PIPELINE_STAGE_2_HOST_BIT_KHR, VK_ACCESS_2_HOST_WRITE_BIT_KHR,

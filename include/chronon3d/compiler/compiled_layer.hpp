@@ -62,6 +62,7 @@ struct StaticLayerProgram {
     float time_remap_speed{1.0f};
     std::int64_t time_remap_freeze_frame{-1};
     std::uint32_t time_remap_track_index{kInvalidProgramIndex};
+    std::vector<render_plan::LayerPlan::ResolvedTransformSample> transform_samples;
     bool has_transform_animation{false};
     bool enable_3d{false};
 };

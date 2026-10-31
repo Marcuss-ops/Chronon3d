@@ -1,0 +1,53 @@
+{
+  "30": {
+    "near": {
+      "ratio": 1.0,
+      "focused": true,
+      "gate": "PASS"
+    },
+    "middle": {
+      "ratio": 0.16007926656563903,
+      "focused": false,
+      "gate": "PASS"
+    },
+    "far": {
+      "ratio": 0.002769819754694583,
+      "focused": false,
+      "gate": "PASS"
+    }
+  },
+  "75": {
+    "near": {
+      "ratio": 0.004892449357701542,
+      "focused": false,
+      "gate": "PASS"
+    },
+    "middle": {
+      "ratio": 1.0,
+      "focused": true,
+      "gate": "PASS"
+    },
+    "far": {
+      "ratio": 0.16597213071099431,
+      "focused": false,
+      "gate": "PASS"
+    }
+  },
+  "149": {
+    "near": {
+      "ratio": 0.00564303697080813,
+      "focused": false,
+      "gate": "PASS"
+    },
+    "middle": {
+      "ratio": 0.004915360208662556,
+      "focused": false,
+      "gate": "PASS"
+    },
+    "far": {
+      "ratio": 1.0,
+      "focused": true,
+      "gate": "PASS"
+    }
+  }
+}

@@ -24,7 +24,7 @@ void VulkanBackend::Impl::fill_rect(runtime::RenderSurfaceHandle destination,
         const auto descriptors = allocate_pass_descriptor_set();
         write_fill_rect_descriptors(descriptors, dst_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image});
+        emit_pass_sync(cmd, {&dst_image}, runtime::GpuPassKind::Composite);
         record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1,
                          color, Vec4{-1.0f, 0.0f, 0.0f, 0.0f});
         dst_image.initialized = true;
@@ -101,7 +101,7 @@ void VulkanBackend::Impl::fill_solid_shape(
         }
         write_fill_rect_descriptors(descriptors, dst_image, geometry_buffer);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image});
+        emit_pass_sync(cmd, {&dst_image}, runtime::GpuPassKind::Composite);
         if (geometry_buffer != VK_NULL_HANDLE) {
             const std::size_t buffer_slot = 1U + frame_batch.next_slot * kPathGeometryPassesPerSlot +
                                             frame_batch.pass_count;
@@ -179,7 +179,7 @@ void VulkanBackend::Impl::fill_dashed_path(
     const auto descriptors = allocate_pass_descriptor_set();
     write_dashed_path_descriptors(descriptors, dst_image, geometry.buffer);
     const auto command = active_command_buffer();
-    emit_pass_sync(command, {&dst_image});
+    emit_pass_sync(command, {&dst_image}, runtime::GpuPassKind::Composite);
     const VkBufferMemoryBarrier2KHR upload_barrier{
         VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
         VK_PIPELINE_STAGE_2_HOST_BIT_KHR, VK_ACCESS_2_HOST_WRITE_BIT_KHR,
@@ -212,7 +212,7 @@ void VulkanBackend::Impl::fill_path(runtime::RenderSurfaceHandle destination,
         const auto descriptors = allocate_pass_descriptor_set();
         write_fill_rect_descriptors(descriptors, dst_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image});
+        emit_pass_sync(cmd, {&dst_image}, runtime::GpuPassKind::Composite);
         record_fill_rect(cmd, descriptors, dst_image, 0, 0,
                          static_cast<std::int32_t>(dst_image.width),
                          static_cast<std::int32_t>(dst_image.height),
@@ -240,7 +240,7 @@ void VulkanBackend::Impl::fill_grid(
         const auto descriptors = allocate_pass_descriptor_set();
         write_fill_rect_descriptors(descriptors, dst_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image});
+        emit_pass_sync(cmd, {&dst_image}, runtime::GpuPassKind::Composite);
         record_fill_rect(cmd, descriptors, dst_image, x0, y0, x1, y1,
                          line_color, shape, line, vertices);
         dst_image.initialized = true;

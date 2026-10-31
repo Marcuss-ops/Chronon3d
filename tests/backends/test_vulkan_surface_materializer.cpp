@@ -436,6 +436,30 @@ TEST_CASE("released transient slot stays warm and is deterministically reusable"
     CHECK_FALSE(image.initialized);
 }
 
+TEST_CASE("released temporal pipeline surfaces reuse bounded physical backing") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+    auto desc = test_desc(1920, 1080);
+    desc.lifetime = runtime::LifetimeClass::PipelineSlot;
+
+    // Two simultaneously live surfaces per frame model the shutter sample
+    // output and its weighted accumulator. The handles change every frame;
+    // their physical slots must remain bounded once both are released.
+    for (std::size_t frame = 0; frame < 150; ++frame) {
+        const auto first = static_cast<runtime::RenderSurfaceHandle>(0xD00000u + frame * 2);
+        const auto second = static_cast<runtime::RenderSurfaceHandle>(0xD00001u + frame * 2);
+        authority.ensure(first, desc);
+        authority.ensure(second, desc);
+        CHECK(authority.bound_slot(first) != authority.bound_slot(second));
+        CHECK(authority.physical_count() == 2);
+        authority.surface_bindings.erase(first);
+        authority.surface_bindings.erase(second);
+        authority.prune_unused_slots();
+    }
+    CHECK(owner.make_count == 2);
+}
+
 TEST_CASE("persistent reservation survives release and rebinds to the same slot") {
     VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
     FakeSurfaceOwner owner;

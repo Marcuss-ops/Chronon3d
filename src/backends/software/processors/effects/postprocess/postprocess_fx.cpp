@@ -389,7 +389,7 @@ void apply_film_grain_and_dust(Framebuffer& fb, const FilmGrainDustParams& param
 
     for (int y = y0; y < y1; ++y) {
         for (int x = x0; x < x1; ++x) {
-            Color c = fb.pixel(x, y);
+            Color c = fb.get_pixel(x, y);
             // Deterministic splitmix pseudo-gaussian noise
             float n0 = hash_01(static_cast<float>(x), static_cast<float>(y), baseSeed);
             float n1 = hash_01(static_cast<float>(x + 31), static_cast<float>(y + 17), baseSeed + 13u);
@@ -423,14 +423,14 @@ void apply_film_grain_and_dust(Framebuffer& fb, const FilmGrainDustParams& param
                 for (int l = 0; l < len; ++l) {
                     int px = std::clamp(sx + l, 0, w - 1);
                     int py = std::clamp(sy + (l % 2), 0, h - 1);
-                    Color cur = fb.pixel(px, py);
+                    Color cur = fb.get_pixel(px, py);
                     cur.r = std::min(1.0f, cur.r + bright * 0.4f);
                     cur.g = std::min(1.0f, cur.g + bright * 0.4f);
                     cur.b = std::min(1.0f, cur.b + bright * 0.4f);
                     fb.set_pixel(px, py, cur);
                 }
             } else {
-                Color cur = fb.pixel(sx, sy);
+                Color cur = fb.get_pixel(sx, sy);
                 cur.r = std::min(1.0f, cur.r + bright * 0.5f);
                 cur.g = std::min(1.0f, cur.g + bright * 0.5f);
                 cur.b = std::min(1.0f, cur.b + bright * 0.5f);
@@ -463,7 +463,7 @@ void apply_optical_bloom(Framebuffer& fb, const BloomParams& params,
     // 1. Highlight extraction with smooth knee
     for (int y = y0; y < y1; ++y) {
         for (int x = x0; x < x1; ++x) {
-            Color c = fb.pixel(x, y);
+            Color c = fb.get_pixel(x, y);
             float luma = kLumaR * c.r + kLumaG * c.g + kLumaB * c.b;
             if (luma > params.threshold) {
                 float ramp = (luma - params.threshold) / std::max(0.001f, 1.0f - params.threshold);
@@ -490,13 +490,13 @@ void apply_optical_bloom(Framebuffer& fb, const BloomParams& params,
             const int step = std::max(1, radius / 5);
             for (int dy = -radius; dy <= radius; dy += step) {
                 int sy = std::clamp(y + dy, 0, h - 1);
-                Color s = blur_h.pixel(x, sy);
+                Color s = blur_h.get_pixel(x, sy);
                 acc.r += s.r; acc.g += s.g; acc.b += s.b;
                 count++;
             }
             if (count > 0) {
                 float inv = 1.0f / static_cast<float>(count);
-                Color base = fb.pixel(x, y);
+                Color base = fb.get_pixel(x, y);
                 base.r = std::clamp(base.r + acc.r * inv * params.intensity * warmTint.r, 0.0f, 1.0f);
                 base.g = std::clamp(base.g + acc.g * inv * params.intensity * warmTint.g, 0.0f, 1.0f);
                 base.b = std::clamp(base.b + acc.b * inv * params.intensity * warmTint.b, 0.0f, 1.0f);

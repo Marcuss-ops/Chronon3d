@@ -4125,6 +4125,20 @@
       "items": {
         "type": "object",
         "properties": {
+          "transform_samples": {
+            "type": "array", "minItems": 1, "maxItems": 250000,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["frame", "position", "scale", "rotation_deg", "opacity"],
+              "properties": {
+                "frame": {"type": "number", "minimum": -1000000, "maximum": 1000000},
+                "position": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}},
+                "scale": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}},
+                "rotation_deg": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}},
+                "opacity": {"type": "number", "minimum": 0, "maximum": 1}
+              }
+            }
+          },
           "style": {
             "type": "object",
             "properties": {

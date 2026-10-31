@@ -64,7 +64,7 @@ void VulkanBackend::Impl::transform(runtime::RenderSurfaceHandle destination,
                 dst_image.height, dst_image.initialized);
         }
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image});
+        emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::Transform);
         record_transform(cmd, descriptors, dst_image, src_image,
                          offset_x, offset_y, opacity);
         dst_image.initialized = true;
@@ -117,7 +117,7 @@ void VulkanBackend::Impl::transform_affine(
                 dst_image.height, dst_image.initialized);
         }
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image});
+        emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::AffineTransform);
         record_transform_affine(cmd, descriptors,
                                 dst_image, src_image, transform_value);
         dst_image.initialized = true;

@@ -14,6 +14,7 @@
 | Native NVENC + software backend (wrong YUV planes) | P1 | OPEN (F1) — workaround: `--encoder-backend pipe --pipe-pixfmt nv12` | [CAMERA-DEFINITIVE-CLOSURE §5](tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md) |
 | Software DoF performance (~30 s/frame 1080p) | P2 | OPEN (F2) | [CAMERA-DEFINITIVE-CLOSURE §5](tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md) |
 | Motion lowering Z convention (`planPosition` vs `planAnimationPosition`) | P2 | OPEN (F3, ChrononMotion3D) | [CAMERA-DEFINITIVE-CLOSURE §5](tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md) |
+| AE-style camera functional parity | P1 | OPEN — camera/Null/rig/DoF matrix, typed-video cleanup and measured performance | [AE-CAMERA-FUNCTIONAL-PARITY](tickets/TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md) |
 
 Camera ownership migration, the current daemon admission policy, and node
 memory instrumentation are closed for the present product scope. The optional

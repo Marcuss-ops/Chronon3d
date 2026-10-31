@@ -1,0 +1,44 @@
+{
+  "frames": [
+    30,
+    75,
+    149
+  ],
+  "roi_xyxy": {
+    "near": [
+      300,
+      350,
+      650,
+      700
+    ],
+    "middle": [
+      780,
+      300,
+      1120,
+      710
+    ],
+    "far": [
+      1240,
+      310,
+      1550,
+      720
+    ]
+  },
+  "sharpness": "mean squared horizontal and vertical luminance first differences; ON/OFF ratio in same ROI/frame",
+  "focus_gate": "focused ROI retains >= 0.70 of OFF edge energy; defocused ROI <= 0.90; evaluate near@30, middle@75, far@149; report all ratios",
+  "raw_backend_gate": {
+    "rgb_mae_max": 2,
+    "rgb_p99_max": 10,
+    "units": "8-bit RGB"
+  },
+  "alpha": "asset has zero and fractional alpha; composed output opaque with background; no claim of edge-bleed PASS from these alone",
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "fps": "30/1",
+    "frames_min": 150,
+    "decode_errors": 0,
+    "accidental_black_intervals": 0
+  },
+  "visual_approval": "human full-video review is mandatory and cannot be automated"
+}

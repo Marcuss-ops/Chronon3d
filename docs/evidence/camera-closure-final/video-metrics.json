@@ -1,0 +1,215 @@
+{
+  "videos": {
+    "dof": {
+      "stream": {
+        "codec_name": "h264",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "30/1",
+        "nb_read_frames": "150"
+      },
+      "bytes": 1680154,
+      "sha256": "a5a3501d74ddde99225de8a5f677f5a6e51938498be7882b3027805c42d20c57",
+      "black_intervals": [],
+      "decode_errors": "",
+      "output_gate": "PASS",
+      "sentinels": {
+        "0": {
+          "rgb_sha256": "f64ac028ea0235b2b8f40658ddfe717fbefebfad27dd5cd01ad57e817eb67072",
+          "mean_rgb": 37.72987348894033,
+          "roi_energy": {
+            "near": 24.109067807614895,
+            "middle": 2.000462692582105,
+            "far": 1.5816274192690916
+          }
+        },
+        "30": {
+          "rgb_sha256": "479a99f546e3ec4e7a49d6a639c53e3de4bde787ae6341aa50bb7eb4197d9ff7",
+          "mean_rgb": 37.87634259259259,
+          "roi_energy": {
+            "near": 309.9847704370941,
+            "middle": 59.62934578546453,
+            "far": 1.6933221428148246
+          }
+        },
+        "75": {
+          "rgb_sha256": "d9c5ff4e4db1d6d7c6b886c0045fc90e8429a1ba230d6c4037b6b1f09651513b",
+          "mean_rgb": 38.64930234053498,
+          "roi_energy": {
+            "near": 1.8574226323209166,
+            "middle": 376.54648708706884,
+            "far": 80.94489647137651
+          }
+        },
+        "149": {
+          "rgb_sha256": "d9c3f2c8ab388f43efebabf54a6ed8981b517cb9d3d73e82d83b0656f7fff558",
+          "mean_rgb": 38.80337561085391,
+          "roi_energy": {
+            "near": 1.2663723337005321,
+            "middle": 2.1189647770954623,
+            "far": 390.71750270361184
+          }
+        }
+      }
+    },
+    "sharp": {
+      "stream": {
+        "codec_name": "h264",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "30/1",
+        "nb_read_frames": "150"
+      },
+      "bytes": 2721145,
+      "sha256": "58aab9d466cd7d3ca7d1b324fe9ef5eb49d22584b84100d8ca19904c542f0371",
+      "black_intervals": [],
+      "decode_errors": "",
+      "output_gate": "PASS",
+      "sentinels": {
+        "0": {
+          "rgb_sha256": "242ac92a0d6171ec1c74308cb6688772f08c24a4279bd2a60e5fc7b8de727907",
+          "mean_rgb": 34.83573929398148,
+          "roi_energy": {
+            "near": 23.985439456302572,
+            "middle": 293.7417476960993,
+            "far": 360.06169617658577
+          }
+        },
+        "30": {
+          "rgb_sha256": "5a017ba8129a72fd8cef39564183412a104ad0cbf36a7111efa180e6f1a164aa",
+          "mean_rgb": 35.20547019675926,
+          "roi_energy": {
+            "near": 309.55045423154866,
+            "middle": 366.6580570660893,
+            "far": 419.5640664740527
+          }
+        },
+        "75": {
+          "rgb_sha256": "cd77e4afdebb270c69bb8d046c581b3117f33521f14aeb9fbd012e9ec062c011",
+          "mean_rgb": 35.35437580375515,
+          "roi_energy": {
+            "near": 238.33916778941952,
+            "middle": 388.3289648513902,
+            "far": 480.7575037038701
+          }
+        },
+        "149": {
+          "rgb_sha256": "ade189000ec431231a0377302187de9e41de2036a4779173e73418ec8d179661",
+          "mean_rgb": 35.267132844650206,
+          "roi_energy": {
+            "near": 167.5033804253416,
+            "middle": 314.21078833754797,
+            "far": 390.492067689161
+          }
+        }
+      }
+    },
+    "shutter": {
+      "stream": {
+        "codec_name": "h264",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "30/1",
+        "nb_read_frames": "150"
+      },
+      "bytes": 1971618,
+      "sha256": "a634b4385190fb62d3a782732864e642be3ccd594ff705e5a740fc1c66846880",
+      "black_intervals": [],
+      "decode_errors": "",
+      "output_gate": "PASS",
+      "sentinels": {
+        "0": {
+          "rgb_sha256": "45c12a45a2bbeddd87d539901be295bfd5ade8c99887af19cb829f798f586230",
+          "mean_rgb": 24.40481786908436,
+          "roi_energy": {
+            "near": 13.742701786104298,
+            "middle": 1.3179358485867692,
+            "far": 1.0412720825903117
+          }
+        },
+        "30": {
+          "rgb_sha256": "afe65a2a4e8e6f04302a6adcfd5da007afd3533f5d1489c78dbeadd54fb01138",
+          "mean_rgb": 37.845496077674895,
+          "roi_energy": {
+            "near": 294.2465415576278,
+            "middle": 48.568059330298404,
+            "far": 1.6560093549130277
+          }
+        },
+        "75": {
+          "rgb_sha256": "b9cb3a8db3561fd8043cba43136619a3d4c051a284326dc49d4767eb31a7b84b",
+          "mean_rgb": 38.56765223122428,
+          "roi_energy": {
+            "near": 1.7223040274894799,
+            "middle": 349.6697244765311,
+            "far": 60.00108199539025
+          }
+        },
+        "149": {
+          "rgb_sha256": "310c9d54ee854db281492c853e5768ba5c04c19b81fe7c5e378935222904160b",
+          "mean_rgb": 38.77532053755144,
+          "roi_energy": {
+            "near": 1.2644174721440853,
+            "middle": 2.1261263511732738,
+            "far": 392.75840650014453
+          }
+        }
+      }
+    }
+  },
+  "focus_metrics_lossy_diagnostic": {
+    "30": {
+      "near": {
+        "on_off_energy_ratio": 1.0014030546542845,
+        "expected_focused": true,
+        "gate": "PASS"
+      },
+      "middle": {
+        "on_off_energy_ratio": 0.1626293071604764,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "far": {
+        "on_off_energy_ratio": 0.0040359084061826955,
+        "expected_focused": false,
+        "gate": "PASS"
+      }
+    },
+    "75": {
+      "near": {
+        "on_off_energy_ratio": 0.007793190894926723,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "middle": {
+        "on_off_energy_ratio": 0.9696585142217491,
+        "expected_focused": true,
+        "gate": "PASS"
+      },
+      "far": {
+        "on_off_energy_ratio": 0.16836949157893072,
+        "expected_focused": false,
+        "gate": "PASS"
+      }
+    },
+    "149": {
+      "near": {
+        "on_off_energy_ratio": 0.007560279264124885,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "middle": {
+        "on_off_energy_ratio": 0.006743768373793445,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "far": {
+        "on_off_energy_ratio": 1.0005773100994981,
+        "expected_focused": true,
+        "gate": "PASS"
+      }
+    }
+  },
+  "note": "MP4 measurements are diagnostic, not raw pixel parity or human visual approval.",
+  "output_gate": "PASS"
+}

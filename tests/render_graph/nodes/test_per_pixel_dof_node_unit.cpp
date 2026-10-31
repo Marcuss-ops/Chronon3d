@@ -73,6 +73,34 @@ TEST_CASE("DOF rejects missing tracked depth but permits untracked passthrough")
     CHECK(passthrough.value()->get_pixel(0, 0).r == doctest::Approx(1.f));
 }
 
+TEST_CASE("DOF rejects incomplete native depth provenance") {
+    auto node = graph::PerPixelDofNode::create(make_cam2_5d(50.f, 0.05f, 8.f));
+    graph::RenderGraphContext ctx;
+    ctx.frame_input = ctt::make_render_frame_info(4, 4);
+    ctx.framebuffer_pool = cache::FramebufferPool::create_shared(1024 * 1024);
+    ctx.policy.track_dof_depth = true;
+    ctx.policy.require_native_gpu = true;
+    Framebuffer input(4, 4);
+    input.clear(Color{1.f, 0.f, 0.f, 1.f});
+    std::array<FramebufferRef, 1> inputs{FramebufferRef{input}};
+    std::array<std::optional<raster::BBox>, 1> bounds{};
+
+    // A partial/mixed native depth publication must fail before any blur or
+    // sharp pass-through; this requires no live GPU or backend mock.
+    ctx.node_exec.native_dof_depth.surface = std::make_shared<Framebuffer>(4, 4);
+    ctx.node_exec.native_dof_depth.unusable = true;
+    auto result = node->execute(ctx, inputs, bounds);
+    REQUIRE_FALSE(result);
+    CHECK(result.error().message == "DOF depth is only partially device-local");
+    CHECK_FALSE(ctx.node_exec.native_dof_depth.surface);
+
+    // Native tracking with no depth publication must also fail closed.
+    ctx.node_exec.native_dof_depth.unusable = false;
+    result = node->execute(ctx, inputs, bounds);
+    REQUIRE_FALSE(result);
+    CHECK(result.error().message == "DOF depth tracking was requested but its depth buffer is missing or invalid");
+}
+
 TEST_CASE("PR2-Unit-DoF: cache_key varies with focus_z / aperture / max_blur") {
     using chronon3d::graph::PerPixelDofNode;
 

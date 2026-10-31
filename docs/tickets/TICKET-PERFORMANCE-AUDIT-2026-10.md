@@ -5,6 +5,7 @@ Status: PARTIAL — local audit/build gates complete; remaining native GPU/CI me
 ## TODO — cosa manca (agg. 2026-10-28)
 
 - [ ] Certificazione carrier/render native su host GPU e clean-SHA CI (esclusi dal perimetro locale richiesto).
+- [x] Breakdown GPU per-pass della fixture B2 e profilo CPU del loop (2026-10-30): attribuzione Vulkan per `GpuPassKind` esportata in sidecar/counter e misurata sul campo.
 
 ## Goal
 
@@ -285,6 +286,29 @@ Defects/waste to fix in this repo (ordered by expected gain):
 Combined expectation: per-item service 2.748 → ~1.280 ms keeps the golden at
 ≈94 items/min on the certified 2-lane topology; the render loop (956 ms/item,
 ~11 ms/frame) is the remaining target to close the 100/min gate.
+
+### 2026-10-30 — per-pass GPU timing and B2 CPU profile
+
+- **Nuova capacità di misura (landed locally):** il backend Vulkan scrive due
+timestamp per pass (TOP/BOTTOM_OF_PIPE), li risolve al fence e li attribuisce
+per `runtime::GpuPassKind`. Export: `gpu_pass_<kind>_us`/`_count`, job
+`pass_breakdown_ms`/`pass_counts`, per-frame
+`gpu_observed.pass_breakdown_ms`/`pass_counts`. Funziona sia sul path
+CommandPlan sia sul graph path (che registra gli stessi pass senza piano).
+- **Misura sulla fixture B2 (456 frame, RTX A4000):** `composite` 173.889 ms
+(73.4%, 7 regioni/frame, mediana 0.3797 ms) e `layer_batch` 63.081 ms (26.6%,
+1 regione/frame, mediana 0.1337 ms); copertura 99.2% del device span
+(238.985 ms). La GPU è 0.51 ms di un frame da 4.25 ms.
+- **Profilo CPU (`perf -F 999 -g`):** nessun simbolo applicativo sopra 0.3% di
+self time; 25.3% dei campioni in `__sched_yield` nei worker TBB inattivi.
+Limitare i core (arena TBB più piccola) dà al massimo +3.2% (238.3 → 245.8 fps
+con 8 core); 4 core 242.3, 2 core 239.9. Il gate B2 a 300 fps resta FAIL.
+- **Disposizione:** nessuna ottimizzazione adottata, perché l'unica leva
+misurata non chiude il divario e un cap dei worker TBB richiederebbe misure
+cross-workload. La certificazione host/clean-SHA resta il gate residuo di
+questo ticket.
+- Evidenza: `docs/evidence/gpu-pass-timestamps-20261030/README.md` e
+`docs/evidence/100x-perf-waves-b2-20261029/b2-pass-timestamps-c-results.json`.
 
 ## Scope boundaries
 
