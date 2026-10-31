@@ -50,7 +50,8 @@ void warmup_pipe_slots(PipeExportSession& session);
     const RenderSettings& settings,
     Frame start,
     Frame end,
-    const FfmpegExportOptions& opts);
+    const FfmpegExportOptions& opts,
+    const compiler::CompiledProgram* program = nullptr);
 
 /// Phase 10: Populate the result boundary model.
 [[nodiscard]] PipeExportResult make_pipe_export_result(
@@ -75,6 +76,7 @@ void warmup_pipe_slots(PipeExportSession& session);
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes = nullptr,
     runtime::DeviceScheduler* device_scheduler = nullptr,
     std::shared_ptr<media::VideoJobExecutionContext> execution = nullptr,
-    std::shared_ptr<SoftwareRenderer> warm_renderer = nullptr);
+    std::shared_ptr<SoftwareRenderer> warm_renderer = nullptr,
+    const compiler::CompiledProgram* program = nullptr);
 
 } // namespace chronon3d::cli

@@ -2,6 +2,13 @@
 
 Aggiornato il 2026-10-25 da GitHub. Restano aperti 8 ticket in Chronon3D e 5 in ChrononMotion3D. I ticket #56 e #59 risultano chiusi.
 
+## Verifica 2026-10-31 — stato PR stack e attribuzione CI #61
+
+- #61 è merged (2026-10-27); #62 è merged; #63 è chiusa senza merge. Quindi la sequenza riportata sopra non è più eseguibile alla lettera: #63 richiede una nuova decisione/rebase del maintainer prima di riprenderne il lavoro.
+- Confrontati i run Chronon CI del parent `776fc721` (`40223358034`) e del commit PR #61 `21b557eb` (`40227431837`). Entrambi falliscono per lo stesso gruppo di problemi di ambiente/configurazione: checkout `vcpkg` pathspec assente, `ccache` non installato, preset hidden `linux-ci-nocontent` invocato direttamente, target `chronon3d_pipeline` inesistente e header FFmpeg non disponibile nei target CLI senza video. La PR #61 modifica soltanto il link condizionale ICU in `src/render_plan/CMakeLists.txt` e il regex CTest in `tests/text_domain_tests.cmake`; i log non mostrano una regressione attribuibile a quel diff.
+- La campagna `Chronon CI` sul tip osservato `919ed8f5` (run `41198698232`, 2026-10-31) è ancora `queued`, con tutti i job non avviati. La precondizione Wave 0 resta aperta; non avviare Wave 1/2/3/4 o nuove demolizioni finché non esiste un esito same-SHA verde e analizzato.
+- Direzione operativa aggiornata 2026-10-31: l'utente ha chiesto di proseguire la pulizia locale senza attendere il verde CI. Questa scelta non cambia lo stato della precondizione same-SHA né certifica i gate globali; le modifiche restano locali e riportano separatamente le build eseguite.
+
 ## Sequenza consigliata
 
 1. **Sbloccare la catena Chronon3D già aperta**: verificare i fallimenti CI della PR [#61](https://github.com/Marcuss-ops/Chronon3d/pull/61), correggerli dove sono introdotti dalla PR e completare i controlli. Poi integrare in ordine #61 → [#62](https://github.com/Marcuss-ops/Chronon3d/pull/62) → [#63](https://github.com/Marcuss-ops/Chronon3d/pull/63), aggiornando la base di ogni PR dopo il merge precedente. Le #62 e #63 sono impilate su queste basi e non vanno integrate fuori ordine.

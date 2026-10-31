@@ -314,7 +314,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(
                     job.execution.cpu_budget,
                     std::move(execution),
                     &sidecar_written_at,
-                    std::move(warm_renderer));
+                    std::move(warm_renderer),
+                    job.program.get());
             } catch (const std::exception& error) {
                 return make_render_job_error(
                     RenderJobErrorCode::RenderFailed,

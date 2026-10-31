@@ -6,7 +6,6 @@
 #include <chronon3d/runtime/job/render_job_request.hpp>
 #include <chronon3d/media/video/video_device_runtime.hpp>
 #include <chronon3d/media/video/video_job_execution_context.hpp>
-#include <chronon3d/media/video/packet_assembler.hpp>
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include "chronon_ipc.hpp"
 #include <atomic>
