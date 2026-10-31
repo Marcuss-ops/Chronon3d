@@ -170,3 +170,11 @@ bench/raw/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Render evidence media (2026-10-31): videos belong in release assets, not git.
+# Existing tracked files stay until the manifest-driven move lands; new files
+# are ignored so the tree does not keep growing. See
+# docs/evidence/repo-weight-audit-20261031.tsv.
+docs/evidence/**/*.mp4
+docs/evidence/**/*.mov
+docs/evidence/**/*.webm
