@@ -34,14 +34,15 @@ inline chronon3d::Camera2_5D make_camera_value(
             : 16.0f / 9.0f;
         camera.lens.sensor_height = source.sensor_width_mm / aspect;
     }
-    const float authored_f_stop = source.dof_f_stop > 0.0f
-        ? source.dof_f_stop : source.f_stop;
+    const float authored_f_stop = source.f_stop;
     if (authored_f_stop > 0.0f) camera.lens.f_stop = authored_f_stop;
     camera.dof.enabled = source.dof_enabled;
     camera.dof.focus_distance = source.dof_focus_distance;
-    camera.dof.aperture = source.dof_aperture;
+    // The renderer's blur kernel uses a gain-like aperture internally. Derive
+    // that implementation value from the single authored f-stop here.
+    camera.dof.aperture = authored_f_stop > 0.0f ? 0.672f / authored_f_stop : 0.015f;
     camera.dof.max_blur = source.dof_max_blur;
-    camera.dof.iris_blades = static_cast<std::uint32_t>(source.dof_iris_blades);
+    camera.dof.iris_blades = static_cast<std::uint32_t>(source.iris_blades);
     camera.dof.highlight_gain = source.dof_highlight_gain;
     camera.dof.use_physical_model = source.focal_length_mm > 0.0f && authored_f_stop > 0.0f;
     if (source.dof_enabled) {

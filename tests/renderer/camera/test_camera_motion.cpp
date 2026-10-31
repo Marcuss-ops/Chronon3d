@@ -484,7 +484,7 @@ TEST_CASE("Camera capability contract rejects unsupported optics at both compile
         rejected(camera);
     }
     auto camera = CameraPlan{};
-    camera.dof_iris_blades = 6;
+    camera.iris_blades = 6;
     rejected(camera);
     camera = CameraPlan{};
     camera.dof_highlight_gain = 1.f;

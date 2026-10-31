@@ -1228,7 +1228,9 @@ TEST_CASE("offline interpolated camera samples match exact runtime sampling at s
                                static_cast<float>(frame * -0.005)};
         resolved.dof_enabled = true;
         resolved.dof_focus_distance = static_cast<float>(1000.0 + frame * 100.0);
-        resolved.dof_highlight_gain = static_cast<float>(frame * 0.1);
+        // Shaped-bokeh highlight gain is rejected by the pinned camera
+        // contract; this fixture exercises only the supported circular DoF.
+        resolved.dof_highlight_gain = 0.f;
         return resolved;
     };
     plan.camera_samples = std::vector<CameraSamplePlan>{
@@ -1272,7 +1274,7 @@ TEST_CASE("offline interpolated camera samples match exact runtime sampling at s
         const float expected_shift_x = static_cast<float>(shutter_frame * 0.01);
         const float expected_shift_y = static_cast<float>(shutter_frame * -0.005);
         const float expected_focus = static_cast<float>(1000.0 + shutter_frame * 100.0);
-        const float expected_highlight = static_cast<float>(shutter_frame * 0.1);
+        constexpr float expected_highlight = 0.f; // unsupported shaped-bokeh input fails closed
         // Exact CM3D sampling.
         CHECK(runtime_camera.position.x == doctest::Approx(expected_x).epsilon(1.0e-4));
         CHECK(runtime_camera.rotation.y == doctest::Approx(expected_yaw).epsilon(1.0e-4));

@@ -13,9 +13,13 @@
 - **Owner:** manutentore del confine ChrononMotion3D / Chronon3d.
 - **Stato 2026-10-31:** S0 (guardrail), S1 (censimento consumer) e S4
   (projection detail) completati sul working tree; i gate C3D
-  (`chronon3d_camera_tests`, `check_public_headers.py`) restano da rilanciare
-  sul build host. S2 resta bloccato dal fix F3 e S3 dalla migrazione coordinata
-  di schema/producer/consumer. Nessun test rimosso.
+  (projection detail) completati sul working tree. S3 DoF completato: CM3D
+  non emette più `camera.dof.aperture`; C3D rimuove il campo typed e la relativa
+  derivazione dal piano e dalla fingerprint, rifiuta esplicitamente il vecchio
+  alias wire e usa il solo `camera.f_stop` authored. I test mirati DoF (36/36),
+  decoder camera e interpolazione shutter (165 assertion) passano. La suite camera
+  completa non è PASS: 3 casi di rendering/golden falliscono nella worktree
+  isolata; il gate generale resta aperto. S2 e S5 restano aperti. Nessun test rimosso.
 
 ---
 
@@ -70,11 +74,12 @@ policy; `publish_dof_provenance` è invocata dal compositing e usata dal DoF.
 `camera_shot_report` è usato dall'overlay diagnostico, `camera_state_builder`
 dal `scene_builder`. Nessuna rimozione sicura è dimostrata dal solo censimento.
 
-**S3 bloccato da consumer reali:** Motion `RenderPlanLoweringCamera.cpp` deriva
-`dof_aperture` da f-stop e `RenderPlanEmission.cpp` lo serializza; in C3D
-`render_plan_camera_adapter.hpp` lo assegna a `camera.dof.aperture` e il decoder
-lo valida. Non è quindi sicuro cancellare il campo o la conversione prima di
-migrare produttore, schema e consumer e di verificarne l'equivalenza.
+**S3 completato con migrazione coordinata:** Motion abbassa e serializza solo il
+f-stop authored. C3D non trasporta più `dof_aperture` nella `CameraPlan` né nella
+fingerprint; il decoder rifiuta il vecchio `camera.dof.aperture`, lo schema v2
+non lo ammette, e `render_plan_camera_adapter.hpp` deriva il gain interno del
+kernel dal solo `camera.f_stop`. Il valore interno `DepthOfFieldSettings::aperture`
+resta un dettaglio del renderer, non un secondo campo del contratto.
 
 **La prova che la proliferazione è accidentale.** Dieci dei tredici header CM3D sono
 *applier* con la stessa firma — scrivono chiavi nel rig, non definiscono meccaniche:
@@ -139,7 +144,7 @@ esistente resta, cambia solo l'include.
 |---|---|---|
 | Congelare la verità: `camera_contract.hpp` + `camera_projection_contract.hpp` come unici punti pinned di ammissione | `motion_projection_parity.cpp` < 0.02 px; `motion_camera_bake_roundtrip.cpp` bit-determinismo | nessun altro sito ridichiara le stesse gamme |
 | Audit delle 5 varianti di projection (`camera_projection_{matrix,clip,frustum,resolver}`, `camera_2_5d_projection`) | grep consumer standalone per ognuna | public API solo quelle con consumer fuori `src/`; le altre in `namespace detail` o merge; la tabella consumer va in `docs/evidence/` |
-| Dismissione legacy DOF: field `dof_aperture` (C5 — LEGACY TRANSPORT, solo derivata) e sito preview `gain = 0.672/f_stop` (C1) | verificare che **nessun producer authorizza** e nessun consumer legge il campo come authored | rimozione del sito + commento LEGACY; il fail-closed C2/C3 non cambia |
+| Dismissione legacy DOF: field `dof_aperture` (C5 — LEGACY TRANSPORT, solo derivata) e sito preview `gain = 0.672/f_stop` (C1) | grep producer/consumer + decoder e interpolazione di shutter | **COMPLETATO 2026-10-31:** il campo wire e il typed alias sono rimossi; gate decoder, camera DoF e sub-frame passano. Il fail-closed C2/C3 non cambia. |
 | Diagnostica (`camera_2_5d_log.cpp`, `camera_shot_report`, `camera_state_builder`, `camera_change_policy`, `composite_dof_provenance`) | grep consumer | merge/dismissione con tabella; la diagnostica concatenate al testo `PLAN-FAIL` non si tocca senza |
 | `render/` CM3D (threepp harness) | fuori perimetro — il perpetuo `check_render_scope.cmake` dice harness; il plate GPU è discusso solo nel §1 del ticket AE | — |
 
@@ -178,10 +183,11 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
   (2) migrazione del chiamante al preset/pack; (3) include dei test aggiornati;
   (4) `-Wall -Wextra -Werror` + ctest `release`/`release-fast` verde. **Vietato** creare
   un secondo resolver/sampler: una sola autorità di valutazione (regola del ticket AE).
-- [ ] **S3 — Dismissione legacy DOF.** Dopo la prova pre-S3 (grep che dimostri che
+- [x] **S3 — Dismissione legacy DOF (2026-10-31).** La prova pre-S3 (grep che dimostri che
   nessun producer authorizza ancora `dof_aperture` o il gain 0.672), rimuovere il sito,
-  il commento LEGACY e il codice ponte;
-  aggiornare `BOUNDARY_C3D.md` C1/C5 (e `render_plan_layer_types.hpp`) nella stessa PR.
+  il commento LEGACY e il codice ponte è stata eseguita; il contratto camera unico
+  e il decoder sono stati aggiornati insieme. `BOUNDARY_C3D.md` C1/C5 è stato
+  aggiornato nella revisione CM3D `4d149c6`; test C3D e fingerprint inclusi.
 - [x] **S4 — Audit projection/diagnostica C3D.** Tabella consumer per ciascun file;
   spostare in `namespace detail` o dismettere; nulla si elimina senza grep consumer a zero.
   **Eseguito 2026-10-31:** `camera_projection_{matrix,clip,frustum}` spostati in
@@ -204,7 +210,7 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
   (preset o pack), non come header di meccanismo; tabelle consumer in evidence.
 - [ ] `grep -r Camera` in `motion/` non rivela nessuna firma `apply*(CameraRig&, ...`
   fuori da presets/waypoint single mechanism (e regressioni).
-- [ ] C3D: projection pinned unica; legacy DOF field/site rimossi con grep-prova;
+- [x] C3D: projection pinned unica; legacy DOF field/site rimossi con grep-prova;
   diagnostica classificata in evidence.
 - [ ] Ogni step: ctest `release`/`release-fast` verde (CM3D), `chronon3d_camera_tests`
   + suite camera 82/82 su working tree attuale non regredita (C3D), boundary gate verde,
