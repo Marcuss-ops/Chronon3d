@@ -37,7 +37,8 @@ PipeExportResult render_and_encode_native(
     std::shared_ptr<media::VideoRuntimeRegistry> video_runtimes,
     runtime::DeviceScheduler* device_scheduler,
     std::shared_ptr<media::VideoJobExecutionContext> execution,
-    std::shared_ptr<SoftwareRenderer> warm_renderer)
+    std::shared_ptr<SoftwareRenderer> warm_renderer,
+    const compiler::CompiledProgram* program)
 {
     const auto wall_t0 = profiling::now();
     const auto setup_t0 = profiling::now();
@@ -100,7 +101,8 @@ PipeExportResult render_and_encode_native(
     telemetry::NvmlSampler nvml_sampler;
     nvml_sampler.start(std::chrono::milliseconds(250));
 
-    auto loop_output = run_pipe_export_loop(*session, registry, compiled, render_opts, start, end, opts);
+    auto loop_output = run_pipe_export_loop(
+        *session, registry, compiled, render_opts, start, end, opts, program);
     auto close_result = close_pipe_encoder(*session);
 
     media::NativeVideoFrameDecoder::DecodeProfilingStats decode_stats{};

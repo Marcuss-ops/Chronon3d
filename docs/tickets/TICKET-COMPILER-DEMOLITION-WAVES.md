@@ -9,9 +9,10 @@ compiler output e graph lowering, senza introdurre una seconda pipeline
 temporanea. Ogni riga diventa `DONE` solo quando il codice, i caller e il gate
 sono coerenti.
 
-## TODO — cosa manca (agg. 2026-10-28)
+## TODO — cosa manca (agg. 2026-10-31)
 
 - [ ] **Wave 3 — render-plan runtime esegue direttamente topology e parameter** — logica: il path compat è ancora load-bearing per l'esecuzione (la chiusura precedente era prematura); il runtime deve consumare direttamente topology+parameter senza il bridge. Dove: `src/render_graph/` (builder/compiler/optimizer), `src/compiler/compiler.cpp` + `program_sampler.cpp`, `src/render_graph/cache/scene_program_store.cpp`. Gate: le 4 snapshot di equivalenza (`d72a4efc2`) restano identiche e il path compat non è più raggiungibile dal runtime.
+- [ ] **Wave 3 video — eliminare l'esecuzione CompiledComposition dal FullGraph typed** — il percorso CLI passa ora il `CompiledProgram` fino a `RenderPipeline::render_program`; restano il fallback per job legacy e i consumer GOP/DirectYUV che richiedono `CompiledComposition`. Per chiudere: migrare quei consumer uno alla volta, quindi rimuovere il fallback in `pipe_export_stages.cpp`. Gate: equivalenza pixel/export, cancellation durante temporal sampling, DirectYUV/GOP parity e build same-SHA.
 
 ## Todo / acceptance criteria
 
@@ -83,6 +84,9 @@ sono coerenti.
 - [x] Wave 3 — il percorso typed del runtime campiona direttamente la `Scene`
   dal `CompiledProgram` e la consegna al grafo; il frame loop non materializza
   più `EvaluatedCompositionFrame`.
+- [x] Wave 3 video — i job che forniscono `CompiledProgram` usano il runtime
+  typed anche nell'export FullGraph; settings e decoder sono passati tramite
+  un `SoftwareExecutionContext` per render, senza mutare il renderer condiviso.
 - [x] Wave 8 — `PreparedRenderJob` non possiede più uno stadio di evaluation:
   il lease viene passato al `RenderPipeline`, che coordina sampling, graph
   execution e output; il payload contiene solo stato typed/frame-local.
@@ -117,12 +121,14 @@ sono coerenti.
   `typed_program_sampler` bridge-free, session/execution payloads clean).
   What remains is NOT deletable as-is: the compat path is load-bearing via
   the `Composition` object model (no `Composition`→`CompiledProgram` lowering
-  exists) and the FFmpeg video exporter (takes `CompiledComposition`).
+  exists), FFmpeg legacy/GOP paths (take `CompiledComposition`) and
+  DirectYUV preparation/inspection.
   Removal scope for the real Wave 3: build the lowering, migrate
-  `RenderEngine`/`SoftwareRenderer`/CLI exporter/SDK/tests, then delete
+  `RenderEngine`/`SoftwareRenderer`/CLI legacy+GOP exporter/SDK/tests, then delete
   `render_compiled_composition_frame*`, `render_compatibility*`,
   `make_video_compatibility_view` and `compatibility_composition` plumbing —
-  with `build linux-fast-dev` as equivalence gate.
+  with pixel/export parity and `build linux-fast-dev` as equivalence gate. The
+  typed FullGraph CLI route is migrated; fallback removal is still pending.
 
 ## Verified residual census — `be14cbd86` + delta 2026-09-09
 
@@ -205,6 +211,13 @@ deleted.
 
 ## Verification snapshot
 
+- Build `linux-fast-dev`, target `chronon3d_dev_fast`, `-j12`: `PASS`
+  (2026-10-31; tests compiled/linked, not executed).
+- Build `linux-video-fast-dev`, target `chronon3d_cli`, `-j12`, with
+  `CHRONON3D_ENABLE_CUDA_INTEROP=OFF`: `PASS` (2026-10-31). The default video
+  preset cannot configure on this host because CUDA headers/library are absent.
+- The typed FullGraph video route now calls `RenderPipeline::render_program`;
+  no pixel-equivalence or video runtime test was run in this change.
 - Build `linux-fast-dev` dei target compiler, graph pipeline, CLI render e test
   boundary: `PASS`.
 - Gate architetturale: `PASS` (122/122 regole).

@@ -3,7 +3,9 @@
 #include "daemon_service.hpp"
 
 #include <chronon3d/media/video/video_execution_resolver.hpp>
+#if defined(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 #include <chronon3d/media/video/packet_assembler.hpp>
+#endif
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>

@@ -102,7 +102,8 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const compiler::CompiledProgram& program, Frame frame,
     FrameExecution* execution, const chronon_layer_state* layer_states,
     std::size_t layer_state_count, const chronon_element_state* element_states,
-    std::size_t element_state_count) {
+    std::size_t element_state_count, const CancellationToken* cancellation) {
+    if (cancellation && cancellation->is_cancelled()) return {};
     const auto& metadata = program.metadata();
     const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
     // TypedProgramSampler is the only frame-varying producer on this route.
@@ -204,6 +205,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         float weight_sum = 0.0f;
         compiler::TypedProgramSampler sampler;
         for (std::size_t i = 0; i < count; ++i) {
+            if (cancellation && cancellation->is_cancelled()) return {};
             const auto& sample = samples[i];
             compiler::FrameParameterBlock parameters;
             sampler.sample_into(program, sample.time.frame, parameters);

@@ -7,6 +7,7 @@
 #include <chronon3d/media/video/video_execution_resolver.hpp>
 #include <chronon3d/media/video/media_probe.hpp>
 #include <chronon3d/media/video/native_video_frame_decoder.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 
 #include <atomic>
@@ -111,6 +112,7 @@ struct RenderLoopContext {
     const CompositionRegistry& registry;
     media::MediaFrameProvider* video_decoder;
     const CompiledComposition& compiled;
+    const compiler::CompiledProgram* program{nullptr};
     Frame start;
     Frame end;
     const FfmpegExportOptions& opts;

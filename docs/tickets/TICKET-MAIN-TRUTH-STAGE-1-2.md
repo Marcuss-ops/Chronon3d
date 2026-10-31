@@ -34,6 +34,34 @@ needs the final SDK gate rerun. The CI cancellation/timeout and runtime failure
 still need triage. These runs establish runner allocation, but they do not
 certify this dirty worktree or satisfy the same-SHA green close rule.
 
+## Update 2026-10-31 — current main-tip campaign and PR #61 attribution
+
+Fetched `origin/main` and fast-forwarded the clean worktree to
+`919ed8f5ff4fe9e159150f903d521f42b1346b6c`. Its `Chronon CI` run
+`41198698232` is still queued; all listed jobs have no start/completion time.
+Same-SHA Stage 1 is therefore not green and no cleanup wave is authorized yet.
+
+For LEANUP-001 PR #61, compared Chronon CI run `40223358034` on parent
+`776fc721810eba0b54532932dbbc6e39e79793c1` with run `40227431837` on PR commit
+`21b557eb4fb4bef4b8e3ad99c3fea0a036239d9e`. Both contain the same failures:
+the checkout script addresses a nonexistent `vcpkg` path; `ccache` is missing;
+the no-content workflow invokes a hidden preset and the public-header job
+requests nonexistent target `chronon3d_pipeline`; CLI configurations fail to
+find FFmpeg headers. PR #61's diff only changes conditional ICU linkage and a
+CTest name regex, and neither changed file owns those failing paths. The
+available before/after evidence does not attribute these failures to #61.
+This identifies CI/configuration and existing target-boundary defects to fix
+under Wave 0; it does not establish a green baseline.
+
+Static inspection initially found `packet_assembler.hpp` included from both
+daemon files, importing libav headers into the no-native-FFmpeg build. The
+daemon header include was unused and remains removed. The protocol source uses
+`SegmentAssemblyRequest` when native FFmpeg is enabled, so that include is now
+conditional on `CHRONON3D_ENABLE_NATIVE_FFMPEG`. `linux-fast-dev` and
+`linux-video-fast-dev` with CUDA interop disabled both built successfully
+locally; the standard video preset cannot configure here because `cuda.h` and
+`libcuda` are unavailable. Tests and same-SHA CI remain unrun.
+
 ## Update 2026-10-05 — runner dispatch remains blocked
 
 Fetched `main@b67a750e6` and queried the latest Actions runs for that exact

@@ -5,6 +5,7 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/runtime/render_pipeline.hpp>
 #include <spdlog/spdlog.h>
 
 #include <cstring>
@@ -67,10 +68,16 @@ NativeSurfacePrep prepare_frame(
         return prep;
     }
     std::string reason;
+    const auto render_width = ctx.program
+        ? static_cast<int>(ctx.program->metadata().width)
+        : ctx.compiled.composition->width();
+    const auto render_height = ctx.program
+        ? static_cast<int>(ctx.program->metadata().height)
+        : ctx.compiled.composition->height();
     if (!ctx.device_runtime->acquire_slot_surfaces(
             execution_slot, *surface_registry, ctx.backend,
-            static_cast<std::uint32_t>(ctx.compiled.composition->width()),
-            static_cast<std::uint32_t>(ctx.compiled.composition->height()), reason)) {
+            static_cast<std::uint32_t>(render_width),
+            static_cast<std::uint32_t>(render_height), reason)) {
         spdlog::error("[video] failed to acquire native surfaces for slot {}: {}",
                       execution_slot.slot_id, reason);
         prep.slot.release();
@@ -98,10 +105,20 @@ RenderOutcome render_frame(
     const FrameProfileSample before = sample_frame_profile(ctx);
     const auto frame_t0 = profiling::now();
     out.wall_start = frame_t0;
-    out.fb = graph::render_compiled_composition_frame_temporal(
-        ctx.backend, ctx.node_cache, video_settings, &ctx.registry,
-        ctx.video_decoder, ctx.compiled, current_frame,
-        ctx.sw_renderer, ctx.opts.cancellation_token, nullptr);
+    if (ctx.program) {
+        auto execution_context = ctx.sw_renderer->execution_context();
+        execution_context.settings = &video_settings;
+        execution_context.video_decoder = ctx.video_decoder;
+        runtime::RenderPipeline pipeline(ctx.sw_renderer, execution_context);
+        out.fb = pipeline.render_program(*ctx.program, current_frame, nullptr,
+                                         nullptr, 0, nullptr, 0,
+                                         ctx.opts.cancellation_token);
+    } else {
+        out.fb = graph::render_compiled_composition_frame_temporal(
+            ctx.backend, ctx.node_cache, video_settings, &ctx.registry,
+            ctx.video_decoder, ctx.compiled, current_frame,
+            ctx.sw_renderer, ctx.opts.cancellation_token, nullptr);
+    }
     const auto frame_t1 = profiling::now();
     const FrameProfileSample after = sample_frame_profile(ctx);
     out.frame_ms = profiling::duration_ms(frame_t0, frame_t1);
@@ -132,8 +149,12 @@ RenderOutcome render_frame(
     // instead of publishing a torn frame.
     if (out.dirty_rect_enabled && out.dirty_rect && !out.duplicate_frame) {
         const raster::BBox& r = *out.dirty_rect;
-        const int full_w = ctx.compiled.composition->width();
-        const int full_h = ctx.compiled.composition->height();
+        const int full_w = ctx.program
+            ? static_cast<int>(ctx.program->metadata().width)
+            : ctx.compiled.composition->width();
+        const int full_h = ctx.program
+            ? static_cast<int>(ctx.program->metadata().height)
+            : ctx.compiled.composition->height();
         const bool covers_frame =
             r.x0 <= 0 && r.y0 <= 0 && r.x1 >= full_w && r.y1 >= full_h;
         if (!covers_frame && !r.is_empty()) {

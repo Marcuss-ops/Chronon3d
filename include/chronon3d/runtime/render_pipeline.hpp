@@ -37,6 +37,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
+#include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
@@ -197,7 +198,8 @@ public:
         const chronon_layer_state* layer_states = nullptr,
         std::size_t layer_state_count = 0,
         const chronon_element_state* element_states = nullptr,
-        std::size_t element_state_count = 0);
+        std::size_t element_state_count = 0,
+        const CancellationToken* cancellation = nullptr);
 
     /// Owns the canonical single-frame lease lifecycle. PreparedRenderJob is
     /// only a handle; it must not duplicate slot, queue, or FrameExecution

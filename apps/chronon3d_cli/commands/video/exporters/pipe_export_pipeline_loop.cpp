@@ -24,7 +24,8 @@ RenderLoopOutput run_pipe_export_loop(
     const RenderSettings& settings,
     Frame start,
     Frame end,
-    const FfmpegExportOptions& opts)
+    const FfmpegExportOptions& opts,
+    const compiler::CompiledProgram* program)
 {
     RenderLoopOutput output;
     bool native_video_setup_failed = false;
@@ -91,6 +92,7 @@ RenderLoopOutput run_pipe_export_loop(
         .registry = registry,
         .video_decoder = video_decoder,
         .compiled = compiled,
+        .program = program,
         .start = start,
         .end = end,
         .opts = opts,
