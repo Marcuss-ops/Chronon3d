@@ -382,6 +382,13 @@ NodeExecResult PerPixelDofNode::execute(
     // and the plan would render as plain circular bokeh.
     reject_unsupported_dof_shape(camera.dof);
 
+    if (ctx.policy.require_native_gpu && native_depth_partial && !native_depth.surface) {
+        return NodeExecutionError{
+            RenderBackendErrorCode::ExecutionFailure,
+            "PerPixelDofNode",
+            "DOF depth is only partially device-local"};
+    }
+
     if (native_depth.surface) {
         // Device-local path: depth and radius live on the GPU (see
         // publish_dof_provenance_native). A mix of CPU and native depth cannot
