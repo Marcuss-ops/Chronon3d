@@ -50,6 +50,24 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 | Camera sequence e cut | **PARTIAL:** `motion_camera_sequence.cpp` copre il componente Motion; nessuna certificazione di cut E2E su job C3D. |
 | Bridge export | **IMPLEMENTATO, PARITÀ NON CERTIFICATA:** il percorso RenderPlan esporta FullGraph, DirectYUV e GOP da `CompiledProgram`; il bridge `make_video_compatibility_view` e il suo translation unit sono stati rimossi il 2026-10-31. Test raw/shutter e GOP/DirectYUV non eseguiti in questa passata. |
 
+### 2.2 Regressione mirata DoF + occlusione 2.5D (2026-10-31)
+
+La fixture sintetica `PR2-RG-DoF: nearest 2.5D card occludes the far plane in either layer order`
+usa due piani colorati sovrapposti e verifica che la card più vicina resti davanti con DoF
+attivo, invertendo l'ordine di authoring. I controlli ad alpha frazionario confrontano il
+compositing nei due ordini e con DoF disattivato. Sono test del renderer 2.5D con geometria
+procedurale semplice: non richiedono modelli 3D né asset esterni. Il binario locale
+precompilato ha eseguito i 3 casi aggiunti: **3/3 casi, 21/21 asserzioni PASS**.
+Quel binario è basato sul checkout locale `919ed8f5` (non sullo SHA finale del ticket); il
+risultato è una regressione mirata, non certificazione same-SHA.
+
+Questi test coprono ordine di profondità, alpha e interazione locale col pass DoF; non
+certificano near/far bleeding su una griglia di fuoco, qualità del bokeh HDR o un pass AO.
+Chronon3d non espone attualmente SSAO/HBAO/GTAO né occlusion culling come capability del
+contratto camera. Nessun test di Ambient Occlusion va quindi dichiarato PASS: la sua
+eventuale implementazione richiede un ticket/capability separata, con input depth/normal,
+regole di bias e criteri immagine espliciti.
+
 ## 3. To-do ordinata e criteri di accettazione
 
 - [ ] **A — Censimento:** associare ogni riga §2 ad API, producer, schema, compiler, consumer e test esistenti; classificare SUPPORTED / REJECTED / MISSING. Congelare spazi/unità, target space, ordine rotazioni e precedenza ottica. Non creare un secondo resolver/sampler.
@@ -57,7 +75,7 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 - [ ] **C — Camera e Null:** certificare libera/target, parent a due livelli, pivot, rotazioni combinate, wrap ±180°, target coincidente/collinearità e pose invalide; test di snapshot e proiezione, errori espliciti per casi esclusi.
 - [ ] **D — Ottica e regia:** dolly/orbit/pan/tilt/roll e dolly-zoom con invarianti numerici di framing; focale/FOV e focus animati; cut camera e confini shot senza interpolazione impropria.
 - [ ] **E — Tempo unico:** consumer tipizzato di produzione, camera E layer agli stessi timestamp; 3 frame × 8 campioni minimo, easing non lineare, accesso fuori ordine, roundtrip double e raw deterministico. Phase/pattern/filter e budget devono essere trasportati oppure rifiutati se non rappresentabili.
-- [ ] **F — DoF e alpha:** scene originali a tre profondità con controllo OFF, metriche ROI di nitidezza, alpha frazionario e occlusioni; profondità attesa mancante produce errore; software oracle vs Vulkan strict-native entro soglie congelate; zero errori validation. ON != OFF da solo non è accettazione.
+- [ ] **F — DoF e alpha:** regressioni software mirate per ordine di occlusione 2.5D e alpha frazionario, inclusi i due ordini di authoring e controllo DoF OFF (**3/3 casi, 21/21 asserzioni PASS** sul binario precompilato locale `919ed8f5`; non same-SHA). Restano scene a tre profondità con metriche ROI di nitidezza, near/far bleeding, profondità attesa mancante end-to-end e confronto software oracle vs Vulkan strict-native entro soglie congelate; zero errori validation. Questi test non certificano AO/SSAO, non presente nel renderer.
 - [ ] **G — Un solo percorso video:** portare l'export a consumare direttamente CompiledProgram senza view temporanea; confrontare raw, shutter e output rispetto alla baseline prima di rimuovere il ponte. Nessun nuovo executor.
 - [ ] **H — Prestazioni misurate:** stesso hardware/driver/build, asset e qualità, 1080p30/150 frame minimo; warm/cold separati, almeno 5 run, mediana e dispersione per evaluation/compile/upload/render/DoF/shutter/readback/convert/encode. Registrare byte trasferiti, cache hit e peak VRAM. Definire budget dopo baseline, prima del fix; nessuna promessa AE-speed senza benchmark AE equivalente.
 - [ ] **I — Delivery e certificazione:** video 1080p MP4, sentinel raw e decoded, manifest/digest, comandi ripetibili, CI verde sul pair preciso di revisioni e approvazione umana dell'intera sequenza. Upload non equivale a qualità accettata.
