@@ -24,6 +24,8 @@
 #include <chronon3d/runtime/resource_plan.hpp>
 #include <chronon3d/runtime/gpu_command_plan.hpp>
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
+#include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -41,6 +43,7 @@
 #endif
 
 #include "../../src/render_graph/nodes/text_run/gpu_text_run.hpp"
+#include "../../src/backends/software/specialized/mesh_renderer.hpp"
 
 #ifdef CHRONON3D_ENABLE_VULKAN
 TEST_CASE("TrackMatteNode dispatches aligned full-frame matte to Vulkan") {
@@ -136,6 +139,93 @@ TEST_CASE("SourceNode dispatches a solid rect through Vulkan fill_rect_surface")
 
     REQUIRE(backend.release_surface(handle).ok());
     CHECK(surfaces.release(handle));
+}
+
+TEST_CASE("SourceNode renders inline mesh on Vulkan without strict native policy") {
+    using namespace chronon3d;
+    using namespace chronon3d::graph;
+
+    backends::vulkan::VulkanBackend backend;
+    runtime::RenderSurfaceRegistry surfaces;
+    runtime::GpuAssetCache gpu_assets;
+    gpu_assets.attach(surfaces, backend);
+    ImageCache images;
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 64;
+    ctx.frame_input.height = 64;
+    ctx.frame_input.camera.transform.position = {0.f, 0.f, 0.f};
+    ctx.frame_input.camera.near_plane = 1.f;
+    ctx.frame_input.camera.far_plane = 10.f;
+    ctx.backend = &backend;
+    ctx.surface_registry = &surfaces;
+    ctx.gpu_asset_cache = &gpu_assets;
+    ctx.image_cache = &images;
+    CHECK_FALSE(ctx.policy.require_native_gpu);
+
+    float first_vertex_z = -3.f;
+    float other_vertex_z = -3.f;
+    bool visible = true;
+    SUBCASE("triangle fully inside the frustum") {}
+    SUBCASE("triangle crosses the near plane") { first_vertex_z = -0.5f; }
+    SUBCASE("triangle crosses the far plane") { first_vertex_z = -12.f; }
+    SUBCASE("triangle entirely before the near plane") {
+        first_vertex_z = other_vertex_z = -0.5f;
+        visible = false;
+    }
+    SUBCASE("triangle entirely beyond the far plane") {
+        first_vertex_z = other_vertex_z = -12.f;
+        visible = false;
+    }
+    auto geometry = std::make_shared<Mesh>("triangle");
+    geometry->add_vertex(Vertex{{-1.f, -1.f, first_vertex_z}, {0.f, 0.f, 1.f}, {0.f, 0.f}});
+    geometry->add_vertex(Vertex{{1.f, -1.f, other_vertex_z}, {0.f, 0.f, 1.f}, {1.f, 0.f}});
+    geometry->add_vertex(Vertex{{0.f, 1.f, other_vertex_z}, {0.f, 0.f, 1.f}, {.5f, 1.f}});
+    geometry->add_index(0); geometry->add_index(1); geometry->add_index(2);
+    RenderNode node;
+    MeshShape shape;
+    shape.inline_mesh = geometry;
+    node.shape = Shape(std::move(shape));
+    node.color = Color::red();
+    for (bool require_native : {false, true}) {
+        ctx.policy.require_native_gpu = require_native;
+        INFO("require_native_gpu=" << require_native);
+        SourceNode source("mesh", node, cache::NodeCacheKey{},
+                          std::optional<Mat4>(Mat4(1.f)), std::optional<f32>(1.f),
+                          static_memory_cache("source"), false, false, true);
+        const std::span<const FramebufferRef> no_inputs;
+        const std::span<const std::optional<raster::BBox>> no_bboxes;
+        const auto result = source.execute(ctx, no_inputs, no_bboxes);
+        REQUIRE(result.ok());
+        REQUIRE(result.value());
+        const auto handle = result.value()->surface_handle();
+        REQUIRE(handle != runtime::kInvalidRenderSurfaceHandle);
+        std::vector<float> pixels(64U * 64U * 4U, 0.f);
+        REQUIRE(backend.download_surface(handle, pixels).ok());
+        std::size_t red_pixels = 0;
+        for (std::size_t i = 0; i < pixels.size(); i += 4)
+            if (pixels[i] > .8f && pixels[i + 3] > .8f) ++red_pixels;
+        if (visible) CHECK(red_pixels > 20);
+        else CHECK(red_pixels == 0);
+
+        Framebuffer oracle(64, 64);
+        std::vector<float> depth(64U * 64U, 0.f);
+        renderer::render_mesh_filled(oracle, *geometry, Mat4{1.f}, Mat4{1.f},
+            ctx.frame_input.camera.projection_matrix(1.f), Color::red(), depth, 1.f, 10.f);
+        std::size_t coverage_mismatches = 0;
+        for (int y = 0; y < 64; ++y) {
+            for (int x = 0; x < 64; ++x) {
+                const auto index = static_cast<std::size_t>(y * 64 + x) * 4;
+                if ((pixels[index + 3] > .8f) != (oracle.get_pixel(x, y).a > .8f))
+                    ++coverage_mismatches;
+            }
+        }
+        // Raster edge inclusion differs between the software and compute paths;
+        // interior coverage must nevertheless agree on this 64x64 fixture.
+        INFO("software/Vulkan coverage mismatches: " << coverage_mismatches);
+        CHECK(coverage_mismatches <= 32);
+        REQUIRE(backend.release_surface(handle).ok());
+        CHECK(surfaces.release(handle));
+    }
 }
 
 TEST_CASE("Vulkan inline mesh rasterizes indexed UV triangles with alpha cutoff and source-over") {

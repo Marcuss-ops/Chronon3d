@@ -132,6 +132,23 @@ le certificazioni strict-native richiedono l'host GPU NVIDIA.
 
 Dopo `TICKET-SHADOW-NATIVE-CATCHER.md`, in parallelo agli effetti P2.
 
+## Verifica locale del clipping software (2026-10-31)
+
+- Sul working tree basato su `5b5abbb77d816d7c72737f7c6ceb3fa5e84aaa12`, Linux x86_64,
+  il percorso software delle mesh testurizzate ritaglia ora i triangoli ai piani
+  near/far anziché scartarli quando un solo vertice è fuori. La regressione
+  confronta pixel, UV e profondità con geometria pre-ritagliata, verifica alpha,
+  cutoff e casi completamente fuori, anche senza depth buffer. Il bordo interno
+  del fan di triangolazione viene composto una sola volta anche con alpha frazionario.
+- `cmake --build build/chronon/linux-video-test --target chronon3d_renderer_core_tests -j12`
+  e `build/chronon/linux-video-test/tests/chronon3d_renderer_core_tests --test-case='textured mesh clips triangles against near and far planes,clipped textured mesh matches explicitly clipped geometry and UVs,clipped textured mesh does not blend its fan diagonal twice,textured inline mesh preserves image alpha through UV rasterization'`:
+  **4 casi / 68.264 asserzioni PASS**.
+- La suite completa `ctest --test-dir build/chronon/linux-video-test -R '^chronon3d_renderer_core_tests$' --output-on-failure`
+  è **FAIL**: 201/202 casi passano; il caso mesh che attraversa un piano 2.5D
+  fallisce perché manca il compositing depth-aware tra layer. Questa prova non
+  certifica tale occlusione, la parità GPU del nuovo clipping o la CI same-SHA;
+  il ticket resta **PARTIAL**.
+
 ## Evidenza locale (2026-10-28)
 
 - `chronon3d_renderer_core_tests` verifica che una mesh textured conserva il
