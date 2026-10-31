@@ -13,12 +13,13 @@ sono coerenti.
 
 - [ ] **Wave 3 — render-plan runtime esegue direttamente topology e parameter** — logica: il path compat è ancora load-bearing per l'esecuzione (la chiusura precedente era prematura); il runtime deve consumare direttamente topology+parameter senza il bridge. Dove: `src/render_graph/` (builder/compiler/optimizer), `src/compiler/compiler.cpp` + `program_sampler.cpp`, `src/render_graph/cache/scene_program_store.cpp`. Gate: le 4 snapshot di equivalenza (`d72a4efc2`) restano identiche e il path compat non è più raggiungibile dal runtime.
 - [ ] **Wave 3 video — eliminare i consumer CLI legacy** — l'intero percorso RenderPlan video (FullGraph, DirectYUV e GOP) consuma `CompiledProgram` e non materializza più `CompiledComposition`. Restano gli entrypoint CLI legacy non RenderPlan e le API compatibili pubbliche. Per chiudere: censire i consumer legacy e rimuoverli o isolarli. Gate: equivalenza pixel/export, cancellation durante temporal sampling, DirectYUV/GOP parity e build same-SHA.
-- [ ] **Wave 1 — scomporre i grandi file rimasti** — i target storici `render_plan.hpp`, `composition.cpp` e `scene_temporal_execution.cpp` sono già stati ridotti/spostati; il census attuale ha ancora unità oltre 1.000 righe (`lottie_expansion/expansion.cpp`). Prima isolare responsabilità e consumer, poi spezzare senza cambiare semantica.
-
 Aggiornamento 2026-10-31: il bridge video RenderPlan è stato cancellato dal
 codice e dai test che lo esercitavano; il gate di equivalenza pixel/video resta
 aperto. `temporal_rate_analysis.hpp` ora contiene soltanto DTO e dichiarazioni;
-il calcolo vive in `src/render_plan/temporal_rate_analysis.cpp`.
+il calcolo vive in `src/render_plan/temporal_rate_analysis.cpp`. La parte di
+supporto dell'espansione Lottie è stata separata in
+`lottie_expansion/expansion_support.cpp`; il dispatcher di espansione è sceso
+sotto le 1.000 righe. La semantica è invariata; non sono stati eseguiti test.
 
 ## Todo / acceptance criteria
 
@@ -99,6 +100,9 @@ il calcolo vive in `src/render_plan/temporal_rate_analysis.cpp`.
 - [x] Wave 1 — l'analisi temporale RenderPlan è stata spostata da un header
   inline da 534 righe a un translation unit; l'header espone solo report e API
   e forward-declara `RenderPlan`, evitando il parsing del piano nei consumer DTO.
+- [x] Wave 1 — gli helper di asset, matte e trasformazione Lottie sono stati
+  isolati in `lottie_expansion/expansion_support.cpp`; il dispatcher resta una
+  singola unità sotto 1.000 righe.
 - [x] Wave 3 video — GOP preflight, target contract e direct-mux re-encode
   leggono i metadati `CompiledProgram`; la vista CompiledComposition non è più
   creata nella preparazione RenderPlan.
