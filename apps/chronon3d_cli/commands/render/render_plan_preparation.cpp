@@ -399,22 +399,6 @@ prepare_render_plan(const RenderPlanPreparationOptions& options) {
         context.prepared_package = std::move(prepared_package);
         context.program = std::make_shared<const compiler::CompiledProgram>(
             std::move(compiled_value));
-		// The numeric compiler is the canonical plan authority. The current
-		// FFmpeg video exporter still accepts CompiledComposition, so create its
-		// temporary compatibility view from the already compiled program. This
-		// call performs no second compilation.
-		if (options.force_video_compatibility_view ||
-		    (context.decoded.output.format != render_plan::OutputFormat::Png &&
-		     context.decoded.output.format != render_plan::OutputFormat::PngSequence)) {
-			auto compatibility = render_plan::make_video_compatibility_view(
-				context.decoded, resolver,
-				context.program->metadata().asset_manifest,
-				*context.program, fingerprint_options,
-				options.runtime_camera ? &*options.runtime_camera : nullptr);
-			if (!compatibility) return std::move(compatibility).error();
-			context.video_compatibility_view = std::make_shared<const CompiledComposition>(
-				std::move(compatibility).value());
-		}
         context.resolver = std::move(resolver);
         context.effective_assets_root = effective_assets_root;
         context.settings = settings;

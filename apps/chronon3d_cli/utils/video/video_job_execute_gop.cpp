@@ -30,12 +30,12 @@ using video_detail::frame_to_tick;
 using video_detail::tick_to_frame;
 
 media::GopAnalysisSummary inspect_source_once(
-    const FfmpegExportOptions& opts, const CompiledComposition& compiled,
+    const FfmpegExportOptions& opts, const compiler::CompiledProgram& program,
     double start_sec, double end_sec,
     const chronon3d::CpuBudget& cpu_budget) {
     media::GopAnalysisSummary summary;
     if (opts.gop_source.empty()) return summary;
-    const auto target = resolve_gop_target_contract(opts, compiled, cpu_budget);
+    const auto target = resolve_gop_target_contract(opts, program, cpu_budget);
     if (!target) {
         // No encoder-owned contract could be produced for a lane that
         // re-encodes: the splice gate cannot be evaluated, so it is unsafe.
@@ -113,7 +113,7 @@ media::GopAnalysisSummary inspect_source_once(
 // drop every later unit of the schedule.
 bool execute_direct_mux_gop_plan(
     const CompositionRegistry& registry,
-    const CompiledComposition& compiled,
+    const compiler::CompiledProgram& program,
     const std::string& composition_id,
     const RenderSettings& settings,
     Frame start,
@@ -123,7 +123,7 @@ bool execute_direct_mux_gop_plan(
     const std::shared_ptr<media::VideoJobExecutionContext>& execution,
     std::string& reason) {
 #ifndef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    (void)registry; (void)compiled; (void)composition_id; (void)settings;
+    (void)registry; (void)program; (void)composition_id; (void)settings;
     (void)start; (void)end; (void)opts; (void)cpu_budget; (void)execution;
     reason = "native_ffmpeg_disabled";
     return false;
@@ -373,11 +373,11 @@ bool execute_direct_mux_gop_plan(
             child.borrowed_mux = BorrowedMuxTarget{&session, *declared};
 
             const auto rendered = render_and_encode_native(
-                registry, &compiled, composition_id, settings, render_start,
+                registry, nullptr, composition_id, settings, render_start,
                 render_end, child, cpu_budget,
                 execution ? execution->video_runtimes : nullptr,
                 execution ? execution->device_scheduler : nullptr,
-                execution);
+                execution, nullptr, &program);
             if (rendered.return_code != 0 || !rendered.success) {
                 spdlog::error(
                     "[direct-mux] re-encode work unit {} failed "
@@ -430,8 +430,8 @@ bool execute_direct_mux_gop_plan(
         return false;
     }
     auto contract = std::move(contract_result).value();
-    contract.width = compiled.composition->width();
-    contract.height = compiled.composition->height();
+    contract.width = static_cast<int>(program.metadata().width);
+    contract.height = static_cast<int>(program.metadata().height);
     contract.fps = rate;
     contract.frame_count = static_cast<std::int64_t>(end - start);
     contract.audio_required = mux.has_audio();

@@ -165,8 +165,8 @@ int render_and_encode_ffmpeg(
     // any resolver downgrade can silently replace the requested copy/re-encode
     // lane with a different plan (see gop_copy_preflight_unavailable).
     if (!opts.gop_source.empty()) {
-        if (!compiled || !compiled->composition) {
-            spdlog::error("[video] GOP execution requires the legacy composition view");
+        if (!program) {
+            spdlog::error("[video] GOP execution requires a CompiledProgram");
             return 1;
         }
         std::error_code ec;
@@ -207,12 +207,12 @@ int render_and_encode_ffmpeg(
                      static_cast<int>(decision.plan.handoff),
                      static_cast<int>(decision.codec_path));
     } else {
-        if (!compiled || !compiled->composition) {
-            spdlog::error("[video] GOP inspection requires the legacy composition view");
+        if (!program) {
+            spdlog::error("[video] GOP inspection requires a CompiledProgram");
             return 1;
         }
         const media::GopAnalysisSummary summary = detail::inspect_source_once(
-            opts, *compiled, start_sec, end_sec, cpu_budget);
+            opts, *program, start_sec, end_sec, cpu_budget);
         if (summary.available) {
             spdlog::info("[video] gop preflight: {} GOPs ({} copy-eligible, {} re-encode{}), splice_safe={}",
                          summary.total_gops, summary.copy_gops,
@@ -292,7 +292,7 @@ int render_and_encode_ffmpeg(
     if (!opts.gop_source.empty() && !opts.gop_copy_only) {
         std::string direct_mux_reason;
         if (detail::execute_direct_mux_gop_plan(
-                registry, *compiled, composition_id, settings, start, end,
+                registry, *program, composition_id, settings, start, end,
                 render_opts, cpu_budget, execution, direct_mux_reason)) {
             return 0;
         }

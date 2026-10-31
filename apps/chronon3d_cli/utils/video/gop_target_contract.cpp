@@ -9,7 +9,7 @@ namespace chronon3d::cli {
 
 std::optional<BitstreamTargetContract> resolve_gop_target_contract(
     const FfmpegExportOptions& opts,
-    const CompiledComposition& compiled,
+    const compiler::CompiledProgram& program,
     const chronon3d::CpuBudget& cpu_budget) {
     if (opts.gop_copy_only) {
         return make_remux_target_contract(opts.gop_source);
@@ -18,8 +18,8 @@ std::optional<BitstreamTargetContract> resolve_gop_target_contract(
     const auto codec = resolve_cli_ffmpeg_codec(
         opts.encoder.codec, opts.encoder.hardware_encoder);
     const auto pipe_options =
-        make_pipe_options(compiled.composition->width(),
-                          compiled.composition->height(), opts, codec, cpu_budget);
+        make_pipe_options(static_cast<int>(program.metadata().width),
+                          static_cast<int>(program.metadata().height), opts, codec, cpu_budget);
     if (!pipe_options) return std::nullopt;
     return resolve_encoder_bitstream_contract(*pipe_options);
 }
