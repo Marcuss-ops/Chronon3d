@@ -68,6 +68,7 @@ add_library(chronon3d_render_plan OBJECT
     render_plan_compiler_shape_path.cpp
     render_plan_compiler_lottie.cpp
     lottie_expansion/expansion.cpp
+    lottie_expansion/expansion_support.cpp
     render_plan_compiler_lottie_effects.cpp
     render_plan_compiler_lottie_text.cpp
     render_plan_compiler_lottie_masks.cpp
