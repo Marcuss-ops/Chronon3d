@@ -52,9 +52,10 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 
 La prima esportazione MP4 sul percorso diretto ha trovato un gate residuo in
 `validate_video_job`: richiedeva `CompiledComposition` anche quando il job aveva già il
-`CompiledProgram` tipizzato. Il gate è stato corretto; l'esportazione del piano 2.5D e la
-verifica del file MP4 sono il test di chiusura in corso. Finché il render e il readback non
-passano, G resta aperto.
+`CompiledProgram` tipizzato. Il gate è stato corretto. Il 2026-10-31 il piano demo 2.5D è
+stato renderizzato via RenderPlan diretto e letto con FFprobe: H.264, 1280×720, 30 fps,
+150 frame / 5 s. Questo prova export e readback del demo, non la parità AE. G resta aperto
+per le fixture/reference AE indipendenti e per le verifiche raw/shutter e GOP elencate sotto.
 
 ### 2.2 Regressione mirata DoF + occlusione 2.5D (2026-10-31)
 
