@@ -50,6 +50,12 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 | Camera sequence e cut | **PARTIAL:** `motion_camera_sequence.cpp` copre il componente Motion; nessuna certificazione di cut E2E su job C3D. |
 | Bridge export | **IMPLEMENTATO, PARITÀ NON CERTIFICATA:** il percorso RenderPlan esporta FullGraph, DirectYUV e GOP da `CompiledProgram`; il bridge `make_video_compatibility_view` e il suo translation unit sono stati rimossi il 2026-10-31. Test raw/shutter e GOP/DirectYUV non eseguiti in questa passata. |
 
+La prima esportazione MP4 sul percorso diretto ha trovato un gate residuo in
+`validate_video_job`: richiedeva `CompiledComposition` anche quando il job aveva già il
+`CompiledProgram` tipizzato. Il gate è stato corretto; l'esportazione del piano 2.5D e la
+verifica del file MP4 sono il test di chiusura in corso. Finché il render e il readback non
+passano, G resta aperto.
+
 ### 2.2 Regressione mirata DoF + occlusione 2.5D (2026-10-31)
 
 La fixture sintetica `PR2-RG-DoF: nearest 2.5D card occludes the far plane in either layer order`
@@ -70,7 +76,7 @@ regole di bias e criteri immagine espliciti.
 
 ## 3. To-do ordinata e criteri di accettazione
 
-- [ ] **A — Censimento:** associare ogni riga §2 ad API, producer, schema, compiler, consumer e test esistenti; classificare SUPPORTED / REJECTED / MISSING. Congelare spazi/unità, target space, ordine rotazioni e precedenza ottica. Non creare un secondo resolver/sampler.
+- [x] **A — Censimento locale (2026-10-31):** matrice §2 e inventario producer/consumer/test registrati; classificazione locale SUPPORTED / REJECTED / MISSING e contratto congelato senza introdurre resolver/sampler. Il censimento non sostituisce il riferimento indipendente AE richiesto da B.
 - [ ] **B — Reference funzionale:** versionare fixture e manifest numerici indipendenti; per le righe chiamate AE-parity acquisire riferimento AE documentato (versione/progetto/export/parametri). Senza riferimento usare “contratto Chronon verificato”, non “AE verificato”. Fissare tolleranze PRIMA del run.
 - [ ] **C — Camera e Null:** certificare libera/target, parent a due livelli, pivot, rotazioni combinate, wrap ±180°, target coincidente/collinearità e pose invalide; test di snapshot e proiezione, errori espliciti per casi esclusi.
 - [ ] **D — Ottica e regia:** dolly/orbit/pan/tilt/roll e dolly-zoom con invarianti numerici di framing; focale/FOV e focus animati; cut camera e confini shot senza interpolazione impropria.
