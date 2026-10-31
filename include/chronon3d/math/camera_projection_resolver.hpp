@@ -71,9 +71,9 @@
 // FASE 17 helper headers — included BEFORE the namespace chronon3d block.
 // frustum.hpp introduces FrustumResult (avoids duplicate enum definition).
 // clip.hpp and matrix.hpp contribute inline helpers only (no new types).
-#include <chronon3d/math/camera_projection_frustum.hpp>
-#include <chronon3d/math/camera_projection_clip.hpp>
-#include <chronon3d/math/camera_projection_matrix.hpp>
+#include <chronon3d/math/detail/camera_projection_frustum.hpp>
+#include <chronon3d/math/detail/camera_projection_clip.hpp>
+#include <chronon3d/math/detail/camera_projection_matrix.hpp>
 
 #include <array>
 #include <algorithm>
