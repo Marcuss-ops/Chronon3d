@@ -12,8 +12,10 @@ bool validate_video_job(const RenderJob& job) {
         spdlog::error("[video] RenderJob mode is not Video.");
         return false;
     }
-    if (!job.registry || !job.compiled || !job.compiled->composition) {
-        spdlog::error("[video] RenderJob is missing registry or compiled composition.");
+    if (!job.registry ||
+        (!job.program && (!job.compiled || !job.compiled->composition))) {
+        spdlog::error(
+            "[video] RenderJob is missing registry or compiled render state.");
         return false;
     }
     if (job.output.empty()) {
