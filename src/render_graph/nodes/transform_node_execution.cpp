@@ -235,8 +235,16 @@ NodeExecResult TransformNode::execute(
 
     // ── Centering & homography ──────────────────────────────────────────
     const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
-    const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
+    const bool local_surface = m_source_surface_size.x > 0.0f && m_source_surface_size.y > 0.0f;
+    const Vec2 source_size = local_surface ? m_source_surface_size
+        : Vec2{static_cast<f32>(ctx.frame_input.width), static_cast<f32>(ctx.frame_input.height)};
+    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f),
+        Vec3(source_size.x * 0.5f, source_size.y * 0.5f, 0.0f));
+    // Raster coordinates are local to the cropped input allocation; its
+    // origin is still expressed in the producer's pre-projection canvas.
+    const Mat4 source_origin = glm::translate(Mat4(1.0f),
+        Vec3(input->origin_x(), input->origin_y(), 0.0f));
+    const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset) * source_origin;
 
     f32 x_min_src = 0.0f;
     f32 y_min_src = 0.0f;

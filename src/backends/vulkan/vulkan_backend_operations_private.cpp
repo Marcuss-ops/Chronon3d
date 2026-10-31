@@ -64,7 +64,7 @@ void VulkanBackend::Impl::composite(runtime::RenderSurfaceHandle destination,
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
         if (participates_in_command_plan) {
-            emit_pass_sync(cmd, {&dst_image, &src_image});
+            emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::Composite);
         } else {
             emit_unplanned_compute_sync(cmd, {&dst_image, &src_image});
         }

@@ -1,6 +1,6 @@
 # Chronon 100× Performance Waves — Ticket Specs (B1/B2/B3)
 
-Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE FAILED; B3 IMPLEMENTED / ACCEPTANCE PARTIAL (29 Oct 2026)` — this file is a ticket specification, not a blanket acceptance claim. B2 remains below the 300 render-loop fps gate and the canonical NVENC utilization sidecar is null; the latest five-run polling sample averages 98.48% on active `nvidia-smi` samples. MTSDF outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
+Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE FAILED; B3 IMPLEMENTED / ACCEPTANCE PARTIAL` — this file is a ticket specification, not a blanket acceptance claim. The Linux NVML sampler now loads the correct library and reports actual NVENC samples in the sidecar, but the latest five-run B2 fixture remains below both the 300 render-loop fps and 90% utilization gates. MTSDF outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
 Created: 2026-09-09
 Baseline evidence: job_1788973104795535356_86264102 sidecar + TICKET-ZERO-COPY-ZWAVES.md F1–F7
 Owner: Chronon rendering-core maintainers
@@ -25,11 +25,13 @@ waves below are the reachable remainder, in expected-gain order.
 
 ---
 
-## TODO — cosa manca (agg. 2026-10-30)
+## TODO — cosa manca
 
-- [ ] **Gate B2 — FAIL (ultimo rerun 2026-10-30):** fixture title-drift di 456 frame, strict Vulkan/NVENC, binario finale SHA-256 `67b8c1d5…`. Run canonico: encoded 456/456, exit 0, `render_loop_fps` **238.200**, end-to-end 139.284 fps, drain 12 µs/job; ancora **20.60%** sotto il target 300. Sidecar `nvenc_utilization_avg` nullo; polling `nvidia-smi` sui campioni encoder attivi 95.43%, metrica non canonica. Output SHA `2520fabe…`. Varianti 16 thread (238.50), depth 12 (235.81), depth 6 (233.57) e 16 surface NVENC (236.30) dentro la banda di varianza 232–239: modifiche ripristinate. Risultati: [`b2-final-20261030-runs.json`](../evidence/100x-perf-waves-b2-20261029/b2-final-20261030-runs.json). Il gate resta aperto.
+- [ ] **Gate B2 — FAIL:** the latest five-run local NVML-fix measurement is documented below; neither FPS nor canonical utilization reaches the gate.
+- [ ] **Gate B2 — FAIL (precedente rerun 2026-10-30):** fixture title-drift di 456 frame, strict Vulkan/NVENC, binario finale SHA-256 `67b8c1d5…`. Run canonico: encoded 456/456, exit 0, `render_loop_fps` **238.200**, end-to-end 139.284 fps, drain 12 µs/job; ancora **20.60%** sotto il target 300. Sidecar `nvenc_utilization_avg` nullo; polling `nvidia-smi` sui campioni encoder attivi 95.43%, metrica non canonica. Output SHA `2520fabe…`. Varianti 16 thread (238.50), depth 12 (235.81), depth 6 (233.57) e 16 surface NVENC (236.30) dentro la banda di varianza 232–239: modifiche ripristinate. Risultati: [`b2-final-20261030-runs.json`](../evidence/100x-perf-waves-b2-20261029/b2-final-20261030-runs.json). Il gate resta aperto.
+- [x] Instrumentare e pubblicare il breakdown GPU per-pass (query Vulkan TOP/BOTTOM, attribuzione per `GpuPassKind`, sidecar e counter backend): vedi la sezione 2026-10-30 in coda.
 - [x] Implementare il percorso GPU MTSDF (native MTSDF preparation/raster path exists; focused tests pass).
-- [ ] **Certificare B3:** manca equivalenza visiva outline/shadow vs Coverage e budget ≤256 MB/font set, oltre al gate `text_pass_draws_per_frame == 1`.
+- [ ] **Certificare B3:** manca equivalenza visiva outline/shadow vs Coverage e budget ≤256 MB/font set, oltre al gate `text_pass_draws_per_frame == 1`. La correzione locale dell'inizializzazione R8 Coverage e il test mirato sulle pagine Coverage/MTSDF sono documentati sotto; non sostituiscono questi gate.
 - [ ] Golden canonico 100-item e throughput 100 overlay/min non eseguiti; nessun claim 100×.
 
 ## B1 — Persistent overlay layer for static text/watermark (≈1.4–1.6×)
@@ -95,6 +97,17 @@ batch).
 ---
 
 ## B3 — Single-pass MTSDF text rendering (≈1.1–1.2× after B1; enables animated text at scale)
+
+**Local atlas correction:** R8 Coverage pages previously used a float per pixel
+for their initial full-surface upload, which made the upload four times larger
+than the surface contract and caused allocation to fail. The initial upload now
+uses the native byte size for both R8 and RGBA8 pages. On the local dirty tree,
+`cmake --build build/chronon/linux-video-test --target
+chronon3d_backend_registry_tests -j12` passed, followed by the focused test
+`VRAM glyph atlas initializes coverage and MTSDF pages at their native sizes`:
+1 case, 16 assertions, Vulkan device NVIDIA RTX A4000. It covers page creation,
+formats, residency and reuse, not rendered pixel parity or the B3 memory and
+draw-count acceptance gates. The Release CLI was also rebuilt with `-j12`.
 
 **Status (27 Oct 2026):** IMPLEMENTED / ACCEPTANCE PARTIAL. Chronon has a native MTSDF preparation and raster path (`gpu_text_run_mtsdf.cpp` and the MTSDF tile raster shader). Focused generator, font identity, and GPU raster canary tests pass. This does not establish the prior ticket's full text-run pass-count, outline/shadow golden equivalence, or font-set VRAM budget; the P1 static-title result does not exercise B3's animated-text path.
 
@@ -233,3 +246,51 @@ the final binary is the baseline depth-4 / 8-surface configuration. The remainin
 cost is the ~2.5 ms `prepare`/`avcodec_send_frame` serialization, not queue
 depth. Evidence:
 `docs/evidence/100x-perf-waves-b2-20261029/b2-final-20261030-runs.json`.
+
+### Per-pass GPU breakdown and CPU profile — 2026-10-30
+
+The render loop's GPU time now has a per-pass-kind breakdown from Vulkan
+timestamp queries. On the canonical 456-frame fixture: `composite` **173.889
+ms** (73.4%, 7 regions/frame, median 0.3797 ms, p95 0.4133) and `layer_batch`
+**63.081 ms** (26.6%, 1 region/frame, median 0.1337 ms, p95 0.1676). The two
+kinds cover **99.2%** of the 238.985 ms device span (TOP→BOTTOM of each
+submission). GPU work is therefore **0.51 ms of a 4.25 ms frame**: the gate is
+CPU-side, as suspected.
+
+A `perf record -F 999 -g` profile of the same run found **no application
+symbol above 0.3%** self time and **25.3% of samples in `__sched_yield`** from
+idle TBB workers (`thread_dispatcher::process`). Shrinking the TBB arena by
+pinning cores moved the render loop only from 238.3 to **245.8 fps** (8 cores,
++3.2%; 4 cores 242.3; 2 cores 239.9), still at least 18% below 300.
+
+**No optimization was adopted.** The only measured lever cannot close the
+gate; reaching 300 fps needs the paradigm changes (persistent engine,
+decoupled encode), not a micro-fix. **B2 remains NOT ACCEPTED.**
+
+Evidence: [`docs/evidence/gpu-pass-timestamps-20261030/README.md`](../evidence/gpu-pass-timestamps-20261030/README.md),
+`b2-pass-timestamps-c-results.json` and the matching `*.timing.json` sidecar.
+
+### Linux NVML sampler correction — local worktree
+
+The sampler previously attempted to load `nvml.dll` on Linux, leaving the
+canonical hardware utilization fields null. It now loads `libnvidia-ml.so.1`;
+encoder and decoder utilization are reported only when their respective NVML
+queries succeed. The sampler averages all successful samples during its job
+window, including idle samples; this is not the same metric as the separate
+`nvidia-smi` nonzero-sample average. NVML device-level data can also include
+other workloads; the sampler currently selects device index 0.
+
+The Release CLI built with `cmake --build build/chronon/linux-video-release
+--target chronon3d_cli -j12`; the focused NVML sampler lifecycle test passed
+3 cases / 15 assertions. Five runs of `run_b2_benchmark.py` on RTX A4000 with
+the local modified tree encoded 456/456 frames each, with stable output SHA
+`2520fabea7d548ee04b6f43bd747f9ad64cf1fc7aef1818d01a9f83cb1f7120c`.
+Render-loop FPS: 239.141, 243.896, 241.616, 232.683, 222.497; mean **235.967**.
+Canonical NVENC utilization: 76.0, 62.5, 77.778, 68.222, 63.556%; mean
+**69.611%**. Mean drain counter: 11.6 µs/job. Both FPS and utilization remain
+below their respective B2 thresholds. No performance gain is claimed; the
+benchmark uses the dirty local tree and is not same-SHA certification.
+
+Results: `docs/evidence/100x-perf-waves-b2-20261029/b2-nvml-fixed-runs.json`.
+The harness overwrites the MP4, log and timing sidecar per run; only the final
+run's individual artifacts remain, while the JSON retains all five summaries.

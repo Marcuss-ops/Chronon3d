@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include <chronon3d/render_plan/camera_contract.hpp>
 #include "json_vector.hpp"
 #include "enum_mapping.hpp"
 
@@ -265,6 +266,8 @@ CameraPlan decode_camera(const nlohmann::json& value) {
         throw std::runtime_error("camera.far must be finite and > near");
     if (!std::isfinite(camera.zoom) || camera.zoom <= 0.0f)
         throw std::runtime_error("camera.zoom must be finite and > 0");
+    if (const auto problem = camera_contract_problem(camera))
+        throw std::runtime_error(*problem);
     return camera;
 }
 

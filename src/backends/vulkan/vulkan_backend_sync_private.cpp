@@ -347,25 +347,36 @@ void VulkanBackend::Impl::emit_unplanned_compute_sync(
 
 void VulkanBackend::Impl::emit_pass_sync(
     VkCommandBuffer command,
-    std::initializer_list<const Image*> images) {
+    std::initializer_list<const Image*> images,
+    runtime::GpuPassKind pass_kind) {
+    // Per-pass timestamps are armed at the pass boundary itself, so they are
+    // written both for a compiled CommandPlan and for the graph execution
+    // path (which records the same backend passes without a plan). The kind
+    // is captured here, while the recording owner still knows it; the fence
+    // retirement path only reads the query results.
+    if (timestamp_pool != VK_NULL_HANDLE && !command_batch_active &&
+        frame_batch.pass_count <
+            FrameBatchState::kCompiledPassTimingCapacity) {
+        const auto queries_per_slot = static_cast<std::uint32_t>(
+            2 + 2 * FrameBatchState::kCompiledPassTimingCapacity);
+        const auto slot_base =
+            static_cast<std::uint32_t>(frame_batch.next_slot) * queries_per_slot;
+        const auto pass_query = slot_base + 2 + static_cast<std::uint32_t>(
+            2 * frame_batch.pass_count);
+        if (frame_batch.pass_count != 0) {
+            vkCmdWriteTimestamp(command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                timestamp_pool, pass_query - 1);
+        }
+        vkCmdWriteTimestamp(command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                            timestamp_pool, pass_query);
+        frame_batch.submitted_pass_kinds[frame_batch.next_slot]
+                                        [frame_batch.pass_count] =
+            static_cast<std::uint8_t>(pass_kind);
+    }
     if (frame_batch.command_plan) {
         // Compiled execution never falls back to the direct/unplanned state
         // path. The canonical transition stream is the only synchronization
         // authority for the pass, including imported/external resources.
-        if (timestamp_pool != VK_NULL_HANDLE && !command_batch_active) {
-            const auto queries_per_slot = static_cast<std::uint32_t>(
-                2 + 2 * FrameBatchState::kCompiledPassTimingCapacity);
-            const auto slot_base =
-                static_cast<std::uint32_t>(frame_batch.next_slot) * queries_per_slot;
-            const auto pass_query = slot_base + 2 + static_cast<std::uint32_t>(
-                2 * frame_batch.pass_count);
-            if (frame_batch.pass_count != 0) {
-                vkCmdWriteTimestamp(command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                    timestamp_pool, pass_query - 1);
-            }
-            vkCmdWriteTimestamp(command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                timestamp_pool, pass_query);
-        }
         emit_plan_pass_transitions(command, *frame_batch.command_plan,
                                    frame_batch.pass_count);
         // Asset textures promoted outside the compiled graph (for example

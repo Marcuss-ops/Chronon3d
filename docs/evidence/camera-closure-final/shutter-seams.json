@@ -1,0 +1,15 @@
+{
+  "frames_before": 150,
+  "frames_after": 150,
+  "source_frames": 150,
+  "retime_mismatches": [],
+  "source_mismatches": [],
+  "seams": [
+    25,
+    50,
+    75,
+    100,
+    125
+  ],
+  "gate": "PASS"
+}

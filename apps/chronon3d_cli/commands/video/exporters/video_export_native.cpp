@@ -251,10 +251,14 @@ PipeExportResult render_and_encode_native(
     if (nvml_stats.sample_count > 0) {
         timings.hardware.gpu_utilization_avg = nvml_stats.gpu_utilization_avg;
         timings.hardware.gpu_utilization_peak = nvml_stats.gpu_utilization_peak;
-        timings.hardware.nvdec_utilization_avg = nvml_stats.nvdec_utilization_avg;
-        timings.hardware.nvdec_utilization_peak = nvml_stats.nvdec_utilization_peak;
-        timings.hardware.nvenc_utilization_avg = nvml_stats.nvenc_utilization_avg;
-        timings.hardware.nvenc_utilization_peak = nvml_stats.nvenc_utilization_peak;
+        if (nvml_stats.nvdec_sample_count > 0) {
+            timings.hardware.nvdec_utilization_avg = nvml_stats.nvdec_utilization_avg;
+            timings.hardware.nvdec_utilization_peak = nvml_stats.nvdec_utilization_peak;
+        }
+        if (nvml_stats.nvenc_sample_count > 0) {
+            timings.hardware.nvenc_utilization_avg = nvml_stats.nvenc_utilization_avg;
+            timings.hardware.nvenc_utilization_peak = nvml_stats.nvenc_utilization_peak;
+        }
         timings.hardware.memory_utilization_avg = nvml_stats.memory_utilization_avg;
         timings.hardware.vram_used_peak_mb = nvml_stats.vram_used_peak_mb;
         timings.hardware.vram_total_mb = nvml_stats.vram_total_mb;

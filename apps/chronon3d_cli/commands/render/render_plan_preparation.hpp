@@ -49,9 +49,10 @@ struct RenderPlanPreparationOptions {
     // CLI output overrides can select a video/raw sink even when the plan's
     // own still-image output would otherwise skip the video compatibility view.
     bool force_video_compatibility_view{false};
-    // In-process callers may supply CM3D's resolved camera for the video
-    // compatibility executor. The CLI's JSON-only entry points leave this
-    // empty and retain offline-plan compatibility.
+    // In-process callers may supply CM3D's resolved camera. The canonical
+    // compiler materializes its presentation/shutter samples; video also
+    // retains the exact callback in its compatibility scene view.
+    // JSON-only callers retain offline-plan compatibility.
     std::optional<render_plan::RuntimeCameraSampleProvider> runtime_camera;
 };
 

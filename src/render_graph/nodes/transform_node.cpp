@@ -73,13 +73,21 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         // with execute(), which clips the source rectangle to the input
         // surface before sampling.  Otherwise an oversized bbox expands the
         // predicted output and makes opaque padding cover the composite.
-        const auto source = detail::normalize_transform_source_rect(
-            *input_bboxes[0], 0, 0,
-            source_size.x, source_size.y);
-        x_min_src = source.x0;
-        y_min_src = source.y0;
-        x_max_src = source.x1;
-        y_max_src = source.y1;
+        if (m_source_surface_size.x <= 0.0f || m_source_surface_size.y <= 0.0f) {
+            // Canvas-basis producers can extend outside the viewport before
+            // projection. Do not discard that geometry before the camera.
+            x_min_src = static_cast<f32>(input_bboxes[0]->x0);
+            y_min_src = static_cast<f32>(input_bboxes[0]->y0);
+            x_max_src = static_cast<f32>(input_bboxes[0]->x1);
+            y_max_src = static_cast<f32>(input_bboxes[0]->y1);
+        } else {
+            const auto source = detail::normalize_transform_source_rect(
+                *input_bboxes[0], 0, 0, source_size.x, source_size.y);
+            x_min_src = source.x0;
+            y_min_src = source.y0;
+            x_max_src = source.x1;
+            y_max_src = source.y1;
+        }
 
     }
 

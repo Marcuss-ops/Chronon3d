@@ -1,0 +1,77 @@
+[
+  {
+    "start": 0,
+    "probe": {
+      "programs": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1",
+          "nb_read_frames": "25"
+        }
+      ]
+    },
+    "sha256": "5256dfd6d04634d9d1b38fa6669b5246a324c5f7b96a321e7dd4600d2d689c7c"
+  },
+  {
+    "start": 25,
+    "probe": {
+      "programs": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1",
+          "nb_read_frames": "25"
+        }
+      ]
+    },
+    "sha256": "a6801ec29073a531cb5f3e67cd0a46407e0232b8a4769121029382fbcb19814b"
+  },
+  {
+    "start": 50,
+    "probe": {
+      "programs": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1",
+          "nb_read_frames": "25"
+        }
+      ]
+    },
+    "sha256": "60f40fe4a991b3039191322ecc131743df57745e869ab1d0335fe8b97cc252d4"
+  },
+  {
+    "start": 75,
+    "probe": {
+      "programs": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1",
+          "nb_read_frames": "25"
+        }
+      ]
+    },
+    "sha256": "9d171d1c746a818b2f9ba0d60fe8bc695fad2d2be935332415b3e31aaa50c94e"
+  },
+  {
+    "start": 100,
+    "probe": {
+      "programs": [],
+      "streams": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "r_frame_rate": "30/1",
+          "nb_read_frames": "25"
+        }
+      ]
+    },
+    "sha256": "d0aa25a16098a535daec3b74124c58ed12d8f96585fafd511293c1affe9b1e2b"
+  }
+]

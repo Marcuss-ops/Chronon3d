@@ -1,4 +1,5 @@
 #include "render_plan_compiler_detail.hpp"
+#include <chronon3d/render_plan/resolved_transform_samples.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
 #include "light_attenuation.hpp"
 #include <chronon3d/effects/effect_param_animation.hpp>
@@ -514,6 +515,13 @@ make_scene_evaluator(SceneMaterializationInputs inputs) {
                 apply_scene_layer_motion_blur(builder, layer, plan, index, follow_path_evaluators, ctx);
                 apply_scene_layer_masks(builder, layer, plan, ctx);
                 apply_scene_layer_video_position(builder, layer, plan);
+                if (!layer.transform_samples.empty()) {
+                    const auto resolved = sample_resolved_transform(layer.transform_samples, ctx.effective_frame());
+                    builder.position({resolved.position[0], resolved.position[1], resolved.position[2]})
+                        .scale({resolved.scale[0], resolved.scale[1], resolved.scale[2]})
+                        .rotate({resolved.rotation_deg[0], resolved.rotation_deg[1], resolved.rotation_deg[2]})
+                        .opacity(resolved.opacity).cache_static(false);
+                }
             };
             const bool full_canvas_backdrop = has_3d_layer &&
                 layer.type != LayerType::Text &&

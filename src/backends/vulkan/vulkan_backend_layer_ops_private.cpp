@@ -198,7 +198,7 @@ void VulkanBackend::Impl::execute_layer_batch(
         write_layer_batch_descriptors(descriptors, dst_image, src_image,
                                       instance_buffer);
         if (!pass_sync_emitted) {
-            emit_pass_sync(cmd, {&dst_image, &src_image});
+            emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::LayerBatch);
             pass_sync_emitted = true;
         }
         if (instance_updated) {

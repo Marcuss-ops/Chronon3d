@@ -1,4 +1,5 @@
 #include "render_plan_decoder_detail.hpp"
+#include <chronon3d/render_plan/resolved_transform_samples.hpp>
 #include <chronon3d/render_plan/easing_contract.hpp>
 #include "json_vector.hpp"
 #include <chronon3d/render_plan/animation_property_registry.hpp>
@@ -219,6 +220,20 @@ LayerPlan decode_layer(const nlohmann::json& value) {
     validate_layer_animation_fields(layer, value);
     decode_layer_motion_blur(layer, value);
     decode_layer_final_fields(layer, value);
+    if (value.contains("transform_samples")) {
+        const auto& samples = value.at("transform_samples");
+        if (!samples.is_array() || samples.empty() || samples.size() > 250'000)
+            throw std::runtime_error("transform_samples must contain 1..250000 samples");
+        for (const auto& sample : samples) {
+            layer.transform_samples.push_back({sample.at("frame").get<double>(),
+                sample.at("position").get<std::array<float, 3>>(),
+                sample.at("scale").get<std::array<float, 3>>(),
+                sample.at("rotation_deg").get<std::array<float, 3>>(),
+                sample.at("opacity").get<float>()});
+        }
+        if (const auto problem = transform_samples_problem(layer))
+            throw std::runtime_error(*problem);
+    }
     return layer;
 }
 

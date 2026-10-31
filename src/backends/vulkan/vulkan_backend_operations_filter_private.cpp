@@ -23,7 +23,7 @@ void VulkanBackend::Impl::blur(runtime::RenderSurfaceHandle destination,
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image});
+        emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::Blur);
         record_blur(cmd, descriptors, dst_image, src_image, radius, horizontal,
                     box_kernel);
         dst_image.initialized = true;
@@ -55,7 +55,7 @@ void VulkanBackend::Impl::directional_blur(runtime::RenderSurfaceHandle destinat
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image});
+        emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::Blur);
         record_directional_blur(cmd, descriptors, dst_image, src_image,
                                 dir_x, dir_y, length, tap_count);
         dst_image.initialized = true;
@@ -80,7 +80,7 @@ void VulkanBackend::Impl::dof_depth_stamp(runtime::RenderSurfaceHandle depth_han
     const auto descriptors = allocate_pass_descriptor_set();
     write_descriptors(descriptors, depth, layer);
     const auto cmd = active_command_buffer();
-    emit_pass_sync(cmd, {&depth, &layer});
+    emit_pass_sync(cmd, {&depth, &layer}, runtime::GpuPassKind::Blur);
     record_dof_depth_stamp(cmd, descriptors, depth, layer, push);
     depth.initialized = true;
     ++frame_batch.pass_count;
@@ -105,7 +105,7 @@ void VulkanBackend::Impl::dof_blur(runtime::RenderSurfaceHandle destination_hand
     const auto descriptors = allocate_pass_descriptor_set();
     write_dof_descriptors(descriptors, dst_image, src_image, depth);
     const auto cmd = active_command_buffer();
-    emit_pass_sync(cmd, {&dst_image, &src_image, &depth});
+    emit_pass_sync(cmd, {&dst_image, &src_image, &depth}, runtime::GpuPassKind::Blur);
     record_dof_blur(cmd, descriptors, dst_image, src_image, depth, push);
     dst_image.initialized = true;
     ++frame_batch.pass_count;
@@ -133,7 +133,7 @@ void VulkanBackend::Impl::radial_blur(runtime::RenderSurfaceHandle destination,
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image});
+        emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::Blur);
         record_radial_blur(cmd, descriptors, dst_image, src_image,
                            center_x_px, center_y_px, amount, tap_count);
         dst_image.initialized = true;
@@ -169,8 +169,8 @@ void VulkanBackend::Impl::warp_bulk(runtime::RenderSurfaceHandle destination,
         const auto descriptors = allocate_pass_descriptor_set();
         write_matte_descriptors(descriptors, dst_image, src_image, aux_image);
         const auto cmd = active_command_buffer();
-        if (needs_aux) emit_pass_sync(cmd, {&dst_image, &src_image, &aux_image});
-        else emit_pass_sync(cmd, {&dst_image, &src_image});
+        if (needs_aux) emit_pass_sync(cmd, {&dst_image, &src_image, &aux_image}, runtime::GpuPassKind::AffineTransform);
+        else emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::AffineTransform);
         record_warp_bulk(cmd, descriptors, dst_image, src_image, params);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
@@ -198,7 +198,7 @@ void VulkanBackend::Impl::generate_bulk(runtime::RenderSurfaceHandle destination
         const auto descriptors = allocate_pass_descriptor_set();
         write_descriptors(descriptors, dst_image, src_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image});
+        emit_pass_sync(cmd, {&dst_image, &src_image}, runtime::GpuPassKind::AffineTransform);
         record_generate_bulk(cmd, descriptors, dst_image, src_image, params);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
@@ -228,7 +228,7 @@ void VulkanBackend::Impl::lut_bulk(runtime::RenderSurfaceHandle destination,
         const auto descriptors = allocate_pass_descriptor_set();
         write_matte_descriptors(descriptors, dst_image, src_image, aux_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image, &aux_image});
+        emit_pass_sync(cmd, {&dst_image, &src_image, &aux_image}, runtime::GpuPassKind::ColorAdjust);
         record_lut_bulk(cmd, descriptors, dst_image, src_image, params);
         dst_image.initialized = true;
         ++frame_batch.pass_count;
@@ -260,7 +260,7 @@ void VulkanBackend::Impl::sharpen_combine(runtime::RenderSurfaceHandle destinati
         const auto descriptors = allocate_pass_descriptor_set();
         write_matte_descriptors(descriptors, dst_image, src_image, blurred_image);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &src_image, &blurred_image});
+        emit_pass_sync(cmd, {&dst_image, &src_image, &blurred_image}, runtime::GpuPassKind::Blur);
         record_sharpen_combine(cmd, descriptors, dst_image, src_image,
                                blurred_image, amount, threshold);
         dst_image.initialized = true;

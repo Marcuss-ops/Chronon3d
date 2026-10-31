@@ -79,8 +79,11 @@ Result<std::size_t, GpuGlyphAtlasError> GpuGlyphAtlas::page_for_glyph(
     // once per glyph or frame.  Without it the page was published
     // uninitialized and the first MTSDF glyph preparation fell back with an
     // "upload size does not match surface" error.
-    const std::size_t page_pixels = static_cast<std::size_t>(kPageSize) * kPageSize;
-    std::vector<float> zero_page(page_pixels, 0.0f);
+    const std::size_t page_bytes = tight_surface_bytes(page_format, kPageSize, kPageSize);
+    // Full-surface uploads transport raw bytes in float-sized cells, unlike
+    // R8 region uploads, which take one normalized float per pixel. Both
+    // atlas formats have a page size divisible by sizeof(float).
+    std::vector<float> zero_page(page_bytes / sizeof(float), 0.0f);
     const auto result = m_cache.acquire(asset_key, desc, zero_page);
     if (!result.ok()) {
         const auto code = result.error.find("budget") != std::string::npos

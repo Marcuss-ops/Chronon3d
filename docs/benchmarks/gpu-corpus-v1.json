@@ -1,8 +1,27 @@
 {
   "$schema": "https://chronon3d.dev/schemas/gpu-corpus.v1.json",
   "id": "chronon3d-gpu-corpus-v1",
-  "version": "1.0",
-  "description": "Versioned GPU baseline cases. Scene names are resolved by the active content pack; the runner supplies one shared parameter set to every case.",
+  "version": "1.2",
+  "description": "Versioned GPU baseline cases. Scene names are resolved by the active content pack; case-specific frame counts override the shared defaults.",
+  "acceptance": {
+    "minimum_wall_attribution_percent": 95.0,
+    "full_file_reread_count": 0,
+    "require_direct_surface_handoff": true,
+    "require_execution_downgrade_counter": true,
+    "require_zero_software_encode_frames": true,
+    "require_zero_video_pipe_fallback_frames": true,
+    "require_encoded_frame_count_match": true
+  },
+  "defaults": {
+    "frames": 120,
+    "fps": 30,
+    "warmup_framebuffers": 10,
+    "backend": "vulkan",
+    "hardware": "nvenc",
+    "encoder_backend": "native",
+    "gpu_hot_path_mode": "require_gpu_native",
+    "fragmented_mp4": true
+  },
   "cases": [
     {"id": "B00", "scene": "BenchB00_EmptyFrame", "category": "baseline"},
     {"id": "B01", "scene": "BenchB01_StaticText1080p", "category": "text"},
@@ -13,7 +32,7 @@
     {"id": "B06", "scene": "BenchB06_VideoOverlay1080p", "category": "asset"},
     {"id": "B07", "scene": "BenchB07_NestedPrecomps", "category": "graph"},
     {"id": "B08", "scene": "BenchB08_DirtyRectSmallMotion", "category": "dirtyrect"},
-    {"id": "B09", "scene": "BenchB09_LongForm10Minutes", "category": "stability"},
+    {"id": "B09", "scene": "BenchB09_LongForm10Minutes", "category": "stability", "frames": 18000},
     {"id": "B10", "scene": "BenchB10_RandomFrameAccess", "category": "cache"},
     {"id": "B11", "scene": "BenchB11_Portrait1080x1920", "category": "portrait"},
     {"id": "GPU_TEXT_01", "scene": "Clean", "category": "typewriter"},

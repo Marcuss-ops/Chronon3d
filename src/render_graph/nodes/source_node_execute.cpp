@@ -140,10 +140,12 @@ NodeExecResult SourceNode::execute(
         !m_cache_policy.reusable_across_frames();
     std::optional<raster::BBox> source_bbox;
     if (m_node.shape.type() == ShapeType::Image &&
-        !full_frame_seed && !stable_native_image_extent) {
+        !full_frame_seed && (m_defer_camera_projection || !stable_native_image_extent)) {
         source_bbox = predicted_bbox(ctx);
     }
-    const auto producer_surface = detail::resolve_producer_surface_bounds(
+    const auto producer_surface = m_defer_camera_projection && source_bbox
+        ? detail::ProducerSurfaceBounds{*source_bbox, true}
+        : detail::resolve_producer_surface_bounds(
         ctx.frame_input.width,
         ctx.frame_input.height,
         m_node.shape.type() == ShapeType::Image &&

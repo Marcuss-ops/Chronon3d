@@ -58,7 +58,7 @@ void VulkanBackend::Impl::text_run_surface(
                       static_cast<std::int32_t>(std::ceil(g.height * sy)));
     }
     const auto cmd = active_command_buffer();
-    emit_pass_sync(cmd, {&dst_image, &atlas_image});
+    emit_pass_sync(cmd, {&dst_image, &atlas_image}, runtime::GpuPassKind::LayerBatch);
     vkCmdUpdateBuffer(cmd, buffer_state.buffer, 0, instance_bytes, glyphs.data());
     record_text_run(cmd, descriptors, dst_image,
                     static_cast<std::int32_t>(glyphs.size()),
@@ -336,7 +336,7 @@ void VulkanBackend::Impl::draw_text_batch(
                                            glyph_buffer, glyph_dynamic_buffer, run_buffer,
                                            count_buffer, index_buffer);
         const auto cmd = active_command_buffer();
-        emit_pass_sync(cmd, {&dst_image, &atlas_image});
+        emit_pass_sync(cmd, {&dst_image, &atlas_image}, runtime::GpuPassKind::LayerBatch);
         if (glyph_updated) {
             vkCmdUpdateBuffer(cmd, glyph_buffer, 0, glyph_bytes, gpu_glyphs);
             glyph_instance_hashes[pass_slot] = glyph_hash;

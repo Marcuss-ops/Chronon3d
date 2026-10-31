@@ -551,7 +551,9 @@ exclude_paths = [
   "^docs/(adr|baselines|tickets|archive)/",
   "^docs/ROADMAP\\.md$",
 ]
-allow_missing = []
+# The optical-studio asset generator lives in the sibling ChrononMotion3D
+# repository; the evidence README invokes it from the workspace root.
+allow_missing = ["tools/generate_optical_studio_assets.py"]
 
 [[contract]]
 name = "render_backend_stats_api_domain"

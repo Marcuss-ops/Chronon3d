@@ -429,7 +429,8 @@ struct VulkanBackend::Impl {
                                             std::size_t physical_slot);
     void emit_cuda_surface_releases(VkCommandBuffer command);
     void emit_pass_sync(VkCommandBuffer command,
-                        std::initializer_list<const Image*> images);
+                        std::initializer_list<const Image*> images,
+                        runtime::GpuPassKind pass_kind);
     void emit_buffer_barriers2(
         VkCommandBuffer command,
         std::span<const VkBufferMemoryBarrier2KHR> barriers);

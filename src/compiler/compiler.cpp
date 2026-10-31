@@ -3,6 +3,8 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/hdri_environment.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/camera_contract.hpp>
+#include <chronon3d/render_plan/resolved_transform_samples.hpp>
 #include <chronon3d/render_plan/temporal_rate_analysis.hpp>
 #include "compiler_stages.hpp"
 #include "../render_plan/render_plan_camera_adapter.hpp"
@@ -128,18 +130,45 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     const render_plan::RenderPlan& plan,
     assets::AssetResolver& resolver,
     const CompileOptions& options) const {
+    if (options.runtime_camera != nullptr) {
+        if (!plan.camera || plan.camera_samples || !options.runtime_camera->sample || options.runtime_camera->fingerprint.empty())
+            return make_compile_error(CompileErrorCode::InvalidInput, "camera_sample_provider",
+                "runtime sampling requires a base camera, callable provider, stable identity and no offline samples", "render-plan-camera");
+        auto resolved = plan;
+        resolved.camera_samples.emplace();
+        try {
+            for (double frame : render_plan::resolved_sample_frames(plan.canvas, plan.temporal_motion_blur))
+                resolved.camera_samples->push_back({frame, options.runtime_camera->sample(frame)});
+        } catch (const std::exception& error) {
+            return make_compile_error(CompileErrorCode::InvalidInput, "camera_sample_provider", error.what(), "render-plan-camera");
+        }
+        resolved.content_fingerprint = 0;
+        auto resolved_options = options;
+        resolved_options.runtime_camera = nullptr;
+        return compile(resolved, resolver, resolved_options);
+    }
+    if (plan.camera) {
+        if (const auto problem = render_plan::camera_contract_problem(*plan.camera))
+            return make_compile_error(CompileErrorCode::InvalidInput, "camera", *problem, "render-plan-camera");
+    }
     if (plan.camera_samples) {
         if (!plan.camera || plan.camera_samples->empty() || plan.camera_samples->size() > 1'000'000)
             return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples",
                 "camera samples require a base camera and a non-empty bounded sequence", "render-plan-camera");
         double previous = -std::numeric_limits<double>::infinity();
         for (const auto& sample : *plan.camera_samples) {
+            if (const auto problem = render_plan::camera_contract_problem(sample.camera))
+                return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples", *problem, "render-plan-camera");
             if (!std::isfinite(sample.frame) || sample.frame <= previous ||
                 sample.frame < -1'000'000.0 || sample.frame > 1'000'000.0)
                 return make_compile_error(CompileErrorCode::InvalidInput, "camera_samples",
                     "camera sample frames must be finite, strictly increasing, and within [-1000000, 1000000]", "render-plan-camera");
             previous = sample.frame;
         }
+    }
+    for (const auto& layer : plan.layers) {
+        if (const auto problem = render_plan::transform_samples_problem(layer))
+            return make_compile_error(CompileErrorCode::InvalidInput, "layers." + layer.id + ".transform_samples", *problem, "render-plan-motion");
     }
     if (plan.environment_light) {
         const auto environment = assets::load_hdri_env_v1(

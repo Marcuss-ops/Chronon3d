@@ -54,6 +54,17 @@ void add_layer_transform_and_timing(CanonicalPlanWriter& out, const LayerPlan& l
         writer.add_bool(value.flip_x);
     });
 
+    if (!layer.transform_samples.empty()) {
+        out.add_string("resolved-transform-samples-v1");
+        out.add_size(layer.transform_samples.size());
+        for (const auto& sample : layer.transform_samples) {
+            out.add_double(sample.frame);
+            for (float value : sample.position) out.add_float(value);
+            for (float value : sample.scale) out.add_float(value);
+            for (float value : sample.rotation_deg) out.add_float(value);
+            out.add_float(sample.opacity);
+        }
+    }
     add_optional(out, layer.animation,
                  [](auto& writer, const AnimationPlan& animation) {
         writer.add_size(animation.tracks.size());

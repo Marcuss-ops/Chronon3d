@@ -1,0 +1,22 @@
+{
+  "dof": {
+    "execution_path": "full_graph_native",
+    "execution_downgrade_count": 0,
+    "software_fallback_nodes": 0,
+    "cpu_pixel_readback_bytes": 0,
+    "frames_total": 150,
+    "render_ms": 8221.337534,
+    "wall_time_ms": 11273.963175,
+    "note": "validation enabled; concurrent host workload, not a controlled performance benchmark"
+  },
+  "sharp": {
+    "execution_path": "full_graph_native",
+    "execution_downgrade_count": 0,
+    "software_fallback_nodes": 0,
+    "cpu_pixel_readback_bytes": 0,
+    "frames_total": 150,
+    "render_ms": 2577.458561,
+    "wall_time_ms": 4417.160375,
+    "note": "validation enabled; concurrent host workload, not a controlled performance benchmark"
+  }
+}

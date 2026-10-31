@@ -105,6 +105,11 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     // same canvas-clipped bbox regardless of the logging flag.
     const auto diagnostic_bbox =
         renderer::compute_world_bbox(m_node.shape, matrix, spread);
+    // A deferred image is still in pre-projection raster coordinates. Its
+    // off-canvas pixels may project into the output, so only the downstream
+    // TransformNode may clip them to the viewport.
+    if (m_defer_camera_projection && m_node.shape.type() == ShapeType::Image)
+        return diagnostic_bbox;
     const auto execution = detail::resolve_execution_bbox(
         *placement, diagnostic_bbox, ctx);
     if (!execution) {
