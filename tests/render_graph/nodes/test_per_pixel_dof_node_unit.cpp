@@ -94,6 +94,16 @@ TEST_CASE("DOF rejects incomplete native depth provenance") {
     CHECK(result.error().message == "DOF depth is only partially device-local");
     CHECK_FALSE(ctx.node_exec.native_dof_depth.surface);
 
+    // Failed native publication can leave the allocated CPU depth buffer at
+    // the correct size. It is not a complete native depth surface and must
+    // not be mistaken for a valid strict-native fallback.
+    ctx.node_exec.dof_depth.assign(16, 1.f);
+    ctx.node_exec.native_dof_depth.unusable = true;
+    result = node->execute(ctx, inputs, bounds);
+    REQUIRE_FALSE(result);
+    CHECK(result.error().message == "DOF depth is only partially device-local");
+    ctx.node_exec.dof_depth.clear();
+
     // Native tracking with no depth publication must also fail closed.
     ctx.node_exec.native_dof_depth.unusable = false;
     result = node->execute(ctx, inputs, bounds);

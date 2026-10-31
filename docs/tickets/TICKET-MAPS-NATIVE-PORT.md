@@ -10,6 +10,15 @@ alla volta (vedi sotto).
 
 Ambito aggiornato 2026-10-26: `ChrononPlugin/plugins/maps` possiede il rendering map plate e i relativi test. Chronon3D non contiene più il modulo geo. Restano nel ticket gli assi di acquisizione tile, integrazione e demolizione del percorso Python in ChrononTemplate.
 
+**Aggiornamento 2026-10-30 (RenderingGen/refactored):** il catalogo mappe è
+allineato al plugin (`a1789ac8f`, `41331cb2b`, `6598538`), le composizioni non
+supportate sono ritirate (`3a4d8ceaa`, `1781495b0`) e il test nativo
+`TestNativeMapRenderEndToEnd` passa su `route_line` (6 s, 2 pin, 180 frame):
+22,13 s wall, 18,01 s frames, 18,95 s process, `compose_ms=12.888`. Limiti
+misurati: tile cache **0 hit / 19.680 miss**, 360 plate per 2,77 GB e ~19 s
+cold per item; il mix v3.1/v4 con mappe resta **NOT RUN**. Il gate bit-exact
+vs Python e le famiglie residue restano aperti.
+
 **Migrazione 2026-10-25:** il codice geo C++ e i tool cartography generici
 sono stati estratti in `ChrononPlugin/plugins/maps/` (namespace
 `chrononplugin::maps`). Chronon3D non possiede più il sottosistema geo; il
