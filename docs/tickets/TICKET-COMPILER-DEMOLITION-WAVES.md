@@ -12,7 +12,7 @@ sono coerenti.
 ## TODO — cosa manca (agg. 2026-10-31)
 
 - [ ] **Wave 3 — render-plan runtime esegue direttamente topology e parameter** — logica: il path compat è ancora load-bearing per l'esecuzione (la chiusura precedente era prematura); il runtime deve consumare direttamente topology+parameter senza il bridge. Dove: `src/render_graph/` (builder/compiler/optimizer), `src/compiler/compiler.cpp` + `program_sampler.cpp`, `src/render_graph/cache/scene_program_store.cpp`. Gate: le 4 snapshot di equivalenza (`d72a4efc2`) restano identiche e il path compat non è più raggiungibile dal runtime.
-- [ ] **Wave 3 video — eliminare i consumer CLI legacy** — l'intero percorso RenderPlan video (FullGraph, DirectYUV e GOP) consuma `CompiledProgram` e non materializza più `CompiledComposition`. Restano gli entrypoint CLI legacy non RenderPlan e le API compatibili pubbliche. Per chiudere: censire i consumer legacy e rimuoverli o isolarli. Gate: equivalenza pixel/export, cancellation durante temporal sampling, DirectYUV/GOP parity e build same-SHA.
+- [ ] **Wave 3 video — eliminare i consumer CLI legacy** — l'intero percorso RenderPlan video (FullGraph, DirectYUV e GOP) consuma `CompiledProgram` e non materializza più `CompiledComposition`. Restano gli entrypoint CLI legacy non RenderPlan e le API compatibili pubbliche. Piano, consumer e gate: [`TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md`](TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md).
 Aggiornamento 2026-10-31: il bridge video RenderPlan è stato cancellato dal
 codice e dai test che lo esercitavano; il gate di equivalenza pixel/video resta
 aperto. `temporal_rate_analysis.hpp` ora contiene soltanto DTO e dichiarazioni;

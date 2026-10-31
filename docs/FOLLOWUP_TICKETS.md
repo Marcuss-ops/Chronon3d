@@ -12,7 +12,7 @@
 | GPU benchmark corpus | P1 | WAITING EXTERNAL — manifest and runner are ready; the active content pack is absent from this checkout | [GPU-BASELINE-CORPUS](tickets/TICKET-GPU-BASELINE-CORPUS.md) |
 | Fused-storage/native-image parity | P1 | PARTIAL — broader overlay corpus parity remains after the focused native-image certificate | [SCALE-P0-ASSET-VRAM-GOP](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) |
 | Motion lowering Z convention (`planPosition` vs `planAnimationPosition`) | P2 | OPEN (F3, ChrononMotion3D) | [CAMERA-DEFINITIVE-CLOSURE §5](tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md) |
-| AE-style camera functional parity | P1 | OPEN — camera/Null/rig/DoF matrix, typed-video cleanup and measured performance | [AE-CAMERA-FUNCTIONAL-PARITY](tickets/TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md) |
+| Camera/video execution parity | P1 | OPEN — camera/DoF matrix and remaining legacy `Composition` executor migration; pixel equivalence NOT RUN | [AE-CAMERA-FUNCTIONAL-PARITY](tickets/TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md), [COMPOSITION-LEGACY-EXECUTOR-DEMOLITION](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md) |
 | Camera surface consolidation (CM3D+C3D) | P2 | PARTIAL — S0 guardrail, S1 census and S4 projection detail landed 2026-10-31; S2 blocked on F3, S3 on legacy `dof_aperture` migration | [CAMERA-SURFACE-CONSOLIDATION](tickets/TICKET-CAMERA-SURFACE-CONSOLIDATION.md) |
 | Maintenance hotspots (W0–W5) | P1 | ACTIVE — umbrella: GPU lifetime/teardown, text hot-path fixes, certification-truthfulness decisions (B.1/B.2/F.2), effects-lane arch gate; coordinates C22/C23 and MAIN-TRUTH owners | [MAINTENANCE-HOTSPOTS-BONIFICATION](tickets/TICKET-MAINTENANCE-HOTSPOTS-BONIFICATION.md) |
 
