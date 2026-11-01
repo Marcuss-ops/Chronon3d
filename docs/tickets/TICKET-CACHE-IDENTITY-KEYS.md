@@ -272,6 +272,15 @@ GPU atlas page reuse is partitioned by representation and full
 `DistanceFieldProfile`; page residency keys also include format and extent,
 with the page slot disambiguating profiles that share a representation.
 
+`LightingNode` previously used byte-oriented helper hashes, and its
+`Material2_5D` hash omitted optional roughness and metallic values. It now uses
+domain-tagged semantic V2 hashes for the complete light context, all shadow
+and point-light fields, all material fields and option-presence bits, plus a
+component-wise world matrix. The node marks `params_version = 2`. Mutation
+tests cover all 27 environment SH samples, every shadow/point-light/material
+field, optional HDRI identity and signed-zero canonicalization; all 103
+lighting assertions pass. The legacy helper functions remain unchanged.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.

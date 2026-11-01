@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/rendering/lighting_hashing.hpp>
+#include <chronon3d/assets/hdri_environment.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include "src/backends/text/font_bbox_cache_key.hpp"
@@ -11,6 +13,170 @@
 #include <vector>
 
 using namespace chronon3d;
+
+TEST_CASE("Lighting V2 identity covers all LightContext dependencies") {
+    rendering::LightContext base;
+    base.enabled = true;
+    base.ambient_enabled = true;
+    base.directional_enabled = true;
+    base.direction = {1.0f, 2.0f, 3.0f};
+    base.ambient_color = {0.1f, 0.2f, 0.3f, 0.4f};
+    base.ambient = 0.5f;
+    base.directional_color = {0.6f, 0.7f, 0.8f, 0.9f};
+    base.diffuse = 1.1f;
+    base.environment_enabled = true;
+    for (std::size_t i = 0; i < base.environment_irradiance_sh.size(); ++i)
+        base.environment_irradiance_sh[i] = static_cast<float>(i + 1);
+    base.environment_intensity = 1.2f;
+    base.environment_rotation_y = 0.3f;
+    auto probe = std::make_shared<assets::HdriEnvV1>();
+    probe->content_hash = 99;
+    base.environment_probe = std::move(probe);
+    base.shadows.opacity = 0.4f;
+    base.shadows.blur_radius = 2.0f;
+    base.shadows.px_per_unit = 3.0f;
+    base.shadows.max_offset = 4.0f;
+    base.shadows.contact_opacity = 0.5f;
+    base.shadows.contact_blur_radius = 6.0f;
+    base.shadows.ambient_opacity = 0.7f;
+    base.shadows.ambient_blur_radius = 8.0f;
+    base.shadows.depth_aware = false;
+    base.shadows.blur_per_z = 0.9f;
+    base.shadows.opacity_falloff = 0.01f;
+    base.shadows.tint = {0.2f, 0.3f, 0.4f, 0.5f};
+    rendering::PointLightSource point;
+    point.kind = rendering::PointLightKind::Spot;
+    point.position = {1.0f, 2.0f, 3.0f};
+    point.direction = {4.0f, 5.0f, 6.0f};
+    point.color = {0.2f, 0.4f, 0.6f, 0.8f};
+    point.radius = 7.0f;
+    point.range = 8.0f;
+    point.decay = 2.0f;
+    point.angle = 0.7f;
+    point.penumbra = 0.3f;
+    point.casts_shadow = true;
+    point.shadow_radius = 1.5f;
+    point.shadow_bias = 0.02f;
+    base.point_lights.push_back(point);
+
+    const auto original = rendering::hash_light_context_v2(base);
+    const auto changed = [&](auto mutate) {
+        auto value = base;
+        mutate(value);
+        CHECK(rendering::hash_light_context_v2(value) != original);
+    };
+    changed([](auto& l) { l.enabled = false; });
+    changed([](auto& l) { l.ambient_enabled = false; });
+    changed([](auto& l) { l.directional_enabled = false; });
+    changed([](auto& l) { l.direction.x += 1.0f; });
+    changed([](auto& l) { l.direction.y += 1.0f; });
+    changed([](auto& l) { l.direction.z += 1.0f; });
+    changed([](auto& l) { l.ambient_color.r += 0.01f; });
+    changed([](auto& l) { l.ambient_color.g += 0.01f; });
+    changed([](auto& l) { l.ambient_color.b += 0.01f; });
+    changed([](auto& l) { l.ambient_color.a += 0.01f; });
+    changed([](auto& l) { l.ambient += 0.01f; });
+    changed([](auto& l) { l.directional_color.r += 0.01f; });
+    changed([](auto& l) { l.directional_color.g += 0.01f; });
+    changed([](auto& l) { l.directional_color.b += 0.01f; });
+    changed([](auto& l) { l.directional_color.a += 0.01f; });
+    changed([](auto& l) { l.diffuse += 0.01f; });
+    changed([](auto& l) { l.environment_enabled = false; });
+    for (std::size_t i = 0; i < base.environment_irradiance_sh.size(); ++i)
+        changed([i](auto& l) { l.environment_irradiance_sh[i] += 1.0f; });
+    changed([](auto& l) { l.environment_intensity += 0.1f; });
+    changed([](auto& l) { l.environment_rotation_y += 0.1f; });
+    changed([](auto& l) { l.environment_probe.reset(); });
+    changed([](auto& l) {
+        auto probe = std::make_shared<assets::HdriEnvV1>();
+        probe->content_hash = 100;
+        l.environment_probe = std::move(probe);
+    });
+    changed([](auto& l) { l.shadows.opacity += 0.01f; });
+    changed([](auto& l) { l.shadows.blur_radius += 0.1f; });
+    changed([](auto& l) { l.shadows.px_per_unit += 0.1f; });
+    changed([](auto& l) { l.shadows.max_offset += 0.1f; });
+    changed([](auto& l) { l.shadows.contact_opacity += 0.01f; });
+    changed([](auto& l) { l.shadows.contact_blur_radius += 0.1f; });
+    changed([](auto& l) { l.shadows.ambient_opacity += 0.01f; });
+    changed([](auto& l) { l.shadows.ambient_blur_radius += 0.1f; });
+    changed([](auto& l) { l.shadows.depth_aware = true; });
+    changed([](auto& l) { l.shadows.blur_per_z += 0.01f; });
+    changed([](auto& l) { l.shadows.opacity_falloff += 0.001f; });
+    changed([](auto& l) { l.shadows.tint.r += 0.01f; });
+    changed([](auto& l) { l.shadows.tint.g += 0.01f; });
+    changed([](auto& l) { l.shadows.tint.b += 0.01f; });
+    changed([](auto& l) { l.shadows.tint.a += 0.01f; });
+    changed([](auto& l) { l.point_lights[0].kind = rendering::PointLightKind::Point; });
+    changed([](auto& l) { l.point_lights[0].position.x += 1.0f; });
+    changed([](auto& l) { l.point_lights[0].position.y += 1.0f; });
+    changed([](auto& l) { l.point_lights[0].position.z += 1.0f; });
+    changed([](auto& l) { l.point_lights[0].direction.x += 1.0f; });
+    changed([](auto& l) { l.point_lights[0].direction.y += 1.0f; });
+    changed([](auto& l) { l.point_lights[0].direction.z += 1.0f; });
+    changed([](auto& l) { l.point_lights[0].color.r += 0.01f; });
+    changed([](auto& l) { l.point_lights[0].color.g += 0.01f; });
+    changed([](auto& l) { l.point_lights[0].color.b += 0.01f; });
+    changed([](auto& l) { l.point_lights[0].color.a += 0.01f; });
+    changed([](auto& l) { l.point_lights[0].radius += 0.1f; });
+    changed([](auto& l) { l.point_lights[0].range += 0.1f; });
+    changed([](auto& l) { l.point_lights[0].decay += 0.1f; });
+    changed([](auto& l) { l.point_lights[0].angle += 0.1f; });
+    changed([](auto& l) { l.point_lights[0].penumbra += 0.1f; });
+    changed([](auto& l) { l.point_lights[0].casts_shadow = false; });
+    changed([](auto& l) { l.point_lights[0].shadow_radius += 0.1f; });
+    changed([](auto& l) { l.point_lights[0].shadow_bias += 0.01f; });
+    changed([](auto& l) { l.point_lights.push_back(rendering::PointLightSource{}); });
+
+    auto positive_zero = base;
+    auto negative_zero = base;
+    positive_zero.direction.x = 0.0f;
+    negative_zero.direction.x = -0.0f;
+    CHECK(rendering::hash_light_context_v2(positive_zero) ==
+          rendering::hash_light_context_v2(negative_zero));
+}
+
+TEST_CASE("Lighting V2 identity covers all Material2_5D dependencies") {
+    Material2_5D base;
+    base.accepts_lights = false;
+    base.casts_shadows = true;
+    base.accepts_shadows = false;
+    base.diffuse = 0.2f;
+    base.specular = 0.3f;
+    base.shininess = 4.0f;
+    base.ambient_multiplier = 0.5f;
+    base.emissive_color = {0.1f, 0.2f, 0.3f, 0.4f};
+    base.emissive_enabled = true;
+    base.double_sided = true;
+    base.alpha_cutoff = 0.6f;
+    base.metallic = 0.7f;
+    base.roughness = 0.8f;
+    const auto original = rendering::hash_material_2_5d_v2(base);
+    const auto changed = [&](auto mutate) {
+        auto value = base;
+        mutate(value);
+        CHECK(rendering::hash_material_2_5d_v2(value) != original);
+    };
+    changed([](auto& m) { m.accepts_lights = true; });
+    changed([](auto& m) { m.casts_shadows = false; });
+    changed([](auto& m) { m.accepts_shadows = true; });
+    changed([](auto& m) { m.diffuse += 0.01f; });
+    changed([](auto& m) { m.specular += 0.01f; });
+    changed([](auto& m) { m.shininess += 1.0f; });
+    changed([](auto& m) { m.ambient_multiplier += 0.01f; });
+    changed([](auto& m) { m.emissive_color.r += 0.01f; });
+    changed([](auto& m) { m.emissive_color.g += 0.01f; });
+    changed([](auto& m) { m.emissive_color.b += 0.01f; });
+    changed([](auto& m) { m.emissive_color.a += 0.01f; });
+    changed([](auto& m) { m.emissive_enabled = false; });
+    changed([](auto& m) { m.double_sided = false; });
+    changed([](auto& m) { m.alpha_cutoff = 0.9f; });
+    changed([](auto& m) { m.alpha_cutoff.reset(); });
+    changed([](auto& m) { m.metallic = 0.9f; });
+    changed([](auto& m) { m.metallic.reset(); });
+    changed([](auto& m) { m.roughness = 0.4f; });
+    changed([](auto& m) { m.roughness.reset(); });
+}
 
 TEST_CASE("Transform V2 identity includes every rendered transform field") {
     Transform base;
