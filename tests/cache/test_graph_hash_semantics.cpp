@@ -237,6 +237,26 @@ TEST_CASE("GPU glyph identity retains full variation axes") {
     CHECK_FALSE(coverage == coverage_changed);
 }
 
+TEST_CASE("GPU glyph V2 digests respond to every semantic field") {
+    using runtime::GlyphRepresentation;
+    using runtime::GpuGlyphKey;
+    const auto base = GpuGlyphKey::make("font.ttf", 65, std::string{"wght=400"},
+        GlyphRepresentation::Coverage, 7, 32);
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+        CHECK(runtime::GpuGlyphKeyHash{}(key) != runtime::GpuGlyphKeyHash{}(base));
+        CHECK(runtime::glyph_key_hash64(key) != runtime::glyph_key_hash64(base));
+    };
+    changed([](auto& key) { key.font_path += ".replacement"; });
+    changed([](auto& key) { key.glyph_id++; });
+    changed([](auto& key) { key.variation_axes = "wght=700"; });
+    changed([](auto& key) { key.representation = GlyphRepresentation::CoverageRgba; });
+    changed([](auto& key) { key.generation_profile++; });
+    changed([](auto& key) { key.font_size++; });
+}
+
 TEST_CASE("Mesh preparation cache compares the complete resolved identity") {
     using assets::MeshIdentity;
     using assets::MeshPreparationCache;
