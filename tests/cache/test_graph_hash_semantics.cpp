@@ -11,6 +11,9 @@
 #include <chronon3d/render_graph/nodes/depth_grade_node.hpp>
 #include <chronon3d/render_graph/nodes/shadow_node.hpp>
 #include <chronon3d/render_graph/nodes/composite_node.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/mask_node.hpp>
+#include <chronon3d/render_graph/nodes/clear_node.hpp>
 #include "src/render_graph/pipeline/helpers.hpp"
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
@@ -1072,7 +1075,7 @@ TEST_CASE("ShadowNode V2 key covers every shadow dependency") {
     changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.tint.a += 0.1f; });
 }
 
-TEST_CASE("CompositeNode V2 key covers world placement and backdrop state") {
+TEST_CASE("CompositeNode V3 key covers world placement and backdrop state") {
     graph::RenderGraphContext ctx;
     const auto digest = [&](float world_z, std::optional<Vec3> world_position,
                             std::optional<BackdropBlurParams> blur,
@@ -1096,7 +1099,7 @@ TEST_CASE("CompositeNode V2 key covers world placement and backdrop state") {
         mutate(z, position, params, mode, op);
         const auto key = digest(z, position, params, mode, op);
         CHECK(key.params_hash != original.params_hash);
-        CHECK(key.params_version == 2);
+        CHECK(key.params_version == 3);
     };
     changed([](auto& z, auto&, auto&, auto&, auto&) { z += 1.0f; });
     changed([](auto&, auto& p, auto&, auto&, auto&) { p->x += 1.0f; });
@@ -1111,4 +1114,74 @@ TEST_CASE("CompositeNode V2 key covers world placement and backdrop state") {
     changed([](auto&, auto&, auto& p, auto&, auto&) { p->surface_noise += 0.01f; });
     changed([](auto&, auto&, auto&, auto& m, auto&) { m = BlendMode::Multiply; });
     changed([](auto&, auto&, auto&, auto&, auto& o) { o = CompositeOperator::StencilAlpha; });
+}
+
+TEST_CASE("TransformNode V3 key covers optional Card3D material semantics") {
+    graph::RenderGraphContext ctx;
+    const auto digest = [&](std::optional<Card3DMaterial> material) {
+        graph::TransformNode node(Mat4{1.0f}, 1.0f, Frame{-1},
+            graph::SamplingMode::Bilinear, graph::static_memory_cache("transform"),
+            Vec2{128.0f, 64.0f}, std::move(material));
+        return node.cache_key(ctx);
+    };
+    Card3DMaterial base;
+    const auto original = digest(base);
+    CHECK(original.params_version == 3);
+    CHECK(digest(std::nullopt).params_hash != original.params_hash);
+    const auto changed = [&](auto mutate) {
+        auto material = base;
+        mutate(material);
+        CHECK(digest(material).params_hash != original.params_hash);
+    };
+    changed([](auto& m) { m.enabled = !m.enabled; });
+    changed([](auto& m) { m.thickness_px += 1.0f; });
+    changed([](auto& m) { m.corner_radius += 1.0f; });
+    changed([](auto& m) { m.front_top_color.r -= 0.1f; });
+    changed([](auto& m) { m.front_bottom_color.g -= 0.1f; });
+    changed([](auto& m) { m.side_color.b -= 0.1f; });
+    changed([](auto& m) { m.edge_highlight_intensity += 0.1f; });
+    changed([](auto& m) { m.edge_highlight_color.a -= 0.1f; });
+    changed([](auto& m) { m.rim_light_intensity += 0.1f; });
+    changed([](auto& m) { m.rim_light_power += 0.1f; });
+    changed([](auto& m) { m.rim_light_color.g -= 0.1f; });
+    changed([](auto& m) { m.light_direction.z += 0.1f; });
+    changed([](auto& m) { m.cast_shadow = !m.cast_shadow; });
+    changed([](auto& m) { m.receive_shadow = !m.receive_shadow; });
+    changed([](auto& m) { m.casts_shadows = !m.casts_shadows; });
+    changed([](auto& m) { m.accepts_shadows = !m.accepts_shadows; });
+}
+
+TEST_CASE("MaskNode V4 identity includes mask sampling inputs") {
+    graph::RenderGraphContext ctx;
+    Mask mask;
+    Mat4 identity{1.0f};
+    Mat4 translated{1.0f};
+    translated[3][0] = 12.0f;
+    graph::MaskNode original_node(mask, Frame{-1}, {}, identity);
+    graph::MaskNode transformed_node(mask, Frame{-1}, {}, translated);
+    graph::MaskNode renamed_source_node(mask, Frame{-1}, {"different"}, identity);
+    const auto original = original_node.cache_key(ctx);
+    const auto transformed = transformed_node.cache_key(ctx);
+    CHECK(original.params_version == 4);
+    CHECK(original.params_hash != transformed.params_hash);
+    CHECK(original.params_hash != renamed_source_node.cache_key(ctx).params_hash);
+}
+
+TEST_CASE("ClearNode V2 identity distinguishes frame and output extent") {
+    graph::RenderGraphContext ctx;
+    ctx.frame_input.width = 640;
+    ctx.frame_input.height = 360;
+    ctx.frame_input.frame = Frame{10};
+    graph::ClearNode node;
+    const auto original = node.cache_key(ctx);
+    CHECK(original.params_version == 2);
+    CHECK(graph::ClearNode(true).cache_key(ctx).scope != original.scope);
+    ctx.frame_input.frame = Frame{11};
+    CHECK(node.cache_key(ctx).frame != original.frame);
+    ctx.frame_input.frame = Frame{10};
+    ++ctx.frame_input.width;
+    CHECK(node.cache_key(ctx).width != original.width);
+    ctx.frame_input.width = original.width;
+    ++ctx.frame_input.height;
+    CHECK(node.cache_key(ctx).height != original.height);
 }

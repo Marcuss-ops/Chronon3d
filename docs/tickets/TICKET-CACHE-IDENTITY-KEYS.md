@@ -298,11 +298,30 @@ semantic float/vector/color hashing for every setting. Each publishes
 `params_version = 2`; field-mutation suites pass (20 DOF, 26 depth-grade, 44
 shadow assertions).
 
-`CompositeNode` now uses a domain-tagged V2 key including instance, blend and
+`CompositeNode` now uses a domain-tagged V3 key including instance, blend and
 operator identity, world Z/position and its presence bit, and backdrop-blur
 presence plus all six semantic parameters. This closes reuse across composite
 depth/placement changes and the absent-versus-zero blur case. The field
 mutation test passes (26 assertions).
+
+The `TransformNode` Card3D fold previously covered only a subset of material
+fields and omitted the optional-presence bit. Its V3 key now includes every
+geometry, color, lighting and shadow field through semantic scalar/vector/color
+hashes and distinguishes no material from a default material. Mutation coverage
+checks each Card3D field and absence/presence. The cache suite is being rebuilt
+in the dedicated `linux-video-test` configuration; this suite run is pending.
+
+`MaskNode` and its private alpha-surface cache omitted `canvas_from_local`,
+although mask sampling maps every pixel through that matrix. Both identities now
+include its component-wise semantic V2 matrix digest. The node key also includes
+the ordered text-source mapping; its domain-tagged key is V4. Mutation tests
+change the sampling matrix and source mapping to verify invalidation.
+The same cache suite run is pending.
+
+`ClearNode` declared a frame-variant policy but returned frame zero in its
+`NodeCacheKey`, contradicting its contract to re-execute on every frame. Its
+V2 key now uses the policy-derived frame and carries a domain/version tag;
+frame and output-extent mutations are covered. The cache suite run is pending.
 
 The dirty-rect scene fingerprint previously allocated an XXH3 state and
 returned a valid-looking zero digest if that allocation failed. It now folds
