@@ -11,6 +11,8 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -60,10 +62,14 @@ struct FTFaceKey {
     std::string path;
     int face_index{0};
     int size_bucket{0};
+    std::uintmax_t byte_size{0};
+    std::int64_t write_time_ticks{0};
 
     bool operator==(const FTFaceKey& o) const noexcept {
         return face_index == o.face_index
             && size_bucket == o.size_bucket
+            && byte_size == o.byte_size
+            && write_time_ticks == o.write_time_ticks
             && path == o.path;
     }
 };
@@ -74,6 +80,10 @@ struct FTFaceKeyHash {
         h ^= static_cast<std::size_t>(k.face_index) + 0x9e3779b97f4a7c15ULL
              + (h << 6) + (h >> 2);
         h ^= static_cast<std::size_t>(k.size_bucket) + 0x9e3779b97f4a7c15ULL
+             + (h << 6) + (h >> 2);
+        h ^= std::hash<std::uintmax_t>{}(k.byte_size) + 0x9e3779b97f4a7c15ULL
+             + (h << 6) + (h >> 2);
+        h ^= std::hash<std::int64_t>{}(k.write_time_ticks) + 0x9e3779b97f4a7c15ULL
              + (h << 6) + (h >> 2);
         return h;
     }

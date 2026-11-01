@@ -188,6 +188,14 @@ size, write time, and 32-byte content digest for equality; it no longer uses
 the diagnostic `cache_key()` string as identity. Field mutation tests and a
 cache hit/miss check cover the complete identity.
 
+The renderer-owned `FreeTypeFaceCache` key now includes resolved path, face
+index, quantized size, file byte size and last-write timestamp. This prevents
+reusing an already-open face after an ordinary in-place file update. Tests
+mutate every FTFaceKey field and verify a changed timestamp loads a distinct
+face. `FontEngine::Impl::face_cache` is a separate cache keyed by `FontSpec`;
+it remains open for content-version invalidation and needs its own identity
+change and tests.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.
