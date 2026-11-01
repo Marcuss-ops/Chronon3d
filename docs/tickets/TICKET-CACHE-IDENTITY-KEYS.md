@@ -212,6 +212,11 @@ RoundedRect, Image and TextRun cases. This checks the fields the current V2
 builder declares; a separate inventory comparison is still needed to prove the
 builder includes every rendered field in each payload.
 
+That comparison found Image and TiledImage V2 omitted fit mode, focal point,
+crop, radius, decode options and embedded payload bytes. V2 now hashes these
+fields (with payload length framing); V1 remains unchanged. Image mutation
+coverage includes each added field and the Shape V2 focused suite passes.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.

@@ -51,10 +51,32 @@ namespace chronon3d::graph {
     const auto hash_fill = [semantic_v2](const Fill& fill) -> u64 {
         return semantic_v2 ? hash_fill_v2(fill) : ::chronon3d::graph::hash_fill(fill);
     };
-
     u64 seed = semantic_v2
         ? hash_combine(hash_string("chronon.shape.v2"), hash_value(static_cast<int>(s.type())))
         : hash_value(static_cast<int>(s.type()));
+    const auto hash_image_options = [&](const ImageShape& image) {
+        seed = hash_combine(seed, hash_value(image.fit));
+        seed = hash_combine(seed, hash_vec2(image.focal_point));
+        seed = hash_combine(seed, hash_value(image.crop.enabled));
+        seed = hash_combine(seed, hash_vec2(image.crop.origin));
+        seed = hash_combine(seed, hash_vec2(image.crop.size));
+        seed = hash_combine(seed, hash_value(image.crop.flip_x));
+        seed = hash_combine(seed, hash_scalar(image.radius));
+        seed = hash_combine(seed, hash_value(image.decode_options.color_space));
+        seed = hash_combine(seed, hash_value(image.decode_options.premultiply));
+        seed = hash_combine(seed, hash_value(image.decode_options.orientation));
+        seed = hash_combine(seed, hash_value(image.decode_options.max_dimension));
+        seed = hash_combine(seed, hash_string(image.decode_options.ocio_config_path));
+        seed = hash_combine(seed, hash_string(image.decode_options.ocio_input_space));
+        seed = hash_combine(seed, hash_string(image.decode_options.ocio_working_space));
+        const auto payload_size = image.embedded_payload
+            ? image.embedded_payload->size() : 0;
+        seed = hash_combine(seed, hash_value(payload_size));
+        if (image.embedded_payload && !image.embedded_payload->empty()) {
+            seed = hash_combine(seed, hash_bytes(
+                image.embedded_payload->data(), image.embedded_payload->size()));
+        }
+    };
     switch (s.type()) {
         case ShapeType::Rect:
             seed = hash_combine(seed, hash_vec2(s.rect().size));
@@ -144,13 +166,17 @@ namespace chronon3d::graph {
                 : hash_bytes(s.image().path.data(), s.image().path.size()));
             seed = hash_combine(seed, hash_vec2(s.image().size));
             seed = hash_combine(seed, hash_scalar(s.image().opacity));
-            return hash_combine(seed, hash_color(s.image().tint));
+            seed = hash_combine(seed, hash_color(s.image().tint));
+            if (semantic_v2) hash_image_options(s.image());
+            return seed;
         case ShapeType::TiledImage:
             seed = hash_combine(seed, semantic_v2 ? hash_string(s.tiled_image().image.path)
                 : hash_bytes(s.tiled_image().image.path.data(), s.tiled_image().image.path.size()));
             seed = hash_combine(seed, hash_vec2(s.tiled_image().image.size));
             seed = hash_combine(seed, hash_scalar(s.tiled_image().image.opacity));
-            return hash_combine(seed, hash_color(s.tiled_image().image.tint));
+            seed = hash_combine(seed, hash_color(s.tiled_image().image.tint));
+            if (semantic_v2) hash_image_options(s.tiled_image().image);
+            return seed;
         case ShapeType::GridBackground:
             seed = hash_combine(seed, hash_vec2(s.grid_background().size));
             seed = hash_combine(seed, hash_vec2(s.grid_background().offset));

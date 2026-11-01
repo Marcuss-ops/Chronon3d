@@ -5,6 +5,8 @@
 #include <chronon3d/assets/mesh_loader.hpp>
 
 #include <array>
+#include <memory>
+#include <vector>
 
 using namespace chronon3d;
 
@@ -182,6 +184,55 @@ TEST_CASE("Shape V2 canonicalizes scalar fields and frames image paths") {
     Shape image_b = image_a;
     image_b.image().path = "asset2";
     CHECK(graph::hash_shape_v2(image_a) != graph::hash_shape_v2(image_b));
+
+    image_a.image().fit = FitMode::Contain;
+    image_a.image().focal_point = {0.25f, 0.75f};
+    image_a.image().crop = ImageCrop{true, {0.1f, 0.2f}, {0.7f, 0.6f}, true};
+    image_a.image().radius = 5.0f;
+    image_a.image().decode_options.color_space = ColorSpace::LinearSRGB;
+    image_a.image().decode_options.premultiply = PremultiplyAlpha::No;
+    image_a.image().decode_options.orientation = OrientationPolicy::IgnoreExif;
+    image_a.image().decode_options.max_dimension = 512;
+    image_a.image().decode_options.ocio_config_path = "config.ocio";
+    image_a.image().decode_options.ocio_input_space = "camera";
+    image_a.image().decode_options.ocio_working_space = "linear";
+    image_a.image().embedded_payload = std::make_shared<const std::vector<std::byte>>(
+        std::vector<std::byte>{std::byte{0x01}, std::byte{0x02}});
+    const auto image_full_hash = graph::hash_shape_v2(image_a);
+    const auto changed_image = [&](auto mutate) {
+        auto shape = image_a;
+        mutate(shape.image());
+        CHECK(graph::hash_shape_v2(shape) != image_full_hash);
+    };
+    changed_image([](auto& i) { i.fit = FitMode::Cover; });
+    changed_image([](auto& i) { i.focal_point.x += 0.1f; });
+    changed_image([](auto& i) { i.focal_point.y += 0.1f; });
+    changed_image([](auto& i) { i.crop.enabled = false; });
+    changed_image([](auto& i) { i.crop.origin.x += 0.1f; });
+    changed_image([](auto& i) { i.crop.origin.y += 0.1f; });
+    changed_image([](auto& i) { i.crop.size.x += 0.1f; });
+    changed_image([](auto& i) { i.crop.size.y += 0.1f; });
+    changed_image([](auto& i) { i.crop.flip_x = false; });
+    changed_image([](auto& i) { i.radius += 1.0f; });
+    changed_image([](auto& i) { i.decode_options.color_space = ColorSpace::DisplayP3; });
+    changed_image([](auto& i) { i.decode_options.premultiply = PremultiplyAlpha::Yes; });
+    changed_image([](auto& i) { i.decode_options.orientation = OrientationPolicy::ApplyExif; });
+    changed_image([](auto& i) { i.decode_options.max_dimension++; });
+    changed_image([](auto& i) { i.decode_options.ocio_config_path += ".v2"; });
+    changed_image([](auto& i) { i.decode_options.ocio_input_space += "_v2"; });
+    changed_image([](auto& i) { i.decode_options.ocio_working_space += "_v2"; });
+    changed_image([](auto& i) {
+        i.embedded_payload = std::make_shared<const std::vector<std::byte>>(
+            std::vector<std::byte>{std::byte{0x01}, std::byte{0x03}});
+    });
+
+    Shape tiled_image;
+    tiled_image.set_type(ShapeType::TiledImage);
+    tiled_image.tiled_image().image.path = "tile.png";
+    tiled_image.tiled_image().image.fit = FitMode::Contain;
+    const auto tiled_hash = graph::hash_shape_v2(tiled_image);
+    tiled_image.tiled_image().image.fit = FitMode::Stretch;
+    CHECK(graph::hash_shape_v2(tiled_image) != tiled_hash);
 }
 
 TEST_CASE("Shape V2 covers the remaining primitive and analytic shape fields") {
