@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/lighting_node.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <unordered_set>
 using namespace chronon3d;
@@ -104,4 +105,12 @@ TEST_CASE("CacheKeyContract: TransformNode differentiates opacity") {
     CHECK_NE(opaque.cache_key(ctx).digest(), translucent.cache_key(ctx).digest());
     CHECK(opaque.cache_key(ctx).params_version == 2);
     CHECK(translucent.cache_key(ctx).params_version == 2);
+}
+
+TEST_CASE("CacheKeyContract: LightingNode uses semantic V2 parameters") {
+    chronon3d::graph::RenderGraphContext ctx;
+    const chronon3d::graph::LightingNode node(
+        "lighting", chronon3d::Mat4{1.0f}, chronon3d::Material2_5D{});
+    const auto key = node.cache_key(ctx);
+    CHECK(key.params_version == 2);
 }

@@ -21,6 +21,7 @@ add_library(chronon3d_graph_core OBJECT
     render_graph_hashing_masks.cpp
     render_graph_hashing_shapes.cpp
     render_graph_hashing_transitions.cpp
+    lighting_hashing.cpp
     render_backend.cpp
     render_graph_context.cpp
     node_memory_tracker.cpp
