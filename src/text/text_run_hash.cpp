@@ -10,6 +10,7 @@
 
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/graphics/pattern_tile.hpp>
 
 // PR 10 — sample-time fold of AnimatedTextDocument for cache-key
 // invalidation.  We fold a small subset of ActiveTextState into the hash
@@ -188,6 +189,78 @@ u64 hash_text_run_shape(const TextRunShape& s) {
     }
 
     return seed;
+}
+
+u64 hash_text_run_shape_v2(const TextRunShape& s) {
+    using chronon3d::core::hash::HashBuilder;
+    HashBuilder builder;
+    const auto f = [&builder](f32 value) -> HashBuilder& {
+        return builder.add(value == 0.0f ? 0.0f : value);
+    };
+    const auto color = [&](const Color& c) {
+        f(c.r); f(c.g); f(c.b); f(c.a);
+    };
+    const auto vec2 = [&](const Vec2& v) { f(v.x); f(v.y); };
+    const auto vec3 = [&](const Vec3& v) { f(v.x); f(v.y); f(v.z); };
+    const auto pattern = [&](const std::shared_ptr<const graphics::PatternTile>& tile) {
+        builder.add(tile != nullptr);
+        if (!tile) return;
+        builder.add(tile->width).add(tile->height).add(tile->rgba.size())
+            .add_bytes(tile->rgba.data(), tile->rgba.size());
+        for (const auto value : tile->transform) f(value);
+    };
+    const auto glyphs = [&](const std::vector<GlyphInstanceState>& values) {
+        builder.add(values.size());
+        for (const auto& g : values) {
+            builder.add(g.glyph_id);
+            vec2(g.layout_position); vec3(g.position); vec3(g.scale);
+            vec3(g.rotation); vec3(g.anchor);
+            f(g.skew); f(g.skew_axis); f(g.opacity); f(g.blur); f(g.baseline_shift);
+            builder.add(g.character_offset);
+            color(g.fill); color(g.background); f(g.background_padding_em);
+            f(g.background_radius_em); color(g.stroke); f(g.stroke_width);
+        }
+    };
+
+    builder.add("chronon.text-run.v2");
+    builder.add(s.layout != nullptr);
+    if (s.layout) builder.add(s.layout->layout_hash()).add(s.layout->source_cache_identity);
+    builder.add_enum(s.placement_kind);
+    glyphs(s.glyphs);
+    builder.add(s.material.enabled);
+    color(s.material.top_color); color(s.material.bottom_color); f(s.material.gradient_angle);
+    f(s.material.bevel_px); f(s.material.bevel_highlight_opacity);
+    color(s.material.bevel_highlight_color); f(s.material.bevel_shadow_opacity);
+    f(s.material.top_highlight_opacity); f(s.material.top_highlight_fraction);
+    f(s.material.bottom_shade_opacity); f(s.material.bottom_shade_fraction);
+    builder.add(s.material.inner_shadow_enabled);
+    vec2(s.material.inner_shadow_offset); f(s.material.inner_shadow_blur);
+    color(s.material.inner_shadow_color); f(s.material.emissive);
+
+    color(s.paint.fill);
+    builder.add(s.paint.fill_style.has_value());
+    if (s.paint.fill_style) builder.add(graph::hash_fill_v2(*s.paint.fill_style));
+    pattern(s.paint.fill_pattern);
+    builder.add(s.paint.stroke_enabled); color(s.paint.stroke_color);
+    f(s.paint.stroke_width); builder.add_enum(s.paint.stroke_cap).add_enum(s.paint.stroke_join);
+    f(s.paint.stroke_miter_limit).add(s.paint.stroke_dash_array.size());
+    for (const auto dash : s.paint.stroke_dash_array) f(dash);
+    f(s.paint.stroke_dash_offset);
+    builder.add(s.paint.stroke_style.has_value());
+    if (s.paint.stroke_style) builder.add(graph::hash_fill_v2(*s.paint.stroke_style));
+    pattern(s.paint.stroke_pattern);
+
+    builder.add(s.shadows.size());
+    for (const auto& shadow : s.shadows) {
+        builder.add(shadow.enabled); vec2(shadow.offset); f(shadow.blur);
+        f(shadow.opacity); color(shadow.color);
+    }
+    builder.add(s.dissolve_layout != nullptr);
+    if (s.dissolve_layout)
+        builder.add(s.dissolve_layout->layout_hash()).add(s.dissolve_layout->source_cache_identity);
+    glyphs(s.dissolve_glyphs);
+    f(s.dissolve_mix);
+    return builder.finish();
 }
 
 // ═════════════════════════════════════════════════════════════════════════

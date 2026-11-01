@@ -148,6 +148,14 @@ uses length-framed string hashing for image paths. Shape V1 retains its old
 byte path. RoundedRect, Circle, and Image mutation tests cover the new behavior;
 the remaining Shape variants and nested TextRun identity still need review.
 
+Shape's TextRun variant now delegates to a separate TextRun V2 digest. It
+includes complete resolved glyph state and vector lengths, all material and
+paint fields (including fill/stroke styles and pattern pixels/transforms),
+shadow stack, placement kind, and dissolve layout/glyph/mix state. Float fields
+are canonicalized component-wise. The original TextRun digest remains the V1
+path. Mutation tests cover formerly omitted glyph anchor, material,
+stroke-dash cardinality, shadow and dissolve fields plus signed zero.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.
