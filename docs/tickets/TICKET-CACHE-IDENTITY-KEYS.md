@@ -103,9 +103,12 @@ Text layout V1 is pinned at `15831138664930118102` in
 `tests/text/test_layout_cache_collision.cpp`; curve V1 remains pinned by its
 fixture in `tests/effects/test_curves.cpp`. Remaining cache-specific builders
 still need dedicated mutation and legacy-fixture tests before their identities
-can be called fully versioned. Outstanding builders include glyph raster and
-atlas keys, FreeType bbox entries, mesh preparation, device frame resources,
-and several opaque graph producer keys. The software path flatten cache now
+can be called fully versioned. Structured mesh preparation identity, GPU glyph
+key hashing, and FreeType face/bbox cache keys now have dedicated semantic
+coverage. Outstanding work includes deeper glyph-atlas residency/raster entry
+inventory, device frame resources, and several opaque graph producer keys;
+legacy digest fixtures are still missing for many newer V2 builders. The
+software path flatten cache now
 retains command vectors and compares each semantic field after digest bucketing;
 its command/closure mutation test passes. `MediaSessionKey` has a field-by-field
 equality mutation test. Renderer test binaries were built with `-j4`; the
