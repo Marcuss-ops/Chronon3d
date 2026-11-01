@@ -233,6 +233,28 @@ TEST_CASE("Shape V2 canonicalizes scalar fields and frames image paths") {
     const auto tiled_hash = graph::hash_shape_v2(tiled_image);
     tiled_image.tiled_image().image.fit = FitMode::Stretch;
     CHECK(graph::hash_shape_v2(tiled_image) != tiled_hash);
+
+    Shape mesh;
+    mesh.set_type(ShapeType::Mesh);
+    mesh.mesh_shape().reference = assets::MeshRef{"mesh.glb", "scene", true};
+    auto prepared = std::make_shared<assets::PreparedMeshSource>();
+    prepared->identity.resolved_path = "/assets/mesh.glb";
+    prepared->identity.byte_size = 64;
+    prepared->identity.write_time = 128;
+    prepared->identity.content_digest.bytes[0] = std::byte{0x12};
+    mesh.mesh_shape().prepared = prepared;
+    const auto mesh_hash = graph::hash_shape_v2(mesh);
+    const auto changed_mesh = [&](auto mutate_identity) {
+        auto shape = mesh;
+        auto next = std::make_shared<assets::PreparedMeshSource>(*prepared);
+        mutate_identity(next->identity);
+        shape.mesh_shape().prepared = std::move(next);
+        CHECK(graph::hash_shape_v2(shape) != mesh_hash);
+    };
+    changed_mesh([](auto& id) { id.resolved_path += ".replacement"; });
+    changed_mesh([](auto& id) { id.byte_size++; });
+    changed_mesh([](auto& id) { id.write_time++; });
+    changed_mesh([](auto& id) { id.content_digest.bytes[0] = std::byte{0x13}; });
 }
 
 TEST_CASE("Shape V2 covers the remaining primitive and analytic shape fields") {
