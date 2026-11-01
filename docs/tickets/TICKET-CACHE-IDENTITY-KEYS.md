@@ -206,6 +206,12 @@ residency keys with no persisted artifact contract. Mutation coverage now checks
 that each semantic field changes equality and both digest entry points; ignored
 raster-size variation for distance-field glyphs remains covered separately.
 
+Shape V2 mutation coverage now includes Rect, Line, GridBackground, FakeBox3D,
+GridPlane and TiledImage payload fields, supplementing the existing Circle,
+RoundedRect, Image and TextRun cases. This checks the fields the current V2
+builder declares; a separate inventory comparison is still needed to prove the
+builder includes every rendered field in each payload.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.
