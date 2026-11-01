@@ -244,6 +244,11 @@ matrix, vector and opacity components through padding-safe V2 primitives that
 canonicalize signed zero. The matrix test mutates all 16 components.
 MultiSource group opacity animation and ClipTransition V2 values now also use
 canonical V2 float/color primitives instead of raw scalar/Color object bytes.
+EffectStack V2 stays pinned to its legacy digest. A new EffectStack V3 routes
+scalar, color and vector fields through semantic helpers; production node,
+scene and dirty-region consumers now use V3. Glow and LUT domain bounds use
+explicit V3 field hashing, and the complete parameter mutation suite checks
+both V2 and V3 while signed-zero tests cover V3 float and color paths.
 The cache test binary rebuilt at `-j4` and passed all 173 cases / 103,520
 assertions after this producer-key change.
 

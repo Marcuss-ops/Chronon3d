@@ -146,7 +146,7 @@ uint64_t Layer::get_static_hash() const {
         h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
     }
     h = hash_combine(h, hash_mask_v2(mask));
-    h = hash_combine(h, hash_effect_stack_v2(*m_effects));
+    h = hash_combine(h, hash_effect_stack_v3(*m_effects));
     if (m_card3d_material_configured) {
         h = hash_combine(h, 1);
         const auto& material = *m_card3d_material;

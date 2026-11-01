@@ -75,6 +75,7 @@ template <typename T>
 
 
 [[nodiscard]] u64 hash_glow_params(const GlowParams& p) ;
+[[nodiscard]] u64 hash_glow_params_v2(const GlowParams& p);
 
 
 [[nodiscard]] u64 hash_effect_stack(const EffectStack& effects) ;
@@ -83,6 +84,7 @@ template <typename T>
 // carries a domain/version tag. `hash_effect_stack` remains the frozen V1
 // digest for compatibility and golden comparisons.
 [[nodiscard]] u64 hash_effect_stack_v2(const EffectStack& effects);
+[[nodiscard]] u64 hash_effect_stack_v3(const EffectStack& effects);
 
 [[nodiscard]] u64 hash_mask(const Mask& m) ;
 [[nodiscard]] u64 hash_mask_v2(const Mask& m);

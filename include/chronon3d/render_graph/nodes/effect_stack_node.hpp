@@ -28,7 +28,7 @@ public:
     bool has_compiled_recorder() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        const auto effect_hash = hash_effect_stack_v2(m_effects);
+        const auto effect_hash = hash_effect_stack_v3(m_effects);
         const auto params_hash = m_temporal_history_key.empty()
             ? effect_hash
             : hash_combine(effect_hash, hash_string(m_temporal_history_key));
