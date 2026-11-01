@@ -11,6 +11,7 @@
 #include <shared_mutex>  // P1-8: TextRasterCache PIMPL uses std::shared_mutex
 #include <algorithm>
 #include <cmath>
+#include <system_error>
 
 namespace chronon3d {
 
@@ -199,7 +200,16 @@ FreeTypeFaceLease FreeTypeFaceCache::get_face_lease(
     // FT_New_Face call, not one per call) AND requests at different
     // sizes get distinct FT_Face objects (no FT_Set_Pixel_Sizes race).
     const int size_bucket = static_cast<int>(std::ceil(font_size));
-    const FTFaceKey key{resolved_path, face_index, size_bucket};
+    std::error_code size_error;
+    const auto byte_size = std::filesystem::file_size(resolved_path, size_error);
+    std::error_code time_error;
+    const auto write_time = std::filesystem::last_write_time(resolved_path, time_error);
+    const FTFaceKey key{
+        resolved_path,
+        face_index,
+        size_bucket,
+        size_error ? 0 : byte_size,
+        time_error ? 0 : static_cast<std::int64_t>(write_time.time_since_epoch().count())};
 
     auto it = faces_.find(key);
     if (it != faces_.end()) {
@@ -210,7 +220,7 @@ FreeTypeFaceLease FreeTypeFaceCache::get_face_lease(
 
     // Cat-2 font preflight — symmetric with BLFontFaceCache::get_face.
     // Throws std::runtime_error if the I/O fence is armed AND this
-    // (resolved_path, face_index, size_bucket) tuple was not
+    // (resolved_path, face_index, size_bucket, file stamp) tuple was not
     // pre-primed by SoftwareRenderer::preflight_fonts.
     if (fence_ && fence_->load(std::memory_order_acquire)) {
         throw std::runtime_error(

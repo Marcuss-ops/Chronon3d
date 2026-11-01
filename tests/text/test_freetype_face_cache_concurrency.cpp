@@ -31,6 +31,8 @@
 #include <chronon3d/core/types/types.hpp>
 
 #include <atomic>
+#include <chrono>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -55,6 +57,36 @@ TEST_CASE("FreeType face identity includes path, face index and size bucket") {
     changed([](auto& key) { key.path += ".other"; });
     changed([](auto& key) { key.face_index++; });
     changed([](auto& key) { key.size_bucket++; });
+    changed([](auto& key) { key.byte_size++; });
+    changed([](auto& key) { key.write_time_ticks++; });
+}
+
+TEST_CASE("FreeType face cache reloads a font when its file stamp changes") {
+    constexpr const char* font_path = "tests/fixtures/Inter-Bold.ttf";
+    if (!test_text_fixture::fixture_exists(font_path)) {
+        test_text_fixture::skip_if_missing(font_path, "FreeType file-stamp invalidation test");
+        return;
+    }
+    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto scratch = std::filesystem::temp_directory_path() /
+        ("chronon3d-font-stamp-" + std::to_string(stamp) + ".ttf");
+    std::error_code ec;
+    std::filesystem::copy_file(font_path, scratch,
+        std::filesystem::copy_options::overwrite_existing, ec);
+    REQUIRE_FALSE(ec);
+
+    FreeTypeFaceCache cache;
+    auto before = cache.get_face(scratch.string(), 0, 16.0f);
+    REQUIRE(before != nullptr);
+    auto modified = std::filesystem::last_write_time(scratch, ec);
+    REQUIRE_FALSE(ec);
+    std::filesystem::last_write_time(scratch, modified + std::chrono::seconds{2}, ec);
+    REQUIRE_FALSE(ec);
+
+    auto after = cache.get_face(scratch.string(), 0, 16.0f);
+    REQUIRE(after != nullptr);
+    CHECK(before.get() != after.get());
+    std::filesystem::remove(scratch, ec);
 }
 #endif
 
