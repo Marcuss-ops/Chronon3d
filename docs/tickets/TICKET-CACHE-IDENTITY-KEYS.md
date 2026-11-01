@@ -200,6 +200,12 @@ that changed file metadata reloads new font metrics. This is file-stamp
 invalidation rather than a content digest; edits that preserve both size and
 timestamp can still reuse the cached face.
 
+`GpuGlyphKey` now uses a domain-tagged V2 semantic digest in both its unordered
+map hasher and diagnostic 64-bit digest. These identities are in-memory GPU
+residency keys with no persisted artifact contract. Mutation coverage now checks
+that each semantic field changes equality and both digest entry points; ignored
+raster-size variation for distance-field glyphs remains covered separately.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.

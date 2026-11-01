@@ -122,11 +122,12 @@ struct GpuGlyphKey {
     }
 };
 
-// FIXING.md U-01 — unified on core::hash::HashBuilder (XXH64 string + hash_combine).
-// GpuStyledGlyphCache::KeyHash below uses the same primitive.
+// GPU residency keys are volatile, so their semantic digest can be versioned
+// without a persisted-key migration.
 struct GpuGlyphKeyHash {
     std::size_t operator()(const GpuGlyphKey& key) const noexcept {
         auto h = core::hash::HashBuilder{}
+            .add("chronon.gpu-glyph-key.v2")
             .add(std::string_view(key.font_path))
             .add(key.glyph_id)
             .add_enum(key.representation)
@@ -138,14 +139,10 @@ struct GpuGlyphKeyHash {
     }
 };
 
-// AUDIT-2026-09-09 U-01 — the last hand-rolled hash combine is gone: this
-// view hash uses the same core::hash::HashBuilder authority as
-// GpuGlyphKeyHash above (same field set, same Coverage-only font_size
-// rule), so glyph identity has ONE representation in this header. Digest
-// values change once (in-memory GPU keys only; no persisted artifact is
-// keyed by this hash).
+// Keep the diagnostic digest byte-for-byte aligned with GpuGlyphKeyHash.
 inline std::uint64_t glyph_key_hash64(const GpuGlyphKey& key) noexcept {
     auto h = core::hash::HashBuilder{}
+                 .add("chronon.gpu-glyph-key.v2")
                  .add(std::string_view(key.font_path))
                  .add(key.glyph_id)
                  .add_enum(key.representation)

@@ -632,6 +632,8 @@ TEST_CASE("GPU glyph key identity responds to every semantic field") {
         auto key = base;
         mutate(key);
         CHECK_FALSE(key == base);
+        CHECK(GpuGlyphKeyHash{}(key) != GpuGlyphKeyHash{}(base));
+        CHECK(glyph_key_hash64(key) != glyph_key_hash64(base));
     };
     changed([](auto& key) { key.font_path += ".replacement"; });
     changed([](auto& key) { key.glyph_id++; });
