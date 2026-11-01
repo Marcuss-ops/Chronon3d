@@ -51,6 +51,7 @@ template <typename T>
 [[nodiscard]] u64 hash_vec2_v2(const Vec2& value);
 [[nodiscard]] u64 hash_vec3_v2(const Vec3& value);
 [[nodiscard]] u64 hash_mat4_v2(const Mat4& value);
+[[nodiscard]] u64 hash_transform_v2(const Transform& value);
 
 [[nodiscard]] u64 hash_transform(const Transform& transform) ;
 

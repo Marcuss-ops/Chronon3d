@@ -133,6 +133,21 @@ struct SemanticGradientHashSink {
     return hash.finish();
 }
 
+[[nodiscard]] u64 hash_transform_v2(const Transform& value) {
+    auto h = core::hash::HashBuilder{}.add("chronon.transform.v2");
+    h.add(hash_vec3_v2(value.position))
+     .add(value.rotation.w == 0.0f ? 0.0f : value.rotation.w)
+     .add(value.rotation.x == 0.0f ? 0.0f : value.rotation.x)
+     .add(value.rotation.y == 0.0f ? 0.0f : value.rotation.y)
+     .add(value.rotation.z == 0.0f ? 0.0f : value.rotation.z)
+     .add(hash_vec3_v2(value.scale))
+     .add(hash_vec3_v2(value.anchor))
+     .add(hash_vec2_v2(value.skew))
+     .add(value.opacity == 0.0f ? 0.0f : value.opacity)
+     .add(value.blur == 0.0f ? 0.0f : value.blur);
+    return h.finish();
+}
+
 [[nodiscard]] u64 hash_transform(const Transform& transform) {
     u64 h = hash_vec3(transform.position);
     h = hash_combine(h, hash_vec3(transform.anchor));

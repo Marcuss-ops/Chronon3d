@@ -73,16 +73,17 @@ public:
 
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 params_hash = hash_combine(
-            hash_transform(m_transform),
-            static_cast<u64>(m_mode)
-        );
+            hash_string("chronon.transform-node-params.v2"),
+            hash_transform_v2(m_transform));
+        params_hash = hash_combine(params_hash, static_cast<u64>(m_mode));
+        params_hash = hash_combine(params_hash, hash_value(m_use_matrix));
 
         if (m_use_matrix) {
-            params_hash = hash_combine(params_hash, hash_bytes(&m_matrix, sizeof(m_matrix)));
-            params_hash = hash_combine(params_hash, hash_bytes(&m_opacity, sizeof(m_opacity)));
+            params_hash = hash_combine(params_hash, hash_mat4_v2(m_matrix));
+            params_hash = hash_combine(params_hash, hash_float_v2(m_opacity));
         }
         params_hash = hash_combine(
-            params_hash, hash_bytes(&m_source_surface_size, sizeof(m_source_surface_size)));
+            params_hash, hash_vec2_v2(m_source_surface_size));
         if (m_card3d_material) {
             const auto& card = *m_card3d_material;
             params_hash = hash_combine(params_hash, hash_value(card.enabled));
@@ -104,7 +105,8 @@ public:
                 cache_policy(), ctx.frame_input.frame, m_cache_frame),
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = params_hash
+            .params_hash = params_hash,
+            .params_version = 2
         };
     }
 
