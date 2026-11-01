@@ -17,7 +17,7 @@ canali CSS grezzi (`/255`), cioè **sRGB**, che finivano direttamente in tile
 **linear premultiplied** (`text_tile_raster.comp:5,9`) senza conversione.
 
 La ricognizione ha però trovato una **seconda authority di conversione** non
-dichiarata nel ticket: `src/media/video/direct_yuv/direct_yuv_program.cpp`
+dichiarata nel ticket: `src/media/video/direct_yuv/direct_yuv_program.cpp` <!-- drift-class: historical — retired path (see git history) -->
 aveva un proprio `pack_text_color` con `to_linear()`, e commentava
 «Text colours are authored in the public/sRGB representation … encode back …
 exactly once in the CUDA boundary».  Le due lane quindi **non erano coerenti**:
@@ -42,8 +42,8 @@ pura del dominio lineare; nessun backend esegue `to_linear()`.
 |---|---|---|
 | `include/chronon3d/text/text_color_packing.hpp` | **authority unica**: quantizzazione pura | tutti i backend |
 | `src/media/video/direct_yuv/direct_yuv_program.cpp` | delega all'authority condivisa | DirectYUV |
-| `src/render_graph/executor/node_runner_fused_batch.cpp` | delega all'authority condivisa | FullGraph |
-| `src/render_graph/nodes/text_run/gpu_text_run.cpp` | delega all'authority condivisa | FullGraph |
+| `src/render_graph/executor/graph_dispatch/node_runner_fused_batch.cpp` | delega all'authority condivisa | FullGraph |
+| `src/render_graph/nodes/text_run/gpu_text_run.cpp` | delega all'authority condivisa | FullGraph | <!-- drift-class: historical — retired path (see git history) -->
 
 **Il percorso software NON era già corretto.**  Questa è la differenza decisiva
 rispetto a una lettura che mette la conversione nel packer GPU.  Il testo
@@ -181,7 +181,7 @@ con `highlight_color` costruito da `build_timed_highlight_plan(shape)`, che legg
 Non è però un difetto di P0-2: `FillColorProperty::color` **non** nasce da
 `parse_hex_color`, quindi ricade nel residuo «dominio dei colori non-hex».
 Nessun produttore censito oggi passa un accent: `build_semantic_emphasis_animators`
-(`ChrononPlugin/plugins/typography/src/subtitle_track_builder.cpp:132`) chiama `make_lightweight_emphasis_animator`
+(`ChrononPlugin/plugins/typography/src/subtitle_track_builder.cpp:132`) chiama `make_lightweight_emphasis_animator` <!-- drift-class: third-party — sibling-repo citation -->
 con `std::nullopt`, quindi nessun `FillColorProperty` viene creato su quel path.
 Il difetto è **latente**, non attivo sul corpus attuale.
 

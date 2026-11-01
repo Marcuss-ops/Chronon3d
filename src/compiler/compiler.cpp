@@ -170,6 +170,12 @@ Result<CompiledProgram, CompileError> Compiler::compile(
         if (const auto problem = render_plan::transform_samples_problem(layer))
             return make_compile_error(CompileErrorCode::InvalidInput, "layers." + layer.id + ".transform_samples", *problem, "render-plan-motion");
     }
+    try {
+        if (const auto problem = render_plan::resolved_shutter_samples_problem(plan))
+            return make_compile_error(CompileErrorCode::InvalidInput, "layers.transform_samples", *problem, "render-plan-motion");
+    } catch (const std::exception& error) {
+        return make_compile_error(CompileErrorCode::InvalidInput, "temporal_motion_blur", error.what(), "render-plan-motion");
+    }
     if (plan.environment_light) {
         const auto environment = assets::load_hdri_env_v1(
             resolver, plan.environment_light->probe_asset);

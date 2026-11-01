@@ -44,7 +44,7 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 | Camera libera/target, roll e parent | **PARTIAL:** `CameraRig.hpp` e `RenderPlanLoweringCamera.cpp`; `motion_camera_v1.cpp`, `motion_camera_bake_roundtrip.cpp`. Parent e look-at verificati per fixture, non catene arbitrarie, pivot, degenerazioni o confronto AE. |
 | Dolly, pan, tilt, orbit, framing e traiettorie | **PARTIAL:** primitive `CameraRig.hpp`; `motion_camera_v1.cpp`, `motion_camera_trajectory.cpp`, `motion_camera_framing.cpp`; le combinazioni complete e dolly-zoom AE non sono certificate. |
 | FOV/focale/ottica | **PARTIAL:** `camera_contract.hpp` è l'ammissione condivisa applicata ai due confini compiler (test dedicato, 2026-10-31); `RenderPlanLoweringCamera.cpp`, `motion_projection_parity.cpp` e `motion_authoring_renderplan.cpp`. Parità AE e limiti combinati ancora da verificare. |
-| DoF e focus | **PARTIAL:** `motion_camera_focus_sequence.cpp`, `test_per_pixel_dof.cpp`, ROI e raw nell'evidenza closeout; fault injection native e qualità alpha completa ancora aperte. |
+| DoF e focus | **PARTIAL:** `motion_camera_focus_sequence.cpp`, `test_per_pixel_dof.cpp`, ROI/raw e integrazione software a due profondità con alpha 0,5 passano; fault injection strict-native e matrice completa alpha/depth restano aperte. |
 | Iris blades/highlight | **REJECTED:** `camera_contract.hpp` rifiuta i parametri senza kernel; non è supporto AE-shaped bokeh. |
 | Shutter e layer | **PARTIAL:** `camera_sample_provider.hpp`, `RenderPlanLowering.cpp`, `test_camera_motion.cpp`; test camera/layer e piano Optical Studio materializzato passano. Il job unico è ancora oggetto di diagnosi e la CLI non prova il callback provider live. |
 | Camera sequence e cut | **PARTIAL:** `motion_camera_sequence.cpp` copre il componente Motion; nessuna certificazione di cut E2E su job C3D. |
@@ -57,7 +57,34 @@ stato renderizzato via RenderPlan diretto e letto con FFprobe: H.264, 1280×720,
 150 frame / 5 s. Questo prova export e readback del demo, non la parità AE. G resta aperto
 per le fixture/reference AE indipendenti e per le verifiche raw/shutter e GOP elencate sotto.
 
-### 2.2 Regressione mirata DoF + occlusione 2.5D (2026-10-31)
+
+## 2.2 Tracciabilità del censimento A
+
+Questa matrice chiude la ricognizione locale per l'intera superficie richiesta
+dal punto A. `PARTIAL` significa che il percorso esiste e ha test locali, ma non
+copre la matrice funzionale dichiarata; non equivale a supporto AE certificato.
+
+| Famiglia | API / producer | Wire, compiler e consumer | Stato e prova locale |
+|---|---|---|---|
+| Camera libera e target | CM3D `CameraRig`; `RenderPlanLoweringCamera.cpp` risolve orientamento/look-at | `camera_samples[].camera`; C3D camera decoder → `CameraPlan` → projection resolver | `PARTIAL`; `motion_camera_v1`, `motion_projection_parity`, bake roundtrip |
+| Parent e Null | gerarchia `MotionScene` + `CameraRig::setParent` | Motion campiona matrice world e abbassa pose risolte; C3D consuma camera/layer samples | `PARTIAL`; regressioni parent in `motion_camera_bake_roundtrip` e test rig |
+| Traiettoria, rig e framing | `CameraTrajectory`, `CameraSequence`, `CameraFraming`, `CameraMotion` | applier CM3D → rig channels → camera samples; nessuna seconda evaluazione C3D | `PARTIAL`; camera trajectory/sequence/framing e `motion_authoring_renderplan` |
+| Ottica e proiezione | `CameraRig` + `camera_contract.hpp` | schema V3 → decoder → contratto camera → projection/lens C3D | `PARTIAL`; decoder camera, contract e projection parity; reference AE e limiti combinati non presenti |
+| Fuoco e DoF circolare | focus track CM3D → campi camera-level canonici | `f_stop`, focus, max blur; adapter → DoF node/kernel | `PARTIAL`; focus-sequence, DoF node, raw ROI e sovrapposizione di card opaca e alpha 0,5 in entrambi gli ordini passano in software; frame 30/75/149 byte-identici dopo la migrazione wire; matrice completa alpha, depth fault injection e strict-native restano aperti |
+| Iris e highlight bokeh | campi camera-level CM3D/RenderPlan | `camera_contract_problem` rifiuta forma non supportata prima dell'esecuzione | `REJECTED`; test camera contract e DoF unsupported-shape |
+| Layer 2.5D e profondità | layer/image/text/shape Motion + transform lowering | transform samples/track → scene projection, depth e compositing C3D | `PARTIAL`; authoring RenderPlan, canary e occlusione software di card sovrapposte in entrambi gli ordini passano; la matrice completa di alpha/depth e il gate strict-native non sono certificati |
+| Tempo, subframe e shutter | Motion lowering/provider; scheduler shutter C3D | `camera_samples` e `transform_samples` con timestamp del calendario C3D | `PARTIAL`; bake roundtrip, temporal-surface e shutter tests; full fixture provider/offline non eseguita |
+| Sequencer e camera attiva | `CameraSequence` esiste in CM3D, ma non c'è un consumer di selezione shot nel contratto RenderPlan | nessun campo/wire/compiler/consumer end-to-end per active-camera cut | `MISSING`; test Motion della sequence non prova un cut C3D |
+| Preview/export tipizzato | piano tipizzato → preparazione CLI | FullGraph, DirectYUV e GOP consumano `CompiledProgram` direttamente | `PARTIAL`: export diretto implementato; parità raw/shutter, GOP e reference AE ancora da certificare |
+
+La fonte file-by-file per gli header e gli include consumer rimane il
+[censimento superficie camera](../evidence/camera-surface-consolidation/README.md);
+questa tabella completa il collegamento ai confini wire e ai gate funzionali.
+Non è stato usato un progetto/reference After Effects: il punto B resta aperto e
+nessuna riga `PARTIAL` viene rinominata “parità AE”.
+
+
+### 2.3 Regressione mirata DoF + occlusione 2.5D (2026-10-31)
 
 La fixture sintetica `PR2-RG-DoF: nearest 2.5D card occludes the far plane in either layer order`
 usa due piani colorati sovrapposti e verifica che la card più vicina resti davanti con DoF
@@ -75,9 +102,10 @@ contratto camera. Nessun test di Ambient Occlusion va quindi dichiarato PASS: la
 eventuale implementazione richiede un ticket/capability separata, con input depth/normal,
 regole di bias e criteri immagine espliciti.
 
+
 ## 3. To-do ordinata e criteri di accettazione
 
-- [x] **A — Censimento locale (2026-10-31):** matrice §2 e inventario producer/consumer/test registrati; classificazione locale SUPPORTED / REJECTED / MISSING e contratto congelato senza introdurre resolver/sampler. Il censimento non sostituisce il riferimento indipendente AE richiesto da B.
+- [x] **A — Censimento locale:** la matrice §2.1 e la tabella di tracciabilità §2.2 associano ogni famiglia ad API, producer, wire/schema, compiler, consumer e test, con stato `SUPPORTED` / `PARTIAL` / `REJECTED` / `MISSING`. Spazi e unità attestati dal contratto Motion→RenderPlan sono annotati; dove non esiste una semantica dichiarata (per esempio dolly-zoom AE e selezione camera attiva) resta `MISSING`, senza inferire compatibilità. Questo chiude l'inventario del codice locale, non certifica parità AE né sostituisce la reference numerica del punto B.
 - [ ] **B — Reference funzionale:** versionare fixture e manifest numerici indipendenti; per le righe chiamate AE-parity acquisire riferimento AE documentato (versione/progetto/export/parametri). Senza riferimento usare “contratto Chronon verificato”, non “AE verificato”. Fissare tolleranze PRIMA del run.
 - [ ] **C — Camera e Null:** certificare libera/target, parent a due livelli, pivot, rotazioni combinate, wrap ±180°, target coincidente/collinearità e pose invalide; test di snapshot e proiezione, errori espliciti per casi esclusi.
 - [ ] **D — Ottica e regia:** dolly/orbit/pan/tilt/roll e dolly-zoom con invarianti numerici di framing; focale/FOV e focus animati; cut camera e confini shot senza interpolazione impropria.
@@ -96,6 +124,14 @@ regole di bias e criteri immagine espliciti.
 - **Equivalence gate:** §3 E/F/G/I, fixture identiche e soglie congelate, software e strict-native, seek e ordine inverso.
 - **Removal scope:** call site, adapter, translation unit e test esclusivamente del ponte sono stati rimossi; restano i gate di equivalenza e le API legacy non RenderPlan.
 - **Status:** ACTIVE — codice bridge rimosso, gate di equivalenza ancora NOT RUN.
+
+**Gate storico prima della rimozione del bridge (2026-10-31):** `tests/renderer/camera/test_camera_motion.cpp`, test
+`Video compatibility view matches typed program raw camera and shutter frames`.
+Una RenderPlan sintetica con due card 2.5D e camera campionata ai frame 0 e 2
+usa shutter 180°/4; su ciascuno dei frame 0/1/2 il raw framebuffer del
+`CompiledProgram` coincide byte-per-pixel con quello di
+`make_video_compatibility_view` eseguito via `render_compiled`. Il test non
+esercitava mux/encoder; il bridge è stato successivamente rimosso e la parità del percorso diretto resta da certificare.
 
 ## 5. Dipendenze e regola di chiusura
 

@@ -14,7 +14,7 @@
 #include <cstring>
 
 // Portability: setenv/unsetenv are POSIX-only; Windows uses _putenv_s
-// (convention: see tests/runtime/test_scheduler_determinism.cpp).
+// (convention: see tests/runtime/test_scheduler_determinism.cpp).  // drift-class: historical — retired path (see git history)
 namespace {
 void env_unset(const char* name) {
 #if defined(_WIN32)

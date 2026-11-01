@@ -358,7 +358,7 @@ TEST_CASE("compile_text_layout: P1-1 — single-run failure returns Err(PerRunSh
 // ═══════════════════════════════════════════════════════════════════════════
 
 
-// ── Folded from tests/text/test_compile_text_layout_identity.cpp ──
+// ── Folded from tests/text/test_compile_text_layout_identity.cpp ──  // drift-class: historical — retired path (see git history)
 namespace compile_layout_identity_folded {
 
 // ============================================================================
@@ -691,7 +691,7 @@ TEST_CASE("materialize_prepared_text: text_layout->font.font_size mirrors params
 } // namespace compile_layout_identity_folded
 
 
-// ── Folded from tests/text/test_compile_text_layout_per_paragraph_failure.cpp ──
+// ── Folded from tests/text/test_compile_text_layout_per_paragraph_failure.cpp ──  // drift-class: historical — retired path (see git history)
 namespace compile_layout_per_paragraph_folded {
 
 // ═══════════════════════════════════════════════════════════════════════════

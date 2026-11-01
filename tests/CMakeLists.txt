@@ -28,7 +28,7 @@ foreach(definition IN LISTS CHRONON3D_TEST_DEFINITIONS)
 endforeach()
 
 # Cross-repo V3 bridge drift guard (ChrononMotion's
-# tests/chronon3d_v3_bridge_regression.cpp).
+# tests/chronon3d_v3_bridge_regression.cpp).  # drift-class: historical — retired path (see git history)
 #
 # This is the one ChrononMotion test that must run inside a Chronon3D build
 # tree: only here do the canonical RenderPlan consumer symbols

@@ -50,7 +50,7 @@
 // forward-point: TICKET-TESTS-CLI-UTILS-EXTRACT to promote the 3 CLI precondition
 // helpers to a shared `<tests/helpers/test_utils.hpp>` header (mirror of the
 // parallel pattern shared between `tests/video/test_video_contracts.cpp` +
-// `tests/cli/test_video_adapter_e2e.cpp` per AGENTS.md Cat-3 anti-dup).
+// `tests/cli/test_video_adapter_e2e.cpp` per AGENTS.md Cat-3 anti-dup).  // drift-class: historical — retired path (see git history)
 //
 // Cat-5 (CHANGELOG + FOLLOWUP_TICKETS same-atomic-commit): SATISFIED via the
 // parallel doc prepends in this chore (TICKET-VIDEO-REPEATABILITY row prepended

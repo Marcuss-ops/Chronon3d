@@ -26,7 +26,7 @@ forbidden-pattern rule.
 | `RenderErrorSlot` | `JobSession` | `FrameExecution` | 7 | JobSession-owned; pending executor seam (Wave 4) |
 | `prepared_composition` | removed | immutable job program (`CompiledProgram`) | 6 | DONE — `JobSession` holds only `CompiledProgram` |
 | authoring name / identity | `CompiledProgram` metadata | compiler metadata / fingerprint | 8 | `JobSession` holds `CompiledProgram`; evacuation pending |
-| authoring compiled composition | `CompiledProgram` retained legacy view (Wave-2 plan bridge) | `CompiledProgram` numeric IR | 8 | compatibility bridge only — see `include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp` |
+| authoring compiled composition | `CompiledProgram` retained legacy view (Wave-2 plan bridge) | `CompiledProgram` numeric IR | 8 | compatibility bridge only — see `include/chronon3d/compiler/detail/compiled_program_plan_bridge.hpp` <!-- drift-class: historical — retired path (see git history) --> |
 | evaluated frame | frame slot payload | frame slot payload | 7 | canonical slot lease landed; payloads are non-nullable slot refs |
 | rendered surface | frame slot payload / handoff | frame slot payload / handoff | 7 | canonical payload type live |
 

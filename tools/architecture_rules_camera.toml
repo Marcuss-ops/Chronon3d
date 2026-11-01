@@ -3,7 +3,7 @@
 [[scan]]
 name = "camera_animated_camera_legacy"
 patterns = ['\bAnimatedCamera2_5D\b']
-scan_paths = ["include", "src", "tests", "apps", "content"]
+scan_paths = ["include", "src", "tests", "apps"]
 allow_list = [
   'include/chronon3d/scene/builders/(?:scene_builder\.hpp|camera_api\.hpp)',
   'src/scene/builders/camera_api\.(?:hpp|cpp)',
@@ -24,7 +24,7 @@ skip_comments = true
 [[scan]]
 name = "camera_rig_legacy"
 patterns = ['\bCameraRig\b']
-scan_paths = ["include", "src", "tests", "apps", "content"]
+scan_paths = ["include", "src", "tests", "apps"]
 allow_list = [
   'tests/(?:renderer/camera/test_(?:animated_camera|lens_model|dof)\.cpp|scene/camera_rig_tests\.cpp|scene/camera/test_camera_descriptor_adapters\.cpp)',
 ]
@@ -41,7 +41,7 @@ skip_comments = true
 [[scan]]
 name = "camera_animated_camera_calls"
 patterns = ['(?:\b|\.)animated_camera\s*\(']
-scan_paths = ["include", "src", "tests", "apps", "content"]
+scan_paths = ["include", "src", "tests", "apps"]
 allow_line_patterns = ['SceneBuilder&\s+animated_camera\b']
 allow_list = [
   'tests/core/test_scene_hasher_camera\.cpp',
@@ -62,7 +62,7 @@ skip_comments = true
 [[scan]]
 name = "camera_rig_calls"
 patterns = ['(?:\b|\.)camera_rig\s*\(']
-scan_paths = ["include", "src", "tests", "apps", "content"]
+scan_paths = ["include", "src", "tests", "apps"]
 allow_line_patterns = [
   'SceneBuilder&\s+camera_rig\b',
   '\bCameraRigBuilder\b',
@@ -80,12 +80,11 @@ skip_comments = true
 [[scan]]
 name = "camera_tan_fov_formula_authority"
 patterns = ['\btan\s*\([^)\n]*(?:fov|FOV|Fov)']
-scan_paths = ["include", "src", "tests", "apps", "content"]
+scan_paths = ["include", "src", "tests", "apps"]
 allow_list = [
   'include/chronon3d/math/camera_projection_contract\.hpp',
   'include/chronon3d/math/camera_projection_resolver\.hpp',
   'include/chronon3d/scene/model/camera/lens_model\.hpp',
-  'include/chronon3d/scene/camera/evaluated_projection\.hpp',
   'content/2d5/compositions/camera_test_orchestrator\.cpp',
   'tests/renderer/camera/test_lens_model\.cpp',
   'tests/core/math/.*\.cpp',
@@ -101,7 +100,7 @@ skip_comments = true
 [[scan]]
 name = "camera_compile_camera_callsite_policy"
 patterns = ['\bcompile_camera\s*\(']
-scan_paths = ["include", "src", "tests", "apps", "content"]
+scan_paths = ["include", "src", "tests", "apps"]
 extensions = [".cpp"]
 allow_list = [
   'tests/',

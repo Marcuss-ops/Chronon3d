@@ -19,7 +19,7 @@
 // 3 TEST_CASEs × 3 frames per case (f0, f15, f30) = 9 f00/f15/f30
 // invariants on a 1920×1080 canvas.  Uses the same canonical
 // `chronon3d::timeline(initial).to(Frame, value, Easing)` fluent chain as
-// `tests/text_golden/text_transforms_animation/anim_01_position.cpp` +
+// `tests/text_golden/text_transforms_animation/anim_01_position.cpp` +  // drift-class: historical — retired path (see git history)
 // `anim_02_opacity.cpp` (TICKET-FASE2-TRANSFORMS-ANIMATION §10
 // baseline).  Distinct from FASE2 §10 because the keyframe VALUES
 // (0.40/0.85/0.50) match the Video Completeness Matrix spec, NOT
@@ -30,7 +30,7 @@
 // emits the alpha_bbox + centroid invariants directly via the
 // canonical `alpha_bbox()` / `alpha_centroid()` helpers and the
 // `FrameMetrics` compliance path used in
-// `tests/text/support/pipeline_parity_harness.cpp::Fase 6 §5`.
+// `tests/text/support/pipeline_parity_harness.cpp::Fase 6 §5`.  // drift-class: historical — retired path (see git history)
 //
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public SDK API.
 // The test reuses the existing `LayerBuilder::opacity_timeline()`

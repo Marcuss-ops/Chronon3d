@@ -20,6 +20,7 @@
 #include "native_surface.hpp"
 #include "composite_node_detail.hpp"
 #include "composite_backdrop_detail.hpp"
+#include "composite_depth_mask.hpp"
 // ctx.frame_error (runtime::RenderErrorSlot) is dereferenced below; the
 // context header only forward-declares the class.
 #include <chronon3d/runtime/frame/frame_error_slot.hpp>
@@ -60,7 +61,9 @@ NodeExecResult CompositeNode::execute(
     }
 
     const FramebufferRef& bottom = in0 ? in0 : in1;
-    const FramebufferRef& top = in0 ? in1 : empty_fb;
+    // Camera-closure: `top` becomes rebindable so the per-pixel depth-aware
+    // mask (when active for this blend) can swap in a masked source copy.
+    FramebufferRef top = in0 ? in1 : empty_fb;
 
     if (m_backdrop_blur) {
         if (!top || m_operator != CompositeOperator::SourceOver || m_mode != BlendMode::Normal)
@@ -117,6 +120,20 @@ NodeExecResult CompositeNode::execute(
             bottom ? bottom->width() : -1, bottom ? bottom->height() : -1,
             top ? top->width() : -1, top ? top->height() : -1,
             static_cast<int>(m_mode));
+    }
+
+    // Camera-closure per-pixel cross-layer depth occlusion: hold back top
+    // pixels that fall behind geometry already composited into the frame,
+    // and publish this layer's camera-space depth for later composites.
+    // Normal/SourceOver only — every other blend/operator keeps legacy
+    // layer-order semantics.
+    std::shared_ptr<Framebuffer> depth_aware_top;
+    if (bottom && top && m_mode == BlendMode::Normal &&
+        m_operator == CompositeOperator::SourceOver) {
+        depth_aware_top = build_depth_aware_top(
+            ctx, *bottom, *top, m_has_world_position,
+            m_world_position, m_world_z, m_unique_id);
+        if (depth_aware_top) top.reset(depth_aware_top.get());
     }
 
 

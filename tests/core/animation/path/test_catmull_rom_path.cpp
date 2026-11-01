@@ -2,7 +2,7 @@
 // tests/core/animation/path/test_catmull_rom_path.cpp
 //
 // Pure-math tests for CatmullRomPath3D.  Relocated from
-// tests/scene/camera/test_catmull_rom_path.cpp during the June 2026
+// tests/scene/camera/test_catmull_rom_path.cpp during the June 2026  // drift-class: historical — retired path (see git history)
 // test-domain cleanup: the file previously dragged scene + software-backend
 // dependencies into what is pure animation/path math.
 //

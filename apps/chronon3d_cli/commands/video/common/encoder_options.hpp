@@ -1,6 +1,6 @@
 #pragma once
 
-// Adding an encoder field? See docs/tickets/TICKET-ENCODER-DTO-PROJECTION.md for
+// Adding an encoder field? See docs/tickets/TICKET-ENCODER-DTO-PROJECTION.md for  // drift-class: historical — retired path (see git history)
 // the full projection chain this DTO is one hop of (audit F16).
 //
 // AUDIT F4 — the canonical encoder-transport vocabulary lives in the

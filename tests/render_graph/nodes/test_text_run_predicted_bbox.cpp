@@ -3,7 +3,7 @@
 //
 // BUG 1 / TICKET-TEXT-XOFFSET-DOUBLE — Option A regression lock.
 //
-// Step 2 empirical confirmation (per docs/tickets/TICKET-XOFFSET-ROOT-CAUSE.md):
+// Step 2 empirical confirmation (per docs/tickets/TICKET-XOFFSET-ROOT-CAUSE.md):  // drift-class: historical — retired path (see git history)
 // canvas-centered text appeared at x ≈ 302 (658 px left of 960 on a 1920×1080
 // canvas).  The 658 px left-shift was traced to the TICKET-104 strip+replay path
 // in `src/render_graph/builder/graph_builder_coordinates.hpp` ~line 100: when
@@ -22,7 +22,7 @@
 // the rasterised ink bounding-box centre X is within ±10 px of 960.
 //
 // NOTE: this test follows the render-framefbuffer + pixel-scan-alpha-bbox
-// pattern of `tests/certification/test_cert_text_bbox.cpp:55-67` (the
+// pattern of `tests/certification/test_cert_text_bbox.cpp:55-67` (the  // drift-class: historical — retired path (see git history)
 // canonical CertTest suite that the prior `test(cert):` Step-2 commit
 // uses for `CertTitle` / `CertLowerThird`).  The two tests are
 // intentionally independent: the cert test locks the canonical cert

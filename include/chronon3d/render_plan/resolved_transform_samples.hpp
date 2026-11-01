@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/render_plan/camera_sample_provider.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <algorithm>
 #include <cmath>
@@ -16,8 +17,8 @@ using ResolvedTransformSample = LayerPlan::ResolvedTransformSample;
     if (layer.transform_samples.size() > 250'000 || layer.parent || layer.animation || layer.follow_path || layer.auto_orient ||
         layer.transition_in || layer.transition_out)
         return "resolved transform samples require a bounded flattened layer without animation or follow_path";
-    if (layer.type != LayerType::Image && layer.type != LayerType::Color && layer.type != LayerType::Text && layer.type != LayerType::Shape)
-        return "resolved transform samples support image, color, text and shape layers only";
+    if (layer.type == LayerType::Light || layer.type == LayerType::Mesh)
+        return "resolved transform samples support 2.5D visual layers, not light or mesh layers";
     double previous = -1'000'001.;
     for (const auto& sample : layer.transform_samples) {
         const auto finite = [](const auto& values) {
@@ -28,6 +29,26 @@ using ResolvedTransformSample = LayerPlan::ResolvedTransformSample;
             !std::isfinite(sample.opacity) || sample.opacity < 0.f || sample.opacity > 1.f)
             return "resolved transform samples require increasing bounded times and finite TRS/opacity";
         previous = sample.frame;
+    }
+    return std::nullopt;
+}
+
+/// A resolved shutter bake must contain every renderer-owned presentation and
+/// shutter time. Interpolating a missing sample cannot preserve authored easing.
+[[nodiscard]] inline std::optional<std::string> resolved_shutter_samples_problem(const RenderPlan& plan) {
+    if (!plan.temporal_motion_blur ||
+        std::none_of(plan.layers.begin(), plan.layers.end(),
+            [](const LayerPlan& layer) { return !layer.transform_samples.empty(); }))
+        return std::nullopt;
+    const auto required = resolved_sample_frames(plan.canvas, plan.temporal_motion_blur);
+    for (const auto& layer : plan.layers) {
+        if (layer.transform_samples.empty()) continue;
+        auto sample = layer.transform_samples.begin();
+        for (const double frame : required) {
+            while (sample != layer.transform_samples.end() && sample->frame < frame) ++sample;
+            if (sample == layer.transform_samples.end() || sample->frame != frame)
+                return "layer '" + layer.id + "' is missing a required resolved shutter or presentation sample";
+        }
     }
     return std::nullopt;
 }

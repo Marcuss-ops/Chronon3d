@@ -154,6 +154,10 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
         slot->set_opaque(false);
         slot->set_content_cleared(false);
         slot->set_key_digest(0);
+        // A planned physical slot can be reused for a different logical
+        // resource in the same frame: any attached per-pixel depth belongs
+        // to the previous resource and must not leak forward.
+        slot->drop_depth_map();
         if (clear && !policy.require_native_gpu) {
             slot->clear(Color::transparent());
         }

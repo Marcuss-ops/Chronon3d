@@ -82,7 +82,7 @@ inline constexpr std::string_view LightCreaseShading = "light.crease_shading";
 // Modern motion-design post-process effects: subtle TV scanlines (per-pixel
 // luma modulation), retro-TV analog signal degradation (tape jitter + chroma
 // smear), film halation (warm highlight bloom) and anamorphic streak
-// (horizontal highlight streak). See docs/tickets/TICKET-POSTPROCESS-FX.md.
+// (horizontal highlight streak). See docs/tickets/TICKET-POSTPROCESS-FX.md.  // drift-class: historical — retired path (see git history)
 inline constexpr std::string_view StylizeScanlines = "stylize.scanlines";
 inline constexpr std::string_view StylizeRetroTv = "stylize.retro_tv";
 inline constexpr std::string_view LightHalation = "light.halation";

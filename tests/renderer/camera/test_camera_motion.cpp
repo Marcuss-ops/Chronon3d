@@ -289,6 +289,56 @@ TEST_CASE("Typed program rendering consumes animated camera samples") {
     CHECK(test::framebuffer_hash(*frame1_fresh) == hash1);
 }
 
+TEST_CASE("Prepared composition view matches typed program raw camera and shutter frames") {
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.schema = kRenderPlanSchemaV3;
+    plan.job_id = "camera-video-compatibility-raw-parity";
+    plan.canvas = {.width = 64, .height = 48, .fps = FrameRate{24, 1}, .duration = Frame{3}};
+    plan.temporal_motion_blur = MotionBlurPlan{180.f, 4};
+
+    CameraPlan first;
+    first.position = {-120.f, 0.f, -1000.f};
+    CameraPlan last = first;
+    last.position[0] = 120.f;
+    plan.camera = first;
+    plan.camera_samples = std::vector<CameraSamplePlan>{{0.0, first}, {2.0, last}};
+
+    LayerPlan near_card;
+    near_card.id = "near-card";
+    near_card.type = LayerType::Color;
+    near_card.color = {0.92f, 0.24f, 0.12f, 1.f};
+    near_card.position = {0.f, 0.f, 0.f};
+    near_card.position_dimensions = 3;
+    near_card.size = {640.f, 440.f};
+    near_card.size_dimensions = 2;
+    near_card.enable_3d = true;
+    plan.layers.push_back(near_card);
+
+    LayerPlan far_card = near_card;
+    far_card.id = "far-card";
+    far_card.color = {0.12f, 0.42f, 0.92f, 1.f};
+    far_card.position = {180.f, 0.f, 120.f};
+    plan.layers.push_back(far_card);
+
+    assets::AssetResolver resolver;
+    auto program = compiler::compile(plan, resolver);
+    REQUIRE(program);
+    auto prepared = compile_render_plan(plan, resolver, {}, &*program);
+    REQUIRE(prepared);
+
+    auto typed_renderer = test::make_renderer();
+    auto compatibility_renderer = test::make_renderer();
+    for (int frame : {0, 1, 2}) {
+        INFO("frame=" << frame);
+        const auto typed = typed_renderer.render_program(*program, Frame{frame});
+        REQUIRE(typed);
+        const auto compatibility = compatibility_renderer.render_compiled(prepared->compiled_composition, Frame{frame});
+        REQUIRE(compatibility);
+        CHECK(test::framebuffer_hash(*typed) == test::framebuffer_hash(*compatibility));
+    }
+}
+
 TEST_CASE("Typed program temporal accumulation uses camera shutter samples") {
     using namespace chronon3d::render_plan;
     RenderPlan plan;
@@ -447,6 +497,41 @@ TEST_CASE("Typed shutter offline and runtime cameras consume identical resolved 
     invalid.layers[0].transform_samples[1].frame = invalid.layers[0].transform_samples[0].frame;
     CHECK_FALSE(compiler::compile(invalid, resolver));
     CHECK_FALSE(compile_render_plan(invalid, resolver));
+
+    // A sorted, otherwise valid bake may still omit a shutter instant. Do
+    // not silently interpolate it and claim exact nonlinear Motion sampling.
+    for (const std::size_t index : {std::size_t{0}, times.size() / 2, times.size() - 1}) {
+        auto incomplete = plan;
+        incomplete.layers[0].transform_samples.erase(incomplete.layers[0].transform_samples.begin() + index);
+        const auto typed = compiler::compile(incomplete, resolver);
+        REQUIRE_FALSE(typed);
+        CHECK(typed.error().message.find("missing a required resolved shutter or presentation sample") != std::string::npos);
+        const auto prepared = compile_render_plan(incomplete, resolver);
+        REQUIRE_FALSE(prepared);
+        CHECK(prepared.error().code == "incomplete_resolved_shutter_samples");
+        incomplete.camera_samples.reset();
+        CHECK_FALSE(compiler::compile(incomplete, resolver, options));
+    }
+    auto legacy = plan;
+    legacy.layers[0].transform_samples.clear();
+    CHECK(compiler::compile(legacy, resolver));
+    CHECK(compile_render_plan(legacy, resolver));
+
+    for (const auto type : {LayerType::Image, LayerType::Video, LayerType::Color, LayerType::Text,
+                            LayerType::Shape, LayerType::Particles, LayerType::Adjustment}) {
+        LayerPlan visual;
+        visual.type = type;
+        visual.transform_samples.push_back({0.0, {0.f, 0.f, 0.f}, {1.f, 1.f, 1.f},
+                                            {0.f, 0.f, 0.f}, 1.f});
+        CHECK_FALSE(transform_samples_problem(visual));
+    }
+    for (const auto type : {LayerType::Light, LayerType::Mesh}) {
+        LayerPlan nonVisual;
+        nonVisual.type = type;
+        nonVisual.transform_samples.push_back({0.0, {0.f, 0.f, 0.f}, {1.f, 1.f, 1.f},
+                                               {0.f, 0.f, 0.f}, 1.f});
+        CHECK(transform_samples_problem(nonVisual).has_value());
+    }
 }
 
 TEST_CASE("Camera capability contract rejects unsupported optics at both compiler boundaries") {

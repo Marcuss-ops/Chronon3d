@@ -18,7 +18,7 @@
 //
 // Pure math harness — no Framebuffer / compositor / GPU dependency.
 // Compiles in any preset that turns on `CHRONON3D_BUILD_TESTS`
-// (matched by `tests/safe_area_placement_tests.cmake` registration).
+// (matched by `tests/safe_area_placement_tests.cmake` registration).  // drift-class: historical — retired path (see git history)
 
 #include <doctest/doctest.h>
 #include <chronon3d/text/text_placement.hpp>           // SafeAreaEnum, TextPlacementKind, TextPlacement, SafeAreaPreset

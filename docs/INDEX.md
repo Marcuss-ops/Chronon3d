@@ -50,7 +50,7 @@ Nessun altro file deve ridefinire questi contenuti. Tutto il resto *punta* qui.
 Un ticket vive in `docs/tickets/` **finché è aperto**. Quando è chiuso:
 
 1. il suo stato viene aggiornato nell'ultima riga del ticket stesso;
-2. `git mv docs/tickets/TICKET-X.md docs/tickets/archive/`;
+2. `git mv docs/tickets/TICKET-X.md docs/tickets/archive/`; <!-- drift-class: template — placeholder example -->
 3. i link in [`CURRENT_STATUS.md`](CURRENT_STATUS.md),
    [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) e nel ticket che lo cita
    vengono ripuntati su `archive/`;

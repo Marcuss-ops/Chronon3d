@@ -3,7 +3,7 @@
 //
 // Internal tests for renderer::project_2_5d (chronon3d/backend/projection_utils).
 //
-// Moved out of tests/scene/camera/test_camera_hierarchy.cpp which previously
+// Moved out of tests/scene/camera/test_camera_hierarchy.cpp which previously  // drift-class: historical — retired path (see git history)
 // mixed PUBLIC camera-hierarchy checks with PRIVATE projection-utility probing.
 // The scene-hierarchy coupling is now decoupled; the projection utility is
 // verified here in isolation against the backend module's own internals.

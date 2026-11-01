@@ -38,8 +38,11 @@ inline chronon3d::Camera2_5D make_camera_value(
     if (authored_f_stop > 0.0f) camera.lens.f_stop = authored_f_stop;
     camera.dof.enabled = source.dof_enabled;
     camera.dof.focus_distance = source.dof_focus_distance;
-    // The renderer's blur kernel uses a gain-like aperture internally. Derive
-    // that implementation value from the single authored f-stop here.
+    // Legacy gain domain (blur px ∝ focus_miss · gain), derived from the
+    // single authored f-stop through the sanctioned bridge
+    // gain = 0.672 / f_stop (CM3D blurGainFromFStop). The plan-level
+    // legacy `dof_aperture` transport field was demolished; the DepthOfField
+    // default 0.015 applies only when no f-stop was authored.
     camera.dof.aperture = authored_f_stop > 0.0f ? 0.672f / authored_f_stop : 0.015f;
     camera.dof.max_blur = source.dof_max_blur;
     camera.dof.iris_blades = static_cast<std::uint32_t>(source.iris_blades);

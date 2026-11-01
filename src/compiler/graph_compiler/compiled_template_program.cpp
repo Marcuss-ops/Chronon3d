@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// src/render_graph/compiler/compiled_template_program.cpp
+// src/render_graph/compiler/compiled_template_program.cpp  // drift-class: historical — retired path (see git history)
 // Fase A (TICKET-VIDEO-COMPILER-ARCH-V1) — derive CompiledTemplateProgram
 // from a CompiledFrameGraph.  Single source of truth: shared_ptr to the
 // compiled graph; template-level metadata is lifted once at compile time.

@@ -16,6 +16,7 @@
 #include <cmath>
 #include <atomic>
 #include <new>
+#include <memory>
 #include <span>
 
 namespace chronon3d {
@@ -102,7 +103,8 @@ public:
           // Native video surfaces are registry-owned GPU resources. Copies
           // of a read-only video source keep the logical handle so the graph
           // does not re-upload the CPU shadow framebuffer.
-          m_surface_handle(other.m_surface_handle) {
+          m_surface_handle(other.m_surface_handle),
+          m_depth_map(other.m_depth_map) {
         copy_pixels_from(other);
     }
 
@@ -113,7 +115,8 @@ public:
           m_content_cleared(other.m_content_cleared), m_key_digest(other.m_key_digest),
           m_content_digest(other.m_content_digest),
           m_cpu_authoritative(other.m_cpu_authoritative),
-          m_surface_handle(other.m_surface_handle) {
+          m_surface_handle(other.m_surface_handle),
+          m_depth_map(std::move(other.m_depth_map)) {
         move_pixels_from(std::move(other));
     }
 
@@ -121,6 +124,7 @@ public:
         if (this != &other) {
             release_owned_pixels();
             copy_metadata_from(other);
+            m_depth_map = other.m_depth_map;
             copy_pixels_from(other);
         }
         return *this;
@@ -133,6 +137,7 @@ public:
             // Move transfers the unique native-surface ownership after the
             // CPU-copy metadata path deliberately cleared it.
             m_surface_handle = other.m_surface_handle;
+            m_depth_map = std::move(other.m_depth_map);
             move_pixels_from(std::move(other));
         }
         return *this;
@@ -390,6 +395,7 @@ public:
         swap(m_content_digest,   other.m_content_digest);
         swap(m_surface_handle,   other.m_surface_handle);
         swap(m_cpu_authoritative, other.m_cpu_authoritative);
+        swap(m_depth_map,        other.m_depth_map);
         swap(m_owns_pixels,      other.m_owns_pixels);
         swap(m_pixels,           other.m_pixels);
         swap(m_external_pixels,  other.m_external_pixels);
@@ -414,6 +420,31 @@ public:
     void blit(const Framebuffer& src, i32 dst_x, i32 dst_y);
 
     void resize_logical(i32 width, i32 height);
+
+    // ── Optional per-pixel depth map ──────────────────────────────────────
+    //
+    // Camera-closure per-pixel depth: positive camera-space distance (same
+    // convention as the software mesh rasterizer depth buffer and
+    // `camera_space_depth`), row-major over the logical area, and only set
+    // where a producer actually wrote covered pixels (0 = no coverage —
+    // the sentinel the software rasterizer already uses).
+    //
+    // It is an attached, immutable side pixel channel carried with the
+    // framebuffer as a unit (shared_ptr so copies of the same surface share
+    // it). Every node that resamples or reprojects pixels drops it by
+    // default because resampled geometry has no per-pixel depth.
+    [[nodiscard]] const std::vector<float>* depth_map() const noexcept { return m_depth_map.get(); }
+    [[nodiscard]] std::shared_ptr<const std::vector<float>> depth_map_shared() const noexcept {
+        return m_depth_map;
+    }
+    void set_depth_map(std::vector<float> depth) noexcept {
+        if (!depth.empty()) m_depth_map = std::make_shared<const std::vector<float>>(std::move(depth));
+        else m_depth_map.reset();
+    }
+    void set_depth_map_shared(std::shared_ptr<const std::vector<float>> depth) noexcept {
+        m_depth_map = std::move(depth);
+    }
+    void drop_depth_map() noexcept { m_depth_map.reset(); }
 
 private:
     u64 m_key_digest{0};
@@ -488,6 +519,7 @@ private:
         m_surface_handle = runtime::kInvalidRenderSurfaceHandle;
         m_cpu_authoritative = true;
         m_content_cleared = false;
+        m_depth_map.reset();
     }
 
     i32 m_width{0};
@@ -510,6 +542,11 @@ private:
     bool m_storage_transferable{false};
     std::vector<Color, memory::HugePageAllocator<Color>> m_pixels;
     Color* m_external_pixels{nullptr};
+    // Camera-closure per-pixel depth side channel. Never mutated in place:
+    // replaces via set_depth_map()/drop_depth_map() (shared ownership is
+    // deliberate — draw nodes hang it onto raster results and composite
+    // nodes read it during cross-layer depth-aware occlusion).
+    std::shared_ptr<const std::vector<float>> m_depth_map;
 };
 
 } // namespace chronon3d

@@ -12,7 +12,7 @@
 //     must produce the same (pass, resource, before, after) transition set.
 //
 // The legacy BarrierTransition stays untouched; this suite is the equivalence
-// lock for the migration. See docs/tickets/TICKET-RESOURCE-STATE-V1.md.
+// lock for the migration. See docs/tickets/TICKET-RESOURCE-STATE-V1.md.  // drift-class: historical — retired path (see git history)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>

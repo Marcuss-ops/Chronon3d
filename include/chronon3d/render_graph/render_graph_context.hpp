@@ -317,6 +317,15 @@ struct NodeExecutionContext {
 
     // Per-pixel DOF depth tracking (mirrors policy.track_dof_depth).
     std::vector<float> dof_depth;
+    // Camera-closure — cross-layer per-pixel occlusion depth (camera-space,
+    // positive; 0 = no composited coverage yet). Published by every camera
+    // 2.5D CompositeNode over its blended coverage and consumed to skip
+    // layer pixels that fall behind already-composited geometry, so a mesh
+    // crossing a 2.5D plane occludes per-pixel instead of per-layer.
+    std::vector<float> composite_occlusion_depth;
+    // Per-node clones share the parent frame's occlusion buffer instead of
+    // copying it (same contract as shared_dof_depth).
+    std::vector<float>* shared_composite_occlusion_depth{nullptr};
     // Per-node clones share the parent frame's depth buffer instead of
     // copying it. The parent owns the vector for the duration of execution.
     std::vector<float>* shared_dof_depth{nullptr};
@@ -340,6 +349,18 @@ struct NodeExecutionContext {
     [[nodiscard]] std::vector<float>& dof_depth_buffer() noexcept;
 
     [[nodiscard]] const std::vector<float>& dof_depth_buffer() const noexcept;
+
+    [[nodiscard]] std::vector<float>& composite_occlusion_depth_buffer() noexcept {
+        return shared_composite_occlusion_depth
+            ? *shared_composite_occlusion_depth
+            : composite_occlusion_depth;
+    }
+
+    [[nodiscard]] const std::vector<float>& composite_occlusion_depth_buffer() const noexcept {
+        return shared_composite_occlusion_depth
+            ? *shared_composite_occlusion_depth
+            : composite_occlusion_depth;
+    }
 
     [[nodiscard]] DofSourceCoverage& dof_sources() noexcept;
 

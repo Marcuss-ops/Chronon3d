@@ -126,7 +126,7 @@ The pathops crate is pure Rust and has no production UI or renderer dependency i
 - Pinned VectorCraft [`pathops README`](https://github.com/storytold/vectorcraft/blob/fc996e0e0313f132868d71f8ca56c04dbf78d6a5/crates/pathops/README.md), [`boolean.rs`](https://github.com/storytold/vectorcraft/blob/fc996e0e0313f132868d71f8ca56c04dbf78d6a5/crates/pathops/src/boolean.rs), [`offset.rs`](https://github.com/storytold/vectorcraft/blob/fc996e0e0313f132868d71f8ca56c04dbf78d6a5/crates/pathops/src/offset.rs), [`ops.rs`](https://github.com/storytold/vectorcraft/blob/fc996e0e0313f132868d71f8ca56c04dbf78d6a5/crates/pathops/tests/ops.rs), [`regressions.rs`](https://github.com/storytold/vectorcraft/blob/fc996e0e0313f132868d71f8ca56c04dbf78d6a5/crates/pathops/tests/regressions.rs), [`manifest`](https://github.com/storytold/vectorcraft/blob/fc996e0e0313f132868d71f8ca56c04dbf78d6a5/crates/pathops/Cargo.toml).
 - [`linesweeper 0.5.0 package docs`](https://docs.rs/linesweeper/0.5.0/linesweeper/); [`kurbo Cargo manifest`](https://github.com/linebender/kurbo/blob/main/Cargo.toml).
 - Chronon: `include/chronon3d/scene/model/shape/path_commands.hpp`, `include/chronon3d/scene/model/shape/path.hpp`, `src/scene/path_operators.cpp`, `tests/scene/shapes/test_path_utils.cpp`, `include/chronon3d/graphics/gradient_mesh.hpp`.
-- ChrononMotion3D: `include/chrononmotion/motion/RigDeformers.hpp`, `src/chrononmotion/motion/RigDeformers.cpp`, `tests/motion_rig.cpp`.
+- ChrononMotion3D: `include/chrononmotion/motion/RigDeformers.hpp`, `src/chrononmotion/motion/RigDeformers.cpp`, `tests/motion_rig.cpp`. <!-- drift-class: third-party — sibling-repo citation -->
 
 ## Implementation closeout (Chronon)
 

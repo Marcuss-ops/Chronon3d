@@ -1,7 +1,7 @@
 # Difetto della via immagine (PNG still / sequenza) — evidenza 2026-09-16
 
 Evidenza di riferimento di
-[`docs/tickets/TICKET-IMAGE-PATH-PIXEL-TRUTH.md`](../tickets/TICKET-IMAGE-PATH-PIXEL-TRUTH.md).
+[`docs/tickets/TICKET-IMAGE-PATH-PIXEL-TRUTH.md`](../tickets/TICKET-IMAGE-PATH-PIXEL-TRUTH.md). <!-- drift-class: historical — retired path (see git history) -->
 Scopo: fissare il profilo osservato e **separare ciò che è riproducibile in
 albero da ciò che è una osservazione di sessione**, così che il caso non venga
 riaperto come bug nuovo.

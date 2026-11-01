@@ -1,7 +1,7 @@
 #pragma once
 
 // ═══════════════════════════════════════════════════════════════════════════
-// tests/text_golden/text_clip/test_helpers.hpp
+// tests/text_golden/text_clip/test_helpers.hpp  // drift-class: historical — retired path (see git history)
 //
 // Shared pixel-scanning utilities for text clip / completeness golden tests.
 //

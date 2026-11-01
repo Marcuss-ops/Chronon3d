@@ -48,4 +48,4 @@ resolved state. Inside C3D the camera surface has one owner per fact:
 A new C3D camera file or field must change pixels, have a real consumer, and
 carry exactly one authored unit across the boundary. Editorial moves belong to
 CM3D presets/packs. See `docs/evidence/camera-surface-consolidation/` and the
-`S0` guardrail in `ChrononMotion3D/docs/BOUNDARY_C3D.md`.
+`S0` guardrail in `ChrononMotion3D/docs/BOUNDARY_C3D.md`. <!-- drift-class: third-party — sibling-repo citation -->

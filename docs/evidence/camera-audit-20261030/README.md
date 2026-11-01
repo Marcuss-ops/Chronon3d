@@ -9,7 +9,7 @@ while `lowerCameraPose()` intentionally rejects unresolved metadata. The
 offline bake path cleared those fields; the runtime provider did not, so a
 camera with look-at or roll failed at runtime.
 
-**Fix.** `ChrononMotion3D/src/chrononmotion/motion/RenderPlanLoweringCamera.cpp`:
+**Fix.** `ChrononMotion3D/src/chrononmotion/motion/RenderPlanLoweringCamera.cpp`: <!-- drift-class: third-party — sibling-repo citation -->
 the provider now clears `pose.hasTarget` and `pose.roll` after
 `CameraRig::sample()` and before `lowerCameraPose()`. `lowerCameraPose()`
 still fails closed for direct callers that pass unresolved poses.

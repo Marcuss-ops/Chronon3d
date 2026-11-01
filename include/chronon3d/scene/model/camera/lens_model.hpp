@@ -72,9 +72,9 @@ namespace chronon3d {
 //                       x = 0; y = (vp_h - eff_h)/2;
 //                       width = vp_w; height = vp_w / sensor_aspect.
 //
-// Centralises the data — every caller (framing solver, EvaluatedProjection,
-// renderer) reads width/height for size semantics and x/y for the optical
-// position.  The principal point must include the offset to stay centred
+// Centralises the data — the projection contract and renderer read
+// width/height for size semantics and x/y for the optical position. The
+// principal point must include the offset to stay centred
 // INSIDE the active subrect, not just the canvas centre.
 struct ViewportRect {
     f32 x{0.0f};       // left edge of the active subrect (pixels, viewport-relative)

@@ -30,7 +30,7 @@
 // Fixtures: uses the canonical `LocalEngine` pattern (Config +
 // RuntimeContext + FontEngine constructed via `runtime.resolver()`),
 // matching tests/text/test_compile_text_layout_errors.cpp and
-// tests/text/test_compile_text_layout_per_paragraph_failure.cpp.
+// tests/text/test_compile_text_layout_per_paragraph_failure.cpp.  // drift-class: historical — retired path (see git history)
 //
 
 #include <doctest/doctest.h>

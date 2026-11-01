@@ -104,7 +104,7 @@ enum class VideoContainer : uint8_t {
 /// vocabulary existed as four different literal sets
 /// (`apps/.../utils/job/render_job.cpp`, `video_sink_adapter_config.cpp`,
 /// `src/assets/prepared_asset_manifest_support_detail.hpp`,
-/// `include/.../assets/asset_registry.hpp`) that disagreed about `.m4v` and
+/// `include/.../assets/asset_registry.hpp`) that disagreed about `.m4v` and  // drift-class: false-positive — wildcard citation
 /// `.webm` AND disagreed about case, so the answer depended on which layer
 /// asked. This is the output vocabulary — the containers the muxer can
 /// publish. Whether a *source* can be decoded is a different question, owned by

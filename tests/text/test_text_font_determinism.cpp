@@ -120,7 +120,7 @@ static_assert(false,
     "CHRONON3D_HAS_FRIBIDI is NOT.  FriBidi is required for "
     "deterministic bidi text rendering.  Check that pkg_check_modules "
     "found fribidi and that chronon3d_backend_text links "
-    "PkgConfig::FRIBIDI.  See docs/tickets/TICKET-P1-ACTION-PLAN.md §P1 #2."
+    "PkgConfig::FRIBIDI.  See docs/tickets/TICKET-P1-ACTION-PLAN.md §P1 #2."  // drift-class: historical — retired path (see git history)
 );
 #endif
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_plan/render_plan.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp> // dof_shape_unsupported: single shaped-bokeh policy
 
 #include <algorithm>
 #include <cmath>
@@ -29,7 +30,7 @@ namespace chronon3d::render_plan {
     if (!std::isfinite(c.dof_focus_distance) || c.dof_focus_distance <= 0.f || c.dof_focus_distance > 10'000'000.f ||
         !std::isfinite(c.dof_max_blur) || c.dof_max_blur < 0.f || c.dof_max_blur > 256.f)
         return "camera DoF focus/blur values are outside supported bounds";
-    if (c.iris_blades != 0 || !std::isfinite(c.dof_highlight_gain) || c.dof_highlight_gain != 0.f)
+    if (dof_shape_unsupported(c.iris_blades, c.dof_highlight_gain))
         return "unsupported camera capability: iris blades and highlight gain have no renderer kernel";
     return std::nullopt;
 }

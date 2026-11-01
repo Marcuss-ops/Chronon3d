@@ -4,13 +4,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // text_visibility_audit.hpp
 //
-// FU02 of `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md`.
+// FU02 of `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md`.  // drift-class: historical — retired path (see git history)
 //
 // Single-source-of-truth for the text-bbox / visibility contract. Replaces
 // the ad-hoc visibility checks previously scattered across:
 //   - `src/render_graph/nodes/TextRunNode.cpp::predicted_bbox` (bbox contract)
 //   - `src/render_graph/executor/tile_pruning.hpp::compute_dirty_clip`
-//   - `tests/text_golden/text_clip/text_clip_bounds.cpp` (assertion surface)
+//   - `tests/text_golden/text_clip/text_clip_bounds.cpp` (assertion surface)  // drift-class: historical — retired path (see git history)
 //   - `apps/chronon3d_cli/commands/text_inspect/` (FU09 forward-point)
 //   - `src/runtime/telemetry/` TEXT-AUDIT rows (FU10 forward-point)
 //   - `src/render_graph/preflight/` for property-based fuzz (FU11 forward-point)

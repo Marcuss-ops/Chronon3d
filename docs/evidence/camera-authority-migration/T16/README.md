@@ -42,8 +42,8 @@ Source identity (git trees were locally modified during this task): Chronon3d `a
 
 ```text
 3d08ac24b1351b54effc11c9b61caca12f2da8d47a60677cd1509ad0581db5b0  ChrononTemplate camera-roll camera_plan_bake.cpp
-259d48d7e11d4d853d4d4e02c75369ec19addf9f7f7453bf35dfc020e49deab4  ChrononMotion3D/include/chrononmotion/motion/CameraRig.hpp
-9cb620e02ed8b7c4f585b6ef4fb709a580ba45dd647bce3bc119dd4aa879bd88  ChrononMotion3D/src/chrononmotion/motion/RenderPlanLowering.cpp
+259d48d7e11d4d853d4d4e02c75369ec19addf9f7f7453bf35dfc020e49deab4  ChrononMotion3D/include/chrononmotion/motion/CameraRig.hpp <!-- drift-class: third-party — sibling-repo citation -->
+9cb620e02ed8b7c4f585b6ef4fb709a580ba45dd647bce3bc119dd4aa879bd88  ChrononMotion3D/src/chrononmotion/motion/RenderPlanLowering.cpp <!-- drift-class: third-party — sibling-repo citation -->
 12941356dc58b497fcbee4ab1ae0ec9d99950f85b4810e604da3c4d8a1aaaf78  Chronon3d/src/render_plan/render_plan_compiler_scene.cpp
 47664228c84d82ff7a2767d2de0b96605338c2b840e65fb2831ceba682a3f1fc  Chronon3d/src/render_plan/render_plan_compiler_animation.cpp
 ```

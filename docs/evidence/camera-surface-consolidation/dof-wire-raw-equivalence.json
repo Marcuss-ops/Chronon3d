@@ -1,0 +1,81 @@
+{
+  "date_utc": "2026-10-31",
+  "purpose": "Verify that retiring RenderPlan camera.dof.aperture and deriving the renderer kernel gain from the canonical f_stop leaves raw pixels unchanged.",
+  "fixture": "Optical Studio 1920x1080, 30 fps, DoF enabled, same generated assets and scene. Current Motion plan regenerated from the dirty working tree; baseline raw frames are the pre-migration software-render outputs archived in camera-closure-final.",
+  "current_plan": "/tmp/camera-optical-current-dof.plan.json",
+  "wire_check": "camera.dof and camera_samples[*].camera.dof contain enabled, focus_distance, max_blur, highlight_gain; no aperture, f_stop or iris aliases nested under dof. f_stop and iris_blades remain camera-level.",
+  "render": {
+    "binary": "Chronon3d/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli",
+    "backend": "software",
+    "sink": "raw RGBA8",
+    "command": "chronon3d_cli render --plan CURRENT_PLAN --assets-root WORKSPACE --backend software --video-sink raw --pipe-pixfmt rgba --encoder-backend pipe --start-frame FRAME --end-frame FRAME"
+  },
+  "build_and_tests": {
+    "motion_build": "cmake --build ChrononMotion3D/build/release-fast --target chrononmotion_authoring -j16; PASS",
+    "motion_test": "ctest --test-dir ChrononMotion3D/build/release-fast -R '^chrononmotion_authoring$' --output-on-failure; 1/1 PASS",
+    "motion_camera_tests": "ctest --test-dir ChrononMotion3D/build/release-fast -R 'camera|projection|bake_roundtrip' --output-on-failure; 11/11 PASS",
+    "c3d_camera_test_build": "cmake --build Chronon3d/build/chronon/linux-video-test --target chronon3d_camera_tests -j16; PASS",
+    "c3d_camera_test": "ctest --test-dir Chronon3d/build/chronon/linux-video-test -R '^chronon3d_camera_tests$' --output-on-failure; 1/1 PASS",
+    "c3d_cli_build": "cmake --build Chronon3d/build/chronon/linux-video-test --target chronon3d_cli -j16; PASS",
+    "motion_authoring": "ctest --test-dir ChrononMotion3D/build/release-fast -R '^chrononmotion_authoring$' --output-on-failure; PASS",
+    "motion_geospatial_and_camera_bake": "ctest --test-dir ChrononMotion3D/build/release-fast -R '^(chrononmotion_camera_bake_roundtrip|chrononmotion_geospatial)$' --output-on-failure; 2/2 PASS"
+  },
+  "results": [
+    {
+      "frame": 30,
+      "bytes": 8294400,
+      "current_sha256": "b1619d4685411f83cc5165850a60fe0972612ec38aee0c8e2e56943544cce945",
+      "baseline": "camera-closure-final/raw-software-30.mp4",
+      "baseline_sha256": "b1619d4685411f83cc5165850a60fe0972612ec38aee0c8e2e56943544cce945",
+      "byte_identical": true,
+      "rgb_mae": 0,
+      "rgb_p99": 0,
+      "rgb_max": 0
+    },
+    {
+      "frame": 75,
+      "bytes": 8294400,
+      "current_sha256": "a949ca84a70e91f8ba1386b59b0b489119444ac848467965c1cae6d308f43637",
+      "baseline": "camera-closure-final/raw-software-75.mp4",
+      "baseline_sha256": "a949ca84a70e91f8ba1386b59b0b489119444ac848467965c1cae6d308f43637",
+      "byte_identical": true,
+      "rgb_mae": 0,
+      "rgb_p99": 0,
+      "rgb_max": 0
+    },
+    {
+      "frame": 149,
+      "bytes": 8294400,
+      "current_sha256": "9e7e383befb3dd3df32cf38afdd313a00f75a1976055bbac6dccc96fa1545d9d",
+      "baseline": "camera-closure-final/raw-software-149.mp4",
+      "baseline_sha256": "9e7e383befb3dd3df32cf38afdd313a00f75a1976055bbac6dccc96fa1545d9d",
+      "byte_identical": true,
+      "rgb_mae": 0,
+      "rgb_p99": 0,
+      "rgb_max": 0
+    }
+  ],
+  "resolved_sample_migration": {
+    "new_required_camera_producers": [
+      "plan_optical_studio: 4/4 image layers and camera use 150 resolved transform/camera samples; no integer TRS animation remains.",
+      "plan_word_rack_focus: 7/7 image/text/shape layers and camera use 151 resolved samples; no integer TRS animation remains.",
+      "plan_map_flyover --camera-backed: requests the V3 resolved sample contract; geospatial test confirms the map plate and camera share the sample calendar.",
+      "motion_geospatial camera-backed test producer: V3 resolved layer samples verified."
+    ],
+    "null_controller": "Motion Null/controller layers are no longer emitted as transparent Color layers in RenderPlan; their world transforms are flattened into content/camera samples.",
+    "still_legacy": "plan_documentary_showcase includes Particle and Adjustment layers, which C3D transform_samples validation currently rejects. It remains on integer TRS tracks until those consumer types have an explicit resolved-sample contract."
+  },
+  "scope_limit": "Exact DoF wire/render equivalence is demonstrated for three pinned software raw sentinels. The resolved-sample producer migration is partial: documentary Particle/Adjustment and any unenumerated consumers remain legacy. This does not claim full-video equivalence, Vulkan equivalence, or AE visual parity.",
+  "source_sha256": {
+    "ChrononMotion3D/src/chrononmotion/motion/RenderPlanLowering.cpp": "dc708d8f569b0fa096ad52a781b18078f5c38a79450fbd10b435a09a28dfe2ba",
+    "ChrononMotion3D/src/chrononmotion/motion/RenderPlanLoweringSamples.cpp": "2e0c449012238ccfc57d0363b776ebd5abb0acef148784c035f9e646a8fbadfe",
+    "ChrononMotion3D/include/chrononmotion/motion/RenderPlanLowering.hpp": "c35a696105e06d68f782baa823e73c876f17f9b942827eeef65067f1073d5c36",
+    "ChrononMotion3D/tools/plan_optical_studio.cpp": "13c70cf884aef3a0190c648b4306c2b2abefd94220d02daeff612e61583adc46",
+    "ChrononMotion3D/tools/plan_word_rack_focus.cpp": "924b6aa5f83d7879bf27c7279abd4bf4ef68347eb8ca6da688c0650a28b1d161",
+    "ChrononMotion3D/tools/plan_documentary_showcase.cpp": "2d58edaafae5160c7c82bf2c0324eed5b640c53a0f238c67ad6953899e4a74cd",
+    "ChrononMotion3D/tools/plan_map_flyover.cpp": "15f1583faafef87797fc421aff286a78d90c20bf8ff56501c87a31900de3e750",
+    "Chronon3d/src/render_plan/render_plan_camera_adapter.hpp": "deb5358cf7fa4836c8809f2446426ec9f5f643f50ba8cc41ac8d66a52a3e0994",
+    "Chronon3d/include/chronon3d/render_plan/render_plan_layer_types.hpp": "0c04b405149682e3ec910b252d5426a294c06fea07ad2b698ac49997f560dca5",
+    "Chronon3d/schemas/json/chronon.render-plan.v2.schema.json": "11b8cffd43221474fd574ac51ebf18e85de31d7aa6e0eef5b090db33912bf927"
+  }
+}
