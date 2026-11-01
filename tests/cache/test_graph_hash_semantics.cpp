@@ -184,6 +184,119 @@ TEST_CASE("Shape V2 canonicalizes scalar fields and frames image paths") {
     CHECK(graph::hash_shape_v2(image_a) != graph::hash_shape_v2(image_b));
 }
 
+TEST_CASE("Shape V2 covers the remaining primitive and analytic shape fields") {
+    const auto check_mutations = [](const Shape& base, auto... mutations) {
+        const auto original = graph::hash_shape_v2(base);
+        const auto changed = [&](auto mutate) {
+            auto value = base;
+            mutate(value);
+            CHECK(graph::hash_shape_v2(value) != original);
+        };
+        (changed(mutations), ...);
+    };
+
+    Shape rect;
+    rect.set_type(ShapeType::Rect);
+    rect.rect().stroke.enabled = true;
+    rect.rect().stroke.gradient = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f}, {{0.0f, Color::black()}, {1.0f, Color::white()}});
+    check_mutations(rect,
+        [](auto& s) { s.rect().size.x += 1.0f; },
+        [](auto& s) { s.rect().size.y += 1.0f; },
+        [](auto& s) { s.rect().stroke.enabled = false; },
+        [](auto& s) { s.rect().stroke.color.r += 0.1f; },
+        [](auto& s) { s.rect().stroke.color.g += 0.1f; },
+        [](auto& s) { s.rect().stroke.color.b += 0.1f; },
+        [](auto& s) { s.rect().stroke.color.a -= 0.1f; },
+        [](auto& s) { s.rect().stroke.color.g += 0.1f; },
+        [](auto& s) { s.rect().stroke.color.b += 0.1f; },
+        [](auto& s) { s.rect().stroke.color.a -= 0.1f; },
+        [](auto& s) { s.rect().stroke.width += 1.0f; },
+        [](auto& s) { s.rect().stroke.alignment = StrokeAlignment::Inside; },
+        [](auto& s) { s.rect().stroke.gradient->angle += 0.1f; });
+
+    Shape line;
+    line.set_type(ShapeType::Line);
+    line.line().stroke.enabled = true;
+    check_mutations(line,
+        [](auto& s) { s.line().to.x += 1.0f; },
+        [](auto& s) { s.line().to.y += 1.0f; },
+        [](auto& s) { s.line().to.z += 1.0f; },
+        [](auto& s) { s.line().thickness += 1.0f; },
+        [](auto& s) { s.line().stroke.trim_start += 0.1f; },
+        [](auto& s) { s.line().stroke.trim_end += 0.1f; },
+        [](auto& s) { s.line().stroke.enabled = false; },
+        [](auto& s) { s.line().stroke.color.r += 0.1f; },
+        [](auto& s) { s.line().stroke.width += 1.0f; },
+        [](auto& s) { s.line().stroke.alignment = StrokeAlignment::Inside; });
+
+    Shape grid;
+    grid.set_type(ShapeType::GridBackground);
+    check_mutations(grid,
+        [](auto& s) { s.grid_background().size.x += 1.0f; },
+        [](auto& s) { s.grid_background().size.y += 1.0f; },
+        [](auto& s) { s.grid_background().offset.x += 1.0f; },
+        [](auto& s) { s.grid_background().offset.y += 1.0f; },
+        [](auto& s) { s.grid_background().bg_color.r += 0.1f; },
+        [](auto& s) { s.grid_background().bg_color.g += 0.1f; },
+        [](auto& s) { s.grid_background().bg_color.b += 0.1f; },
+        [](auto& s) { s.grid_background().bg_color.a -= 0.1f; },
+        [](auto& s) { s.grid_background().grid_color.r += 0.1f; },
+        [](auto& s) { s.grid_background().grid_color.g += 0.1f; },
+        [](auto& s) { s.grid_background().grid_color.b += 0.1f; },
+        [](auto& s) { s.grid_background().grid_color.a += 0.1f; },
+        [](auto& s) { s.grid_background().spacing += 1.0f; },
+        [](auto& s) { s.grid_background().minor_thickness += 0.1f; },
+        [](auto& s) { s.grid_background().major_thickness += 0.1f; },
+        [](auto& s) { s.grid_background().major_every++; },
+        [](auto& s) { s.grid_background().centered = false; },
+        [](auto& s) { s.grid_background().edge_fade += 0.1f; },
+        [](auto& s) { s.grid_background().major_glow += 0.1f; },
+        [](auto& s) { s.grid_background().style = GridStyle::Isometric; });
+
+    Shape box;
+    box.set_type(ShapeType::FakeBox3D);
+    check_mutations(box,
+        [](auto& s) { s.fake_box3d().world_pos.x += 1.0f; },
+        [](auto& s) { s.fake_box3d().world_pos.y += 1.0f; },
+        [](auto& s) { s.fake_box3d().world_pos.z += 1.0f; },
+        [](auto& s) { s.fake_box3d().size.x += 1.0f; },
+        [](auto& s) { s.fake_box3d().size.y += 1.0f; },
+        [](auto& s) { s.fake_box3d().depth += 1.0f; },
+        [](auto& s) { s.fake_box3d().color.r += 0.1f; },
+        [](auto& s) { s.fake_box3d().color.g += 0.1f; },
+        [](auto& s) { s.fake_box3d().color.b += 0.1f; },
+        [](auto& s) { s.fake_box3d().color.a -= 0.1f; },
+        [](auto& s) { s.fake_box3d().top_tint += 0.1f; },
+        [](auto& s) { s.fake_box3d().side_tint += 0.1f; });
+
+    Shape plane;
+    plane.set_type(ShapeType::GridPlane);
+    check_mutations(plane,
+        [](auto& s) { s.grid_plane().world_pos.x += 1.0f; },
+        [](auto& s) { s.grid_plane().world_pos.y += 1.0f; },
+        [](auto& s) { s.grid_plane().world_pos.z += 1.0f; },
+        [](auto& s) { s.grid_plane().axis = PlaneAxis::XY; },
+        [](auto& s) { s.grid_plane().extent += 1.0f; },
+        [](auto& s) { s.grid_plane().spacing += 1.0f; },
+        [](auto& s) { s.grid_plane().color.a += 0.1f; },
+        [](auto& s) { s.grid_plane().color.r += 0.1f; },
+        [](auto& s) { s.grid_plane().color.g += 0.1f; },
+        [](auto& s) { s.grid_plane().color.b += 0.1f; },
+        [](auto& s) { s.grid_plane().fade_distance += 1.0f; },
+        [](auto& s) { s.grid_plane().fade_min_alpha += 0.1f; });
+
+    Shape tiled;
+    tiled.set_type(ShapeType::TiledImage);
+    tiled.tiled_image().image.path = "tile.png";
+    check_mutations(tiled,
+        [](auto& s) { s.tiled_image().image.path += ".v2"; },
+        [](auto& s) { s.tiled_image().image.size.x += 1.0f; },
+        [](auto& s) { s.tiled_image().image.size.y += 1.0f; },
+        [](auto& s) { s.tiled_image().image.opacity -= 0.1f; },
+        [](auto& s) { s.tiled_image().image.tint.r -= 0.1f; });
+}
+
 TEST_CASE("TextRun V2 identity covers rendered fields and vector boundaries") {
     TextRunShape base;
     GlyphInstanceState glyph;
