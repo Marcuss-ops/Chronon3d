@@ -83,7 +83,7 @@ void store_in_cache(
     const TextLayoutRequest& request,
     const std::shared_ptr<TextRunLayout>& text_layout
 ) {
-    if (!cache || !is_single_font) return;
+    if (!text_layout) return;
     TextLayoutCacheKey key = build_cache_key(
         paragraph_text,
         primary_font,
@@ -92,6 +92,8 @@ void store_in_cache(
         request.language,
         request.features,
         request.variation_axes);
+    text_layout->source_cache_identity = key.digest();
+    if (!cache || !is_single_font) return;
     cache->store(std::move(key), text_layout);
 }
 

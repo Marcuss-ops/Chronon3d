@@ -26,7 +26,7 @@ namespace chronon3d {
 // TextRunLayout hashing
 // ═══════════════════════════════════════════════════════════════════════════
 
-u64 TextRunLayout::layout_hash() const {
+u64 TextRunLayout::layout_hash_v1() const {
     using chronon3d::graph::hash_string;
     using chronon3d::graph::hash_combine;
     using chronon3d::graph::hash_value;
@@ -84,6 +84,18 @@ u64 TextRunLayout::layout_hash() const {
             seed = hash_combine(seed, hash_color(*glyph.fill_color_override));
     }
     return seed;
+}
+
+u64 TextRunLayout::layout_hash() const {
+    using chronon3d::graph::hash_string;
+    using chronon3d::graph::hash_combine;
+    using chronon3d::graph::hash_value;
+
+    u64 seed = hash_string("chronon.text-run-layout.v2");
+    seed = hash_combine(seed, hash_value(source_cache_identity));
+    seed = hash_combine(seed, hash_value(font_spans.size()));
+    seed = hash_combine(seed, hash_value(placed.glyphs.size()));
+    return hash_combine(seed, layout_hash_v1());
 }
 
 u64 TextRunLayout::shaping_hash() const {

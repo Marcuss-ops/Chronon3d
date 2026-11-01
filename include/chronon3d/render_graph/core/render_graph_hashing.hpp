@@ -52,12 +52,15 @@ template <typename T>
 [[nodiscard]] u64 hash_transform_policy(TransformPolicy policy) ;
 
 [[nodiscard]] u64 hash_video_source(const video::VideoSource& source) ;
+[[nodiscard]] u64 hash_video_source_v2(const video::VideoSource& source);
 
 
 
 [[nodiscard]] u64 hash_gradient(const graphics::GradientDefinition& gradient) ;
+[[nodiscard]] u64 hash_gradient_v2(const graphics::GradientDefinition& gradient);
 
 [[nodiscard]] u64 hash_fill(const Fill& f) ;
+[[nodiscard]] u64 hash_fill_v2(const Fill& f);
 
 
 
@@ -69,10 +72,17 @@ template <typename T>
 
 [[nodiscard]] u64 hash_effect_stack(const EffectStack& effects) ;
 
+// Semantic V2 identity hashes every effect parameter field explicitly and
+// carries a domain/version tag. `hash_effect_stack` remains the frozen V1
+// digest for compatibility and golden comparisons.
+[[nodiscard]] u64 hash_effect_stack_v2(const EffectStack& effects);
+
 [[nodiscard]] u64 hash_mask(const Mask& m) ;
+[[nodiscard]] u64 hash_mask_v2(const Mask& m);
 
 
 [[nodiscard]] u64 hash_shape(const Shape& s) ;
+[[nodiscard]] u64 hash_shape_v2(const Shape& s);
 
 // ── Text hashing (canonical, used by all text caches) ─────────────
 
@@ -80,11 +90,18 @@ template <typename T>
 [[nodiscard]] u64 hash_layer_transition_parameters(const LayerTransitionParameters& params) ;
 
 [[nodiscard]] u64 hash_layer_transition_spec(const LayerTransitionSpec& spec) ;
+[[nodiscard]] u64 hash_layer_transition_spec_v2(const LayerTransitionSpec& spec);
 
 [[nodiscard]] u64 hash_render_node_content_only(const RenderNode& n) ;
 
 [[nodiscard]] u64 hash_render_node_placement_only(const RenderNode& n) ;
 
 [[nodiscard]] u64 hash_render_node(const RenderNode& n) ;
+
+// Domain-tagged V2 identities. V1 helpers above remain available for exact
+// legacy digest comparisons while production cache callers migrate.
+[[nodiscard]] u64 hash_render_node_content_v2(const RenderNode& n);
+[[nodiscard]] u64 hash_render_node_placement_v2(const RenderNode& n);
+[[nodiscard]] u64 hash_render_node_v2(const RenderNode& n);
 
 } // namespace chronon3d::graph

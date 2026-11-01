@@ -136,7 +136,7 @@ uint64_t SceneHasher::compute_fingerprint(const Scene& scene, Frame frame) {
     }
     
     for (const auto& node : scene.nodes()) {
-        h = hash_combine(h, hash_render_node(node));
+        h = hash_combine(h, hash_render_node_v2(node));
     }
 
     for (const auto& transition : scene.clip_transitions()) {
@@ -157,7 +157,7 @@ uint64_t SceneHasher::compute_static_fingerprint(const Scene& scene) {
     }
 
     for (const auto& node : scene.nodes()) {
-        h = hash_combine(h, hash_render_node(node));
+        h = hash_combine(h, hash_render_node_v2(node));
     }
 
     for (const auto& transition : scene.clip_transitions()) {
@@ -302,14 +302,14 @@ uint64_t SceneHasher::hash_layer(const Layer& layer) {
     }
     h = hash_combine(h, static_cast<u64>(layer.composite_operator));
     h = hash_combine(h, hash_transform(layer.transform));
-    h = hash_combine(h, hash_mask(layer.mask));
+    h = hash_combine(h, hash_mask_v2(layer.mask));
     h = hash_combine(h, static_cast<u64>(layer.track_matte.type));
     if (layer.m_effects) {
-        h = hash_combine(h, hash_effect_stack(*layer.m_effects));
+        h = hash_combine(h, hash_effect_stack_v2(*layer.m_effects));
     }
 
     for (const auto& node : layer.nodes) {
-        h = hash_combine(h, hash_render_node(node));
+        h = hash_combine(h, hash_render_node_v2(node));
     }
 
     if (layer.kind == LayerKind::Precomp) {

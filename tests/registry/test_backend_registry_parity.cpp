@@ -624,6 +624,47 @@ TEST_CASE("MTSDF glyph identity ignores runtime font size and has one canonical 
           chronon3d::runtime::glyph_key_hash64(coverage_b));
 }
 
+TEST_CASE("GPU glyph key identity responds to every semantic field") {
+    using namespace chronon3d::runtime;
+    const auto base = GpuGlyphKey::make(
+        "font.ttf", 65, 0x1234, GlyphRepresentation::Coverage, 7, 32);
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+    };
+    changed([](auto& key) { key.font_path += ".replacement"; });
+    changed([](auto& key) { key.glyph_id++; });
+    changed([](auto& key) { key.variation_hash++; });
+    changed([](auto& key) { key.representation = GlyphRepresentation::CoverageRgba; });
+    changed([](auto& key) { key.generation_profile++; });
+    changed([](auto& key) { key.font_size++; });
+}
+
+TEST_CASE("Styled glyph identity responds to every raster and presentation field") {
+    using namespace chronon3d;
+    using runtime::StyledGlyphKey;
+    StyledGlyphKey base;
+    base.font_id = 1;
+    base.glyph_id = 65;
+    base.font_size = 32;
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+    };
+    changed([](auto& key) { key.font_id++; });
+    changed([](auto& key) { key.glyph_id++; });
+    changed([](auto& key) { key.font_size++; });
+    changed([](auto& key) { key.stroke_radius++; });
+    changed([](auto& key) { key.background_padding++; });
+    changed([](auto& key) { key.fill.r = 0.25f; });
+    changed([](auto& key) { key.background.g = 0.25f; });
+    changed([](auto& key) { key.stroke.b = 0.25f; });
+    changed([](auto& key) { key.stroke_width = 1.0f; });
+    changed([](auto& key) { key.shadow_hash++; });
+}
+
 TEST_CASE("CPU vs GPU parity harness matches the medium scene with speedup + pixel error") {
     using namespace chronon3d::runtime;
     chronon3d::backends::vulkan::VulkanBackend backend;

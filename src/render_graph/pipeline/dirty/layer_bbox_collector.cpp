@@ -31,7 +31,7 @@ void populate_node_semantic_fingerprints(
 
     state.semantic_presence |= SemanticColor;
     state.color_hash = hash_combine(state.color_hash, hash_color(node.color));
-    state.color_hash = hash_combine(state.color_hash, hash_fill(node.fill));
+    state.color_hash = hash_combine(state.color_hash, hash_fill_v2(node.fill));
     state.structure_hash = hash_combine(
         state.structure_hash, hash_string(node.name));
     state.structure_hash = hash_combine(
@@ -44,12 +44,12 @@ void populate_node_semantic_fingerprints(
     switch (node.shape.type()) {
         case ShapeType::TextRun:
             state.semantic_presence |= SemanticText;
-            state.text_hash = hash_combine(state.text_hash, hash_shape(node.shape));
+            state.text_hash = hash_combine(state.text_hash, hash_shape_v2(node.shape));
             break;
         case ShapeType::Image:
         case ShapeType::TiledImage:
             state.semantic_presence |= SemanticImage;
-            state.image_hash = hash_combine(state.image_hash, hash_shape(node.shape));
+            state.image_hash = hash_combine(state.image_hash, hash_shape_v2(node.shape));
             break;
         default:
             break;
@@ -80,7 +80,7 @@ void populate_layer_semantic_fingerprints(
 
     if (layer.m_effects && !layer.m_effects->empty()) {
         state.semantic_presence |= SemanticEffects;
-        state.effects_hash = hash_effect_stack(*layer.m_effects);
+        state.effects_hash = hash_effect_stack_v2(*layer.m_effects);
     }
     if (layer.anim_transform.blur.is_time_dependent()) {
         state.semantic_presence |= SemanticEffects;
@@ -91,7 +91,7 @@ void populate_layer_semantic_fingerprints(
     }
     if (layer.kind == LayerKind::Video && layer.video_source) {
         state.semantic_presence |= SemanticVideoSource;
-        state.video_source_hash = hash_video_source(*layer.video_source);
+        state.video_source_hash = hash_video_source_v2(*layer.video_source);
     }
     state.semantic_fingerprints_valid = true;
 }

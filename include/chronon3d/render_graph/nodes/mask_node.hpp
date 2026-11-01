@@ -44,9 +44,10 @@ public:
             .height = ctx.frame_input.height,
             .params_hash = hash_combine(
                 hash_combine(
-                    hash_mask(m_mask),
+                    hash_mask_v2(m_mask),
                     static_cast<u64>(ctx.policy.modular_coordinates)),
-                static_cast<u64>(m_source_surface_coordinates))
+                static_cast<u64>(m_source_surface_coordinates)),
+            .params_version = 2
         };
     }
 
@@ -191,7 +192,7 @@ private:
         i32 canvas_height,
         bool modular_coordinates
     ) const {
-        std::uint64_t seed = hash_mask(m_mask);
+        std::uint64_t seed = hash_mask_v2(m_mask);
         seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(width));
         seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(height));
         seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(origin_x));

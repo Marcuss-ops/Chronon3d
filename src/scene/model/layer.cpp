@@ -145,8 +145,8 @@ uint64_t Layer::get_static_hash() const {
         h = hash_combine(h, static_cast<u64>(group.blend_mode));
         h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
     }
-    h = hash_combine(h, hash_mask(mask));
-    h = hash_combine(h, hash_effect_stack(*m_effects));
+    h = hash_combine(h, hash_mask_v2(mask));
+    h = hash_combine(h, hash_effect_stack_v2(*m_effects));
     if (m_card3d_material_configured) {
         h = hash_combine(h, 1);
         const auto& material = *m_card3d_material;
@@ -173,7 +173,7 @@ uint64_t Layer::get_static_hash() const {
         h = hash_combine(h, hash_bytes(&backdrop_blur->saturation, sizeof(float)));
     }
     for (const auto& node : nodes) {
-        h = hash_combine(h, hash_render_node(node));
+        h = hash_combine(h, hash_render_node_v2(node));
     }
     if (kind == LayerKind::Precomp) {
         h = hash_combine(h, hash_string(precomp_composition_name));

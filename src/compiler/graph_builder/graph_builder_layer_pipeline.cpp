@@ -32,8 +32,9 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
         }
             .frame(ctx.frame_input.frame)
             .output(ctx.frame_input.width, ctx.frame_input.height)
-            .params(hash_render_node(node))
+            .params(hash_render_node_v2(node))
             .source(hash_bytes(node.name.data(), node.name.size()))
+            .versions(2)
             .camera_if(ctx.frame_input.has_camera_2_5d,
                        ctx.frame_input.camera_2_5d)
             .build();

@@ -32,6 +32,24 @@ TEST_CASE("ProgramArtifactKey is canonical across equivalent values") {
     CHECK(first.stable_name() != second.stable_name());
 }
 
+TEST_CASE("ProgramArtifactKey stable identity includes every compile field") {
+    const auto base = test_key();
+    const auto original = base.stable_name();
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK(key.stable_name() != original);
+    };
+    changed([](auto& k) { ++k.semantic_program_fingerprint; });
+    changed([](auto& k) { k.lowering_kind += "-v2"; });
+    changed([](auto& k) { k.target_backend += "-v2"; });
+    changed([](auto& k) { k.gpu_architecture += "-v2"; });
+    changed([](auto& k) { k.compiler_identity += "-v2"; });
+    changed([](auto& k) { k.compiler_version += "-v2"; });
+    changed([](auto& k) { k.compile_flags += " -O3"; });
+    changed([](auto& k) { ++k.abi_version; });
+}
+
 TEST_CASE("CompiledArtifactCache round-trips a GPU program artifact") {
     const auto directory = std::filesystem::temp_directory_path() /
         "chronon3d-program-artifact-cache-test";

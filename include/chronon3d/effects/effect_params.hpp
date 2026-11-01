@@ -228,6 +228,8 @@ struct Fake3DWaveParams {
 struct CurvePoint {
     float x{0.0f};
     float y{0.0f};
+
+    bool operator==(const CurvePoint&) const noexcept = default;
 };
 
 struct CurvesParams {

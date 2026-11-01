@@ -160,3 +160,22 @@ TEST_CASE("ImageCache decode options participate in the explicit-resolver key") 
     // Same bytes, different decode policy ⇒ distinct entries.
     CHECK_FALSE(*key_linear == *key_straight);
 }
+
+TEST_CASE("ImageAssetKey identity includes every decode option and canonical path") {
+    using namespace chronon3d;
+    ImageAssetKey base;
+    base.canonical_path = "/assets/image.png";
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+    };
+    changed([](auto& key) { key.canonical_path += ".other"; });
+    changed([](auto& key) { key.options.color_space = ColorSpace::LinearSRGB; });
+    changed([](auto& key) { key.options.premultiply = PremultiplyAlpha::No; });
+    changed([](auto& key) { key.options.orientation = OrientationPolicy::IgnoreExif; });
+    changed([](auto& key) { key.options.max_dimension = 512; });
+    changed([](auto& key) { key.options.ocio_config_path = "ocio/config.ocio"; });
+    changed([](auto& key) { key.options.ocio_input_space = "ACEScg"; });
+    changed([](auto& key) { key.options.ocio_working_space = "linear-srgb"; });
+}

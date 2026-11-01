@@ -25,8 +25,29 @@ void VideoFrame::resize(i32 width, i32 height, runtime::FrameFormat format) {
     m_bytes.assign(expected_size(), 0);
 }
 
-u64 VideoFrameKey::digest() const {
+u64 VideoFrameKey::digest_v1() const {
     return core::hash::HashBuilder{}
+        .add(composition_id)
+        .add(frame_index)
+        .add(width)
+        .add(height)
+        .add_enum(format.pixel)
+        .add_enum(format.primaries)
+        .add_enum(format.transfer)
+        .add_enum(format.matrix)
+        .add_enum(format.range)
+        .add_enum(format.chroma)
+        .add_enum(format.alpha)
+        .add(format.pixel_aspect.numerator)
+        .add(format.pixel_aspect.denominator)
+        .add(scene_hash)
+        .add(render_hash)
+        .finish();
+}
+
+u64 VideoFrameKey::digest_v2() const {
+    return core::hash::HashBuilder{}
+        .add("chronon.video-frame-key.v2")
         .add(composition_id)
         .add(frame_index)
         .add(width)

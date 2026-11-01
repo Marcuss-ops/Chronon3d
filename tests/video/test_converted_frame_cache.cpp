@@ -9,6 +9,48 @@
 
 using namespace chronon3d::video;
 
+TEST_CASE("ConvertedFrameCacheKey identity covers every output field and canonicalizes zero") {
+    ConvertedFrameCacheKey base{
+        .framebuffer_digest = 0x1234,
+        .width = 640,
+        .height = 360,
+        .format = EncoderPixelFormat::YUV420P,
+        .matrix = YuvMatrix::BT709,
+        .range = ColorRange::Limited,
+        .apply_gamma = true,
+        .rec709_oetf = false,
+        .output_space = chronon3d::color::ColorSpace::SRGB,
+        .reference_white_nits = 100.0f,
+    };
+    const auto original_hash = ConvertedFrameCacheKeyHash{}(base);
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+        CHECK(ConvertedFrameCacheKeyHash{}(key) != original_hash);
+    };
+    changed([](auto& key) { key.framebuffer_digest++; });
+    changed([](auto& key) { key.width++; });
+    changed([](auto& key) { key.height++; });
+    changed([](auto& key) { key.format = EncoderPixelFormat::NV12; });
+    changed([](auto& key) { key.matrix = static_cast<YuvMatrix>(1); });
+    changed([](auto& key) { key.range = static_cast<ColorRange>(1); });
+    changed([](auto& key) { key.apply_gamma = false; });
+    changed([](auto& key) { key.rec709_oetf = true; });
+    changed([](auto& key) {
+        key.output_space = chronon3d::color::ColorSpace::LinearSRGB;
+    });
+    changed([](auto& key) { key.reference_white_nits = 80.0f; });
+
+    auto positive_zero = base;
+    auto negative_zero = base;
+    positive_zero.reference_white_nits = 0.0f;
+    negative_zero.reference_white_nits = -0.0f;
+    CHECK(positive_zero == negative_zero);
+    CHECK(ConvertedFrameCacheKeyHash{}(positive_zero) ==
+          ConvertedFrameCacheKeyHash{}(negative_zero));
+}
+
 // ---------------------------------------------------------------------------
 //  LruCache-backed semantics (Commit 3)
 // ---------------------------------------------------------------------------

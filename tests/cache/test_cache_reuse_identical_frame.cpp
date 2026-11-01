@@ -104,6 +104,22 @@ TEST_CASE("Text layout fingerprint includes fallback font spans") {
     CHECK(cache.find(fallback) == fallback_program);
 }
 
+TEST_CASE("GPU prepared text identity includes the upstream versioned layout key") {
+    TextRunLayout original;
+    original.source_text = "same text, different paragraph contract";
+    original.source_cache_identity = 101;
+    TextRunLayout changed = original;
+    changed.source_cache_identity = 202;
+
+    CHECK(original.layout_hash_v1() == changed.layout_hash_v1());
+    CHECK(original.layout_hash() != changed.layout_hash());
+    runtime::GpuTextRunPreparedCache cache;
+    auto prepared = std::make_shared<runtime::GpuPreparedTextRun>();
+    cache.store(original, prepared);
+    CHECK(cache.find(original) == prepared);
+    CHECK(cache.find(changed) == nullptr);
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // §1: Identical-frame renders produce non-regressing cache hits
 // ═════════════════════════════════════════════════════════════════════════════

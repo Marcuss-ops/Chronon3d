@@ -140,9 +140,10 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     // fingerprint share one materialization instead of racing to build it twice,
     // and a bounded Count-mode cache evicts the least recently *used* entry
     // rather than whichever was inserted first.
+    const auto topology_key = program.fingerprint_data();
     const auto key = program.fingerprint();
     const auto topology = m_topologies.compute_if_absent(
-        key, [&]() -> std::pair<std::shared_ptr<const Scene>, std::size_t> {
+        topology_key, [&]() -> std::pair<std::shared_ptr<const Scene>, std::size_t> {
             return {std::make_shared<const Scene>(
                         compiler::SceneMaterializer{}.materialize_scene(program)),
                     1};

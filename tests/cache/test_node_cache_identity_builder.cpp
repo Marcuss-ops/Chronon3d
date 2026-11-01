@@ -50,6 +50,30 @@ TEST_CASE("NodeCacheIdentityBuilder: omitted optional domains preserve legacy de
     CHECK(built.tile_hash == 0);
 }
 
+TEST_CASE("NodeCacheIdentityBuilder: hash schema versions participate independently") {
+    const auto base = NodeCacheIdentityBuilder{"versioned"}
+        .hashes(10, 20, 30)
+        .build();
+    const auto params = NodeCacheIdentityBuilder{"versioned"}
+        .hashes(10, 20, 30)
+        .versions(2)
+        .build();
+    const auto source = NodeCacheIdentityBuilder{"versioned"}
+        .hashes(10, 20, 30)
+        .versions(0, 2)
+        .build();
+    const auto input = NodeCacheIdentityBuilder{"versioned"}
+        .hashes(10, 20, 30)
+        .versions(0, 0, 2)
+        .build();
+
+    CHECK(base.digest() != params.digest());
+    CHECK(base.digest() != source.digest());
+    CHECK(base.digest() != input.digest());
+    CHECK(params.digest() != source.digest());
+    CHECK(source.digest() != input.digest());
+}
+
 TEST_CASE("NodeCacheIdentityBuilder: camera fold matches the canonical helper") {
     Camera2_5D camera;
     camera.zoom = 1200.0f;

@@ -107,6 +107,12 @@ TEST_CASE("M1.5#3 lock — text_run_layout.hpp exposes layout data types") {
         // Pure-function idempotence locks the canonical hash family.
         CHECK(l.layout_hash() == l.layout_hash());
         CHECK(l.shaping_hash() == l.shaping_hash());
+
+        const auto legacy = l.layout_hash_v1();
+        const auto versioned = l.layout_hash();
+        l.source_cache_identity = 42;
+        CHECK(l.layout_hash_v1() == legacy);
+        CHECK(l.layout_hash() != versioned);
     }
 
     SUBCASE("(b) SharedTextRunLayout is std::shared_ptr<const TextRunLayout>") {
