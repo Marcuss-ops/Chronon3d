@@ -145,8 +145,9 @@ full test executable build have not yet completed.
 The latest Shape V2 pass also replaces raw scalar/enum byte hashing with
 fieldwise semantic hashing, canonicalizes signed zero in those fields, and
 uses length-framed string hashing for image paths. Shape V1 retains its old
-byte path. RoundedRect, Circle, and Image mutation tests cover the new behavior;
-the remaining Shape variants and nested TextRun identity still need review.
+byte path. RoundedRect, Circle, Image and nested TextRun mutation tests cover
+the new behavior; the remaining non-text Shape variants still need
+field-complete mutation coverage.
 
 Shape's TextRun variant now delegates to a separate TextRun V2 digest. It
 includes complete resolved glyph state and vector lengths, all material and
@@ -166,6 +167,12 @@ byte-oriented V1 digest: it hashes the domain, id, enum fields, duration,
 delay, and active typed parameter members directly, canonicalizing signed
 zero. The V1 builder remains unchanged; existing parameter mutation coverage
 is supplemented with a V2 signed-zero test.
+
+`GpuStyledGlyphCache::StyledGlyphKey` equality treats `+0.0` and `-0.0` as
+equal, while its previous HashBuilder calls hashed their distinct float bit
+patterns. The key hash now canonicalizes zero for every color and stroke-width
+float so `unordered_map` hashing agrees with equality. A cache-level test
+stores with positive zero and retrieves with negative zero.
 
 ## Exit criteria
 

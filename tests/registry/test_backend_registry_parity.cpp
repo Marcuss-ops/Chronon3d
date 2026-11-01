@@ -842,3 +842,20 @@ TEST_CASE("GPU readiness gate certifies the 7-point checklist") {
             << " mean_delta=" << gate.pixels.mean_delta);
 }
 #endif
+
+TEST_CASE("Styled glyph cache hashes signed zero consistently with equality") {
+    using namespace chronon3d::runtime;
+    StyledGlyphKey positive;
+    positive.font_id = 12;
+    positive.glyph_id = 65;
+    positive.fill.r = 0.0f;
+    StyledGlyphKey negative = positive;
+    negative.fill.r = -0.0f;
+    REQUIRE(positive == negative);
+
+    GpuStyledGlyphCache cache;
+    auto pixels = std::make_shared<const std::vector<float>>(
+        std::vector<float>{0.0f, 0.0f, 0.0f, 0.0f});
+    cache.store_styled(positive, 1, 1, pixels);
+    CHECK(cache.find_styled(negative) != nullptr);
+}
