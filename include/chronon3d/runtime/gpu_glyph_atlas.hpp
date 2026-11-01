@@ -69,7 +69,10 @@ struct DistanceFieldProfile {
 struct GpuGlyphKey {
     std::string font_path;
     std::uint32_t glyph_id{0};
+    // Full canonical variation coordinates are retained for collision-safe
+    // equality. variation_hash remains for hash-only legacy callers.
     std::uint64_t variation_hash{0};
+    std::string variation_axes;
     GlyphRepresentation representation{GlyphRepresentation::Mtsdf};
     std::uint16_t generation_profile{0};
     std::uint32_t font_size{0};
@@ -85,7 +88,20 @@ struct GpuGlyphKey {
                                           std::uint32_t font_size) noexcept {
         if (!glyph_representation_is_raster_size_specific(rep)) font_size = 0;
         return GpuGlyphKey{std::move(font_path), glyph_id, variation_hash,
-                           rep, generation_profile, font_size};
+                           {}, rep, generation_profile, font_size};
+    }
+
+    [[nodiscard]] static GpuGlyphKey make(std::string font_path,
+                                          std::uint32_t glyph_id,
+                                          std::string variation_axes,
+                                          GlyphRepresentation rep,
+                                          std::uint16_t generation_profile,
+                                          std::uint32_t font_size) {
+        if (!glyph_representation_is_raster_size_specific(rep)) font_size = 0;
+        const auto variation_hash = variation_axes.empty() ? 0ULL
+            : core::hash::HashBuilder{}.add(std::string_view(variation_axes)).finish();
+        return GpuGlyphKey{std::move(font_path), glyph_id, variation_hash,
+                           std::move(variation_axes), rep, generation_profile, font_size};
     }
 
     /// Runtime font size is a layout concern for distance fields.  It is part
@@ -93,13 +109,16 @@ struct GpuGlyphKey {
     friend bool operator==(const GpuGlyphKey& a, const GpuGlyphKey& b) noexcept {
         if (a.font_path != b.font_path ||
             a.glyph_id != b.glyph_id ||
-            a.variation_hash != b.variation_hash ||
             a.representation != b.representation ||
             a.generation_profile != b.generation_profile) {
             return false;
         }
-        return !glyph_representation_is_raster_size_specific(a.representation) ||
-               a.font_size == b.font_size;
+        const bool variation_equal = (!a.variation_axes.empty() || !b.variation_axes.empty())
+            ? a.variation_axes == b.variation_axes
+            : a.variation_hash == b.variation_hash;
+        return variation_equal &&
+            (!glyph_representation_is_raster_size_specific(a.representation) ||
+             a.font_size == b.font_size);
     }
 };
 
@@ -110,9 +129,10 @@ struct GpuGlyphKeyHash {
         auto h = core::hash::HashBuilder{}
             .add(std::string_view(key.font_path))
             .add(key.glyph_id)
-            .add(key.variation_hash)
             .add_enum(key.representation)
             .add(key.generation_profile);
+        if (!key.variation_axes.empty()) h.add(std::string_view(key.variation_axes));
+        else h.add(key.variation_hash);
         if (glyph_representation_is_raster_size_specific(key.representation)) h.add(key.font_size);
         return static_cast<std::size_t>(h.finish());
     }
@@ -128,9 +148,10 @@ inline std::uint64_t glyph_key_hash64(const GpuGlyphKey& key) noexcept {
     auto h = core::hash::HashBuilder{}
                  .add(std::string_view(key.font_path))
                  .add(key.glyph_id)
-                 .add(key.variation_hash)
                  .add_enum(key.representation)
                  .add(key.generation_profile);
+    if (!key.variation_axes.empty()) h.add(std::string_view(key.variation_axes));
+    else h.add(key.variation_hash);
     if (glyph_representation_is_raster_size_specific(key.representation)) h.add(key.font_size);
     return h.finish();
 }

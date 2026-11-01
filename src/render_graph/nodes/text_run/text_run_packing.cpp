@@ -134,13 +134,8 @@ std::shared_ptr<const runtime::GpuPreparedTextRun> prepare_mtsdf_text_run(
         const auto& placed = layout.placed.glyphs[i];
         if (state.glyph_id == 0 || placed.bbox_x1 <= placed.bbox_x0) continue;
         const auto& span = layout.font_spans[span_index];
-        const std::uint64_t variation_hash = span.variation_axes.empty()
-            ? 0ULL
-            : core::hash::HashBuilder{}
-                .add(std::string_view(span.variation_axes))
-                .finish();
         const auto key = runtime::GpuGlyphKey::make(
-            span.font.font_path, state.glyph_id, variation_hash,
+            span.font.font_path, state.glyph_id, span.variation_axes,
             runtime::GlyphRepresentation::Mtsdf, kProfileId, 0);
         keys.push_back(key);
         drawable_layout.push_back(i);

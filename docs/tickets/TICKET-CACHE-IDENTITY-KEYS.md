@@ -174,6 +174,14 @@ patterns. The key hash now canonicalizes zero for every color and stroke-width
 float so `unordered_map` hashing agrees with equality. A cache-level test
 stores with positive zero and retrieves with negative zero.
 
+`GpuGlyphKey` previously retained only the 64-bit hash of a font variation
+axis string. The MTSDF atlas key now keeps the complete axis string for
+equality and hashing, so distinct axis specifications cannot alias due to a
+digest collision. The hash-only factory remains for source compatibility;
+new text-run packing uses the full-string factory. Mutation coverage checks
+full-axis equality, raster-size equivalence for MTSDF, and size sensitivity
+for coverage glyphs.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.
