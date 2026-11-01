@@ -227,7 +227,7 @@ TEST_CASE("TextPlacement: Absolute + Center anchor") {
 }
 
 
-// ── Folded from tests/text/test_text_placement_resolver_adr019.cpp ──
+// ── Folded from tests/text/test_text_placement_resolver_adr019.cpp ──  // drift-class: historical — retired path (see git history)
 namespace resolver_adr019_folded {
 
 // test_text_placement_resolver_adr019.cpp — Split from
@@ -505,7 +505,7 @@ TEST_CASE("ADR-019 §6.6 Hero example — placed box at (110, 360, 1700, 360)") 
 } // namespace resolver_adr019_folded
 
 
-// ── Folded from tests/text/test_text_placement_resolver_anchors.cpp ──
+// ── Folded from tests/text/test_text_placement_resolver_anchors.cpp ──  // drift-class: historical — retired path (see git history)
 namespace resolver_anchors_folded {
 
 // test_text_placement_resolver_anchors.cpp — Split from
@@ -763,7 +763,7 @@ TEST_CASE("TextPlacement: struct kind+offset init") {
 } // namespace resolver_anchors_folded
 
 
-// ── Folded from tests/text/test_text_placement_resolver_coordinate_contract.cpp ──
+// ── Folded from tests/text/test_text_placement_resolver_coordinate_contract.cpp ──  // drift-class: historical — retired path (see git history)
 namespace resolver_coordinate_folded {
 
 // test_text_placement_resolver_coordinate_contract.cpp — Split from

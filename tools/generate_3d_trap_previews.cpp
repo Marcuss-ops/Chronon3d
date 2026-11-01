@@ -69,7 +69,6 @@ void set_camera_samples(json& plan, const json& authored) {
             else if (property == "camera_focal_length_mm") field = "focal_length_mm";
             else if (property == "camera_f_stop") field = "f_stop";
             else if (property == "camera_focus_distance") { field = "focus_distance"; dof = true; }
-            else if (property == "camera_aperture") { field = "aperture"; dof = true; }
             else if (property == "camera_max_blur") { field = "max_blur"; dof = true; }
             else throw std::runtime_error("unsupported authored camera channel: " + property);
             const auto& keys = track.at("keyframes");

@@ -67,6 +67,22 @@ public:
             depth_buffer = fallback_vec;
         }
 
+        // Camera-closure per-pixel depth: a shape already drawn on this layer
+        // fb carries its depth map. Pre-fill the z-buffer with the existing
+        // written values so the rasterizer's "existing depth wins" skip keeps
+        // the nearest writer, and so pixels the new geometry does not cover
+        // merge forward instead of being reported as uncovered.
+        // (Coverage sentinel stays 0 = uncovered; the prefill above can never
+        // push a valid depth back down because only positive depths win.)
+        if (const auto* existing_depth = fb.depth_map();
+            existing_depth && existing_depth->size() == depth_buffer.size()) {
+            for (std::size_t di = 0; di < depth_buffer.size(); ++di) {
+                if (const float existing = (*existing_depth)[di]; existing > 0.0f) {
+                    depth_buffer[di] = existing;
+                }
+            }
+        }
+
         if (mesh_shape.inline_mesh) {
             if (node.inline_mesh_material) {
                 const Framebuffer* base_texture = nullptr;
@@ -125,8 +141,8 @@ public:
                         : std::optional<f32>{});
             } else {
                 chronon3d::renderer::render_mesh_filled(
-                    fb, *mesh_shape.inline_mesh, mesh_model, view, projection, node_color,
-                    depth_buffer, near_plane, far_plane);
+                    fb, *mesh_shape.inline_mesh, mesh_model, view, projection,
+                    node_color.premultiplied(), depth_buffer, near_plane, far_plane);
             }
         }
         if (mesh_shape.prepared) {
@@ -160,10 +176,20 @@ public:
                         roughness_factor, metallic_factor, metallic_roughness);
                 } else {
                     chronon3d::renderer::render_mesh_filled(
-                        fb, *part.geometry, mesh_model, view, projection, color,
-                        depth_buffer, near_plane, far_plane);
+                        fb, *part.geometry, mesh_model, view, projection,
+                        color.premultiplied(), depth_buffer, near_plane, far_plane);
                 }
             }
+        }
+
+        // Camera-closure per-pixel depth: publish the authoritative z-buffer
+        // onto the layer fb so the layer composite can run cross-layer,
+        // depth-aware occlusion (mesh closer than a 2.5D plane wins; farther
+        // is occluded). The pool depth is thread-local and reused across
+        // draws, so the fb always receives the merged copy.
+        if (fb.data() && depth_buffer.size() ==
+            static_cast<std::size_t>(fb.width()) * static_cast<std::size_t>(fb.height())) {
+            fb.set_depth_map(std::vector<float>(depth_buffer.begin(), depth_buffer.end()));
         }
     }
 

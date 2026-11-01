@@ -4,7 +4,7 @@
 //
 // Implements the two chain-method pair `TextAnimatorSpec::compile()` +
 // `TextAnimatorSpec::is_valid()`. Closes the user-spec gap documented in
-// the historical changelog (docs/CHANGELOG.md, file retired) §5
+// the historical changelog (docs/CHANGELOG.md, file retired) §5  // drift-class: historical — retired path (see git history)
 // 3-method fluent pattern that was DESIGNED-IN but never landed: the .hpp
 // had the typing surface but no compile()/is_valid() implementation; the
 // authoring chain was effectively "(compile()?) (is_valid()?) — silent

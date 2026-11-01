@@ -120,8 +120,10 @@
         "sensor_width_mm": { "type": "number", "minimum": 1, "maximum": 100 },
         "lens_shift": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number", "minimum": -1, "maximum": 1 },
           "description": "Normalized viewport shift, +X right and +Y down." },
-        "f_stop": { "type": "number", "minimum": 0, "maximum": 32 },
-        "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12 },
+        "f_stop": { "type": "number", "minimum": 0, "maximum": 32,
+          "description": "Single authored camera aperture value. The nested dof.f_stop spelling is accepted only as a deprecated decoder input alias and is never emitted." },
+        "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12,
+          "description": "Single authored lens bokeh shape. The nested dof.iris_blades spelling is accepted only as a deprecated decoder input alias and is never emitted." },
         "node": { "type": "string", "minLength": 1, "maxLength": 128,
           "description": "Optional authoring hint (e.g. rig node naming). The decoder accepts and ignores it; plans in the wild carry it." },
         "target": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" },
@@ -133,8 +135,10 @@
             "focus_distance": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000000,
               "description": "Camera-space distance along the optical axis from the camera position to the focus plane (scene units). Not a world-Z coordinate." },
             "max_blur": { "type": "number", "minimum": 0, "maximum": 256 },
-            "f_stop": { "type": "number", "minimum": 0, "maximum": 32 },
-            "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12 },
+            "f_stop": { "type": "number", "minimum": 0, "maximum": 32,
+              "description": "Deprecated decoder input alias for camera.f_stop. Motion emitters use only the camera-level field." },
+            "iris_blades": { "type": "integer", "minimum": 0, "maximum": 12,
+              "description": "Deprecated decoder input alias for camera.iris_blades. Motion emitters use only the camera-level field." },
             "highlight_gain": { "type": "number", "minimum": 0, "maximum": 8 }
           }
         }

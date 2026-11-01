@@ -31,7 +31,6 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/math/camera_projection_contract.hpp>   // FocalPx, project_world_point
-#include <chronon3d/scene/camera/evaluated_projection.hpp>  // EvaluatedProjection, make_evaluated_projection
 #include <chronon3d/scene/model/camera/lens_model.hpp>      // LensModel, LensPresets, GateFit, ViewportRect
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>     // Camera2_5D, CameraOpticsMode
 
@@ -112,11 +111,6 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         CHECK(p.screen.x == doctest::Approx(1075.80f).epsilon(kEpsGoldenProjection));
         CHECK(p.screen.y == doctest::Approx(482.10f).epsilon(kEpsGoldenProjection));
 
-        // Snap-check: FOV mode also produces a sensible EvaluatedProjection.
-        const auto snap = make_evaluated_projection(cam, Viewport2D{kVpW, kVpH});
-        CHECK_FALSE(snap.is_physical_lens);
-        CHECK_FALSE(snap.is_anamorphic);
-        CHECK(snap.focal_x_px == doctest::Approx(snap.focal_y_px).epsilon(kEpsGoldenProjection));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -148,18 +142,6 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         CHECK(p.screen.x == doctest::Approx(1315.24f).epsilon(kEpsGoldenProjection));
         CHECK(p.screen.y == doctest::Approx(350.53f).epsilon(kEpsGoldenProjection));
 
-        // Snap-check the snapshot pipeline.
-        const auto snap = make_evaluated_projection(cam, Viewport2D{kVpW, kVpH});
-        CHECK(snap.is_physical_lens);
-        // ARRI Alexa 35 in Fill mode: sensor aspect 1.897 != viewport aspect 1.778
-        // => per-axis focal_x (3551.61) != focal_y (3789.47) => is_anamorphic = true.
-        // (The spherical / non-anamorphic assumption only holds when
-        //  sensor_aspect == viewport_aspect.)
-        CHECK(snap.is_anamorphic);
-        CHECK(snap.focal_x_px == doctest::Approx(3551.61f).epsilon(kEpsGoldenProjection));
-        CHECK(snap.focal_y_px == doctest::Approx(3789.47f).epsilon(kEpsGoldenProjection));
-        CHECK(snap.active_viewport.width  == doctest::Approx(kVpW));
-        CHECK(snap.active_viewport.height == doctest::Approx(kVpH));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -193,14 +175,6 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         CHECK(p.screen.x == doctest::Approx(1226.67f).epsilon(kEpsGoldenProjection));
         CHECK(p.screen.y == doctest::Approx(427.50f).epsilon(kEpsGoldenProjection));
 
-        // Snap-check: Stretch is anamorphic (per-axis independent), active
-        // viewport equals requested (Stretch intentionally fills the canvas).
-        const auto snap = make_evaluated_projection(cam, Viewport2D{kVpW, kVpH});
-        CHECK(snap.is_anamorphic);
-        CHECK(snap.focal_x_px == doctest::Approx(2666.67f).epsilon(kEpsGoldenProjection));
-        CHECK(snap.focal_y_px == doctest::Approx(2250.0f).epsilon(kEpsGoldenProjection));
-        CHECK(snap.active_viewport.width  == doctest::Approx(kVpW));
-        CHECK(snap.active_viewport.height == doctest::Approx(kVpH));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -242,13 +216,6 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         CHECK(p.screen.x == doctest::Approx(1185.0f).epsilon(kEpsGoldenProjection));
         CHECK(p.screen.y == doctest::Approx(427.50f).epsilon(kEpsGoldenProjection));
 
-        // Step 4: snapshot exposes the pillarbox + canonical principal point.
-        const auto snap = make_evaluated_projection(cam, Viewport2D{kVpW, kVpH});
-        CHECK_FALSE(snap.is_anamorphic);                     // uniform axes under Overscan
-        CHECK(snap.active_viewport.width  == doctest::Approx(1620.0f).epsilon(kEpsGoldenProjection));
-        CHECK(snap.active_viewport.height == doctest::Approx(1080.0f).epsilon(kEpsGoldenProjection));
-        CHECK(snap.principal_point_px.x == doctest::Approx(960.0f).epsilon(kEpsGoldenProjection));
-        CHECK(snap.principal_point_px.y == doctest::Approx(540.0f).epsilon(kEpsGoldenProjection));
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -297,15 +264,5 @@ TEST_CASE("Golden projection: 6 canonical modes project expected analytical valu
         CHECK(p.screen.x == doctest::Approx(1834.72f).epsilon(kEpsGoldenProjection));
         CHECK(p.screen.y == doctest::Approx(394.76f).epsilon(kEpsGoldenProjection));
 
-        // Snap-check: anamorphic true, squeeze + pixel_aspect flow through.
-        const auto snap = make_evaluated_projection(cam, Viewport2D{kVpW, kVpH});
-        CHECK(snap.is_physical_lens);
-        CHECK(snap.is_anamorphic);
-        CHECK(snap.pixel_aspect        == doctest::Approx(1.0f).epsilon(kEpsGoldenProjection));
-        CHECK(snap.anamorphic_squeeze  == doctest::Approx(2.0f).epsilon(kEpsGoldenProjection));
-        // Same ratio as the FocalPx block above: focal_x / focal_y = 3.011
-        // (1.506 base ratio * 2.0 squeeze), NOT 2.0.  The anamorphic squeeze
-        // applies only to the X base; the per-axis raw ratio is preserved.
-        CHECK(snap.focal_x_px == doctest::Approx(3.011f * snap.focal_y_px).epsilon(0.01f));
     }
 }

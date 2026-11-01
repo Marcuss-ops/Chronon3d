@@ -1,0 +1,84 @@
+{
+  "date_utc": "2026-10-31",
+  "intent": "Remove integer-frame transform keyframes from materialized production V3 plans; resolved samples support every visual 2.5D layer type and do not require a camera rig.",
+  "implementation": {
+    "option": "RenderPlanLoweringOptions::requireResolvedLayerSamples",
+    "behavior": "For unshuttered V3 plans, fill every presentation-frame timestamp; shutter plans use the canonical C3D shutter calendar. Camera and supported layer transforms use the same sampleFrames when a rig is authored. Layer transform sampling also works for camera-free plans. Light and Mesh are excluded; non-transform animation fails closed.",
+    "supported_layer_types": ["image", "video", "color", "text", "shape", "particles", "adjustment"],
+    "null_controller": "Motion Null/controller layers are omitted from renderable RenderPlan layers; their resolved world transforms are folded into content/camera samples."
+  },
+  "producers": [
+    {
+      "producer": "plan_optical_studio",
+      "status": "PASS",
+      "output": "4 image layers + camera; 150 samples each; no integer TRS animation"
+    },
+    {
+      "producer": "plan_word_rack_focus",
+      "status": "PASS",
+      "output": "7 image/text/shape layers + camera; 151 samples each; no integer TRS animation"
+    },
+    {
+      "producer": "plan_map_flyover --camera-backed",
+      "status": "PASS",
+      "output": "sets V3 and requireResolvedLayerSamples; camera-backed geospatial test verifies plate samples match camera calendar"
+    },
+    {
+      "producer": "motion_geospatial camera-backed fixture",
+      "status": "PASS",
+      "output": "V3 resolved samples on the georeferenced plate; tilt preserved in the sampled transform"
+    },
+    {
+      "producer": "plan_documentary_showcase",
+      "status": "PASS",
+      "output": "V3; 151 transform samples on all 14 animated visual layers including Particles; the Adjustment layer has no Motion transform source or authored transform track and remains static in its declared plan state; no integer TRS tracks"
+    },
+    {
+      "producer": "Template materialized-plan wrapper (Word Lens fixture)",
+      "status": "PASS",
+      "output": "V3; 361 resolved transform samples on each of 8 visual Image/Shape/Text layers; Light layers retain their own animation; no visual integer TRS tracks"
+    },
+    {
+      "producer": "plan_showreel (camera-free Motion producer)",
+      "status": "PASS",
+      "output": "V3; 151 resolved transform samples on each of 11 Text layers; no camera or integer TRS tracks"
+    }
+  ],
+  "tests": {
+    "motion_authoring": "PASS",
+    "camera_bake_roundtrip": "PASS",
+    "camera_backed_geospatial": "PASS",
+    "camera_focus_sequence": "PASS — rejects unsupported shaped-bokeh input before writing the rig",
+    "camera_free_resolved_samples": "PASS — Motion authoring test requires V3 per-frame transform samples without CameraRig",
+    "template_plan_lowering": "PASS — materialized wrapper requires resolved visual samples",
+    "showreel_producer": "PASS — emits 151 samples per visual layer"
+  },
+  "remaining_debt": "All inspected materialized Motion and Template producers in this census now demand resolved visual transform samples. Runtime-provider plans remain provider-evaluated; the video compatibility view and camera_plan_bake are separate active debts. Light/Mesh and any newly added producer outside the census remain out of scope.",
+  "source_sha256": {
+    "ChrononMotion3D/src/chrononmotion/motion/RenderPlanLowering.cpp": "cb4f9bf13425c887231f5cde1e5b990d176d0a936ae3746cbc4ad9de409b2029",
+    "ChrononMotion3D/src/chrononmotion/motion/CameraFocusSequence.cpp": "8f10cacf28281eca14d5809085e4bd674e34ff4bf3684562f9b3405922450abb",
+    "ChrononMotion3D/src/chrononmotion/motion/RenderPlanLoweringSamples.cpp": "2e0c449012238ccfc57d0363b776ebd5abb0acef148784c035f9e646a8fbadfe",
+    "Chronon3d/include/chronon3d/render_plan/resolved_transform_samples.hpp": "9309f1a4da93865dcdb4dda6eb09c7710fcd198b0889e1019ffaa0aa440bab1c",
+    "ChrononMotion3D/include/chrononmotion/motion/RenderPlanLowering.hpp": "c35a696105e06d68f782baa823e73c876f17f9b942827eeef65067f1073d5c36",
+    "ChrononMotion3D/tools/plan_optical_studio.cpp": "13c70cf884aef3a0190c648b4306c2b2abefd94220d02daeff612e61583adc46",
+    "ChrononMotion3D/tools/plan_word_rack_focus.cpp": "924b6aa5f83d7879bf27c7279abd4bf4ef68347eb8ca6da688c0650a28b1d161",
+    "ChrononMotion3D/tools/plan_documentary_showcase.cpp": "2d6b419f8245a94bfd95ce10cc279df1b0ffb41dac4a02b079742f496514dd37",
+    "ChrononTemplate/include/chronontemplate/camera_roll/WordLensPack.hpp": "a32b1020fda71ed69ed71245ae8696bb4cdfd5bfc6be294450d012a637544600",
+    "ChrononTemplate/src/chronontemplate/camera_roll/WordLensPack.cpp": "53bb158d336c696fc1122ed85c9604ce5a0f6430f5229d9113fd923e08309226",
+    "ChrononMotion3D/tests/motion_camera_focus_sequence.cpp": "e927327e942a14fabbd988ca6f3286e7741c29e2941c3a92daf90bffbd44a6d5",
+    "Chronon3d/tests/renderer/camera/test_camera_motion.cpp": "e6bc2dab2286516528c39888ea7abedf62d9bbd74449a549199c99cf7025ceb1",
+    "ChrononMotion3D/tools/plan_map_flyover.cpp": "15f1583faafef87797fc421aff286a78d90c20bf8ff56501c87a31900de3e750",
+    "ChrononMotion3D/src/chrononmotion/motion/RenderPlanLowering.cpp": "014c52d627bd3ac150161330d88e7e5aba89860d32015367b924a89d0fb9abc8",
+    "ChrononMotion3D/include/chrononmotion/motion/RenderPlanLowering.hpp": "fd77cba48f6ab607da882c3f9acaf14e48fe243924c22c10cf2c3dbdb011c892",
+    "ChrononMotion3D/tools/plan_showreel.cpp": "d5380a431af98a2a2cc498936cc5531981481c7dba1c4aeca4394e3f56d4a4cc",
+    "ChrononMotion3D/tests/motion_authoring_renderplan.cpp": "def4a7a15d93c74c02c01d02a1751bd66ba07790f869967a47cc5b9c91b0a2d9",
+    "ChrononTemplate/src/chronontemplate/core/PlanLowering.cpp": "9646d77295ceb6228a3d6292934a94ef89aea9eec49fcedccfd97bd79bcac65d",
+    "ChrononTemplate/tests/plan_lowering.cpp": "bcb9f1254a92a47c72cd2f6d3fa62785c1668a3eac4f76a08a24467ec3466148",
+    "ChrononTemplate/tools/camera_roll/emit_word_lens_reference.cpp": "edf80836d4e010d99ac959d148d50439837f7d3eab8fed328ce2efd2afe336e0",
+    "Chronon3d/tests/render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp": "571f74ab201a3b314fe46152f918a9d341ce49194b51be57f232844ea6252541",
+    "ChrononMotion3D/docs/BOUNDARY_C3D.md": "bd1c4bc3bcda9c5be9e176dbe67fc41a83e9b44d384ba73a30b03b00185b4c71"
+  },
+  "documentary_plan_sha256": "0ca7fb57087b87c562082193061a70c39010ff439c4cb023cb320614919095be",
+  "word_lens_plan_sha256": "4dc3839d4af9fb54c53457dd45fc6f3394daf9f5610ef4ec138caa608e69acc2",
+  "showreel_plan_sha256": "331ffbecd43bc97a845245b72a3f9a8d59973dc5c5a7c4b989b6c8d85e0413b9"
+}

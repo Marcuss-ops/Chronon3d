@@ -6,7 +6,7 @@
 //   This header lives in src/text/ (NOT in include/chronon3d/) and is
 //   exposed ONLY to:
 //     (a) src/text/text_run_builder.cpp (defines compile_text_document)
-//     (b) tests/text/test_compile_text_layout_per_paragraph_failure.cpp
+//     (b) tests/text/test_compile_text_layout_per_paragraph_failure.cpp  // drift-class: historical — retired path (see git history)
 //         (regression lock for the per-paragraph failure contract)
 //
 //   Per AGENTS.md v0.1 cat-3 freeze, this is NOT installed with the

@@ -40,7 +40,7 @@ namespace {
 // ── Helper: build a tiny TextRunShape with N glyphs at integer x positions ─
 //
 // Mirrors `make_test_text_run_shape_pr3` in
-// tests/architecture/test_protected_core_contracts.cpp.  Duplicated here
+// tests/architecture/test_protected_core_contracts.cpp.  Duplicated here  // drift-class: historical — retired path (see git history)
 // because the renderer_tests target doesn't depend on the architecture
 // subfolder.
 std::shared_ptr<TextRunShape> make_test_text_run_shape_pr6(size_t glyph_count) {

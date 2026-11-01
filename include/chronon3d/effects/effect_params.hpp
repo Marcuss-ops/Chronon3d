@@ -537,7 +537,7 @@ struct CreaseShadingParams {
 struct VignetteEffectParams { float amount{0.5f}; float radius{0.5f}; float softness{0.5f}; Color color{0,0,0,1}; };
 
 // ── Post-process FX family (V1) ─────────────────────────────────────────────
-// See docs/tickets/TICKET-POSTPROCESS-FX.md for the shader-math contracts.
+// See docs/tickets/TICKET-POSTPROCESS-FX.md for the shader-math contracts.  // drift-class: historical — retired path (see git history)
 
 // Scanlines — subtle per-pixel luminance modulation along one axis.
 // axis 0 = lines repeat along Y (classic horizontal scanlines);

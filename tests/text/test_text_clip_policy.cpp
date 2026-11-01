@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_clip_policy.cpp — M1.8 §4A-ext / TICKET-SIMPLICITY-TEXT-CLIP-POLICY
 //
-// Extracted from `tests/text/test_pipeline_parity_still.cpp` per the §2 cleanup
+// Extracted from `tests/text/test_pipeline_parity_still.cpp` per the §2 cleanup  // drift-class: historical — retired path (see git history)
 // mandate (TICKET-SIMPLICITY-PARITY-EXTRACT).  Carries the 5-clip-rect
 // matrix: 7 pipeline variations × 5 `ClipVariant` (Baseline / Expanded /
 // Conservative / Full / Off) × 18 CHECKs = 630 CHECKs total.
@@ -11,7 +11,7 @@
 // Drop scope (intentionally NOT carried over from the source file):
 //   - #1-#7 single-canary tests (7 pipelines × default clip rect, 126 CHECKs).
 //     Synthetic, no clip-rect semantic content; superseded by
-//     `tests/text/support/pipeline_parity_harness.cpp` (the 7-modulo
+//     `tests/text/support/pipeline_parity_harness.cpp` (the 7-modulo  // drift-class: historical — retired path (see git history)
 //     real-framebuffer-hash parity lock at §3).
 //   - #43-#44 invariance tests (tile pruning + diagnostics byte-exact).
 //     Forward-pointed to `tests/text/support/pipeline_parity_harness.cpp::BruteDeterm-17`
@@ -32,7 +32,7 @@
 //
 // AGENTS.md v0.1 freeze compliance: pure math + harness (no Blend2D
 // compositor / GPU dependency for the base identity checks). Gated
-// on `CHRONON3D_BUILD_DIAGNOSTICS` via `tests/text/text_clip_policy_tests.cmake`
+// on `CHRONON3D_BUILD_DIAGNOSTICS` via `tests/text/text_clip_policy_tests.cmake`  // drift-class: historical — retired path (see git history)
 // because `audit_text_visibility()` (the FU02/FU03 canonical field
 // extraction) is gated by that macro. Unconditional CMake
 // registration; safe to run in every preset that enables diagnostics.

@@ -623,6 +623,9 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     const Json emittedDof = Json::parse(renderPlanToJson(dofCameraPlan));
     REQUIRE(emittedDof["camera"].contains("dof"));
     CHECK(emittedDof["camera"]["dof"]["enabled"] == true);
+    // The legacy aperture wire field was demolished together with its plan
+    // field; emission carries the single authored f-stop and the fail-closed
+    // decoder rejects the retired key.
     CHECK_FALSE(emittedDof["camera"]["dof"].contains("aperture"));
     CHECK(emittedDof["camera"]["dof"]["focus_distance"] == doctest::Approx(425.f));
     CHECK(emittedDof["camera"]["focal_length_mm"] == doctest::Approx(50.f));

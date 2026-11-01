@@ -18,7 +18,7 @@
 // cut off ~80% of ascender extents and produced scratch surfaces large
 // enough for only the descender strip — visually identical to seeing
 // a 19 px sliver of text in a 1080-row canvas.  See
-// tests/text_golden/text_clip/text_clip_bounds.cpp for the regression
+// tests/text_golden/text_clip/text_clip_bounds.cpp for the regression  // drift-class: historical — retired path (see git history)
 // lock that captures this symptom numerically.
 // ---------------------------------------------------------------------------
 

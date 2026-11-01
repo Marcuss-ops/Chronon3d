@@ -61,7 +61,7 @@ if(CHRONON3D_BUILD_C_API)
         # on.  We still link it directly to the C API SHARED lib here so
         # chronon3d_c resolves the decode/compile symbols for its own
         # standalone linkage.  In-tree tests link chronon3d_render_plan
-        # directly via tests/c_abi_tests.cmake LINK_TARGETS.
+        # directly via tests/c_abi_tests.cmake LINK_TARGETS.  # drift-class: historical — retired path (see git history)
         chronon3d_render_plan
         chronon3d_compiler
     )

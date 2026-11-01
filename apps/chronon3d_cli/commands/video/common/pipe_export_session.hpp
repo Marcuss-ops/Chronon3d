@@ -74,7 +74,7 @@ struct FullGraphSession : media::PersistentVideoRenderState {
 
     ~FullGraphSession() {
         // Teardown is the largest un-logged phase of a serialized daemon job
-        // (docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md): it runs after the
+        // (docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md): it runs after the  // drift-class: historical — retired path (see git history)
         // timing sidecar, so every existing timer misses it. Split so the cost
         // is attributable to the slot pool or to surface reclamation.
         const auto teardown_t0 = std::chrono::steady_clock::now();

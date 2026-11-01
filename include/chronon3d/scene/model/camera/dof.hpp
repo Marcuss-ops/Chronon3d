@@ -9,6 +9,15 @@
 
 namespace chronon3d {
 
+/// Single fail-closed optics admission policy: `iris_blades` non-zero or a
+/// non-zero `highlight_gain` have no kernel (the separable DOF blur kernels
+/// implement constant circular bokeh only). This is the one seat of the
+/// policy: the render_plan camera contract and the per-node render-boundary
+/// gate below are callers of this predicate, not a second copy of the rule.
+[[nodiscard]] inline bool dof_shape_unsupported(int iris_blades, f32 highlight_gain) {
+    return iris_blades != 0 || highlight_gain != 0.0f;
+}
+
 /// Fail closed when the authored lens shaping has no kernel support. The DOF
 /// blur kernels (software `highway_dof_kernels.cpp` and Vulkan `dof_blur.comp`)
 /// separate on the two image axes, so their support is a soft rectangle: no
@@ -22,16 +31,13 @@ inline void reject_unsupported_dof_shape(
     constexpr std::string_view kAdviceView =
         " (the separable DOF kernels support constant circular bokeh only); "
         "remove the values from the plan or implement the shaped kernels first";
-    if (dof.iris_blades > 0) {
+    if (dof_shape_unsupported(static_cast<int>(dof.iris_blades), dof.highlight_gain)) {
         throw std::runtime_error(
-            "DOF: iris_blades " + std::to_string(dof.iris_blades) +
-            " is authored but no DOF kernel implements iris-shaped bokeh" +
+            "DOF: unsupported shaped bokeh (iris_blades " +
+            std::to_string(dof.iris_blades) + ", highlight_gain " +
+            std::to_string(dof.highlight_gain) + ") is authored but no DOF kernel "
+            "implements iris-shaped bokeh or out-of-focus highlight weighting" +
             std::string{kAdviceView});
-    }
-    if (dof.highlight_gain > 0.f) {
-        throw std::runtime_error(
-            "DOF: highlight_gain is authored but no DOF kernel implements "
-            "out-of-focus highlight weighting" + std::string{kAdviceView});
     }
 }
 

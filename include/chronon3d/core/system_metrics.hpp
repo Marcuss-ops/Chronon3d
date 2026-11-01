@@ -186,7 +186,7 @@ private:
     // sweeps; without a notifier a destructor had to BLOCK for the remainder
     // of that sleep (up to 1 s of dead time per job, measured on the
     // serialized daemon service -- see
-    // docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md).  The condvar makes the
+    // docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md).  The condvar makes the  // drift-class: historical — retired path (see git history)
     // wait interruptible while keeping the 1 Hz cadence unchanged.
     std::mutex            m_stop_mutex;
     std::condition_variable m_stop_cv;

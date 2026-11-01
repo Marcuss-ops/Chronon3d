@@ -50,7 +50,7 @@ struct NvmlStats {
     // sampler charges to the job. It exists because that tail was previously
     // INVISIBLE — no timer covered it — and an invisible cost on the serialized
     // job path is exactly how a ~1 s constant hides (see
-    // docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md). -1.0 means "no stop
+    // docs/tickets/TICKET-DAEMON-JOB-LIFECYCLE.md). -1.0 means "no stop  // drift-class: historical — retired path (see git history)
     // performed by this call" (already stopped, or never started).
     double sampler_stop_ms{-1.0};
 };

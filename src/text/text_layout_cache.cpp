@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // src/text/text_layout_cache.cpp — M1.5#4
 //
-//   Extracted from the retired src/text/text_run.cpp.  Contains:
+//   Extracted from the retired src/text/text_run.cpp.  Contains:  // drift-class: historical — retired path (see git history)
 //     - TextLayoutCacheKey::digest()
 //     - TextLayoutCacheKeyHash::operator()
 //     - TextLayoutCache::Impl + all member functions

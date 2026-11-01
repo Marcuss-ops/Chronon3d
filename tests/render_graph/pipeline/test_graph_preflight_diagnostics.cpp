@@ -478,7 +478,7 @@ TEST_CASE("GraphPreflight: text dump contains actionable diagnostics") {
     CHECK(text.find("PARTIAL_CLIP")          != std::string::npos);
 }
 
-// Glow visual regressions now live in tests/golden/glow_golden_tests.cpp.
+// Glow visual regressions now live in tests/golden/glow_golden_tests.cpp.  // drift-class: historical — retired path (see git history)
 
 TEST_CASE("GraphPreflight: validates advanced diagnostics (memory, complexity, cache, dirty reasons, redundant transforms)") {
     constexpr int W = 512;

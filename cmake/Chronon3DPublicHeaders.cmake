@@ -61,7 +61,6 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/gpu_layer_batch.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/telemetry/render_telemetry_record.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/inline_mesh_params.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_state_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/backdrop_blur.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/layer/content_ref.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/shape/path_operator.hpp"
@@ -197,12 +196,11 @@ set(CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/null_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/text_run_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_projection.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/evaluated_projection.hpp"
     # P3-H + feat(api) public camera facade — CameraSession moved to
     # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
     # External consumers MUST NOT see this type.  The session lives in the
     # per-frame evaluation hot path and is owned by the OPP renderer.
-    # "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/scene/camera/v1/camera_session.hpp"  # HIDDEN
+    # "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/scene/camera/v1/camera_session.hpp"  # HIDDEN  # drift-class: historical — retired path (see git history)
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_2_5d.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/model/camera/camera_common_types.hpp"

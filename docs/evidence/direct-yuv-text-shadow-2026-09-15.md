@@ -18,7 +18,7 @@ shadow itself was the blocker, not the stroke (the stroke already lowered).
 | `include/chronon3d/media/video/composition_capability.hpp` | `LayerYuvQuery::text_style_representable` (default `false`, fail closed) is the matrix input for the TextOverlay row. |
 | `include/chronon3d/media/video/cuda_layer_resource.hpp`, `src/media/video/compositor/cuda/cuda_nv12_compositor_detail.hpp`, `direct_yuv_program.hpp` | One canonical shadow travels with the text resource: colour, opacity (kept a separate factor), dx/dy, blur. |
 | `src/media/video/compositor/cuda/cuda_nv12_kernels.hpp` | MTSDF branch paints the shadow first (under stroke, under fill) by **resampling the same prepared distance field**; blur 0 is the hard offset silhouette, a blur wider than the field band is completed by a normalized binomial 3×3 kernel at half the authored radius. The shadow envelope is honoured outside the glyph box. |
-| `src/media/video/direct_yuv/direct_yuv_program.cpp` | Lowers the classifier's shadow into the layer resource, fail closed on any rejection. |
+| `src/media/video/direct_yuv/direct_yuv_program.cpp` | Lowers the classifier's shadow into the layer resource, fail closed on any rejection. | <!-- drift-class: historical — retired path (see git history) -->
 | `tests/video/test_direct_yuv_text_contract.cpp` (new), `tests/video/test_composition_capability.cpp`, `tests/media/nv12/nv12_equivalence_test.cpp` | Contract, matrix and GPU coverage. |
 
 Not a second rasterization and not a per-frame cost: the shadow is parameters

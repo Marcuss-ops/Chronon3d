@@ -58,6 +58,10 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.node_exec.shared_dof_depth = node_exec.shared_dof_depth
         ? node_exec.shared_dof_depth
         : const_cast<std::vector<float>*>(&node_exec.dof_depth);
+    copy.node_exec.shared_composite_occlusion_depth =
+        node_exec.shared_composite_occlusion_depth
+            ? node_exec.shared_composite_occlusion_depth
+            : const_cast<std::vector<float>*>(&node_exec.composite_occlusion_depth);
     copy.node_exec.shared_dof_source_coverage =
         node_exec.shared_dof_source_coverage
             ? node_exec.shared_dof_source_coverage

@@ -301,7 +301,12 @@ void render_clipped_lit_triangle(
                     q0 * v0.base_color.b + q1 * v1.base_color.b + q2 * v2.base_color.b,
                     q0 * v0.base_color.a + q1 * v1.base_color.a + q2 * v2.base_color.a};
                 const Color texel = sample_base_color(uv);
-                base.r *= texel.r; base.g *= texel.g; base.b *= texel.b; base.a *= texel.a;
+                // Texture pixels are already premultiplied; the mesh color and
+                // material opacity are straight. Apply their alpha exactly once.
+                base.r *= texel.r * base.a;
+                base.g *= texel.g * base.a;
+                base.b *= texel.b * base.a;
+                base.a *= texel.a;
                 if (source_material.alpha_cutoff && base.a < *source_material.alpha_cutoff) continue;
                 Material2_5D material = source_material;
                 if (roughness_factor >= 0.0f) {
@@ -321,9 +326,9 @@ void render_clipped_lit_triangle(
                 }
                 Color src = rendering::evaluate_lighting(base, normal, light, material, rim);
                 if (source_material.emissive_enabled) {
-                    src.r = std::clamp(src.r + source_material.emissive_color.r, 0.0f, 1.0f);
-                    src.g = std::clamp(src.g + source_material.emissive_color.g, 0.0f, 1.0f);
-                    src.b = std::clamp(src.b + source_material.emissive_color.b, 0.0f, 1.0f);
+                    src.r = std::clamp(src.r + source_material.emissive_color.r * src.a, 0.0f, 1.0f);
+                    src.g = std::clamp(src.g + source_material.emissive_color.g * src.a, 0.0f, 1.0f);
+                    src.b = std::clamp(src.b + source_material.emissive_color.b * src.a, 0.0f, 1.0f);
                 }
                 if (src.a <= 0.0f || !std::isfinite(src.r) || !std::isfinite(src.g) ||
                     !std::isfinite(src.b) || !std::isfinite(src.a)) continue;

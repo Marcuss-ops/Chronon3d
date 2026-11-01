@@ -3,7 +3,7 @@
 ## Scope and source state
 
 This follow-up fixes the current-source software-frame → H.264/NVENC export
-corruption recorded in `ChrononMotion3D/docs/evidence/ticket-roundtrip-current-source-20261029/README.md`.
+corruption recorded in `ChrononMotion3D/docs/evidence/ticket-roundtrip-current-source-20261029/README.md`. <!-- drift-class: third-party — sibling-repo citation -->
 The CUDA frame pool declares `AV_PIX_FMT_NV12`; the host staging frame and
 `av_hwframe_transfer_data` source now use NV12 as well. The previous code
 converted RGBA into planar YUV420P and transferred that layout into an NV12

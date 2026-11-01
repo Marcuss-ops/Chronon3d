@@ -82,7 +82,7 @@ std::string discover_cli_binary() {
 }
 
 // ffmpeg-available: canonical CLI integration check via std::system
-// (per tests/cli/test_video_adapter_e2e.cpp:42 precedent).
+// (per tests/cli/test_video_adapter_e2e.cpp:42 precedent).  // drift-class: historical — retired path (see git history)
 bool ffmpeg_available() {
     return std::system("ffmpeg -version > /dev/null 2>&1") == 0;
 }

@@ -39,6 +39,29 @@ TEST_CASE("textured inline mesh preserves image alpha through UV rasterization")
     CHECK(discarded.a == doctest::Approx(0.f));
 }
 
+TEST_CASE("lit mesh combines material and premultiplied texture alpha") {
+    Mesh mesh{"lit-translucent-triangle"};
+    mesh.add_vertex(Vertex{{-1.f, -1.f, -3.f}, {0.f, 0.f, 1.f}, {0.f, 0.f}});
+    mesh.add_vertex(Vertex{{ 1.f, -1.f, -3.f}, {0.f, 0.f, 1.f}, {1.f, 0.f}});
+    mesh.add_vertex(Vertex{{ 0.f,  1.f, -3.f}, {0.f, 0.f, 1.f}, {0.5f, 1.f}});
+    for (const auto index : {0u, 1u, 2u}) mesh.add_index(index);
+    const Mat4 projection = glm::perspective(glm::radians(60.f), 1.f, .1f, 100.f);
+    RenderNode::InlineMeshMaterial material;
+    material.base_color = Color{1.f, 1.f, 1.f, 0.5f};
+    Framebuffer texture{1, 1};
+    texture.clear(Color{0.5f, 0.f, 0.f, 0.5f});
+    Framebuffer output{64, 64};
+    std::vector<float> depth(64 * 64, 0.f);
+    renderer::render_mesh_filled_lit(output, mesh, Mat4{1.f}, Mat4{1.f}, projection,
+        Color{1.f, 1.f, 1.f, 0.5f}, depth, {}, {}, material,
+        .1f, 100.f, -1.f, 0.f, nullptr, &texture);
+    const auto pixel = output.get_pixel(32, 32);
+    CHECK(pixel.r == doctest::Approx(0.125f));
+    CHECK(pixel.g == doctest::Approx(0.f));
+    CHECK(pixel.b == doctest::Approx(0.f));
+    CHECK(pixel.a == doctest::Approx(0.125f));
+}
+
 TEST_CASE("textured mesh clips triangles against near and far planes") {
     Framebuffer texture{2, 2};
     texture.clear(Color{0.5f, 0.f, 0.f, 0.5f});

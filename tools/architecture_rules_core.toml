@@ -567,7 +567,7 @@ file_patterns = [
     "build_output.txt", "CMakeCache.txt", "/vcpkg_bootstrap",
     "/test_output_*.png", "/path.json", "camera_path*.json",
     "camera_path_report.json", "CameraTestReport.json",
-    "camera_shot_report*.json", "*_state.bin", "*_report*.json",
+    "*_state.bin", "*_report*.json",
 ]
 
 build_globs = ["build-tmp", "build-debug", "build-release", "build-asan", "build-*"]

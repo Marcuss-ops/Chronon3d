@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // test_postprocess_fx.cpp — Post-process FX family (V1) acceptance tests.
-// See docs/tickets/TICKET-POSTPROCESS-FX.md for the shader-math contracts.
+// See docs/tickets/TICKET-POSTPROCESS-FX.md for the shader-math contracts.  // drift-class: historical — retired path (see git history)
 // ---------------------------------------------------------------------------
 
 #include <doctest/doctest.h>

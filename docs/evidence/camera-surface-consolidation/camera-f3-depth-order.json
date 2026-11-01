@@ -1,0 +1,27 @@
+{
+  "date_utc": "2026-10-31",
+  "gate": "F3 Motion lowering Z convention and camera-backed 2.5D depth ordering",
+  "fixture": "Two opaque PNG cards, no mesh: blue stays at RenderPlan Z=80; red moves from Z=20 to Z=150 between frames 0 and 1. Camera and card state are lowered by CM3D; C3D renders software raw RGBA8.",
+  "command": "python3 ChrononMotion3D/tests/check_camera_depth_canary.py --motion-authoring ChrononMotion3D/build/release-fast/chrononmotion_authoring --chronon3d-cli Chronon3d/build/chronon/linux-video-test/apps/chronon3d_cli/chronon3d_cli",
+  "motion_assertions": [
+    "camera_samples and both cards use the same frames 0 and 1",
+    "red card base position and resolved transform samples use mirrored Z values +20 and +150",
+    "Null/controller layers are absent from the renderable plan"
+  ],
+  "render_assertions": [
+    {
+      "frame": 0,
+      "center_pixel_rgba": [240, 40, 20, 255],
+      "foreground": "red",
+      "raw_sha256": "41b64be564fec2e3a9dc81354d151d9cfb3d4363c9698e104bd467e937d4dbef"
+    },
+    {
+      "frame": 1,
+      "center_pixel_rgba": [20, 70, 240, 255],
+      "foreground": "blue",
+      "raw_sha256": "6e4d071822b1bc452803d804009ca6f3cd3b2839a6cbeb8cb91c7fbcb378c3eb"
+    }
+  ],
+  "result": "PASS: the rendered front/back order flips exactly when the animated PNG card crosses the other card in Z.",
+  "limits": "This validates the Z lowering and image-card depth order in the software renderer. It does not validate the separate Documentary Showcase highlighter alignment, Vulkan mesh intersection, or AE parity."
+}

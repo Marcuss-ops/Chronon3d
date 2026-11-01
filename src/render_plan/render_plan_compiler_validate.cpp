@@ -10,6 +10,8 @@ std::optional<PlanDecodeError> validate_compile_request(
     for (const auto& layer : plan.layers)
         if (const auto problem = transform_samples_problem(layer))
             return PlanDecodeError{"layers." + layer.id + ".transform_samples", *problem, "invalid_resolved_transform_samples", "render-plan-motion"};
+    if (const auto problem = resolved_shutter_samples_problem(plan))
+        return PlanDecodeError{"layers.transform_samples", *problem, "incomplete_resolved_shutter_samples", "render-plan-motion"};
     if (plan.camera) {
         if (const auto problem = camera_contract_problem(*plan.camera))
             return PlanDecodeError{"camera", *problem, "unsupported_camera_contract", "render-plan-camera"};

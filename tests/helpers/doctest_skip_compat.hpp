@@ -11,7 +11,7 @@
 //   this project tracks a doctest version older than 2.4.0, where
 //   `SKIP` is missing from `<doctest/doctest.h>` even though
 //   `DOCTEST_SKIP` works correctly. The compile failure at
-//   `tests/text/support/pipeline_parity_harness.cpp:455` is a symptom of this
+//   `tests/text/support/pipeline_parity_harness.cpp:455` is a symptom of this  // drift-class: historical — retired path (see git history)
 //   version drift: the test uses the newer `SKIP("…")` form while the
 //   installed doctest only exposes the older `DOCTEST_SKIP` macro.
 //
@@ -68,7 +68,7 @@
 // Each `SKIP(...)` call site MUST include a `TICKET-DOCTEST-SKIP-ROT`
 // tag in its message string per `tools/check_test_hygiene.sh` Check 2
 // (the gate ensures every skip is traceable to a tracked ticket).
-// The existing `tests/showcase/cinematic/test_cinematic_artifacts.cpp`
+// The existing `tests/showcase/cinematic/test_cinematic_artifacts.cpp`  // drift-class: historical — retired path (see git history)
 // already uses `DOCTEST_SKIP` directly with TICKET-A4 tags and does NOT
 // need this header.
 //

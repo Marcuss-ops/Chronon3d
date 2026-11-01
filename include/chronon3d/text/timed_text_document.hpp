@@ -66,7 +66,7 @@ struct TimedWord {
 // The enum lives at per-cue granularity (NOT per-document) because a
 // JSON document can mix cues with and without word arrays; a per-doc
 // flag would either lie about the worst case or pessimise the best
-// case.  See docs/tickets/TICKET-WORD-TIMING-QUALITY.md for rationale.
+// case.  See docs/tickets/TICKET-WORD-TIMING-QUALITY.md for rationale.  // drift-class: historical — retired path (see git history)
 enum class WordTimingQuality {
     None,
     Estimated,

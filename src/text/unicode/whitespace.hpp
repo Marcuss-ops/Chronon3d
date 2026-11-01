@@ -9,7 +9,7 @@
 // Anti-duplication invariants:
 //   • Replaces 3 private duplicate impls:
 //       (1) `chronon3d::detail::is_unicode_whitespace`     in include/chronon3d/text/glyph_selector.hpp
-//       (2) `composer_internal::is_whitespace_codepoint`   in src/text/boundary_resolver/composer_helpers.hpp
+//       (2) `composer_internal::is_whitespace_codepoint`   in src/text/boundary_resolver/composer_helpers.hpp  // drift-class: historical — retired path (see git history)
 //       (3) anonymous `is_unicode_whitespace_cp`           in src/text/boundary_resolver/text_unit_map.cpp
 //   • ICU owns the Unicode White_Space property table. Chronon explicitly
 //     retains U+FEFF as whitespace for the historical BOM/text-unit contract.

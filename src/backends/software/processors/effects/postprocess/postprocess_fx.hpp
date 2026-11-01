@@ -4,7 +4,7 @@
 // postprocess_fx.hpp — Software kernels for the post-process FX family
 // (Scanlines, RetroTv, Halation, AnamorphicStreak).
 //
-// Shader-math contracts live in docs/tickets/TICKET-POSTPROCESS-FX.md. Every
+// Shader-math contracts live in docs/tickets/TICKET-POSTPROCESS-FX.md. Every  // drift-class: historical — retired path (see git history)
 // kernel is deterministic: time-dependent behaviour (RetroTv tape jitter) is a
 // pure function of (time_seconds, seed) so identical inputs reproduce
 // identical frames.

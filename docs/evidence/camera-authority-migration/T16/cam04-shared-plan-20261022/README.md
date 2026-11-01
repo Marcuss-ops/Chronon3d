@@ -24,7 +24,7 @@ python3 verify_cam04.py
 ```
 
 The renderer source and CMake target live in
-`ChrononMotion3D/render/tests/cam04_renderplan_pixels.cpp` and
+`ChrononMotion3D/render/tests/cam04_renderplan_pixels.cpp` and <!-- drift-class: third-party — sibling-repo citation -->
 `ChrononMotion3D/render/CMakeLists.txt`. The C3D 150-frame timing sidecar is
 `c3d_render150_timing.json`; PNG samples and contact sheets are included for
 visual inspection.

@@ -167,6 +167,11 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         // zero-copy to another pool-owned wrapper.
         reused->resize_logical(width, height);
         reused->set_storage_transferable(true);
+        // Camera-closure per-pixel depth is a side channel attached by a
+        // producer for THIS buffer's previous content. A pool reuse breaks
+        // that provenance: pixel content is caller-overwritten, so the
+        // stale depth must go with it.
+        reused->drop_depth_map();
         return reused;
     }
 

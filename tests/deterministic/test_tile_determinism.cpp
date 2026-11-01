@@ -18,7 +18,7 @@
 // non-determinism as a separate ticket).
 //
 // Wire this file into the existing `chronon3d_deterministic_tests`
-// target inside `tests/deterministic_tests.cmake` (already gated on
+// target inside `tests/deterministic_tests.cmake` (already gated on  // drift-class: historical — retired path (see git history)
 // CHRONON3D_USE_BLEND2D per the existing project convention).
 // ============================================================================
 

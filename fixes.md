@@ -25,7 +25,7 @@ Stato generale: disciplina forte (`steady_state_allocations_per_frame=0` gate, `
 - Rischio intervento: Basso.
 
 ### [P1] 1.2 — `gpu_text_run.cpp` prepare path: 9 vettori per prepared run
-- Evidenze: `src/render_graph/nodes/text_run/gpu_text_run.cpp:825-846, 888-897`
+- Evidenze: `src/render_graph/nodes/text_run/gpu_text_run.cpp:825-846, 888-897` <!-- drift-class: historical — retired path (see git history) -->
 - Fatto: `keys/widths/heights/metrics` + 5 `pending_*` vettori, `make_shared<GpuPreparedTextRun>`, `std::vector<FontFaceHandle> fonts` per ogni *nuovo* prepared run (cache-miss); loop di re-check richiama `location()`/`metrics()` per glyph. Il vecchio walk selector di compatibilità del testo è stato rimosso.
 - Fix consigliato: prepare-scratch riutilizzabile (pattern `download_scratch_`); il vecchio walk selector di compatibilità è stato rimosso.
 - Rischio: Basso.
@@ -120,7 +120,7 @@ Stato generale: disciplina forte (`steady_state_allocations_per_frame=0` gate, `
 - Rischio: Basso.
 
 ### [P1] 3.2 — Message-string → code re-derivation (control flow stringly-typed)
-- Evidenza: `src/scene/camera/camera_v1/shot_timeline.cpp:335-355` (`derive_code_from_message` greppa `d.message` per substringhe)
+- Evidenza: `src/scene/camera/camera_v1/shot_timeline.cpp:335-355` (`derive_code_from_message` greppa `d.message` per substringhe) <!-- drift-class: historical — retired path (see git history) -->
 - Fatto: seconda SSOT lossy della tassonomia errori, residente nel testo dei messaggi. Cambio wording → cambio silenzioso dei codici.
 - Fix: propagare il codice strutturato all'origine.
 - Rischio: Medio.
@@ -223,14 +223,14 @@ Fix: decidere l'asse di ownership e nominarlo (es. `PerBindingTransformBlock` pe
 - Rischio: Medio (silent visual corruption, ora coperto dal test).
 
 ### [P2] B.6 — `[RITIRATO]` Enum severity camera: sono già un alias di tipo
-- Verifica: esiste **un solo** `enum class Severity` (`include/chronon3d/scene/camera/camera_v1/camera_program.hpp:50`). `CameraResolveDiagnostic::Severity` è `using Severity = CameraProgramDiagnostic::Severity;` (`:94`), con commento che dichiara l'alias come garanzia di non-divergenza. La deduplicazione richiesta dall'audit è già in essere.
+- Verifica: esiste **un solo** `enum class Severity` (`include/chronon3d/scene/camera/camera_v1/camera_program.hpp:50`). `CameraResolveDiagnostic::Severity` è `using Severity = CameraProgramDiagnostic::Severity;` (`:94`), con commento che dichiara l'alias come garanzia di non-divergenza. La deduplicazione richiesta dall'audit è già in essere. <!-- drift-class: historical — retired path (see git history) -->
 - Residuo reale (igiene): il commento in `src/scene/camera/camera_v1/shot_timeline.cpp:370-373` descriveva ancora "i due enum che condividono i 3 valori" come se fossero tipi distinti → `[APPLICATO]` riallineato all'alias (F.1).
 - Rischio: nullo.
 
 ### B.7 — Salute governance (conferme, ri-verificate)
 - Nessun ciclo gate↔gate. `tools/duplicate_basename_allowlist.txt` = 27 basename + 2 righe di commento (29 righe `wc -l`): policy dichiarata nel manifest TOML, non allowlist fantasma. Il gate concorda: `duplicate_source_basenames — 26 duplicate basename(s), all grandfathered` (184/184 PASS).
 - `check_no_sqlite.sh` resta vivo post-demolition SQLite come anti-regression: l'header del file (righe 2-8) lo dichiara già esplicitamente come guardia irreversibile → la richiesta "da etichettare come tale" è già soddisfatta.
-- Nessun consumer che aggira `AssetResolver`/`RenderSurfaceRegistry`/`EffectCatalog` sul data-plane. `resource_index_` DirectYuv (`src/media/video/direct_yuv/direct_yuv_program.cpp:353-372`, non `355-369`) è una proiezione ordinata interrogata con `std::lower_bound` su `layer_resources_`, non una seconda SSOT.
+- Nessun consumer che aggira `AssetResolver`/`RenderSurfaceRegistry`/`EffectCatalog` sul data-plane. `resource_index_` DirectYuv (`src/media/video/direct_yuv/direct_yuv_program.cpp:353-372`, non `355-369`) è una proiezione ordinata interrogata con `std::lower_bound` su `layer_resources_`, non una seconda SSOT. <!-- drift-class: historical — retired path (see git history) -->
 - Nessuno split-brain: executor unico (`docs/EXECUTOR_OWNERSHIP.md` coerente col codice), NV12 authority unificata (Wave 1D), telemetry SQLite demolita.
 
 ---
@@ -336,7 +336,7 @@ Chiusure raggiungibili della lista di next-step, più un finding nuovo emerso es
 
 ## G.1 Nuovo finding [P1] — `GpuTextRunDynamic`: due layout, un nome; la pipeline `TextBatch` è irraggiungibile
 
-> Aggiornamento 2026-09-25: il layout tile è 128 byte (rotation/fill-color); la nota storica 112/64 qui sotto descrive il primo audit. `tests/test_shader_layout_contract.py` controlla i due shader tile e il relativo stride SPIR-V contro l'ABI corrente. Nel lane `linux-video-test` sono passati il layout contract con stride SPIR-V compilato, il canary, shader ABI consistency e render graph; il core completo è bloccato dall'assenza degli asset font richiesti. La suite Vulkan debug esegue i casi ma abortisce in teardown con `free(): invalid pointer` e resta aperta. **Caveat sul tree attuale:** è comparso un ramo SDF per stroke shape in `fill_rect.comp` con dispatch dedicato, mentre `test_vulkan_debug_context.cpp` ancora si aspetta il rifiuto `UnsupportedCapability`; le verifiche sopra precedono questa modifica e non la certificano. Parità pixel e stato del test restano aperti: vedere `docs/tickets/TICKET-ROADMAP-LOCAL-CLOSEOUT-2026-09.md`.
+> Aggiornamento 2026-09-25: il layout tile è 128 byte (rotation/fill-color); la nota storica 112/64 qui sotto descrive il primo audit. `tests/test_shader_layout_contract.py` controlla i due shader tile e il relativo stride SPIR-V contro l'ABI corrente. Nel lane `linux-video-test` sono passati il layout contract con stride SPIR-V compilato, il canary, shader ABI consistency e render graph; il core completo è bloccato dall'assenza degli asset font richiesti. La suite Vulkan debug esegue i casi ma abortisce in teardown con `free(): invalid pointer` e resta aperta. **Caveat sul tree attuale:** è comparso un ramo SDF per stroke shape in `fill_rect.comp` con dispatch dedicato, mentre `test_vulkan_debug_context.cpp` ancora si aspetta il rifiuto `UnsupportedCapability`; le verifiche sopra precedono questa modifica e non la certificano. Parità pixel e stato del test restano aperti: vedere `docs/tickets/TICKET-ROADMAP-LOCAL-CLOSEOUT-2026-09.md`. <!-- drift-class: historical — retired path (see git history) -->
 - **Due struct omonime con dimensioni diverse**: `text_batch.comp:30` dichiara `GpuTextRunDynamic` con 16 membri (stride std430 **64**, come dice il suo stesso commento *"64 bytes per text run dynamic entry"*); `text_tile_bin.comp:20` e `text_tile_raster.comp:27` dichiarano il record tile completo (ora **128** byte dopo animator rotation/fill-color; era 112 al momento dell'audit iniziale).
 - **Il C++ ha un solo alias per quel nome**: `using GpuTextRunDynamic = runtime::TextRunDynamic;` con `static_assert(sizeof(...) == 128)` (`src/backends/vulkan/vulkan_backend_text_ops_private.cpp`).
 - **Chi lo usa davvero**: `draw_text_batch` carica `runs.size() * sizeof(GpuTextRunDynamic)` (128 B/run nell'ABI corrente) e batte quel buffer ai kernel tile (`write_text_tile_bin_descriptors(..., run_buffer, ...)`, stesso file `:289`) → coerente con l'ABI corrente a 128 byte. Il percorso `record_text_batch` — l'unico che risolverebbe il kernel `TextBatch`, cioè lo shader a 64 B — **non ha nessun call-site**: la sua unica occorrenza fuori dalla definizione è la dichiarazione in `vulkan_backend_impl.hpp:425`.
