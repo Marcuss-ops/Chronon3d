@@ -45,18 +45,25 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const auto& camera = camera_for(ctx);
+        const auto& dof = camera.dof;
+        u64 params_hash = hash_string("chronon.per-pixel-dof.v2");
+        params_hash = hash_combine(params_hash, hash_value(dof.enabled));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.focus_z));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.aperture));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.max_blur));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.focus_distance));
+        params_hash = hash_combine(params_hash, hash_value(dof.use_physical_model));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.near_bokeh_radius));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.far_bokeh_radius));
+        params_hash = hash_combine(params_hash, hash_value(dof.iris_blades));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.highlight_gain));
         return cache::NodeCacheKey{
             .scope = "per_pixel_dof",
             .frame = ctx.frame_input.frame,
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = hash_combine(
-                hash_combine(
-                    hash_value(camera.dof.focus_z),
-                    hash_value(camera.dof.focus_distance)),
-                hash_combine(
-                    hash_value(camera.dof.aperture),
-                    hash_value(camera.dof.max_blur)))
+            .params_hash = params_hash,
+            .params_version = 2
         };
     }
 

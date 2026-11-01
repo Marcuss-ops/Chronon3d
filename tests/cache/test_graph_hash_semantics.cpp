@@ -7,6 +7,9 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
+#include <chronon3d/render_graph/nodes/per_pixel_dof_node.hpp>
+#include <chronon3d/render_graph/nodes/depth_grade_node.hpp>
+#include <chronon3d/render_graph/nodes/shadow_node.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include "src/backends/text/font_bbox_cache_key.hpp"
@@ -918,4 +921,133 @@ TEST_CASE("SceneHasher V2 includes layer material, matte, source and remapped ti
     graph::SceneHasher hasher;
     CHECK(hasher.compute_dynamic_fingerprint(scene, Frame{10}) !=
           hasher.compute_dynamic_fingerprint(scene, Frame{11}));
+}
+
+TEST_CASE("PerPixelDofNode V2 key covers every DOF setting") {
+    Camera2_5DRuntime base;
+    base.dof.enabled = true;
+    base.dof.focus_z = 10.0f;
+    base.dof.aperture = 0.1f;
+    base.dof.max_blur = 8.0f;
+    base.dof.focus_distance = 1200.0f;
+    base.dof.near_bokeh_radius = 2.0f;
+    base.dof.far_bokeh_radius = 3.0f;
+    base.dof.iris_blades = 7;
+    base.dof.highlight_gain = 0.5f;
+    graph::RenderGraphContext ctx;
+    const auto digest = [&](const auto& camera) {
+        return graph::PerPixelDofNode::create(camera)->cache_key(ctx);
+    };
+    const auto original = digest(base);
+    const auto changed = [&](auto mutate) {
+        auto camera = base;
+        mutate(camera.dof);
+        const auto key = digest(camera);
+        CHECK(key.params_hash != original.params_hash);
+        CHECK(key.params_version == 2);
+    };
+    changed([](auto& d) { d.enabled = false; });
+    changed([](auto& d) { d.focus_z += 1.0f; });
+    changed([](auto& d) { d.aperture += 0.1f; });
+    changed([](auto& d) { d.max_blur += 1.0f; });
+    changed([](auto& d) { d.focus_distance += 1.0f; });
+    changed([](auto& d) { d.use_physical_model = true; });
+    changed([](auto& d) { d.near_bokeh_radius += 1.0f; });
+    changed([](auto& d) { d.far_bokeh_radius += 1.0f; });
+    changed([](auto& d) { d.iris_blades += 1; });
+    changed([](auto& d) { d.highlight_gain += 0.1f; });
+}
+
+TEST_CASE("DepthGradeNode V2 key covers every grading dependency") {
+    rendering::DepthGrade base;
+    base.near_z = 10.0f;
+    base.far_z = 100.0f;
+    base.fog_color = {0.1f, 0.2f, 0.3f, 0.4f};
+    base.fog_opacity = 0.5f;
+    base.far_saturation = 0.6f;
+    base.far_contrast = 0.7f;
+    base.far_blur_px = 8.0f;
+    graph::RenderGraphContext ctx;
+    const auto digest = [&](const auto& grade, float z, bool accepts) {
+        return graph::DepthGradeNode(grade, z, accepts).cache_key(ctx);
+    };
+    const auto original = digest(base, 20.0f, true);
+    const auto changed = [&](auto mutate) {
+        auto grade = base;
+        float z = 20.0f;
+        bool accepts = true;
+        mutate(grade, z, accepts);
+        const auto key = digest(grade, z, accepts);
+        CHECK(key.params_hash != original.params_hash);
+        CHECK(key.params_version == 2);
+    };
+    changed([](auto& g, auto&, auto&) { g.enabled = false; });
+    changed([](auto& g, auto&, auto&) { g.near_z += 1.0f; });
+    changed([](auto& g, auto&, auto&) { g.far_z += 1.0f; });
+    changed([](auto& g, auto&, auto&) { g.fog_color.r += 0.1f; });
+    changed([](auto& g, auto&, auto&) { g.fog_color.g += 0.1f; });
+    changed([](auto& g, auto&, auto&) { g.fog_color.b += 0.1f; });
+    changed([](auto& g, auto&, auto&) { g.fog_color.a += 0.1f; });
+    changed([](auto& g, auto&, auto&) { g.fog_opacity += 0.1f; });
+    changed([](auto& g, auto&, auto&) { g.far_saturation += 0.1f; });
+    changed([](auto& g, auto&, auto&) { g.far_contrast += 0.1f; });
+    changed([](auto& g, auto&, auto&) { g.far_blur_px += 1.0f; });
+    changed([](auto&, auto& z, auto&) { z += 1.0f; });
+    changed([](auto&, auto&, auto& accepts) { accepts = false; });
+}
+
+TEST_CASE("ShadowNode V2 key covers every shadow dependency") {
+    rendering::ShadowSettings base;
+    base.opacity = 0.4f;
+    base.blur_radius = 5.0f;
+    base.px_per_unit = 2.0f;
+    base.max_offset = 50.0f;
+    base.contact_opacity = 0.2f;
+    base.contact_blur_radius = 3.0f;
+    base.ambient_opacity = 0.1f;
+    base.ambient_blur_radius = 40.0f;
+    base.depth_aware = false;
+    base.blur_per_z = 0.03f;
+    base.opacity_falloff = 0.004f;
+    base.tint = {0.1f, 0.2f, 0.3f, 0.4f};
+    graph::RenderGraphContext ctx;
+    const auto digest = [&](std::string name, float caster, float receiver,
+                            Vec3 light, rendering::ShadowSettings settings,
+                            float bias) {
+        return graph::ShadowNode(std::move(name), caster, receiver, light,
+            settings, bias).cache_key(ctx);
+    };
+    const auto original = digest("caster", 1.0f, 2.0f, {0.1f, 0.2f, 0.3f}, base, 0.01f);
+    const auto changed = [&](auto mutate) {
+        std::string name = "caster";
+        float caster = 1.0f, receiver = 2.0f, bias = 0.01f;
+        Vec3 light{0.1f, 0.2f, 0.3f};
+        auto settings = base;
+        mutate(name, caster, receiver, light, settings, bias);
+        const auto key = digest(std::move(name), caster, receiver, light, settings, bias);
+        CHECK(key.params_hash != original.params_hash);
+        CHECK(key.params_version == 2);
+    };
+    changed([](auto& n, auto&, auto&, auto&, auto&, auto&) { n += "2"; });
+    changed([](auto&, auto& z, auto&, auto&, auto&, auto&) { z += 1.0f; });
+    changed([](auto&, auto&, auto& z, auto&, auto&, auto&) { z += 1.0f; });
+    changed([](auto&, auto&, auto&, auto& v, auto&, auto&) { v.x += 1.0f; });
+    changed([](auto&, auto&, auto&, auto& v, auto&, auto&) { v.y += 1.0f; });
+    changed([](auto&, auto&, auto&, auto& v, auto&, auto&) { v.z += 1.0f; });
+    changed([](auto&, auto&, auto&, auto&, auto&, auto& b) { b += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.opacity += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.blur_radius += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.px_per_unit += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.max_offset += 1.0f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.contact_opacity += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.contact_blur_radius += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.ambient_opacity += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.ambient_blur_radius += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.depth_aware = true; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.blur_per_z += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.opacity_falloff += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.tint.r += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.tint.g += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.tint.b += 0.1f; });
+    changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.tint.a += 0.1f; });
 }
