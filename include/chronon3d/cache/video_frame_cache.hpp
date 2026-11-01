@@ -40,7 +40,9 @@ struct VideoFrameKey {
     u64 render_hash{0};
 
     [[nodiscard]] bool operator==(const VideoFrameKey&) const = default;
-    [[nodiscard]] u64 digest() const;
+    [[nodiscard]] u64 digest_v1() const;
+    [[nodiscard]] u64 digest_v2() const;
+    [[nodiscard]] u64 digest() const { return digest_v2(); }
 };
 
 struct VideoFrameKeyHash {

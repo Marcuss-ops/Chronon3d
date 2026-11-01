@@ -7,6 +7,11 @@ is 5/5 off + 5/5 on. Evidence is in
 `evidence/closeout-20261030/README.md` and
 `evidence/100x-perf-waves-b2-20261029/b2-final-20261030-runs.json`.
 
+Local source checkpoint (2026-11-01): `main` is at `03e41d5b1` (2026-10-31),
+with the composition legacy-executor demolition now tracked as an active ticket.
+The camera surface consolidation and camera/video parity blockers remain open;
+the current local checkout does not establish a newer same-SHA CI certification.
+
 > **Single v0.1 release contract:** [`RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md). This file reports observed state; it does not redefine release identity.
 >
 > **Observed state only.** Per AGENTS.md, extended chronicle lives in tickets: this file
@@ -25,7 +30,7 @@ is 5/5 off + 5/5 on. Evidence is in
 | GPU-native video | same-SHA host certification at source commit `5e49b7e4a`: Vulkan↔CUDA interop and CUDA→NVENC probes PASS; FullGraph, DirectYUV H.264/H.265, prepared-MTSDF text, and native-image routes PASS with zero readback/staging; GitHub CI remains separate |
 | Strict motion corpus (2026-10-10) | 479/479 PASS same-tree (`e3f14fbf4`+wave / RG `5e1b7f5`+harness): web_rect 12, light_leak 12, entity_caption 56, image 126, phrase 203, presentation 70 — strict vulkan/nvenc/native/require_gpu_native, h264 1280x720 48f; clean-SHA re-cert owed after commit |
 | GPU text route | packed compatibility route CLOSED 2026-09-22; prepared MTSDF is the only native graph route, with explicit software/reject handling |
-| Remote main (observed 2026-10-29) | `a214fad27efdaa597ccf4e4a8ae34baa6677146e` (matches local HEAD). It includes particle GPU instancing and the Posterize/ColorMap effects. The latest listed Actions batch on this SHA is not green: release artifact succeeded, CI/Developer Gates/CFI and SVG pixel truth were cancelled, and Nightly/CodeQL/runtime/resource-leak/ABI/native-video jobs failed. T05 GPU A/B and same-SHA certification remain open. |
+| Remote main (observed 2026-10-29) | `a214fad27efdaa597ccf4e4a8ae34baa6677146e` was the last recorded remote observation; it is not the current local HEAD. Its latest recorded Actions batch was not green. T05 GPU A/B and same-SHA certification remain open; recheck remote Actions before claiming current CI state. |
 
 ## Area authority census
 
@@ -63,6 +68,7 @@ tracked in [`TICKET-WAVE-CLOSEOUT-DEMOLITION-DEBT`](tickets/TICKET-WAVE-CLOSEOUT
 | CERT-SEQUENCE-WBH | testing/cert | PARTIAL | [CERT-SEQUENCE-WBH](tickets/TICKET-CERT-SEQUENCE-WBH-PROTOCOL.md) — protocol, toolchain manifest and local qualification delivered; clean same-SHA certification remains |
 | FFMPEG-PIPE-SINK-DEMOLITION | video cleanup | BLOCKED | [ticket](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) — exits 2/4/5 verified 2026-10-23 (zero pipe callers, anti-resurrection gate 209/209); exit 3 CI-green evidence outstanding |
 | FUSED-STORAGE-IMAGE-DEMOLITION | render graph cleanup | PARTIAL | [ticket](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) — compiler/executor image branch demolished; one same-SHA native-image video certificate is PASS, broader overlay corpus parity remains |
+| CACHE-IDENTITY-KEYS | cache invalidation | ACTIVE | [ticket](tickets/TICKET-CACHE-IDENTITY-KEYS.md) — all taxonomy entries now have identity owners/dependency axes; remaining V2 schemas, mutation fixtures and full test execution are open |
 
 Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 

@@ -56,7 +56,7 @@ namespace chronon3d::graph {
         XXH3_64bits_update(state, &transform_hash, sizeof(transform_hash));
     }
     for (const auto& node : scene.nodes()) {
-        const u64 node_hash = hash_render_node(node);
+        const u64 node_hash = hash_render_node_v2(node);
         XXH3_64bits_update(state, &node_hash, sizeof(node_hash));
     }
     const auto result = XXH3_64bits_digest(state);

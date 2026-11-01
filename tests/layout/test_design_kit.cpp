@@ -61,5 +61,5 @@ TEST_CASE("Shape hash changes when stroke changes") {
     Shape b = a;
     b.rounded_rect().stroke.width = 2.0f;
 
-    CHECK(chronon3d::graph::hash_shape(a) != chronon3d::graph::hash_shape(b));
+    CHECK(chronon3d::graph::hash_shape_v2(a) != chronon3d::graph::hash_shape_v2(b));
 }

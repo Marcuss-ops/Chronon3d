@@ -127,9 +127,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             }
                 .frame(ctx.frame_input.frame)
                 .output(ctx.frame_input.width, ctx.frame_input.height)
-                .params(hash_render_node_content_only(node))
+                .params(hash_render_node_content_v2(node))
                 .source(hash_combine(hash_string(node.name),
-                                     hash_render_node_placement_only(node)))
+                                     hash_render_node_placement_v2(node)))
+                .versions(2, 2)
                 .camera_if(ctx.frame_input.has_camera_2_5d,
                            ctx.frame_input.camera_2_5d)
                 .build();
@@ -158,8 +159,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         if (layer.nodes.size() == 1 && !single_node_needs_svg_compositing) {
             const auto& authored_node = layer.nodes[0];
             const auto node = materialize_mesh_node(authored_node, ctx);
-            const u64 content_hash = hash_render_node_content_only(node);
-            const u64 placement_hash = hash_render_node_placement_only(node);
+            const u64 content_hash = hash_render_node_content_v2(node);
+            const u64 placement_hash = hash_render_node_placement_v2(node);
             GraphNodeId source;
 
             // ── TextRun branch ─────────────────────────────────────────
@@ -201,6 +202,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .output(ctx.frame_input.width, ctx.frame_input.height)
                     .params(content_hash)
                     .source(hash_combine(hash_string(node.name), placement_hash))
+                    .versions(2, 2)
                     .camera_if(ctx.frame_input.has_camera_2_5d &&
                                    !placement.tight_surface,
                                ctx.frame_input.camera_2_5d)
@@ -238,6 +240,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .output(ctx.frame_input.width, ctx.frame_input.height)
                     .params(content_hash)
                     .source(hash_combine(hash_string(node.name), placement_hash))
+                    .versions(2, 2)
                     .camera_if(ctx.frame_input.has_camera_2_5d,
                                ctx.frame_input.camera_2_5d)
                     .build();
@@ -288,10 +291,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 && !node.shape.text_run_shape_handle().value) {
                 saw_orphan_text_run = true;
             }
-            aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node_content_only(node));
+            aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node_content_v2(node));
             aggregated_source_hash = hash_combine(
                 aggregated_source_hash,
-                hash_combine(hash_string(node.name), hash_render_node_placement_only(node))
+                hash_combine(hash_string(node.name), hash_render_node_placement_v2(node))
             );
         }
         if (saw_orphan_text_run) {
@@ -311,6 +314,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             .output(ctx.frame_input.width, ctx.frame_input.height)
             .params(aggregated_params_hash)
             .source(aggregated_source_hash)
+            .versions(2, 2)
             .camera_if(ctx.frame_input.has_camera_2_5d,
                        ctx.frame_input.camera_2_5d)
             .build();

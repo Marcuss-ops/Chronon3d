@@ -14,6 +14,19 @@ using namespace chronon3d;
 
 using namespace chronon3d::cache;
 
+TEST_CASE("FramebufferPoolKey identity includes both size dimensions") {
+    const FramebufferPoolKey base{.width = 640, .height = 360};
+    const auto base_hash = FramebufferPoolKeyHash{}(base);
+    auto changed = base;
+    changed.width++;
+    CHECK_FALSE(changed == base);
+    CHECK(FramebufferPoolKeyHash{}(changed) != base_hash);
+    changed = base;
+    changed.height++;
+    CHECK_FALSE(changed == base);
+    CHECK(FramebufferPoolKeyHash{}(changed) != base_hash);
+}
+
 TEST_CASE("FramebufferPool cached promotion preserves pixels and returns storage") {
     auto pool = std::make_shared<FramebufferPool>(1024 * 1024);
     Framebuffer* raw = nullptr;

@@ -95,6 +95,59 @@ TEST_CASE("Field2D generators and operators are deterministic and bounded") {
     CHECK(linear.sample({0.75f, 0.1f}) == doctest::Approx(1.0f));
 }
 
+TEST_CASE("Field2D V2 fingerprint is fieldwise and canonicalizes signed zero") {
+    chronon3d::graphics::Field2D base;
+    base.generator = chronon3d::graphics::Field2DGenerator::Fractal;
+    base.seed = 23;
+    base.frequency = 0.75f;
+    base.operators = {{.kind = chronon3d::graphics::Field2DOperatorKind::Warp,
+                       .amount = 0.25f,
+                       .vec = {0.5f, 0.25f}}};
+    const auto original = chronon3d::graphics::field2d_fingerprint_v2(base);
+
+    const auto changed = [&](auto mutate) {
+        auto field = base;
+        mutate(field);
+        CHECK(chronon3d::graphics::field2d_fingerprint_v2(field) != original);
+    };
+    changed([](auto& f) { f.generator = chronon3d::graphics::Field2DGenerator::Simplex; });
+    changed([](auto& f) { ++f.seed; });
+    changed([](auto& f) { f.frequency += 0.1f; });
+    changed([](auto& f) { ++f.octaves; });
+    changed([](auto& f) { f.persistence += 0.1f; });
+    changed([](auto& f) { f.lacunarity += 0.1f; });
+    changed([](auto& f) { f.transform.translation.x += 1.0f; });
+    changed([](auto& f) { f.transform.translation.y += 1.0f; });
+    changed([](auto& f) { f.transform.scale.x += 1.0f; });
+    changed([](auto& f) { f.transform.scale.y += 1.0f; });
+    changed([](auto& f) { f.transform.rotation_radians += 0.1f; });
+    changed([](auto& f) { f.transform.shear.x += 1.0f; });
+    changed([](auto& f) { f.transform.shear.y += 1.0f; });
+    changed([](auto& f) { f.transform.pivot.x += 1.0f; });
+    changed([](auto& f) { f.transform.pivot.y += 1.0f; });
+    changed([](auto& f) { f.operators.front().kind = chronon3d::graphics::Field2DOperatorKind::Scale; });
+    changed([](auto& f) { f.operators.front().from += 0.1f; });
+    changed([](auto& f) { f.operators.front().to += 0.1f; });
+    changed([](auto& f) { f.operators.front().edge += 0.1f; });
+    changed([](auto& f) { f.operators.front().softness += 0.1f; });
+    changed([](auto& f) { f.operators.front().amount += 0.1f; });
+    changed([](auto& f) { f.operators.front().scalar += 0.1f; });
+    changed([](auto& f) { f.operators.front().scalar_b += 0.1f; });
+    changed([](auto& f) { f.operators.front().vec.x += 0.1f; });
+    changed([](auto& f) { f.operators.front().vec.y += 0.1f; });
+    changed([](auto& f) { f.operators.front().angle += 0.1f; });
+    changed([](auto& f) { f.operators.push_back({}); });
+
+    auto positive_zero = base;
+    auto negative_zero = base;
+    positive_zero.frequency = 0.0f;
+    negative_zero.frequency = -0.0f;
+    positive_zero.operators.front().vec.x = 0.0f;
+    negative_zero.operators.front().vec.x = -0.0f;
+    CHECK(chronon3d::graphics::field2d_fingerprint_v2(positive_zero) ==
+          chronon3d::graphics::field2d_fingerprint_v2(negative_zero));
+}
+
 TEST_CASE("Field2D temporal drift is deterministic under random frame access") {
     chronon3d::graphics::Field2D field;
     field.generator = chronon3d::graphics::Field2DGenerator::Fractal;

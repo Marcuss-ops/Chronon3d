@@ -8,6 +8,7 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 
 #include <cstdint>
 #include <optional>
@@ -78,6 +79,22 @@ struct ProgramFingerprint {
     std::uint32_t algorithm_version{1};
     assets::ContentDigest content_digest{};
     assets::ContentDigest request_digest{};
+
+    friend bool operator==(const ProgramFingerprint&, const ProgramFingerprint&) = default;
+};
+
+struct ProgramFingerprintHash {
+    [[nodiscard]] std::size_t operator()(const ProgramFingerprint& fingerprint) const noexcept {
+        auto builder = core::hash::HashBuilder{}
+            .add("chronon.compiled-program-fingerprint.v2")
+            .add(fingerprint.digest)
+            .add(fingerprint.algorithm_version)
+            .add_bytes(fingerprint.content_digest.bytes.data(),
+                       fingerprint.content_digest.bytes.size())
+            .add_bytes(fingerprint.request_digest.bytes.data(),
+                       fingerprint.request_digest.bytes.size());
+        return static_cast<std::size_t>(builder.finish());
+    }
 };
 
 /// Mutable assembly buffer used only between compiler passes.

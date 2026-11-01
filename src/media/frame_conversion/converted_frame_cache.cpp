@@ -26,7 +26,8 @@ std::size_t ConvertedFrameCacheKeyHash::operator()(
             .add(k.apply_gamma ? 1ULL : 0ULL)
             .add(k.rec709_oetf ? 1ULL : 0ULL)
             .add_enum(k.output_space)
-            .add(std::bit_cast<std::uint32_t>(k.reference_white_nits))
+            .add(std::bit_cast<std::uint32_t>(
+                k.reference_white_nits == 0.0f ? 0.0f : k.reference_white_nits))
             .finish());
 }
 

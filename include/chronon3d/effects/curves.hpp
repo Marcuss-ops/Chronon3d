@@ -78,12 +78,22 @@ public:
     void clear() { m_cache.clear(); }
 
 private:
-    cache::LruCache<uint64_t, std::shared_ptr<const CompiledCurve>> m_cache;
+    struct PointsKey {
+        std::vector<CurvePoint> points;
+        friend bool operator==(const PointsKey&, const PointsKey&) = default;
+    };
+    struct PointsKeyHash {
+        std::size_t operator()(const PointsKey& key) const noexcept;
+    };
+    cache::LruCache<PointsKey, std::shared_ptr<const CompiledCurve>, PointsKeyHash> m_cache;
 };
 
 // ── Hash helper ─────────────────────────────────────────────────────────────
 
 /// Hash a set of control points for curve identity comparison.
 [[nodiscard]] uint64_t hash_curve_points(const std::vector<CurvePoint>& points);
+/// Versioned semantic cache identity. The legacy hash above remains frozen
+/// for callers that persist or compare its historical digest.
+[[nodiscard]] uint64_t hash_curve_points_v2(const std::vector<CurvePoint>& points);
 
 } // namespace chronon3d

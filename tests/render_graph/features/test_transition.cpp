@@ -5,6 +5,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/nodes/transition_node.hpp>
+#include <chronon3d/render_graph/nodes/clip_transition_node.hpp>
 #include <chronon3d/render_graph/transition/transition_catalog.hpp>
 #include <tests/helpers/render_fixtures.hpp>
 #include <tests/helpers/test_utils.hpp>
@@ -214,10 +215,10 @@ TEST_CASE("Cache key includes duration, delay, easing and direction") {
     LayerTransitionSpec direction2 = direction;
     direction2.direction = TransitionDirection::Left;
 
-    CHECK(hash_layer_transition_spec(base) != hash_layer_transition_spec(duration));
-    CHECK(hash_layer_transition_spec(base) != hash_layer_transition_spec(delay));
-    CHECK(hash_layer_transition_spec(base) != hash_layer_transition_spec(easing));
-    CHECK(hash_layer_transition_spec(direction) != hash_layer_transition_spec(direction2));
+    CHECK(hash_layer_transition_spec_v2(base) != hash_layer_transition_spec_v2(duration));
+    CHECK(hash_layer_transition_spec_v2(base) != hash_layer_transition_spec_v2(delay));
+    CHECK(hash_layer_transition_spec_v2(base) != hash_layer_transition_spec_v2(easing));
+    CHECK(hash_layer_transition_spec_v2(direction) != hash_layer_transition_spec_v2(direction2));
 }
 
 TEST_CASE("Cache key includes typed parameters") {
@@ -226,38 +227,72 @@ TEST_CASE("Cache key includes typed parameters") {
     LayerTransitionSpec b = spec("slide", 1.0f);
     b.parameters = SlideParams{.distance = 2.0f};
 
-    CHECK(hash_layer_transition_spec(a) != hash_layer_transition_spec(b));
+    CHECK(hash_layer_transition_spec_v2(a) != hash_layer_transition_spec_v2(b));
 
     LayerTransitionSpec c = spec("smooth_wipe", 1.0f);
     c.parameters = SmoothWipeParams{.feather = 0.05f};
     LayerTransitionSpec d = spec("smooth_wipe", 1.0f);
     d.parameters = SmoothWipeParams{.feather = 0.20f};
 
-    CHECK(hash_layer_transition_spec(c) != hash_layer_transition_spec(d));
+    CHECK(hash_layer_transition_spec_v2(c) != hash_layer_transition_spec_v2(d));
 
     LayerTransitionSpec e = spec("circle_iris", 1.0f);
     e.parameters = CircleIrisParams{.center = Vec2{0.5f, 0.5f}, .feather = 0.1f};
     LayerTransitionSpec f = spec("circle_iris", 1.0f);
     f.parameters = CircleIrisParams{.center = Vec2{0.25f, 0.75f}, .feather = 0.3f};
-    CHECK(hash_layer_transition_spec(e) != hash_layer_transition_spec(f));
+    CHECK(hash_layer_transition_spec_v2(e) != hash_layer_transition_spec_v2(f));
 
     LayerTransitionSpec g = spec("flash", 1.0f);
     g.parameters = FlashParams{.color = Color::white()};
     LayerTransitionSpec h = spec("flash", 1.0f);
     h.parameters = FlashParams{.color = Color::red()};
-    CHECK(hash_layer_transition_spec(g) != hash_layer_transition_spec(h));
+    CHECK(hash_layer_transition_spec_v2(g) != hash_layer_transition_spec_v2(h));
 
     LayerTransitionSpec i = spec("procedural_remotion", 1.0f);
     i.parameters = ProceduralRemotionParams{.seed = 1.2f, .inner_color = Color::white()};
     LayerTransitionSpec j = spec("procedural_remotion", 1.0f);
     j.parameters = ProceduralRemotionParams{.seed = 3.4f, .inner_color = Color::black()};
-    CHECK(hash_layer_transition_spec(i) != hash_layer_transition_spec(j));
+    CHECK(hash_layer_transition_spec_v2(i) != hash_layer_transition_spec_v2(j));
 
     LayerTransitionSpec k = spec("remotion", 1.0f);
     k.parameters = RemotionParams{.speed = 1.35f, .direction = 3.0f, .angle = 0.0f};
     LayerTransitionSpec l = spec("remotion", 1.0f);
     l.parameters = RemotionParams{.speed = 2.0f, .direction = 1.0f, .angle = 1.57f};
-    CHECK(hash_layer_transition_spec(k) != hash_layer_transition_spec(l));
+    CHECK(hash_layer_transition_spec_v2(k) != hash_layer_transition_spec_v2(l));
+}
+
+TEST_CASE("ClipTransitionNode V2 cache key tracks each spec and sampling field") {
+    const auto key_for = [](ClipTransitionSpec spec, Frame from = Frame{5},
+                            Frame duration = Frame{30}, float fps = 30.0f) {
+        ClipTransitionNode node("clip-transition", std::move(spec), from, duration);
+        RenderGraphContext ctx;
+        ctx.frame_input.width = 1920;
+        ctx.frame_input.height = 1080;
+        ctx.frame_input.fps = fps;
+        return node.cache_key(ctx);
+    };
+
+    ClipTransitionSpec base;
+    base.kind = ClipTransitionKind::Flash;
+    const auto original = key_for(base);
+    CHECK(original.params_version == 2);
+    const auto differs = [&](ClipTransitionSpec changed) {
+        CHECK(key_for(std::move(changed)).params_hash != original.params_hash);
+    };
+    auto changed = base; changed.kind = ClipTransitionKind::Dissolve; differs(changed);
+    changed = base; changed.easing = Easing::OutCubic; differs(changed);
+    changed = base; changed.fit = ClipTransitionFitPolicy::ErrorOnMismatch; differs(changed);
+    changed = base; changed.direction = TransitionDirection::Left; differs(changed);
+    changed = base; changed.center.x = 0.6f; differs(changed);
+    changed = base; changed.center.y = 0.6f; differs(changed);
+    changed = base; changed.feather = 0.2f; differs(changed);
+    changed = base; changed.flash_color.r = 0.99f; differs(changed);
+    changed = base; changed.zoom_scale = 2.1f; differs(changed);
+    changed = base; changed.leak_intensity = 0.86f; differs(changed);
+    changed = base; changed.leak_spread = 0.51f; differs(changed);
+    CHECK(key_for(base, Frame{6}).params_hash != original.params_hash);
+    CHECK(key_for(base, Frame{5}, Frame{31}).params_hash != original.params_hash);
+    CHECK(key_for(base, Frame{5}, Frame{30}, 25.0f).params_hash != original.params_hash);
 }
 
 TEST_CASE("LayerTransitionCatalog rejects unknown ids") {
@@ -305,7 +340,7 @@ TEST_CASE("Identical transition specs produce identical cache keys") {
 
     LayerTransitionSpec b = a;
 
-    CHECK(hash_layer_transition_spec(a) == hash_layer_transition_spec(b));
+    CHECK(hash_layer_transition_spec_v2(a) == hash_layer_transition_spec_v2(b));
 }
 
 TEST_CASE("Remotion-style transitions compute noise-driven masks and colors") {
@@ -443,9 +478,9 @@ TEST_CASE("FlyUnderFade dip participates in the transition cache key") {
     a.parameters = FlyUnderFadeParams{.dip_px = 60.0f};
     LayerTransitionSpec b = spec("fly_under_fade", 1.0f);
     b.parameters = FlyUnderFadeParams{.dip_px = 120.0f};
-    CHECK(hash_layer_transition_spec(a) != hash_layer_transition_spec(b));
+    CHECK(hash_layer_transition_spec_v2(a) != hash_layer_transition_spec_v2(b));
 
     LayerTransitionSpec c = spec("fly_under_fade", 1.0f);
     c.parameters = FlyUnderFadeParams{.dip_px = 60.0f};
-    CHECK(hash_layer_transition_spec(a) == hash_layer_transition_spec(c));
+    CHECK(hash_layer_transition_spec_v2(a) == hash_layer_transition_spec_v2(c));
 }

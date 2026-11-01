@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d::graphics {
@@ -462,6 +463,51 @@ private:
         mix(std::bit_cast<std::uint32_t>(op.angle));
     }
     mix(field.operators.size());
+    return hash;
+}
+
+/// Semantic V2 identity for cache keys. The historical fingerprint above is
+/// retained byte-for-byte; this version domain-separates the payload, includes
+/// collection cardinality before its elements, and canonicalizes signed zero.
+[[nodiscard]] inline std::uint64_t field2d_fingerprint_v2(const Field2D& field) noexcept {
+    std::uint64_t hash = 0xcbf29ce484222325ULL;
+    const auto mix = [&hash](std::uint64_t value) {
+        hash ^= value;
+        hash *= 0x100000001b3ULL;
+    };
+    const auto mix_float = [&mix](float value) {
+        mix(std::bit_cast<std::uint32_t>(value == 0.0f ? 0.0f : value));
+    };
+    for (const unsigned char c : std::string_view{"chronon.field2d.v2"}) mix(c);
+    mix(static_cast<std::uint8_t>(field.generator));
+    mix(field.seed);
+    mix_float(field.frequency);
+    mix(field.octaves);
+    mix_float(field.persistence);
+    mix_float(field.lacunarity);
+    mix_float(field.transform.translation.x);
+    mix_float(field.transform.translation.y);
+    mix_float(field.transform.scale.x);
+    mix_float(field.transform.scale.y);
+    mix_float(field.transform.rotation_radians);
+    mix_float(field.transform.shear.x);
+    mix_float(field.transform.shear.y);
+    mix_float(field.transform.pivot.x);
+    mix_float(field.transform.pivot.y);
+    mix(field.operators.size());
+    for (const auto& op : field.operators) {
+        mix(static_cast<std::uint8_t>(op.kind));
+        mix_float(op.from);
+        mix_float(op.to);
+        mix_float(op.edge);
+        mix_float(op.softness);
+        mix_float(op.amount);
+        mix_float(op.scalar);
+        mix_float(op.scalar_b);
+        mix_float(op.vec.x);
+        mix_float(op.vec.y);
+        mix_float(op.angle);
+    }
     return hash;
 }
 

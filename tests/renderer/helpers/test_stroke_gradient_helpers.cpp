@@ -408,10 +408,23 @@ TEST_CASE("canonical gradient hash includes spread, geometry, and opacity stops"
          {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}}});
     Fill changed = first;
     changed.gradient.spread = graphics::GradientSpread::Repeat;
-    CHECK(graph::hash_fill(first) != graph::hash_fill(changed));
+    CHECK(graph::hash_fill_v2(first) != graph::hash_fill_v2(changed));
     changed = first;
     changed.gradient.opacity_stops = {{0.0f, 0.25f}, {1.0f, 1.0f}};
-    CHECK(graph::hash_fill(first) != graph::hash_fill(changed));
+    CHECK(graph::hash_fill_v2(first) != graph::hash_fill_v2(changed));
+
+    Fill grid = Fill::solid_color(Color::white());
+    grid.field_grid = Field2DSampleGrid{2, 2, {0.0f, 0.25f, 0.5f, 1.0f}};
+    Fill changed_grid = grid;
+    changed_grid.field_grid->values[2] = 0.75f;
+    CHECK(graph::hash_fill(grid) == graph::hash_fill(changed_grid));
+    CHECK(graph::hash_fill_v2(grid) != graph::hash_fill_v2(changed_grid));
+
+    auto positive_zero = first;
+    auto negative_zero = first;
+    positive_zero.gradient.start = {0.0f, 0.0f};
+    negative_zero.gradient.start = {-0.0f, -0.0f};
+    CHECK(graph::hash_fill_v2(positive_zero) == graph::hash_fill_v2(negative_zero));
 }
 
 TEST_CASE("resolve_stroke_gradient_color: zero-length gradient direction returns first stop") {

@@ -128,7 +128,7 @@ TEST_CASE("AE effect graph hashes include every authored scalar parameter") {
                 using T=std::decay_t<decltype(p)>;
                 if constexpr (!std::is_same_v<T,std::monostate>) stack.emplace_back(p);
             },params);
-            return graph::hash_effect_stack(stack);
+            return graph::hash_effect_stack_v2(stack);
         };
         for (const auto& row : kAnimatableEffectParams) {
             if (row.effect_id != id) continue;

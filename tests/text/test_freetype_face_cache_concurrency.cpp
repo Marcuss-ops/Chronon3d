@@ -42,6 +42,22 @@
 
 using namespace chronon3d;
 
+#ifdef CHRONON3D_ENABLE_TEXT
+TEST_CASE("FreeType face identity includes path, face index and size bucket") {
+    const FTFaceKey base{"font.ttf", 0, 32};
+    const auto base_hash = FTFaceKeyHash{}(base);
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+        CHECK(FTFaceKeyHash{}(key) != base_hash);
+    };
+    changed([](auto& key) { key.path += ".other"; });
+    changed([](auto& key) { key.face_index++; });
+    changed([](auto& key) { key.size_bucket++; });
+}
+#endif
+
 namespace {
 
 // ── Fixtures ────────────────────────────────────────────────────────────

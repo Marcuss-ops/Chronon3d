@@ -166,27 +166,28 @@ TEST_CASE("RenderNode shape content hash tracks fill, stroke gradients and path 
     baseline.fill = Fill::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {
         {0.0f, Color{1.0f, 0.0f, 0.0f, 1.0f}},
         {1.0f, Color{0.0f, 0.0f, 1.0f, 1.0f}}});
-    const auto original = graph::hash_render_node_content_only(baseline);
+    const auto original = graph::hash_render_node_content_v2(baseline);
+    CHECK(original != graph::hash_render_node_content_only(baseline));
 
     auto changed = baseline;
     changed.shape.rounded_rect().radius += 1.0f;
-    CHECK(graph::hash_render_node_content_only(changed) != original);
+    CHECK(graph::hash_render_node_content_v2(changed) != original);
 
     changed = baseline;
     changed.fill.gradient.color_stops[0].color.r = 0.5f;
-    CHECK(graph::hash_render_node_content_only(changed) != original);
+    CHECK(graph::hash_render_node_content_v2(changed) != original);
 
     changed = baseline;
     changed.shape.rounded_rect().stroke.width += 1.0f;
-    CHECK(graph::hash_render_node_content_only(changed) != original);
+    CHECK(graph::hash_render_node_content_v2(changed) != original);
 
     changed = baseline;
     changed.shape.rounded_rect().stroke.gradient->color_stops[0].color.g = 0.25f;
-    CHECK(graph::hash_render_node_content_only(changed) != original);
+    CHECK(graph::hash_render_node_content_v2(changed) != original);
 
     changed = baseline;
     changed.shape.set_type(ShapeType::Rect);
-    CHECK(graph::hash_render_node_content_only(changed) != original);
+    CHECK(graph::hash_render_node_content_v2(changed) != original);
 
     PathParams path_params;
     path_params.commands = {
@@ -195,9 +196,9 @@ TEST_CASE("RenderNode shape content hash tracks fill, stroke gradients and path 
     path_params.stroke.enabled = true;
     path_params.stroke.width = 2.0f;
     auto path = RenderNodeFactory::path(res, "path", std::move(path_params));
-    const auto path_hash = graph::hash_render_node_content_only(path);
+    const auto path_hash = graph::hash_render_node_content_v2(path);
     path.shape.path().commands[1].p0.x += 1.0f;
-    CHECK(graph::hash_render_node_content_only(path) != path_hash);
+    CHECK(graph::hash_render_node_content_v2(path) != path_hash);
 }
 
 TEST_CASE("RenderNode content hash ignores placement but honors policy") {
@@ -216,13 +217,15 @@ TEST_CASE("RenderNode content hash ignores placement but honors policy") {
     CHECK(node_a.shape.type() == ShapeType::TextRun);
     auto node_b = node_a;
 
-    const auto content_a   = graph::hash_render_node_content_only(node_a);
-    const auto placement_a = graph::hash_render_node_placement_only(node_a);
+    const auto content_a   = graph::hash_render_node_content_v2(node_a);
+    const auto placement_a = graph::hash_render_node_placement_v2(node_a);
+    CHECK(content_a != graph::hash_render_node_content_only(node_a));
+    CHECK(placement_a != graph::hash_render_node_placement_only(node_a));
 
     node_b.world_transform.position.x += 240.0f;
     node_b.world_transform.position.y += 120.0f;
-    CHECK(graph::hash_render_node_placement_only(node_b) != placement_a);
+    CHECK(graph::hash_render_node_placement_v2(node_b) != placement_a);
 
     node_b.surface_policy = SurfacePolicy::ViewportSize;
-    CHECK(graph::hash_render_node_content_only(node_b) != content_a);
+    CHECK(graph::hash_render_node_content_v2(node_b) != content_a);
 }

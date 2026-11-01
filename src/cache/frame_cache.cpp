@@ -6,8 +6,23 @@
 
 namespace chronon3d::cache {
 
-u64 FrameCacheKey::digest() const {
+u64 FrameCacheKey::digest_v1() const {
     return core::hash::HashBuilder{}
+        .add(composition_id)
+        .add(frame)
+        .add(temporal_key.frame)
+        .add(temporal_key.subframe_tick)
+        .add(temporal_key.version)
+        .add(width)
+        .add(height)
+        .add(scene_hash)
+        .add(render_hash)
+        .finish();
+}
+
+u64 FrameCacheKey::digest_v2() const {
+    return core::hash::HashBuilder{}
+        .add("chronon.frame-cache-key.v2")
         .add(composition_id)
         .add(frame)
         .add(temporal_key.frame)
