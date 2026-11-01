@@ -2,6 +2,8 @@
 
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
+#include <array>
+
 using namespace chronon3d;
 
 TEST_CASE("VideoSource V2 identity includes every semantic field") {
@@ -111,4 +113,45 @@ TEST_CASE("Mask V2 identity includes semantic primary and operation fields") {
         field.seed = 19;
         m.operations[0].field = field;
     });
+}
+
+TEST_CASE("Shape V2 hashes rounded rectangle fields component-wise") {
+    Shape base;
+    base.set_type(ShapeType::RoundedRect);
+    base.rounded_rect().size = {80.0f, 40.0f};
+    base.rounded_rect().radius = 8.0f;
+    base.rounded_rect().corner_radius = std::array<f32, 4>{1.0f, 2.0f, 3.0f, 4.0f};
+    base.rounded_rect().stroke.enabled = true;
+    base.rounded_rect().stroke.color = {0.1f, 0.2f, 0.3f, 0.4f};
+    base.rounded_rect().stroke.width = 2.0f;
+    base.rounded_rect().stroke.alignment = StrokeAlignment::Inside;
+    base.rounded_rect().stroke.gradient = graphics::GradientDefinition::linear(
+        {0.0f, 0.0f}, {1.0f, 0.0f}, {{0.0f, Color::black()}, {1.0f, Color::white()}});
+    const auto original = graph::hash_shape_v2(base);
+    const auto changed = [&](auto mutate) {
+        auto shape = base;
+        mutate(shape);
+        CHECK(graph::hash_shape_v2(shape) != original);
+    };
+    changed([](auto& s) { s.rounded_rect().size.x += 1.0f; });
+    changed([](auto& s) { s.rounded_rect().size.y += 1.0f; });
+    changed([](auto& s) { s.rounded_rect().radius += 1.0f; });
+    changed([](auto& s) { (*s.rounded_rect().corner_radius)[0] += 1.0f; });
+    changed([](auto& s) { (*s.rounded_rect().corner_radius)[1] += 1.0f; });
+    changed([](auto& s) { (*s.rounded_rect().corner_radius)[2] += 1.0f; });
+    changed([](auto& s) { (*s.rounded_rect().corner_radius)[3] += 1.0f; });
+    changed([](auto& s) { s.rounded_rect().stroke.enabled = false; });
+    changed([](auto& s) { s.rounded_rect().stroke.color.r += 0.1f; });
+    changed([](auto& s) { s.rounded_rect().stroke.color.a -= 0.1f; });
+    changed([](auto& s) { s.rounded_rect().stroke.width += 1.0f; });
+    changed([](auto& s) { s.rounded_rect().stroke.alignment = StrokeAlignment::Outside; });
+    changed([](auto& s) { s.rounded_rect().stroke.gradient->angle += 0.1f; });
+
+    auto positive_zero = base;
+    auto negative_zero = base;
+    positive_zero.rounded_rect().size.x = 0.0f;
+    negative_zero.rounded_rect().size.x = -0.0f;
+    positive_zero.rounded_rect().stroke.color.r = 0.0f;
+    negative_zero.rounded_rect().stroke.color.r = -0.0f;
+    CHECK(graph::hash_shape_v2(positive_zero) == graph::hash_shape_v2(negative_zero));
 }
