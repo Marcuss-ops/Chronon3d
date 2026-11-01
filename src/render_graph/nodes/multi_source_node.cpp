@@ -193,8 +193,8 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     // changes when the layer-level animation (e.g. tracking_breathing)
     // produces a different transform.
     for (const auto& item : m_items) {
-        key.params_hash = hash_combine(key.params_hash, hash_value(item.matrix));
-        key.params_hash = hash_combine(key.params_hash, hash_value(item.opacity));
+        key.params_hash = hash_combine(key.params_hash, hash_mat4_v2(item.matrix));
+        key.params_hash = hash_combine(key.params_hash, hash_float_v2(item.opacity));
         const auto groups = item.groups.empty() && item.group
             ? std::vector<MultiSourceItem::GroupIsolationSpec>{*item.group}
             : item.groups;
