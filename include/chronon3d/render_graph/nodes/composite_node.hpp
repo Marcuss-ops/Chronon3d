@@ -88,7 +88,7 @@ public:
         // current frame for frame-variant composites (m_cache_frame < 0)
         // so zoom-different frames can never collide either.
         u64 params_hash = hash_combine(
-            hash_string("chronon.composite-node.v2"), m_unique_id);
+            hash_string("chronon.composite-node.v3"), m_unique_id);
         params_hash = hash_combine(params_hash, static_cast<u64>(m_mode));
         params_hash = hash_combine(params_hash, static_cast<u64>(m_operator));
         params_hash = hash_combine(params_hash, hash_float_v2(m_world_z));
@@ -109,7 +109,7 @@ public:
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
             .params_hash = params_hash,
-            .params_version = 2
+            .params_version = 3
         };
     }
 
