@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
+#include <chronon3d/assets/mesh_loader.hpp>
 
 #include <array>
 
@@ -234,4 +235,32 @@ TEST_CASE("GPU glyph identity retains full variation axes") {
     auto coverage_changed = coverage;
     coverage_changed.font_size++;
     CHECK_FALSE(coverage == coverage_changed);
+}
+
+TEST_CASE("Mesh preparation cache compares the complete resolved identity") {
+    using assets::MeshIdentity;
+    using assets::MeshPreparationCache;
+    MeshIdentity base;
+    base.resolved_path = "/assets/mesh.glb";
+    base.byte_size = 64;
+    base.write_time = 128;
+    base.content_digest.bytes[0] = std::byte{0x12};
+    const auto changed = [&](auto mutate) {
+        auto identity = base;
+        mutate(identity);
+        CHECK_FALSE(identity == base);
+        CHECK(assets::MeshIdentityHash{}(identity) != assets::MeshIdentityHash{}(base));
+    };
+    changed([](auto& key) { key.resolved_path += ".copy"; });
+    changed([](auto& key) { key.byte_size++; });
+    changed([](auto& key) { key.write_time++; });
+    changed([](auto& key) { key.content_digest.bytes[31] = std::byte{0x34}; });
+
+    MeshPreparationCache cache;
+    auto source = std::make_shared<const assets::PreparedMeshSource>();
+    cache.store(base, source);
+    CHECK(cache.find(base).value().get() == source.get());
+    auto other = base;
+    other.resolved_path += "\nline";
+    CHECK_FALSE(cache.find(other).has_value());
 }
