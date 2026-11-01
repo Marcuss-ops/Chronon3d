@@ -181,3 +181,32 @@ TEST_CASE("Shape V2 canonicalizes scalar fields and frames image paths") {
     image_b.image().path = "asset2";
     CHECK(graph::hash_shape_v2(image_a) != graph::hash_shape_v2(image_b));
 }
+
+TEST_CASE("TextRun V2 identity covers rendered fields and vector boundaries") {
+    TextRunShape base;
+    GlyphInstanceState glyph;
+    glyph.glyph_id = 17;
+    glyph.anchor = {1.0f, 2.0f, 3.0f};
+    base.glyphs.push_back(glyph);
+    base.material.inner_shadow_enabled = true;
+    base.material.inner_shadow_blur = 3.0f;
+    base.paint.stroke_dash_array = {2.0f, 4.0f};
+    base.shadows.push_back(TextShadow{.enabled = true, .blur = 1.0f});
+    const auto original = hash_text_run_shape_v2(base);
+    const auto changed = [&](auto mutate) {
+        auto value = base;
+        mutate(value);
+        CHECK(hash_text_run_shape_v2(value) != original);
+    };
+    changed([](auto& value) { value.glyphs[0].anchor.x += 1.0f; });
+    changed([](auto& value) { value.material.inner_shadow_blur += 1.0f; });
+    changed([](auto& value) { value.paint.stroke_dash_array.push_back(6.0f); });
+    changed([](auto& value) { value.shadows[0].opacity -= 0.1f; });
+    changed([](auto& value) { value.dissolve_mix = 0.25f; });
+
+    auto positive_zero = base;
+    auto negative_zero = base;
+    positive_zero.glyphs[0].position.x = 0.0f;
+    negative_zero.glyphs[0].position.x = -0.0f;
+    CHECK(hash_text_run_shape_v2(positive_zero) == hash_text_run_shape_v2(negative_zero));
+}

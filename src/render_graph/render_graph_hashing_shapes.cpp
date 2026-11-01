@@ -203,7 +203,9 @@ namespace chronon3d::graph {
             return hash_combine(seed, hash_scalar(s.grid_plane().fade_min_alpha));
         case ShapeType::TextRun:
             if (s.text_run_shape_handle().value) {
-                seed = hash_combine(seed, hash_text_run_shape(*s.text_run_shape_handle().value));
+                seed = hash_combine(seed, semantic_v2
+                    ? hash_text_run_shape_v2(*s.text_run_shape_handle().value)
+                    : hash_text_run_shape(*s.text_run_shape_handle().value));
             }
             return seed;
         default:
