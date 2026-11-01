@@ -52,9 +52,52 @@ namespace chronon3d::graph {
 }
 
 [[nodiscard]] u64 hash_layer_transition_spec_v2(const LayerTransitionSpec& spec) {
-    return hash_combine(
-        hash_string("chronon.layer-transition.v2"),
-        hash_layer_transition_spec(spec));
+    core::hash::HashBuilder builder;
+    const auto add_float = [&builder](auto value) {
+        builder.add(value == 0.0 ? decltype(value){0} : value);
+    };
+    const auto add_color = [&](const Color& color) {
+        add_float(color.r); add_float(color.g); add_float(color.b); add_float(color.a);
+    };
+    const auto add_vec2 = [&](const Vec2& value) {
+        add_float(value.x); add_float(value.y);
+    };
+
+    builder.add("chronon.layer-transition.v2")
+        .add(spec.transition_id)
+        .add_enum(spec.direction);
+    add_float(spec.duration);
+    add_float(spec.delay);
+    builder.add_enum(spec.easing).add(spec.parameters.index());
+    std::visit([&](const auto& p) {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, std::monostate> ||
+                      std::is_same_v<T, CrossfadeParams> ||
+                      std::is_same_v<T, WipeLinearParams>) {
+            // These alternatives carry no additional parameter data.
+        } else if constexpr (std::is_same_v<T, SlideParams>) {
+            add_float(p.distance);
+        } else if constexpr (std::is_same_v<T, ZoomParams>) {
+            add_float(p.amount);
+        } else if constexpr (std::is_same_v<T, SmoothWipeParams>) {
+            add_float(p.feather);
+        } else if constexpr (std::is_same_v<T, CircleIrisParams>) {
+            add_vec2(p.center); add_float(p.feather);
+        } else if constexpr (std::is_same_v<T, FlashParams>) {
+            add_color(p.color);
+        } else if constexpr (std::is_same_v<T, ProceduralRemotionParams>) {
+            add_float(p.seed); add_color(p.inner_color);
+            add_color(p.mid_color); add_color(p.outer_color);
+        } else if constexpr (std::is_same_v<T, RemotionParams>) {
+            add_float(p.speed); add_float(p.direction); add_float(p.angle);
+        } else if constexpr (std::is_same_v<T, DipToBlackParams> ||
+                             std::is_same_v<T, FlyUnderFadeParams>) {
+            add_float(p.dip_px);
+        } else {
+            static_assert(!sizeof(T), "Add an explicit semantic transition-parameter hash");
+        }
+    }, spec.parameters);
+    return builder.finish();
 }
 
 namespace {
