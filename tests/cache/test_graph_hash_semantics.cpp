@@ -3,6 +3,10 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/rendering/lighting_hashing.hpp>
 #include <chronon3d/assets/hdri_environment.hpp>
+#include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/core/card3d_material.hpp>
+#include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include "src/backends/text/font_bbox_cache_key.hpp"
@@ -831,4 +835,87 @@ TEST_CASE("Mesh preparation cache compares the complete resolved identity") {
     auto other = base;
     other.resolved_path += "\nline";
     CHECK_FALSE(cache.find(other).has_value());
+}
+
+TEST_CASE("Layer V2 identity covers pixel-affecting layer fields") {
+    Layer base;
+    base.name = "layer";
+    base.duration = Frame{100};
+    base.card3d_material().thickness_px = 10.0f;
+    base.backdrop_blur = BackdropBlurParams{};
+    base.backdrop_blur->blur = 12.0f;
+    base.backdrop_blur->brightness = 0.8f;
+    base.backdrop_blur->saturation = 0.7f;
+    base.backdrop_blur->rim_light = 0.2f;
+    base.backdrop_blur->refraction = 1.0f;
+    base.backdrop_blur->surface_noise = 0.03f;
+    const auto original = base.get_static_hash();
+    const auto changed = [&](auto mutate) {
+        auto value = base;
+        mutate(value);
+        CHECK(value.get_static_hash() != original);
+    };
+    changed([](auto& l) { l.transform.skew.x += 1.0f; });
+    changed([](auto& l) { l.time_offset = Frame{2}; });
+    changed([](auto& l) { l.track_matte.type = TrackMatteType::Alpha; l.track_matte.source_layer = "matte"; });
+    changed([](auto& l) { l.card3d_material().enabled = false; });
+    changed([](auto& l) { l.card3d_material().thickness_px += 1.0f; });
+    changed([](auto& l) { l.card3d_material().corner_radius += 1.0f; });
+    changed([](auto& l) { l.card3d_material().front_top_color.r -= 0.1f; });
+    changed([](auto& l) { l.card3d_material().front_bottom_color.g -= 0.1f; });
+    changed([](auto& l) { l.card3d_material().side_color.b -= 0.1f; });
+    changed([](auto& l) { l.card3d_material().edge_highlight_intensity += 0.1f; });
+    changed([](auto& l) { l.card3d_material().edge_highlight_color.a -= 0.1f; });
+    changed([](auto& l) { l.card3d_material().rim_light_intensity += 0.1f; });
+    changed([](auto& l) { l.card3d_material().rim_light_power += 0.1f; });
+    changed([](auto& l) { l.card3d_material().rim_light_color.r -= 0.1f; });
+    changed([](auto& l) { l.card3d_material().light_direction.z -= 0.1f; });
+    changed([](auto& l) { l.card3d_material().cast_shadow = false; });
+    changed([](auto& l) { l.card3d_material().receive_shadow = false; });
+    changed([](auto& l) { l.card3d_material().casts_shadows = false; });
+    changed([](auto& l) { l.card3d_material().accepts_shadows = false; });
+    changed([](auto& l) { l.backdrop_blur->blur += 1.0f; });
+    changed([](auto& l) { l.backdrop_blur->brightness += 0.1f; });
+    changed([](auto& l) { l.backdrop_blur->saturation += 0.1f; });
+    changed([](auto& l) { l.backdrop_blur->rim_light += 0.1f; });
+    changed([](auto& l) { l.backdrop_blur->refraction += 0.1f; });
+    changed([](auto& l) { l.backdrop_blur->surface_noise += 0.01f; });
+    changed([](auto& l) { l.kind = LayerKind::Video; l.video_source = std::make_unique<video::VideoSource>(); l.video_source->path = "changed.mp4"; });
+}
+
+TEST_CASE("SceneHasher V2 includes layer material, matte, source and remapped time") {
+    const auto fingerprint = [](Layer layer) {
+        Scene scene;
+        scene.add_layer(std::move(layer));
+        graph::SceneHasher hasher;
+        return hasher.compute_fingerprint(scene, Frame{10});
+    };
+    Layer base;
+    base.name = "layer";
+    base.duration = Frame{100};
+    const auto original = fingerprint(base);
+    auto skewed = base;
+    skewed.transform.skew.x = 12.0f;
+    CHECK(fingerprint(std::move(skewed)) != original);
+    auto matte = base;
+    matte.track_matte.type = TrackMatteType::Alpha;
+    matte.track_matte.source_layer = "matte";
+    CHECK(fingerprint(std::move(matte)) != original);
+    auto video_a = base;
+    video_a.kind = LayerKind::Video;
+    video_a.video_source = std::make_unique<video::VideoSource>();
+    video_a.video_source->path = "clip.mp4";
+    auto video_b = video_a;
+    video_b.video_source->source_start = Frame{5};
+    CHECK(fingerprint(std::move(video_a)) != fingerprint(std::move(video_b)));
+
+    Layer remapped;
+    remapped.name = "remapped";
+    remapped.duration = Frame{100};
+    remapped.time_remap.speed = 0.5f;
+    Scene scene;
+    scene.add_layer(std::move(remapped));
+    graph::SceneHasher hasher;
+    CHECK(hasher.compute_dynamic_fingerprint(scene, Frame{10}) !=
+          hasher.compute_dynamic_fingerprint(scene, Frame{11}));
 }
