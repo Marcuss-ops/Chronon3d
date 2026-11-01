@@ -290,6 +290,14 @@ same source/compositing dependencies. The dynamic fingerprint distinguishes
 active remapped source time by frame. Mutation tests pass for all Card3D and
 backdrop fields, matte, transform skew, source identity, and remapped frames.
 
+Three additional render-node keys are now versioned. `PerPixelDofNode` hashes
+all ten `DepthOfFieldSettings` fields (including enable/model switches and
+unsupported iris/highlight options). `DepthGradeNode` includes the previously
+omitted `accepts_lights` branch as well as all grade fields. `ShadowNode` uses
+semantic float/vector/color hashing for every setting. Each publishes
+`params_version = 2`; field-mutation suites pass (20 DOF, 26 depth-grade, 44
+shadow assertions).
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.
