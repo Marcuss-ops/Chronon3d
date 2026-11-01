@@ -2,8 +2,56 @@
 
 namespace chronon3d::graph {
 
-[[nodiscard]] u64 hash_shape(const Shape& s) {
-    u64 seed = hash_value(static_cast<int>(s.type()));
+[[nodiscard]] u64 hash_shape_impl(const Shape& s, bool semantic_v2) {
+    const auto hash_value = [semantic_v2]<typename T>(const T& value) -> u64 {
+        if (!semantic_v2) return ::chronon3d::graph::hash_value(value);
+        core::hash::HashBuilder builder;
+        if constexpr (std::is_floating_point_v<T>) {
+            builder.add(value == 0.0f ? T{0} : value);
+        } else if constexpr (std::is_enum_v<T>) {
+            builder.add_enum(value);
+        } else {
+            builder.add(value);
+        }
+        return builder.finish();
+    };
+    const auto hash_vec2 = [semantic_v2](const Vec2& value) -> u64 {
+        if (!semantic_v2) return ::chronon3d::graph::hash_vec2(value);
+        core::hash::HashBuilder builder;
+        builder.add(value.x == 0.0f ? 0.0f : value.x)
+               .add(value.y == 0.0f ? 0.0f : value.y);
+        return builder.finish();
+    };
+    const auto hash_vec3 = [semantic_v2](const Vec3& value) -> u64 {
+        if (!semantic_v2) return ::chronon3d::graph::hash_vec3(value);
+        core::hash::HashBuilder builder;
+        builder.add(value.x == 0.0f ? 0.0f : value.x)
+               .add(value.y == 0.0f ? 0.0f : value.y)
+               .add(value.z == 0.0f ? 0.0f : value.z);
+        return builder.finish();
+    };
+    const auto hash_color = [semantic_v2](const Color& value) -> u64 {
+        if (!semantic_v2) return ::chronon3d::graph::hash_color(value);
+        core::hash::HashBuilder builder;
+        builder.add(value.r == 0.0f ? 0.0f : value.r)
+               .add(value.g == 0.0f ? 0.0f : value.g)
+               .add(value.b == 0.0f ? 0.0f : value.b)
+               .add(value.a == 0.0f ? 0.0f : value.a);
+        return builder.finish();
+    };
+    const auto hash_bytes = [](const void* data, usize size) -> u64 {
+        return ::chronon3d::graph::hash_bytes(data, size);
+    };
+    const auto hash_gradient = [semantic_v2](const graphics::GradientDefinition& gradient) -> u64 {
+        return semantic_v2 ? hash_gradient_v2(gradient) : ::chronon3d::graph::hash_gradient(gradient);
+    };
+    const auto hash_fill = [semantic_v2](const Fill& fill) -> u64 {
+        return semantic_v2 ? hash_fill_v2(fill) : ::chronon3d::graph::hash_fill(fill);
+    };
+
+    u64 seed = semantic_v2
+        ? hash_combine(hash_string("chronon.shape.v2"), hash_value(static_cast<int>(s.type())))
+        : hash_value(static_cast<int>(s.type()));
     switch (s.type()) {
         case ShapeType::Rect:
             seed = hash_combine(seed, hash_vec2(s.rect().size));
@@ -19,8 +67,14 @@ namespace chronon3d::graph {
             seed = hash_combine(seed, hash_vec2(s.rounded_rect().size));
             seed = hash_combine(seed, hash_bytes(&s.rounded_rect().radius, sizeof(f32)));
             seed = hash_combine(seed, hash_value(s.rounded_rect().corner_radius.has_value()));
-            if (s.rounded_rect().corner_radius)
-                seed = hash_combine(seed, hash_bytes(s.rounded_rect().corner_radius->data(), sizeof(f32) * 4));
+            if (s.rounded_rect().corner_radius) {
+                if (semantic_v2) {
+                    for (const auto radius : *s.rounded_rect().corner_radius)
+                        seed = hash_combine(seed, hash_value(radius));
+                } else {
+                    seed = hash_combine(seed, hash_bytes(s.rounded_rect().corner_radius->data(), sizeof(f32) * 4));
+                }
+            }
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.rounded_rect().stroke.color));
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.width));
@@ -153,7 +207,11 @@ namespace chronon3d::graph {
 }
 
 [[nodiscard]] u64 hash_shape_v2(const Shape& shape) {
-    return hash_combine(hash_string("chronon.shape.v2"), hash_shape(shape));
+    return hash_shape_impl(shape, true);
+}
+
+[[nodiscard]] u64 hash_shape(const Shape& shape) {
+    return hash_shape_impl(shape, false);
 }
 
 
