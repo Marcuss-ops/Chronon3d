@@ -261,13 +261,16 @@ tests cover every `Transform` component and signed-zero canonicalization; the
 cache suite passes 175 cases / 103,545 assertions. The `chronon3d_core_tests`
 target rebuilt at `-j4`; its TransformNode cache-key contract test passes.
 
-The backend `TextRenderResources::GlyphAtlasKey` inventory found a remaining
-collision-sensitive identity: it compares only `font_id`, while path-based
-callers derive that ID from a 64-bit FNV hash of the font path. The GPU glyph
-atlas retains full font strings, but this CPU/backend glyph atlas does not yet.
-Replace this hash-only font identity with a retained canonical path (keeping
-the raw-ID overload explicitly compatibility-only) and add collision-level
-lookup tests before closing the glyph-atlas inventory.
+The backend `TextRenderResources::GlyphAtlasKey` compared only `font_id`, while
+path-based callers derived that ID from a 64-bit FNV hash. Path-based entries
+now retain and compare the complete font path; the raw-ID overload occupies a
+separate compatibility key namespace. Internal fused GPU text lookup now uses
+the path overload. A collision simulation verifies distinct paths remain
+distinct even when their old font IDs match, and a store/lookup test verifies
+both entries round-trip independently. The focused test passes (7 assertions).
+GPU atlas page reuse is partitioned by representation and full
+`DistanceFieldProfile`; page residency keys also include format and extent,
+with the page slot disambiguating profiles that share a representation.
 
 ## Exit criteria
 
