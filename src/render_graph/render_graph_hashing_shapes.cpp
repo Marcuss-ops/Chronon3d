@@ -42,6 +42,9 @@ namespace chronon3d::graph {
     const auto hash_bytes = [](const void* data, usize size) -> u64 {
         return ::chronon3d::graph::hash_bytes(data, size);
     };
+    const auto hash_scalar = [semantic_v2, &hash_bytes, &hash_value]<typename T>(const T& value) -> u64 {
+        return semantic_v2 ? hash_value(value) : hash_bytes(&value, sizeof(T));
+    };
     const auto hash_gradient = [semantic_v2](const graphics::GradientDefinition& gradient) -> u64 {
         return semantic_v2 ? hash_gradient_v2(gradient) : ::chronon3d::graph::hash_gradient(gradient);
     };
@@ -58,14 +61,14 @@ namespace chronon3d::graph {
             seed = hash_combine(seed, hash_value(s.rect().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.rect().stroke.color));
             seed = hash_combine(seed, hash_value(s.rect().stroke.width));
-            seed = hash_combine(seed, hash_bytes(&s.rect().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_scalar(s.rect().stroke.alignment));
             seed = hash_combine(seed, hash_value(s.rect().stroke.gradient.has_value()));
             if (s.rect().stroke.gradient)
                 seed = hash_combine(seed, hash_gradient(*s.rect().stroke.gradient));
             return seed;
         case ShapeType::RoundedRect:
             seed = hash_combine(seed, hash_vec2(s.rounded_rect().size));
-            seed = hash_combine(seed, hash_bytes(&s.rounded_rect().radius, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.rounded_rect().radius));
             seed = hash_combine(seed, hash_value(s.rounded_rect().corner_radius.has_value()));
             if (s.rounded_rect().corner_radius) {
                 if (semantic_v2) {
@@ -78,30 +81,30 @@ namespace chronon3d::graph {
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.rounded_rect().stroke.color));
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.width));
-            seed = hash_combine(seed, hash_bytes(&s.rounded_rect().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_scalar(s.rounded_rect().stroke.alignment));
             seed = hash_combine(seed, hash_value(s.rounded_rect().stroke.gradient.has_value()));
             if (s.rounded_rect().stroke.gradient)
                 seed = hash_combine(seed, hash_gradient(*s.rounded_rect().stroke.gradient));
             return seed;
         case ShapeType::Circle:
-            seed = hash_combine(seed, hash_bytes(&s.circle().radius, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.circle().radius));
             seed = hash_combine(seed, hash_value(s.circle().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.circle().stroke.color));
             seed = hash_combine(seed, hash_value(s.circle().stroke.width));
-            seed = hash_combine(seed, hash_bytes(&s.circle().stroke.alignment, sizeof(StrokeAlignment)));
+            seed = hash_combine(seed, hash_scalar(s.circle().stroke.alignment));
             seed = hash_combine(seed, hash_value(s.circle().stroke.gradient.has_value()));
             if (s.circle().stroke.gradient)
                 seed = hash_combine(seed, hash_gradient(*s.circle().stroke.gradient));
             return seed;
         case ShapeType::Line:
             seed = hash_combine(seed, hash_vec3(s.line().to));
-            seed = hash_combine(seed, hash_bytes(&s.line().thickness, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.line().stroke.trim_start, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.line().stroke.trim_end, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.line().thickness));
+            seed = hash_combine(seed, hash_scalar(s.line().stroke.trim_start));
+            seed = hash_combine(seed, hash_scalar(s.line().stroke.trim_end));
             seed = hash_combine(seed, hash_value(s.line().stroke.enabled));
             seed = hash_combine(seed, hash_color(s.line().stroke.color));
             seed = hash_combine(seed, hash_value(s.line().stroke.width));
-            return hash_combine(seed, hash_bytes(&s.line().stroke.alignment, sizeof(StrokeAlignment)));
+            return hash_combine(seed, hash_scalar(s.line().stroke.alignment));
         case ShapeType::Path:
             seed = hash_combine(seed, hash_value(s.path().commands.size()));
             for (const auto& cmd : s.path().commands) {
@@ -110,13 +113,13 @@ namespace chronon3d::graph {
                 seed = hash_combine(seed, hash_vec2(cmd.p1));
                 seed = hash_combine(seed, hash_vec2(cmd.p2));
             }
-            seed = hash_combine(seed, hash_bytes(&s.path().stroke.width, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.path().stroke.width));
             seed = hash_combine(seed, hash_value(static_cast<int>(s.path().stroke.cap)));
             seed = hash_combine(seed, hash_value(static_cast<int>(s.path().stroke.join)));
-            seed = hash_combine(seed, hash_bytes(&s.path().stroke.trim_start, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.path().stroke.trim_end, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.path().stroke.taper_start, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.path().stroke.taper_end, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.path().stroke.trim_start));
+            seed = hash_combine(seed, hash_scalar(s.path().stroke.trim_end));
+            seed = hash_combine(seed, hash_scalar(s.path().stroke.taper_start));
+            seed = hash_combine(seed, hash_scalar(s.path().stroke.taper_end));
             seed = hash_combine(seed, hash_value(s.path().closed));
             seed = hash_combine(seed, hash_fill(s.path().fill));
             seed = hash_combine(seed, hash_value(s.path().stroke.enabled));
@@ -133,31 +136,33 @@ namespace chronon3d::graph {
                 seed = hash_combine(seed, hash_value(s.path().stroke.brush->fingerprint()));
             seed = hash_combine(seed, hash_value(s.path().stroke.trim_start));
             seed = hash_combine(seed, hash_value(s.path().stroke.trim_end));
-            seed = hash_combine(seed, hash_bytes(&s.path().stroke.cap, sizeof(s.path().stroke.cap)));
-            seed = hash_combine(seed, hash_bytes(&s.path().stroke.join, sizeof(s.path().stroke.join)));
+            seed = hash_combine(seed, hash_scalar(s.path().stroke.cap));
+            seed = hash_combine(seed, hash_scalar(s.path().stroke.join));
             return seed;
         case ShapeType::Image:
-            seed = hash_combine(seed, hash_bytes(s.image().path.data(), s.image().path.size()));
+            seed = hash_combine(seed, semantic_v2 ? hash_string(s.image().path)
+                : hash_bytes(s.image().path.data(), s.image().path.size()));
             seed = hash_combine(seed, hash_vec2(s.image().size));
-            seed = hash_combine(seed, hash_bytes(&s.image().opacity, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.image().opacity));
             return hash_combine(seed, hash_color(s.image().tint));
         case ShapeType::TiledImage:
-            seed = hash_combine(seed, hash_bytes(s.tiled_image().image.path.data(), s.tiled_image().image.path.size()));
+            seed = hash_combine(seed, semantic_v2 ? hash_string(s.tiled_image().image.path)
+                : hash_bytes(s.tiled_image().image.path.data(), s.tiled_image().image.path.size()));
             seed = hash_combine(seed, hash_vec2(s.tiled_image().image.size));
-            seed = hash_combine(seed, hash_bytes(&s.tiled_image().image.opacity, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.tiled_image().image.opacity));
             return hash_combine(seed, hash_color(s.tiled_image().image.tint));
         case ShapeType::GridBackground:
             seed = hash_combine(seed, hash_vec2(s.grid_background().size));
             seed = hash_combine(seed, hash_vec2(s.grid_background().offset));
             seed = hash_combine(seed, hash_color(s.grid_background().bg_color));
             seed = hash_combine(seed, hash_color(s.grid_background().grid_color));
-            seed = hash_combine(seed, hash_bytes(&s.grid_background().spacing, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.grid_background().minor_thickness, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.grid_background().major_thickness, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.grid_background().major_every, sizeof(i32)));
-            seed = hash_combine(seed, hash_bytes(&s.grid_background().centered, sizeof(bool)));
-            seed = hash_combine(seed, hash_bytes(&s.grid_background().edge_fade, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.grid_background().major_glow, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.grid_background().spacing));
+            seed = hash_combine(seed, hash_scalar(s.grid_background().minor_thickness));
+            seed = hash_combine(seed, hash_scalar(s.grid_background().major_thickness));
+            seed = hash_combine(seed, hash_scalar(s.grid_background().major_every));
+            seed = hash_combine(seed, hash_scalar(s.grid_background().centered));
+            seed = hash_combine(seed, hash_scalar(s.grid_background().edge_fade));
+            seed = hash_combine(seed, hash_scalar(s.grid_background().major_glow));
             return hash_combine(seed, hash_value(s.grid_background().style));
         case ShapeType::Mesh:
             seed = hash_combine(seed, hash_string(s.mesh_shape().reference.path()));
@@ -184,18 +189,18 @@ namespace chronon3d::graph {
         case ShapeType::FakeBox3D:
             seed = hash_combine(seed, hash_vec3(s.fake_box3d().world_pos));
             seed = hash_combine(seed, hash_vec2(s.fake_box3d().size));
-            seed = hash_combine(seed, hash_bytes(&s.fake_box3d().depth, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.fake_box3d().depth));
             seed = hash_combine(seed, hash_color(s.fake_box3d().color));
-            seed = hash_combine(seed, hash_bytes(&s.fake_box3d().top_tint, sizeof(f32)));
-            return hash_combine(seed, hash_bytes(&s.fake_box3d().side_tint, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.fake_box3d().top_tint));
+            return hash_combine(seed, hash_scalar(s.fake_box3d().side_tint));
         case ShapeType::GridPlane:
             seed = hash_combine(seed, hash_vec3(s.grid_plane().world_pos));
             seed = hash_combine(seed, hash_value(static_cast<int>(s.grid_plane().axis)));
-            seed = hash_combine(seed, hash_bytes(&s.grid_plane().extent, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.grid_plane().spacing, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.grid_plane().extent));
+            seed = hash_combine(seed, hash_scalar(s.grid_plane().spacing));
             seed = hash_combine(seed, hash_color(s.grid_plane().color));
-            seed = hash_combine(seed, hash_bytes(&s.grid_plane().fade_distance, sizeof(f32)));
-            return hash_combine(seed, hash_bytes(&s.grid_plane().fade_min_alpha, sizeof(f32)));
+            seed = hash_combine(seed, hash_scalar(s.grid_plane().fade_distance));
+            return hash_combine(seed, hash_scalar(s.grid_plane().fade_min_alpha));
         case ShapeType::TextRun:
             if (s.text_run_shape_handle().value) {
                 seed = hash_combine(seed, hash_text_run_shape(*s.text_run_shape_handle().value));

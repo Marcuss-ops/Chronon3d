@@ -155,3 +155,29 @@ TEST_CASE("Shape V2 hashes rounded rectangle fields component-wise") {
     negative_zero.rounded_rect().stroke.color.r = -0.0f;
     CHECK(graph::hash_shape_v2(positive_zero) == graph::hash_shape_v2(negative_zero));
 }
+
+TEST_CASE("Shape V2 canonicalizes scalar fields and frames image paths") {
+    Shape circle;
+    circle.set_type(ShapeType::Circle);
+    circle.circle().radius = 12.0f;
+    circle.circle().stroke.alignment = StrokeAlignment::Inside;
+    const auto circle_hash = graph::hash_shape_v2(circle);
+    auto changed_circle = circle;
+    changed_circle.circle().radius += 1.0f;
+    CHECK(graph::hash_shape_v2(changed_circle) != circle_hash);
+    changed_circle = circle;
+    changed_circle.circle().stroke.alignment = StrokeAlignment::Outside;
+    CHECK(graph::hash_shape_v2(changed_circle) != circle_hash);
+    auto positive_zero = circle;
+    auto negative_zero = circle;
+    positive_zero.circle().radius = 0.0f;
+    negative_zero.circle().radius = -0.0f;
+    CHECK(graph::hash_shape_v2(positive_zero) == graph::hash_shape_v2(negative_zero));
+
+    Shape image_a;
+    image_a.set_type(ShapeType::Image);
+    image_a.image().path = "asset";
+    Shape image_b = image_a;
+    image_b.image().path = "asset2";
+    CHECK(graph::hash_shape_v2(image_a) != graph::hash_shape_v2(image_b));
+}
