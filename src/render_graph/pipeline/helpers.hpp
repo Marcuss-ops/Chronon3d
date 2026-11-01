@@ -31,7 +31,6 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/runtime/frame/frame_execution.hpp>
-#include <xxhash.h>
 #include <algorithm>
 #include <cmath>
 
@@ -42,26 +41,20 @@ namespace chronon3d::graph {
 // Hashes the visible scene state at a given frame into a 64-bit digest.
 // Used by the dirty-rect fast path to skip full re-renders when nothing changed.
 [[nodiscard]] inline uint64_t compute_scene_fingerprint(const Scene& scene, Frame frame) {
-    XXH3_state_t* state = XXH3_createState();
-    if (!state) return 0;
-    XXH3_64bits_reset(state);
+    u64 fingerprint = hash_string("chronon.scene-dirty-fingerprint.v2");
 
     for (const auto& layer : scene.layers()) {
         if (!layer.active_at(frame)) continue;
 
         const u64 static_hash = layer.get_static_hash();
-        XXH3_64bits_update(state, &static_hash, sizeof(static_hash));
-
-        const u64 transform_hash = hash_transform(layer.transform);
-        XXH3_64bits_update(state, &transform_hash, sizeof(transform_hash));
+        fingerprint = hash_combine(fingerprint, static_hash);
+        fingerprint = hash_combine(fingerprint, hash_transform_v2(layer.transform));
     }
     for (const auto& node : scene.nodes()) {
         const u64 node_hash = hash_render_node_v2(node);
-        XXH3_64bits_update(state, &node_hash, sizeof(node_hash));
+        fingerprint = hash_combine(fingerprint, node_hash);
     }
-    const auto result = XXH3_64bits_digest(state);
-    XXH3_freeState(state);
-    return result;
+    return fingerprint;
 }
 
 

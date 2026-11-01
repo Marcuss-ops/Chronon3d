@@ -10,6 +10,7 @@
 #include <chronon3d/render_graph/nodes/per_pixel_dof_node.hpp>
 #include <chronon3d/render_graph/nodes/depth_grade_node.hpp>
 #include <chronon3d/render_graph/nodes/shadow_node.hpp>
+#include "src/render_graph/pipeline/helpers.hpp"
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include "src/backends/text/font_bbox_cache_key.hpp"
@@ -921,6 +922,24 @@ TEST_CASE("SceneHasher V2 includes layer material, matte, source and remapped ti
     graph::SceneHasher hasher;
     CHECK(hasher.compute_dynamic_fingerprint(scene, Frame{10}) !=
           hasher.compute_dynamic_fingerprint(scene, Frame{11}));
+}
+
+TEST_CASE("Dirty scene fingerprint V2 is stable and includes semantic layer state") {
+    Scene base;
+    Layer layer;
+    layer.name = "dirty-fingerprint";
+    layer.duration = Frame{100};
+    base.add_layer(std::move(layer));
+    const auto original = graph::compute_scene_fingerprint(base, Frame{10});
+    CHECK(graph::compute_scene_fingerprint(base, Frame{10}) == original);
+
+    Scene changed;
+    Layer skewed;
+    skewed.name = "dirty-fingerprint";
+    skewed.duration = Frame{100};
+    skewed.transform.skew = {8.0f, 3.0f};
+    changed.add_layer(std::move(skewed));
+    CHECK(graph::compute_scene_fingerprint(changed, Frame{10}) != original);
 }
 
 TEST_CASE("PerPixelDofNode V2 key covers every DOF setting") {

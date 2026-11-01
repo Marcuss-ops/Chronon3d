@@ -298,6 +298,13 @@ semantic float/vector/color hashing for every setting. Each publishes
 `params_version = 2`; field-mutation suites pass (20 DOF, 26 depth-grade, 44
 shadow assertions).
 
+The dirty-rect scene fingerprint previously allocated an XXH3 state and
+returned a valid-looking zero digest if that allocation failed. It now folds
+the semantic layer and RenderNode identities with the canonical hash builder,
+without allocation, and has a V2 domain tag. A stability/mutation test verifies
+repeatability and skew invalidation; the full cache suite passes 183 cases /
+103,770 assertions.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.
