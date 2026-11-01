@@ -201,15 +201,15 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
         for (const auto& group : groups) {
             key.params_hash = hash_combine(
                 key.params_hash, hash_value(static_cast<std::uint64_t>(group.id)));
-            key.params_hash = hash_combine(key.params_hash, hash_value(group.opacity));
+            key.params_hash = hash_combine(key.params_hash, hash_float_v2(group.opacity));
             if (group.opacity_animation) {
                 const auto& animation = *group.opacity_animation;
                 key.params_hash = hash_combine(key.params_hash,
                     hash_value(static_cast<u64>(animation.start_frame)));
                 key.params_hash = hash_combine(key.params_hash,
                     hash_value(static_cast<u64>(animation.end_frame)));
-                key.params_hash = hash_combine(key.params_hash, hash_value(animation.from));
-                key.params_hash = hash_combine(key.params_hash, hash_value(animation.to));
+                key.params_hash = hash_combine(key.params_hash, hash_float_v2(animation.from));
+                key.params_hash = hash_combine(key.params_hash, hash_float_v2(animation.to));
                 key.params_hash = hash_combine(key.params_hash, hash_value(animation.discrete));
             }
         }

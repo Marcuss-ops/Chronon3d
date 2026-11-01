@@ -120,14 +120,14 @@ cache::NodeCacheKey ClipTransitionNode::cache_key(const RenderGraphContext& ctx)
     params_hash = hash_combine(params_hash, static_cast<u64>(m_spec.direction));
     params_hash = hash_combine(params_hash, static_cast<u64>(m_from.value));
     params_hash = hash_combine(params_hash, static_cast<u64>(m_duration.value));
-    params_hash = hash_combine(params_hash, hash_value(ctx.frame_input.fps));
-    params_hash = hash_combine(params_hash, hash_value(m_spec.center.x));
-    params_hash = hash_combine(params_hash, hash_value(m_spec.center.y));
-    params_hash = hash_combine(params_hash, hash_value(m_spec.feather));
-    params_hash = hash_combine(params_hash, hash_value(m_spec.zoom_scale));
-    params_hash = hash_combine(params_hash, hash_color(m_spec.flash_color));
-    params_hash = hash_combine(params_hash, hash_value(m_spec.leak_intensity));
-    params_hash = hash_combine(params_hash, hash_value(m_spec.leak_spread));
+    params_hash = hash_combine(params_hash, hash_float_v2(ctx.frame_input.fps));
+    params_hash = hash_combine(params_hash, hash_float_v2(m_spec.center.x));
+    params_hash = hash_combine(params_hash, hash_float_v2(m_spec.center.y));
+    params_hash = hash_combine(params_hash, hash_float_v2(m_spec.feather));
+    params_hash = hash_combine(params_hash, hash_float_v2(m_spec.zoom_scale));
+    params_hash = hash_combine(params_hash, hash_color_v2(m_spec.flash_color));
+    params_hash = hash_combine(params_hash, hash_float_v2(m_spec.leak_intensity));
+    params_hash = hash_combine(params_hash, hash_float_v2(m_spec.leak_spread));
     key.params_hash = params_hash;
     key.params_version = 2;
 

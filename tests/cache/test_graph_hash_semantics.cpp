@@ -562,6 +562,24 @@ TEST_CASE("Semantic transform hashes cover each matrix field") {
           graph::hash_vec3_v2(Vec3{-0.0f, 2.0f, 3.0f}));
 }
 
+TEST_CASE("Semantic V2 scalar and color hashes canonicalize and cover fields") {
+    CHECK(graph::hash_float_v2(0.0f) == graph::hash_float_v2(-0.0f));
+    const Color base{0.1f, 0.2f, 0.3f, 0.4f};
+    const auto original = graph::hash_color_v2(base);
+    for (int channel = 0; channel < 4; ++channel) {
+        auto changed = base;
+        switch (channel) {
+            case 0: changed.r += 0.1f; break;
+            case 1: changed.g += 0.1f; break;
+            case 2: changed.b += 0.1f; break;
+            default: changed.a += 0.1f; break;
+        }
+        CHECK(graph::hash_color_v2(changed) != original);
+    }
+    CHECK(graph::hash_color_v2(Color{0.0f, 0.2f, 0.3f, 0.4f}) ==
+          graph::hash_color_v2(Color{-0.0f, 0.2f, 0.3f, 0.4f}));
+}
+
 TEST_CASE("Font identity memo stamp V2 key frames metadata validity") {
     using text::FontIdentityStampKey;
     using text::FontIdentityStampKeyHash;

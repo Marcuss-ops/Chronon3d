@@ -47,6 +47,7 @@ template <typename T>
 
 /// Padding-safe semantic hashes for dynamic transform inputs in NodeCache V2.
 [[nodiscard]] u64 hash_float_v2(f32 value);
+[[nodiscard]] u64 hash_color_v2(const Color& value);
 [[nodiscard]] u64 hash_vec2_v2(const Vec2& value);
 [[nodiscard]] u64 hash_vec3_v2(const Vec3& value);
 [[nodiscard]] u64 hash_mat4_v2(const Mat4& value);

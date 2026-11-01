@@ -95,6 +95,16 @@ struct SemanticGradientHashSink {
         .finish();
 }
 
+[[nodiscard]] u64 hash_color_v2(const Color& value) {
+    return core::hash::HashBuilder{}
+        .add("chronon.color.v2")
+        .add(value.r == 0.0f ? 0.0f : value.r)
+        .add(value.g == 0.0f ? 0.0f : value.g)
+        .add(value.b == 0.0f ? 0.0f : value.b)
+        .add(value.a == 0.0f ? 0.0f : value.a)
+        .finish();
+}
+
 [[nodiscard]] u64 hash_vec2_v2(const Vec2& value) {
     return core::hash::HashBuilder{}
         .add("chronon.vec2.v2")

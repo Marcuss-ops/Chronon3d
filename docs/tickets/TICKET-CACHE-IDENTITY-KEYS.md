@@ -242,6 +242,8 @@ read to avoid associating bytes with a changed file version.
 Dynamic SourceNode, MultiSourceNode and TextRunNode NodeCache inputs now hash
 matrix, vector and opacity components through padding-safe V2 primitives that
 canonicalize signed zero. The matrix test mutates all 16 components.
+MultiSource group opacity animation and ClipTransition V2 values now also use
+canonical V2 float/color primitives instead of raw scalar/Color object bytes.
 The cache test binary rebuilt at `-j4` and passed all 173 cases / 103,520
 assertions after this producer-key change.
 
