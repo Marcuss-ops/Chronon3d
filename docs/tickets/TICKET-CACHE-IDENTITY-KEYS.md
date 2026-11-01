@@ -156,6 +156,17 @@ are canonicalized component-wise. The original TextRun digest remains the V1
 path. Mutation tests cover formerly omitted glyph anchor, material,
 stroke-dash cardinality, shadow and dissolve fields plus signed zero.
 
+The transition-hashing audit found no recursion-depth-limited digest builder
+or recursive `return 0` fallback in the render-graph hash implementation. The
+zero returns found there are explicit legacy sentinels for disabled V1 masks
+and the empty `monostate` transition alternative; V2 masks encode enabled
+state and V2 transitions encode the variant index. This distinction is kept
+for later compatibility review. LayerTransitionSpec V2 no longer wraps its
+byte-oriented V1 digest: it hashes the domain, id, enum fields, duration,
+delay, and active typed parameter members directly, canonicalizing signed
+zero. The V1 builder remains unchanged; existing parameter mutation coverage
+is supplemented with a V2 signed-zero test.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.

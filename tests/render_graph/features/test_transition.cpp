@@ -221,6 +221,26 @@ TEST_CASE("Cache key includes duration, delay, easing and direction") {
     CHECK(hash_layer_transition_spec_v2(direction) != hash_layer_transition_spec_v2(direction2));
 }
 
+TEST_CASE("Layer transition V2 hashes semantic scalar fields") {
+    LayerTransitionSpec positive;
+    positive.transition_id = "slide";
+    positive.direction = TransitionDirection::Right;
+    positive.duration = 0.0;
+    positive.delay = 0.0;
+    positive.parameters = SlideParams{.distance = 0.0f};
+    auto negative = positive;
+    negative.duration = -0.0;
+    negative.delay = -0.0;
+    negative.parameters = SlideParams{.distance = -0.0f};
+    CHECK(hash_layer_transition_spec_v2(positive) ==
+          hash_layer_transition_spec_v2(negative));
+
+    negative.parameters = SlideParams{.distance = 0.25f};
+    CHECK(hash_layer_transition_spec_v2(positive) !=
+          hash_layer_transition_spec_v2(negative));
+    CHECK(hash_layer_transition_spec(positive) != 0);
+}
+
 TEST_CASE("Cache key includes typed parameters") {
     LayerTransitionSpec a = spec("slide", 1.0f);
     a.parameters = SlideParams{.distance = 0.5f};
