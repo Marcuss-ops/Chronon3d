@@ -588,7 +588,7 @@ TEST_CASE("MTSDF glyph identity ignores runtime font size and has one canonical 
     using chronon3d::runtime::GlyphRepresentation;
     using chronon3d::runtime::GpuGlyphKey;
 
-    GpuGlyphKey mtsdf_a{"font.ttf", 65, 0x1234, GlyphRepresentation::Mtsdf, 7, 32};
+    GpuGlyphKey mtsdf_a{"font.ttf", 65, 0x1234, {}, GlyphRepresentation::Mtsdf, 7, 32};
     GpuGlyphKey mtsdf_b = mtsdf_a;
     mtsdf_b.font_size = 96;
     CHECK(mtsdf_a == mtsdf_b);
