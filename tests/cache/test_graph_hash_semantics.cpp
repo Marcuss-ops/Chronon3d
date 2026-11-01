@@ -10,6 +10,7 @@
 #include <chronon3d/render_graph/nodes/per_pixel_dof_node.hpp>
 #include <chronon3d/render_graph/nodes/depth_grade_node.hpp>
 #include <chronon3d/render_graph/nodes/shadow_node.hpp>
+#include <chronon3d/render_graph/nodes/composite_node.hpp>
 #include "src/render_graph/pipeline/helpers.hpp"
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
@@ -1069,4 +1070,45 @@ TEST_CASE("ShadowNode V2 key covers every shadow dependency") {
     changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.tint.g += 0.1f; });
     changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.tint.b += 0.1f; });
     changed([](auto&, auto&, auto&, auto&, auto& s, auto&) { s.tint.a += 0.1f; });
+}
+
+TEST_CASE("CompositeNode V2 key covers world placement and backdrop state") {
+    graph::RenderGraphContext ctx;
+    const auto digest = [&](float world_z, std::optional<Vec3> world_position,
+                            std::optional<BackdropBlurParams> blur,
+                            BlendMode mode = BlendMode::Normal,
+                            CompositeOperator op = CompositeOperator::SourceOver) {
+        graph::CompositeNode node(51, mode, Frame{-1}, world_z, op);
+        if (world_position) node.set_world_position(*world_position);
+        if (blur) node.set_backdrop_blur(*blur);
+        return node.cache_key(ctx);
+    };
+    BackdropBlurParams blur{.blur = 3.0f, .brightness = 0.8f,
+        .saturation = 0.7f, .rim_light = 0.2f, .refraction = 0.5f,
+        .surface_noise = 0.03f};
+    const auto original = digest(2.0f, Vec3{1.0f, 2.0f, 3.0f}, blur);
+    const auto changed = [&](auto mutate) {
+        float z = 2.0f;
+        std::optional<Vec3> position = Vec3{1.0f, 2.0f, 3.0f};
+        std::optional<BackdropBlurParams> params = blur;
+        BlendMode mode = BlendMode::Normal;
+        CompositeOperator op = CompositeOperator::SourceOver;
+        mutate(z, position, params, mode, op);
+        const auto key = digest(z, position, params, mode, op);
+        CHECK(key.params_hash != original.params_hash);
+        CHECK(key.params_version == 2);
+    };
+    changed([](auto& z, auto&, auto&, auto&, auto&) { z += 1.0f; });
+    changed([](auto&, auto& p, auto&, auto&, auto&) { p->x += 1.0f; });
+    changed([](auto&, auto& p, auto&, auto&, auto&) { p->y += 1.0f; });
+    changed([](auto&, auto& p, auto&, auto&, auto&) { p->z += 1.0f; });
+    changed([](auto&, auto&, auto& p, auto&, auto&) { p.reset(); });
+    changed([](auto&, auto&, auto& p, auto&, auto&) { p->blur += 1.0f; });
+    changed([](auto&, auto&, auto& p, auto&, auto&) { p->brightness += 0.1f; });
+    changed([](auto&, auto&, auto& p, auto&, auto&) { p->saturation += 0.1f; });
+    changed([](auto&, auto&, auto& p, auto&, auto&) { p->rim_light += 0.1f; });
+    changed([](auto&, auto&, auto& p, auto&, auto&) { p->refraction += 0.1f; });
+    changed([](auto&, auto&, auto& p, auto&, auto&) { p->surface_noise += 0.01f; });
+    changed([](auto&, auto&, auto&, auto& m, auto&) { m = BlendMode::Multiply; });
+    changed([](auto&, auto&, auto&, auto&, auto& o) { o = CompositeOperator::StencilAlpha; });
 }
