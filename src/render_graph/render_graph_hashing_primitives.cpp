@@ -88,6 +88,41 @@ struct SemanticGradientHashSink {
     return hash_bytes(&color, sizeof(color));
 }
 
+[[nodiscard]] u64 hash_float_v2(f32 value) {
+    return core::hash::HashBuilder{}
+        .add("chronon.float.v2")
+        .add(value == 0.0f ? 0.0f : value)
+        .finish();
+}
+
+[[nodiscard]] u64 hash_vec2_v2(const Vec2& value) {
+    return core::hash::HashBuilder{}
+        .add("chronon.vec2.v2")
+        .add(value.x == 0.0f ? 0.0f : value.x)
+        .add(value.y == 0.0f ? 0.0f : value.y)
+        .finish();
+}
+
+[[nodiscard]] u64 hash_vec3_v2(const Vec3& value) {
+    return core::hash::HashBuilder{}
+        .add("chronon.vec3.v2")
+        .add(value.x == 0.0f ? 0.0f : value.x)
+        .add(value.y == 0.0f ? 0.0f : value.y)
+        .add(value.z == 0.0f ? 0.0f : value.z)
+        .finish();
+}
+
+[[nodiscard]] u64 hash_mat4_v2(const Mat4& value) {
+    auto hash = core::hash::HashBuilder{}.add("chronon.mat4.v2");
+    for (int column = 0; column < 4; ++column) {
+        for (int row = 0; row < 4; ++row) {
+            const f32 component = value[column][row];
+            hash.add(component == 0.0f ? 0.0f : component);
+        }
+    }
+    return hash.finish();
+}
+
 [[nodiscard]] u64 hash_transform(const Transform& transform) {
     u64 h = hash_vec3(transform.position);
     h = hash_combine(h, hash_vec3(transform.anchor));

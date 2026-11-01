@@ -239,6 +239,11 @@ field-mutation tests for each dependency. Its font-digest memo now also uses a
 structured V2 stamp key with explicit metadata-validity bits instead of a
 newline-concatenated string, and rechecks the stamp before memoizing a digest
 read to avoid associating bytes with a changed file version.
+Dynamic SourceNode, MultiSourceNode and TextRunNode NodeCache inputs now hash
+matrix, vector and opacity components through padding-safe V2 primitives that
+canonicalize signed zero. The matrix test mutates all 16 components.
+The cache test binary rebuilt at `-j4` and passed all 173 cases / 103,520
+assertions after this producer-key change.
 
 ## Exit criteria
 

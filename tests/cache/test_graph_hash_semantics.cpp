@@ -540,6 +540,28 @@ TEST_CASE("MTSDF prepared glyph V2 identity covers raster dependencies") {
     changed([](auto& key) { key.profile.generation_id++; });
 }
 
+TEST_CASE("Semantic transform hashes cover each matrix field") {
+    Mat4 base{1.0f};
+    const auto original = graph::hash_mat4_v2(base);
+    for (int column = 0; column < 4; ++column) {
+        for (int row = 0; row < 4; ++row) {
+            auto changed = base;
+            changed[column][row] += 0.25f;
+            INFO("matrix[", column, "][", row, "]");
+            CHECK(graph::hash_mat4_v2(changed) != original);
+        }
+    }
+    auto positive_zero = base;
+    auto negative_zero = base;
+    positive_zero[1][2] = 0.0f;
+    negative_zero[1][2] = -0.0f;
+    CHECK(graph::hash_mat4_v2(positive_zero) == graph::hash_mat4_v2(negative_zero));
+    CHECK(graph::hash_vec2_v2(Vec2{0.0f, 2.0f}) ==
+          graph::hash_vec2_v2(Vec2{-0.0f, 2.0f}));
+    CHECK(graph::hash_vec3_v2(Vec3{0.0f, 2.0f, 3.0f}) ==
+          graph::hash_vec3_v2(Vec3{-0.0f, 2.0f, 3.0f}));
+}
+
 TEST_CASE("Font identity memo stamp V2 key frames metadata validity") {
     using text::FontIdentityStampKey;
     using text::FontIdentityStampKeyHash;

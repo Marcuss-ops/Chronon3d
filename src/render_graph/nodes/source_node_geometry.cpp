@@ -235,10 +235,10 @@ cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.policy.modular_coordinates));
     const auto effective = effective_matrix(ctx);
     key.params_hash = hash_combine(key.params_hash,
-        hash_bytes(&effective[0][0], sizeof(Mat4)));
+        hash_mat4_v2(effective));
     const auto opacity = effective_opacity(ctx);
     key.params_hash = hash_combine(key.params_hash,
-        hash_bytes(&opacity, sizeof(f32)));
+        hash_float_v2(opacity));
     // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B):
     // canonical conditional fold — single implementation for the invariant.
     cache::fold_camera_if(
