@@ -226,6 +226,8 @@ diagnostic `cache_key()` string. Mutation coverage checks all four fields.
 The FreeType glyph bounding-box key now has a domain-tagged V2 hasher over
 face id, glyph id, pixel size and full variation-axis string. It uses a small
 internal key header and has mutation coverage for each field.
+`FramebufferPoolKey` also now uses a domain-tagged V2 fieldwise hasher over its
+width and height size class; its residency identity remains entirely in memory.
 
 ## Exit criteria
 
