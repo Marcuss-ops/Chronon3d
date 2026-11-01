@@ -281,6 +281,15 @@ tests cover all 27 environment SH samples, every shadow/point-light/material
 field, optional HDRI identity and signed-zero canonicalization; all 103
 lighting assertions pass. The legacy helper functions remain unchanged.
 
+Scene and layer fingerprints were still under-keyed independently of the
+node-level hashes. Scene layer identity now has a V2 domain and covers the
+semantic transform, timing window/offset, track-matte source, all Card3D
+material fields, all six backdrop-blur fields, full VideoSource V2 identity,
+and both layer-transition specs. `Layer::get_static_hash()` now carries the
+same source/compositing dependencies. The dynamic fingerprint distinguishes
+active remapped source time by frame. Mutation tests pass for all Card3D and
+backdrop fields, matte, transform skew, source identity, and remapped frames.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.

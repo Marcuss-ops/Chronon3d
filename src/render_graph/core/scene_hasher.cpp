@@ -15,6 +15,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/scene/model/core/card3d_material.hpp>
 
 #include <variant>
 #include <vector>
@@ -267,6 +268,15 @@ uint64_t SceneHasher::compute_dynamic_fingerprint(const Scene& scene, Frame fram
     // not compiled graph reuse.
     for (const auto& layer : scene.layers()) {
         h = hash_combine(h, hash_effect_parameters_at(layer, frame));
+        if (layer.active_at(frame) && layer.time_remap.freeze_frame < 0 &&
+            (layer.time_remap.active() || layer.time_offset != Frame{0})) {
+            // SceneHasher receives integer frame identity (not the comp rate
+            // or subframe sample). Include the evaluated input frame so a
+            // remapped precomp/source cannot reuse pixels from another time.
+            h = hash_combine(h, hash_string(layer.name));
+            h = hash_combine(h, hash_string("chronon.layer-local-time.v2"));
+            h = hash_combine(h, hash_value(static_cast<int64_t>(frame)));
+        }
         if (layer.kind == LayerKind::Video && layer.video_source &&
             layer.active_at(frame)) {
             h = hash_combine(h, hash_string(layer.name));
@@ -284,7 +294,7 @@ uint64_t SceneHasher::compute_dynamic_fingerprint(const Scene& scene, Frame fram
 // ── Private helpers ─────────────────────────────────────────────────────────
 
 uint64_t SceneHasher::hash_layer(const Layer& layer) {
-    uint64_t h = 0;
+    uint64_t h = hash_string("chronon.scene-layer.v2");
     h = hash_combine(h, hash_string(layer.name));
     h = hash_combine(h, hash_string(layer.parent_name));
     h = hash_combine(h, static_cast<u64>(layer.kind));
@@ -301,9 +311,14 @@ uint64_t SceneHasher::hash_layer(const Layer& layer) {
         h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
     }
     h = hash_combine(h, static_cast<u64>(layer.composite_operator));
-    h = hash_combine(h, hash_transform(layer.transform));
+    h = hash_combine(h, hash_transform_v2(layer.transform));
+    h = hash_combine(h, hash_value(static_cast<int64_t>(layer.from)));
+    h = hash_combine(h, hash_value(static_cast<int64_t>(layer.duration)));
+    h = hash_combine(h, hash_value(static_cast<int64_t>(layer.time_offset)));
     h = hash_combine(h, hash_mask_v2(layer.mask));
     h = hash_combine(h, static_cast<u64>(layer.track_matte.type));
+    if (layer.track_matte.active())
+        h = hash_combine(h, hash_string(layer.track_matte.source_layer));
     if (layer.m_effects) {
         h = hash_combine(h, hash_effect_stack_v3(*layer.m_effects));
     }
@@ -316,14 +331,43 @@ uint64_t SceneHasher::hash_layer(const Layer& layer) {
         h = hash_combine(h, hash_string(layer.precomp_composition_name));
     }
     if (layer.kind == LayerKind::Video && layer.video_source) {
-        h = hash_combine(h, hash_string(layer.video_source->path));
-        h = hash_combine(h, hash_vec2(layer.video_source->size));
-        h = hash_combine(h, hash_value(layer.video_source->source_fps));
+        h = hash_combine(h, hash_video_source_v2(*layer.video_source));
     }
     if (layer.time_remap.active()) {
         h = hash_combine(h, hash_value(layer.time_remap.speed));
         h = hash_combine(h, hash_value(static_cast<u64>(layer.time_remap.freeze_frame)));
     }
+    h = hash_combine(h, hash_value(layer.has_card3d_material()));
+    if (layer.has_card3d_material()) {
+        const auto& material = layer.card3d_material();
+        h = hash_combine(h, hash_value(material.enabled));
+        h = hash_combine(h, hash_float_v2(material.thickness_px));
+        h = hash_combine(h, hash_float_v2(material.corner_radius));
+        h = hash_combine(h, hash_color_v2(material.front_top_color));
+        h = hash_combine(h, hash_color_v2(material.front_bottom_color));
+        h = hash_combine(h, hash_color_v2(material.side_color));
+        h = hash_combine(h, hash_float_v2(material.edge_highlight_intensity));
+        h = hash_combine(h, hash_color_v2(material.edge_highlight_color));
+        h = hash_combine(h, hash_float_v2(material.rim_light_intensity));
+        h = hash_combine(h, hash_float_v2(material.rim_light_power));
+        h = hash_combine(h, hash_color_v2(material.rim_light_color));
+        h = hash_combine(h, hash_vec3_v2(material.light_direction));
+        h = hash_combine(h, hash_value(material.cast_shadow));
+        h = hash_combine(h, hash_value(material.receive_shadow));
+        h = hash_combine(h, hash_value(material.casts_shadows));
+        h = hash_combine(h, hash_value(material.accepts_shadows));
+    }
+    h = hash_combine(h, hash_value(layer.backdrop_blur.has_value()));
+    if (layer.backdrop_blur) {
+        h = hash_combine(h, hash_float_v2(layer.backdrop_blur->blur));
+        h = hash_combine(h, hash_float_v2(layer.backdrop_blur->brightness));
+        h = hash_combine(h, hash_float_v2(layer.backdrop_blur->saturation));
+        h = hash_combine(h, hash_float_v2(layer.backdrop_blur->rim_light));
+        h = hash_combine(h, hash_float_v2(layer.backdrop_blur->refraction));
+        h = hash_combine(h, hash_float_v2(layer.backdrop_blur->surface_noise));
+    }
+    h = hash_combine(h, hash_layer_transition_spec_v2(layer.transition_in));
+    h = hash_combine(h, hash_layer_transition_spec_v2(layer.transition_out));
     return h;
 }
 
