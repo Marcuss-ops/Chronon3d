@@ -105,9 +105,11 @@ fixture in `tests/effects/test_curves.cpp`. Remaining cache-specific builders
 still need dedicated mutation and legacy-fixture tests before their identities
 can be called fully versioned. Structured mesh preparation identity, GPU glyph
 key hashing, and FreeType face/bbox cache keys now have dedicated semantic
-coverage. Outstanding work includes deeper glyph-atlas residency/raster entry
-inventory, device frame resources, and several opaque graph producer keys;
-legacy digest fixtures are still missing for many newer V2 builders. The
+coverage. Runtime resource plans and compiled resource tables are placement
+plans, not cache keys (the taxonomy names `CompiledResourceTable` as the
+placement authority). Outstanding work includes deeper glyph-atlas page/raster
+entry inventory and several opaque graph producer keys; legacy digest fixtures
+are still missing for many newer V2 builders. The
 software path flatten cache now
 retains command vectors and compares each semantic field after digest bucketing;
 its command/closure mutation test passes. `MediaSessionKey` has a field-by-field
@@ -228,6 +230,9 @@ face id, glyph id, pixel size and full variation-axis string. It uses a small
 internal key header and has mutation coverage for each field.
 `FramebufferPoolKey` also now uses a domain-tagged V2 fieldwise hasher over its
 width and height size class; its residency identity remains entirely in memory.
+`StyledGlyphKey` uses a domain-tagged V2 semantic hash, and a cache-level
+mutation test verifies that every raster/presentation field misses the prior
+entry.
 
 ## Exit criteria
 

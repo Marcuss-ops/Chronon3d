@@ -462,6 +462,60 @@ TEST_CASE("FreeType glyph bbox V2 identity hashes every semantic field") {
     changed([](auto& key) { key.variation_axes = "wght=700"; });
 }
 
+TEST_CASE("Styled glyph cache V2 identity distinguishes every semantic field") {
+    using runtime::GpuStyledGlyphCache;
+    using runtime::StyledGlyphKey;
+    StyledGlyphKey base;
+    base.font_id = 17;
+    base.glyph_id = 65;
+    base.font_size = 32;
+    base.stroke_radius = 2;
+    base.background_padding = 3;
+    base.fill = {.2f, .3f, .4f, 1.0f};
+    base.background = {.1f, .2f, .3f, .8f};
+    base.stroke = {.8f, .7f, .6f, 1.0f};
+    base.stroke_width = 1.5f;
+    base.shadow_hash = 91;
+    GpuStyledGlyphCache cache;
+    auto pixels = std::make_shared<const std::vector<float>>(4, 1.0f);
+    cache.store_styled(base, 1, 1, pixels);
+    REQUIRE(cache.find_styled(base));
+
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+        CHECK_FALSE(cache.find_styled(key));
+    };
+    changed([](auto& key) { key.font_id++; });
+    changed([](auto& key) { key.glyph_id++; });
+    changed([](auto& key) { key.font_size++; });
+    changed([](auto& key) { key.stroke_radius++; });
+    changed([](auto& key) { key.background_padding++; });
+    changed([](auto& key) { key.fill.r += 0.1f; });
+    changed([](auto& key) { key.fill.g += 0.1f; });
+    changed([](auto& key) { key.fill.b += 0.1f; });
+    changed([](auto& key) { key.fill.a -= 0.1f; });
+    changed([](auto& key) { key.background.r += 0.1f; });
+    changed([](auto& key) { key.background.g += 0.1f; });
+    changed([](auto& key) { key.background.b += 0.1f; });
+    changed([](auto& key) { key.background.a -= 0.1f; });
+    changed([](auto& key) { key.stroke.r += 0.1f; });
+    changed([](auto& key) { key.stroke.g += 0.1f; });
+    changed([](auto& key) { key.stroke.b += 0.1f; });
+    changed([](auto& key) { key.stroke.a -= 0.1f; });
+    changed([](auto& key) { key.stroke_width += 0.1f; });
+    changed([](auto& key) { key.shadow_hash++; });
+
+    auto positive_zero = base;
+    positive_zero.stroke_width = 0.0f;
+    auto negative_zero = positive_zero;
+    negative_zero.stroke_width = -0.0f;
+    GpuStyledGlyphCache zero_cache;
+    zero_cache.store_styled(positive_zero, 1, 1, pixels);
+    CHECK(zero_cache.find_styled(negative_zero));
+}
+
 TEST_CASE("Mesh preparation cache compares the complete resolved identity") {
     using assets::MeshIdentity;
     using assets::MeshPreparationCache;

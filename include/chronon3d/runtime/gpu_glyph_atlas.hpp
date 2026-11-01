@@ -413,6 +413,7 @@ private:
                 return h.add(value == 0.0f ? 0.0f : value);
             };
             h
+                .add("chronon.styled-glyph-key.v2")
                 .add(k.value.font_id)
                 .add(k.value.glyph_id)
                 .add(k.value.font_size)
