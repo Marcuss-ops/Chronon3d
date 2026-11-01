@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
+#include "src/backends/text/font_bbox_cache_key.hpp"
 
 #include <array>
 #include <memory>
@@ -441,6 +442,24 @@ TEST_CASE("GPU glyph V2 digests respond to every semantic field") {
     changed([](auto& key) { key.representation = GlyphRepresentation::CoverageRgba; });
     changed([](auto& key) { key.generation_profile++; });
     changed([](auto& key) { key.font_size++; });
+}
+
+TEST_CASE("FreeType glyph bbox V2 identity hashes every semantic field") {
+    using chronon3d::GlyphBBoxCacheKey;
+    using chronon3d::GlyphBBoxCacheKeyHash;
+    const GlyphBBoxCacheKey base{17, 65, 32, "wght=400"};
+    CHECK(GlyphBBoxCacheKeyHash{}(base) ==
+          GlyphBBoxCacheKeyHash{}(GlyphBBoxCacheKey{17, 65, 32, "wght=400"}));
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+        CHECK(GlyphBBoxCacheKeyHash{}(key) != GlyphBBoxCacheKeyHash{}(base));
+    };
+    changed([](auto& key) { key.face_id++; });
+    changed([](auto& key) { key.glyph_id++; });
+    changed([](auto& key) { key.pixel_size++; });
+    changed([](auto& key) { key.variation_axes = "wght=700"; });
 }
 
 TEST_CASE("Mesh preparation cache compares the complete resolved identity") {

@@ -220,6 +220,10 @@ Mesh V2 also hashes the prepared mesh identity's resolved path, byte size,
 write time and content digest as individual fields instead of hashing its
 diagnostic `cache_key()` string. Mutation coverage checks all four fields.
 
+The FreeType glyph bounding-box key now has a domain-tagged V2 hasher over
+face id, glyph id, pixel size and full variation-axis string. It uses a small
+internal key header and has mutation coverage for each field.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.

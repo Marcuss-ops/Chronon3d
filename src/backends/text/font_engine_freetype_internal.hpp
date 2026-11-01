@@ -10,6 +10,7 @@
 #include <chronon3d/text/text_layout_cache.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/hash/hash_builder.hpp>
+#include "font_bbox_cache_key.hpp"
 #include "src/backends/text/font_engine_internal.hpp"
 
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -51,8 +52,6 @@ bool is_invisible_codepoint(char32_t cp) noexcept {
 }
 
 } // namespace
-
-using FontFaceId = std::uint64_t;
 
 /// Lifetime-owned FreeType/HarfBuzz face.  FontEngine operations hold a
 /// shared_ptr lease for the whole operation, so cache eviction can drop its
@@ -108,18 +107,6 @@ bool apply_variation_axes(FaceEntry& entry, FT_Library library,
     return true;
 }
 } // namespace
-
-struct GlyphBBoxCacheKey {
-    FontFaceId face_id{0};
-    u32        glyph_id{0};
-    u32        pixel_size{0};
-    std::string variation_axes;
-
-    bool operator==(const GlyphBBoxCacheKey& o) const noexcept {
-        return face_id == o.face_id && glyph_id == o.glyph_id &&
-               pixel_size == o.pixel_size && variation_axes == o.variation_axes;
-    }
-};
 
 struct GlyphBBoxCacheEntry {
     float x0{0.0f};
@@ -216,19 +203,6 @@ parse_opentype_features(std::string_view spec) {
 }
 } // anonymous namespace
 
-namespace std {
-template<> struct hash<chronon3d::GlyphBBoxCacheKey> {
-    [[nodiscard]] size_t operator()(const chronon3d::GlyphBBoxCacheKey& k) const noexcept {
-        size_t h = 0;
-        h ^= std::hash<chronon3d::FontFaceId>{}(k.face_id) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<chronon3d::u32>{}(k.glyph_id) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<chronon3d::u32>{}(k.pixel_size) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<std::string>{}(k.variation_axes) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        return h;
-    }
-};
-} // namespace std
-
 namespace chronon3d {
 
 struct FontEngine::Impl {
@@ -246,7 +220,7 @@ struct FontEngine::Impl {
     mutable std::mutex face_load_mutex;
     mutable std::atomic<FontFaceId> next_face_id{1};
 
-    mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, std::hash<GlyphBBoxCacheKey>> glyph_bbox_cache{8192, 2};
+    mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, GlyphBBoxCacheKeyHash> glyph_bbox_cache{8192, 2};
     std::unique_ptr<chronon3d::content::text::TypewriterLayoutCache> typewriter_layout_cache;
 
     static constexpr size_t kMaxHbBufferPoolSize = 64;
