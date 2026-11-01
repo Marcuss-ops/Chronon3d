@@ -4,6 +4,7 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/backends/text/mtsdf_generator.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include "mtsdf_glyph_cache_key.hpp"
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
@@ -53,40 +54,6 @@ FT_Library shared_library() {
 // The prepared font/content identity is the canonical key so that a daemon
 // that sees /assets/foo.ttf change bytes mid-life does not return stale
 // glyphs keyed only by path.
-struct GlyphKey {
-    assets::ContentDigest font_digest{};
-    std::uint32_t glyph_id{0};
-    std::string variation_axes;
-    MtsdfProfile profile{};
-
-    friend bool operator==(const GlyphKey&, const GlyphKey&) = default;
-};
-
-struct GlyphKeyHash {
-    std::size_t operator()(const GlyphKey& key) const noexcept {
-        std::size_t value = 0;
-        for (auto b : key.font_digest.bytes) {
-            value ^= static_cast<std::size_t>(std::to_integer<unsigned char>(b)) +
-                0x9e3779b97f4a7c15ULL + (value << 6U) + (value >> 2U);
-        }
-        value ^= static_cast<std::size_t>(key.glyph_id) +
-            0x9e3779b97f4a7c15ULL + (value << 6U) + (value >> 2U);
-        for (const unsigned char c : key.variation_axes) {
-            value ^= static_cast<std::size_t>(c) +
-                0x9e3779b97f4a7c15ULL + (value << 6U) + (value >> 2U);
-        }
-        value ^= static_cast<std::size_t>(key.profile.em_px) +
-            (value << 6U) + (value >> 2U);
-        value ^= static_cast<std::size_t>(key.profile.distance_range_px) +
-            (value << 6U) + (value >> 2U);
-        value ^= static_cast<std::size_t>(key.profile.padding_px) +
-            (value << 6U) + (value >> 2U);
-        value ^= static_cast<std::size_t>(key.profile.generation_id) +
-            (value << 6U) + (value >> 2U);
-        return value;
-    }
-};
-
 #ifdef CHRONON3D_ENABLE_TEXT
 bool apply_face_variations(FT_Face face, FT_Library library,
                            std::string_view axes) {
@@ -159,7 +126,7 @@ public:
         // satisfy a hit with a glyph built from the previous bytes.
         const assets::ContentDigest font_digest =
             font_identity_memo().digest_for(*resolved);
-        GlyphKey key{font_digest, glyph_id, std::string(variation_axes), profile};
+        MtsdfGlyphCacheKey key{font_digest, glyph_id, std::string(variation_axes), profile};
         const std::string resolved_str = resolved->generic_string();
         const std::string axes(variation_axes);
         return glyphs_.compute_if_absent(key, [&, resolved_str, font_digest, axes]() {
@@ -216,7 +183,8 @@ private:
     // LruCache is already sharded/thread-safe; weight 1 per face, 32 faces.
     cache::LruCache<std::string, std::shared_ptr<FaceEntry>> faces_{32, 8, cache::CapacityMode::Count};
 #endif
-    cache::LruCache<GlyphKey, std::shared_ptr<const MtsdfGlyphBitmap>, GlyphKeyHash> glyphs_;
+    cache::LruCache<MtsdfGlyphCacheKey, std::shared_ptr<const MtsdfGlyphBitmap>,
+                    MtsdfGlyphCacheKeyHash> glyphs_;
 };
 
 PreparationCache& cache_instance() {
