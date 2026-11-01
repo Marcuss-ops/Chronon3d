@@ -182,6 +182,12 @@ new text-run packing uses the full-string factory. Mutation coverage checks
 full-axis equality, raster-size equivalence for MTSDF, and size sensitivity
 for coverage glyphs.
 
+`MeshPreparationCache` now stores `MeshIdentity` as its LRU key and uses a
+fieldwise domain-tagged hasher. The LRU compares the full resolved path, byte
+size, write time, and 32-byte content digest for equality; it no longer uses
+the diagnostic `cache_key()` string as identity. Field mutation tests and a
+cache hit/miss check cover the complete identity.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.
