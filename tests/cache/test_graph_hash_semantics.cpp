@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 
 #include <array>
 
@@ -209,4 +210,28 @@ TEST_CASE("TextRun V2 identity covers rendered fields and vector boundaries") {
     positive_zero.glyphs[0].position.x = 0.0f;
     negative_zero.glyphs[0].position.x = -0.0f;
     CHECK(hash_text_run_shape_v2(positive_zero) == hash_text_run_shape_v2(negative_zero));
+}
+
+TEST_CASE("GPU glyph identity retains full variation axes") {
+    using runtime::GlyphRepresentation;
+    using runtime::GpuGlyphKey;
+    auto base = GpuGlyphKey::make("font.ttf", 65, std::string{"wght=400"},
+        GlyphRepresentation::Mtsdf, 7, 32);
+    auto same = GpuGlyphKey::make("font.ttf", 65, std::string{"wght=400"},
+        GlyphRepresentation::Mtsdf, 7, 96);
+    CHECK(base == same);
+    CHECK(runtime::GpuGlyphKeyHash{}(base) == runtime::GpuGlyphKeyHash{}(same));
+
+    auto changed = base;
+    changed.variation_axes = "wght=700";
+    // Even an identical 64-bit variation digest cannot alias full-axis keys.
+    changed.variation_hash = base.variation_hash;
+    CHECK_FALSE(base == changed);
+    CHECK(runtime::GpuGlyphKeyHash{}(base) != runtime::GpuGlyphKeyHash{}(changed));
+
+    const auto coverage = GpuGlyphKey::make("font.ttf", 65, std::string{"wght=400"},
+        GlyphRepresentation::Coverage, 7, 32);
+    auto coverage_changed = coverage;
+    coverage_changed.font_size++;
+    CHECK_FALSE(coverage == coverage_changed);
 }
