@@ -192,9 +192,13 @@ The renderer-owned `FreeTypeFaceCache` key now includes resolved path, face
 index, quantized size, file byte size and last-write timestamp. This prevents
 reusing an already-open face after an ordinary in-place file update. Tests
 mutate every FTFaceKey field and verify a changed timestamp loads a distinct
-face. `FontEngine::Impl::face_cache` is a separate cache keyed by `FontSpec`;
-it remains open for content-version invalidation and needs its own identity
-change and tests.
+face. `FontEngine::Impl::face_cache` now keys on the complete `FontSpec`, resolved
+path, file byte size and last-write timestamp. Its loader opens the same resolved
+path that was fingerprinted and rechecks the key after loading to avoid storing
+a face if the file changed during the load. A same-path replacement test checks
+that changed file metadata reloads new font metrics. This is file-stamp
+invalidation rather than a content digest; edits that preserve both size and
+timestamp can still reuse the cached face.
 
 ## Exit criteria
 
