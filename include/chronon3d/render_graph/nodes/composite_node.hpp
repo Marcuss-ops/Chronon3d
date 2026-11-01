@@ -88,21 +88,19 @@ public:
         // current frame for frame-variant composites (m_cache_frame < 0)
         // so zoom-different frames can never collide either.
         u64 params_hash = hash_combine(
-            m_unique_id,
-            hash_combine(
-                static_cast<u64>(m_mode),
-                static_cast<u64>(m_operator)
-            )
-        );
+            hash_string("chronon.composite-node.v2"), m_unique_id);
+        params_hash = hash_combine(params_hash, static_cast<u64>(m_mode));
+        params_hash = hash_combine(params_hash, static_cast<u64>(m_operator));
+        params_hash = hash_combine(params_hash, hash_float_v2(m_world_z));
+        params_hash = hash_combine(params_hash, hash_vec3_v2(m_world_position));
+        params_hash = hash_combine(params_hash, hash_value(m_has_world_position));
+        params_hash = hash_combine(params_hash, hash_value(m_backdrop_blur.has_value()));
         if (m_backdrop_blur) {
             const auto& blur = *m_backdrop_blur;
-            const auto bytes = [](float value) {
-                return hash_bytes(&value, sizeof(value));
-            };
             for (const float value : std::array{blur.blur, blur.brightness,
                     blur.saturation, blur.rim_light, blur.refraction,
                     blur.surface_noise})
-                params_hash = hash_combine(params_hash, bytes(value));
+                params_hash = hash_combine(params_hash, hash_float_v2(value));
         }
         return cache::NodeCacheKey{
             .scope = "composite",
@@ -110,7 +108,8 @@ public:
                 cache_policy(), ctx.frame_input.frame, m_cache_frame),
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = params_hash
+            .params_hash = params_hash,
+            .params_version = 2
         };
     }
 

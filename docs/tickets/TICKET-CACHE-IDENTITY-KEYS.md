@@ -298,6 +298,12 @@ semantic float/vector/color hashing for every setting. Each publishes
 `params_version = 2`; field-mutation suites pass (20 DOF, 26 depth-grade, 44
 shadow assertions).
 
+`CompositeNode` now uses a domain-tagged V2 key including instance, blend and
+operator identity, world Z/position and its presence bit, and backdrop-blur
+presence plus all six semantic parameters. This closes reuse across composite
+depth/placement changes and the absent-versus-zero blur case. The field
+mutation test passes (26 assertions).
+
 The dirty-rect scene fingerprint previously allocated an XXH3 state and
 returned a valid-looking zero digest if that allocation failed. It now folds
 the semantic layer and RenderNode identities with the canonical hash builder,
