@@ -142,6 +142,12 @@ previously raw effect parameter field, video-source fields, and clip-transition
 spec/sampling fields. Graph-core compilation passed with `-j2`; CTest and a
 full test executable build have not yet completed.
 
+The latest Shape V2 pass also replaces raw scalar/enum byte hashing with
+fieldwise semantic hashing, canonicalizes signed zero in those fields, and
+uses length-framed string hashing for image paths. Shape V1 retains its old
+byte path. RoundedRect, Circle, and Image mutation tests cover the new behavior;
+the remaining Shape variants and nested TextRun identity still need review.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.
