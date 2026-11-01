@@ -390,17 +390,24 @@ private:
     // FIXING.md U-01 — unified on HashBuilder (same primitive as GpuGlyphKeyHash).
     struct KeyHash {
         std::size_t operator()(const Key& k) const noexcept {
-            auto h = core::hash::HashBuilder{}
+            core::hash::HashBuilder h;
+            const auto add_float = [&h](float value) -> core::hash::HashBuilder& {
+                return h.add(value == 0.0f ? 0.0f : value);
+            };
+            h
                 .add(k.value.font_id)
                 .add(k.value.glyph_id)
                 .add(k.value.font_size)
                 .add(k.value.stroke_radius)
-                .add(k.value.background_padding)
-                .add(k.value.fill.r).add(k.value.fill.g).add(k.value.fill.b).add(k.value.fill.a)
-                .add(k.value.background.r).add(k.value.background.g).add(k.value.background.b).add(k.value.background.a)
-                .add(k.value.stroke.r).add(k.value.stroke.g).add(k.value.stroke.b).add(k.value.stroke.a)
-                .add(k.value.stroke_width)
-                .add(k.value.shadow_hash);
+                .add(k.value.background_padding);
+            add_float(k.value.fill.r); add_float(k.value.fill.g);
+            add_float(k.value.fill.b); add_float(k.value.fill.a);
+            add_float(k.value.background.r); add_float(k.value.background.g);
+            add_float(k.value.background.b); add_float(k.value.background.a);
+            add_float(k.value.stroke.r); add_float(k.value.stroke.g);
+            add_float(k.value.stroke.b); add_float(k.value.stroke.a);
+            add_float(k.value.stroke_width);
+            h.add(k.value.shadow_hash);
             return static_cast<std::size_t>(h.finish());
         }
     };
