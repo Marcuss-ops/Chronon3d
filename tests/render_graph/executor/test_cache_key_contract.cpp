@@ -102,4 +102,6 @@ TEST_CASE("CacheKeyContract: TransformNode differentiates opacity") {
     const chronon3d::graph::TransformNode translucent(identity, 0.5f);
 
     CHECK_NE(opaque.cache_key(ctx).digest(), translucent.cache_key(ctx).digest());
+    CHECK(opaque.cache_key(ctx).params_version == 2);
+    CHECK(translucent.cache_key(ctx).params_version == 2);
 }

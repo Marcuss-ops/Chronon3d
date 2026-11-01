@@ -252,6 +252,23 @@ both V2 and V3 while signed-zero tests cover V3 float and color paths.
 The cache test binary rebuilt at `-j4` and passed all 173 cases / 103,520
 assertions after this producer-key change.
 
+`TransformNode` previously folded `Transform` through the legacy helper, which
+omits skew even though `Transform::to_mat4()` applies it. Its matrix and source
+size were also hashed as object bytes. The node now uses a versioned semantic
+transform digest (position, quaternion, scale, anchor, skew, opacity and blur),
+component-wise matrix/source-size hashing, and `params_version = 2`. Mutation
+tests cover every `Transform` component and signed-zero canonicalization; the
+cache suite passes 175 cases / 103,545 assertions. The `chronon3d_core_tests`
+target rebuilt at `-j4`; its TransformNode cache-key contract test passes.
+
+The backend `TextRenderResources::GlyphAtlasKey` inventory found a remaining
+collision-sensitive identity: it compares only `font_id`, while path-based
+callers derive that ID from a 64-bit FNV hash of the font path. The GPU glyph
+atlas retains full font strings, but this CPU/backend glyph atlas does not yet.
+Replace this hash-only font identity with a retained canonical path (keeping
+the raw-ID overload explicitly compatibility-only) and add collision-level
+lookup tests before closing the glyph-atlas inventory.
+
 ## Exit criteria
 
 - Every cache in the inventory has a key-field dependency map and owner.

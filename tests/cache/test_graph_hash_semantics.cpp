@@ -12,6 +12,48 @@
 
 using namespace chronon3d;
 
+TEST_CASE("Transform V2 identity includes every rendered transform field") {
+    Transform base;
+    base.position = {1.0f, 2.0f, 3.0f};
+    base.rotation = Quat{0.9f, 0.1f, 0.2f, 0.3f};
+    base.scale = {2.0f, 3.0f, 4.0f};
+    base.anchor = {5.0f, 6.0f, 7.0f};
+    base.skew = {8.0f, 9.0f};
+    base.opacity = 0.8f;
+    base.blur = 1.5f;
+    const auto original = graph::hash_transform_v2(base);
+    const auto changed = [&](auto mutate) {
+        auto value = base;
+        mutate(value);
+        CHECK(graph::hash_transform_v2(value) != original);
+    };
+    changed([](auto& t) { t.position.x += 1.0f; });
+    changed([](auto& t) { t.position.y += 1.0f; });
+    changed([](auto& t) { t.position.z += 1.0f; });
+    changed([](auto& t) { t.rotation.w += 0.01f; });
+    changed([](auto& t) { t.rotation.x += 0.01f; });
+    changed([](auto& t) { t.rotation.y += 0.01f; });
+    changed([](auto& t) { t.rotation.z += 0.01f; });
+    changed([](auto& t) { t.scale.x += 1.0f; });
+    changed([](auto& t) { t.scale.y += 1.0f; });
+    changed([](auto& t) { t.scale.z += 1.0f; });
+    changed([](auto& t) { t.anchor.x += 1.0f; });
+    changed([](auto& t) { t.anchor.y += 1.0f; });
+    changed([](auto& t) { t.anchor.z += 1.0f; });
+    changed([](auto& t) { t.skew.x += 1.0f; });
+    changed([](auto& t) { t.skew.y += 1.0f; });
+    changed([](auto& t) { t.opacity -= 0.1f; });
+    changed([](auto& t) { t.blur += 1.0f; });
+    CHECK(graph::hash_transform_v2(base) != graph::hash_transform(base));
+
+    auto positive_zero = base;
+    auto negative_zero = base;
+    positive_zero.blur = 0.0f;
+    negative_zero.blur = -0.0f;
+    CHECK(graph::hash_transform_v2(positive_zero) ==
+          graph::hash_transform_v2(negative_zero));
+}
+
 TEST_CASE("VideoSource V2 identity includes every semantic field") {
     video::VideoSource base;
     base.path = "clip.mov";
