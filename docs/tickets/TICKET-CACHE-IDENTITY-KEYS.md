@@ -235,7 +235,10 @@ mutation test verifies that every raster/presentation field misses the prior
 entry.
 The MTSDF prepared-glyph cache now uses a typed V2 key over full font content
 digest, glyph id, variation axes and all four `MtsdfProfile` fields, with
-field-mutation tests for each dependency.
+field-mutation tests for each dependency. Its font-digest memo now also uses a
+structured V2 stamp key with explicit metadata-validity bits instead of a
+newline-concatenated string, and rechecks the stamp before memoizing a digest
+read to avoid associating bytes with a changed file version.
 
 ## Exit criteria
 

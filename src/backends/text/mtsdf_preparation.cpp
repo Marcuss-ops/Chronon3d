@@ -82,24 +82,37 @@ public:
         const auto byte_size = std::filesystem::file_size(resolved, size_ec);
         std::error_code stamp_ec;
         const auto stamp = std::filesystem::last_write_time(resolved, stamp_ec);
-        std::string key = resolved.generic_string();
-        key += '\n';
-        key += size_ec ? std::string{"-"} : std::to_string(byte_size);
-        key += '\n';
-        key += stamp_ec ? std::string{"-"}
-                        : std::to_string(stamp.time_since_epoch().count());
+        FontIdentityStampKey key{
+            resolved.generic_string(),
+            size_ec ? 0 : byte_size,
+            stamp_ec ? 0 : static_cast<std::int64_t>(
+                stamp.time_since_epoch().count()),
+            !size_ec,
+            !stamp_ec};
         if (const auto hit = entries_.get(key)) return *hit;
         // An unreadable file still needs a deterministic identity so the caller
         // fails closed on the same key instead of thrashing the LRU.
         const auto hashed = assets::sha256_file(resolved);
         const assets::ContentDigest digest =
             hashed ? *hashed : assets::sha256_string(resolved.generic_string());
-        entries_.put(key, digest);
+        std::error_code verify_size_ec;
+        const auto verify_size = std::filesystem::file_size(resolved, verify_size_ec);
+        std::error_code verify_stamp_ec;
+        const auto verify_stamp = std::filesystem::last_write_time(resolved, verify_stamp_ec);
+        const FontIdentityStampKey verify_key{
+            resolved.generic_string(),
+            verify_size_ec ? 0 : verify_size,
+            verify_stamp_ec ? 0 : static_cast<std::int64_t>(
+                verify_stamp.time_since_epoch().count()),
+            !verify_size_ec,
+            !verify_stamp_ec};
+        if (verify_key == key) entries_.put(key, digest);
         return digest;
     }
 
 private:
-    cache::LruCache<std::string, assets::ContentDigest> entries_{
+    cache::LruCache<FontIdentityStampKey, assets::ContentDigest,
+                    FontIdentityStampKeyHash> entries_{
         kMaxEntries, 8, cache::CapacityMode::Count};
 };
 

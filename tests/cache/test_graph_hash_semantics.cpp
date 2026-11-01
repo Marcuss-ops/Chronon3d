@@ -540,6 +540,23 @@ TEST_CASE("MTSDF prepared glyph V2 identity covers raster dependencies") {
     changed([](auto& key) { key.profile.generation_id++; });
 }
 
+TEST_CASE("Font identity memo stamp V2 key frames metadata validity") {
+    using text::FontIdentityStampKey;
+    using text::FontIdentityStampKeyHash;
+    const FontIdentityStampKey base{"/font/inter.ttf", 2048, 1234, true, true};
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+        CHECK(FontIdentityStampKeyHash{}(key) != FontIdentityStampKeyHash{}(base));
+    };
+    changed([](auto& key) { key.resolved_path += ".new"; });
+    changed([](auto& key) { key.byte_size++; });
+    changed([](auto& key) { key.write_time_ticks++; });
+    changed([](auto& key) { key.byte_size_known = false; });
+    changed([](auto& key) { key.write_time_known = false; });
+}
+
 TEST_CASE("Mesh preparation cache compares the complete resolved identity") {
     using assets::MeshIdentity;
     using assets::MeshPreparationCache;

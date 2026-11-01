@@ -11,6 +11,31 @@
 
 namespace chronon3d::text {
 
+struct FontIdentityStampKey {
+    std::string resolved_path;
+    std::uint64_t byte_size{0};
+    std::int64_t write_time_ticks{0};
+    bool byte_size_known{false};
+    bool write_time_known{false};
+
+    friend bool operator==(const FontIdentityStampKey&,
+                           const FontIdentityStampKey&) = default;
+};
+
+struct FontIdentityStampKeyHash {
+    [[nodiscard]] std::size_t operator()(
+        const FontIdentityStampKey& key) const noexcept {
+        return static_cast<std::size_t>(core::hash::HashBuilder{}
+            .add("chronon.font-identity-stamp.v2")
+            .add(std::string_view(key.resolved_path))
+            .add(key.byte_size)
+            .add(key.write_time_ticks)
+            .add(key.byte_size_known)
+            .add(key.write_time_known)
+            .finish());
+    }
+};
+
 struct MtsdfGlyphCacheKey {
     assets::ContentDigest font_digest{};
     std::uint32_t glyph_id{0};
