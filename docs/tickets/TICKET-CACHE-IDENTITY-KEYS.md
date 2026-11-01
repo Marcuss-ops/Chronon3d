@@ -216,6 +216,9 @@ That comparison found Image and TiledImage V2 omitted fit mode, focal point,
 crop, radius, decode options and embedded payload bytes. V2 now hashes these
 fields (with payload length framing); V1 remains unchanged. Image mutation
 coverage includes each added field and the Shape V2 focused suite passes.
+Mesh V2 also hashes the prepared mesh identity's resolved path, byte size,
+write time and content digest as individual fields instead of hashing its
+diagnostic `cache_key()` string. Mutation coverage checks all four fields.
 
 ## Exit criteria
 

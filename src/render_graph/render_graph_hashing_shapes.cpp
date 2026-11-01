@@ -195,8 +195,17 @@ namespace chronon3d::graph {
             seed = hash_combine(seed, hash_string(s.mesh_shape().reference.owner()));
             seed = hash_combine(seed, hash_value(s.mesh_shape().reference.required()));
             if (s.mesh_shape().prepared) {
-                seed = hash_combine(seed, hash_string(
-                    s.mesh_shape().prepared->identity.cache_key()));
+                const auto& identity = s.mesh_shape().prepared->identity;
+                if (semantic_v2) {
+                    seed = hash_combine(seed, hash_string(identity.resolved_path));
+                    seed = hash_combine(seed, hash_value(identity.byte_size));
+                    seed = hash_combine(seed, hash_value(identity.write_time));
+                    seed = hash_combine(seed, hash_bytes(
+                        identity.content_digest.bytes.data(),
+                        identity.content_digest.bytes.size()));
+                } else {
+                    seed = hash_combine(seed, hash_string(identity.cache_key()));
+                }
             }
             if (s.mesh_shape().inline_mesh) {
                 const auto& mesh = *s.mesh_shape().inline_mesh;
