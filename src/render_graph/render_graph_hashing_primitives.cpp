@@ -263,5 +263,13 @@ struct SemanticGradientHashSink {
     return seed;
 }
 
+[[nodiscard]] u64 hash_glow_params_v2(const GlowParams& p) {
+    auto seed = hash_string("chronon.glow-params.v2");
+    seed = hash_combine(seed, hash_float_v2(p.radius));
+    seed = hash_combine(seed, hash_float_v2(p.intensity));
+    seed = hash_combine(seed, hash_color_v2(p.color));
+    return seed;
+}
+
 
 } // namespace chronon3d::graph

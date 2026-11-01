@@ -80,7 +80,7 @@ void populate_layer_semantic_fingerprints(
 
     if (layer.m_effects && !layer.m_effects->empty()) {
         state.semantic_presence |= SemanticEffects;
-        state.effects_hash = hash_effect_stack_v2(*layer.m_effects);
+        state.effects_hash = hash_effect_stack_v3(*layer.m_effects);
     }
     if (layer.anim_transform.blur.is_time_dependent()) {
         state.semantic_presence |= SemanticEffects;

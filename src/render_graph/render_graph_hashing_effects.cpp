@@ -6,8 +6,31 @@ namespace {
 
 // V1 freezes the historical byte digest. Production caches use V2, whose
 // record cases below visit members semantically and never read struct padding.
-u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2) {
-    u64 seed = semantic_v2 ? hash_string("chronon.effect-stack.v2") : 0;
+u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2,
+                           bool semantic_v3) {
+    const auto hash_value = [semantic_v3]<typename T>(const T& value) -> u64 {
+        if (!semantic_v3) return ::chronon3d::graph::hash_value(value);
+        core::hash::HashBuilder builder;
+        if constexpr (std::is_floating_point_v<T>) {
+            builder.add("chronon.effect-scalar.v3").add(sizeof(T))
+                .add(value == T{0} ? T{0} : value);
+        } else if constexpr (std::is_enum_v<T>) {
+            builder.add("chronon.effect-enum.v3").add_enum(value);
+        } else {
+            return ::chronon3d::graph::hash_value(value);
+        }
+        return builder.finish();
+    };
+    const auto hash_color = [semantic_v3](const Color& value) -> u64 {
+        return semantic_v3 ? hash_color_v2(value)
+                           : ::chronon3d::graph::hash_color(value);
+    };
+    const auto hash_vec2 = [semantic_v3](const Vec2& value) -> u64 {
+        return semantic_v3 ? hash_vec2_v2(value)
+                           : ::chronon3d::graph::hash_vec2(value);
+    };
+    u64 seed = semantic_v3 ? hash_string("chronon.effect-stack.v3")
+        : semantic_v2 ? hash_string("chronon.effect-stack.v2") : 0;
     for (const auto& e : effects) {
         if (!e.enabled) {
             continue;
@@ -72,7 +95,8 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2) {
         }
         case Glow: {
             if (auto* p = std::get_if<GlowParams>(&e.params))
-                seed = hash_combine(seed, hash_glow_params(*p));
+                seed = hash_combine(seed, semantic_v3
+                    ? hash_glow_params_v2(*p) : hash_glow_params(*p));
             break;
         }
         case Bloom: {
@@ -174,8 +198,15 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2) {
             if (auto* p = std::get_if<Lut3DParams>(&e.params)) {
                 seed = hash_combine(seed, hash_value(p->dimension));
                 seed = hash_combine(seed, hash_value(p->amount));
-                seed = hash_combine(seed, hash_bytes(p->domain_min.data(), sizeof(p->domain_min)));
-                seed = hash_combine(seed, hash_bytes(p->domain_max.data(), sizeof(p->domain_max)));
+                if (semantic_v3) {
+                    for (const auto value : p->domain_min)
+                        seed = hash_combine(seed, hash_value(value));
+                    for (const auto value : p->domain_max)
+                        seed = hash_combine(seed, hash_value(value));
+                } else {
+                    seed = hash_combine(seed, hash_bytes(p->domain_min.data(), sizeof(p->domain_min)));
+                    seed = hash_combine(seed, hash_bytes(p->domain_max.data(), sizeof(p->domain_max)));
+                }
                 // The LUT buffer is immutable and shared. Its plan asset's
                 // content digest is part of the render-plan job fingerprint;
                 // pointer identity is the O(1) runtime invalidation token.
@@ -322,7 +353,8 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2) {
                 seed = hash_combine(seed, hash_value(static_cast<int>(p->offset_mode)));
                 seed = hash_combine(seed, hash_vec2(p->velocity));
                 seed = hash_combine(seed, hash_vec2(p->center));
-                const auto add_channel_transform = [&seed](const RgbChannelTransform& channel) {
+                const auto add_channel_transform =
+                    [&seed, &hash_vec2, &hash_value](const RgbChannelTransform& channel) {
                     seed = hash_combine(seed, hash_vec2(channel.translation));
                     seed = hash_combine(seed, hash_vec2(channel.scale));
                     seed = hash_combine(seed, hash_value(channel.rotation_degrees));
@@ -494,11 +526,15 @@ u64 hash_effect_stack_impl(const EffectStack& effects, bool semantic_v2) {
 } // namespace
 
 [[nodiscard]] u64 hash_effect_stack(const EffectStack& effects) {
-    return hash_effect_stack_impl(effects, false);
+    return hash_effect_stack_impl(effects, false, false);
 }
 
 [[nodiscard]] u64 hash_effect_stack_v2(const EffectStack& effects) {
-    return hash_effect_stack_impl(effects, true);
+    return hash_effect_stack_impl(effects, true, false);
+}
+
+[[nodiscard]] u64 hash_effect_stack_v3(const EffectStack& effects) {
+    return hash_effect_stack_impl(effects, true, true);
 }
 
 

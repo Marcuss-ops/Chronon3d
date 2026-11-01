@@ -32,6 +32,13 @@ u64 effect_hash_v2(Params params) {
     return graph::hash_effect_stack_v2(stack);
 }
 
+template <typename Params>
+u64 effect_hash_v3(Params params) {
+    EffectStack stack;
+    stack.emplace_back(std::move(params));
+    return graph::hash_effect_stack_v3(stack);
+}
+
 } // namespace
 
 // 1. transform_inverse_roundtrip
@@ -276,9 +283,22 @@ TEST_CASE("Invariants: animated grain seed and size participate in effect hash")
         .color_mode = NoiseColorMode::Monochrome, .size = 4.0f}));
 }
 
+TEST_CASE("EffectStack V3: float and color fields canonicalize signed zero") {
+    CHECK(effect_hash_v3(BlurParams{0.0f}) == effect_hash_v3(BlurParams{-0.0f}));
+    CHECK(effect_hash_v3(TintParams{.color = Color{0.0f, 0.2f, 0.3f, 1.0f},
+                                     .amount = 0.5f}) ==
+          effect_hash_v3(TintParams{.color = Color{-0.0f, 0.2f, 0.3f, 1.0f},
+                                     .amount = 0.5f}));
+    CHECK(effect_hash_v3(GlowParams{.radius = 0.0f, .intensity = 0.5f,
+                                    .color = Color::white()}) ==
+          effect_hash_v3(GlowParams{.radius = -0.0f, .intensity = 0.5f,
+                                    .color = Color::white()}));
+}
+
 TEST_CASE("EffectStack V2: raw parameter records hash every semantic field") {
     const auto differs = [](const auto& base, const auto& changed) {
         CHECK(effect_hash_v2(base) != effect_hash_v2(changed));
+        CHECK(effect_hash_v3(base) != effect_hash_v3(changed));
     };
 
     differs(BlurParams{1.0f}, BlurParams{2.0f});

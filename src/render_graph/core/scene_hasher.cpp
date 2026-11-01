@@ -305,7 +305,7 @@ uint64_t SceneHasher::hash_layer(const Layer& layer) {
     h = hash_combine(h, hash_mask_v2(layer.mask));
     h = hash_combine(h, static_cast<u64>(layer.track_matte.type));
     if (layer.m_effects) {
-        h = hash_combine(h, hash_effect_stack_v2(*layer.m_effects));
+        h = hash_combine(h, hash_effect_stack_v3(*layer.m_effects));
     }
 
     for (const auto& node : layer.nodes) {
