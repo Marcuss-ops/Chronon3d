@@ -4,6 +4,7 @@
 #include <chronon3d/runtime/gpu_glyph_atlas.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>
 #include "src/backends/text/font_bbox_cache_key.hpp"
+#include "src/backends/text/mtsdf_glyph_cache_key.hpp"
 
 #include <array>
 #include <memory>
@@ -514,6 +515,29 @@ TEST_CASE("Styled glyph cache V2 identity distinguishes every semantic field") {
     GpuStyledGlyphCache zero_cache;
     zero_cache.store_styled(positive_zero, 1, 1, pixels);
     CHECK(zero_cache.find_styled(negative_zero));
+}
+
+TEST_CASE("MTSDF prepared glyph V2 identity covers raster dependencies") {
+    using text::MtsdfGlyphCacheKey;
+    using text::MtsdfGlyphCacheKeyHash;
+    MtsdfGlyphCacheKey base;
+    base.font_digest.bytes[0] = std::byte{0x12};
+    base.glyph_id = 65;
+    base.variation_axes = "wght=400";
+    base.profile = {64, 16, 24, 1};
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+        CHECK(MtsdfGlyphCacheKeyHash{}(key) != MtsdfGlyphCacheKeyHash{}(base));
+    };
+    changed([](auto& key) { key.font_digest.bytes[0] = std::byte{0x13}; });
+    changed([](auto& key) { key.glyph_id++; });
+    changed([](auto& key) { key.variation_axes = "wght=700"; });
+    changed([](auto& key) { key.profile.em_px++; });
+    changed([](auto& key) { key.profile.distance_range_px++; });
+    changed([](auto& key) { key.profile.padding_px++; });
+    changed([](auto& key) { key.profile.generation_id++; });
 }
 
 TEST_CASE("Mesh preparation cache compares the complete resolved identity") {

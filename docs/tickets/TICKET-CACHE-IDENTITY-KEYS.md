@@ -233,6 +233,9 @@ width and height size class; its residency identity remains entirely in memory.
 `StyledGlyphKey` uses a domain-tagged V2 semantic hash, and a cache-level
 mutation test verifies that every raster/presentation field misses the prior
 entry.
+The MTSDF prepared-glyph cache now uses a typed V2 key over full font content
+digest, glyph id, variation axes and all four `MtsdfProfile` fields, with
+field-mutation tests for each dependency.
 
 ## Exit criteria
 
