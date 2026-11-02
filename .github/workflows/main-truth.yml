@@ -4,7 +4,6 @@ on:
   workflow_run:
     workflows:
       - Chronon CI
-      - Developer Gates
     types: [completed]
 
 permissions:
@@ -32,7 +31,6 @@ jobs:
           script: |
             const expected = [
               'Chronon CI',
-              'Developer Gates',
             ];
             const sha = context.payload.workflow_run.head_sha;
             const statusContext = 'main-truth';

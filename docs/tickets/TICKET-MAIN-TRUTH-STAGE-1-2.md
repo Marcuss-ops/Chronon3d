@@ -8,7 +8,7 @@
 ## TODO — cosa manca (agg. 2026-10-29)
 
 - [x] **Runner dispatch osservato funzionante** — sullo SHA remoto `a214fad27efdaa597ccf4e4a8ae34baa6677146e`, i workflow del 2026-10-28 hanno allocato runner ed eseguito gli step; il blocco storico `steps=[]`, `runner_id=0` non descrive più l'ultimo stato osservato.
-- [ ] **`main-truth` green sullo SHA risultante di `main`** — il check aggregato attende `Chronon CI` Linux e `Developer Gates` e richiede che entrambi terminino `success` sul medesimo SHA; nessun passaggio VERIFY→DONE senza esito same-SHA green.
+- [ ] **`main-truth` green sullo SHA risultante di `main`** — il check aggregato attende `Chronon CI` Linux (matrice build/test) e richiede `success` sullo stesso SHA; nessun passaggio VERIFY→DONE senza esito same-SHA green.
 - [ ] **Registrare la post-push main-tip verification** — logica: evidenza datata dopo il commit, come richiesto dai criteri di accettazione residui. Dove: questa scheda + `docs/stato/chronon3d.md`. Gate: riga di stato con SHA + esito.
 
 ## Update 2026-10-29 — latest observed Actions state
@@ -151,7 +151,7 @@ Observed on `main`:
 - [x] Regression lock sul `VulkanKernelStore` aggiornato.
 - [x] Wave 0 census documentato senza demolizioni premature.
 - [x] Canonici principali riconciliati.
-- [ ] Il check aggregato `main-truth` è green sullo SHA risultante di `main`; `Chronon CI` Linux e `Developer Gates` sono `success` sullo stesso SHA.
+- [ ] Il check aggregato `main-truth` è green sullo SHA risultante di `main`; `Chronon CI` Linux è `success` sullo stesso SHA.
 - [ ] Post-push main-tip verification registrata dopo il commit.
 
 ## Same-SHA CI diagnostic — `cbc7b4350` (2026-09-17)

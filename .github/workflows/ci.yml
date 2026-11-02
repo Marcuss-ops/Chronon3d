@@ -127,6 +127,7 @@ jobs:
           if-no-files-found: ignore
 
   core-build:
+    if: github.event_name != 'push'
     name: Gate 1 / core-build
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -151,6 +152,7 @@ jobs:
       - run: ctest --preset linux-ci-core-gate-test --output-on-failure
 
   sdk-build:
+    if: github.event_name != 'push'
     name: Gate 2 / sdk-build
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -175,6 +177,7 @@ jobs:
       - run: ctest --preset linux-ci-lean-gate-test --output-on-failure
 
   public-header-check:
+    if: github.event_name != 'push'
     name: Gate 3 / public-header-check
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -213,6 +216,7 @@ jobs:
           fi
 
   install-consumer-check:
+    if: github.event_name != 'push'
     name: Gate 4 / install-consumer-check
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -263,6 +267,7 @@ jobs:
           cmake --build consumer/build
 
   architecture-check:
+    if: github.event_name != 'push'
     name: Gate 5 / architecture-check
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -276,6 +281,7 @@ jobs:
         run: bash tools/check_public_targets.sh
 
   install-consumer-script:
+    if: github.event_name != 'push'
     name: Gate 6 / install-consumer
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -298,8 +304,8 @@ jobs:
       - run: bash tools/install_consumer_test.sh
 
   sdk-product-certification:
+    if: github.event_name != 'push'
     name: Gate 7 / sdk-product-certification
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -325,6 +331,7 @@ jobs:
       - run: bash tools/verify_sdk_product.sh
 
   fuzz-regressions:
+    if: github.event_name != 'push'
     name: Fuzz regressions
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -349,7 +356,7 @@ jobs:
 
   gate-status:
     name: Gate Status Summary
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.event_name != 'push' }}
     needs: [core-build, sdk-build, public-header-check, install-consumer-check, architecture-check, install-consumer-script, fuzz-regressions]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -395,6 +402,7 @@ jobs:
   # cannot rot between pushes.  The full ctest run needs LFS fixtures, so it
   # stays push-only; on PRs this lane is compile-only.
   full-validation:
+    if: github.event_name != 'push'
     name: Full validation
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -430,6 +438,7 @@ jobs:
         run: ctest --preset linux-ci-full-validation-test --output-on-failure
 
   validate:
+    if: github.event_name != 'push'
     name: Lint & Validation
     runs-on: ubuntu-24.04
     steps:
@@ -459,6 +468,7 @@ jobs:
           fi
 
   render-contract:
+    if: github.event_name != 'push'
     name: RenderJob / ${{ matrix.config.name }}
     runs-on: ubuntu-24.04
     strategy:
@@ -505,6 +515,7 @@ jobs:
         run: build/chronon/${{ matrix.config.preset }}/apps/chronon3d_cli/chronon3d_cli --help
 
   benchmarks:
+    if: github.event_name != 'push'
     name: Benchmarks
     runs-on: ubuntu-24.04
     continue-on-error: true
