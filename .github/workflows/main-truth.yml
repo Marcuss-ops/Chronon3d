@@ -19,6 +19,7 @@ on:
 permissions:
   actions: read
   contents: read
+  statuses: write
 
 concurrency:
   group: chronon-main-truth-${{ github.event.workflow_run.head_sha }}
@@ -26,7 +27,7 @@ concurrency:
 
 jobs:
   main-truth:
-    name: main-truth
+    name: aggregate-main-workflows
     if: >-
       github.event.workflow_run.head_sha == github.sha &&
       github.event.workflow_run.event == 'push' &&
@@ -52,8 +53,30 @@ jobs:
               'chronon3d-runtime',
             ];
             const sha = context.payload.workflow_run.head_sha;
+            const statusContext = 'main-truth';
+            const statusUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const deadline = Date.now() + 330 * 60 * 1000;
             const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            const postStatus = async (state, description) => github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state,
+              context: statusContext,
+              description: description.slice(0, 140),
+              target_url: statusUrl,
+            });
+
+            const {data: mainBranch} = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'main',
+            });
+            if (mainBranch.commit.sha !== sha) {
+              core.notice(`Ignoring superseded SHA ${sha}; current main is ${mainBranch.commit.sha}.`);
+              return;
+            }
+            await postStatus('pending', 'Waiting for all required workflows on this SHA');
 
             while (Date.now() < deadline) {
               const response = await github.rest.actions.listWorkflowRunsForRepo({
@@ -96,7 +119,11 @@ jobs:
                   ])
                   .write();
                 if (failures.length) {
-                  core.setFailed(`Required workflows failed or were cancelled: ${failures.map(({name, run}) => `${name}=${run.conclusion}`).join(', ')}`);
+                  const description = `Required workflows not green: ${failures.map(({name, run}) => `${name}=${run.conclusion}`).join(', ')}`;
+                  await postStatus('failure', description);
+                  core.setFailed(description);
+                } else {
+                  await postStatus('success', `All ${expected.length} workflows succeeded on this SHA`);
                 }
                 return;
               }
@@ -105,4 +132,6 @@ jobs:
               await sleep(60_000);
             }
 
-            core.setFailed(`Timed out waiting for same-SHA workflows on ${sha}. Check Actions runner dispatch and workflow configuration.`);
+            const timeout = `Timed out waiting for same-SHA workflows on ${sha}`;
+            await postStatus('error', timeout);
+            core.setFailed(`${timeout}. Check Actions runner dispatch and workflow configuration.`);
