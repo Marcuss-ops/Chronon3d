@@ -1,8 +1,6 @@
 name: Developer Gates
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
