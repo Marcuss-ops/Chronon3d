@@ -23,16 +23,12 @@ env:
 
 jobs:
   build-matrix:
-    if: github.event_name != 'push' || matrix.config.slug == 'linux-debug-ci'
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - { name: 'Linux (Release)', os: ubuntu-24.04, preset: linux-ci-release-build, build_preset: linux-ci-release-build, test_preset: linux-ci-release-build-test, slug: linux-release }
-          - { name: 'Linux (Debug/CI)', os: ubuntu-24.04, preset: linux-ci, build_preset: linux-ci, test_preset: linux-ci-test, slug: linux-debug-ci }
-          - { name: 'Linux (No Content)', os: ubuntu-24.04, preset: linux-ci-nocontent, build_preset: linux-ci-nocontent, test_preset: linux-ci-nocontent-test, slug: linux-nocontent }
+        config: ${{ fromJSON(github.event_name == 'push' && '[{"name":"Linux (Debug/CI)","os":"ubuntu-24.04","preset":"linux-ci","build_preset":"linux-ci","test_preset":"linux-ci-test","slug":"linux-debug-ci"}]' || '[{"name":"Linux (Release)","os":"ubuntu-24.04","preset":"linux-ci-release-build","build_preset":"linux-ci-release-build","test_preset":"linux-ci-release-build-test","slug":"linux-release"},{"name":"Linux (Debug/CI)","os":"ubuntu-24.04","preset":"linux-ci","build_preset":"linux-ci","test_preset":"linux-ci-test","slug":"linux-debug-ci"},{"name":"Linux (No Content)","os":"ubuntu-24.04","preset":"linux-ci-nocontent","build_preset":"linux-ci-nocontent","test_preset":"linux-ci-nocontent-test","slug":"linux-nocontent"}]') }}
     steps:
       - uses: actions/checkout@v4
         with:
