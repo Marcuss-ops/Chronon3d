@@ -62,6 +62,10 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
         node_exec.shared_composite_occlusion_depth
             ? node_exec.shared_composite_occlusion_depth
             : const_cast<std::vector<float>*>(&node_exec.composite_occlusion_depth);
+    copy.node_exec.shared_camera_composite = node_exec.shared_camera_composite
+        ? node_exec.shared_camera_composite
+        : const_cast<NodeExecutionContext::CameraCompositeState*>(
+              &node_exec.camera_composite);
     copy.node_exec.shared_dof_source_coverage =
         node_exec.shared_dof_source_coverage
             ? node_exec.shared_dof_source_coverage
@@ -70,6 +74,10 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
         ? node_exec.shared_native_dof_depth
         : const_cast<NodeExecutionContext::NativeDofDepthState*>(
               &node_exec.native_dof_depth);
+    copy.node_exec.shared_native_occlusion = node_exec.shared_native_occlusion
+        ? node_exec.shared_native_occlusion
+        : const_cast<NodeExecutionContext::NativeOcclusionState*>(
+              &node_exec.native_occlusion);
     copy.node_exec.current_identity = node_exec.current_identity;
     copy.node_exec.planned_physical_slot = node_exec.planned_physical_slot;
     copy.node_exec.terminal_video_encode_physical_slot =

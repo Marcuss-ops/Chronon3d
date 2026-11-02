@@ -65,13 +65,13 @@ constexpr f32 kAeCam04ZFar     = -1400.0f;
     return cam;
 }
 
-[[nodiscard]] Camera2_5D make_cam_focus(f32 focus_z) {
+[[nodiscard]] Camera2_5D make_cam_focus(f32 focus_distance) {
     Camera2_5D cam;
     cam.enabled = true;
     cam.zoom = 1000.0f;
     cam.position = Vec3{0.0f, 0.0f, -1000.0f};
     cam.dof.enabled = true;
-    cam.dof.focus_z = focus_z;
+    cam.dof.focus_distance = focus_distance;
     return cam;
 }
 

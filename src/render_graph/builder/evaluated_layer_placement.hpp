@@ -504,7 +504,6 @@ struct EvaluatedSourcePlacement {
             return item;
         }
 
-        item.transform = projected.transform;
         item.depth = projected.depth;
         item.world_z = resolved_layer.world_transform.position.z;
         // Native 3D keeps camera ownership in the source processor.  Its

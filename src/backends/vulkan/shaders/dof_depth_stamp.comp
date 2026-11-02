@@ -4,8 +4,8 @@
 // src/render_graph/nodes/composite_node.cpp exactly:
 //   - a pixel is covered when the layer alpha is > 0.01 and it lies inside the
 //     clip rectangle (the CPU test is row[sx].a <= 0.01 -> skip);
-//   - a covered pixel receives the layer depth and its blur radius (last
-//     writer wins, same as the CPU loop);
+//   - a covered pixel keeps the nearest positive camera depth and its blur
+//     radius, independent of authoring/compositing order;
 //   - when reset != 0, uncovered pixels are initialised to the "no depth"
 //     sentinel (radius = -1) so the DOF kernel ignores them.
 // The depth surface stores r = camera depth, g = blur radius (< 0 = unset).
@@ -24,6 +24,7 @@ layout(push_constant) uniform DofDepthStampParams {
     int origin_x;      // layer surface origin in frame pixels
     int origin_y;
     int reset;         // 1 = initialise uncovered pixels to the sentinel
+    int include_transparent; // per-layer CoC stamps the full local plane for alpha spread
 } params;
 
 void main() {
@@ -37,12 +38,21 @@ void main() {
         ivec2 local = pixel - ivec2(params.origin_x, params.origin_y);
         ivec2 layer_size = imageSize(layer_image);
         if (local.x >= 0 && local.y >= 0 && local.x < layer_size.x && local.y < layer_size.y) {
-            covered = imageLoad(layer_image, local).a > 0.01;
+            covered = params.include_transparent != 0 ||
+                      imageLoad(layer_image, local).a > 0.01;
         }
     }
 
     if (covered) {
-        imageStore(depth_image, pixel, vec4(params.depth, params.radius, 0.0, 1.0));
+        // "Depth present" is the same predicate occlusion_tag.comp reads: a
+        // positive camera depth with a non-negative coverage marker.  A freshly
+        // zero-initialised surface (never reset, or reset outside this pass)
+        // is therefore writable, not a phantom depth of zero.
+        vec2 current = imageLoad(depth_image, pixel).rg;
+        bool current_present = current.g >= 0.0 && current.r > 0.0;
+        if (!current_present || params.depth < current.r) {
+            imageStore(depth_image, pixel, vec4(params.depth, params.radius, 0.0, 1.0));
+        }
     } else if (params.reset != 0) {
         imageStore(depth_image, pixel, vec4(-1.0, -1.0, 0.0, 0.0));
     }

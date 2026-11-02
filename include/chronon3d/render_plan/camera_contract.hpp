@@ -22,6 +22,7 @@ namespace chronon3d::render_plan {
     if (!std::isfinite(c.near) || !std::isfinite(c.far) || c.near <= 0.f || c.far <= c.near) return "camera clipping planes must be finite and 0 < near < far";
     if (!std::isfinite(c.zoom) || c.zoom <= 0.f) return "camera.zoom must be finite and positive";
     if (!std::isfinite(c.sensor_width_mm) || c.sensor_width_mm < 1.f || c.sensor_width_mm > 100.f ||
+        !std::isfinite(c.sensor_height_mm) || c.sensor_height_mm < 1.f || c.sensor_height_mm > 100.f ||
         !finite(c.lens_shift) || std::abs(c.lens_shift[0]) > 1.f || std::abs(c.lens_shift[1]) > 1.f ||
         !std::isfinite(c.focal_length_mm) || (c.focal_length_mm != 0.f && (c.focal_length_mm < 12.f || c.focal_length_mm > 200.f)))
         return "camera physical lens values are outside supported bounds";
@@ -30,8 +31,11 @@ namespace chronon3d::render_plan {
     if (!std::isfinite(c.dof_focus_distance) || c.dof_focus_distance <= 0.f || c.dof_focus_distance > 10'000'000.f ||
         !std::isfinite(c.dof_max_blur) || c.dof_max_blur < 0.f || c.dof_max_blur > 256.f)
         return "camera DoF focus/blur values are outside supported bounds";
-    if (dof_shape_unsupported(c.iris_blades, c.dof_highlight_gain))
-        return "unsupported camera capability: iris blades and highlight gain have no renderer kernel";
+    // Iris polygons still have no implementation. Highlight weighting is
+    // admitted here for the strict-native Vulkan disk-bokeh path; the legacy
+    // software blur continues to fail closed at its render boundary.
+    if (c.iris_blades != 0)
+        return "unsupported camera capability: iris-shaped bokeh has no renderer kernel";
     return std::nullopt;
 }
 

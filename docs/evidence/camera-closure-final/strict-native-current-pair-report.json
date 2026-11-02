@@ -1,0 +1,84 @@
+{
+  "plan_sha256": "f13bbf8c4e0b4c152498e7f01cc6bb1c15af60ea909a26cb3f87ee19fb24f75f",
+  "video_sha256": "c0b77f72496b63611adfe57f11b8a71af36871422fb1a67b3ff8e3075d5afa7e",
+  "video_bytes": 1139139,
+  "render_exit": 0,
+  "frames_written": 150,
+  "vulkan_validation_errors": 0,
+  "single_flight": true,
+  "acceptance_contract": "measurement-contract.json",
+  "focus_gate": {
+    "30": {
+      "near": {
+        "dof_edge_energy": 0.005132150254605018,
+        "sharp_edge_energy": 0.06641427413376996,
+        "on_off_ratio": 0.07727480758530869,
+        "expected_focused": true,
+        "gate": "FAIL"
+      },
+      "middle": {
+        "dof_edge_energy": 1.095614323790364,
+        "sharp_edge_energy": 83.2458472964696,
+        "on_off_ratio": 0.013161188928601705,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 0.3646094025332943,
+        "sharp_edge_energy": 23.07387882935103,
+        "on_off_ratio": 0.01580182531207083,
+        "expected_focused": false,
+        "gate": "PASS"
+      }
+    },
+    "75": {
+      "near": {
+        "dof_edge_energy": 5.292119700703722,
+        "sharp_edge_energy": 5.139283055043797,
+        "on_off_ratio": 1.0297389040500364,
+        "expected_focused": false,
+        "gate": "FAIL"
+      },
+      "middle": {
+        "dof_edge_energy": 97.99693288691029,
+        "sharp_edge_energy": 97.68932812634425,
+        "on_off_ratio": 1.003148806184522,
+        "expected_focused": true,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 16.51365668485969,
+        "sharp_edge_energy": 38.164554012294545,
+        "on_off_ratio": 0.43269617875109684,
+        "expected_focused": false,
+        "gate": "PASS"
+      }
+    },
+    "149": {
+      "near": {
+        "dof_edge_energy": 0.2822721010875155,
+        "sharp_edge_energy": 21.969771831901106,
+        "on_off_ratio": 0.01284820357932182,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "middle": {
+        "dof_edge_energy": 0.8171624327176408,
+        "sharp_edge_energy": 87.34202686709133,
+        "on_off_ratio": 0.0093558904233024,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 32.46394355161979,
+        "sharp_edge_energy": 33.184831182984645,
+        "on_off_ratio": 0.9782765918744681,
+        "expected_focused": true,
+        "gate": "PASS"
+      }
+    }
+  },
+  "output_gate": "PASS",
+  "rack_focus_metric_gate": "FAIL",
+  "diagnosis": "The near ROI at frame 30 is effectively empty in both images (sharp edge energy 0.0664); do not alter thresholds. Scene/projection must place the authored near target in its declared ROI."
+}

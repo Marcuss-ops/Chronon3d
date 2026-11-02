@@ -171,6 +171,10 @@ TEST_CASE("evaluate_source_payload_placement keeps 2D layers still under a head-
             /*apply_camera_projection=*/true,
             /*defer_camera_projection=*/defer);
     };
+    const auto project_local_point = [](const Mat4& homography, const Vec3& point) {
+        const Vec4 projected = homography * Vec4(point, 1.0f);
+        return Vec3(projected) / projected.w;
+    };
 
     // A layer authored at the canvas centre sits on the camera axis, so the
     // projector must return the canvas centre itself, not centre + S*centre.
@@ -180,9 +184,13 @@ TEST_CASE("evaluate_source_payload_placement keeps 2D layers still under a head-
           chronon3d::graph::detail::EvaluatedCoordinateSpace::CameraProjected);
     CHECK(centred->visible);
     CHECK(centred->requires_transform_node);
-    CHECK(chronon3d::graph::detail::matrix_near(
-        centred->render_matrix,
-        glm::translate(Mat4(1.0f), Vec3(480.0f, 270.0f, 0.0f)), 1e-3f));
+    const Vec3 centred_origin = project_local_point(centred->render_matrix, {});
+    CHECK(centred_origin.x == doctest::Approx(480.0f).epsilon(1e-3));
+    CHECK(centred_origin.y == doctest::Approx(270.0f).epsilon(1e-3));
+    const Vec3 centred_x = project_local_point(centred->render_matrix, {1.0f, 0.0f, 0.0f});
+    const Vec3 centred_y = project_local_point(centred->render_matrix, {0.0f, 1.0f, 0.0f});
+    CHECK(centred_x.x == doctest::Approx(481.0f).epsilon(1e-3));
+    CHECK(centred_y.y == doctest::Approx(271.0f).epsilon(1e-3));
 
     // Anywhere else in the plane the layer must stay exactly where it was
     // authored: no doubled centre, no mirrored y, no scale drift.
@@ -196,9 +204,13 @@ TEST_CASE("evaluate_source_payload_placement keeps 2D layers still under a head-
         CAPTURE(canvas_position);
         const auto placement = project(canvas_position);
         REQUIRE(placement.has_value());
-        CHECK(chronon3d::graph::detail::matrix_near(
-            placement->render_matrix,
-            glm::translate(Mat4(1.0f), canvas_position), 1e-3f));
+        const Vec3 origin = project_local_point(placement->render_matrix, {});
+        CHECK(origin.x == doctest::Approx(canvas_position.x).epsilon(1e-3));
+        CHECK(origin.y == doctest::Approx(canvas_position.y).epsilon(1e-3));
+        const Vec3 x_axis = project_local_point(placement->render_matrix, {1.0f, 0.0f, 0.0f});
+        const Vec3 y_axis = project_local_point(placement->render_matrix, {0.0f, 1.0f, 0.0f});
+        CHECK(x_axis.x == doctest::Approx(canvas_position.x + 1.0f).epsilon(1e-3));
+        CHECK(y_axis.y == doctest::Approx(canvas_position.y + 1.0f).epsilon(1e-3));
     }
 
     // The deferred (processor-owned) camera path must keep the untouched

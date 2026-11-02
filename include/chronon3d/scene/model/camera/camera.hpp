@@ -12,7 +12,7 @@ public:
         transform.position = {0, 0, -1000};
     }
 
-    f32 fov_deg{60.0f};
+    f32 fov_deg{50.0f};
     f32 near_plane{0.1f};
     f32 far_plane{1000.0f};
     Transform transform;

@@ -502,6 +502,9 @@ NodeExecResult SourceNode::execute(
                     "failed to materialize native source surface"};
             }
             if (std::getenv("CHRONON3D_TYPED_DIAG") != nullptr) {
+                const Mat4 diagnostic_world = m_node.world_transform.to_mat4();
+                const double matrix_scale_x = glm::length(Vec3(diagnostic_world[0]));
+                const double matrix_scale_y = glm::length(Vec3(diagnostic_world[1]));
                 const auto* mesh = m_node.shape.type() == ShapeType::Mesh
                     ? &m_node.shape.mesh_shape() : nullptr;
                 Vec3 vmin{}, vmax{};
@@ -521,8 +524,8 @@ NodeExecResult SourceNode::execute(
                     static_cast<double>(m_node.world_transform.position.x),
                     static_cast<double>(m_node.world_transform.position.y),
                     static_cast<double>(m_node.world_transform.position.z),
-                    static_cast<double>(m_node.world_transform.scale.x),
-                    static_cast<double>(m_node.world_transform.scale.y),
+                    matrix_scale_x,
+                    matrix_scale_y,
                     ctx.frame_input.has_camera_2_5d ? 1 : 0,
                     static_cast<double>(vmin.x), static_cast<double>(vmin.y), static_cast<double>(vmin.z),
                     static_cast<double>(vmax.x), static_cast<double>(vmax.y), static_cast<double>(vmax.z),

@@ -211,10 +211,7 @@ TEST_CASE("ProjectionContext: Compare simple projection vs projection_matrix") {
 
     REQUIRE(projected.visible);
 
-    // Path semplice
-    CHECK(projected.transform.position.x > 0.0f);
-
-    // Path matrice
+    // Canonical projection is represented only by the homography.
     Vec4 p = projected.projection_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
     float matrix_x = p.x / p.w;
 

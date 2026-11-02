@@ -11,7 +11,7 @@
 
 namespace chronon3d::renderer {
 
-inline ProjectionContext make_projection_context(const Camera& camera, i32 width, i32 height) {
+inline ProjectionContext make_native_3d_projection_context(const Camera& camera, i32 width, i32 height) {
     ProjectionContext out;
     out.view = camera.view_matrix();
     const f32 fw = static_cast<f32>(width);
@@ -27,7 +27,7 @@ inline ProjectionContext make_projection_context(const CameraProjectionSource& c
     const f32 fw = static_cast<f32>(width);
     const f32 fh = static_cast<f32>(height);
     // Use the unified focal_from_camera which handles:
-    //   - Physical lens + gate-fit (when use_physical_model is true)
+    //   - Physical lens + gate-fit
     //   - Fov mode
     //   - Zoom mode (legacy)
     out.focal = chronon3d::camera_math::focal_from_camera(camera, fw, fh);
@@ -37,8 +37,8 @@ inline ProjectionContext make_projection_context(const CameraProjectionSource& c
 }
 
 template <typename Runtime>
-inline void prepare_projection_context(Runtime& rt, const Camera& camera, i32 width, i32 height) {
-    rt.projection = make_projection_context(camera, width, height);
+inline void prepare_native_3d_projection_context(Runtime& rt, const Camera& camera, i32 width, i32 height) {
+    rt.projection = make_native_3d_projection_context(camera, width, height);
     rt.projection.ready = true;
 }
 

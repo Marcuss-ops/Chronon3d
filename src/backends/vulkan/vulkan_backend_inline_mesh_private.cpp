@@ -14,7 +14,9 @@ void VulkanBackend::Impl::draw_inline_mesh(
     std::span<const std::uint32_t> indices,
     std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
     const Color& tint,
-    std::optional<float> alpha_cutoff) {
+    std::optional<float> alpha_cutoff,
+    runtime::RenderSurfaceHandle depth_destination,
+    float depth_marker) {
     if (!frame_batch.active)
         throw std::logic_error("Vulkan inline mesh requires an active frame batch");
     if (projected_lit_vertices.empty() || projected_lit_vertices.size() % 8 != 0 ||
@@ -30,6 +32,21 @@ void VulkanBackend::Impl::draw_inline_mesh(
 
     auto& dst_image = resolve_image(destination);
     auto& texture_image = resolve_image(texture);
+    const bool write_depth =
+        depth_destination != runtime::kInvalidRenderSurfaceHandle;
+    Image* depth_image = nullptr;
+    if (write_depth) {
+        depth_image = &resolve_image(depth_destination);
+        if (!depth_image->initialized) {
+            throw std::invalid_argument(
+                "Vulkan inline mesh depth companion is not initialized");
+        }
+        if (depth_image->width != dst_image.width ||
+            depth_image->height != dst_image.height) {
+            throw std::invalid_argument(
+                "Vulkan inline mesh depth companion extent mismatch");
+        }
+    }
     if (!dst_image.width || !dst_image.height || !texture_image.initialized ||
         !texture_image.width || !texture_image.height)
         throw std::invalid_argument("Vulkan inline mesh has an invalid destination or texture");
@@ -72,18 +89,31 @@ void VulkanBackend::Impl::draw_inline_mesh(
         VK_NULL_HANDLE, dst_image.view, VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorImageInfo texture_info{
         VK_NULL_HANDLE, texture_image.view, VK_IMAGE_LAYOUT_GENERAL};
+    // The shader always declares binding 2; when this draw does not publish
+    // depth it is bound to the destination (unused, but a valid descriptor).
+    const VkDescriptorImageInfo depth_info{
+        VK_NULL_HANDLE, write_depth ? depth_image->view : dst_image.view,
+        VK_IMAGE_LAYOUT_GENERAL};
     const VkDescriptorBufferInfo mesh_info{geometry.buffer, 0, bytes};
     const VkWriteDescriptorSet writes[] = {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 0, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &dst_info, nullptr, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 1, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &texture_info, nullptr, nullptr},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 2, 0, 1,
+         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &depth_info, nullptr, nullptr},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, descriptors, 3, 0, 1,
          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &mesh_info, nullptr}};
-    vkUpdateDescriptorSets(device, 3, writes, 0, nullptr);
+    vkUpdateDescriptorSets(device, 4, writes, 0, nullptr);
 
     const auto command = active_command_buffer();
-    emit_pass_sync(command, {&dst_image, &texture_image}, runtime::GpuPassKind::Composite);
+    if (write_depth) {
+        emit_pass_sync(command, {&dst_image, &texture_image, depth_image},
+                       runtime::GpuPassKind::Composite);
+    } else {
+        emit_pass_sync(command, {&dst_image, &texture_image},
+                       runtime::GpuPassKind::Composite);
+    }
     const VkBufferMemoryBarrier2KHR upload_barrier{
         VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR, nullptr,
         VK_PIPELINE_STAGE_2_HOST_BIT_KHR, VK_ACCESS_2_HOST_WRITE_BIT_KHR,
@@ -100,12 +130,15 @@ void VulkanBackend::Impl::draw_inline_mesh(
         float tint_r, tint_g, tint_b, tint_a;
         float alpha_cutoff;
         std::int32_t has_alpha_cutoff;
+        float depth_marker;
+        std::int32_t write_depth;
     } push{
         static_cast<std::int32_t>(vertex_count),
         static_cast<std::int32_t>(indices.size()), x0, y0, x1, y1,
         tint.r, tint.g, tint.b, tint.a,
-        alpha_cutoff.value_or(0.0f), alpha_cutoff ? 1 : 0};
-    static_assert(sizeof(PushConstants) == 48);
+        alpha_cutoff.value_or(0.0f), alpha_cutoff ? 1 : 0,
+        depth_marker, write_depth ? 1 : 0};
+    static_assert(sizeof(PushConstants) == 56);
     const auto pipeline = reinterpret_cast<VkPipeline>(
         kernels.registry.resolve(GpuKernelId::InlineMesh));
     if (pipeline == VK_NULL_HANDLE)
@@ -119,6 +152,7 @@ void VulkanBackend::Impl::draw_inline_mesh(
         (static_cast<std::uint32_t>(x1 - x0) + 15U) / 16U,
         (static_cast<std::uint32_t>(y1 - y0) + 15U) / 16U, 1);
     dst_image.initialized = true;
+    if (write_depth) depth_image->initialized = true;
     ++frame_batch.pass_count;
     ++stats.passes_executed;
     ++stats.vk_cmd_dispatch_count;

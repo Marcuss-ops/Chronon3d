@@ -1,7 +1,8 @@
 # Verità pixel pre-encode — la via canonica (2026-09-17)
 
-Ambito: [`TICKET-IMAGE-PATH-PIXEL-TRUTH`](../tickets/TICKET-IMAGE-PATH-PIXEL-TRUTH.md)
-(exit condition 2) e [`TICKET-TEXT-QUALITY-V2`](../tickets/TICKET-TEXT-QUALITY-V2.md)
+Ambito: `TICKET-IMAGE-PATH-PIXEL-TRUTH` (chiusa 2026-09-17, exit condition 2; la
+scheda si consulta in git history) e
+[`TICKET-TEXT-QUALITY-V2`](../tickets/TICKET-TEXT-QUALITY-V2.md)
 §P0-0b (la verità pre-encode che blocca la campagna qualità).
 
 Ogni numero qui sotto è **misurato in questa sessione**; ciò che non è stato

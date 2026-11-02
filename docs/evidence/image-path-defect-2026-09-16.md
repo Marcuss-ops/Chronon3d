@@ -1,7 +1,9 @@
 # Difetto della via immagine (PNG still / sequenza) — evidenza 2026-09-16
 
-Evidenza di riferimento di
-[`docs/tickets/TICKET-IMAGE-PATH-PIXEL-TRUTH.md`](../tickets/TICKET-IMAGE-PATH-PIXEL-TRUTH.md). <!-- drift-class: historical — retired path (see git history) -->
+Evidenza di riferimento della scheda `TICKET-IMAGE-PATH-PIXEL-TRUTH`, chiusa il
+2026-09-17 con exit condition 2
+([`pre-encode-pixel-truth-2026-09-17`](pre-encode-pixel-truth-2026-09-17.md)).
+La scheda è stata rimossa dall'albero: si consulta in git history. <!-- drift-class: historical — retired path (see git history) -->
 Scopo: fissare il profilo osservato e **separare ciò che è riproducibile in
 albero da ciò che è una osservazione di sessione**, così che il caso non venga
 riaperto come bug nuovo.
@@ -74,10 +76,12 @@ Verifica registrata nel commit: **91 frame RGBA 1920×1080 = 754 790 400 byte**,
 testo presente (0.84 % di inchiostro), **variabile tra i frame**.
 
 Il raw sink copre quindi la verità pre-encode *della lane video*; la via
-still/PNG resta il gap dichiarato in §5 del ticket.
+still/PNG resta il gap dichiarato in §5 della scheda (git history).
 
 ## 5. Azione richiesta
 
-Nessuna modifica di codice in questa chiusura. Il ticket
-`TICKET-IMAGE-PATH-PIXEL-TRUTH` è il posto in cui la questione va risolta o
-dichiarata non-canonica; il suo exit condition è in §5 della scheda.
+Nessuna modifica di codice in questa chiusura. La questione è stata dichiarata
+non-canonica nella scheda `TICKET-IMAGE-PATH-PIXEL-TRUTH` (chiusa 2026-09-17,
+exit condition 2); la prova è in
+[`pre-encode-pixel-truth-2026-09-17`](pre-encode-pixel-truth-2026-09-17.md) e la
+scheda si consulta in git history.

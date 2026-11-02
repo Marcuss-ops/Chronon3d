@@ -40,6 +40,10 @@ void VulkanBackend::Impl::release_frame_transient_handles(
         if (it != surfaces.physical_surfaces.end() &&
             it->second.desc.lifetime == runtime::LifetimeClass::FrameTransient &&
             !surfaces.unplanned_surface_handles.contains(handle) &&
+            // A slot the CUDA/NVENC consumer still owns is not releasable:
+            // unbinding it here would mark the image free for a later
+            // re-materialize that destroys memory the consumer maps.
+            !surfaces.slot_export_owned(slot) &&
             surfaces.can_retire_surface(handle, busy) &&
             std::find(protected_handles.begin(), protected_handles.end(), handle) ==
                 protected_handles.end()) {

@@ -50,4 +50,31 @@ namespace chronon3d::graph {
     float world_z,
     std::uint64_t composite_id);
 
+// CPU camera path: retain each covered source as a premultiplied per-pixel
+// contribution, then resolve far-to-near. This is required for translucent
+// surfaces because masking a farther contribution would discard the backdrop
+// that must show through it.
+// Native (device-local) counterpart of build_depth_aware_top(): mask a
+// GPU-only layer against the depth already composited this frame. The layer's
+// per-pixel depth comes from `top.native_depth_handle()` when the mesh
+// rasterizer published one, otherwise from its constant camera depth stamped
+// into the shared scratch surface. Returns false when the backend cannot run
+// the passes (software path, or a native step failed) — the caller then keeps
+// plain layer order instead of silently claiming occlusion.
+[[nodiscard]] bool apply_native_occlusion(
+    RenderGraphContext& ctx,
+    Framebuffer& top,
+    bool has_world_position,
+    const Vec3& world_position,
+    float world_z);
+
+[[nodiscard]] bool recompose_camera_composite(
+    RenderGraphContext& ctx,
+    const Framebuffer& bottom,
+    const Framebuffer& top,
+    Framebuffer& output,
+    bool has_world_position,
+    const Vec3& world_position,
+    float world_z);
+
 } // namespace chronon3d::graph

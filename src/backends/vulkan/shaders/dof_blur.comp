@@ -26,6 +26,7 @@ layout(push_constant) uniform DofBlurParams {
     int roi_y1;
     float max_radius;
     int normalize_opaque;
+    float highlight_gain;
 } params;
 
 float dof_weight(float dist, float radius) {
@@ -59,12 +60,75 @@ float dof_pair_weight(
     return dof_weight(dist, neighbour_radius);
 }
 
+float disk_edge_weight(float dist, float radius) {
+    if (radius < 0.5 || dist > radius + 0.5) return 0.0;
+    return 1.0 - smoothstep(max(0.0, radius - 0.5), radius + 0.5, dist);
+}
+
+float dof_disk_pair_weight(
+    float dist, float centre_radius, float centre_depth,
+    float neighbour_radius, float neighbour_depth) {
+    if (neighbour_radius < 0.0) return 0.0;
+    if (centre_radius >= 0.0 && centre_radius < 0.5) {
+        if (dist == 0.0) return 1.0;
+        if (neighbour_radius >= 0.5 && neighbour_depth > 0.0 &&
+            centre_depth > 0.0 && neighbour_depth + 1e-3 < centre_depth)
+            return disk_edge_weight(dist, neighbour_radius);
+        return 0.0;
+    }
+    if (neighbour_radius < 0.5) return dist == 0.0 ? 1.0 : 0.0;
+    return disk_edge_weight(dist, neighbour_radius);
+}
+
+float highlight_weight(vec4 sample_color) {
+    float luminance = dot(sample_color.rgb, vec3(0.2126, 0.7152, 0.0722));
+    return 1.0 + params.highlight_gain * max(luminance - 1.0, 0.0);
+}
+
+void disk_blur(ivec2 pixel) {
+    vec4 centre = imageLoad(source_image, pixel);
+    vec2 centre_dr = imageLoad(depth_image, pixel).rg;
+    if (centre_dr.y < 0.0) {
+        imageStore(destination_image, pixel, centre);
+        return;
+    }
+    int radius = int(ceil(params.max_radius));
+    ivec2 lo = max(ivec2(params.roi_x0, params.roi_y0), pixel - ivec2(radius));
+    ivec2 hi = min(ivec2(params.roi_x1 - 1, params.roi_y1 - 1), pixel + ivec2(radius));
+    vec4 sum = vec4(0.0);
+    float total_weight = 0.0;
+    for (int y = lo.y; y <= hi.y; ++y) {
+        for (int x = lo.x; x <= hi.x; ++x) {
+            ivec2 sample_pixel = ivec2(x, y);
+            vec2 sample_dr = imageLoad(depth_image, sample_pixel).rg;
+            if (sample_dr.y < 0.0) continue;
+            float distance_px = length(vec2(sample_pixel - pixel));
+            float weight = dof_disk_pair_weight(
+                distance_px, centre_dr.y, centre_dr.x,
+                sample_dr.y, sample_dr.x);
+            if (weight <= 0.0) continue;
+            vec4 sample_color = imageLoad(source_image, sample_pixel);
+            if (params.normalize_opaque != 0) weight *= sample_color.a;
+            weight *= highlight_weight(sample_color);
+            sum += sample_color * weight;
+            total_weight += weight;
+        }
+    }
+    imageStore(destination_image, pixel,
+               total_weight > 1e-6 ? sum / total_weight : centre);
+}
+
 void main() {
     ivec2 size = imageSize(destination_image);
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     if (pixel.x >= size.x || pixel.y >= size.y) return;
     if (pixel.x < params.roi_x0 || pixel.x >= params.roi_x1 ||
         pixel.y < params.roi_y0 || pixel.y >= params.roi_y1) return;
+
+    if (params.vertical == 2) {
+        disk_blur(pixel);
+        return;
+    }
 
     bool is_vertical = params.vertical != 0;
     int axis_pos = is_vertical ? pixel.y : pixel.x;
@@ -98,6 +162,7 @@ void main() {
         float kernel_w = dof_pair_weight(
             dist, centre_radius, centre_depth, neighbour_dr.y, neighbour_dr.x);
         float w = params.normalize_opaque != 0 ? kernel_w * s.a : kernel_w;
+        if (w > 0.0) w *= highlight_weight(s);
         sum += s * w;
         total_weight += w;
     }

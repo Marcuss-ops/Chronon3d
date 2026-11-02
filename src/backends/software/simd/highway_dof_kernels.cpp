@@ -49,6 +49,15 @@ HWY_INLINE float compute_weight(float dist, float inv_r) {
     return gaussian_falloff(t);
 }
 
+// Out-of-focus highlight energy (identical to `highlight_weight()` in
+// dof_blur.comp and dof_highlight_weight() in per_pixel_dof.hpp).
+HWY_INLINE float highlight_weight(const Color& sample, float gain) {
+    if (gain <= 0.0f) return 1.0f;
+    const float luminance =
+        0.2126f * sample.r + 0.7152f * sample.g + 0.0722f * sample.b;
+    return 1.0f + gain * std::max(luminance - 1.0f, 0.0f);
+}
+
 // Depth- and CoC-aware pair weight (replicated identically in dof_blur.comp):
 //   - Unset neighbour (neighbour_radius < 0): weight 0.
 //   - Focused centre (0 <= centre_radius < 0.5):
@@ -97,6 +106,7 @@ HWY_ATTR void dof_h_gather_impl(
     const float* HWY_RESTRICT depth_row,
     float max_radius,
     bool normalize_opaque,
+    float highlight_gain,
     int x0, int x1, int w, int y, int fb_w, int roi_x0, int roi_x1)
 {
     using DF = hn::ScalableTag<float>;
@@ -142,8 +152,9 @@ HWY_ATTR void dof_h_gather_impl(
                 const float kernel_w = compute_pair_weight(
                     dist, centre_radius, centre_depth,
                     blur_radii_row[n_idx], depth_row[n_idx]);
-                const float w = normalize_opaque
+                float w = normalize_opaque
                     ? kernel_w * src_row[kx + i].a : kernel_w;
+                if (w > 0.0f) w *= highlight_weight(src_row[kx + i], highlight_gain);
                 // Broadcast weight to the 4 RGBA lanes for this pixel
                 w_broadcast[i * kRGBA + 0] = w;
                 w_broadcast[i * kRGBA + 1] = w;
@@ -179,7 +190,8 @@ HWY_ATTR void dof_h_gather_impl(
             const float kernel_w = compute_pair_weight(
                 dist, centre_radius, centre_depth,
                 blur_radii_row[n_idx], depth_row[n_idx]);
-            const float w = normalize_opaque ? kernel_w * s.a : kernel_w;
+            float w = normalize_opaque ? kernel_w * s.a : kernel_w;
+            if (w > 0.0f) w *= highlight_weight(s, highlight_gain);
 
             sum_r += s.r * w;
             sum_g += s.g * w;
@@ -210,6 +222,7 @@ HWY_ATTR void dof_v_gather_impl(
     const float* HWY_RESTRICT depth,
     float max_radius,
     bool normalize_opaque,
+    float highlight_gain,
     int x0, int x1, int y, int h, int fb_w,
     int roi_x0, int roi_x1, int roi_y0, int roi_y1, int roi_w)
 {
@@ -265,8 +278,9 @@ HWY_ATTR void dof_v_gather_impl(
                 const float kernel_w = compute_pair_weight(
                     dist, centre_radius, centre_depth,
                     blur_radii[n_idx], depth[n_idx]);
-                const float w = normalize_opaque
+                float w = normalize_opaque
                     ? kernel_w * batch[i].a : kernel_w;
+                if (w > 0.0f) w *= highlight_weight(batch[i], highlight_gain);
                 w_broadcast[i * kRGBA + 0] = w;
                 w_broadcast[i * kRGBA + 1] = w;
                 w_broadcast[i * kRGBA + 2] = w;
@@ -301,7 +315,8 @@ HWY_ATTR void dof_v_gather_impl(
             const float kernel_w = compute_pair_weight(
                 dist, centre_radius, centre_depth,
                 blur_radii[n_idx], depth[n_idx]);
-            const float w = normalize_opaque ? kernel_w * s.a : kernel_w;
+            float w = normalize_opaque ? kernel_w * s.a : kernel_w;
+            if (w > 0.0f) w *= highlight_weight(s, highlight_gain);
 
             sum_r += s.r * w;
             sum_g += s.g * w;
@@ -336,11 +351,12 @@ void dof_h_gather_simd(const Color* HWY_RESTRICT src_row,
                        const float* HWY_RESTRICT depth_row,
                        float max_radius,
                        bool normalize_opaque,
+                       float highlight_gain,
                        int x0, int x1, int w, int y, int fb_w,
                        int roi_x0, int roi_x1) {
     HWY_DYNAMIC_DISPATCH(dof_h_gather_impl)(
         src_row, dst_row, blur_radii_row, depth_row, max_radius, normalize_opaque,
-        x0, x1, w, y, fb_w, roi_x0, roi_x1);
+        highlight_gain, x0, x1, w, y, fb_w, roi_x0, roi_x1);
 }
 
 void dof_v_gather_simd(const Color* HWY_RESTRICT hpass,
@@ -349,12 +365,13 @@ void dof_v_gather_simd(const Color* HWY_RESTRICT hpass,
                        const float* HWY_RESTRICT depth,
                        float max_radius,
                        bool normalize_opaque,
+                       float highlight_gain,
                        int x0, int x1, int y, int h, int fb_w,
                        int roi_x0, int roi_x1, int roi_y0, int roi_y1,
                        int roi_w) {
     HWY_DYNAMIC_DISPATCH(dof_v_gather_impl)(
         hpass, output, blur_radii, depth, max_radius, normalize_opaque,
-        x0, x1, y, h, fb_w, roi_x0, roi_x1, roi_y0, roi_y1, roi_w);
+        highlight_gain, x0, x1, y, h, fb_w, roi_x0, roi_x1, roi_y0, roi_y1, roi_w);
 }
 
 }  // namespace chronon3d::renderer

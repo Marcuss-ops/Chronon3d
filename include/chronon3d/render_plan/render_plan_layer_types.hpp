@@ -87,8 +87,7 @@ struct TimeRemapPlan {
 // Depth-of-field contract: dof_focus_distance is the camera-space distance
 // along the optical axis from the camera position to the focus plane (S1 in
 // the thin-lens model, scene units, strictly positive). It is NOT a world-Z
-// coordinate: the legacy world-Z focus reference (DepthOfFieldSettings::
-// focus_z) is derived from it with the camera pose at compile/eval time.
+// coordinate: the camera-space optical focus distance is transported as-is.
 #ifdef near
 #undef near
 #endif
@@ -103,11 +102,12 @@ struct CameraPlan {
     float near{1.0f};
     float far{10000.0f};
     float zoom{1.0f};
-    // Physical lens authoring (0 = not authored). When focal_length_mm > 0
-    // and an f-stop is authored, the camera compiles to the physical thin-
-    // lens model; otherwise the legacy blur-per-unit model is used.
+    // Optional projection lens authoring (0 = use the canonical LensModel
+    // focal length). RenderPlan DoF always uses the thin-lens model and the
+    // LensModel defaults when these optional values are absent.
     float focal_length_mm{0.0f};
     float sensor_width_mm{36.0f};
+    float sensor_height_mm{24.0f};
     // Normalized viewport shift: +X right, +Y down, each unit is one viewport.
     std::array<float, 2> lens_shift{0.0f, 0.0f};
     float f_stop{0.0f};

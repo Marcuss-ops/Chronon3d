@@ -485,11 +485,20 @@ public:
         float, bool, bool) override;
     graph::RenderOpResult dof_depth_stamp_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
-        float, float, int, int, int, int, int, int, bool) override;
+        float, float, int, int, int, int, int, int, bool, bool = false) override;
     graph::RenderOpResult dof_blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         runtime::RenderSurfaceHandle, bool, int, int, int, int,
         float, bool) override;
+    graph::RenderOpResult dof_blur_disk_surface(
+        runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
+        runtime::RenderSurfaceHandle, int, int, int, int,
+        float, bool, float) override;
+    graph::RenderOpResult occlusion_tag_surface(
+        runtime::RenderSurfaceHandle mask,
+        runtime::RenderSurfaceHandle layer_depth,
+        runtime::RenderSurfaceHandle frame_depth,
+        bool merge) override;
     graph::RenderOpResult directional_blur_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         float, float, float, int) override;
@@ -565,7 +574,10 @@ public:
         std::span<const std::uint32_t> indices,
         std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
         const Color& premultiplied_tint,
-        std::optional<float> alpha_cutoff) override;
+        std::optional<float> alpha_cutoff,
+        runtime::RenderSurfaceHandle depth_destination =
+            runtime::kInvalidRenderSurfaceHandle,
+        float depth_marker = 1.0f) override;
 
 #ifdef CHRONON3D_ENABLE_CUDA_INTEROP
     graph::RenderOpResult create_cuda_external_surface(

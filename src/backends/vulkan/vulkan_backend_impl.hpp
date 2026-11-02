@@ -535,12 +535,14 @@ struct VulkanBackend::Impl {
         std::int32_t clip_x0, clip_y0, clip_x1, clip_y1;
         std::int32_t origin_x, origin_y;
         std::int32_t reset;
+        std::int32_t include_transparent;
     };
     struct DofBlurPush {
         std::int32_t vertical;
         std::int32_t roi_x0, roi_y0, roi_x1, roi_y1;
         float max_radius;
         std::int32_t normalize_opaque;
+        float highlight_gain;
     };
     void record_dof_depth_stamp(VkCommandBuffer command, VkDescriptorSet descriptors,
                                 const Image& depth, const Image& layer,
@@ -548,6 +550,9 @@ struct VulkanBackend::Impl {
     void record_dof_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                          const Image& destination, const Image& source,
                          const Image& depth, const DofBlurPush& push);
+    void record_occlusion_tag(VkCommandBuffer command, VkDescriptorSet descriptors,
+                              const Image& mask, const Image& layer_depth,
+                              const Image& frame_depth, std::int32_t merge);
     void record_radial_blur(VkCommandBuffer command, VkDescriptorSet descriptors,
                             const Image& destination, const Image& source,
                             float center_x_px, float center_y_px,
@@ -680,6 +685,12 @@ struct VulkanBackend::Impl {
                   runtime::RenderSurfaceHandle source,
                   runtime::RenderSurfaceHandle depth,
                   const DofBlurPush& push);
+    // Per-pixel cross-layer occlusion tag: writes the visibility mask for one
+    // layer and (optionally) merges its depth into the frame accumulator.
+    void occlusion_tag(runtime::RenderSurfaceHandle mask,
+                       runtime::RenderSurfaceHandle layer_depth,
+                       runtime::RenderSurfaceHandle frame_depth,
+                       bool merge);
     void radial_blur(runtime::RenderSurfaceHandle destination,
                      runtime::RenderSurfaceHandle source,
                      float center_x_px, float center_y_px,
@@ -748,7 +759,10 @@ struct VulkanBackend::Impl {
                           std::int32_t x0, std::int32_t y0,
                           std::int32_t x1, std::int32_t y1,
                           const Color& tint,
-                          std::optional<float> alpha_cutoff);
+                          std::optional<float> alpha_cutoff,
+                          runtime::RenderSurfaceHandle depth_destination =
+                              runtime::kInvalidRenderSurfaceHandle,
+                          float depth_marker = 1.0f);
     void ensure_images(std::uint32_t width, std::uint32_t height);
     void ensure_staging(VkDeviceSize bytes);
     void ensure_glyph_instance_buffer(VkDeviceSize bytes, std::size_t index);

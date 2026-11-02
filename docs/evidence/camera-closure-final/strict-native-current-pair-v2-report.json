@@ -1,0 +1,175 @@
+{
+  "plan_sha256": "15f650b4ed70a05401ff42385246493e60733a3054bc33f8b1ad84229876decd",
+  "video_sha256": "f7313f7101e3cd5665db0e5150f5d7abc4e5e61cb88ad0316aee38e66f345766",
+  "video_bytes": 1160715,
+  "stream": {
+    "codec_name": "h264",
+    "width": 1920,
+    "height": 1080,
+    "r_frame_rate": "30/1",
+    "nb_read_frames": "150"
+  },
+  "decode_errors": "",
+  "black_intervals": [],
+  "vulkan_validation_errors": 0,
+  "single_flight": true,
+  "output_gate": "PASS",
+  "focus_gate": "PASS",
+  "focus_metrics_raw": {
+    "30": {
+      "near": {
+        "dof_edge_energy": 48.90036181922456,
+        "sharp_edge_energy": 48.90036181922456,
+        "on_off_ratio": 1.0,
+        "expected_focused": true,
+        "gate": "PASS"
+      },
+      "middle": {
+        "dof_edge_energy": 2.3484313658080502,
+        "sharp_edge_energy": 449.3261037799286,
+        "on_off_ratio": 0.005226563393606589,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 0.4320685137211645,
+        "sharp_edge_energy": 83.94291084262335,
+        "on_off_ratio": 0.005147170968745759,
+        "expected_focused": false,
+        "gate": "PASS"
+      }
+    },
+    "75": {
+      "near": {
+        "dof_edge_energy": 38.65663605312419,
+        "sharp_edge_energy": 66.5652352751034,
+        "on_off_ratio": 0.5807331093079222,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "middle": {
+        "dof_edge_energy": 508.18396382421565,
+        "sharp_edge_energy": 508.18396382421565,
+        "on_off_ratio": 1.0,
+        "expected_focused": true,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 56.69724944072219,
+        "sharp_edge_energy": 131.96427098801536,
+        "on_off_ratio": 0.42964090974193525,
+        "expected_focused": false,
+        "gate": "PASS"
+      }
+    },
+    "149": {
+      "near": {
+        "dof_edge_energy": 0.44811668384641834,
+        "sharp_edge_energy": 97.89988807420777,
+        "on_off_ratio": 0.0045772951599980126,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "middle": {
+        "dof_edge_energy": 2.3370304768733265,
+        "sharp_edge_energy": 477.2546424696415,
+        "on_off_ratio": 0.0048968208350576425,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 108.99675009055882,
+        "sharp_edge_energy": 109.14174102582618,
+        "on_off_ratio": 0.9986715354372709,
+        "expected_focused": true,
+        "gate": "PASS"
+      }
+    }
+  },
+  "focus_metrics_video_lossy_diagnostic": {
+    "30": {
+      "near": {
+        "dof_edge_energy": 1.424134962630864,
+        "sharp_edge_energy": 1.4170655321431027,
+        "on_off_ratio": 1.004988781624707,
+        "expected_focused": true,
+        "gate": "PASS"
+      },
+      "middle": {
+        "dof_edge_energy": 0.9606085666458736,
+        "sharp_edge_energy": 114.38791155685462,
+        "on_off_ratio": 0.008397815412238023,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 0.3309721188051238,
+        "sharp_edge_energy": 23.432294645842276,
+        "on_off_ratio": 0.014124614076746003,
+        "expected_focused": false,
+        "gate": "PASS"
+      }
+    },
+    "75": {
+      "near": {
+        "dof_edge_energy": 5.497117044409005,
+        "sharp_edge_energy": 6.28879691092984,
+        "on_off_ratio": 0.8741126676956436,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "middle": {
+        "dof_edge_energy": 130.18655595799405,
+        "sharp_edge_energy": 130.20547655194994,
+        "on_off_ratio": 0.999854686650232,
+        "expected_focused": true,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 16.34357558018704,
+        "sharp_edge_energy": 38.05487716920674,
+        "on_off_ratio": 0.4294738755171161,
+        "expected_focused": false,
+        "gate": "PASS"
+      }
+    },
+    "149": {
+      "near": {
+        "dof_edge_energy": 0.2922638197612773,
+        "sharp_edge_energy": 22.468064176108715,
+        "on_off_ratio": 0.013007966216869468,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "middle": {
+        "dof_edge_energy": 0.9550263465304935,
+        "sharp_edge_energy": 122.61410988906887,
+        "on_off_ratio": 0.007788878028756417,
+        "expected_focused": false,
+        "gate": "PASS"
+      },
+      "far": {
+        "dof_edge_energy": 33.20969113937814,
+        "sharp_edge_energy": 32.77969278401856,
+        "on_off_ratio": 1.0131178274974322,
+        "expected_focused": true,
+        "gate": "PASS"
+      }
+    }
+  },
+  "raw_rgba_sha256": {
+    "30": {
+      "dof": "45772ad4bfdb51a50aad643ee4483b10bfdb2ddf190c6f5b820d5677893ecd3a",
+      "sharp": "acc9ebabf85546eca018835b24f1ed8e6e4602208c4d35dcb69cc6818970b2be"
+    },
+    "75": {
+      "dof": "c8fcc9cbaae3aabe136087ad042e39fce3882e9605aa1c3901020095f4ba71b3",
+      "sharp": "cf0c8f7d9eca75b8a6b16c37748291213583f85bc3750ad904a6dbbcb5b2a90c"
+    },
+    "149": {
+      "dof": "30682270346e28e0a0c4b43aa30565b2a21d84d45bf778fc072afc4f536e4179",
+      "sharp": "680dd4d70a5334b1a80d779d007c66383554858ced16da4fb39b87543451e05b"
+    }
+  },
+  "note": "Single-flight strict-native evidence does not certify asynchronous Vulkan surface lifetime or human review."
+}

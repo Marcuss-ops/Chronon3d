@@ -14,10 +14,12 @@ std::uint64_t compute_render_plan_content_fingerprint(const RenderPlan& plan) {
         scratch_storage.data(), scratch_storage.size()};
     CanonicalPlanWriter out{&scratch};
 
+    const bool has_v40_camera_dof = plan.camera.has_value() && plan.camera->dof_enabled;
     const bool has_v39_fields = plan.environment_light.has_value();
     const bool has_v38_fields = plan.camera_samples.has_value() ||
                                 plan.temporal_motion_blur.has_value();
-    out.add_string(has_v39_fields ? "chronon3d.render-plan.content-fingerprint.v39" : has_v38_fields
+    out.add_string(has_v40_camera_dof ? "chronon3d.render-plan.content-fingerprint.v40"
+        : has_v39_fields ? "chronon3d.render-plan.content-fingerprint.v39" : has_v38_fields
         ? "chronon3d.render-plan.content-fingerprint.v38"
         : "chronon3d.render-plan.content-fingerprint.v37");
     out.add_string(plan.schema);

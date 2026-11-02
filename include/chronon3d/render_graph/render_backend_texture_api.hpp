@@ -42,11 +42,19 @@ public:
         std::span<const float> transforms, std::span<const float> paints);
     /// Rasterize a projected indexed textured mesh into a native surface.
     /// Each vertex is eight floats (screen x/y, inverse depth, UV x/y, light RGB).
+    /// @param depth_destination Optional RGBA32F companion surface that
+    ///        receives r = per-pixel camera depth, g = `depth_marker` (1 =
+    ///        coverage) for every covered pixel. This is how a GPU-only mesh
+    ///        carries per-pixel depth into native compositing, where no CPU
+    ///        depth map exists. Pass kInvalidRenderSurfaceHandle to skip it.
     virtual RenderOpResult draw_inline_mesh_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle texture,
         std::span<const float> projected_lit_vertices, std::span<const std::uint32_t> indices,
         std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
-        const Color& premultiplied_tint, std::optional<float> alpha_cutoff);
+        const Color& premultiplied_tint, std::optional<float> alpha_cutoff,
+        runtime::RenderSurfaceHandle depth_destination =
+            runtime::kInvalidRenderSurfaceHandle,
+        float depth_marker = 1.0f);
 };
 
 } // namespace chronon3d::graph

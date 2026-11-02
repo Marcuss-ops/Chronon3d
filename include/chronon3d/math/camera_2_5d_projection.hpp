@@ -11,8 +11,7 @@
 /// every projection path in Chronon3D uses the same sign, centre, depth,
 /// and FOV/zoom conventions.
 ///
-/// Backward-compatible wrappers are provided for `focal_length_from_fov()`
-/// and `get_camera_view_matrix()`; single-point projection goes through the
+/// The camera view wrapper remains for legacy callers; single-point projection goes through the
 /// contract's `project_world_point()` directly.
 // ============================================================================
 
@@ -37,20 +36,11 @@ void log_camera_projection_diagnostics(float depth, float determinant);
 namespace chronon3d {
 
 struct ProjectedLayer2_5D {
-    Transform transform;           // screen-space transform (centered coords)
     Mat4      projection_matrix{1.0f}; // proj * view * model (maps world → centered screen)
     f32       depth{1000.0f};      // camera-space Z (positive = visible)
     f32       perspective_scale{1.0f};
     bool      visible{true};       // false when layer is behind or on the camera plane
 };
-
-/// Delegates to camera_projection_contract.
-inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
-    Camera2_5D tmp;
-    tmp.optics_mode = CameraOpticsMode::FieldOfView;
-    tmp.fov_deg = fov_deg;
-    return camera_math::focal_from_camera(tmp, viewport_height);
-}
 
 /// Delegates to camera_projection_contract.
 inline Mat4 get_camera_view_matrix(const CameraProjectionSource& camera) {
@@ -63,19 +53,11 @@ inline Mat4 get_camera_view_matrix(const CameraProjectionSource& camera) {
 // camera_projection_matrix.hpp (FASE 17) and is what project_layer_2_5d()
 // uses via `chronon3d::build_perspective_matrix(focal_xy)`.
 
-inline ProjectedLayer2_5D project_layer_2_5d(
-    const Transform& layer_transform,
-    const Camera2_5D& camera,
-    f32 viewport_width,
-    f32 viewport_height,
-    bool diagnostics_enabled = false
-);
-
 /// Project a 3D layer transform through a Camera2_5D into screen space.
 ///
-/// Now delegates to CameraProjectionResolver::project_layer() for unified
-/// math.  The output is converted back to ProjectedLayer2_5D for backward
-/// compatibility with the existing render graph pipeline.
+/// Delegates to CameraProjectionResolver::project_layer() for unified math.
+/// Perspective placement is represented only by its homography; it must not
+/// be decomposed into a centroid/bbox TRS because a projective quad is not TRS.
 ///
 /// The projection_matrix is designed to be passed to TransformNode::set_matrix()
 /// which then wraps it with canvas offsets (dst_canvas_offset / src_canvas_offset)
@@ -91,7 +73,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     BackfaceMode backface_mode = BackfaceMode::DoubleSided
 ) {
     ProjectedLayer2_5D out;
-    out.transform = layer_transform;
+    (void)layer_transform; // Kept at the boundary for source compatibility; matrix is authoritative.
 
     // ── Build input for CameraProjectionResolver ────────────────────────────
     CameraProjectionInput input;
@@ -118,46 +100,6 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     out.depth = proj.depth;
     out.perspective_scale = proj.perspective_scale;
 
-    // ── Recompute centroid for the transform position ──────────────────────
-    // Average all projected corners to get the centred screen position.
-    Vec2 sum_pos{0.0f, 0.0f};
-    Vec2 min_pos{std::numeric_limits<f32>::max(), std::numeric_limits<f32>::max()};
-    Vec2 max_pos{-std::numeric_limits<f32>::max(), -std::numeric_limits<f32>::max()};
-
-    for (int i = 0; i < proj.corner_count; ++i) {
-        sum_pos.x += proj.corners[i].x;
-        sum_pos.y += proj.corners[i].y;
-        min_pos.x = std::min(min_pos.x, proj.corners[i].x);
-        min_pos.y = std::min(min_pos.y, proj.corners[i].y);
-        max_pos.x = std::max(max_pos.x, proj.corners[i].x);
-        max_pos.y = std::max(max_pos.y, proj.corners[i].y);
-    }
-
-    const f32 inv_cnt = 1.0f / static_cast<f32>(proj.corner_count);
-    out.transform.position.x = sum_pos.x * inv_cnt;
-    out.transform.position.y = sum_pos.y * inv_cnt;
-    out.transform.position.z = 0.0f;
-
-    // ── Compute screen-space bbox size for the transform scale ──────────────
-    // Use a tiny epsilon floor to avoid degenerate zero-size transforms
-    // while still allowing sub-pixel sizes for far layers.
-    const f32 bbox_w = std::max(1e-6f, max_pos.x - min_pos.x);
-    const f32 bbox_h = std::max(1e-6f, max_pos.y - min_pos.y);
-    // Keep the historical TRS contract (perspective scale relative to the
-    // source surface) while the resolver itself works in real surface pixels.
-    // The projection matrix remains the authoritative homography for the
-    // downstream TransformNode.
-    out.transform.scale.x = bbox_w / surface_size.x;
-    out.transform.scale.y = bbox_h / surface_size.y;
-    // Normalize residual TRS fields so callers using proj.transform.to_mat4()
-    // get a clean screen-space TRS (X/Y from the projected bbox, Z = identity,
-    // rotation = identity, anchor = origin). Without these writes,
-    // transform.scale.z / rotation / anchor would propagate from the input
-    // layer_transform and silently leak into the draw matrix composition.
-    out.transform.scale.z = 1.0f;
-    out.transform.rotation = Quat(1.0f, 0.0f, 0.0f, 0.0f);
-    out.transform.anchor = Vec3(0.0f, 0.0f, 0.0f);
-
     // ── Build the projection matrix from the resolver ───────────────────────
     const Mat4 view = camera_math::view_matrix_for_camera(camera);
     const camera_math::FocalPx focal_xy = camera_math::focal_xy_from_camera(
@@ -177,19 +119,6 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     }
 
     return out;
-}
-
-inline ProjectedLayer2_5D project_layer_2_5d(
-    const Transform& layer_transform,
-    const Camera2_5D& camera,
-    f32 viewport_width,
-    f32 viewport_height,
-    bool diagnostics_enabled
-) {
-    return project_layer_2_5d(layer_transform, layer_transform.to_mat4(),
-                              camera, viewport_width, viewport_height,
-                              diagnostics_enabled,
-                              {viewport_width, viewport_height});
 }
 
 inline constexpr f32 quad_signed_area(const Vec2& p0, const Vec2& p1, const Vec2& p2, const Vec2& p3) {

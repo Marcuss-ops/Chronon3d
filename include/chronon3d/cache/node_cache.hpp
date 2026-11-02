@@ -150,11 +150,8 @@ inline u64 mix_params_hash(u64 seed, u64 value) noexcept {
     hb.add(cam.motion_blur.jitter_seed);
     if (cam.dof.enabled) {
         hb.add(static_cast<std::uint8_t>(cam.dof.enabled));
-        hb.add(cam.dof.focus_z);
         hb.add(cam.dof.focus_distance);
-        hb.add(cam.dof.aperture);
         hb.add(cam.dof.max_blur);
-        hb.add(cam.dof.use_physical_model);
         hb.add(cam.dof.near_bokeh_radius);
         hb.add(cam.dof.far_bokeh_radius);
         hb.add(static_cast<std::int32_t>(cam.dof.iris_blades));

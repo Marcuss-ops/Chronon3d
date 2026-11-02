@@ -23,7 +23,7 @@ namespace chronon3d {
 //   PostProcessingSystem pp;
 //   pp.enable_depth_of_field(true);
 //   pp.enable_motion_blur(true);
-//   pp.set_dof({.focus_z = 0, .aperture = 0.02f, .max_blur = 16});
+//   pp.set_dof({.focus_distance = 1000, .max_blur = 16});
 //   pp.set_motion_blur_samples(8);
 //   pp.set_motion_blur_strength(1.0f);
 //
@@ -125,7 +125,7 @@ private:
     // both the legacy linear model and the physical thin-lens CoC model.
     [[nodiscard]] f32 dof_blur_radius(const Camera2_5D& camera, f32 layer_world_z, f32 viewport_w) const {
         if (!m_dof.enabled) return 0.0f;
-        const auto camera_dof = camera_space_dof_settings(m_dof, camera);
+        const auto& camera_dof = m_dof;
         // Fail closed on authored lens shaping the CPU separable blur cannot
         // render (iris blades / highlight weighting).
         reject_unsupported_dof_shape(camera_dof);

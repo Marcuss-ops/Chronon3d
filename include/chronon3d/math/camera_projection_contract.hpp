@@ -166,14 +166,6 @@ inline FocalPx focal_xy_from_camera(const CameraProjectionSource& camera,
         out.y = camera.get_zoom();
         return out;
     }
-    // Legacy DoF-driven fallback.
-    if (camera.get_lens().focal_length > 0.0f && camera.get_dof_use_physical_model()) {
-        const Vec2 fxy = camera.get_lens().focal_xy_pixels(
-            viewport_width, viewport_height);
-        out.x = fxy.x;
-        out.y = fxy.y;
-        return out;
-    }
     // No viewport-aware derivation succeeded → keep default {1000,1000}.
     return out;
 }

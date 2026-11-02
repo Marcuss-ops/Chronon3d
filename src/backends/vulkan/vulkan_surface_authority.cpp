@@ -12,6 +12,12 @@ bool VulkanSurfaceAuthority<ImageT, OwnerT>::acquire_pending_cuda_surface(std::s
         if (!cuda_pending_surfaces.contains(slot)) return false;
         cuda_ready_surfaces.insert(slot);
         cuda_pending_surfaces.erase(slot);
+        // The consumer returned ownership: the next submission waits on C2V
+        // before touching the image, so the lazy prune may reclaim it again.
+        const auto it = physical_surfaces.find(slot);
+        if (it != physical_surfaces.end()) {
+            it->second.image.export_handed_off = false;
+        }
         return true;
     }
 #endif
@@ -115,7 +121,24 @@ template <typename ImageT, typename OwnerT>
 [[nodiscard]] bool VulkanSurfaceAuthority<ImageT, OwnerT>::can_retire_surface(
         runtime::RenderSurfaceHandle handle, std::span<const bool> busy) const noexcept {
         return recording_slots_retired(recording_slot_mask(handle), busy);
-    }
+}
+
+template <typename ImageT, typename OwnerT>
+[[nodiscard]] bool VulkanSurfaceAuthority<ImageT, OwnerT>::slot_export_owned(
+        std::size_t slot) const noexcept {
+        const auto it = physical_surfaces.find(slot);
+        if (it != physical_surfaces.end() && it->second.image.export_handed_off) {
+            return true;
+        }
+#ifdef CHRONON3D_ENABLE_CUDA_INTEROP
+        // Exported but not yet submitted: the consumer already holds the
+        // imported memory description, so the slot is reserved just like a
+        // handed-off one until `acquire_pending_cuda_surface()` returns it.
+        if (cuda_pending_surfaces.contains(slot)) return true;
+#endif
+        return false;
+}
+
 
 template <typename ImageT, typename OwnerT>
 void VulkanSurfaceAuthority<ImageT, OwnerT>::forget_recording_slots(runtime::RenderSurfaceHandle handle) {
@@ -325,6 +348,12 @@ ImageT& VulkanSurfaceAuthority<ImageT, OwnerT>::ensure(runtime::RenderSurfaceHan
                 physical.desc.format != desc.format ||
                 physical.image.exportable != exportable) {
                 require_not_leased(binding->second, "re-materialize");
+                if (slot_export_owned(binding->second)) {
+                    throw std::logic_error(
+                        "Vulkan surface handle " + std::to_string(handle) +
+                        " cannot be re-materialized while the CUDA/NVENC "
+                        "consumer owns its slot");
+                }
                 materializer_.materialize(physical.image, desc, exportable);
                 bump_slot_token(binding->second);
                 physical.desc = desc;
@@ -338,14 +367,14 @@ ImageT& VulkanSurfaceAuthority<ImageT, OwnerT>::ensure(runtime::RenderSurfaceHan
         // an exact compatible unused slot, then any unused transient slot.
         if (desc.lifetime != runtime::LifetimeClass::JobPersistent) {
             for (auto& [slot, physical] : physical_surfaces) {
-                if (!slot_in_use(slot) &&
+                if (!slot_in_use(slot) && !slot_export_owned(slot) &&
                     owner_->surface_compatible(physical.desc, desc)) {
                     owner_->ensure_descriptor_set();
                     return bind_unplanned(handle, slot, desc);
                 }
             }
             for (auto& [slot, physical] : physical_surfaces) {
-                if (!slot_in_use(slot) &&
+                if (!slot_in_use(slot) && !slot_export_owned(slot) &&
                     physical.desc.lifetime != runtime::LifetimeClass::JobPersistent) {
                     owner_->ensure_descriptor_set();
                     return bind_unplanned(handle, slot, desc);
@@ -393,6 +422,17 @@ void VulkanSurfaceAuthority<ImageT, OwnerT>::prune_unused_slots_impl(bool force,
                 ++it;
                 continue;
             }
+            // A surface handed to the CUDA/NVENC consumer is ordered by the
+            // external semaphores, not by a Vulkan fence: destroying it while
+            // the consumer still reads it is a use-after-free across APIs
+            // (validation: VUID-vkDestroyImage-image-01000). Retain it until
+            // the consumer returns it (acquire_pending_cuda_surface clears the
+            // flag) or until unconditional teardown. Deliberately does NOT
+            // decrement unused_transient: the slot is not a destroy candidate.
+            if (it->second.image.export_handed_off) {
+                ++it;
+                continue;
+            }
             materializer_.destroy(it->second.image);
             bump_slot_token(it->first);
             it = physical_surfaces.erase(it);
@@ -433,7 +473,11 @@ std::size_t VulkanSurfaceAuthority<ImageT, OwnerT>::retire_frame_slot_transients
                 auto& authority = *static_cast<VulkanSurfaceAuthority*>(context);
                 const auto it = authority.physical_surfaces.find(physical_slot);
                 if (it != authority.physical_surfaces.end() &&
-                    !authority.slot_in_use(physical_slot)) {
+                    !authority.slot_in_use(physical_slot) &&
+                    // Consumer-owned slots keep their initialized content:
+                    // clearing it would only arm a re-materialize that the
+                    // consumer-completion contract forbids.
+                    !authority.slot_export_owned(physical_slot)) {
                     it->second.image.initialized = false;
                 }
             },
@@ -514,7 +558,7 @@ ImageT& VulkanSurfaceAuthority<ImageT, OwnerT>::bind_unplanned(runtime::RenderSu
         // lets a transient graph surface alias a persistent NVENC/source
         // surface during the first frame; retiring the transient then clears
         // the shared image and invalidates the encode ring on frame four.
-        while (slot_in_use(slot) ||
+        while (slot_in_use(slot) || slot_export_owned(slot) ||
                (physical_surfaces.contains(slot) &&
                 physical_surfaces.at(slot).desc.lifetime ==
                     runtime::LifetimeClass::JobPersistent)) {
@@ -544,6 +588,16 @@ ImageT& VulkanSurfaceAuthority<ImageT, OwnerT>::materialize_binding(runtime::Ren
             physical.image.height != desc.height ||
             physical.desc.format != desc.format ||
             physical.image.exportable != exportable) {
+            // The consumer-completion contract: re-materializing a slot the
+            // external consumer still owns would free memory it maps. The
+            // slot cannot be re-placed either (the plan named it), so fail
+            // closed instead of destroying a live image.
+            if (slot_export_owned(slot)) {
+                throw std::logic_error(
+                    "Vulkan surface slot " + std::to_string(slot) +
+                    " cannot be re-materialized while the CUDA/NVENC "
+                    "consumer owns it");
+            }
             materializer_.materialize(physical.image, desc, exportable);
         }
         physical.desc = desc;

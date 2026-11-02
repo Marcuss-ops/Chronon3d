@@ -235,6 +235,15 @@ void note_recording_slot(runtime::RenderSurfaceHandle handle,
 [[nodiscard]] bool can_retire_surface(
         runtime::RenderSurfaceHandle handle, std::span<const bool> busy) const noexcept;
 
+    /// True while the CUDA/NVENC consumer owns the image in this physical
+    /// slot: the surface was handed off on submit and has not been returned by
+    /// `acquire_pending_cuda_surface()`, or the handoff is still pending. A
+    /// consumer-owned slot is never a destroy *or a reuse* candidate: binding
+    /// a different logical surface to it, or re-materializing it at another
+    /// extent/format, would destroy memory the external consumer still maps
+    /// (validation: VUID-vkDestroyImage-image-01000).
+[[nodiscard]] bool slot_export_owned(std::size_t slot) const noexcept;
+
 void forget_recording_slots(runtime::RenderSurfaceHandle handle);
 
 void enqueue_deferred_release(DeferredSurfaceRelease release);

@@ -284,6 +284,9 @@ OwnedFB FramebufferPool::acquire_from(const Framebuffer& other) {
     fb->set_origin(other.origin_x(), other.origin_y());
     fb->set_opaque(other.is_opaque());
     fb->set_content_cleared(other.is_content_cleared());
+    // Per-pixel mesh depth is provenance for these exact pixels. A pooled
+    // clone preserves the pixels, so it must preserve the matching depth map.
+    fb->set_depth_map_shared(other.depth_map_shared());
     // This is an independent CPU copy. Carrying the source's native handle
     // aliases a frame-scoped surface and lets either framebuffer release it.
     fb->clear_surface_handle();

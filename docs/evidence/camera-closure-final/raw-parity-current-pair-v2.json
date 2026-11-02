@@ -1,0 +1,37 @@
+{
+  "format": "RGBA8 readbacks; compare RGB channels",
+  "gate_thresholds": {
+    "rgb_mae_max": 2,
+    "rgb_p99_max": 10
+  },
+  "frames": {
+    "30": {
+      "rgb_mae": 28.9883214377572,
+      "rgb_p99": 75,
+      "rgb_max": 109,
+      "over_8_share": 0.9046577610596708,
+      "software_sha256": "bc2b35a49a6d0be962b07899c5f7f6a4d101588935384a089db811c194a2cff3",
+      "vulkan_sha256": "45772ad4bfdb51a50aad643ee4483b10bfdb2ddf190c6f5b820d5677893ecd3a",
+      "gate": "FAIL"
+    },
+    "75": {
+      "rgb_mae": 27.59327723122428,
+      "rgb_p99": 83,
+      "rgb_max": 132,
+      "over_8_share": 0.8890380658436214,
+      "software_sha256": "e4ee48f98a7b968df0f7b25bf1dce0b718fb34836673dc74aff03899ba357342",
+      "vulkan_sha256": "c8fcc9cbaae3aabe136087ad042e39fce3882e9605aa1c3901020095f4ba71b3",
+      "gate": "FAIL"
+    },
+    "149": {
+      "rgb_mae": 27.124858699845678,
+      "rgb_p99": 83,
+      "rgb_max": 129,
+      "over_8_share": 0.8792410943930041,
+      "software_sha256": "c9754ce24d643a7f1a06fd8a3f299079b837a1938260a0513884928a0978146c",
+      "vulkan_sha256": "30682270346e28e0a0c4b43aa30565b2a21d84d45bf778fc072afc4f536e4179",
+      "gate": "FAIL"
+    }
+  },
+  "aggregate_gate": "FAIL"
+}

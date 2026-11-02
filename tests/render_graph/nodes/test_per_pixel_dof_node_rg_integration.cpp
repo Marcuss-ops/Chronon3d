@@ -36,8 +36,6 @@ Composition make_dof_scene(bool far_bar) {
                 .rotation({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                 .enabled = true,
-                .focus_z = 0.0f,
-                .aperture = 0.05f,
                 .max_blur = 24.0f
             }).build());
             s.layer("bg", [](LayerBuilder& l) {
@@ -67,8 +65,6 @@ Composition make_sparse_dof_scene() {
                 .rotation({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                 .enabled = true,
-                .focus_z = 0.0f,
-                .aperture = 0.05f,
                 .max_blur = 24.0f
             }).build());
             s.layer("sparse", [](LayerBuilder& l) {
@@ -93,8 +89,7 @@ Composition make_focused_dof_scene() {
                 .rotation({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
                     .enabled = true,
-                    .focus_z = 0.0f,
-                    .aperture = 0.05f,
+                    .focus_distance = 500.0f,
                     .max_blur = 24.0f
                 }).build());
             s.layer("focused", [](LayerBuilder& l) {
@@ -118,8 +113,7 @@ Composition make_two_source_dof_scene(bool distant) {
                 .zoom(1000.0f)
                 .rotation({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
-                    .enabled = true, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 24.0f}).build());
+                    .enabled = true, .max_blur = 24.0f}).build());
             s.layer("source_a", [distant](LayerBuilder& l) {
                 l.enable_3d(true).position(distant
                     ? Vec3{-20.0f, -20.0f, -600.0f}
@@ -147,8 +141,7 @@ Composition make_alpha_dof_scene(float opacity) {
                 .zoom(1000.0f)
                 .rotation({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
-                    .enabled = true, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 16.0f}).build());
+                    .enabled = true, .max_blur = 16.0f}).build());
             s.layer("alpha_source", [opacity](LayerBuilder& l) {
                 l.enable_3d(true).position({0.0f, 0.0f, -800.0f}).opacity(opacity);
                 l.rect("box", {.size = {12.0f, 12.0f},
@@ -168,8 +161,7 @@ Composition make_overlapping_occlusion_dof_scene(
                 .zoom(1000.0f)
                 .rotation({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
-                    .enabled = dof_enabled, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 16.0f}).build());
+                    .enabled = dof_enabled, .max_blur = 16.0f}).build());
             const auto add_far = [&] {
                 s.layer("far", [](LayerBuilder& l) {
                     l.enable_3d(true).position({0.0f, 0.0f, 0.0f});
@@ -206,8 +198,7 @@ Composition make_position_animation_dof_scene() {
                 .position({0.0f, 0.0f, -1000.0f}).zoom(1000.0f)
                 .rotation({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
-                    .enabled = true, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 24.0f}).build());
+                    .enabled = true, .max_blur = 24.0f}).build());
             s.layer("moving", [x](LayerBuilder& l) {
                 l.enable_3d(true).position({x, 0.0f, -800.0f});
                 l.rect("box", {.size = {12.0f, 12.0f},
@@ -227,8 +218,7 @@ Composition make_z_animation_dof_scene() {
                 .position({0.0f, 0.0f, -1000.0f}).zoom(1000.0f)
                 .rotation({0.0f, 0.0f, 0.0f})
                 .dof(DepthOfFieldSettings{
-                    .enabled = true, .focus_z = 0.0f,
-                    .aperture = 0.05f, .max_blur = 24.0f}).build());
+                    .enabled = true, .max_blur = 24.0f}).build());
             s.layer("z_moving", [z](LayerBuilder& l) {
                 l.enable_3d(true).position({0.0f, 0.0f, z});
                 l.rect("box", {.size = {8.0f, 8.0f},

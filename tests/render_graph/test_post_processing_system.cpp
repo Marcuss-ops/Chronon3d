@@ -33,7 +33,7 @@ TEST_CASE("PostProcessingSystem: enable / disable passes") {
 TEST_CASE("PostProcessingSystem: DOF disabled → passthrough") {
     PostProcessingSystem pp;
     pp.enable_depth_of_field(false);
-    pp.set_dof(DepthOfFieldSettings{ .enabled = true, .aperture = 1.0f, .max_blur = 32.0f });
+    pp.set_dof(DepthOfFieldSettings{ .enabled = true, .max_blur = 32.0f });
 
     Framebuffer a = make_filled_fb(16, 16, Color{0.5f, 0.5f, 0.5f, 1.0f});
     Framebuffer out(16, 16);
@@ -49,7 +49,7 @@ TEST_CASE("PostProcessingSystem: DOF disabled → passthrough") {
 
 TEST_CASE("PostProcessingSystem: DOF enabled with zero radius → passthrough") {
     PostProcessingSystem pp;
-    pp.set_dof(DepthOfFieldSettings{ .enabled = true, .focus_z = 0, .aperture = 0, .max_blur = 0 });
+    pp.set_dof(DepthOfFieldSettings{ .enabled = true, .max_blur = 0 });
 
     Framebuffer a = make_filled_fb(16, 16, Color{0.8f, 0.8f, 0.8f, 1.0f});
     Framebuffer out(16, 16);
@@ -66,8 +66,9 @@ TEST_CASE("PostProcessingSystem: DOF enabled with zero radius → passthrough") 
 TEST_CASE("PostProcessingSystem: DOF with non-zero blur softens a high-contrast edge") {
     PostProcessingSystem pp;
     pp.enable_motion_blur(false);
-    // focus_z=0, layer at z=100 → dz=100 → r=min(100*0.5, 6) = 6 pixels
-    pp.set_dof(DepthOfFieldSettings{ .enabled = true, .focus_z = 0.0f, .aperture = 0.5f, .max_blur = 6.0f });
+    // Use a wide physical aperture and a nearby focus plane to produce a
+    // measurable CoC even on this deliberately small 16×16 fixture.
+    pp.set_dof(DepthOfFieldSettings{ .enabled = true, .focus_distance = 500.0f, .max_blur = 6.0f });
 
     // Left half black, right half white
     Framebuffer a(16, 16);
@@ -79,7 +80,9 @@ TEST_CASE("PostProcessingSystem: DOF with non-zero blur softens a high-contrast 
     }
 
     Framebuffer out(16, 16);
-    pp.apply(a, out, Camera2_5D{}, /*layer_world_z=*/100.0f);
+    Camera2_5D camera;
+    camera.lens.f_stop = 0.7f;
+    pp.apply(a, out, camera, /*layer_world_z=*/250.0f);
 
     // Pixels near the boundary (x=7..8) should be blended, not pure black/white
     const Color c7 = out.get_pixel(7, 8);
@@ -108,7 +111,7 @@ TEST_CASE("PostProcessingSystem: DOF + motion blur in pipeline") {
     PostProcessingSystem pp;
     pp.enable_depth_of_field(true);
     pp.enable_motion_blur(true);
-    pp.set_dof(DepthOfFieldSettings{ .enabled = true, .aperture = 0.1f, .max_blur = 2.0f });
+    pp.set_dof(DepthOfFieldSettings{ .enabled = true, .max_blur = 2.0f });
     pp.set_motion_blur_samples(2).set_motion_blur_strength(1.0f);
 
     Framebuffer a = make_filled_fb(16, 16, Color{0.6f, 0.6f, 0.6f, 1.0f});

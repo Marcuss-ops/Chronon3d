@@ -144,6 +144,9 @@ std::uint64_t VulkanBackend::Impl::submit(bool wait_for_completion) {
         if (it == surfaces.physical_surfaces.end()) return;
         it->second.image.cuda_export_fence_slot.reset();
         it->second.image.cuda_export_standalone_fence = true;
+        // The consumer now owns the image as far as Vulkan ordering goes: the
+        // lazy prune must retain the slot until it comes back.
+        it->second.image.export_handed_off = true;
     };
     for (const auto physical_slot : surfaces.cuda_ready_surfaces)
         mark_standalone_export(physical_slot);

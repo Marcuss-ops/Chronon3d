@@ -31,6 +31,7 @@ set(_chronon3d_shaders
     pixel_program_pointwise
     dof_depth_stamp
     dof_blur
+    occlusion_tag
 )
 
 foreach(_shader ${_chronon3d_shaders})
@@ -78,6 +79,7 @@ set(_chronon3d_shader_abi_prefixes
     pixel_program_pointwise:PixelProgramPointwise
     dof_depth_stamp:DofDepthStamp
     dof_blur:DofBlur
+    occlusion_tag:OcclusionTag
 )
 
 set(_chronon3d_shader_abi_headers "")

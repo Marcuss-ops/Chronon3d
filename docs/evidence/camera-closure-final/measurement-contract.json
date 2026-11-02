@@ -24,7 +24,7 @@
       720
     ]
   },
-  "sharpness": "mean squared horizontal and vertical luminance first differences; ON/OFF ratio in same ROI/frame",
+  "sharpness": "raw RGBA8 Vulkan readback; mean squared horizontal and vertical luminance first differences; ON/OFF ratio in same ROI/frame. Lossy MP4 ratios are diagnostic only",
   "focus_gate": "focused ROI retains >= 0.70 of OFF edge energy; defocused ROI <= 0.90; evaluate near@30, middle@75, far@149; report all ratios",
   "raw_backend_gate": {
     "rgb_mae_max": 2,

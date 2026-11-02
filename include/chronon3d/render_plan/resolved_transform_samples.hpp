@@ -41,6 +41,19 @@ using ResolvedTransformSample = LayerPlan::ResolvedTransformSample;
             [](const LayerPlan& layer) { return !layer.transform_samples.empty(); }))
         return std::nullopt;
     const auto required = resolved_sample_frames(plan.canvas, plan.temporal_motion_blur);
+    // A resolved layer bake claims exact Motion sampling. If the same plan
+    // carries serialized camera samples, those must cover the same calendar;
+    // interpolating a missing camera pose would change authored easing.
+    // Sparse camera samples remain supported for plans without resolved
+    // layer bakes, where interpolation is the existing authored semantics.
+    if (plan.camera_samples) {
+        auto camera_sample = plan.camera_samples->begin();
+        for (const double frame : required) {
+            while (camera_sample != plan.camera_samples->end() && camera_sample->frame < frame) ++camera_sample;
+            if (camera_sample == plan.camera_samples->end() || camera_sample->frame != frame)
+                return "camera is missing a required resolved shutter or presentation sample";
+        }
+    }
     for (const auto& layer : plan.layers) {
         if (layer.transform_samples.empty()) continue;
         auto sample = layer.transform_samples.begin();

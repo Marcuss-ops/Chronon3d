@@ -111,8 +111,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 has_custom_render_transform(item, ctx),
                 use_local,
                 should_use_centered_rendering(item, ctx),
-                item.transform.position.x,
-                item.transform.position.y
+                item.world_matrix[3][0],
+                item.world_matrix[3][1]
             );
         }
 

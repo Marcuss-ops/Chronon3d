@@ -220,6 +220,7 @@ CameraPlan decode_camera(const nlohmann::json& value) {
     // (e.g. node/target hints) stay ignored: plans in the wild carry them.
     camera.focal_length_mm = value.value("focal_length_mm", camera.focal_length_mm);
     camera.sensor_width_mm = value.value("sensor_width_mm", camera.sensor_width_mm);
+    camera.sensor_height_mm = value.value("sensor_height_mm", camera.sensor_height_mm);
     if (value.contains("lens_shift"))
         camera.lens_shift = decode_json_vector<2>(value.at("lens_shift"), "camera.lens_shift must contain exactly 2 numbers");
     camera.f_stop = value.value("f_stop", camera.f_stop);

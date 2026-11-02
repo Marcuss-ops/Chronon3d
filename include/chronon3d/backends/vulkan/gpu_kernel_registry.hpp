@@ -35,6 +35,7 @@ enum class GpuKernelId : std::uint8_t {
     ChromaticAberration,
     DofDepthStamp,
     DofBlur,
+    OcclusionTag,
 };
 
 class GpuKernelRegistry {

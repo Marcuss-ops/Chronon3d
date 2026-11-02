@@ -1,5 +1,6 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <doctest/doctest.h>
+#include "core/math/camera_projection_test_helpers.hpp"
 
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/software/renderer.hpp>
@@ -130,9 +131,9 @@ TEST_CASE("TEST MATH 02 - Perspective Scale") {
     Transform far_tr;
     far_tr.position = {0.0f, 0.0f, 500.0f};
 
-    auto near_proj = project_layer_2_5d(near_tr, cam, 1920.0f, 1080.0f);
-    auto mid_proj  = project_layer_2_5d(mid_tr, cam, 1920.0f, 1080.0f);
-    auto far_proj  = project_layer_2_5d(far_tr, cam, 1920.0f, 1080.0f);
+    auto near_proj = project_test_layer_2_5d(near_tr, cam, 1920.0f, 1080.0f);
+    auto mid_proj  = project_test_layer_2_5d(mid_tr, cam, 1920.0f, 1080.0f);
+    auto far_proj  = project_test_layer_2_5d(far_tr, cam, 1920.0f, 1080.0f);
 
     REQUIRE(near_proj.visible);
     REQUIRE(mid_proj.visible);
@@ -146,7 +147,10 @@ TEST_CASE("TEST MATH 02 - Perspective Scale") {
 }
 
 TEST_CASE("TEST MATH 03 - FOV to Focal Length") {
-    const f32 focal = focal_length_from_fov(1080.0f, 50.0f);
+    Camera2_5D camera;
+    camera.optics_mode = CameraOpticsMode::FieldOfView;
+    camera.fov_deg = 50.0f;
+    const f32 focal = camera_math::focal_from_camera(camera, 1920.0f, 1080.0f);
     CHECK(focal == doctest::Approx(1158.0f).epsilon(1.0f));
 }
 
@@ -167,8 +171,8 @@ TEST_CASE("TEST MATH 06 - Depth Sorting") {
     Transform front_tr;
     front_tr.position = {0.0f, 0.0f, -250.0f};
 
-    const auto back_proj = project_layer_2_5d(back_tr, cam, 640.0f, 360.0f);
-    const auto front_proj = project_layer_2_5d(front_tr, cam, 640.0f, 360.0f);
+    const auto back_proj = project_test_layer_2_5d(back_tr, cam, 640.0f, 360.0f);
+    const auto front_proj = project_test_layer_2_5d(front_tr, cam, 640.0f, 360.0f);
 
     REQUIRE(back_proj.visible);
     REQUIRE(front_proj.visible);

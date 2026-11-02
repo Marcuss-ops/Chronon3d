@@ -11,7 +11,7 @@
 namespace chronon3d::render_plan::detail {
 
 inline chronon3d::Camera2_5D make_camera_value(
-    const CameraPlan& source, const CanvasSpec& canvas) {
+    const CameraPlan& source, const CanvasSpec&) {
     chronon3d::Camera2_5D camera;
     camera.enabled = true;
     camera.is_animated = false;
@@ -29,29 +29,18 @@ inline chronon3d::Camera2_5D make_camera_value(
     if (source.focal_length_mm > 0.0f) {
         camera.lens.focal_length = source.focal_length_mm;
         camera.lens.sensor_width = source.sensor_width_mm;
-        const float aspect = canvas.width > 0 && canvas.height > 0
-            ? static_cast<float>(canvas.width) / static_cast<float>(canvas.height)
-            : 16.0f / 9.0f;
-        camera.lens.sensor_height = source.sensor_width_mm / aspect;
+        camera.lens.sensor_height = source.sensor_height_mm;
     }
     const float authored_f_stop = source.f_stop;
     if (authored_f_stop > 0.0f) camera.lens.f_stop = authored_f_stop;
     camera.dof.enabled = source.dof_enabled;
     camera.dof.focus_distance = source.dof_focus_distance;
-    // Legacy gain domain (blur px ∝ focus_miss · gain), derived from the
-    // single authored f-stop through the sanctioned bridge
-    // gain = 0.672 / f_stop (CM3D blurGainFromFStop). The plan-level
-    // legacy `dof_aperture` transport field was demolished; the DepthOfField
-    // default 0.015 applies only when no f-stop was authored.
-    camera.dof.aperture = authored_f_stop > 0.0f ? 0.672f / authored_f_stop : 0.015f;
     camera.dof.max_blur = source.dof_max_blur;
     camera.dof.iris_blades = static_cast<std::uint32_t>(source.iris_blades);
     camera.dof.highlight_gain = source.dof_highlight_gain;
-    camera.dof.use_physical_model = source.focal_length_mm > 0.0f && authored_f_stop > 0.0f;
-    if (source.dof_enabled) {
-        camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
-            camera, source.dof_focus_distance);
-    }
+    // A RenderPlan DoF request is always evaluated by the thin-lens model.
+    // Missing authored focal length / f-stop use the canonical LensModel
+    // defaults; never reconstruct a second blur-gain value from f-stop.
     return camera;
 }
 
@@ -81,13 +70,9 @@ inline chronon3d::Camera2_5D sample_resolved_camera(
     camera.lens.sensor_width = glm::mix(left.lens.sensor_width, right.lens.sensor_width, t);
     camera.lens.sensor_height = glm::mix(left.lens.sensor_height, right.lens.sensor_height, t);
     camera.dof.focus_distance = glm::mix(left.dof.focus_distance, right.dof.focus_distance, t);
-    camera.dof.aperture = glm::mix(left.dof.aperture, right.dof.aperture, t);
     camera.dof.max_blur = glm::mix(left.dof.max_blur, right.dof.max_blur, t);
     camera.dof.highlight_gain = glm::mix(left.dof.highlight_gain, right.dof.highlight_gain, t);
     camera.is_animated = true;
-    if (camera.dof.enabled && !camera.dof.use_physical_model)
-        camera.dof.focus_z = chronon3d::world_z_plane_for_camera_space_depth(
-            camera, camera.dof.focus_distance);
     return camera;
 }
 

@@ -18,12 +18,22 @@
 #include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <exception>
 #include <stdexcept>
 
 namespace chronon3d::graph {
 
 namespace {
+
+void preserve_layer_sources_for_camera_dof(RenderGraphContext& ctx) {
+    if (ctx.frame_input.has_camera_2_5d &&
+        ctx.frame_input.camera_2_5d.enabled &&
+        ctx.frame_input.camera_2_5d.dof.enabled) {
+        std::fill(ctx.node_exec.early_exit_skip.begin(),
+                  ctx.node_exec.early_exit_skip.end(), false);
+    }
+}
 
 /// Owns a checked-out cache entry until the coordinator either publishes a
 /// refreshed candidate or restores the original entry. This keeps every
@@ -211,6 +221,7 @@ static void log_graph_cache_diagnostics(
     ctx.node_exec.dof_depth = std::move(mutable_ctx.node_exec.dof_depth);
     ctx.node_exec.dof_source_coverage = mutable_ctx.node_exec.dof_source_coverage;
     ctx.node_exec.early_exit_skip = std::move(mutable_ctx.node_exec.early_exit_skip);
+    preserve_layer_sources_for_camera_dof(ctx);
 
     // Compile + optimize
     FrameGraphCompileOptions compile_options;
@@ -354,6 +365,7 @@ static void log_graph_cache_diagnostics(
     // diverge from an independent cold render.
     ctx.policy.skip_initial_clear = compiled.skip_initial_clear;
     ctx.node_exec.early_exit_skip = compiled.early_exit_skip;
+    preserve_layer_sources_for_camera_dof(ctx);
 
     if (diagnostics_enabled) {
         spdlog::info("[graph-cache] reusing cached compiled graph ({} live nodes)",

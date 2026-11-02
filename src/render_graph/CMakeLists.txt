@@ -67,6 +67,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/composite_node.cpp
     nodes/composite_node_native.cpp
     nodes/composite_dof_provenance.cpp
+    nodes/layer_dof_native.cpp
     nodes/composite_depth_mask.cpp
     nodes/composite_backdrop_software.cpp
     nodes/track_matte_node.cpp

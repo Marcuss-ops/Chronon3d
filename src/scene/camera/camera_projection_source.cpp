@@ -43,10 +43,6 @@ const LensModel& CameraProjectionSource::get_lens() const {
     return m_cam->lens;
 }
 
-bool CameraProjectionSource::get_dof_use_physical_model() const {
-    return m_cam->dof.use_physical_model;
-}
-
 Mat4 CameraProjectionSource::get_view_matrix() const {
     return m_cam->view_matrix();
 }
