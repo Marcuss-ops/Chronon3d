@@ -61,7 +61,10 @@ graph::RenderOpResult VulkanBackend::release_surface(
             spdlog::info("[surface-lifecycle] release handle={} defer={}", handle,
                          (m_impl->frame_batch.active || m_impl->command_batch_active));
         }
-        if (m_impl->frame_batch.active || m_impl->command_batch_active) {
+        const auto recording_mask = m_impl->surfaces.recording_slot_mask(handle);
+        const auto busy_slots = m_impl->frame_slot_busy_flags();
+        if (m_impl->frame_batch.active || m_impl->command_batch_active ||
+            !recording_slots_retired(recording_mask, busy_slots)) {
             m_impl->defer_surface_release(handle);
             return graph::RenderOpResult(graph::RenderOpOutcome{});
         }

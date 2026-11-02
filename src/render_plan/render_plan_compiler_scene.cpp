@@ -346,11 +346,11 @@ void apply_scene_layer_masks(LayerBuilder& builder, const LayerPlan& layer, cons
             }
             return operation;
         };
-        std::vector<LayerPlan::PathMaskPlan> plan_masks;
-        if (layer.path_mask) plan_masks.push_back(*layer.path_mask);
-        plan_masks.insert(plan_masks.end(), layer.masks.begin(), layer.masks.end());
+        // The authored masks are immutable inputs. Read them directly instead
+        // of deep-copying their paths and animation tracks on every frame.
+        const auto& primary_plan = layer.path_mask ? *layer.path_mask : layer.masks.front();
         Mask composite;
-        const auto primary = build_operation(plan_masks.front());
+        const auto primary = build_operation(primary_plan);
         composite.initial_mode = primary.mode;
         composite.type = primary.type;
         composite.pos = primary.pos;
@@ -363,8 +363,10 @@ void apply_scene_layer_masks(LayerBuilder& builder, const LayerPlan& layer, cons
         composite.expansion = primary.expansion;
         composite.opacity = primary.opacity;
         composite.inverted = primary.inverted;
-        for (std::size_t index = 1; index < plan_masks.size(); ++index)
-            composite.operations.push_back(build_operation(plan_masks[index]));
+        const std::size_t first_additional = layer.path_mask ? 0 : 1;
+        composite.operations.reserve(layer.masks.size() - first_additional);
+        for (std::size_t index = first_additional; index < layer.masks.size(); ++index)
+            composite.operations.push_back(build_operation(layer.masks[index]));
         builder.mask_composite(std::move(composite));
     }
 }

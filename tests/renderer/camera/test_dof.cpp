@@ -27,8 +27,7 @@ static std::shared_ptr<Framebuffer> render_dof_fn(
 TEST_CASE("DOF: DepthOfFieldSettings default disabled") {
     DepthOfFieldSettings d;
     CHECK_FALSE(d.enabled);
-    CHECK(d.focus_z   == doctest::Approx(0.0f));
-    CHECK(d.aperture  == doctest::Approx(0.015f));
+    CHECK(d.focus_distance == doctest::Approx(1000.0f));
     CHECK(d.max_blur  == doctest::Approx(24.0f));
 }
 
@@ -38,30 +37,30 @@ TEST_CASE("DOF: Camera2_5D has dof field") {
 }
 
 // ---------------------------------------------------------------------------
-// Blur formula: |layer.z - focus_z| * aperture, clamped to max_blur
+// Thin-lens CoC formula: lens geometry and focus distance determine radius.
 // ---------------------------------------------------------------------------
 static const LensModel kDefaultLens;  // 50mm, f/2.8, 36x24mm
 
-TEST_CASE("DOF: blur amount formula") {
-    DepthOfFieldSettings d{.enabled=true, .focus_z=0.0f, .aperture=0.02f, .max_blur=20.0f};
-    float blur    = compute_dof_blur_radius(d, kDefaultLens, 500.0f);
-    CHECK(blur == doctest::Approx(10.0f));          // 500 * 0.02 = 10
+TEST_CASE("DOF: blur radius is the thin-lens CoC scaled to viewport pixels") {
+    DepthOfFieldSettings d{.enabled=true, .focus_distance=1000.0f, .max_blur=100.0f};
+    const float expected = compute_physical_coc(d, kDefaultLens, 500.0f) * (1920.0f / kDefaultLens.sensor_width);
+    CHECK(compute_dof_blur_radius(d, kDefaultLens, 500.0f) == doctest::Approx(expected));
 }
 
 TEST_CASE("DOF: blur clamped at max_blur") {
-    DepthOfFieldSettings d{.enabled=true, .focus_z=0.0f, .aperture=0.02f, .max_blur=8.0f};
+    DepthOfFieldSettings d{.enabled=true, .focus_distance=1000.0f, .max_blur=8.0f};
     float blur = compute_dof_blur_radius(d, kDefaultLens, 2000.0f);
     CHECK(blur == doctest::Approx(8.0f));
 }
 
 TEST_CASE("DOF: focus plane has zero blur") {
-    DepthOfFieldSettings d{.enabled=true, .focus_z=1000.0f, .aperture=0.02f, .max_blur=20.0f};
+    DepthOfFieldSettings d{.enabled=true, .focus_distance=1000.0f, .max_blur=20.0f};
     float blur = compute_dof_blur_radius(d, kDefaultLens, 1000.0f);
     CHECK(blur == doctest::Approx(0.0f));
 }
 
 TEST_CASE("DOF: disabled returns zero blur") {
-    DepthOfFieldSettings d{.enabled=false, .focus_z=0.0f, .aperture=1.0f, .max_blur=20.0f};
+    DepthOfFieldSettings d{.enabled=false, .focus_distance=1000.0f, .max_blur=20.0f};
     CHECK(compute_dof_blur_radius(d, kDefaultLens, 1000.0f) == doctest::Approx(0.0f));
 }
 
@@ -74,8 +73,7 @@ TEST_CASE("DOF: render with DOF enabled does not crash") {
         s.set_evaluated_camera(camera().enabled(true).position({0, 0, -1000})
             .zoom(1000.0f).dof(DepthOfFieldSettings{
                 .enabled  = true,
-                .focus_z  = 0.0f,
-                .aperture = 0.02f,
+                .focus_distance = 1000.0f,
                 .max_blur = 12.0f
             }).build());
         s.rect("bg", {.size={120,120}, .color=Color{0.1f,0.1f,0.1f,1}, .pos={60,60,0}});
@@ -108,9 +106,8 @@ TEST_CASE("DOF: physical CoC at focus plane is zero") {
     LensModel lens{50.0f, 2.8f, 450.0f, 36.0f, 24.0f, GateFit::Fill};
     DepthOfFieldSettings d{
         .enabled = true,
-        .max_blur = 100.0f,
         .focus_distance = 1000.0f,
-        .use_physical_model = true
+        .max_blur = 100.0f,
     };
     f32 blur = compute_dof_blur_radius(d, lens, 1000.0f, 1920.0f);
     CHECK(blur == doctest::Approx(0.0f));
@@ -123,9 +120,8 @@ TEST_CASE("DOF: physical CoC — near has larger CoC than far (asymmetric defocu
     LensModel lens{50.0f, 2.8f, 450.0f, 36.0f, 24.0f, GateFit::Fill};
     DepthOfFieldSettings d{
         .enabled = true,
-        .max_blur = 100.0f,
         .focus_distance = 1000.0f,
-        .use_physical_model = true
+        .max_blur = 100.0f,
     };
     // Object at z=500 (near side): farther from camera, closer to focus.
     f32 blur_near = compute_dof_blur_radius(d, lens, 500.0f, 1920.0f);
@@ -141,9 +137,8 @@ TEST_CASE("DOF: physical CoC respects max_blur clamp") {
     LensModel lens{50.0f, 1.0f, 450.0f, 36.0f, 24.0f, GateFit::Fill};  // f/1.0
     DepthOfFieldSettings d{
         .enabled = true,
-        .max_blur = 8.0f,
         .focus_distance = 1000.0f,
-        .use_physical_model = true
+        .max_blur = 8.0f,
     };
     f32 blur = compute_dof_blur_radius(d, lens, 10000.0f, 1920.0f);
     CHECK(blur <= doctest::Approx(8.0f));
@@ -154,39 +149,23 @@ TEST_CASE("DOF: physical CoC with smaller f-stop (wider aperture) = more blur") 
     LensModel slow{50.0f, 16.0f, 450.0f, 36.0f, 24.0f, GateFit::Fill};
     DepthOfFieldSettings d{
         .enabled = true,
-        .max_blur = 100.0f,
         .focus_distance = 1000.0f,
-        .use_physical_model = true
+        .max_blur = 100.0f,
     };
     f32 blur_fast = compute_dof_blur_radius(d, fast, 2000.0f, 1920.0f);
     f32 blur_slow = compute_dof_blur_radius(d, slow, 2000.0f, 1920.0f);
     CHECK(blur_fast > blur_slow);
 }
 
-TEST_CASE("DOF: legacy focus plane maps through translated and rotated cameras") {
-    DepthOfFieldSettings dof{.enabled=true, .focus_z=0.0f, .aperture=0.02f, .max_blur=20.0f};
+TEST_CASE("DOF: focus distance is the same camera-space authority for every pose") {
+    DepthOfFieldSettings dof{.enabled=true, .focus_distance=1000.0f, .max_blur=20.0f};
     Camera2_5D camera;
     camera.enabled = true;
     camera.position = {0.0f, 0.0f, -2000.0f};
-    camera.rotation = {0.0f, 0.0f, 0.0f};
-
-    const auto translated_dof = camera_space_dof_settings(dof, camera);
-    CHECK(translated_dof.focus_z == doctest::Approx(2000.0f));
-    CHECK(compute_dof_blur_radius(translated_dof, kDefaultLens, 2000.0f) ==
-          doctest::Approx(0.0f));
-    CHECK(compute_dof_blur_radius(translated_dof, kDefaultLens, 1500.0f) ==
-          doctest::Approx(10.0f));
-    camera.position = {0.0f, 0.0f, -1000.0f};
+    const float translated_focus_radius = compute_dof_blur_radius(dof, camera.lens, dof.focus_distance);
+    camera.position = {20.0f, 50.0f, -1000.0f};
     camera.rotation = {30.0f, 0.0f, 0.0f};
-    const auto rotated_dof = camera_space_dof_settings(dof, camera);
-    CHECK(rotated_dof.focus_z == doctest::Approx(1000.0f / std::cos(glm::radians(30.0f)))
-                                      .epsilon(1e-4));
-    CHECK(compute_dof_blur_radius(rotated_dof, kDefaultLens, rotated_dof.focus_z) ==
-          doctest::Approx(0.0f));
-}
-
-TEST_CASE("DOF: legacy model unchanged (backward compat)") {
-    DepthOfFieldSettings d{.enabled=true, .focus_z=0.0f, .aperture=0.02f, .max_blur=20.0f};
-    f32 blur = compute_dof_blur_radius(d, kDefaultLens, 500.0f);
-    CHECK(blur == doctest::Approx(10.0f));
+    CHECK(compute_dof_blur_radius(dof, camera.lens, dof.focus_distance) ==
+          doctest::Approx(translated_focus_radius));
+    CHECK(translated_focus_radius == doctest::Approx(0.0f));
 }

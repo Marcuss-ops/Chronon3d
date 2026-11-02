@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <new>
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -107,6 +108,9 @@ struct FakeImage {
     std::uint32_t height{0};
     bool exportable{false};
     bool initialized{false};
+    // Mirrors the production Image field: set on the submit that hands the
+    // surface to CUDA/NVENC, cleared when the consumer returns ownership.
+    bool export_handed_off{false};
     runtime::TextAtlasEncoding text_atlas_encoding{
         runtime::TextAtlasEncoding::PremultipliedRGBA};
 };
@@ -188,6 +192,123 @@ TEST_CASE("CUDA handoffs remain pending until their own surface is recorded") {
     CHECK(authority.cuda_ready_surfaces.contains(12));
 }
 #endif
+
+TEST_CASE("a surface handed to CUDA is retained by the lazy prune") {
+    // Regression for the async-lifetime defect: a Vulkan fence does not order
+    // the external CUDA/NVENC consumer, so reclaiming an exported image on
+    // fence completion destroyed it while CUDA still read it
+    // (VUID-vkDestroyImage-image-01000). The prune must retain the slot until
+    // the consumer returns ownership.
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr std::size_t kSlots = 70;
+    constexpr std::size_t exported_slot = 11;
+    for (std::size_t slot = 0; slot < kSlots; ++slot) {
+        const auto handle =
+            static_cast<runtime::RenderSurfaceHandle>(0xC40000u + slot);
+        authority.bind(handle, slot, test_desc());
+        authority.surface_bindings.erase(handle);
+    }
+    authority.physical_surfaces.at(exported_slot).image.export_handed_off = true;
+
+    const auto destroys_before = owner.destroy_count;
+    authority.prune_unused_slots(0);
+
+    // Every other unused transient is reclaimed; the exported slot is not.
+    CHECK(owner.destroy_count - destroys_before == kSlots - 1);
+    CHECK(authority.physical_surfaces.contains(exported_slot));
+
+    // The consumer returned it (acquire_pending_cuda_surface clears the flag):
+    // the slot becomes reclaimable again.
+    authority.physical_surfaces.at(exported_slot).image.export_handed_off = false;
+    authority.prune_unused_slots(0);
+    CHECK_FALSE(authority.physical_surfaces.contains(exported_slot));
+    CHECK(owner.destroy_count - destroys_before == kSlots);
+}
+
+TEST_CASE("export retention is independent of the warm-pool budget") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle handle{0xC40200u};
+    constexpr std::size_t slot{9};
+    authority.bind(handle, slot, test_desc());
+    authority.physical_surfaces.at(slot).image.export_handed_off = true;
+    authority.surface_bindings.erase(handle);
+
+    // Neither the default warm-pool budget nor a forced reclaim of every
+    // unused transient may destroy a surface the consumer still owns. Only
+    // store teardown (after vkDeviceWaitIdle) reclaims it unconditionally.
+    authority.prune_unused_slots();
+    authority.prune_unused_slots(0);
+    CHECK(authority.physical_surfaces.contains(slot));
+    CHECK(owner.destroy_count == 0);
+
+    // Returning ownership restores normal reclaim.
+    authority.physical_surfaces.at(slot).image.export_handed_off = false;
+    authority.prune_unused_slots(0);
+    CHECK_FALSE(authority.physical_surfaces.contains(slot));
+    CHECK(owner.destroy_count == 1);
+}
+
+TEST_CASE("consumer-owned slots are never reused by an unplanned allocation") {
+    // Reuse is the second half of the async-lifetime contract: binding a new
+    // logical surface to a slot the CUDA/NVENC consumer still reads lets a
+    // later materialize destroy live external memory, even though the prune
+    // itself already retains such slots.
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle exported{0xC50A00u};
+    constexpr runtime::RenderSurfaceHandle fresh{0xC50A01u};
+    constexpr std::size_t exported_slot{3};
+    authority.bind(exported, exported_slot, test_desc());
+    authority.physical_surfaces.at(exported_slot).image.export_handed_off = true;
+    authority.surface_bindings.erase(exported);
+
+    // Same extent and format: the old free-slot scan would have reused slot 3
+    // outright because it is no longer logically bound.
+    const auto& image = authority.ensure(fresh, test_desc());
+    CHECK(authority.bound_slot(fresh) != exported_slot);
+    CHECK(image.width == 32);
+    CHECK(authority.physical_surfaces.at(exported_slot).image.export_handed_off);
+    CHECK(owner.destroy_count == 0);
+
+    // Once the consumer returns the surface, the slot is a normal candidate.
+    authority.physical_surfaces.at(exported_slot).image.export_handed_off = false;
+    constexpr runtime::RenderSurfaceHandle reused{0xC50A02u};
+    authority.ensure(reused, test_desc());
+    CHECK(authority.bound_slot(reused) == exported_slot);
+}
+
+TEST_CASE("re-materializing a consumer-owned slot fails closed") {
+    VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;
+    FakeSurfaceOwner owner;
+    authority.owner_ = &owner;
+
+    constexpr runtime::RenderSurfaceHandle handle{0xC50B00u};
+    constexpr std::size_t slot{5};
+    authority.bind(handle, slot, test_desc());
+    authority.physical_surfaces.at(slot).image.export_handed_off = true;
+    const auto destroys_before = owner.destroy_count;
+
+    // A different extent needs a new image; the destroy would free memory the
+    // external consumer maps, so the contract must reject the mutation.
+    CHECK_THROWS_AS(authority.bind(handle, slot, test_desc(64, 48)),
+                    std::logic_error);
+    CHECK(owner.destroy_count == destroys_before);
+    CHECK(authority.physical_surfaces.at(slot).image.export_handed_off);
+
+    // Returning ownership restores the normal re-materialize path.
+    authority.physical_surfaces.at(slot).image.export_handed_off = false;
+    authority.bind(handle, slot, test_desc(64, 48));
+    CHECK(authority.physical_surfaces.at(slot).image.width == 64);
+    CHECK(owner.destroy_count == destroys_before + 1);
+}
 
 TEST_CASE("global transient cleanup preserves every in-flight surface") {
     VulkanSurfaceAuthority<FakeImage, FakeSurfaceOwner> authority;

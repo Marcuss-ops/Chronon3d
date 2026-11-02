@@ -89,6 +89,8 @@ void VulkanBackend::Impl::make_image(Image& target,
     target.height = height;
     target.format = format;
     target.exportable = exportable;
+    // Fresh backing storage was never handed to CUDA yet.
+    target.export_handed_off = false;
 }
 
 void VulkanBackend::Impl::ensure_images(std::uint32_t width,

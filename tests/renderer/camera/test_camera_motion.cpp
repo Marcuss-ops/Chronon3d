@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <filesystem>
+#include <stdexcept>
 #include <vector>
 #include <tests/helpers/test_utils.hpp>
 using namespace chronon3d;
@@ -493,6 +494,27 @@ TEST_CASE("Typed shutter offline and runtime cameras consume identical resolved 
         REQUIRE(repeated);
         CHECK(test::framebuffer_hash(*repeated) == hashes[frame]);
     }
+    // A runtime override must not turn an exact Motion bake into an
+    // interpolated approximation at a different shutter calendar.
+    auto mismatched = settings;
+    mismatched.motion_blur.shutter_phase_deg = 0.f;
+    renderer.set_settings(mismatched);
+    CHECK_THROWS_AS(renderer.render_program(*offline, Frame{1}), std::invalid_argument);
+    CHECK_THROWS_AS(renderer.render_program(*runtime, Frame{1}), std::invalid_argument);
+    mismatched = settings;
+    mismatched.motion_blur.pattern = TemporalSamplePattern::Uniform;
+    renderer.set_settings(mismatched);
+    CHECK_THROWS_AS(renderer.render_program(*offline, Frame{1}), std::invalid_argument);
+    auto static_camera_plan = plan;
+    static_camera_plan.camera_samples.reset();
+    const auto layer_only = compiler::compile(static_camera_plan, resolver);
+    REQUIRE(layer_only);
+    CHECK_THROWS_AS(renderer.render_program(*layer_only, Frame{1}), std::invalid_argument);
+    mismatched = settings;
+    ++mismatched.motion_blur.jitter_seed;
+    renderer.set_settings(mismatched);
+    CHECK_THROWS_AS(renderer.render_program(*offline, Frame{1}), std::invalid_argument);
+    renderer.set_settings(settings);
     auto invalid = plan;
     invalid.layers[0].transform_samples[1].frame = invalid.layers[0].transform_samples[0].frame;
     CHECK_FALSE(compiler::compile(invalid, resolver));
@@ -512,8 +534,21 @@ TEST_CASE("Typed shutter offline and runtime cameras consume identical resolved 
         incomplete.camera_samples.reset();
         CHECK_FALSE(compiler::compile(incomplete, resolver, options));
     }
+    // Camera and layers form one exact bake: missing camera instants must
+    // fail at both compiler boundaries rather than being interpolated.
+    for (const std::size_t index : {std::size_t{0}, times.size() / 2, times.size() - 1}) {
+        auto incomplete = plan;
+        incomplete.camera_samples->erase(incomplete.camera_samples->begin() + index);
+        const auto typed = compiler::compile(incomplete, resolver);
+        REQUIRE_FALSE(typed);
+        CHECK(typed.error().message.find("camera is missing a required resolved shutter or presentation sample") != std::string::npos);
+        const auto prepared = compile_render_plan(incomplete, resolver);
+        REQUIRE_FALSE(prepared);
+        CHECK(prepared.error().message.find("camera is missing a required resolved shutter or presentation sample") != std::string::npos);
+    }
     auto legacy = plan;
     legacy.layers[0].transform_samples.clear();
+    legacy.camera_samples->erase(legacy.camera_samples->begin() + times.size() / 2);
     CHECK(compiler::compile(legacy, resolver));
     CHECK(compile_render_plan(legacy, resolver));
 
@@ -571,9 +606,17 @@ TEST_CASE("Camera capability contract rejects unsupported optics at both compile
     auto camera = CameraPlan{};
     camera.iris_blades = 6;
     rejected(camera);
+    // Highlight weighting has a kernel on every DOF path, so the same boundary
+    // must accept it instead of failing closed on an unimplemented shape.
     camera = CameraPlan{};
     camera.dof_highlight_gain = 1.f;
-    rejected(camera);
+    CHECK_FALSE(camera_contract_problem(camera).has_value());
+    {
+        auto accepted = plan;
+        accepted.camera = camera;
+        CHECK(compiler::compile(accepted, resolver));
+        CHECK(compile_render_plan(accepted, resolver));
+    }
     camera = CameraPlan{};
     camera.iris_blades = 5;
     rejected(camera);

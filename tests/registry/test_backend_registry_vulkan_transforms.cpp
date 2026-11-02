@@ -31,6 +31,7 @@
 #include <chronon3d/render_graph/checkbackend.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
+#include <chronon3d/backends/software/effects/per_pixel_dof.hpp>
 #include <tests/helpers/cpu_gpu_parity.hpp>
 #include <tests/helpers/gpu_readiness_gate.hpp>
 
@@ -228,6 +229,67 @@ TEST_CASE("Vulkan native transform marks its output GPU-authoritative") {
     (void)backend.release_surface(source_surface);
     (void)registry.release(source_surface);
     source.clear_surface_handle();
+}
+
+TEST_CASE("strict Vulkan clipped transforms publish transparent native surfaces") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry registry;
+    constexpr int size = 8;
+    const auto desc = SurfaceDesc::make(size, size, PixelFormat::Rgba32Float,
+                                        ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto source_handle = registry.create(desc);
+    REQUIRE(backend.create_surface(source_handle, desc).ok());
+    REQUIRE(backend.upload_surface(source_handle, desc,
+                                   std::vector<float>(size * size * 4, 1.0f)).ok());
+    Framebuffer source(size, size, static_cast<Color*>(nullptr));
+    source.set_surface_handle(source_handle);
+    source.mark_gpu_authoritative();
+    const std::array<FramebufferRef, 1> inputs{FramebufferRef{source}};
+
+    for (int mode = 0; mode < 4; ++mode) {
+        CAPTURE(mode);
+        graph::RenderGraphContext ctx;
+        ctx.frame_input.width = size;
+        ctx.frame_input.height = size;
+        ctx.policy.require_native_gpu = true;
+        ctx.backend = &backend;
+        ctx.surface_registry = &registry;
+        Mat4 matrix{1.0f};
+        matrix[3][0] = 0.25f; // Avoid the identity-copy fast path.
+        std::array<std::optional<raster::BBox>, 1> bounds{};
+        if (mode == 0) bounds[0] = raster::BBox{20, 20, 22, 22};
+        if (mode == 1) matrix[3][3] = -1.0f; // Entire quad behind w=0.
+        if (mode >= 2) ctx.node_exec.clip_rect = raster::BBox{20, 20, 22, 22};
+        RenderSurfaceHandle encode_handle = kInvalidRenderSurfaceHandle;
+        if (mode == 3) {
+            encode_handle = registry.create(desc);
+            REQUIRE(backend.create_surface(encode_handle, desc).ok());
+            REQUIRE(backend.upload_surface(encode_handle, desc,
+                                           std::vector<float>(size * size * 4, 1.0f)).ok());
+            ctx.policy.native_video_encode_surface = encode_handle;
+            ctx.node_exec.terminal_video_encode_surface = encode_handle;
+        }
+        graph::TransformNode node(matrix, 1.0f, SamplingMode::Nearest);
+        auto result = node.execute(ctx, inputs, bounds);
+        REQUIRE(result.ok());
+        auto output = result.take_value();
+        REQUIRE(output);
+        REQUIRE(output->surface_handle() != kInvalidRenderSurfaceHandle);
+        CHECK(output->is_gpu_authoritative());
+        std::vector<float> actual(output->width() * output->height() * 4, -1.0f);
+        REQUIRE(backend.download_surface(output->surface_handle(), actual).ok());
+        CHECK(std::all_of(actual.begin(), actual.end(), [](float v) { return v == 0.0f; }));
+        const auto handle = output->surface_handle();
+        output->clear_surface_handle();
+        REQUIRE(backend.release_surface(handle).ok());
+        (void)registry.release(handle);
+    }
+    source.clear_surface_handle();
+    REQUIRE(backend.release_surface(source_handle).ok());
+    (void)registry.release(source_handle);
 }
 
 TEST_CASE("Vulkan native affine transform matches inverse mapping") {
@@ -714,5 +776,233 @@ TEST_CASE("Vulkan frame batch records every pass into a single submission") {
     CHECK(backend.stats().submissions == ring_before + 4);
     REQUIRE(backend.download_surface(522, output).ok());
     CHECK(output[center + 0] == doctest::Approx(0.8f).epsilon(1e-3f));
+}
+
+TEST_CASE("Vulkan native occlusion holds a mesh half behind a 2.5D plane in both authoring orders") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    // The Vulkan half of the mesh/plane canary. A GPU-only layer has no CPU
+    // depth map, so the graph path is: inline-mesh rasterizer publishes
+    // per-pixel camera depth -> occlusion_tag compares it with the depth
+    // already composited this frame -> matte removes occluded pixels ->
+    // source-over composite. This test drives exactly that sequence through
+    // the public surface API for both authoring orders; a per-layer Z sort
+    // would produce one wrong probe in one of the two orders.
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry surfaces;
+    const auto format = make_frame_format(
+        PixelFormat::Rgba32Float, {}, runtime::AlphaMode::Premultiplied);
+    const auto layer_desc = SurfaceDesc::make(
+        64, 64, format, ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto canvas = surfaces.create(layer_desc);
+    const auto plane = surfaces.create(layer_desc);
+    const auto mesh = surfaces.create(layer_desc);
+    const auto plane_depth = surfaces.create(layer_desc);
+    const auto mesh_depth = surfaces.create(layer_desc);
+    const auto frame_depth = surfaces.create(layer_desc);
+    const auto mask = surfaces.create(layer_desc);
+    const auto texture_desc = SurfaceDesc::make(
+        1, 1, format, ResourceUsage::Storage, LifetimeClass::JobPersistent);
+    const auto texture = surfaces.create(texture_desc);
+    for (const auto handle : {canvas, plane, mesh, plane_depth, mesh_depth,
+                              frame_depth, mask}) {
+        REQUIRE(backend.create_surface(handle, layer_desc).ok());
+    }
+    REQUIRE(backend.create_surface(texture, texture_desc).ok());
+    REQUIRE(backend.upload_surface(texture, texture_desc,
+                                   std::array<float, 4>{1.f, 1.f, 1.f, 1.f}).ok());
+
+    // Opaque blue plane at camera depth 40, opaque red tinted white triangle
+    // crossing it: left vertex nearer (20), right vertex farther (60).
+    constexpr float plane_camera_depth = 40.0f;
+    std::vector<float> blue(64U * 64U * 4U, 0.0f);
+    for (std::size_t i = 0; i < blue.size(); i += 4) {
+        blue[i + 2] = 1.0f;
+        blue[i + 3] = 1.0f;
+    }
+    // Screen x/y, inverse camera depth, UV, per-vertex light.
+    const std::array<float, 24> vertices{
+        12.f, 12.f, 1.0f / 20.0f, 0.f, 0.f, 1.f, 1.f, 1.f,
+        52.f, 12.f, 1.0f / 60.0f, 1.f, 0.f, 1.f, 1.f, 1.f,
+        32.f, 52.f, 1.0f / 40.0f, 0.5f, 1.f, 1.f, 1.f, 1.f};
+    const std::array<std::uint32_t, 3> indices{0, 1, 2};
+
+    for (const bool plane_first : {true, false}) {
+        CAPTURE(plane_first);
+        const std::vector<float> clear(64U * 64U * 4U, 0.0f);
+        for (const auto handle : {canvas, plane, mesh, plane_depth, mesh_depth,
+                                  frame_depth, mask}) {
+            REQUIRE(backend.upload_surface(handle, layer_desc, clear).ok());
+        }
+        REQUIRE(backend.upload_surface(plane, layer_desc, blue).ok());
+        // The frame accumulator starts as "nothing composited here yet".
+        REQUIRE(backend.dof_depth_stamp_surface(
+                    frame_depth, plane, 0.0f, -1.0f, 0, 0, 0, 0, 0, 0, true).ok());
+
+        const auto emit_layer = [&](RenderSurfaceHandle layer,
+                                    RenderSurfaceHandle layer_depth,
+                                    bool per_pixel) {
+            if (!per_pixel) {
+                // Flat layer: constant camera depth over its covered pixels.
+                REQUIRE(backend.dof_depth_stamp_surface(
+                            layer_depth, layer, plane_camera_depth, 0.0f,
+                            0, 0, 64, 64, 0, 0, true).ok());
+            }
+            REQUIRE(backend.occlusion_tag_surface(mask, layer_depth, frame_depth, true).ok());
+            if (std::getenv("C3_NATIVE_DIAG") != nullptr) {
+                std::vector<float> dbg(64U * 64U * 4U, 0.f);
+                REQUIRE(backend.download_surface(mask, dbg).ok());
+                MESSAGE("mask n" << dbg[(32 * 64 + 23) * 4 + 3]
+                        << " f" << dbg[(32 * 64 + 37) * 4 + 3]);
+                REQUIRE(backend.download_surface(frame_depth, dbg).ok());
+                MESSAGE("frame n" << dbg[(32 * 64 + 23) * 4]
+                        << " f" << dbg[(32 * 64 + 37) * 4]);
+                REQUIRE(backend.download_surface(layer_depth, dbg).ok());
+                MESSAGE("layer n" << dbg[(32 * 64 + 23) * 4]
+                        << "/" << dbg[(32 * 64 + 23) * 4 + 1]
+                        << " f" << dbg[(32 * 64 + 37) * 4]
+                        << "/" << dbg[(32 * 64 + 37) * 4 + 1]);
+            }
+            REQUIRE(backend.matte_surface(layer, layer, mask, false, false).ok());
+            REQUIRE(backend.composite_surfaces(canvas, layer, BlendMode::Normal,
+                                               CompositeOperator::SourceOver,
+                                               std::nullopt).ok());
+        };
+        const auto emit_plane = [&] { emit_layer(plane, plane_depth, false); };
+        const auto emit_mesh = [&] {
+            // Reset the per-layer stamp, then let the rasterizer publish the
+            // nearest camera depth of every covered pixel.
+            REQUIRE(backend.dof_depth_stamp_surface(
+                        mesh_depth, mesh, 0.0f, -1.0f, 0, 0, 0, 0, 0, 0, true).ok());
+            REQUIRE(backend.draw_inline_mesh_surface(
+                        mesh, texture, vertices, indices, 0, 0, 64, 64,
+                        Color{1.f, 0.f, 0.f, 1.f}, std::nullopt,
+                        mesh_depth, 1.0f).ok());
+            emit_layer(mesh, mesh_depth, true);
+        };
+        if (plane_first) { emit_plane(); emit_mesh(); }
+        else { emit_mesh(); emit_plane(); }
+
+        std::vector<float> actual(64U * 64U * 4U, 0.0f);
+        REQUIRE(backend.download_surface(canvas, actual).ok());
+        const auto probe = [&](int x) {
+            const auto index = static_cast<std::size_t>((32 * 64 + x) * 4);
+            return std::array<float, 4>{actual[index], actual[index + 1],
+                                        actual[index + 2], actual[index + 3]};
+        };
+        const auto near = probe(23);   // mesh half in front of the plane
+        const auto far = probe(37);    // mesh half behind the plane
+        INFO("native near " << near[0] << "," << near[2] << " far "
+             << far[0] << "," << far[2]);
+        CHECK(near[0] > 0.8f);
+        CHECK(near[2] < 0.1f);
+        CHECK(near[3] > 0.8f);
+        CHECK(far[2] > 0.8f);
+        CHECK(far[0] < 0.1f);
+        CHECK(far[3] > 0.8f);
+    }
+
+    for (const auto handle : {canvas, plane, mesh, plane_depth, mesh_depth,
+                              frame_depth, mask, texture}) {
+        REQUIRE(backend.release_surface(handle).ok());
+        CHECK(surfaces.release(handle));
+    }
+}
+
+TEST_CASE("Vulkan disk bokeh kernel matches the CPU kernel within the frozen tolerance") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    // C4 numerical-parity gate: the two lanes render the same accepted scene,
+    // so the disk kernel must agree with its CPU mirror. Threshold is frozen
+    // here before the measurement: 1e-3 absolute per channel, which is well
+    // below one 8-bit code value (1/255). Sample layout matches the CPU
+    // fixture in tests/renderer/camera/test_per_pixel_dof.cpp: a defocused
+    // centre, one bright sample inside the radius-4 disk and one outside it
+    // (disk vs square support discriminator), plus highlight weighting.
+    constexpr std::uint32_t size = 17;
+    constexpr float kMaxRadius = 4.0f;
+    constexpr float kHighlightGain = 2.0f;
+    constexpr float kTolerance = 1e-3f;
+
+    backends::vulkan::VulkanBackend backend;
+    RenderSurfaceRegistry surfaces;
+    const auto format = make_frame_format(
+        PixelFormat::Rgba32Float, {}, runtime::AlphaMode::Premultiplied);
+    const auto desc = SurfaceDesc::make(
+        size, size, format, ResourceUsage::Storage, LifetimeClass::FrameTransient);
+    const auto source_handle = surfaces.create(desc);
+    const auto depth_handle = surfaces.create(desc);
+    const auto destination_handle = surfaces.create(desc);
+    for (const auto handle : {source_handle, depth_handle, destination_handle}) {
+        REQUIRE(backend.create_surface(handle, desc).ok());
+    }
+
+    const std::size_t pixels = static_cast<std::size_t>(size) * size;
+    std::vector<Color> source(pixels, Color::transparent());
+    std::vector<float> depth(pixels, 100.0f);
+    std::vector<float> radii(pixels, kMaxRadius);
+    const auto index = [](std::uint32_t x, std::uint32_t y) {
+        return static_cast<std::size_t>(y) * size + x;
+    };
+    source[index(8, 8)] = Color{0.2f, 0.2f, 0.2f, 1.0f};
+    source[index(12, 8)] = Color{4.0f, 4.0f, 4.0f, 1.0f};
+    source[index(12, 12)] = Color{1.0f, 0.0f, 0.0f, 1.0f};
+    std::vector<float> source_pixels(pixels * 4, 0.0f);
+    std::vector<float> depth_pixels(pixels * 4, 0.0f);
+    Framebuffer cpu_frame(static_cast<int>(size), static_cast<int>(size));
+    for (std::size_t p = 0; p < pixels; ++p) {
+        source_pixels[p * 4 + 0] = source[p].r;
+        source_pixels[p * 4 + 1] = source[p].g;
+        source_pixels[p * 4 + 2] = source[p].b;
+        source_pixels[p * 4 + 3] = source[p].a;
+        // Shader encoding: r = positive camera depth, g = blur radius.
+        depth_pixels[p * 4 + 0] = depth[p];
+        depth_pixels[p * 4 + 1] = radii[p];
+        cpu_frame.set_pixel(static_cast<int>(p % size), static_cast<int>(p / size),
+                            source[p]);
+    }
+    REQUIRE(backend.upload_surface(source_handle, desc, source_pixels).ok());
+    REQUIRE(backend.upload_surface(depth_handle, desc, depth_pixels).ok());
+    REQUIRE(backend.dof_blur_disk_surface(
+                destination_handle, source_handle, depth_handle,
+                0, 0, static_cast<int>(size), static_cast<int>(size),
+                kMaxRadius, false, kHighlightGain).ok());
+    std::vector<float> actual(pixels * 4, 0.0f);
+    REQUIRE(backend.download_surface(destination_handle, actual).ok());
+
+    renderer::apply_per_pixel_dof_disk(
+        cpu_frame, std::span<const float>{depth}, std::span<const float>{radii},
+        0, 0, static_cast<int>(size), static_cast<int>(size),
+        kMaxRadius, false, kHighlightGain);
+
+    float max_delta = 0.0f;
+    for (std::uint32_t y = 0; y < size; ++y) {
+        for (std::uint32_t x = 0; x < size; ++x) {
+            const auto expected = cpu_frame.get_pixel(static_cast<int>(x),
+                                                      static_cast<int>(y));
+            const auto base = index(x, y) * 4;
+            const std::array<float, 4> deltas{
+                std::abs(actual[base + 0] - expected.r),
+                std::abs(actual[base + 1] - expected.g),
+                std::abs(actual[base + 2] - expected.b),
+                std::abs(actual[base + 3] - expected.a)};
+            for (const float delta : deltas) max_delta = std::max(max_delta, delta);
+            CAPTURE(x);
+            CAPTURE(y);
+            CHECK(deltas[0] <= kTolerance);
+            CHECK(deltas[1] <= kTolerance);
+            CHECK(deltas[2] <= kTolerance);
+            CHECK(deltas[3] <= kTolerance);
+        }
+    }
+    MESSAGE("Vulkan/CPU disk bokeh max channel delta: " << max_delta
+            << " (threshold " << kTolerance << ")");
+
+    for (const auto handle : {source_handle, depth_handle, destination_handle}) {
+        REQUIRE(backend.release_surface(handle).ok());
+        CHECK(surfaces.release(handle));
+    }
 }
 #endif

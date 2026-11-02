@@ -50,9 +50,10 @@ using video_detail::tick_to_frame;
 // resolver never sees backend strings; the CLI translates its own flags at
 // this boundary (the only legacy-flag caller after the resolver closeout).
 media::ExecutionRequirements cli_execution_requirements(
-    const FfmpegExportOptions& opts) {
+    const FfmpegExportOptions& opts,
+    const compiler::CompiledProgram* program) {
     const auto hot = opts.gpu_hot_path_mode;
-    return media::ExecutionRequirements{
+    auto requirements = media::ExecutionRequirements{
         .gpu_required = hot == GpuHotPathMode::RequireDirectYuv ||
                         hot == GpuHotPathMode::RequireGpuNative,
         .cpu_fallback_allowed = true,
@@ -63,6 +64,14 @@ media::ExecutionRequirements cli_execution_requirements(
                                 !opts.pipe.ocio_display.empty(),
         .packet_copy_allowed = true,
     };
+    if (program) {
+        requirements.video_source_required = std::any_of(
+            program->layers().begin(), program->layers().end(),
+            [](const compiler::StaticLayerProgram& layer) {
+                return layer.kind == compiler::NodeKind::Video;
+            });
+    }
+    return requirements;
 }
 
 media::VideoCapabilities cli_effective_capabilities(
@@ -191,7 +200,7 @@ int render_and_encode_ffmpeg(
     auto render_opts = opts;
     if (opts.gop_source.empty()) {
         auto decision = media::resolve_video_execution(
-            cli_execution_requirements(opts), media::OutputSpec{},
+            cli_execution_requirements(opts, program), media::OutputSpec{},
             cli_effective_capabilities(opts));
         decision = finalize_composition_execution(compiled, program, opts, decision);
         render_opts.resolved_execution_plan = decision.plan;
@@ -222,7 +231,7 @@ int render_and_encode_ffmpeg(
                          summary.safe_to_splice);
         }
         auto decision = media::resolve_video_execution_with_gop_analysis(
-            cli_execution_requirements(opts), media::OutputSpec{},
+            cli_execution_requirements(opts, program), media::OutputSpec{},
             cli_effective_capabilities(opts),
             opts.gop_copy_only,
             !opts.gop_copy_only,

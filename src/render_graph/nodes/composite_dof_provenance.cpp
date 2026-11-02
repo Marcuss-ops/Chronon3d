@@ -13,7 +13,8 @@ namespace {
 // publish_dof_provenance_native() — GPU counterpart of the CPU publish for
 // device-local layers. The depth surface is created once per frame and reset
 // to the "no depth" sentinel; each covered layer then stamps its depth on the
-// device (same last-writer-wins rule). Coverage uses the layer clip rect as a
+// device (nearest positive camera-depth wins, independent of authoring order).
+// Coverage uses the layer clip rect as a
 // conservative bbox, so the DOF ROI is a superset of the CPU one.
 void publish_dof_provenance_native(
     RenderGraphContext& ctx, const Framebuffer& layer,
@@ -127,7 +128,8 @@ void publish_dof_provenance(
         for (i32 x = bx0; x < bx1; ++x) {
             const i32 sx = x - surface.origin_x();
             if (sx < 0 || sx >= surface.width() || row[sx].a <= 0.01f) continue;
-            dof_depth[static_cast<size_t>(y) * w + x] = camera_depth;
+            auto& resolved_depth = dof_depth[static_cast<size_t>(y) * w + x];
+            if (camera_depth < resolved_depth) resolved_depth = camera_depth;
             if (std::isfinite(source_radius) && source_radius >= 0.5f) {
                 auto& coverage = ctx.node_exec.dof_sources();
                 if (!coverage.source_bbox) {
@@ -148,7 +150,7 @@ void publish_dof_provenance(
 // dof_source_radius() — shared radius derivation for both DOF publish sites.
 float dof_source_radius(RenderGraphContext& ctx, float camera_depth) {
     const auto& camera_2_5d = ctx.frame_input.camera_2_5d;
-    const auto dof = camera_space_dof_settings(camera_2_5d.dof, camera_2_5d);
+    const auto& dof = camera_2_5d.dof;
     return camera_2_5d.dof.enabled
         ? compute_dof_blur_radius(dof, camera_2_5d.lens,
                                   camera_depth,

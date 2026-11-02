@@ -7,13 +7,13 @@
     "transparent_pixels": 0,
     "fractional_alpha_pixels": 0
   },
-  "far.png": {
+  "near.png": {
     "size": [
       730,
       830
     ],
     "transparent_pixels": 36499,
-    "fractional_alpha_pixels": 564115
+    "fractional_alpha_pixels": 562167
   },
   "middle.png": {
     "size": [
@@ -23,12 +23,12 @@
     "transparent_pixels": 36499,
     "fractional_alpha_pixels": 563847
   },
-  "near.png": {
+  "far.png": {
     "size": [
       730,
       830
     ],
     "transparent_pixels": 36499,
-    "fractional_alpha_pixels": 562167
+    "fractional_alpha_pixels": 564115
   }
 }

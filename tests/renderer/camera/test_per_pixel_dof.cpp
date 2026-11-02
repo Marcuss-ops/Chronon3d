@@ -97,7 +97,7 @@ TEST_CASE("PerPixelDOF: disabled DOF is no-op") {
     fb.clear(Color{1.0f, 0.0f, 0.0f, 1.0f});
 
     auto depth = make_depth_buffer(w, h, 500.0f);
-    DepthOfFieldSettings dof{.enabled = false, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
+    DepthOfFieldSettings dof{.enabled = false, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -113,7 +113,7 @@ TEST_CASE("PerPixelDOF: mismatched depth buffer size is no-op") {
     fb.clear(Color{0.0f, 1.0f, 0.0f, 1.0f});
 
     std::vector<float> depth(10, 500.0f); // wrong size
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
+    DepthOfFieldSettings dof{.enabled = true, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -128,7 +128,7 @@ TEST_CASE("PerPixelDOF: zero blur radius (at focus) is no-op") {
 
     // All pixels at the authored focus depth → blur radius = 0
     auto depth = make_depth_buffer(w, h, 1000.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 1000.0f, .aperture = 0.02f, .max_blur = 10.0f};
+    DepthOfFieldSettings dof{.enabled = true, .focus_distance = 1000.0f, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -142,7 +142,7 @@ TEST_CASE("PerPixelDOF: empty framebuffer (all transparent) survives blur") {
     fb.clear(Color::transparent());
 
     auto depth = make_depth_buffer(w, h, 2000.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 20.0f};
+    DepthOfFieldSettings dof{.enabled = true, .max_blur = 20.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -165,7 +165,7 @@ TEST_CASE("PerPixelDOF: unset depth pixels are left unblurred") {
 
     // Depth buffer: all sentinel (unset)
     std::vector<float> depth(static_cast<size_t>(w) * h, 1e18f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
+    DepthOfFieldSettings dof{.enabled = true, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -198,8 +198,7 @@ TEST_CASE("PerPixelDOF: gather is safe and deterministic at all framebuffer corn
             std::max(0, sx - radius), std::max(0, sy - radius),
             std::min(w, sx + radius + 1), std::min(h, sy + radius + 1)};
         const DepthOfFieldSettings dof{
-            .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
-            .max_blur = static_cast<float>(radius)};
+            .enabled = true, .max_blur = static_cast<float>(radius)};
 
         renderer::apply_per_pixel_dof(first, as_span(depth), dof, kDefaultLens, clip);
         renderer::apply_per_pixel_dof(second, as_span(depth), dof, kDefaultLens, clip);
@@ -230,8 +229,10 @@ TEST_CASE("PerPixelDOF: non-zero ROI origin indexes the full depth plane") {
     depth[static_cast<std::size_t>(source_y) * w + source_x] = 1000.0f;
     const raster::BBox clip{source_x - 8, source_y - 8,
                             source_x + 9, source_y + 9};
+    // Focus well in front of the source so the thin-lens CoC at 1000 is real
+    // (an object exactly at the focus plane has zero blur by definition).
     const DepthOfFieldSettings dof{
-        .enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 8.0f};
+        .enabled = true, .focus_distance = 500.0f, .max_blur = 8.0f};
 
     renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens, clip);
 
@@ -258,8 +259,7 @@ TEST_CASE("PerPixelDOF: narrow vertical and horizontal ROIs keep local scratch d
         renderer::DofScratchBuffers scratch;
         const raster::BBox clip{c.x0, c.y0, c.x0 + c.width, c.y0 + c.height};
         const DepthOfFieldSettings dof{
-            .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
-            .max_blur = 8.0f};
+            .enabled = true, .max_blur = 8.0f};
 
         renderer::apply_per_pixel_dof(
             fb, as_span(depth), dof, kDefaultLens, clip, &scratch);
@@ -287,8 +287,7 @@ TEST_CASE("PerPixelDOF: one-pixel source uses a 49x49 maximum ROI") {
     renderer::DofScratchBuffers scratch;
     const raster::BBox clip{sx - 24, sy - 24, sx + 25, sy + 25};
     const DepthOfFieldSettings dof{
-        .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
-        .max_blur = 24.0f};
+        .enabled = true, .focus_distance = 500.0f, .max_blur = 24.0f};
 
     renderer::apply_per_pixel_dof(
         fb, as_span(depth), dof, kDefaultLens, clip, &scratch);
@@ -307,8 +306,7 @@ TEST_CASE("PerPixelDOF: full-frame source retains full-frame scratch") {
     std::vector<float> depth(static_cast<std::size_t>(w) * h, 1000.0f);
     renderer::DofScratchBuffers scratch;
     const DepthOfFieldSettings dof{
-        .enabled = true, .focus_z = 0.0f, .aperture = 0.02f,
-        .max_blur = 24.0f};
+        .enabled = true, .max_blur = 24.0f};
 
     renderer::apply_per_pixel_dof(
         fb, as_span(depth), dof, kDefaultLens,
@@ -338,9 +336,13 @@ TEST_CASE("PerPixelDOF: far pixels blur more than near pixels") {
         }
     }
 
-    // Near and far positive camera-space depths at different distances from focus.
-    auto depth = make_two_zone_depth(w, h, 300.0f, 1500.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 24.0f};
+    // Both zones sit behind the focus plane, so the far one is the farther
+    // from focus and must receive the larger thin-lens CoC. With the default
+    // 50 mm/f2.8 lens focused at 500, the radii are 17.6 px (600) and 61.7 px
+    // (1200); max_blur leaves both unclamped so the spill difference is real.
+    auto depth = make_two_zone_depth(w, h, 600.0f, 1200.0f);
+    DepthOfFieldSettings dof{
+        .enabled = true, .focus_distance = 500.0f, .max_blur = 80.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -364,33 +366,41 @@ TEST_CASE("PerPixelDOF: far pixels blur more than near pixels") {
     float near_spill = measure_avg_luminance(38, 34, 43, 46); // 9-13px outside near square
     float far_spill  = measure_avg_luminance(138, 34, 143, 46); // 9-13px outside far square
 
-    // Far blur (24px radius) spills more alpha into neighboring transparent
-    // region than near blur (6px radius).
     CHECK(far_spill > near_spill);
 }
 
 TEST_CASE("PerPixelDOF: blur radius increases with depth distance from focus") {
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.01f, .max_blur = 50.0f};
+    // Reference values are hand-computed from the documented thin-lens model
+    // with the default lens (50 mm at f/2.8, 36 mm sensor) and a 1920 px
+    // viewport: A = 50/2.8 mm, m = 50/(1000-50), CoC = A*|S2-S1|/S2*m, and the
+    // radius is CoC * 1920/36 px.
+    DepthOfFieldSettings dof{.enabled = true, .focus_distance = 1000.0f,
+                             .max_blur = 50.0f};
 
-    float blur_near   = compute_dof_blur_radius(dof, kDefaultLens, 200.0f);
-    float blur_mid    = compute_dof_blur_radius(dof, kDefaultLens, 500.0f);
-    float blur_far    = compute_dof_blur_radius(dof, kDefaultLens, 1000.0f);
+    const float blur_near = compute_dof_blur_radius(dof, kDefaultLens, 1200.0f);
+    const float blur_mid  = compute_dof_blur_radius(dof, kDefaultLens, 1500.0f);
+    const float blur_far  = compute_dof_blur_radius(dof, kDefaultLens, 2000.0f);
 
     CHECK(blur_near < blur_mid);
     CHECK(blur_mid  < blur_far);
-    CHECK(blur_near == doctest::Approx(2.0f));   // 200 * 0.01
-    CHECK(blur_mid  == doctest::Approx(5.0f));   // 500 * 0.01
-    CHECK(blur_far  == doctest::Approx(10.0f));  // 1000 * 0.01
+    CHECK(blur_near == doctest::Approx(8.354f).epsilon(1e-3));
+    CHECK(blur_mid  == doctest::Approx(16.708f).epsilon(1e-3));
+    CHECK(blur_far  == doctest::Approx(25.063f).epsilon(1e-3));
 }
 
 TEST_CASE("PerPixelDOF: camera-space samples remain positive and ordered") {
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 20.0f};
+    // Focus at 200 (m = 50/150) keeps both samples behind the plane:
+    // |500-200|/500 = 0.6 and |1000-200|/1000 = 0.8 of the same thin-lens
+    // term, i.e. 190.476 px and 253.968 px with max_blur out of the way.
+    DepthOfFieldSettings dof{.enabled = true, .focus_distance = 200.0f,
+                             .max_blur = 400.0f};
 
     const float nearer = compute_dof_blur_radius(dof, kDefaultLens, 500.0f);
     const float farther = compute_dof_blur_radius(dof, kDefaultLens, 1000.0f);
 
-    CHECK(nearer == doctest::Approx(10.0f));
-    CHECK(farther == doctest::Approx(20.0f));
+    CHECK(nearer == doctest::Approx(190.476f).epsilon(1e-3));
+    CHECK(farther == doctest::Approx(253.968f).epsilon(1e-3));
+    CHECK(nearer > 0.0f);
     CHECK(nearer < farther);
 }
 
@@ -404,7 +414,7 @@ TEST_CASE("PerPixelDOF: large blur spreads color beyond original bounds") {
 
     // Large blur radius
     auto depth = make_depth_buffer(w, h, 2000.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 8.0f};
+    DepthOfFieldSettings dof{.enabled = true, .max_blur = 8.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -433,8 +443,8 @@ TEST_CASE("PerPixelDOF: defocused foreground spills into focused background") {
             depth[static_cast<size_t>(y) * w + x] = 1000.0f;
         }
     }
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 2000.0f,
-                             .aperture = 0.02f, .max_blur = 8.0f};
+    DepthOfFieldSettings dof{.enabled = true, .focus_distance = 2000.0f,
+                             .max_blur = 8.0f};
 
     renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens);
 
@@ -465,8 +475,7 @@ TEST_CASE("PerPixelDOF: focused foreground cutout does not bleed halo into defoc
     }
     DepthOfFieldSettings dof{
         .enabled = true,
-        .focus_z = 900.0f,
-        .aperture = 0.02f,
+        .focus_distance = 900.0f,
         .max_blur = 12.0f};
 
     renderer::apply_per_pixel_dof(fb, as_span(depth), dof, kDefaultLens);
@@ -503,7 +512,7 @@ TEST_CASE("PerPixelDOF: focus plane pixels remain sharp while defocused blur") {
     }
 
     auto depth = make_two_zone_depth(w, h, 1000.0f, 2000.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 1000.0f, .aperture = 0.02f, .max_blur = 20.0f};
+    DepthOfFieldSettings dof{.enabled = true, .focus_distance = 1000.0f, .max_blur = 20.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -530,7 +539,7 @@ TEST_CASE("PerPixelDOF: 1x1 framebuffer does not crash") {
     fb.clear(Color{0.5f, 0.5f, 0.5f, 1.0f});
 
     std::vector<float> depth{1, 500.0f};
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
+    DepthOfFieldSettings dof{.enabled = true, .max_blur = 10.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -544,7 +553,7 @@ TEST_CASE("PerPixelDOF: clip rectangle limits blur region") {
     fb.clear(Color{1.0f, 0.0f, 0.0f, 1.0f});
 
     auto depth = make_depth_buffer(w, h, 2000.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.02f, .max_blur = 10.0f};
+    DepthOfFieldSettings dof{.enabled = true, .max_blur = 10.0f};
 
     // Only blur the left half
     raster::BBox clip{0, 0, 16, 32};
@@ -557,10 +566,12 @@ TEST_CASE("PerPixelDOF: clip rectangle limits blur region") {
 }
 
 TEST_CASE("PerPixelDOF: max_blur clamps the blur radius") {
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 1.0f, .max_blur = 5.0f};
+    DepthOfFieldSettings dof{.enabled = true, .focus_distance = 1000.0f,
+                             .max_blur = 5.0f};
 
-    float blur = compute_dof_blur_radius(dof, kDefaultLens, 1000.0f);
-    CHECK(blur == doctest::Approx(5.0f)); // clamped, not 1000
+    // 16.7 px of physical CoC at 1500 against a 5 px cap.
+    float blur = compute_dof_blur_radius(dof, kDefaultLens, 1500.0f);
+    CHECK(blur == doctest::Approx(5.0f));
 }
 
 TEST_CASE("PerPixelDOF: max_r < 0.5 returns early (no visible blur)") {
@@ -570,7 +581,7 @@ TEST_CASE("PerPixelDOF: max_r < 0.5 returns early (no visible blur)") {
 
     // Very small aperture → blur radius < 0.5
     auto depth = make_depth_buffer(w, h, 10.0f);
-    DepthOfFieldSettings dof{.enabled = true, .focus_z = 0.0f, .aperture = 0.001f, .max_blur = 20.0f};
+    DepthOfFieldSettings dof{.enabled = true, .max_blur = 20.0f};
 
     renderer::apply_per_pixel_dof(fb, depth, dof, kDefaultLens);
 
@@ -594,8 +605,6 @@ TEST_CASE("PerPixelDOF: end-to-end render with DOF does not crash") {
             s.set_evaluated_camera(camera().enabled(true).position({0, 0, -1000})
                 .zoom(1000.0f).dof(DepthOfFieldSettings{
                     .enabled  = true,
-                    .focus_z  = 0.0f,
-                    .aperture = 0.02f,
                     .max_blur = 12.0f
                 }).build());
             s.rect("bg", {.size = {80, 80}, .color = Color{0.1f, 0.1f, 0.1f, 1}, .pos = {40, 40, 0}});
@@ -665,8 +674,6 @@ TEST_CASE("PerPixelDOF: 1920x1080 micro-benchmark - drop depth copy (delta repor
     std::vector<float> depth(static_cast<size_t>(w) * h, 1500.0f);
     DepthOfFieldSettings dof{
         .enabled  = true,
-        .focus_z  = 0.0f,
-        .aperture = 0.02f,
         .max_blur = 12.0f
     };
 
@@ -756,4 +763,201 @@ TEST_CASE("PerPixelDOF: 1920x1080 micro-benchmark - drop depth copy (delta repor
             << "ms, after=" << after_ms << "ms, copy_saved_per_frame="
             << delta_ms << "ms (" << delta_pct << "%); JSON="
             << out_path.string());
+}
+
+// ============================================================================
+// Section N: disk (bokeh) kernel — CPU mirror of dof_blur.comp `disk_blur`
+//
+// These tests pin the CPU kernel to an independent scalar transcription of the
+// shader weight predicate. The two lanes render the same accepted scene, so a
+// weighting drift is a parity defect; the reference below is written from the
+// GLSL, not from the C++ implementation.
+// ============================================================================
+
+namespace {
+
+float ref_disk_edge_weight(float dist, float radius) {
+    if (radius < 0.5f || dist > radius + 0.5f) return 0.0f;
+    const float t = std::clamp((dist - std::max(0.0f, radius - 0.5f)) / 1.0f, 0.0f, 1.0f);
+    return 1.0f - t * t * (3.0f - 2.0f * t);
+}
+
+float ref_disk_pair_weight(float dist, float centre_radius, float centre_depth,
+                           float neighbour_radius, float neighbour_depth) {
+    if (neighbour_radius < 0.0f) return 0.0f;
+    if (centre_radius >= 0.0f && centre_radius < 0.5f) {
+        if (dist == 0.0f) return 1.0f;
+        if (neighbour_radius >= 0.5f && neighbour_depth > 0.0f &&
+            centre_depth > 0.0f && neighbour_depth + 1e-3f < centre_depth)
+            return ref_disk_edge_weight(dist, neighbour_radius);
+        return 0.0f;
+    }
+    if (neighbour_radius < 0.5f) return dist == 0.0f ? 1.0f : 0.0f;
+    return ref_disk_edge_weight(dist, neighbour_radius);
+}
+
+float ref_highlight_weight(const Color& c, float gain) {
+    const float luminance = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+    return 1.0f + gain * std::max(luminance - 1.0f, 0.0f);
+}
+
+// Scalar transcription of disk_blur() for one pixel.
+Color ref_disk_pixel(const std::vector<Color>& src, const std::vector<float>& depth,
+                     const std::vector<float>& radii, i32 w, i32 h,
+                     i32 px, i32 py, i32 x0, i32 y0, i32 x1, i32 y1,
+                     float max_radius, bool normalize_opaque, float gain) {
+    const auto at = [w](i32 x, i32 y) { return static_cast<size_t>(y) * w + x; };
+    const Color centre = src[at(px, py)];
+    const float centre_radius = radii[at(px, py)];
+    if (centre_radius < 0.0f) return centre;
+    const float centre_depth = depth[at(px, py)];
+    const int r = static_cast<int>(std::ceil(max_radius));
+    const i32 lo_x = std::max(x0, px - r), hi_x = std::min(x1 - 1, px + r);
+    const i32 lo_y = std::max(y0, py - r), hi_y = std::min(y1 - 1, py + r);
+    float sum[4] = {0, 0, 0, 0};
+    float total = 0.0f;
+    for (i32 sy = lo_y; sy <= hi_y; ++sy) {
+        for (i32 sx = lo_x; sx <= hi_x; ++sx) {
+            const size_t idx = at(sx, sy);
+            if (radii[idx] < 0.0f) continue;
+            const float dx = static_cast<float>(sx - px);
+            const float dy = static_cast<float>(sy - py);
+            float weight = ref_disk_pair_weight(std::sqrt(dx * dx + dy * dy),
+                                               centre_radius, centre_depth,
+                                               radii[idx], depth[idx]);
+            if (weight <= 0.0f) continue;
+            if (normalize_opaque) weight *= src[idx].a;
+            weight *= ref_highlight_weight(src[idx], gain);
+            sum[0] += src[idx].r * weight;
+            sum[1] += src[idx].g * weight;
+            sum[2] += src[idx].b * weight;
+            sum[3] += src[idx].a * weight;
+            total += weight;
+        }
+    }
+    (void)h;
+    if (total <= 1e-6f) return centre;
+    return Color{sum[0] / total, sum[1] / total, sum[2] / total, sum[3] / total};
+}
+
+struct DiskFixture {
+    i32 w{17};
+    i32 h{17};
+    Framebuffer fb{w, h};
+    std::vector<Color> source;
+    std::vector<float> depth;
+    std::vector<float> radii;
+
+    DiskFixture() {
+        fb.clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+        const size_t pixels = static_cast<size_t>(w) * h;
+        depth.assign(pixels, 100.0f);
+        radii.assign(pixels, 4.0f);
+        source.assign(pixels, Color{0.0f, 0.0f, 0.0f, 0.0f});
+        // Defocused centre pixel plus a small bright cluster offset inside the
+        // disk on one axis and outside it on the diagonal (disk vs square
+        // support discriminator).
+        set(8, 8, Color{0.2f, 0.2f, 0.2f, 1.0f});
+        set(12, 8, Color{4.0f, 4.0f, 4.0f, 1.0f});   // dist 4, inside disk
+        set(12, 12, Color{1.0f, 0.0f, 0.0f, 1.0f});  // dist ~5.66, outside disk
+        rebuild();
+    }
+    // Re-seed the framebuffer from `source` after a test edits the fixture.
+    void rebuild() {
+        fb.clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+        for (i32 y = 0; y < h; ++y)
+            for (i32 x = 0; x < w; ++x) fb.set_pixel(x, y, source[idx(x, y)]);
+    }
+    [[nodiscard]] size_t idx(i32 x, i32 y) const {
+        return static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x);
+    }
+    void set(i32 x, i32 y, Color c) { source[idx(x, y)] = c; }
+};
+
+} // namespace
+
+TEST_CASE("PerPixelDOF disk: CPU kernel matches the shader weight predicate") {
+    DiskFixture f;
+    renderer::apply_per_pixel_dof_disk(f.fb, as_span(f.depth), as_span(f.radii),
+                                       0, 0, f.w, f.h, 4.0f, false, 0.0f);
+    for (i32 y = 0; y < f.h; ++y) {
+        for (i32 x = 0; x < f.w; ++x) {
+            const Color expected = ref_disk_pixel(
+                f.source, f.depth, f.radii, f.w, f.h, x, y, 0, 0, f.w, f.h,
+                4.0f, false, 0.0f);
+            const Color actual = f.fb.get_pixel(x, y);
+            CAPTURE(x);
+            CAPTURE(y);
+            CHECK(actual.r == doctest::Approx(expected.r).epsilon(1e-5));
+            CHECK(actual.g == doctest::Approx(expected.g).epsilon(1e-5));
+            CHECK(actual.b == doctest::Approx(expected.b).epsilon(1e-5));
+            CHECK(actual.a == doctest::Approx(expected.a).epsilon(1e-5));
+        }
+    }
+}
+
+TEST_CASE("PerPixelDOF disk: support is circular, not a square") {
+    const auto centre_red = [](const DiskFixture& fixture) {
+        DiskFixture copy = fixture;
+        copy.rebuild();
+        renderer::apply_per_pixel_dof_disk(copy.fb, as_span(copy.depth),
+                                           as_span(copy.radii),
+                                           0, 0, copy.w, copy.h, 4.0f,
+                                           false, 0.0f);
+        return copy.fb.get_pixel(8, 8).r;
+    };
+
+    // The weight predicate is the discriminator: radius-distance taps carry
+    // weight, diagonal taps beyond the radius carry none.
+    CHECK(renderer::dof_disk_edge_weight(4.0f, 4.0f) > 0.0f);
+    CHECK(renderer::dof_disk_edge_weight(std::sqrt(32.0f), 4.0f) == 0.0f);
+
+    DiskFixture full;
+    CHECK(centre_red(full) > 0.0f);
+
+    // Removing the on-axis bright tap changes the centre: it is inside the
+    // support and contributes.
+    DiskFixture without_axis = full;
+    without_axis.set(12, 8, Color{0.0f, 0.0f, 0.0f, 0.0f});
+    CHECK(centre_red(without_axis) != doctest::Approx(centre_red(full)));
+
+    // Removing the diagonal bright tap changes nothing: a square support would
+    // have let it through (it sits at the same axis offsets as the on-axis
+    // tap, 4 px on each axis).
+    DiskFixture without_diagonal = full;
+    without_diagonal.set(12, 12, Color{0.0f, 0.0f, 0.0f, 0.0f});
+    CHECK(centre_red(without_diagonal) ==
+          doctest::Approx(centre_red(full)).epsilon(1e-7));
+}
+
+TEST_CASE("PerPixelDOF disk: unset neighbour depth never contributes") {
+    DiskFixture f;
+    for (i32 y = 0; y < f.h; ++y)
+        for (i32 x = 0; x < f.w; ++x)
+            if (!(x == 8 && y == 8)) f.radii[f.idx(x, y)] = -1.0f;
+    const Color before = f.fb.get_pixel(8, 8);
+    renderer::apply_per_pixel_dof_disk(f.fb, as_span(f.depth), as_span(f.radii),
+                                       0, 0, f.w, f.h, 4.0f, false, 0.0f);
+    const Color after = f.fb.get_pixel(8, 8);
+    CHECK(after.r == doctest::Approx(before.r).epsilon(1e-6));
+    CHECK(after.g == doctest::Approx(before.g).epsilon(1e-6));
+}
+
+TEST_CASE("PerPixelDOF disk: highlight gain keeps HDR energy in the bokeh") {
+    DiskFixture f;
+    Framebuffer plain = f.fb;
+    for (i32 y = 0; y < f.h; ++y)
+        for (i32 x = 0; x < f.w; ++x) plain.set_pixel(x, y, f.source[f.idx(x, y)]);
+
+    renderer::apply_per_pixel_dof_disk(f.fb, as_span(f.depth), as_span(f.radii),
+                                       0, 0, f.w, f.h, 4.0f, false, 0.0f);
+    renderer::apply_per_pixel_dof_disk(plain, as_span(f.depth), as_span(f.radii),
+                                       0, 0, f.w, f.h, 4.0f, false, 2.0f);
+    const float without_gain = f.fb.get_pixel(8, 8).r;
+    const float with_gain = plain.get_pixel(8, 8).r;
+    CHECK(with_gain > without_gain);
+    // The gain only re-weights samples above 1.0; an SDR-only fixture is
+    // unaffected.
+    CHECK(renderer::dof_highlight_weight(Color{0.5f, 0.5f, 0.5f, 1.0f}, 4.0f) ==
+          doctest::Approx(1.0f));
 }

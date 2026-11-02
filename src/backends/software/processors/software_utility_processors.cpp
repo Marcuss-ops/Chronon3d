@@ -22,7 +22,7 @@ public:
         if (!s.projection.ready && state.projection.ready) {
             s.projection = state.projection;
         } else if (!s.projection.ready) {
-            prepare_projection_context(s, camera, width, height);
+            prepare_native_3d_projection_context(s, camera, width, height);
         }
         s.world_matrix = state.world_matrix;
         chronon3d::renderer::draw_fake_box3d(
@@ -49,7 +49,7 @@ public:
         if (!s.projection.ready && state.projection.ready) {
             s.projection = state.projection;
         } else if (!s.projection.ready) {
-            prepare_projection_context(s, camera, width, height);
+            prepare_native_3d_projection_context(s, camera, width, height);
         }
         chronon3d::renderer::draw_grid_plane(fb, node, state, node.shape.grid_plane(), s);
     }

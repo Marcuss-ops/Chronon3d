@@ -69,6 +69,43 @@ bool try_native_inline_mesh(
     }
 
     if (!ensure_empty_native_surface(ctx, fb)) return false;
+
+    // Per-pixel camera depth for native compositing. A GPU-only layer has no
+    // CPU depth map by contract, so the rasterizer publishes depth into the
+    // frame's occlusion scratch: reset to the "no coverage" sentinel first,
+    // then let the kernel keep the nearest camera depth of each covered
+    // pixel. The handle travels with the framebuffer and CompositeNode reads
+    // it to occlude against geometry already composited this frame.
+    runtime::RenderSurfaceHandle depth_stamp = runtime::kInvalidRenderSurfaceHandle;
+    if (ctx.frame_input.has_camera_2_5d && ctx.frame_input.camera_2_5d.enabled &&
+        fb.width() == ctx.frame_input.width &&
+        fb.height() == ctx.frame_input.height) {
+        auto& occlusion = ctx.node_exec.native_occlusion_state();
+        if (!occlusion.unusable) {
+            if (!occlusion.layer_depth ||
+                occlusion.layer_depth->width() != fb.width() ||
+                occlusion.layer_depth->height() != fb.height() ||
+                occlusion.layer_depth->surface_handle() ==
+                    runtime::kInvalidRenderSurfaceHandle) {
+                if (occlusion.layer_depth)
+                    release_native_surface(ctx, *occlusion.layer_depth);
+                occlusion.layer_depth =
+                    std::make_shared<Framebuffer>(fb.width(), fb.height());
+                if (!ensure_empty_native_surface(ctx, *occlusion.layer_depth)) {
+                    occlusion.layer_depth.reset();
+                    occlusion.unusable = true;
+                }
+            }
+            if (occlusion.layer_depth) {
+                const auto reset = ctx.backend_surface_api()->dof_depth_stamp_surface(
+                    occlusion.layer_depth->surface_handle(), fb.surface_handle(),
+                    0.0f, -1.0f, 0, 0, 0, 0, 0, 0, true);
+                if (reset.ok()) depth_stamp = occlusion.layer_depth->surface_handle();
+                else occlusion.unusable = true;
+            }
+        }
+    }
+
     const float aspect = static_cast<float>(fb.width()) / static_cast<float>(fb.height());
     Mat4 view = ctx.frame_input.camera.view_matrix();
     Mat4 projection = ctx.frame_input.camera.projection_matrix(aspect);
@@ -243,9 +280,12 @@ bool try_native_inline_mesh(
         fb.surface_handle(), texture_handle, projected, indices,
         x0, y0, x1, y1, tint,
         node.inline_mesh_material ? node.inline_mesh_material->alpha_cutoff
-                                 : std::optional<float>{});
+                                 : std::optional<float>{},
+        depth_stamp, 1.0f);
     if (!result.ok())
         throw std::runtime_error("native inline mesh raster failed: " + result.error().message);
+    if (depth_stamp != runtime::kInvalidRenderSurfaceHandle)
+        fb.set_native_depth_handle(depth_stamp);
     fb.set_opaque(false);
     fb.set_content_cleared(true);
     return true;

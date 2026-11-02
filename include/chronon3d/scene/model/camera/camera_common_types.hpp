@@ -28,25 +28,17 @@ enum class TemporalFilter {
 
 struct DepthOfFieldSettings {
     bool  enabled{false};
-
-    // Legacy simple model (backward compatible):
-    //   blur = |layer_z - focus_z| * aperture, clamped to max_blur.
-    f32   focus_z{0.0f};      // world-space Z at which blur = 0
-    f32   aperture{0.015f};   // blur per unit of Z distance from focus
-    f32   max_blur{24.0f};    // clamp: pixels of blur at extreme depths
-
-    // Physical lens model: camera-space distance to focus plane (scene units).
+    // Camera-space distance to the focus plane (scene units); the only focus
+    // coordinate consumed by the thin-lens CoC calculation.
     f32   focus_distance{1000.0f};
-    bool  use_physical_model{false};
+    f32   max_blur{24.0f};    // maximum CoC radius in pixels
 
     // Near / far bokeh separation (for future iris shape rendering).
     f32   near_bokeh_radius{0.0f};
     f32   far_bokeh_radius{0.0f};
 
-    // Physical lens shaping. No blur kernel implements these yet — see
-    // reject_unsupported_dof_shape() in dof.hpp, which fails closed when
-    // either is authored so shaped-bokeh requests can never render silently
-    // as plain circular bokeh.
+    // Lens shaping values are part of the camera contract. Until the kernel
+    // phase consumes them, reject_unsupported_dof_shape() fails closed.
     std::uint32_t iris_blades{0}; // polygonal iris blade count; 0 = circular bokeh
     f32 highlight_gain{0.0f};     // out-of-focus highlight weighting; 0 = off
 };

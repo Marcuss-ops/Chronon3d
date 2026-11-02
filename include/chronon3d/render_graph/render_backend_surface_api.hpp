@@ -82,11 +82,17 @@ public:
     virtual RenderOpResult dof_depth_stamp_surface(
         runtime::RenderSurfaceHandle depth, runtime::RenderSurfaceHandle layer,
         float depth_z, float radius, int clip_x0, int clip_y0, int clip_x1, int clip_y1,
-        int origin_x, int origin_y, bool reset);
+        int origin_x, int origin_y, bool reset,
+        bool include_transparent = false);
     virtual RenderOpResult dof_blur_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         runtime::RenderSurfaceHandle depth, bool vertical, int roi_x0, int roi_y0,
         int roi_x1, int roi_y1, float max_radius, bool normalize_opaque);
+    virtual RenderOpResult dof_blur_disk_surface(
+        runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+        runtime::RenderSurfaceHandle depth, int roi_x0, int roi_y0,
+        int roi_x1, int roi_y1, float max_radius, bool normalize_opaque,
+        float highlight_gain);
     virtual RenderOpResult directional_blur_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         float dir_x, float dir_y, float length, int tap_count);
@@ -131,6 +137,16 @@ public:
     virtual RenderOpResult lighting_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
         const Color& multiplier);
+    /// Per-pixel cross-layer occlusion tag for device-local surfaces.
+    /// `layer_depth` and `frame_depth` share one encoding: r = positive
+    /// camera depth, g > 0 = covered. Writes `mask` (a = 1 visible, 0
+    /// occluded) and, when `merge`, folds this layer's depth into
+    /// `frame_depth` so later layers compare against the nearest surface.
+    virtual RenderOpResult occlusion_tag_surface(
+        runtime::RenderSurfaceHandle mask,
+        runtime::RenderSurfaceHandle layer_depth,
+        runtime::RenderSurfaceHandle frame_depth,
+        bool merge);
     virtual RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle target,
         runtime::RenderSurfaceHandle matte, bool luma, bool inverted);

@@ -55,7 +55,6 @@ public:
     [[nodiscard]] Vec2  get_lens_shift() const;
     [[nodiscard]] CameraOpticsMode get_optics_mode() const;
     [[nodiscard]] const LensModel& get_lens() const;
-    [[nodiscard]] bool  get_dof_use_physical_model() const;
     [[nodiscard]] Mat4  get_view_matrix() const;
 
     [[nodiscard]] bool valid() const { return m_cam != nullptr; }

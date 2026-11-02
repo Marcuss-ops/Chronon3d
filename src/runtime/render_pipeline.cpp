@@ -22,6 +22,7 @@
 #include "../render_graph/pipeline/temporal/temporal_render_pipeline.hpp"
 #include "../render_plan/render_plan_camera_adapter.hpp"
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/render_graph/cache/compiled_graph_cache.hpp>
@@ -34,6 +35,7 @@
 #include <chronon3d/motion/element_contract.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -181,6 +183,35 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
             throw std::invalid_argument(
                 "Render Plan motion-blur temporal sample plan is invalid");
 
+        // Render settings can differ from the plan used to bake resolved Motion
+        // values. Do not interpolate an exact bake at new shutter instants.
+        const bool has_resolved_layers = std::any_of(
+            program.layers().begin(), program.layers().end(),
+            [](const auto& layer) { return !layer.transform_samples.empty(); });
+        if (has_resolved_layers) {
+            for (const auto& sample : samples.contexts) {
+                const double time = sample.time.frame;
+                if (!metadata.camera_samples.empty()) {
+                    const auto camera = std::lower_bound(
+                        metadata.camera_samples.begin(), metadata.camera_samples.end(), time,
+                        [](const auto& entry, double value) { return entry.first < value; });
+                    if (camera == metadata.camera_samples.end() || camera->first != time)
+                        throw std::invalid_argument(
+                            "Render Plan resolved camera is missing an actual shutter sample");
+                }
+                for (const auto& layer : program.layers()) {
+                    if (layer.transform_samples.empty()) continue;
+                    const auto transform = std::lower_bound(
+                        layer.transform_samples.begin(), layer.transform_samples.end(), time,
+                        [](const auto& entry, double value) { return entry.frame < value; });
+                    if (transform == layer.transform_samples.end() || transform->frame != time)
+                        throw std::invalid_argument(
+                            "Render Plan resolved layer '" + layer.name +
+                            "' is missing an actual shutter sample");
+                }
+            }
+        }
+
         const auto count = samples.contexts.size();
         const auto pool_limit = m_renderer->framebuffer_pool()->stats().budget_bytes;
         TemporalSampleWorkspace compatibility_workspace;
@@ -202,11 +233,96 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
         RenderSettings sample_settings = settings;
         sample_settings.motion_blur.mode = MotionBlurMode::Off;
         sample_settings.motion_blur.samples = 1;
+        struct NativeTemporalSurfaces {
+            graph::RenderBackend* backend{};
+            runtime::RenderSurfaceRegistry* registry{};
+            runtime::RenderSurfaceHandle sample{runtime::kInvalidRenderSurfaceHandle};
+            runtime::RenderSurfaceHandle accumulator{runtime::kInvalidRenderSurfaceHandle};
+            void release(runtime::RenderSurfaceHandle& handle) noexcept {
+                if (handle == runtime::kInvalidRenderSurfaceHandle) return;
+                if (backend) (void)backend->release_surface(handle);
+                if (registry) (void)registry->release(handle);
+                handle = runtime::kInvalidRenderSurfaceHandle;
+            }
+            ~NativeTemporalSurfaces() {
+                release(accumulator);
+                release(sample);
+            }
+        } native_surfaces{m_context.backend,
+                          m_context.runtime ? &m_context.runtime->surface_registry() : nullptr};
+        // An isolated native sample defers its graph batch to its temporal
+        // parent, which must submit the batch after the weighted read. Keep
+        // that ownership balanced on errors as well as on the success path.
+        struct DeferredNativeSampleBatch {
+            graph::RenderBackend* backend{};
+            bool active{};
+            void finish() noexcept {
+                if (!active) return;
+                backend->end_frame_batch();
+                active = false;
+            }
+            ~DeferredNativeSampleBatch() { finish(); }
+        };
+        const bool strict_native = settings.require_native_gpu;
+        if (strict_native) {
+            if (!native_surfaces.backend || !native_surfaces.registry ||
+                !native_surfaces.backend->supports_native_surfaces()) {
+                throw std::runtime_error(
+                    "strict-native typed shutter accumulation requires an attached native backend and surface registry");
+            }
+            const auto desc = runtime::SurfaceDesc::make(
+                static_cast<std::uint32_t>(width),
+                static_cast<std::uint32_t>(height),
+                runtime::PixelFormat::Rgba32Float,
+                runtime::ResourceUsage::Storage,
+                runtime::LifetimeClass::PipelineSlot);
+            native_surfaces.sample = native_surfaces.registry->create(desc);
+            native_surfaces.accumulator = native_surfaces.registry->create(desc);
+            if (native_surfaces.sample == runtime::kInvalidRenderSurfaceHandle ||
+                native_surfaces.accumulator == runtime::kInvalidRenderSurfaceHandle) {
+                throw std::runtime_error(
+                    "failed to allocate strict-native typed shutter surfaces");
+            }
+            const auto sample_created = native_surfaces.backend->create_surface(
+                native_surfaces.sample, desc);
+            const auto accumulator_created = native_surfaces.backend->create_surface(
+                native_surfaces.accumulator, desc);
+            if (!sample_created.ok() || !accumulator_created.ok()) {
+                throw std::runtime_error(
+                    "failed to create strict-native typed shutter surfaces");
+            }
+            const auto cleared = native_surfaces.backend->initialize_transparent_surface(
+                native_surfaces.accumulator);
+            if (!cleared.ok()) {
+                throw std::runtime_error(
+                    "failed to clear strict-native typed shutter accumulator: " +
+                    cleared.error().message);
+            }
+            sample_settings.native_video_encode_surface = native_surfaces.sample;
+            sample_settings.native_video_source_surface = runtime::kInvalidRenderSurfaceHandle;
+            sample_settings.native_video_previous_surface = runtime::kInvalidRenderSurfaceHandle;
+        }
         float weight_sum = 0.0f;
+        float planned_weight_sum = 0.0f;
+        for (const auto& sample : samples.contexts) planned_weight_sum += sample.weight;
+        if (!std::isfinite(planned_weight_sum) ||
+            std::abs(planned_weight_sum) <= 1e-6f) {
+            throw std::invalid_argument(
+                "Render Plan temporal shutter weights have an invalid sum");
+        }
         compiler::TypedProgramSampler sampler;
         for (std::size_t i = 0; i < count; ++i) {
             if (cancellation && cancellation->is_cancelled()) return {};
             const auto& sample = samples[i];
+            if (strict_native) {
+                const auto cleared = native_surfaces.backend->initialize_transparent_surface(
+                    native_surfaces.sample);
+                if (!cleared.ok()) {
+                    throw std::runtime_error(
+                        "failed to clear strict-native typed shutter sample: " +
+                        cleared.error().message);
+                }
+            }
             compiler::FrameParameterBlock parameters;
             sampler.sample_into(program, sample.time.frame, parameters);
             (void)motion::apply_layer_states(layer_states, layer_state_count, parameters);
@@ -223,6 +339,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
                 .counters = nullptr,
                 .framebuffer_pool = workspace.framebuffer_pool(i),
             };
+            DeferredNativeSampleBatch deferred_batch{m_context.backend, strict_native};
             const auto rendered = graph::render_scene_via_graph_temporal(
                 *m_context.backend, *m_context.scratch.node_cache, scene_at(sample.time.frame),
                 Camera{}, width, height, frame, frame_offset, sample_settings,
@@ -232,6 +349,24 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
             if (!rendered)
                 throw std::runtime_error(
                     "Render Plan motion-blur temporal sample produced no framebuffer");
+            if (strict_native) {
+                const auto source = rendered->surface_handle();
+                if (source == runtime::kInvalidRenderSurfaceHandle ||
+                    !native_surfaces.backend->is_native_surface_valid(source)) {
+                    throw std::runtime_error(
+                        "strict-native typed shutter sample has no valid GPU surface");
+                }
+                const auto accumulated_gpu = native_surfaces.backend->accumulate_surface_weighted(
+                    native_surfaces.accumulator, source,
+                    sample.weight / planned_weight_sum);
+                if (!accumulated_gpu.ok()) {
+                    throw std::runtime_error(
+                        "strict-native typed shutter weighted-add failed: " +
+                        accumulated_gpu.error().message);
+                }
+                deferred_batch.finish();
+                continue;
+            }
             // The loop below is a CPU pixel accumulator. A strict-native graph
             // can return a GPU-authoritative framebuffer with no host storage;
             // reject that capability mismatch before pixels_row() reaches a
@@ -271,6 +406,37 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
                         }
                     }
                 });
+        }
+        if (strict_native) {
+            const auto encode_surface = settings.native_video_encode_surface;
+            if (encode_surface != runtime::kInvalidRenderSurfaceHandle) {
+                const auto copied = native_surfaces.backend->copy_surface_to_video_encode(
+                    native_surfaces.accumulator, encode_surface);
+                if (!copied.ok()) {
+                    throw std::runtime_error(
+                        "strict-native typed shutter could not publish the accumulated output: " +
+                        copied.error().message);
+                }
+                accumulated->set_surface_handle(encode_surface);
+                accumulated->mark_gpu_authoritative();
+            } else {
+                std::vector<float> rgba(static_cast<std::size_t>(width) * height * 4);
+                const auto downloaded = native_surfaces.backend->download_surface(
+                    native_surfaces.accumulator, rgba);
+                if (!downloaded.ok()) {
+                    throw std::runtime_error(
+                        "strict-native typed shutter final readback failed: " +
+                        downloaded.error().message);
+                }
+                static_assert(sizeof(Color) == sizeof(float) * 4);
+                for (i32 y = 0; y < height; ++y) {
+                    std::memcpy(accumulated->pixels_row(y),
+                        rgba.data() + static_cast<std::size_t>(y) * width * 4,
+                        static_cast<std::size_t>(width) * sizeof(Color));
+                }
+                accumulated->mark_cpu_authoritative();
+            }
+            return accumulated;
         }
         return accumulated;
     }

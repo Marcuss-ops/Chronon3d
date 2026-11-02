@@ -109,13 +109,13 @@ namespace {
     return cam;
 }
 
-[[nodiscard]] Camera2_5D make_cam_focus_axis(f32 focus_z) {
+[[nodiscard]] Camera2_5D make_cam_focus_axis(f32 focus_distance) {
     Camera2_5D cam;
     cam.enabled    = true;
     cam.zoom       = 1000.0f;
     cam.position   = Vec3{0.0f, 0.0f, -1000.0f};
     cam.dof.enabled = true;
-    cam.dof.focus_z = focus_z;
+    cam.dof.focus_distance = focus_distance;
     return cam;
 }
 
@@ -147,9 +147,9 @@ TEST_CASE("AE_CAM Sweep: 3 scenes x 3 frames produce 9 distinct NodeCacheKey + 0
                                            make_cam_z_dolly(z)));
     }
     // Scene C: DOF focus-plane axis.
-    for (f32 focus_z : {400.0f, 800.0f, 1200.0f}) {
+    for (f32 focus_distance : {400.0f, 800.0f, 1200.0f}) {
         keys.push_back(make_node_cache_key(kBaseParams, kWidth, kHeight,
-                                           make_cam_focus_axis(focus_z)));
+                                           make_cam_focus_axis(focus_distance)));
     }
 
     REQUIRE_EQ(keys.size(), 9u);

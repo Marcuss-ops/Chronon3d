@@ -9,7 +9,9 @@
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/render_plan_validator.hpp>
 #include <chronon3d/render_plan/color_utils.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include "src/render_plan/render_plan_compiler_detail.hpp"
+#include "src/render_plan/render_plan_camera_adapter.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -554,8 +556,7 @@ TEST_CASE("ChrononMotion blend-mode emission round-trips through canonical V2 an
 
 TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     MotionScene scene("adapter", 30.f);
-    scene.addNull(10, "Controller");
-    auto& title = scene.addContent(11, "Visual", ContentRef::image("opaque-content", {100.f, 40.f}), 10);
+    auto& title = scene.addContent(11, "Visual", ContentRef::image("opaque-content", {100.f, 40.f}));
     title.tracks.position.add(0.f, Vector3(0.f, 0.f, 0.f));
     title.tracks.position.add(1.f, Vector3(30.f, 20.f, 0.f));
     scene.evaluate(0);
@@ -572,29 +573,29 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     const auto plan = lowerToRenderPlan(scene, options);
 
     REQUIRE(plan.schema == chronon3d::render_plan::kRenderPlanSchemaV2);
-    REQUIRE(plan.layers.size() == 2);
-    CHECK_FALSE(plan.layers[1].parent.has_value());
-    REQUIRE(plan.layers[1].animation.has_value());
-    REQUIRE(plan.layers[1].animation->tracks.size() == 4);
-    CHECK(plan.layers[1].position[0] == doctest::Approx(0.f));
-    CHECK(plan.layers[1].position[1] == doctest::Approx(0.f));
-    CHECK(plan.layers[1].animation->tracks[0].keyframes.size() == 31);
-    CHECK(plan.layers[1].animation->tracks[0].keyframes.back().value[0] == doctest::Approx(30.f));
-    CHECK(plan.layers[1].animation->tracks[0].keyframes.back().value[1] == doctest::Approx(20.f));
-    CHECK(plan.layers[0].animation->tracks[0].keyframes.back().value[0] == doctest::Approx(0.f));
+    REQUIRE(plan.layers.size() == 1);
+    CHECK_FALSE(plan.layers[0].parent.has_value());
+    REQUIRE(plan.layers[0].animation.has_value());
+    REQUIRE(plan.layers[0].animation->tracks.size() == 4);
+    CHECK(plan.layers[0].position[0] == doctest::Approx(0.f));
+    CHECK(plan.layers[0].position[1] == doctest::Approx(0.f));
+    CHECK(plan.layers[0].animation->tracks[0].keyframes.size() == 31);
+    CHECK(plan.layers[0].animation->tracks[0].keyframes.back().value[0] == doctest::Approx(30.f));
+    CHECK(plan.layers[0].animation->tracks[0].keyframes.back().value[1] == doctest::Approx(20.f));
     CHECK_MESSAGE(canonicallyValid(plan), canonicalDiagnostic(plan));
 
     options.schema = chronon3d::render_plan::kRenderPlanSchemaV3;
     const auto v3 = lowerToRenderPlan(scene, options);
     CHECK(v3.schema == chronon3d::render_plan::kRenderPlanSchemaV3);
-    CHECK(v3.layers[1].position[0] == doctest::Approx(0.f));
-    CHECK(v3.layers[1].animation->tracks[0].keyframes.back().value[0] == doctest::Approx(30.f));
+    CHECK(v3.layers[0].position[0] == doctest::Approx(0.f));
+    CHECK(v3.layers[0].animation->tracks[0].keyframes.back().value[0] == doctest::Approx(30.f));
     CHECK_MESSAGE(canonicallyValid(v3), canonicalDiagnostic(v3));
 
     MotionScene cameraScene("camera adapter", 30.f);
     auto& cameraContent = cameraScene.addContent(21, "camera image", ContentRef::image("camera-image", {16.f, 16.f}));
     cameraContent.lifetime = FrameRange::between(0, 1);
     chrononmotion::motion::CameraRig rig(22, 50.f, 16.f / 9.f, 0.1f, 2000.f);
+    rig.setSensorHeight(18.f);
     rig.positionTrack().add(0.f, Vector3(0.f, 0.f, -8.f));
     rig.positionTrack().add(3.f / 30.f, Vector3(1.f, 0.f, -8.f));
     RenderPlanLoweringOptions cameraOptions;
@@ -609,6 +610,7 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(cameraPlan.camera_samples->size() == 4);
     CHECK(cameraPlan.camera->position[0] == doctest::Approx(0.f));
     CHECK(cameraPlan.camera_samples->back().camera.position[0] == doctest::Approx(1.f));
+    CHECK(cameraPlan.camera->sensor_height_mm == doctest::Approx(18.f));
     CHECK(cameraPlan.canvas.duration.integral() == 4);
     CHECK_MESSAGE(canonicallyValid(cameraPlan), canonicalDiagnostic(cameraPlan));
 
@@ -630,6 +632,7 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(emittedDof["camera"]["dof"]["focus_distance"] == doctest::Approx(425.f));
     CHECK(emittedDof["camera"]["focal_length_mm"] == doctest::Approx(50.f));
     CHECK(emittedDof["camera"]["f_stop"] == doctest::Approx(2.8f));
+    CHECK(emittedDof["camera"]["sensor_height_mm"] == doctest::Approx(18.f));
     const auto decodedDof = chronon3d::render_plan::decode_render_plan(emittedDof);
     REQUIRE(decodedDof);
     REQUIRE(decodedDof->camera.has_value());
@@ -641,12 +644,7 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     REQUIRE(cameraEvaluator);
     const auto staticCamera = cameraEvaluator(0.0);
     CHECK(staticCamera.dof.enabled);
-    CHECK(staticCamera.dof.aperture == doctest::Approx(blurGainFromFStop(2.8f)));
     CHECK(staticCamera.dof.focus_distance == doctest::Approx(425.f));
-    // The plan camera sits at z=+8 (mirrored from Motion z=-8) looking down
-    // +Z, so the camera-space S1=425 maps to the world-Z plane z=433. The
-    // legacy focus_z field carries that plane; focus_distance keeps S1.
-    CHECK(staticCamera.dof.focus_z == doctest::Approx(433.f));
     CHECK(staticCamera.dof.max_blur == doctest::Approx(24.f));
     // A complete authored lens selects the physical thin-lens model, which
     // consumes the camera-space focus_distance directly as S1.
@@ -654,8 +652,20 @@ TEST_CASE("ChrononMotion lowering emits schema-valid v2 and v3 render plans") {
     CHECK(staticCamera.lens.focal_length == doctest::Approx(50.f));
     CHECK(staticCamera.lens.f_stop == doctest::Approx(2.8f));
     CHECK(staticCamera.lens.sensor_width == doctest::Approx(36.f));
-    CHECK(staticCamera.lens.sensor_height == doctest::Approx(36.f / (16.f / 9.f)));
-    CHECK(staticCamera.dof.use_physical_model);
+    CHECK(staticCamera.lens.sensor_height == doctest::Approx(18.f));
+
+    // An omitted focal length uses the canonical LensModel focal length. It
+    // must not synthesize a second blur gain from f-stop.
+    auto fStopOnlyPlan = *dofCameraPlan.camera;
+    fStopOnlyPlan.focal_length_mm = 0.f;
+    const auto fStopOnlyCamera = chronon3d::render_plan::detail::make_camera_value(
+        fStopOnlyPlan, dofCameraPlan.canvas);
+    const auto authoredLensCamera = chronon3d::render_plan::detail::make_camera_value(
+        *dofCameraPlan.camera, dofCameraPlan.canvas);
+    CHECK(chronon3d::compute_dof_blur_radius(
+              fStopOnlyCamera.dof, fStopOnlyCamera.lens, 600.f, 1920.f) ==
+          doctest::Approx(chronon3d::compute_dof_blur_radius(
+              authoredLensCamera.dof, authoredLensCamera.lens, 600.f, 1920.f)));
 
     auto fovOnlyPlan = *decodedDof;
     fovOnlyPlan.camera->focal_length_mm = 0.f;

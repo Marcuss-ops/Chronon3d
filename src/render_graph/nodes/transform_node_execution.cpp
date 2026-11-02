@@ -203,6 +203,10 @@ NodeExecResult TransformNode::execute(
             if (transformed.ok()) {
                 result->set_opaque(input->is_opaque());
                 result->set_content_cleared(input->is_content_cleared());
+                // An identity transform preserves the mesh rasterizer's
+                // per-pixel camera depth just as it preserves color. The
+                // composite node consumes this map for cross-layer occlusion.
+                result->set_depth_map_shared(input->depth_map_shared());
                 return NodeExecResult{std::move(result)};
             }
             release_native_surface(ctx, *result);
@@ -214,6 +218,7 @@ NodeExecResult TransformNode::execute(
         result->set_origin(input->origin_x(), input->origin_y());
         result->set_opaque(input->is_opaque());
         result->set_content_cleared(input->is_content_cleared());
+        result->set_depth_map_shared(input->depth_map_shared());
         return NodeExecResult{std::move(result)};
     }
 
@@ -221,6 +226,29 @@ NodeExecResult TransformNode::execute(
     //    bucket misses caused by frame-to-frame bbox size variations in
     //    animated transforms (e.g. breathing scale animation).
     auto result = ctx.acquire_scratch_fb(out_w, out_h, true, out_bounds);
+
+    // A clipped-away transform is still a valid transparent graph value.
+    // Strict-native scratch allocations may have neither CPU storage nor a
+    // surface; never publish such a framebuffer to downstream nodes.
+    const auto empty_result = [&]() -> NodeExecResult {
+        if (ctx.policy.require_native_gpu) {
+            if (!ensure_empty_native_surface(ctx, *result)) {
+                return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
+                    std::string(name()), "native empty transform surface creation failed"};
+            }
+            // The encode target is reused rather than initialized by the
+            // helper, so explicitly clear it for a completely empty output.
+            if (result->surface_handle() == ctx.policy.native_video_encode_surface) {
+                const auto cleared = ctx.backend_surface_api()->initialize_transparent_surface(
+                    result->surface_handle());
+                if (!cleared.ok()) {
+                    return NodeExecutionError{cleared.error().code, std::string(name()),
+                        "native empty transform surface clear failed: " + cleared.error().message};
+                }
+            }
+        }
+        return NodeExecResult{std::move(result)};
+    };
 
     // TICKET-012 — acquire_scratch_fb / acquire_owned_fb ignore the
     // `bounds` parameter today (pool only supports origin-(0,0) buffers).
@@ -259,7 +287,7 @@ NodeExecResult TransformNode::execute(
         x_max_src = source.x1;
         y_max_src = source.y1;
         if (!source.valid()) {
-            return NodeExecResult{std::move(result)};
+            return empty_result();
         }
     }
 
@@ -328,14 +356,14 @@ NodeExecResult TransformNode::execute(
     }
 
     if (clipped.count < 3) {
-        return NodeExecResult{std::move(result)};
+        return empty_result();
     }
 
     const auto clipped_bounds = detail::clip_transform_bounds(
         min_x, min_y, max_x, max_y,
         result->origin_x(), result->origin_y(), result->width(), result->height(),
         ctx.node_exec.clip_rect);
-    if (!clipped_bounds) return NodeExecResult{std::move(result)};
+    if (!clipped_bounds) return empty_result();
     const i32 x0 = clipped_bounds->x0;
     const i32 x1 = clipped_bounds->x1;
     const i32 y0 = clipped_bounds->y0;

@@ -39,18 +39,19 @@ graph::RenderOpResult VulkanBackend::dof_depth_stamp_surface(
     runtime::RenderSurfaceHandle depth, runtime::RenderSurfaceHandle layer,
     float depth_z, float radius,
     int clip_x0, int clip_y0, int clip_x1, int clip_y1,
-    int origin_x, int origin_y, bool reset) {
+    int origin_x, int origin_y, bool reset, bool include_transparent) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 2> touched{depth, layer};
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->dof_depth_stamp(depth, layer,
             Impl::DofDepthStampPush{depth_z, radius, clip_x0, clip_y0, clip_x1, clip_y1,
-                                    origin_x, origin_y, reset ? 1 : 0});
+                                    origin_x, origin_y, reset ? 1 : 0,
+                                    include_transparent ? 1 : 0});
     });
 #else
     (void)depth; (void)layer; (void)depth_z; (void)radius;
     (void)clip_x0; (void)clip_y0; (void)clip_x1; (void)clip_y1;
-    (void)origin_x; (void)origin_y; (void)reset;
+    (void)origin_x; (void)origin_y; (void)reset; (void)include_transparent;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::dof_depth_stamp_surface: Vulkan support is disabled"));
@@ -67,7 +68,7 @@ graph::RenderOpResult VulkanBackend::dof_blur_surface(
     return run_batched_surface_op(touched, {}, [&] {
         m_impl->dof_blur(destination, source, depth,
             Impl::DofBlurPush{vertical ? 1 : 0, roi_x0, roi_y0, roi_x1, roi_y1,
-                              max_radius, normalize_opaque ? 1 : 0});
+                              max_radius, normalize_opaque ? 1 : 0, 0.0f});
     });
 #else
     (void)destination; (void)source; (void)depth; (void)vertical;
@@ -76,6 +77,29 @@ graph::RenderOpResult VulkanBackend::dof_blur_surface(
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::dof_blur_surface: Vulkan support is disabled"));
+#endif
+}
+
+graph::RenderOpResult VulkanBackend::dof_blur_disk_surface(
+    runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle source,
+    runtime::RenderSurfaceHandle depth, int roi_x0, int roi_y0,
+    int roi_x1, int roi_y1, float max_radius, bool normalize_opaque,
+    float highlight_gain) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 3> touched{destination, source, depth};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->dof_blur(destination, source, depth,
+            Impl::DofBlurPush{2, roi_x0, roi_y0, roi_x1, roi_y1,
+                              max_radius, normalize_opaque ? 1 : 0,
+                              highlight_gain});
+    });
+#else
+    (void)destination; (void)source; (void)depth;
+    (void)roi_x0; (void)roi_y0; (void)roi_x1; (void)roi_y1;
+    (void)max_radius; (void)normalize_opaque; (void)highlight_gain;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::dof_blur_disk_surface: Vulkan support is disabled"));
 #endif
 }
 
@@ -417,17 +441,23 @@ graph::RenderOpResult VulkanBackend::draw_inline_mesh_surface(
     std::span<const std::uint32_t> indices,
     std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
     const Color& tint,
-    std::optional<float> alpha_cutoff) {
+    std::optional<float> alpha_cutoff,
+    runtime::RenderSurfaceHandle depth_destination,
+    float depth_marker) {
 #ifdef CHRONON3D_ENABLE_VULKAN
-    const std::array<runtime::RenderSurfaceHandle, 1> touched{destination};
+    std::array<runtime::RenderSurfaceHandle, 2> touched{destination, depth_destination};
     const std::array<runtime::RenderSurfaceHandle, 1> reads{texture};
-    return run_batched_surface_op(touched, reads, [&] {
+    return run_batched_surface_op(
+        std::span<const runtime::RenderSurfaceHandle>{touched.data(), touched.size()},
+        reads, [&] {
         m_impl->draw_inline_mesh(destination, texture, projected_lit_vertices,
-                                 indices, x0, y0, x1, y1, tint, alpha_cutoff);
+                                 indices, x0, y0, x1, y1, tint, alpha_cutoff,
+                                 depth_destination, depth_marker);
     });
 #else
     (void)destination; (void)texture; (void)projected_lit_vertices; (void)indices;
     (void)x0; (void)y0; (void)x1; (void)y1; (void)tint; (void)alpha_cutoff;
+    (void)depth_destination; (void)depth_marker;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::draw_inline_mesh_surface: Vulkan support is disabled"));
@@ -462,4 +492,22 @@ std::unique_ptr<graph::RenderBackend> make_vulkan_backend(
     std::uint32_t device_index) {
     return std::make_unique<VulkanBackend>(device_index);
 }
+graph::RenderOpResult VulkanBackend::occlusion_tag_surface(
+    runtime::RenderSurfaceHandle mask,
+    runtime::RenderSurfaceHandle layer_depth,
+    runtime::RenderSurfaceHandle frame_depth,
+    bool merge) {
+#ifdef CHRONON3D_ENABLE_VULKAN
+    const std::array<runtime::RenderSurfaceHandle, 3> touched{mask, layer_depth, frame_depth};
+    return run_batched_surface_op(touched, {}, [&] {
+        m_impl->occlusion_tag(mask, layer_depth, frame_depth, merge);
+    });
+#else
+    (void)mask; (void)layer_depth; (void)frame_depth; (void)merge;
+    return graph::RenderOpResult(graph::make_render_backend_error(
+        graph::RenderBackendErrorCode::UnsupportedCapability,
+        "VulkanBackend::occlusion_tag_surface: Vulkan support is disabled"));
+#endif
+}
+
 } // namespace chronon3d::backends::vulkan

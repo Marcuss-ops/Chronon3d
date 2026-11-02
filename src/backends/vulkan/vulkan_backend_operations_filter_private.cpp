@@ -112,6 +112,35 @@ void VulkanBackend::Impl::dof_blur(runtime::RenderSurfaceHandle destination_hand
     ++stats.passes_executed;
 }
 
+void VulkanBackend::Impl::occlusion_tag(runtime::RenderSurfaceHandle mask_handle,
+                                       runtime::RenderSurfaceHandle layer_depth_handle,
+                                       runtime::RenderSurfaceHandle frame_depth_handle,
+                                       bool merge) {
+    auto& mask = resolve_image(mask_handle);
+    auto& layer_depth = resolve_image(layer_depth_handle);
+    auto& frame_depth = resolve_image(frame_depth_handle);
+    if (!layer_depth.initialized || !mask.width || !mask.height ||
+        layer_depth.width != mask.width || layer_depth.height != mask.height ||
+        frame_depth.width != mask.width || frame_depth.height != mask.height) {
+        throw std::invalid_argument(
+            "Vulkan occlusion tag references incompatible depth surfaces");
+    }
+    if (!frame_batch.active) {
+        throw std::logic_error("Vulkan occlusion tag requires an active frame batch");
+    }
+    const auto descriptors = allocate_pass_descriptor_set();
+    write_dof_descriptors(descriptors, mask, layer_depth, frame_depth);
+    const auto cmd = active_command_buffer();
+    emit_pass_sync(cmd, {&mask, &layer_depth, &frame_depth},
+                   runtime::GpuPassKind::Composite);
+    record_occlusion_tag(cmd, descriptors, mask, layer_depth, frame_depth,
+                         merge ? 1 : 0);
+    mask.initialized = true;
+    frame_depth.initialized = true;
+    ++frame_batch.pass_count;
+    ++stats.passes_executed;
+}
+
 void VulkanBackend::Impl::radial_blur(runtime::RenderSurfaceHandle destination,
                                        runtime::RenderSurfaceHandle source,
                                        float center_x_px, float center_y_px,

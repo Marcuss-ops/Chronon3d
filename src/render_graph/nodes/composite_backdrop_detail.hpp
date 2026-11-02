@@ -14,5 +14,9 @@ void publish_dof_provenance(
     i32 framebuffer_width, i32 framebuffer_height);
 [[nodiscard]] float dof_source_radius(
     RenderGraphContext& ctx, float camera_depth);
+[[nodiscard]] std::optional<NodeExecutionError> apply_native_layer_dof(
+    RenderGraphContext& ctx, const Framebuffer& layer,
+    float camera_depth, float radius, float highlight_gain,
+    const std::optional<raster::BBox>& layer_bounds, OwnedFB& output);
 
 } // namespace chronon3d::graph::detail

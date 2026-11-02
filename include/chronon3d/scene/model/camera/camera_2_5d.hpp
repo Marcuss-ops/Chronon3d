@@ -124,7 +124,7 @@ struct Camera2_5D {
     //
     // The lens model is independent of DoF: you can set a lens without
     // enabling depth of field.  DoF reads its physical parameters from
-    // here when dof.use_physical_model is true.
+    // when the camera uses the physical lens projection.
     LensModel lens{50.0f, 2.8f, 450.0f, 36.0f, 24.0f, GateFit::Fill};
 
     DepthOfFieldSettings dof;

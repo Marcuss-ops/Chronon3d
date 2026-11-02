@@ -104,7 +104,8 @@ public:
           // of a read-only video source keep the logical handle so the graph
           // does not re-upload the CPU shadow framebuffer.
           m_surface_handle(other.m_surface_handle),
-          m_depth_map(other.m_depth_map) {
+          m_depth_map(other.m_depth_map),
+          m_native_depth_handle(other.m_native_depth_handle) {
         copy_pixels_from(other);
     }
 
@@ -116,7 +117,8 @@ public:
           m_content_digest(other.m_content_digest),
           m_cpu_authoritative(other.m_cpu_authoritative),
           m_surface_handle(other.m_surface_handle),
-          m_depth_map(std::move(other.m_depth_map)) {
+          m_depth_map(std::move(other.m_depth_map)),
+          m_native_depth_handle(other.m_native_depth_handle) {
         move_pixels_from(std::move(other));
     }
 
@@ -125,6 +127,7 @@ public:
             release_owned_pixels();
             copy_metadata_from(other);
             m_depth_map = other.m_depth_map;
+            m_native_depth_handle = other.m_native_depth_handle;
             copy_pixels_from(other);
         }
         return *this;
@@ -138,6 +141,7 @@ public:
             // CPU-copy metadata path deliberately cleared it.
             m_surface_handle = other.m_surface_handle;
             m_depth_map = std::move(other.m_depth_map);
+            m_native_depth_handle = other.m_native_depth_handle;
             move_pixels_from(std::move(other));
         }
         return *this;
@@ -396,6 +400,7 @@ public:
         swap(m_surface_handle,   other.m_surface_handle);
         swap(m_cpu_authoritative, other.m_cpu_authoritative);
         swap(m_depth_map,        other.m_depth_map);
+        swap(m_native_depth_handle, other.m_native_depth_handle);
         swap(m_owns_pixels,      other.m_owns_pixels);
         swap(m_pixels,           other.m_pixels);
         swap(m_external_pixels,  other.m_external_pixels);
@@ -445,6 +450,19 @@ public:
         m_depth_map = std::move(depth);
     }
     void drop_depth_map() noexcept { m_depth_map.reset(); }
+
+    // ── Optional device-local per-pixel depth companion ───────────────────
+    // See `m_native_depth_handle`. Dropped by every resampling producer, like
+    // the CPU depth map: reprojected geometry has no per-pixel depth.
+    [[nodiscard]] runtime::RenderSurfaceHandle native_depth_handle() const noexcept {
+        return m_native_depth_handle;
+    }
+    void set_native_depth_handle(runtime::RenderSurfaceHandle handle) noexcept {
+        m_native_depth_handle = handle;
+    }
+    void drop_native_depth_handle() noexcept {
+        m_native_depth_handle = runtime::kInvalidRenderSurfaceHandle;
+    }
 
 private:
     u64 m_key_digest{0};
@@ -520,6 +538,7 @@ private:
         m_cpu_authoritative = true;
         m_content_cleared = false;
         m_depth_map.reset();
+        m_native_depth_handle = runtime::kInvalidRenderSurfaceHandle;
     }
 
     i32 m_width{0};
@@ -547,6 +566,14 @@ private:
     // deliberate — draw nodes hang it onto raster results and composite
     // nodes read it during cross-layer depth-aware occlusion).
     std::shared_ptr<const std::vector<float>> m_depth_map;
+    // Device-local companion of `m_depth_map`: an RGBA32F surface holding
+    // r = positive camera-space depth and g = coverage/blur marker for a
+    // rasterized layer (the inline-mesh kernel writes it). It lets a
+    // GPU-only layer carry its own per-pixel depth into native compositing,
+    // where no CPU depth map exists by contract. Registry-owned: the handle
+    // stays valid while the frame's owning framebuffer is alive.
+    runtime::RenderSurfaceHandle m_native_depth_handle{
+        runtime::kInvalidRenderSurfaceHandle};
 };
 
 } // namespace chronon3d

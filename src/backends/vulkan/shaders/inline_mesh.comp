@@ -7,6 +7,10 @@
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 layout(binding = 0, rgba32f) uniform image2D destination_image;
 layout(binding = 1, rgba32f) uniform readonly image2D texture_image;
+// Optional per-pixel camera-depth companion (r = positive camera depth,
+// g = coverage marker). Bound to the destination when the caller is not
+// publishing depth, so the descriptor is always valid.
+layout(binding = 2, rgba32f) uniform image2D depth_image;
 layout(binding = 3, std430) readonly buffer MeshData { float data[]; } mesh;
 
 layout(push_constant) uniform InlineMeshParams {
@@ -22,6 +26,8 @@ layout(push_constant) uniform InlineMeshParams {
     float tint_a;
     float alpha_cutoff;
     int has_alpha_cutoff;
+    float depth_marker;   // written to g where the mesh covers the pixel (1 = present)
+    int write_depth;      // 1 = publish per-pixel depth for native occlusion
 } params;
 
 vec2 vertex_screen(uint index) {
@@ -114,5 +120,17 @@ void main() {
         vec4 destination = imageLoad(destination_image, pixel);
         imageStore(destination_image, pixel,
                    nearest_color + destination * (1.0 - nearest_color.a));
+        if (params.write_depth != 0 && nearest_depth > 0.0 &&
+            nearest_depth < 3.402823e+38) {
+            // Nearest-first, order independent: a farther fragment of the same
+            // mesh never overwrites a nearer pixel already published for this
+            // layer, and the compositor reads the closest surface at each
+            // pixel (the plane layer stamps its own value independently).
+            vec2 current = imageLoad(depth_image, pixel).rg;
+            if (!(current.g > 0.0 && current.r > 0.0 && current.r <= nearest_depth)) {
+                imageStore(depth_image, pixel,
+                           vec4(nearest_depth, params.depth_marker, 0.0, 1.0));
+            }
+        }
     }
 }

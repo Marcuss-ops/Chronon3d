@@ -14,12 +14,16 @@ namespace chronon3d::renderer {
 /// SIMD horizontal gather: for a row of pixels, apply 1D smoothstep-weighted
 /// blur along the row.  Each output pixel gathers from its own [x-r, x+r]
 /// neighborhood using SIMD-batched neighbor processing.
+/// @param highlight_gain Out-of-focus highlight energy gain (0 = plain
+///        average). Mirrors `highlight_weight()` in dof_blur.comp: samples
+///        brighter than 1.0 gain extra weight so bokeh keeps its energy.
 void dof_h_gather_simd(const Color* __restrict src_row,
                        Color* __restrict dst_row,
                        const float* __restrict blur_radii_row,
                        const float* __restrict depth_row,
                        float max_radius,
                        bool normalize_opaque,
+                       float highlight_gain,
                        int x0, int x1, int w, int y, int fb_w,
                        int roi_x0, int roi_x1);
 
@@ -33,6 +37,7 @@ void dof_v_gather_simd(const Color* __restrict hpass,
                        const float* __restrict depth,
                        float max_radius,
                        bool normalize_opaque,
+                       float highlight_gain,
                        int x0, int x1, int y, int h, int fb_w,
                        int roi_x0, int roi_x1, int roi_y0, int roi_y1,
                        int roi_w);

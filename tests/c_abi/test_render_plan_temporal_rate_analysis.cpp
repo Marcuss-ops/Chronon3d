@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/render_plan/temporal_rate_analysis.hpp>
 
 #include <cstddef>

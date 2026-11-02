@@ -119,6 +119,51 @@ PixelComparison compare_rgba(const std::vector<unsigned char>& a,
 
 }  // namespace
 
+TEST_CASE("Typed native shutter submits each sample before encoder handoff") {
+    const auto cli = cli_path();
+    REQUIRE_MESSAGE(cli.has_value(), "chronon3d_cli not found; set CHRONON3D_CLI_BINARY");
+    REQUIRE_MESSAGE(std::system("command -v ffmpeg >/dev/null 2>&1") == 0,
+                    "ffmpeg is required to decode the native NVENC frame");
+    const auto root = std::filesystem::path(CHRONON3D_SOURCE_DIR);
+    const auto dir = root / "build/typed-native-shutter-regression";
+    std::filesystem::create_directories(dir);
+    const auto plan = dir / "plan.json";
+    const auto video = dir / "frame.mp4";
+    const auto raw = dir / "frame.rgba";
+    const auto log = dir / "render.log";
+    {
+        std::ofstream file(plan);
+        REQUIRE(file);
+        file << R"({"schema":"chronon.render-plan.v3","version":3,
+          "job_id":"native-shutter-solid",
+          "canvas":{"width":320,"height":180,"fps_num":30,"fps_den":1,"duration_frames":3},
+          "layers":[{"id":"background","type":"color","color":[0.8,0.2,0.1,1.0],
+                     "size":[320,180],"start_frame":0,"duration_frames":3}],
+          "temporal_motion_blur":{"shutter_angle":180.0,"samples":8},
+          "output":{"path":"frame.mp4","format":"mp4"}})";
+        REQUIRE(file.good());
+    }
+    std::ostringstream command;
+    command << "CHRONON3D_VULKAN_VALIDATION=1 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation "
+            << shell_quote(cli->string()) << " render --plan " << shell_quote(plan.string())
+            << " --assets-root " << shell_quote(root.string())
+            << " --backend vulkan --gpu-hot-path-mode require_gpu_native"
+               " --hardware nvenc --encoder-backend native --start-frame 1 --end-frame 1 -o "
+            << shell_quote(video.string()) << " > " << shell_quote(log.string()) << " 2>&1";
+    REQUIRE(std::system(command.str().c_str()) == 0);
+    const auto log_bytes = read_bytes(log);
+    REQUIRE_FALSE(log_bytes.empty());
+    const std::string log_text(log_bytes.begin(), log_bytes.end());
+    CHECK(log_text.find("Enabled validation layer: VK_LAYER_KHRONOS_validation") != std::string::npos);
+    CHECK(log_text.find("Vulkan Validation ERROR") == std::string::npos);
+    REQUIRE(decode_frame_rgba(video, raw, 0) == 0);
+    const auto pixels = read_bytes(raw);
+    REQUIRE(pixels.size() == 320u * 180u * 4u);
+    std::uint64_t red_sum = 0;
+    for (std::size_t i = 0; i < pixels.size(); i += 4) red_sum += pixels[i];
+    CHECK(red_sum > 20u * 320u * 180u);
+}
+
 TEST_CASE("Text surfaces: E1 frames 8 and 48 match cold and warm renders") {
     const auto cli = cli_path();
     REQUIRE_MESSAGE(cli.has_value(),

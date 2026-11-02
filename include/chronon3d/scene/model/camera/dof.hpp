@@ -9,35 +9,35 @@
 
 namespace chronon3d {
 
-/// Single fail-closed optics admission policy: `iris_blades` non-zero or a
-/// non-zero `highlight_gain` have no kernel (the separable DOF blur kernels
-/// implement constant circular bokeh only). This is the one seat of the
-/// policy: the render_plan camera contract and the per-node render-boundary
-/// gate below are callers of this predicate, not a second copy of the rule.
+/// Single fail-closed optics admission policy: a non-zero `iris_blades` has no
+/// kernel (neither the separable nor the disk DOF kernel builds a blade
+/// polygon aperture). `highlight_gain` IS implemented on every path
+/// (`highlight_weight()` in dof_blur.comp, `dof_highlight_weight()` in the
+/// software kernel), so it is accepted here and consumed by the kernels.
+/// This is the one seat of the policy: the render_plan camera contract and the
+/// per-node render-boundary gate below are callers of this predicate, not a
+/// second copy of the rule.
 [[nodiscard]] inline bool dof_shape_unsupported(int iris_blades, f32 highlight_gain) {
-    return iris_blades != 0 || highlight_gain != 0.0f;
+    (void)highlight_gain;
+    return iris_blades != 0;
 }
 
-/// Fail closed when the authored lens shaping has no kernel support. The DOF
-/// blur kernels (software `highway_dof_kernels.cpp` and Vulkan `dof_blur.comp`)
-/// separate on the two image axes, so their support is a soft rectangle: no
-/// iris-blade polygon and no highlight weighting exists on any path. An
-/// authoring that requests `iris_blades` or `highlight_gain` would otherwise be
+/// Fail closed when the authored lens shaping has no kernel support. No DOF
+/// kernel builds an iris-blade polygon aperture, so `iris_blades` would be
 /// silently ignored and render as plain circular bokeh. Call this at the render
 /// boundary of every path that applies a DOF blur so unsupported shaping fails
 /// loudly instead of silently mismatching the authored lens.
 inline void reject_unsupported_dof_shape(
     const DepthOfFieldSettings& dof) {
     constexpr std::string_view kAdviceView =
-        " (the separable DOF kernels support constant circular bokeh only); "
-        "remove the values from the plan or implement the shaped kernels first";
+        " (the DOF kernels support circular bokeh with highlight weighting "
+        "only); remove the iris_blades value from the plan or implement the "
+        "shaped kernels first";
     if (dof_shape_unsupported(static_cast<int>(dof.iris_blades), dof.highlight_gain)) {
         throw std::runtime_error(
             "DOF: unsupported shaped bokeh (iris_blades " +
-            std::to_string(dof.iris_blades) + ", highlight_gain " +
-            std::to_string(dof.highlight_gain) + ") is authored but no DOF kernel "
-            "implements iris-shaped bokeh or out-of-focus highlight weighting" +
-            std::string{kAdviceView});
+            std::to_string(dof.iris_blades) + ") is authored but no DOF kernel "
+            "implements iris-shaped bokeh" + std::string{kAdviceView});
     }
 }
 
@@ -87,115 +87,34 @@ inline constexpr float kUnsetDofDepth = 1e18f;
     return coc_mm;
 }
 
-/// Camera-space depth where the optical axis intersects the legacy world-Z
-/// focus plane. `focus_z` remains a world-Z coordinate for compatibility.
-/// A tilted camera sees different depths across that plane; this central-axis
-/// intersection is the single scalar reference used by the legacy model.
-[[nodiscard]] inline f32 camera_space_world_z_plane_depth(
-    const Camera2_5DRuntime& camera,
-    f32 world_z) {
-    const Mat4 camera_to_world = glm::inverse(camera.view_matrix());
-    const Vec3 forward = glm::normalize(Vec3{camera_to_world[2]});
-    if (std::abs(forward.z) > 1e-6f) {
-        const f32 distance = (world_z - camera.position.z) / forward.z;
-        const Vec3 axis_intersection = camera.position + forward * distance;
-        return (camera.view_matrix() * Vec4{axis_intersection, 1.0f}).z;
-    }
-
-    // The optical axis is parallel to the authored world-Z plane, so there is
-    // no finite intersection. Preserve a deterministic axis-distance fallback.
-    return (camera.view_matrix() * Vec4{0.0f, 0.0f, world_z, 1.0f}).z;
-}
-
-/// Inverse of `camera_space_world_z_plane_depth` along the central optical
-/// axis: the world-Z focus plane whose camera-space depth equals
-/// `camera_space_depth`.
-///
-/// RenderPlan `dof.focus_distance` is authored in camera-space (S1, distance
-/// along the optical axis), while the legacy `focus_z` field is a world-Z
-/// coordinate. The RenderPlan bridge derives `focus_z` through this helper —
-/// once for the static descriptor, per-frame for animated focus tracks — so
-/// `camera_space_dof_settings` maps it back to exactly the authored S1.
-/// When the optical axis is parallel to the world-Z plane (|forward.z| ~ 0)
-/// no finite intersection exists; the camera position plane is returned as
-/// the deterministic fallback (the legacy model is approximate there anyway).
-[[nodiscard]] inline f32 world_z_plane_for_camera_space_depth(
-    const Camera2_5DRuntime& camera,
-    f32 camera_space_depth) {
-    const Mat4 camera_to_world = glm::inverse(camera.view_matrix());
-    const Vec3 forward = glm::normalize(Vec3{camera_to_world[2]});
-    if (std::abs(forward.z) > 1e-6f) {
-        return camera.position.z + forward.z * camera_space_depth;
-    }
-    return camera.position.z;
-}
-
-/// Convert the authored legacy world-Z focus plane to the positive
-/// camera-space reference depth used by the render graph.
-[[nodiscard]] inline DepthOfFieldSettings camera_space_dof_settings(
-    const DepthOfFieldSettings& dof,
-    const Camera2_5DRuntime& camera) {
-    DepthOfFieldSettings result = dof;
-    if (!dof.use_physical_model) {
-        result.focus_z = camera_space_world_z_plane_depth(camera, dof.focus_z);
-    }
-    return result;
-}
-
-// Camera-space depth at an authored world point. Rotated world-Z planes are
-// not constant-depth planes, so per-pixel sources use this rather than the
-// scalar compatibility focus-plane intersection.
+// Camera-space depth at an authored world point.
 [[nodiscard]] inline f32 camera_space_depth(
     const Camera2_5DRuntime& camera,
     const Vec3& world_position) {
     return (camera.view_matrix() * Vec4{world_position, 1.0f}).z;
 }
 
-/// Compute the DoF blur radius in pixels for a positive camera-space depth.
-///
-/// When `use_physical_model` is true, uses the thin-lens Circle of Confusion
-/// model. Otherwise falls back to the legacy linear formula. For that legacy
-/// branch, callers should first pass settings through `camera_space_dof_settings`
-/// so focus_z denotes the matching camera-space focus plane.
-///
-/// @param viewport_width Used to scale the physical CoC from sensor-mm to px.
-///                       Defaults to 1920 (common HD width).
+/// Compute the thin-lens Circle of Confusion radius in pixels for a positive
+/// camera-space depth.
 [[nodiscard]] inline f32 compute_dof_blur_radius(
     const DepthOfFieldSettings& dof,
     const LensModel& lens,
     f32 camera_depth,
     f32 viewport_width = 1920.0f
 ) {
-    if (!dof.enabled || !std::isfinite(camera_depth) || camera_depth <= 0.0f) {
+    if (!dof.enabled || !std::isfinite(camera_depth) || camera_depth <= 0.0f ||
+        !std::isfinite(viewport_width) || viewport_width <= 0.0f) {
         return 0.0f;
     }
 
-    if (dof.use_physical_model) {
-        const f32 coc_mm = compute_physical_coc(dof, lens, camera_depth);
-        if (coc_mm <= 0.0f) return 0.0f;
-        // Scale CoC from sensor-mm to pixels.
-        f32 pixels = coc_mm * (viewport_width / lens.sensor_width);
-        // Per-side bokeh clamp: if near/far limits are set, clamp based on
-        // whether the layer is nearer or farther than the focus plane.
-        const bool is_near = camera_depth < dof.focus_distance;
-        const f32 bokeh_limit = (is_near && dof.near_bokeh_radius > 0.0f) ? dof.near_bokeh_radius
-                              : (!is_near && dof.far_bokeh_radius > 0.0f)  ? dof.far_bokeh_radius
-                              : dof.max_blur;
-        const f32 clamp_max = bokeh_limit > 0.0f ? bokeh_limit : 100.0f;
-        return std::clamp(pixels, 0.0f, clamp_max);
-    }
-
-    // Legacy simple model. Render-graph callers first convert the authored
-    // world-Z focus reference to camera-space using the runtime camera.
-    const f32 dist = std::abs(camera_depth - dof.focus_z);
-    f32 blur = dist * dof.aperture;
-    // Per-side bokeh clamp for legacy model too. `focus_z` is converted to
-    // camera-space by camera_space_dof_settings(), where smaller depth is near.
-    const bool is_near = camera_depth < dof.focus_z;
+    const f32 coc_mm = compute_physical_coc(dof, lens, camera_depth);
+    if (coc_mm <= 0.0f || lens.sensor_width <= 0.0f) return 0.0f;
+    const f32 pixels = coc_mm * (viewport_width / lens.sensor_width);
+    const bool is_near = camera_depth < dof.focus_distance;
     const f32 bokeh_limit = (is_near && dof.near_bokeh_radius > 0.0f) ? dof.near_bokeh_radius
                           : (!is_near && dof.far_bokeh_radius > 0.0f)  ? dof.far_bokeh_radius
                           : dof.max_blur;
-    return std::clamp(blur, 0.0f, bokeh_limit);
+    return std::clamp(pixels, 0.0f, std::max(0.0f, bokeh_limit));
 }
 
 } // namespace chronon3d

@@ -1,0 +1,13 @@
+{
+  "source": "ChrononMotion3D/tools/plan_optical_studio.cpp same MotionScene and CameraRig, offline and provider modes",
+  "mode": "shutter",
+  "resolution": [1920, 1080],
+  "frames": 150,
+  "shutter_samples": 8,
+  "camera_subframes_compared": 1350,
+  "camera_sample_timestamps_and_values": "exact match",
+  "layer_transform_samples": "exact match",
+  "offline_plan_sha256": "15f650b4ed70a05401ff42385246493e60733a3054bc33f8b1ad84229876decd",
+  "provider_plan_sha256": "15f650b4ed70a05401ff42385246493e60733a3054bc33f8b1ad84229876decd",
+  "result": "PASS"
+}

@@ -1,11 +1,20 @@
 # TICKET-CAMERA-DEFINITIVE-CLOSURE — Chiusura Definitiva Pipeline Camera (Chronon3d + ChrononMotion3D)
 
-- **Stato**: **PARTIAL — closeout gate definito, non ancora superato** (2026-10-31). Le prove locali già elencate restano valide solo per il loro ambito; non equivalgono al PASS end-to-end della sezione 8. Aperture note: **F3**, parità temporale camera/layer end-to-end, DoF fail-closed sulla profondità attesa, consumer dei percorsi di produzione, showcase integrato, Vulkan validation e CI same-SHA. La capability validation condivisa è atterrata il 2026-10-31 (`camera_contract.hpp` in C3D, `a67934e` in Motion); resta la sua certificazione E2E.
+- **Stato**: **PARTIAL — closeout gate definito, non ancora superato** (checkpoint 2026-11-01). Le prove locali già elencate restano valide solo per il loro ambito; non equivalgono al PASS end-to-end della sezione 8. Aperture confermate: occlusione trasparente per-pixel, parità temporale camera/layer end-to-end, accumulo shutter strict-native GPU, accettazione 1080p, validazione Vulkan sul run completo e CI same-SHA. La capability validation condivisa è atterrata il 2026-10-31 (`camera_contract.hpp` in C3D, `a67934e` in Motion); resta la certificazione E2E.
 - **Checkpoint locale 2026-10-30:** [report camera-closure-final](../evidence/camera-closure-final/README.md): camera 82/82, Motion 3/3, architettura 6/6 e nodo DoF 5/5; raw software/Vulkan e rack-focus ROI PASS. Corrette precisione double dei timestamp layer e copia DoF verso intermedi shutter. Due MP4 1080p caricati; shutter unico FAIL exit 139 dopo 75 frame, delivery segmentata in corso (workaround, non fix). Nessuna chiusura same-SHA/umana implicita. L'espansione funzionale AE-style ha un [ticket separato](TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md).
 - **Checkpoint locale 2026-10-31:** contratto unico di ammissione camera/ottica applicato ai due confini producer/compiler (test `Camera capability contract rejects unsupported optics at both compiler boundaries`), provider runtime passato al compiler canonico e risoluzione camera/layer sul calendario shutter; pubblicato anche il timing GPU per pass. I gate §8 restano aperti: la suite camera 82/82 e Motion 3/3 sono del 2026-10-30, il job shutter completo è ancora FAIL e la CI same-SHA è BLOCKED.
 - **Priorità**: P0
 - **Repository**: `ChrononMotion3D`, `Chronon3d`
 - **Build**: parallelismo limitato alla memoria disponibile; non sovrapporre build pesanti senza tener conto del totale dei job.
+
+### Avanzamento locale 2026-11-01 — fasi proiezione/focale
+
+- **Fase 0 PASS:** la fixture della card 200×150 inclinata confronta i quattro angoli proiettati dal contratto camera con la matrice consumata dal render graph. Prima della migrazione al valore omografico il test falliva; dopo la migrazione passa.
+- **Fase 1 PASS:** `ProjectedLayer2_5D` non espone più il TRS ricostruito dalla bbox; il placement usa la matrice omografica. Rimosso l'overload produttivo a 5 argomenti. Verifica: `chronon3d_core_tests` filtro camera **15 casi / 49 asserzioni PASS**, `chronon3d_renderer_core_tests` **204/204 casi e 74.269/74.269 asserzioni PASS**, `chronon3d_render_graph_tests` dalla root C3D **445/445 casi e 19.543/19.543 asserzioni PASS**.
+- **Fase 2 PASS localmente:** rimosso `focal_length_from_fov`, separato il factory di proiezione 3D nativa da quello camera/layer, allineati i default FOV a 50°, introdotto `sensor_height_mm` nel RenderPlan e nel bridge CameraRig Motion; il test numerico verifica `fx == fy` su gate quadrato e `fx/fy == aspect` in Stretch. Motion authoring **1/1 PASS**, rig canary **1/1 PASS**, bridge Motion→RenderPlan C3D **10/10 casi e 160/160 asserzioni PASS**.
+- **Fase 3 PASS locale — stato aggiornato 2026-11-01:** oltre ai cambi già elencati, il modello legacy gain/aperture è stato rimosso dai consumatori attivi; il thin-lens usa `f_stop`, focale, focus, sensore e limiti canonici; fingerprint e chiavi cache includono la semantica ottica aggiornata. Vedi il checkpoint F0–F3 più recente in fondo al ticket.
+- Il build C3D è stato eseguito con `-j12` e ccache attivo (cache preesistente 10.149 hit). Il render graph è stato lanciato dalla root del repository per risolvere gli asset fixture; un primo avvio dalla build dir è stato scartato perché mancavano gli asset relativi.
+- Questi PASS non chiudono il ticket: restano DoF per-layer, kernel bokeh, validazione/lifecycle Vulkan asincrona, acceptance 1080p, parity provider/runtime Motion→renderer, CI same-SHA e review. Il checkpoint storico del 2026-11-01 su software non certificava il percorso Vulkan, poi riaperto dai run nativi.
 
 ---
 
@@ -140,6 +149,175 @@ Questa sezione è il criterio finale di chiusura. Le verifiche e i PASS locali d
 - [ ] Confrontare snapshot offline serializzati e provider runtime agli stessi timestamp: almeno 3 frame (inizio, interno, fine), tutti gli 8 sottocampioni shutter del profilo di accettazione e accesso fuori ordine. Includere parent/Null, look-at, roll, rotazione attraverso ±180°, FOV/focale, focus, trasformazione/opacity dei layer e un easing non lineare. Le tolleranze numeriche sono dichiarate e congelate prima del run; non possono essere allargate per far passare il test.
 - [ ] Eseguire gli stessi casi tramite il percorso tipizzato usato dai job di produzione, non soltanto la view di compatibilità o un helper isolato. Un payload non in grado di rappresentare quei tempi deve essere rifiutato o marcato esplicitamente approssimato; non può presentarsi come esatto.
 - [ ] Sullo stesso backend, il rendering sequenziale e random-access dei frame di accettazione produce gli stessi snapshot e gli stessi pixel raw (bit-identici se il backend è deterministico; altrimenti entro una soglia numerica fissata e motivata prima del test). Verificare separatamente accumulo shutter raw e ordine dei campioni.
+
+#### Checkpoint locale 2026-11-01 — calendario e percorso tipizzato
+
+- Nel working tree il compiler rifiuta campioni camera serializzati mancanti quando il piano shutter contiene layer risolti; i piani legacy senza bake layer mantengono la precedente interpolazione. Il renderer tipizzato controlla inoltre gli istanti shutter effettivi rispetto ai campioni camera/layer prima dell'accumulo: un override incompatibile di phase, pattern o seed non deve interpolare silenziosamente il bake esatto.
+- Verifiche parziali: smoke isolato del calendario, 27 istanti, PASS; controlli sintattici C++ su renderer e test, PASS. Dopo `cmake --build build/chronon/linux-video-test --target chronon3d_camera_tests -j12`, la regressione `Typed shutter offline and runtime cameras consume identical resolved layer samples` passa sul binario ricompilato (1 caso, 201 asserzioni). Non costituisce una certificazione del job reale o del pair di SHA.
+- Accumulo typed strict-native tentato il 2026-11-01 su piano minimo Vulkan 320×180 con validation: **FAIL**. Il job non consegna frame, il sink rifiuta la superficie come non-GPU e il validation layer segnala `InvalidImageLayout` (immagini attese `GENERAL`, stato corrente `UNDEFINED`). Nessun output RGBA valido; log `build/chronon/linux-video-test/typed-native-shutter-minimal-f75.log`. Il nuovo ramo non è prova di shutter strict-native; accumulo GPU e lifecycle/layout delle superfici restano da correggere.
+- Canary mesh/piano rieseguito dopo `cmake --build build/chronon/linux-video-test --target chronon3d_renderer_core_tests -j12`: **FAIL**, 34/46 asserzioni passate, 12 fallite. I due ordini di authoring e i casi con alpha confermano che l'occlusione per-pixel resta aperta; log locale `build/chronon/linux-video-test/camera-mesh-occlusion.log`.
+- Diagnosi/fix locale 2026-11-01: il clone pooled del framebuffer copiava i pixel ma perdeva `depth_map`, così `CompositeNode` non riceveva la profondità rasterizzata dalla mesh. `FramebufferPool::acquire_from` e il passthrough identity di `TransformNode` ora propagano la stessa mappa insieme ai pixel. Il compositing CPU mantiene e riordina i contributi per-pixel con source-over. Canary invariata: **46/46 asserzioni PASS**, entrambi gli ordini e casi alpha; `build/chronon/linux-video-test/camera-mesh-occlusion-final.log`. Questo PASS è circoscritto al percorso CPU e non certifica alpha+DoF o Vulkan.
+
+#### Verifica locale aggiornata 2026-11-01 — ownership e gate
+
+- Ownership target aggiornata 2026-11-01: ChrononMotion3D è l’unica autorità semantica per camera, calendario, layer, alpha/depth, policy DoF/shutter e composizione; Chronon3d resta backend pixel/GPU con kernel, risorse e sincronizzazione, senza un secondo modello authoring. La migrazione non è completata e i gate di questo ticket restano obbligatori. Decisione canonica: [`ADR-CAMERA-PIPELINE-OWNERSHIP.md`](../../../ChrononMotion3D/docs/ADR-CAMERA-PIPELINE-OWNERSHIP.md); il confine nel codice corrente è descritto come legacy in [`BOUNDARY_C3D.md`](../../../ChrononMotion3D/docs/BOUNDARY_C3D.md).
+- Verifiche locali rieseguite: `chronon3d_renderer_core_tests` **204/204 casi, 74.268 asserzioni PASS**; `chronon3d_camera_tests` **84/84 casi, 66.232 asserzioni PASS**; `chronon3d_render_graph_tests` **444/444 casi, 19.510 asserzioni PASS**; canary mesh/piano **46/46 asserzioni PASS**. Motion `chrononmotion_authoring`, `chrononmotion_camera_bake_roundtrip`, `chrononmotion_renderplan_camera_parity` **3/3 PASS** e `chrononmotion_boundary` **1/1 PASS** (run precedente). Strict-native typed è fallito con errori Vulkan/layout come riportato sopra.
+- La build Release di `chronon3d_cli` è disponibile localmente, ma da sola non dimostra l'accettazione. I vecchi video 1080p nella cartella `camera-closure-final` appartengono a un pair di revisioni precedente e non valgono come prova per questo working tree.
+- Restano da completare: integrazione dell'occlusione alpha con DoF e backend nativo; prova end-to-end offline/runtime e random-access sul pair corrente; accumulo shutter GPU strict-native con layout/lifecycle validi; acceptance originale 150 frame a 1920×1080 con metriche/manifest; zero errori Vulkan sul medesimo run; review umana e CI verde sullo stesso pair di SHA. Il ticket rimane **PARTIAL** finché ogni gate §8 non ha evidenza riproducibile.
+
+#### Checkpoint locale successivo 2026-11-01 — batch typed e profondità DoF
+
+- **Shutter typed Vulkan/NVENC, fix locale:** il parent temporale ora chiude il batch nativo di ogni campione dopo il weighted-add, anche sui percorsi di errore. Prima Optical Studio 320×180, frame 75, produceva un MP4 valido ma interamente nero; dopo il fix il frame decodificato è non nero e la validation non segnala errori in questo run. La regressione `Typed native shutter submits each sample before encoder handoff` passa **1 caso / 11 asserzioni**, su tinta unita 320×180 con validation. Non prova il run completo, DoF/alpha, o la parità generale.
+- **Occlusione CPU → depth DoF:** la ricomposizione pubblica nel buffer DoF la profondità del contributo più vicino con alpha sopra la soglia di copertura e invalida gli hint ROI precedenti. Regressioni mirate: **7 casi / 47 asserzioni PASS**; canary mesh/piano invariata **46/46 PASS**. Una depth singola resta un'approssimazione per miscele trasparenti; non è prova di DoF multistrato o GPU.
+- **Raw Vulkan, diagnosi:** lo stesso piano minimale con sink raw compatibile conclude con validation senza errori; il caso raw + `require_gpu_native` continua a essere rifiutato dal writer perché il sink non ha uno slot nativo. Il precedente `InvalidImageLayout` non è stato riprodotto e non è identificata la sua causa; non dichiararlo risolto.
+- **Motion / typed:** con binari ricompilati, `chrononmotion_authoring`, `chrononmotion_boundary`, `chrononmotion_camera_bake_roundtrip`, `chrononmotion_renderplan_camera_parity` **4/4 PASS**; i due test typed shutter C3D **2 casi / 209 asserzioni PASS**. Non certificano provider live camera+layer o CI same-SHA. Il confronto indicativo frame 75 software raw / NVENC lossy 320×180 dà MAE RGB 2,23 e p99 23, senza soglia prefissata: è solo diagnostico.
+- La chiusura resta **PARTIAL**: lo shader inline mesh Vulkan non pubblica la depth per-pixel verso il compositing; non c'è ancora equivalenza GPU per occlusione mesh/piano/alpha né integrazione DoF dimostrata. L'accettazione 1080p e la review umana restano distinte dai test locali.
+
+#### Checkpoint locale — uscite vuote Transform strict-native
+
+#### Checkpoint locale 2026-11-01 — proiezione canonica e policy ottica F0–F3
+
+- **F0–F1 PASS locale:** il canary della card a dimensione nota verifica i quattro angoli contro il contratto canonico; proiezione/camera mirata: **15 casi / 49 asserzioni PASS**. Il placement usa la matrice omografica senza ricostruzione TRS e l'overload ambiguo a cinque argomenti è stato rimosso.
+- **F2 PASS locale:** `sensor_height_mm` è trasportato nel piano e nel wire, il gate-fit è risolto dal contratto e i default FOV sono allineati. Il test adapter Motion sul pair locale verifica la parità dei parametri ottici e passa nel run riportato sotto; resta necessaria la verifica end-to-end sul pair finale.
+- **F3 PASS locale limitato alla policy CPU/software:** rimosso il ramo legacy gain/aperture e il raggio DoF è derivato da `f_stop`, focale, distanza di fuoco, sensore e limiti authored. Il fingerprint del piano è versionato per il cambio semantico. DoF/render graph: **26 casi / 1.525 asserzioni PASS**; Motion adapter: **10 casi / 158 asserzioni PASS**. La chiave cache del nodo DoF ora include i parametri ottici e i limiti near/far; il test ha trovato e corretto l'omissione di focale e f-stop.
+- Le fixture del piano di fuoco sono state rese esplicite (`focus_distance=500` per una card a 500 unità); le asserzioni di nitidezza e di zero lavoro DoF restano invariate. Build dei quattro target core/renderer/render graph/Motion adapter completata con `-j12` e `ccache` attivo; `git diff --check` pulito.
+- Questo checkpoint **non** chiude F4/F5: il DoF resta post-composito con provenienza depth singola, i kernel non implementano highlight weighting o iris shape e il percorso strict-native Vulkan/1080p non è certificato. Restano obbligatori i gate §8 e lo stato complessivo rimane **PARTIAL**.
+
+#### Checkpoint locale 2026-11-01 — pass strict-native 1080p e backend DepthGrade
+
+- Il frame 75 del piano Optical Studio corrente (`optical-1080-current.plan.json`) ora completa strict-native Vulkan/NVENC a 1920×1080 con 8 campioni shutter, `CHRONON3D_VULKAN_SINGLE_FLIGHT=1` e validation layers attivi: **1 frame scritto, 0 errori validation**. Prima il job falliva su `DepthGrade`, che aveva solo il riferimento CPU e rifiutava il framebuffer GPU-only.
+- `DepthGradeNode` ora abbassa la formula costante per-layer (fog, desaturazione e contrasto) al color-matrix Vulkan già esistente, preservando alpha e la semantica CPU; il source/output usano superfici distinte della stessa extent fisica. `chronon3d_render_graph_tests`: **445/445 casi, 19.546/19.546 asserzioni PASS** dopo questa modifica.
+- Un primo tentativo 150 frame su quel binario è stato **annullato a 13/150** quando il controllo pair ha rilevato che il piano usato era antecedente all'ultimo emitter Motion; zero errori validation nei 13 frame parziali, ma non è acceptance. Il piano appena rigenerato dal pair corrente ha SHA `f13bbf8c4e0b4c152498e7f01cc6bb1c15af60ea909a26cb3f87ee19fb24f75f`; il suo frame 75 passa strict-native Vulkan/NVENC con zero errori validation. L'acceptance completa deve usare questo piano e verificare decode, frame count e manifest.
+- Diagnostica lifetime: il render 320×180 con shutter e validation senza single-flight emette `VUID-vkDestroyImage-image-01000` durante il retirement di superfici CUDA-exportable. Lo stesso frame con `CHRONON3D_VULKAN_SINGLE_FLIGHT=1` completa con zero errori. Questo è un workaround diagnostico, non la correzione del retirement concorrente; il run 1080p in corso usa single-flight e non certifica il lifecycle asincrono di default.
+- Il test mirato `DOF rejects incomplete native depth provenance` passa (**1 caso / 13 asserzioni**); il frame 0 320×180 senza sorgenti visibili DoF viene esportato in strict-native con single-flight e zero validation. La canary CPU mesh/piano resta separata: non equivale a occlusione alpha+DoF nativa.
+- Controllo del binario `chronon3d_core_tests` fallisce per SIGSEGV in `SceneHasher: disabled camera is treated as static` (39/40 casi del filtro camera eseguiti, 232 asserzioni prima del crash). Questo run non è verde e richiede diagnosi; il test completo render-graph sopra è invece verde.
+- F4 per-layer alpha/DoF, kernel F5 a disco con highlight weighting e parità numerica CPU/Vulkan, parità Motion→renderer sul pair finale, oracle raw con soglie preregistrate, CI same-SHA e review umana restano aperti. Stato complessivo: **PARTIAL**.
+
+#### Verifica corrente del pair Motion→renderer — 2026-11-01
+
+> Aggiornato dal checkpoint v2 qui sotto: i numeri `f13bbf...` e il FAIL near@30 descrivono il pair/fixture precedente e restano solo come cronologia.
+
+- Ricostruiti i binari Motion `release-fast` dai sorgenti correnti (`-j14`, ccache): `chrononmotion_authoring` **374 checks / 0 failure**; `chrononmotion_camera_bake_roundtrip` **832 checks / 0 failure**. `chrononmotion_plan_optical_studio` ha prodotto il piano shutter 1920×1080, 150 frame, 8 campioni e `sensor_height_mm=24`; SHA-256 `f13bbf8c4e0b4c152498e7f01cc6bb1c15af60ea909a26cb3f87ee19fb24f75f`.
+- `chronon3d_camera_tests`: **84/84 casi, 66.232 asserzioni PASS**; `chronon3d_render_graph_tests`: **445/445 casi, 19.546 asserzioni PASS** dopo il depth stamp nearest-first e il native DepthGrade. Il test isolato `SceneHasher: disabled camera is treated as static` termina con SIGSEGV dopo l'asserzione; va diagnosticato prima di considerare verde la suite core completa.
+- Canary software mesh/piano/alpha rieseguito: **1 caso / 46 asserzioni PASS**, con entrambi gli ordini d'authoring.
+- Build `chronon3d_cli` Release aggiornata con il piano camera attuale e shader Vulkan nearest-first. Il frame 75 corrente passa strict-native Vulkan/NVENC con single-flight e validation layers: **1/1 frame, 0 errori validation, render 3,30 s**.
+- Run acceptance completo: **150/150 frame**, exit 0, H.264 1920×1080/30, decodifica senza errori, zero intervalli neri rilevati e zero Vulkan validation error; SHA-256 video `c0b77f72496b63611adfe57f11b8a71af36871422fb1a67b3ff8e3075d5afa7e`. Report, video, timing sidecar e log sono in `../evidence/camera-closure-final/strict-native-current-pair-report.json` e `optical_current_pair_strict_native_1080p.*`.
+- Focus gate con controllo DoF OFF agli stessi frame 30/75/149: **FAIL**, mantenendo le soglie preregistrate. Near@30 rapporto ON/OFF `0,0773` contro `>=0,70`; middle@75 `1,0031` (PASS); far@149 `0,9783` (PASS); near@75 fuori fuoco `1,0297` contro `<=0,90`. La ROI near@30 nel controllo ha edge energy `0,0664` ed è visivamente vuota: la fixture corrente non colloca il target near nella ROI dichiarata. Il risultato non è sanabile modificando la soglia; occorre correggere e versionare fixture/proiezione, poi ripetere il gate.
+- Il run full usa `CHRONON3D_VULKAN_SINGLE_FLIGHT=1`: prova l'output strict-native serializzato, ma non il lifecycle asincrono predefinito. L'errore lifetime Vulkan async resta aperto. F4 DoF per-layer alpha, F5 bokeh disk/highlight e parità numerica CPU/Vulkan, runtime provider Motion→renderer end-to-end, CI same-SHA e review umana restano aperti. Stato complessivo: **PARTIAL**.
+
+#### Verifica pair v2 e fixture a linee — 2026-11-01
+
+- Le tavole di misura sono state rigenerate con pattern line-pair ad alto contrasto centrati nelle ROI; asset digest e registro alpha sono aggiornati. Il pair offline/provider genera lo stesso piano, SHA-256 `15f650b4ed70a05401ff42385246493e60733a3054bc33f8b1ad84229876decd`; sono stati confrontati 1.350 campioni camera shutter e tutti i campioni trasformazione dei layer.
+- Il strict-native Vulkan/NVENC DoF ON e il controllo sharp OFF terminano entrambi con 150/150 frame 1920×1080/30, decode pulito, nessun intervallo nero rilevato e zero errori validation. I run richiedono `CHRONON3D_VULKAN_SINGLE_FLIGHT=1`: accettazione serializzata PASS, retirement asincrono ancora NOT PASS. Hash e log sono in `../evidence/camera-closure-final/optical_current_pair_v2_*`.
+- Focus raw RGBA Vulkan: **9/9 PASS** con gli stessi ROI e limiti preregistrati; rapporti focused near@30 `1.0000`, middle@75 `1.0000`, far@149 `0.9987`; le ROI defocused restano entro il limite `0.90` (massimo `0.5807`). Il controllo grafico ora ha dettaglio misurabile, quindi il precedente falso FAIL per ROI near vuota è superato.
+- Il confronto software/Vulkan full-frame sullo stesso pair è **FAIL**, non una misura DoF valida: RGB MAE `28.99/27.59/27.12` e p99 `75/83/83`, contro i limiti congelati `2/10`. Il probe isolato che mostrava clear-color usava `--diagnostic` (layout preview) e non è valido per diagnosticare il renderer; un nuovo frame shuttered software senza quel flag è stato interrotto dopo oltre 80 s e 2,4 GB RSS. Causa software-side non ancora stabilita. Creare un probe focused a un solo campione per isolare la proiezione, poi ripetere il confronto preregistrato; soglie invariate.
+- Probe software sintetici mirati rieseguiti sul binario corrente: card ai quattro angoli canonici **11/11 PASS**; immagine sovradimensionata con alpha **19/19 PASS**; matrice di proiezione condivisa Rect/Image **11/11 PASS**. Confermano le primitive base, non la parità pixel sul pair completo.
+- Rimangono aperti: F4 DoF per-layer alpha prima del compositing, F5 kernel disco/highlight e parità kernel CPU/Vulkan, regressione software/Vulkan dopo il fix source, shutter strict-native GPU (il run video con shutter non è ancora certificato), lifecycle async Vulkan, occlusione alpha/DoF, provider end-to-end sul rendering completo, CI same-SHA e review umana. Il ticket resta **PARTIAL**.
+
+#### Checkpoint v3 — background fixture dimensionato per il campo camera
+
+- Il piano Optical Studio Motion ora dimensiona il background a **3840×2160** per il campo visivo stimato `3316×1865` (50°, distanza camera/plane 2000): overscan ~16%, invece di 8400×4725 per un PNG 1920×1080. Generatore Motion ricompilato con `-j14`; il pair provider/offline è byte-identico, piano SHA `c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6`, 1.350 campioni camera e layer; dry-run RenderPlan PASS, 1920×1080/30/150.
+- Probe still sintetico software/Vulkan con DoF e shutter spenti soltanto nel piano temporaneo: RGB MAE `1,0374`, p99 `5`, Vulkan validation `0`. È prova della corrispondenza sul still, non del pair animato.
+- Raw Vulkan rack-focus v3: **9/9 PASS**, soglie congelate. near@30 `0,9443`, middle@75 `0,8856`, far@149 `0,9956`; report e hash raw in `../evidence/camera-closure-final/strict-native-current-pair-v3-focus-report.json`.
+- Acceptance DoF-on strict-native Vulkan/NVENC 150 frame v3 in corso: `../evidence/camera-closure-final/optical_current_pair_v3_dof_1080p.*`. Finché non termina con 150 frame decodificabili e zero validation, non è PASS. Controllo sharp 150 frame, parità software/Vulkan sul pair animato, DoF per-layer/alpha e F5 bokeh CPU/Vulkan restano aperti.
+
+- Diagnosi sul singolo frame 75 Optical Studio 1080p: `Transform` del layer 4 pubblica un framebuffer senza backing CPU né handle GPU; `Lighting` fallisce a valle. Il log `build/chronon/linux-video-test/optical-1080-diag.log` non distingue quale uscita anticipata di clipping sia stata presa: la causa esatta del frame non è ancora dimostrata.
+- **NON VERIFICATO:** il working tree inizializza una superficie nativa trasparente sulle tre uscite anticipate di clipping di `Transform`, compreso il target encoder riutilizzato; aggiunta la regressione `strict Vulkan clipped transforms publish transparent native surfaces`. Nessun PASS finché il binario non viene ricompilato e il test e il frame 1080p non vengono rieseguiti con validation.
+- La build di verifica è temporaneamente bloccata da un'altra build non avviata dall'agente sullo stesso `build/chronon/linux-video-test`, con `-j14`, swap pieno e disponibilità RAM oscillante. Non avviare build sovrapposte o render pesanti; controllare nuovamente memoria e processi prima di procedere, con massimo `-j12` complessivi per la build avviata dall'agente.
+
+#### Diagnosi 2026-11-01 — lifecycle delle superfici CUDA-exportable (chiusa da C1)
+
+Il difetto riprodotto con validation (`VUID-vkDestroyImage-image-01000` al
+retirement di superfici esportate, solo senza single-flight) ha una causa
+verificata nel codice corrente:
+
+- `Impl::wait_for_pending()` (`vulkan_backend_submission_private.cpp`) drena i
+  fence dei frame slot e gli upload slot; **non attende nulla sul lato CUDA**.
+- `VulkanBackend::release_surface()` decide il rinvio con
+  `recording_slots_retired()`; il destroy effettivo passa da
+  `release_surface_now()` → `prune_unused_slots_impl()`, che filtra solo
+  `slot_in_use`/`slot_pinned`, cioè i lease di registrazione Vulkan.
+- Il submit esporta la superficie segnalando `vulkan_to_cuda`; il consumer
+  CUDA/NVENC consuma e segnala `cuda_to_vulkan`. Il backend riusa una superficie
+  solo dopo aver atteso C2V alla riesumazione, ma **non attende alcun token C2V
+  prima di distruggere**.
+- `video_device_runtime_surfaces_detail.hpp` sostituisce `native_surface`/
+  `source_surface` chiamando `release_surface()` al rebuild dello slot senza
+  handshake di consumo: la stessa assunzione di ring asincrono che il validation
+  layer viola.
+- `CHRONON3D_VULKAN_SINGLE_FLIGHT=1` chiama `wait_for_pending()` all'inizio di
+  ogni frame: serializza la pipeline e nasconde il difetto. Resta diagnostico.
+
+Non esisteva un punto in cui il consumer dichiarasse "ho finito" in modo
+osservabile dal backend. Il passo C1 lo introduce (sotto); l'exit 139 dopo il
+frame 75 del job shutter 150 frame era un secondo difetto di lifetime, distinto
+da questo VUID, e va verificato con un run proprio (ora coperto dal checkpoint
+C2 sotto).
+
+#### Chiusura 2026-11-01 — C0/C1 lifecycle, C3 occlusione nativa, C4 kernel
+
+**C1 — contratto di consumo consumer→backend (fix applicato).** Il token è
+`Image::export_handed_off`:
+
+- viene alzato dal submit che consegna la superficie a CUDA/NVENC
+  (`vulkan_backend_submission_private.cpp`, `vulkan_kernel_replay_private.cpp`);
+- viene abbassato solo da `acquire_pending_cuda_surface()`, cioè quando il
+  consumer restituisce la superficie (`vulkan_surface_authority.cpp`);
+- `slot_export_owned()` ora governa la distruzione
+  (`prune_unused_slots_impl`), il riuso di slot non pianificato (`ensure`,
+  `bind_unplanned`) e la ri-materializzazione (`materialize_binding`, `ensure`),
+  che falliscono con `std::logic_error` invece di distruggere memoria ancora
+  mappata; il retirement dei transient di frame-slot non azzera più
+  `initialized` sugli slot posseduti dal consumer.
+
+Regressioni dedicate in `tests/backends/test_vulkan_surface_materializer.cpp`:
+`a surface handed to CUDA is retained by the lazy prune`,
+`export retention is independent of the warm-pool budget`,
+`consumer-owned slots are never reused by an unplanned allocation`,
+`re-materializing a consumer-owned slot fails closed`. Suite completa:
+**32/32 casi, 481/481 asserzioni PASS**.
+
+**C0 — riproduzione/documentazione e verifica del fix.** Il difetto
+(`VUID-vkDestroyImage-image-01000` al retirement di superfici CUDA-exportable,
+solo senza single-flight) è la diagnosi sopra, con i tre punti di codice citati.
+Sull'albero corretto lo stesso job non lo riproduce più:
+
+```
+CHRONON3D_VULKAN_VALIDATION=1 chronon3d_cli render \
+  --plan docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json \
+  --assets-root "$PWD" --backend vulkan --gpu-hot-path-mode require_gpu_native \
+  --hardware nvenc --encoder-backend native \
+  --start-frame 70 --end-frame 79 -o optical_current_pair_v3_c0_f70-79_nosf.mp4
+```
+
+Risultato: 10/10 frame 1920×1080 accettati dall'encoder nativo, exit 0,
+**0 occorrenze del VUID**, **0 Validation Error**, `render_ms=34249`
+(3,4 s/frame), nessuna variabile `CHRONON3D_VULKAN_SINGLE_FLIGHT`. Evidenza:
+`docs/evidence/camera-closure-final/optical_current_pair_v3_c0_f70-79_nosf.log`
+e `.mp4` (SHA-256 `ca7b87aa9322a0c97e11bfaaf82a16c7927f157ee74a9008991b5fbe868306e2`).
+Coppia: C3D `b77ae37e887e7fa655de3d3a34e98eafb514c83f` con working tree dirty
+(135 file modificati, nessuna certificazione same-SHA implicita).
+
+**C3 — occlusione mesh/piano per-pixel nativa (fix applicato).** Il depth stamp
+Vulkan (`dof_depth_stamp.comp`) considerava "già scritto" un pixel con
+`g < 0`, quindi una superficie di profondità inizializzata a zero bloccava la
+prima scrittura: la mesh veniva mascherata, il piano mai. Ora il test di
+presenza è lo stesso predicato di `occlusion_tag.comp`
+(`g >= 0 && r > 0`), e la depth per-pixel della mesh inline pubblicata dal
+rasterizzatore resta nearest-first. Verifiche:
+`Vulkan native occlusion holds a mesh half behind a 2.5D plane in both authoring
+orders` **1 caso / 87 asserzioni PASS** (Vulkan, entrambi gli ordini d'authoring)
+e `software 3D mesh crossing a 2.5D plane uses per-pixel depth`
+**1 caso / 46 asserzioni PASS** (software, entrambi gli ordini).
+
+**C4 — kernel bokeh a disco e highlight weighting.** La parità numerica CPU/Vulkan
+con soglia preregistrata passa: `Vulkan disk bokeh kernel matches the CPU kernel
+within the frozen tolerance` **1 caso / 1169 asserzioni PASS**, delta massimo per
+canale `1.35e-07` contro la soglia `1e-3`, con `highlight_gain = 2.0` e
+discriminazione disco/quadrato sul supporto. Contestualmente sono state corrette
+sette aspettative DoF rimaste sul modello pre-thin-lens (`depth * aperture`):
+ora sono derivate dal modello CoC documentato con `focus_distance` esplicita.
+`chronon3d_camera_tests` **87/87 casi, 67.391/67.391 asserzioni PASS**.
 
 ### 8.3 Layer, profondità, alpha e DoF
 

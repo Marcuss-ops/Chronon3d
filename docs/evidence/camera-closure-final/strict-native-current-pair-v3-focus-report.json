@@ -1,0 +1,102 @@
+{
+  "plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+  "fixture_background_size": [
+    3840,
+    2160
+  ],
+  "focus_thresholds_unchanged": {
+    "focused_min_ratio": 0.7,
+    "defocused_max_ratio": 0.9
+  },
+  "raw_backend": "Vulkan readback RGBA8",
+  "frames": {
+    "30": {
+      "expected_focus": "near",
+      "rois": {
+        "near": {
+          "dof_edge_energy": 54.771555866132786,
+          "sharp_edge_energy": 58.00038774307294,
+          "on_off_ratio": 0.9443308570411104,
+          "expected_focused": true,
+          "gate": "PASS"
+        },
+        "middle": {
+          "dof_edge_energy": 2.3498687465999257,
+          "sharp_edge_energy": 476.1395220787739,
+          "on_off_ratio": 0.004935252457810374,
+          "expected_focused": false,
+          "gate": "PASS"
+        },
+        "far": {
+          "dof_edge_energy": 0.44524480442136555,
+          "sharp_edge_energy": 102.82106971381984,
+          "on_off_ratio": 0.004330287611873792,
+          "expected_focused": false,
+          "gate": "PASS"
+        }
+      },
+      "raw_dof_sha256": "7705417fe3570d64e5f638348af5ed73855f932a2c06d225a494fe795d4d271e",
+      "raw_sharp_sha256": "89aec0514e8cee49624c0a92aab7a7d6fb8dbc4d68c2eb565380d82e94bd86af",
+      "validation_errors": 0
+    },
+    "75": {
+      "expected_focus": "middle",
+      "rois": {
+        "near": {
+          "dof_edge_energy": 39.51299294013262,
+          "sharp_edge_energy": 92.79446638800687,
+          "on_off_ratio": 0.4258119527829888,
+          "expected_focused": false,
+          "gate": "PASS"
+        },
+        "middle": {
+          "dof_edge_energy": 508.41311286518936,
+          "sharp_edge_energy": 574.0906153770268,
+          "on_off_ratio": 0.8855973242678692,
+          "expected_focused": true,
+          "gate": "PASS"
+        },
+        "far": {
+          "dof_edge_energy": 56.9881406924357,
+          "sharp_edge_energy": 180.32748894893473,
+          "on_off_ratio": 0.31602580962336607,
+          "expected_focused": false,
+          "gate": "PASS"
+        }
+      },
+      "raw_dof_sha256": "917e50b9031fcb4bce80079d261e555d910a26074eb2df9d834f48348d12b1c4",
+      "raw_sharp_sha256": "a1e647f57f12a0a0c71776d1741de44eb48a8c1f226b2425fe5eef7ad356effe",
+      "validation_errors": 0
+    },
+    "149": {
+      "expected_focus": "far",
+      "rois": {
+        "near": {
+          "dof_edge_energy": 0.47630244145329514,
+          "sharp_edge_energy": 101.35038692460941,
+          "on_off_ratio": 0.0046995621418554415,
+          "expected_focused": false,
+          "gate": "PASS"
+        },
+        "middle": {
+          "dof_edge_energy": 2.338435222550615,
+          "sharp_edge_energy": 477.32403166388497,
+          "on_off_ratio": 0.004899051938363874,
+          "expected_focused": false,
+          "gate": "PASS"
+        },
+        "far": {
+          "dof_edge_energy": 110.04652220562186,
+          "sharp_edge_energy": 110.53123446593648,
+          "on_off_ratio": 0.9956147032768009,
+          "expected_focused": true,
+          "gate": "PASS"
+        }
+      },
+      "raw_dof_sha256": "dd4b7a55030c50aaaa8f80c25bc52094b6b56a246e9a486b0f9319654000334b",
+      "raw_sharp_sha256": "bf3b6b8373672c5272dcb2b20f852364fdb02de7f7197035184ea07b6e173129",
+      "validation_errors": 0
+    }
+  },
+  "aggregate_gate": "PASS"
+}

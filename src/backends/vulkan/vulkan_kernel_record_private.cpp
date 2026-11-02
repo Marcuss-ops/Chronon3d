@@ -84,6 +84,22 @@ namespace chronon3d::backends::vulkan {
         (void)depth;
     }
 
+    void VulkanBackend::Impl::record_occlusion_tag(VkCommandBuffer command,
+                      VkDescriptorSet descriptors,
+                      const Image& mask, const Image& layer_depth,
+                      const Image& frame_depth, std::int32_t merge) {
+        vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                          reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::OcclusionTag)));
+        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
+                                kernels.general_layout, 0, 1, &descriptors, 0, nullptr);
+        vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
+                           0, sizeof(merge), &merge);
+        vkCmdDispatch(command, (mask.width + 15) / 16, (mask.height + 15) / 16, 1);
+        ++stats.vk_cmd_dispatch_count;
+        (void)layer_depth;
+        (void)frame_depth;
+    }
+
     void VulkanBackend::Impl::record_radial_blur(VkCommandBuffer command,
                       VkDescriptorSet descriptors,
                       const Image& destination, const Image& source,

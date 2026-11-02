@@ -323,6 +323,20 @@ struct NodeExecutionContext {
     // layer pixels that fall behind already-composited geometry, so a mesh
     // crossing a 2.5D plane occludes per-pixel instead of per-layer.
     std::vector<float> composite_occlusion_depth;
+    struct CameraCompositeFragment {
+        float depth{0.0f};
+        Color premultiplied{};
+    };
+    struct CameraCompositeState {
+        i32 width{0};
+        i32 height{0};
+        std::vector<Color> base;
+        std::vector<std::uint8_t> initialized;
+        std::vector<std::vector<CameraCompositeFragment>> fragments;
+        std::shared_ptr<std::vector<float>> resolved_depth;
+    };
+    CameraCompositeState camera_composite;
+    CameraCompositeState* shared_camera_composite{nullptr};
     // Per-node clones share the parent frame's occlusion buffer instead of
     // copying it (same contract as shared_dof_depth).
     std::vector<float>* shared_composite_occlusion_depth{nullptr};
@@ -344,6 +358,26 @@ struct NodeExecutionContext {
     NativeDofDepthState native_dof_depth;
     NativeDofDepthState* shared_native_dof_depth{nullptr};
 
+    // Native cross-layer occlusion scratch (the device-local counterpart of
+    // `composite_occlusion_depth`). Three RGBA32F surfaces reused for the
+    // whole frame, in the depth-stamp encoding r = camera depth, g >= 0 =
+    // covered (reset writes -1):
+    //   layer_depth : one layer's coverage, re-stamped for every composite
+    //                 (or written per-pixel by the inline-mesh rasterizer)
+    //   frame_depth : nearest depth already composited this frame
+    //   mask        : a = 1 visible / 0 occluded, applied to the layer alpha
+    // A GPU-only layer has no CPU depth map, so this is the only place a
+    // mesh can occlude per-pixel against a plane on the native path.
+    struct NativeOcclusionState {
+        std::shared_ptr<Framebuffer> layer_depth;
+        std::shared_ptr<Framebuffer> frame_depth;
+        std::shared_ptr<Framebuffer> mask;
+        std::int64_t frame{-1};
+        bool unusable{false};  // a native step failed; fall back to layer order
+    };
+    NativeOcclusionState native_occlusion;
+    NativeOcclusionState* shared_native_occlusion{nullptr};
+
     [[nodiscard]] NativeDofDepthState& native_dof_state() noexcept;
 
     [[nodiscard]] std::vector<float>& dof_depth_buffer() noexcept;
@@ -354,6 +388,14 @@ struct NodeExecutionContext {
         return shared_composite_occlusion_depth
             ? *shared_composite_occlusion_depth
             : composite_occlusion_depth;
+    }
+
+    [[nodiscard]] CameraCompositeState& camera_composite_state() noexcept {
+        return shared_camera_composite ? *shared_camera_composite : camera_composite;
+    }
+
+    [[nodiscard]] NativeOcclusionState& native_occlusion_state() noexcept {
+        return shared_native_occlusion ? *shared_native_occlusion : native_occlusion;
     }
 
     [[nodiscard]] const std::vector<float>& composite_occlusion_depth_buffer() const noexcept {

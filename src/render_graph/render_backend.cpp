@@ -279,7 +279,8 @@ RenderOpResult RenderBackendSurfaceApi::dof_depth_stamp_surface(
         runtime::RenderSurfaceHandle /*layer*/,
         float /*depth_z*/, float /*radius*/,
         int /*clip_x0*/, int /*clip_y0*/, int /*clip_x1*/, int /*clip_y1*/,
-        int /*origin_x*/, int /*origin_y*/, bool /*reset*/) {
+        int /*origin_x*/, int /*origin_y*/, bool /*reset*/,
+        bool /*include_transparent*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::dof_depth_stamp_surface: native surfaces are not supported"));
@@ -498,10 +499,33 @@ RenderOpResult RenderBackendTextureApi::draw_inline_mesh_surface(
         std::int32_t /*x0*/, std::int32_t /*y0*/,
         std::int32_t /*x1*/, std::int32_t /*y1*/,
         const Color& /*premultiplied_tint*/,
-        std::optional<float> /*alpha_cutoff*/) {
+        std::optional<float> /*alpha_cutoff*/,
+        runtime::RenderSurfaceHandle /*depth_destination*/,
+        float /*depth_marker*/) {
     return RenderOpResult(make_render_backend_error(
         RenderBackendErrorCode::UnsupportedCapability,
         "RenderBackend::draw_inline_mesh_surface: not supported by this backend"));
+}
+
+RenderOpResult RenderBackendSurfaceApi::occlusion_tag_surface(
+        runtime::RenderSurfaceHandle /*mask*/,
+        runtime::RenderSurfaceHandle /*layer_depth*/,
+        runtime::RenderSurfaceHandle /*frame_depth*/,
+        bool /*merge*/) {
+    return RenderOpResult(make_render_backend_error(
+        RenderBackendErrorCode::UnsupportedCapability,
+        "RenderBackend::occlusion_tag_surface: native surfaces are not supported"));
+}
+
+RenderOpResult RenderBackendSurfaceApi::dof_blur_disk_surface(
+        runtime::RenderSurfaceHandle /*destination*/,
+        runtime::RenderSurfaceHandle /*source*/,
+        runtime::RenderSurfaceHandle /*depth*/,
+        int /*roi_x0*/, int /*roi_y0*/, int /*roi_x1*/, int /*roi_y1*/,
+        float /*max_radius*/, bool /*normalize_opaque*/, float /*highlight_gain*/) {
+    return RenderOpResult(make_render_backend_error(
+        RenderBackendErrorCode::UnsupportedCapability,
+        "RenderBackend::dof_blur_disk_surface: native surfaces are not supported"));
 }
 
 RenderOpResult RenderBackendTextureApi::execute_layer_batch(

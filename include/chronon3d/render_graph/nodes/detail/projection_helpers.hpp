@@ -31,7 +31,7 @@
 //   site.  Stage tag + item_index are passed as parameters for the diagnostic
 //   to identify which site fired the skip.
 // - The helper returns the FULLY-COMPOSED matrix
-//   (`canvas_center * ssaa_scale * proj.transform.to_mat4()`) so the caller
+//   (`canvas_center * ssaa_scale * proj.projection_matrix`) so the caller
 //   can use `*matrix_opt` directly without further composition.
 // - Native 3D shape exclusion (FakeBox3D, GridPlane) is the caller's
 //   responsibility (this helper is for the 2D-projection path only — the
@@ -55,7 +55,7 @@ namespace chronon3d::graph::detail {
 
 /// Project a world matrix to camera space for 2.5D scenes.
 ///
-/// Returns the composed matrix (`canvas_center * ssaa_scale * proj.transform.to_mat4()`)
+/// Returns the composed homography (`canvas_center * ssaa_scale * proj.projection_matrix`)
 /// on success, or `std::nullopt` if the layer is not visible (behind camera /
 /// off frustum — i.e. `project_layer_2_5d` returns `!proj.visible`).
 ///
@@ -145,7 +145,7 @@ inline std::optional<Mat4> project_to_camera_space(
             spdlog::warn(
                 "[PROJ_DIAG] branch=SKIP_NOT_VISIBLE stage={} node='{}' item#{} "
                 "world_z_depth={:.1f} proj.depth={:.4f} proj.perspective_scale={:.4f} "
-                "proj.position=({:.1f},{:.1f}) proj.scale=({:.4f},{:.4f}) "
+                "world.position=({:.1f},{:.1f}) focal_scale=({:.4f},{:.4f}) "
                 "camera.position=({:.1f},{:.1f},{:.1f}) camera.zoom={:.1f} "
                 "camera.fov_deg={:.1f} frame={}",
                 stage ? stage : "unknown",
@@ -153,8 +153,8 @@ inline std::optional<Mat4> project_to_camera_space(
                 item_index,
                 world_matrix[3][2],
                 proj.depth, proj.perspective_scale,
-                proj.transform.position.x, proj.transform.position.y,
-                proj.transform.scale.x, proj.transform.scale.y,
+                world_matrix[3][0], world_matrix[3][1],
+                proj.perspective_scale, proj.perspective_scale,
                 ctx.frame_input.camera_2_5d.position.x, ctx.frame_input.camera_2_5d.position.y, ctx.frame_input.camera_2_5d.position.z,
                 ctx.frame_input.camera_2_5d.zoom, ctx.frame_input.camera_2_5d.fov_deg,
                 ctx.frame_input.sample_time.integral_frame());
@@ -163,7 +163,7 @@ inline std::optional<Mat4> project_to_camera_space(
     }
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
     const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
-    return canvas_center * ssaa_scale * proj.transform.to_mat4();
+    return canvas_center * ssaa_scale * proj.projection_matrix;
 }
 
 } // namespace chronon3d::graph::detail

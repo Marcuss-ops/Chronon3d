@@ -11,6 +11,7 @@
 #include "radial_blur_comp_spv.hpp"
 #include "dof_depth_stamp_comp_spv.hpp"
 #include "dof_blur_comp_spv.hpp"
+#include "occlusion_tag_comp_spv.hpp"
 #include "warp_bulk_comp_spv.hpp"
 #include "generate_bulk_comp_spv.hpp"
 #include "lut_bulk_comp_spv.hpp"
@@ -464,6 +465,29 @@ void VulkanBackend::Impl::init_core_kernel_pipelines() {
         register_kernel_or_throw(kernels.registry, device,
                 GpuKernelId::Matte, matte_pipeline, "Matte");
         if (debug_context) debug_context->set_pipeline_name(matte_pipeline, "Chronon3D.Pipeline.Matte");
+
+        const VkShaderModuleCreateInfo occlusion_tag_shader_info{
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, nullptr, 0,
+            shaders::chronon3d_occlusion_tag_comp_spv_size,
+            reinterpret_cast<const std::uint32_t*>(shaders::chronon3d_occlusion_tag_comp_spv)};
+        VkShaderModule occlusion_tag_shader = VK_NULL_HANDLE;
+        check(vkCreateShaderModule(device, &occlusion_tag_shader_info, nullptr, &occlusion_tag_shader),
+              "vkCreateShaderModule(occlusion_tag)");
+        const VkPipelineShaderStageCreateInfo occlusion_tag_stage{
+            VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr,
+            0, VK_SHADER_STAGE_COMPUTE_BIT,
+            occlusion_tag_shader, "main", nullptr};
+        const VkComputePipelineCreateInfo occlusion_tag_pipeline_info{
+            VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, nullptr, 0,
+            occlusion_tag_stage, kernels.general_layout, VK_NULL_HANDLE, -1};
+        VkPipeline occlusion_tag_pipeline = VK_NULL_HANDLE;
+        const VkResult occlusion_tag_result = vkCreateComputePipelines(
+            device, kernels.pipeline_cache, 1, &occlusion_tag_pipeline_info, nullptr, &occlusion_tag_pipeline);
+        vkDestroyShaderModule(device, occlusion_tag_shader, nullptr);
+        check(occlusion_tag_result, "vkCreateComputePipelines(occlusion_tag)");
+        register_kernel_or_throw(kernels.registry, device,
+                GpuKernelId::OcclusionTag, occlusion_tag_pipeline, "OcclusionTag");
+        if (debug_context) debug_context->set_pipeline_name(occlusion_tag_pipeline, "Chronon3D.Pipeline.OcclusionTag");
 
 
 }

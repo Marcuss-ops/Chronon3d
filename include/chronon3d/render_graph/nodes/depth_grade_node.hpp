@@ -91,6 +91,81 @@ public:
             return passthrough; // near: no grading
         }
 
+        const auto source_handle = inputs[0]->surface_handle();
+        const bool native_input = ctx.policy.require_native_gpu && ctx.backend &&
+            ctx.surface_registry &&
+            ctx.backend_stats_api()->supports_native_surfaces() &&
+            source_handle != runtime::kInvalidRenderSurfaceHandle &&
+            ctx.backend_surface_api()->is_native_surface_valid(source_handle);
+        if (native_input) {
+            // DepthGrade is affine in RGB for a constant layer depth. Lower
+            // fog, desaturation, and contrast into the existing Vulkan color
+            // matrix kernel so strict-native never downloads the layer.
+            auto result = ctx.acquire_owned_fb(
+                inputs[0]->width(), inputs[0]->height(), false);
+            result->set_origin(inputs[0]->origin_x(), inputs[0]->origin_y());
+            const auto source_record = ctx.surface_registry->lookup(source_handle);
+            if (!source_record) {
+                return NodeExecResult(NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    std::string(name()), "native depth-grade source is not registered"});
+            }
+            result->clear_surface_handle();
+            auto output_desc = source_record->desc;
+            output_desc.lifetime = runtime::LifetimeClass::FrameTransient;
+            const auto output_handle = ctx.surface_registry->create(output_desc);
+            if (output_handle == runtime::kInvalidRenderSurfaceHandle) {
+                return NodeExecResult(NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    std::string(name()), "native depth-grade output allocation failed"});
+            }
+            const auto created = ctx.backend_surface_api()->create_surface(
+                output_handle, output_desc);
+            if (!created.ok()) {
+                ctx.surface_registry->release(output_handle);
+                return NodeExecResult(NodeExecutionError{
+                    created.error().code, std::string(name()), created.error().message});
+            }
+            result->set_surface_handle(output_handle);
+
+            const float fog_mix = t * m_grade.fog_opacity;
+            const float fog_scale = 1.0f - fog_mix;
+            const float saturation = std::min(
+                1.0f, 1.0f + t * (m_grade.far_saturation - 1.0f));
+            const float contrast = std::min(
+                1.0f, 1.0f + t * (m_grade.far_contrast - 1.0f));
+            constexpr float luma[3]{0.2126f, 0.7152f, 0.0722f};
+            NativeColorTransform transform;
+            transform.mode = NativeColorTransform::Mode::Affine;
+            for (std::size_t row = 0; row < 3; ++row) {
+                float fogged[3]{};
+                for (std::size_t column = 0; column < 3; ++column) {
+                    const float desat = saturation * (row == column ? 1.0f : 0.0f) +
+                        (1.0f - saturation) * luma[column];
+                    transform.p[row][column] = contrast * fog_scale * desat;
+                    fogged[row] += desat *
+                        (row == 0 ? m_grade.fog_color.r :
+                         row == 1 ? m_grade.fog_color.g : m_grade.fog_color.b) * fog_mix;
+                }
+                transform.p[row][3] = contrast * fogged[row] +
+                    0.5f * (1.0f - contrast);
+            }
+            const auto graded = ctx.backend_surface_api()->color_transform_surface(
+                result->surface_handle(), source_handle, transform);
+            if (!graded.ok()) {
+                const auto message = graded.error().message;
+                (void)ctx.backend_surface_api()->release_surface(output_handle);
+                (void)ctx.surface_registry->release(output_handle);
+                result->clear_surface_handle();
+                return NodeExecResult(NodeExecutionError{
+                    graded.error().code, std::string(name()), message});
+            }
+            result->mark_gpu_authoritative();
+            result->set_opaque(inputs[0]->is_opaque());
+            result->set_content_cleared(inputs[0]->is_content_cleared());
+            return NodeExecResult{std::move(result)};
+        }
+
         // DepthGrade is still the CPU reference implementation.  Never call
         // pixels_row() on a strict native surface: fail with a diagnostic
         // capability error until a matching Vulkan color-grade kernel exists.

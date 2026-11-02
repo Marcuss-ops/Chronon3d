@@ -11,6 +11,7 @@
 // ============================================================================
 
 #include <doctest/doctest.h>
+#include "core/math/camera_projection_test_helpers.hpp"
 #include <chronon3d/math/near_plane_clip.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/transform.hpp>
@@ -220,7 +221,7 @@ TEST_CASE("Camera near clipping: fully behind layer is invisible") {
     Transform t;
     t.position = {0, 0, -1200};
 
-    auto projected = project_layer_2_5d(t, cam, 1920, 1080);
+    auto projected = project_test_layer_2_5d(t, cam, 1920, 1080);
     CHECK_FALSE(projected.visible);
 }
 
@@ -237,7 +238,7 @@ TEST_CASE("Camera near clipping: layer crossing near plane does not explode") {
     t.position = {0, 0, -999.9f};
     t.rotation = glm::quat(glm::radians(Vec3{0, 80, 0}));
 
-    auto projected = project_layer_2_5d(t, cam, 1920, 1080);
+    auto projected = project_test_layer_2_5d(t, cam, 1920, 1080);
 
     // The layer crosses the near plane (kNearClipZ = 0.001).  Clipped corners
     // landing at the near plane get perspective_scale = focal / kNearClipZ
@@ -261,7 +262,7 @@ TEST_CASE("Camera near clipping: layer rotated 45 degrees crossing near plane") 
     t.position = {0, 0, -995.0f};  // centroid at depth 5, very close
     t.rotation = glm::quat(glm::radians(Vec3{30, 45, 0}));  // compound rotation
 
-    auto projected = project_layer_2_5d(t, cam, 1920, 1080);
+    auto projected = project_test_layer_2_5d(t, cam, 1920, 1080);
 
     // The compound rotation also intersects the near plane.  As in the
     // preceding case, clipped vertices are projected at kNearClipZ, so the
@@ -284,7 +285,7 @@ TEST_CASE("Camera near clipping: layer far behind but with rotation") {
     t.position = {0, 0, -2000};  // far behind
     t.rotation = glm::quat(glm::radians(Vec3{0, 30, 0}));
 
-    auto projected = project_layer_2_5d(t, cam, 1920, 1080);
+    auto projected = project_test_layer_2_5d(t, cam, 1920, 1080);
 
     // All corners should be behind → invisible
     CHECK_FALSE(projected.visible);
@@ -300,7 +301,7 @@ TEST_CASE("Camera near clipping: corner-case layer at exactly the plane") {
     Transform t;
     t.position = {0, 0, -1000};  // centroid ON the camera plane
 
-    auto projected = project_layer_2_5d(t, cam, 1920, 1080);
+    auto projected = project_test_layer_2_5d(t, cam, 1920, 1080);
 
     // Should be invisible (centroid is on/behind the near plane)
     CHECK_FALSE(projected.visible);
@@ -318,7 +319,7 @@ TEST_CASE("Camera near clipping: normal layer still works correctly") {
     t.position = {0, 0, 0};  // well in front, no rotation
     t.scale = {1, 1, 1};
 
-    auto projected = project_layer_2_5d(t, cam, 1920, 1080);
+    auto projected = project_test_layer_2_5d(t, cam, 1920, 1080);
 
     CHECK(projected.visible);
     CHECK(projected.depth == doctest::Approx(1000.0f).epsilon(1.0f));

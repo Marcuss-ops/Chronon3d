@@ -285,6 +285,9 @@ void VulkanBackend::Impl::read_gpu_timestamps(std::size_t slot) {
             if (it == surfaces.physical_surfaces.end()) return;
             it->second.image.cuda_export_fence_slot = slot;
             it->second.image.cuda_export_standalone_fence = false;
+            // See submit(): the slot is retained by the lazy prune until the
+            // CUDA/NVENC consumer returns it.
+            it->second.image.export_handed_off = true;
         };
         for (const auto physical_slot : surfaces.cuda_ready_surfaces)
             mark_frame_export(physical_slot);

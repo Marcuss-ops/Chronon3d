@@ -45,18 +45,28 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const auto& camera = camera_for(ctx);
+        const auto dof_params_hash = [&camera] {
+            auto hash = hash_value(static_cast<std::uint8_t>(camera.dof.enabled));
+            const auto add = [&hash](auto value) {
+                hash = hash_combine(hash, hash_value(value));
+            };
+            add(camera.dof.focus_distance);
+            add(camera.dof.max_blur);
+            add(camera.dof.near_bokeh_radius);
+            add(camera.dof.far_bokeh_radius);
+            add(camera.dof.iris_blades);
+            add(camera.dof.highlight_gain);
+            add(camera.lens.focal_length);
+            add(camera.lens.f_stop);
+            add(camera.lens.sensor_width);
+            return hash;
+        }();
         return cache::NodeCacheKey{
             .scope = "per_pixel_dof",
             .frame = ctx.frame_input.frame,
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = hash_combine(
-                hash_combine(
-                    hash_value(camera.dof.focus_z),
-                    hash_value(camera.dof.focus_distance)),
-                hash_combine(
-                    hash_value(camera.dof.aperture),
-                    hash_value(camera.dof.max_blur)))
+            .params_hash = dof_params_hash
         };
     }
 

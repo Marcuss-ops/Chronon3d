@@ -64,6 +64,17 @@ NodeExecResult CompositeNode::execute(
     // Camera-closure: `top` becomes rebindable so the per-pixel depth-aware
     // mask (when active for this blend) can swap in a masked source copy.
     FramebufferRef top = in0 ? in1 : empty_fb;
+    const bool top_has_empty_bounds = input_bboxes.size() >= 2 &&
+        input_bboxes[1].has_value() &&
+        (input_bboxes[1]->x0 >= input_bboxes[1]->x1 ||
+         input_bboxes[1]->y0 >= input_bboxes[1]->y1);
+    const bool camera_cpu_recompose = bottom && top &&
+        ctx.frame_input.has_camera_2_5d && ctx.frame_input.camera_2_5d.enabled &&
+        !ctx.policy.require_native_gpu &&
+        (!ctx.backend || !ctx.backend_stats_api()->supports_native_surfaces()) &&
+        bottom->data() != nullptr && top->data() != nullptr &&
+        m_mode == BlendMode::Normal &&
+        m_operator == CompositeOperator::SourceOver;
 
     if (m_backdrop_blur) {
         if (!top || m_operator != CompositeOperator::SourceOver || m_mode != BlendMode::Normal)
@@ -128,7 +139,7 @@ NodeExecResult CompositeNode::execute(
     // Normal/SourceOver only — every other blend/operator keeps legacy
     // layer-order semantics.
     std::shared_ptr<Framebuffer> depth_aware_top;
-    if (bottom && top && m_mode == BlendMode::Normal &&
+    if (!camera_cpu_recompose && bottom && top && m_mode == BlendMode::Normal &&
         m_operator == CompositeOperator::SourceOver) {
         depth_aware_top = build_depth_aware_top(
             ctx, *bottom, *top, m_has_world_position,
@@ -155,6 +166,7 @@ NodeExecResult CompositeNode::execute(
     if (!ctx.policy.require_native_gpu &&
         top && m_operator == CompositeOperator::SourceOver &&
         m_mode == BlendMode::Normal && top->is_opaque() &&
+        !camera_cpu_recompose &&
         top->is_cpu_authoritative() &&
         top->data() != nullptr &&
         input_bboxes.size() >= 2 && input_bboxes[1].has_value())
@@ -288,8 +300,8 @@ NodeExecResult CompositeNode::execute(
     // Start dispatch timing here — AFTER acquire and optional bottom composite,
     // so dispatch_ms measures only clip/bbox computation + overhead, without
     // double-counting bottom composite time (already in compositenode_blend_wall_ms).
-    if (!top) {
-        if (ctx.policy.track_dof_depth) {
+    if (!top || top_has_empty_bounds) {
+        if (!top_has_empty_bounds && ctx.policy.track_dof_depth) {
             const float depth = m_has_world_position
                 ? camera_space_depth(ctx.frame_input.camera_2_5d, m_world_position)
                 : camera_space_depth(ctx.frame_input.camera_2_5d,
@@ -301,6 +313,26 @@ NodeExecResult CompositeNode::execute(
                 ctx.frame_input.width, ctx.frame_input.height);
         }
         return NodeExecResult{std::move(result)};
+    }
+
+    // Strict-native video applies optical blur while each authored layer is
+    // still isolated. This preserves its alpha and prevents a later title or
+    // card from inheriting another layer's circle of confusion.
+    OwnedFB layer_dof_output;
+    if (ctx.policy.require_native_gpu && ctx.frame_input.has_camera_2_5d &&
+        ctx.frame_input.camera_2_5d.enabled && ctx.frame_input.camera_2_5d.dof.enabled &&
+        m_mode == BlendMode::Normal && m_operator == CompositeOperator::SourceOver) {
+        const float z = m_has_world_position
+            ? camera_space_depth(ctx.frame_input.camera_2_5d, m_world_position)
+            : camera_space_depth(ctx.frame_input.camera_2_5d, Vec3{0.0f, 0.0f, m_world_z});
+        const float radius = detail::dof_source_radius(ctx, z);
+        const float highlight_gain = ctx.frame_input.camera_2_5d.dof.highlight_gain;
+        if (auto error = detail::apply_native_layer_dof(
+                ctx, *top, z, radius, highlight_gain,
+                input_bboxes.size() >= 2 ? input_bboxes[1] : std::nullopt,
+                layer_dof_output))
+            return *error;
+        if (layer_dof_output) top = *layer_dof_output;
     }
 
     const auto t_dispatch0 = profiling::now();
@@ -341,6 +373,22 @@ NodeExecResult CompositeNode::execute(
 
         // Check if stencil/silhouette operator — these use the underlying
         // composite operator field instead of a blend mode when applicable.
+        // Device-local per-pixel occlusion (the native counterpart of
+        // build_depth_aware_top()): mask the layer against the depth already
+        // composited this frame before any blend runs. Occluded pixels become
+        // exactly transparent, so the existing native composite keeps its
+        // source-over semantics unchanged.
+        if (bottom && m_mode == BlendMode::Normal &&
+            m_operator == CompositeOperator::SourceOver &&
+            !camera_cpu_recompose &&
+            ctx.frame_input.has_camera_2_5d &&
+            ctx.frame_input.camera_2_5d.enabled) {
+            auto& mutable_top = const_cast<Framebuffer&>(*top);
+            (void)apply_native_occlusion(
+                ctx, mutable_top, m_has_world_position, m_world_position,
+                m_world_z);
+        }
+
         const bool native_composite = detail::try_native_composite(
             ctx, *result, *top, m_mode, m_operator, clip);
         const bool native_dimension_composite = !native_composite &&
@@ -466,6 +514,11 @@ NodeExecResult CompositeNode::execute(
             ctx.node_exec.counters->compositenode_internal_wall_us.fetch_add(
                 nb_us, std::memory_order_relaxed);
         }
+    }
+    if (camera_cpu_recompose) {
+        (void)recompose_camera_composite(
+            ctx, *bottom, *top, *result, m_has_world_position,
+            m_world_position, m_world_z);
     }
     return NodeExecResult{std::move(result)};
 }

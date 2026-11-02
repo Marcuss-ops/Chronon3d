@@ -29,6 +29,7 @@
 #include <hwy/highway.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <span>
 #include <vector>
 
@@ -68,7 +69,7 @@ struct DofScratchBuffers {
 ///                  Callers that own a `std::vector<float>` may construct
 ///                  the span implicitly (C++20 contiguous_range constructor)
 ///                  or use the explicit `std::span<const float>{v}` form.
-/// @param dof       Camera DOF settings (focus_z, aperture, max_blur).
+/// @param dof       Camera DOF settings (focus_distance, max_blur).
 /// @param lens      Physical lens model (focal_length, sensor_width, f_stop).
 /// @param clip      Optional clip rectangle; only pixels inside are blurred.
 ///
@@ -200,6 +201,7 @@ inline void apply_per_pixel_dof(
 
                 dof_h_gather_simd(src_row, dst_row, radius_row, depth_row, max_r,
                                   fb.is_opaque(),
+                                  std::max(0.0f, dof.highlight_gain),
                                   x0, x1, w, y, w, x0, x1);
             }
         }
@@ -270,6 +272,7 @@ inline void apply_per_pixel_dof(
                     dof_v_gather_simd(hpass.data(), output.data(),
                                       blur_radii.data(), camera_depths.data(), max_r,
                                       fb.is_opaque(),
+                                      std::max(0.0f, dof.highlight_gain),
                                       tx0, tx1, y, h, w,
                                       x0, x1, y0, y1, roi_w);
                 }
@@ -315,6 +318,144 @@ inline void apply_per_pixel_dof(
             static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0) * sizeof(Color),
             std::memory_order_relaxed);
     }
+}
+
+// ── Disk (bokeh) kernel — CPU mirror of dof_blur.comp `disk_blur` ──────────
+//
+// The separable pass above is a soft rectangle support. Per-layer optical
+// defocus uses the disk kernel instead, and this implementation must stay
+// bit-for-bit equivalent in its *weighting* to the Vulkan shader
+// (`disk_edge_weight`, `dof_disk_pair_weight`, `highlight_weight`): the two
+// lanes render the same accepted scene, so a different weighting is a parity
+// defect, not a stylistic choice.
+
+/// 1 inside the disk of @p radius, smoothly falling to 0 one pixel outside.
+[[nodiscard]] HWY_INLINE float dof_disk_edge_weight(float dist, float radius) {
+    if (radius < 0.5f || dist > radius + 0.5f) return 0.0f;
+    const float t = std::clamp(dist - std::max(0.0f, radius - 0.5f), 0.0f, 1.0f);
+    return 1.0f - t * t * (3.0f - 2.0f * t);
+}
+
+/// Depth- and CoC-aware disk pair weight (same predicate as the shader).
+[[nodiscard]] HWY_INLINE float dof_disk_pair_weight(
+    float dist, float centre_radius, float centre_depth,
+    float neighbour_radius, float neighbour_depth) {
+    if (neighbour_radius < 0.0f) return 0.0f;
+    if (centre_radius >= 0.0f && centre_radius < 0.5f) {
+        if (dist == 0.0f) return 1.0f;
+        if (neighbour_radius >= 0.5f && neighbour_depth > 0.0f &&
+            centre_depth > 0.0f && neighbour_depth + 1e-3f < centre_depth) {
+            return dof_disk_edge_weight(dist, neighbour_radius);
+        }
+        return 0.0f;
+    }
+    if (neighbour_radius < 0.5f) return dist == 0.0f ? 1.0f : 0.0f;
+    return dof_disk_edge_weight(dist, neighbour_radius);
+}
+
+/// Out-of-focus highlight weighting: samples brighter than 1.0 (HDR) gain
+/// extra weight so bokeh keeps its energy instead of averaging grey.
+[[nodiscard]] HWY_INLINE float dof_highlight_weight(
+    const Color& sample, float highlight_gain) {
+    const float luminance =
+        0.2126f * sample.r + 0.7152f * sample.g + 0.0722f * sample.b;
+    return 1.0f + highlight_gain * std::max(luminance - 1.0f, 0.0f);
+}
+
+/// Per-layer disk blur of @p fb inside `[roi_x0, roi_x1) x [roi_y0, roi_y1)`.
+///
+/// @param depth / @param radii  Per-pixel camera depth and precomputed CoC
+///        radius over the *whole* framebuffer, `width * height` samples.
+///        A negative radius is the "no depth" sentinel (sample ignored).
+///        `depth == kUnsetDofDepth` marks an uncovered pixel.
+/// @param highlight_gain Authored highlight energy gain (>= 0).
+///
+/// Pixels outside the ROI are left untouched, exactly like the shader's early
+/// return. A pixel whose own radius is negative is copied through unchanged.
+inline void apply_per_pixel_dof_disk(
+    Framebuffer& fb,
+    std::span<const float> depth,
+    std::span<const float> radii,
+    i32 roi_x0, i32 roi_y0, i32 roi_x1, i32 roi_y1,
+    f32 max_radius,
+    bool normalize_opaque,
+    f32 highlight_gain)
+{
+    const i32 w = fb.width();
+    const i32 h = fb.height();
+    if (w <= 0 || h <= 0) return;
+    const std::size_t pixels = static_cast<std::size_t>(w) * static_cast<std::size_t>(h);
+    if (depth.size() != pixels || radii.size() != pixels) return;
+    roi_x0 = std::clamp(roi_x0, 0, w);
+    roi_x1 = std::clamp(roi_x1, roi_x0, w);
+    roi_y0 = std::clamp(roi_y0, 0, h);
+    roi_y1 = std::clamp(roi_y1, roi_y0, h);
+    if (roi_x0 >= roi_x1 || roi_y0 >= roi_y1) return;
+    const f32 gain = std::max(0.0f, highlight_gain);
+    const i32 radius_px = static_cast<i32>(std::ceil(std::max(0.0f, max_radius)));
+    if (radius_px <= 0) return;
+
+    // Gather from an immutable copy so writes never feed later samples.
+    std::vector<Color> source(pixels);
+    for (i32 y = 0; y < h; ++y) {
+        std::memcpy(source.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(w),
+                    fb.pixels_row(y), static_cast<std::size_t>(w) * sizeof(Color));
+    }
+
+    tbb::parallel_for(tbb::blocked_range<i32>(roi_y0, roi_y1),
+        [&](const tbb::blocked_range<i32>& rows) {
+        for (i32 y = rows.begin(); y < rows.end(); ++y) {
+            for (i32 x = roi_x0; x < roi_x1; ++x) {
+                const std::size_t centre_idx =
+                    static_cast<std::size_t>(y) * static_cast<std::size_t>(w) +
+                    static_cast<std::size_t>(x);
+                const Color centre = source[centre_idx];
+                const float centre_radius = radii[centre_idx];
+                if (centre_radius < 0.0f) {
+                    fb.pixels_row(y)[x] = centre;
+                    continue;
+                }
+                const float centre_depth = depth[centre_idx];
+                const i32 lx = std::max(roi_x0, x - radius_px);
+                const i32 hx = std::min(roi_x1 - 1, x + radius_px);
+                const i32 ly = std::max(roi_y0, y - radius_px);
+                const i32 hy = std::min(roi_y1 - 1, y + radius_px);
+                float sum_r = 0.0f, sum_g = 0.0f, sum_b = 0.0f, sum_a = 0.0f;
+                float total_weight = 0.0f;
+                for (i32 sy = ly; sy <= hy; ++sy) {
+                    const Color* row = source.data() +
+                        static_cast<std::size_t>(sy) * static_cast<std::size_t>(w);
+                    const float* depth_row = depth.data() +
+                        static_cast<std::size_t>(sy) * static_cast<std::size_t>(w);
+                    const float* radii_row = radii.data() +
+                        static_cast<std::size_t>(sy) * static_cast<std::size_t>(w);
+                    for (i32 sx = lx; sx <= hx; ++sx) {
+                        const float sample_radius = radii_row[sx];
+                        if (sample_radius < 0.0f) continue;
+                        const float dx = static_cast<float>(sx - x);
+                        const float dy = static_cast<float>(sy - y);
+                        const float dist = std::sqrt(dx * dx + dy * dy);
+                        float weight = dof_disk_pair_weight(
+                            dist, centre_radius, centre_depth,
+                            sample_radius, depth_row[sx]);
+                        if (weight <= 0.0f) continue;
+                        const Color& sample = row[sx];
+                        if (normalize_opaque) weight *= sample.a;
+                        weight *= dof_highlight_weight(sample, gain);
+                        sum_r += sample.r * weight;
+                        sum_g += sample.g * weight;
+                        sum_b += sample.b * weight;
+                        sum_a += sample.a * weight;
+                        total_weight += weight;
+                    }
+                }
+                fb.pixels_row(y)[x] = total_weight > 1e-6f
+                    ? Color{sum_r / total_weight, sum_g / total_weight,
+                            sum_b / total_weight, sum_a / total_weight}
+                    : centre;
+            }
+        }
+    });
 }
 
 } // namespace chronon3d::renderer

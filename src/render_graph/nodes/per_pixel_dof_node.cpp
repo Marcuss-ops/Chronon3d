@@ -359,11 +359,11 @@ NodeExecResult PerPixelDofNode::execute(
 
     const auto& camera = camera_for(ctx);
     const auto& dof_depth = ctx.node_exec.dof_depth_buffer();
-    const auto& evaluated_dof = camera_space_dof_settings(camera.dof, camera);
+    const auto& evaluated_dof = camera.dof;
 
     if (ctx.policy.diagnostics_enabled) {
-        spdlog::info("[PerPixelDofNode] focus_z={:.1f} enabled={} dof_depth_size={} inputs_count={}",
-            camera.dof.focus_z, camera.dof.enabled,
+        spdlog::info("[PerPixelDofNode] focus_distance={:.1f} enabled={} dof_depth_size={} inputs_count={}",
+            camera.dof.focus_distance, camera.dof.enabled,
             dof_depth.size(), inputs.size());
     }
 
@@ -480,10 +480,21 @@ NodeExecResult PerPixelDofNode::execute(
             "DOF depth tracking was requested but its depth buffer is missing or invalid"};
     }
     if (ctx.policy.track_dof_depth && ctx.policy.require_native_gpu) {
+        const auto& coverage = ctx.node_exec.dof_sources();
+        // A frame with no visible defocused source has no depth contribution
+        // to blur (for example authored layers at zero opacity on the first
+        // frame). It is a valid strict-native passthrough. If a visible blur
+        // source was declared, missing device-local depth remains an error.
+        if (!coverage.source_bbox || coverage.max_radius < kVisibleBlurThreshold) {
+            return cloned_result();
+        }
         return NodeExecutionError{
             RenderBackendErrorCode::ExecutionFailure,
             "PerPixelDofNode",
-            "DOF depth tracking requires device-local depth on the native GPU path"};
+            "DOF depth tracking requires device-local depth on the native GPU path; "
+            "native_depth_available=false; mixed_residency=" +
+                std::string{native_depth_partial ? "true" : "false"} +
+                "; cpu_depth_samples=" + std::to_string(dof_depth.size())};
     }
     if (dof_depth.empty()) return cloned_result();
 

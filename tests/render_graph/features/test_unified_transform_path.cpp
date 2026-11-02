@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include "core/math/camera_projection_test_helpers.hpp"
 #include <tests/helpers/doctest_skip_compat.hpp>
 
 #include <chronon3d/timeline/composition.hpp>
@@ -204,7 +205,7 @@ TEST_CASE("Unified 2.5D projection: Rect and Image share the same projected laye
 
     for (const auto& [type, fn] : cases) {
         auto result = render_single_element_scene(type, fn, width, height, cam);
-        auto projected = project_layer_2_5d(
+        auto projected = project_test_layer_2_5d(
             result.layer_transform,
             cam,
             static_cast<f32>(width),
@@ -212,9 +213,9 @@ TEST_CASE("Unified 2.5D projection: Rect and Image share the same projected laye
         );
 
         if (!ref_projected_layer.has_value()) {
-            ref_projected_layer = projected.transform.to_mat4();
+            ref_projected_layer = projected.projection_matrix;
         } else {
-            CHECK(renderer::matrix_near(*ref_projected_layer, projected.transform.to_mat4()));
+            CHECK(renderer::matrix_near(*ref_projected_layer, projected.projection_matrix));
         }
 
         CHECK(result.centroid.has_value());
