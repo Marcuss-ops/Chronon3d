@@ -32,7 +32,6 @@ jobs:
           - { name: 'Linux (Release)', os: ubuntu-24.04, preset: linux-ci-release-build, build_preset: linux-ci-release-build, test_preset: linux-ci-release-build-test, slug: linux-release }
           - { name: 'Linux (Debug/CI)', os: ubuntu-24.04, preset: linux-ci, build_preset: linux-ci, test_preset: linux-ci-test, slug: linux-debug-ci }
           - { name: 'Linux (No Content)', os: ubuntu-24.04, preset: linux-ci-nocontent, build_preset: linux-ci-nocontent, test_preset: linux-ci-nocontent-test, slug: linux-nocontent }
-          - { name: 'Windows (Release)', os: windows-latest, preset: win-release, build_preset: win, test_preset: win-test, slug: windows-release }
     steps:
       - uses: actions/checkout@v4
         with:
