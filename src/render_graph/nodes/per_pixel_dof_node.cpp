@@ -377,10 +377,9 @@ NodeExecResult PerPixelDofNode::execute(
         return cloned_result();
     }
 
-    // Fail closed on authored lens shaping the blur kernels cannot render:
-    // iris blades and highlight weighting would otherwise be silently dropped
-    // and the plan would render as plain circular bokeh.
-    reject_unsupported_dof_shape(camera.dof);
+    // Fail closed on polygonal iris shaping, which the blur kernels cannot
+    // render. Circular-bokeh highlight weighting is supported by both paths.
+    validate_dof_render_capabilities(camera.dof);
 
     if (ctx.policy.require_native_gpu && native_depth_partial && !native_depth.surface) {
         return NodeExecutionError{

@@ -1228,8 +1228,8 @@ TEST_CASE("offline interpolated camera samples match exact runtime sampling at s
                                static_cast<float>(frame * -0.005)};
         resolved.dof_enabled = true;
         resolved.dof_focus_distance = static_cast<float>(1000.0 + frame * 100.0);
-        // Shaped-bokeh highlight gain is rejected by the pinned camera
-        // contract; this fixture exercises only the supported circular DoF.
+        // This fixture exercises circular DoF without optional highlight
+        // weighting; the pinned contract admits the gain for this kernel.
         resolved.dof_highlight_gain = 0.f;
         return resolved;
     };

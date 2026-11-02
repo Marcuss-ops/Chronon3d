@@ -5,7 +5,6 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/compiler/compiler.hpp>
 #include <chronon3d/render_plan/render_plan_compiler.hpp>
-#include <chrononplugin/effects/presets/core.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include "../../src/render_plan/render_plan_compiler_detail.hpp"
 #include <array>
@@ -25,10 +24,6 @@
 #include <chronon3d/timeline/compile_evaluate.hpp>
 #include "test_render_plan_shape_helpers.hpp"
 #include "../../src/render_plan/audio_react_baker.hpp"
-
-namespace chronon3d::render_plan {
-namespace effect_presets = ::chrononplugin::effects::presets;
-}
 
 #include <chrono>
 #include <algorithm>

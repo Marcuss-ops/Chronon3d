@@ -140,7 +140,7 @@ Questa sezione è il criterio finale di chiusura. Le verifiche e i PASS locali d
 
 - [ ] Registrare nel contratto Motion → RenderPlan le unità e convenzioni effettive per coordinate/spazi (local/world e parent), asse Z, rotazioni, precedenza FOV/focale, focus distance, apertura e profondità dei layer. Motion risolve gerarchia, traiettorie, look-at, roll, easing e valori ottici; Chronon3D proietta e renderizza i valori ricevuti, senza ricostruire la regia.
 - [x] F3: base e traccia animata usano la stessa conversione Z; il canary image-card Motion→RenderPlan→C3D verifica sample/bounds e ordine di profondità invertito tra frame 0/1. Evidenza: `docs/evidence/camera-surface-consolidation/camera-f3-depth-order.json`.
-- [ ] Aggiungere una matrice di capability camera/DoF condivisa dal lowering Motion e dal consumer Chronon3D: ogni parametro supportato viene consumato; ogni combinazione non supportata (inclusi iris blades/highlight gain se non implementati) viene rifiutata con errore tipizzato prima del render. Nessun valore accettato e poi ignorato, clamp silenzioso o fallback non dichiarato.
+- [ ] Aggiungere una matrice di capability camera/DoF condivisa dal lowering Motion e dal consumer Chronon3D: ogni parametro supportato viene consumato; ogni combinazione non supportata (inclusa iris poligonale) viene rifiutata con errore tipizzato prima del render. Highlight weighting circolare è supportato nell'intervallo [0, 8]; nessun valore accettato e poi ignorato, clamp silenzioso o fallback non dichiarato.
 - [ ] Verificare i limiti FOV/lente/focus una sola volta alla frontiera, con test sui limiti e sui valori non finiti; Motion e Chronon3D devono accettare/rifiutare lo stesso payload.
 
 ### 8.2 Sampling temporale comune per camera, layer e shutter

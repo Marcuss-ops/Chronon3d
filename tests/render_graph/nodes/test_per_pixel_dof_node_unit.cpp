@@ -19,6 +19,7 @@
 #include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 using namespace chronon3d;
 namespace ctt = chronon3d::test;
@@ -36,23 +37,29 @@ static Camera2_5DRuntime make_cam2_5d(float focus_distance, float f_stop, float 
 TEST_CASE("PR2-Unit-DoF: authored iris shaping fails closed, highlight weighting is consumed") {
     DepthOfFieldSettings foundational;
     foundational.enabled = true;
-    CHECK_NOTHROW(reject_unsupported_dof_shape(foundational));
+    CHECK_NOTHROW(validate_dof_render_capabilities(foundational));
 
     DepthOfFieldSettings iris = foundational;
     iris.iris_blades = 6;
-    CHECK_THROWS_AS(reject_unsupported_dof_shape(iris), std::runtime_error);
+    CHECK_THROWS_AS(validate_dof_render_capabilities(iris), std::runtime_error);
 
     // Highlight weighting exists in both kernels (dof_blur.comp
     // `highlight_weight`, software `dof_highlight_weight`), so an authored
     // value must reach the kernels rather than be rejected as unimplemented.
     DepthOfFieldSettings highlight = foundational;
     highlight.highlight_gain = 1.5f;
-    CHECK_NOTHROW(reject_unsupported_dof_shape(highlight));
+    CHECK_NOTHROW(validate_dof_render_capabilities(highlight));
 
     DepthOfFieldSettings both = foundational;
     both.iris_blades = 6;
     both.highlight_gain = 1.5f;
-    CHECK_THROWS_AS(reject_unsupported_dof_shape(both), std::runtime_error);
+    CHECK_THROWS_AS(validate_dof_render_capabilities(both), std::runtime_error);
+
+    DepthOfFieldSettings unsupported_gain = foundational;
+    unsupported_gain.highlight_gain = 8.01f;
+    CHECK_THROWS_AS(validate_dof_render_capabilities(unsupported_gain), std::runtime_error);
+    unsupported_gain.highlight_gain = std::numeric_limits<float>::quiet_NaN();
+    CHECK_THROWS_AS(validate_dof_render_capabilities(unsupported_gain), std::runtime_error);
 }
 
 TEST_CASE("DOF rejects missing tracked depth but permits untracked passthrough") {

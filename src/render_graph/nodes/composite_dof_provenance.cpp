@@ -151,11 +151,10 @@ void publish_dof_provenance(
 float dof_source_radius(RenderGraphContext& ctx, float camera_depth) {
     const auto& camera_2_5d = ctx.frame_input.camera_2_5d;
     const auto& dof = camera_2_5d.dof;
-    return camera_2_5d.dof.enabled
-        ? compute_dof_blur_radius(dof, camera_2_5d.lens,
-                                  camera_depth,
-                                  static_cast<float>(ctx.frame_input.width))
-        : 0.0f;
+    if (!camera_2_5d.dof.enabled) return 0.0f;
+    validate_dof_render_capabilities(dof);
+    return compute_dof_blur_radius(dof, camera_2_5d.lens, camera_depth,
+                                   static_cast<float>(ctx.frame_input.width));
 }
 
 } // namespace chronon3d::graph::detail
