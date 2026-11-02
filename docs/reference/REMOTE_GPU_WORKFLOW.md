@@ -45,6 +45,10 @@ Check connectivity and GPU occupancy:
 ssh gpu-node 'nvidia-smi'
 ```
 
+Let SSH request authentication interactively. Do not put account or `sudo`
+passwords in commands, scripts, repository files, or shell history; configure a
+key for repeatable use.
+
 Do not stop another GPU process to make room without coordinating with its
 owner. In particular, the GPU may be serving an Ollama model as well as Chronon.
 
@@ -106,6 +110,7 @@ and include any non-system shared libraries required by the CLI.
 ```bash
 CLI=build/chronon/linux-video-fast-dev/apps/chronon3d_cli/chronon3d_cli
 ldd "$CLI" | rg 'not found' || true
+readelf --version-info "$CLI" | rg -o 'GLIBC(_|XX_)[0-9.]+' | sort -Vu | tail
 RUN_ID="$(git rev-parse --short HEAD)"
 git status --short
 ssh gpu-node "mkdir -p ~/gpu-runs/$RUN_ID"
@@ -128,6 +133,44 @@ The strict GPU mode makes a missing native Vulkan path fail instead of quietly
 using a software path. For quick diagnostics, `--gpu-hot-path-mode auto` is
 available, but record which mode was used with the result. Keep only one
 Chronon render active on the card; check `nvidia-smi` again after it exits.
+
+### Focused Vulkan regression tests
+
+For the camera/DoF hardware probes, build `chronon3d_backend_registry_tests`
+locally, strip debug information and compress it before transfer. The test
+binary can be much larger than the CLI because it includes debug symbols.
+
+```bash
+TEST=build/chronon/linux-video-test/tests/chronon3d_backend_registry_tests
+STRIPPED=/tmp/chronon3d_backend_registry_tests.stripped
+objcopy --strip-debug "$TEST" "$STRIPPED"
+gzip -1 -c "$STRIPPED" > "$STRIPPED.gz"
+RUN_ID="$(git rev-parse --short=12 HEAD)"
+ssh gpu-node "mkdir -p ~/gpu-runs/$RUN_ID"
+scp "$STRIPPED.gz" "gpu-node:gpu-runs/$RUN_ID/backend-tests.gz"
+sha256sum "$STRIPPED"
+```
+
+On the GPU host, decompress and verify the remote hash. Use the system loader
+when the ABI check passes. If the executable needs a newer GLIBC/GLIBCXX, use a
+separately verified user-space runtime bundle; leave Vulkan ICD and NVIDIA
+driver libraries on the GPU host. The bundle used for the 2026-11-02 check is
+at `/tmp/chronon-p2-gpucheck/runtime`.
+
+```bash
+ssh gpu-node "cd ~/gpu-runs/$RUN_ID && \
+  gzip -dc backend-tests.gz > backend-tests && chmod +x backend-tests && \
+  sha256sum backend-tests && \
+  VK_DRIVER_FILES=/usr/share/vulkan/icd.d/nvidia_icd.json \
+  /tmp/chronon-p2-gpucheck/runtime/lib/ld-linux-x86-64.so.2 \
+  --library-path /tmp/chronon-p2-gpucheck/runtime/lib:. \
+  ./backend-tests --test-case='Vulkan native occlusion holds a mesh half behind a 2.5D plane in both authoring orders'"
+```
+
+Run the disk-bokeh parity case with the same ICD/runtime and this exact filter:
+`Vulkan disk bokeh kernel matches the CPU kernel within the frozen tolerance`.
+Record local and remote executable hashes. Require a nonzero doctest case count;
+an exit code of zero with zero matching cases is not a test pass.
 
 ## If the binary cannot be transferred
 

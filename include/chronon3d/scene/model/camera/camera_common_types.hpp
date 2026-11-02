@@ -37,8 +37,9 @@ struct DepthOfFieldSettings {
     f32   near_bokeh_radius{0.0f};
     f32   far_bokeh_radius{0.0f};
 
-    // Lens shaping values are part of the camera contract. Until the kernel
-    // phase consumes them, reject_unsupported_dof_shape() fails closed.
+    // Iris shaping is part of the camera contract and is rejected until a
+    // kernel renders polygonal apertures. Circular-bokeh highlight weighting
+    // is implemented by the software and Vulkan kernels.
     std::uint32_t iris_blades{0}; // polygonal iris blade count; 0 = circular bokeh
     f32 highlight_gain{0.0f};     // out-of-focus highlight weighting; 0 = off
 };

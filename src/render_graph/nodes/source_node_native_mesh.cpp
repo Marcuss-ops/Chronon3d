@@ -4,6 +4,7 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/rendering/lighting_eval.hpp>
+#include "detail/native_promotion.hpp"
 #include <chronon3d/runtime/gpu_asset_cache.hpp>
 #include "native_surface.hpp"
 
@@ -23,11 +24,40 @@ bool try_native_inline_mesh(
     RenderGraphContext& ctx, Framebuffer& fb,
     const ::chronon3d::RenderNode& node, const RenderState& state) {
     if (!ctx.backend || !ctx.backend_stats_api()->supports_native_surfaces() ||
-        !ctx.image_cache || !ctx.gpu_asset_cache || !ctx.surface_registry ||
-        node.shape.type() != ShapeType::Mesh ||
-        !node.shape.mesh_shape().inline_mesh) return false;
+        !ctx.image_cache || !ctx.gpu_asset_cache || !ctx.surface_registry) return false;
 
-    const auto& mesh = *node.shape.mesh_shape().inline_mesh;
+    // A projected RenderPlan color rectangle is the same flat quad geometry
+    // consumed by the inline-mesh native rasterizer. Promote only the exact
+    // solid, unrounded, unmasked rectangle contract; other projected shapes
+    // keep their existing fail-closed behavior.
+    std::optional<::chronon3d::RenderNode> projected_rect_node;
+    const ::chronon3d::RenderNode* draw_node = &node;
+    if (node.shape.type() == ShapeType::Rect && state.projection.ready &&
+        native_promotion::is_projected(state) &&
+        has_native_solid_rect_fill(node) &&
+        !node.shape.rect().stroke.enabled && node.corner_radius <= 0.0f &&
+        !native_promotion::has_active_mask(state)) {
+        const Vec2 size = node.shape.rect().size;
+        if (!std::isfinite(size.x) || !std::isfinite(size.y) ||
+            size.x <= 0.0f || size.y <= 0.0f) return false;
+        auto quad = std::make_shared<Mesh>("projected-color-rect");
+        const Vec3 normal{0.0f, 0.0f, 1.0f};
+        quad->add_vertex(Vertex{{0.0f, 0.0f, 0.0f}, normal, {0.0f, 0.0f}});
+        quad->add_vertex(Vertex{{size.x, 0.0f, 0.0f}, normal, {1.0f, 0.0f}});
+        quad->add_vertex(Vertex{{size.x, size.y, 0.0f}, normal, {1.0f, 1.0f}});
+        quad->add_vertex(Vertex{{0.0f, size.y, 0.0f}, normal, {0.0f, 1.0f}});
+        quad->add_index(0); quad->add_index(1); quad->add_index(2);
+        quad->add_index(0); quad->add_index(2); quad->add_index(3);
+        projected_rect_node.emplace(node);
+        projected_rect_node->shape.set_type(ShapeType::Mesh);
+        projected_rect_node->shape.mesh_shape().inline_mesh = std::move(quad);
+        draw_node = &*projected_rect_node;
+    }
+
+    if (draw_node->shape.type() != ShapeType::Mesh ||
+        !draw_node->shape.mesh_shape().inline_mesh) return false;
+
+    const auto& mesh = *draw_node->shape.mesh_shape().inline_mesh;
     const auto& source_vertices = mesh.vertices();
     const auto& source_indices = mesh.indices();
     if (source_vertices.empty() || source_indices.size() < 3 ||
@@ -35,12 +65,12 @@ bool try_native_inline_mesh(
 
     runtime::RenderSurfaceHandle texture_handle = runtime::kInvalidRenderSurfaceHandle;
     std::shared_ptr<const CachedImage> cached;
-    if (!node.inline_mesh_texture_asset.empty()) {
-        cached = ctx.image_cache->find(node.inline_mesh_texture_asset);
-        if (!cached) cached = ctx.image_cache->get_or_load(node.inline_mesh_texture_asset);
+    if (!draw_node->inline_mesh_texture_asset.empty()) {
+        cached = ctx.image_cache->find(draw_node->inline_mesh_texture_asset);
+        if (!cached) cached = ctx.image_cache->get_or_load(draw_node->inline_mesh_texture_asset);
         if (!cached || !cached->valid() || cached->gpu_rgba.empty())
             throw std::runtime_error("inline mesh native texture could not be prepared: " +
-                                     node.inline_mesh_texture_asset);
+                                     draw_node->inline_mesh_texture_asset);
         const auto& key = cached->gpu_key;
         const runtime::SurfaceDesc desc{
             key.width, key.height, key.format, runtime::ResourceUsage::Storage,
@@ -130,8 +160,8 @@ bool try_native_inline_mesh(
 
     Material2_5D lighting_material;
     lighting_material.accepts_lights = true;
-    if (node.inline_mesh_material) {
-        const auto& source = *node.inline_mesh_material;
+    if (draw_node->inline_mesh_material) {
+        const auto& source = *draw_node->inline_mesh_material;
         lighting_material.diffuse = source.diffuse;
         lighting_material.specular = source.specular;
         lighting_material.shininess = source.shininess;
@@ -140,10 +170,10 @@ bool try_native_inline_mesh(
         lighting_material.roughness = source.roughness;
         lighting_material.double_sided = source.double_sided;
     }
-    Color tint = node.color.to_linear();
+    Color tint = draw_node->color.to_linear();
     tint.a *= state.opacity;
-    if (node.inline_mesh_material && node.inline_mesh_material->base_color) {
-        const Color base = node.inline_mesh_material->base_color->to_linear();
+    if (draw_node->inline_mesh_material && draw_node->inline_mesh_material->base_color) {
+        const Color base = draw_node->inline_mesh_material->base_color->to_linear();
         tint.r *= base.r;
         tint.g *= base.g;
         tint.b *= base.b;
@@ -174,7 +204,7 @@ bool try_native_inline_mesh(
         const Vec3 input_normal = glm::dot(vertex.normal, vertex.normal) > 1e-8f
             ? vertex.normal : fallback_normal;
         const Vec3 normal = rendering::transform_normal(mesh_model, input_normal);
-        const Color lighting = node.inline_mesh_material
+        const Color lighting = draw_node->inline_mesh_material
             ? rendering::evaluate_lighting(Color{1.0f, 1.0f, 1.0f, 1.0f}, normal,
                                            state.light_context, lighting_material,
                                            &state.rim_light)
@@ -279,7 +309,7 @@ bool try_native_inline_mesh(
     const auto result = texture_api->draw_inline_mesh_surface(
         fb.surface_handle(), texture_handle, projected, indices,
         x0, y0, x1, y1, tint,
-        node.inline_mesh_material ? node.inline_mesh_material->alpha_cutoff
+        draw_node->inline_mesh_material ? draw_node->inline_mesh_material->alpha_cutoff
                                  : std::optional<float>{},
         depth_stamp, 1.0f);
     if (!result.ok())

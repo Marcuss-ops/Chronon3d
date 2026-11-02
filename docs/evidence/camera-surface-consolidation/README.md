@@ -64,7 +64,6 @@ value and does not evaluate authoring, motion, or constraints.
 | `CameraMotion.hpp` | Applier | 12 | `AspectReframe`, `Motion.hpp`, `EyeTrace`, `Presets`, `GeoCameraRig` |
 | `CameraFocusSequence.hpp` | Applier | 3 | `DocumentaryCameraPath.cpp`, implementation, focus-sequence test |
 | `CameraRecipe.hpp` | Applier | 4 | `DocumentaryCameraPath.cpp`, recipe registry, implementation, camera test |
-| `CameraSequence.hpp` | Applier | 2 | implementation, sequence test |
 | `CameraTrajectory.hpp` | Applier | 3 | `Motion.hpp`, implementation, trajectory test |
 | `CameraPanelChoreography.hpp` | Applier | 3 | `Motion.hpp`, implementation, framing test |
 | `DocumentaryCameraPath.hpp` | Applier | 2 | implementation, documentary test |
@@ -72,7 +71,6 @@ value and does not evaluate authoring, motion, or constraints.
 | `CameraScreenSpace.hpp` | Geometric service | 11 | `AspectReframe`, `Interaction`, `Motion.hpp`, `EyeTrace`, `CameraValidation` |
 | `CameraFraming.hpp` | Geometric service | 5 | framing, documentary, sequence, recipe, framing test |
 | `CameraValidation.hpp` | Validation service | 3 | `Motion.hpp`, implementation, framing test |
-| `CameraShake.hpp` | Procedural service | 2 | implementation, shake test |
 
 **S2 status — shared track writer adopted and moved out of the public rig header, 2026-10-31; header/data collapse still open.**
 `CameraRigTrackBatch` is the sole track-write path used by camera appliers in
@@ -102,6 +100,17 @@ compare sampled poses and lowered plans against the current authoring outputs,
 then remove only headers whose semantics and consumers have moved. F3
 base/animation samples and the rendered depth-order canary pass
 (`camera-f3-depth-order.json`).
+
+**S2 incremental header reduction — 2026-11-02.** The standalone public
+`CameraSequence.hpp` and `CameraShake.hpp` declarations are now in
+`CameraMotion.hpp` under `motion::camera`; implementation and focused tests
+include that authority. The sequence/shake tests pass, as do authoring
+(373 checks), camera bake roundtrip (832 checks), and the Motion boundary
+guardrail. A focused rerun against the current Motion sources on 2026-11-02
+passed CTest 5/5: `camera_focus_sequence`, `camera_sequence`, `camera_shake`,
+`authoring`, and `camera_bake_roundtrip`. The extended inventory is reduced by
+two headers (15→13 when counting `AspectReframe` and `EyeTrace`); this does not
+satisfy the ticket's typed-data or ≤6-header target.
 
 ## 3. S3 — legacy `dof.aperture` wire field migration
 

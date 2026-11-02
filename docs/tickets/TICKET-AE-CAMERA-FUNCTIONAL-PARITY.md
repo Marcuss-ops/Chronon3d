@@ -33,7 +33,7 @@ Le righe qui sotto sono requisiti da censire. Le API presenti non implicano pari
 | Determinismo | seek/reverse/random access, offline/provider equivalenti | gate locale piccolo presente; estendere al corpus integrato |
 | Preview / export | stessa regia e stesso calendario, qualità esplicitamente diversa | nessun claim di pixel parity threepp/C3D senza modello ottico equivalente |
 
-**Esclusioni iniziali:** importer `.aep`, espressioni AE arbitrarie, renderer Adobe identico, ogni effetto AE, materiali/ombre/mesh universali, shaped bokeh e multipass cinematici non specificati. Capability non supportate falliscono prima del render con campo e motivo; nessun clamp/fallback silenzioso.
+**Esclusioni iniziali:** importer `.aep`, espressioni AE arbitrarie, renderer Adobe identico, ogni effetto AE, materiali/ombre/mesh universali, iris poligonale e multipass cinematici non specificati. Il bokeh circolare supporta highlight weighting; capability non supportate falliscono prima del render con campo e motivo; nessun clamp/fallback silenzioso.
 
 ## 2.1 Censimento locale 2026-10-30
 
@@ -45,7 +45,7 @@ Le classificazioni seguenti riguardano il working tree dirty, non una release n�
 | Dolly, pan, tilt, orbit, framing e traiettorie | **PARTIAL:** primitive `CameraRig.hpp`; `motion_camera_v1.cpp`, `motion_camera_trajectory.cpp`, `motion_camera_framing.cpp`; le combinazioni complete e dolly-zoom AE non sono certificate. |
 | FOV/focale/ottica | **PARTIAL:** `camera_contract.hpp` è l'ammissione condivisa applicata ai due confini compiler (test dedicato, 2026-10-31); `RenderPlanLoweringCamera.cpp`, `motion_projection_parity.cpp` e `motion_authoring_renderplan.cpp`. Parità AE e limiti combinati ancora da verificare. |
 | DoF e focus | **PARTIAL:** `motion_camera_focus_sequence.cpp`, `test_per_pixel_dof.cpp`, ROI/raw e integrazione software a due profondità con alpha 0,5 passano; fault injection strict-native e matrice completa alpha/depth restano aperte. |
-| Iris blades/highlight | **REJECTED:** `camera_contract.hpp` rifiuta i parametri senza kernel; non è supporto AE-shaped bokeh. |
+| Iris blades / highlight weighting | **PARTIAL:** iris poligonale rifiutata; highlight weighting circolare ammesso e implementato nei kernel software/Vulkan. La parità integrata e l'equivalenza AE restano da provare. |
 | Shutter e layer | **PARTIAL:** `camera_sample_provider.hpp`, `RenderPlanLowering.cpp`, `test_camera_motion.cpp`; test camera/layer e piano Optical Studio materializzato passano. Il job unico è ancora oggetto di diagnosi e la CLI non prova il callback provider live. |
 | Camera sequence e cut | **PARTIAL:** `motion_camera_sequence.cpp` copre il componente Motion; nessuna certificazione di cut E2E su job C3D. |
 | Bridge export | **IMPLEMENTATO, PARITÀ NON CERTIFICATA:** il percorso RenderPlan esporta FullGraph, DirectYUV e GOP da `CompiledProgram`; il bridge `make_video_compatibility_view` e il suo translation unit sono stati rimossi il 2026-10-31. Test raw/shutter e GOP/DirectYUV non eseguiti in questa passata. |

@@ -13,31 +13,35 @@ namespace chronon3d {
 /// kernel (neither the separable nor the disk DOF kernel builds a blade
 /// polygon aperture). `highlight_gain` IS implemented on every path
 /// (`highlight_weight()` in dof_blur.comp, `dof_highlight_weight()` in the
-/// software kernel), so it is accepted here and consumed by the kernels.
-/// This is the one seat of the policy: the render_plan camera contract and the
-/// per-node render-boundary gate below are callers of this predicate, not a
-/// second copy of the rule.
-[[nodiscard]] inline bool dof_shape_unsupported(int iris_blades, f32 highlight_gain) {
-    (void)highlight_gain;
+/// software kernel), so it is accepted in the shared CameraRig range [0, 8]
+/// and consumed by the kernels.
+/// These predicates are the one seat of the capability policy: the RenderPlan
+/// contract and render-boundary gate call them instead of copying the limits.
+[[nodiscard]] inline bool dof_shape_unsupported(int iris_blades) {
     return iris_blades != 0;
 }
 
-/// Fail closed when the authored lens shaping has no kernel support. No DOF
-/// kernel builds an iris-blade polygon aperture, so `iris_blades` would be
-/// silently ignored and render as plain circular bokeh. Call this at the render
-/// boundary of every path that applies a DOF blur so unsupported shaping fails
-/// loudly instead of silently mismatching the authored lens.
-inline void reject_unsupported_dof_shape(
+/// CameraRig's shared authored range for circular-bokeh highlight weighting.
+[[nodiscard]] inline bool dof_highlight_gain_unsupported(f32 highlight_gain) {
+    return !std::isfinite(highlight_gain) || highlight_gain < 0.f || highlight_gain > 8.f;
+}
+
+/// Validate the authored DoF capability values before any blur path dispatches.
+/// Unsupported iris shaping and out-of-range highlight weights fail closed.
+inline void validate_dof_render_capabilities(
     const DepthOfFieldSettings& dof) {
     constexpr std::string_view kAdviceView =
         " (the DOF kernels support circular bokeh with highlight weighting "
         "only); remove the iris_blades value from the plan or implement the "
         "shaped kernels first";
-    if (dof_shape_unsupported(static_cast<int>(dof.iris_blades), dof.highlight_gain)) {
+    if (dof_shape_unsupported(static_cast<int>(dof.iris_blades))) {
         throw std::runtime_error(
-            "DOF: unsupported shaped bokeh (iris_blades " +
+            "DOF: unsupported iris-shaped bokeh (iris_blades " +
             std::to_string(dof.iris_blades) + ") is authored but no DOF kernel "
             "implements iris-shaped bokeh" + std::string{kAdviceView});
+    }
+    if (dof_highlight_gain_unsupported(dof.highlight_gain)) {
+        throw std::runtime_error("DOF: highlight_gain must be finite and in [0, 8]");
     }
 }
 

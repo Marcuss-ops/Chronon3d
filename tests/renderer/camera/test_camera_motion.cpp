@@ -617,6 +617,12 @@ TEST_CASE("Camera capability contract rejects unsupported optics at both compile
         CHECK(compiler::compile(accepted, resolver));
         CHECK(compile_render_plan(accepted, resolver));
     }
+    for (float gain : {-0.01f, 8.01f, std::numeric_limits<float>::infinity(),
+                       std::numeric_limits<float>::quiet_NaN()}) {
+        camera = CameraPlan{};
+        camera.dof_highlight_gain = gain;
+        rejected(camera);
+    }
     camera = CameraPlan{};
     camera.iris_blades = 5;
     rejected(camera);

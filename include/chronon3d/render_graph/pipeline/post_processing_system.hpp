@@ -126,9 +126,9 @@ private:
     [[nodiscard]] f32 dof_blur_radius(const Camera2_5D& camera, f32 layer_world_z, f32 viewport_w) const {
         if (!m_dof.enabled) return 0.0f;
         const auto& camera_dof = m_dof;
-        // Fail closed on authored lens shaping the CPU separable blur cannot
-        // render (iris blades / highlight weighting).
-        reject_unsupported_dof_shape(camera_dof);
+        // Fail closed on polygonal iris shaping, which the CPU separable blur
+        // cannot render. Highlight weighting is consumed by the kernel.
+        validate_dof_render_capabilities(camera_dof);
         const float depth = camera_space_depth(
             camera, Vec3{0.0f, 0.0f, layer_world_z});
         return compute_dof_blur_radius(camera_dof, camera.lens, depth, viewport_w);

@@ -18,9 +18,11 @@
   Documentary Showcase ora richiedono campioni risolti per i layer visuali
   animati; Particle e Adjustment sono ammessi dal consumer (l'Adjustment del
   Documentary Showcase è statico e senza track Motion). Corretto anche il producer WordLens:
-  prima autorizzava bokeh sagomato (8 iris, highlight gain 1.25) che il kernel
-  C3D rifiuta; ora authoring e defaults rispettano il contratto circolare, e
-  l'applier FocusSequence rifiuta input sagomati prima di scrivere il rig.
+  prima impostava iris poligonali (8 lamelle), che il kernel C3D rifiuta; il
+  highlight gain 1.25 è invece supportato dal bokeh circolare. Il pack usa ora
+  i default circolari. Nel working tree corrente `applyFocusSequence` accetta
+  gain in [0, 8] e rifiuta le iris; build mirata aggiornata e 5 CTest camera/
+  authoring PASS il 2026-11-02. La suite completa resta un gate della DoD.
   F3 è PASS sul canary 2.5D con ordine depth verificato. Il 2026-10-31 tutti
   gli applier camera Motion sono stati instradati in `CameraRigTrackBatch`, con
   flush bounded per i percorsi campionati; il writer è stato poi spostato da
@@ -239,6 +241,12 @@ EffectComposer DoF/bloom; glTF loader animato/skinning/meshopt; serializzazione 
   handoff/cut, focus, shake e ricette editoriali hanno semantiche diverse. Il target
   provvisorio 13→6 si accetta solo con migrazione a dati tipizzati e confronto output;
   spostare dichiarazioni in un umbrella non conta come consolidamento.
+  **Avanzamento 2026-11-02:** due header autonomi (`CameraSequence.hpp`,
+  `CameraShake.hpp`) sono stati assorbiti in `CameraMotion.hpp`; consumer
+  implementation/test aggiornati. I test sequence, shake, authoring e bake
+  passano (373 check authoring, 832 bake), e il boundary guardrail Motion è
+  verde. È una riduzione incrementale di superficie: il target 13→≤6 e la
+  migrazione degli applier a dati tipizzati con confronto lowering restano aperti.
 - [x] **S3 — Dismissione legacy DOF.** La migrazione wire è implementata nel
   working tree: producer, schema, tipo, decoder e fingerprint non trasportano
   più `dof_aperture`; l'adapter deriva il parametro interno del kernel da
@@ -297,6 +305,6 @@ dati o pack, con una riga nel registro se toccano meccanismo.
 ## 8. Fuori perimetro esplicito
 
 Parità funzionale/certificazione AE (ticket AE); contratto ottica e DoF fail-closed
-(CAMERA-DEFINITIVE-CLOSURE); shaped bokeh/kernel (ticket separato); espressioni;  `.aep` importer; MeshLayer/ADR Object3D-Layer; plate GPU; prestazioni encoder/DoF
+(CAMERA-DEFINITIVE-CLOSURE); iris poligonale/kernel shaped-bokeh (ticket separato; il kernel circolare con highlight weighting è supportato); espressioni;  `.aep` importer; MeshLayer/ADR Object3D-Layer; plate GPU; prestazioni encoder/DoF
   (la scelta di lane è già chiusa in CAMERA-DEFINITIVE-CLOSURE §5 F2); GUI. Il ticket non tocca endpoint
 encoder, scheduler calendar né schema V3 salvo dove S3/S5 lo prescrivono.
