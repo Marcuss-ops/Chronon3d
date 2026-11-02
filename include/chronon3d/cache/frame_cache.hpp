@@ -44,7 +44,9 @@ struct FrameCacheKey {
     /// Static frames share the same key (frame=0, tick=0, version=0).
     TemporalSampleKey temporal_key{0, 0, 0};
 
-    [[nodiscard]] u64 digest() const;
+    [[nodiscard]] u64 digest_v1() const;
+    [[nodiscard]] u64 digest_v2() const;
+    [[nodiscard]] u64 digest() const { return digest_v2(); }
     [[nodiscard]] bool operator==(const FrameCacheKey&) const = default;
 };
 

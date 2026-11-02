@@ -346,8 +346,7 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
         key.source_hash,
         hash_combine(
             hash_string(m_name),
-            hash_bytes(&m_render_ref.world_transform.position,
-                       sizeof(Vec3))));
+            hash_vec3_v2(m_render_ref.world_transform.position)));
 
     key.params_hash = hash_combine(
         key.params_hash,
@@ -360,21 +359,21 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     if (!m_placement.tight_surface) {
         key.params_hash = hash_combine(
             key.params_hash,
-            hash_bytes(&m_placement.matrix[0][0], sizeof(Mat4)));
+            hash_mat4_v2(m_placement.matrix));
     }
     key.params_hash = hash_combine(
         key.params_hash,
-        hash_bytes(&m_placement.surface_origin[0], sizeof(Vec2)));
+        hash_vec2_v2(m_placement.surface_origin));
     key.params_hash = hash_combine(
         key.params_hash,
-        hash_bytes(&m_placement.surface_size[0], sizeof(Vec2)));
+        hash_vec2_v2(m_placement.surface_size));
     key.params_hash = hash_combine(
         key.params_hash,
         static_cast<u64>(m_placement.tight_surface));
     if (m_opacity_override) {
         key.params_hash = hash_combine(
             key.params_hash,
-            hash_bytes(&(*m_opacity_override), sizeof(f32)));
+            hash_float_v2(*m_opacity_override));
     }
 
     // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B):

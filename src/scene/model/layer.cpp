@@ -130,14 +130,20 @@ uint64_t Layer::get_static_hash() const {
     // this to be a bottleneck, re-add memoization with a LayerVersion counter
     // that is incremented by every mutating accessor.
     using namespace chronon3d::graph;
-    uint64_t h = 0;
+    uint64_t h = hash_string("chronon.layer-static.v2");
     h = hash_combine(h, hash_string(name));
+    h = hash_combine(h, hash_string(parent_name));
     h = hash_combine(h, static_cast<u64>(kind));
     h = hash_combine(h, visible ? 1 : 0);
     h = hash_combine(h, uses_2_5d_projection ? 1 : 0);
     h = hash_combine(h, screen_space ? 1 : 0);
     h = hash_combine(h, cache_static ? 1 : 0);
     h = hash_combine(h, static_cast<u64>(blend_mode));
+    h = hash_combine(h, static_cast<u64>(composite_operator));
+    h = hash_combine(h, hash_transform_v2(transform));
+    h = hash_combine(h, hash_value(static_cast<int64_t>(from)));
+    h = hash_combine(h, hash_value(static_cast<int64_t>(duration)));
+    h = hash_combine(h, hash_value(static_cast<int64_t>(time_offset)));
     for (const auto& group : lottie_precomp_groups) {
         h = hash_combine(h, hash_string(group.id));
         h = hash_combine(h, hash_value(group.opacity));
@@ -145,39 +151,54 @@ uint64_t Layer::get_static_hash() const {
         h = hash_combine(h, static_cast<u64>(group.blend_mode));
         h = hash_combine(h, group.opacity_animated ? 1ULL : 0ULL);
     }
-    h = hash_combine(h, hash_mask(mask));
-    h = hash_combine(h, hash_effect_stack(*m_effects));
+    h = hash_combine(h, hash_mask_v2(mask));
+    h = hash_combine(h, hash_value(static_cast<int>(track_matte.type)));
+    if (track_matte.active())
+        h = hash_combine(h, hash_string(track_matte.source_layer));
+    h = hash_combine(h, hash_effect_stack_v3(*m_effects));
+    h = hash_combine(h, hash_value(m_card3d_material_configured));
     if (m_card3d_material_configured) {
-        h = hash_combine(h, 1);
         const auto& material = *m_card3d_material;
         h = hash_combine(h, hash_value(material.enabled));
-        h = hash_combine(h, hash_value(material.thickness_px));
-        h = hash_combine(h, hash_value(material.corner_radius));
-        h = hash_combine(h, hash_color(material.front_top_color));
-        h = hash_combine(h, hash_color(material.front_bottom_color));
-        h = hash_combine(h, hash_color(material.side_color));
-        h = hash_combine(h, hash_value(material.edge_highlight_intensity));
-        h = hash_combine(h, hash_color(material.edge_highlight_color));
-        h = hash_combine(h, hash_value(material.rim_light_intensity));
-        h = hash_combine(h, hash_value(material.rim_light_power));
-        h = hash_combine(h, hash_color(material.rim_light_color));
-        h = hash_combine(h, hash_vec3(material.light_direction));
+        h = hash_combine(h, hash_float_v2(material.thickness_px));
+        h = hash_combine(h, hash_float_v2(material.corner_radius));
+        h = hash_combine(h, hash_color_v2(material.front_top_color));
+        h = hash_combine(h, hash_color_v2(material.front_bottom_color));
+        h = hash_combine(h, hash_color_v2(material.side_color));
+        h = hash_combine(h, hash_float_v2(material.edge_highlight_intensity));
+        h = hash_combine(h, hash_color_v2(material.edge_highlight_color));
+        h = hash_combine(h, hash_float_v2(material.rim_light_intensity));
+        h = hash_combine(h, hash_float_v2(material.rim_light_power));
+        h = hash_combine(h, hash_color_v2(material.rim_light_color));
+        h = hash_combine(h, hash_vec3_v2(material.light_direction));
         h = hash_combine(h, hash_value(material.cast_shadow));
         h = hash_combine(h, hash_value(material.receive_shadow));
         h = hash_combine(h, hash_value(material.casts_shadows));
         h = hash_combine(h, hash_value(material.accepts_shadows));
     }
+    h = hash_combine(h, hash_value(backdrop_blur.has_value()));
     if (backdrop_blur) {
-        h = hash_combine(h, hash_bytes(&backdrop_blur->blur, sizeof(float)));
-        h = hash_combine(h, hash_bytes(&backdrop_blur->brightness, sizeof(float)));
-        h = hash_combine(h, hash_bytes(&backdrop_blur->saturation, sizeof(float)));
+        h = hash_combine(h, hash_float_v2(backdrop_blur->blur));
+        h = hash_combine(h, hash_float_v2(backdrop_blur->brightness));
+        h = hash_combine(h, hash_float_v2(backdrop_blur->saturation));
+        h = hash_combine(h, hash_float_v2(backdrop_blur->rim_light));
+        h = hash_combine(h, hash_float_v2(backdrop_blur->refraction));
+        h = hash_combine(h, hash_float_v2(backdrop_blur->surface_noise));
     }
     for (const auto& node : nodes) {
-        h = hash_combine(h, hash_render_node(node));
+        h = hash_combine(h, hash_render_node_v2(node));
     }
     if (kind == LayerKind::Precomp) {
         h = hash_combine(h, hash_string(precomp_composition_name));
     }
+    if (kind == LayerKind::Video && video_source)
+        h = hash_combine(h, hash_video_source_v2(*video_source));
+    if (time_remap.active()) {
+        h = hash_combine(h, hash_float_v2(time_remap.speed));
+        h = hash_combine(h, hash_value(static_cast<int64_t>(time_remap.freeze_frame)));
+    }
+    h = hash_combine(h, hash_layer_transition_spec_v2(transition_in));
+    h = hash_combine(h, hash_layer_transition_spec_v2(transition_out));
     return h;
 }
 

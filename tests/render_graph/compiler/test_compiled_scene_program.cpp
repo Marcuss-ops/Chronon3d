@@ -433,9 +433,27 @@ TEST_CASE("scene_program: SceneStructureKey comparison") {
         CHECK(a != b);
     }
 
+    SUBCASE("different render options hash") {
+        b = a;
+        b.render_options_hash = 0x9999;
+        CHECK(a != b);
+    }
+
     SUBCASE("different width") {
         b = a;
         b.width = 1280;
+        CHECK(a != b);
+    }
+
+    SUBCASE("different height") {
+        b = a;
+        b.height = 720;
+        CHECK(a != b);
+    }
+
+    SUBCASE("different SSAA factor") {
+        b = a;
+        b.ssaa_factor = 2;
         CHECK(a != b);
     }
 }

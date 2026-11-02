@@ -68,8 +68,9 @@ public:
             .frame = source_frame,
             .width = render_w,
             .height = render_h,
-            .params_hash = hash_video_source(m_source),
-            .source_hash = hash_string(m_source.path)
+            .params_hash = hash_video_source_v2(m_source),
+            .source_hash = hash_string(m_source.path),
+            .params_version = 2
         };
     }
 

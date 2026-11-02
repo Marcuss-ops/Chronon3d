@@ -69,6 +69,10 @@ struct TextLayoutCacheKey {
     bool          ellipsis{false};               // ellipsis truncation
 
     [[nodiscard]] u64 digest() const;
+    /// Frozen pre-V2 digest for compatibility and regression fixtures.
+    [[nodiscard]] u64 digest_v1() const;
+    /// Domain-tagged identity covering the complete current key schema.
+    [[nodiscard]] u64 digest_v2() const;
     [[nodiscard]] bool operator==(const TextLayoutCacheKey& other) const = default;
 };
 

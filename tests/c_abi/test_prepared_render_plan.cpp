@@ -25,11 +25,11 @@ TEST_CASE("render-plan layer transitions lower into the existing scene layer spe
           chronon3d::LayerTransitionKind::Slide);
     CHECK(scene.layers()[0].transition_in.duration == doctest::Approx(0.2));
     CHECK(scene.layers()[0].transition_in.delay == doctest::Approx(1.0 / 30.0));
-    const auto transition_hash = chronon3d::graph::hash_layer_transition_spec(
+    const auto transition_hash = chronon3d::graph::hash_layer_transition_spec_v2(
         scene.layers()[0].transition_in);
     auto changed_spec = scene.layers()[0].transition_in;
     changed_spec.parameters = chronon3d::SlideParams{1.5f};
-    CHECK(chronon3d::graph::hash_layer_transition_spec(changed_spec) != transition_hash);
+    CHECK(chronon3d::graph::hash_layer_transition_spec_v2(changed_spec) != transition_hash);
 }
 
 // ── media card / video corner contract ─────────────────────────────

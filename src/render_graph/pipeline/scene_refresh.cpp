@@ -448,10 +448,11 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                     }
                         .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
                         .output(ctx.frame_input.width, ctx.frame_input.height)
-                        .params(hash_render_node_content_only(render_ref))
+                        .params(hash_render_node_content_v2(render_ref))
                         .source(hash_combine(
                             hash_string(render_ref.name),
-                            hash_render_node_placement_only(render_ref)))
+                            hash_render_node_placement_v2(render_ref)))
+                        .versions(2, 2)
                         .build();
                     prepared->refresh_placement(
                         render_ref, placement, key,

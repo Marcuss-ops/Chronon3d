@@ -3,6 +3,7 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include "glyph_atlas_cache_key.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -35,31 +36,9 @@ struct TextRasterCache {
 // Glyph atlas state is owned by TextRenderResources. The ABI-frozen
 // rasterize_text_to_bl_image path bypasses this per-renderer cache.
 
-struct GlyphAtlasKey {
-    std::uint64_t font_id{0};
-    u32         glyph_id{0};
-    u32         font_size{0};
-
-    bool operator==(const GlyphAtlasKey& o) const noexcept {
-        return font_id == o.font_id
-            && glyph_id == o.glyph_id
-            && font_size == o.font_size;
-    }
-};
-
-struct GlyphAtlasKeyHash {
-    [[nodiscard]] std::size_t operator()(const GlyphAtlasKey& k) const noexcept {
-        std::size_t h = static_cast<std::size_t>(k.font_id);
-        h ^= std::hash<u32>{}(k.glyph_id) + 0x9e3779b97f4a7c15ULL
-             + (h << 6) + (h >> 2);
-        h ^= std::hash<u32>{}(k.font_size) + 0x9e3779b97f4a7c15ULL
-             + (h << 6) + (h >> 2);
-        return h;
-    }
-};
-
 struct GlyphAtlasCache {
-    using Cache = cache::LruCache<GlyphAtlasKey, GlyphAtlasEntry, GlyphAtlasKeyHash>;
+    using Cache = cache::LruCache<detail::GlyphAtlasKey, GlyphAtlasEntry,
+                                  detail::GlyphAtlasKeyHash>;
 
     /// Default capacity used when the caller passes `0`.
     static constexpr size_t kFallbackBytes = 32ULL * 1024ULL * 1024ULL;
@@ -121,7 +100,12 @@ std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
     u32 glyph_id,
     u32 font_size
 ) {
-    return lookup_glyph_atlas(glyph_font_id(font_path), glyph_id, font_size);
+    ensure_glyph_atlas_materialized();
+    detail::GlyphAtlasKey key{.path_identity = true, .font_path = font_path,
+        .font_id = glyph_font_id(font_path), .glyph_id = glyph_id,
+        .font_size = font_size};
+    std::shared_lock lock(glyph_atlas->mutex);
+    return glyph_atlas->cache.get(key);
 }
 
 std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
@@ -135,7 +119,8 @@ std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
     const auto lookup_t0 = timing_enabled
         ? profiling::now() : profiling::Clock::time_point{};
     ensure_glyph_atlas_materialized();
-    detail::GlyphAtlasKey key{font_id, glyph_id, font_size};
+    detail::GlyphAtlasKey key{.path_identity = false, .font_id = font_id,
+        .glyph_id = glyph_id, .font_size = font_size};
     std::shared_lock lock(glyph_atlas->mutex);
     auto result = glyph_atlas->cache.get(key);
     if (timing_enabled) {
@@ -189,7 +174,9 @@ void TextRenderResources::store_glyph_atlas(
     // incremented (cheap, atomic) so the cache owns the new instance
     // until eviction.
     const std::size_t weight = w * h * 4;
-    detail::GlyphAtlasKey key{glyph_font_id(font_path), glyph_id, font_size};
+    detail::GlyphAtlasKey key{.path_identity = true, .font_path = font_path,
+        .font_id = glyph_font_id(font_path), .glyph_id = glyph_id,
+        .font_size = font_size};
     std::unique_lock lock(glyph_atlas->mutex);
     glyph_atlas->cache.put(key, entry, weight);
     if (timing_enabled) {

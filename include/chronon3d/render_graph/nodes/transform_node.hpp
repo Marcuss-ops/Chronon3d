@@ -73,27 +73,36 @@ public:
 
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 params_hash = hash_combine(
-            hash_transform(m_transform),
-            static_cast<u64>(m_mode)
-        );
+            hash_string("chronon.transform-node-params.v3"),
+            hash_transform_v2(m_transform));
+        params_hash = hash_combine(params_hash, static_cast<u64>(m_mode));
+        params_hash = hash_combine(params_hash, hash_value(m_use_matrix));
 
         if (m_use_matrix) {
-            params_hash = hash_combine(params_hash, hash_bytes(&m_matrix, sizeof(m_matrix)));
-            params_hash = hash_combine(params_hash, hash_bytes(&m_opacity, sizeof(m_opacity)));
+            params_hash = hash_combine(params_hash, hash_mat4_v2(m_matrix));
+            params_hash = hash_combine(params_hash, hash_float_v2(m_opacity));
         }
         params_hash = hash_combine(
-            params_hash, hash_bytes(&m_source_surface_size, sizeof(m_source_surface_size)));
+            params_hash, hash_vec2_v2(m_source_surface_size));
+        params_hash = hash_combine(params_hash, hash_value(m_card3d_material.has_value()));
         if (m_card3d_material) {
             const auto& card = *m_card3d_material;
             params_hash = hash_combine(params_hash, hash_value(card.enabled));
-            params_hash = hash_combine(params_hash, hash_value(card.thickness_px));
-            params_hash = hash_combine(params_hash, hash_value(card.edge_highlight_intensity));
-            params_hash = hash_combine(params_hash, hash_color(card.side_color));
-            params_hash = hash_combine(params_hash, hash_color(card.edge_highlight_color));
-            params_hash = hash_combine(params_hash, hash_value(card.rim_light_intensity));
-            params_hash = hash_combine(params_hash, hash_value(card.rim_light_power));
-            params_hash = hash_combine(params_hash, hash_color(card.rim_light_color));
-            params_hash = hash_combine(params_hash, hash_vec3(card.light_direction));
+            params_hash = hash_combine(params_hash, hash_float_v2(card.thickness_px));
+            params_hash = hash_combine(params_hash, hash_float_v2(card.corner_radius));
+            params_hash = hash_combine(params_hash, hash_color_v2(card.front_top_color));
+            params_hash = hash_combine(params_hash, hash_color_v2(card.front_bottom_color));
+            params_hash = hash_combine(params_hash, hash_color_v2(card.side_color));
+            params_hash = hash_combine(params_hash, hash_float_v2(card.edge_highlight_intensity));
+            params_hash = hash_combine(params_hash, hash_color_v2(card.edge_highlight_color));
+            params_hash = hash_combine(params_hash, hash_float_v2(card.rim_light_intensity));
+            params_hash = hash_combine(params_hash, hash_float_v2(card.rim_light_power));
+            params_hash = hash_combine(params_hash, hash_color_v2(card.rim_light_color));
+            params_hash = hash_combine(params_hash, hash_vec3_v2(card.light_direction));
+            params_hash = hash_combine(params_hash, hash_value(card.cast_shadow));
+            params_hash = hash_combine(params_hash, hash_value(card.receive_shadow));
+            params_hash = hash_combine(params_hash, hash_value(card.casts_shadows));
+            params_hash = hash_combine(params_hash, hash_value(card.accepts_shadows));
         }
         if (!layer_id().empty())
             params_hash = hash_combine(params_hash, hash_string(layer_id()));
@@ -104,7 +113,8 @@ public:
                 cache_policy(), ctx.frame_input.frame, m_cache_frame),
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = params_hash
+            .params_hash = params_hash,
+            .params_version = 3
         };
     }
 

@@ -67,8 +67,9 @@ cache::NodeCacheKey TransitionNode::cache_key(const RenderGraphContext& ctx) con
         .width = ctx.frame_input.width,
         .height = ctx.frame_input.height,
     };
-    key.params_hash = hash_layer_transition_spec(m_spec);
+    key.params_hash = hash_layer_transition_spec_v2(m_spec);
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(m_is_out));
+    key.params_version = 2;
     return key;
 }
 

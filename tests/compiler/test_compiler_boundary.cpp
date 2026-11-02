@@ -24,6 +24,34 @@
 #include <filesystem>
 #include <cmath>
 
+TEST_CASE("Compiled program fingerprint equality and hash include the complete identity") {
+    using chronon3d::compiler::ProgramFingerprint;
+    using chronon3d::compiler::ProgramFingerprintHash;
+    ProgramFingerprint base;
+    base.digest = 7;
+    base.algorithm_version = 2;
+    base.content_digest.bytes[0] = std::byte{1};
+    base.request_digest.bytes[0] = std::byte{2};
+    const auto hash = ProgramFingerprintHash{}(base);
+
+    auto changed = base;
+    changed.digest++;
+    CHECK(changed != base);
+    CHECK(ProgramFingerprintHash{}(changed) != hash);
+    changed = base;
+    changed.algorithm_version++;
+    CHECK(changed != base);
+    CHECK(ProgramFingerprintHash{}(changed) != hash);
+    changed = base;
+    changed.content_digest.bytes[0] = std::byte{3};
+    CHECK(changed != base);
+    CHECK(ProgramFingerprintHash{}(changed) != hash);
+    changed = base;
+    changed.request_digest.bytes[0] = std::byte{4};
+    CHECK(changed != base);
+    CHECK(ProgramFingerprintHash{}(changed) != hash);
+}
+
 TEST_CASE("StrokeStyle brush conversion preserves path semantics and rejects loss") {
     using namespace chronon3d;
     graphics::StrokeStyle style = graphics::StrokeStyle::solid(Color::white(), 4.0f);

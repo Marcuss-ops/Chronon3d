@@ -114,6 +114,24 @@ chronon3d::runtime::GpuAssetKey key_for(std::string_view content) {
 
 } // namespace
 
+TEST_CASE("GpuAssetKey identity includes content and upload representation") {
+    chronon3d::runtime::GpuAssetKey base{
+        chronon3d::assets::sha256_string("texture-v1"),
+        chronon3d::runtime::PixelFormat::Rgba32Float,
+        128,
+        64};
+    const auto original = chronon3d::runtime::GpuAssetKeyHash{}(base);
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK(chronon3d::runtime::GpuAssetKeyHash{}(key) != original);
+    };
+    changed([](auto& key) { key.content_digest = chronon3d::assets::sha256_string("texture-v2"); });
+    changed([](auto& key) { key.format = chronon3d::runtime::PixelFormat::Nv12; });
+    changed([](auto& key) { ++key.width; });
+    changed([](auto& key) { ++key.height; });
+}
+
 TEST_CASE("GpuAssetCache uses content digests for static logo/background reuse") {
     chronon3d::runtime::RenderSurfaceRegistry registry;
     CacheBackend backend;

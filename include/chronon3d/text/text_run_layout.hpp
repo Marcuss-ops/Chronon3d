@@ -134,10 +134,16 @@ struct TextRunLayout {
     Bcp47LanguageTag language;                  // BCP-47 language tag (TICKET-103a: alias of std::string)
     TextShapingFeatures features;               // OT shaping features (TICKET-103a: new field)
     std::string variation_axes;                 // M1.5#5 — variable font axes (e.g. "wght=700,wdth=100")
+    // Set by TextLayoutCache when the layout came from its complete semantic
+    // key. Downstream prepared GPU text caches fold this in so paragraph and
+    // layout options remain dependencies after shaping.
+    u64 source_cache_identity{0};
 
     /// Compute a hash of the layout content (text + font + shaping + wrapping).
     /// Stable across different materials/strokes on the same text.
     [[nodiscard]] u64 layout_hash() const;
+    /// Frozen digest used before the V2 layout-key dependency was added.
+    [[nodiscard]] u64 layout_hash_v1() const;
 
     /// Compute a hash of only the shaping parameters (font, size, wrap, direction).
     /// Excludes the source text — useful for cache partitioning.

@@ -148,6 +148,7 @@ chronon3d_add_test_suite(
         cache/test_image_cache_resolver_identity.cpp
         cache/test_image_cache_display_bound_downscale.cpp
         cache/test_image_cache_embedded_payload.cpp
+        cache/test_graph_hash_semantics.cpp
 )
 target_compile_definitions(chronon3d_cache_tests PRIVATE
     CHRONON3D_TEST_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\")

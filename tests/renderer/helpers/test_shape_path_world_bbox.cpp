@@ -23,6 +23,7 @@
 #include "src/backends/software/rasterizers/shape_rasterizer.hpp"
 #include "src/backends/software/rasterizers/shape_rasterizer_helpers.hpp"
 #include "src/backends/software/rasterizers/path/path_rasterizer.hpp"
+#include "src/backends/software/rasterizers/path/path_geometry.hpp"
 
 using namespace chronon3d;
 
@@ -49,6 +50,29 @@ Mat4 translated(f32 x, f32 y) {
 }
 
 }  // namespace
+
+TEST_CASE("path flatten cache distinguishes every command field and closure") {
+    PathShape base;
+    base.commands = {PathCommand::move_to({1.0f, 2.0f}),
+                     PathCommand::cubic_to({3.0f, 4.0f}, {5.0f, 6.0f}, {7.0f, 8.0f})};
+    const auto original = renderer::flatten_path_geometry_cached(base);
+    REQUIRE(original);
+    REQUIRE(original->size() == 1);
+
+    const auto changed = [&](auto mutate) {
+        auto path = base;
+        mutate(path);
+        const auto result = renderer::flatten_path_geometry_cached(path);
+        REQUIRE(result);
+        CHECK(result.get() != original.get());
+        CHECK(result->front().points != original->front().points);
+    };
+    changed([](auto& p) { p.commands[0].p0.x += 1.0f; });
+    changed([](auto& p) { p.commands[1].p0.y += 1.0f; });
+    changed([](auto& p) { p.commands[1].p1.x += 1.0f; });
+    changed([](auto& p) { p.commands[1].p2.y += 1.0f; });
+    changed([](auto& p) { p.closed = true; });
+}
 
 TEST_CASE("path world bbox covers the authored geometry, not a node-origin square") {
     const Shape shape = make_line_path(80.0f, 20.0f);

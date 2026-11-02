@@ -22,6 +22,8 @@ namespace chronon3d {
 
 /// Free function to hash a TextRunShape for content fingerprinting.
 [[nodiscard]] u64 hash_text_run_shape(const TextRunShape& s);
+/// Fieldwise, domain-tagged identity for rendered text-run content.
+[[nodiscard]] u64 hash_text_run_shape_v2(const TextRunShape& s);
 
 /// Optional overload that folds the AnimatedTextDocument state at the
 /// requested integral frame.  When `s.animated_doc` is bound, this overload

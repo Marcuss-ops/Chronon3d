@@ -37,9 +37,11 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = m_cache_identity,
-            .frame = 0,
+            .frame = cache_frame_for_policy(cache_policy(), ctx.frame_input.frame),
             .width = ctx.frame_input.width,
-            .height = ctx.frame_input.height
+            .height = ctx.frame_input.height,
+            .params_hash = hash_string("chronon.clear-node.v2"),
+            .params_version = 2
         };
     }
 
