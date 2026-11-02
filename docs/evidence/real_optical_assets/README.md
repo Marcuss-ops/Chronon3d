@@ -72,10 +72,15 @@ All renders on 2026-11-02: `--backend software`, 150 frames, exit 0, decode
 | dolly_in | 2,184,873 | new dolly mode |
 | orbit | 2,094,337 | new orbit mode |
 | vertigo | 2,236,333 | new dolly-zoom mode |
-| shutter | pending | 9 samples per frame; the full 150-frame render takes ~40 min and is regenerated separately |
+| shutter | 1,448,157 | 9 samples per frame; the full 150-frame render takes ~40 min |
 
 The DoF pair is not vacuous: frame 75 of `dof` versus `sharp` gives RGB
 MAE 5.011, p99 38, max 95 on the 0–255 scale.
+
+The shutter pass is neither a copy of `sharp` nor static: grey MAE versus
+`sharp` is 23.62 at frame 0, 4.85 at frame 74 and 5.23 at frame 149, and
+`shutter` frame 0 versus frame 149 gives MAE 25.89. The blur therefore tracks
+the camera motion instead of being applied as a constant filter.
 
 `real_optical_breakdown_1080p.mp4` and `real_optical_cards_breakdown_1080p.mp4`
 were produced by the `breakdown` and `cards_breakdown` modes (180 frames) and
