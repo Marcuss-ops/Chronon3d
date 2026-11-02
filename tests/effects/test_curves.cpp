@@ -158,6 +158,15 @@ TEST_CASE("Curves: hash keeps canonical hash_combine digest") {
     CHECK(hash_curve_points(points) == 0xcb96cbad0e0f3f1bULL);
 }
 
+TEST_CASE("Curves: V2 identity includes domain, point count and canonical float values") {
+    const std::vector<CurvePoint> empty;
+    const std::vector<CurvePoint> one_zero = {{0.0f, 0.0f}};
+    const std::vector<CurvePoint> negative_zero = {{-0.0f, 0.0f}};
+
+    CHECK(hash_curve_points_v2(empty) != hash_curve_points_v2(one_zero));
+    CHECK(hash_curve_points_v2(one_zero) == hash_curve_points_v2(negative_zero));
+}
+
 // =============================================================================
 // 6. Cache (sezione 6.6)
 // =============================================================================
@@ -181,6 +190,19 @@ TEST_CASE("Curves: cache returns different pointer for different params") {
     auto b = cache.get_or_compile(points_b);
 
     CHECK(a.get() != b.get());
+}
+
+TEST_CASE("Curves: cache retains and reuses full point-list identities") {
+    CurveCache cache;
+    const std::vector<CurvePoint> empty;
+    const std::vector<CurvePoint> one_zero = {{0.0f, 0.0f}};
+    REQUIRE(hash_curve_points_v2(empty) != hash_curve_points_v2(one_zero));
+
+    const auto identity = cache.get_or_compile(empty);
+    const auto constant = cache.get_or_compile(one_zero);
+    CHECK(identity.get() != constant.get());
+    CHECK(cache.get_or_compile(empty).get() == identity.get());
+    CHECK(cache.get_or_compile(one_zero).get() == constant.get());
 }
 
 // =============================================================================

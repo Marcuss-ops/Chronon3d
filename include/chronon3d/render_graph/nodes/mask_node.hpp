@@ -44,9 +44,14 @@ public:
             .height = ctx.frame_input.height,
             .params_hash = hash_combine(
                 hash_combine(
-                    hash_mask(m_mask),
+                    hash_combine(hash_string("chronon.mask-node.v4"),
+                                 hash_mask_v2(m_mask)),
                     static_cast<u64>(ctx.policy.modular_coordinates)),
-                static_cast<u64>(m_source_surface_coordinates))
+                hash_combine(
+                    hash_combine(static_cast<u64>(m_source_surface_coordinates),
+                                 hash_mat4_v2(m_canvas_from_local)),
+                    hash_text_sources())),
+            .params_version = 4
         };
     }
 
@@ -150,6 +155,15 @@ public:
     }
 
 private:
+    [[nodiscard]] std::uint64_t hash_text_sources() const {
+        std::uint64_t seed = hash_combine(
+            hash_string("chronon.mask-text-sources.v1"),
+            static_cast<u64>(m_text_sources.size()));
+        for (const auto& source : m_text_sources)
+            seed = hash_combine(seed, hash_string(source));
+        return seed;
+    }
+
     [[nodiscard]] std::shared_ptr<Framebuffer> build_alpha_cache(
         i32 width,
         i32 height,
@@ -191,7 +205,8 @@ private:
         i32 canvas_height,
         bool modular_coordinates
     ) const {
-        std::uint64_t seed = hash_mask(m_mask);
+        std::uint64_t seed = core::hash::hash_combine(
+            hash_string("chronon.mask-alpha-cache.v2"), hash_mask_v2(m_mask));
         seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(width));
         seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(height));
         seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(origin_x));
@@ -201,6 +216,7 @@ private:
         seed = core::hash::hash_combine(seed, static_cast<std::uint64_t>(modular_coordinates));
         seed = core::hash::hash_combine(
             seed, static_cast<std::uint64_t>(m_source_surface_coordinates));
+        seed = core::hash::hash_combine(seed, hash_mat4_v2(m_canvas_from_local));
         seed = core::hash::hash_combine(
             seed, static_cast<std::uint64_t>(m_cache_frame >= 0 ? m_cache_frame : -1));
         return seed;

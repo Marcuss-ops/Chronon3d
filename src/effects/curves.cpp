@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include <bit>
+#include <string_view>
 
 namespace chronon3d {
 
@@ -23,6 +24,29 @@ uint64_t hash_curve_points(const std::vector<CurvePoint>& points) {
         h = core::hash::hash_combine(h, yi);
     }
     return h;
+}
+
+uint64_t hash_curve_points_v2(const std::vector<CurvePoint>& points) {
+    constexpr std::string_view domain = "chronon.curve-points.v2";
+    uint64_t h = 1469598103934665603ULL;
+    for (const unsigned char byte : domain) {
+        h ^= byte;
+        h *= 1099511628211ULL;
+    }
+    h = core::hash::hash_combine(h, static_cast<uint64_t>(points.size()));
+    for (const auto& pt : points) {
+        // CurvePoint equality treats signed zero as equal; canonicalize it so
+        // equal keys always have the same hash. NaNs compare unequal by design.
+        const float x = pt.x == 0.0f ? 0.0f : pt.x;
+        const float y = pt.y == 0.0f ? 0.0f : pt.y;
+        h = core::hash::hash_combine(h, std::bit_cast<uint32_t>(x));
+        h = core::hash::hash_combine(h, std::bit_cast<uint32_t>(y));
+    }
+    return h;
+}
+
+std::size_t CurveCache::PointsKeyHash::operator()(const PointsKey& key) const noexcept {
+    return static_cast<std::size_t>(hash_curve_points_v2(key.points));
 }
 
 // =============================================================================
@@ -123,16 +147,17 @@ float CompiledCurve::evaluate(float x) const {
 std::shared_ptr<const CompiledCurve> CurveCache::get_or_compile(
     const std::vector<CurvePoint>& points)
 {
-    const uint64_t hash_key = hash_curve_points(points);
+    const PointsKey key{points};
 
-    // Look up in sharded LRU cache (thread-safe, O(1)).
-    if (auto cached = m_cache.get(hash_key)) {
+    // Keep the full canonical input as the map key so a digest collision
+    // cannot return a curve compiled from different control points.
+    if (auto cached = m_cache.get(key)) {
         return *cached;
     }
 
     // Compile new curve and store.
     auto curve = std::make_shared<const CompiledCurve>(points);
-    m_cache.put(hash_key, curve);
+    m_cache.put(key, curve);
     return curve;
 }
 

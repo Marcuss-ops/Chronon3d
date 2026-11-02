@@ -25,6 +25,20 @@ u64 fb_hash(const Framebuffer& fb) {
     return XXH64(fb.pixels_row(0), fb.size_bytes(), 0);
 }
 
+template <typename Params>
+u64 effect_hash_v2(Params params) {
+    EffectStack stack;
+    stack.emplace_back(std::move(params));
+    return graph::hash_effect_stack_v2(stack);
+}
+
+template <typename Params>
+u64 effect_hash_v3(Params params) {
+    EffectStack stack;
+    stack.emplace_back(std::move(params));
+    return graph::hash_effect_stack_v3(stack);
+}
+
 } // namespace
 
 // 1. transform_inverse_roundtrip
@@ -246,8 +260,8 @@ TEST_CASE("Invariants: effect_order_changes_hash") {
     lb2.tint(Color::red(), 1.0f).blur(10.0f);
     auto l2 = lb2.build();
 
-    u64 hash1 = hash_effect_stack(l1.effects());
-    u64 hash2 = hash_effect_stack(l2.effects());
+    u64 hash1 = hash_effect_stack_v2(l1.effects());
+    u64 hash2 = hash_effect_stack_v2(l2.effects());
 
     CHECK(hash1 != hash2);
 }
@@ -257,7 +271,7 @@ TEST_CASE("Invariants: animated grain seed and size participate in effect hash")
     const auto hash_noise = [](NoiseParams params) {
         LayerBuilder builder("grain", SampleTime{}, std::pmr::get_default_resource());
         builder.effect(params);
-        return hash_effect_stack(builder.build().effects());
+        return hash_effect_stack_v2(builder.build().effects());
     };
     const NoiseParams base{.amount = 0.2f, .seed = 7, .animated = true,
                            .color_mode = NoiseColorMode::Monochrome, .size = 1.0f};
@@ -269,6 +283,100 @@ TEST_CASE("Invariants: animated grain seed and size participate in effect hash")
         .color_mode = NoiseColorMode::Monochrome, .size = 4.0f}));
 }
 
+TEST_CASE("EffectStack V3: float and color fields canonicalize signed zero") {
+    CHECK(effect_hash_v3(BlurParams{0.0f}) == effect_hash_v3(BlurParams{-0.0f}));
+    CHECK(effect_hash_v3(TintParams{.color = Color{0.0f, 0.2f, 0.3f, 1.0f},
+                                     .amount = 0.5f}) ==
+          effect_hash_v3(TintParams{.color = Color{-0.0f, 0.2f, 0.3f, 1.0f},
+                                     .amount = 0.5f}));
+    CHECK(effect_hash_v3(GlowParams{.radius = 0.0f, .intensity = 0.5f,
+                                    .color = Color::white()}) ==
+          effect_hash_v3(GlowParams{.radius = -0.0f, .intensity = 0.5f,
+                                    .color = Color::white()}));
+}
+
+TEST_CASE("EffectStack V2: raw parameter records hash every semantic field") {
+    const auto differs = [](const auto& base, const auto& changed) {
+        CHECK(effect_hash_v2(base) != effect_hash_v2(changed));
+        CHECK(effect_hash_v3(base) != effect_hash_v3(changed));
+    };
+
+    differs(BlurParams{1.0f}, BlurParams{2.0f});
+    differs(TintParams{.color = Color{1, 0, 0, 1}, .amount = 0.5f},
+            TintParams{.color = Color{0, 1, 0, 1}, .amount = 0.5f});
+    differs(TintParams{.color = Color{1, 0, 0, 1}, .amount = 0.5f},
+            TintParams{.color = Color{1, 0, 0, 1}, .amount = 0.75f});
+    differs(BrightnessParams{0.1f}, BrightnessParams{0.2f});
+    differs(ContrastParams{1.1f}, ContrastParams{1.2f});
+    differs(DropShadowParams{.offset = {1, 2}, .color = Color{0, 0, 0, 0.5f}, .radius = 3},
+            DropShadowParams{.offset = {2, 2}, .color = Color{0, 0, 0, 0.5f}, .radius = 3});
+    differs(DropShadowParams{.offset = {1, 2}, .color = Color{0, 0, 0, 0.5f}, .radius = 3},
+            DropShadowParams{.offset = {1, 2}, .color = Color{1, 0, 0, 0.5f}, .radius = 3});
+    differs(DropShadowParams{.offset = {1, 2}, .color = Color{0, 0, 0, 0.5f}, .radius = 3},
+            DropShadowParams{.offset = {1, 2}, .color = Color{0, 0, 0, 0.5f}, .radius = 4});
+    differs(BloomParams{.threshold = 0.8f, .radius = 2, .intensity = 0.4f},
+            BloomParams{.threshold = 0.9f, .radius = 2, .intensity = 0.4f});
+    differs(BloomParams{.threshold = 0.8f, .radius = 2, .intensity = 0.4f},
+            BloomParams{.threshold = 0.8f, .radius = 3, .intensity = 0.4f});
+    differs(BloomParams{.threshold = 0.8f, .radius = 2, .intensity = 0.4f},
+            BloomParams{.threshold = 0.8f, .radius = 2, .intensity = 0.5f});
+
+    const Fake3DWaveParams wave{
+        .amplitude_px = 18, .frequency = 2.2f, .speed = 3.5f,
+        .depth_px = 35, .phase = 0, .slices = 24,
+        .axis = WaveAxis::Horizontal, .perspective = 0.06f,
+        .highlight = 0.2f, .side_darkening = 0.18f,
+        .shadow_enabled = true, .shadow_color = Color{1, 0.05f, 0.05f, 0.75f},
+        .shadow_offset = {10, 8}, .shadow_blur = 0, .expand_bounds = true};
+#define CHECK_WAVE_FIELD(field, value) \
+    do { auto changed = wave; changed.field = value; differs(wave, changed); } while (false)
+    CHECK_WAVE_FIELD(amplitude_px, 19.0f);
+    CHECK_WAVE_FIELD(frequency, 2.3f);
+    CHECK_WAVE_FIELD(speed, 3.6f);
+    CHECK_WAVE_FIELD(depth_px, 36.0f);
+    CHECK_WAVE_FIELD(phase, 0.1f);
+    CHECK_WAVE_FIELD(slices, 25);
+    CHECK_WAVE_FIELD(axis, WaveAxis::Vertical);
+    CHECK_WAVE_FIELD(perspective, 0.07f);
+    CHECK_WAVE_FIELD(highlight, 0.3f);
+    CHECK_WAVE_FIELD(side_darkening, 0.28f);
+    CHECK_WAVE_FIELD(shadow_enabled, false);
+    const Color changed_shadow_color{0, 0.05f, 0.05f, 0.75f};
+    const Vec2 changed_shadow_offset{11, 8};
+    CHECK_WAVE_FIELD(shadow_color, changed_shadow_color);
+    CHECK_WAVE_FIELD(shadow_offset, changed_shadow_offset);
+    CHECK_WAVE_FIELD(shadow_blur, 1.0f);
+    CHECK_WAVE_FIELD(expand_bounds, false);
+#undef CHECK_WAVE_FIELD
+
+    differs(SaturationParams{1.0f}, SaturationParams{0.5f});
+    differs(HueRotateParams{10.0f}, HueRotateParams{20.0f});
+    differs(InvertParams{0.5f}, InvertParams{0.75f});
+    differs(VignetteParams{.radius = 0.5f, .softness = 0.5f, .amount = 1.0f,
+                           .color = Color{0, 0, 0, 1}},
+            VignetteParams{.radius = 0.6f, .softness = 0.5f, .amount = 1.0f,
+                           .color = Color{0, 0, 0, 1}});
+    differs(VignetteParams{.radius = 0.5f, .softness = 0.5f, .amount = 1.0f,
+                           .color = Color{0, 0, 0, 1}},
+            VignetteParams{.radius = 0.5f, .softness = 0.6f, .amount = 1.0f,
+                           .color = Color{0, 0, 0, 1}});
+    differs(VignetteParams{.radius = 0.5f, .softness = 0.5f, .amount = 1.0f,
+                           .color = Color{0, 0, 0, 1}},
+            VignetteParams{.radius = 0.5f, .softness = 0.5f, .amount = 0.9f,
+                           .color = Color{0, 0, 0, 1}});
+    differs(VignetteParams{.radius = 0.5f, .softness = 0.5f, .amount = 1.0f,
+                           .color = Color{0, 0, 0, 1}},
+            VignetteParams{.radius = 0.5f, .softness = 0.5f, .amount = 1.0f,
+                           .color = Color{0.1f, 0, 0, 1}});
+
+    CHECK(effect_hash_v2(wave) == effect_hash_v2(wave));
+    CHECK(effect_hash_v2(wave) == 7452252279570606889ULL);
+    EffectStack wave_stack;
+    wave_stack.emplace_back(wave);
+    CHECK(graph::hash_effect_stack_v2(wave_stack) !=
+          graph::hash_effect_stack(wave_stack));
+}
+
 // 8. cache_key_changes_when_glow_params_change
 TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
     using namespace chronon3d::graph;
@@ -276,22 +384,22 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
     // Base glow params
     LayerBuilder lb_base("l", SampleTime{}, std::pmr::get_default_resource());
     lb_base.effect(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::white()});
-    u64 hash_base = hash_effect_stack(lb_base.build().effects());
+    u64 hash_base = hash_effect_stack_v2(lb_base.build().effects());
 
     // Different radius
     LayerBuilder lb_radius("l", SampleTime{}, std::pmr::get_default_resource());
     lb_radius.effect(GlowParams{.radius = 15.0f, .intensity = 0.8f, .color = Color::white()});
-    u64 hash_radius = hash_effect_stack(lb_radius.build().effects());
+    u64 hash_radius = hash_effect_stack_v2(lb_radius.build().effects());
 
     // Different intensity
     LayerBuilder lb_intensity("l", SampleTime{}, std::pmr::get_default_resource());
     lb_intensity.effect(GlowParams{.radius = 10.0f, .intensity = 0.5f, .color = Color::white()});
-    u64 hash_intensity = hash_effect_stack(lb_intensity.build().effects());
+    u64 hash_intensity = hash_effect_stack_v2(lb_intensity.build().effects());
 
     // Different color
     LayerBuilder lb_color("l", SampleTime{}, std::pmr::get_default_resource());
     lb_color.effect(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::red()});
-    u64 hash_color = hash_effect_stack(lb_color.build().effects());
+    u64 hash_color = hash_effect_stack_v2(lb_color.build().effects());
 
     CHECK(hash_base != hash_radius);
     CHECK(hash_base != hash_intensity);
@@ -305,22 +413,22 @@ TEST_CASE("Invariants: glow cache identity contains only the simple glow control
     LayerBuilder base_builder("l", SampleTime{}, std::pmr::get_default_resource());
     base_builder.effect(GlowParams{.radius = 40.0f, .intensity = 0.25f,
                                    .color = Color::white()});
-    const u64 base_hash = hash_effect_stack(base_builder.build().effects());
+    const u64 base_hash = hash_effect_stack_v2(base_builder.build().effects());
 
     LayerBuilder radius_builder("l", SampleTime{}, std::pmr::get_default_resource());
     radius_builder.effect(GlowParams{.radius = 42.0f, .intensity = 0.25f,
                                      .color = Color::white()});
-    const u64 radius_hash = hash_effect_stack(radius_builder.build().effects());
+    const u64 radius_hash = hash_effect_stack_v2(radius_builder.build().effects());
 
     LayerBuilder intensity_builder("l", SampleTime{}, std::pmr::get_default_resource());
     intensity_builder.effect(GlowParams{.radius = 40.0f, .intensity = 0.5f,
                                         .color = Color::white()});
-    const u64 intensity_hash = hash_effect_stack(intensity_builder.build().effects());
+    const u64 intensity_hash = hash_effect_stack_v2(intensity_builder.build().effects());
 
     LayerBuilder color_builder("l", SampleTime{}, std::pmr::get_default_resource());
     color_builder.effect(GlowParams{.radius = 40.0f, .intensity = 0.25f,
                                     .color = Color::red()});
-    const u64 color_hash = hash_effect_stack(color_builder.build().effects());
+    const u64 color_hash = hash_effect_stack_v2(color_builder.build().effects());
 
     CHECK(base_hash != radius_hash);
     CHECK(base_hash != intensity_hash);

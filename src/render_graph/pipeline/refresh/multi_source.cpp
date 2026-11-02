@@ -91,7 +91,7 @@ void refresh_multi_source_node(
             .apply_camera_projection = !item.layer->screen_space,
             .native_3d = item.native_3d,
         });
-        aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(src_node));
+        aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node_v2(src_node));
         // Deliberately does NOT fold `hash_text_run_shape`
         // here.  `MultiSourceNode::cache_key()` re-folds it per item at
         // evaluation time so per-frame animator mutations invalidate the
@@ -111,6 +111,7 @@ void refresh_multi_source_node(
         .output(ctx.frame_input.width, ctx.frame_input.height)
         .params(aggregated_params_hash)
         .source(hash_string(layer_name_str + "_multisource"))
+        .versions(2)
         .camera_if(ctx.frame_input.has_camera_2_5d,
                    ctx.frame_input.camera_2_5d)
         .build();

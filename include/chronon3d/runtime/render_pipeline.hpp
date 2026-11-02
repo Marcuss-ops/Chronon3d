@@ -42,6 +42,7 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/compiler/compiled_program.hpp>
 
 #include <cstdint>
 #include <cstddef>
@@ -253,7 +254,8 @@ private:
     // the same 32-entry bound.
     static constexpr std::size_t kTopologyCacheCapacity = 32;
 
-    cache::LruCache<std::uint64_t, std::shared_ptr<const Scene>> m_topologies{
+    cache::LruCache<compiler::ProgramFingerprint, std::shared_ptr<const Scene>,
+                    compiler::ProgramFingerprintHash> m_topologies{
         kTopologyCacheCapacity, /*num_shards=*/2, cache::CapacityMode::Count};
 };
 

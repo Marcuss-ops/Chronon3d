@@ -4,6 +4,28 @@
 
 using namespace chronon3d::runtime;
 
+TEST_CASE("MediaSessionKey identity includes every session allocation field") {
+    const MediaSessionKey base{
+        .codec = MediaCodecId::H264,
+        .width = 1920,
+        .height = 1080,
+        .pixel_format = MediaPixelFormat::NV12,
+        .device_id = 2,
+        .is_encoder = true,
+    };
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK(key != base);
+    };
+    changed([](auto& k) { k.codec = MediaCodecId::HEVC; });
+    changed([](auto& k) { ++k.width; });
+    changed([](auto& k) { ++k.height; });
+    changed([](auto& k) { k.pixel_format = MediaPixelFormat::P010; });
+    changed([](auto& k) { ++k.device_id; });
+    changed([](auto& k) { k.is_encoder = false; });
+}
+
 TEST_CASE("MediaSessionPool reuses idle device-local sessions") {
     MediaSessionPool pool;
     const MediaSessionKey key{

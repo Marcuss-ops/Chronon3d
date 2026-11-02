@@ -69,7 +69,10 @@ struct DistanceFieldProfile {
 struct GpuGlyphKey {
     std::string font_path;
     std::uint32_t glyph_id{0};
+    // Full canonical variation coordinates are retained for collision-safe
+    // equality. variation_hash remains for hash-only legacy callers.
     std::uint64_t variation_hash{0};
+    std::string variation_axes;
     GlyphRepresentation representation{GlyphRepresentation::Mtsdf};
     std::uint16_t generation_profile{0};
     std::uint32_t font_size{0};
@@ -85,7 +88,20 @@ struct GpuGlyphKey {
                                           std::uint32_t font_size) noexcept {
         if (!glyph_representation_is_raster_size_specific(rep)) font_size = 0;
         return GpuGlyphKey{std::move(font_path), glyph_id, variation_hash,
-                           rep, generation_profile, font_size};
+                           {}, rep, generation_profile, font_size};
+    }
+
+    [[nodiscard]] static GpuGlyphKey make(std::string font_path,
+                                          std::uint32_t glyph_id,
+                                          std::string variation_axes,
+                                          GlyphRepresentation rep,
+                                          std::uint16_t generation_profile,
+                                          std::uint32_t font_size) {
+        if (!glyph_representation_is_raster_size_specific(rep)) font_size = 0;
+        const auto variation_hash = variation_axes.empty() ? 0ULL
+            : core::hash::HashBuilder{}.add(std::string_view(variation_axes)).finish();
+        return GpuGlyphKey{std::move(font_path), glyph_id, variation_hash,
+                           std::move(variation_axes), rep, generation_profile, font_size};
     }
 
     /// Runtime font size is a layout concern for distance fields.  It is part
@@ -93,44 +109,46 @@ struct GpuGlyphKey {
     friend bool operator==(const GpuGlyphKey& a, const GpuGlyphKey& b) noexcept {
         if (a.font_path != b.font_path ||
             a.glyph_id != b.glyph_id ||
-            a.variation_hash != b.variation_hash ||
             a.representation != b.representation ||
             a.generation_profile != b.generation_profile) {
             return false;
         }
-        return !glyph_representation_is_raster_size_specific(a.representation) ||
-               a.font_size == b.font_size;
+        const bool variation_equal = (!a.variation_axes.empty() || !b.variation_axes.empty())
+            ? a.variation_axes == b.variation_axes
+            : a.variation_hash == b.variation_hash;
+        return variation_equal &&
+            (!glyph_representation_is_raster_size_specific(a.representation) ||
+             a.font_size == b.font_size);
     }
 };
 
-// FIXING.md U-01 — unified on core::hash::HashBuilder (XXH64 string + hash_combine).
-// GpuStyledGlyphCache::KeyHash below uses the same primitive.
+// GPU residency keys are volatile, so their semantic digest can be versioned
+// without a persisted-key migration.
 struct GpuGlyphKeyHash {
     std::size_t operator()(const GpuGlyphKey& key) const noexcept {
         auto h = core::hash::HashBuilder{}
+            .add("chronon.gpu-glyph-key.v2")
             .add(std::string_view(key.font_path))
             .add(key.glyph_id)
-            .add(key.variation_hash)
             .add_enum(key.representation)
             .add(key.generation_profile);
+        if (!key.variation_axes.empty()) h.add(std::string_view(key.variation_axes));
+        else h.add(key.variation_hash);
         if (glyph_representation_is_raster_size_specific(key.representation)) h.add(key.font_size);
         return static_cast<std::size_t>(h.finish());
     }
 };
 
-// AUDIT-2026-09-09 U-01 — the last hand-rolled hash combine is gone: this
-// view hash uses the same core::hash::HashBuilder authority as
-// GpuGlyphKeyHash above (same field set, same Coverage-only font_size
-// rule), so glyph identity has ONE representation in this header. Digest
-// values change once (in-memory GPU keys only; no persisted artifact is
-// keyed by this hash).
+// Keep the diagnostic digest byte-for-byte aligned with GpuGlyphKeyHash.
 inline std::uint64_t glyph_key_hash64(const GpuGlyphKey& key) noexcept {
     auto h = core::hash::HashBuilder{}
+                 .add("chronon.gpu-glyph-key.v2")
                  .add(std::string_view(key.font_path))
                  .add(key.glyph_id)
-                 .add(key.variation_hash)
                  .add_enum(key.representation)
                  .add(key.generation_profile);
+    if (!key.variation_axes.empty()) h.add(std::string_view(key.variation_axes));
+    else h.add(key.variation_hash);
     if (glyph_representation_is_raster_size_specific(key.representation)) h.add(key.font_size);
     return h.finish();
 }
@@ -390,17 +408,25 @@ private:
     // FIXING.md U-01 — unified on HashBuilder (same primitive as GpuGlyphKeyHash).
     struct KeyHash {
         std::size_t operator()(const Key& k) const noexcept {
-            auto h = core::hash::HashBuilder{}
+            core::hash::HashBuilder h;
+            const auto add_float = [&h](float value) -> core::hash::HashBuilder& {
+                return h.add(value == 0.0f ? 0.0f : value);
+            };
+            h
+                .add("chronon.styled-glyph-key.v2")
                 .add(k.value.font_id)
                 .add(k.value.glyph_id)
                 .add(k.value.font_size)
                 .add(k.value.stroke_radius)
-                .add(k.value.background_padding)
-                .add(k.value.fill.r).add(k.value.fill.g).add(k.value.fill.b).add(k.value.fill.a)
-                .add(k.value.background.r).add(k.value.background.g).add(k.value.background.b).add(k.value.background.a)
-                .add(k.value.stroke.r).add(k.value.stroke.g).add(k.value.stroke.b).add(k.value.stroke.a)
-                .add(k.value.stroke_width)
-                .add(k.value.shadow_hash);
+                .add(k.value.background_padding);
+            add_float(k.value.fill.r); add_float(k.value.fill.g);
+            add_float(k.value.fill.b); add_float(k.value.fill.a);
+            add_float(k.value.background.r); add_float(k.value.background.g);
+            add_float(k.value.background.b); add_float(k.value.background.a);
+            add_float(k.value.stroke.r); add_float(k.value.stroke.g);
+            add_float(k.value.stroke.b); add_float(k.value.stroke.a);
+            add_float(k.value.stroke_width);
+            h.add(k.value.shadow_hash);
             return static_cast<std::size_t>(h.finish());
         }
     };

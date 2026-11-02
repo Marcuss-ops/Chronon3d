@@ -4,6 +4,7 @@
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/backends/text/mtsdf_generator.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include "mtsdf_glyph_cache_key.hpp"
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
@@ -53,40 +54,6 @@ FT_Library shared_library() {
 // The prepared font/content identity is the canonical key so that a daemon
 // that sees /assets/foo.ttf change bytes mid-life does not return stale
 // glyphs keyed only by path.
-struct GlyphKey {
-    assets::ContentDigest font_digest{};
-    std::uint32_t glyph_id{0};
-    std::string variation_axes;
-    MtsdfProfile profile{};
-
-    friend bool operator==(const GlyphKey&, const GlyphKey&) = default;
-};
-
-struct GlyphKeyHash {
-    std::size_t operator()(const GlyphKey& key) const noexcept {
-        std::size_t value = 0;
-        for (auto b : key.font_digest.bytes) {
-            value ^= static_cast<std::size_t>(std::to_integer<unsigned char>(b)) +
-                0x9e3779b97f4a7c15ULL + (value << 6U) + (value >> 2U);
-        }
-        value ^= static_cast<std::size_t>(key.glyph_id) +
-            0x9e3779b97f4a7c15ULL + (value << 6U) + (value >> 2U);
-        for (const unsigned char c : key.variation_axes) {
-            value ^= static_cast<std::size_t>(c) +
-                0x9e3779b97f4a7c15ULL + (value << 6U) + (value >> 2U);
-        }
-        value ^= static_cast<std::size_t>(key.profile.em_px) +
-            (value << 6U) + (value >> 2U);
-        value ^= static_cast<std::size_t>(key.profile.distance_range_px) +
-            (value << 6U) + (value >> 2U);
-        value ^= static_cast<std::size_t>(key.profile.padding_px) +
-            (value << 6U) + (value >> 2U);
-        value ^= static_cast<std::size_t>(key.profile.generation_id) +
-            (value << 6U) + (value >> 2U);
-        return value;
-    }
-};
-
 #ifdef CHRONON3D_ENABLE_TEXT
 bool apply_face_variations(FT_Face face, FT_Library library,
                            std::string_view axes) {
@@ -115,24 +82,37 @@ public:
         const auto byte_size = std::filesystem::file_size(resolved, size_ec);
         std::error_code stamp_ec;
         const auto stamp = std::filesystem::last_write_time(resolved, stamp_ec);
-        std::string key = resolved.generic_string();
-        key += '\n';
-        key += size_ec ? std::string{"-"} : std::to_string(byte_size);
-        key += '\n';
-        key += stamp_ec ? std::string{"-"}
-                        : std::to_string(stamp.time_since_epoch().count());
+        FontIdentityStampKey key{
+            resolved.generic_string(),
+            size_ec ? 0 : byte_size,
+            stamp_ec ? 0 : static_cast<std::int64_t>(
+                stamp.time_since_epoch().count()),
+            !size_ec,
+            !stamp_ec};
         if (const auto hit = entries_.get(key)) return *hit;
         // An unreadable file still needs a deterministic identity so the caller
         // fails closed on the same key instead of thrashing the LRU.
         const auto hashed = assets::sha256_file(resolved);
         const assets::ContentDigest digest =
             hashed ? *hashed : assets::sha256_string(resolved.generic_string());
-        entries_.put(key, digest);
+        std::error_code verify_size_ec;
+        const auto verify_size = std::filesystem::file_size(resolved, verify_size_ec);
+        std::error_code verify_stamp_ec;
+        const auto verify_stamp = std::filesystem::last_write_time(resolved, verify_stamp_ec);
+        const FontIdentityStampKey verify_key{
+            resolved.generic_string(),
+            verify_size_ec ? 0 : verify_size,
+            verify_stamp_ec ? 0 : static_cast<std::int64_t>(
+                verify_stamp.time_since_epoch().count()),
+            !verify_size_ec,
+            !verify_stamp_ec};
+        if (verify_key == key) entries_.put(key, digest);
         return digest;
     }
 
 private:
-    cache::LruCache<std::string, assets::ContentDigest> entries_{
+    cache::LruCache<FontIdentityStampKey, assets::ContentDigest,
+                    FontIdentityStampKeyHash> entries_{
         kMaxEntries, 8, cache::CapacityMode::Count};
 };
 
@@ -159,7 +139,7 @@ public:
         // satisfy a hit with a glyph built from the previous bytes.
         const assets::ContentDigest font_digest =
             font_identity_memo().digest_for(*resolved);
-        GlyphKey key{font_digest, glyph_id, std::string(variation_axes), profile};
+        MtsdfGlyphCacheKey key{font_digest, glyph_id, std::string(variation_axes), profile};
         const std::string resolved_str = resolved->generic_string();
         const std::string axes(variation_axes);
         return glyphs_.compute_if_absent(key, [&, resolved_str, font_digest, axes]() {
@@ -216,7 +196,8 @@ private:
     // LruCache is already sharded/thread-safe; weight 1 per face, 32 faces.
     cache::LruCache<std::string, std::shared_ptr<FaceEntry>> faces_{32, 8, cache::CapacityMode::Count};
 #endif
-    cache::LruCache<GlyphKey, std::shared_ptr<const MtsdfGlyphBitmap>, GlyphKeyHash> glyphs_;
+    cache::LruCache<MtsdfGlyphCacheKey, std::shared_ptr<const MtsdfGlyphBitmap>,
+                    MtsdfGlyphCacheKeyHash> glyphs_;
 };
 
 PreparationCache& cache_instance() {

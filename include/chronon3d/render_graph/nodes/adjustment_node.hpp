@@ -31,9 +31,10 @@ public:
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
             .params_hash = m_temporal_history_key.empty()
-                ? hash_effect_stack(m_effects)
-                : hash_combine(hash_effect_stack(m_effects),
-                               hash_string(m_temporal_history_key))
+                ? hash_effect_stack_v3(m_effects)
+                : hash_combine(hash_effect_stack_v3(m_effects),
+                               hash_string(m_temporal_history_key)),
+            .params_version = 2
         };
     }
 

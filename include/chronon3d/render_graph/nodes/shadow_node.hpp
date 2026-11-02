@@ -43,29 +43,31 @@ public:
     bool has_compiled_recorder() const noexcept override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        u64 h = hash_string(m_caster_name);
-        h = hash_combine(h, hash_value(m_caster_world_z));
-        h = hash_combine(h, hash_value(m_receiver_world_z));
-        h = hash_combine(h, hash_vec3(m_light_dir));
-        h = hash_combine(h, hash_value(m_depth_bias));
-        h = hash_combine(h, hash_value(m_settings.opacity));
-        h = hash_combine(h, hash_value(m_settings.blur_radius));
-        h = hash_combine(h, hash_value(m_settings.px_per_unit));
-        h = hash_combine(h, hash_value(m_settings.max_offset));
-        h = hash_combine(h, hash_value(m_settings.contact_opacity));
-        h = hash_combine(h, hash_value(m_settings.contact_blur_radius));
-        h = hash_combine(h, hash_value(m_settings.ambient_opacity));
-        h = hash_combine(h, hash_value(m_settings.ambient_blur_radius));
+        u64 h = hash_combine(hash_string("chronon.shadow-node.v2"),
+                             hash_string(m_caster_name));
+        h = hash_combine(h, hash_float_v2(m_caster_world_z));
+        h = hash_combine(h, hash_float_v2(m_receiver_world_z));
+        h = hash_combine(h, hash_vec3_v2(m_light_dir));
+        h = hash_combine(h, hash_float_v2(m_depth_bias));
+        h = hash_combine(h, hash_float_v2(m_settings.opacity));
+        h = hash_combine(h, hash_float_v2(m_settings.blur_radius));
+        h = hash_combine(h, hash_float_v2(m_settings.px_per_unit));
+        h = hash_combine(h, hash_float_v2(m_settings.max_offset));
+        h = hash_combine(h, hash_float_v2(m_settings.contact_opacity));
+        h = hash_combine(h, hash_float_v2(m_settings.contact_blur_radius));
+        h = hash_combine(h, hash_float_v2(m_settings.ambient_opacity));
+        h = hash_combine(h, hash_float_v2(m_settings.ambient_blur_radius));
         h = hash_combine(h, hash_value(m_settings.depth_aware));
-        h = hash_combine(h, hash_value(m_settings.blur_per_z));
-        h = hash_combine(h, hash_value(m_settings.opacity_falloff));
-        h = hash_combine(h, hash_color(m_settings.tint));
+        h = hash_combine(h, hash_float_v2(m_settings.blur_per_z));
+        h = hash_combine(h, hash_float_v2(m_settings.opacity_falloff));
+        h = hash_combine(h, hash_color_v2(m_settings.tint));
         return cache::NodeCacheKey{
             .scope = "shadow:" + m_caster_name,
             .frame = ctx.frame_input.frame,
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = h
+            .params_hash = h,
+            .params_version = 2
         };
     }
 

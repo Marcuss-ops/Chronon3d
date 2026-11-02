@@ -6,6 +6,8 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include <chrono>
+#include <filesystem>
 
 #include "test_text_font_fixture.hpp"
 
@@ -106,6 +108,42 @@ TEST_CASE("FontEngine: can load Inter-Bold") {
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     CHECK(engine.can_load(inter_bold()));
+}
+
+TEST_CASE("FontEngine: reloads a font after its file changes in place") {
+    const std::filesystem::path inter_path = test_text_fixture::kInterBoldPath;
+    const std::filesystem::path poppins_path = "assets/fonts/Poppins-Bold.ttf";
+    if (!test_text_fixture::fixture_exists(inter_path.string().c_str()) ||
+        !test_text_fixture::fixture_exists(poppins_path.string().c_str())) {
+        MESSAGE("Skipping: same-path font reload requires Inter and Poppins fixtures.");
+        return;
+    }
+
+    const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto scratch = std::filesystem::temp_directory_path() /
+        ("chronon-font-reload-" + std::to_string(unique));
+    std::filesystem::create_directories(scratch);
+    struct ScratchCleanup {
+        std::filesystem::path path;
+        ~ScratchCleanup() { std::error_code ec; std::filesystem::remove_all(path, ec); }
+    } cleanup{scratch};
+
+    const auto font_path = scratch / "font.ttf";
+    std::filesystem::copy_file(inter_path, font_path);
+    assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::absolute(scratch));
+    FontEngine engine{resolver};
+    FontSpec spec{.font_path = "font.ttf", .font_family = "ReloadTest", .font_weight = 700};
+    const float before = engine.measure_text("WWWW", spec, 64.0f);
+    REQUIRE(before > 0.0f);
+    const auto original_time = std::filesystem::last_write_time(font_path);
+
+    std::filesystem::copy_file(poppins_path, font_path,
+                               std::filesystem::copy_options::overwrite_existing);
+    std::filesystem::last_write_time(font_path, original_time + std::chrono::seconds(2));
+    const float after = engine.measure_text("WWWW", spec, 64.0f);
+    REQUIRE(after > 0.0f);
+    CHECK(after != doctest::Approx(before));
 }
 
 TEST_CASE("FontEngine: cannot load missing font") {

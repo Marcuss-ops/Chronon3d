@@ -469,7 +469,6 @@ void execute_fused_batch_impl(
             }
 
             const int font_size = std::max(1, static_cast<int>(std::lround(layout.font_size)));
-            const auto font_id = glyph_font_id(layout.font.font_path);
 
             runtime::TextRunDynamic run_dyn{};
             run_dyn.tx = tx;
@@ -510,7 +509,8 @@ void execute_fused_batch_impl(
 
                 if (!ctx.text_render_resources) continue;
                 auto entry = ctx.text_render_resources->lookup_glyph_atlas(
-                    font_id, gstate.glyph_id, static_cast<u32>(font_size));
+                    layout.font.font_path, gstate.glyph_id,
+                    static_cast<u32>(font_size));
                 if (!entry || !entry->image) continue;
 
                 runtime::GlyphStatic g_stat{};

@@ -33,15 +33,17 @@ public:
 
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        u64 h = hash_value(m_grade.enabled);
-        h = hash_combine(h, hash_value(m_grade.near_z));
-        h = hash_combine(h, hash_value(m_grade.far_z));
-        h = hash_combine(h, hash_color(m_grade.fog_color));
-        h = hash_combine(h, hash_value(m_grade.fog_opacity));
-        h = hash_combine(h, hash_value(m_grade.far_saturation));
-        h = hash_combine(h, hash_value(m_grade.far_contrast));
-        h = hash_combine(h, hash_value(m_grade.far_blur_px));
-        h = hash_combine(h, hash_value(m_layer_world_z));
+        u64 h = hash_string("chronon.depth-grade-node.v2");
+        h = hash_combine(h, hash_value(m_grade.enabled));
+        h = hash_combine(h, hash_float_v2(m_grade.near_z));
+        h = hash_combine(h, hash_float_v2(m_grade.far_z));
+        h = hash_combine(h, hash_color_v2(m_grade.fog_color));
+        h = hash_combine(h, hash_float_v2(m_grade.fog_opacity));
+        h = hash_combine(h, hash_float_v2(m_grade.far_saturation));
+        h = hash_combine(h, hash_float_v2(m_grade.far_contrast));
+        h = hash_combine(h, hash_float_v2(m_grade.far_blur_px));
+        h = hash_combine(h, hash_float_v2(m_layer_world_z));
+        h = hash_combine(h, hash_value(m_accepts_lights));
         return cache::NodeCacheKey{
             .scope = "depth_grade",
             // Depth grade parameters and layer depth are immutable for this
@@ -51,7 +53,8 @@ public:
             .frame = Frame{0},
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = h
+            .params_hash = h,
+            .params_version = 2
         };
     }
 

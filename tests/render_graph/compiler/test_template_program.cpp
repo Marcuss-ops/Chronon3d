@@ -140,6 +140,16 @@ TEST_CASE("CompiledTemplateProgram: ProgramFingerprint equality + hash") {
 
     CHECK(std::hash<ProgramFingerprint>{}(a) == std::hash<ProgramFingerprint>{}(b));
     CHECK(std::hash<ProgramFingerprint>{}(a) != std::hash<ProgramFingerprint>{}(c));
+
+    const auto baseline = std::hash<ProgramFingerprint>{}(a);
+    auto changed = a;
+    changed.renderer_abi++;
+    CHECK(changed != a);
+    CHECK(std::hash<ProgramFingerprint>{}(changed) != baseline);
+    changed = a;
+    changed.quality_profile++;
+    CHECK(changed != a);
+    CHECK(std::hash<ProgramFingerprint>{}(changed) != baseline);
 }
 
 TEST_CASE("CompiledTemplateProgram: lift populates fingerprint from structure_hash") {

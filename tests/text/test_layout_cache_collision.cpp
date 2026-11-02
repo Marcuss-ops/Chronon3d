@@ -154,3 +154,103 @@ TEST_CASE("TICKET-103a (2) TextLayoutCacheKey: same text+font but language ar vs
     TextLayoutCacheKey en_key_duplicate = en_key;
     CHECK(en_key.digest() == en_key_duplicate.digest());
 }
+
+TEST_CASE("TextLayoutCacheKey V2 digest covers every key and ParagraphStyle field") {
+    TextLayoutCacheKey base;
+    base.text = "cache identity";
+    base.font_path = "font.ttf";
+    const auto check_key = [&](auto mutate) {
+        auto changed = base;
+        mutate(changed);
+        CHECK(changed.digest() != base.digest());
+    };
+    const auto check_paragraph = [&](auto mutate) {
+        auto changed = base;
+        mutate(changed.paragraph);
+        CHECK(changed.digest() != base.digest());
+    };
+
+    check_key([](auto& k) { k.text += '!'; });
+    check_key([](auto& k) { k.font_path += '!'; });
+    check_key([](auto& k) { k.font_weight++; });
+    check_key([](auto& k) { k.font_style += '!'; });
+    check_key([](auto& k) { k.font_size += 1.0f; });
+    check_key([](auto& k) { k.tracking += 1.0f; });
+    check_key([](auto& k) { k.box_width += 1.0f; });
+    check_key([](auto& k) { k.wrap = TextWrap::Word; });
+    check_key([](auto& k) { k.direction = TextDirection::RTL; });
+    check_key([](auto& k) { k.language = "it"; });
+    check_key([](auto& k) { k.features = "kern"; });
+    check_key([](auto& k) { k.font_family = "family"; });
+    check_key([](auto& k) { k.variation_axes = "wght=650"; });
+    check_key([](auto& k) { k.box_height += 1.0f; });
+    check_key([](auto& k) { k.align++; });
+    check_key([](auto& k) { k.vertical_align++; });
+    check_key([](auto& k) { k.anchor++; });
+    check_key([](auto& k) { k.centering_mode++; });
+    check_key([](auto& k) { k.line_height += 0.1f; });
+    check_key([](auto& k) { k.max_lines++; });
+    check_key([](auto& k) { k.overflow++; });
+    check_key([](auto& k) { k.ellipsis = true; });
+
+    check_paragraph([](auto& p) { p.left_indent = 1.0f; });
+    check_paragraph([](auto& p) { p.right_indent = 1.0f; });
+    check_paragraph([](auto& p) { p.first_line_indent = 1.0f; });
+    check_paragraph([](auto& p) { p.space_before = 1.0f; });
+    check_paragraph([](auto& p) { p.space_after = 1.0f; });
+    check_paragraph([](auto& p) { p.composer = ParagraphComposer::EveryLine; });
+    check_paragraph([](auto& p) { p.justification = TextJustification::Center; });
+    check_paragraph([](auto& p) { p.spacing.word_min += 0.01f; });
+    check_paragraph([](auto& p) { p.spacing.word_desired += 0.01f; });
+    check_paragraph([](auto& p) { p.spacing.word_max += 0.01f; });
+    check_paragraph([](auto& p) { p.spacing.letter_min += 0.01f; });
+    check_paragraph([](auto& p) { p.spacing.letter_desired += 0.01f; });
+    check_paragraph([](auto& p) { p.spacing.letter_max += 0.01f; });
+    check_paragraph([](auto& p) { p.spacing.glyph_scale_min += 0.01f; });
+    check_paragraph([](auto& p) { p.spacing.glyph_scale_desired += 0.01f; });
+    check_paragraph([](auto& p) { p.spacing.glyph_scale_max += 0.01f; });
+    check_paragraph([](auto& p) { p.direction = TextDirection::RTL; });
+    check_paragraph([](auto& p) { p.hanging_punctuation = true; });
+    check_paragraph([](auto& p) { p.hanging_limit += 0.1f; });
+    check_paragraph([](auto& p) { p.hyphenation = true; });
+    check_paragraph([](auto& p) { p.minimum_word_length++; });
+    check_paragraph([](auto& p) { p.minimum_prefix++; });
+    check_paragraph([](auto& p) { p.minimum_suffix++; });
+    check_paragraph([](auto& p) { p.widow_lines++; });
+    check_paragraph([](auto& p) { p.orphan_lines++; });
+    check_paragraph([](auto& p) { p.spacing_collapse = ParagraphSpacingCollapse::Add; });
+    check_paragraph([](auto& p) { p.language = "it"; });
+    check_paragraph([](auto& p) { p.feature_tags = {"kern"}; });
+    check_paragraph([](auto& p) { p.variable_axes = {{.tag = "wght", .value = 650.0f}}; });
+    check_paragraph([](auto& p) { p.tab_stops = {48.0f}; });
+    check_paragraph([](auto& p) { p.kinsoku = true; });
+    check_paragraph([](auto& p) { p.auto_fit_font_size = true; });
+    check_paragraph([](auto& p) { p.min_font_size = 9.0f; });
+    check_paragraph([](auto& p) { p.max_font_size = 95.0f; });
+    check_paragraph([](auto& p) { p.discretionary_ligatures = true; });
+    check_paragraph([](auto& p) { p.drop_cap_height = 2; });
+    check_paragraph([](auto& p) { p.strict_widow_orphan = true; });
+    check_paragraph([](auto& p) { p.tight_leading = 0.9f; });
+    check_paragraph([](auto& p) { p.hyphenation_lang = "it"; });
+    check_paragraph([](auto& p) { p.justification_tolerance_px = 2.0f; });
+    check_paragraph([](auto& p) { p.paragraph_mark = ParagraphMarkGlyph::Bullet; });
+    check_paragraph([](auto& p) { p.paragraph_mark_custom = "*"; });
+    check_paragraph([](auto& p) { p.max_lines = 3; });
+    check_paragraph([](auto& p) { p.ellipsis = "..."; });
+
+    auto positive_zero = base;
+    auto negative_zero = base;
+    positive_zero.font_size = 0.0f;
+    negative_zero.font_size = -0.0f;
+    CHECK(positive_zero == negative_zero);
+    CHECK(positive_zero.digest() == negative_zero.digest());
+}
+
+TEST_CASE("TextLayoutCacheKey pins V1 digest and uses a distinct V2 schema") {
+    TextLayoutCacheKey key;
+    key.text = "cache identity";
+    key.font_path = "font.ttf";
+    CHECK(key.digest_v1() == 15831138664930118102ULL);
+    CHECK(key.digest() == key.digest_v2());
+    CHECK(key.digest() != key.digest_v1());
+}

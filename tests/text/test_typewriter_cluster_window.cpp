@@ -7,6 +7,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/text/typewriter_layout.hpp>  // core home of the retired content declarations
+#include <chronon3d/text/typewriter_layout_cache.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_unicode_grapheme.hpp>
 
@@ -16,6 +17,31 @@
 using namespace chronon3d::content::text;
 
 namespace text_detail = chronon3d::content::text::detail;
+
+TEST_CASE("TypewriterLayoutKey identity includes every geometric input") {
+    TypewriterLayoutKey base;
+    base.text = "cache identity";
+    base.font = {.font_path = "font.ttf", .font_family = "family",
+                 .font_weight = 400, .font_style = "normal"};
+    const auto base_hash =
+        std::hash<TypewriterLayoutKey>{}(base);
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK_FALSE(key == base);
+        CHECK(std::hash<TypewriterLayoutKey>{}(key) != base_hash);
+    };
+    changed([](auto& key) { key.text += '!'; });
+    changed([](auto& key) { key.font.font_path += '!'; });
+    changed([](auto& key) { key.font.font_family += '!'; });
+    changed([](auto& key) { key.font.font_weight++; });
+    changed([](auto& key) { key.font.font_style += '!'; });
+    changed([](auto& key) { key.font_size++; });
+    changed([](auto& key) { key.tracking++; });
+    changed([](auto& key) { key.box.x++; });
+    changed([](auto& key) { key.box.y++; });
+    changed([](auto& key) { key.line_height++; });
+}
 
 // ── Synthetic cluster builder ───────────────────────────────────────────────
 static std::vector<chronon3d::PlacedGlyphRun::Cluster> make_clusters(

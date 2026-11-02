@@ -36,8 +36,9 @@ void refresh_source_node(
         }
             .frame(ctx.frame_input.frame)
             .output(ctx.frame_input.width, ctx.frame_input.height)
-            .params(hash_render_node(src_node))
+            .params(hash_render_node_v2(src_node))
             .source(hash_bytes(src_node.name.data(), src_node.name.size()))
+            .versions(2)
             .camera_if(ctx.frame_input.has_camera_2_5d,
                        ctx.frame_input.camera_2_5d)
             .build();
@@ -152,8 +153,9 @@ void refresh_source_node(
     }
         .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
         .output(ctx.frame_input.width, ctx.frame_input.height)
-        .params(hash_render_node(src_node))
+        .params(hash_render_node_v2(src_node))
         .source(hash_bytes(src_node.name.data(), src_node.name.size()))
+        .versions(2)
         .camera_if(ctx.frame_input.has_camera_2_5d,
                    ctx.frame_input.camera_2_5d)
         .build();

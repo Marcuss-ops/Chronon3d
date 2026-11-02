@@ -64,6 +64,19 @@ public:
         return *this;
     }
 
+    /// Declare the schema version of each opaque hash input. Zero keeps the
+    /// legacy hash-only dependency contract; non-zero versions participate in
+    /// the key digest and let one identity axis migrate independently.
+    NodeCacheIdentityBuilder& versions(
+        ContentVersion params,
+        ContentVersion source = 0,
+        ContentVersion input = 0) {
+        m_key.params_version = params;
+        m_key.source_version = source;
+        m_key.input_version = input;
+        return *this;
+    }
+
     NodeCacheIdentityBuilder& temporal(TemporalSampleKey value) {
         m_key.temporal_key = value;
         return *this;

@@ -16,12 +16,36 @@ namespace {
 constexpr std::size_t kFlattenCapacityBytes = 64ULL * 1024 * 1024;
 constexpr int kFlattenShardCount = 16;
 
+struct FlattenKey {
+    PathCacheKey digest{};
+    bool closed{};
+    std::vector<PathCommand> commands;
+
+    friend bool operator==(const FlattenKey& a, const FlattenKey& b) noexcept {
+        if (a.closed != b.closed || a.commands.size() != b.commands.size()) return false;
+        for (std::size_t i = 0; i < a.commands.size(); ++i) {
+            const auto& x = a.commands[i];
+            const auto& y = b.commands[i];
+            if (x.type != y.type || x.p0.x != y.p0.x || x.p0.y != y.p0.y ||
+                x.p1.x != y.p1.x || x.p1.y != y.p1.y ||
+                x.p2.x != y.p2.x || x.p2.y != y.p2.y) return false;
+        }
+        return true;
+    }
+};
+
+struct FlattenKeyHash {
+    std::size_t operator()(const FlattenKey& key) const noexcept {
+        return static_cast<std::size_t>(key.digest);
+    }
+};
+
 // ── Single, source-of-truth LRU cache ────────────────────────────────
 // Replaces the two duplicate caches that previously lived in
 // path_cache.hpp (function-local static) AND path_cache.cpp (global).
 // Both code paths produced separate LRUState and were silently
 // halving the effective cache budget.
-cache::LruCache<PathCacheKey, detail::SharedContours> g_flatten_cache(
+cache::LruCache<FlattenKey, detail::SharedContours, FlattenKeyHash> g_flatten_cache(
     kFlattenCapacityBytes, kFlattenShardCount);
 
 } // namespace
@@ -46,7 +70,7 @@ PathCacheKey path_cache_hash_path(const PathShape& path) {
 }
 
 detail::SharedContours flatten_path_geometry_cached(const PathShape& path) {
-    const PathCacheKey key = path_cache_hash_path(path);
+    FlattenKey key{path_cache_hash_path(path), path.closed, path.commands};
 
     if (auto cached = g_flatten_cache.get(key)) {
         if (auto ptr = *cached) return ptr;
@@ -79,7 +103,8 @@ detail::SharedContours flatten_path_geometry_cached(const PathShape& path) {
     if (weight == 0) weight = 1;
 
     auto shared = std::make_shared<const std::vector<PathContour>>(std::move(contours));
-    g_flatten_cache.put(key, shared, weight);
+    weight += sizeof(FlattenKey) + key.commands.size() * sizeof(PathCommand);
+    g_flatten_cache.put(std::move(key), shared, weight);
     return shared;
 }
 

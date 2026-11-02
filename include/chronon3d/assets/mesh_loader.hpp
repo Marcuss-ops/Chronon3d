@@ -4,6 +4,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/core/hash/hash_builder.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/math/color.hpp>
@@ -42,6 +43,19 @@ struct MeshIdentity {
 
     [[nodiscard]] std::string cache_key() const;
     friend bool operator==(const MeshIdentity&, const MeshIdentity&) = default;
+};
+
+struct MeshIdentityHash {
+    [[nodiscard]] std::size_t operator()(const MeshIdentity& identity) const noexcept {
+        auto builder = core::hash::HashBuilder{}
+            .add("chronon.mesh-identity.v2")
+            .add(std::string_view(identity.resolved_path))
+            .add(identity.byte_size)
+            .add(identity.write_time);
+        builder.add_bytes(identity.content_digest.bytes.data(),
+                          identity.content_digest.bytes.size());
+        return static_cast<std::size_t>(builder.finish());
+    }
 };
 
 enum class MeshLoadErrorCode : std::uint8_t {
@@ -129,20 +143,20 @@ public:
 
     [[nodiscard]] std::optional<PreparedMeshSourceRef> find(
         const MeshIdentity& identity) {
-        return m_cache.get(identity.cache_key());
+        return m_cache.get(identity);
     }
 
     void store(const MeshIdentity& identity, PreparedMeshSourceRef source) {
-        m_cache.put(identity.cache_key(), std::move(source));
+        m_cache.put(identity, std::move(source));
     }
 
     [[nodiscard]] std::size_t size() const { return m_cache.stats().current_size; }
-    [[nodiscard]] cache::LruCache<std::string, PreparedMeshSourceRef>::Stats stats() const {
+    [[nodiscard]] cache::LruCache<MeshIdentity, PreparedMeshSourceRef, MeshIdentityHash>::Stats stats() const {
         return m_cache.stats();
     }
 
 private:
-    cache::LruCache<std::string, PreparedMeshSourceRef> m_cache;
+    cache::LruCache<MeshIdentity, PreparedMeshSourceRef, MeshIdentityHash> m_cache;
 };
 
 /// GLB-only importer. It accepts logical references and resolves them through

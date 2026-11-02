@@ -300,6 +300,32 @@ TEST_CASE("DeviceProgramKey: device_capability participates in both key and arti
           k_b.to_program_artifact_key().stable_name());
 }
 
+TEST_CASE("DeviceProgramKey: every identity field changes the stable name") {
+    pp::DeviceProgramKey base;
+    base.pixel_program_fingerprint = 0x1234;
+    base.target = pp::DeviceTarget::CpuSimd;
+    base.determinism_class = cd::DeterminismClass::BitExact;
+    base.specialization = "base";
+    base.compiler_version = "1.0";
+    base.backend_abi_version = pp::kPixelProgramAbiVersion;
+    base.device_capability = "generic";
+    const auto original = base.stable_name();
+    const auto changed = [&](auto mutate) {
+        auto key = base;
+        mutate(key);
+        CHECK(key.stable_name() != original);
+    };
+    changed([](auto& key) { key.pixel_program_fingerprint++; });
+    changed([](auto& key) { key.target = pp::DeviceTarget::Ptx; });
+    changed([](auto& key) {
+        key.determinism_class = cd::DeterminismClass::Approximate;
+    });
+    changed([](auto& key) { key.specialization += "-next"; });
+    changed([](auto& key) { key.compiler_version += ".1"; });
+    changed([](auto& key) { key.backend_abi_version++; });
+    changed([](auto& key) { key.device_capability += "-next"; });
+}
+
 TEST_CASE("DeviceTarget: string round-trip") {
     CHECK(pp::to_string(pp::DeviceTarget::CpuSimd) == "cpu-simd");
     CHECK(pp::to_string(pp::DeviceTarget::SpirV) == "spirv");

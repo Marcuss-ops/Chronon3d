@@ -45,28 +45,30 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const auto& camera = camera_for(ctx);
-        const auto dof_params_hash = [&camera] {
-            auto hash = hash_value(static_cast<std::uint8_t>(camera.dof.enabled));
-            const auto add = [&hash](auto value) {
-                hash = hash_combine(hash, hash_value(value));
-            };
-            add(camera.dof.focus_distance);
-            add(camera.dof.max_blur);
-            add(camera.dof.near_bokeh_radius);
-            add(camera.dof.far_bokeh_radius);
-            add(camera.dof.iris_blades);
-            add(camera.dof.highlight_gain);
-            add(camera.lens.focal_length);
-            add(camera.lens.f_stop);
-            add(camera.lens.sensor_width);
-            return hash;
-        }();
+        const auto& dof = camera.dof;
+        u64 params_hash = hash_string("chronon.per-pixel-dof.v2");
+        params_hash = hash_combine(params_hash, hash_value(dof.enabled));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.focus_z));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.aperture));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.max_blur));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.focus_distance));
+        params_hash = hash_combine(params_hash, hash_value(dof.use_physical_model));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.near_bokeh_radius));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.far_bokeh_radius));
+        params_hash = hash_combine(params_hash, hash_value(dof.iris_blades));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.highlight_gain));
+        // Lens optics also change the blur disc: keep them canonical too so a
+        // focal-length or f-stop change can never reuse a stale DOF frame.
+        params_hash = hash_combine(params_hash, hash_float_v2(camera.lens.focal_length));
+        params_hash = hash_combine(params_hash, hash_float_v2(camera.lens.f_stop));
+        params_hash = hash_combine(params_hash, hash_float_v2(camera.lens.sensor_width));
         return cache::NodeCacheKey{
             .scope = "per_pixel_dof",
             .frame = ctx.frame_input.frame,
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = dof_params_hash
+            .params_hash = params_hash,
+            .params_version = 2
         };
     }
 

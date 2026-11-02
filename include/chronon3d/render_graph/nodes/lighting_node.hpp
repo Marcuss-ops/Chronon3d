@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/rendering/lighting_eval.hpp>
+#include <chronon3d/rendering/lighting_hashing.hpp>
 
 #include <string>
 #include <utility>
@@ -24,16 +25,17 @@ public:
 
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        const u64 light_hash = rendering::hash_light_context(ctx.frame_input.light_context);
-        const u64 material_hash = rendering::hash_material_2_5d(m_material);
-        const u64 world_hash = hash_bytes(&m_world_matrix[0][0], sizeof(Mat4));
+        const u64 light_hash = rendering::hash_light_context_v2(ctx.frame_input.light_context);
+        const u64 material_hash = rendering::hash_material_2_5d_v2(m_material);
+        const u64 world_hash = hash_mat4_v2(m_world_matrix);
 
         return cache::NodeCacheKey{
             .scope = "lighting:" + m_layer_name,
             .frame = ctx.frame_input.frame,
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = hash_combine(hash_combine(light_hash, material_hash), world_hash)
+            .params_hash = hash_combine(hash_combine(light_hash, material_hash), world_hash),
+            .params_version = 2
         };
     }
 

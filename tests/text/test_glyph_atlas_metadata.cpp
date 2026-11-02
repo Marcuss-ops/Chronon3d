@@ -30,6 +30,7 @@
 
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
+#include "src/backends/text/glyph_atlas_cache_key.hpp"
 
 #include <blend2d.h>
 
@@ -149,4 +150,39 @@ TEST_CASE("glyph_atlas: lookup is empty after no store") {
     auto stats_empty = res.glyph_atlas_stats();
     CHECK(stats_empty.entry_count == 0);
     CHECK(stats_empty.total_weight == 0);
+}
+
+TEST_CASE("glyph_atlas: path identity survives font-id collisions") {
+    const chronon3d::detail::GlyphAtlasKey first{
+        .path_identity = true, .font_path = "/fonts/first.ttf",
+        .font_id = 7, .glyph_id = 42, .font_size = 24};
+    const chronon3d::detail::GlyphAtlasKey second{
+        .path_identity = true, .font_path = "/fonts/second.ttf",
+        .font_id = 7, .glyph_id = 42, .font_size = 24};
+    CHECK(first.font_id == second.font_id);
+    CHECK_FALSE(first == second);
+    const chronon3d::detail::GlyphAtlasKey legacy_id{
+        .path_identity = false, .font_id = 7, .glyph_id = 42,
+        .font_size = 24};
+    CHECK_FALSE(first == legacy_id);
+
+    chronon3d::TextRenderResources resources;
+    chronon3d::GlyphAtlasEntry first_entry;
+    first_entry.image = make_test_glyph_image();
+    first_entry.x_offset = 11;
+    chronon3d::GlyphAtlasEntry second_entry;
+    second_entry.image = make_test_glyph_image();
+    second_entry.x_offset = 22;
+    resources.store_glyph_atlas(first.font_path, first.glyph_id,
+        first.font_size, first_entry);
+    resources.store_glyph_atlas(second.font_path, second.glyph_id,
+        second.font_size, second_entry);
+    const auto first_hit = resources.lookup_glyph_atlas(first.font_path,
+        first.glyph_id, first.font_size);
+    const auto second_hit = resources.lookup_glyph_atlas(second.font_path,
+        second.glyph_id, second.font_size);
+    REQUIRE(first_hit.has_value());
+    REQUIRE(second_hit.has_value());
+    CHECK(first_hit->x_offset == 11);
+    CHECK(second_hit->x_offset == 22);
 }

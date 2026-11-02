@@ -47,7 +47,7 @@ void compute_scene_root_bboxes(
         state.visible = node.visible;
         state.cache_static = true;
         state.uses_2_5d_projection = ctx.frame_input.has_camera_2_5d;
-        state.content_hash = hash_render_node(node);
+        state.content_hash = hash_render_node_v2(node);
         populate_node_semantic_fingerprints(node, state);
         state.structure_hash = hash_combine(
             state.structure_hash, hash_string("root.node"));
