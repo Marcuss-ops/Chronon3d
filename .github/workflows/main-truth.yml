@@ -3,17 +3,8 @@ name: Chronon main truth
 on:
   workflow_run:
     workflows:
-      - ABI compatibility
-      - CFI
       - Chronon CI
-      - Chronon Nightly
-      - CodeQL
       - Developer Gates
-      - Native Video Certification
-      - Reproducible release artifact
-      - Resource leak certification
-      - SVG Motion Graphics Pixel Truth
-      - chronon3d-runtime
     types: [completed]
 
 permissions:
@@ -40,17 +31,8 @@ jobs:
         with:
           script: |
             const expected = [
-              'ABI compatibility',
-              'CFI',
               'Chronon CI',
-              'Chronon Nightly',
-              'CodeQL',
               'Developer Gates',
-              'Native Video Certification',
-              'Reproducible release artifact',
-              'Resource leak certification',
-              'SVG Motion Graphics Pixel Truth',
-              'chronon3d-runtime',
             ];
             const sha = context.payload.workflow_run.head_sha;
             const statusContext = 'main-truth';

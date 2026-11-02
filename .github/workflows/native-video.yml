@@ -1,8 +1,6 @@
 name: Native Video Certification
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 

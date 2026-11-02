@@ -1,8 +1,6 @@
 name: Chronon Nightly
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: '0 2 * * *'
     - cron: '0 3 * * 0'

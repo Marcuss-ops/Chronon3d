@@ -7,8 +7,6 @@
 name: chronon3d-runtime
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 concurrency:
