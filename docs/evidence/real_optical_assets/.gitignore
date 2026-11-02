@@ -1,0 +1,5 @@
+# Generated media for these fixtures stays local until the external asset pack
+# and fetch script exist (see ../repo-weight-audit-20261031.md).
+*.mp4
+*.png
+*.mp4.timing.json
