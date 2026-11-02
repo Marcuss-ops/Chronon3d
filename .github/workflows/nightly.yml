@@ -23,8 +23,8 @@ env:
   CMAKE_BUILD_PARALLEL_LEVEL: "4"
 
 concurrency:
-  group: nightly-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+  group: nightly-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
   asan-ubsan:
