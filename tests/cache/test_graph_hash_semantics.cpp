@@ -949,8 +949,6 @@ TEST_CASE("Dirty scene fingerprint V2 is stable and includes semantic layer stat
 TEST_CASE("PerPixelDofNode V2 key covers every DOF setting") {
     Camera2_5DRuntime base;
     base.dof.enabled = true;
-    base.dof.focus_z = 10.0f;
-    base.dof.aperture = 0.1f;
     base.dof.max_blur = 8.0f;
     base.dof.focus_distance = 1200.0f;
     base.dof.near_bokeh_radius = 2.0f;
@@ -970,15 +968,23 @@ TEST_CASE("PerPixelDofNode V2 key covers every DOF setting") {
         CHECK(key.params_version == 2);
     };
     changed([](auto& d) { d.enabled = false; });
-    changed([](auto& d) { d.focus_z += 1.0f; });
-    changed([](auto& d) { d.aperture += 0.1f; });
     changed([](auto& d) { d.max_blur += 1.0f; });
     changed([](auto& d) { d.focus_distance += 1.0f; });
-    changed([](auto& d) { d.use_physical_model = true; });
     changed([](auto& d) { d.near_bokeh_radius += 1.0f; });
     changed([](auto& d) { d.far_bokeh_radius += 1.0f; });
     changed([](auto& d) { d.iris_blades += 1; });
     changed([](auto& d) { d.highlight_gain += 0.1f; });
+    // The lens optics shape the blur disc too, so the key must cover them.
+    const auto changed_lens = [&](auto mutate) {
+        auto camera = base;
+        mutate(camera);
+        const auto key = digest(camera);
+        CHECK(key.params_hash != original.params_hash);
+        CHECK(key.params_version == 2);
+    };
+    changed_lens([](auto& c) { c.lens.focal_length += 10.0f; });
+    changed_lens([](auto& c) { c.lens.f_stop += 0.1f; });
+    changed_lens([](auto& c) { c.lens.sensor_width += 1.0f; });
 }
 
 TEST_CASE("DepthGradeNode V2 key covers every grading dependency") {
@@ -1120,7 +1126,7 @@ TEST_CASE("TransformNode V3 key covers optional Card3D material semantics") {
     graph::RenderGraphContext ctx;
     const auto digest = [&](std::optional<Card3DMaterial> material) {
         graph::TransformNode node(Mat4{1.0f}, 1.0f, Frame{-1},
-            graph::SamplingMode::Bilinear, graph::static_memory_cache("transform"),
+            SamplingMode::Bilinear, graph::static_memory_cache("transform"),
             Vec2{128.0f, 64.0f}, std::move(material));
         return node.cache_key(ctx);
     };

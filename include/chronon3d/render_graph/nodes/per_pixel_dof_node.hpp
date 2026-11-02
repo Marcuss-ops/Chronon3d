@@ -48,11 +48,8 @@ public:
         const auto& dof = camera.dof;
         u64 params_hash = hash_string("chronon.per-pixel-dof.v2");
         params_hash = hash_combine(params_hash, hash_value(dof.enabled));
-        params_hash = hash_combine(params_hash, hash_float_v2(dof.focus_z));
-        params_hash = hash_combine(params_hash, hash_float_v2(dof.aperture));
-        params_hash = hash_combine(params_hash, hash_float_v2(dof.max_blur));
         params_hash = hash_combine(params_hash, hash_float_v2(dof.focus_distance));
-        params_hash = hash_combine(params_hash, hash_value(dof.use_physical_model));
+        params_hash = hash_combine(params_hash, hash_float_v2(dof.max_blur));
         params_hash = hash_combine(params_hash, hash_float_v2(dof.near_bokeh_radius));
         params_hash = hash_combine(params_hash, hash_float_v2(dof.far_bokeh_radius));
         params_hash = hash_combine(params_hash, hash_value(dof.iris_blades));
