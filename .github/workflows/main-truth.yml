@@ -1,0 +1,137 @@
+name: Chronon main truth
+
+on:
+  workflow_run:
+    workflows:
+      - ABI compatibility
+      - CFI
+      - Chronon CI
+      - Chronon Nightly
+      - CodeQL
+      - Developer Gates
+      - Native Video Certification
+      - Reproducible release artifact
+      - Resource leak certification
+      - SVG Motion Graphics Pixel Truth
+      - chronon3d-runtime
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  statuses: write
+
+concurrency:
+  group: chronon-main-truth-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  main-truth:
+    name: aggregate-main-workflows
+    if: >-
+      github.event.workflow_run.head_sha == github.sha &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Wait for every main-push workflow and aggregate its result
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const expected = [
+              'ABI compatibility',
+              'CFI',
+              'Chronon CI',
+              'Chronon Nightly',
+              'CodeQL',
+              'Developer Gates',
+              'Native Video Certification',
+              'Reproducible release artifact',
+              'Resource leak certification',
+              'SVG Motion Graphics Pixel Truth',
+              'chronon3d-runtime',
+            ];
+            const sha = context.payload.workflow_run.head_sha;
+            const statusContext = 'main-truth';
+            const statusUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const deadline = Date.now() + 330 * 60 * 1000;
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+            const postStatus = async (state, description) => github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state,
+              context: statusContext,
+              description: description.slice(0, 140),
+              target_url: statusUrl,
+            });
+
+            const {data: mainBranch} = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'main',
+            });
+            if (mainBranch.commit.sha !== sha) {
+              core.notice(`Ignoring superseded SHA ${sha}; current main is ${mainBranch.commit.sha}.`);
+              return;
+            }
+            await postStatus('pending', 'Waiting for all required workflows on this SHA');
+
+            while (Date.now() < deadline) {
+              const response = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head_sha: sha,
+                per_page: 100,
+              });
+              const runs = response.data.workflow_runs.filter(run =>
+                run.event === 'push' && run.head_branch === 'main'
+              );
+              const latestByName = new Map();
+              for (const run of runs) {
+                const name = run.name;
+                if (!expected.includes(name)) continue;
+                const previous = latestByName.get(name);
+                if (!previous || run.run_number > previous.run_number ||
+                    (run.run_number === previous.run_number && run.run_attempt > previous.run_attempt)) {
+                  latestByName.set(name, run);
+                }
+              }
+
+              const missing = expected.filter(name => !latestByName.has(name));
+              const pending = expected.filter(name => {
+                const run = latestByName.get(name);
+                return run && run.status !== 'completed';
+              });
+              if (missing.length === 0 && pending.length === 0) {
+                const failures = expected
+                  .map(name => ({name, run: latestByName.get(name)}))
+                  .filter(({run}) => run.conclusion !== 'success');
+                core.summary
+                  .addHeading(`Main truth for ${sha}`)
+                  .addTable([
+                    [{data: 'Workflow', header: true}, {data: 'Result', header: true}, {data: 'Run', header: true}],
+                    ...expected.map(name => {
+                      const run = latestByName.get(name);
+                      return [name, run.conclusion, `[run ${run.run_number}](${run.html_url})`];
+                    }),
+                  ])
+                  .write();
+                if (failures.length) {
+                  const description = `Required workflows not green: ${failures.map(({name, run}) => `${name}=${run.conclusion}`).join(', ')}`;
+                  await postStatus('failure', description);
+                  core.setFailed(description);
+                } else {
+                  await postStatus('success', `All ${expected.length} workflows succeeded on this SHA`);
+                }
+                return;
+              }
+
+              core.info(`Waiting for same-SHA main workflows. Missing: ${missing.join(', ') || 'none'}; pending: ${pending.join(', ') || 'none'}`);
+              await sleep(60_000);
+            }
+
+            const timeout = `Timed out waiting for same-SHA workflows on ${sha}`;
+            await postStatus('error', timeout);
+            core.setFailed(`${timeout}. Check Actions runner dispatch and workflow configuration.`);
