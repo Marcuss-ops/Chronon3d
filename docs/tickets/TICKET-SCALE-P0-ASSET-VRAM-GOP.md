@@ -73,6 +73,16 @@ mutex serializzato. Due correzioni:
 Effetto: su una scheda da 16 GB due job FullGraph a 1080p non entrano più
 (2 × 8.8 > 16), e l'admission coincide con la realtà fisica.
 
+**Perimetro (2026-11-03).** L'8,8 GB descrive la lane **video FullGraph**
+(decode + compositing) e non è mai stato misurato sulla shape overlay, che
+misura **592/593 MiB** (2 run) e **~764 MiB/job** a due runtime concorrenti
+(`docs/evidence/gpu-admission-two-jobs-2026-11-02.md`). Conseguenza: due job
+compositi **nello stesso daemon** non entrano per una ragione di lane (un solo
+renderer, un solo anello di superfici transitorie per device), non solo di
+VRAM; due job su **due runtime** entrano e si sovrappongono a 1,98×. Il floor
+come costante universale resta da sostituire con il footprint per shape, ma la
+misura corretta per la shape overlay non è 8,8 GB.
+
 Evidenza: 7 nuovi case in `tests/cli/test_daemon_render_concurrency.cpp`
 (13 case / 94 assertion, PASS) fra cui "una scheda da 16 GB non può ammettere
 due job FullGraph a 1080p".

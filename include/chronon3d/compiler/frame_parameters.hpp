@@ -90,6 +90,12 @@ struct SampledLayerParameters {
     /// True when the compiler's temporal dependency schedule invalidates this
     /// layer's graph payload at the sampled time (or when runtime overlays do).
     bool dirty{true};
+    /// True when this layer's sampled values vary with the frame: animation
+    /// tracks, resolved transform samples, or inline-mesh frame samples. The
+    /// materialized Scene never carries those values, so pixel-reuse decisions
+    /// must treat such a layer as non-static instead of trusting the
+    /// Scene-derived frame fingerprints.
+    bool time_dependent{false};
     double local_time_frame{0.0};
     std::uint32_t text_index{0};
     SampledLayerPayload payload{};

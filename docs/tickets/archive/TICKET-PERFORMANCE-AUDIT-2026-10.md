@@ -1,10 +1,10 @@
 # Performance audit — October 2026
 
-Status: PARTIAL — local audit/build gates complete; remaining native GPU/CI measurements are external certification.
+Status: CLOSED (2026-11-03) — local audit/build gates complete; native GPU/CI certification formally transferred to Fase 6 (TICKET-MAIN-TRUTH-STAGE-1-2).
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
-- [ ] Certificazione carrier/render native su host GPU e clean-SHA CI (esclusi dal perimetro locale richiesto).
+- [x] Certificazione carrier/render native su host GPU e clean-SHA CI — **Ritirata con trasferimento 2026-11-03:** il perimetro locale è chiuso; la certificazione native GPU/CI è in carico alla Fase 6 di `docs/stato/ROADMAP-ESECUZIONE.md` (owner repo, prerequisito runner e host GPU).
 - [x] Breakdown GPU per-pass della fixture B2 e profilo CPU del loop (2026-10-30): attribuzione Vulkan per `GpuPassKind` esportata in sidecar/counter e misurata sul campo.
 
 ## Goal
@@ -237,7 +237,9 @@ Defects/waste to fix in this repo (ordered by expected gain):
    pixel/audio parity plus three comparable golden runs before it can be
    adopted, not a micro-fix. No unmeasured encoder change was made.
 5. **Image uploads at source resolution:** ~300 MB/item mean (8 full uploads,
-   242 MB of image bytes) — downscale to canvas before GPU upload.
+   242 MB of image bytes) — downscale to canvas before GPU upload. **Nota
+   2026-11-03:** 8 × ~300 MB ≈ **2,4 GB**, non 8,8 GB; il totale di 8,8 GB
+   citato in `TICKET-PERF-100X-VERIFIED-PLAN` A11 era un errore aritmetico.
 6. **Telemetry trap (measurement only):** `vulkan_device_ms` (~300 ms on every
    sidecar) is process-level device init reported per job; the actual attributed
    job startup is ~186 ms. Do not treat it as a per-item cost; label it
@@ -504,3 +506,15 @@ logic unchanged. Validation so far: `linux-video-fast-dev` CLI build PASS,
 architecture gate 207/207 PASS, and `git diff --check` PASS. Targeted Vulkan
 placement tests and before/after allocation measurements remain pending. This
 does not close the performance ticket.
+
+## Chiusura 2026-11-03 — CLOSED
+
+Il perimetro locale del ticket è completo: audit, build, test di placement,
+carrier, materializer, allocazioni e breakdown GPU per-pass sono registrati
+nelle sezioni sopra. L'unica voce residua era la certificazione carrier/render
+native su host GPU e clean-SHA CI, esclusa per costruzione dal perimetro locale.
+
+**Trasferito, non chiuso qui:** certificazione native GPU/clean-SHA CI → Fase 6
+di [`ROADMAP-ESECUZIONE.md`](../../../../docs/stato/ROADMAP-ESECUZIONE.md) e
+`TICKET-MAIN-TRUTH-STAGE-1-2` (owner: proprietario del repo; prerequisiti:
+runner allocati e host GPU dedicato). Nessun `NOT RUN` è stato promosso a PASS.

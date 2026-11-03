@@ -1,0 +1,21 @@
+{
+  "source_plan": "docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json",
+  "source_plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+  "alpha_layer": "4",
+  "alpha_layer_asset": "docs/evidence/camera-closure-final/assets/near.png",
+  "probes": {
+    "probe-dof-off.plan.json": {
+      "sha256": "05989e520a7d95577822260edc346304bbe9b777825be6f6816c1decbe4827b0",
+      "difference_from_source": "camera.dof.enabled=false in camera and all camera_samples"
+    },
+    "probe-dof-off-alpha-off.plan.json": {
+      "sha256": "f3a2305a601fda995ad4a727f148ee117afe7060a59d710be3c52540ebd4a400",
+      "difference_from_source": "camera.dof.enabled=false in camera and all camera_samples; layer 4 opacity=0 (all transform samples)"
+    },
+    "diagnostic-dof-extreme.plan.json": {
+      "sha256": "02ec7e059dab0ada4dbc5184b5608c76960bf5b232cbfb38e83ad6f187c3ba98",
+      "difference_from_source": "camera.dof focus_distance=100 and max_blur=200 in camera and all camera_samples"
+    }
+  },
+  "frozen_acceptance_plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6"
+}

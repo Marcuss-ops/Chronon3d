@@ -30,6 +30,7 @@ using chronon3d::cli::kMeasuredFullGraphPeakBytes;
 using chronon3d::cli::kMeasuredDirectYuvPeakBytes;
 using chronon3d::cli::kReferenceDeviceVramBytes;
 using chronon3d::cli::kRenderJobExecutionSerialized;
+using chronon3d::cli::default_job_policy_input;
 using chronon3d::cli::reference_device_policy_input;
 using chronon3d::cli::RenderAdmission;
 using chronon3d::cli::RenderJobClass;
@@ -56,21 +57,24 @@ constexpr std::uint64_t kDevice16GiB = 16ULL * kGiB;
 
 } // namespace
 
-TEST_CASE("render concurrency: an unset override advertises the safe chunk capacity") {
+TEST_CASE("render concurrency: the default request is bounded by the class actually served") {
+    // The daemon serves `kDefaultRenderJobClass` (monolithic). Advertising the
+    // most hopeful some-day class while admitting the default one was the
+    // defect of TICKET-PERF-100X A3: the log said 2, the mutex said 1.
     for (const char* env : std::array<const char*, 2>{nullptr, ""}) {
         const auto resolution = resolve_render_job_slots(env);
-        CHECK(resolution.slots == kTargetConcurrentRenderJobs);
+        CHECK(resolution.slots == kSerializedRenderJobSlots);
         CHECK(resolution.requested == kTargetConcurrentRenderJobs);
-        CHECK(resolution.requested_more_than_effective ==
-              (kTargetConcurrentRenderJobs > resolution.slots));
+        CHECK(resolution.requested_more_than_effective);
     }
 }
 
-TEST_CASE("render concurrency: an override within the configured bound is honoured") {
+TEST_CASE("render concurrency: an override is reported, never silently honoured") {
     for (const char* env : {"2", "3", "8"}) {
         const auto resolution = resolve_render_job_slots(env);
-        CHECK(resolution.slots == static_cast<std::uint32_t>(std::stoi(env)));
-        CHECK_FALSE(resolution.requested_more_than_effective);
+        CHECK(resolution.slots == kSerializedRenderJobSlots);
+        CHECK(resolution.requested == static_cast<std::uint32_t>(std::stoi(env)));
+        CHECK(resolution.requested_more_than_effective);
     }
 }
 
@@ -84,7 +88,7 @@ TEST_CASE("render concurrency: requesting the serializeable limit is not reporte
 TEST_CASE("render concurrency: out-of-range and unparsable values fall back to the target") {
     for (const char* env : {"0", "-3", "9", "999", "abc", "  ", "2x"}) {
         const auto resolution = resolve_render_job_slots(env);
-        CHECK(resolution.slots == kTargetConcurrentRenderJobs);
+        CHECK(resolution.slots == kSerializedRenderJobSlots);
         CHECK(resolution.requested == kTargetConcurrentRenderJobs);
     }
 }
@@ -221,11 +225,14 @@ TEST_CASE("concurrency policy: an unknown peak is refused, never assumed small")
 
 TEST_CASE("concurrency policy: the derived execution-domain flag agrees with the policy") {
     // One authority: the flag the slot resolution clamps with is the verdict of
-    // the policy over the reference device, so a change to one is a change to
-    // the other.
-    const bool policy_serial = decide_render_admission(reference_device_policy_input()).admission ==
-                               RenderAdmission::Serial;
+    // the policy over the class the daemon actually serves, so a change to one
+    // is a change to the other. Charging the most favourable class here is what
+    // advertised capacity the default path never had (A3).
+    const bool policy_serial =
+        decide_render_admission(default_job_policy_input()).admission ==
+        RenderAdmission::Serial;
     CHECK(kRenderJobExecutionSerialized == policy_serial);
+    CHECK(policy_serial);
     CHECK(kDefaultRenderJobClass == RenderJobClass::MonolithicSamePlan);
 }
 

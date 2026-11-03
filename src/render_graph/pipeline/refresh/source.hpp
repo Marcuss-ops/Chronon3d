@@ -19,12 +19,17 @@ namespace chronon3d::graph::detail {
 /// Handles two cases:
 ///   1. Root-level source (layer_id is empty) — uses scene root nodes lookup
 ///   2. Layer-level source — uses resolved layers lookup
+///
+/// `sampled_layer` carries this layer's typed per-frame values (animated
+/// transform/opacity). When present it overrides the Scene-derived placement
+/// so animation tracks are not frozen at the first sampled frame.
 void refresh_source_node(
     SourceNode& node,
     const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
     const std::unordered_map<std::string_view, const RenderNode*>& root_nodes_by_name,
     const std::unordered_map<std::string, bool>& is_static_cache,
     RenderGraphContext& ctx,
-    const compiler::SampledMeshParameters* sampled_mesh = nullptr);
+    const compiler::SampledMeshParameters* sampled_mesh = nullptr,
+    const compiler::SampledLayerParameters* sampled_layer = nullptr);
 
 } // namespace chronon3d::graph::detail

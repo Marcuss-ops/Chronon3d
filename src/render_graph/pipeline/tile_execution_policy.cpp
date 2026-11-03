@@ -3,6 +3,7 @@
 #include "camera_change_policy.hpp"
 #include "../core/scene_fingerprint.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
@@ -41,6 +42,21 @@ bool has_matching_previous_surface(
     // pixel pointer (and would mix a CPU tile path with the GPU contract).
     return previous->width() == width && previous->height() == height &&
            previous->data() != nullptr;
+}
+
+// The typed route keeps per-frame layer values (animation tracks, resolved
+// transform samples, inline-mesh frame samples) in the sampled block instead
+// of the materialized Scene.  Every Scene-level check below is therefore blind
+// to them, and so is the frame fingerprint: a plan whose layers are animated
+// only through tracks would look like a static scene and every frame after the
+// first would reuse the previous framebuffer.  This is the typed counterpart
+// of the Scene checks, and it is deliberately conservative.
+bool typed_layers_change_per_frame(
+    const compiler::FrameParameterBlock* frame_parameters) noexcept {
+    if (!frame_parameters) return false;
+    return std::any_of(
+        frame_parameters->layers.begin(), frame_parameters->layers.end(),
+        [](const auto& layer) { return layer.active && layer.time_dependent; });
 }
 
 bool has_frame_dependent_content(const Scene& scene, Frame frame) {
@@ -457,7 +473,11 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
     // capability grant `duplicate_static_frames` is set by the export setup
     // only when the sink implements packet duplication; without it this
     // branch never fires and every path below is unchanged.
-    if (ctx.policy.duplicate_static_frames && reuse.reuse.duplicate_frame_eligible) {
+    const bool typed_frame_dependent =
+        typed_layers_change_per_frame(ctx.frame_parameters);
+
+    if (!typed_frame_dependent &&
+        ctx.policy.duplicate_static_frames && reuse.reuse.duplicate_frame_eligible) {
         // Packet duplication needs the previous ENCODED packet and the
         // fingerprint proof above. FullGraph/NVENC intentionally has no
         // retained CPU framebuffer, so do not gate this path on the buffer
@@ -478,7 +498,8 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
         return plan;
     }
 
-    if (!has_frame_dependent_content(scene, frame) &&
+    if (!typed_frame_dependent &&
+        !has_frame_dependent_content(scene, frame) &&
         (reuse.reuse.resolved_scene_reuse || reuse.reuse.static_scene_reuse)) {
         record_surface_reuse(
             sw_renderer, frame, camera,
@@ -492,7 +513,8 @@ FrameExecutionPlan ExecutionResolver::resolve_early_reuse(
         return plan;
     }
 
-    if (!has_frame_dependent_content(scene, frame) &&
+    if (!typed_frame_dependent &&
+        !has_frame_dependent_content(scene, frame) &&
         reuse.reuse.static_scene_reuse && current_state.layer_state_complete) {
         record_surface_reuse(
             sw_renderer, frame, camera,
@@ -523,7 +545,8 @@ FrameExecutionPlan ExecutionResolver::resolve(
     bool encode_requested,
     bool diagnostics_enabled,
     runtime::PixelFormat output_format,
-    const std::optional<CopyGopEligibility>& copy_gop) {
+    const std::optional<CopyGopEligibility>& copy_gop,
+    const compiler::FrameParameterBlock* frame_parameters) {
     (void)scene;
     (void)camera;
     plan.dirty_region = dirty_out.dirty_rect;
@@ -576,6 +599,7 @@ FrameExecutionPlan ExecutionResolver::resolve(
     // Empty-damage reuse is also resolved here; coordinators never infer it.
     if (sw_renderer && !settings.require_native_gpu && settings.dirty.enabled && dirty_out.frame_delta_clean &&
         dirty_out.dirty_rect && dirty_out.dirty_rect->is_empty() &&
+        !typed_layers_change_per_frame(frame_parameters) &&
         !has_frame_dependent_content(scene, frame) &&
         has_matching_previous_surface(sw_renderer, width, height)) {
         if (diagnostics_enabled) {

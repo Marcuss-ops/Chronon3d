@@ -1,3 +1,4 @@
+#include <chronon3d/render_plan/animation_property_registry.hpp>
 #include <chronon3d/render_plan/easing_contract.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 
@@ -161,11 +162,21 @@ std::optional<PlanDecodeError> validate_render_budget(
             if (mesh.indices.size() < 3 || mesh.indices.size() > kInlineMeshMaxIndices ||
                 mesh.indices.size() % 3 != 0)
                 return fail(prefix + ".inline_mesh.indices", "triangle index count must be divisible by three and in [3, 750000]");
+            // Layer-transform tracks (position/rotation/scale/opacity) are not
+            // per-vertex animation: the compiler samples them per frame like
+            // any other layer kind, so a mesh may carry them alongside its
+            // inline_mesh.animation payload.
+            const bool has_per_vertex_tracks = layer.animation &&
+                std::any_of(layer.animation->tracks.begin(),
+                            layer.animation->tracks.end(),
+                            [](const auto& track) {
+                                return !is_layer_transform_property(track.property);
+                            });
             if ((layer.type != LayerType::Mesh && layer.inline_mesh) ||
                 (layer.type == LayerType::Mesh &&
                  (layer.shape || layer.particle_emitter || layer.light || !layer.text.empty() ||
                   layer.style || layer.path_mask || !layer.masks.empty() ||
-                  (layer.animation && !layer.animation->tracks.empty()))))
+                  has_per_vertex_tracks)))
                 return fail(prefix + ".inline_mesh", "inline meshes are mesh-only payloads; mesh layers cannot carry another content payload or per-vertex animation");
             if (mesh.animation.size() > kInlineMeshMaxAnimationSamples)
                 return fail(prefix + ".inline_mesh.animation", "sample count exceeds the 4096 baked mesh animation sample limit");

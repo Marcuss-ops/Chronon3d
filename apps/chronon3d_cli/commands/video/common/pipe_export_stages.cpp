@@ -95,6 +95,7 @@ NativeSurfacePrep prepare_frame(
 RenderOutcome render_frame(
     const RenderLoopContext& ctx,
     const RenderSettings& video_settings,
+    runtime::RenderPipeline* program_pipeline,
     Frame current_frame) {
     RenderOutcome out;
     const auto trace_flow = chronon3d::tracing::MakeFlowId(
@@ -106,11 +107,10 @@ RenderOutcome render_frame(
     const auto frame_t0 = profiling::now();
     out.wall_start = frame_t0;
     if (ctx.program) {
-        auto execution_context = ctx.sw_renderer->execution_context();
-        execution_context.settings = &video_settings;
-        execution_context.video_decoder = ctx.video_decoder;
-        runtime::RenderPipeline pipeline(ctx.sw_renderer, execution_context);
-        out.fb = pipeline.render_program(*ctx.program, current_frame, nullptr,
+        if (!program_pipeline) {
+            throw std::logic_error("compiled program render pipeline was not initialized");
+        }
+        out.fb = program_pipeline->render_program(*ctx.program, current_frame, nullptr,
                                          nullptr, 0, nullptr, 0,
                                          ctx.opts.cancellation_token);
     } else {

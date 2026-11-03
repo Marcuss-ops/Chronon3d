@@ -198,12 +198,27 @@ inline constexpr std::uint64_t kReferenceDeviceVramBytes =
     return input;
 }
 
-/// Does the execution domain have a policy-approved parallel class on the
-/// reference device? DERIVED from the policy, never restated. It is false only
-/// when even the safest class cannot fit twice; it does not make monolithic
-/// jobs parallel.
+/// The policy input of the job the daemon actually serves: the DEFAULT class,
+/// charged with the measured peak of that class on the reference device.
+///
+/// `reference_device_policy_input()` above answers a different question ("does
+/// any policy-approved parallel class exist?") and using it to advertise
+/// capacity was the drift that made the daemon log `render_job_slots=2` while
+/// every real job was admitted with `admitted_slots=1` (TICKET-PERF-100X A3):
+/// the chunked 1 GiB child fits 16 times, a monolithic FullGraph job fits once.
+[[nodiscard]] constexpr RenderPolicyInput default_job_policy_input() {
+    RenderPolicyInput input;
+    input.job_class = kDefaultRenderJobClass;
+    input.job_peak_vram_bytes = kMeasuredFullGraphPeakBytes;
+    input.device_total_vram_bytes = kReferenceDeviceVramBytes;
+    input.device_free_vram_bytes = kReferenceDeviceVramBytes;
+    return input;
+}
+
+/// Is the class the daemon serves by default serialized on the reference
+/// device? DERIVED from the policy over that class, never restated.
 inline constexpr bool kRenderJobExecutionSerialized =
-    decide_render_admission(reference_device_policy_input()).admission ==
+    decide_render_admission(default_job_policy_input()).admission ==
     RenderAdmission::Serial;
 
 /// Production target once per-job VRAM pressure allows a second exporter.

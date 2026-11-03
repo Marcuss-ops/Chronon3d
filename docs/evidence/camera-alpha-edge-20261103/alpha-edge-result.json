@@ -1,0 +1,299 @@
+{
+  "contract": {
+    "path": "docs/evidence/camera-alpha-edge-20261103/measurement-contract.json",
+    "sha256": "78d4c76aebbea557c514f6d9e2f95c5eeac51b0cc386fc9323446a9688e9fdcc"
+  },
+  "probes": {
+    "source_plan": "docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json",
+    "source_plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+    "alpha_layer": "4",
+    "alpha_layer_asset": "docs/evidence/camera-closure-final/assets/near.png",
+    "probes": {
+      "probe-dof-off.plan.json": {
+        "sha256": "05989e520a7d95577822260edc346304bbe9b777825be6f6816c1decbe4827b0",
+        "difference_from_source": "camera.dof.enabled=false in camera and all camera_samples"
+      },
+      "probe-dof-off-alpha-off.plan.json": {
+        "sha256": "f3a2305a601fda995ad4a727f148ee117afe7060a59d710be3c52540ebd4a400",
+        "difference_from_source": "camera.dof.enabled=false in camera and all camera_samples; layer 4 opacity=0 (all transform samples)"
+      },
+      "diagnostic-dof-extreme.plan.json": {
+        "sha256": "02ec7e059dab0ada4dbc5184b5608c76960bf5b232cbfb38e83ad6f187c3ba98",
+        "difference_from_source": "camera.dof focus_distance=100 and max_blur=200 in camera and all camera_samples"
+      }
+    },
+    "frozen_acceptance_plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6"
+  },
+  "comparison": "DoF-on native Vulkan readback (C) against the DoF-off sharp readback of the same frozen plan (A), inside the alpha edge band derived from the engine-space matte A-B",
+  "pair": {
+    "Chronon3d_head": "b38f7e8f9e2a9a068abb1a7379eada779d362fd5",
+    "Chronon3d_dirty": true,
+    "ChrononMotion3D_head": "83af962887f8d26aa3feba9ab9091f0c1b709e9c",
+    "ChrononMotion3D_dirty": true,
+    "combined_tracked_diff_sha256": "146620b13a3e1d1e02c45113d1f9a2cc1134c1e5024e46ccf69a644325ff09eb",
+    "binary": "Chronon3d/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli",
+    "binary_sha256": "db3425b8d6e4820b54d0ac01f254f73a545cc6493655626a10e711c7c0efdec7",
+    "host_device": "NVIDIA RTX A4000, Vulkan validation layers enabled, raw RGBA8 readback",
+    "same_sha": false,
+    "same_sha_note": "both trees are dirty, so this is local dirty-tree evidence, not a CI same-SHA certification"
+  },
+  "frames": [
+    {
+      "frame": 30,
+      "inputs": {
+        "dof_off_full": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-off-030.raw.rgba",
+          "sha256": "4fbb53d7857baed00e0ecf6782ef0896756019e4b5309fd134302d1ed7f5a25e"
+        },
+        "dof_off_alpha_off": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-off-alpha-off-030.raw.rgba",
+          "sha256": "556a96b2ed23096e08fb1e17acdced026dd70cd37b329045de866a4684aad570"
+        },
+        "dof_on": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-on-030.raw.rgba",
+          "sha256": "56cb69b16049875023149b62dc1758c0718328727e06d8cb165f5efffbbd1a8f"
+        }
+      },
+      "matte": {
+        "support_pixels": 447398,
+        "p99": 86.0,
+        "bbox_xyxy": [
+          263,
+          181,
+          892,
+          900
+        ],
+        "centroid": [
+          577.4856436550901,
+          539.7929427489618
+        ]
+      },
+      "validity": {
+        "dof_observable": true,
+        "dof_on_vs_off_mean_abs_delta": 3.1937387474279837,
+        "dof_on_vs_off_max_abs_delta": 81
+      },
+      "edge_band": {
+        "pixels": 39192,
+        "fractional_coverage_pixels": 32251,
+        "mean_abs_residual": 1.8038715384091992
+      },
+      "G1_semi_transparent_edge_present": {
+        "value": 32251,
+        "threshold": ">= 100 px",
+        "gate": "PASS"
+      },
+      "G2_no_halo_overshoot": {
+        "violating_pixels": 0,
+        "violating_ratio": 0.0,
+        "max_overshoot": 3,
+        "threshold": "ratio <= 0.002 and max_overshoot <= 8",
+        "gate": "PASS"
+      },
+      "G3_no_hue_contamination": {
+        "contaminated_pixels": 0,
+        "contaminated_ratio": 0.0,
+        "threshold": "ratio <= 0.005",
+        "gate": "PASS"
+      },
+      "diagnostic_blur_footprint_sensitivity": [
+        {
+          "radius_px": 28,
+          "violating_pixels": 0,
+          "max_overshoot": 3
+        },
+        {
+          "radius_px": 48,
+          "violating_pixels": 0,
+          "max_overshoot": 2
+        },
+        {
+          "radius_px": 80,
+          "violating_pixels": 0,
+          "max_overshoot": 0
+        }
+      ],
+      "diagnostic_blur_footprint_note": "not a gate: shows whether an overshoot survives when the legitimate blur footprint is widened beyond camera.dof.max_blur. An overshoot that disappears at a larger radius means the frozen window was too small to separate halo from legitimate spread; it does NOT turn the frozen FAIL into a PASS.",
+      "vulkan_validation_errors": {
+        "dof_off_full": 0,
+        "dof_off_alpha_off": 0,
+        "dof_on": 0
+      }
+    },
+    {
+      "frame": 75,
+      "inputs": {
+        "dof_off_full": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-off-075.raw.rgba",
+          "sha256": "a14b7f10fcc571096c46eda04ff12ab52a2d4f5956de049f4f31cbc585d29f2a"
+        },
+        "dof_off_alpha_off": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-off-alpha-off-075.raw.rgba",
+          "sha256": "f7d82f4bc81e0cafa8e9fc6e880cb30b0386c07c378ad6c0f16129a4284e45db"
+        },
+        "dof_on": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-on-075.raw.rgba",
+          "sha256": "490ae44a17679e187279c3dfaedb9830fbfe8f948617c44ca60dbe1f7b5fa10e"
+        }
+      },
+      "matte": {
+        "support_pixels": 449048,
+        "p99": 82.0,
+        "bbox_xyxy": [
+          149,
+          181,
+          779,
+          900
+        ],
+        "centroid": [
+          463.5661488304146,
+          539.9202490602341
+        ]
+      },
+      "validity": {
+        "dof_observable": true,
+        "dof_on_vs_off_mean_abs_delta": 3.8716769547325103,
+        "dof_on_vs_off_max_abs_delta": 87
+      },
+      "edge_band": {
+        "pixels": 37648,
+        "fractional_coverage_pixels": 28527,
+        "mean_abs_residual": 17.33858372290693
+      },
+      "G1_semi_transparent_edge_present": {
+        "value": 28527,
+        "threshold": ">= 100 px",
+        "gate": "PASS"
+      },
+      "G2_no_halo_overshoot": {
+        "violating_pixels": 0,
+        "violating_ratio": 0.0,
+        "max_overshoot": 0,
+        "threshold": "ratio <= 0.002 and max_overshoot <= 8",
+        "gate": "PASS"
+      },
+      "G3_no_hue_contamination": {
+        "contaminated_pixels": 0,
+        "contaminated_ratio": 0.0,
+        "threshold": "ratio <= 0.005",
+        "gate": "PASS"
+      },
+      "diagnostic_blur_footprint_sensitivity": [
+        {
+          "radius_px": 28,
+          "violating_pixels": 0,
+          "max_overshoot": 0
+        },
+        {
+          "radius_px": 48,
+          "violating_pixels": 0,
+          "max_overshoot": 0
+        },
+        {
+          "radius_px": 80,
+          "violating_pixels": 0,
+          "max_overshoot": 0
+        }
+      ],
+      "diagnostic_blur_footprint_note": "not a gate: shows whether an overshoot survives when the legitimate blur footprint is widened beyond camera.dof.max_blur. An overshoot that disappears at a larger radius means the frozen window was too small to separate halo from legitimate spread; it does NOT turn the frozen FAIL into a PASS.",
+      "vulkan_validation_errors": {
+        "dof_off_full": 0,
+        "dof_off_alpha_off": 0,
+        "dof_on": 0
+      }
+    },
+    {
+      "frame": 149,
+      "inputs": {
+        "dof_off_full": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-off-149.raw.rgba",
+          "sha256": "24cebe74de8a87a6091f117d9bf623ae612c0c36b28ea701586b815ad5d2c94a"
+        },
+        "dof_off_alpha_off": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-off-alpha-off-149.raw.rgba",
+          "sha256": "7afacb6eb60c9749bd2b091379585d2dca4ff5d430483b3d22f84080b63507fa"
+        },
+        "dof_on": {
+          "path": "docs/evidence/camera-alpha-edge-20261103/probe-dof-on-149.raw.rgba",
+          "sha256": "c2dc31f7fe2a22c9f6d72224cd440f96b282c4632367156c6e5f081ca0eca46b"
+        }
+      },
+      "matte": {
+        "support_pixels": 449583,
+        "p99": 75.0,
+        "bbox_xyxy": [
+          16,
+          181,
+          646,
+          900
+        ],
+        "centroid": [
+          330.93075138517247,
+          539.8789967592191
+        ]
+      },
+      "validity": {
+        "dof_observable": true,
+        "dof_on_vs_off_mean_abs_delta": 4.0901023984053495,
+        "dof_on_vs_off_max_abs_delta": 87
+      },
+      "edge_band": {
+        "pixels": 35283,
+        "fractional_coverage_pixels": 27505,
+        "mean_abs_residual": 18.909597634365937
+      },
+      "G1_semi_transparent_edge_present": {
+        "value": 27505,
+        "threshold": ">= 100 px",
+        "gate": "PASS"
+      },
+      "G2_no_halo_overshoot": {
+        "violating_pixels": 0,
+        "violating_ratio": 0.0,
+        "max_overshoot": 0,
+        "threshold": "ratio <= 0.002 and max_overshoot <= 8",
+        "gate": "PASS"
+      },
+      "G3_no_hue_contamination": {
+        "contaminated_pixels": 78,
+        "contaminated_ratio": 0.0022106963693563474,
+        "threshold": "ratio <= 0.005",
+        "gate": "PASS"
+      },
+      "diagnostic_blur_footprint_sensitivity": [
+        {
+          "radius_px": 28,
+          "violating_pixels": 0,
+          "max_overshoot": 0
+        },
+        {
+          "radius_px": 48,
+          "violating_pixels": 0,
+          "max_overshoot": 0
+        },
+        {
+          "radius_px": 80,
+          "violating_pixels": 0,
+          "max_overshoot": 0
+        }
+      ],
+      "diagnostic_blur_footprint_note": "not a gate: shows whether an overshoot survives when the legitimate blur footprint is widened beyond camera.dof.max_blur. An overshoot that disappears at a larger radius means the frozen window was too small to separate halo from legitimate spread; it does NOT turn the frozen FAIL into a PASS.",
+      "vulkan_validation_errors": {
+        "dof_off_full": 0,
+        "dof_off_alpha_off": 0,
+        "dof_on": 0
+      }
+    }
+  ],
+  "G4_parallax_and_placement": {
+    "centroid_displacement_px": 246.55490728745067,
+    "area_ratio_149_over_30": 1.0048837947420417,
+    "support_inside_canvas": true,
+    "threshold": "displacement >= 1 px, area ratio in [0.5, 2.0], inside canvas",
+    "gate": "PASS"
+  },
+  "vulkan_validation_errors_total": 0,
+  "dof_observable_on_every_frame": true,
+  "aggregate_gate": "PASS",
+  "aggregate_explanation": "gates evaluated against a DoF-on readback that differs from the sharp one"
+}

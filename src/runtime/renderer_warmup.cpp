@@ -66,6 +66,11 @@ RendererWarmupResult warmup_renderer(
             auto fb = renderer.render_compiled(compiled_value, options.dummy_frame);
             (void)fb; // discard the result
         }
+        // The dummy frames ran through the real pipeline, so they left a
+        // "previous frame" behind that will never be delivered. The first
+        // real frame must start from a clean history instead of diffing
+        // against it.
+        renderer.reset_frame_history();
     }
 
     // 3. Capture post-warmup pool stats
@@ -100,6 +105,9 @@ RendererWarmupResult warmup_renderer(
             auto fb = renderer.render_compiled(compiled, options.dummy_frame);
             (void)fb;
         }
+        // Same contract as the Composition overload: a warmup frame is not a
+        // delivered frame, so it must not become the next frame's history.
+        renderer.reset_frame_history();
     }
     if (pool) {
         const auto stats = pool->stats();
@@ -138,6 +146,9 @@ RendererWarmupResult warmup_renderer(
             auto fb = renderer.render_program(program, options.dummy_frame);
             (void)fb;
         }
+        // The typed program route is the one the video lane uses: the dummy
+        // frames must not be left as the first delivered frame's history.
+        renderer.reset_frame_history();
     }
     if (pool) {
         const auto stats = pool->stats();

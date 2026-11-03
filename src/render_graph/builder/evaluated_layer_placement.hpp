@@ -19,6 +19,7 @@
 // ---------------------------------------------------------------------------
 
 #include "graph_builder_coordinates.hpp"
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
 #include "../nodes/detail/raster_surface.hpp"
 
@@ -457,10 +458,29 @@ struct EvaluatedSourcePlacement {
         projected_surface_size = union_max - union_min;
     }
 
+    // Layer animation tracks are sampled per frame into the compiler's
+    // FrameParameterBlock; the materialized Scene only ever carries the
+    // authored value. Placement is the single point where the graph decides
+    // where a layer lands, so the sampled matrix/opacity must be applied here
+    // — otherwise build, refresh and dirty-bbox all agree on the pose of the
+    // first sampled frame and the layer renders frozen for the whole job.
+    // Parent composition stays Scene-owned: a child's world matrix includes
+    // its ancestors, which the sampled (layer-local) matrix does not.
+    Transform placed_transform = resolved_layer.world_transform;
+    Mat4 placed_world = resolved_layer.world_matrix;
+    if (ctx.frame_parameters && !resolved_layer.has_parent &&
+        resolved_layer.insertion_index < ctx.frame_parameters->layers.size()) {
+        const auto& sampled = ctx.frame_parameters->layers[resolved_layer.insertion_index];
+        if (sampled.active && sampled.time_dependent) {
+            placed_world = sampled.matrix;
+            placed_transform.opacity = sampled.opacity;
+        }
+    }
+
     LayerGraphItem item{
         .layer = resolved_layer.layer,
-        .transform = resolved_layer.world_transform,
-        .world_matrix = resolved_layer.world_matrix,
+        .transform = placed_transform,
+        .world_matrix = placed_world,
         .depth = 0.0f,
         .world_z = resolved_layer.world_transform.position.z,
         .projected = false,
@@ -481,8 +501,8 @@ struct EvaluatedSourcePlacement {
     if (ctx.frame_input.has_camera_2_5d && layer.uses_2_5d_projection &&
         !layer.screen_space) {
         const auto projected = project_layer_2_5d(
-            resolved_layer.world_transform,
-            resolved_layer.world_matrix,
+            placed_transform,
+            placed_world,
             ctx.frame_input.camera_2_5d,
             static_cast<f32>(ctx.frame_input.width),
             static_cast<f32>(ctx.frame_input.height),

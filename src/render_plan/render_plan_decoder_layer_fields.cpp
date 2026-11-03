@@ -36,9 +36,21 @@ void decode_layer_asset_fields(LayerPlan& layer, const nlohmann::json& value) {
         for (const auto* key : {"text", "shape", "particle_emitter", "light", "style", "background_look", "mask", "masks", "text_animators", "spans", "fill_gradient_animation"})
             if (value.contains(key))
                 throw std::runtime_error(std::string("mesh layers cannot contain '") + key + "'");
+        // Per-vertex deformation stays owned by inline_mesh.animation. Layer
+        // tracks are transform/opacity animation and are sampled per frame by
+        // the compiler exactly like every other layer kind, so a mesh can
+        // carry a transform animation without ambiguity.
         if (value.contains("animation") && value.at("animation").is_object() &&
-            value.at("animation").contains("tracks") && !value.at("animation").at("tracks").empty())
-            throw std::runtime_error("mesh layers cannot contain per-vertex animation tracks");
+            value.at("animation").contains("tracks") &&
+            !value.at("animation").at("tracks").empty()) {
+            for (const auto& track : value.at("animation").at("tracks")) {
+                const auto property = track.value("property", std::string{});
+                if (!is_layer_transform_property(property))
+                    throw std::runtime_error(
+                        "mesh layers cannot contain per-vertex animation tracks: " +
+                        property);
+            }
+        }
     }
     if (layer.type == LayerType::Mesh && !layer.source.empty())
         throw std::runtime_error("mesh layers cannot carry a video source reference");

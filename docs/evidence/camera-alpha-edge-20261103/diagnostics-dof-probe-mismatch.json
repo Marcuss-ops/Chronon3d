@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-03",
+  "question": "Why did the first alpha-edge run report byte-identical DoF-on and DoF-off pairs?",
+  "answer": "The renderer was not inert. The probe generator flipped only camera.dof.enabled; the frozen plan also carries 1350 camera_samples, and the runtime evaluates Camera2_5D from the samples, so every sample still had dof.enabled=true. Both 'off' probes were DoF-on renders.",
+  "proof": {
+    "before_fix": {
+      "probe-dof-off.plan.json": {
+        "camera.dof.enabled": false,
+        "camera_samples[0].camera.dof.enabled": true,
+        "camera_samples[300].camera.dof.enabled": true
+      },
+      "diagnostic-dof-extreme.plan.json": {
+        "camera.dof.focus_distance": 100.0,
+        "camera.dof.max_blur": 200.0,
+        "camera_samples[0].camera.dof": {
+          "enabled": true,
+          "focus_distance": 820.0,
+          "max_blur": 28
+        }
+      },
+      "observed_symptom": "A (probe-dof-off-030) and C (probe-dof-on-030) were both SHA-256 56cb69b16049875023149b62dc1758c0718328727e06d8cb165f5efffbbd1a8f"
+    },
+    "after_fix": {
+      "probe-dof-off.plan.json": {
+        "camera.dof.enabled": false,
+        "camera_samples[0].camera.dof.enabled": false,
+        "camera_samples[300].camera.dof.enabled": false
+      },
+      "diagnostic-dof-extreme.plan.json": {
+        "camera.dof.focus_distance": 100.0,
+        "camera.dof.max_blur": 200.0,
+        "camera_samples[0].camera.dof": {
+          "enabled": true,
+          "focus_distance": 100.0,
+          "max_blur": 200.0
+        }
+      },
+      "probe-dof-off-030.raw.rgba": "4fbb53d7857baed00e0ecf6782ef0896756019e4b5309fd134302d1ed7f5a25e",
+      "probe-dof-on-030.raw.rgba": "56cb69b16049875023149b62dc1758c0718328727e06d8cb165f5efffbbd1a8f",
+      "dof_on_vs_off_mean_abs_delta": {
+        "30": 3.1937,
+        "75": 3.8717,
+        "149": 4.0901
+      }
+    }
+  },
+  "code_path": [
+    "src/render_plan/render_plan_compiler_animation_utils.cpp: make_camera_evaluator() uses plan.camera_samples when present; a top-level-only edit cannot change the evaluated camera",
+    "src/render_plan/render_plan_compiler_scene_setup.cpp: the camera_evaluator result is installed as the scene camera",
+    "src/render_graph/pipeline/scene_context_setup.cpp: the scene camera is published to frame_input.camera_2_5d and has_camera_2_5d",
+    "src/render_graph/nodes/composite_node.cpp: the native layer DoF gate reads frame_input.camera_2_5d.dof.enabled",
+    "src/render_graph/nodes/composite_dof_provenance.cpp: dof_source_radius() computes a non-zero radius; the software run logged radius=28.00 while the old 'off' probe still had sample DoF enabled"
+  ],
+  "diagnostic_log_that_settled_it": "software render of probe-dof-off (before the generator fix) logged [dof-provenance] switching to mixed residency ... depth=2000.00 radius=28.00, proving the DoF was active despite camera.dof.enabled=false",
+  "conclusion": "No renderer change was needed. make_probe_plans.py now writes the DoF switch to camera and every camera_sample; the unchanged frozen contract yields aggregate PASS with zero Vulkan validation errors."
+}

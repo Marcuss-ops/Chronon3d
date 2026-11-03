@@ -1,6 +1,6 @@
 # TICKET-PERF-100X-VERIFIED-PLAN — piano verificato per il salto di throughput overlay
 
-**Stato (2026-11-03):** OPEN — `[CODICE]` implementazione P0 nel working tree e test Go PASS; `[NOT RUN]` test C++/gate runtime P0, baseline P1 e misura P4.
+**Stato (2026-11-03):** OPEN — `[CODICE]` P0 implementato; `[MISURA]` i job r103/r104/r105 e il job r101-like P4 sono riusciti sul worker `host_57_129_132_133` e hanno emesso telemetria P0. `[MISURA]` P1 **non supera il gate**: tutti e tre i run hanno `evaluation_mode=compiled_program`, `timeline_eval_ms=null` e SHA overlay diversi. `[MISURA]` P4 è parziale: il percorso compilato è attribuito e `program_sample_ms` è presente, ma non sono dimostrati né il gate di attribuzione wall ≥90% né l'invarianza SHA pre/post P0. `[NOT RUN]` test C++ dello schema e confronto SHA pre/post strumentazione.
 **Area:** Chronon3d render graph/timeline e telemetria CLI; confine RenderingGen/PipelineGen.
 **Owner:** maintainer del percorso overlay Chronon3d + maintainer throughput PipelineGen.
 **Dipende da:** niente per P0/P1. P2–P4 dipendono da P0/P1. P5–P7 dipendono dai gate misurati.
@@ -185,7 +185,7 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 | G0.3 | `tests/cli/test_timing_sidecar_schema` PASS. |
 | G0.4 | MP4/overlay SHA invariant rispetto al run pre-patch. |
 
-**Stato:** `[CODICE]` campi/contatori/serializer e validazione RenderingGen implementati nel working tree; test Go `go test ./internal/chronon` PASS. `[NOT RUN]` restano sidecar r49/r101-like, prova SHA prima/dopo e test C++: un altro build/test usa `build/chronon/linux-video-test`, quindi non l'ho avviato in parallelo. I sidecar storici senza `evaluation_mode` restano accettati; il campo `null` in un nuovo sidecar è rifiutato.
+**Stato:** `[CODICE]` campi/contatori/serializer e validazione RenderingGen implementati; `[MISURA]` i run r103–r105 e P4 confermano `evaluation_mode=compiled_program`, `timeline_eval_ms=null`, e `program_sample_ms` rispettivamente 0,423/0,513/0,927/0,391 ms. `[MISURA]` è verificato G0.1 per il percorso r101-like. `[NOT RUN]` G0.2 (run `compiled_composition` r49-like), G0.3 (test C++ dello schema) e G0.4 (confronto SHA pre/post strumentazione). Il test Go `./internal/chronon` risulta PASS dal run precedente; non è stato rieseguito in questa sessione.
 
 **Rischio:** cambiare schema e validator può rompere artifact vecchi. Mitigazione: campi additivi e fallback compatibile per sidecar storici senza `evaluation_mode`; il fallback non emette warning. Il campo presente ma `null` è un errore. Demolition debt sotto.
 
@@ -195,10 +195,11 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 
 **Obiettivo:** avere un numero r49 aggiornato sul pair corrente, non sul pair dichiarato nei documenti.
 
-**Stato del checkout `[CODICE]`:**
+**Stato del checkout `[CODICE]` (riletto 2026-11-03 dopo il commit di P0):**
 
-- `Chronon3d` HEAD `cd593ffc3`, working tree con **7 file modificati**.
-- `ChrononMotion3D` HEAD `a878bcd`, working tree con **9 file modificati**.
+- `Chronon3d` HEAD `b38f7e8f9`, working tree **pulito** (`git status --porcelain` vuoto).
+- `ChrononMotion3D` HEAD `83af962`, working tree con **1 file modificato**.
+- P0 è quindi su commit, non più solo nel working tree. La precondition same-SHA di G1.3 è soddisfatta per C3D; per CM3D resta il digest del diff (1 file).
 - Quindi il pair **non è clean** in questo workspace. Un PASS qui è "dirty-tree, con digest del diff", non same-SHA. Va registrato `git status --porcelain` + `git diff | sha256sum` per entrambi.
 
 **Passi:**
@@ -218,9 +219,11 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 | G1.3 | `git status`/`git diff` digest registrato per C3D e CM3D. |
 | G1.4 | Evidenza in `ops/jobs/garlasco_editorial_e2e_20261030/verified-baseline-r103-r105/`. |
 
-**Stato:** `[NOT RUN]`.
+**Stato:** `[MISURA]` eseguiti 3/3 job sullo stesso worker sano. G1.1 **FAIL**: gli SHA overlay sono `ede9d15758a0c7e06abd8fa46a20a51b54e75ce334b55f98de527fb36d8413e9`, `480171f48d73333a9394e8f41ae26ff087895df9945e5300717101808a72434c` e `cfc7b2a7623a0b819d0d56e77ec870155c92ef6c04035d9aa05cf164c2b61e19`. `[MISURA]` il digest delle `scenes` è identico nei tre job, ma i digest di `overlay_plan` e `semantic_render_bundle` differiscono (valori per run nel manifest): la variabilità si introduce dopo la generazione delle scene e invalida il confronto byte-identico dell'overlay. G1.2 **FAIL/non valutabile come baseline r49**: tutti i sidecar riportano `compiled_program` e `timeline_eval_ms=null`, non `compiled_composition` con timing positivo; la split 763/844 non è quindi stata validata. G1.3: `[MISURA]` pair dirty, con modifiche locali in Chronon3d e ChrononMotion3D; i digest completi non sono registrati in questi run. G1.4 **PASS**: payload, manifest di esecuzione e riepilogo evidenze sono in `ops/jobs/garlasco_editorial_e2e_20261030/verified-baseline-r103-r105/`. Il contenuto canonico del payload è uguale a r49 (`83fc04df…aace9`), ma il runtime seleziona un percorso diverso: indagare la compilazione/selezione della lane prima di usare questi numeri come baseline r49.
 
-**Blocco runtime (2026-11-03) `[MISURA]`:** Master `systemctl is-active` = `active` e `/api/health` = HTTP `200`; SSH Master→worker è andato in timeout. Nessun job r103–r105 è stato inviato.
+`[INFERITO]` Per una baseline P1 confrontabile occorre fissare anche l'output `overlay_plan`/`semantic_render_bundle` e rilanciare la sola fase di render, oppure spiegare perché i loro digest cambiano mantenendo uguali le `scenes`; rigenerare solo la richiesta di generazione non garantisce lo stesso artefatto.
+
+**Incidenti operativi `[MISURA]`:** i job sono stati instradati al worker sano `host_57_129_132_133`; è stato rimosso l'override Master che consentiva il claim prima del completamento PREPARE/FINALIZE. Il primo tentativo r105 è fallito in staging per spazio disco insufficiente; il retry `job_1793700958377067719_e2ce4b15` è riuscito dopo il recupero dello spazio. Tutti i job finali risultano `SUCCEEDED`; il manifest conserva gli ID e i timing remoti.
 
 ---
 
@@ -305,9 +308,7 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 | G4.3 | Attribuzione del wall ≥90%; residuo ≤10% o spiegato. |
 | G4.4 | MP4/overlay SHA invariato rispetto al run pre-P0. |
 
-**Stato:** `[NOT RUN]`. Dipende da P0.
-
-**Blocco runtime (2026-11-03) `[MISURA]`:** Master `systemctl is-active` = `active` e `/api/health` = HTTP `200`; SSH Master→worker è andato in timeout. Nessun job r101-like è stato inviato.
+**Stato:** `[MISURA]` job r101-like `job_1793701186583939610_8ec8b898` riuscito; il sidecar attribuisce il percorso a `compiled_program`, con `timeline_eval_ms=null`, `program_sample_ms=0,391 ms`, `scene_materialize_ms=15.418,692 ms`, 72 materializzazioni e 0 cache hit. L'overlay SHA è `c5eab14a2f6cf28285614aa83ee524159fa1a796057443464a9919642bc94b6e`. G4.1/G4.2 **PASS**. G4.3 **NOT PROVEN**: il wall non è attribuito per ≥90% dalle categorie richieste; `job_wall_ms=16.465,636` e `render_loop_wall_ms=15.596,397` sono riportati senza dichiarare chiuso il residuo. G4.4 **NOT RUN**: manca un SHA pre-P0 confrontabile. La medesima evidenza per i quattro run è nel `run-manifest.json` accanto ai payload.
 
 ---
 
@@ -390,7 +391,7 @@ P0 e P1 sono bloccanti. P2 e P4 possono partire in parallelo dopo P1. P3 non par
 3. **Non leggere `timeline_eval_ms=0` come "costo zero".** r101/r102 sono il controesempio: percorso diverso, campo non emesso. `[CODICE]`/`[INFERITO]`.
 4. **Non dedurre il percorso da `execution_reason`.** r101/r102 hanno `gpu_composition_pipe_no_video_source` e prendono `render_program`; un job dinamico potrebbe avere lo stesso reason. Serve `evaluation_mode`. `[CODICE]`.
 5. **Non usare il preset `p4` come prova di qualità.** B2 è accettato a `p4` per decisione dell'owner; gli SHA di output differiscono da `slow` e la qualità differenziale non è misurata. `[MISURA]` registrata.
-6. **Non dichiarare same-SHA su un tree dirty.** In questo workspace C3D ha 7 file modificati e CM3D 9; il digest del diff va registrato. `[CODICE]`.
+6. **Non dichiarare same-SHA su un tree dirty.** Al 2026-11-03 C3D è pulito su `b38f7e8f9`, CM3D ha 1 file modificato su `83af962`; per quest'ultimo va registrato il digest del diff. `[CODICE]`.
 7. **Non eseguire `ctest` su build stale.** Verificare mtime del binario e del sorgente (regola `AGENTS.md`).
 8. **Non aggiungere una cache nuova senza ADR.** P6.2/P6.5 richiedono ADR e Demolition Debt.
 
@@ -463,11 +464,11 @@ Nessun punto si chiude con un exit code 0, una build verde o un artefatto carica
 
 ## 10. NOT RUN / domande aperte
 
-- `[CODICE]` P0: l'implementazione aggiunge `evaluation_mode`, timing nullable e contatori `program_sample`/`scene_materialize`; `[NOT RUN]` generazione e confronto di sidecar runtime r49/r101-like.
-- `[NOT RUN]` P1: nessuna baseline r49 su pair corrente/dirty-tree registrato.
+- `[MISURA]` P0: runtime r101-like conferma `compiled_program`, timing nullable e campi `program_sample`/`scene_materialize`; `[NOT RUN]` restano il run r49-like `compiled_composition`, il test schema C++ e il confronto SHA pre/post.
+- `[MISURA]` P1: 3 run completati, ma il gate non passa perché il percorso è `compiled_program` e gli overlay SHA differiscono; non usare questi tempi come baseline r49.
 - `[NOT RUN]` P2: nessun produttore di `prepared_parameters`; nessun test byte-identico.
 - `[NOT RUN]` P3: nessuna tavola flatbuffer; nessun profilo per-frame al 100%.
-- `[NOT RUN]` P4: nessuna attribuzione del percorso `render_program`.
+- `[MISURA]` P4: percorso `compiled_program` attribuito e `program_sample_ms` misurato; `[NOT RUN]` gate di attribuzione ≥90% e confronto SHA pre/post P0.
 - `[NOT RUN]` P5: mix 100 item con mappe non eseguito.
 - `[DA VERIFICARE]` P6.1: lo stato attuale del wiring della cache overlay.
 - `[DA VERIFICARE]` P6.3: stato di certificazione DirectYUV e dei 15 gate zero-copy.
@@ -497,27 +498,27 @@ Scopo: elencare **tutto** ciò che oggi impedisce di arrivare al massimo guadagn
 
 | ID | Assurdità | Prova | Danno | Cosa fare |
 |---|---|---|---|---|
-| **A2** | Ogni job è `Serial` **per classe**, non per VRAM: `decide_render_admission` regola 1 restituisce `Serial` per `MonolithicSamePlan` a prescindere dal footprint. `kDefaultRenderJobClass = MonolithicSamePlan` e nessun producer dichiara altro. | `[CODICE]` `daemon_render_concurrency.hpp:159-165` e `:128-130`; commento «No producer declares chunk membership today» | **Il danno più grande**: 85 frammenti indipendenti eseguiti uno alla volta. Nessun tuning di VRAM li parallelizza. | Dichiarare la classe reale dei frammenti overlay indipendenti (il enum `DifferentPlan` **esiste già** e il policy ammette overlap). Un campo nel producer `GpuRun`, nessuna nuova politica. |
-| **A1** | Floor VRAM **hardcoded a 8 800 MiB** e applicato a ogni job FullGraph, prima del compile. | `[CODICE]` `daemon_render_concurrency.hpp:46-47` (`kMeasuredFullGraphPeakBytes = 8800 MiB`); `[MISURA]` shape overlay **592/593 MiB** | Sovra-addebito **14,9×** (8 800 / 592) su una scheda da 16 GiB: il floor da solo esclude ogni overlap anche se A2 fosse risolto. | Floor per shape, dal footprint compilato (`PREPARE_PLAN` obbligatorio o sidecar del piano), non da costante globale. |
-| **A3** | La capacità **pubblicizzata** e quella **ammessa** rispondono a domande diverse: `resolve_render_job_slots` deriva `kRenderJobExecutionSerialized` dall'input *chunked* (1 GiB → 16 footprint ⇒ `false` ⇒ restituisce `requested`, default 2), ma ogni job reale riceve il verdetto `Monolithic` ⇒ `admitted_slots = 1`. | `[CODICE]` `:196-209`, `:250-260`; `[MISURA]` `gpu-slots.conf:8` — «`kSerializedRenderJobSlots = 1`, so N daemons = N render lanes» | Il daemon dichiara 2 e ammette 1. La concorrenza reale si compra con **processi**, non con slot. | Risolvere gli slot dalla classe che il daemon serve davvero, oppure **eliminare** la variabile e dichiarare la concorrenza per-processo. |
-| **A5** | `execution_mode` è hardcoded a `DynamicCallback`; `prepared_parameters` è dichiarata e serializzata ma **nessun produttore la riempie**, quindi `is_static_topology` è sempre `false` e `graph_reused_frames = 0` sempre. | `[CODICE]` `src/timeline/compile_evaluate.cpp:91`; `compiled_frame_graph.hpp:295`; `composition_frame_single.cpp:35-52`; `[MISURA]` `graph_reused_frames=0` in ogni sidecar | È la radice del costo: senza identità a monte la decisione «frame duplicato» arriva **dopo** la valutazione. | P1 di `TICKET-PERF-FRAME-PROOF-CHEAP`: tavola `frame → digest` dal compilatore. |
-| **A6** | `timeline_eval_ms = 0.0` nei run di produzione: il campo che spiega il 92% del loop non viene emesso, e il default `0.0` lo fa leggere come «costo zero». | `[MISURA]` `job-full-r4.json` 9/9 batch a `0.0`; r101/r102 idem | Attribuzione impossibile: ogni analisi sul percorso compilato parte da un numero falso. | Già in §8: campo nullable, `null` + `program_sample_ms`. |
-| **A11** | Upload asset a **piena risoluzione in `Rgba32Float`** (16 B/px) **prima** che il placement conosca il `dst_rect`. | `[CODICE]` `src/render_graph/nodes/source_node_native_image.cpp:154-171`, `:278-286` | ~300 MB/item; 8 upload ⇒ 8,8 GB di working set ⇒ le lane multiple non entrano in 16 GiB. | N4: contratto fit-to-canvas, chiave cache `(digest, canvas-fit)`. |
-| **A12** | Cache overlay **installata e spenta**: wiring solo se `CacheDB != nil`, dedup aggirato da `freshRender` con `time.Now()`. | `[CODICE]` `refactored/internal/app/wiring/script_generation_render_cache.go:24`; `render_queue_submit.go:218-224`; `[MISURA]` `outcomes={not_applicable:16}`, lookup 0-1 | 65-76 s/run di GPU identica ri-renderizzata. È un incidente di deployment, non un'idea da progettare. | Accendere il wiring (P6.1). Gate: hit >0 e overlay SHA identico. |
-| **A4** | `dirty_area_ratio = 1.0` su **ogni** frame; `dirty_rects` è `false` nei test SDK. Il macchinario tile esiste ma non si arma mai. | `[MISURA]` T03 32/32 frame a `1.0`; hdri/gltf/showcase idem; `[CODICE]` `tile_execution_policy.cpp`, `frame_delta_compiler.cpp` | Vale **≤3 ms su 46,3** finché il frame è 46 ms: non è la leva ora, ma va armato dopo P1/N3. | Ultimo passo, non primo (§12.3). |
+| **A2** | Ogni job è `Serial` **per classe**, non per VRAM: `decide_render_admission` regola 1 restituisce `Serial` per `MonolithicSamePlan` a prescindere dal footprint. `kDefaultRenderJobClass = MonolithicSamePlan` e nessun producer dichiara altro. | `[CODICE]` `daemon_render_concurrency.hpp:159-163` e `:129-130`; commento «No producer declares chunk membership today» | Gli 85 frammenti di r49 sono finestre **dello stesso piano composto** (`finalJobComposePlanSegments`) eseguite una alla volta **per daemon**: in produzione girano 3 daemon = 3 lane. Il danno è «nessuna concorrenza dentro il daemon», non «nessuna concorrenza». | **Verificato 2026-11-03: la correzione proposta è insufficiente e la classe è sbagliata.** Classe giusta = `ChunkedDisjointSamePlan` (finestre disgiunte dello stesso piano), non `DifferentPlan`. Un campo nel producer **non basta**: (a) con il charge di 8 800 MiB su 16 GiB `peak_footprints_that_fit = 1` ⇒ `Serial` anche con la classe corretta; (b) `parallel_disjoint` è forzato a `false` per ogni piano composito (`daemon_service_ipc_render_job.cpp:115-123`); (c) il dominio condiviso per due FullGraph compositi è stato **misurato fallire** (`docs/evidence/gpu-admission-two-jobs-2026-11-02.md` §3: stallo 75 s, morte del daemon). Il lever oggi è per-processo. |
+| **A1** | Floor VRAM **hardcoded a 8 800 MiB** e applicato a ogni job FullGraph, prima del compile. | `[CODICE]` `daemon_render_concurrency.hpp:45-46` (`kMeasuredFullGraphPeakBytes = 8800 MiB`), usato in `daemon_service_ipc_render_job.cpp:125-128`; `[MISURA]` shape overlay **592/593 MiB** (2 run) e **~764 MiB/job** a due runtime concorrenti (`docs/evidence/gpu-admission-two-jobs-2026-11-02.md`) | Sovra-addebito reale ma **non certificabile a 14,9×**: 592/593 MiB è la shape overlay, 8 800 MiB è la lane **video FullGraph** (decode+compositing), mai misurata su quella shape. Rapporto indicativo 11,5–14,9×; ciò che resta vero è che il floor da solo esclude ogni overlap anche a classe corretta. | Floor per shape, dal footprint compilato (`PREPARE_PLAN` obbligatorio o sidecar del piano), non da costante globale. La macchina esiste già (`derive_vram_working_set`) ma l'ammissione del daemon usa solo la costante. |
+| **A3** | La capacità **pubblicizzata** e quella **ammessa** rispondono a domande diverse: `resolve_render_job_slots` deriva `kRenderJobExecutionSerialized` dall'input *chunked* (1 GiB → 16 footprint ⇒ `false` ⇒ restituisce `requested`, default 2), ma ogni job reale riceve il verdetto `Monolithic` ⇒ `admitted_slots = 1`. | `[CODICE]` `:192-199`, `:205-207`, `:254-255`; `[MISURA]` `refactored/scripts/systemd/pipelinegen.service.d/gpu-slots.conf:7-8` — «`kSerializedRenderJobSlots = 1`, so N daemons = N render lanes» | Il daemon dichiara 2 e ammette 1. La concorrenza reale si compra con **processi**, non con slot. | Risolvere gli slot dalla classe che il daemon serve davvero, oppure **eliminare** la variabile e dichiarare la concorrenza per-processo. Nota 2026-11-03: con la classe chunked il verdetto parallelo restituirebbe `admitted_slots = peak_footprints_that_fit` (16), non `requested` (2): un secondo drift nella stessa funzione. |
+| **A5** | `execution_mode` è hardcoded a `DynamicCallback`; `prepared_parameters` è dichiarata e serializzata ma **nessun produttore la riempie**, quindi `is_static_topology` è sempre `false` e la scena si valuta sempre dal callback dinamico. | `[CODICE]` `src/timeline/compile_evaluate.cpp:91,93`; `compiled_frame_graph.hpp:295`; `composition_frame_single.cpp:35-56`; assegnamenti solo nei test (`test_template_program.cpp:96`, `test_frame_delta_compiler.cpp:47`) | Senza identità a monte la decisione «frame duplicato» arriva **dopo** la valutazione: è la radice del costo, e `identity_fallback_frames` non è un discriminante. | P1 di `TICKET-PERF-FRAME-PROOF-CHEAP`: tavola `frame → digest` dal compilatore. **Corretto 2026-11-03:** `graph_reused_frames` **non** dipende da `is_static_topology` — lo decide `graph_result.graph_reused` in `scene_temporal_execution.cpp:502-506`, e su `render_program` il contatore non viene emesso affatto. La catena «static topology ⇒ reuse 0» è un'inferenza non provata. |
+| **A6** | `timeline_eval_ms = 0.0` nei run di produzione: il campo che spiega il 92% del loop non viene emesso, e lo `0.0` lo fa leggere come «costo zero». | `[MISURA]` 128/128 campi a `0.0` in `job-full-r4`, `-r101`, `-r102` (verificato 2026-11-03); `[CODICE]` emissione a `video_export_native_support.cpp:496` | Attribuzione impossibile: ogni analisi sul percorso compilato parte da un numero falso. | **Corretto 2026-11-03:** il campo è già `std::optional` (`pipe_timing_sidecar.hpp:233`) e vari rami emettono `nullopt` (`pipe_export_profile.cpp:92`, `video_export_native.cpp:220,234,349`). Il difetto non è il tipo ma `:496`, che emette il contatore anche quando non è mai stato incrementato. Fix: `null` se `timeline_eval_wall_us == 0` e il ramo non è tracciato. |
+| **A11** | Upload asset a **piena risoluzione in `Rgba32Float`** (16 B/px) **prima** che il placement conosca il `dst_rect`. | `[CODICE]` `src/render_graph/nodes/source_node_native_image.cpp:154-171`, `:278-286`; `src/backends/assets/image_cache.cpp:255` (`width*height*4` float, key indipendente dal `dst_rect`) | ~300 MB/item ⇒ **8 upload = ~2,4 GB, non 8,8 GB** (corretto 2026-11-03; l'audit citava «242 MB di image bytes»). Resta vero che questi upload dominano il working set e crescono con gli asset. | N4: contratto fit-to-canvas, chiave cache `(digest, canvas-fit)`. |
+| **A12** | Cache overlay **installata ma non misurata**: wiring solo se `CacheDB != nil` **e** kill switch on; il dedup di coda è aggirato da `freshRender` con `time.Now()`. | `[CODICE]` `refactored/internal/app/wiring/script_generation_render_cache.go:24`; `render_queue_submit.go:218-224`; `[MISURA]` `closeout-20261030-r3`: `cache_timing.lookup_us.count = 1`, `outcomes = {miss_stored: 1, not_applicable: 17}` | **Corretto 2026-11-03: «spenta» è falso.** La cache è interrogata (1 lookup per composizione, livello manifest) e scrive (`miss_stored:1`); `not_applicable` sui batch è per disegno (`TICKET-MAX-THROUGHPUT` §11.1) e i batch sono 17, non 16. Il numero **65-76 s non ha artefatto**: sono finestre overlay di altri run (`closeout-verify1` 75,1 s, `gate-100-cross-r1` 71,7 s, `closeout-r1` 71,6 s). Il costo del re-render identico **non è quantificato**. | Quantificare prima di progettare: rerun dello stesso overlay SHA contando `outcomes.hit` vs `miss_stored`. Gate: hit >0, non «accendere il wiring». |
+| **A4** | `dirty_area_ratio = 1.0` su **ogni** frame; `dirty_rects` è `false` nei test SDK. Il macchinario tile esiste ma non si arma mai. | `[MISURA]` T03 **126/126** frame a `1.0` (verificato 2026-11-03; il «32/32» precedente era di un altro artefatto); `dirty_rects=false` in `tests/install_consumer/*.cpp` e `tests/sdk/*`; `[CODICE]` `tile_execution_policy.cpp`, `frame_delta_compiler.cpp` | Vale **≤3 ms su 46,3**: stima, non misura. Non è la leva ora, ma va armato dopo P1/N3. | Ultimo passo, non primo (§12.3). |
 | **A7** | Telemetria **quadruplicata**: ogni misura compare in `job.result.result` e `result.result`, e due volte per nodo. | `[MISURA]` 32 nodi × 2 blocchi × 2 copie = **128 campi** `timeline_eval_ms` per **9** misure reali (r101) | Payload gonfio e rischio concreto di leggere la copia sbagliata (è già successo nell'analisi r101/r102). | Una sola sede autorevole per nodo; il resto derivato. |
-| **A8** | `graph_executed_frames = 252` con `frames_total = 126`. | `[MISURA]` `e2e_cert/T03/corrected-text3d-isolated.mp4.timing.json` | Il grafo risulta eseguito **2× per frame**. Doppio conteggio o doppia esecuzione: le due ipotesi hanno costi opposti. | `[DA VERIFICARE]`: distinguere contatore duplicato da re-esecuzione. |
+| **A8** | `graph_executed_frames = 252` con `frames_total = 126`. | `[MISURA]` `e2e_cert/T03/corrected-text3d-isolated.mp4.timing.json`; `[CODICE]` due `fetch_add` sulla **stessa** frame: `scene_temporal_execution.cpp:503` e `pipe_export_render_loop.cpp:145` | **Chiuso 2026-11-03: doppio conteggio, non doppia esecuzione.** Prova: rapporto esattamente 2,0 in tutti i sidecar con frame>0 (150→300, 210→420, 240→480, 122→244, anche 1→2) e una sola `render_frame()` per frame. Danno: ogni derivata per-frame (`graph_total_ms / graph_executed_frames`, `benchmark_report.hpp:70`) è **dimezzata** (T03: 21,7 ms/frame invece di 43,4). | Un solo incremento: togliere il `fetch_add` del loop CLI e derivare il contatore dal grafo; test che imponga `graph_executed_frames == frames_total` su un job FullGraph. |
 | **A9** | `frames_over_budget = 126` su 126: **ogni** frame oltre budget, e nessun gate fallisce. | `[MISURA]` T03 | Il budget esiste, è violato al 100%, e non produce un verdetto: non è un budget. | O il budget è un gate, o è rumore da eliminare. |
 | **A10** | `identity_fallback_frames` presente in **7/24** sidecar item e 3/9 riepiloghi batch. | `[MISURA]` r102 | Un fallback non propagato è un fallback non misurato: il gate P2 «zero nei batch certificati» non è verificabile. | Propagazione completa prima di usarlo come gate. |
-| **A13** | Packed superbatch: **43,73 item/min** contro 69,5-101,7 del controllo, ancora nel tree come flag. | `[MISURA]` `superpack-control-20261030-r1` | Una leva che peggiora del 43% e resta disponibile. | Se non si riprova con una spiegazione, si **elimina** il flag. |
-| **A14** | `prepare_join` da **2,000 s** a **12,302 s** tra r101 e r102 **con lo stesso SHA overlay** (`227da1b9…`); wall 46,482 → 66,736 s. | `[MISURA]` r101/r102 | Una fase che varia 6× sullo stesso payload rende non misurabile tutto ciò che sta a valle. | Attribuire la fase prima di qualunque confronto tra run. |
+| **A13** | Packed superbatch: **43,73 item/min** contro 69,45 (controllo) e 101,71 (picco), ancora nel tree come flag. | `[MISURA]` `refactored/ops/jobs/overlay_throughput_golden_100_20261022/results/superpack-20261030-r1/summary.json` (68 item / 93,307 s) e `superpack-control-20261030-r1` (70 item / 60,476 s) — verificati 2026-11-03 | **Percentuale corretta: −37% vs controllo, −57% vs picco**, non «peggiora del 43%»: 43,73 è item/min, non una percentuale. Resta una leva che peggiora e disponibile. | Se non si riprova con una spiegazione, si **elimina** il flag. |
+| **A14** | `prepare_join` da **2,000 s** a **12,302 s** tra r101 e r102 **con lo stesso SHA overlay** (`227da1b9…`); wall 46,482 → 66,736 s. | `[MISURA]` r101/r102 — **confermata 2026-11-03**: `duration_ms` 2000 → 12302, quota 4,30% → 18,43%, SHA identico ×34 in entrambi i file | Una fase che varia 6× sullo stesso payload rende non misurabile tutto ciò che sta a valle. La **causa non è attribuita** (`scene_analysis` cambia nello stesso intervallo). | Attribuire la fase prima di qualunque confronto tra run; resta fuori dai report come numero causale. |
 | **A15** | Run usato come base con `software_encode_frames = 126`, `video_pipe_fallback_frames = 126`, `vulkan_frames = 0`, `nvenc_frames = 0`. | `[MISURA]` T03 | Il «certified» è interamente software: i suoi tempi non sono il percorso GPU. | Dichiarare la lane nel summary e non mescolare baseline software e GPU. |
 
 ### 12.2 Cosa eliminare (non ottimizzare)
 
 1. **`kMeasuredFullGraphPeakBytes` come costante globale.** Va sostituita da un floor per shape. La costante non è sbagliata come *misura*, è sbagliata come *default universale*.
 2. **`CHRONON_RENDER_JOB_SLOTS`**, se non può cambiare il verdetto (A3). Una variabile che il commento stesso definisce «un'illusione» è debito, non configurazione.
-3. **La regola 1 del policy così com'è.** `MonolithicSamePlan ⇒ Serial` è corretto per un piano intero; è falso per 85 frammenti indipendenti, che oggi ci finiscono per default e non per disegno. La classe esiste (`DifferentPlan`), il default è sbagliato.
+3. **La regola 1 del policy così com'è.** `MonolithicSamePlan ⇒ Serial` è corretto per un piano intero; è falso per gli 85 frammenti di r49, che sono **finestre disgiunte dello stesso piano** (`finalJobComposePlanSegments`) e oggi ci finiscono per default e non per disegno. La classe esiste (`ChunkedDisjointSamePlan`, non `DifferentPlan`), il default è sbagliato — ma cambiarlo **non basta**: servono il footprint per shape (A1) e il via libera del dominio condiviso, oggi negato dal guard `requires_composition`.
 4. **Il default `0.0` di `timeline_eval_ms`** (→ `null`).
 5. **La telemetria duplicata ×4** (A7).
 6. **Il flag packed superbatch**, se non si riprova (A13).
@@ -532,8 +533,8 @@ L'ordine non è per sforzo: è per **cosa sblocca cosa**. A1/A2 non velocizzano 
 
 | # | Voce | Effetto | Valore |
 |---|---|---|---|
-| 1 | **A2** classe `DifferentPlan` per frammenti indipendenti | concurrency 1 → N **senza** toccare la VRAM | `[INFERITO]` da `decide_render_admission`; gate: 2 job indipendenti sovrapposti, `vma_usage_bytes` e wall |
-| 2 | **A1** floor per shape | rende N sostenibile (592 MiB, non 8 800) | `[INFERITO]`; gate: sidecar con il peak reale per job |
+| 1 | **Domanda sul dominio condiviso** (prerequisito): due FullGraph compositi nello stesso daemon | decide se N lane in-process è persino un obiettivo | `[MISURA]` 2026-11-02: stallo a 75 s / morte del daemon ⇒ oggi la risposta è «N processi, non N slot» |
+| 2 | **A1+A2 insieme**: `ChunkedDisjointSamePlan` per le finestre disgiunte **e** floor per shape | da 1 lane/daemon a N solo se il footprint entra ≥2× | `[INFERITO]`; **A2 da solo non cambia nulla** (8 800 MiB ⇒ 1 footprint ⇒ `Serial`) |
 | 3 | **A5 + P1** identità prima della eval | 46,3 → ~24 ms/frame; duplicati 43,5 → ≤2 ms | `[MISURA]` r49 + `[ARITMETICA]`: 763×48,1 + 844×2 = **38,4 s** da 74,3 s |
 | 4 | **N3** blocco parametri baked | eval 42,6 → 0,26-0,74 ms (benchmark saturation) | `[MISURA]` benchmark; `[ARITMETICA]` ~**5,6 s** totali ⇒ ~13× |
 | 5 | **A4** dirty tile, a frame sceso sotto ~8 ms | ultimo 30% del GPU draw | `[MISURA]` ≤3 ms su 46,3 oggi |
@@ -568,6 +569,128 @@ Conseguenze `[ARITMETICA]`:
 5. `graph_executed_frames == frames_total` oppure la differenza è spiegata nel sidecar.
 6. `identity_fallback_frames` è presente in **tutti** i sidecar e vale 0 nei batch certificati.
 7. `dirty_area_ratio < 1.0` su almeno un frame di un job reale, con parità pixel.
-8. Nessuna delle voci `[DA VERIFICARE]` (A8, A14) viene usata come numero in un report finché non è promossa a `[MISURA]`.
+8. A8 è chiusa il 2026-11-03 (doppio conteggio, `[MISURA]`): `graph_executed_frames` deve tornare `== frames_total` prima di usare qualunque derivata per-frame. A14 resta `[CAUSA NON ATTRIBUITA]`: i numeri sono verificati, la causa no.
 
 Nessun punto si chiude con «sembra più veloce»: serve il before/after sullo stesso payload e sullo stesso SHA.
+
+### 12.6 Verifica indipendente — esito (2026-11-03)
+
+Ogni voce è stata riletta **sul codice e sugli artefatti locali**, non sulle citazioni di questo ticket. Stato: `[CONFERMATO]` fatto e numero riprodotti; `[CORRETTO]` fatto vero, numero o conclusione sbagliati; `[SMENTITO]` l'affermazione non regge.
+
+| ID | Stato | Cosa è stato riprodotto | Cosa cambia |
+|---|---|---|---|
+| A1 | `[CORRETTO]` | costante a `:45-46`, applicata pre-compile in `daemon_service_ipc_render_job.cpp:125-128`; 592/593 MiB reali | il 14,9× confronta shape diverse (overlay vs video FullGraph). Il difetto del floor universale resta |
+| A2 | `[SMENTITO]` nella conclusione | `Serial` per classe, `kDefaultRenderJobClass`, nessun producer: tutti veri | classe corretta `ChunkedDisjointSamePlan`; il campo nel producer non produce lane (footprint 1, guard `requires_composition`, dominio condiviso misurato in stallo) |
+| A3 | `[CONFERMATO]` | slots=2 dalla classe chunked, verdetto reale=1 | — (aggiunto: `admitted_slots` userebbe `peak_footprints_that_fit`, secondo drift) |
+| A4 | `[CONFERMATO]` | `dirty_area_ratio=1.0` su 126/126 frame T03; `dirty_rects=false` negli SDK | il «32/32» era di un altro artefatto; «≤3 ms» resta stima |
+| A5 | `[CORRETTO]` | `DynamicCallback` e `is_static_topology=false` a `:91,93`; nessun produttore di `prepared_parameters` | `graph_reused_frames` non dipende dalla static topology e su `render_program` non è emesso |
+| A6 | `[CORRETTO]` | 128/128 campi a `0.0` in r4/r101/r102 | il campo è già `optional`: il difetto è l'emissione a `:496`, non il tipo |
+| A7 | `[CONFERMATO]` | 32 nodi × 2 blocchi × 2 copie; 9 batch | — |
+| A8 | `[CONFERMATO]` + risoluzione | 252 vs 126; **due** `fetch_add` sulla stessa frame | doppio conteggio: le derivate per-frame sono dimezzate (T03 21,7 vs 43,4 ms) |
+| A9 | `[CONFERMATO]` | 126/126 oltre budget, `frame_budget_ms` 41,67 | — |
+| A10 | `[CONFERMATO]` | 7/24 item, 3/9 batch (r102) | — |
+| A11 | `[CORRETTO]` | float RGBA a piena risoluzione, cache key indipendente dal `dst_rect` | 8 upload = ~2,4 GB, **non 8,8 GB** |
+| A12 | `[CORRETTO]` | wiring:24, `freshRender`:218-224; `lookup.count=1`, `miss_stored:1`, `not_applicable:17` | la cache **è** interrogata: «spenta» è falso; i 65-76 s sono finestre overlay di altri run, non re-render misurato |
+| A13 | `[CORRETTO]` | 43,73 / 69,45 / 101,71 item/min su summary.json | −37% vs controllo e −57% vs picco, non «−43%» |
+| A14 | `[CONFERMATO]` | 2000 → 12302 ms, quota 4,30 → 18,43%, SHA identico ×34 | numeri solidi, **causa non attribuita** |
+| A15 | `[CONFERMATO]` | 126 software, 126 fallback, 0 vulkan, 0 nvenc | — |
+
+Non resta nulla di «da verificare»: A8 è chiusa, A12 e A13 sono ricondotte ai loro artefatti. Restano **non quantificati** (non non-verificati) il costo del re-render identico (A12) e la causale di A14.
+
+### 12.7 To-do per voce (chiusura verificabile)
+
+**A1 — floor per shape** (owner: questo ticket; codice `daemon_render_concurrency.hpp`)
+
+- [ ] misurare il picco della shape **video FullGraph** con `cmd/vram-probe`, 2 run, report allegato (oggi «nessun numero lo copre»)
+- [ ] passare il footprint compilato all'ammissione del daemon (`derive_vram_working_set` esiste, il daemon usa solo la costante)
+- [ ] mantenere `max(derived, floor)` e pubblicare `calibration_gap_bytes` nel sidecar
+- [ ] gate: sidecar con `peak_vram_bytes` per job; verdetto invariato al calare della VRAM libera
+
+**A2 — classe e dominio condiviso** (owner: questo ticket + `TICKET-FINAL-JOB-SPEEDUP-LEVERS` L5)
+
+- [ ] correggere la classe attesa in `ChunkedDisjointSamePlan` (le 85 finestre sono dello stesso piano)
+- [ ] **non** rimuovere il guard `requires_composition` prima di un test che due FullGraph compositi convivono nello stesso daemon
+- [ ] decidere e documentare: N daemon (misurato 1,98×) al posto di N slot in-process
+- [ ] gate: 2 job indipendenti sovrapposti, `vma_usage_bytes` misurato, wall < somma seriale
+
+**A3 — slot pubblicizzati = slot ammessi** (owner: questo ticket; codice `daemon_render_concurrency.hpp`)
+
+- [ ] allineare `admitted_slots` a `min(requested, peak_footprints_that_fit)`
+- [ ] derivare `kRenderJobExecutionSerialized` dalla classe che il daemon serve davvero, non dalla più favorevole
+- [ ] oppure eliminare `CHRONON_RENDER_JOB_SLOTS` e dichiarare 1 lane per daemon
+- [ ] test: slot pubblicizzati == `admitted_slots` del verdetto reale
+
+**A4 — dirty tile** (owner: questo ticket; ultimo per ordine)
+
+- [ ] armare `dirty_rects` su un job reale e misurare il delta con parità pixel
+- [ ] gate: `dirty_area_ratio < 1.0` su almeno un frame
+
+**A5 — identità a monte** (owner: `TICKET-PERF-FRAME-PROOF-CHEAP` P1)
+
+- [ ] collegare `FrameParameterTable` al compilatore di produzione (unico produttore di `prepared_parameters`)
+- [ ] non usare `graph_reused_frames` come prova del ramo statico finché `render_program` non lo emette
+- [ ] gate: `identity_fallback_frames` presente in tutti i sidecar e 0 nei batch certificati
+
+**A6 — telemetria timeline** (owner: questo ticket §8)
+
+- [ ] emettere `null` quando `timeline_eval_wall_us == 0` e il ramo non traccia (`video_export_native_support.cpp:496`)
+- [ ] aggiungere `program_sample_ms` per il ramo `render_program`
+- [ ] gate: nessun `0.0` da assenza di emissione in 3 run
+
+**A7 — telemetria ×4** (owner: questo ticket)
+
+- [ ] una sola sede autorevole per nodo; `summary.first_frame.render` derivato da `cpu_breakdown`
+- [ ] rimuovere la doppia copia `result.result` o documentarla come alias
+- [ ] gate: 1 campo per nodo (32), non 128
+
+**A8 — contatore doppio** (owner: questo ticket; chiusa la diagnosi)
+
+- [ ] rimuovere uno dei due `fetch_add` (`pipe_export_render_loop.cpp:145` o `scene_temporal_execution.cpp:503`)
+- [ ] test di regressione: `graph_executed_frames == frames_total` su un FullGraph da 126 frame
+- [ ] ricalcolare le derivate per-frame nei report esistenti (T03: 43,4 ms, non 21,7)
+
+**A9 — budget o rumore** (owner: questo ticket)
+
+- [ ] trasformare `frames_over_budget` in gate oppure toglierlo dal sidecar
+- [ ] se gate: budget per lane (41,67 ms è il frame-budget a 24 fps, non un obiettivo engine)
+
+**A10 — propagazione fallback** (owner: `TICKET-PERF-FRAME-PROOF-CHEAP`)
+
+- [ ] propagare `identity_fallback_frames` a item, batch e top-level
+- [ ] gate: presente in tutti i sidecar, 0 nei certificati
+
+**A11 — fit-to-canvas** (owner: questo ticket + `TICKET-SCALE-P0-ASSET-VRAM-GOP` N4)
+
+- [ ] contratto fit-to-canvas e chiave cache `(digest, canvas-fit)`
+- [ ] misurare il working set con 8 asset prima/dopo (atteso ~2,4 GB → 160–400 MB)
+- [ ] gate: sidecar con `gpu_asset_bytes` per job
+
+**A12 — cache overlay** (owner: `TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE` §11)
+
+- [ ] rerun dello stesso overlay SHA contando `hit` vs `miss_stored` (oggi 1 lookup, 0 hit misurati)
+- [ ] decidere se il dedup di coda (`freshRender`) deve restare; se resta, documentare che la cache è content-addressed e il job ID serve solo all'idempotenza
+- [ ] gate: `outcomes.hit > 0` con SHA identico; nessun numero in secondi finché non è misurato
+
+**A13 — packed superbatch** (owner: `TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE` §11.6)
+
+- [ ] correggere «−43%» in −37%/−57% nei documenti che lo citano
+- [ ] decidere: eliminare il flag o riprovare spiegando `mean_frame_ms` 55-63 ms
+- [ ] gate: una run packed con item/min ≥ controllo, altrimenti remove
+
+**A14 — prepare_join** (owner: `TICKET-FINAL-JOB-SPEEDUP-LEVERS` L2)
+
+- [ ] attribuire la fase con telemetria dedicata, non per differenza
+- [ ] gate: due run consecutive con la stessa fase entro ±10%
+
+**A15 — lane dichiarata** (owner: questo ticket §8)
+
+- [ ] dichiarare la lane nel summary (`software`/`vulkan`/`nvenc`) e non usare T03 come baseline GPU
+- [ ] gate: nessun confronto tra run di lane diverse
+
+### 12.8 Ticket toccati da questa verifica
+
+- `Chronon3d/docs/tickets/TICKET-PERF-100X-VERIFIED-PLAN.md` (questo): §12.1 corretta, §12.6 esito, §12.7 to-do.
+- `Chronon3d/docs/tickets/archive/TICKET-PERFORMANCE-AUDIT-2026-10.md`: aritmetica A11 (2,4 GB, non 8,8 GB).
+- `Chronon3d/docs/tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md`: perimetro dell'8,8 GB (lane video, non overlay).
+- `refactored/docs/operations/TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE.md`: `cache_outcome` e percentuali packed.
+- `refactored/docs/operations/TICKET-FINAL-JOB-SPEEDUP-LEVERS-2026-11-02.md`: classe di ammissione dei frammenti L5.
