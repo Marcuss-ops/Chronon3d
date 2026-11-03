@@ -133,6 +133,7 @@ struct PipeExportSession {
     double startup_ms{0.0};
     double input_open_ms{0.0};
     double setup_prepare_ms{0.0};
+    std::optional<std::string> evaluation_mode;
     StartupBreakdown startup_breakdown;
     PrepareBreakdown prepare_breakdown;
 

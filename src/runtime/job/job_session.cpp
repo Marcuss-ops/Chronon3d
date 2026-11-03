@@ -46,12 +46,16 @@ NativeEchoSurface::~NativeEchoSurface() {
     if (handle == kInvalidRenderSurfaceHandle) return;
     try {
         if (backend) {
-            // release_surface defers while a recorded slot may still reference
-            // the image. This lease is retired at job scope and no later batch
-            // will flush it, so drain first: otherwise the handle stays valid
-            // after the lease is gone and the next job can collide with it.
-            backend->drain_native_surfaces();
             (void)backend->release_surface(handle);
+            if (backend->is_native_surface_valid(handle)) {
+                // release_surface defers while a recorded slot may still
+                // reference the image. This lease is retired at job scope and
+                // no later batch will flush it: drain pending submissions and
+                // flush the deferred queue now, otherwise the handle stays
+                // valid after the lease is gone and the next job can collide
+                // with it.
+                backend->release_frame_transient_surfaces();
+            }
         }
         if (registry) (void)registry->release(handle);
     } catch (...) {

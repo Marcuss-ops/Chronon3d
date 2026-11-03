@@ -230,6 +230,8 @@ void serialize_job_section(nlohmann::json& job,
     if (timings.measurement_kind) job["measurement_kind"] = *timings.measurement_kind;
     else job["measurement_kind"] = nullptr;
     job["execution_path"] = timings.execution_path.value_or("unknown");
+    job["evaluation_mode"] = timings.evaluation_mode
+        ? nlohmann::json(*timings.evaluation_mode) : nlohmann::json(nullptr);
     if (timings.execution_reason) job["execution_reason"] = *timings.execution_reason;
     else job["execution_reason"] = nullptr;
     if (timings.execution_downgrade_count) {
@@ -518,6 +520,17 @@ void serialize_job_section(nlohmann::json& job,
     put_prepare("graph_compile_ms", timings.prepare.graph_compile_ms);
     put_prepare("resource_plan_ms", timings.prepare.resource_plan_ms);
     put_prepare("backend_prepare_ms", timings.prepare.backend_prepare_ms);
+    put_prepare("scene_materialize_ms", timings.scene_materialize_ms);
+    if (timings.scene_materialize_count) {
+        prepare["scene_materialize_count"] = *timings.scene_materialize_count;
+    } else {
+        prepare["scene_materialize_count"] = nullptr;
+    }
+    if (timings.scene_materialize_cache_hits) {
+        prepare["scene_materialize_cache_hits"] = *timings.scene_materialize_cache_hits;
+    } else {
+        prepare["scene_materialize_cache_hits"] = nullptr;
+    }
 
     auto& image = job["image"];
     const auto put_image = [&image](const char* key, const std::optional<double>& value) {

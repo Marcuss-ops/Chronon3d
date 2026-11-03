@@ -83,9 +83,10 @@ asserzione rossa è un difetto reale di rilascio delle surface di job.
 1. **Surface di job** (`vulkan_surfaces.cpp:518`):
    `NativeEchoSurface::~NativeEchoSurface` chiamava `release_surface`, che
 differisce il rilascio quando uno slot del frame batch è ancora in volo; il
-lease spariva ma l'handle restava valido. Ora il lease chiama
-`RenderBackend::drain_native_surfaces()` (no-op di default,
-`wait_for_pending_submissions()` su Vulkan) prima del rilascio.
+lease spariva ma l'handle restava valido. Ora, se dopo `release_surface`
+l'handle è ancora valido, il lease chiama
+`release_frame_transient_surfaces()` (già virtuale: `wait_for_pending()` +
+flush della coda dei rilasci differiti), senza allargare l'interfaccia ABI.
 2. **ICD NVIDIA headless**: `libGLX_nvidia.so.0` non regge una suite lunga
 senza display; il preset di test deve selezionare un ICD funzionante (llvmpipe
 in CI headless, oppure un ICD NVIDIA headless corretto). Non è uno skip: la

@@ -1,6 +1,6 @@
 # TICKET-PERF-100X-VERIFIED-PLAN — piano verificato per il salto di throughput overlay
 
-**Stato (2026-11-03):** OPEN — piano di esecuzione, nessuna implementazione.
+**Stato (2026-11-03):** OPEN — `[CODICE]` implementazione P0 nel working tree e test Go PASS; `[NOT RUN]` test C++/gate runtime P0, baseline P1 e misura P4.
 **Area:** Chronon3d render graph/timeline e telemetria CLI; confine RenderingGen/PipelineGen.
 **Owner:** maintainer del percorso overlay Chronon3d + maintainer throughput PipelineGen.
 **Dipende da:** niente per P0/P1. P2–P4 dipendono da P0/P1. P5–P7 dipendono dai gate misurati.
@@ -10,6 +10,7 @@
 [`TICKET-100X-PERF-WAVES`](TICKET-100X-PERF-WAVES.md),
 [`TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE`](../../../refactored/docs/operations/TICKET-MAX-THROUGHPUT-OVERLAY-ARCHITECTURE.md).
 Questo ticket dice **in che ordine** e **con quale evidenza** quei lavori si eseguono; non duplica le loro specifiche.
+**Inventario demolizioni:** §12 (2026-11-03) — assurdità correnti, cosa eliminare, ordine d'attacco e tetto risultante.
 
 ---
 
@@ -149,27 +150,29 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 
 **Passi:**
 
-1. `[CODICE]` Aggiungere `evaluation_mode` al blocco `job` del sidecar con due valori:
+1. `[CODICE]` Aggiungere `evaluation_mode` al blocco `job` del sidecar:
    - `compiled_composition` quando `ctx.program == nullptr` (ramo `render_compiled_composition_frame_temporal`);
-   - `compiled_program` quando `ctx.program != nullptr` (ramo `render_program`).
-   Il valore va impostato nel punto in cui il ramo è noto (`pipe_export_stages.cpp:106-118`) e propagato al timing, **non** dedotto da `execution_reason`: r101/r102 dimostrano che `gpu_composition_pipe_no_video_source` non distingue i due rami.
-2. `[CODICE]` Rendere `timeline_eval_ms` nullable. Sul percorso `compiled_program` deve essere `null`, mai `0.0`. Sul percorso `compiled_composition` resta il numero misurato da `render_single_frame`.
+   - `compiled_program` quando `ctx.program != nullptr` (ramo `render_program`);
+   - `direct_yuv` sul percorso DirectYUV, che non passa né da `render_program` né dalla valutazione della composizione.
+   Il valore va impostato nel setup dove la lane e il programma sono noti, **non** dedotto da `execution_reason`: r101/r102 dimostrano che `gpu_composition_pipe_no_video_source` non distingue i due rami.
+2. `[CODICE]` Rendere `timeline_eval_ms` nullable. Su `compiled_program` e `direct_yuv` deve essere `null`, mai `0.0`. Su `compiled_composition` resta il numero misurato da `render_single_frame`.
 3. `[CODICE]` Aggiungere `program_sample_ms`, misurato intorno a `TypedProgramSampler::sample_into` in `RenderPipeline::render_program`:
    - nuovo counter `program_sample_wall_us` in `include/chronon3d/core/profiling/render_counter_macros.hpp`;
    - campionamento in `apps/chronon3d_cli/commands/video/common/pipe_export_profile.cpp` (`sample_frame_profile`/`project_frame_timings`);
    - esposizione in `pipe_timing_sidecar_frames.cpp` e `pipe_timing_sidecar_summary.cpp`.
-4. `[CODICE]` Aggiungere `scene_materialize_ms` e `scene_materialize_cache_hit` al blocco `prepare`: misurare solo il ramo di miss dentro `m_topologies.compute_if_absent(...)` in `render_pipeline.cpp`; su cache hit il tempo non è applicabile e va registrato `null`, non `0`.
+4. `[CODICE]` Aggiungere `scene_materialize_ms`, `scene_materialize_count` e `scene_materialize_cache_hits` al blocco `prepare`; misurare solo il ramo di miss dentro `m_topologies.compute_if_absent(...)` in `render_pipeline.cpp`; su cache hit il tempo non è applicabile e va registrato `null`, non `0`. Nel dettaglio frame, esporre `scene_materialize_cache_hit` booleano.
 5. `[CODICE]` Aggiornare lo schema test `tests/cli/test_timing_sidecar_schema.cpp` per accettare:
    - `evaluation_mode` obbligatorio nelle nuove versioni;
    - `timeline_eval_ms` numerico **oppure** `null`;
    - `program_sample_ms` numerico **oppure** `null`;
    - `scene_materialize_ms` numerico **oppure** `null`.
-6. `[CODICE]` Aggiornare il consumatore del sidecar in `RenderingGen/renderinggen/internal/chronon/telemetry.go`: `BoundTimingSidecar` oggi conserva il blocco `job` senza validarne i campi, e `TelemetryMetrics` proietta solo una lista esplicita di chiavi numeriche. Aggiungere qui la validazione del contratto: se `evaluation_mode == compiled_program`, `timeline_eval_ms` deve essere `null`/assente e `program_sample_ms` deve essere presente; se `compiled_composition`, `timeline_eval_ms` deve essere numerico. Il gate di schema lato CLI è in `Chronon3d/tests/cli/test_timing_sidecar_schema.cpp`. `receipt_verify.go` è la policy di verifica dell'output, non il parser del timing: non è il punto in cui aggiungere questo controllo.
+6. `[CODICE]` Aggiornare il consumatore del sidecar in `RenderingGen/renderinggen/internal/chronon/telemetry.go`: `BoundTimingSidecar` oggi conserva il blocco `job` senza validarne i campi, e `TelemetryMetrics` proietta solo una lista esplicita di chiavi numeriche. Aggiungere qui la validazione: `compiled_program` richiede `timeline_eval_ms` nullo e `program_sample_ms` numerico; `compiled_composition` richiede `timeline_eval_ms` numerico; `direct_yuv` richiede `timeline_eval_ms` e `program_sample_ms` nulli/assenti. Il gate di schema lato CLI è in `Chronon3d/tests/cli/test_timing_sidecar_schema.cpp`. `receipt_verify.go` è la policy di verifica dell'output, non il parser del timing: non è il punto in cui aggiungere questo controllo.
 
 **Test:**
 
 - Unit: un job con `program != nullptr` produce `evaluation_mode=compiled_program`, `timeline_eval_ms=null`, `program_sample_ms>0`.
 - Unit: un job con `program == nullptr` produce `evaluation_mode=compiled_composition`, `timeline_eval_ms>0`.
+- Unit: DirectYUV produce `evaluation_mode=direct_yuv` e lascia nulli i tempi degli evaluator non eseguiti.
 - Schema: entrambe le forme passano; un `timeline_eval_ms=0.0` con `evaluation_mode=compiled_program` viene rifiutato dal validator.
 - Integrazione: rieseguire un batch r101-like e uno r49-like; l'MP4 e l'overlay SHA devono essere **identici** prima/dopo la sola strumentazione.
 
@@ -182,9 +185,9 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 | G0.3 | `tests/cli/test_timing_sidecar_schema` PASS. |
 | G0.4 | MP4/overlay SHA invariant rispetto al run pre-patch. |
 
-**Stato:** `[NOT RUN]`.
+**Stato:** `[CODICE]` campi/contatori/serializer e validazione RenderingGen implementati nel working tree; test Go `go test ./internal/chronon` PASS. `[NOT RUN]` restano sidecar r49/r101-like, prova SHA prima/dopo e test C++: un altro build/test usa `build/chronon/linux-video-test`, quindi non l'ho avviato in parallelo. I sidecar storici senza `evaluation_mode` restano accettati; il campo `null` in un nuovo sidecar è rifiutato.
 
-**Rischio:** cambiare schema e validator può rompere artifact vecchi. Mitigazione: campi additivi, `optional` per una release, fallback "missing mode accepted" con warning; demolition debt sotto.
+**Rischio:** cambiare schema e validator può rompere artifact vecchi. Mitigazione: campi additivi e fallback compatibile per sidecar storici senza `evaluation_mode`; il fallback non emette warning. Il campo presente ma `null` è un errore. Demolition debt sotto.
 
 ---
 
@@ -216,6 +219,8 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 | G1.4 | Evidenza in `ops/jobs/garlasco_editorial_e2e_20261030/verified-baseline-r103-r105/`. |
 
 **Stato:** `[NOT RUN]`.
+
+**Blocco runtime (2026-11-03) `[MISURA]`:** Master `systemctl is-active` = `active` e `/api/health` = HTTP `200`; SSH Master→worker è andato in timeout. Nessun job r103–r105 è stato inviato.
 
 ---
 
@@ -301,6 +306,8 @@ Fonti: `ops/jobs/garlasco_editorial_e2e_20261030/job-full-r49.json`, `job-full-r
 | G4.4 | MP4/overlay SHA invariato rispetto al run pre-P0. |
 
 **Stato:** `[NOT RUN]`. Dipende da P0.
+
+**Blocco runtime (2026-11-03) `[MISURA]`:** Master `systemctl is-active` = `active` e `/api/health` = HTTP `200`; SSH Master→worker è andato in timeout. Nessun job r101-like è stato inviato.
 
 ---
 
@@ -456,7 +463,7 @@ Nessun punto si chiude con un exit code 0, una build verde o un artefatto carica
 
 ## 10. NOT RUN / domande aperte
 
-- `[NOT RUN]` P0: nessun `evaluation_mode`, nessun `program_sample_ms`.
+- `[CODICE]` P0: l'implementazione aggiunge `evaluation_mode`, timing nullable e contatori `program_sample`/`scene_materialize`; `[NOT RUN]` generazione e confronto di sidecar runtime r49/r101-like.
 - `[NOT RUN]` P1: nessuna baseline r49 su pair corrente/dirty-tree registrato.
 - `[NOT RUN]` P2: nessun produttore di `prepared_parameters`; nessun test byte-identico.
 - `[NOT RUN]` P3: nessuna tavola flatbuffer; nessun profilo per-frame al 100%.
@@ -479,3 +486,88 @@ python3 ops/tools/reconcile_tickets.py --check
 ```
 
 Il ticket non modifica i canonici (`CURRENT_STATUS`, `ROADMAP`, `RELEASE_GATE`, `FOLLOWUP_TICKETS`): è una scheda di piano. Le modifiche di codice previste da P0–P4 richiedono test mirati e, per P2/P3, il gate byte-identico.
+
+---
+
+## 12. Inventario 2026-11-03 — assurdità da eliminare e demolizioni
+
+Scopo: elencare **tutto** ciò che oggi impedisce di arrivare al massimo guadagno disponibile, con prova e gate. La regola di §0 vale anche qui: una voce senza prova è `[DA VERIFICARE]`, non un requisito.
+
+### 12.1 Assurdità attive, ordinate per danno
+
+| ID | Assurdità | Prova | Danno | Cosa fare |
+|---|---|---|---|---|
+| **A2** | Ogni job è `Serial` **per classe**, non per VRAM: `decide_render_admission` regola 1 restituisce `Serial` per `MonolithicSamePlan` a prescindere dal footprint. `kDefaultRenderJobClass = MonolithicSamePlan` e nessun producer dichiara altro. | `[CODICE]` `daemon_render_concurrency.hpp:159-165` e `:128-130`; commento «No producer declares chunk membership today» | **Il danno più grande**: 85 frammenti indipendenti eseguiti uno alla volta. Nessun tuning di VRAM li parallelizza. | Dichiarare la classe reale dei frammenti overlay indipendenti (il enum `DifferentPlan` **esiste già** e il policy ammette overlap). Un campo nel producer `GpuRun`, nessuna nuova politica. |
+| **A1** | Floor VRAM **hardcoded a 8 800 MiB** e applicato a ogni job FullGraph, prima del compile. | `[CODICE]` `daemon_render_concurrency.hpp:46-47` (`kMeasuredFullGraphPeakBytes = 8800 MiB`); `[MISURA]` shape overlay **592/593 MiB** | Sovra-addebito **14,9×** (8 800 / 592) su una scheda da 16 GiB: il floor da solo esclude ogni overlap anche se A2 fosse risolto. | Floor per shape, dal footprint compilato (`PREPARE_PLAN` obbligatorio o sidecar del piano), non da costante globale. |
+| **A3** | La capacità **pubblicizzata** e quella **ammessa** rispondono a domande diverse: `resolve_render_job_slots` deriva `kRenderJobExecutionSerialized` dall'input *chunked* (1 GiB → 16 footprint ⇒ `false` ⇒ restituisce `requested`, default 2), ma ogni job reale riceve il verdetto `Monolithic` ⇒ `admitted_slots = 1`. | `[CODICE]` `:196-209`, `:250-260`; `[MISURA]` `gpu-slots.conf:8` — «`kSerializedRenderJobSlots = 1`, so N daemons = N render lanes» | Il daemon dichiara 2 e ammette 1. La concorrenza reale si compra con **processi**, non con slot. | Risolvere gli slot dalla classe che il daemon serve davvero, oppure **eliminare** la variabile e dichiarare la concorrenza per-processo. |
+| **A5** | `execution_mode` è hardcoded a `DynamicCallback`; `prepared_parameters` è dichiarata e serializzata ma **nessun produttore la riempie**, quindi `is_static_topology` è sempre `false` e `graph_reused_frames = 0` sempre. | `[CODICE]` `src/timeline/compile_evaluate.cpp:91`; `compiled_frame_graph.hpp:295`; `composition_frame_single.cpp:35-52`; `[MISURA]` `graph_reused_frames=0` in ogni sidecar | È la radice del costo: senza identità a monte la decisione «frame duplicato» arriva **dopo** la valutazione. | P1 di `TICKET-PERF-FRAME-PROOF-CHEAP`: tavola `frame → digest` dal compilatore. |
+| **A6** | `timeline_eval_ms = 0.0` nei run di produzione: il campo che spiega il 92% del loop non viene emesso, e il default `0.0` lo fa leggere come «costo zero». | `[MISURA]` `job-full-r4.json` 9/9 batch a `0.0`; r101/r102 idem | Attribuzione impossibile: ogni analisi sul percorso compilato parte da un numero falso. | Già in §8: campo nullable, `null` + `program_sample_ms`. |
+| **A11** | Upload asset a **piena risoluzione in `Rgba32Float`** (16 B/px) **prima** che il placement conosca il `dst_rect`. | `[CODICE]` `src/render_graph/nodes/source_node_native_image.cpp:154-171`, `:278-286` | ~300 MB/item; 8 upload ⇒ 8,8 GB di working set ⇒ le lane multiple non entrano in 16 GiB. | N4: contratto fit-to-canvas, chiave cache `(digest, canvas-fit)`. |
+| **A12** | Cache overlay **installata e spenta**: wiring solo se `CacheDB != nil`, dedup aggirato da `freshRender` con `time.Now()`. | `[CODICE]` `refactored/internal/app/wiring/script_generation_render_cache.go:24`; `render_queue_submit.go:218-224`; `[MISURA]` `outcomes={not_applicable:16}`, lookup 0-1 | 65-76 s/run di GPU identica ri-renderizzata. È un incidente di deployment, non un'idea da progettare. | Accendere il wiring (P6.1). Gate: hit >0 e overlay SHA identico. |
+| **A4** | `dirty_area_ratio = 1.0` su **ogni** frame; `dirty_rects` è `false` nei test SDK. Il macchinario tile esiste ma non si arma mai. | `[MISURA]` T03 32/32 frame a `1.0`; hdri/gltf/showcase idem; `[CODICE]` `tile_execution_policy.cpp`, `frame_delta_compiler.cpp` | Vale **≤3 ms su 46,3** finché il frame è 46 ms: non è la leva ora, ma va armato dopo P1/N3. | Ultimo passo, non primo (§12.3). |
+| **A7** | Telemetria **quadruplicata**: ogni misura compare in `job.result.result` e `result.result`, e due volte per nodo. | `[MISURA]` 32 nodi × 2 blocchi × 2 copie = **128 campi** `timeline_eval_ms` per **9** misure reali (r101) | Payload gonfio e rischio concreto di leggere la copia sbagliata (è già successo nell'analisi r101/r102). | Una sola sede autorevole per nodo; il resto derivato. |
+| **A8** | `graph_executed_frames = 252` con `frames_total = 126`. | `[MISURA]` `e2e_cert/T03/corrected-text3d-isolated.mp4.timing.json` | Il grafo risulta eseguito **2× per frame**. Doppio conteggio o doppia esecuzione: le due ipotesi hanno costi opposti. | `[DA VERIFICARE]`: distinguere contatore duplicato da re-esecuzione. |
+| **A9** | `frames_over_budget = 126` su 126: **ogni** frame oltre budget, e nessun gate fallisce. | `[MISURA]` T03 | Il budget esiste, è violato al 100%, e non produce un verdetto: non è un budget. | O il budget è un gate, o è rumore da eliminare. |
+| **A10** | `identity_fallback_frames` presente in **7/24** sidecar item e 3/9 riepiloghi batch. | `[MISURA]` r102 | Un fallback non propagato è un fallback non misurato: il gate P2 «zero nei batch certificati» non è verificabile. | Propagazione completa prima di usarlo come gate. |
+| **A13** | Packed superbatch: **43,73 item/min** contro 69,5-101,7 del controllo, ancora nel tree come flag. | `[MISURA]` `superpack-control-20261030-r1` | Una leva che peggiora del 43% e resta disponibile. | Se non si riprova con una spiegazione, si **elimina** il flag. |
+| **A14** | `prepare_join` da **2,000 s** a **12,302 s** tra r101 e r102 **con lo stesso SHA overlay** (`227da1b9…`); wall 46,482 → 66,736 s. | `[MISURA]` r101/r102 | Una fase che varia 6× sullo stesso payload rende non misurabile tutto ciò che sta a valle. | Attribuire la fase prima di qualunque confronto tra run. |
+| **A15** | Run usato come base con `software_encode_frames = 126`, `video_pipe_fallback_frames = 126`, `vulkan_frames = 0`, `nvenc_frames = 0`. | `[MISURA]` T03 | Il «certified» è interamente software: i suoi tempi non sono il percorso GPU. | Dichiarare la lane nel summary e non mescolare baseline software e GPU. |
+
+### 12.2 Cosa eliminare (non ottimizzare)
+
+1. **`kMeasuredFullGraphPeakBytes` come costante globale.** Va sostituita da un floor per shape. La costante non è sbagliata come *misura*, è sbagliata come *default universale*.
+2. **`CHRONON_RENDER_JOB_SLOTS`**, se non può cambiare il verdetto (A3). Una variabile che il commento stesso definisce «un'illusione» è debito, non configurazione.
+3. **La regola 1 del policy così com'è.** `MonolithicSamePlan ⇒ Serial` è corretto per un piano intero; è falso per 85 frammenti indipendenti, che oggi ci finiscono per default e non per disegno. La classe esiste (`DifferentPlan`), il default è sbagliato.
+4. **Il default `0.0` di `timeline_eval_ms`** (→ `null`).
+5. **La telemetria duplicata ×4** (A7).
+6. **Il flag packed superbatch**, se non si riprova (A13).
+7. **`copy_gop_source()`** come lane (residuo dichiarato in `TICKET-SCALE-P0`), quando la lane copy passa alle primitive. Resta come oracle finché il parity gate ne ha bisogno: non è un residuo arbitrario.
+8. **Il container come leva.** Mux misurato: `mux_packet_ms` 11,968 + `mux_finalize_ms` 0,980 + `encoder_open_mux_header_ms` 0,793 = **13,74 ms su 14 023 = 0,098%** del job (T03). Annex-B, `shm` e DMA-BUF vanno chiusi con questi tre numeri, non riaperti.
+9. **P6.6 EDL/player** dal perimetro: è una decisione di prodotto, non una fase di questo piano.
+10. **`frames_over_budget`** se non diventa un gate (A9).
+
+### 12.3 Ordine d'attacco e guadagno atteso
+
+L'ordine non è per sforzo: è per **cosa sblocca cosa**. A1/A2 non velocizzano un frame, moltiplicano le lane.
+
+| # | Voce | Effetto | Valore |
+|---|---|---|---|
+| 1 | **A2** classe `DifferentPlan` per frammenti indipendenti | concurrency 1 → N **senza** toccare la VRAM | `[INFERITO]` da `decide_render_admission`; gate: 2 job indipendenti sovrapposti, `vma_usage_bytes` e wall |
+| 2 | **A1** floor per shape | rende N sostenibile (592 MiB, non 8 800) | `[INFERITO]`; gate: sidecar con il peak reale per job |
+| 3 | **A5 + P1** identità prima della eval | 46,3 → ~24 ms/frame; duplicati 43,5 → ≤2 ms | `[MISURA]` r49 + `[ARITMETICA]`: 763×48,1 + 844×2 = **38,4 s** da 74,3 s |
+| 4 | **N3** blocco parametri baked | eval 42,6 → 0,26-0,74 ms (benchmark saturation) | `[MISURA]` benchmark; `[ARITMETICA]` ~**5,6 s** totali ⇒ ~13× |
+| 5 | **A4** dirty tile, a frame sceso sotto ~8 ms | ultimo 30% del GPU draw | `[MISURA]` ≤3 ms su 46,3 oggi |
+| 6 | **A11** fit-to-canvas | 300 MB → 20-50 MB per item | `[MISURA]` audit N4; sblocca le lane |
+| 7 | **A12** cache overlay | elimina run interi, non frame | `[MISURA]` 65-76 s/run |
+| 8 | **N5** hash in-stream | per-item 2,75 → ~1,5 s | `[MISURA]` audit N5 |
+
+### 12.4 Tetto risultante su questa macchina
+
+| Stadio | ms/frame | × realtime | item/min (73 frame/item) |
+|---|---:|---:|---:|
+| Oggi (r49) | 46,3 | 0,88× | 21 |
+| + P1 | ~24 | 1,7× | 42 |
+| + N3 | ~3,5 media | ~12× | ~287 |
+| + dirty tile | **~2,3 media** | ~20× | ~357 |
+| Tetto encoder `slow` (244,97 fps) | — | — | **201** |
+| Tetto encoder `p4` (408,4/422,1) | — | — | **341** |
+| Tetto encoder `p2` (714,6) | — | — | **587** |
+
+Conseguenze `[ARITMETICA]`:
+
+- **200 overlay/min richiede 243 fps** (3,33 item/s × 73 frame). A `slow` l'engine fa 244,97: **200/min è esattamente la capacità fisica a preset default**. A `p4` c'è 1,7× di margine.
+- **Tetto pratico: ~350-450/min**, limitato da VRAM (7 616 MB di picco già oggi su 16 376), per-item overhead e **un solo motore NVENC** (2 sessioni misurate a 1,65-1,9×, non 2×).
+- **100× = 7 732/min ⇒ 9 407 fps ⇒ 13× l'engine a `p2`.** `[MISURA]` + `[ARITMETICA]`. Non è raggiungibile ottimizzando: richiede che quei frame non vengano prodotti (quota servita da cache/stream-copy).
+
+### 12.5 Gate dell'inventario
+
+1. Due job overlay indipendenti si sovrappongono (`ParallelDisjoint`), con `vma_usage_bytes` misurato e wall inferiore alla somma seriale.
+2. Il floor VRAM del job è quello misurato per lo shape, non 8 800 MiB, e il verdetto non cambia se la VRAM libera scende sotto il floor.
+3. `admitted_slots` del verdetto reale coincide con la capacità pubblicizzata, oppure la variabile d'ambiente è stata eliminata.
+4. `timeline_eval_ms` è `null` o un numero reale, mai `0.0` per assenza di emissione.
+5. `graph_executed_frames == frames_total` oppure la differenza è spiegata nel sidecar.
+6. `identity_fallback_frames` è presente in **tutti** i sidecar e vale 0 nei batch certificati.
+7. `dirty_area_ratio < 1.0` su almeno un frame di un job reale, con parità pixel.
+8. Nessuna delle voci `[DA VERIFICARE]` (A8, A14) viene usata come numero in un report finché non è promossa a `[MISURA]`.
+
+Nessun punto si chiude con «sembra più veloce»: serve il before/after sullo stesso payload e sullo stesso SHA.

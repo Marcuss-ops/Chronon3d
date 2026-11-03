@@ -11,6 +11,10 @@ namespace chronon3d::cli::detail {
 
 struct FrameProfileSample {
     uint64_t timeline_eval_us{0};
+    uint64_t program_sample_us{0};
+    uint64_t scene_materialize_us{0};
+    uint64_t scene_materialize_count{0};
+    uint64_t scene_materialize_cache_hit_count{0};
     uint64_t text_us{0};
     uint64_t text_prepare_per_frame_us{0};
     uint64_t graph_prepare_us{0};
@@ -57,7 +61,8 @@ struct FrameTimingProjection {
 [[nodiscard]] FrameTimingProjection project_frame_timings(
     const FrameProfileSample& before,
     const FrameProfileSample& after,
-    double frame_ms);
+    double frame_ms,
+    bool compiled_program = false);
 
 /// Per-frame native-surface preparation result.
 ///

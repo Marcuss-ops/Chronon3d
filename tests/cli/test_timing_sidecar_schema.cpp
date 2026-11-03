@@ -39,7 +39,7 @@ std::set<std::string> keys_of(const nlohmann::json& object) {
 /// deliberate change to this list — the zero-copy gates read these keys.
 const std::set<std::string>& frozen_job_keys() {
     static const std::set<std::string> keys{
-        "process_wall_ms", "measurement_kind", "execution_path",
+        "process_wall_ms", "measurement_kind", "execution_path", "evaluation_mode",
         "execution_reason", "execution_downgrade_count",
         "surface_handoff_path", "job_wall_ms", "engine_init_ms",
         "backend_init_ms", "daemon_admission_wait_ms", "plan_read_ms", "plan_parse_ms", "plan_validate_ms",
@@ -156,6 +156,7 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     timings.process_wall_ms = 111.5;
     timings.measurement_kind = "clock";
     timings.execution_path = "direct_yuv";
+    timings.evaluation_mode = "compiled_program";
     timings.execution_reason = "resolved";
     timings.execution_downgrade_count = 2u;
     timings.surface_handoff_path = "direct";
@@ -195,6 +196,7 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("process_wall_ms") == 111.5);
     CHECK(job.at("measurement_kind") == "clock");
     CHECK(job.at("execution_path") == "direct_yuv");
+    CHECK(job.at("evaluation_mode") == "compiled_program");
     CHECK(job.at("execution_reason") == "resolved");
     CHECK(job.at("execution_downgrade_count") == 2u);
     CHECK(job.at("surface_handoff_path") == "direct");
@@ -260,6 +262,7 @@ TEST_CASE("A5 sidecar: an unmeasured job reports null, never a fabricated zero")
     // Absent-where-it-must-be-a-value fields stay honest defaults, never null:
     // a reader must always be able to compare these against a gate string.
     CHECK(job.at("execution_path") == "unknown");
+    CHECK(job.at("evaluation_mode").is_null());
     CHECK(job.at("surface_handoff_path") == "unknown");
     CHECK(job.at("full_file_reread_count") == 0u);
     CHECK(job.at("gpu").at("decoder_backend") == "software");
@@ -412,6 +415,10 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     timings.prepare.asset_preflight_ms = 0.2;
     timings.prepare.asset_resolve_ms = 12.5;
     timings.prepare.asset_decode_ms = 180.0;
+    timings.program_sample_ms = 6.25;
+    timings.scene_materialize_ms = 12.75;
+    timings.scene_materialize_count = 3u;
+    timings.scene_materialize_cache_hits = 4u;
     timings.prepare.image_decode_ms = 91.0;
     timings.prepare.font_load_ms = 3.5;
     timings.startup_breakdown.vulkan_device_ms = 300.0;
@@ -425,6 +432,10 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     CHECK(pb.find("font_preflight_ms") == pb.end());
     CHECK(pb.at("prepare_asset_preflight_ms") == 0.2);
     CHECK(pb.at("prepare_asset_resolve_ms") == 12.5);
+    CHECK(out.at("job").at("cpu_breakdown").at("program_sample_ms") == 6.25);
+    CHECK(out.at("job").at("prepare").at("scene_materialize_ms") == 12.75);
+    CHECK(out.at("job").at("prepare").at("scene_materialize_count") == 3u);
+    CHECK(out.at("job").at("prepare").at("scene_materialize_cache_hits") == 4u);
     CHECK(pb.at("prepare_asset_decode_ms") == 180.0);
     CHECK(pb.at("prepare_image_decode_ms") == 91.0);
     CHECK(pb.at("prepare_font_load_ms") == 3.5);

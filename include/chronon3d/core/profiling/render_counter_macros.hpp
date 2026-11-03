@@ -278,6 +278,10 @@ namespace chronon3d {
     X(graph_execute_wall_us) \
     X(graph_total_wall_us) \
     X(timeline_eval_wall_us) \
+    X(program_sample_wall_us) \
+    X(scene_materialize_wall_us) \
+    X(scene_materialize_count) \
+    X(scene_materialize_cache_hit_count) \
     X(pixel_fusion_passes_before) \
     X(pixel_fusion_passes_after) \
     X(pixel_fusion_bytes_saved) \

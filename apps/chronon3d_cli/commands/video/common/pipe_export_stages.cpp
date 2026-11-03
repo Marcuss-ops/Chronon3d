@@ -122,7 +122,7 @@ RenderOutcome render_frame(
     const auto frame_t1 = profiling::now();
     const FrameProfileSample after = sample_frame_profile(ctx);
     out.frame_ms = profiling::duration_ms(frame_t0, frame_t1);
-    out.timing = project_frame_timings(before, after, out.frame_ms);
+    out.timing = project_frame_timings(before, after, out.frame_ms, ctx.program != nullptr);
 
     out.dirty_ratio = ctx.sw_renderer->last_dirty_area_ratio();
     out.dirty_rect_enabled = ctx.sw_renderer->last_dirty_rect_enabled();
