@@ -23,7 +23,14 @@ double render_total_ms(const FrameTelemetry& f) {
 nlohmann::json build_render_section(const FrameTelemetry& f) {
     return nlohmann::json{
         {"preparation_ms", f.preparation_ms},
-        {"timeline_eval_ms", f.render_breakdown.timeline_eval_ms},
+        {"timeline_eval_ms", f.render_breakdown.timeline_eval_ms
+            ? nlohmann::json(*f.render_breakdown.timeline_eval_ms) : nlohmann::json(nullptr)},
+        {"program_sample_ms", f.render_breakdown.program_sample_ms
+            ? nlohmann::json(*f.render_breakdown.program_sample_ms) : nlohmann::json(nullptr)},
+        {"scene_materialize_ms", f.render_breakdown.scene_materialize_ms
+            ? nlohmann::json(*f.render_breakdown.scene_materialize_ms) : nlohmann::json(nullptr)},
+        {"scene_materialize_cache_hit", f.render_breakdown.scene_materialize_cache_hit
+            ? nlohmann::json(*f.render_breakdown.scene_materialize_cache_hit) : nlohmann::json(nullptr)},
         {"animation_eval_ms", nullptr},
         {"text_ms", f.render_breakdown.text_ms},
         {"graph_prepare_ms", f.render_breakdown.graph_prepare_ms},

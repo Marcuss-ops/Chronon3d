@@ -35,6 +35,7 @@
 #include <chronon3d/motion/element_contract.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -119,17 +120,27 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     // another. A record set that fails the ABI discipline has already been
     // refused by the caller (validate_layer_states); if one slips through, the
     // accepted records still apply and the frame stays coherent.
+    const auto sample_program = [&](compiler::FrameParameterBlock& parameters) {
+        const auto sample_start = std::chrono::steady_clock::now();
+        compiler::TypedProgramSampler{}.sample_into(program, frame, parameters);
+        const auto sample_end = std::chrono::steady_clock::now();
+        if (m_context.counters) {
+            const auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                sample_end - sample_start).count();
+            m_context.counters->program_sample_wall_us.fetch_add(
+                static_cast<std::uint64_t>(std::max<std::int64_t>(0, elapsed_us)),
+                std::memory_order_relaxed);
+        }
+    };
     if (execution) {
-        compiler::TypedProgramSampler{}.sample_into(
-            program, frame, execution->parameters());
+        sample_program(execution->parameters());
         (void)motion::apply_layer_states(layer_states, layer_state_count,
                                           execution->parameters());
         (void)motion::apply_element_states(element_states, element_state_count,
                                             execution->parameters());
         frame_parameters = &execution->parameters();
     } else {
-        compiler::TypedProgramSampler{}.sample_into(
-            program, frame, compatibility_parameters);
+        sample_program(compatibility_parameters);
         (void)motion::apply_layer_states(layer_states, layer_state_count,
                                           compatibility_parameters);
         (void)motion::apply_element_states(element_states, element_state_count,
@@ -144,19 +155,47 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     // rather than whichever was inserted first.
     const auto topology_key = program.fingerprint_data();
     const auto key = program.fingerprint();
+    bool materialized_here = false;
     const auto topology = m_topologies.compute_if_absent(
         topology_key, [&]() -> std::pair<std::shared_ptr<const Scene>, std::size_t> {
+            materialized_here = true;
+            const auto materialize_start = std::chrono::steady_clock::now();
             // Text layers need the runtime font engine to shape their glyphs;
             // without it a compiled text layer materializes with no nodes and
             // the graph renders the background alone.
             auto* const font_engine = m_context.runtime
                 ? &m_context.runtime->font_engine() : nullptr;
-            return {std::make_shared<const Scene>(
-                        compiler::SceneMaterializer{}.materialize_scene(
-                            program, std::pmr::get_default_resource(),
-                            font_engine)),
-                    1};
+            try {
+                auto scene = std::make_shared<const Scene>(
+                    compiler::SceneMaterializer{}.materialize_scene(
+                        program, std::pmr::get_default_resource(), font_engine));
+                if (m_context.counters) {
+                    const auto materialize_end = std::chrono::steady_clock::now();
+                    const auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        materialize_end - materialize_start).count();
+                    m_context.counters->scene_materialize_wall_us.fetch_add(
+                        static_cast<std::uint64_t>(std::max<std::int64_t>(0, elapsed_us)),
+                        std::memory_order_relaxed);
+                    m_context.counters->scene_materialize_count.fetch_add(
+                        1, std::memory_order_relaxed);
+                }
+                return {std::move(scene), 1};
+            } catch (...) {
+                if (m_context.counters) {
+                    const auto materialize_end = std::chrono::steady_clock::now();
+                    const auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        materialize_end - materialize_start).count();
+                    m_context.counters->scene_materialize_wall_us.fetch_add(
+                        static_cast<std::uint64_t>(std::max<std::int64_t>(0, elapsed_us)),
+                        std::memory_order_relaxed);
+                }
+                throw;
+            }
         });
+    if (!materialized_here && m_context.counters) {
+        m_context.counters->scene_materialize_cache_hit_count.fetch_add(
+            1, std::memory_order_relaxed);
+    }
 
     // The cached topology is immutable. Only animated-camera programs need a
     // per-render scene copy so all graph consumers (including dirty/reuse

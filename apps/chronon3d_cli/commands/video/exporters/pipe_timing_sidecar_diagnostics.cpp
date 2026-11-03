@@ -67,6 +67,7 @@ void build_diagnostics_sections(
         if (value) cpu[key] = *value; else cpu[key] = nullptr;
     };
     put_cpu("timeline_eval_ms", timings.cpu_breakdown.timeline_eval_ms);
+    put_cpu("program_sample_ms", timings.program_sample_ms);
     put_cpu("graph_resolve_layers_ms", timings.cpu_breakdown.graph_resolve_layers_ms);
     put_cpu("graph_dirty_rect_ms", timings.cpu_breakdown.graph_dirty_rect_ms);
     put_cpu("graph_build_ms", timings.cpu_breakdown.graph_build_ms);

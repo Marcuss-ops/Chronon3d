@@ -15,6 +15,10 @@ FrameProfileSample sample_frame_profile(const RenderLoopContext& ctx) {
         return c.load(std::memory_order_relaxed);
     };
     s.timeline_eval_us = load(ctx.counters->timeline_eval_wall_us);
+    s.program_sample_us = load(ctx.counters->program_sample_wall_us);
+    s.scene_materialize_us = load(ctx.counters->scene_materialize_wall_us);
+    s.scene_materialize_count = load(ctx.counters->scene_materialize_count);
+    s.scene_materialize_cache_hit_count = load(ctx.counters->scene_materialize_cache_hit_count);
     s.text_prepare_per_frame_us = load(ctx.counters->text_prepare_per_frame_wall_us);
     s.text_styled_glyph_build_us = load(ctx.counters->gpu_text_styled_glyph_build_wall_us);
     s.text_atlas_pack_us = load(ctx.counters->gpu_text_atlas_pack_wall_us);
@@ -81,9 +85,27 @@ FrameProfileSample sample_frame_profile(const RenderLoopContext& ctx) {
 FrameTimingProjection project_frame_timings(
     const FrameProfileSample& before,
     const FrameProfileSample& after,
-    double frame_ms) {
+    double frame_ms,
+    bool compiled_program) {
     FrameTimingProjection p;
-    p.breakdown.timeline_eval_ms = static_cast<double>(after.timeline_eval_us - before.timeline_eval_us) / 1000.0;
+    if (compiled_program) {
+        p.breakdown.timeline_eval_ms = std::nullopt;
+        p.breakdown.program_sample_ms = static_cast<double>(
+            after.program_sample_us - before.program_sample_us) / 1000.0;
+        const auto materialize_count = after.scene_materialize_count - before.scene_materialize_count;
+        p.breakdown.scene_materialize_ms = materialize_count > 0
+            ? std::optional<double>{static_cast<double>(
+                  after.scene_materialize_us - before.scene_materialize_us) / 1000.0}
+            : std::nullopt;
+        p.breakdown.scene_materialize_cache_hit =
+            after.scene_materialize_cache_hit_count > before.scene_materialize_cache_hit_count;
+    } else {
+        p.breakdown.timeline_eval_ms = static_cast<double>(
+            after.timeline_eval_us - before.timeline_eval_us) / 1000.0;
+        p.breakdown.program_sample_ms = std::nullopt;
+        p.breakdown.scene_materialize_ms = std::nullopt;
+        p.breakdown.scene_materialize_cache_hit = std::nullopt;
+    }
     p.breakdown.text_ms = static_cast<double>(after.text_us - before.text_us) / 1000.0;
     p.breakdown.graph_prepare_ms = static_cast<double>(after.graph_prepare_us - before.graph_prepare_us) / 1000.0;
     p.breakdown.graph_execute_ms = static_cast<double>(after.graph_execute_us - before.graph_execute_us) / 1000.0;
@@ -91,7 +113,10 @@ FrameTimingProjection project_frame_timings(
     p.breakdown.effects_ms = static_cast<double>(after.effects_us - before.effects_us) / 1000.0;
     p.breakdown.surface_management_ms = static_cast<double>(after.surface_us - before.surface_us) / 1000.0;
     p.breakdown.backend_overhead_ms = static_cast<double>(after.overhead_us - before.overhead_us) / 1000.0;
-    const double accounted_ms = p.breakdown.timeline_eval_ms + p.breakdown.text_ms +
+    const double accounted_ms = p.breakdown.timeline_eval_ms.value_or(0.0) +
+                                p.breakdown.program_sample_ms.value_or(0.0) +
+                                p.breakdown.scene_materialize_ms.value_or(0.0) +
+                                p.breakdown.text_ms +
                                 p.breakdown.graph_prepare_ms + p.breakdown.graph_execute_ms +
                                 p.breakdown.compositing_ms + p.breakdown.effects_ms +
                                 p.breakdown.surface_management_ms + p.breakdown.backend_overhead_ms;

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <optional>
 
 namespace chronon3d::telemetry {
 
@@ -299,10 +300,13 @@ struct FrameGpuTiming {
 };
 
 /// Architectural breakdown of a single frame's render time (render_ms), in ms.
-/// Populated by the render loop from per-frame counter deltas.  A field stays
-/// 0.0 when that phase is not yet measured (emitted as JSON null, never 0.0).
+/// Populated by the render loop from per-frame counter deltas. Optional phases
+/// that do not apply to the selected evaluation path are emitted as JSON null.
 struct FrameRenderBreakdown {
-    double timeline_eval_ms{0.0};
+    std::optional<double> timeline_eval_ms;
+    std::optional<double> program_sample_ms;
+    std::optional<double> scene_materialize_ms;
+    std::optional<bool> scene_materialize_cache_hit;
     double animation_eval_ms{0.0};
     double text_ms{0.0};
     double graph_prepare_ms{0.0};

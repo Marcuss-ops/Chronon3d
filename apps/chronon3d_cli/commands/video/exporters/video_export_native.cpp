@@ -187,6 +187,7 @@ PipeExportResult render_and_encode_native(
     const bool is_native =
         is_native_encoder_transport(session->opts.encoder.encoder_backend);
     pipe_timing::JobTimings timings;
+    timings.evaluation_mode = session->evaluation_mode;
     if (session->direct_yuv_selected()) {
         timings.execution_path = "direct_yuv";
     } else if (is_native) {
@@ -215,6 +216,27 @@ PipeExportResult render_and_encode_native(
         }
     }
     if (counters) {
+        if (session->evaluation_mode == "compiled_program") {
+            timings.cpu_breakdown.timeline_eval_ms = std::nullopt;
+            timings.program_sample_ms = static_cast<double>(
+                counters->program_sample_wall_us.load(std::memory_order_relaxed)) / 1000.0;
+            const auto materialize_count =
+                counters->scene_materialize_count.load(std::memory_order_relaxed);
+            timings.scene_materialize_ms = materialize_count > 0
+                ? std::optional<double>(static_cast<double>(
+                      counters->scene_materialize_wall_us.load(std::memory_order_relaxed)) /
+                  1000.0)
+                : std::nullopt;
+            timings.scene_materialize_count = materialize_count;
+            timings.scene_materialize_cache_hits =
+                counters->scene_materialize_cache_hit_count.load(std::memory_order_relaxed);
+        } else if (session->evaluation_mode == "direct_yuv") {
+            timings.cpu_breakdown.timeline_eval_ms = std::nullopt;
+            timings.program_sample_ms = std::nullopt;
+            timings.scene_materialize_ms = std::nullopt;
+            timings.scene_materialize_count = std::nullopt;
+            timings.scene_materialize_cache_hits = std::nullopt;
+        }
         if (session->direct_yuv_selected()) {
             counters->nvenc_frames.fetch_add(0, std::memory_order_relaxed);
         }
@@ -322,6 +344,10 @@ PipeExportResult render_and_encode_native(
     timings.graph_compile_ms = session->prepare_timings.graph_compile_ms;
     // Phase 4 — projection of the render/session counters.
     project_render_counters(*session, counters, timings);
+    if (session->evaluation_mode == "compiled_program" ||
+        session->evaluation_mode == "direct_yuv") {
+        timings.cpu_breakdown.timeline_eval_ms = std::nullopt;
+    }
 
     // Phase 5 — project the backend's GPU telemetry counters.
     project_backend_gpu_counters(*session, timings);

@@ -16,13 +16,6 @@ class RenderBackend : public RenderBackendStatsApi,
 public:
     RenderBackend() = default;
     ~RenderBackend() override = default;
-
-    /// Blocks until GPU work that may still reference a native surface has
-    /// completed. Job-owned surface leases call this before releasing: the
-    /// frame-batch release path is deferred, and a lease destroyed at job
-    /// scope has no later batch to retire it. Backends without native
-    /// surfaces have nothing to drain.
-    virtual void drain_native_surfaces() noexcept {}
     RenderBackend(const RenderBackend&) = delete;
     RenderBackend& operator=(const RenderBackend&) = delete;
     RenderBackend(RenderBackend&&) noexcept = default;

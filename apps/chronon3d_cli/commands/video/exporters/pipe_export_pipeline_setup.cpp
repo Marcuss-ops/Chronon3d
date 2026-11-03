@@ -56,6 +56,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const int canvas_height = program ? static_cast<int>(program->metadata().height)
                                       : compiled->composition->height();
     const auto program_fingerprint = program ? program->fingerprint() : compiled->fingerprint;
+    session->evaluation_mode = program ? "compiled_program" : "compiled_composition";
     session->execution_plan = opts.resolved_execution_plan;
     session->execution_context = execution;
     bool direct_yuv_requested =
@@ -320,6 +321,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             spdlog::info("[lane] direct-yuv selected for video source '{}'",
                          session->direct_yuv_session->program->video_path());
         }
+    }
+    if (session->direct_yuv_selected()) {
+        session->evaluation_mode = "direct_yuv";
     }
 
     // Z1 (TICKET-ZERO-COPY-ZWAVES): open the encoder only AFTER the final
