@@ -942,6 +942,175 @@ TEST_CASE("Camera capability contract rejects unsupported optics at both compile
     rejected(camera);
 }
 
+TEST_CASE("Camera contract frontier matrix accepts and rejects identical payloads") {
+    using namespace chronon3d::render_plan;
+    RenderPlan plan;
+    plan.job_id = "camera-contract-frontier";
+    plan.canvas = {.width = 96, .height = 64, .fps = FrameRate{30, 1}, .duration = Frame{1}};
+    plan.camera = CameraPlan{};
+    LayerPlan layer;
+    layer.id = "subject";
+    layer.type = LayerType::Color;
+    plan.layers.push_back(layer);
+    assets::AssetResolver resolver;
+
+    const auto accepted = [&](const CameraPlan& camera, const char* label) {
+        INFO(label);
+        CHECK_FALSE(camera_contract_problem(camera));
+        auto candidate = plan;
+        candidate.camera = camera;
+        CHECK(compiler::compile(candidate, resolver));
+        CHECK(compile_render_plan(candidate, resolver));
+    };
+    const auto rejected = [&](const CameraPlan& camera, const char* label) {
+        INFO(label);
+        CHECK(camera_contract_problem(camera).has_value());
+        auto candidate = plan;
+        candidate.camera = camera;
+        CHECK_FALSE(compiler::compile(candidate, resolver));
+        CHECK_FALSE(compile_render_plan(candidate, resolver));
+        candidate.camera.reset();
+        candidate.camera_samples = std::vector<CameraSamplePlan>{{0.0, camera}};
+        CHECK_FALSE(compiler::compile(candidate, resolver));
+        CHECK_FALSE(compile_render_plan(candidate, resolver));
+    };
+
+    CameraPlan camera;
+    accepted(camera, "baseline");
+    for (float fov : {10.f, 120.f}) {
+        camera = CameraPlan{};
+        camera.fov_deg = fov;
+        accepted(camera, "fov endpoint");
+    }
+    for (float focal : {0.f, 12.f, 200.f}) {
+        camera = CameraPlan{};
+        camera.focal_length_mm = focal;
+        accepted(camera, "focal endpoint");
+    }
+    for (float sensor : {1.f, 100.f}) {
+        camera = CameraPlan{};
+        camera.sensor_width_mm = sensor;
+        camera.sensor_height_mm = sensor;
+        accepted(camera, "sensor endpoint");
+    }
+    for (float stop : {0.f, 0.7f, 32.f}) {
+        camera = CameraPlan{};
+        camera.f_stop = stop;
+        accepted(camera, "f-stop endpoint");
+    }
+    for (float focus : {1e-6f, 1e7f}) {
+        camera = CameraPlan{};
+        camera.dof_focus_distance = focus;
+        accepted(camera, "focus endpoint");
+    }
+    for (float blur : {0.f, 256.f}) {
+        camera = CameraPlan{};
+        camera.dof_max_blur = blur;
+        accepted(camera, "max blur endpoint");
+    }
+    for (float shift : {-1.f, 1.f}) {
+        camera = CameraPlan{};
+        camera.lens_shift = {shift, -shift};
+        accepted(camera, "lens shift endpoint");
+    }
+    for (float gain : {0.f, 8.f}) {
+        camera = CameraPlan{};
+        camera.dof_highlight_gain = gain;
+        accepted(camera, "highlight gain endpoint");
+    }
+    camera = CameraPlan{};
+    camera.type = "orthographic";
+    camera.zoom = 2.f;
+    accepted(camera, "orthographic zoom");
+
+    // Every admitted renderer-facing field reaches the adapter unchanged.
+    CameraPlan consumed;
+    consumed.focal_length_mm = 200.f;
+    consumed.sensor_width_mm = 100.f;
+    consumed.sensor_height_mm = 100.f;
+    consumed.lens_shift = {1.f, -1.f};
+    consumed.f_stop = 32.f;
+    consumed.dof_enabled = true;
+    consumed.dof_focus_distance = 1e7f;
+    consumed.dof_max_blur = 256.f;
+    consumed.dof_highlight_gain = 8.f;
+    const auto value = chronon3d::render_plan::detail::make_camera_value(consumed, plan.canvas);
+    CHECK(value.optics_mode == CameraOpticsMode::PhysicalLens);
+    CHECK(value.lens.focal_length == 200.f);
+    CHECK(value.lens.sensor_width == 100.f);
+    CHECK(value.lens.sensor_height == 100.f);
+    CHECK(value.lens.f_stop == 32.f);
+    CHECK(value.lens_shift == Vec2(1.f, -1.f));
+    CHECK(value.dof.enabled);
+    CHECK(value.dof.focus_distance == 1e7f);
+    CHECK(value.dof.max_blur == 256.f);
+    CHECK(value.dof.highlight_gain == 8.f);
+
+    const float inf = std::numeric_limits<float>::infinity();
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    for (float fov : {9.99f, 120.01f, inf, nan}) {
+        camera = CameraPlan{};
+        camera.fov_deg = fov;
+        rejected(camera, "fov out of range");
+    }
+    for (float focal : {11.99f, 200.01f, inf, nan}) {
+        camera = CameraPlan{};
+        camera.focal_length_mm = focal;
+        rejected(camera, "focal out of range");
+    }
+    for (float sensor : {0.99f, 100.01f, inf, nan}) {
+        camera = CameraPlan{};
+        camera.sensor_width_mm = sensor;
+        rejected(camera, "sensor out of range");
+    }
+    for (float stop : {0.69f, 32.01f, inf, nan}) {
+        camera = CameraPlan{};
+        camera.f_stop = stop;
+        rejected(camera, "f-stop out of range");
+    }
+    for (float focus : {0.f, -1.f, 10000001.f, inf, nan}) {
+        camera = CameraPlan{};
+        camera.dof_focus_distance = focus;
+        rejected(camera, "focus out of range");
+    }
+    for (float blur : {-0.01f, 256.01f, inf, nan}) {
+        camera = CameraPlan{};
+        camera.dof_max_blur = blur;
+        rejected(camera, "max blur out of range");
+    }
+    for (float gain : {-0.01f, 8.01f, inf, nan}) {
+        camera = CameraPlan{};
+        camera.dof_highlight_gain = gain;
+        rejected(camera, "highlight gain out of range");
+    }
+    for (float shift : {1.01f, -1.01f, nan}) {
+        camera = CameraPlan{};
+        camera.lens_shift = {shift, 0.f};
+        rejected(camera, "lens shift out of range");
+    }
+    camera = CameraPlan{};
+    camera.type = "fisheye";
+    rejected(camera, "unsupported projection type");
+    camera = CameraPlan{};
+    camera.iris_blades = 1;
+    rejected(camera, "polygonal iris");
+    camera = CameraPlan{};
+    camera.near = 0.f;
+    rejected(camera, "zero near plane");
+    camera = CameraPlan{};
+    camera.far = camera.near;
+    rejected(camera, "empty clipping interval");
+    camera = CameraPlan{};
+    camera.zoom = 0.f;
+    rejected(camera, "non-positive zoom");
+    camera = CameraPlan{};
+    camera.position[1] = inf;
+    rejected(camera, "non-finite position");
+    camera = CameraPlan{};
+    camera.rotation_deg[2] = nan;
+    rejected(camera, "non-finite rotation");
+}
+
 TEST_CASE("Camera projection preserves oversized image pixels outside the source canvas") {
     using namespace chronon3d::render_plan;
     const auto root = std::filesystem::path("output/camera_motion/oversized_image");
