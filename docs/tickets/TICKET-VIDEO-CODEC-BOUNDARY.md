@@ -1,13 +1,11 @@
 # TICKET-VIDEO-CODEC-BOUNDARY — the codec boundary gets one decision language
 
-**Stato (2026-11-02): PARTIAL** — la decisione per-job è verificata; resta
-`BoundaryReencode` con preservazione PTS/DTS/time-base e i relativi gate di
-parità, come dettagliato nel TODO.
+## Stato — chiuso (2026-11-02)
 
-## TODO — cosa manca (agg. 2026-10-28)
-
-- [ ] **`BoundaryReencode` (finding CB-2)** — logica: il resolver decide già `BoundaryReencode` per gli intervalli ibridi ma nessun boundary re-encoder esiste che consumi il modello di dipendenze GOP (PTS/DTS/time-base preservati fino al `GopExecutionPlan`); quando atterra, il downgrade `hybrid_pipeline_unavailable` diventa il candidato da demolire. Dove: executor video CLI (`apps/chronon3d_cli/utils/video/`), `src/media/video/video_execution_resolver.cpp`, `MinimumWorkSchedule`/`GopExecutionPlan`. Gate: test boundary su intervalli ibridi + parity harness del BoundaryReencode (P0-5B di `TICKET-SCALE-P0`) + demolizione del downgrade con receipt strutturata.
+- [x] **`BoundaryReencode` (finding CB-2)** — executor GOP presente: usa una singola `MuxSession` per GOP copiati e ri-encodati, con schedule e timestamp sorgente conservati fino al piano (`apps/chronon3d_cli/utils/video/video_job_execute_gop.cpp`, `src/media/video/gop_execution_executor.cpp`). Il downgrade legacy `hybrid_pipeline_unavailable` non è presente.
 - [x] **Decisione per-layer vs per-job (esperimento 4)** — confermato per-job: codec, changed intervals, stream timestamps, muxer e GOP execution plan appartengono alla singola esportazione; una decisione per-layer richiederebbe output/mux separati e un contratto non esistente. Se servirà una policy diversa per un layer, va espresso come job di export separato.
+
+Verifica CPU-only locale: preset `linux-video-test`, `CHRONON3D_ENABLE_CUDA_INTEROP=OFF`, feature vcpkg `native-ffmpeg` (FFmpeg con libx264/libx265). `chronon3d_cli_tests`: 273 casi e 5.563 asserzioni passati. Gate mirati: P0-5B, 1 caso/1.295 asserzioni; P0-5D e P0-5E/5F, 2 casi/214 asserzioni. Nessun test GPU è stato eseguito. Le preset video installano ora esplicitamente `native-ffmpeg`; due callsite CLI obsoleti sono stati aggiornati alle firme correnti per compilare il target.
 
 ### Decisione per-job — 2026-10-29
 
@@ -15,12 +13,13 @@ parità, come dettagliato nel TODO.
 capability del dispositivo e la schedule GOP dell'intera esportazione; non
 esistono stream/muxer indipendenti per layer. Spostare ora la scelta nei layer
 duplicherebbe la policy e non cambierebbe il piano realmente eseguito. La
-checkbox dell'esperimento 4 è chiusa; `BoundaryReencode` resta un follow-up
-distinto finché non esiste un executor che preservi PTS/DTS/time-base.
+decisione per-job e il gate `BoundaryReencode` sono chiusi.
 
 ## Contesto
 
-> **Aggiornamento 2026-10-10:** il boundary executor e i contratti codec video sono **VERIFICATI**: `chronon3d_video_contracts_tests` (5/5 casi passati, 25/25 asserzioni), validazione stream e frame order, determinismo serial/parallel e stabilità 900 frame verificati su `chronon3d_cli render`.
+> **Aggiornamento 2026-11-02:** il boundary executor e il corpus di parità
+> sono verificati sul preset `linux-video-test` con FFmpeg nativo. Il preset
+> abilita ora la feature `native-ffmpeg`, che fornisce gli encoder richiesti.
 
 L'audio ha già un'autorità di decisione pura per il proprio confine di codec:
 
@@ -38,9 +37,9 @@ bitstream era sparsa in due punti che la scrivevano a mano
 bitstream veniva riusato. Una qualunque futura aggiunta di branch poteva quindi
 introdurre un secondo parere sulla stessa domanda.
 
-Questo è il passo 3 del §3 di
+Questo ticket chiude i passi 3 e 4 del §3 di
 [`docs/AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY.md`](../AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY.md)
-(il passo 4 — per-layer vs per-job — resta aperto).
+con l'executor boundary e la decisione per-job documentati sopra.
 
 ## Modifiche implementate
 
@@ -95,19 +94,12 @@ Questo è il passo 3 del §3 di
 | `codec_path` è coerente col piano finale | copy provato ⇒ `CopyPackets`; downgrade/composizione ⇒ `FullReencode` (unit test) |
 | Nessun gate di correttezza esistente regredisce | suite `chronon3d_cli_tests` verde; arch gate verde |
 
-## Cosa NON è coperto (follow-up dichiarato)
+## Follow-up fuori da questo ticket
 
-- **`BoundaryReencode`**: il resolver lo decide per gli intervalli ibridi, ma
-  non esiste ancora un boundary re-encoder che consumi un modello di dipendenze
-  GOP (finding CB-2 dell'audit).
-- **Per-layer vs per-job** (esperimento 4 del §3): la decisione resta un flag di
-  job (`command_render_plan.hpp`).
 - **Nessuna misura runtime**: il prototipo non cambia il data path, quindi non ha
   effetto misurabile sull'export.
 
 ## Demolition Debt
 
-Non applicabile: questo ticket *crea* l'autorità, non rimuove un percorso. Quando
-`BoundaryReencode` verrà implementato, l'attuale downgrade
-`hybrid_pipeline_unavailable` (`video_execution_resolver.cpp`) diventa il candidato
-da demolire, con la sua ragione strutturata già emessa come ricevuta.
+Il percorso legacy `hybrid_pipeline_unavailable` non è presente. L'executor
+GOP è coperto dal gate di parità riportato sopra.

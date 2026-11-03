@@ -384,25 +384,11 @@ struct NodeExecutionContext {
 
     [[nodiscard]] const std::vector<float>& dof_depth_buffer() const noexcept;
 
-    [[nodiscard]] std::vector<float>& composite_occlusion_depth_buffer() noexcept {
-        return shared_composite_occlusion_depth
-            ? *shared_composite_occlusion_depth
-            : composite_occlusion_depth;
-    }
-
-    [[nodiscard]] CameraCompositeState& camera_composite_state() noexcept {
-        return shared_camera_composite ? *shared_camera_composite : camera_composite;
-    }
-
-    [[nodiscard]] NativeOcclusionState& native_occlusion_state() noexcept {
-        return shared_native_occlusion ? *shared_native_occlusion : native_occlusion;
-    }
-
-    [[nodiscard]] const std::vector<float>& composite_occlusion_depth_buffer() const noexcept {
-        return shared_composite_occlusion_depth
-            ? *shared_composite_occlusion_depth
-            : composite_occlusion_depth;
-    }
+    [[nodiscard]] std::vector<float>& composite_occlusion_depth_buffer() noexcept;
+    [[nodiscard]] CameraCompositeState& camera_composite_state() noexcept;
+    [[nodiscard]] NativeOcclusionState& native_occlusion_state() noexcept;
+    [[nodiscard]] const std::vector<float>&
+    composite_occlusion_depth_buffer() const noexcept;
 
     [[nodiscard]] DofSourceCoverage& dof_sources() noexcept;
 
