@@ -403,6 +403,11 @@ public:
     /// Waits for all Vulkan work that may reference native CUDA surfaces,
     /// without retiring or destroying those surfaces.
     [[nodiscard]] bool wait_for_pending_submissions() noexcept;
+    /// Job-scope leases drain before release so a deferred image cannot
+    /// outlive the lease that owns it.
+    void drain_native_surfaces() noexcept override {
+        (void)wait_for_pending_submissions();
+    }
     /// Capacity of the native-import ring derived from the backend's actual
     /// frame-batch in-flight window.
     [[nodiscard]] std::size_t native_surface_ring_capacity() const noexcept;

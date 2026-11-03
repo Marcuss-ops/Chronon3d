@@ -327,6 +327,23 @@ TEST_CASE("inline mesh validates and decodes in both RenderPlan schema versions"
     }
 }
 
+TEST_CASE("3D mesh plans fail closed without a camera") {
+    auto json = base_mesh_plan();
+    json["layers"][0]["enable_3d"] = true;
+    const auto missing = decode_render_plan(json);
+    REQUIRE_FALSE(missing);
+    CHECK(missing.error().code == "mesh_3d_requires_camera");
+
+    json["camera"] = {
+        {"type", "perspective"}, {"position", {0.0, 0.0, -1000.0}},
+        {"rotation_deg", {0.0, 0.0, 0.0}}, {"fov_deg", 50.0},
+        {"near", 1.0}, {"far", 10000.0}, {"zoom", 1.0}};
+    const auto decoded = decode_render_plan(json);
+    REQUIRE(decoded);
+    REQUIRE(decoded->camera);
+    CHECK(decoded->camera->fov_deg == doctest::Approx(50.0f));
+}
+
 TEST_CASE("inline mesh rejects missing, cross-typed, referenced, malformed, and non-triangle data") {
     auto json = base_mesh_plan();
     json["layers"][0].erase("inline_mesh");

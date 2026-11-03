@@ -26,6 +26,23 @@ std::optional<PlanDecodeError> validate_render_plan_layer_relations(
     // relation/name checks are new V3 semantics, not retroactive V2 rules.
     if (plan.schema != kRenderPlanSchemaV3) return std::nullopt;
 
+    // A 3D mesh is projected through the camera. Without one the renderer
+    // silently keeps the default camera at the near plane and emits an empty
+    // frame, which is a fail-open: the plan validated and the job "succeeded"
+    // with zero pixels. Reject it here (the decoder and the compiler both call
+    // this validator) so the caller must author a camera or camera_samples.
+    const bool has_3d_mesh = std::any_of(
+        plan.layers.begin(), plan.layers.end(), [](const LayerPlan& layer) {
+            return layer.type == LayerType::Mesh && layer.enable_3d;
+        });
+    if (has_3d_mesh && !plan.camera && !plan.camera_samples) {
+        return PlanDecodeError{
+            "camera",
+            "3D mesh layers require a camera or camera_samples; a camera-less "
+            "plan would render an empty frame",
+            "mesh_3d_requires_camera", "render-plan-camera"};
+    }
+
     std::unordered_map<std::string, std::size_t> by_id;
     by_id.reserve(plan.layers.size());
     for (std::size_t index = 0; index < plan.layers.size(); ++index) {
