@@ -8,14 +8,52 @@
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/graphics/shape_style/stroke_style.hpp>
+#include <chronon3d/text/prepared_text.hpp>
+#include <chronon3d/text/resolve_text_placement.hpp>
+#include <chronon3d/text/text_run_builder.hpp>
+// The compiled route reuses the RenderPlan text lowering verbatim instead of
+// keeping a second copy of the typography mapping.
+#include "../render_plan/render_plan_compiler_detail.hpp"
+
+#include <spdlog/spdlog.h>
 
 #include <cmath>
+#include <optional>
+#include <string>
 
 namespace chronon3d::compiler {
 
+namespace {
+
+// Narrow view of a compiled text layer in the RenderPlan vocabulary. Only the
+// fields the shared text lowering reads are populated, so the compiled route
+// and the RenderPlan route cannot drift apart on typography, paint or animator
+// semantics.
+[[nodiscard]] render_plan::LayerPlan compiled_text_plan_view(
+    const StaticLayerProgram& layer) {
+    render_plan::LayerPlan view;
+    view.id = layer.name.empty()
+        ? ("layer_" + std::to_string(layer.id)) : layer.name;
+    view.type = render_plan::LayerType::Text;
+    view.text = layer.text;
+    view.font = layer.font;
+    view.style = layer.text_style;
+    view.text_spans = layer.text_spans;
+    view.svg_glyph_paint_ranges = layer.svg_glyph_paint_ranges;
+    view.text_animators = layer.text_animators;
+    view.size = layer.size;
+    view.size_dimensions = layer.size_dimensions;
+    view.color = layer.color;
+    return view;
+}
+
+}  // namespace
+
 chronon3d::Scene SceneMaterializer::materialize_scene(
-    const CompiledProgram& program, std::pmr::memory_resource* resource) const {
+    const CompiledProgram& program, std::pmr::memory_resource* resource,
+    FontEngine* font_engine) const {
     const auto& meta = program.metadata();
+    const FrameRate canvas_fps{meta.fps_numerator, meta.fps_denominator};
     SceneBuilder scene(resource);
     if (meta.camera_2_5d) scene.set_evaluated_camera(*meta.camera_2_5d);
     if (meta.lighting_rig) {
@@ -31,6 +69,15 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
         rig.rim.intensity = source.rim_intensity;
         rig.rim.power = source.rim_power;
         scene.apply_lighting_rig(rig);
+    }
+    // The RenderPlan environment light must reach the scene on this route too:
+    // without it the CLI rendered an HDRI plan byte-identically to the same
+    // plan with the probe removed, which is what the HDRI ticket measured.
+    if (meta.environment_light) {
+        scene.environment_irradiance(meta.environment_light->irradiance_sh,
+                                     meta.environment_light->intensity,
+                                     meta.environment_light->rotation_y,
+                                     meta.environment_probe);
     }
     for (const auto& layer : program.layers()) {
         const std::string name = layer.name.empty()
@@ -99,9 +146,39 @@ chronon3d::Scene SceneMaterializer::materialize_scene(
                     }
                     break;
                 }
-                case NodeKind::Text:
-                    builder.kind(LayerKind::Text);
+                case NodeKind::Text: {
+                    // A text layer only becomes drawable through a prepared
+                    // text run.  Add nothing and the source pass silently turns
+                    // the layer into a ClearNode: the job stays green while
+                    // every frame is the background alone.
+                    if (!layer.text_style) {
+                        spdlog::error(
+                            "materialize_scene: compiled text layer '{}' carries no "
+                            "text style; it cannot produce glyphs and would render "
+                            "as an empty layer", name);
+                        builder.kind(LayerKind::Text);
+                        break;
+                    }
+                    const auto canvas = CanvasInfo::from_dimensions(
+                        static_cast<float>(meta.width),
+                        static_cast<float>(meta.height));
+                    const auto text_plan = compiled_text_plan_view(layer);
+                    const auto definition =
+                        render_plan::detail::materialize_text(text_plan, canvas);
+                    // Text paint is authored in screen space, not a lit 3D
+                    // material; keep the same boundary contract the RenderPlan
+                    // route enforces.
+                    builder.kind(LayerKind::Text)
+                        .accepts_lights(false)
+                        .accepts_shadows(false);
+                    auto& text_builder = builder.text_run(
+                        "text", chronon3d::prepare_text(definition))
+                        .font_engine(font_engine);
+                    render_plan::detail::apply_text_animators(
+                        text_builder, text_plan, canvas_fps);
+                    render_plan::detail::apply_text_glow(builder, text_plan);
                     break;
+                }
                 case NodeKind::Mesh: {
                     if (!layer.inline_mesh)
                         throw std::runtime_error("mesh layer '" + layer.name + "' has no inline geometry");

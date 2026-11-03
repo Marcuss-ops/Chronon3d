@@ -1,5 +1,8 @@
 # Cinematic particles and bokeh environment
 
+**Stato (2026-11-02): PARTIAL — percorso software implementato; parità Vulkan,
+golden/random-access e certificazione su host Vulkan restano aperti.**
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
 - [ ] **Parità software/Vulkan byte-identica** — logica: il software kernel è l'autorità di placement/compositing; il replica Vulkan deve essere parità-certificato prima della promozione, altrimenti la capability resta fail-closed (`UnsupportedCapability`). Dove: emitter environment nel lowering `particle_emitter` + dispatch Vulkan strict-native. Gate: test di parità byte su casi full-budget/clipping/bokeh-depth.

@@ -592,6 +592,10 @@ NodeExecResult SourceNode::execute(
         // is animated below one; keep the metadata truthful so CompositeNode
         // cannot take the opaque fast path and replace the background.
         fb->set_opaque(full_frame_seed && state.opacity >= 1.0f);
+        if (fb->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
+            ctx.backend_stats_api()->supports_native_surfaces()) {
+            fb->mark_gpu_authoritative();
+        }
 
         // Diagnostics: only log in debug mode without full-buffer pixel scanning
     }

@@ -480,6 +480,7 @@ void project_render_counters(
         timings.gpu.nvenc_frames = c->nvenc_frames.load(std::memory_order_relaxed);
         timings.gpu.software_encode_frames = c->software_encode_frames.load(std::memory_order_relaxed);
         timings.gpu.bitstream_copy_frames = c->bitstream_copy_frames.load(std::memory_order_relaxed);
+        timings.gpu.identity_fallback_frames = c->identity_fallback_frames.load(std::memory_order_relaxed);
         timings.gpu.vulkan_frames = c->vulkan_frames.load(std::memory_order_relaxed);
         timings.gpu.cpu_readback_frames = c->cpu_readback_frames.load(std::memory_order_relaxed);
         timings.gpu.decode_submit_ms = c->decode_submit_ms.load(std::memory_order_relaxed);

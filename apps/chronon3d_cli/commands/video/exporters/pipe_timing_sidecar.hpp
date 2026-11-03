@@ -215,6 +215,7 @@ struct GpuMetrics {
     std::optional<std::uint64_t> nvenc_frames;
     std::optional<std::uint64_t> software_encode_frames;
     std::optional<std::uint64_t> bitstream_copy_frames;
+    std::optional<std::uint64_t> identity_fallback_frames;
     std::optional<std::uint64_t> vulkan_frames;
     std::optional<std::uint64_t> cpu_readback_frames;
     std::optional<std::uint64_t> decode_submit_ms;

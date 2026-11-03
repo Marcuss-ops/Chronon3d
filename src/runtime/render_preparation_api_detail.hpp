@@ -124,7 +124,9 @@ RenderPreparationResult prepare_render(
     const FrameRate canvas_fps{metadata.fps_numerator, metadata.fps_denominator};
     // Preparation needs graph topology only. Frame-varying values are sampled
     // by TypedProgramSampler at execution time and are not materialized here.
-    Scene scene = compiler::SceneMaterializer{}.materialize_scene(program);
+    const auto& runtime = *renderer->execution_context().runtime;
+    Scene scene = compiler::SceneMaterializer{}.materialize_scene(
+        program, std::pmr::get_default_resource(), &runtime.font_engine());
     auto result = detail::prepare_render_scene(
         renderer, scene,
         CompositionSpec{

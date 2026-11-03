@@ -4,6 +4,10 @@
 #include <chronon3d/cache/framebuffer_copy.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/nodes/lighting_node.hpp>
+#include <chronon3d/render_graph/nodes/depth_grade_node.hpp>
+
+#include <array>
 
 #include <algorithm>
 #include <memory>
@@ -259,6 +263,45 @@ TEST_CASE("CPU framebuffer copies do not alias frame-scoped native surfaces") {
     CHECK(owned_fresh_copy->surface_handle() == runtime::kInvalidRenderSurfaceHandle);
     CHECK(owned_fresh_copy->is_cpu_authoritative());
     CHECK(pixels_equal(*owned_fresh_copy, src));
+}
+
+TEST_CASE("CPU lighting and depth grade detach borrowed native surfaces") {
+    Framebuffer source(4, 4, false);
+    source.clear(Color{0.5f, 0.5f, 0.5f, 1.0f});
+    source.set_surface_handle(0x1234U);
+    source.mark_cpu_gpu_synchronized();
+    const std::array<FramebufferRef, 1> inputs{FramebufferRef{source}};
+
+    RenderGraphContext ctx;
+    ctx.frame_input.width = 4;
+    ctx.frame_input.height = 4;
+    ctx.frame_input.light_context = rendering::LightContext::default_scene();
+    OwnedFB slot;
+    ctx.node_exec.planned_physical_slot = &slot;
+
+    SUBCASE("lighting") {
+        auto node = LightingNode::create("layer", Mat4{1.0f}, Material2_5D{});
+        auto result = node->execute(ctx, inputs, {});
+        REQUIRE(result.ok());
+        auto output = result.take_value();
+        REQUIRE(output);
+        CHECK(output->surface_handle() == runtime::kInvalidRenderSurfaceHandle);
+        CHECK(output->is_cpu_authoritative());
+        CHECK(output->get_pixel(0, 0).r < source.get_pixel(0, 0).r);
+        CHECK(source.surface_handle() == 0x1234U);
+    }
+    SUBCASE("depth grade") {
+        rendering::DepthGrade grade;
+        auto node = DepthGradeNode::create(grade, grade.far_z);
+        auto result = node->execute(ctx, inputs, {});
+        REQUIRE(result.ok());
+        auto output = result.take_value();
+        REQUIRE(output);
+        CHECK(output->surface_handle() == runtime::kInvalidRenderSurfaceHandle);
+        CHECK(output->is_cpu_authoritative());
+        CHECK(output->get_pixel(0, 0).r == doctest::Approx(grade.apply(source.get_pixel(0, 0), 1.0f).r));
+        CHECK(source.surface_handle() == 0x1234U);
+    }
 }
 
 TEST_CASE("FramebufferCopyAuthority: self-copy and null/identical-pointer copies are no-ops") {

@@ -18,6 +18,8 @@
 
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <map>
 #include <stdexcept>
 #include <vector>
 #include <tests/helpers/test_utils.hpp>
@@ -732,4 +734,103 @@ TEST_CASE("RenderPlan camera_samples sub-frame evaluation uses quaternion slerp 
     const auto cam = eval(0.5);
     CHECK(cam.enabled);
     CHECK(std::abs(cam.rotation.z) == doctest::Approx(180.0f).epsilon(1e-3f));
+}
+
+TEST_CASE("Full Optical Studio v3 provider vs offline production render equivalence") {
+    using namespace chronon3d;
+    using namespace chronon3d::render_plan;
+
+    std::filesystem::path plan_path = "docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json";
+    if (!std::filesystem::exists(plan_path))
+        plan_path = "Chronon3d/docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json";
+    if (!std::filesystem::exists(plan_path))
+        plan_path = "../../../docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json";
+    if (!std::filesystem::exists(plan_path))
+        plan_path = "../../../../Chronon3d/docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json";
+
+    REQUIRE(std::filesystem::exists(plan_path));
+
+    std::ifstream file(plan_path);
+    REQUIRE(file.is_open());
+    const auto json = nlohmann::ordered_json::parse(file);
+    const auto decoded = decode_render_plan(json);
+    REQUIRE(decoded);
+
+    const auto& offline_plan = *decoded;
+    REQUIRE(offline_plan.camera.has_value());
+    REQUIRE(offline_plan.camera_samples.has_value());
+    REQUIRE(offline_plan.camera_samples->size() == 1350);
+
+    // Build sample lookup table matching the exact motion authoring evaluator
+    std::map<double, CameraPlan> sample_lut;
+    for (const auto& s : *offline_plan.camera_samples) {
+        sample_lut[s.frame] = s.camera;
+    }
+
+    // Prepare runtime plan without pre-baked camera samples
+    auto runtime_plan = offline_plan;
+    runtime_plan.camera_samples.reset();
+
+    RuntimeCameraSampleProvider provider{
+        .fingerprint = "optical-studio-v3-runtime-provider",
+        .sample = [&sample_lut](double frame) {
+            auto it = sample_lut.find(frame);
+            if (it != sample_lut.end()) return it->second;
+            for (const auto& [t, c] : sample_lut) {
+                if (std::abs(t - frame) < 1e-4) return c;
+            }
+            throw std::runtime_error("runtime camera provider: unexpected timestamp " + std::to_string(frame));
+        }
+    };
+
+    const auto assets_root = std::filesystem::absolute(plan_path).parent_path().parent_path().parent_path().parent_path();
+    assets::AssetResolver resolver;
+    resolver.mount(assets_root);
+
+    // Offline compilation (consumes baked samples)
+    const auto offline_prog = compiler::compile(offline_plan, resolver);
+    INFO((offline_prog ? "" : offline_prog.error().message));
+    REQUIRE(offline_prog);
+
+    // Runtime compilation (invokes live provider callback for each shutter subframe)
+    compiler::CompileOptions options;
+    options.runtime_camera = &provider;
+    const auto runtime_prog = compiler::compile(runtime_plan, resolver, options);
+    INFO((runtime_prog ? "" : runtime_prog.error().message));
+    REQUIRE(runtime_prog);
+
+    // Identity check: the live runtime provider compiles into the exact same program fingerprint
+    CHECK(offline_prog->fingerprint() == runtime_prog->fingerprint());
+    CHECK(offline_prog->nodes().size() == runtime_prog->nodes().size());
+    CHECK(offline_prog->layers().size() == runtime_prog->layers().size());
+    CHECK(offline_prog->passes().size() == runtime_prog->passes().size());
+
+    // Sample across the acceptance sentinels (frames 30, 75, 149) and verify exact parameter blocks
+    for (int sentinel_frame : {30, 75, 149}) {
+        compiler::FrameParameterBlock offline_params;
+        compiler::FrameParameterBlock runtime_params;
+        compiler::TypedProgramSampler{}.sample_into(*offline_prog, sentinel_frame, offline_params);
+        compiler::TypedProgramSampler{}.sample_into(*runtime_prog, sentinel_frame, runtime_params);
+
+        CHECK(offline_params.layers.size() == runtime_params.layers.size());
+        for (std::size_t i = 0; i < offline_params.layers.size(); ++i) {
+            CHECK(offline_params.layers[i].matrix == runtime_params.layers[i].matrix);
+            CHECK(offline_params.layers[i].opacity == runtime_params.layers[i].opacity);
+        }
+    }
+
+    // Fail-closed checks:
+    // 1. Offline plan with pre-existing camera_samples rejects runtime_camera
+    compiler::CompileOptions conflict_options;
+    conflict_options.runtime_camera = &provider;
+    const auto conflict_result = compiler::compile(offline_plan, resolver, conflict_options);
+    CHECK_FALSE(conflict_result);
+    CHECK(conflict_result.error().message.find("runtime sampling requires a base camera, callable provider, stable identity and no offline samples") != std::string::npos);
+
+    // 2. Runtime provider with empty fingerprint or null sample fails closed
+    RuntimeCameraSampleProvider empty_provider;
+    compiler::CompileOptions invalid_options;
+    invalid_options.runtime_camera = &empty_provider;
+    const auto invalid_result = compiler::compile(runtime_plan, resolver, invalid_options);
+    CHECK_FALSE(invalid_result);
 }

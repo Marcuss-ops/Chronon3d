@@ -11,7 +11,7 @@ std::optional<NodeExecutionError> apply_native_layer_dof(
     RenderGraphContext& ctx, const Framebuffer& layer, float camera_depth,
     float radius, float highlight_gain,
     const std::optional<raster::BBox>& layer_bounds, OwnedFB& output) {
-    if (!ctx.policy.require_native_gpu || !ctx.backend || !ctx.surface_registry ||
+    if (!ctx.backend || !ctx.surface_registry ||
         !ctx.backend_stats_api()->supports_native_surfaces() || radius < 0.5f)
         return std::nullopt;
 
@@ -56,12 +56,32 @@ std::optional<NodeExecutionError> apply_native_layer_dof(
     if (!stamped.ok())
         return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
             "LayerDoF", "failed to stamp per-layer depth and alpha coverage"};
-    auto blurred = api->dof_blur_disk_surface(output->surface_handle(),
-        expanded->surface_handle(), depth->surface_handle(), x0, y0, x1, y1,
-        radius, false, std::max(0.0f, highlight_gain));
-    if (!blurred.ok())
+
+    auto scratch = ctx.acquire_owned_fb(width, height, true);
+    if (!ensure_empty_native_surface(ctx, *scratch))
         return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
-            "LayerDoF", "Vulkan disk bokeh pass failed"};
+            "LayerDoF", "failed to materialize scratch surface"};
+
+    auto copied_scratch = api->copy_surface_auxiliary(scratch->surface_handle(),
+                                                      expanded->surface_handle());
+    if (!copied_scratch.ok())
+        return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
+            "LayerDoF", "failed to seed scratch surface"};
+
+    auto h_blurred = api->dof_blur_surface(scratch->surface_handle(),
+        expanded->surface_handle(), depth->surface_handle(), false, x0, y0, x1, y1,
+        radius, false);
+    if (!h_blurred.ok())
+        return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
+            "LayerDoF", "Vulkan horizontal layer DOF pass failed"};
+
+    auto v_blurred = api->dof_blur_surface(output->surface_handle(),
+        scratch->surface_handle(), depth->surface_handle(), true, x0, y0, x1, y1,
+        radius, false);
+    if (!v_blurred.ok())
+        return NodeExecutionError{RenderBackendErrorCode::ExecutionFailure,
+            "LayerDoF", "Vulkan vertical layer DOF pass failed"};
+
     output->mark_gpu_authoritative();
     return std::nullopt;
 }

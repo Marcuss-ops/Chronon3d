@@ -79,59 +79,10 @@ void refresh_source_node(
     auto src_node = materialize_mesh_node(layer.nodes[0], ctx);
     const bool has_mesh_sample = sampled_mesh && sampled_mesh->inline_mesh &&
         sampled_mesh->animation_before && sampled_mesh->animation_after;
-    if (has_mesh_sample) {
-        auto& shape = src_node.shape.mesh_shape();
-        const auto& base_mesh = shape.inline_mesh;
-        const auto& before = *sampled_mesh->animation_before;
-        const auto& after = *sampled_mesh->animation_after;
-        if (!base_mesh || before.positions.size() != base_mesh->vertices().size() ||
-            after.positions.size() != base_mesh->vertices().size() ||
-            (!before.normals.empty() && before.normals.size() != base_mesh->vertices().size()) ||
-            (!after.normals.empty() && after.normals.size() != base_mesh->vertices().size()) ||
-            before.normals.empty() != after.normals.empty())
-            throw std::runtime_error("animated inline mesh sample does not match source topology");
-        std::vector<Vec3> positions;
-        std::vector<Vec3> normals(base_mesh->vertices().size(), Vec3{0.0f});
-        positions.reserve(base_mesh->vertices().size());
-        for (std::size_t i = 0; i < base_mesh->vertices().size(); ++i) {
-            const auto& a = before.positions[i];
-            const auto& b = after.positions[i];
-            positions.emplace_back(
-                a[0] + (b[0] - a[0]) * sampled_mesh->animation_mix,
-                a[1] + (b[1] - a[1]) * sampled_mesh->animation_mix,
-                a[2] + (b[2] - a[2]) * sampled_mesh->animation_mix);
-        }
-        const auto& indices = base_mesh->indices();
-        if (!before.normals.empty()) {
-            for (std::size_t i = 0; i < normals.size(); ++i) {
-                const auto& a = before.normals[i];
-                const auto& b = after.normals[i];
-                Vec3 normal{a[0] + (b[0] - a[0]) * sampled_mesh->animation_mix,
-                            a[1] + (b[1] - a[1]) * sampled_mesh->animation_mix,
-                            a[2] + (b[2] - a[2]) * sampled_mesh->animation_mix};
-                if (glm::dot(normal, normal) <= 1e-12f)
-                    throw std::runtime_error("animated inline mesh has a degenerate interpolated normal");
-                normals[i] = glm::normalize(normal);
-            }
-        } else {
-            for (std::size_t i = 0; i + 2 < indices.size(); i += 3) {
-                const auto a = indices[i], b = indices[i + 1], c = indices[i + 2];
-                if (a >= positions.size() || b >= positions.size() || c >= positions.size())
-                    throw std::runtime_error("animated inline mesh contains an out-of-range index");
-                const Vec3 face = glm::cross(positions[b] - positions[a], positions[c] - positions[a]);
-                normals[a] += face; normals[b] += face; normals[c] += face;
-            }
-        }
-        auto deformed = std::make_shared<Mesh>(base_mesh->name());
-        for (std::size_t i = 0; i < positions.size(); ++i) {
-            Vec3 normal = glm::dot(normals[i], normals[i]) > 1e-12f
-                ? glm::normalize(normals[i]) : Vec3{0.0f, 0.0f, 1.0f};
-            const auto& source_vertex = base_mesh->vertices()[i];
-            deformed->add_vertex(Vertex{positions[i], normal, source_vertex.uv});
-        }
-        for (const auto index : indices) deformed->add_index(index);
-        shape.inline_mesh = std::move(deformed);
-    }
+    // One implementation of the interpolation, shared with the fresh
+    // build path in graph_builder_source_pass.cpp.
+    if (has_mesh_sample) src_node = deform_inline_mesh_node(src_node, *sampled_mesh);
+
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
     const auto source_placement = evaluate_source_placement(item, src_node, ctx);
     const std::string layer_name_str(layer.name);

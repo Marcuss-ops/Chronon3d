@@ -1,5 +1,9 @@
 # TICKET-VIDEO-CODEC-BOUNDARY — the codec boundary gets one decision language
 
+**Stato (2026-11-02): PARTIAL** — la decisione per-job è verificata; resta
+`BoundaryReencode` con preservazione PTS/DTS/time-base e i relativi gate di
+parità, come dettagliato nel TODO.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
 - [ ] **`BoundaryReencode` (finding CB-2)** — logica: il resolver decide già `BoundaryReencode` per gli intervalli ibridi ma nessun boundary re-encoder esiste che consumi il modello di dipendenze GOP (PTS/DTS/time-base preservati fino al `GopExecutionPlan`); quando atterra, il downgrade `hybrid_pipeline_unavailable` diventa il candidato da demolire. Dove: executor video CLI (`apps/chronon3d_cli/utils/video/`), `src/media/video/video_execution_resolver.cpp`, `MinimumWorkSchedule`/`GopExecutionPlan`. Gate: test boundary su intervalli ibridi + parity harness del BoundaryReencode (P0-5B di `TICKET-SCALE-P0`) + demolizione del downgrade con receipt strutturata.

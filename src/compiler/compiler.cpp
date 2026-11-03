@@ -176,8 +176,9 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     } catch (const std::exception& error) {
         return make_compile_error(CompileErrorCode::InvalidInput, "temporal_motion_blur", error.what(), "render-plan-motion");
     }
+    std::shared_ptr<const assets::HdriEnvV1> environment_probe;
     if (plan.environment_light) {
-        const auto environment = assets::load_hdri_env_v1(
+        auto environment = assets::load_hdri_env_v1(
             resolver, plan.environment_light->probe_asset);
         if (!environment) {
             return make_compile_error(
@@ -198,6 +199,11 @@ Result<CompiledProgram, CompileError> Compiler::compile(
                     "render-plan-lighting");
             }
         }
+        // CompiledProgramData stores the probe behind a shared_ptr; the loader
+        // returns the value, so wrap it the same way the render-plan compiler
+        // does instead of relying on an implicit conversion that does not exist.
+        environment_probe =
+            std::make_shared<const assets::HdriEnvV1>(std::move(environment).value());
     }
     auto asset_res = chronon3d::assets::prepare_asset_manifest(plan, resolver);
     if (!asset_res) {
@@ -220,6 +226,8 @@ Result<CompiledProgram, CompileError> Compiler::compile(
     data->metadata.asset_manifest = std::move(asset_res).value();
     data->metadata.render_budget = lower_budget(plan.budget);
     data->metadata.lighting_rig = plan.lighting_rig;
+    data->metadata.environment_light = plan.environment_light;
+    data->metadata.environment_probe = std::move(environment_probe);
     if (plan.camera) {
         data->metadata.camera_2_5d = render_plan::detail::make_camera_value(
             *plan.camera, plan.canvas);

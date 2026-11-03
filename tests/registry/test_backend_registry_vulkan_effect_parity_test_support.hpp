@@ -30,6 +30,7 @@ namespace chronon3d::renderer {
 std::unique_ptr<EffectProcessor> create_brightness_effect_processor();
 std::unique_ptr<EffectProcessor> create_color_matrix_effect_processor();
 std::unique_ptr<EffectProcessor> create_posterize_effect_processor();
+std::unique_ptr<EffectProcessor> create_color_map_effect_processor();
 std::unique_ptr<EffectProcessor> create_bloom_effect_processor();
 std::unique_ptr<EffectProcessor> create_glow_effect_processor();
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
@@ -74,6 +75,17 @@ std::unique_ptr<EffectProcessor> create_curves_effect_processor();
 std::unique_ptr<EffectProcessor> create_lut_3d_effect_processor();
 std::unique_ptr<EffectProcessor> create_stroke_effect_processor();
 } // namespace chronon3d::renderer
+
+// One Vulkan instance for the whole parity binary: a device per sample hits the
+// driver's per-process instance ceiling (`vkCreateInstance -9`) after roughly
+// fifty instances, which aborted samples with zero failed assertions. The
+// instance is intentionally leaked — tearing a device down from a static
+// destructor is how a green run becomes a crash at exit.
+inline chronon3d::backends::vulkan::VulkanBackend* shared_vulkan_test_backend() {
+    static chronon3d::backends::vulkan::VulkanBackend* backend =
+        new chronon3d::backends::vulkan::VulkanBackend();
+    return backend;
+}
 
 namespace {
 
@@ -144,9 +156,7 @@ VulkanRun vulkan_strict(const EffectParams& params,
                         Frame frame = Frame{},
                         const Framebuffer* source_override = nullptr,
                         backends::vulkan::VulkanBackend* shared_backend = nullptr) {
-    auto owned_backend = shared_backend ? nullptr
-        : std::make_unique<backends::vulkan::VulkanBackend>();
-    auto& backend = shared_backend ? *shared_backend : *owned_backend;
+    auto& backend = shared_backend ? *shared_backend : *shared_vulkan_test_backend();
     runtime::RenderSurfaceRegistry surfaces;
     RenderGraphContext ctx;
     ctx.frame_input.width = kW;
@@ -263,10 +273,15 @@ void check_parity(renderer::EffectProcessor& processor, const EffectParams& para
                   const std::optional<raster::BBox>& clip = std::nullopt,
                   int origin_x = 0, int origin_y = 0,
                   EffectScratchResources* scratch = nullptr,
-                  Frame frame = Frame{}) {
+                  Frame frame = Frame{},
+                  // Reuse a device across a parameter matrix: creating one
+                  // Vulkan instance per sample exhausts the driver
+                  // (vkCreateInstance -9) long before the matrix is done.
+                  backends::vulkan::VulkanBackend* shared_backend = nullptr) {
     const auto expected = software_oracle(processor, params, clip, origin_x, origin_y,
                                           scratch, frame);
-    const auto actual = vulkan_strict(params, clip, origin_x, origin_y, frame);
+    const auto actual = vulkan_strict(params, clip, origin_x, origin_y, frame, nullptr,
+                                      shared_backend);
     INFO("strict Vulkan error: " << actual.error);
     REQUIRE(actual.ok);
     REQUIRE(actual.pixels.size() == expected.size());

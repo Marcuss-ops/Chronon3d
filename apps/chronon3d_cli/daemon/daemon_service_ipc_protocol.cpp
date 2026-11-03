@@ -186,38 +186,82 @@ void reject_unknown_render_job_keys(const nlohmann::json& request) {
 
 } // namespace
 
-PlanDimensions extract_plan_dimensions(
-    const std::filesystem::path& plan_path,
-    std::uint32_t& width,
-    std::uint32_t& height) {
-    if (width > 0 && height > 0) return PlanDimensions::NotRequested;
+namespace {
+
+// A plan is composite unless it is EXACTLY one plain video layer. The rule is
+// deliberately one-sided: promoting a composited plan into the shared
+// execution domain crashes the daemon (measured), while sending a plain video
+// layer through the FullGraph admission is merely conservative.
+[[nodiscard]] bool plan_requires_composition(const nlohmann::json& plan) {
+    if (!plan.contains("layers") || !plan["layers"].is_array()) return true;
+    const auto& layers = plan["layers"];
+    if (layers.size() != 1 || !layers[0].is_object()) return true;
+    const auto& layer = layers[0];
+    if (layer.value("type", std::string{}) != "video") return true;
+    // Keys that hand the layer to the compositor instead of a straight decode.
+    static constexpr const char* kCompositingKeys[] = {
+        "effects", "filters", "mask", "masks", "blend_mode", "opacity",
+        "transform", "transition", "keyframes", "chroma_key", "overlays",
+        "layers", "content"};
+    for (const char* key : kCompositingKeys) {
+        if (layer.contains(key)) return true;
+    }
+    return false;
+}
+
+PlanDimensions read_plan_admission_shape(
+    const std::filesystem::path& plan_path, PlanAdmissionShape& shape) {
+    if (shape.width > 0 && shape.height > 0) return PlanDimensions::NotRequested;
     if (plan_path.empty()) return PlanDimensions::NotRequested;
 
     std::ifstream file(plan_path);
     if (!file.is_open()) {
         spdlog::error("[daemon] plan dimensions unavailable: cannot open '{}'",
                       plan_path.string());
+        shape.requires_composition = true;
         return PlanDimensions::Unreadable;
     }
     try {
         nlohmann::json plan_json;
         file >> plan_json;
         if (plan_json.contains("canvas") && plan_json["canvas"].is_object()) {
-            width = plan_json["canvas"].value("width", 0U);
-            height = plan_json["canvas"].value("height", 0U);
+            shape.width = plan_json["canvas"].value("width", 0U);
+            shape.height = plan_json["canvas"].value("height", 0U);
         } else if (plan_json.contains("width") && plan_json.contains("height")) {
-            width = plan_json.value("width", 0U);
-            height = plan_json.value("height", 0U);
+            shape.width = plan_json.value("width", 0U);
+            shape.height = plan_json.value("height", 0U);
         }
+        shape.requires_composition = plan_requires_composition(plan_json);
     } catch (const std::exception& exception) {
         spdlog::error("[daemon] plan dimensions unavailable: '{}' is not a readable "
                       "plan ({})", plan_path.string(), exception.what());
-        width = 0;
-        height = 0;
+        shape.width = 0;
+        shape.height = 0;
+        shape.requires_composition = true;
         return PlanDimensions::Unreadable;
     }
-    return (width > 0 && height > 0) ? PlanDimensions::Resolved
-                                     : PlanDimensions::NoCanvasField;
+    return (shape.width > 0 && shape.height > 0) ? PlanDimensions::Resolved
+                                                : PlanDimensions::NoCanvasField;
+}
+
+} // namespace
+
+PlanDimensions extract_plan_admission_shape(
+    const std::filesystem::path& plan_path, PlanAdmissionShape& shape) {
+    return read_plan_admission_shape(plan_path, shape);
+}
+
+PlanDimensions extract_plan_dimensions(
+    const std::filesystem::path& plan_path,
+    std::uint32_t& width,
+    std::uint32_t& height) {
+    PlanAdmissionShape shape;
+    shape.width = width;
+    shape.height = height;
+    const auto status = read_plan_admission_shape(plan_path, shape);
+    width = shape.width;
+    height = shape.height;
+    return status;
 }
 
 DecodedRenderJobPayload decode_render_job_payload(

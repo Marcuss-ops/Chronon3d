@@ -56,8 +56,17 @@ bool try_native_affine_composite(
 
     OwnedFB source_copy;
     runtime::RenderSurfaceHandle source_handle = source.surface_handle();
-    if (source_handle == runtime::kInvalidRenderSurfaceHandle) {
+    if (source_handle == runtime::kInvalidRenderSurfaceHandle ||
+        (source.is_cpu_authoritative() && source.data())) {
+        // CPU-authoritative pixels may be newer than an attached surface.
+        // Promote an independent copy: uploading through the existing handle
+        // could overwrite a surface shared with another live graph value.
         source_copy = ctx.acquire_owned_fb(source);
+        if (!source_copy || !source_copy->data()) return false;
+        // A planned slot may inherit the source handle even after copying rows.
+        // Detach it before promotion so the source surface remains unchanged.
+        source_copy->clear_surface_handle();
+        source_copy->mark_cpu_authoritative();
         if (!ensure_native_surface(ctx, *source_copy, "CompositeNode.affine.source_copy")) {
             if (original_destination == runtime::kInvalidRenderSurfaceHandle) {
                 release_native_surface(ctx, destination);

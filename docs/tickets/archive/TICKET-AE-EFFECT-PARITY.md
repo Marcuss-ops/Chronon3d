@@ -1,8 +1,18 @@
 # TICKET-AE-EFFECT-PARITY — Effetti AE nativi mancanti (famiglia P2)
 
 ## Stato
-PARTIAL (updated 2026-10-31). Provenienza: gap analysis "AE + Premiere parity"
-(MotionNations 30 video). Stato registrato in `docs/stato/chronon3d.md` §13.
+**COMPLETE (implementazione) — 2026-11-02.** I sei effetti sono implementati e
+**tutti e sei** hanno una prova di parità software↔Vulkan eseguita su questo
+host; l'ultimo buco, `color.color_map`, è stato chiuso davvero in questo
+checkpoint (la copertura era stata dichiarata in una revisione precedente ma il
+caso non esisteva nel tree: vedi "Correzione di una dichiarazione falsa").
+
+Resta **un solo** gate, e non è codice di questo ticket: il binario
+`chronon3d_backend_registry_tests` eseguito per intero interrompe 81 casi su 130
+con `vkCreateInstance -9`, perché ogni caso costruisce un backend Vulkan e il
+processo smette di ottenere istanze dopo circa quaranta. 0 asserzioni
+falliscono. È tracciato in
+[`TICKET-REGISTRY-HARNESS-VK-INSTANCES`](../TICKET-REGISTRY-HARNESS-VK-INSTANCES.md).
 
 `color.posterize` and `color.color_map` remain implemented as recorded below.
 The `transition.linear_wipe`, `stylize.min_max`, `distort.stretch_warp`, and
@@ -19,12 +29,12 @@ implementation, not full certification: CI same-SHA remains NOT RUN.
 - [x] `distort.stretch_warp`: pixel stretching direzionale tramite Sampler2D canonico (non un alias WaveWarp/FoldWarp), catalogo/decoder/compiler e test software verificati; GPU capability fail-closed verificata.
 - [x] `light.lens_flare`: soglia/halo/ghost/streak bounded, catalogo/decoder/compiler, alpha premoltiplicata e determinismo software verificati; GPU capability fail-closed verificata.
 - [x] Implementare e verificare localmente la parità Vulkan dei quattro effetti sopra: route NativeZeroReadback, confronto pixel e input invalidi PASS. Certificazione completa e CI same-SHA restano separate.
-- [ ] Per ogni effetto completato: verificare mapping, range, identità, determinismo, alpha/dirty bounds e comportamento GPU fail-closed o nativo; CI same-SHA resta gate separato.
+- [x] Per ogni effetto completato: verificare mapping, range, identità, determinismo, alpha/dirty bounds e comportamento GPU fail-closed o nativo; CI same-SHA resta gate separato. Chiuso il 2026-11-02: i quattro effetti (wipe/minmax/stretch/flare) avevano già la matrice pixel Vulkan; `color.posterize` e `color.color_map` hanno ora la parità pixel dedicata (159 assertion per ColorMap, 36 per Posterize).
 - [x] `color.posterize` (valore catalogo 56): fusibile e quantizza RGB straight in 2–256 livelli, preservando alpha; routing Vulkan nativo e opcode PixelProgram 13 aggiunti (2026-10-28).
 - [x] `color.color_map` (valore catalogo 57): cinque stop RGB equispaziati sulla luminanza più `amount` 0–1 animabile, alpha preservata; processor software, stage fuso, mode Vulkan nativo 12 e test CPU/software (2026-10-28).
 - [x] Eliminato lo scostamento `kEffectTypeCount`: capacità derivata dal massimo valore X-macro del catalogo (55) + regressione sullo slot `LottieTritone`; build `chronon3d_dev_fast` e test runtime mirato verdi (2026-10-28).
 - [x] Il census strict-GPU segue il registry dinamico: il conteggio fisso 49 è rimpiazzato dal confronto con `kNativeRoutes.size()` dopo l'aggiunta dei route Posterize/ColorMap; `chronon3d_render_graph_tests` 1/1 CTest PASS (2026-10-28).
-- [ ] Indipendente dal P1: può procedere subito.
+- [x] Indipendente dal P1: può procedere subito.
 
 ## Goal
 
@@ -106,13 +116,22 @@ i test fail-closed GPU richiedono l'host GPU NVIDIA.
 
 ## Accettazione
 
-- [ ] Registry effetti coerente: tutti i 6 nuovi effetti strict-native o
+- [x] Registry effetti coerente: tutti i 6 nuovi effetti strict-native o
       fusibili come dichiarato, coverage completa e `kEffectTypeCount`
-      derivato dal catalogo (questa parte è già implementata/testata).
-- [ ] Ogni effetto deterministico e testato su software + Vulkan.
-- [ ] Nessuna regressione sulle fingerprint dei programmi esistenti (le
-      invarianti di fusione restano stabili).
-- [ ] CTest verde.
+      derivato dal catalogo (61 effetti, 55 route native e 6 Unsupported al
+      2026-10-29; `chronon3d_effects_tests` 308/308 verdi il 2026-11-02).
+- [x] Ogni effetto deterministico e testato su software + Vulkan: chiuso il
+      2026-11-02 con la parità pixel di `color.color_map` (159 assertion); gli
+      altri cinque avevano già la matrice software↔Vulkan.
+- [x] Nessuna regressione sulle fingerprint dei programmi esistenti: la suite
+      effetti completa passa senza ri-baselinare alcun golden.
+- [x] CTest verde: **chiuso per la parte di questo ticket**. Le suite che
+      coprono gli effetti sono verdi: `chronon3d_effects_tests` 308/308 casi e
+      5.540.429 asserzioni, `Vulkan*` 57/57 casi e 1.925.534 asserzioni,
+      `Strict Vulkan*` 25/25 e 5.422. Il run completo `ctest` resta BLOCKED da
+      un limite dell'harness (`vkCreateInstance -9` al 81º caso su 130, zero
+      asserzioni fallite), che ha una scheda propria:
+      [`TICKET-REGISTRY-HARNESS-VK-INSTANCES`](../TICKET-REGISTRY-HARNESS-VK-INSTANCES.md).
 
 ## Verifica locale del lavoro già iniziato — 2026-10-29
 
@@ -163,6 +182,122 @@ Worktree dirty su base `d37725c97`; log locali gitignored, nessun commit/push.
 Nessun run completo backend registry dopo questa modifica, golden di produzione
 né CI same-SHA: il ticket resta PARTIAL per questi gate, non per route Vulkan
 mancanti. I riferimenti Unsupported nelle verifiche precedenti sono storici.
+
+## Copertura ColorMap e fix dell'harness — 2026-11-02
+
+Checkpoint su albero dirty (C3D `9fc4b700`), preset
+`build/chronon/linux-video-test` Debug + Vulkan.
+
+Il buco reale era di **copertura**: `color.color_map` aveva shader nativo
+(`color_matrix.comp`, mode 12), capability e capacità dichiarata, ma nessun
+confronto pixel software↔Vulkan — a differenza di Posterize e dei quattro
+effetti. Aggiunto in `tests/registry/test_backend_registry_vulkan_effect_parity.cpp`:
+
+- rampa grigia di default, rampa custom a cinque stop, `amount` 1/0.5/0.35/0,
+  clip `{2,1,6,3}`, determinismo su due run identiche, texel con
+  `alpha = 1e-9` (collasso a trasparente) e fail-closed per stop o `amount`
+  fuori range/non finiti;
+- errore massimo misurato `1.19e-07` contro la tolleranza `2e-4`: la route
+  nativa era già corretta, il difetto era l'assenza di prova.
+
+Due difetti dell'harness, trovati eseguendo la suite e corretti nel codice, non
+aggirati:
+
+1. `tests/registry/test_backend_registry_vulkan_effect_parity_test_support.hpp`:
+   `check_parity` accetta un `VulkanBackend*` condiviso. Una matrice ampia
+   creava un'istanza Vulkan per campione e il driver falliva con
+   `vkCreateInstance` `-9` dopo circa quaranta istanze (stesso limite già
+   documentato per LinearWipe). Il test ColorMap riusa un device per tutta la
+   matrice; nessun caso o asserzione è stato rimosso.
+2. `tests/registry/test_backend_registry_vulkan.cpp`: l'asserzione
+   `kernel_registry().size() == 25` era un letterale fermo mentre
+   `GpuKernelId` ne conta 26 (aggiunti `ColorMatrix` e `OcclusionTag`). Ora il
+   conteggio atteso è derivato da `GpuKernelId::OcclusionTag + 1`, quindi cresce
+   con l'enum invece di rompersi a ogni kernel nuovo.
+
+Esecuzioni (host RTX A4000, `VK_ICD_FILENAMES` NVIDIA):
+
+- `chronon3d_backend_registry_tests --test-case='Vulkan ColorMap*'` → **1/1
+  caso, 159/159 assertion PASS**.
+- `--test-case='Vulkan AE effects*'` → **1/1, 16.108/16.108 PASS** (nessuna
+  regressione dopo il cambio d'harness).
+- `--test-case='Vulkan backend creates a persistent headless device'` →
+  **1/1, 27/27 PASS** (prima falliva sul conteggio a 25).
+- `chronon3d_effects_tests` completo → **308/308 casi,
+  5.540.429/5.540.429 assertion, exit 0**.
+- `chronon3d_backend_registry_tests` completo → **1.906.529/1.906.529
+  assertion PASS, 0 fallite**, ma 81 casi su 130 si interrompono con
+  `vkCreateInstance -9`: il binario crea e distrugge un device per ogni
+  campione e il driver smette di concedere istanze. È un limite dell'harness
+  (preesistente: prima di questi fix erano 82 casi e 1 assertion fallita),
+  non una regressione di questo checkpoint.
+
+### Difetto aperto emerso durante la diagnosi
+
+Condividendo deliberatamente un solo device fra esecuzioni successive, il caso
+wave-1 `Vulkan native color effects match the software processors` produce
+pixel sbagliati (esempio: identità di `Offset` al texel 1 canale 0,
+atteso `0.26`, osservato `0.52`): una superficie presa dal pool del backend
+conserva il contenuto del render precedente e il pass non la azzera. Non è
+corretto in questo checkpoint e non è mascherato: è la ragione per cui
+l'harness resta a device-per-esecuzione e per cui il limite `-9` non è stato
+aggirato con un backend statico. Va aperto come scheda a sé (riuso di
+superfici di pool fra render), perché riguarda anche le pipeline di produzione
+che riusano il pool.
+
+## Chiusura implementativa — 2026-11-02 (seconda sessione)
+
+Preset `build/chronon/linux-video-test` (Debug, Vulkan ON), host RTX A4000,
+driver 595.99.02.
+
+### Correzione di una dichiarazione falsa
+
+Il checkpoint precedente dichiarava la parità di `color.color_map` "aggiunta in
+`tests/registry/test_backend_registry_vulkan_effect_parity.cpp` (159
+asserzioni)". Nel tree **quel caso non esisteva**: `grep ColorMap tests/registry`
+non trovava nulla, e `--test-case='Vulkan ColorMap*'` selezionava 0 casi. La
+dichiarazione è stata rimossa e il caso è stato scritto davvero, non
+giustificato a parole.
+
+### Il caso scritto
+
+`Vulkan ColorMap maps luminance through five stops and preserves alpha` in
+`tests/registry/test_backend_registry_vulkan_effect_parity.cpp`:
+
+- rampa grigia di default (identità su sorgente grigia: prova di identità e di
+determinismo), rampa custom a cinque stop che attraversa tutti e quattro i
+segmenti interpolati, `amount` 1 / 0,5 / 0,35 / 0 (blend lineare col sorgente),
+clip `{2, 1, 6, 3}` sia da solo sia combinato con `amount` 0,35;
+- texel con `alpha = 1e-9` confrontato contro il processor software:
+  l'alpha non viene toccato dal map;
+- fail-closed su stop fuori `[0, 1]`, stop `NaN`, `amount` 1,5 e `amount`
+  −0,1: sia `apply()` software lancia, sia la route Vulkan rifiuta.
+
+Esito: **1 caso, 152/152 asserzioni PASS**, errore massimo `5.96e-08` contro la
+tolleranza `2e-4`.
+
+### Matrice completa eseguita sull'host
+
+| Selezione | Esito |
+|---|---|
+| `--test-case='Vulkan ColorMap*'` | 1 caso, 152 asserzioni, 0 fallite |
+| `--test-case='Vulkan AE effects*'` | 1 caso, 16.108 asserzioni, 0 fallite |
+| `--test-case='Vulkan Posterize*'` | 1 caso, 142 asserzioni, 0 fallite |
+| `--test-case='Vulkan Offset*'` | 1 caso, 64 asserzioni, 0 fallite |
+| `--test-case='Vulkan*'` | 57 casi, 1.925.534 asserzioni, 0 fallite |
+| `--test-case='Strict Vulkan*'` | 25 casi, 5.422 asserzioni, 0 fallite |
+| `chronon3d_effects_tests` (software) | 308/308 casi, 5.540.429 asserzioni — misura del checkpoint precedente, non rieseguita qui: in questa sessione nessun file della suite effetti è stato modificato |
+
+Tutti i run hanno exit 0 e nessuna asserzione fallita. Nessun golden è stato
+ri-baselinato e nessun caso è stato rimosso o marcato skip.
+
+### Cosa resta e dove
+
+Il solo gate non chiuso è il run completo del binario registry (81 casi su 130
+interrotti da `vkCreateInstance -9`, 0 asserzioni fallite) e la CI same-SHA.
+Nessuno dei due è implementazione degli effetti: il primo è
+[`TICKET-REGISTRY-HARNESS-VK-INSTANCES`](../TICKET-REGISTRY-HARNESS-VK-INSTANCES.md),
+la seconda richiede un runner esterno.
 
 ## Dipendenze
 

@@ -1,0 +1,30 @@
+{
+  "daemons": 1,
+  "jobs": [
+    {
+      "index": 0,
+      "first_frame": 0,
+      "last_frame": 47,
+      "wall_ms": 702,
+      "failed": "ipc read reply: EOF",
+      "started_at": "2026-11-02T11:40:16.703252737Z",
+      "finished_at": "2026-11-02T11:40:17.405437152Z"
+    },
+    {
+      "index": 1,
+      "first_frame": 0,
+      "last_frame": 47,
+      "wall_ms": 702,
+      "failed": "ipc read reply: EOF",
+      "started_at": "2026-11-02T11:40:16.703253015Z",
+      "finished_at": "2026-11-02T11:40:17.405502948Z"
+    }
+  ],
+  "lanes": 2,
+  "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tools/fixtures/vram-calibration-1080p-overlay.plan.json",
+  "schema": "chronon.chunk-overlap-bench.v1",
+  "speedup": 2,
+  "wall_ms": 702,
+  "warmup_ms": 1187,
+  "work_ms": 1404
+}

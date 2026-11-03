@@ -108,6 +108,15 @@ void lower_scene(const render_plan::RenderPlan& plan, CompiledProgramData& out) 
             lowered.size_dimensions = 2;
         }
         lowered.loop = layer.loop;
+        if (layer.type == render_plan::LayerType::Text) {
+            // The runtime text materializer needs the authored typography and
+            // animator payload.  Without it the compiled layer has no nodes
+            // and the render graph falls back to a ClearNode for the layer.
+            lowered.text_style = layer.style;
+            lowered.text_animators = layer.text_animators;
+            lowered.text_spans = layer.text_spans;
+            lowered.svg_glyph_paint_ranges = layer.svg_glyph_paint_ranges;
+        }
         if (layer.parent) {
             const auto parent = std::find_if(
                 plan.layers.begin(), plan.layers.end(), [&](const auto& candidate) {

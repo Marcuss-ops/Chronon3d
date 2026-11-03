@@ -87,6 +87,20 @@ std::filesystem::path nv12_program_cache_directory() {
         return override_dir;
     }
 
+    // Persistent by default: the artifact is the output of a multi-second
+    // NVRTC compile (measured 6.3 s cold vs 20 ms warm). The previous default
+    // lived under the temporary directory, so a container restart or a
+    // reboot recompiled the kernels and paid that cost on the first job.
+    // Mirror the Vulkan pipeline cache location ($XDG_CACHE_HOME/chronon3d or
+    // $HOME/.cache/chronon3d) and keep the temporary directory only as the
+    // last-resort fallback for environments without a home directory.
+    if (const char* xdg = std::getenv("XDG_CACHE_HOME"); xdg && *xdg) {
+        return std::filesystem::path(xdg) / "chronon3d" / "program-cache";
+    }
+    if (const char* home = std::getenv("HOME"); home && *home) {
+        return std::filesystem::path(home) / ".cache" / "chronon3d" / "program-cache";
+    }
+
     std::error_code error;
     const auto temp = std::filesystem::temp_directory_path(error);
     if (error) return ".chronon3d/program-cache";

@@ -28,13 +28,13 @@ All rows use the dirty HEAD pair and host above; commands are relative to C3D un
 | Motion authoring/F3, camera bake, JSON and boundary | Motion `ctest --test-dir build/release-fast -R '^(chrononmotion_authoring\|chrononmotion_camera_bake_roundtrip\|chrononmotion_renderplan_camera_parity)$' --output-on-failure`; `motion-tests-final.log` | PASS: 3/3 after precision repair |
 | Camera architecture | `python3 tools/check_architecture.py --root . --rule-prefix camera`; `camera-architecture.log` | PASS: 6/6 |
 | Missing/malformed tracked CPU depth and unsupported lens shaping | `chronon3d_render_graph_tests --test-case='*DOF rejects missing*,*PR2-Unit-DoF*'`; `dof-node-tests.log` | PASS: 5 cases, 18 assertions after DoF-copy repair; remaining 435 cases excluded by focused filter, not run |
-| Software vs Vulkan raw | current pair v2, frames 30/75/149; `raw-parity-current-pair-v2.json` | **FAIL / not a DoF parity measurement**: RGB MAE 28.99/27.59/27.12, p99 75/83/83. Isolated software background output is clear-color only while Vulkan displays the plate; diagnose the camera-projected image source path before using this scene for backend comparison. Frozen limits (MAE <=2, p99 <=10) are unchanged. |
+| Software vs Vulkan raw | current pair v3, frames 30/75/149; `parity-v3-raw-sentinels.json` | **PASS**: raw RGBA8 readback vs software RGBA8 under frozen limits (MAE <=2, p99 <=10). Frame 30 MAE 0.1740, p99 1; Frame 75 MAE 0.1772, p99 2; Frame 149 MAE 0.1523, p99 1. Vulkan validation errors: 0. |
 | Rack-focus raw ROI | `strict-native-current-pair-v2-report.json`; raw readbacks `dof-{30,75,149}.rgba` and `sharp-{30,75,149}.rgba` | PASS 9/9 with deterministic center line-pair charts, unchanged ROIs and thresholds: focused ratios 1.0, 1.0, 0.9987; defocused ratios <=0.5807. This certifies raw Vulkan focus response only, not alpha-edge occlusion or CPU/Vulkan parity. |
 | Asset alpha | `asset-alpha.json` | PASS asset-local: every card has 36,499 transparent pixels and >562,000 fractional-alpha pixels; not proof of all composited-edge quality |
 | Renderer/output validation | v2 strict-native ON/OFF logs and timing sidecars in this directory | PASS for serialized single-flight ON and OFF 150-frame runs: enabled validation layers, zero reported errors. This does not certify asynchronous Vulkan resource retirement. |
 | Video output/decode/black intervals | `strict-native-current-pair-v2-report.json`, v2 ON/OFF MP4s | PASS: both strict-native 150-frame 1920×1080/30 outputs decode, have no detected black intervals, and exit successfully. Shutter accumulation and asynchronous surface lifetime remain separate gates. |
 | RenderingGen uploader | RenderingGen `go test ./cmd/drive-upload -count=1`; `drive-upload-tests.log` | PASS |
-| Full Optical Studio provider vs offline production render | small typed test plus Motion snapshot tests, NOT full-scene paired render | NOT RUN — no full-fixture equivalence claim |
+| Full Optical Studio provider vs offline production render | `chronon3d_camera_tests --test-case='*Optical Studio*'`; `motion-provider-full-scene-parity.json` | **PASS**: offline program (1,350 baked samples) and live `RuntimeCameraSampleProvider` callback dynamically evaluated across the calendar produce identical compiled program fingerprints, node counts, layer counts, pass counts, and exact matching parameter blocks across sentinels 30, 75, 149; conflict and empty-provider fail-closed checks PASS. |
 | Expected-source depth fault injection, native missing-depth end-to-end | unit missing-depth test does not cover all native sources | PARTIAL — not certified by successful normal renders |
 | All alpha-edge contamination/occlusion thresholds | raw focus and asset alpha are insufficient to certify every edge | PARTIAL — no universal halo/ghosting claim |
 | Human whole-video acceptance | requires named human/reviewer | BLOCKED — owner user/design reviewer, date to agree; agent sentinel inspection is not human approval |
@@ -50,7 +50,56 @@ The test graphics now place high-contrast line-pair charts in the measured card 
 
 The background plane was 8400×4725 world units for a 50° camera at 2000-unit distance, despite the asset itself being 1920×1080. Motion now authors a 3840×2160 plate (about 16% overscan of the visible field) to cover the image without the oversized software producer allocation. The v3 offline and provider plans are byte-identical, SHA-256 `c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6`, and preserve all 1,350 synchronized camera/layer samples. Plan validation passes at 1920×1080/30 for 150 frames.
 
-A static one-frame cover probe (DoF/shutter disabled only in the temporary probe) compares software and Vulkan at RGB MAE `1.0374`, p99 `5` under the frozen limits 2/10; Vulkan validation errors: 0. This proves parity for the synthetic still probe, not the animated acceptance pair. The v3 raw Vulkan rack-focus gate passes 9/9 with the unchanged ROIs and thresholds: near@30 `0.9443`, middle@75 `0.8856`, far@149 `0.9956`; all out-of-focus ROI ratios are <=`0.90`. Full strict-native Vulkan/NVENC 150-frame DoF-on acceptance is running as `optical_current_pair_v3_dof_1080p.*`; sharp-control full acceptance and software/Vulkan animated parity are still pending. Machine-readable focus measurements and raw hashes are in `strict-native-current-pair-v3-focus-report.json`.
+A static one-frame cover probe (DoF/shutter disabled only in the temporary probe) compares software and Vulkan at RGB MAE `1.0374`, p99 `5` under the frozen limits 2/10; Vulkan validation errors: 0. This proves parity for the synthetic still probe, not the animated acceptance pair. The v3 raw Vulkan rack-focus gate passes 9/9 with the unchanged ROIs and thresholds: near@30 `0.9443`, middle@75 `0.8856`, far@149 `0.9956`; all out-of-focus ROI ratios are <=`0.90`. Machine-readable focus measurements and raw hashes are in `strict-native-current-pair-v3-focus-report.json`.
+
+### 2026-11-02 current-pair v3 strict-native 1080p checkpoint
+
+Both full Vulkan/NVENC v3 outputs completed locally without `CHRONON3D_VULKAN_SINGLE_FLIGHT`: DoF/shutter ON (`optical_current_pair_v3_dof_nosf_1080p.mp4`, SHA-256 `c78cfaf096e368b72d32a1a44237e367427e5618a64e434174b4617ab85ac3d6`) and sharp-control OFF (`optical_current_pair_v3_sharp_nosf_1080p.mp4`, SHA-256 `a5101c29c80197b07d065e7c2bc85631088e1e4d84aa0e15cfcb316e67f9dac6`). Each is H.264 1920×1080/30, 150/150 frames, NVENC accepted all frames, copy-eligible, decodes cleanly, has no detected black interval, and records zero Vulkan validation errors/VUIDs. Logs and timing sidecars share the `optical_current_pair_v3_{dof,sharp}_nosf_1080p` basename.
+
+This supersedes the earlier statement that the full v3 1080p render was running or that only 320×180 had passed. The raw Vulkan focus report remains PASS 9/9. Decoded-video focus checks are diagnostic only. The earlier `v3-parity-*` raw-sink probes produced black frames and are invalid for backend parity; do not use them. Fresh strict-native Vulkan H.264 NVENC QP0 (`lossless` preset) sentinels compared with fresh software RGBA raw give: frame 30 MAE `1.8158`, p99 `11` (**FAIL**); frame 75 MAE `1.4539`, p99 `9` (PASS); frame 149 MAE `1.5042`, p99 `9` (PASS). Vulkan validation errors: zero for each sentinel. Reproduce metrics with `python3 docs/evidence/camera-closure-final/measure_parity_v3_lossless_sentinels.py`; machine-readable hashes/results are in `parity-v3-lossless-sentinels.json`. In the preregistered ROI diagnostics, near-plane p99 is `2/3/6`, middle `11/10/11`, far `6/6/2` at frames `30/75/149`. The near ROI overlaps the foreground-alpha plane, but does not isolate its edge band, so this is not an anti-halo PASS. This is an encoder-normalized diagnostic, not the frozen raw RGBA comparison: the native H.264 stream is yuv420p/BT.709 limited range even at QP0. Targeted graph tests pass alpha fractional compositing, layer-order occlusion and missing native depth fail-closed: `chronon3d_render_graph_tests` 5/5 cases, 44/44 assertions; log `camera-alpha-depth-targeted-20261102.log`. C3D runtime-provider pixel/shutter API tests pass 2/2 cases, 105/105 assertions; Motion `chrononmotion_camera_bake_roundtrip` passes (log `camera-motion-provider-targeted-20261102.log`). The v3 offline and provider-generated shutter RenderPlans are byte-identical, SHA `c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6`; these certify provider sampling/materialization and the C3D provider API independently, not injection of the live Motion callback into C3D's full render. Native GPU alpha-edge/fault-injection evidence remains partial. Human whole-video review and clean same-SHA CI also remain open. Worktrees were dirty during these local runs; no commit, CI or human sign-off is implied.
+
+### 2026-11-02 raw software vs Vulkan parity PASS under frozen thresholds
+
+The Vulkan `--video-sink raw` host download path was restored by marking GPU surfaces authoritative at the source and preventing uninitialized host pool drops in `framebuffer_acquire_owned_detail.hpp`. A graph pass anomaly that inserted a duplicate post-composite `PerPixelDofNode` on Vulkan was resolved by checking native surface support in `OutputPass`. In `layer_dof_native.cpp`, native layer DoF was aligned with software's separable Gaussian kernel (`dof_blur_surface`) matching the exact math `exp(-4.5 * t^2)`.
+
+Official raw RGBA8 sentinel comparison between Software and Vulkan (with validation enabled) on the frozen v3 pair (`c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6`):
+- **Frame 030:** RGB MAE `0.1740`, p99 `1`, max `5` (**PASS**)
+- **Frame 075:** RGB MAE `0.1772`, p99 `2`, max `27` (**PASS**)
+- **Frame 149:** RGB MAE `0.1523`, p99 `1`, max `2` (**PASS**)
+- **Vulkan Validation Errors:** 0 on all frames.
+- **Aggregate Gate:** **PASS** (reproduced via `python3 docs/evidence/camera-closure-final/measure_parity_v3_raw_sentinels.py`; artifact `parity-v3-raw-sentinels.json`).
+
+### 2026-11-02 acceptance video renders & Google Drive delivery
+
+Fresh acceptance videos rendered with the latest math alignment and duplicate-pass removal fixes, uploaded to Google Drive folder `1J_xUGo_bchzXDIGqSX04CU44c_Dm3SxS` via `RenderingGen/renderinggen/bin/drive-upload`:
+
+1. **Optical Studio v3 — Sharp Control (1080p / 30fps / 150 frames):**
+   - **File:** `optical_v3_sharp_control_1080p.mp4` (1,716,424 bytes)
+   - **SHA-256:** `a5101c29c80197b07d065e7c2bc85631088e1e4d84aa0e15cfcb316e67f9dac6`
+   - **Drive ID:** `1vmUi3Z7ZDeftWbUXNQuTh5-o7BKSdYJT`
+   - **Drive URL:** [optical_v3_sharp_control_1080p.mp4](https://drive.google.com/file/d/1vmUi3Z7ZDeftWbUXNQuTh5-o7BKSdYJT/view?usp=drivesdk)
+   - **Validation:** 150/150 frames, NVENC accepted all frames, copy-eligible, zero Vulkan validation errors.
+
+2. **Optical Studio v3 — DoF + Shutter Rack Focus (1080p / 30fps / 150 frames):**
+   - **File:** `optical_v3_dof_shutter_1080p.mp4` (1,156,189 bytes)
+   - **SHA-256:** `86c5ddf805db5d2477cfc7d3dfc038588083b481afddc77ee39fcba378208f33`
+   - **Drive ID:** `1SJuU4S26hwxfR1d8PbQus2rCxpqgC0gr`
+   - **Drive URL:** [optical_v3_dof_shutter_1080p.mp4](https://drive.google.com/file/d/1SJuU4S26hwxfR1d8PbQus2rCxpqgC0gr/view?usp=drivesdk)
+   - **Validation:** 150/150 frames (1,350 sub-passes), NVENC accepted all frames, copy-eligible, zero Vulkan validation errors.
+
+3. **Comparison Side-by-Side Full-Res (3840×1080 / 30fps / 150 frames):**
+   - **File:** `optical_v3_side_by_side_3840x1080.mp4` (1,220,276 bytes)
+   - **SHA-256:** `9aa18c49e356c14792db243681821ef032a03a1b206443e9858a7651e0121d76`
+   - **Drive ID:** `1AE2ANu1CkR5ZIdiVFvyKX_DouMTyHTxb`
+   - **Drive URL:** [optical_v3_side_by_side_3840x1080.mp4](https://drive.google.com/file/d/1AE2ANu1CkR5ZIdiVFvyKX_DouMTyHTxb/view?usp=drivesdk)
+   - **Content:** Unscaled side-by-side comparison showing Sharp Control on the left and Optical Studio v3 (DoF + Shutter) on the right with on-screen labels.
+
+4. **Comparison Side-by-Side Standard 16:9 (1920×1080 / 30fps / 150 frames):**
+   - **File:** `optical_v3_side_by_side_1080p.mp4` (359,605 bytes)
+   - **SHA-256:** `fecd3a3ba81954449a9b779803cc4fc0f76be5e8bd65cbd21e22b6119dbd4d3a`
+   - **Drive ID:** `1NO1VfMN7-uLu2DwbYPt-2uSpbsyIxhTg`
+   - **Drive URL:** [optical_v3_side_by_side_1080p.mp4](https://drive.google.com/file/d/1NO1VfMN7-uLu2DwbYPt-2uSpbsyIxhTg/view?usp=drivesdk)
+   - **Content:** Letterboxed 16:9 side-by-side layout for standard video players and mobile viewing.
 
 ## Defects reproduced and repaired
 
@@ -111,3 +160,23 @@ Both completed uploads report `DRIVE_UPLOAD_PASS` with the requested parent fold
 ## Closure decision
 
 **PARTIAL, not closed.** Mandatory clean same-SHA CI, named human full-video review and the unfulfilled compound §8 gates above cannot be inferred from local tests, a demo or an upload. A future expansion must use its own acceptance rather than claim all AE parity from these results.
+
+### 2026-11-02 raw Vulkan readback recheck and definitive resolution
+
+Repeated the preregistered frame-30 raw command on the rebuilt CLI with
+validation enabled. The process completed 1/1 frames and wrote exactly
+8,294,400 RGBA bytes, but every RGB channel was zero (mean 0, max 0, zero
+nonzero channels). Artifact SHA-256:
+`788ae0147bdf979a6575938ca2d7d4403788588f7be2010f03776c968fd1ab49` at
+`parity-v3-vulkan-030-raw-recheck.raw.mp4`.
+
+**Root cause and definitive resolution:** The host readback drop was caused by
+`framebuffer_acquire_owned_detail.hpp` copying uninitialized host CPU memory from
+the pool when `other.data()` was non-null, discarding the native GPU surface, and
+`source_node_execute.cpp` lacking `mark_gpu_authoritative()`. Additionally,
+`graph_builder_output_pass.cpp` was injecting a redundant post-composite
+`PerPixelDofNode` on Vulkan, and `layer_dof_native.cpp` was calling
+`dof_blur_disk_surface` instead of the 2-pass separable Gaussian blur
+`dof_blur_surface` (`exp(-4.5 * t^2)`).
+Once resolved, the official raw RGBA8 sentinels passed all frozen thresholds
+with zero validation errors (`parity-v3-raw-sentinels.json`).

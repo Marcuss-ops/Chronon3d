@@ -1,5 +1,9 @@
 # TICKET — Wave closeout demolition debt
 
+**Stato (2026-11-02): ACTIVE** — resta l'edge runtime in `SoftwareRenderSession`
+e il closeout C20/C22/C23 della composition compatibility, entrambi con
+condizioni di uscita esplicite sotto.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
 - [x] Edge `render_settings.hpp` → `runtime/render_surface_handle.hpp` rimosso

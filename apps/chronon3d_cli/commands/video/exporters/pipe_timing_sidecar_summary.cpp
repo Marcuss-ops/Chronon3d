@@ -454,6 +454,7 @@ void serialize_job_section(nlohmann::json& job,
     put_gpu_u64("nvenc_frames", timings.gpu.nvenc_frames);
     put_gpu_u64("software_encode_frames", timings.gpu.software_encode_frames);
     put_gpu_u64("bitstream_copy_frames", timings.gpu.bitstream_copy_frames);
+    put_gpu_u64("identity_fallback_frames", timings.gpu.identity_fallback_frames);
     put_gpu_u64("vulkan_frames", timings.gpu.vulkan_frames);
     put_gpu_u64("cpu_readback_frames", timings.gpu.cpu_readback_frames);
     gpu["vulkan_frames"] = timings.gpu.vulkan_frames.value_or(uint64_t{0});

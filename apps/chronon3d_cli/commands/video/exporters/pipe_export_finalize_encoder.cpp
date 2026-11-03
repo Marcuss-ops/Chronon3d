@@ -62,7 +62,17 @@ EncoderCloseResult close_pipe_encoder(PipeExportSession& session) {
     result.hash_metrics = session.encoder->hash_metrics();
     result.encoder_hwframe_get_buffer_ms = session.encoder->encoder_hwframe_get_buffer_ms();
     result.encoder_surface_acquire_ms    = session.encoder->encoder_surface_acquire_ms();
-    result.encoder_nvenc_submit_ms       = session.encoder->encoder_nvenc_submit_ms();
+    // The native-surface lane submits through drain_ready_cuda_frames(), whose
+    // per-send time is accumulated on native_send_frame_ms_. The legacy
+    // encoder_nvenc_submit_ms counter only covers the CUDA-queue submit and
+    // reports ~0 for a lane that blocks inside the surface handoff, so the
+    // authoritative native value wins whenever the lane produced one. A
+    // sidecar that under-reports this field hides encoder backpressure behind
+    // an apparently free render loop.
+    result.encoder_nvenc_submit_ms       =
+        session.encoder->native_send_frame_ms() > 0.0
+            ? session.encoder->native_send_frame_ms()
+            : session.encoder->encoder_nvenc_submit_ms();
     result.encoder_queue_backpressure_wait_ms = session.encoder->encoder_queue_backpressure_wait_ms();
     result.encoder_packet_drain_ms       = session.encoder->encoder_packet_drain_ms();
     result.direct_yuv_cuda_launch_ms     = session.encoder->direct_yuv_cuda_launch_ms();

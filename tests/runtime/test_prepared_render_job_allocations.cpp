@@ -60,10 +60,17 @@ void* allocate(std::size_t size) {
 // original pointer is stored immediately before it. All deletes stay on
 // std::free; the align_val_t variants recover the raw pointer from the
 // metadata slot.
+//
+// EVERY align_val_t allocation carries the slot, including alignments
+// <= alignof(std::max_align_t).  libstdc++'s pmr resources route
+// `polymorphic_allocator::allocate/deallocate` through
+// `operator new(bytes, align_val_t(alignment))` even for natural alignment
+// (e.g. alignof(Layer) == 8), so the pairing is always aligned-new /
+// aligned-delete.  Delegating small alignments to `allocate()` (plain malloc
+// with no slot) made `aligned_free` read glibc heap metadata as a pointer and
+// call free(0xa11): SIGSEGV in every Scene teardown that used a pmr vector
+// (e.g. `SceneHasher: disabled camera is treated as static`).
 void* allocate_aligned(std::size_t size, std::size_t alignment) {
-    if (alignment <= alignof(std::max_align_t)) {
-        return allocate(size);
-    }
     const std::size_t effective = size == 0 ? alignment : size;
     void* raw = std::malloc(
         effective + alignment + sizeof(void*));

@@ -1,6 +1,6 @@
 # Chronon 100× Performance Waves — Ticket Specs (B1/B2/B3)
 
-Status: `MIXED — B1 LAND; B2 IMPLEMENTED / GATE FAILED; B3 IMPLEMENTED / ACCEPTANCE PARTIAL` — this file is a ticket specification, not a blanket acceptance claim. The Linux NVML sampler now loads the correct library and reports actual NVENC samples in the sidecar (77.78% on the 2026-10-30 verify run), but the latest B2 runs (238.200–240.03 render-loop fps) remain below both the 300 render-loop fps and 90% utilization gates. MTSDF outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
+Status: `MIXED — B1 LAND; B2 ACCEPTED AT --preset p4 (owner decision 2026-11-02, engine default unchanged and still 244.97 fps); B3 IMPLEMENTED / ACCEPTANCE PARTIAL` — this file is a ticket specification, not a blanket acceptance claim. The Linux NVML sampler now loads the correct library and reports actual NVENC samples in the sidecar (77.78% on the 2026-10-30 verify run). The 2026-11-02 attribution shows the residual B2 cost is NVENC throughput (`avcodec_send_frame` 3.76 ms/frame), not queue depth or CPU orchestration: the gate still fails at the default `slow` preset (244.97 fps mean) and passes at `--preset p4` (408.4 / 422.1 fps). MTSDF outline/shadow golden and VRAM gates remain unverified. No claim of 100× single-clip latency or 100 overlay/min follows from these component results alone.
 Created: 2026-09-09
 Baseline evidence: job_1788973104795535356_86264102 sidecar + TICKET-ZERO-COPY-ZWAVES.md F1–F7
 Owner: Chronon rendering-core maintainers
@@ -27,7 +27,7 @@ waves below are the reachable remainder, in expected-gain order.
 
 ## TODO — cosa manca
 
-- [ ] **Gate B2 — FAIL:** the latest five-run local NVML-fix measurement is documented below; neither FPS nor canonical utilization reaches the gate.
+- [x] **Gate B2 — accepted at `--preset p4` (owner decision 2026-11-02):** the 2026-11-02 encoder-bound rerun below supersedes the earlier NVML-fix measurements. The default `slow` preset averages 244.97 fps; `p4` reaches 408.4/422.1 fps and `p2` 714.6 fps. The deciding owner accepted the gate at `p4` (with `p2` as the fast reference and `slow` kept only as the diagnostic baseline): the throughput gain was judged to outweigh the encoder-effort reduction, and the engine default is not changed. See "Decisione preset NVENC" below for the scope and the residual risk. B3 stays open.
 - [ ] **Gate B2 — FAIL (precedente rerun 2026-10-30):** fixture title-drift di 456 frame, strict Vulkan/NVENC, binario finale SHA-256 `67b8c1d5…`. Run canonico: encoded 456/456, exit 0, `render_loop_fps` **238.200**, end-to-end 139.284 fps, drain 12 µs/job; ancora **20.60%** sotto il target 300. Sidecar `nvenc_utilization_avg` nullo; polling `nvidia-smi` sui campioni encoder attivi 95.43%, metrica non canonica. Output SHA `2520fabe…`. Varianti 16 thread (238.50), depth 12 (235.81), depth 6 (233.57) e 16 surface NVENC (236.30) dentro la banda di varianza 232–239: modifiche ripristinate. Risultati: [`b2-final-20261030-runs.json`](../evidence/100x-perf-waves-b2-20261029/b2-final-20261030-runs.json). Il gate resta aperto.
 - [x] Instrumentare e pubblicare il breakdown GPU per-pass (query Vulkan TOP/BOTTOM, attribuzione per `GpuPassKind`, sidecar e counter backend): vedi la sezione 2026-10-30 in coda.
 - [x] Implementare il percorso GPU MTSDF (native MTSDF preparation/raster path exists; focused tests pass).
@@ -294,3 +294,87 @@ benchmark uses the dirty local tree and is not same-SHA certification.
 Results: `docs/evidence/100x-perf-waves-b2-20261029/b2-nvml-fixed-runs.json`.
 The harness overwrites the MP4, log and timing sidecar per run; only the final
 run's individual artifacts remain, while the JSON retains all five summaries.
+
+### Encoder-bound closure — 2026-11-02 (RTX A4000, local Release)
+
+This run replaced the previous `prepare`/`avcodec_send_frame` inference with
+direct timers on the native-surface lane. Fixture unchanged:
+`static-text-456f` (1920×1080, 24 fps, 456 frames) with `--backend vulkan
+--gpu-hot-path-mode require_gpu_native --hardware nvenc --encoder-backend
+native`.
+
+**The sidecar was under-reporting the submit.** `internal_profiling.encoder.
+nvenc_submit_ms` read `0.603875 ms` while the encoder's own closeout log read
+`send_frame=1712.69 ms` for the same 456 frames. The field was reading the
+CUDA-queue counter, which stays near zero on the surface lane; the blocking
+submit is accumulated on `native_send_frame_ms_`. `pipe_export_finalize_encoder.
+cpp` now reports the native value whenever the lane produced one, so the
+sidecar cannot present an encoder-bound loop as free.
+
+**Measured breakdown at the default preset (`slow`):**
+
+| Component | Time | Note |
+|---|---:|---|
+| `avcodec_send_frame` | **1712.69 ms / 456 = 3.76 ms/frame** | NVENC backpressure; the loop's cost |
+| hwframe pool (`av_hwframe_get_buffer`) | 0.0 ms | previously untimed |
+| CUDA→Vulkan prepare | 0.0 ms | previously untimed |
+| encode drain | 0.0 ms | previously untimed |
+| CUDA event backpressure | 0.3 ms | |
+| render thread | 0.30 ms/frame | graph execute 0.04 ms |
+| peaks | in-flight 4, queue 1, slots 1 | depth is not the constraint |
+
+Three canonical harness runs: **244.4 / 242.3 / 248.2 render-loop fps,
+mean 244.97**, exit 0, 456/456 encoded, output SHA `d15b6cee…` identical across
+runs and identical to the pre-change binary (the timers and the cache-path
+change are bit-exact). Canonical NVENC utilization (NVML, idle samples
+included) 73.25 / 65.33 / 74.13%; `nvidia-smi` active samples remain ~95%.
+Evidence: `b2-encoder-bound-20261102-runs.json`.
+
+**Preset sweep (same binary, same fixture, 456 frames each):**
+
+| `--preset` | render-loop fps | output SHA | bytes |
+|---|---:|---|---:|
+| `slow` (engine default) | 244.97 (3-run mean) | `d15b6cee…` | 45 973 |
+| `p4` | 408.4 / 422.1 | `989c5dd0…` | 47 989 |
+| `medium` | 417.6 | `989c5dd0…` (same as p4) | 47 989 |
+| `p2` | 714.6 | `c8b9a08e…` | 47 949 |
+| `p1` | 603.5 | `a8dce2da…` | 47 950 |
+
+**Decisione preset NVENC (2026-11-02) — gate B2 accettato a `p4`.** L'owner
+decide di valutare il gate `render_loop_fps ≥ 300` al preset **`p4`**
+(408,4/422,1 fps), con `p2` (714,6 fps) come riferimento massimo e `slow`
+(244,97 fps) mantenuto solo come baseline diagnostica del costo encoder. Il
+default di compilazione/CLI resta `slow`: la decisione cambia il preset di
+accettazione dichiarato, non il comportamento di default. Criterio di
+riapertura: una misura che mostri un degrado di qualità percepibile a parità di
+contenuto — **oggi non esiste**, perché non è stato misurato alcun confronto
+oggettivo p4↔slow e gli output non sono byte-identici (`989c5dd0…` vs
+`d15b6cee…`, 47 989 vs 45 973 byte). La decisione è quindi di prodotto, non
+un risultato di qualità misurato, e va citata come tale. `p2`/`p1` restano
+opzioni non accettate (nessuna verifica di qualità né di stabilità multi-run).
+
+**Verdict.** B2's `render_loop_fps ≥ 300` is **reachable**, but only by lowering
+the encoder effort: at the default `slow` preset the A4000 NVENC accepts a
+frame every 3.76 ms (~266 fps ceiling), so no change to queue depth, slot
+count, thread count or the producer/consumer split can move it. `--preset p4`
+passes at 408–422 fps with deterministic output; `p2` triples the default at
+715 fps. The engine default is left unchanged: choosing a faster NVENC preset
+is a quality/bitrate decision for the product, not an orchestration fix, and
+the knob already exists on the CLI and the RenderPlan.
+
+**Startup — the 6.3 s warm-up is cache persistence, not per-process JIT.**
+`CudaNv12Compositor::warm_up` measured 6 340 ms cold and 9–20 ms warm; the
+NVRTC artifact cache defaulted to `/tmp/chronon3d/program-cache`, which is
+ephemeral, so a container restart or reboot recompiled the kernels. The default
+is now `$XDG_CACHE_HOME/chronon3d/program-cache` or
+`$HOME/.cache/chronon3d/program-cache` (the temporary directory stays as the
+no-home fallback; `CHRONON3D_PROGRAM_CACHE_DIR` still overrides). Verified:
+cold 5 026 ms → warm 9 ms for the warm-up, total startup 7 284 ms → 970 ms,
+process wall 7 639 ms → 1 255 ms. The driver's PTX→SASS step is a few ms once
+the artifact exists; the earlier "5.8 s JIT per process" hypothesis is
+disproved, and a CUBIN toolchain requirement is not needed.
+
+Evidence: `docs/evidence/100x-perf-waves-b2-20261029/`
+(`b2-encoder-bound-20261102-runs.json`, `b2-encoder-bound-20261102-results.json`,
+`static-text-456f-encoder-bound-20261102-nvenc.mp4.timing.json`). Results are
+from the dirty local tree on one host; they are not same-SHA certification.

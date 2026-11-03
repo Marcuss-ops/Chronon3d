@@ -77,6 +77,7 @@ bool copy_gpu_only_surface_to(
     destination.set_origin(source.origin_x(), source.origin_y());
     destination.set_opaque(source.is_opaque());
     destination.set_content_cleared(source.is_content_cleared());
+    destination.set_depth_map_shared(source.depth_map_shared());
     destination.mark_gpu_authoritative();
     return true;
 }
@@ -223,74 +224,49 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
         return OwnedFB(placeholder, std::move(placeholder_deleter));
     }
 
+    const auto source_handle = other.surface_handle();
+    const bool source_is_current_native =
+        source_handle != runtime::kInvalidRenderSurfaceHandle &&
+        !other.is_cpu_authoritative() && backend && surface_registry &&
+        backend_surface_api()->is_native_surface_valid(source_handle);
+
     if (node_exec.planned_physical_slot) {
         auto out = acquire_owned_fb(other.width(), other.height(), false);
-        if (!other.data() &&
-            other.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-            if (!out || !copy_gpu_only_surface_to(*this, other, *out)) {
+        if (!out) return {};
+        out->set_origin(other.origin_x(), other.origin_y());
+        out->set_opaque(other.is_opaque());
+        out->set_content_cleared(other.is_content_cleared());
+        out->set_depth_map_shared(other.depth_map_shared());
+
+        if (source_is_current_native) {
+            if (!copy_gpu_only_surface_to(*this, other, *out)) {
                 return {};
             }
-            return out;
-        }
-        if (out && out->data() && other.data() && out->data() != other.data()) {
-            FramebufferCopyAuthority::copy_rows(*out, other);
-            out->set_origin(other.origin_x(), other.origin_y());
-            out->set_opaque(other.is_opaque());
-            out->set_content_cleared(other.is_content_cleared());
-            // Planned transient slots also carry passthrough values. A
-            // GPU-only value has no CPU rows to copy, so it must be copied to
-            // an independent surface before a later writer can recycle this
-            // slot. Sharing the numeric handle is not ownership: detaching
-            // that handle would invalidate the still-live input framebuffer.
-            const auto source_handle = other.surface_handle();
-            const bool source_is_current_native =
-                source_handle != runtime::kInvalidRenderSurfaceHandle &&
-                !other.is_cpu_authoritative() && backend && surface_registry &&
-                backend_surface_api()->is_native_surface_valid(source_handle);
-            if (source_is_current_native) {
-                // A planned physical slot is a writable output. Never publish
-                // a second framebuffer aliasing its input surface: downstream
-                // native composites would then read and write the same image.
-                // The terminal slot is treated the same way, with the copy
-                // landing directly on its pre-bound NVENC surface.
-                if (ensure_empty_native_surface(*this, *out)) {
-                    const auto destination_handle = out->surface_handle();
-                    if (destination_handle != source_handle) {
-                        const auto copied = backend_surface_api()->copy_surface_auxiliary(
-                            destination_handle, source_handle, std::nullopt);
-                        if (!copied.ok()) {
-                            spdlog::error(
-                                "[native-residency] planned-slot passthrough copy failed: {}",
-                                copied.error().message);
-                            release_native_surface(*this, *out);
-                            out->mark_cpu_authoritative();
-                        }
-                    }
-                    if (std::getenv("CHRONON3D_PATH_DIAG")) {
-                        spdlog::info(
-                            "[native-residency] clone-without-slot source={} destination={} extent={}x{} copied={}",
-                            source_handle, out->surface_handle(), other.width(),
-                            other.height(), out->surface_handle() != source_handle);
-                    }
-                } else {
-                    out->clear_surface_handle();
-                    out->mark_cpu_authoritative();
-                }
-            } else {
-                out->set_surface_handle(source_handle);
-            }
-            if (out->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
-                !other.is_cpu_authoritative()) {
-                out->mark_gpu_authoritative();
-            } else if (other.is_cpu_authoritative()) {
+        } else {
+            out->set_surface_handle(source_handle);
+            if (other.is_cpu_authoritative()) {
                 out->mark_cpu_authoritative();
+            } else if (out->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+                out->mark_gpu_authoritative();
             }
+        }
+        // Probe storage through the CONST accessor: the mutable `data()`
+        // deliberately clears `content_cleared`, so using it only to test
+        // "does this buffer have CPU pixels?" silently discarded the state
+        // propagated above (planned-slot passthrough lost its flag).
+        const Framebuffer& out_probe = *out;
+        if (out_probe.data() && other.data() && out_probe.data() != other.data()) {
+            FramebufferCopyAuthority::copy_rows(*out, other);
+            // The row copy made the destination content identical to the
+            // source, and the copying itself clears the flag; restore the
+            // propagated state so it still describes the copied pixels.
+            out->set_content_cleared(other.is_content_cleared());
         }
         return out;
     }
 
-    if (!other.data() && other.surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
-        // GPU-only source: clone into a distinct native surface so the
+    if (source_is_current_native) {
+        // GPU-authoritative source: clone into a distinct native surface so the
         // frame-scoped source stays untouched and no output aliases its
         // handle. Fail closed instead of wrapping the same surface a second
         // time or racing out-of-frame teardown.
@@ -316,17 +292,34 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
 
 OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) {
     if (!src) return OwnedFB{};
+    const auto source_handle = src->surface_handle();
+    const bool source_is_current_native =
+        source_handle != runtime::kInvalidRenderSurfaceHandle &&
+        !src->is_cpu_authoritative() && backend && surface_registry &&
+        backend_surface_api()->is_native_surface_valid(source_handle);
+
     if (node_exec.terminal_video_encode_surface != runtime::kInvalidRenderSurfaceHandle) {
         auto out = acquire_owned_fb(src->width(), src->height(), false);
-        if (out && out->data() != src->data() && out->data() && src->data()) {
+        if (!out) return {};
+        out->set_origin(src->origin_x(), src->origin_y());
+        out->set_opaque(src->is_opaque());
+        out->set_content_cleared(src->is_content_cleared());
+        out->set_depth_map_shared(src->depth_map_shared());
+        if (source_is_current_native) {
+            if (!copy_gpu_only_surface_to(*this, *src, *out)) {
+                return {};
+            }
+        }
+        const Framebuffer& out_probe = *out;
+        const Framebuffer& src_probe = *src;
+        if (out_probe.data() && src_probe.data() &&
+            out_probe.data() != src_probe.data()) {
             FramebufferCopyAuthority::copy_rows(*out, *src);
-            out->set_origin(src->origin_x(), src->origin_y());
-            out->set_opaque(src->is_opaque());
             out->set_content_cleared(src->is_content_cleared());
         }
         return out;
     }
-    if (!src->data() && src->surface_handle() != runtime::kInvalidRenderSurfaceHandle) {
+    if (source_is_current_native) {
         return clone_gpu_only_surface(*this, *src);
     }
     if (src.use_count() == 1 && src->storage_transferable()) {

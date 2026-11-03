@@ -1,0 +1,93 @@
+{
+  "plan": "docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json",
+  "plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+  "comparison": "software RGBA8 raw vs Vulkan RGBA8 raw readback",
+  "thresholds": {
+    "rgb_mae_max": 2.0,
+    "rgb_p99_max": 10
+  },
+  "frames": [
+    {
+      "frame": 30,
+      "rgb_mae": 0.17396363811728396,
+      "rgb_p99": 1,
+      "rgb_max": 5,
+      "preregistered_roi_diagnostics": {
+        "near": {
+          "rgb_mae": 0.23533605442176872,
+          "rgb_p99": 1,
+          "rgb_max": 4
+        },
+        "middle": {
+          "rgb_mae": 0.09141798182687709,
+          "rgb_p99": 1,
+          "rgb_max": 1
+        },
+        "far": {
+          "rgb_mae": 0.25035405192761606,
+          "rgb_p99": 1,
+          "rgb_max": 2
+        }
+      },
+      "software_raw_sha256": "4ab2033a6766d975a974e72e8cf56afdffb7be89bb15b9209383973853de10f3",
+      "vulkan_raw_sha256": "511a2d2d5e68e3b5e99508a14446e306768c2067b769d6159068cad9409519b2",
+      "vulkan_validation_errors": 0,
+      "gate_under_frozen_thresholds": "PASS"
+    },
+    {
+      "frame": 75,
+      "rgb_mae": 0.17722238297325102,
+      "rgb_p99": 2,
+      "rgb_max": 27,
+      "preregistered_roi_diagnostics": {
+        "near": {
+          "rgb_mae": 0.12352380952380952,
+          "rgb_p99": 1,
+          "rgb_max": 2
+        },
+        "middle": {
+          "rgb_mae": 0.37956480153036826,
+          "rgb_p99": 8,
+          "rgb_max": 27
+        },
+        "far": {
+          "rgb_mae": 0.25402570154733806,
+          "rgb_p99": 3,
+          "rgb_max": 5
+        }
+      },
+      "software_raw_sha256": "3b2019bf29fc3d65664ed33a971c31438608c294a2763a05c230d203ec5daaa6",
+      "vulkan_raw_sha256": "71d2f58572c6be4171f8ae95ed3d886ff2ae1da501e4a42b80d01b671231385a",
+      "vulkan_validation_errors": 0,
+      "gate_under_frozen_thresholds": "PASS"
+    },
+    {
+      "frame": 149,
+      "rgb_mae": 0.15225147890946503,
+      "rgb_p99": 1,
+      "rgb_max": 2,
+      "preregistered_roi_diagnostics": {
+        "near": {
+          "rgb_mae": 0.13687891156462584,
+          "rgb_p99": 1,
+          "rgb_max": 1
+        },
+        "middle": {
+          "rgb_mae": 0.09994978479196556,
+          "rgb_p99": 1,
+          "rgb_max": 2
+        },
+        "far": {
+          "rgb_mae": 0.16477052189876737,
+          "rgb_p99": 1,
+          "rgb_max": 1
+        }
+      },
+      "software_raw_sha256": "e01bce424a47c3d669d8cd5b42df37f013e7cf3cf4be574ef35f2daef619f28e",
+      "vulkan_raw_sha256": "056ca567c060d0e79c5e594b5fc8b5dbdf6054e937fa421e92bf32a3787da867",
+      "vulkan_validation_errors": 0,
+      "gate_under_frozen_thresholds": "PASS"
+    }
+  ],
+  "aggregate_gate": "PASS"
+}

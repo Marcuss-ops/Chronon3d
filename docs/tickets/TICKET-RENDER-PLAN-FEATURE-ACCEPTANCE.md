@@ -1,5 +1,9 @@
 # RenderPlan feature acceptance and blockers
 
+**Stato (2026-11-02): PARTIAL** — acceptance locale mirata presente; restano
+il rerun del tree corrente, la certificazione same-SHA GPU/CI e i contratti
+separati per dynamic text/counters e optical lens flare.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
 - [ ] **Rerun focused gate sul tree corrente** — il batch locale del 2026-10-29 ha passato core/RenderPlan, CLI, effects, render graph e suite mirate; `chronon3d_c` shared-library link e `chronon3d_c_abi_tests` erano PASS (302 casi, 8,092 assertion, 278.26 s). Dopo quel batch sono stati aggiunti al sidecar per-job i contatori NV12 delta effettivi e la copertura serializer; ricostruire/rieseguire almeno il target CLI/test sidecar nel batch finale. Catalogo effetti: 57 righe, 51 native, 6 fail-closed. Evidenza precedente in `docs/CURRENT_STATUS.md` e nel batch locale del 2026-10-29 in `../TODO-RIPRESA-100X-E-TICKET-APER-TI.md`; non è un PASS del tree corrente.

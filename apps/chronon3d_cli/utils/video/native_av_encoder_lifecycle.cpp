@@ -309,6 +309,13 @@ bool NativeAvEncoder::close() {
         frames_written_, encoder_packets_received_, mux_packets_written_,
         first_encoder_packet_pts_, last_encoder_packet_pts_,
         cache_hits_, cache_misses_);
+    spdlog::info(
+        "[native_av] native-surface timings — hwframe_pool_ms={:.1f} "
+        "c2v_prepare_ms={:.1f} encode_drain_ms={:.1f} send_ms={:.1f} "
+        "submit_counter_ms={:.1f} backpressure_ms={:.1f}",
+        encoder_hwframe_get_buffer_ms_, encoder_surface_prepare_ms_,
+        encoder_drain_ms_, native_send_frame_ms_, encoder_nvenc_submit_ms_,
+        native_backpressure_ms_);
     // Cross-job codec session (Fix 5, opt-in): park the still-open codec for
     // the next same-configuration open instead of paying avcodec_open2 +
     // NVENC session setup per artifact (P2 item 2 / P4 item 1). Only an

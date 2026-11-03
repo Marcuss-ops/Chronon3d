@@ -1,5 +1,10 @@
 # Agent Visual Finishing — CPU-only parity work
 
+**Stato (2026-11-02): PARTIAL** — output PQ/HLG, scopes CPU e matte ONNX hanno
+prove locali; restano la review dei bordi su footage reale e la verifica di
+progetti Chronon completi. Vedi `docs/CURRENT_STATUS.md`, sezione Agent visual
+finishing.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
 - [ ] **Accettazione qualità matte su footage reale** — logica: tutte le probe attuali sono 64×64 o sintetiche; la qualità edge (semantic matte, optical flow, propagated mattes) va revisionata su footage reale di progetto con edge annotati. Dove: pipeline matte già atterrata (provider semantico, optical-flow pyramid alpha-weighted, propagated mattes) + footage di progetto. Gate: revisione edge approvata su casi reali, non solo metriche automatiche.
