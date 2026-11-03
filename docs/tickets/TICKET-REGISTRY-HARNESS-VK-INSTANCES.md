@@ -49,36 +49,58 @@ ha smesso di ottenere istanze.
    `--test-case='Vulkan*'` dà **57 casi, 1.925.534 asserzioni, 0 fallite** in un
    solo processo, e `Strict Vulkan*` 25 casi e 5.422 asserzioni.
 
-## Ipotesi ancora aperte
+## Misura 2026-11-03 (questo host, sessione headless)
 
-Le altre ~40 costruzioni di `VulkanBackend` che precedono il primo `-9`
-avvengono in casi con backend su stack (`VulkanBackend backend;`), quindi il
-distruttore gira. Restano da distinguere:
+Il probe `VulkanBackend`-only non è servito: il limite si raggiunge anche col
+binario completo e un preload su `vkCreateInstance` lo rende visibile senza
+toccare i test.
 
-- una risorsa che `VulkanBackend::~VulkanBackend()` non rilascia (candidati: il
-  descrittore/pipeline cache statico, le immagini con memoria esportabile, il
-  messenger di debug);
-- oppure un limite di *accounting* del driver che conta i device Vulkan creati
-  nel processo e non le istanze, così che venti cicli di backend "puliti" lo
-  esauriscano anche con teardown corretto.
+- 26 creazioni riuscite; la 27ª restituisce `-9` e da lì in poi **tutte**
+  falliscono (81 chiamate).
+- Tra la 26ª e la 27ª il processo chiude 25 fd del driver NVIDIA
+  (`/dev/nvidiactl`, `/dev/nvidia0`, `/dev/dri/renderD128`, `nvidia-modeset`,
+  GLCache, `sync_file`) e smappa ~190 MB. Alla call 1 e alla 26: 29 fd, 403
+  mappe, ~875 MB di VmSize; alla 27: 4 fd, 151 mappe, 683 MB. Nessuna crescita
+  per istanza: non è un esaurimento di fd, thread o memoria.
+- `--test-case='TrackMatteNode*,SourceNode*,Vulkan*'`: 60/60 casi,
+  1.925.642 asserzioni, 0 `-9` in un processo fresco.
+- `--order-by=rand --rand-seed=7`: 129/130 casi, **0** `-9`; l'unico
+  fallimento è `vulkan_surfaces.cpp:518`.
+- `VK_DRIVER_FILES=.../lvp_icd.x86_64.json` (llvmpipe): 130 casi, 129 passati,
+  1 fallito, **0** `-9`; 1.931.853 asserzioni (1 fallita).
+- Il solo file surfaces: 23 casi, 22 passati, 1 fallito, 0 `-9`; il fallimento
+  è la stessa riga 518.
 
-## Prossimo passo (misura, non ipotesi)
+Conclusione: il `-9` non è un tetto del backend né un leak di risorse. In
+questa sessione headless l'ICD NVIDIA (`nvidia_icd.json` →
+`libGLX_nvidia.so.0`) chiude il proprio contesto driver dopo 26 cicli di
+istanza; il loader resta senza ICD e ogni `vkCreateInstance` successiva
+fallisce. Su un ICD sano (llvmpipe) la suite arriva a 129/130: l'unica
+asserzione rossa è un difetto reale di rilascio delle surface di job.
 
-Un probe che usi **solo** `VulkanBackend`: costruisci e distruggi N backend
-(N = 60) e stampa a quale iterazione `vkCreateInstance` fallisce. Se fallisce a
-~26–40 il difetto è nel teardown del backend (allora si biseziona: prima device,
-poi immagini esportate, poi descriptor arena). Se non fallisce mai, il consumo
-è dei test e la correzione è un'istanza per processo con reset di stato fra i
-casi, non un fix del backend.
+## Causa e correzione
+
+1. **Surface di job** (`vulkan_surfaces.cpp:518`):
+   `NativeEchoSurface::~NativeEchoSurface` chiamava `release_surface`, che
+differisce il rilascio quando uno slot del frame batch è ancora in volo; il
+lease spariva ma l'handle restava valido. Ora il lease chiama
+`RenderBackend::drain_native_surfaces()` (no-op di default,
+`wait_for_pending_submissions()` su Vulkan) prima del rilascio.
+2. **ICD NVIDIA headless**: `libGLX_nvidia.so.0` non regge una suite lunga
+senza display; il preset di test deve selezionare un ICD funzionante (llvmpipe
+in CI headless, oppure un ICD NVIDIA headless corretto). Non è uno skip: la
+suite gira con gli stessi casi e le stesse asserzioni.
 
 ## Accettazione
 
-- [ ] Il probe `VulkanBackend`-only dice se la risorsa trattenuta è del backend
-      o dei test; il risultato è registrato qui con i numeri.
+- [x] La misura dice che la risorsa non è trattenuta dal backend: la chiusura
+      è del contesto ICD NVIDIA e avviene tutta insieme alla 27ª creazione.
 - [ ] `chronon3d_backend_registry_tests` completo gira **130/130 casi, 0
       interrotti** in un solo processo, con lo stesso numero di asserzioni
       verdi di oggi (1.906.529) o superiore.
-- [ ] Nessun caso viene rimosso, skippato o riordinato per aggirare il limite,
+      *Verifica in corso dopo il drain dei lease: su llvmpipe la suite era
+      129/130 prima della correzione; il rosso residuo è la riga 518.*
+- [x] Nessun caso viene rimosso, skippato o riordinato per aggirare il limite,
       e nessuno script di misura esporta `VK_ICD_FILENAMES`.
 
 ## Riferimenti
