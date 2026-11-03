@@ -22,6 +22,7 @@ change with the SH probe); strict-native GPU sampling/parity remains open.
 - [x] Lane software: irradianza SH (9 coefficienti) valutata per normale nel lighting software, inclusi intensity e rotazione Y statica.
 - [x] Lane software: specular con mip lookup dalla cubemap HDRI, con roughness-to-mip mapping.
 - [ ] Lane Vulkan strict-native: sampling cubemap negli shader di lighting, fail-closed se la risorsa manca.
+- [ ] Confronto numerico cross-repo del specular del consumatore contro `ChrononMotion3D/tests/hdri_specular_golden.json` (ereditato da `TICKET-HDRI-ENV-V1`, chiusa 2026-11-03): il golden di radianza per texel/mip e di energia media esiste ed è byte-stabile lato producer, ma nessun harness del consumatore lo legge. Vale come gate di parità accanto al sampling strict-native; non blocca il round-trip visibile, già PASS sulla rotta raw (2.965/2.965 pixel cambiano con la probe).
 - [x] Campo `environment_light` opzionale V3 + decoder/fingerprint + validazione dell'asset montato e coerenza SH.
 - [x] Decoder binario `HDRIENV1` con bounds, finite checks, complete mip
       chain, face ordering, and trailing-byte rejection.
