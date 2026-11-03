@@ -20,7 +20,6 @@ namespace raster { struct BBox; } namespace cache { class FramebufferPool; class
 namespace graph { class RenderBackend; class CompiledGraphCache; class GraphNodeCatalog; class SceneHasher; class SceneProgramStore; }
 namespace effects { class EffectCatalog; struct EffectExecutionContext; }
 namespace renderer { class SoftwareRegistry; }
-
 struct CompiledComposition;
 namespace compiler { class CompiledProgram; }
 struct MotionBlurSettings; struct DepthOfFieldSettings; struct LensModel; struct Frame; struct LayerBBoxState; struct RenderNode; struct RenderState;
@@ -175,12 +174,8 @@ public:
                             std::unordered_map<std::string, LayerBBoxState>&&);
     void commit_prev_frame_state(Frame, const Camera2_5D&, uint64_t, uint64_t, uint64_t, uint64_t,
                                  std::unordered_map<std::string, LayerBBoxState>&&);
-    /// Forget every cross-frame pixel assumption: retained previous
-    /// framebuffer, per-layer bbox diff history and frame fingerprints.
-    /// Renderer warmup renders a dummy frame through the real pipeline; the
-    /// first delivered frame would otherwise diff against a discarded frame
-    /// and the sparse-tile path would copy pixels from a framebuffer nobody
-    /// ever sees (speckled first frame on every video-lane job).
+    /// Forget cross-frame pixel assumptions: retained framebuffer, bbox history
+    /// and fingerprints; warmup would otherwise diff against a discarded frame.
     void reset_frame_history();
 
     void update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect,
