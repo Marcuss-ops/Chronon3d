@@ -463,7 +463,7 @@ TEST_CASE("A1 direct native export route renders a software composition") {
     options.encoder.encoder_backend = chronon3d::media::kEncoderTransportNative;
 
     const auto exported = chronon3d::cli::render_and_encode_native(
-        registry, *job->compiled, job->comp_id, job->settings,
+        registry, job->compiled.get(), job->comp_id, job->settings,
         chronon3d::Frame{0}, chronon3d::Frame{9}, options,
         job->execution.cpu_budget,
         std::make_shared<chronon3d::media::VideoRuntimeRegistry>());
@@ -528,7 +528,7 @@ TEST_CASE("A1 direct native export route renders a software composition") {
         std::make_shared<chronon3d::media::VideoRuntimeRegistry>();
     auto sidecar_written_at = std::chrono::steady_clock::time_point{};
     CHECK(chronon3d::cli::render_and_encode_ffmpeg(
-        registry, *job->compiled, job->comp_id, job->settings,
+        registry, job->compiled.get(), job->comp_id, job->settings,
         chronon3d::Frame{0}, chronon3d::Frame{10}, wrapped_options,
         job->execution.cpu_budget,
         wrapped_execution, &sidecar_written_at) == 0);

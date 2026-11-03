@@ -344,12 +344,7 @@ struct VulkanBackend::Impl {
     std::vector<std::uint64_t> submit_wait_values_;
     std::vector<std::uint64_t> submit_signal_values_;
 
-    void append_pending_upload_wait() {
-        if (uploads.pending_timeline_ticket == 0) return;
-        submit_wait_semaphores_.push_back(timeline_semaphore);
-        submit_wait_stages_.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-        submit_wait_values_.push_back(uploads.pending_timeline_ticket);
-    }
+    void append_pending_upload_wait();
 
     Impl(VkInstance inst, VkPhysicalDevice physical, VkDevice logical,
          VkQueue graphics, std::uint32_t family, VkCommandPool pool,
@@ -440,16 +435,7 @@ struct VulkanBackend::Impl {
 
     static VkFormat to_vk_format(runtime::PixelFormat fmt) noexcept;
 
-    static constexpr std::size_t pixel_format_bytes(runtime::PixelFormat fmt) noexcept {
-        switch (fmt) {
-            case runtime::PixelFormat::Rgba32Float: return 16;
-            case runtime::PixelFormat::Rgba8Unorm: return 4;
-            case runtime::PixelFormat::R8Unorm: return 1;
-            case runtime::PixelFormat::Nv12: return 1;
-            case runtime::PixelFormat::P010: return 2;
-            default: return 16;
-        }
-    }
+    static std::size_t pixel_format_bytes(runtime::PixelFormat fmt) noexcept;
 
     static bool surface_compatible(const runtime::SurfaceDesc& a,
                                    const runtime::SurfaceDesc& b);

@@ -31,6 +31,30 @@ const std::vector<float>& NodeExecutionContext::dof_depth_buffer() const noexcep
     return shared_dof_depth ? *shared_dof_depth : dof_depth;
 }
 
+std::vector<float>&
+NodeExecutionContext::composite_occlusion_depth_buffer() noexcept {
+    return shared_composite_occlusion_depth
+        ? *shared_composite_occlusion_depth
+        : composite_occlusion_depth;
+}
+
+NodeExecutionContext::CameraCompositeState&
+NodeExecutionContext::camera_composite_state() noexcept {
+    return shared_camera_composite ? *shared_camera_composite : camera_composite;
+}
+
+NodeExecutionContext::NativeOcclusionState&
+NodeExecutionContext::native_occlusion_state() noexcept {
+    return shared_native_occlusion ? *shared_native_occlusion : native_occlusion;
+}
+
+const std::vector<float>&
+NodeExecutionContext::composite_occlusion_depth_buffer() const noexcept {
+    return shared_composite_occlusion_depth
+        ? *shared_composite_occlusion_depth
+        : composite_occlusion_depth;
+}
+
 DofSourceCoverage& NodeExecutionContext::dof_sources() noexcept {
     return shared_dof_source_coverage ? *shared_dof_source_coverage : dof_source_coverage;
 }

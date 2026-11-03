@@ -45,7 +45,7 @@
       "cacheVariables": {
         "CHRONON3D_BUILD_TESTS": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;tests;ipc"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;vulkan;tests;ipc;native-ffmpeg"
       }
     },
     {

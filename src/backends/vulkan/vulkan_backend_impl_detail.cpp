@@ -12,6 +12,25 @@
 
 namespace chronon3d::backends::vulkan {
 
+void VulkanBackend::Impl::append_pending_upload_wait() {
+    if (uploads.pending_timeline_ticket == 0) return;
+    submit_wait_semaphores_.push_back(timeline_semaphore);
+    submit_wait_stages_.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    submit_wait_values_.push_back(uploads.pending_timeline_ticket);
+}
+
+std::size_t VulkanBackend::Impl::pixel_format_bytes(
+    runtime::PixelFormat fmt) noexcept {
+    switch (fmt) {
+        case runtime::PixelFormat::Rgba32Float: return 16;
+        case runtime::PixelFormat::Rgba8Unorm: return 4;
+        case runtime::PixelFormat::R8Unorm: return 1;
+        case runtime::PixelFormat::Nv12: return 1;
+        case runtime::PixelFormat::P010: return 2;
+        default: return 16;
+    }
+}
+
 bool surface_lifecycle_diag_enabled() noexcept {
     static const bool enabled = [] {
         const char* value = std::getenv("CHRONON3D_SURFACE_LIFECYCLE_DIAG");

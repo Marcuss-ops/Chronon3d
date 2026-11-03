@@ -515,6 +515,10 @@ TEST_CASE("JobSession stores frame-addressed Vulkan Echo surfaces without readba
         REQUIRE(retained[0]);
         released_by_destructor = retained[0]->handle;
     }
+    // JobSession destruction may enqueue a release while Vulkan still has a
+    // submission slot referencing the surface. Drain that backend-owned queue
+    // before asserting physical validity has ended.
+    backend.release_frame_transient_surfaces();
     CHECK_FALSE(backend.is_native_surface_valid(released_by_destructor));
     CHECK_FALSE(registry.lookup(released_by_destructor).has_value());
     REQUIRE(backend.release_surface(source).ok());

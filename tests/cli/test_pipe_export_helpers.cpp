@@ -34,7 +34,7 @@ TEST_CASE("PipeExportHelpers: segmented output refuses every non-native encoder 
     };
     for (const auto* lane : {"pipe", ""}) {
         opts.encoder.encoder_backend = lane;
-        CHECK_FALSE(make_pipe_options(compiled, opts, "libx264", budget)
+        CHECK_FALSE(make_pipe_options(64, 64, opts, "libx264", budget)
                         .has_value());
     }
 }
