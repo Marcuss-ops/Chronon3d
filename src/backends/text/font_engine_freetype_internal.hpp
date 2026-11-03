@@ -382,8 +382,15 @@ struct FontEngine::Impl {
         FT_Face face = nullptr;
         FT_Error err = FT_New_Face(ft_library, resolved.c_str(), 0, &face);
         if (err != 0) {
-            spdlog::warn("FontEngine: failed to load font '{}' (resolved: '{}', error={})",
-                         spec.font_path, resolved, err);
+            // A missing font is retried once per text span: an overlay render
+            // emitted tens of thousands of identical lines (60 GB of syslog in
+            // one day). Warn once per resolved path per thread; a genuinely
+            // different failure still gets its own line.
+            static thread_local std::set<std::string> warned_missing_fonts;
+            if (warned_missing_fonts.insert(resolved).second) {
+                spdlog::warn("FontEngine: failed to load font '{}' (resolved: '{}', error={})",
+                             spec.font_path, resolved, err);
+            }
             return {};
         }
 

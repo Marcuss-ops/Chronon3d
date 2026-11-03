@@ -3,6 +3,8 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/backends/software/software_execution_context.hpp>
+#include <chronon3d/runtime/render_pipeline.hpp>
 #ifdef CHRONON3D_ENABLE_VULKAN
 #include <chronon3d/backends/vulkan/vulkan_backend.hpp>
 #endif
@@ -11,6 +13,7 @@
 #include <atomic>
 #include <exception>
 #include <memory>
+#include <optional>
 
 namespace chronon3d::cli {
 
@@ -89,6 +92,20 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
     // std::string members plus the render budget) once per frame.
     RenderSettings frame_settings = ctx.settings;
 
+    // A compiled program keeps its scene-topology LRU cache inside
+    // RenderPipeline. Keep both the copied execution context and pipeline
+    // alive for the complete job, so repeated frame topology is materialized
+    // once and reused instead of rebuilding the cache for every frame.
+    std::optional<SoftwareExecutionContext> program_execution_context;
+    std::unique_ptr<runtime::RenderPipeline> program_pipeline;
+    if (ctx.program && ctx.sw_renderer) {
+        program_execution_context.emplace(ctx.sw_renderer->execution_context());
+        program_execution_context->settings = &frame_settings;
+        program_execution_context->video_decoder = ctx.video_decoder;
+        program_pipeline = std::make_unique<runtime::RenderPipeline>(
+            ctx.sw_renderer, *program_execution_context);
+    }
+
     try {
         for (; current_frame < ctx.end; ++current_frame) {
             if (ctx.opts.cancellation_token &&
@@ -123,7 +140,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     static_cast<std::uint64_t>(current_frame.integral()));
             }
 #endif
-            RenderOutcome shot = render_frame(ctx, frame_settings, current_frame);
+            RenderOutcome shot = render_frame(
+                ctx, frame_settings, program_pipeline.get(), current_frame);
             const auto& breakdown = shot.timing.breakdown;
             const auto& image_timing = shot.timing.image_timing;
             const auto& text_timing = shot.timing.text_timing;
@@ -142,7 +160,13 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     ctx.counters->graph_skipped_wall_ms_sum.fetch_add(
                         static_cast<uint64_t>(frame_ms * 1000.0), std::memory_order_relaxed);
                 } else {
-                    ctx.counters->graph_executed_frames.fetch_add(1, std::memory_order_relaxed);
+                    // The frame counter belongs to the graph, not to this loop:
+                    // `scene_temporal_execution.cpp` increments it once per
+                    // executed frame. Incrementing it here as well made every
+                    // sidecar report 2x the real count (TICKET-PERF-100X A8),
+                    // which halved every per-frame cost derived from
+                    // `graph_total_ms / graph_executed_frames`. Only the
+                    // CLI-level wall aggregate is this loop's business.
                     ctx.counters->graph_executed_wall_ms_sum.fetch_add(
                         static_cast<uint64_t>(frame_ms * 1000.0), std::memory_order_relaxed);
                 }

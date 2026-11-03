@@ -321,6 +321,13 @@ void SoftwareRenderer::commit_prev_frame_state(Frame frame, const Camera2_5D& ca
     m_session.common.frame_history.prev_camera_valid = cam.enabled;
 }
 
+void SoftwareRenderer::reset_frame_history() {
+    m_session.common.dirty_telemetry.previous_layers.clear();
+    m_session.common.dirty_telemetry.reset_telemetry_counters();
+    m_session.common.frame_history = FrameHistory{};
+    m_session.software.buffer_ring.prev_framebuffer().reset();
+}
+
 void SoftwareRenderer::update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect,
                                                bool tile_execution_used, bool fast_path_reused,
                                                bool graph_reused,

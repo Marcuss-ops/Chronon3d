@@ -307,7 +307,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph_temporal(
             ctx.policy.native_video_encode_surface !=
                 runtime::kInvalidRenderSurfaceHandle,
             ctx.policy.diagnostics_enabled,
-            output_format);
+            output_format,
+            std::nullopt,
+            ctx.frame_parameters);
         ctx.policy.reuse_prev_framebuffer = execution_plan.use_dirty_region;
         ctx.policy.dirty_rects_enabled = execution_plan.use_dirty_region;
         ctx.policy.tile_execution_enabled =

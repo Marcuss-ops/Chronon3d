@@ -1,0 +1,65 @@
+{
+  "contract_version": 1,
+  "registered": "2026-11-03",
+  "scope": "Gate TICKET-CAMERA-DEFINITIVE-CLOSURE 8.3 bullet 2+3 — alpha-edge native acceptance on the frozen Optical Studio v3 acceptance plan. Registered BEFORE any measurement: this file is hashed into the result JSON, so a later edit invalidates the evidence instead of moving the goalposts.",
+  "fixture": {
+    "plan": "docs/evidence/camera-closure-final/optical_current_pair_v3.plan.json",
+    "plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+    "canvas": [1920, 1080],
+    "fps": "30/1",
+    "frames": [30, 75, 149],
+    "alpha_layer": "4",
+    "alpha_asset": "docs/evidence/camera-closure-final/assets/near.png",
+    "alpha_asset_facts": "36499 fully transparent pixels and 562167 fractional-alpha pixels in 730x830, so the edge of the element is a partial-coverage blend",
+    "dof": {"enabled": true, "focus_distance": 820.0, "max_blur": 28, "highlight_gain": 0},
+    "shutter": {"shutter_angle": 180.0, "samples": 8}
+  },
+  "render": {
+    "backend": "vulkan",
+    "sink": "--video-sink raw --pipe-pixfmt rgba --encoder-backend pipe",
+    "validation": "CHRONON3D_VULKAN_VALIDATION=1",
+    "frames_rendered": [
+      "A: DoF off, full scene (probe-dof-off.plan.json)",
+      "B: DoF off, alpha layer opacity 0 (probe-dof-off-alpha-off.plan.json)",
+      "C: DoF on, full scene (the frozen plan, re-rendered with the same CLI binary as A and B)"
+    ],
+    "revision_2": "G4 first also asked that the element stay inside the middle plane's footprint. That check needs a second matte and re-derives layer order, which gate C3 already certifies natively (87 Vulkan assertions, 46 software). G4 now gates parallax, scale stability and in-canvas placement only; layer order and occlusion are cited from C3, not re-measured here.",
+    "revision_1": "C was first taken from docs/evidence/camera-current-pair-20261102/, rendered on 2026-11-02 with binary a7b778ac. The first measurement compared it with A/B produced by binary db3425b8, so two variables moved at once. C is therefore re-rendered with the same binary as A and B: A and C now differ ONLY by camera.dof.enabled. Thresholds, band, frames and gates are unchanged.",
+    "known_limitation": "--gpu-hot-path-mode require_gpu_native is rejected by the raw sink (documented fail-closed contract), so the raw lane is the non-strict readback lane. Strict-native output is certified separately by the 150-frame MP4 gate."
+  },
+  "matte": {
+    "definition": "M(x,y) = max over RGB channels of |A(x,y,c) - B(x,y,c)|, 8-bit",
+    "why": "the difference of two renders of the same fixture isolates the contribution of the alpha layer in engine space, so the edge band comes from the renderer's own projection and not from a re-implemented camera model",
+    "support": "S = {M >= 8}",
+    "edge_band": "pixels of S adjacent (4-neighbourhood) to non-S, dilated by 2 px on both sides of the boundary",
+    "coverage_proxy": "q = M / p99(M over S), clipped to [0,1]"
+  },
+  "gates": {
+    "G1_semi_transparent_edge_present": {
+      "test": "count of edge-band pixels with 0.05 <= q <= 0.95",
+      "threshold": ">= 100 pixels",
+      "meaning": "the acceptance fixture really produces a partial-coverage edge; a hard binary cut would make the halo test vacuous"
+    },
+    "G2_no_halo_overshoot": {
+      "test": "for every edge-band pixel, compare C against the per-channel [min,max] of A inside a 57x57 window (radius 28 px = camera.dof.max_blur, i.e. the largest legitimate blur footprint); a violation is C > max + 8 or C < min - 8",
+      "threshold": "violating pixels / edge-band pixels <= 0.002 AND max violation <= 8/255",
+      "meaning": "a separable Gaussian blur is a convex combination of neighbours, so it cannot leave the neighbourhood range beyond rounding; an out-of-range value is ringing/halo, the classic fringe around an alpha edge"
+    },
+    "G3_no_hue_contamination": {
+      "test": "per edge-band pixel compute residual R = C - A; count pixels where max(R) > 16 and min(R) < -16 (one channel pushed up while another is pulled down)",
+      "threshold": "contaminated pixels / edge-band pixels <= 0.005",
+      "meaning": "this is the signature of the green/rainbow flashes seen at segment boundaries: a hue flip that is neither the element nor the background"
+    },
+    "G4_parallax_and_placement": {
+      "test": "matte bounding-box centroid and area of the alpha layer at frame 30 vs 149; the layer must move under a non-null camera move, and the support must stay inside the canvas",
+      "threshold": "centroid displacement >= 1 px, area ratio within [0.5, 2.0], support inside the 1920x1080 canvas",
+      "meaning": "parallax during real camera motion, no teleport/scale bug of the alpha layer, no element escaping the frame",
+      "order_and_occlusion": "NOT re-derived here: layer order and per-pixel occlusion are already certified by gate C3 (`Vulkan native occlusion holds a mesh half behind a 2.5D plane in both authoring orders`, 87 assertions; software counterpart, 46 assertions). This contract only certifies the alpha edge."
+    }
+  },
+  "measured_but_not_gated": {
+    "band_residual_mean": "mean |C - A| inside the band; reported, because blur must reduce local contrast instead of amplifying it",
+    "vulkan_validation_errors": "count of 'Vulkan Validation ERROR' in every render log; any occurrence is reported and fails the run"
+  },
+  "frozen_thresholds_are_not_movable": "If a gate fails it stays FAIL and the ticket stays PARTIAL. Thresholds are not widened after the fact."
+}

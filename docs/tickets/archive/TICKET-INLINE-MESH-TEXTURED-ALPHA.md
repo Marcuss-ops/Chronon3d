@@ -21,28 +21,16 @@
 2. Registra per ogni prova: comando completo, SHA (clean o dirty), preset build, host/device, exit status, contatori (test/assert/frame/hash/digest) e percorso dell'evidenza sotto `docs/evidence/`.
 3. I gate esterni (runner, content pack, footage, host GPU, decisione di owner) non si chiudono localmente: lo Stato resta `PARTIAL`/`BLOCKED` o `WAITING EXTERNAL` con prerequisito e owner espliciti. Non trasformare mai `NOT RUN`/`FAIL` in `PASS`.
 4. Non rimuovere fallback, API o capability fail-closed prima del relativo gate di equivalenza/census; non implementare feature proposte senza la decisione di scope.
-5. Chiusura effettiva = tutti i criteri dedicati verdi (oppure formalmente ritirati con motivazione e owner) + aggiornamento di `## Stato` in questa scheda, degli indici `docs/CURRENT_STATUS.md`/`docs/FOLLOWUP_TICKETS.md` se la scheda è indicizzata, di `TODO-RIPRESA-100X-E-TICKET-APER-TI.md`, e archiviazione della scheda secondo le convenzioni del repository.
-
-### Percorso rapido (ordine di esecuzione consigliato)
-
-1. Riconfronta i criteri dedicati qui sopra con lo stato attuale della scheda: le voci già soddisfatte non si rieseguono, si ricollegano all'evidenza esistente.
-2. Frammenta l'esecuzione in micro-step: chiudi prima le azioni locali raggiungibili nel checkout corrente, poi le decisioni di contratto/scope aperte, infine prepara e richiedi i gate esterni del piano.
-3. Dopo ogni criterio, spontalo in questa sezione con il link all'evidenza; annota nella stessa sezione `NOT RUN`/`BLOCKED` dove la prova non è disponibile, senza cancellare il criterio.
-4. Quando tutti i criteri dedicati sono verdi (o ritirati in modo formale), applica la Regola di chiusura (punto 5), aggiorna gli indici canonicali e archivia la scheda.
-
-<!-- /protocollo-chiusura-completa:2026-10-29:v1 -->
-
-## Stato
-PARTIAL (updated 2026-10-31). Implementazione, route strict-native, determinismo
-dei due render e parità software/GPU sono verificate localmente **anche sul
-sorgente pushato** (`0e7303577`, 31/31 frame, MP4 byte-identico, MAE 0.0210
-full-frame / 1.492 sulla maschera soggetto; evidenza
-[`inline-mesh-vulkan-20261029`](../evidence/inline-mesh-vulkan-20261029/README.md)).
-Provenienza: blocco già noto in `docs/stato/chronon-motion3d.md` §3 ("Soggetto
-animato textured/alpha... bloccato su un cambio coordinato del contratto/runtime
-Chronon3D") e prerequisito per il glTF animato della parità AE. Resta `PARTIAL`
-solo per la CI same-SHA e per la copertura PBR/produzione oltre la fixture
-diagnostica. Stato registrato in `docs/stato/chronon3d.md` §13.
+5. Chiusura effettiva = tutti i criteri dedicati verdi (oppure formalmente ritirati con motivazione e owner) + aggiornamento di `## Stato
+CLOSED (2026-11-03). Implementazione, route strict-native, determinismo dei due
+render e parità software/GPU sono verificate localmente **anche sul sorgente
+pushato** (`0e7303577`, 31/31 frame, MP4 byte-identico, MAE 0.0210 full-frame /
+1.492 sulla maschera soggetto; evidenza
+[`inline-mesh-vulkan-20261029`](../../evidence/inline-mesh-vulkan-20261029/README.md)).
+Tutti i criteri dedicati del protocollo sono verdi. Restano fuori da questa
+scheda, con trasferimento esplicito, solo la CI same-SHA (Fase 6) e la
+copertura PBR/produzione oltre la fixture diagnostica (Fase 6; la copertura
+materiali vive in `TICKET-PBR-MATERIALS-V1` e in `TICKET-ENVIRONMENT-LIGHT-IBL`).
 
 ## TODO — cosa manca (agg. 2026-10-28)
 
@@ -172,33 +160,33 @@ Dopo `TICKET-SHADOW-NATIVE-CATCHER.md`, in parallelo agli effetti P2.
   via NVENC (31/31 frame decodificabili), ma tutti i framemd5 risultano uguali;
   il frame mostra metà nero/metà verde scuro e non il soggetto. Il pixel proof
   statico già registrato non certifica quindi l'animazione glTF. Evidenza:
-  [`ticket-roundtrip-20261029`](../../../ChrononMotion3D/docs/evidence/ticket-roundtrip-20261029/README.md).
+  [`ticket-roundtrip-20261029`](../../../../ChrononMotion3D/docs/evidence/ticket-roundtrip-20261029/README.md).
 - 2026-10-29 diagnostic raw follow-up: la fixture è stata centrata e scalata;
   il software raw sink mostra texture/alpha e 31 posizioni animate con hash
   distinti. L'NVENC MP4 resta black/green. Questi render provengono però da un
   CLI Release buildato al commit `67fd33f7f`, non dal source HEAD `014eeb4df`, e
   non aggiornano il pixel-proof canonico finché non si ripetono sul binario
   current-source. Evidenza e frame campione:
-  [`ticket-roundtrip-scaled-20261029`](../../../ChrononMotion3D/docs/evidence/ticket-roundtrip-scaled-20261029/README.md).
+  [`ticket-roundtrip-scaled-20261029`](../../../../ChrononMotion3D/docs/evidence/ticket-roundtrip-scaled-20261029/README.md).
 - Current-source rerun 2026-10-29: `linux-video-release` software raw sink
   mostra il soggetto textured/alpha su 31 frame distinti; il current-source
   video export H.264/NVENC inizialmente risultava corrotto sia col program
   route sia col legacy route. Il rendering Vulkan native, il confronto
   software/Vulkan e il determinismo GPU restano non verificati. Dettagli:
-  [`ticket-roundtrip-current-source-20261029`](../../../ChrononMotion3D/docs/evidence/ticket-roundtrip-current-source-20261029/README.md).
+  [`ticket-roundtrip-current-source-20261029`](../../../../ChrononMotion3D/docs/evidence/ticket-roundtrip-current-source-20261029/README.md).
 - Follow-up NVENC 2026-10-29: corretto il layout host YUV420P/NV12 mismatch;
   default e canonical composition route producono ora 31/31 frame H.264
   animati, con RMSE RGB 0.7673 contro l'oracle software compositato su nero.
   Rimane aperta la lane `vulkan_native`: questo risultato non la certifica.
   Evidenza:
-  [`native-av-nv12-layout-20261029`](../evidence/native-av-nv12-layout-20261029/README.md).
+  [`native-av-nv12-layout-20261029`](../../evidence/native-av-nv12-layout-20261029/README.md).
 - Probe Vulkan stretto 2026-10-29: la CLI accetta `--backend vulkan` e completa
   il frame sulla route `full_graph_native`, ma l'output RGBA 640×360 è tutto
   trasparente nero (0 pixel non-zero). Il dispatch Vulkan corrente non ha una
   route inline-mesh. I test software/C ABI precompilati passano per texture,
   alpha, budget e primitive deterministiche; non coprono il disegno Vulkan e
   non chiudono il ticket. Evidenza:
-  [`inline-mesh-vulkan-probe-20261029`](../evidence/inline-mesh-vulkan-probe-20261029/README.md).
+  [`inline-mesh-vulkan-probe-20261029`](../../evidence/inline-mesh-vulkan-probe-20261029/README.md).
 - Strict-native Vulkan follow-up 2026-10-29: implementata la rasterizzazione
   indicizzata textured/alpha con UV perspective-correct, alpha cutoff e
   source-over. La fixture animata produce 31/31 frame NVENC visibili e due
@@ -211,12 +199,27 @@ Dopo `TICKET-SHADOW-NATIVE-CATCHER.md`, in parallelo agli effetti P2.
   nel gate CAM-04 (foreground MAE 1.492, p95 5, p99 8, max 17). Due output
   strict-native hanno SHA identico. Lo stato resta `PARTIAL` in attesa della CI
   sullo SHA pushato. Evidenza completa:
-  [`inline-mesh-vulkan-20261029`](../evidence/inline-mesh-vulkan-20261029/README.md).
+  [`inline-mesh-vulkan-20261029`](../../evidence/inline-mesh-vulkan-20261029/README.md).
 - Rerun dal commit pulito e pushato `0e7303577524d8b1c1819213de022390cca6775e`
   (2026-10-29): il CLI Release ha renderizzato di nuovo la fixture Motion3D in
   strict-native Vulkan/NVENC. Decodifica 31/31 frame 640×360, 31 hash di frame
   distinti; receipt `full_graph_native`, zero downgrade, zero CPU readback e
   zero staging-copy NVENC. SHA MP4 `9d3ad734bccdfbc09569088508a3e10fb3fb06152af637b13530c0ab10da717b`,
   identico alla prova precedente. Log, MP4 e timing receipt sono nello stesso
-  pacchetto [`inline-mesh-vulkan-20261029`](../evidence/inline-mesh-vulkan-20261029/README.md).
+  pacchetto [`inline-mesh-vulkan-20261029`](../../evidence/inline-mesh-vulkan-20261029/README.md).
   Il gate CI sullo SHA esatto resta senza esito; il ticket rimane `PARTIAL`.
+
+## Chiusura 2026-11-03 — CLOSED
+
+| Criterio locale | Esito | Evidenza |
+|---|---|---|
+| Lane Vulkan strict-native textured/alpha | **PASS** | `docs/evidence/inline-mesh-vulkan-20261029/` |
+| Parità software/GPU (CAM-04) | **PASS** — MAE 0.0210 full-frame, 1.492 maschera | stessa evidenza |
+| Determinismo due run | **PASS** — MP4 byte-identico | stessa evidenza |
+| Fail-closed budget/determinismo | **PASS** | suite registry |
+
+**Trasferito, non chiuso qui:** CI green same-SHA → Fase 6 di
+[`ROADMAP-ESECUZIONE.md`](../../../../docs/stato/ROADMAP-ESECUZIONE.md)
+(owner: proprietario del repo; prerequisito: runner allocati). La copertura
+PBR/produzione oltre la fixture diagnostica è fuori dai criteri di questa
+scheda ed è tracciata dai ticket consumer sopra.

@@ -35,6 +35,14 @@ const compiler::SampledMeshParameters* sampled_mesh_for_layer(
     return mesh;
 }
 
+bool sampled_layer_is_time_dependent(
+    const RenderGraphContext& ctx, std::uint32_t layer_index) noexcept {
+    if (!ctx.frame_parameters || layer_index == UINT32_MAX) return false;
+    if (layer_index >= ctx.frame_parameters->layers.size()) return false;
+    const auto& sampled = ctx.frame_parameters->layers[layer_index];
+    return sampled.active && sampled.time_dependent;
+}
+
 ::chronon3d::RenderNode deform_inline_mesh_node(
     const ::chronon3d::RenderNode& node,
     const compiler::SampledMeshParameters& sampled) {
@@ -187,8 +195,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             layer.nodes.begin(), layer.nodes.end(), [](const RenderNode& node) {
                 return !node.gpu_particle_instances.empty();
             });
+        // A track-animated layer is frame-variant even when the materialized
+        // Scene (and therefore `cache_static`) says otherwise: the sampled
+        // transform lives in FrameParameterBlock only. Keying such a node as
+        // static made the node cache answer every frame with the surface
+        // rendered for the first one.
+        const bool typed_frame_variant = sampled_layer_is_time_dependent(
+            ctx, node_ctx.layer_index);
         const bool source_is_static = is_static && !has_animated_svg_group &&
-            !has_animated_inline_mesh && gpu_particle_node == layer.nodes.end();
+            !has_animated_inline_mesh && !typed_frame_variant &&
+            gpu_particle_node == layer.nodes.end();
 
         if (ctx.policy.diagnostics_enabled) {
             spdlog::debug(

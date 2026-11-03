@@ -18,6 +18,7 @@
 
 namespace chronon3d { class SoftwareRenderer; class Framebuffer; }
 namespace chronon3d::effects { class EffectCatalog; }
+namespace chronon3d::compiler { struct FrameParameterBlock; }
 
 namespace chronon3d::graph {
 
@@ -75,7 +76,8 @@ public:
         double, SoftwareRenderer*, Frame, int, int,
         const effects::EffectCatalog* = nullptr, bool = false, bool = false,
         runtime::PixelFormat = runtime::PixelFormat::Rgba32Float,
-        const std::optional<CopyGopEligibility>& = std::nullopt);
+        const std::optional<CopyGopEligibility>& = std::nullopt,
+        const compiler::FrameParameterBlock* = nullptr);
     static TileDecision decide(
         const detail::LayerResolutionResult&, const RenderSettings&,
         const detail::DirtyRectOutput&, double, const SoftwareRenderer*, Frame,

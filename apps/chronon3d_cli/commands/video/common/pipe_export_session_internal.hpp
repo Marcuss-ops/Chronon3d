@@ -7,6 +7,9 @@
 #include <memory>
 #include <optional>
 #include <span>
+
+namespace chronon3d::runtime { class RenderPipeline; }
+
 namespace chronon3d::cli::detail {
 
 struct FrameProfileSample {
@@ -111,6 +114,7 @@ struct EncodeOutcome {
 [[nodiscard]] RenderOutcome render_frame(
     const RenderLoopContext& ctx,
     const RenderSettings& video_settings,
+    runtime::RenderPipeline* program_pipeline,
     Frame current_frame);
 [[nodiscard]] EncodeOutcome encode_frame(
     const RenderLoopContext& ctx,

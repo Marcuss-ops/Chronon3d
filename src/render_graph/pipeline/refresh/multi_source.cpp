@@ -14,7 +14,8 @@ void refresh_multi_source_node(
     MultiSourceNode& node,
     const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
     const std::unordered_map<std::string, bool>& is_static_cache,
-    RenderGraphContext& ctx)
+    RenderGraphContext& ctx,
+    const compiler::SampledLayerParameters* sampled_layer)
 {
     const std::string layer_id{node.layer_id()};
     const auto layer_it = resolved_by_name.find(layer_id);
@@ -32,6 +33,11 @@ void refresh_multi_source_node(
         return;
     }
 
+    // Same contract as refresh_source_node: placement consumes the sampled
+    // per-frame matrix, while the cache identity must stop treating a
+    // track-animated layer as static.
+    const bool typed_frame_variant =
+        sampled_layer && sampled_layer->active && sampled_layer->time_dependent;
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
     const std::string layer_name_str(layer.name);
     // AUDIT F12 — one hash per layer instead of two: the previous
@@ -40,7 +46,7 @@ void refresh_multi_source_node(
     const auto static_it = is_static_cache.find(layer_name_str);
     const bool item_static = static_it != is_static_cache.end()
         ? static_it->second : layer.cache_static;
-    const bool source_is_static = item_static;
+    const bool source_is_static = item_static && !typed_frame_variant;
     std::vector<MultiSourceItem> items;
     items.reserve(layer.nodes.size());
     u64 aggregated_params_hash = 0;

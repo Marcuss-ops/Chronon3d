@@ -19,7 +19,8 @@ void refresh_source_node(
     const std::unordered_map<std::string_view, const RenderNode*>& root_nodes_by_name,
     const std::unordered_map<std::string, bool>& is_static_cache,
     RenderGraphContext& ctx,
-    const compiler::SampledMeshParameters* sampled_mesh)
+    const compiler::SampledMeshParameters* sampled_mesh,
+    const compiler::SampledLayerParameters* sampled_layer)
 {
     const std::string layer_id{node.layer_id()};
 
@@ -83,6 +84,12 @@ void refresh_source_node(
     // build path in graph_builder_source_pass.cpp.
     if (has_mesh_sample) src_node = deform_inline_mesh_node(src_node, *sampled_mesh);
 
+    // Placement itself already consumes the sampled per-frame matrix (see
+    // resolve_layer_graph_item). What stays here is the cache identity: a
+    // track-animated layer must never be keyed as static, or the node cache
+    // answers every frame with the surface rendered for the first one.
+    const bool typed_frame_variant =
+        sampled_layer && sampled_layer->active && sampled_layer->time_dependent;
     const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
     const auto source_placement = evaluate_source_placement(item, src_node, ctx);
     const std::string layer_name_str(layer.name);
@@ -92,7 +99,8 @@ void refresh_source_node(
     const auto static_it = is_static_cache.find(layer_name_str);
     const bool item_static = static_it != is_static_cache.end()
         ? static_it->second : layer.cache_static;
-    const bool source_is_static = item_static && !has_mesh_sample;
+    const bool source_is_static =
+        item_static && !has_mesh_sample && !typed_frame_variant;
     const Mat4 render_matrix = finalize_source_placement_matrix(
         source_placement, item, src_node, ctx);
     const f32 render_opacity = source_placement.opacity;

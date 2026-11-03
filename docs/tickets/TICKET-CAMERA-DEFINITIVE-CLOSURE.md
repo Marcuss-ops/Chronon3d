@@ -1,6 +1,19 @@
 # TICKET-CAMERA-DEFINITIVE-CLOSURE — Chiusura Definitiva Pipeline Camera (Chronon3d + ChrononMotion3D)
 
-- **Stato**: **PARTIAL — gate end-to-end non superato** (checkpoint 2026-11-02). C0/C1 lifecycle, C3 occlusione mesh/piano, C4 kernel DoF, C5 parità raw software/Vulkan full-frame (congelata a MAE ≤2, p99 ≤10) ed equivalenza compile/render offline vs live provider runtime sull'intera scena Optical Studio v3 sono chiusi con evidenza locale nei checkpoint sotto; non restano aperti come fix isolati. Il DoF ON/shutter e il controllo sharp OFF hanno completato localmente 150/150 frame strict-native 1080p senza single-flight. Rimangono accettazione alpha-edge/occlusione nativa end-to-end, review umana e CI same-SHA. Le prove locali non equivalgono al PASS end-to-end della sezione 8.
+- **Stato**: **PARTIAL — gate end-to-end non superato** (checkpoint 2026-11-02); **alpha-edge §8.3 b2–b3 PASS locale** (2026-11-03: DoF osservabile, tutte le soglie preregistrate verdi). C0/C1 lifecycle, C3 occlusione mesh/piano, C4 kernel DoF, C5 parità raw software/Vulkan full-frame (congelata a MAE ≤2, p99 ≤10) ed equivalenza compile/render offline vs live provider runtime sull'intera scena Optical Studio v3 sono chiusi con evidenza locale nei checkpoint sotto; non restano aperti come fix isolati. Il DoF ON/shutter e il controllo sharp OFF hanno completato localmente 150/150 frame strict-native 1080p senza single-flight. Rimangono riesecuzione C6 sui 150 frame del pair corrente, occlusione nativa end-to-end, review umana (C7) e CI same-SHA. Le prove locali non equivalgono al PASS end-to-end della sezione 8.
+- **Aggiornamento 2026-11-03:** l'accettazione alpha-edge §8.3 b2–b3 è **PASS locale**
+  sul contratto pre-registrato
+  ([`docs/evidence/camera-alpha-edge-20261103/`](../evidence/camera-alpha-edge-20261103/README.md)).
+  Il primo verdetto `BLOCKED_DOF_INERT` era un difetto dell'harness, non del renderer:
+  `make_probe_plans.py` spegneva `camera.dof.enabled` solo nel blocco `camera`, mentre
+  il piano porta 1350 `camera_samples` che il runtime valuta e che restavano con DoF
+  attivo; i due probe erano quindi lo stesso render. Il generatore ora scrive il flag
+  in `camera` e in ogni campione. Misura: DoF osservabile su 30/75/149 (delta medio
+  3,19/3,87/4,09; max 81/87/87), G1 32.251/28.527/27.505 pixel a copertura parziale,
+  G2 zero violazioni (overshoot max 3/0/0), G3 0/0/78 pixel contaminati (0,221% ≤
+  0,5%), G4 246,55 px, zero validation error. C7 resta esterno: review umana senza
+  reviewer nominato e CI same-SHA senza runner, con entrambi gli alberi **dirty**
+  (C3D `b38f7e8f9`, 29 file; CM3D `83af9628`, 3 file).
 - **Checkpoint locale 2026-10-30:** [report camera-closure-final](../evidence/camera-closure-final/README.md): camera 82/82, Motion 3/3, architettura 6/6 e nodo DoF 5/5; raw software/Vulkan e rack-focus ROI PASS. Corrette precisione double dei timestamp layer e copia DoF verso intermedi shutter. Due MP4 1080p caricati; shutter unico FAIL exit 139 dopo 75 frame, delivery segmentata in corso (workaround, non fix). Nessuna chiusura same-SHA/umana implicita. L'espansione funzionale AE-style ha un [ticket separato](TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md).
 - **Checkpoint locale 2026-10-31:** contratto unico di ammissione camera/ottica applicato ai due confini producer/compiler (test `Camera capability contract rejects unsupported optics at both compiler boundaries`), provider runtime passato al compiler canonico e risoluzione camera/layer sul calendario shutter; pubblicato anche il timing GPU per pass. I gate §8 restano aperti: la suite camera 82/82 e Motion 3/3 sono del 2026-10-30, il job shutter completo è ancora FAIL e la CI same-SHA è BLOCKED.
 - **Priorità**: P0
@@ -125,6 +138,7 @@ La scena `ChrononMotion3D/tools/plan_optical_studio.cpp`, con grafica generata d
 - **Optical Studio, diagnosi raw software limitata:** la fixture sharp 640×360 rigenerata è stata renderizzata con 1, 2, 3 e 4 piani ai frame 0/75/149 prima della correzione del Null. Il background isolato conserva rispettivamente 98.134, 99.213 e 102.094 pixel RGB identici nella composizione completa; ciascun piano aggiunto modifica dei pixel. Non dimostra occlusioni corrette né spiega la riproduzione storica del fondale mancante.
 - **Mesh, prove software limitate:** il canary di estrusione e il test della texture con alpha passano (2 test, 9 asserzioni); non certificano occlusione per-pixel mesh/piani, DoF integrato, Vulkan o parità AE.
 - **Correzione della fixture mesh/piano:** il canary originario usava `fill(Color::red())`, che aggiunge un rettangolo e non colora la mesh; i pixel rossi isolati non dimostravano quindi la copertura della mesh. La fixture corrente colora direttamente il nodo mesh, posiziona il triangolo nello spazio canvas e verifica entrambi gli ordini e l'alpha frazionario. La mesh isolata copre entrambi i probe; il compositing continua a fallire. La correzione locale della premoltiplicazione alpha delle mesh software non risolve l'occlusione per pixel.
+- **(SUPERATO dal checkpoint 2026-11-02, C3):** questo bullet resta come storia del difetto, non come stato corrente. Il gate C3 è tracciato come chiuso con evidenza locale nella testa del ticket.
 - **FAIL — mesh che attraversa un piano 2.5D:** il test `software 3D mesh crossing a 2.5D plane uses per-pixel depth` riproduce l'occlusione errata: la fixture corretta verifica che il triangolo rosso isolato copra entrambi i punti di prova; nel composito il pixel vicino risulta blu invece che rosso, oppure il pixel lontano rosso invece che blu, a seconda dell'ordine dei layer. Riproduzione: `build/chronon/linux-video-test/tests/chronon3d_renderer_core_tests --test-case='software 3D mesh crossing a 2.5D plane uses per-pixel depth'`. Il test resta **fallito**, non è una certificazione né un blocco fittiziamente chiuso. Su fixture RenderPlan separate 64×64, sia software sia Vulkan raw restituiscono tutta la mesh davanti oppure tutta dietro al piano invertendo l'ordine dei layer: la profondità interna dei triangoli non viene portata fino al compositing tra layer. Le quattro prove Vulkan strict-native video 320×320 hanno mostrato lo stesso limite, senza errori validation nel log. Servono superfici di profondità per mesh e piani, compositing depth-aware coerente con alpha/ordine 2D/maschere/effetti e DoF, e regressioni su entrambi i backend e sull'ordine inverso; il solo ordinamento per Z del layer non risolve una intersezione.
 - **Mesh Vulkan raw, fix locale:** `SourceNode` usa il rasterizzatore inline-mesh nativo anche se la policy non richiede GPU strict, quando il backend supporta superfici native. Prima il caso isolato perdeva la mesh e registrava `InvalidImageLayout` (GENERAL/UNDEFINED); dopo il fix le quattro fixture raw con validation non riportano quell'errore e la mesh isolata ha 931 pixel rossi, contro 930 software (una differenza di copertura). Non è prova di occlusione corretta né di tutta la matrice Vulkan. Regressione dedicata e test raster UV/alpha: `chronon3d_backend_registry_tests --test-case='SourceNode renders inline mesh on Vulkan without strict native policy,Vulkan inline mesh rasterizes indexed UV triangles with alpha cutoff and source-over'`: **2 casi / 31 asserzioni PASS** dopo la correzione del setup camera del test.
 - **Verifiche mirate dopo il fix clipping:** `chronon3d_camera_tests` sui casi typed shutter e immagine oversized: 2 casi / 176 asserzioni PASS; `chronon3d_render_graph_tests` sui casi `DOF rejects*,PR2-Unit-DoF*`: 6 / 29 PASS; 3 test mask rettangolare/invertita/testo: 3 / 10 PASS; test software texture alpha e canary estrusione: 2 / 9 PASS. Non provano maschere o DoF con occlusione per-pixel mesh/piano, che non è ancora implementata.
@@ -352,7 +366,8 @@ Le vecchie scene T16/MrBeast e T18/folla sono esclusivamente evidenza storica: n
 
 ### 8.5 Regola di chiusura e anti-riapertura
 
-- [ ] Pubblicare un report finale con tabella `gate / comando / SHA CM3D / SHA C3D / host-device / risultato / evidenza`; ogni gate è `PASS` oppure il ticket resta `PARTIAL/BLOCKED`. Owner e dipendenze esterne hanno un responsabile e una data di sblocco; non si convertono in PASS per decisione editoriale.
+- [x] Pubblicare un report finale con tabella `gate / comando / SHA CM3D / SHA C3D / host-device / risultato / evidenza`; ogni gate è `PASS` oppure il ticket resta `PARTIAL/BLOCKED`. Owner e dipendenze esterne hanno un responsabile e una data di sblocco; non si convertono in PASS per decisione editoriale. **Pubblicata il 2026-11-03** (§Report finale dei gate): i verdetti sono `OPEN`/`PARTIAL`/`BLOCKED`, e il ticket resta `PARTIAL`.
+  Restano da nominare con data: **owner della review umana** del video (oggi nessuno ha firmato) e **owner dei runner CI** (blocco billing, `docs/stato/README.md` §Blocchi trasversali).
 - [ ] Dopo il PASS complessivo, questa pipeline è chiusa per il contratto e la scena di accettazione sopra definiti. Si riapre solo per una regressione riproducibile che fallisce un gate esistente, allegando il test e il pair di SHA; nuova estetica, asset, codec o capability (per esempio bokeh ottico non incluso nella matrice) diventano ticket separati e non riaprono la camera per supposizione.
 
 ### Fuori perimetro esplicito
@@ -426,3 +441,59 @@ exit 0**, quindi non c'è più alcun crash che invalidi la suite core.
 Il re-pin **non** chiude il ticket: entrambi gli alberi sono dirty (`tracked_diff_sha256`
 nel `revisions.json`), quindi non è same-SHA, e restano aperti accettazione alpha-edge,
 review umana e CI. Stato invariato: **PARTIAL**.
+
+#### Checkpoint 2026-11-03 — gate alpha-edge: PASS locale, dopo la correzione del probe
+
+Il gate §8.3 (alpha semi-trasparente ai bordi, nessun alone o contaminazione di
+colore, controllo DoF che non introduce ghosting) è **PASS locale** sul contratto
+congelato. Il primo verdetto `BLOCKED_DOF_INERT` della stessa giornata era un difetto
+dell'harness, non del renderer: `make_probe_plans.py` spegneva
+`camera.dof.enabled` solo nel blocco `camera`, mentre il piano porta 1350
+`camera_samples` che il runtime valuta e che restavano con DoF attivo; i due probe
+erano quindi lo stesso render. Il generatore ora scrive il flag in `camera` e in ogni
+campione; `diagnostics-dof-probe-mismatch.json` documenta la prova (hash primo/dopo e
+percorso codice). Nessuna modifica al renderer è stata necessaria.
+
+- **Contratto pre-registrato, non ritoccabile a posteriori.**
+  `measurement-contract.json` fissa frame (30/75/149), definizione della banda,
+  metriche e soglie **prima** della misura, e il suo SHA-256 finisce nel risultato:
+  modificarlo invalida l'evidenza invece di spostare l'asticella. Soglie: alone =
+  valore fuori dall'intervallo per-canale di un intorno 57×57 (raggio 28 px =
+  `camera.dof.max_blur`) oltre 8/255, ≤0,2% della banda e massimo ≤8; contaminazione =
+  un canale sopra +16 mentre un altro è sotto −16, ≤0,5% della banda.
+- **Banda misurata senza reinventare la proiezione.** Il matte è `M = |A − B|` fra il
+  render a DoF spento e lo stesso piano con il layer alpha (`near.png`) a opacità 0:
+  la banda viene dalla proiezione del motore. Il fixture è idoneo — 448k–460k pixel di
+  supporto, 25k–39k di banda, 27k–32k con copertura parziale, elemento che si sposta
+  di 246,55 px fra frame 30 e 149 con area stabile (rapporto 1,0049).
+- **Misura reale:** A e C differiscono su tutti i sentinella (delta medio 3,19/3,87/
+  4,09; max 81/87/87), quindi il DoF è osservabile. G1: 32.251/28.527/27.505 pixel a
+  copertura parziale (soglia ≥100). G2: zero violazioni, overshoot massimo 3/0/0
+  (soglie ≤0,2% e ≤8). G3: 0/0/78 pixel contaminati, rapporto peggiore 0,00221
+  (soglia ≤0,005). G4: spostamento 246,55 px, rapporto aree 1,0049, supporto dentro
+  il canvas. Zero errori di validazione Vulkan. `alpha-edge-result.json` chiude con
+  `aggregate_gate: PASS` e `dof_observable_on_every_frame: true`.
+- **Il passthrough resta solo dove è legittimo:** raggio < 0,5 px o backend senza
+  superfici native (`layer_dof_native.cpp`). Non è la causa delle vecchie coppie
+  identiche: la camera viene pubblicata in `frame_input` e il DoF per-layer è attivo.
+- **Residuo:** C6 (150 frame sul pair corrente) e C7 (review umana + CI same-SHA)
+  restano aperti; le misure restano su alberi dirty e non sono una certificazione
+  same-SHA.
+
+#### Report finale dei gate (§8.5) — stato al 2026-11-03
+
+| Gate | Comando / fonte | SHA C3D | SHA CM3D | Host-device | Risultato | Evidenza |
+|---|---|---|---|---|---|---|
+| §8.1 contratto e autorità unici | sola scheda | `b38f7e8f9` (dirty) | `83af9628` (dirty) | — | **OPEN** (3 checkbox, F3 chiusa) | §8.1 |
+| §8.2 sampling temporale | `chronon3d_camera_tests` / typed shutter | `b38f7e8f9` (dirty) | `83af9628` (dirty) | RTX A4000 (Vulkan) | **PARTIAL** (PASS locale 2026-11-01, non rieseguito) | §8.2 checkpoint |
+| §8.3 b2–b3 alpha-edge + controllo DoF | `python3 docs/evidence/camera-alpha-edge-20261103/measure_alpha_edge.py` | `b38f7e8f9` (dirty) | `83af9628` (dirty) | RTX A4000, validation on | **PASS locale** — tutte le soglie, zero validation error; same-SHA escluso (alberi dirty) | `camera-alpha-edge-20261103/` |
+| §8.3 parità raw software/Vulkan | `measure_parity_raw.py` | `9fc4b700` (dirty) | `5b9aa974` (dirty) | RTX A4000 | **PARTIAL** — PASS sul pair 2026-11-02, da ri-pinnare su HEAD | `camera-current-pair-20261102/` |
+| §8.4 b1 acceptance 150 frame | render v3 senza single-flight | `9fc4b700` (dirty) | `5b9aa974` (dirty) | RTX A4000 | **PARTIAL** — registrata su binario `a7b778ac`; DoF ora osservabile, da rieseguire sul pair corrente | `optical_current_pair_v3_dof_nosf_1080p.mp4` |
+| §8.4 b2 provider live vs offline | `motion-provider-full-scene-parity.json` | `9fc4b700` (dirty) | `5b9aa974` (dirty) | RTX A4000 | **PARTIAL** — PASS sul pair precedente | `camera-closure-final/` |
+| §8.4 b3 review umana del video | — | — | — | — | **BLOCKED** — nessun reviewer nominato; la scheda non può firmare al posto suo | §8.4 |
+| §8.4 b4 CI same-SHA su entrambi i repo | GitHub Actions | — | — | runner | **BLOCKED** — runner non allocati e alberi dirty | `docs/stato/README.md` §Blocchi trasversali |
+
+Questa tabella è il report richiesto da §8.5: nessun gate `NOT RUN` è promosso,
+nessun `BLOCKED` è convertito in `PASS`. Il ticket resta **PARTIAL** — per costruzione,
+non per prudenza: la review umana richiede una persona, la CI richiede runner e C6 va
+rieseguito sul pair corrente. Il gate alpha-edge è PASS locale e non è più un blocco.

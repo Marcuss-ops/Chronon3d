@@ -204,4 +204,16 @@ inline constexpr std::array<AnimationPropertyRow,
     return best_distance <= kMaxSuggestionDistance ? best : std::string_view{};
 }
 
+/// True for layer-transform animation properties (placement, rotation, scale,
+/// opacity, blur, anchor). A mesh layer accepts these as ordinary layer
+/// tracks — per-vertex deformation stays owned by `inline_mesh.animation` —
+/// so the mesh payload gates can tell the two apart instead of rejecting every
+/// track.
+[[nodiscard]] inline bool is_layer_transform_property(
+    std::string_view name) noexcept {
+    return name == "opacity" || name == "blur" || name == "anchor" ||
+           name.starts_with("position") || name.starts_with("rotation") ||
+           name.starts_with("scale");
+}
+
 }  // namespace chronon3d::render_plan

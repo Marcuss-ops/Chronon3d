@@ -327,21 +327,32 @@ SceneRefreshResult refresh_compiled_graph_payloads(
                         compiled.refresh_scratch, node_id, *source_node,
                         ctx.node_exec.counters);
                     const compiler::SampledMeshParameters* sampled_mesh = nullptr;
+                    const compiler::SampledLayerParameters* sampled_layer = nullptr;
                     if (ctx.frame_parameters &&
                         compiled.nodes[node_id].binding_meta.has_binding()) {
                         const auto layer_index = compiled.nodes[node_id].binding_meta.layer_index;
-                        if (layer_index < ctx.frame_parameters->layers.size())
+                        if (layer_index < ctx.frame_parameters->layers.size()) {
                             sampled_mesh = std::get_if<compiler::SampledMeshParameters>(
                                 &ctx.frame_parameters->layers[layer_index].payload);
+                            sampled_layer = &ctx.frame_parameters->layers[layer_index];
+                        }
                     }
                     refresh_source_node(*prepared, resolved_by_name,
-                        root_nodes_by_name, is_static_cache, ctx, sampled_mesh);
+                        root_nodes_by_name, is_static_cache, ctx, sampled_mesh,
+                        sampled_layer);
                 } else if (const auto* multi = dynamic_cast<const MultiSourceNode*>(&graph_node)) {
                     auto* prepared = acquire_refresh_node(
                         compiled.refresh_scratch, node_id, *multi,
                         ctx.node_exec.counters);
+                    const compiler::SampledLayerParameters* sampled_layer = nullptr;
+                    if (ctx.frame_parameters &&
+                        compiled.nodes[node_id].binding_meta.has_binding()) {
+                        const auto layer_index = compiled.nodes[node_id].binding_meta.layer_index;
+                        if (layer_index < ctx.frame_parameters->layers.size())
+                            sampled_layer = &ctx.frame_parameters->layers[layer_index];
+                    }
                     refresh_multi_source_node(*prepared, resolved_by_name,
-                        is_static_cache, ctx);
+                        is_static_cache, ctx, sampled_layer);
                 } else {
                     return topology_mismatch("source graph node has an unknown concrete implementation at node " + std::to_string(id));
                 }

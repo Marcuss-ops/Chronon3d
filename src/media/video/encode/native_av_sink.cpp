@@ -242,6 +242,24 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     codec_->gop_size = keyframe_interval_frames(config.stream.frame_rate_num,
                                                 config.stream.frame_rate_den);
     codec_->max_b_frames = 0;
+    if (resolved_codec == VideoCodec::H264 || resolved_codec == VideoCodec::H264Nvenc) {
+        // Copy-assembled Velox clips use a single-reference, closed-GOP H.264
+        // parameter set. The canonical avcC is a BYTE identity: profile, level,
+        // geometry and GOP can all match while the SPS/PPS still differ. Pin
+        // every H.264 producer, not only NVENC, to the same shape; the Go
+        // fragment gate still verifies the emitted avcC hash and fails closed.
+#if defined(AV_PROFILE_H264_HIGH)
+        codec_->profile = AV_PROFILE_H264_HIGH;
+#else
+        // FFmpeg before 7.1 spells the same profile FF_PROFILE_H264_HIGH; the
+        // installed vcpkg tree predates AV_PROFILE_*. Both are profile_idc 100.
+        codec_->profile = FF_PROFILE_H264_HIGH;
+#endif
+        codec_->level = 40;
+        codec_->refs = 1;
+        codec_->sample_aspect_ratio = AVRational{1, 1};
+        codec_->flags |= AV_CODEC_FLAG_CLOSED_GOP;
+    }
     codec_->pix_fmt = resolved_codec == VideoCodec::Gif
         ? AV_PIX_FMT_PAL8
         : choose_encoder_pixel_format(encoder, config.encoder.encoded_pixel_format);
@@ -268,6 +286,12 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     AVDictionary* codec_options = nullptr;
     if (resolved_codec != VideoCodec::Gif && !config.encoder.preset.empty()) {
         av_dict_set(&codec_options, "preset", config.encoder.preset.c_str(), 0);
+    }
+    if (resolved_codec == VideoCodec::H264Nvenc) {
+        // The target SPS/PPS has weighted_pred_flag=1 and no B-frame weighted
+        // prediction. max_b_frames above fixes the latter; this option pins
+        // the former instead of accepting NVENC's default (0).
+        av_dict_set(&codec_options, "weighted_pred", "1", 0);
     }
     if (resolved_codec != VideoCodec::Gif && config.encoder.tune && !config.encoder.tune->empty()) {
         av_dict_set(&codec_options, "tune", config.encoder.tune->c_str(), 0);
@@ -319,6 +343,7 @@ bool NativeAvSink::open(const VideoSinkConfig& config) {
     frame_->format = codec_->pix_fmt;
     frame_->width = codec_->width;
     frame_->height = codec_->height;
+    frame_->sample_aspect_ratio = codec_->sample_aspect_ratio;
     frame_->color_range = codec_->color_range;
     frame_->colorspace = codec_->colorspace;
     frame_->color_trc = codec_->color_trc;

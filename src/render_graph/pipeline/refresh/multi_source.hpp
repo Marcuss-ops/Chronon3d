@@ -9,6 +9,7 @@
 
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <unordered_map>
 #include <string>
 
@@ -20,6 +21,7 @@ void refresh_multi_source_node(
     MultiSourceNode& node,
     const std::unordered_map<std::string_view, const ResolvedLayer*>& resolved_by_name,
     const std::unordered_map<std::string, bool>& is_static_cache,
-    RenderGraphContext& ctx);
+    RenderGraphContext& ctx,
+    const compiler::SampledLayerParameters* sampled_layer = nullptr);
 
 } // namespace chronon3d::graph::detail

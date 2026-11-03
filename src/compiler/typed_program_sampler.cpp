@@ -125,6 +125,7 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                                 static_cast<float>(span), 0.0f, 1.0f) : 0.0f;
                     }
                     sampled.dirty = true;
+                    sampled.time_dependent = true;
                 }
                 sampled.payload = mesh;
                 break;
@@ -158,6 +159,14 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
                     track.first_keyframe >= program.curve_keyframes().size()) {
                     continue;
                 }
+                // A usable track makes the layer's sampled transform/opacity
+                // frame-dependent even though the materialized Scene is not.
+                sampled.time_dependent = true;
+                // Track values interpolate BETWEEN keyframes, so the compiler
+                // schedule (which only lists authored keyframe frames) cannot
+                // decide freshness: without this the graph keeps the matrix
+                // sampled at the first frame and the layer renders frozen.
+                sampled.dirty = true;
                 const auto value = sample_track(program, track, animation_frame, 0.0f);
                 switch (track.property_kind) {
                     case AnimationProperty::Opacity: sampled.opacity = value; break;
@@ -193,6 +202,7 @@ void TypedProgramSampler::sample_into(const CompiledProgram& program,
         }
 
         if (!layer.transform_samples.empty()) {
+            sampled.time_dependent = true;
             const auto resolved = render_plan::sample_resolved_transform(layer.transform_samples, frame_number);
             position = {resolved.position[0], resolved.position[1], resolved.position[2]};
             scale = {resolved.scale[0], resolved.scale[1], resolved.scale[2]};
