@@ -1,5 +1,8 @@
 # TICKET-HOTPATH-ZERO-ALLOC-P1 — Zero-allocation hot path, wave P1
 
+**Stato (2026-11-02): ACTIVE** — D2 è scartata come stale; D1 (scope ID
+stabile) e D3 (ownership del context) restano aperte con i gate indicati sotto.
+
 ## TODO — cosa manca (agg. 2026-10-28)
 
 - [ ] **D1 — `NodeCacheKey::scope` da `std::string` a id intero** — logica: la stringa viene materializzata per chiave per nodo per frame; un id intero stabile (interning cross-frame, stesso vincolo di identità di F12) elimina l'allocazione senza cambiare l'identità della chiave. Dove: definizione di `NodeCacheKey` (cache del render graph, `src/render_graph/cache/`) + i call site che costruiscono la chiave. Gate: test cache + determinism corpus invariati, zero allocazioni per chiave misurate.

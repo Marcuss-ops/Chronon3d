@@ -146,8 +146,15 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_program(
     const auto key = program.fingerprint();
     const auto topology = m_topologies.compute_if_absent(
         topology_key, [&]() -> std::pair<std::shared_ptr<const Scene>, std::size_t> {
+            // Text layers need the runtime font engine to shape their glyphs;
+            // without it a compiled text layer materializes with no nodes and
+            // the graph renders the background alone.
+            auto* const font_engine = m_context.runtime
+                ? &m_context.runtime->font_engine() : nullptr;
             return {std::make_shared<const Scene>(
-                        compiler::SceneMaterializer{}.materialize_scene(program)),
+                        compiler::SceneMaterializer{}.materialize_scene(
+                            program, std::pmr::get_default_resource(),
+                            font_engine)),
                     1};
         });
 

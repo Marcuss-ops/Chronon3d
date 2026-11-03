@@ -1,7 +1,7 @@
 # Real optical asset fixtures (2026-11-02)
 
-Six 1920×1080, 150-frame RenderPlan V3 fixtures produced by
-`ChrononMotion3D/tools/plan_optical_studio.cpp`, plus the image plates they
+Six 1920×1080, 150-frame RenderPlan V3 fixtures produced by the ChrononMotion3D
+optical-studio plan tool (`plan_optical_studio.cpp`), plus the image plates they
 composite.
 
 | Mode | Plan | Intent |

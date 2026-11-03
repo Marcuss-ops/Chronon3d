@@ -50,7 +50,8 @@ NodeExecResult LightingNode::execute(
     // A constant multiplier is only exact for a flat scene light. Per-pixel
     // point lights vary across the layer, so they force the CPU path.
     const bool native_input =
-        !per_pixel_lights && ctx.policy.require_native_gpu && ctx.backend && ctx.surface_registry &&
+        !per_pixel_lights && (ctx.policy.require_native_gpu || (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces())) &&
+        ctx.backend && ctx.surface_registry &&
         inputs[0]->surface_handle() != runtime::kInvalidRenderSurfaceHandle &&
         ctx.backend_surface_api()->is_native_surface_valid(inputs[0]->surface_handle());
     if (native_input) {
@@ -88,6 +89,7 @@ NodeExecResult LightingNode::execute(
         if (applied.ok()) {
             result->set_opaque(inputs[0]->is_opaque());
             result->set_content_cleared(inputs[0]->is_content_cleared());
+            result->mark_gpu_authoritative();
             return NodeExecResult{std::move(result)};
         }
         const auto destination_record = ctx.surface_registry->lookup(result->surface_handle());
@@ -143,6 +145,16 @@ NodeExecResult LightingNode::execute(
             }
         }
     }
+    // The CPU fallback rewrote the pixels in RAM. A cloned framebuffer can
+    // still carry a GPU surface handle borrowed from its input, and the
+    // inherited residency stays GPU-authoritative: every downstream consumer
+    // (compositing, video output, raw readback) would then read the untouched
+    // GPU image and silently drop this lighting pass. Publish the pixels that
+    // were actually computed — detach the borrowed handle, which this node
+    // does not own and must not release, and declare the CPU rows
+    // authoritative.
+    result->clear_surface_handle();
+    result->mark_cpu_authoritative();
     return NodeExecResult{std::move(result)};
 }
 

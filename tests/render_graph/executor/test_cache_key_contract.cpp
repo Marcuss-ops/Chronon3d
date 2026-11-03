@@ -103,8 +103,12 @@ TEST_CASE("CacheKeyContract: TransformNode differentiates opacity") {
     const chronon3d::graph::TransformNode translucent(identity, 0.5f);
 
     CHECK_NE(opaque.cache_key(ctx).digest(), translucent.cache_key(ctx).digest());
-    CHECK(opaque.cache_key(ctx).params_version == 2);
-    CHECK(translucent.cache_key(ctx).params_version == 2);
+    // TransformNode declares params_version 3 since "Fix render node cache
+    // invalidation inputs" (transform_node.hpp); this contract check was left
+    // on the previous version and only guarded the bump, not the semantics
+    // asserted above.
+    CHECK(opaque.cache_key(ctx).params_version == 3);
+    CHECK(translucent.cache_key(ctx).params_version == 3);
 }
 
 TEST_CASE("CacheKeyContract: LightingNode uses semantic V2 parameters") {

@@ -1,8 +1,10 @@
 # TICKET-PERF-FRAME-PROOF-CHEAP — la prova che un frame non cambia deve costare meno del frame
 
-**Stato (2026-11-01): APERTO, non implementato.** Nessuna riga di questo ticket
-è atterrata: le modifiche di questa sessione sono sul confine del final job
-(`refactored`), non sul motore. Motivo, non scusa: i tre P richiedono di
+**Stato (2026-11-02): APERTO — telemetria di fallback implementata e osservata
+in un job Garlasco; ottimizzazione non implementata né verificata.** Le
+modifiche di questa sessione sono sul confine del final job (`refactored`) e
+sulla certificazione dell'artefatto (RenderingGen), non sul motore. Motivo, non
+scusa: i tre P richiedono di
 modificare il percorso certificato del renderer (immediate-mode → retained) e
 il loro stesso gate impone **MP4 byte-identico** più una serie di sidecar ×3;
 senza quella verifica una patch qui è indistinguibile da una regressione
@@ -15,6 +17,32 @@ arriva dalla cache (stesso SHA, `render_loop_wall_ms` 6,4 s contro 74,3 s) e i
 70 s del run non contengono quel lavoro. Il valore di questo ticket è quindi
 tutto sulla **prima** esecuzione di un payload nuovo (il caso che conta per la
 produzione), non sulla ripetizione dello stesso.
+
+**Verifica 2026-11-02.** L'identità a monte continua a non esistere:
+`execution_mode` è assegnato solo a `DynamicCallback`
+(`src/timeline/compile_evaluate.cpp:91`) e `prepared_parameters` non ha
+produttori fuori dai test (`code_search` su `Chronon3d`: solo
+`tests/render_graph/...` e il supporto di serializzazione). La condizione di
+attivazione non è verificabile senza un render GPU con sidecar ×3 e MP4
+byte-identico; il receipt r49 resta l'evidenza disponibile (46,3 ms/frame, 53%
+duplicati). È stata successivamente aggiunta la telemetria del fallback,
+ora osservata su un job Garlasco; l'ottimizzazione non è implementata. Una
+modifica non verificata sul riuso sarebbe indistinguibile da una regressione visiva.
+
+**Canary Garlasco corrente (r101/r102, 2026-11-02).** I due job hanno
+completato con successo e prodotto lo stesso SHA overlay
+`227da1b914f2e50087fd921200d4cec2e4a57faba3d232ee43df1c1b7d4cf390`.
+L'overlay è passato da 15,606 s (r101) a 14,635 s (r102), ma il wall totale è
+salito da 46,482 s a 66,736 s: `prepare_join` è passato da 2,000 s a 12,302 s e
+`remote_final_job` da 15,601 s a 19,161 s. Nei sidecar di entrambi i job
+`timeline_eval_ms` è 0; il riuso fast-path dei batch è identico (1.584 frame).
+Questo workload corrente quindi non conferma il costo r49 né dimostra un
+guadagno attribuibile a questo ticket. Il delta overlay singolo (−0,971 s, due
+run soltanto) non è un'accettazione; serve riallineare la fixture r49 al
+workload corrente e completare il profilo ×3. `identity_fallback_frames` è
+presente in 7/24 sidecar item e 3/9 riepiloghi batch di r102; vale 0 dove
+presente. La propagazione completa e il gate di certificazione restano da
+verificare.
 
 ## P1 — Attribuzione (primo passo obbligatorio): l'identità a monte **non esiste**
 
@@ -57,6 +85,11 @@ poi si sposta la decisione. Logica: oggi
   `include/chronon3d/core/profiling/render_counter_macros.hpp:445`
   (`duplicate_frame_emissions`), `src/render_graph/pipeline/tile_execution_policy.cpp:128`.
   Gate: contatore presente nel sidecar e zero nei batch certificati.
+  **Implementato e osservato su Garlasco r102:** `identity_fallback_frames`
+  conta i frame single-sample con duplicazione abilitata che valutano il
+  callback dinamico; il campo è presente in 7/24 sidecar item e 3/9 riepiloghi
+  batch e vale 0 dove esposto. Propagazione completa e batch certificato
+  restano aperti; P1 e P3 restano aperti.
 - [ ] **P3 — Demolire il doppio calcolo.** Logica: una volta che il duplicato non
   valuta più, il ramo `duplicate_frame_eligible` non deve restare raggiungibile
   dal percorso che ha già valutato, altrimenti convivono due authority. Dove:

@@ -1,0 +1,126 @@
+{
+  "schema": "renderinggen.vram-two-runtime-pool-report.v1",
+  "plan_path": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tools/fixtures/vram-calibration-1080p-overlay.plan.json",
+  "plan_sha256": "41418726f0aa81a26424be76f6faac74403ab30ba6a66de33dd0b3c85ed93e23",
+  "shape": {
+    "width": 1920,
+    "height": 1080,
+    "fps_num": 24,
+    "fps_den": 1,
+    "frames": 48,
+    "codec": "h264",
+    "output_format": "mp4",
+    "layer_types": [
+      "color",
+      "text"
+    ]
+  },
+  "device": {
+    "name": "NVIDIA RTX A4000",
+    "driver_version": "595.99.02",
+    "total_mib": 16376
+  },
+  "execution": {
+    "binary": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli",
+    "backend": "vulkan",
+    "hardware_encoder": "nvenc",
+    "encode_preset": "p1",
+    "socket_base": "/tmp/vram-two-runtime-895420720/chronon.sock",
+    "gpu_device": 0
+  },
+  "daemon_count": 2,
+  "owned_daemons": 2,
+  "lanes_per_daemon": 1,
+  "sample_interval_ms": 20,
+  "hold_seconds": 5,
+  "idle_device_mib": 6339,
+  "warm_pools_device_mib": 6331,
+  "rendering_peak_device_mib": 7815,
+  "rendering_delta_mib": 1476,
+  "resident_hold_device_mib": 7176,
+  "second_runtime_resident_mib": 0,
+  "idle_resident_daemon_mib": 856,
+  "baseline_has_resident_daemon": true,
+  "warm_pools_touched_device": false,
+  "phases": {
+    "after_shutdown": {
+      "samples": 37,
+      "idle_device_mib": 6279,
+      "peak_device_mib": 6279,
+      "device_delta_mib": 0,
+      "peak_daemon_mib": 840,
+      "idle_daemon_mib": 840,
+      "daemon_delta_mib": 0,
+      "peak_utilization_pct": 5
+    },
+    "idle": {
+      "samples": 20,
+      "idle_device_mib": 6279,
+      "peak_device_mib": 6339,
+      "device_delta_mib": 60,
+      "peak_daemon_mib": 856,
+      "idle_daemon_mib": 840,
+      "daemon_delta_mib": 16,
+      "peak_utilization_pct": 1
+    },
+    "rendering": {
+      "samples": 81,
+      "idle_device_mib": 6331,
+      "peak_device_mib": 7815,
+      "device_delta_mib": 1484,
+      "peak_daemon_mib": 2302,
+      "idle_daemon_mib": 876,
+      "daemon_delta_mib": 1426,
+      "peak_utilization_pct": 6
+    },
+    "resident_hold": {
+      "samples": 72,
+      "idle_device_mib": 7176,
+      "peak_device_mib": 7176,
+      "device_delta_mib": 0,
+      "peak_daemon_mib": 1672,
+      "idle_daemon_mib": 1672,
+      "daemon_delta_mib": 0,
+      "peak_utilization_pct": 16
+    },
+    "warm_pools": {
+      "samples": 36,
+      "idle_device_mib": 6331,
+      "peak_device_mib": 6331,
+      "device_delta_mib": 0,
+      "peak_daemon_mib": 856,
+      "idle_daemon_mib": 856,
+      "daemon_delta_mib": 0,
+      "peak_utilization_pct": 0
+    }
+  },
+  "samples": 246,
+  "samples_file": "/tmp/gpu-admission-overlay/samples.log",
+  "jobs": [
+    {
+      "index": 0,
+      "socket": "/tmp/vram-two-runtime-895420720/chronon.sock.0",
+      "output": "/tmp/gpu-admission-overlay/artifacts/two-runtime-job-0.mp4",
+      "render_ms": 7047,
+      "bytes": 6837,
+      "sha256": "681de0a6ec0fa6ade15a4bb2ccc1e493aef21aeec818e87b8d7b25baae1d3367",
+      "started_at": "2026-11-02T11:26:51.012686748Z",
+      "finished_at": "2026-11-02T11:26:58.05973842Z",
+      "wall_ms": 7047
+    },
+    {
+      "index": 1,
+      "socket": "/tmp/vram-two-runtime-895420720/chronon.sock.1",
+      "output": "/tmp/gpu-admission-overlay/artifacts/two-runtime-job-1.mp4",
+      "render_ms": 7035,
+      "bytes": 6837,
+      "sha256": "681de0a6ec0fa6ade15a4bb2ccc1e493aef21aeec818e87b8d7b25baae1d3367",
+      "started_at": "2026-11-02T11:26:51.012687143Z",
+      "finished_at": "2026-11-02T11:26:58.048274146Z",
+      "wall_ms": 7035
+    }
+  ],
+  "artifacts_identical": true,
+  "authorizes_mutex_removal": false,
+  "caveat": "laboratory harness: two OWNED warm daemons, one concurrent job each, one plan shape on one host. It falsifies a per-job VRAM calibration for this shape and measures the second runtime's resident cost; it does NOT authorize removing m_render_job_mutex (that needs several certified shapes plus internal allocator telemetry)."
+}

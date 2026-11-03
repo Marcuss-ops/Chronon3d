@@ -244,6 +244,10 @@ private:
     std::optional<double> cuda_compositor_warmup_ms_;
     std::optional<double> open_nvenc_ms_;
     double encoder_hwframe_get_buffer_ms_{0.0};
+    /// CUDA→Vulkan handoff publication time, measured on the encoder path.
+    double encoder_surface_prepare_ms_{0.0};
+    /// Time spent in drain_ready_cuda_frames() from the native-surface lane.
+    double encoder_drain_ms_{0.0};
     double encoder_surface_acquire_ms_{0.0};
     double encoder_nvenc_submit_ms_{0.0};
     double encoder_queue_backpressure_wait_ms_{0.0};

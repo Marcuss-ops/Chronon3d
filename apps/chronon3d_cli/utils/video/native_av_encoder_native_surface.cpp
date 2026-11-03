@@ -147,7 +147,15 @@ bool NativeAvEncoder::write_native_surface_impl(
         gpu_frame->width = options_.width;
         gpu_frame->height = options_.height;
         gpu_frame->hw_frames_ctx = av_buffer_ref(cuda_frames_ref_);
-        if (av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0) < 0) {
+        // The surface-pool acquisition is the NVENC backpressure point: when
+        // the wrapper still owns every pooled surface this call waits, and the
+        // wait was previously invisible (only the DirectYUV lane timed it).
+        const auto hw_buffer_t0 = std::chrono::steady_clock::now();
+        const int hw_buffer_rc = av_hwframe_get_buffer(cuda_frames_ref_, gpu_frame, 0);
+        encoder_hwframe_get_buffer_ms_ += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - hw_buffer_t0).count()) / 1000.0;
+        if (hw_buffer_rc < 0) {
             spdlog::error("[native_av] av_hwframe_get_buffer failed for GPU frame {}", frames_written_);
             av_frame_unref(gpu_frame);
             reusable_cuda_frames_.push_back(gpu_frame);
@@ -202,7 +210,11 @@ bool NativeAvEncoder::write_native_surface_impl(
         native_convert_ms_ += conversion_ms;
         // The CUDA conversion has signaled C2V. Register that handoff so
         // the next Vulkan frame waits before rewriting this encode surface.
+        const auto prepare_t0 = std::chrono::steady_clock::now();
         const auto cuda_ready = vulkan->prepare_cuda_surface_for_vulkan(destination);
+        encoder_surface_prepare_ms_ += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - prepare_t0).count()) / 1000.0;
         if (!cuda_ready.ok()) {
             spdlog::error("[native_av] failed to register CUDA-to-Vulkan surface handoff: {}",
                           cuda_ready.error().message);
@@ -250,7 +262,11 @@ bool NativeAvEncoder::write_native_surface_impl(
                    !counters_->cuda_encode_queue_peak.compare_exchange_weak(
                        observed, current, std::memory_order_relaxed)) {}
         }
+        const auto drain_t0 = std::chrono::steady_clock::now();
         const bool drained = drain_ready_cuda_frames(false);
+        encoder_drain_ms_ += static_cast<double>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - drain_t0).count()) / 1000.0;
         // The current write call owns the conversion interval above even
         // when NVENC submission is deferred in pending_cuda_frames_. Keep the
         // per-frame encoder record aligned with the package being written;

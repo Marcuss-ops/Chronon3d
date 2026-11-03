@@ -319,7 +319,9 @@ NodeExecResult CompositeNode::execute(
     // still isolated. This preserves its alpha and prevents a later title or
     // card from inheriting another layer's circle of confusion.
     OwnedFB layer_dof_output;
-    if (ctx.policy.require_native_gpu && ctx.frame_input.has_camera_2_5d &&
+    const bool is_native_gpu = ctx.policy.require_native_gpu ||
+        (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces());
+    if (is_native_gpu && ctx.frame_input.has_camera_2_5d &&
         ctx.frame_input.camera_2_5d.enabled && ctx.frame_input.camera_2_5d.dof.enabled &&
         m_mode == BlendMode::Normal && m_operator == CompositeOperator::SourceOver) {
         const float z = m_has_world_position

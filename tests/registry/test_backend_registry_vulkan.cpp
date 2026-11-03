@@ -467,7 +467,12 @@ TEST_CASE("Vulkan backend creates a persistent headless device") {
     // device model and discrete-GPU selection in the hardware-specific probe,
     // rather than making fallback-capable CI depend on this host's board.
     CHECK_FALSE(device_stats.device_name.empty());
-    CHECK(vulkan->kernel_registry().size() == 25);
+    // Derived from the enum instead of a frozen literal: the registry holds one
+    // pipeline per GpuKernelId, so the count grows with the enum (it was 25
+    // when ColorMatrix and OcclusionTag were added).
+    const auto expected_kernels =
+        static_cast<std::size_t>(chronon3d::backends::vulkan::GpuKernelId::OcclusionTag) + 1;
+    CHECK(vulkan->kernel_registry().size() == expected_kernels);
     CHECK(vulkan->kernel_registry().contains(
         chronon3d::backends::vulkan::GpuKernelId::DofDepthStamp));
     CHECK(vulkan->kernel_registry().contains(

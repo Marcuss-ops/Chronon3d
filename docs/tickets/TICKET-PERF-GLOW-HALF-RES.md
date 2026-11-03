@@ -1,10 +1,15 @@
 # TICKET-PERF-GLOW-HALF-RES — il glow è l'unico costo GPU reale, ed è fill-bound
 
-**Stato:** PROPOSTA, NON AVVIATO. Si attiva solo dopo
+**Stato: PROPOSTA, NON AVVIATO (verifica 2026-11-02) — soglia di attivazione
+non raggiunta.** Si attiva solo dopo
 [`TICKET-PERF-FRAME-PROOF-CHEAP`](TICKET-PERF-FRAME-PROOF-CHEAP.md) e
 [`TICKET-PERF-TIMELINE-FLATBUFFER`](TICKET-PERF-TIMELINE-FLATBUFFER.md): oggi la
 GPU è l'**8,6%** del frame (6,6% di utilizzazione media), quindi ottimizzarla non
 muove il throughput.
+
+**Verifica 2026-11-02.** La condizione del P1 è esplicita (frame medio ≤6 ms) e
+non è raggiunta: il batch overlay r49 misura 46,3 ms/frame, con la GPU all'8,6%
+del frame. Il ticket resta NOT RUN per la sua stessa regola; nessuna patch.
 
 ## TODO — cosa manca (agg. 2026-11-01)
 

@@ -46,13 +46,22 @@ float levels_channel(float x, float ib, float iw, float g, float ob, float ow) {
     return ob + shaped * (ow - ob);
 }
 
+// Floor-based modulo. The integer `%` operator is lowered by some drivers to
+// a reciprocal-based divide whose result is wrong for negative left operands
+// (-1 % 14 returned 3, not 13), and sampling across the left/top edge is
+// exactly the negative case. mod() on floats is defined by the spec as
+// x - y * floor(x / y), so it stays non-negative for a positive divisor.
+// Coordinates stay well inside the 24-bit exact-integer float range because
+// |offset| is bounded by 1e6 in the effect contract.
 int edge_index(int i, int size, int mode) {
     if (mode == 1) return clamp(i, 0, size - 1);
-    if (mode == 2) return ((i % size) + size) % size;
+    if (mode == 2 && size > 0) {
+        return int(mod(float(i), float(size)));
+    }
     if (mode == 3) {
         if (size <= 1) return 0;
         int period = 2 * size - 2;
-        int p = ((i % period) + period) % period;
+        int p = int(mod(float(i), float(period)));
         return p < size ? p : period - p;
     }
     return i;

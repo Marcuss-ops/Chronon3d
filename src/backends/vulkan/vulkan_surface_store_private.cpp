@@ -5,6 +5,7 @@
 #include "vulkan_backend_impl.hpp"
 
 #include <vector>
+#include <execinfo.h>
 
 namespace chronon3d::backends::vulkan {
 
@@ -317,8 +318,7 @@ namespace chronon3d::backends::vulkan {
         transition(slot.command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
         image.initialized = true;
-        const auto ticket = submit_upload(slot, wait_for_completion);
-        return ticket;
+        return submit_upload(slot, wait_for_completion);
     }
 
     std::uint64_t VulkanBackend::Impl::upload_region(runtime::RenderSurfaceHandle handle,
@@ -507,9 +507,23 @@ namespace chronon3d::backends::vulkan {
                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging.buffer, 1, &copy);
         transition(command_buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    VK_IMAGE_LAYOUT_GENERAL);
+        const VkBufferMemoryBarrier2KHR buffer_barrier{
+            VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR,
+            nullptr,
+            VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+            VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+            VK_PIPELINE_STAGE_2_HOST_BIT_KHR,
+            VK_ACCESS_2_HOST_READ_BIT_KHR,
+            VK_QUEUE_FAMILY_IGNORED,
+            VK_QUEUE_FAMILY_IGNORED,
+            staging.buffer,
+            0,
+            bytes};
+        emit_buffer_barriers2(command_buffer, std::span<const VkBufferMemoryBarrier2KHR>{&buffer_barrier, 1});
         // CPU reads this persistently mapped destination immediately below.
         // Complete the image-to-buffer copy before consuming its bytes.
         submit(true);
+        vmaInvalidateAllocation(memory_manager.native_allocator(), staging.allocation, 0, bytes);
         const auto readback_start = profiling::now();
         std::memcpy(rgba.data(), staging.mapped, static_cast<std::size_t>(bytes));
         stats.readback_us += static_cast<std::uint64_t>(profiling::elapsed_us(readback_start));

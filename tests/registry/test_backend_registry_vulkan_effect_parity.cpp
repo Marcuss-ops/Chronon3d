@@ -277,6 +277,104 @@ TEST_CASE("Vulkan Posterize matches software quantization and alpha contract") {
     }
 }
 
+TEST_CASE("Vulkan ColorMap maps luminance through five stops and preserves alpha") {
+    // color.color_map (catalog 57) had a native Vulkan mode (12), a capability
+    // row and a software processor, but no software/Vulkan pixel proof. The
+    // default ramp is grayscale-identity, so it doubles as the determinism and
+    // identity case; the custom ramp exercises all five interpolated segments.
+    auto processor = renderer::create_color_map_effect_processor();
+    check_parity(*processor, ColorMapParams{});
+
+    const std::array<float, 15> stops{
+        0.02f, 0.05f, 0.12f,   // shadow — deep blue
+        0.12f, 0.35f, 0.62f,   // low mid — teal
+        0.62f, 0.55f, 0.28f,   // mid — sand
+        0.92f, 0.72f, 0.35f,   // high mid — amber
+        1.00f, 0.97f, 0.90f};  // highlight — warm white
+    const ColorMapParams toned{stops, 1.0f};
+    check_parity(*processor, toned);
+    for (const float amount : {0.5f, 0.35f, 0.0f})
+        check_parity(*processor, ColorMapParams{stops, amount});
+    check_parity(*processor, toned, raster::BBox{2, 1, 6, 3});
+    check_parity(*processor, ColorMapParams{stops, 0.35f}, raster::BBox{2, 1, 6, 3});
+
+    // A texel whose alpha collapses to zero must stay transparent: the map only
+    // touches straight RGB, never the alpha channel.
+    auto tiny_alpha_source = *make_source();
+    tiny_alpha_source.set_pixel(4, 2, Color{1.0e-9f, 2.0e-9f, 3.0e-9f, 1.0e-9f});
+    const auto expected = software_oracle(*processor, toned, std::nullopt, 0, 0,
+                                          nullptr, Frame{}, &tiny_alpha_source);
+    const auto actual = vulkan_strict(toned, std::nullopt, 0, 0, Frame{},
+                                      &tiny_alpha_source);
+    INFO("strict Vulkan error: " << actual.error);
+    REQUIRE(actual.ok);
+    REQUIRE(actual.pixels.size() == expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i)
+        CHECK(actual.pixels[i] == doctest::Approx(expected[i]).epsilon(kTolerance));
+
+    ColorMapParams out_of_range_stop = toned;
+    out_of_range_stop.stops[4] = 1.5f;
+    ColorMapParams nan_stop = toned;
+    nan_stop.stops[9] = NAN;
+    const ColorMapParams invalid[]{
+        out_of_range_stop, nan_stop, ColorMapParams{stops, 1.5f},
+        ColorMapParams{stops, -0.1f}};
+    for (const auto& params : invalid) {
+        CHECK_THROWS(processor->apply(*make_source(), params, {}));
+        CHECK_FALSE(vulkan_strict(params, std::nullopt).ok);
+    }
+}
+
+TEST_CASE("Vulkan Offset samples negative coordinates on a single reused device") {
+    // Regression (2026-11-02): with Wrap/Mirror the sample coordinate goes
+    // negative at the left and top edge. The shader mapped it through a signed
+    // integer `%`, whose lowering on this driver is wrong for negative
+    // operands (-1 % 14 produced 3 instead of 13), so a sample that should read
+    // column 1 read column 3. Every sample below must match the software
+    // oracle while a single backend and a single scratch buffer serve the whole
+    // 4x2x4 matrix.
+    auto offset = renderer::create_offset_effect_processor();
+    EffectScratchResources scratch;
+    backends::vulkan::VulkanBackend backend;
+    const std::array<Vec2, 4> shifts{Vec2{1.25f, -0.75f}, Vec2{-1.25f, 0.75f},
+                                     Vec2{8.0f, 0.0f}, Vec2{-9.5f, 5.25f}};
+    for (const auto edge : {sampling::EdgeMode::Transparent, sampling::EdgeMode::Clamp,
+                            sampling::EdgeMode::Wrap, sampling::EdgeMode::Mirror}) {
+        for (const auto filter : {sampling::SampleFilter::Nearest,
+                                  sampling::SampleFilter::Bilinear}) {
+            for (const auto shift : shifts) {
+                const OffsetParams params{.offset = shift, .edge_mode = edge,
+                                          .filter = filter};
+                const auto expected = software_oracle(*offset, params, std::nullopt,
+                                                      0, 0, &scratch);
+                const auto actual = vulkan_strict(params, std::nullopt, 0, 0, Frame{},
+                                                  nullptr, &backend);
+                INFO("edge " << static_cast<int>(edge) << " filter "
+                             << static_cast<int>(filter) << ": " << actual.error);
+                REQUIRE(actual.ok);
+                // Nearest lands on whole source texels, so it is bit-exact;
+                // the bilinear samples keep the usual ULP tolerance.
+                const float tolerance = filter == sampling::SampleFilter::Nearest
+                    ? 0.0f : kTolerance;
+                std::size_t mismatches = 0;
+                for (std::size_t i = 0; i < expected.size(); ++i) {
+                    const float err = std::abs(actual.pixels[i] - expected[i]);
+                    if (err <= tolerance) continue;
+                    if (mismatches == 0) {
+                        INFO("texel " << i / 4 << " channel " << i % 4
+                             << " expected " << expected[i] << " actual "
+                             << actual.pixels[i]);
+                    }
+                    ++mismatches;
+                }
+                // One assertion per sample, so a green run states 32 compared
+                // samples instead of only the 32 REQUIRE(actual.ok) guards.
+                CHECK(mismatches == 0);
+            }
+        }
+    }
+}
+
 TEST_CASE("Vulkan native color effects honor the software clip contract") {
     const raster::BBox clip{2, 1, 6, 3};
     auto brightness = renderer::create_brightness_effect_processor();

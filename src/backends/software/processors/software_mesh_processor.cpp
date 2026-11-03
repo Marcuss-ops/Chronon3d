@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <cstdlib>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/assets/mesh_loader.hpp>

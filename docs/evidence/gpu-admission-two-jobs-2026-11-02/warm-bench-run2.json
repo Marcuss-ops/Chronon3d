@@ -1,0 +1,42 @@
+{
+  "concurrency_pays_ms": 501,
+  "concurrent": {
+    "phase": "concurrent",
+    "wall_ms": 933,
+    "jobs": [
+      {
+        "index": 0,
+        "wall_ms": 914,
+        "bytes": 6837
+      },
+      {
+        "index": 1,
+        "wall_ms": 933,
+        "bytes": 6837
+      }
+    ],
+    "work_ms": 1847,
+    "speedup": 1.9796355841371918
+  },
+  "frames": 48,
+  "plan": "/home/pierone/src/go-master/projects/Pyt/VeloxEditing/Chronon3d/tools/fixtures/vram-calibration-1080p-overlay.plan.json",
+  "schema": "renderinggen.two-job-warm-bench.v1",
+  "serial": {
+    "phase": "serial",
+    "wall_ms": 1434,
+    "jobs": [
+      {
+        "index": 0,
+        "wall_ms": 724,
+        "bytes": 6837
+      },
+      {
+        "index": 1,
+        "wall_ms": 709,
+        "bytes": 6837
+      }
+    ],
+    "work_ms": 1433,
+    "speedup": 0.999302649930265
+  }
+}

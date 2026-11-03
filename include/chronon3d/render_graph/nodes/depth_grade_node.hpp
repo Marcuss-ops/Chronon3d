@@ -95,8 +95,8 @@ public:
         }
 
         const auto source_handle = inputs[0]->surface_handle();
-        const bool native_input = ctx.policy.require_native_gpu && ctx.backend &&
-            ctx.surface_registry &&
+        const bool native_input = (ctx.policy.require_native_gpu || (ctx.backend && ctx.backend_stats_api()->supports_native_surfaces())) &&
+            ctx.backend && ctx.surface_registry &&
             ctx.backend_stats_api()->supports_native_surfaces() &&
             source_handle != runtime::kInvalidRenderSurfaceHandle &&
             ctx.backend_surface_api()->is_native_surface_valid(source_handle);
@@ -191,6 +191,14 @@ public:
                 row[x] = m_grade.apply(row[x], t);
             }
         }
+        // The CPU path just rewrote the pixels in RAM. The cloned framebuffer
+        // may still carry the input's GPU surface handle with a GPU-only
+        // residency, in which case downstream consumers read the ungraded GPU
+        // image and the grade disappears. Publish the computed pixels: detach
+        // the borrowed handle (owned by the input, never released here) and
+        // mark the CPU rows authoritative.
+        result->clear_surface_handle();
+        result->mark_cpu_authoritative();
 
         return result;
     }

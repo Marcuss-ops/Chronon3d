@@ -35,6 +35,12 @@ const Scene* scene_ptr = nullptr;
 if (compiled.template_scene && compiled.is_static_topology) {
     scene_ptr = compiled.template_scene.get();
 } else {
+    // No upstream identity proof is currently available for dynamic callbacks.
+    // Count frames that must evaluate before duplicate eligibility is known.
+    if (settings.duplicate_static_frames && sw_sidecar && sw_sidecar->counters()) {
+        sw_sidecar->counters()->identity_fallback_frames.fetch_add(
+            1, std::memory_order_relaxed);
+    }
     CHRONON_TRACE_SCOPE("chronon.frame", "evaluate_composition");
     const FrameContext ctx = make_frame_context({
         .global_time = SampleTime::from_frame(static_cast<double>(frame), spec.frame_rate),

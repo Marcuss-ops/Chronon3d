@@ -1,16 +1,73 @@
 # Chronon3D — Current Status
 
-Latest benchmark note (2026-10-30): the final-binary Release B2 rerun encoded
-456/456 frames at 238.200 render-loop fps, still 20.60% below the 300 fps gate.
-F1 (native NVENC NV12 staging) is fixed and verified; T05 no-probe acceptance
-is 5/5 off + 5/5 on. Evidence is in
+Latest benchmark note (2026-11-02): B2 is encoder-bound. The native-surface
+breakdown measures `avcodec_send_frame` at 3.76 ms/frame (`send_frame`
+1712.69 ms / 456) with the render thread at 0.30 ms/frame, so depth, slots and
+CPU orchestration are not the constraint; three canonical runs give 244.4 /
+242.3 / 248.2 render-loop fps (mean 244.97, stable SHA `d15b6cee…`). The 300
+fps gate passes at `--preset p4` (408.4 / 422.1 fps, SHA `989c5dd0…`) and at
+`p2` (714.6 fps); the engine default `slow` is unchanged because the preset is
+a quality decision. The CUDA warm-up was a cache-persistence bug, fixed: the
+NVRTC artifact now lives in `~/.cache/chronon3d/program-cache`, taking startup
+from 7 284 ms cold to 970 ms warm. Evidence is in
 `evidence/closeout-20261030/README.md` and
-`evidence/100x-perf-waves-b2-20261029/b2-final-20261030-runs.json`.
+`evidence/100x-perf-waves-b2-20261029/b2-encoder-bound-20261102-runs.json`.
 
 Local source checkpoint (2026-11-01): `main` is at `03e41d5b1` (2026-10-31),
 with the composition legacy-executor demolition now tracked as an active ticket.
 The camera surface consolidation and camera/video parity blockers remain open;
 the current local checkout does not establish a newer same-SHA CI certification.
+
+Local test and parity checkpoint (2026-11-02): `chronon3d_core_tests` is
+**1479/1479 cases, 955247/955247 assertions, exit 0** (Debug
+`build/chronon/linux-video-test`, `-j6`). The SIGSEGV reported on 2026-11-01 in
+`SceneHasher: disabled camera is treated as static` was not a `SceneHasher`
+defect: the global `operator new/delete` replacement in
+`tests/runtime/test_prepared_render_job_allocations.cpp` returned an unannotated
+`malloc` block for alignments ≤ `max_align_t`, while the aligned delete always
+reads its metadata slot, so glibc heap bytes became a pointer and the crash
+landed in `Scene::~Scene`; fixed in that test TU. A second defect was fixed in
+`src/render_graph/framebuffer_acquire_owned_detail.hpp`, where the storage probe
+through the mutable `data()` cleared `content_cleared` after the flag had been
+propagated. The frozen camera C5 raw software/Vulkan sentinel pair was re-pinned
+on the current trees (C3D `9fc4b700`, CM3D `5b9aa974`, CLI `a7b778ac…`): MAE
+0.1740 / 0.1772 / 0.1523 at frames 30/75/149, p99 1/2/1, zero Vulkan validation
+errors, and the software raw frames are byte-identical to the previous pair.
+Evidence: `docs/evidence/camera-current-pair-20261102/`. Both trees are dirty,
+so this re-pin is local evidence and not same-SHA certification.
+
+Effect parity (2026-11-02): `chronon3d_effects_tests` is **308/308 cases,
+5,540,429/5,540,429 assertions, exit 0**. `color.color_map` had a native Vulkan
+route (mode 12), a capability row and a software processor but **no** parity
+case — the earlier checkpoint claimed one that did not exist in the tree. It is
+now written for real (`Vulkan ColorMap maps luminance through five stops and
+preserves alpha`): default gray ramp (identity on gray), custom five-stop ramp
+across all four interpolated segments, `amount` 1/0.5/0.35/0, clip `{2,1,6,3}`,
+`alpha = 1e-9` preservation and fail-closed stops/amount — **152/152 assertions,
+max abs error `5.96e-08`** against a `2e-4` tolerance. Effect parity is therefore
+locally complete: `Vulkan*` **57/57 cases, 1,925,534 assertions**, `Strict
+Vulkan*` 25/25 and 5,422, `--test-case='Vulkan AE effects*'` 16,108, Posterize
+142, Offset 64, all exit 0 with zero failed assertions.
+
+The defect that used to be filed as pool-surface reuse was **not** a pool
+defect. `edge_index()` in `src/backends/vulkan/shaders/color_matrix.comp` mapped
+sample coordinates with the signed integer `%`, whose lowering on this driver is
+wrong for negative operands (`-1 % 14` returned `3`), and Offset's bilinear taps
+reach negative coordinates at the left/top edge — so a sample that had to read
+column 13 read column 3 (`0.52` where the source is `0.26`). The same dump came
+out of a fresh and a reused device, which is what ruled the pool out. Fixed with
+the floor-based `mod()`, covered by a 32-sample regression that runs the whole
+4×2×4 matrix on **one** device, and the parity harness now shares a single
+Vulkan instance per binary. Closed ticket:
+`docs/tickets/archive/TICKET-POOL-SURFACE-REUSE.md`.
+
+The whole registry binary still reports **1,906,529/1,906,529 assertions
+passing, 0 failed** while aborting 81 of its 130 cases with `vkCreateInstance
+-9`. A pure-Vulkan probe creates and destroys 200 instance+device pairs without
+an error, so this is not the driver's ceiling; `VK_ICD_FILENAMES` (deprecated)
+reproduces the failure at `#26` and must not be used in scripts. It is tracked
+as `docs/tickets/TICKET-REGISTRY-HARNESS-VK-INSTANCES.md` and is the only reason
+a full `ctest` cannot be claimed green.
 
 > **Single v0.1 release contract:** [`RELEASE_V0_1_CONTRACT.md`](RELEASE_V0_1_CONTRACT.md). This file reports observed state; it does not redefine release identity.
 >
@@ -80,7 +137,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | Lottie Bodymovin lowering | IN PROGRESS — bounded local contract and software CLI/reference gates pass; unsupported Bezier/procedural text is an explicit fail-closed exclusion. Same-SHA CI certification remains open — [ticket](tickets/TICKET-LOTTIE-ANIMATED.md) |
 | SVG import | PARTIAL — bounded paths/styles, object-bounding-box gradients with static `gradientTransform` and synchronized two-keyframe stop-color/stop-opacity animation, compile-time local `<use>/<defs>` expansion, path morphs, path/group SMIL transform/opacity tracks, animated path paint, and static clip/vector masks on root or single-path scopes lower through native plans; animated gradient coordinates, mixed clip scopes, nested group transforms and SVG text remain open — [ticket](tickets/TICKET-SVG-RENDER-PLAN.md) |
 | Documentary SVG video recreation | IN PROGRESS — imported SVG pixel, sampled trim, marker alignment, synthetic moving-marker glow, text-stroke and deterministic raw gates pass; registry-backed configurable graph-study preset and MP4 render through software CLI. The combined gate reproduces SVG pixel loss without a constant-opacity workaround and verifies the workaround; disabling composite input storage transfer does not change the loss. Underlying cause, exact reference comparison, source-footage composite, target-scene glow and GPU lane remain open — [ticket](tickets/TICKET-SVG-DOCUMENTARY-VIDEO-PARITY.md) |
-| Vulkan effect parity | Historical PASS at the archived certification SHA (48/48 native rows; registry 106/106, graph 421/421, effects 275/275, ABI 21/21 on RTX A4000). Current source has 51 native route declarations in the expanded catalog and the CPU-side census passes; Color Matrix local RTX A4000 parity PASS (18/18 assertions; [closed ticket](tickets/archive/TICKET-COLOR-MATRIX-EFFECT.md)); the four new AE effects remain Unsupported — [AE effects ticket](tickets/TICKET-AE-EFFECT-PARITY.md), [historical ticket](tickets/archive/TICKET-VULKAN-EFFECT-PARITY.md) |
+| Vulkan effect parity | **Local PASS on RTX A4000 (2026-11-02)**: `kNativeRoutes` declares 55 native routes, and every catalog effect outside them is explicitly Unsupported. `Vulkan*` 57/57 cases and 1,925,534 assertions, `Strict Vulkan*` 25/25 and 5,422, `chronon3d_effects_tests` 308/308 and 5,540,429 — zero failed assertions. Closed: [AE effects ticket](tickets/archive/TICKET-AE-EFFECT-PARITY.md), [Color Matrix](tickets/archive/TICKET-COLOR-MATRIX-EFFECT.md), [pool-surface](tickets/archive/TICKET-POOL-SURFACE-REUSE.md). Remaining gate: the whole registry binary aborts 81 of 130 cases with `vkCreateInstance -9` ([harness ticket](tickets/TICKET-REGISTRY-HARNESS-VK-INSTANCES.md)) and CI same-SHA |
 | CLI V3 / RenderPlan | PASS (focused) |
 | Camera authority | CLOSED — CM3D owns authoring/sampling; Template uses resolved-sample lowering; C3D consumes resolved camera state. Focused value/adapter checks and T16 integration were recorded in the camera-authority ticket, closed and removed 2026-10-27 (history in git). |
 | Cinematic compositions T16–T18 | CLOSED FOR CURRENT RELEASE — T16 150-frame strict-native export and raw renderer parity pass. T17/T18 are optional showcase scenes parked until selected for production; codec p99 and same-SHA/CI are not release gates; the optional T17/T18 showcase work was retired with its ticket (removed 2026-10-27). |
@@ -93,7 +150,7 @@ Indice completo: [`FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md).
 | GPU Production V1 | PARTIAL / scope not separately defined — no dedicated ticket or acceptance contract named “GPU Production V1” was found. Related measurable C3D gates are [zero-copy Z-waves](tickets/TICKET-ZERO-COPY-ZWAVES.md), [GPU corpus](tickets/TICKET-GPU-BASELINE-CORPUS.md), and the GPU-native video evidence above; the content corpus and broad release certification remain open. |
 | Executor ownership | DONE structurally |
 | Agent visual finishing (software) | PARTIAL — RenderPlan color contract and optional mastering facts are wired through native video export; CPU scopes analyze decoded video and report PQ peak measurements. Runtime probes verified PQ H.264 High 10, PQ H.265 Main 10, and HLG H.265 Main 10 as 10-bit BT.2020-NCL limited-range outputs with correct transfer and mastering/CLL stream metadata. An OCIO display/view still probe preserved transparent and half-alpha pixels with transformed color. The local ONNX semantic matte provider passed gates on a real 640×360 clip frame; four-frame CPU temporal propagation published accepted mattes at 80×45. The focused encoder suite passes 32/32 cases (1,607 assertions). Representative project footage matte review, broader color/alpha edge coverage, and full project verification remain open — [ticket](tickets/TICKET-AGENT-VISUAL-FINISHING.md) |
-| Video pipeline | PASS (focused); same-SHA GPU certification at `5e49b7e4a` covers FullGraph zero-copy, DirectYUV conversion-zero, MTSDF overlay and native-image video. Final local zero-copy suite and CUDA NV12 6/6 PASS. Latest B2 title-drift rerun: five runs, 456/456 encodes each, mean 238.703 render-loop fps (<300; +3.40% vs preceding 230.861), drain 12.8 µs/job; active-sample `nvidia-smi` encoder utilization 98.48%, canonical sidecar null, stable output SHA. 2026-10-30 final-binary: F1 native NVENC NV12 staging fixed and verified (mean RGB 53.5169, no plane inversion); B2 rerun 238.200 fps (456/456), still below 300. B2 remains not accepted. |
+| Video pipeline | PASS (focused); same-SHA GPU certification at `5e49b7e4a` covers FullGraph zero-copy, DirectYUV conversion-zero, MTSDF overlay and native-image video. Final local zero-copy suite and CUDA NV12 6/6 PASS. Latest B2 title-drift rerun: five runs, 456/456 encodes each, mean 238.703 render-loop fps (<300; +3.40% vs preceding 230.861), drain 12.8 µs/job; active-sample `nvidia-smi` encoder utilization 98.48%, canonical sidecar null, stable output SHA. 2026-10-30 final-binary: F1 native NVENC NV12 staging fixed and verified (mean RGB 53.5169, no plane inversion); B2 rerun 238.200 fps (456/456), still below 300. 2026-11-02: B2 residual attributed to NVENC throughput (`avcodec_send_frame` 3.76 ms/frame; 244.97 fps mean at the default `slow` preset) and PASS at `--preset p4` (408.4/422.1 fps, stable SHA); sidecar `nvenc_submit_ms` now reports the native submit instead of the CUDA-queue counter. B2 is **accepted at `--preset p4`** by owner decision 2026-11-02 (408.4/422.1 fps); the engine default stays `slow` (244.97 fps) and no objective p4↔slow quality comparison was measured, so the acceptance is a product decision, not a quality result. |
 | CI infrastructure | PARTIAL — latest listed Actions batch on `a214fad` allocated runners; release artifact passed, Chronon CI/Developer Gates/CFI were cancelled, and Chronon Nightly/CodeQL/runtime/resource-leak failed. Local fixes cover the `write()` warning, two Linux Release test compile defects and a stale SDK header-install path. On 2026-10-29 the targeted current-tree build succeeded after staging the 3.27 GB static SDK archive in `/dev/shm`; 10 focused CTest suites pass after correcting the catalog census (57 effects, 51 native, 6 explicit fail-closed). SDK shared-library link and C ABI test now pass locally; latest T05 acceptance is 5/5 off and 5/5 on (gate 30/30), with shadow quality/same-SHA open; latest B2 mean is 238.200 fps, below 300; same-SHA CI remains external — [ticket](tickets/TICKET-MAIN-TRUTH-STAGE-1-2.md). |
 | Determinism | PARTIAL — `BitExact` / `DeterministicWithinPlatform` / `Approximate` types and focused fusion certification tests exist; broad cross-backend scene certification remains open |
 | Premium effects brush pressure | PASS (local) — pressure expectation corrected to the documented contract; `chronon3d_effects_tests` 275/275 green |

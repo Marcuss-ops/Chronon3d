@@ -173,6 +173,7 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     timings.gpu.release_delay_frames_high_water = 4u;
     timings.gpu.overflow_wait_count = 3u;
     timings.gpu.nvenc_frames = 100u;
+    timings.gpu.identity_fallback_frames = 19u;
     timings.gpu.native_surface_yuv_frames = 98u;
     timings.gpu.native_surface_yuv_bytes = 123456u;
     timings.gpu.nv12_partial_handoff_frames = 73u;
@@ -217,6 +218,7 @@ TEST_CASE("A5 sidecar: the job serializer publishes each typed field under its o
     CHECK(job.at("effect_usage").at("effect.color.curves").at("fallback_count") == 1u);
     CHECK(job.at("effect_usage").at("effect.color.curves").at("fallback_effect_time_ns") == 2000000u);
     CHECK(job.at("gpu").at("nvenc_frames") == 100u);
+    CHECK(job.at("gpu").at("identity_fallback_frames") == 19u);
     CHECK(job.at("gpu").at("native_surface_yuv_frames") == 98u);
     CHECK(job.at("gpu").at("native_surface_yuv_bytes") == 123456u);
     CHECK(job.at("gpu").at("nv12_partial_handoff_frames") == 73u);
@@ -249,6 +251,7 @@ TEST_CASE("A5 sidecar: an unmeasured job reports null, never a fabricated zero")
     CHECK(job.at("measurement_kind").is_null());
     CHECK(job.at("job_wall_ms").is_null());
     CHECK(job.at("gpu").at("gpu_readback_bytes").is_null());
+    CHECK(job.at("gpu").at("identity_fallback_frames").is_null());
     CHECK(job.at("gpu").at("gpu_execute_ms").is_null());
     CHECK(job.at("text").at("shaping_ms").is_null());
     CHECK(job.at("encoder").at("submit_cpu_ms").is_null());

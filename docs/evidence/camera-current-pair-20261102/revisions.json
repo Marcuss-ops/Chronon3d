@@ -1,0 +1,27 @@
+{
+  "host": "Linux NVIDIA RTX A4000, driver 595.99.02",
+  "scope": "local dirty-tree evidence; not CI same-SHA",
+  "digest_method": "tracked_diff_sha256 = sha256(git diff) of tracked changes at capture time",
+  "Chronon3d": {
+    "head": "9fc4b70031edb2c844b05f6fd989339c4b2251c6",
+    "head_is_the_measured_commit": true,
+    "current_head": "8d34ae9dd",
+    "current_head_delta": "9fc4b700..8d34ae9dd = 2 commits touching only docs/evidence/real_optical_assets (plan JSON, Inter-Bold.ttf, README, .gitignore); zero src/include/tests/apps changes, so the measured binary describes both commits equally",
+    "dirty": true,
+    "tracked_diff_sha256": "074c5f19aadc0247ee0ff668895fe87a0e7c13efa17c1c9c77c649ba9820f423",
+    "untracked_files": 38
+  },
+  "ChrononMotion3D": {
+    "head": "5b9aa974dbdb1b011cf008d9a19e9168f9e05aa3",
+    "dirty": true,
+    "tracked_diff_sha256": "ac463fcc4ada9a4ded2f01d442aa045c34f2fedd49a3fb5e471d63433ba32def",
+    "untracked_files": 0
+  },
+  "binary": "Chronon3d/build/chronon/linux-video-release/apps/chronon3d_cli/chronon3d_cli",
+  "binary_sha256": "a7b778acb712ff6cfe1297e7ed79a49a5e08d1271740de3e5af669dc09c2c5a1",
+  "build": "cmake build/chronon/linux-video-release (Release), ninja chronon3d_cli -j6",
+  "tests": {
+    "chronon3d_core_tests": "1479/1479 cases, 955247/955247 assertions, exit 0 (build/chronon/linux-video-test, Debug)",
+    "measured_by": "cmake --build build/chronon/linux-video-test --target chronon3d_core_tests -j6"
+  }
+}

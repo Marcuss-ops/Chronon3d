@@ -1,5 +1,9 @@
 # RenderPlan and motion feature closure
 
+**Stato (2026-11-02): PARTIAL** — le voci implementate hanno prove locali;
+restano i gate elencati nel TODO, tra cui CI same-SHA, parità Vulkan delle
+mesh procedurali e l'esecuzione del link/test C ABI.
+
 This ticket records the RenderPlan/motion backlog and its verifiable repository
 contracts. Branch and upstream metadata are intentionally not asserted. Test
 status below is updated only from commands actually executed in this workspace.

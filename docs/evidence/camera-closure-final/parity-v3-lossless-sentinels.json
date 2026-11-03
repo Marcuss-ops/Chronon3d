@@ -1,0 +1,94 @@
+{
+  "plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+  "comparison": "software RGBA8 raw vs strict-native Vulkan H.264 NVENC lossless preset decoded to RGB24",
+  "decoded_vulkan_pixel_format": "yuv420p, BT.709 limited range",
+  "thresholds": {
+    "rgb_mae_max": 2.0,
+    "rgb_p99_max": 10
+  },
+  "frames": [
+    {
+      "frame": 30,
+      "rgb_mae": 1.8157635673868313,
+      "rgb_p99": 11,
+      "rgb_max": 27,
+      "preregistered_roi_diagnostics": {
+        "near": {
+          "rgb_mae": 0.909556462585034,
+          "rgb_p99": 2,
+          "rgb_max": 5
+        },
+        "middle": {
+          "rgb_mae": 3.0974246771879486,
+          "rgb_p99": 11,
+          "rgb_max": 17
+        },
+        "far": {
+          "rgb_mae": 1.8797115132441646,
+          "rgb_p99": 6,
+          "rgb_max": 13
+        }
+      },
+      "software_raw_sha256": "4ab2033a6766d975a974e72e8cf56afdffb7be89bb15b9209383973853de10f3",
+      "vulkan_lossless_mp4_sha256": "2702b3b3a092856ff6c1bcaf4b9c70dda9e03c4bdc9000a2d686112076592b15",
+      "vulkan_validation_errors": 0,
+      "gate_under_frozen_thresholds": "FAIL"
+    },
+    {
+      "frame": 75,
+      "rgb_mae": 1.4538684735082306,
+      "rgb_p99": 9,
+      "rgb_max": 28,
+      "preregistered_roi_diagnostics": {
+        "near": {
+          "rgb_mae": 0.770865306122449,
+          "rgb_p99": 3,
+          "rgb_max": 9
+        },
+        "middle": {
+          "rgb_mae": 1.6735604973696796,
+          "rgb_p99": 10,
+          "rgb_max": 28
+        },
+        "far": {
+          "rgb_mae": 1.7338290060319959,
+          "rgb_p99": 6,
+          "rgb_max": 12
+        }
+      },
+      "software_raw_sha256": "3b2019bf29fc3d65664ed33a971c31438608c294a2763a05c230d203ec5daaa6",
+      "vulkan_lossless_mp4_sha256": "317b6438c020e82df0be7715c63bc28e3427f56b674c2b793076e645b9a9eb71",
+      "vulkan_validation_errors": 0,
+      "gate_under_frozen_thresholds": "PASS"
+    },
+    {
+      "frame": 149,
+      "rgb_mae": 1.504190618569959,
+      "rgb_p99": 9,
+      "rgb_max": 28,
+      "preregistered_roi_diagnostics": {
+        "near": {
+          "rgb_mae": 1.438968707482993,
+          "rgb_p99": 6,
+          "rgb_max": 12
+        },
+        "middle": {
+          "rgb_mae": 3.1044069823051172,
+          "rgb_p99": 11,
+          "rgb_max": 17
+        },
+        "far": {
+          "rgb_mae": 0.9929320744820351,
+          "rgb_p99": 2,
+          "rgb_max": 10
+        }
+      },
+      "software_raw_sha256": "e01bce424a47c3d669d8cd5b42df37f013e7cf3cf4be574ef35f2daef619f28e",
+      "vulkan_lossless_mp4_sha256": "f2aa9d7ea1d513f5fb7c8df9b79e8e15db8e93ed5d8335331b16d850969549cb",
+      "vulkan_validation_errors": 0,
+      "gate_under_frozen_thresholds": "PASS"
+    }
+  ],
+  "aggregate_gate": "FAIL",
+  "note": "Encoder-normalized diagnostic only, not the frozen raw RGBA software/Vulkan gate. QP0 H.264 still passes through yuv420p conversion; the Vulkan raw sink does not provide a usable readback for this scene. Do not widen the thresholds."
+}

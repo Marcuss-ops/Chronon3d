@@ -13,6 +13,8 @@
 #include <chronon3d/render_graph/registry/graph_node_create_request.hpp>
 #include <chronon3d/runtime/resource_preparation.hpp>
 #include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
+#include <chronon3d/geometry/mesh.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 #include <stdexcept>
 #include <memory>
 #include <spdlog/spdlog.h>
@@ -20,6 +22,81 @@
 namespace chronon3d::graph::detail {
 
 using namespace chronon3d::graph;
+
+const compiler::SampledMeshParameters* sampled_mesh_for_layer(
+    const RenderGraphContext& ctx, std::uint32_t layer_index) noexcept {
+    if (!ctx.frame_parameters || layer_index == UINT32_MAX) return nullptr;
+    if (layer_index >= ctx.frame_parameters->layers.size()) return nullptr;
+    const auto* mesh = std::get_if<compiler::SampledMeshParameters>(
+        &ctx.frame_parameters->layers[layer_index].payload);
+    if (!mesh || !mesh->inline_mesh || !mesh->animation_before ||
+        !mesh->animation_after)
+        return nullptr;
+    return mesh;
+}
+
+::chronon3d::RenderNode deform_inline_mesh_node(
+    const ::chronon3d::RenderNode& node,
+    const compiler::SampledMeshParameters& sampled) {
+    if (node.shape.type() != ShapeType::Mesh) return node;
+    if (!sampled.inline_mesh || !sampled.animation_before || !sampled.animation_after)
+        return node;
+    const auto& base_mesh = node.shape.mesh_shape().inline_mesh;
+    if (!base_mesh) return node;
+    const auto& before = *sampled.animation_before;
+    const auto& after = *sampled.animation_after;
+    const std::size_t vertex_count = base_mesh->vertices().size();
+    if (before.positions.size() != vertex_count || after.positions.size() != vertex_count ||
+        (!before.normals.empty() && before.normals.size() != vertex_count) ||
+        (!after.normals.empty() && after.normals.size() != vertex_count) ||
+        before.normals.empty() != after.normals.empty())
+        throw std::runtime_error("animated inline mesh sample does not match source topology");
+
+    auto deformed_node = node;
+    auto& shape = deformed_node.shape.mesh_shape();
+    std::vector<Vec3> positions;
+    positions.reserve(vertex_count);
+    for (std::size_t i = 0; i < vertex_count; ++i) {
+        const auto& a = before.positions[i];
+        const auto& b = after.positions[i];
+        positions.emplace_back(
+            a[0] + (b[0] - a[0]) * sampled.animation_mix,
+            a[1] + (b[1] - a[1]) * sampled.animation_mix,
+            a[2] + (b[2] - a[2]) * sampled.animation_mix);
+    }
+    const auto& indices = base_mesh->indices();
+    std::vector<Vec3> normals(vertex_count, Vec3{0.0f});
+    if (!before.normals.empty()) {
+        for (std::size_t i = 0; i < vertex_count; ++i) {
+            const auto& a = before.normals[i];
+            const auto& b = after.normals[i];
+            Vec3 normal{a[0] + (b[0] - a[0]) * sampled.animation_mix,
+                        a[1] + (b[1] - a[1]) * sampled.animation_mix,
+                        a[2] + (b[2] - a[2]) * sampled.animation_mix};
+            if (glm::dot(normal, normal) <= 1e-12f)
+                throw std::runtime_error(
+                    "animated inline mesh has a degenerate interpolated normal");
+            normals[i] = glm::normalize(normal);
+        }
+    } else {
+        for (std::size_t i = 0; i + 2 < indices.size(); i += 3) {
+            const auto a = indices[i], b = indices[i + 1], c = indices[i + 2];
+            if (a >= positions.size() || b >= positions.size() || c >= positions.size())
+                throw std::runtime_error("animated inline mesh contains an out-of-range index");
+            const Vec3 face = glm::cross(positions[b] - positions[a], positions[c] - positions[a]);
+            normals[a] += face; normals[b] += face; normals[c] += face;
+        }
+    }
+    auto deformed = std::make_shared<Mesh>(base_mesh->name());
+    for (std::size_t i = 0; i < vertex_count; ++i) {
+        const Vec3 normal = glm::dot(normals[i], normals[i]) > 1e-12f
+            ? glm::normalize(normals[i]) : Vec3{0.0f, 0.0f, 1.0f};
+        deformed->add_vertex(Vertex{positions[i], normal, base_mesh->vertices()[i].uv});
+    }
+    for (const auto index : indices) deformed->add_index(index);
+    shape.inline_mesh = std::move(deformed);
+    return deformed_node;
+}
 
 ::chronon3d::RenderNode materialize_mesh_node(
     const ::chronon3d::RenderNode& node,
@@ -72,6 +149,18 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
     if (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Shape || layer.kind == LayerKind::Text) {
         if (layer.nodes.empty()) {
+            // A text layer without nodes is never a legitimate empty frame:
+            // its glyphs come from a prepared text run, so an empty node list
+            // means materialization produced nothing and the layer will be
+            // silently cleared. That is how a whole overlay job stayed green
+            // while rendering background-only frames.
+            if (layer.kind == LayerKind::Text) {
+                spdlog::error(
+                    "[source-pass] text layer='{}' has no render nodes; the layer "
+                    "is cleared instead of drawn (text materialization never "
+                    "attached a TextRun)",
+                    layer.name.c_str());
+            }
             return graph.add_node(std::make_unique<ClearNode>(), node_ctx);
         }
 
@@ -158,7 +247,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
              !layer.nodes.front().svg_local_masks.empty());
         if (layer.nodes.size() == 1 && !single_node_needs_svg_compositing) {
             const auto& authored_node = layer.nodes[0];
-            const auto node = materialize_mesh_node(authored_node, ctx);
+            auto node = materialize_mesh_node(authored_node, ctx);
+            // The fresh build path has no refresh pass behind it: without this
+            // the authored base pose was drawn on every frame of an animated
+            // mesh (11 frames, one hash).
+            if (const auto* sampled = sampled_mesh_for_layer(ctx, node_ctx.layer_index))
+                node = deform_inline_mesh_node(node, *sampled);
             const u64 content_hash = hash_render_node_content_v2(node);
             const u64 placement_hash = hash_render_node_placement_v2(node);
             GraphNodeId source;
@@ -286,7 +380,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         u64 aggregated_source_hash = hash_string(std::string(layer.name) + "_multisource");
         bool saw_orphan_text_run = false;
         for (const auto& authored_node : layer.nodes) {
-            const auto node = materialize_mesh_node(authored_node, ctx);
+            auto node = materialize_mesh_node(authored_node, ctx);
+            if (const auto* sampled = sampled_mesh_for_layer(ctx, node_ctx.layer_index))
+                node = deform_inline_mesh_node(node, *sampled);
             if (node.shape.type() == ShapeType::TextRun
                 && !node.shape.text_run_shape_handle().value) {
                 saw_orphan_text_run = true;

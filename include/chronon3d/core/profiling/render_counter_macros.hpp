@@ -443,6 +443,7 @@ namespace chronon3d {
     X(software_encode_frames) \
     X(bitstream_copy_frames) \
     X(duplicate_frame_emissions) \
+    X(identity_fallback_frames) \
     X(vulkan_frames) \
     X(cpu_readback_frames) \
     X(decode_submit_ms) \

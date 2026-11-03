@@ -85,10 +85,8 @@ ipc::Reply DaemonService::handle_render_job_request(
             const std::string& codec = canon.codec;
             const bool direct_yuv = canon.direct_yuv;
 
-            std::uint32_t plan_width = 0;
-            std::uint32_t plan_height = 0;
-            switch (extract_plan_dimensions(resolved.plan_path, plan_width,
-                                           plan_height)) {
+            PlanAdmissionShape plan_shape;
+            switch (extract_plan_admission_shape(resolved.plan_path, plan_shape)) {
                 case PlanDimensions::Unreadable:
                     // AUDIT §6 — fail closed instead of charging 1920x1080.
                     update_job_status(job_id, JobState::Failed,
@@ -108,9 +106,25 @@ ipc::Reply DaemonService::handle_render_job_request(
                 case PlanDimensions::Resolved:
                     break;
             }
+            // A composited plan runs the FullGraph lane, which owns one renderer
+            // and one transient surface ring on the device. That lane is ONE
+            // execution domain regardless of the admission hint: two such jobs
+            // in the shared domain were measured to hang (same plan) or kill
+            // the daemon (different plans) on 2026-11-02. The hint stays
+            // authoritative only for a plain single-video-layer plan.
+            const bool parallel_disjoint =
+                resolved.parallel_disjoint && !plan_shape.requires_composition;
+            if (resolved.parallel_disjoint && plan_shape.requires_composition) {
+                spdlog::warn(
+                    "[daemon] parallel_disjoint refused for '{}': the plan "
+                    "requires composition, so its FullGraph lane is one "
+                    "execution domain",
+                    resolved.plan_path.string());
+            }
             // P0-2/4: single policy authority — no second ad-hoc builder.
             auto requirements = resolve_device_requirements(
-                plan_width, plan_height, direct_yuv, native_nvenc, codec, hot_path);
+                plan_shape.width, plan_shape.height, direct_yuv, native_nvenc,
+                codec, hot_path);
             const auto estimated_vram = requirements.resources.vram_bytes;
 
             // One RAII context owns the policy-selected execution lock and
@@ -121,14 +135,14 @@ ipc::Reply DaemonService::handle_render_job_request(
             // at scope exit — TICKET-OVERLAY-THROUGHPUT fix 1.
             std::optional<RenderJobAdmissionContext> admission;
             admission.emplace(
-                resolved.parallel_disjoint, estimated_vram,
+                parallel_disjoint, estimated_vram,
                 m_render_job_mutex, m_admission_mutex, m_admission_cv,
                 m_running, m_device_scheduler, requirements);
             const auto& concurrency = admission->decision();
             spdlog::debug(
                 "[daemon] render concurrency verdict: class={} admission={} "
                 "slots={} peak={} MiB footprints_that_fit={} reason={}",
-                resolved.parallel_disjoint ? "chunked_disjoint" : "monolithic",
+                parallel_disjoint ? "chunked_disjoint" : "monolithic",
                 concurrency.admission == RenderAdmission::Serial
                     ? "serial" : "parallel_disjoint",
                 concurrency.admitted_slots,

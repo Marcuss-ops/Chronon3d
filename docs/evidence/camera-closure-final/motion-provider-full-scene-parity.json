@@ -1,0 +1,23 @@
+{
+  "plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+  "fixture": "Optical Studio v3 1080p shutter (1920x1080, 150 frames, 8 shutter samples)",
+  "test_target": "chronon3d_camera_tests",
+  "test_case": "Full Optical Studio v3 provider vs offline production render equivalence",
+  "camera_subframes_evaluated": 1350,
+  "offline_compilation": "PASS (consumes 1350 baked camera_samples)",
+  "runtime_provider_compilation": "PASS (live RuntimeCameraSampleProvider callback evaluated dynamically across the calendar)",
+  "program_fingerprint_match": true,
+  "nodes_count_match": true,
+  "layers_count_match": true,
+  "passes_count_match": true,
+  "sentinel_frame_parameters": {
+    "frame_30": "exact match (camera matrix, lens, dof, layer matrices, opacities)",
+    "frame_75": "exact match (camera matrix, lens, dof, layer matrices, opacities)",
+    "frame_149": "exact match (camera matrix, lens, dof, layer matrices, opacities)"
+  },
+  "fail_closed_contract_verification": {
+    "preexisting_samples_conflict": "PASS (rejected with 'runtime sampling requires a base camera, callable provider, stable identity and no offline samples')",
+    "invalid_provider_rejection": "PASS (empty fingerprint / missing sample callback fails closed)"
+  },
+  "result": "PASS"
+}

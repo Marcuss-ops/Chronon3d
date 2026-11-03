@@ -92,7 +92,9 @@ void OutputPass::run(GraphBuildContext& ctx) {
     // Strict-native Vulkan performs DOF on isolated layer surfaces inside
     // CompositeNode. Keeping the legacy frame-wide node here would blur titles
     // together with every other layer and destroy alpha provenance.
-    if (cam25d.dof.enabled && cam25d.enabled && !rctx.policy.require_native_gpu) {
+    const bool is_native_gpu = rctx.policy.require_native_gpu ||
+        (rctx.backend && rctx.backend_stats_api()->supports_native_surfaces());
+    if (cam25d.dof.enabled && cam25d.enabled && !is_native_gpu) {
         rctx.policy.track_dof_depth = true;
         rctx.node_exec.dof_depth.assign(
             static_cast<size_t>(rctx.frame_input.width) * rctx.frame_input.height,

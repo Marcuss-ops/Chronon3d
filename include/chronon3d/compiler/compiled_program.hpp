@@ -5,6 +5,7 @@
 #include <chronon3d/compiler/compiled_resource.hpp>
 #include <chronon3d/compiler/compiled_layer.hpp>
 #include <chronon3d/compiler/temporal_update_schedule.hpp>
+#include <chronon3d/assets/hdri_environment.hpp>
 #include <chronon3d/assets/prepared_asset_manifest.hpp>
 #include <chronon3d/render_plan/render_plan.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -69,6 +70,12 @@ struct ProgramMetadata {
     assets::ContentDigest request_digest{};
     RenderBudget render_budget{};
     std::optional<render_plan::LightingRigPlan> lighting_rig;
+    // Environment light travels with the program so the materialized scene
+    // gets the same HDRI a RenderPlan backend would. The probe is resolved by
+    // the compiler (it already loads it to validate the SH payload), so no
+    // scene-time asset access is needed.
+    std::optional<render_plan::EnvironmentLightPlan> environment_light;
+    std::shared_ptr<const assets::HdriEnvV1> environment_probe;
     std::optional<Camera2_5D> camera_2_5d;
     // Pre-resolved immutable camera samples, in strictly increasing frame order.
     std::vector<std::pair<double, Camera2_5D>> camera_samples;

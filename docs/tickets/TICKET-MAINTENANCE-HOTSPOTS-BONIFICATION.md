@@ -238,7 +238,7 @@ ricopia).
   anche la promozione stroke-solid candidates di `fill_rect.comp` (nota
   2026-09-25) sotto la **stessa** regola: corpus parity prima che diventi route.
 - Ogni nuovo effetto AE registra il suo caso in
-  [`TICKET-AE-EFFECT-PARITY.md`](TICKET-AE-EFFECT-PARITY.md).
+  [`TICKET-AE-EFFECT-PARITY.md`](archive/TICKET-AE-EFFECT-PARITY.md).
 
 ---
 

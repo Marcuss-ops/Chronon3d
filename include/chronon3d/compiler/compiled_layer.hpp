@@ -50,6 +50,15 @@ struct StaticLayerProgram {
     float radius{0.0f};
     std::optional<render_plan::ShapeContentPlan> shape;
     std::optional<render_plan::InlineMeshPlan> inline_mesh;
+    // Text is not a bitmap: a text layer only becomes drawable when the
+    // authored paint/typography payload reaches the materializer, which builds
+    // the same prepared text run a RenderPlan backend builds.  Carrying only
+    // text/font/size left the layer with zero render nodes, and the source pass
+    // silently turned it into a ClearNode (an empty frame in a green job).
+    std::optional<render_plan::LayerStylePlan> text_style;
+    std::vector<render_plan::TextAnimatorPlan> text_animators;
+    std::vector<::chronon3d::TextSpanOverride> text_spans;
+    std::vector<::chronon3d::TextGlyphPaintRange> svg_glyph_paint_ranges;
     bool loop{false};
     // Resolved once by compiler lowering. Runtime sampling must not scan the
     // program's text/animation tables by layer id on every frame.

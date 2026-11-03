@@ -100,12 +100,16 @@ chronon3d_add_test_suite(
 # (apps/chronon3d_cli/daemon/daemon_render_concurrency.hpp). A capacity of 2
 # behind a mutex that admits 1 is a number no job can use, and the daemon logged
 # exactly that before this contract existed. Registered here rather than under
-# the IPC suite because it only needs the pure header, and the IPC suite is
-# gated on CHRONON3D_ENABLE_IPC.
+# the IPC suite because the policy is a pure header, and the IPC suite is gated
+# on CHRONON3D_ENABLE_IPC. The plan-shape case links the CLI core because it
+# exercises the real plan parser the daemon runs before admission, not a copy.
 chronon3d_add_test_suite(
     NAME chronon3d_daemon_render_concurrency_tests
     TIER UNIT
-    SOURCES cli/test_daemon_render_concurrency.cpp
+    LINK_TARGETS ${_cli_render_core_link_targets}
+    SOURCES
+        cli/test_daemon_render_concurrency.cpp
+        cli/test_daemon_plan_admission_shape.cpp
 )
 target_include_directories(chronon3d_daemon_render_concurrency_tests
     PRIVATE ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli

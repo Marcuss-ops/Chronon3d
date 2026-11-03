@@ -1,11 +1,28 @@
 # TICKET-PERF-TIMELINE-FLATBUFFER — valutare il timeline una volta per item
 
-**Stato (2026-11-01): APERTO, non implementato.** Dipende da
+**Stato (2026-11-02): APERTO, non implementato — dipendenza non soddisfatta.**
+Dipende da
 [`TICKET-PERF-FRAME-PROOF-CHEAP`](TICKET-PERF-FRAME-PROOF-CHEAP.md) e ne
 condivide il gate (MP4 byte-identico, `timeline_eval ≤3 ms/frame`, serie ×3).
 Non è stato toccato in questa sessione: il run r53 chiude a 184 s con l'overlay
 render invariato (~80 s), che è esattamente la quota che questo ticket e il suo
 predecessore devono togliere.
+
+**Verifica 2026-11-02.** Il predecessore non ha ancora l'identità a monte
+(`prepared_parameters` senza produttori), quindi il P2 di questo ticket non è
+avviabile senza prima chiudere FRAME-PROOF. Il dato disponibile resta
+`timeline_eval` 42,6 ms/frame (r49, 92% del loop) contro 0,26–0,74 ms nel
+benchmark; il profilo per-frame al 100% richiesto dal P1 non è stato eseguito.
+Nessuna patch.
+
+**Controllo sul Garlasco corrente (r101/r102, 2026-11-02).** I job hanno
+prodotto lo stesso SHA overlay; il tempo overlay è 15,606 s / 14,635 s, mentre
+il wall totale è 46,482 s / 66,736 s. Entrambi i sidecar riportano
+`timeline_eval_ms = 0` e i batch riusano gli stessi 1.584 frame. Questa
+telemetria non replica r49 (42,6 ms/frame) e non autorizza a proiettare il
+target di 13 s sul flusso attuale. Prima di implementare P2 occorre identificare
+la differenza di workload/percorso o correggere la strumentazione; i due run
+non sono una serie ×3 e non provano un miglioramento.
 
 ## TODO — cosa manca (agg. 2026-11-01)
 
