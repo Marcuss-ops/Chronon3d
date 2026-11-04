@@ -102,7 +102,7 @@ PreparedText make_text(const char* utf8, Vec2 pin, float font_size) {
     PreparedText text;
     text.document.utf8 = utf8;
     text.style.font = FontSpec{
-        .font_path = "assets/fonts/Inter-Bold.ttf",
+        .font_path = bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         .font_family = "Inter",
         .font_weight = 700,
         .font_size = font_size,
