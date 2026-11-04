@@ -1,0 +1,62 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "golden_e2e_01_editorial_text",
+  "camera": {
+    "type": "perspective",
+    "position": [0, 0, -1000],
+    "rotation_deg": [0, 0, 0],
+    "fov_deg": 20.4074,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "canvas": {
+    "width": 480,
+    "height": 270,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 12
+  },
+  "output": { "path": "golden_01_editorial_text.mp4", "format": "mp4" },
+  "lighting_rig": {
+    "key_direction": [0.0, 0.0, 1.0],
+    "key_intensity": 0.6,
+    "key_color": [1.0, 1.0, 1.0, 1.0],
+    "ambient_intensity": 0.8,
+    "ambient_color": [1.0, 1.0, 1.0, 1.0],
+    "rim_enabled": false,
+    "rim_intensity": 0.0,
+    "rim_power": 1.0,
+    "rim_color": [1.0, 1.0, 1.0, 1.0]
+  },
+  "layers": [
+    {
+      "id": "stage",
+      "type": "image",
+      "asset": "tests/fixtures/text_motion_presets/motion_text_stage.png",
+      "fit": "stretch",
+      "size": [480, 270],
+      "position": [0, 0, 300],
+      "enable_3d": true,
+      "opacity": 1.0,
+      "start_frame": 0,
+      "duration_frames": 12,
+      "color": [1, 1, 1, 1]
+    },
+    {
+      "id": "headline",
+      "type": "text",
+      "text": "CHRONON 2.0",
+      "size": [440, 80],
+      "position": [240, 110],
+      "style": {
+        "font": "tests/fixtures/Inter-Bold.ttf",
+        "font_size": 56,
+        "fill": "#F4F5F7"
+      },
+      "start_frame": 0,
+      "duration_frames": 12
+    }
+  ]
+}

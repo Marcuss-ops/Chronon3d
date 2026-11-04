@@ -103,3 +103,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/tests/test_steady_state_allocation_gate.py")
     )
 endif()
 
+# Golden end-to-end gate: three deterministic software renders (text, 2.5D,
+# mesh) compared frame-by-frame with committed SHA-256 hashes.
+include(${CMAKE_CURRENT_SOURCE_DIR}/golden_e2e_tests.cmake)
+

@@ -1,0 +1,88 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "golden_e2e_02_packshot_2p5d",
+  "camera": {
+    "type": "perspective",
+    "position": [0, 0, -1000],
+    "rotation_deg": [0, 0, 0],
+    "fov_deg": 20.4074,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "canvas": {
+    "width": 480,
+    "height": 270,
+    "fps_num": 24,
+    "fps_den": 1,
+    "duration_frames": 12
+  },
+  "output": { "path": "golden_02_packshot_2p5d.mp4", "format": "mp4" },
+  "lighting_rig": {
+    "key_direction": [0.0, 0.0, 1.0],
+    "key_intensity": 0.6,
+    "key_color": [1.0, 1.0, 1.0, 1.0],
+    "ambient_intensity": 0.8,
+    "ambient_color": [1.0, 1.0, 1.0, 1.0],
+    "rim_enabled": false,
+    "rim_intensity": 0.0,
+    "rim_power": 1.0,
+    "rim_color": [1.0, 1.0, 1.0, 1.0]
+  },
+  "layers": [
+    {
+      "id": "stage",
+      "type": "image",
+      "asset": "tests/fixtures/text_motion_presets/motion_text_stage.png",
+      "fit": "stretch",
+      "size": [480, 270],
+      "position": [0, 0, 300],
+      "enable_3d": true,
+      "opacity": 1.0,
+      "start_frame": 0,
+      "duration_frames": 12,
+      "color": [1, 1, 1, 1]
+    },
+    {
+      "id": "back-panel",
+      "type": "image",
+      "asset": "tests/fixtures/text_motion_presets/motion_text_stage.png",
+      "fit": "stretch",
+      "size": [220, 130],
+      "position": [-90, 0, -200],
+      "enable_3d": true,
+      "opacity": 0.9,
+      "start_frame": 0,
+      "duration_frames": 12,
+      "color": [0.8, 0.9, 1.0, 1.0]
+    },
+    {
+      "id": "front-panel",
+      "type": "image",
+      "asset": "tests/fixtures/text_motion_presets/motion_text_stage.png",
+      "fit": "stretch",
+      "size": [220, 130],
+      "position": [90, 0, -400],
+      "enable_3d": true,
+      "opacity": 0.9,
+      "start_frame": 0,
+      "duration_frames": 12,
+      "color": [1.0, 0.85, 0.6, 1.0]
+    },
+    {
+      "id": "caption",
+      "type": "text",
+      "text": "PACKSHOT 2.5D",
+      "size": [440, 60],
+      "position": [240, 226],
+      "style": {
+        "font": "tests/fixtures/Inter-Bold.ttf",
+        "font_size": 30,
+        "fill": "#F4F5F7"
+      },
+      "start_frame": 0,
+      "duration_frames": 12
+    }
+  ]
+}
