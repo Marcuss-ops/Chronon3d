@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -112,31 +113,44 @@ bool try_native_inline_mesh(
         fb.height() == ctx.frame_input.height) {
         auto& occlusion = ctx.node_exec.native_occlusion_state();
         if (!occlusion.unusable) {
-            if (!occlusion.layer_depth ||
-                occlusion.layer_depth->width() != fb.width() ||
-                occlusion.layer_depth->height() != fb.height() ||
-                occlusion.layer_depth->surface_handle() ==
+            std::shared_ptr<Framebuffer>* depth_owner = &occlusion.layer_depth;
+            if (ctx.node_exec.current_identity.valid()) {
+                depth_owner = &occlusion.source_layer_depth[ctx.node_exec.current_identity];
+            }
+            if (!*depth_owner ||
+                (*depth_owner)->width() != fb.width() ||
+                (*depth_owner)->height() != fb.height() ||
+                (*depth_owner)->surface_handle() ==
                     runtime::kInvalidRenderSurfaceHandle) {
-                if (occlusion.layer_depth)
-                    release_native_surface(ctx, *occlusion.layer_depth);
-                occlusion.layer_depth =
-                    std::make_shared<Framebuffer>(fb.width(), fb.height());
-                if (!ensure_empty_native_surface(ctx, *occlusion.layer_depth)) {
-                    occlusion.layer_depth.reset();
+                if (*depth_owner)
+                    release_native_surface(ctx, **depth_owner);
+                *depth_owner = std::make_shared<Framebuffer>(fb.width(), fb.height());
+                if (!ensure_empty_native_surface(ctx, **depth_owner)) {
+                    depth_owner->reset();
                     occlusion.unusable = true;
                 }
             }
-            if (occlusion.layer_depth) {
+            if (*depth_owner) {
                 const auto reset = ctx.backend_surface_api()->dof_depth_stamp_surface(
-                    occlusion.layer_depth->surface_handle(), fb.surface_handle(),
+                    (*depth_owner)->surface_handle(), fb.surface_handle(),
                     0.0f, -1.0f, 0, 0, 0, 0, 0, 0, true);
-                if (reset.ok()) depth_stamp = occlusion.layer_depth->surface_handle();
+                if (reset.ok()) depth_stamp = (*depth_owner)->surface_handle();
                 else occlusion.unusable = true;
             }
         }
     }
 
     const float aspect = static_cast<float>(fb.width()) / static_cast<float>(fb.height());
+    const float near_plane = std::max(
+        ctx.frame_input.projection_ctx.ready
+            ? ctx.frame_input.projection_ctx.near_plane
+            : ctx.frame_input.camera.near_plane,
+        1e-5f);
+    const float far_plane = std::max(
+        ctx.frame_input.projection_ctx.ready
+            ? ctx.frame_input.projection_ctx.far_plane
+            : ctx.frame_input.camera.far_plane,
+        near_plane + 1e-5f);
     Mat4 view = ctx.frame_input.camera.view_matrix();
     Mat4 projection = ctx.frame_input.camera.projection_matrix(aspect);
     Mat4 mesh_model = state.projection.ready ? state.world_matrix : state.matrix;
@@ -150,13 +164,10 @@ bool try_native_inline_mesh(
             view = flip_camera_z * state.projection.view;
             const float fov_y = 2.0f * std::atan(
                 static_cast<float>(fb.height()) / (2.0f * state.projection.focal));
-            projection = glm::perspective(fov_y, aspect,
-                ctx.frame_input.camera.near_plane, ctx.frame_input.camera.far_plane);
+            projection = glm::perspective(fov_y, aspect, near_plane, far_plane);
         }
     }
     const Mat4 view_model = view * mesh_model;
-    const float near_plane = std::max(ctx.frame_input.camera.near_plane, 1e-5f);
-    const float far_plane = std::max(ctx.frame_input.camera.far_plane, near_plane + 1e-5f);
 
     Material2_5D lighting_material;
     lighting_material.accepts_lights = true;

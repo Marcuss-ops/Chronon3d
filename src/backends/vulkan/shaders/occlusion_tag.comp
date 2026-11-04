@@ -41,13 +41,14 @@ void main() {
     bool frame_present = frame.g >= 0.0 && frame.r > 0.0;
     float visible = 0.0;
     if (layer_present) {
-        // Strictly non-nearer layers lose: equal-depth coplanar surfaces keep
-        // the first composited result, which is what the CPU predicate does.
-        visible = (!frame_present || layer.r <= frame.r) ? 1.0 : 0.0;
+        // Match build_depth_aware_top(): a later layer within the compositor
+        // epsilon remains visible (authored submission order resolves ties).
+        visible = (!frame_present || layer.r <= frame.r + 1e-3) ? 1.0 : 0.0;
     }
     imageStore(mask_image, pixel, vec4(0.0, 0.0, 0.0, visible));
 
     if (params.merge != 0 && visible > 0.0) {
-        imageStore(frame_depth_image, pixel, vec4(layer.r, 1.0, 0.0, 1.0));
+        float nearest_depth = frame_present ? min(layer.r, frame.r) : layer.r;
+        imageStore(frame_depth_image, pixel, vec4(nearest_depth, 1.0, 0.0, 1.0));
     }
 }

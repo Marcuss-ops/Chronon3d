@@ -104,7 +104,7 @@ TEST_CASE("ConversionCacheKey: every conversion parameter participates in the ke
     CHECK(base != make_conversion_cache_key(fb, kWidth, kHeight, 0, true, 1));
     CHECK(base != make_conversion_cache_key(fb, kWidth, kHeight, 0, true, 0, true));
     CHECK(base != make_conversion_cache_key(
-        fb, kWidth, kHeight, 0, true, 0, false, chronon3d::color::ColorSpace::Linear));
+        fb, kWidth, kHeight, 0, true, 0, false, chronon3d::color::ColorSpace::LinearSRGB));
     CHECK(base != make_conversion_cache_key(
         fb, kWidth, kHeight, 0, true, 0, false,
         chronon3d::color::ColorSpace::SRGB, 80.0f));

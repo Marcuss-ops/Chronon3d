@@ -4,6 +4,7 @@
 
 #include "vulkan_backend_impl.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <type_traits>
 
@@ -402,13 +403,18 @@ void VulkanBackend::Impl::lighting(
 void VulkanBackend::Impl::matte(runtime::RenderSurfaceHandle destination,
                                 runtime::RenderSurfaceHandle target,
                                 runtime::RenderSurfaceHandle matte_surface,
-                                bool luma, bool inverted) {
+                                bool luma, bool inverted,
+                                int matte_origin_x, int matte_origin_y) {
     auto& dst = resolve_image(destination);
     auto& target_image = resolve_image(target);
     auto& matte_image = resolve_image(matte_surface);
+    const std::int64_t matte_x1 = static_cast<std::int64_t>(matte_origin_x) + dst.width;
+    const std::int64_t matte_y1 = static_cast<std::int64_t>(matte_origin_y) + dst.height;
     if (!target_image.initialized || !matte_image.initialized ||
         dst.width != target_image.width || dst.height != target_image.height ||
-        dst.width != matte_image.width || dst.height != matte_image.height) {
+        matte_x1 <= 0 || matte_y1 <= 0 ||
+        matte_origin_x >= static_cast<int>(matte_image.width) ||
+        matte_origin_y >= static_cast<int>(matte_image.height)) {
         throw std::invalid_argument("Vulkan matte references incompatible surfaces");
     }
     if (frame_batch.active) {
@@ -417,7 +423,7 @@ void VulkanBackend::Impl::matte(runtime::RenderSurfaceHandle destination,
         const auto cmd = active_command_buffer();
         emit_pass_sync(cmd, {&dst, &target_image, &matte_image}, runtime::GpuPassKind::Matte);
         record_matte(cmd, descriptors, dst, target_image, matte_image,
-                     luma, inverted);
+                     luma, inverted, matte_origin_x, matte_origin_y);
         dst.initialized = true;
         ++frame_batch.pass_count;
         ++stats.passes_executed;

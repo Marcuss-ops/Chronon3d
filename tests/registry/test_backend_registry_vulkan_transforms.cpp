@@ -129,6 +129,43 @@ TEST_CASE("Vulkan surface release waits for asynchronous work") {
     CHECK(backend.stats().surface_releases == 1);
 }
 
+TEST_CASE("Vulkan surface reuse survives 100 async upload/readback/release cycles") {
+    using namespace chronon3d;
+    using namespace chronon3d::runtime;
+
+    backends::vulkan::VulkanBackend backend;
+    constexpr RenderSurfaceHandle handle = 129;
+    constexpr int cycle_count = 100;
+    const SurfaceDesc desc{
+        2, 2, PixelFormat::Rgba32Float,
+        ResourceUsage::Storage, LifetimeClass::JobPersistent, 0};
+    const auto before = backend.stats();
+
+    for (int cycle = 0; cycle < cycle_count; ++cycle) {
+        REQUIRE(backend.create_surface(handle, desc).ok());
+        const float value = static_cast<float>(cycle + 1) /
+                            static_cast<float>(cycle_count + 1);
+        const std::vector<float> input{
+            value, 0.25f, 0.5f, 1.0f,
+            value, 0.25f, 0.5f, 1.0f,
+            value, 0.25f, 0.5f, 1.0f,
+            value, 0.25f, 0.5f, 1.0f};
+        UploadTicket ticket{};
+        REQUIRE(backend.upload_surface_async(handle, desc, input, ticket).ok());
+        REQUIRE(ticket.valid());
+        REQUIRE(backend.wait_upload(ticket).ok());
+
+        std::vector<float> output(input.size(), 0.0f);
+        REQUIRE(backend.download_surface(handle, output).ok());
+        CHECK(output == input);
+        REQUIRE(backend.release_surface(handle).ok());
+    }
+
+    const auto after = backend.stats();
+    CHECK(after.surface_creations == before.surface_creations + cycle_count);
+    CHECK(after.surface_releases == before.surface_releases + cycle_count);
+}
+
 TEST_CASE("Vulkan upload ring queues three assets before waiting") {
     chronon3d::backends::vulkan::VulkanBackend backend;
     const chronon3d::runtime::SurfaceDesc desc{

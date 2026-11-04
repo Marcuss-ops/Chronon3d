@@ -1,0 +1,137 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "canvas": {
+    "width": 128,
+    "height": 96,
+    "fps_num": 30,
+    "fps_den": 1,
+    "duration_frames": 1
+  },
+  "camera": {
+    "type": "perspective",
+    "position": [
+      0,
+      0,
+      -1000
+    ],
+    "rotation_deg": [
+      0,
+      0,
+      0
+    ],
+    "fov_deg": 50,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "layers": [
+    {
+      "id": "blue-background",
+      "type": "image",
+      "asset": "background.png",
+      "size": [
+        128,
+        96
+      ],
+      "opacity": 1,
+      "start_frame": 0,
+      "duration_frames": 1
+    },
+    {
+      "id": "red-mesh",
+      "type": "mesh",
+      "color": [
+        1,
+        0.05,
+        0.02,
+        1
+      ],
+      "size": [
+        128,
+        96
+      ],
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "enable_3d": true,
+      "opacity": 1,
+      "start_frame": 0,
+      "duration_frames": 1,
+      "inline_mesh": {
+        "vertices": [
+          {
+            "position": [
+              -90,
+              -70,
+              0
+            ],
+            "normal": [
+              0,
+              0,
+              1
+            ],
+            "uv": [
+              0,
+              0
+            ]
+          },
+          {
+            "position": [
+              90,
+              -70,
+              0
+            ],
+            "normal": [
+              0,
+              0,
+              1
+            ],
+            "uv": [
+              1,
+              0
+            ]
+          },
+          {
+            "position": [
+              0,
+              85,
+              0
+            ],
+            "normal": [
+              0,
+              0,
+              1
+            ],
+            "uv": [
+              0.5,
+              1
+            ]
+          }
+        ],
+        "indices": [
+          0,
+          1,
+          2
+        ]
+      }
+    }
+  ],
+  "job_id": "image-mesh-occlusion-2d",
+  "output": {
+    "path": "render.png",
+    "format": "png"
+  }
+}

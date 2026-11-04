@@ -149,7 +149,8 @@ public:
         bool merge);
     virtual RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle destination, runtime::RenderSurfaceHandle target,
-        runtime::RenderSurfaceHandle matte, bool luma, bool inverted);
+        runtime::RenderSurfaceHandle matte, bool luma, bool inverted,
+        int matte_origin_x = 0, int matte_origin_y = 0);
 };
 
 } // namespace chronon3d::graph

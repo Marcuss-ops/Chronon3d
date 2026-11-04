@@ -576,7 +576,8 @@ struct VulkanBackend::Impl {
                          const Color& multiplier);
     void record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
                       const Image& destination, const Image& target,
-                      const Image& matte, bool luma, bool inverted);
+                      const Image& matte, bool luma, bool inverted,
+                      int matte_origin_x, int matte_origin_y);
     void record_fill_rect(VkCommandBuffer command, VkDescriptorSet descriptors,
                           const Image& destination,
                           std::int32_t x0, std::int32_t y0,
@@ -722,7 +723,8 @@ struct VulkanBackend::Impl {
     void matte(runtime::RenderSurfaceHandle destination,
                runtime::RenderSurfaceHandle target,
                runtime::RenderSurfaceHandle matte_surface,
-               bool luma, bool inverted);
+               bool luma, bool inverted,
+               int matte_origin_x, int matte_origin_y);
     void text_run_surface(runtime::RenderSurfaceHandle destination,
                           runtime::RenderSurfaceHandle atlas,
                           std::span<const runtime::GlyphInstance> glyphs,

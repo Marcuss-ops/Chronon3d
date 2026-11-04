@@ -88,6 +88,8 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     input.camera = camera;
     input.viewport = {viewport_width, viewport_height};
     input.backface_mode = backface_mode;
+    input.near_plane = camera.near_plane;
+    input.far_plane = camera.far_plane;
 
     // ── Project via the unified resolver ────────────────────────────────────
     auto proj = CameraProjectionResolver::project_layer(input);

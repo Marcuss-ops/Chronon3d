@@ -1,0 +1,45 @@
+{
+  "schema": "chronon.camera-c6-native-verification.v1",
+  "date_utc": "2026-11-04",
+  "plan": "optical_current_pair_v3.plan.json",
+  "plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+  "source_base_sha": "b1b21cbed1d8927de8929a33924c1f4d097955c4",
+  "source_diff_sha256": "02d5da0c988c1e6e0bdb5406ae57dbafd9b173c5d748e04465a608691fa55318",
+  "cli_sha256": "f22f9b5e1d3cc02bf4deea5c7c89ca9f3aff6a2a85ca5e7c639b7b61ed679a94",
+  "route": {
+    "backend": "vulkan",
+    "gpu_hot_path_mode": "require_gpu_native",
+    "hardware": "nvenc",
+    "encoder_backend": "native",
+    "single_flight": false,
+    "validation_layers": true
+  },
+  "render": {
+    "exit_code": 0,
+    "frames_accepted": 150,
+    "encoder_packets": 150,
+    "mux_packets": 150,
+    "packet_pts": "0..149",
+    "video_sha256": "1c6e43b19c00bbf175b2204341ef6f71de2186ac4f10d8a1e11c92fa5d00cc83",
+    "bytes": 1427766,
+    "log_sha256": "57cdfa2d7c00a4535c77e1136088989be34215d9de9079e0e93a941ab0a160f2"
+  },
+  "decode": {
+    "codec": "h264",
+    "width": 1920,
+    "height": 1080,
+    "frame_rate": "30/1",
+    "pixel_format": "yuv420p",
+    "decoded_frames": 150,
+    "ffmpeg_decode_exit_code": 0,
+    "blackdetect_intervals": 0
+  },
+  "timing_sidecar": {
+    "frames_total": 150,
+    "frame_records": 150,
+    "sequential_frame_ids": true,
+    "sha256": "d32a3eb50eee09b6d269dab076dd9b26ed1ccabb08162f297c057b43868c5537"
+  },
+  "vulkan_validation_error_or_vuid_matches": 0,
+  "status": "LOCAL_STRICT_NATIVE_RUN_PASS; NOT CI SAME-SHA OR HUMAN REVIEW"
+}

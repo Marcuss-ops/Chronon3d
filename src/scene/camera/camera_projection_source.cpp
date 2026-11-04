@@ -31,6 +31,14 @@ f32 CameraProjectionSource::get_fov_deg() const {
     return m_cam->fov_deg;
 }
 
+f32 CameraProjectionSource::get_near_plane() const {
+    return m_cam->near_plane;
+}
+
+f32 CameraProjectionSource::get_far_plane() const {
+    return m_cam->far_plane;
+}
+
 Vec2 CameraProjectionSource::get_lens_shift() const {
     return m_cam->lens_shift;
 }

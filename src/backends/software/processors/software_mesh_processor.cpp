@@ -39,8 +39,10 @@ public:
                 Vec3(-static_cast<f32>(width) * 0.5f,
                      -static_cast<f32>(height) * 0.5f, 0.0f)) * mesh_model;
         }
-        f32 near_plane = camera.near_plane;
-        f32 far_plane = camera.far_plane;
+        f32 near_plane = state.projection.ready
+            ? state.projection.near_plane : camera.near_plane;
+        f32 far_plane = state.projection.ready
+            ? state.projection.far_plane : camera.far_plane;
         if (state.projection.ready && state.projection.focal > 0.0f && height > 0) {
             // RenderPlan's Camera2_5D uses positive camera-space Z, while the
             // legacy mesh rasterizer and glm::perspective use negative Z.

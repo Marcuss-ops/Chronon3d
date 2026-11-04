@@ -82,6 +82,7 @@ namespace chronon3d { struct EffectScratchResources; }
 #include <optional>
 #include <span>
 #include <atomic>
+#include <unordered_map>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/internal/render_graph/processor_registry_snapshot.hpp>
 #include <chronon3d/render_graph/builder/graph_build_dependencies.hpp>
@@ -325,6 +326,7 @@ struct NodeExecutionContext {
     std::vector<float> composite_occlusion_depth;
     struct CameraCompositeFragment {
         float depth{0.0f};
+        std::uint64_t submission_order{0};
         Color premultiplied{};
     };
     struct CameraCompositeState {
@@ -372,6 +374,12 @@ struct NodeExecutionContext {
         std::shared_ptr<Framebuffer> layer_depth;
         std::shared_ptr<Framebuffer> frame_depth;
         std::shared_ptr<Framebuffer> mask;
+        // Mesh depth surfaces outlive their source-node batch: source nodes
+        // can rasterize in parallel before ordered composites consume them.
+        // One mutable scratch surface would alias every mesh framebuffer's
+        // depth handle and let later work overwrite depth still in use.
+        std::unordered_map<NodeIdentity, std::shared_ptr<Framebuffer>>
+            source_layer_depth;
         std::int64_t frame{-1};
         bool unusable{false};  // a native step failed; fall back to layer order
     };

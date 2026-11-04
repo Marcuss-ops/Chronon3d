@@ -424,6 +424,9 @@ TEST_CASE("diagnostics: prepare_breakdown exposes the measured prepare sub-phase
     timings.startup_breakdown.vulkan_device_ms = 300.0;
 
     nlohmann::json out = nlohmann::json::object();
+    const auto ctx = context_with_one_frame(250.0, 100.0);
+    chronon3d::cli::pipe_timing_detail::build_summary_and_job_sections(
+        out, ctx, {4.0}, timings);
     chronon3d::cli::pipe_timing_detail::build_diagnostics_sections(out, timings, 1);
 
     const auto& pb = out.at("prepare_breakdown");

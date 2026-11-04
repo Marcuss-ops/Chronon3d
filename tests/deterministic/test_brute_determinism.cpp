@@ -179,13 +179,13 @@ static bool cli_has_composition(const std::filesystem::path& cli,
     return found;
 }
 
-// Run `sha256sum <file_glob>` via std::system to populate a hashes file
-// (canonical user-spec verbatim §16). Returns the exit code so the test
-// can fail-loud on non-zero (per TICKET-DOCTEST-SKIP-ROT closure lineage).
-static int sha256sum_via_system(const std::string& frames_glob,
-                                const std::string& hashes_file) {
+// Hash decoded video frames, so repeatability measures rendered pixels rather
+// than container metadata or lossy bitstream byte identity.
+static int decoded_frame_hashes_via_ffmpeg(const std::string& video,
+                                           const std::string& hashes_file) {
     std::ostringstream cmd;
-    cmd << "sha256sum " << frames_glob << " | sort -k 2 > " << hashes_file;
+    cmd << "ffmpeg -v error -i '" << video
+        << "' -map 0:v -f framemd5 - > '" << hashes_file << "'";
     return std::system(cmd.str().c_str());
 }
 
@@ -193,7 +193,7 @@ static int sha256sum_via_system(const std::string& frames_glob,
 // Same helper as commit 4c3687b5 — preserved verbatim for forward-compat
 // (Test 17.a/b/c ref this class). Used for in-process self-reference baseline
 // hash comparison (cheap, no subprocess I/O). For §16 CLI export, the
-// external `sha256sum` binary is used per user-spec verbatim.
+// decoded-frame hashes are obtained from FFmpeg framemd5.
 class SHA256 {
 public:
     static std::string hexdigest(const std::vector<std::uint8_t>& msg) {
@@ -456,22 +456,22 @@ TEST_CASE("BruteDeterm-17.d: §16 repeatability (3 exports + sha256sum + cmp pai
     const std::filesystem::path output_root = std::filesystem::temp_directory_path() / "chronon_brute_17d";
     std::error_code ec;
     std::filesystem::remove_all(output_root, ec);
+    std::filesystem::create_directories(output_root, ec);
+    REQUIRE_FALSE(ec);
 
     // Run 3 consecutive canonical render video exports.
     for (int run = 1; run <= kCliExportCount; ++run) {
-        const auto frames_dir = output_root / ("repeat_" + std::to_string(run));
         const auto output = output_root / ("repeat_" + std::to_string(run) + ".mp4");
         std::ostringstream cmd;
         cmd << cli.value().string()
             << " render Motion3DGlowOrbit"
             << " --frames 0-60 -o " << output.string()
-            << " --ffmpeg-mode png"
-            << " --keep-frames --frames-dir " << frames_dir.string();
+            << " --ffmpeg-mode pipe";
         const int rc = std::system(cmd.str().c_str());
         INFO("run=" << run << " cmd=" << cmd.str() << " rc=" << rc);
         CHECK(rc == 0);
         const std::string hashes = (output_root / ("repeat_" + std::to_string(run) + ".hashes")).string();
-        const int sha_rc = sha256sum_via_system((frames_dir / "frame_*.png").string(), hashes);
+        const int sha_rc = decoded_frame_hashes_via_ffmpeg(output.string(), hashes);
         CHECK(sha_rc == 0);
         CHECK(std::filesystem::exists(hashes, ec));
     }

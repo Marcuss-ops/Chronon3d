@@ -16,6 +16,10 @@
 #include <thread>
 #include <vector>
 #include <system_error>
+#ifndef _WIN32
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 // POSIX-only enum for external-fd export tests (convention: see
 // tests/cli/test_chronon_project_render_dispatch.cpp).

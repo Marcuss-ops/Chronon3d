@@ -1,6 +1,6 @@
 # TICKET-CAMERA-DEFINITIVE-CLOSURE — Chiusura Definitiva Pipeline Camera (Chronon3d + ChrononMotion3D)
 
-- **Stato**: **PARTIAL — gate end-to-end non superato** (checkpoint 2026-11-02); **alpha-edge §8.3 b2–b3 PASS locale** (2026-11-03: DoF osservabile, tutte le soglie preregistrate verdi). C0/C1 lifecycle, C3 occlusione mesh/piano, C4 kernel DoF, C5 parità raw software/Vulkan full-frame (congelata a MAE ≤2, p99 ≤10) ed equivalenza compile/render offline vs live provider runtime sull'intera scena Optical Studio v3 sono chiusi con evidenza locale nei checkpoint sotto; non restano aperti come fix isolati. Il DoF ON/shutter e il controllo sharp OFF hanno completato localmente 150/150 frame strict-native 1080p senza single-flight. Rimangono riesecuzione C6 sui 150 frame del pair corrente, occlusione nativa end-to-end, review umana (C7) e CI same-SHA. Le prove locali non equivalgono al PASS end-to-end della sezione 8.
+- **Stato**: **PARTIAL — gate end-to-end non superato** (checkpoint 2026-11-04); **alpha-edge §8.3 b2–b3 PASS locale** (2026-11-03: DoF osservabile, tutte le soglie preregistrate verdi). C0/C1 lifecycle, C3 occlusione mesh/piano, C4 kernel DoF, C5 parità raw software/Vulkan full-frame (congelata a MAE ≤2, p99 ≤10) ed equivalenza compile/render offline vs live provider runtime sull'intera scena Optical Studio v3 sono chiusi con evidenza locale nei checkpoint sotto; non restano aperti come fix isolati. Il pair corrente ha completato localmente 150/150 frame raw RGBA8 ON/OFF con soglie ottiche preregistrate verdi; DoF ON/shutter ha anche completato 150/150 frame strict-native Vulkan/NVENC 1080p senza single-flight, decode pulito, PTS monotoni, zero intervalli neri e zero errori validation/VUID. Restano review umana (C7), CI same-SHA e gate di occlusione nativa end-to-end sul corpus completo. Le prove locali non equivalgono al PASS end-to-end della sezione 8.
 - **Aggiornamento 2026-11-03:** l'accettazione alpha-edge §8.3 b2–b3 è **PASS locale**
   sul contratto pre-registrato
   ([`docs/evidence/camera-alpha-edge-20261103/`](../evidence/camera-alpha-edge-20261103/README.md)).
@@ -19,6 +19,92 @@
 - **Priorità**: P0
 - **Repository**: `ChrononMotion3D`, `Chronon3d`
 - **Build**: parallelismo limitato alla memoria disponibile; non sovrapporre build pesanti senza tener conto del totale dei job.
+
+### Reproduction checkpoint 2026-11-03 — current workspace C3D `b1b21cbe`
+
+The animated-mesh collapse is reproducible on the checked-out software CLI
+with a minimized fixture derived from
+`ChrononMotion3d/docs/evidence/ticket-roundtrip-scaled-20261029/gltf/`. Its 31
+mesh-animation samples were scaled by 100 into world-space pixels, centered at
+the origin, and rendered on a 640×360 canvas. With 31 camera samples rotating
+yaw from 0° to 0.02°, non-transparent pixel counts at frames 0/1/5/15/30 were
+**501/327/171/0/0**. The same mesh-animation samples with camera rotation
+fixed at 0° gave **501/452/477/452/477**. A fresh single-frame render at frame
+15 with the rotating-camera plan was also empty. This reproduces the reported
+camera/animated-mesh interaction independently of prior-frame reuse, but does
+not yet locate the cause within camera placement, projection or mesh draw.
+
+Reproduction ran with the existing `linux-video-fast-dev` CLI, software
+backend, using temporary plans/raw files under `/tmp`. This is a minimized
+diagnostic fixture, not the 150-frame release corpus. No source regression
+test or Vulkan run has been made; P0-04/C6/C7 and this ticket remain
+**PARTIAL**.
+
+### Isolation checkpoint 2026-11-03 — yaw versus mesh deformation
+
+The first reproduction conflated camera motion and mesh deformation. Four
+frozen RenderPlans now separate them; the plans, commands, raw-frame counts and
+limitations are recorded in
+[`camera-mesh-yaw-isolation-20261103`](../evidence/camera-mesh-yaw-isolation-20261103/README.md).
+On the same existing software CLI, frames 0/1/5/15/30 had non-transparent
+pixel counts: animated mesh + fixed 0° camera **501/452/477/452/477**;
+animated mesh + camera yaw 0°→0.02° **501/350/171/0/0**; frozen mesh + camera
+yaw 0°→0.02° **501/402/376/376/375**; animated mesh + fixed 0.02° yaw
+**375/328/171/0/0**. Camera motion alone therefore does not collapse this
+fixture; mesh deformation under non-zero yaw does, even with a static camera.
+This narrows P0-04 but does not identify whether deformation sampling,
+placement, projection or clipping is responsible. The binary was pre-existing,
+and there is still no source regression, fix, Vulkan run or 150-frame release
+acceptance. P0-04/C6/C7 and the ticket remain **PARTIAL**.
+
+### Source isolation and software regression checkpoint 2026-11-03
+
+The four-plan isolation was followed by an end-to-end typed RenderPlan test and
+temporary processor tracing. Deformed vertices and projected positions stayed
+inside the viewport. The mesh processor instead took near/far from its default
+`Camera{}` (`far_plane=1000`), while the resolved RenderPlan camera authored
+`far=10000`; at non-zero yaw the animated triangle's camera-space depth crossed
+the accidental 1000-unit limit and was clipped. The low-level rasterizer
+passed the same yaw/deformation poses, excluding triangle coverage as the
+cause.
+
+The implementation now carries near/far through `Camera2_5D`, typed camera
+sampling, projection context and the software/native mesh projection paths;
+camera node-cache fingerprinting includes both fields. Regression coverage
+checks visibility at frames 0/5/15/30 and camera sample parity, plus direct
+lit/unlit rasterizer coverage. Built with
+`ninja -C build/chronon/linux-fast-dev -j12 chronon3d_camera_tests chronon3d_renderer_core_tests`;
+the focused tests passed (9, 34, and 8 assertions respectively). This is local
+software evidence on a dirty worktree, not same-SHA CI or release certification.
+P0-04, C6/C7 and this ticket remain **PARTIAL** until the full 0–149 animation,
+skin/morph corpus, Vulkan/native validation, CI and human review pass.
+
+Follow-up: the end-to-end regression now runs all 150 frames at 640×360 with
+per-frame inline vertex animation and camera yaw interpolation from 0° to
+0.02°. It passed all 150 visibility checks (301 assertions in the test case).
+The test uses a minimized inline triangle, so it does not replace skinned+morph
+glTF acceptance or the Vulkan/native and same-SHA release gates.
+
+### Image-under-mesh checkpoint 2026-11-03
+
+The first software canary used the legacy `render_compiled` compatibility
+evaluator and was not evidence for the production typed program route. A
+corrected `compiler::compile()` → `render_program()` regression reproduced
+P0-05: 2D image composition reduced mesh coverage from 144 to 109 red pixels
+(35 missing, 25 interior), while a 3D plane preserved all 144. The cause was
+near-coplanar depth rounding (1000.0 vs 1000.000061), which defeated authored
+submission order. The compositor now groups depths within its existing
+occlusion epsilon and restores submission order within each bounded group.
+The typed test passes 16/16 assertions after the fix: 144/144/144 red pixels,
+zero coverage or interior mismatches. Evidence and fixture are in
+[`image-mesh-occlusion-20261103`](../evidence/image-mesh-occlusion-20261103/README.md).
+
+Post-fix remote A4000 Vulkan raw captures of both minimized plans now exactly
+match their software captures byte-for-byte (49,152-byte RGBA8, matching
+SHA-256 for image-under-mesh and plane3d). The route used Vulkan with
+`gpu-hot-path-mode auto` and raw readback; it does not certify strict-native
+no-readback video. Original showcase assets, strict-native output, same-SHA CI
+and human review remain outstanding. P0-05 remains **PARTIAL**.
 
 ### Avanzamento locale 2026-11-01 — fasi proiezione/focale
 
@@ -497,3 +583,142 @@ Questa tabella è il report richiesto da §8.5: nessun gate `NOT RUN` è promoss
 nessun `BLOCKED` è convertito in `PASS`. Il ticket resta **PARTIAL** — per costruzione,
 non per prudenza: la review umana richiede una persona, la CI richiede runner e C6 va
 rieseguito sul pair corrente. Il gate alpha-edge è PASS locale e non è più un blocco.
+
+#### P0-06 release-depth probe — 2026-11-03
+
+Il nuovo probe typed camera-space depth verifica lo stesso triangolo mesh che
+attraversa un image plane in due ordini authored. Suite camera software: 91/91
+test cases, 67.793/67.793 assertions; core renderer: 207/207 cases,
+74.303/74.303 assertions; render graph: 447/447 cases, 19.566/19.566
+assertions. Questi test software passano.
+
+Il primo probe GPU Vulkan su RTX A4000 **falliva** la permutazione: i due raw
+readback differivano in 122 pixel e producevano rispettivamente 144/70 contro
+22/192 pixel rosso/blu. La traccia successiva ha individuato che un layer
+image ritagliato a 20×16 pixel (origine canvas 54,40) veniva escluso dal path
+depth che accettava solo superfici full-canvas. Il path native ora stampa la
+coverage sulla depth full-canvas e campiona la matte alla stessa origine. I
+due nuovi raw Vulkan post-fix sono byte-identici fra loro e ai due raw software
+(SHA-256 `0fecc3a872256fac7dd9a6500a83725e9a2057cae47a851c89854fa926da9efe`).
+Vedi
+[`image-mesh-occlusion-20261103/README.md`](../evidence/image-mesh-occlusion-20261103/README.md)
+e i plan/raw conservati accanto. P0-06 è **PASS per il fixture minimo, PARTIAL
+per il gate di release**; il fixture usa Vulkan con host readback. Il test GPU
+`Vulkan alpha and luma matte match the CPU coverage formulas` passa 25/25
+asserzioni, incluso il campionamento con offset; il test di occlusione nativa
+mesh/piano passa 75/75 asserzioni sull'A4000. Questo probe non certifica
+strict-native video né same-SHA CI e non sostituisce il corpus Mixed 3D. Il
+ticket resta **PARTIAL**.
+
+#### P0-04 camera-motion regression update — 2026-11-04
+
+La regressione RenderPlan software su 150 frame ora usa campioni camera a
+0/74/149 con piccole traslazioni, pitch e yaw mentre i vertici inline animano.
+Il caso dedicato passa 301/301 asserzioni (`chronon3d_camera_tests`, preset
+`linux-fast-dev`, `-j12`). Prova che il difetto di clipping già corretto non
+ricompare nel percorso inline mesh per questa traiettoria. Non copre glTF
+skinned/morph reale, un orbit completo, Vulkan, CI same-SHA o review umana;
+P0-04 e il gate complessivo del ticket restano **PARTIAL**.
+
+#### P0-04 producer-to-renderer closure checkpoint — 2026-11-04
+
+Il fixture precedente è stato esteso al gate P0-04 completo: CM3D importa un
+glTF sintetico con skin e morph sullo stesso primitive, retima i due canali su
+150 frame, applica il `RigProgram` e abbassa la geometria in `inline_mesh`
+V3. Cinque campioni camera descrivono un arco orbitale di 80° con pitch/yaw.
+`chrononmotion_authoring` passa 386/386 checks; il piano V3 risultante è stato
+eseguito per 150/150 frame sia nel renderer software sia in Vulkan su RTX A4000
+con `VK_LAYER_KHRONOS_validation` caricato. Entrambi hanno 0 frame vuoti, 150
+hash distinti e bounds uniti x=320–429, y=83–188; conteggio di pixel alpha
+visibili 510–950 software e 540–969 Vulkan. Log, metriche, raw compressi e PNG
+campione sono nella [cartella evidence CM3D](../../ChrononMotion3d/docs/evidence/camera-mesh-yaw-isolation-20261104/README.md).
+
+**P0-04 è PASS sul fixture acceptance locale.** Questo non attesta un asset
+personaggio di produzione, un export video strict-native, CI same-SHA o review
+umana del filmato; non certifica la release 2.0. Il ticket camera resta
+**PARTIAL** per C6 parity sul pair corrente, altre closure camera, CI e review.
+
+#### P0-05 typed image/mesh fixture checkpoint — 2026-11-04
+
+La ricattura sul build C3D corrente ha esposto una regressione Vulkan di 49
+pixel nel fixture image/mesh: il tag depth GPU usava confronto stretto mentre
+il compositor CPU accetta profondità entro `1e-3` e conserva il minimo. Il
+compute shader ora applica la stessa tolleranza e aggiorna l'accumulatore al
+depth più vicino. Build `linux-video-fast-dev` (`-j12`), raw Vulkan su RTX
+A4000 con validation layer e software oracle: image e `plane3d` corrispondono
+ai rispettivi golden byte per byte (144 pixel mesh rossi per caso). SHA raw
+image `6821f682fba2726ab3903c1c2ffae755a48b15be54af103cbfb4b397f72b3a20`,
+plane `efef5e9845f2cb7cd6a173c65ac6b0969db7688ba4e254260719555fc8b1b3cb`.
+Log, sidecar e raw sono nella [evidence P0-05](../evidence/image-mesh-occlusion-20261103/README.md).
+
+**P0-05 è PASS sul fixture minimo locale / PARTIAL per release**. Showcase
+originale, video strict-native, CI same-SHA e review umana restano gate aperti.
+
+#### P0-06 camera-space order checkpoint on current shader — 2026-11-04
+
+Con il nuovo compute shader, i due RenderPlan `mesh-crossing-*` sono stati
+rieseguiti su software locale e Vulkan RTX A4000. Le due permutazioni danno
+lo stesso raw byte per byte su entrambi i backend e coincidono col golden
+software SHA-256
+`0fecc3a872256fac7dd9a6500a83725e9a2057cae47a851c89854fa926da9efe` (84
+pixel mesh rossi, 130 blu). Raw e log sono nella
+[evidence P0-06](../evidence/image-mesh-occlusion-20261103/README.md).
+
+Questo riconferma **P0-06 PASS per la fixture minima / PARTIAL per release**;
+non copre tutte le permutazioni con testo, image, plane e mesh né il video
+strict-native, CI same-SHA o corpus Mixed 3D.
+
+#### P0-07 alpha/cutout backend sub-gate — 2026-11-04
+
+Il target `chronon3d_backend_registry_tests` è stato compilato con il preset
+`linux-video-test`, Vulkan ON e CUDA interop OFF (mancano gli header di
+sviluppo CUDA sull'host locale), quindi eseguito sull'A4000 con validation
+layer. Il test inline mesh alpha-cutoff/source-over passa 23/23 asserzioni,
+matte alpha/luma 25/25 e occlusione mesh/piano 75/75. Binary SHA
+`58561e356cd0a9e58dea1814f1795dc5712261695e25c2d5959f896637ce4fb6`; log in
+[evidence](../evidence/image-mesh-occlusion-20261103/p007-alpha-depth-tests-20261104.log).
+
+P0-07 resta **PARTIAL**: manca ancora la matrice golden esplicita per opaque,
+cutoff e alpha frazionario con due mesh e due piani, inclusi ordine e scrittura
+Z di produzione.
+
+#### P0-09 Vulkan lifecycle focused sub-gate — 2026-11-04
+
+Sul backend test Vulkan/A4000 con validation layer, il rilascio
+surface asincrono passa 4/4 asserzioni e l'espansione descriptor arena oltre
+il primo chunk passa 106/106; upload async/timeline passa 7/7, attesa batch
+prima del compute 50/50 e ordinamento di tre upload ticket 14/14. Totale cinque
+casi e 181 asserzioni. In aggiunta, il test di 100 cicli sullo stesso
+surface handle (create/upload async/wait/readback/compare/release) passa
+702/702 asserzioni sullo stesso A4000 con validation. Log in [evidence 100
+cicli](../evidence/image-mesh-occlusion-20261103/p009-100-cycles-20261104.log),
+[evidence lifecycle](../evidence/image-mesh-occlusion-20261103/p009-lifecycle-tests-20261104.log)
+e [evidence upload async](../evidence/image-mesh-occlusion-20261103/p009-async-tests-20261104.log).
+Questo è un sub-gate, non chiusura: 100 job completi, cancel/reset/teardown,
+contatori di risorsa e gate CI same-SHA restano da eseguire. P0-09 resta
+**PARTIAL**.
+
+#### Checkpoint C6/P0-13 — pair corrente strict-native, 2026-11-04
+
+Sulla CLI Release CUDA-enabled ricostruita dal mirror del working tree C3D
+sul GPU host (`ninja -j12 chronon3d_cli`, 683/683; binary SHA-256
+`f22f9b5e1d3cc02bf4deea5c7c89ca9f3aff6a2a85ca5e7c639b7b61ed679a94`), il
+piano corrente DoF/shutter v3 (`c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6`)
+ha completato 150 frame a 1920×1080/30 con Vulkan `require_gpu_native`,
+encoder nativo NVENC e validation layer attivi, senza single-flight. Exit 0;
+150 frame accettati, 150 pacchetti encoder/mux con PTS 0–149; ffprobe trova
+H.264/yuv420p, 150 frame decodificati; decode FFmpeg pulito; blackdetect non
+segnala intervalli neri; zero match `Vulkan Validation ERROR`, `Validation
+Error` e `VUID-`. Questo è PASS locale del run strict-native P0-13 e del
+sub-gate C6 video. Report, video, log e sidecar con hash:
+[`c6-v3-native-verification.json`](../evidence/camera-closure-final/c6-v3-native-verification.json),
+[`c6-v3-native.mp4`](../evidence/camera-closure-final/c6-v3-native.mp4),
+[`c6-v3-native.log`](../evidence/camera-closure-final/c6-v3-native.log),
+[`c6-v3-native-timing.json`](../evidence/camera-closure-final/c6-v3-native-timing.json).
+
+Il raw ON/OFF del pair corrente e le metriche ottiche congelate sono registrati
+nel checkpoint precedente e in `c6-v3-raw-focus-report.json`. Questi artefatti
+provengono da una build GPU locale di un mirror working tree dirty, non da una
+clean checkout/tag candidate; pertanto non soddisfano CI same-SHA né la
+provenienza di release. C7 richiede ancora review umana completa. Il ticket
+complessivo resta **PARTIAL**.

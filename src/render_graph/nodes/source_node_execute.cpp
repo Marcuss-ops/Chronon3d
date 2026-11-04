@@ -261,6 +261,8 @@ NodeExecResult SourceNode::execute(
         state.light_context = ctx.frame_input.light_context;
         state.rim_light = ctx.frame_input.rim_light;
         state.world_matrix = base_matrix;
+        state.uses_2_5d_projection = m_apply_camera_projection ||
+            m_defer_camera_projection || m_native_3d;
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
 
         state.clip_rect = ctx.node_exec.clip_rect;

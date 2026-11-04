@@ -252,6 +252,7 @@ bool ensure_occlusion_surfaces(
 
 bool apply_native_occlusion(
     RenderGraphContext& ctx,
+    const Framebuffer& bottom,
     Framebuffer& top,
     bool has_world_position,
     const Vec3& world_position,
@@ -276,7 +277,10 @@ bool apply_native_occlusion(
     const i32 width = ctx.frame_input.width;
     const i32 height = ctx.frame_input.height;
     if (width <= 0 || height <= 0) return false;
-    if (top.width() != width || top.height() != height) return false;
+    if (top.width() <= 0 || top.height() <= 0 ||
+        top.origin_x() >= width || top.origin_y() >= height ||
+        top.origin_x() + top.width() <= 0 ||
+        top.origin_y() + top.height() <= 0) return false;
 
     auto& state = ctx.node_exec.native_occlusion_state();
     if (state.unusable) return false;
@@ -297,6 +301,17 @@ bool apply_native_occlusion(
             return false;
         }
         state.frame = frame;
+        const auto bottom_depth = bottom.native_depth_handle();
+        if (bottom_depth != runtime::kInvalidRenderSurfaceHandle &&
+            api->is_native_surface_valid(bottom_depth)) {
+            const auto seeded = api->occlusion_tag_surface(
+                state.mask->surface_handle(), bottom_depth,
+                state.frame_depth->surface_handle(), true);
+            if (!seeded.ok()) {
+                state.unusable = true;
+                return false;
+            }
+        }
     }
 
     runtime::RenderSurfaceHandle layer_depth = top.native_depth_handle();
@@ -333,7 +348,8 @@ bool apply_native_occlusion(
     // native composite keeps its unmodified source-over semantics.
     const auto masked = api->matte_surface(
         top.surface_handle(), top.surface_handle(),
-        state.mask->surface_handle(), false, false);
+        state.mask->surface_handle(), false, false,
+        top.origin_x(), top.origin_y());
     if (!masked.ok()) {
         state.unusable = true;
         return false;
@@ -413,7 +429,8 @@ bool recompose_camera_composite(
                     ? bottom_row[bx] : Color::transparent();
                 state.initialized[index] = 1;
             }
-            state.fragments[index].push_back({depth, source});
+            auto& fragments = state.fragments[index];
+            fragments.push_back({depth, static_cast<std::uint64_t>(fragments.size()), source});
             affected.push_back(index);
         }
     }
@@ -424,6 +441,26 @@ bool recompose_camera_composite(
         // Stable sorting keeps authored layer order for coplanar surfaces.
         std::stable_sort(fragments.begin(), fragments.end(),
             [](const auto& a, const auto& b) { return a.depth > b.depth; });
+        // Projection/raster depth can differ by a few float ULPs for
+        // coplanar sources (e.g. image z=0 at 1000.0 versus a mesh at
+        // 1000.000061). Group only values within the compositor's existing
+        // occlusion epsilon, then restore submission order inside each group.
+        // Sorting by an epsilon comparator directly would violate strict weak
+        // ordering for chains of near-equal depths.
+        for (std::size_t first = 0; first < fragments.size();) {
+            const float group_depth = fragments[first].depth;
+            std::size_t last = first + 1;
+            while (last < fragments.size() &&
+                   group_depth - fragments[last].depth <= kOcclusionEpsilon) {
+                ++last;
+            }
+            std::stable_sort(fragments.begin() + static_cast<std::ptrdiff_t>(first),
+                fragments.begin() + static_cast<std::ptrdiff_t>(last),
+                [](const auto& a, const auto& b) {
+                    return a.submission_order < b.submission_order;
+                });
+            first = last;
+        }
         Color resolved = state.base[index];
         for (const auto& fragment : fragments) {
             resolved = source_over(fragment.premultiplied, resolved);

@@ -63,6 +63,7 @@ namespace chronon3d::graph {
 // plain layer order instead of silently claiming occlusion.
 [[nodiscard]] bool apply_native_occlusion(
     RenderGraphContext& ctx,
+    const Framebuffer& bottom,
     Framebuffer& top,
     bool has_world_position,
     const Vec3& world_position,

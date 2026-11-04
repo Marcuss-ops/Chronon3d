@@ -555,6 +555,30 @@ TEST_CASE("Vulkan alpha and luma matte match the CPU coverage formulas") {
     const float luma = 0.4f * 0.2126f + 0.1f * 0.7152f + 0.05f * 0.0722f;
     CHECK(output[4] == doctest::Approx(0.4f * luma).epsilon(1e-5));
     CHECK(output[7] == doctest::Approx(0.5f * luma).epsilon(1e-5));
+
+    // A tight layer uses a canvas-sized visibility matte. Its origin maps the
+    // local pixel to the corresponding canvas matte coordinate.
+    const chronon3d::runtime::SurfaceDesc tight_desc{
+        1, 1, chronon3d::runtime::PixelFormat::Rgba32Float,
+        chronon3d::runtime::ResourceUsage::Storage,
+        chronon3d::runtime::LifetimeClass::FrameTransient, 0};
+    const std::vector<float> tight_target{0.8f, 0.4f, 0.2f, 1.0f};
+    const std::vector<float> canvas_matte{
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.5f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f};
+    std::vector<float> tight_output(4, 0.0f);
+    REQUIRE(backend.create_surface(434, tight_desc).ok());
+    REQUIRE(backend.create_surface(435, tight_desc).ok());
+    REQUIRE(backend.upload_surface(435, tight_desc, tight_target).ok());
+    REQUIRE(backend.upload_surface(433, desc, canvas_matte).ok());
+    REQUIRE(backend.matte_surface(434, 435, 433, false, false, 1, 0).ok());
+    REQUIRE(backend.download_surface(434, tight_output).ok());
+    CHECK(tight_output[0] == doctest::Approx(0.4f));
+    CHECK(tight_output[1] == doctest::Approx(0.2f));
+    CHECK(tight_output[2] == doctest::Approx(0.1f));
+    CHECK(tight_output[3] == doctest::Approx(0.5f));
 }
 
 TEST_CASE("Vulkan particle instances render procedural discs in one layer batch") {

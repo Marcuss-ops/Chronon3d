@@ -124,8 +124,9 @@ struct CameraProjectionInput {
 
     BackfaceMode backface_mode{BackfaceMode::DoubleSided};
 
-    // Far-plane distance in camera-space.  Defaults to a very large value.
-    // Set to a smaller value to enable far-plane clipping.
+    // Camera-space clipping distances from the resolved camera. Keeping them
+    // in the projection input makes planes, cards and native meshes agree.
+    f32 near_plane{camera_math::kNearClipZ};
     f32 far_plane{kFarClipZ};
 
     // If true, performs 6-plane frustum culling and sets frustum_result.
@@ -240,7 +241,7 @@ struct CameraProjectionResolver {
         out.clip_state = ClipState::NotClipped;
         bool any_near = false, all_near = true;
         for (int i = 0; i < 4; ++i) {
-            const bool behind = cam_corners[i].z <= camera_math::kNearClipZ;
+            const bool behind = cam_corners[i].z <= input.near_plane;
             any_near = any_near || behind;
             all_near = all_near && behind;
         }
@@ -249,7 +250,7 @@ struct CameraProjectionResolver {
             if (std::getenv("CHRONON3D_PROJ_DIAG")) {
                 const Vec4 wpos = input.world_transform[3];
                 spdlog::warn("[PROJ_DIAG] branch=ALL_BEHIND cam_z[min/max]=[{:.4f}/{:.4f}] kNear={:.4f} corners_z=[{:.4f},{:.4f},{:.4f},{:.4f}] world_origin=({:.1f},{:.1f},{:.1f}) cam_pos=({:.1f},{:.1f},{:.1f}) layer_size=({:.1f},{:.1f})",
-                    cam_min_z, cam_max_z, camera_math::kNearClipZ,
+                    cam_min_z, cam_max_z, input.near_plane,
                     cam_corners[0].z, cam_corners[1].z, cam_corners[2].z, cam_corners[3].z,
                     wpos.x, wpos.y, wpos.z,
                     input.camera.position.x, input.camera.position.y, input.camera.position.z,
@@ -262,7 +263,7 @@ struct CameraProjectionResolver {
 
         // -- 7. Far-plane check -------------------------------------------------
         bool any_far = false, all_far = true;
-        if (input.far_plane > camera_math::kNearClipZ) {
+        if (input.far_plane > input.near_plane) {
             for (int i = 0; i < 4; ++i) {
                 const bool beyond = cam_corners[i].z >= input.far_plane;
                 any_far = any_far || beyond;
@@ -295,11 +296,11 @@ struct CameraProjectionResolver {
             bool ok = chronon3d::clip_with_uv(
                 cam_corners.data(), cam_uvs.data(), 4,
                 clipped_corners, clipped_uvs, &corner_count,
-                camera_math::kNearClipZ, true);
+                input.near_plane, true);
             if (!ok || corner_count < 3) {
                 if (std::getenv("CHRONON3D_PROJ_DIAG")) {
                     spdlog::warn("[PROJ_DIAG] branch=NEAR_CLIP_DESTROYED corner_count={} cam_z[min/max]=[{:.4f}/{:.4f}] kNear={:.4f}",
-                        corner_count, cam_min_z, cam_max_z, camera_math::kNearClipZ);
+                        corner_count, cam_min_z, cam_max_z, input.near_plane);
                 }
                 out.visible = false;
                 return out;
@@ -315,7 +316,7 @@ struct CameraProjectionResolver {
 
         // Second pass: clip against far plane (require z <= farZ)
         // This runs on the near-clipped result
-        if (any_far && input.far_plane > camera_math::kNearClipZ) {
+        if (any_far && input.far_plane > input.near_plane) {
             Vec3 far_clipped[6]{};
             Vec2 far_uvs[6]{};
             int far_count = 0;
@@ -358,8 +359,8 @@ struct CameraProjectionResolver {
 
         for (int i = 0; i < corner_count; ++i) {
             const Vec3& cp = clipped_corners[i];
-            const f32 safe_z = (cp.z > camera_math::kNearClipZ)
-                             ? cp.z : camera_math::kNearClipZ;
+            const f32 safe_z = (cp.z > input.near_plane)
+                             ? cp.z : input.near_plane;
             const f32 ps_x = (safe_z > 0.0f) ? focal_xy.x / safe_z : 0.0f;
             const f32 ps_y = (safe_z > 0.0f) ? focal_xy.y / safe_z : 0.0f;
             max_ps = std::max(max_ps, ps_y);
