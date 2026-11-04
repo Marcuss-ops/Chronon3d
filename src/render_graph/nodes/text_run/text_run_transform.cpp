@@ -4,6 +4,7 @@
 // See text_run_transform.hpp for the contract.
 
 #include "text_run_transform.hpp"
+#include "../../builder/graph_builder_coordinates.hpp"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -12,7 +13,8 @@ namespace chronon3d::graph::text_run {
 
 glm::mat4 build_world_matrix(
     const RenderGraphContext& ctx,
-    const TextRunPlacement& placement
+    const TextRunPlacement& placement,
+    const compiler::SampledLayerParameters* sampled_layer
 ) {
     // ── Stage 1: tight surfaces — surface-local basis only. ──
     // The producer framebuffer is a local [0,size) raster surface. Its
@@ -37,9 +39,24 @@ glm::mat4 build_world_matrix(
 
     // The graph builder has already pre-computed the final world matrix
     // (including canvas-centre + 2.5D projection when applicable).
-    // We only apply SSAA scaling on top — no centering or projection
+    // For the parentless screen-space canvas path, however, that matrix was
+    // resolved from the build-frame pose. Re-compose the layer part from the
+    // current sampled pose so layer tracks (position_y, scale, opacity) move
+    // the raster instead of freezing on frame zero. Tight and projected
+    // placements never opt in and keep their pre-resolved basis.
+    glm::mat4 matrix = placement.matrix;
+    if (placement.replace_layer_matrix && sampled_layer &&
+        sampled_layer->active && sampled_layer->time_dependent) {
+        glm::mat4 layer_matrix = sampled_layer->matrix;
+        if (placement.canvas_centered) {
+            layer_matrix = ::chronon3d::graph::detail::implicit_canvas_center_matrix(ctx) *
+                           layer_matrix;
+        }
+        matrix = layer_matrix * placement.node_matrix;
+    }
+    // We only apply SSAA scaling on top — no other centering or projection
     // decisions happen here.
-    return ssaa_scale * placement.matrix;
+    return ssaa_scale * matrix;
 }
 
 }  // namespace chronon3d::graph::text_run

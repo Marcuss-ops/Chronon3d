@@ -201,8 +201,12 @@ NodeExecResult TextRunNode::execute(
     // the framebuffer stays transparent so only the debug overlay markers
     // are visible.  Useful for comparing overlay-on vs overlay-off.
     std::size_t items_drawn = 0;
-    f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
-    const Mat4 world_matrix = text_run::build_world_matrix(ctx, m_placement);
+    const auto* sampled_layer = ctx.node_exec.sampled_layer;
+    const f32 opacity = sampled_layer
+        ? sampled_layer->opacity * m_render_ref.world_transform.opacity
+        : m_opacity_override.value_or(m_render_ref.world_transform.opacity);
+    const Mat4 world_matrix = text_run::build_world_matrix(
+        ctx, m_placement, sampled_layer);
     if (!ctx.policy.diagnostic_overlay_only) {
 #ifdef CHRONON3D_ENABLE_TEXT
         auto dispatch = text_run::render_text_run_item(
@@ -314,7 +318,6 @@ NodeExecResult TextRunNode::execute(
     // ── 6. Text layout debug overlay + structured log (§5 + §6). ──
 #ifdef CHRONON3D_ENABLE_TEXT
     if (ctx.policy.text_layout_debug) {
-        const Mat4 world_matrix = text_run::build_world_matrix(ctx, m_placement);
         const bool use_local = ctx.policy.modular_coordinates;
         text_run::draw_text_debug_overlay(
             *fb, *m_shape, m_name, world_matrix, opacity,

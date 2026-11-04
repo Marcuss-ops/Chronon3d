@@ -104,6 +104,13 @@ SoftwareRenderer* setup_render_graph_context(
     if (resolved_camera.enabled) {
         ctx.frame_input.camera_2_5d = resolved_camera;
         ctx.frame_input.has_camera_2_5d = true;
+        // The authored clip range is the single authority for the native
+        // camera used by the mesh processors: they clip with
+        // `frame_input.camera.near_plane/far_plane` while projecting with
+        // the 2.5D view. The Camera default (far = 1000) sits exactly at
+        // the canvas depth and clips rotated meshes to a sliver.
+        ctx.frame_input.camera.near_plane = resolved_camera.near_plane;
+        ctx.frame_input.camera.far_plane = resolved_camera.far_plane;
         ctx.frame_input.projection_ctx = renderer::make_projection_context(
             ctx.frame_input.camera_2_5d, ctx.frame_input.width, ctx.frame_input.height);
         ctx.frame_input.projection_ctx.ready = true;

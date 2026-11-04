@@ -473,6 +473,20 @@ struct EvaluatedSourcePlacement {
         const auto& sampled = ctx.frame_parameters->layers[resolved_layer.insertion_index];
         if (sampled.active && sampled.time_dependent) {
             placed_world = sampled.matrix;
+            // The typed sampler returns the layer-local matrix. Text and Shape
+            // primitives are authored around the canvas centre, and
+            // resolve_layers() bakes that centre into resolved_layer.world_matrix.
+            // The sampled matrix does not carry it, so an opacity-only track used
+            // to replace the centred matrix with a centre-relative one and move
+            // the layer to the top-left corner. Re-apply the centre exactly once
+            // for unpinned screen-space primitives; projected/native/pinned
+            // layers keep their own placement basis.
+            if (!resolved_layer.has_parent && layer.screen_space &&
+                (layer.kind == LayerKind::Text || layer.kind == LayerKind::Shape) &&
+                !layer.uses_2_5d_projection && !native_3d &&
+                (!layer.layout.enabled || !layer.layout.pin.has_value())) {
+                placed_world = implicit_canvas_center_matrix(ctx) * placed_world;
+            }
             placed_transform.opacity = sampled.opacity;
         }
     }

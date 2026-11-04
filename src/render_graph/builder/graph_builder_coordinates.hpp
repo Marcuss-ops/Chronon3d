@@ -107,8 +107,13 @@ inline bool should_use_centered_rendering(const LayerGraphItem& item, const Rend
         // A text layer with a parent transform keeps that parent for the
         // TransformNode; marking it centered here would strip the parent
         // before the local TextRun matrix is applied.  A parentless text
-        // layer, on the other hand, needs the one canvas-center bake.
-        return !item.transform.any();
+        // layer, on the other hand, needs the one canvas-center bake.  That
+        // includes an animated parentless layer: its sampled matrix is
+        // centre-relative, so gating on `transform.any()` alone would move
+        // every opacity/position track back to the top-left corner.
+        return !item.transform.any() ||
+               (item.layer->screen_space && item.layer->parent_name.empty() &&
+                !item.layer->layout.pin.has_value());
     }
     if (!ctx.policy.modular_coordinates) {
         return (item.layer && item.layer->uses_2_5d_projection);
@@ -297,8 +302,9 @@ inline TextRunPlacement resolve_text_run_placement(
         text_shape && text_shape->placement_kind != TextPlacementKind::Absolute;
     const bool unpinned = !item.layer || !item.layer->layout.pin.has_value();
     const bool needs_canvas_center =
-        unpinned && !explicit_canvas_placement && item.layer &&
-        (item.layer->screen_space || item.layer->transform.any());
+        unpinned && item.layer &&
+        (item.layer->screen_space ||
+         (!explicit_canvas_placement && item.layer->transform.any()));
     const Mat4 canvas_center = needs_canvas_center
         ? implicit_canvas_center_matrix(ctx)
         : Mat4(1.0f);
@@ -342,8 +348,20 @@ inline TextRunPlacement resolve_text_run_placement(
     // animated LayerBuilder::opacity_anim() curves into an opaque draw.
     out_opacity = (item.layer ? item.layer->transform.opacity : 1.0f) *
                   node.world_transform.opacity;
-    return TextRunPlacement{
+    TextRunPlacement placement{
         item.world_matrix * node.world_transform.to_mat4()};
+    // A parentless screen-space text layer is the one canvas path whose
+    // sampled layer matrix is centre-relative and can be replaced per frame
+    // without disturbing an authored parent or projection. TextRunNode uses
+    // these fields to avoid freezing at the build-frame pose.
+    if (item.layer && item.layer->screen_space &&
+        item.layer->parent_name.empty() && unpinned &&
+        !item.projected && !item.native_3d) {
+        placement.node_matrix = node.world_transform.to_mat4();
+        placement.replace_layer_matrix = true;
+        placement.canvas_centered = needs_canvas_center;
+    }
+    return placement;
 }
 
 } // namespace chronon3d::graph::detail

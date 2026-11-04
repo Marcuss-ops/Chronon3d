@@ -1,0 +1,19 @@
+{
+  "schema": "chronon.render-plan.v2",
+  "version": 2,
+  "job_id": "t16-hero-title-chronon-preview",
+  "canvas": {"width": 854, "height": 480, "fps_num": 30, "fps_den": 1, "duration_frames": 1},
+  "layers": [
+    {
+      "id": "drive-reference-frame",
+      "type": "image",
+      "asset": "output/T16_chronon_render/source_from_drive.png",
+      "fit": "cover",
+      "size": [854, 480],
+      "position": [0, 0],
+      "start_frame": 0,
+      "duration_frames": 1
+    }
+  ],
+  "output": {"path": "output/T16_chronon_render/chronon_frame.png", "format": "png"}
+}

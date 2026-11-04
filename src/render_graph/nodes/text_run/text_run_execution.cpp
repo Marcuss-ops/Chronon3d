@@ -306,7 +306,7 @@ graph::RenderOpResult render_text_run_item(
     // The tight-surface local basis (T(-surface_origin)) is owned by
     // build_world_matrix itself so rasterization and bbox sampling can
     // never diverge.
-    glm::mat4 world_matrix = build_world_matrix(ctx, placement);
+    glm::mat4 world_matrix = build_world_matrix(ctx, placement, sampled_layer);
     auto& mutable_ctx = const_cast<RenderGraphContext&>(ctx);
     const auto frame_number = ctx.frame_input.frame.integral();
     if (text_debug) {

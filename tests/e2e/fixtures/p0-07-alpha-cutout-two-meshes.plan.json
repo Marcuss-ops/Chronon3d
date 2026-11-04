@@ -1,0 +1,138 @@
+{
+  "schema": "chronon.render-plan.v3",
+  "version": 3,
+  "job_id": "p0_07_alpha_cutout_two_meshes",
+  "camera": {
+    "type": "perspective",
+    "position": [0, 0, -1000],
+    "rotation_deg": [0, 0, 0],
+    "fov_deg": 20.4074,
+    "near": 1,
+    "far": 10000,
+    "zoom": 1
+  },
+  "canvas": { "width": 640, "height": 360, "fps_num": 24, "fps_den": 1, "duration_frames": 24 },
+  "output": { "path": "alpha-cutout-two-meshes.mp4", "format": "mp4" },
+  "lighting_rig": {
+    "key_direction": [0.0, 0.0, 1.0],
+    "key_intensity": 0.0,
+    "key_color": [1.0, 1.0, 1.0, 1.0],
+    "ambient_intensity": 1.0,
+    "ambient_color": [1.0, 1.0, 1.0, 1.0],
+    "rim_enabled": false,
+    "rim_intensity": 0.0,
+    "rim_power": 1.0,
+    "rim_color": [1.0, 1.0, 1.0, 1.0]
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "backdrop.png",
+      "size": [2000, 1200],
+      "position": [0, 0, 300],
+      "enable_3d": true,
+      "opacity": 1.0,
+      "start_frame": 0,
+      "duration_frames": 24,
+      "color": [1, 1, 1, 1]
+    },
+    {
+      "id": "front-plane",
+      "type": "image",
+      "asset": "front.png",
+      "size": [80, 80],
+      "position": [-50, 0, -400],
+      "enable_3d": true,
+      "opacity": 1.0,
+      "start_frame": 0,
+      "duration_frames": 24,
+      "color": [1, 1, 1, 1]
+    },
+    {
+      "id": "opaque-red",
+      "type": "mesh",
+      "size": [90, 90],
+      "position": [-140, 0, 0],
+      "scale": [90, 90, 90],
+      "enable_3d": true,
+      "screen_space": false,
+      "loop": false,
+      "opacity": 1.0,
+      "start_frame": 0,
+      "duration_frames": 24,
+      "color": [0.9, 0.08, 0.06, 1.0],
+      "inline_mesh": {
+        "primitive": { "kind": "box", "width": 2, "height": 2, "depth": 2 },
+        "material": {
+          "diffuse": 1.0,
+          "specular": 0.0,
+          "shininess": 32.0,
+          "rim_intensity": 0.0,
+          "base_color": [0.9, 0.08, 0.06, 1.0]
+        }
+      }
+    },
+    {
+      "id": "cutout-green",
+      "type": "mesh",
+      "size": [90, 90],
+      "position": [140, 0, 0],
+      "scale": [90, 90, 90],
+      "enable_3d": true,
+      "screen_space": false,
+      "loop": false,
+      "opacity": 0.2,
+      "start_frame": 0,
+      "duration_frames": 24,
+      "color": [0.06, 0.85, 0.12, 1.0],
+      "inline_mesh": {
+        "primitive": { "kind": "plane", "width": 2, "height": 2 },
+        "material": {
+          "diffuse": 1.0,
+          "specular": 0.0,
+          "shininess": 32.0,
+          "rim_intensity": 0.0,
+          "base_color": [0.06, 0.85, 0.12, 1.0],
+          "alpha_cutoff": 0.5
+        }
+      },
+      "animation": {
+        "tracks": [
+          {
+            "property": "opacity",
+            "easing": "linear",
+            "keyframes": [
+              { "frame": 0, "value": 0.2 },
+              { "frame": 23, "value": 0.8 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "fractional-cyan",
+      "type": "mesh",
+      "size": [30, 30],
+      "position": [0, 0, -50],
+      "scale": [30, 30, 30],
+      "enable_3d": true,
+      "screen_space": false,
+      "loop": false,
+      "opacity": 0.5,
+      "start_frame": 0,
+      "duration_frames": 24,
+      "color": [0.05, 0.6, 0.95, 1.0],
+      "inline_mesh": {
+        "primitive": { "kind": "plane", "width": 2, "height": 2 },
+        "material": {
+          "diffuse": 1.0,
+          "specular": 0.0,
+          "shininess": 32.0,
+          "rim_intensity": 0.0,
+          "base_color": [0.05, 0.6, 0.95, 1.0]
+        }
+      }
+    }
+  ]
+}

@@ -27,6 +27,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include "../../runtime/scene_topology_cache.hpp"
 // IMPORTANT: include `runtime_adapter.hpp` (NOT `builtin_processors.hpp`).
 // The canonical `backends::software::register_builtin_processors(...)`
 // wrapper lives in `runtime_adapter.hpp` (namespace
@@ -72,6 +73,13 @@ SoftwareRenderer::SoftwareRenderer(SoftwareExecutionContext context, Config conf
     m_execution_context.text.resources = m_text_render_resources.get();
     m_execution_context.settings = &m_settings;
     m_execution_context.counters = &m_counters;
+    // One bounded topology cache per renderer, shared by every pipeline the
+    // renderer builds (probe, warmup and export loop). Contexts that arrive
+    // with a cache keep it, so a caller can inject a fixture-owned one.
+    if (!m_execution_context.topology_cache) {
+        m_execution_context.topology_cache =
+            std::make_shared<runtime::SceneTopologyCache>();
+    }
     // The session is the canonical owner of nested graph execution. Bind the
     // runtime-owned stateless executor here so PrecompNode can borrow the same
     // authority as the root graph instead of falling back to transparency.

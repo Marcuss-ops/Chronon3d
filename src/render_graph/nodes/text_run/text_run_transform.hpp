@@ -14,6 +14,7 @@
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
+#include <chronon3d/compiler/frame_parameters.hpp>
 
 #include <optional>
 
@@ -40,7 +41,8 @@ namespace chronon3d::graph::text_run {
 ///      applicable). No centering or projection decisions happen here.
 glm::mat4 build_world_matrix(
     const RenderGraphContext& ctx,
-    const TextRunPlacement& placement
+    const TextRunPlacement& placement,
+    const compiler::SampledLayerParameters* sampled_layer = nullptr
 );
 
 }  // namespace chronon3d::graph::text_run
