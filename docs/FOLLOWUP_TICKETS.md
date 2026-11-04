@@ -11,11 +11,14 @@
 | FFmpeg pipe demolition | P1 | BLOCKED — codec/routing same-SHA green gate remains; explicit diagnostic pipe stays | [FFMPEG-PIPE-SINK-DEMOLITION](tickets/TICKET-FFMPEG-PIPE-SINK-DEMOLITION.md) |
 | GPU benchmark corpus | P1 | WAITING EXTERNAL — manifest and runner are ready; the active content pack is absent from this checkout | [GPU-BASELINE-CORPUS](tickets/TICKET-GPU-BASELINE-CORPUS.md) |
 | Fused-storage/native-image parity | P1 | PARTIAL — broader overlay corpus parity remains after the focused native-image certificate | [SCALE-P0-ASSET-VRAM-GOP](tickets/TICKET-SCALE-P0-ASSET-VRAM-GOP.md) |
-| Camera/video execution parity | P1 | OPEN — camera/DoF matrix and remaining legacy `Composition` executor migration; pixel equivalence NOT RUN | [AE-CAMERA-FUNCTIONAL-PARITY](tickets/TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md), [COMPOSITION-LEGACY-EXECUTOR-DEMOLITION](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md) |
-| Camera surface consolidation (CM3D+C3D) | P2 | PARTIAL — S2 removed two standalone camera headers 2026-11-02; typed-data/applier collapse to ≤6 and S5 equivalence remain open | [CAMERA-SURFACE-CONSOLIDATION](tickets/TICKET-CAMERA-SURFACE-CONSOLIDATION.md) |
-| DoF / 2.5D occlusion acceptance; AO capability decision | P2 | OPEN — focused RTX occlusion/bokeh parity PASS; CoC grid, foreground bleed/alpha bounds, integrated fixture remain; AO out-of-scope decision recorded | [DOF-OCCLUSION-ACCEPTANCE](tickets/TICKET-DOF-OCCLUSION-ACCEPTANCE.md) |
+| Legacy `Composition` executor migration | P1 | OPEN — pixel equivalence NOT RUN | [COMPOSITION-LEGACY-EXECUTOR-DEMOLITION](tickets/TICKET-COMPOSITION-LEGACY-EXECUTOR-DEMOLITION.md) |
 | Maintenance hotspots (W0–W5) | P1 | ACTIVE — umbrella: GPU lifetime/teardown, text hot-path fixes, certification-truthfulness decisions (B.1/B.2/F.2), effects-lane arch gate; coordinates C22/C23 and MAIN-TRUTH owners | [MAINTENANCE-HOTSPOTS-BONIFICATION](tickets/TICKET-MAINTENANCE-HOTSPOTS-BONIFICATION.md) |
 | Cache identity / invalidation | P1 | ACTIVE — all taxonomy entries mapped to identity owners/dependency axes; remaining V2 schemas, mutation fixtures and test execution remain | [CACHE-IDENTITY-KEYS](tickets/TICKET-CACHE-IDENTITY-KEYS.md) |
+
+Camera: the four camera sheets were closed administratively on 2026-11-04.
+C7/CI, AE parity, S2/S5 and advanced DoF are tracked in the
+[master](tickets/TICKET-CHRONON-2.0-MASTER.md) (P0-10/P1-10/P1-11/P1-16) and
+are not `PASS`.
 
 Camera ownership migration, the current daemon admission policy, and node
 memory instrumentation are closed for the present product scope. The optional

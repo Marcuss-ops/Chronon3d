@@ -212,10 +212,11 @@ Non-negotiable contracts:
 
 ### Starting evidence (reported in proposal; recheck before acting)
 
-- C3D camera closure and environment-light/IBL tickets are PARTIAL. Alpha-edge
-  DoF has local PASS on 2026-11-03; camera C6, C7 human review, CI and final
-  native scene remain. Software diffuse/specular and HDRI producer exist;
-  strict-native Vulkan cubemap sampling remains incomplete.
+- C3D camera sheets were closed administratively on 2026-11-04 after the local
+  4/4 C3D suites and Motion 10/10. Alpha-edge DoF has local PASS on 2026-11-03;
+  C7 human review, CI and the final native scene remain BLOCKED, and the
+  closure is not a release certificate. Software diffuse/specular and HDRI
+  producer exist; strict-native Vulkan cubemap sampling remains incomplete.
 - C3D text quality ticket is open: whole-run HQ shadow, glyph/stroke
   representation and editorial corpus remain.
 - CM3D animated glTF and HDRI producer tickets are closed producer-side;

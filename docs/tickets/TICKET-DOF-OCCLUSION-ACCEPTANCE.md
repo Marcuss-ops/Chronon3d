@@ -1,6 +1,14 @@
 # TICKET-DOF-OCCLUSION-ACCEPTANCE — DoF, 2.5D occlusion e decisione AO
 
-- **Stato:** OPEN — decisione AO registrata; accettazione completa DoF non certificata.
+- **Stato**: chiuso (2026-11-04) — chiusura amministrativa: test software DoF/occlusione e decisione AO chiusi; griglia CoC multi-piano, HDR bokeh e parità strict-native integrata demandati a v2.1.
+
+## Chiusura amministrativa 2026-11-04
+
+- Verifica locale: suite C3D 4/4 (camera 93/93, core 1.479/1.479, render graph 448/448, renderer core 207/207); i test DoF/occlusione sono inclusi. Motion 10/10.
+- Residui: fixture multi-profondità, foreground bleed/alpha, HDR bokeh e confronto strict-native integrato demandati a v2.1; non sono PASS.
+- Evidenza: `docs/evidence/camera-closure-audit-20261104/README.md`.
+
+- **Stato precedente (2026-11-04):** OPEN — decisione AO registrata; accettazione completa DoF non certificata.
 - **Priorità:** P2, subordinata ai gate P1 di [AE camera functional parity](TICKET-AE-CAMERA-FUNCTIONAL-PARITY.md).
 - **Repository:** Chronon3d; Motion solo per generare i piani camera risolti di riferimento.
 - **Obiettivo:** rendere ripetibili i test visuali/quantitativi di DoF e occlusione per il percorso 2.5D con fixture piccole basate su card/immagini. Non richiede asset mesh 3D.
