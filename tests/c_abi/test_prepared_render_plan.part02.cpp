@@ -45,7 +45,13 @@ TEST_CASE("render plan lowers animated Lottie layer transforms to native tracks"
     CHECK(end->scene.layers()[0].transform.position.x -
           start->scene.layers()[0].transform.position.x == doctest::Approx(40.0f));
     CHECK(middle->scene.layers()[0].transform.scale.x == doctest::Approx(1.5f));
-    CHECK(middle->scene.layers()[0].transform.opacity == doctest::Approx(0.5f));
+    CHECK(middle->scene.layers()[0].transform.opacity == doctest::Approx(1.0f));
+    REQUIRE(middle->scene.layers()[0].nodes[0].svg_groups.size() == 1);
+    REQUIRE(middle->scene.layers()[0].nodes[0].svg_groups[0].opacity_animation.has_value());
+    CHECK(middle->scene.layers()[0].nodes[0].svg_groups[0].opacity_animation->from ==
+          doctest::Approx(1.0f));
+    CHECK(middle->scene.layers()[0].nodes[0].svg_groups[0].opacity_animation->to ==
+          doctest::Approx(0.0f));
     CHECK(glm::degrees(glm::eulerAngles(middle->scene.layers()[0].transform.rotation).z) ==
           doctest::Approx(0.0f));
     CHECK(glm::degrees(glm::eulerAngles(end->scene.layers()[0].transform.rotation).z) ==
