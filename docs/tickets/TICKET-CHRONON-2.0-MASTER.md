@@ -108,8 +108,8 @@ certificato.
 
 | ID | Repo | Azione atomica | Gate / evidenza | Stato |
 |---|---|---|---|---|
-| P2-01 | C3D | Profilare `inline_mesh.comp` O(pixel × triangoli) su 10/100/1k/10k triangoli | Grafico GPU ms/throughput e scelta motivata | **NOT RUN** — richiede host GPU dedicato |
-| P2-02 | C3D | Introdurre raster Vulkan graphics per mesh reali, compute per piccoli casi | Stesso depth/alpha/compositing, benchmark A/B con soglia | **OPEN** — decisione dopo P2-01 |
+| P2-01 | C3D | Profilare `inline_mesh.comp` O(pixel × triangoli) su 10/100/1k/10k triangoli | Grafico GPU ms/throughput e scelta motivata | **PASS locale (2026-11-04):** RTX A4000 Vulkan, 31 frame/caso; composite GPU 0,0235 / 0,0700 / 0,5296 / 5,1254 ms per frame a 10 / 100 / 1k / 10k triangoli. Scelta: mantenere compute per mesh piccoli; A/B realistico ad alta risoluzione resta in P2-02. [Evidenza e limiti](../evidence/inline-mesh-gpu-profile-20261104/README.md) |
+| P2-02 | C3D | Introdurre raster Vulkan graphics per mesh reali, compute per piccoli casi | Stesso depth/alpha/compositing; benchmark A/B con soglia | **OPEN** — P2-01 completato; misurare mesh realistici ad alta risoluzione prima di scegliere una soglia |
 | P2-03 | C3D | Ridurre `VulkanBackend::Impl` via autorità esistenti | Nessuna ownership parallela; lifecycle e perf verdi | **OPEN** |
 | P2-04 | C3D | Scomporre la compilazione per artifact/fasi mantenendo `CompiledProgram` | Programmi equivalenti, niente rebuild hot path | **OPEN** |
 | P2-05 | C3D | Cache key separate content/placement/temporal/device, hashing versionato | Test mutazione campo-per-campo, cache hit senza stale | **PARTIAL** — `TICKET-CACHE-IDENTITY-KEYS` |
