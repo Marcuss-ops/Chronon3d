@@ -1,5 +1,7 @@
 # TICKET-VIDEO-CODEC-BOUNDARY — the codec boundary gets one decision language
 
+- **Stato**: chiuso (2026-11-02) — `BoundaryReencode` e decisione per-job verificati sul preset `linux-video-test`; scheda archiviata il 2026-11-04.
+
 ## Stato — chiuso (2026-11-02)
 
 - [x] **`BoundaryReencode` (finding CB-2)** — executor GOP presente: usa una singola `MuxSession` per GOP copiati e ri-encodati, con schedule e timestamp sorgente conservati fino al piano (`apps/chronon3d_cli/utils/video/video_job_execute_gop.cpp`, `src/media/video/gop_execution_executor.cpp`). Il downgrade legacy `hybrid_pipeline_unavailable` non è presente.
@@ -38,7 +40,7 @@ bitstream veniva riusato. Una qualunque futura aggiunta di branch poteva quindi
 introdurre un secondo parere sulla stessa domanda.
 
 Questo ticket chiude i passi 3 e 4 del §3 di
-[`docs/AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY.md`](../AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY.md)
+[`docs/AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY.md`](../../AUDIT-2026-09-12-VIDEO-CODEC-BOUNDARY.md)
 con l'executor boundary e la decisione per-job documentati sopra.
 
 ## Modifiche implementate
