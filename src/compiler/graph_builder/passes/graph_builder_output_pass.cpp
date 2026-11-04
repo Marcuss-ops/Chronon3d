@@ -89,7 +89,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
     // ── Per-pixel DOF post-composite pass ──────────────────────────────
     // When the 2.5D camera has DOF enabled, insert a PerPixelDofNode after
     // all layers are composited.
-    // Strict-native Vulkan performs DOF on isolated layer surfaces inside
+    // Strict-native rendering performs DOF on isolated layer surfaces inside
     // CompositeNode. Keeping the legacy frame-wide node here would blur titles
     // together with every other layer and destroy alpha provenance.
     const bool is_native_gpu = rctx.policy.require_native_gpu ||
@@ -116,8 +116,8 @@ void OutputPass::run(GraphBuildContext& ctx) {
     rctx.node_exec.early_exit_skip.assign(graph.size(), false);
     // Every layer is a separate optical surface on strict-native DOF, even
     // when its sharp source is fully covered by another layer. Skipping its
-    // producers publishes a synthetic 64x64 transparent framebuffer with no
-    // Vulkan image, which cannot be expanded or blurred later.
+    // producers publishes a synthetic 64x64 transparent fallback surface with no
+    // native image, which cannot be expanded or blurred later.
     const bool preserve_optical_layers =
         (cam25d.enabled && cam25d.dof.enabled) ||
         (rctx.frame_input.has_camera_2_5d &&

@@ -430,7 +430,8 @@ RenderOpResult RenderBackendSurfaceApi::matte_surface(
         runtime::RenderSurfaceHandle /*destination*/,
         runtime::RenderSurfaceHandle /*target*/,
         runtime::RenderSurfaceHandle /*matte*/,
-        bool /*luma*/, bool /*inverted*/) {
+        bool /*luma*/, bool /*inverted*/,
+        int /*matte_origin_x*/, int /*matte_origin_y*/) {
         return RenderOpResult(make_render_backend_error(
             RenderBackendErrorCode::UnsupportedCapability,
             "RenderBackend::matte_surface: native surfaces are not supported"));

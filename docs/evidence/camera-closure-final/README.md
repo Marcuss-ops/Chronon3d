@@ -180,3 +180,52 @@ the pool when `other.data()` was non-null, discarding the native GPU surface, an
 `dof_blur_surface` (`exp(-4.5 * t^2)`).
 Once resolved, the official raw RGBA8 sentinels passed all frozen thresholds
 with zero validation errors (`parity-v3-raw-sentinels.json`).
+
+### 2026-11-04 current-pair C6 raw rereun
+
+On the current C3D source mirror (base HEAD
+`b1b21cbed1d8927de8929a33924c1f4d097955c4`, compiled-source worktree-diff
+SHA-256 `02d5da0c988c1e6e0bdb5406ae57dbafd9b173c5d748e04465a608691fa55318`),
+the current pair v3 was rendered on the A4000 with the Vulkan backend and
+validation layer. These two raw sink runs intentionally use host readback;
+they prove the pre-encode optical image and do not prove strict-native video.
+Both runs were 1920×1080, 30 fps, frames 0–149, without single-flight.
+
+- DoF/shutter ON, plan SHA-256
+  `c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6`:
+  150 frames, exact 1,244,160,000 RGBA8 bytes, raw SHA-256
+  `472f37621c2a5fed356e29beb8644482480aa6dfec9d3b6efa4cfb6be8d46b03`;
+  no black frames, 150 distinct frame hashes, zero validation/VUID matches.
+- Sharp OFF, plan SHA-256
+  `1b26dd00bdc0bec1f34ccba7504296d650715df7404bacf56aba0ce375ef4c61`:
+  same frame count and byte count, raw SHA-256
+  `70199e5995c00cb99a5c9c4569fe1ba5396dd2789e5be0b47fb57139244e6448`;
+  no black frames, 150 distinct frame hashes, zero validation/VUID matches.
+- The frozen focus ROIs pass all nine ratios: near@30 `0.95284`, middle@75
+  `0.89055`, far@149 `0.99958`; all defocused ROIs are at or below `0.90`.
+  See [raw focus report](c6-v3-raw-focus-report.json), [DoF sequence report](c6-v3-dof-raw-report.json),
+  [sharp sequence report](c6-v3-sharp-raw-report.json), and
+  [verification scripts](verify_raw_sequence.py) / [focus metrics](measure_raw_focus_pair.py).
+  Preview frames: [DoF near](c6-dof-030.png), [DoF middle](c6-dof-075.png),
+  [DoF far](c6-dof-149.png), [sharp near](sharp-030.png),
+  [sharp middle](sharp-075.png), [sharp far](sharp-149.png).
+
+The current-source CUDA-enabled release CLI was built on the GPU host with
+`ninja -j12 chronon3d_cli` (683/683, exit 0), binary SHA-256
+`f22f9b5e1d3cc02bf4deea5c7c89ca9f3aff6a2a85ca5e7c639b7b61ed679a94`.
+The raw readback pair above used the earlier local fastdev CLI SHA-256
+`f3f4010eb13e19e6d5c9bbf440fe7dabb6cbf07d7f090fd3e643cfd18a31486c`.
+
+The full current-source 150-frame strict-native DoF/shutter run has now
+completed on the A4000: Vulkan `require_gpu_native`, native `h264_nvenc`,
+validation layers enabled, and single-flight disabled. It exited 0, accepted
+150 frames and muxed 150 packets with PTS 0–149. The resulting H.264 video is
+1920×1080/30, decodes as 150 frames, and blackdetect found no black intervals.
+There are zero `Vulkan Validation ERROR`, `Validation Error`, or `VUID-`
+matches in the run log. Video SHA-256 is
+`1c6e43b19c00bbf175b2204341ef6f71de2186ac4f10d8a1e11c92fa5d00cc83`.
+See the [native verification report](c6-v3-native-verification.json),
+[video](c6-v3-native.mp4), [timing sidecar](c6-v3-native-timing.json), and
+[run log](c6-v3-native.log). This closes the local strict-native C6/P0-13
+run subgate, not the overall ticket: C7 human review and same-SHA CI remain
+open.

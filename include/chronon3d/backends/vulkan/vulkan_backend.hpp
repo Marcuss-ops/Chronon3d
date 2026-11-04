@@ -539,7 +539,8 @@ public:
         const Color&) override;
     graph::RenderOpResult matte_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
-        runtime::RenderSurfaceHandle, bool, bool) override;
+        runtime::RenderSurfaceHandle, bool, bool,
+        int matte_origin_x = 0, int matte_origin_y = 0) override;
     graph::RenderOpResult draw_text_run_surface(
         runtime::RenderSurfaceHandle, runtime::RenderSurfaceHandle,
         std::span<const runtime::GlyphInstance>) override;

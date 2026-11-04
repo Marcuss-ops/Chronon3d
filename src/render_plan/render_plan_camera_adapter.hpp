@@ -18,6 +18,8 @@ inline chronon3d::Camera2_5D make_camera_value(
     camera.position = {source.position[0], source.position[1], source.position[2]};
     camera.rotation = {source.rotation_deg[0], source.rotation_deg[1], source.rotation_deg[2]};
     camera.fov_deg = source.fov_deg;
+    camera.near_plane = source.near;
+    camera.far_plane = source.far;
     camera.zoom = 1000.0f * source.zoom;
     camera.lens_shift = {source.lens_shift[0], source.lens_shift[1]};
     camera.optics_mode = source.type == "orthographic"
@@ -63,6 +65,8 @@ inline chronon3d::Camera2_5D sample_resolved_camera(
     camera.rotation = math::camera_rotation_euler(
         glm::slerp(left.rotation_quaternion(), right.rotation_quaternion(), t));
     camera.fov_deg = glm::mix(left.fov_deg, right.fov_deg, t);
+    camera.near_plane = glm::mix(left.near_plane, right.near_plane, t);
+    camera.far_plane = glm::mix(left.far_plane, right.far_plane, t);
     camera.zoom = glm::mix(left.zoom, right.zoom, t);
     camera.lens_shift = glm::mix(left.lens_shift, right.lens_shift, t);
     camera.lens.focal_length = glm::mix(left.lens.focal_length, right.lens.focal_length, t);

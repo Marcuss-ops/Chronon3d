@@ -111,10 +111,84 @@ void apply_rounded_coverage_serial(Color* pixels, int w, int h, float radius) {
     }
 }
 
+// Projected image layers share the camera-space mesh/depth path with native
+// inline meshes. The affine image kernel below is intentionally limited to
+// camera-independent 2D; using it for a projected layer discards its camera
+// depth and was rejected by strict-native Vulkan. Represent the placed image
+// rectangle as a textured quad and keep the same resolved world transform,
+// camera, clipping and per-pixel depth authority as other planes/meshes.
+[[nodiscard]] bool try_native_projected_image(
+    RenderGraphContext& ctx, Framebuffer& fb,
+    const RenderNode& node, const RenderState& state) {
+    if (!state.projection.ready || !native_promotion::is_projected(state) ||
+        !ctx.image_cache || !ctx.gpu_asset_cache || !ctx.backend ||
+        !ctx.surface_registry) return false;
+
+    const auto& image = node.shape.image();
+    // Rounded-corner coverage has no equivalent in the mesh raster path yet.
+    if (image.path.empty() || image.radius > 0.0f ||
+        !(image.size.x > 0.0f) || !(image.size.y > 0.0f)) return false;
+
+    auto cached = ctx.image_cache->find(image.path, image.decode_options);
+    if (!cached && image.embedded_payload) {
+        cached = ctx.image_cache->get_or_load_embedded(
+            image.path, *image.embedded_payload, image.decode_options);
+    }
+    if (!cached) cached = ctx.image_cache->get_or_load(image.path, image.decode_options);
+    if (!cached || !cached->valid() || !cached->fb_img || cached->gpu_rgba.empty())
+        return false;
+
+    const Vec2 original_size{static_cast<float>(cached->fb_img->width()),
+                             static_cast<float>(cached->fb_img->height())};
+    Vec2 crop_origin{0.0f, 0.0f};
+    Vec2 crop_size = original_size;
+    if (image.crop.enabled) {
+        crop_origin = image.crop.origin * original_size;
+        crop_size = image.crop.size * original_size;
+    }
+    const auto placement = compute_media_placement(
+        crop_size, image.size, image.fit, image.focal_point);
+    if (!(placement.src_rect.size.x > 0.0f) ||
+        !(placement.src_rect.size.y > 0.0f) ||
+        !(placement.dst_rect.size.x > 0.0f) ||
+        !(placement.dst_rect.size.y > 0.0f)) return false;
+
+    const Vec2 source_origin = crop_origin + placement.src_rect.origin;
+    const Vec2 source_end = source_origin + placement.src_rect.size;
+    float u0 = source_origin.x / original_size.x;
+    float u1 = source_end.x / original_size.x;
+    if (image.crop.flip_x) std::swap(u0, u1);
+    const float v0 = source_origin.y / original_size.y;
+    const float v1 = source_end.y / original_size.y;
+    const float x0 = placement.dst_rect.origin.x;
+    const float y0 = placement.dst_rect.origin.y;
+    const float x1 = x0 + placement.dst_rect.size.x;
+    const float y1 = y0 + placement.dst_rect.size.y;
+
+    auto quad = std::make_shared<Mesh>("projected-image-quad");
+    const Vec3 normal{0.0f, 0.0f, 1.0f};
+    quad->add_vertex(Vertex{{x0, y0, 0.0f}, normal, {u0, v0}});
+    quad->add_vertex(Vertex{{x1, y0, 0.0f}, normal, {u1, v0}});
+    quad->add_vertex(Vertex{{x1, y1, 0.0f}, normal, {u1, v1}});
+    quad->add_vertex(Vertex{{x0, y1, 0.0f}, normal, {u0, v1}});
+    quad->add_index(0); quad->add_index(1); quad->add_index(2);
+    quad->add_index(0); quad->add_index(2); quad->add_index(3);
+
+    RenderNode projected_node(node);
+    projected_node.shape.set_type(ShapeType::Mesh);
+    projected_node.shape.mesh_shape().inline_mesh = std::move(quad);
+    projected_node.inline_mesh_texture_asset = image.path;
+    projected_node.color = image.tint;
+    projected_node.color.a *= image.opacity;
+    return detail::try_native_inline_mesh(ctx, fb, projected_node, state);
+}
+
 [[nodiscard]] bool try_native_image_impl(
     RenderGraphContext& ctx, Framebuffer& fb,
     const RenderNode& node, const RenderState& state) {
     const auto& image = node.shape.image();
+    if (native_promotion::is_projected(state))
+        return try_native_projected_image(ctx, fb, node, state);
     // Native image promotion has no per-image tint path. Preserve the
     // software oracle for color-ramped particle sprites and other tinted images.
     if (image.tint.r != 1.0f || image.tint.g != 1.0f ||

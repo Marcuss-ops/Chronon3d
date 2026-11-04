@@ -109,6 +109,12 @@ struct Camera2_5D {
     // 35° ≈ telephoto (less distortion), 70° ≈ wide angle (more parallax).
     f32 fov_deg{50.0f};
 
+    // Camera-space clipping distances. RenderPlan cameras carry these values
+    // explicitly; native mesh processors must consume the resolved camera
+    // values instead of the unrelated default `Camera` clip range.
+    f32 near_plane{0.001f};
+    f32 far_plane{1.0e6f};
+
     // Principal-point offset as a fraction of viewport dimensions.
     // {0,0} is centered; positive X moves right and positive Y moves down.
     // Values may exceed half the viewport to support off-screen framing.

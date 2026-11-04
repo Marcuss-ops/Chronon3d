@@ -18,6 +18,8 @@ inline ProjectionContext make_native_3d_projection_context(const Camera& camera,
     out.focal = camera.focal_length(fw);
     out.vp_cx = fw * 0.5f;
     out.vp_cy = static_cast<f32>(height) * 0.5f;
+    out.near_plane = camera.near_plane;
+    out.far_plane = camera.far_plane;
     return out;
 }
 
@@ -33,6 +35,8 @@ inline ProjectionContext make_projection_context(const CameraProjectionSource& c
     out.focal = chronon3d::camera_math::focal_from_camera(camera, fw, fh);
     out.vp_cx = fw * 0.5f;
     out.vp_cy = fh * 0.5f;
+    out.near_plane = camera.get_near_plane();
+    out.far_plane = camera.get_far_plane();
     return out;
 }
 

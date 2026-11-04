@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <optional>
 #include <string_view>
@@ -301,6 +302,31 @@ NodeExecResult CompositeNode::execute(
     // so dispatch_ms measures only clip/bbox computation + overhead, without
     // double-counting bottom composite time (already in compositenode_blend_wall_ms).
     if (!top || top_has_empty_bounds) {
+        // The first authored layer reaches this node as a pass-through: there
+        // is no bottom/top pair to blend yet. Native depth still has to enter
+        // the frame accumulator here, otherwise later layers cannot occlude
+        // it and this first layer cannot be occluded when the authoring order
+        // is reversed. apply_native_occlusion is identity on an empty
+        // accumulator and publishes the source's per-pixel or constant depth.
+        if (!top && bottom && !top_has_empty_bounds &&
+            ctx.backend && ctx.surface_registry &&
+            ctx.backend_stats_api()->supports_native_surfaces() &&
+            m_mode == BlendMode::Normal &&
+            m_operator == CompositeOperator::SourceOver &&
+            ctx.frame_input.has_camera_2_5d &&
+            ctx.frame_input.camera_2_5d.enabled) {
+            auto& mutable_result = const_cast<Framebuffer&>(*result);
+            const bool published = apply_native_occlusion(
+                ctx, mutable_result, mutable_result,
+                m_has_world_position, m_world_position,
+                m_world_z);
+            if (!published && ctx.policy.require_native_gpu) {
+                return NodeExecutionError{
+                    RenderBackendErrorCode::ExecutionFailure,
+                    "CompositeNode",
+                    "native camera depth could not publish the first layer"};
+            }
+        }
         if (!top_has_empty_bounds && ctx.policy.track_dof_depth) {
             const float depth = m_has_world_position
                 ? camera_space_depth(ctx.frame_input.camera_2_5d, m_world_position)
@@ -387,7 +413,7 @@ NodeExecResult CompositeNode::execute(
             ctx.frame_input.camera_2_5d.enabled) {
             auto& mutable_top = const_cast<Framebuffer&>(*top);
             (void)apply_native_occlusion(
-                ctx, mutable_top, m_has_world_position, m_world_position,
+                ctx, *bottom, mutable_top, m_has_world_position, m_world_position,
                 m_world_z);
         }
 

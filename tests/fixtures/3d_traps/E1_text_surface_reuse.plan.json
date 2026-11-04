@@ -193,8 +193,7 @@
                     "frame": 0,
                     "value": 100
                   }
-                ],
-                "property": "end"
+                ]
               },
               "exclude_spaces": true,
               "id": "text_dolly_orbit_glow_title_selector",
@@ -207,8 +206,7 @@
                     "frame": 0,
                     "value": 0
                   }
-                ],
-                "property": "start"
+                ]
               },
               "unit": "glyph"
             }
@@ -374,8 +372,7 @@
                     "frame": 0,
                     "value": 100
                   }
-                ],
-                "property": "end"
+                ]
               },
               "exclude_spaces": true,
               "id": "text_dolly_orbit_glow_subtitle_selector",
@@ -388,8 +385,7 @@
                     "frame": 0,
                     "value": 0
                   }
-                ],
-                "property": "start"
+                ]
               },
               "unit": "glyph"
             }

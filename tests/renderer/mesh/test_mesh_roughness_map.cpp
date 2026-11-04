@@ -5,6 +5,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/rendering/light_context.hpp>
+#include <chronon3d/math/camera_pose.hpp>
 
 #include <array>
 
@@ -41,6 +42,62 @@ TEST_CASE("prepared mesh roughness map changes per-pixel specular shading") {
     const auto rough_side = fb.get_pixel(48, 70);
     const auto smooth_side = fb.get_pixel(78, 70);
     CHECK(rough_side.r > smooth_side.r + 0.005f);
+}
+
+TEST_CASE("animated inline mesh stays visible under small camera yaw") {
+    constexpr int width = 640;
+    constexpr int height = 360;
+    constexpr float near_plane = 1.0f;
+    constexpr float far_plane = 10000.0f;
+    const Mat4 projection = glm::perspective(
+        glm::radians(50.0f), static_cast<float>(width) / height,
+        near_plane, far_plane);
+    Mat4 flip_camera_z{1.0f};
+    flip_camera_z[2][2] = -1.0f;
+
+    const auto covered_pixels = [&](const std::array<Vec3, 3>& positions,
+                                    float yaw_degrees, bool lit) {
+        Mesh mesh{"animated-inline-mesh-camera-yaw"};
+        for (const auto& position : positions)
+            mesh.add_vertex(Vertex{position, Vec3{0.f, 0.f, 1.f}, Vec2{0.f}});
+        mesh.add_index(0); mesh.add_index(1); mesh.add_index(2);
+
+        Camera2_5D camera;
+        camera.enabled = true;
+        camera.position = {0.f, 0.f, -1000.f};
+        camera.rotation = {0.f, yaw_degrees, 0.f};
+        const Mat4 view = flip_camera_z * camera.view_matrix();
+        Framebuffer output{width, height};
+        std::vector<float> depth(static_cast<std::size_t>(width) * height, 0.f);
+        if (lit) {
+            RenderNode::InlineMeshMaterial material;
+            renderer::render_mesh_filled_lit(
+                output, mesh, Mat4{1.f}, view, projection, Color::white(), depth,
+                {}, {}, material, near_plane, far_plane);
+        } else {
+            renderer::render_mesh_filled(
+                output, mesh, Mat4{1.f}, view, projection,
+                Color{1.f, 0.2f, 0.1f, 1.f}, depth, near_plane, far_plane);
+        }
+
+        std::size_t covered = 0;
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < width; ++x)
+                if (output.get_pixel(x, y).a > 0.f) ++covered;
+        return covered;
+    };
+
+    const std::array<Vec3, 3> first_pose{
+        Vec3{-50.f, -50.f, 0.f}, Vec3{50.f, -50.f, 0.f}, Vec3{-50.f, 50.f, 0.f}};
+    const std::array<Vec3, 3> later_pose{
+        Vec3{50.f, 0.f, 0.f}, Vec3{150.f, 0.f, 0.f}, Vec3{50.f, 100.f, 0.f}};
+    for (const bool lit : {false, true}) {
+        CAPTURE(lit);
+        CHECK(covered_pixels(first_pose, 0.f, lit) > 100);
+        CHECK(covered_pixels(later_pose, 0.f, lit) > 100);
+        CHECK(covered_pixels(first_pose, 0.02f, lit) > 100);
+        CHECK(covered_pixels(later_pose, 0.02f, lit) > 100);
+    }
 }
 
 TEST_CASE("prepared mesh metallic-roughness map samples blue metallic channel") {

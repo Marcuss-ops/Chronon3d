@@ -323,14 +323,17 @@ graph::RenderOpResult VulkanBackend::matte_surface(
     runtime::RenderSurfaceHandle destination,
     runtime::RenderSurfaceHandle target,
     runtime::RenderSurfaceHandle matte,
-    bool luma, bool inverted) {
+    bool luma, bool inverted,
+    int matte_origin_x, int matte_origin_y) {
 #ifdef CHRONON3D_ENABLE_VULKAN
     const std::array<runtime::RenderSurfaceHandle, 3> touched{destination, target, matte};
     return run_batched_surface_op(touched, {}, [&] {
-        m_impl->matte(destination, target, matte, luma, inverted);
+        m_impl->matte(destination, target, matte, luma, inverted,
+                      matte_origin_x, matte_origin_y);
     });
 #else
     (void)destination; (void)target; (void)matte; (void)luma; (void)inverted;
+    (void)matte_origin_x; (void)matte_origin_y;
     return graph::RenderOpResult(graph::make_render_backend_error(
         graph::RenderBackendErrorCode::UnsupportedCapability,
         "VulkanBackend::matte_surface: Vulkan support is disabled"));

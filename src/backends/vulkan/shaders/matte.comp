@@ -8,6 +8,8 @@ layout(binding = 2, rgba32f) uniform readonly image2D matte_image;
 layout(push_constant) uniform MatteParams {
     int use_luma;
     int inverted;
+    int origin_x;
+    int origin_y;
 } params;
 
 void main() {
@@ -15,7 +17,11 @@ void main() {
     ivec2 size = imageSize(destination_image);
     if (coord.x >= size.x || coord.y >= size.y) return;
     vec4 target = imageLoad(target_image, coord);
-    vec4 matte = imageLoad(matte_image, coord);
+    ivec2 matte_coord = coord + ivec2(params.origin_x, params.origin_y);
+    ivec2 matte_size = imageSize(matte_image);
+    bool inside_matte = matte_coord.x >= 0 && matte_coord.y >= 0 &&
+                        matte_coord.x < matte_size.x && matte_coord.y < matte_size.y;
+    vec4 matte = inside_matte ? imageLoad(matte_image, matte_coord) : vec4(0.0);
     float coverage = params.use_luma != 0
         ? dot(matte.rgb, vec3(0.2126, 0.7152, 0.0722))
         : matte.a;

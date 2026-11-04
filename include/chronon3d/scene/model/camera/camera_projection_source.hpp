@@ -52,6 +52,8 @@ public:
     [[nodiscard]] Vec3 get_position() const;
     [[nodiscard]] f32   get_zoom() const;
     [[nodiscard]] f32   get_fov_deg() const;
+    [[nodiscard]] f32   get_near_plane() const;
+    [[nodiscard]] f32   get_far_plane() const;
     [[nodiscard]] Vec2  get_lens_shift() const;
     [[nodiscard]] CameraOpticsMode get_optics_mode() const;
     [[nodiscard]] const LensModel& get_lens() const;

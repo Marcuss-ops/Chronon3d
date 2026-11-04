@@ -212,10 +212,14 @@ TEST_CASE("Typed program samples the same camera as the compatibility evaluator"
     first.position = {0.f, 0.f, -1000.f};
     first.rotation_deg = {0.f, 0.f, 170.f};
     first.fov_deg = 45.f;
+    first.near = 2.f;
+    first.far = 2500.f;
     CameraPlan last = first;
     last.position[0] = 200.f;
     last.rotation_deg[2] = -170.f;
     last.fov_deg = 75.f;
+    last.near = 4.f;
+    last.far = 5000.f;
     plan.camera = first;
     plan.camera_samples = std::vector<CameraSamplePlan>{{0., first}, {2., last}};
     assets::AssetResolver resolver;
@@ -229,6 +233,8 @@ TEST_CASE("Typed program samples the same camera as the compatibility evaluator"
         CHECK(sampled.position.x == doctest::Approx(expected.position.x));
         CHECK(sampled.rotation.z == doctest::Approx(expected.rotation.z));
         CHECK(sampled.fov_deg == doctest::Approx(expected.fov_deg));
+        CHECK(sampled.near_plane == doctest::Approx(expected.near_plane));
+        CHECK(sampled.far_plane == doctest::Approx(expected.far_plane));
     }
     auto other_plan = plan;
     other_plan.camera_samples->back().camera.position[0] = 400.f;
@@ -290,6 +296,306 @@ TEST_CASE("Typed program rendering consumes animated camera samples") {
     const auto frame1_fresh = fresh_renderer.render_program(*compiled, Frame{1});
     REQUIRE(frame1_fresh);
     CHECK(test::framebuffer_hash(*frame1_fresh) == hash1);
+}
+
+TEST_CASE("typed inline mesh animation remains visible under a small camera yaw") {
+    using namespace chronon3d::render_plan;
+
+    RenderPlan plan;
+    plan.job_id = "animated-inline-mesh-camera-yaw-regression";
+    plan.canvas = {.width = 640, .height = 360, .fps = FrameRate{30, 1},
+                   .duration = Frame{150}};
+    CameraPlan camera_start;
+    camera_start.position = {0.f, 0.f, -1000.f};
+    camera_start.rotation_deg = {-0.01f, -0.02f, 0.01f};
+    camera_start.fov_deg = 50.f;
+    CameraPlan camera_orbit_mid = camera_start;
+    camera_orbit_mid.position = {-5.f, 3.f, -1000.f};
+    camera_orbit_mid.rotation_deg = {0.01f, 0.f, -0.01f};
+    CameraPlan camera_end = camera_start;
+    camera_end.position = {10.f, 5.f, -1000.f};
+    camera_end.rotation_deg = {0.f, 0.02f, -0.01f};
+    plan.camera = camera_start;
+    plan.camera_samples = std::vector<CameraSamplePlan>{
+        {0.0, camera_start}, {74.0, camera_orbit_mid}, {149.0, camera_end}};
+
+    LayerPlan layer;
+    layer.id = "animated-triangle";
+    layer.type = LayerType::Mesh;
+    layer.color = {1.f, 0.2f, 0.1f, 1.f};
+    InlineMeshPlan mesh;
+    mesh.vertices = {
+        {{{-50.f, -50.f, 0.f}}, {{0.f, 0.f, 1.f}}, {{0.f, 0.f}}},
+        {{{ 50.f, -50.f, 0.f}}, {{0.f, 0.f, 1.f}}, {{1.f, 0.f}}},
+        {{{-50.f,  50.f, 0.f}}, {{0.f, 0.f, 1.f}}, {{0.f, 1.f}}},
+    };
+    mesh.indices = {0, 1, 2};
+    for (int frame = 0; frame < 150; ++frame) {
+        const float dx = 200.f * static_cast<float>(frame) / 149.f;
+        const float dy = 100.f * static_cast<float>(frame) / 149.f;
+        mesh.animation.push_back({
+            frame,
+            {{{-50.f + dx, -50.f + dy, 0.f}},
+             {{ 50.f + dx, -50.f + dy, 0.f}},
+             {{-50.f + dx,  50.f + dy, 0.f}}},
+            {}});
+    }
+    layer.inline_mesh = std::move(mesh);
+    plan.layers.push_back(std::move(layer));
+
+    assets::AssetResolver resolver;
+    const auto compiled = compiler::compile(plan, resolver);
+    REQUIRE(compiled);
+    auto renderer = test::make_renderer();
+    for (int frame = 0; frame < 150; ++frame) {
+        CAPTURE(frame);
+        const auto rendered = renderer.render_program(*compiled, Frame{frame});
+        REQUIRE(rendered);
+        std::size_t visible = 0;
+        for (int y = 0; y < rendered->height(); ++y)
+            for (int x = 0; x < rendered->width(); ++x)
+                visible += rendered->get_pixel(x, y).a > 0.05f;
+        INFO("visible pixels=" << visible);
+        CHECK(visible > 100);
+    }
+}
+
+TEST_CASE("2D image behind inline mesh preserves the complete mesh coverage") {
+    using namespace chronon3d::render_plan;
+
+    const auto asset_root = std::filesystem::path("output/camera_motion/image_mesh_occlusion");
+    std::filesystem::create_directories(asset_root);
+    Framebuffer background(128, 96);
+    background.clear(Color{0.05f, 0.2f, 0.95f, 1.f});
+    REQUIRE(save_png(background, (asset_root / "background.png").string()));
+
+    const auto make_plan = [&](bool with_image, bool plane_3d = false) {
+        RenderPlan plan;
+        plan.job_id = plane_3d ? "plane3d-behind-inline-mesh"
+            : (with_image ? "image-behind-inline-mesh" : "inline-mesh-control");
+        plan.canvas = {.width = 128, .height = 96, .fps = FrameRate{30, 1},
+                       .duration = Frame{1}};
+        CameraPlan camera;
+        camera.position = {0.f, 0.f, -1000.f};
+        camera.fov_deg = 50.f;
+        plan.camera = camera;
+        if (with_image) {
+            LayerPlan image;
+            image.id = "background-image";
+            image.type = LayerType::Image;
+            image.asset = (asset_root / "background.png").string();
+            image.size = plane_3d ? std::array<float, 2>{160.f, 120.f}
+                                  : std::array<float, 2>{128.f, 96.f};
+            image.size_dimensions = 2;
+            image.enable_3d = plane_3d;
+            if (plane_3d) {
+                image.position = {0.f, 0.f, 100.f};
+                image.position_dimensions = 3;
+            }
+            plan.layers.push_back(std::move(image));
+        }
+        LayerPlan layer;
+        layer.id = "foreground-mesh";
+        layer.type = LayerType::Mesh;
+        layer.color = {1.f, 0.05f, 0.02f, 1.f};
+        InlineMeshPlan mesh;
+        mesh.vertices = {
+            {{{-90.f, -70.f, 0.f}}, {{0.f, 0.f, 1.f}}, {{0.f, 0.f}}},
+            {{{ 90.f, -70.f, 0.f}}, {{0.f, 0.f, 1.f}}, {{1.f, 0.f}}},
+            {{{  0.f,  85.f, 0.f}}, {{0.f, 0.f, 1.f}}, {{0.5f, 1.f}}},
+        };
+        mesh.indices = {0, 1, 2};
+        layer.inline_mesh = std::move(mesh);
+        plan.layers.push_back(std::move(layer));
+        return plan;
+    };
+
+    assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::current_path());
+    auto renderer = test::make_renderer();
+    const auto render = [&](bool with_image, bool plane_3d = false) {
+        const auto compiled = compiler::compile(make_plan(with_image, plane_3d), resolver);
+        const std::string error = compiled ? std::string{} : compiled.error().message;
+        REQUIRE_MESSAGE(compiled, error);
+        return renderer.render_program(*compiled, Frame{0});
+    };
+    const auto isolated = render(false);
+    const auto composed = render(true);
+    const auto plane_composed = render(true, true);
+    REQUIRE(isolated);
+    REQUIRE(composed);
+    REQUIRE(plane_composed);
+
+    std::size_t isolated_red = 0;
+    std::size_t composed_red = 0;
+    std::size_t plane_red = 0;
+    std::size_t visible_blue_background = 0;
+    std::size_t coverage_mismatch = 0;
+    std::size_t plane_coverage_mismatch = 0;
+    std::size_t isolated_interior = 0;
+    std::size_t composed_interior_mismatch = 0;
+    std::size_t plane_interior_mismatch = 0;
+    int mismatch_x = -1;
+    int mismatch_y = -1;
+    for (int y = 0; y < 96; ++y) {
+        for (int x = 0; x < 128; ++x) {
+            const auto a = isolated->get_pixel(x, y);
+            const auto b = composed->get_pixel(x, y);
+            const auto c = plane_composed->get_pixel(x, y);
+            const bool a_red = a.r > 0.1f && a.r > 2.f * a.g && a.r > 2.f * a.b;
+            const bool b_red = b.r > 0.1f && b.r > 2.f * b.g && b.r > 2.f * b.b;
+            const bool c_red = c.r > 0.1f && c.r > 2.f * c.g && c.r > 2.f * c.b;
+            isolated_red += a_red;
+            composed_red += b_red;
+            plane_red += c_red;
+            visible_blue_background += b.b > 0.2f && b.b > 2.f * b.r;
+            if (a_red != b_red) {
+                ++coverage_mismatch;
+                mismatch_x = x;
+                mismatch_y = y;
+            }
+            plane_coverage_mismatch += a_red != c_red;
+        }
+    }
+    for (int y = 1; y < 95; ++y) {
+        for (int x = 1; x < 127; ++x) {
+            const auto red_at = [&](const Framebuffer& frame, int px, int py) {
+                const auto pixel = frame.get_pixel(px, py);
+                return pixel.r > 0.1f && pixel.r > 2.f * pixel.g && pixel.r > 2.f * pixel.b;
+            };
+            bool interior = red_at(*isolated, x, y);
+            for (int oy = -1; oy <= 1 && interior; ++oy)
+                for (int ox = -1; ox <= 1 && interior; ++ox)
+                    interior = red_at(*isolated, x + ox, y + oy);
+            if (!interior) continue;
+            ++isolated_interior;
+            composed_interior_mismatch += !red_at(*composed, x, y);
+            plane_interior_mismatch += !red_at(*plane_composed, x, y);
+        }
+    }
+    INFO("isolated/image/plane red pixels=" << isolated_red << "/" << composed_red << "/"
+         << plane_red << ", edge coverage mismatch=" << coverage_mismatch << "/"
+         << plane_coverage_mismatch << ", visible blue background="
+         << visible_blue_background);
+    INFO("mismatch location=" << mismatch_x << "," << mismatch_y);
+    INFO("interior pixels=" << isolated_interior << ", interior mismatches="
+         << composed_interior_mismatch);
+    if (mismatch_x >= 0) {
+        const auto a = isolated->get_pixel(mismatch_x, mismatch_y);
+        const auto b = composed->get_pixel(mismatch_x, mismatch_y);
+        INFO("isolated=" << a.r << "," << a.g << "," << a.b << "," << a.a
+             << " composed=" << b.r << "," << b.g << "," << b.b << "," << b.a);
+    }
+    CHECK(isolated_red > 100);
+    CHECK(composed_red > 100);
+    CHECK(coverage_mismatch <= 1);
+    CHECK(plane_red > 100);
+    CHECK(plane_coverage_mismatch <= 1);
+    CHECK(isolated_interior > 20);
+    CHECK(composed_interior_mismatch == 0);
+    CHECK(plane_interior_mismatch == 0);
+    CHECK(visible_blue_background > 0);
+}
+
+TEST_CASE("typed camera depth resolves crossing mesh and 2.5D plane independent of layer order") {
+    using namespace chronon3d::render_plan;
+
+    const auto asset_root = std::filesystem::path("output/camera_motion/typed_depth_order");
+    std::filesystem::create_directories(asset_root);
+    Framebuffer background(128, 96);
+    background.clear(Color{0.f, 0.f, 1.f, 1.f});
+    REQUIRE(save_png(background, (asset_root / "blue-plane.png").string()));
+
+    const auto make_plan = [&](bool plane_first, bool with_plane = true) {
+        RenderPlan plan;
+        plan.job_id = plane_first ? "depth-crossing-plane-first" : "depth-crossing-mesh-first";
+        plan.canvas = {.width = 128, .height = 96, .fps = FrameRate{30, 1},
+                       .duration = Frame{1}};
+        CameraPlan camera;
+        camera.position = {0.f, 0.f, -1000.f};
+        camera.fov_deg = 50.f;
+        camera.far = 10000.f;
+        plan.camera = camera;
+
+        LayerPlan plane;
+        plane.id = "blue-2.5d-plane";
+        plane.type = LayerType::Image;
+        plane.asset = (asset_root / "blue-plane.png").string();
+        plane.size = {160.f, 120.f};
+        plane.size_dimensions = 2;
+        plane.position = {0.f, 0.f, 0.f};
+        plane.position_dimensions = 3;
+        plane.enable_3d = true;
+
+        LayerPlan mesh_layer;
+        mesh_layer.id = "crossing-red-mesh";
+        mesh_layer.type = LayerType::Mesh;
+        mesh_layer.color = {1.f, 0.f, 0.f, 1.f};
+        InlineMeshPlan mesh;
+        mesh.vertices = {
+            {{{-90.f, -70.f, -30.f}}, {{0.f, 0.f, 1.f}}, {{0.f, 0.f}}},
+            {{{ 90.f, -70.f,  30.f}}, {{0.f, 0.f, 1.f}}, {{1.f, 0.f}}},
+            {{{  0.f,  85.f,   0.f}}, {{0.f, 0.f, 1.f}}, {{0.5f, 1.f}}},
+        };
+        mesh.indices = {0, 1, 2};
+        mesh_layer.inline_mesh = std::move(mesh);
+
+        if (plane_first) {
+            if (with_plane) plan.layers.push_back(std::move(plane));
+            plan.layers.push_back(std::move(mesh_layer));
+        } else {
+            plan.layers.push_back(std::move(mesh_layer));
+            if (with_plane) plan.layers.push_back(std::move(plane));
+        }
+        return plan;
+    };
+
+    assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::current_path());
+    auto renderer = test::make_renderer();
+    const auto render = [&](bool plane_first, bool with_plane = true) {
+        const auto compiled = compiler::compile(make_plan(plane_first, with_plane), resolver);
+        const std::string error = compiled ? std::string{} : compiled.error().message;
+        REQUIRE_MESSAGE(compiled, error);
+        return renderer.render_program(*compiled, Frame{0});
+    };
+    const auto plane_first = render(true);
+    const auto mesh_first = render(false);
+    const auto mesh_only = render(false, false);
+    REQUIRE(plane_first);
+    REQUIRE(mesh_first);
+    REQUIRE(mesh_only);
+
+    std::size_t differing_pixels = 0;
+    float max_channel_delta = 0.f;
+    std::size_t red_coverage = 0;
+    std::size_t blue_coverage = 0;
+    std::size_t mesh_occluded_by_plane = 0;
+    for (int y = 0; y < plane_first->height(); ++y) {
+        for (int x = 0; x < plane_first->width(); ++x) {
+            const auto a = plane_first->get_pixel(x, y);
+            const auto b = mesh_first->get_pixel(x, y);
+            const auto isolated = mesh_only->get_pixel(x, y);
+            const float delta = std::max({
+                std::abs(a.r - b.r), std::abs(a.g - b.g),
+                std::abs(a.b - b.b), std::abs(a.a - b.a)});
+            max_channel_delta = std::max(max_channel_delta, delta);
+            differing_pixels += delta > 1e-5f;
+            red_coverage += a.r > 0.8f && a.r > 2.f * a.b;
+            blue_coverage += a.b > 0.1f && a.b > 2.f * a.r;
+            const bool isolated_red = isolated.r > 0.8f && isolated.r > 2.f * isolated.b;
+            const bool composed_blue = a.b > 0.1f && a.b > 2.f * a.r;
+            mesh_occluded_by_plane += isolated_red && composed_blue;
+        }
+    }
+    INFO("order-dependent pixels=" << differing_pixels << ", max channel delta="
+         << max_channel_delta << ", red coverage=" << red_coverage
+         << ", blue coverage=" << blue_coverage
+         << ", mesh pixels hidden by plane=" << mesh_occluded_by_plane);
+    CHECK(red_coverage > 20);
+    CHECK(blue_coverage > 20);
+    CHECK(mesh_occluded_by_plane > 5);
+    CHECK(differing_pixels == 0);
 }
 
 TEST_CASE("Prepared composition view matches typed program raw camera and shutter frames") {

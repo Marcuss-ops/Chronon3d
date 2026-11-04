@@ -344,7 +344,7 @@ TEST_CASE("3D mesh plans fail closed without a camera") {
     CHECK(decoded->camera->fov_deg == doctest::Approx(50.0f));
 }
 
-TEST_CASE("inline mesh rejects missing, cross-typed, referenced, malformed, and non-triangle data") {
+TEST_CASE("inline mesh rejects malformed geometry and non-triangle data while allowing layer transforms") {
     auto json = base_mesh_plan();
     json["layers"][0].erase("inline_mesh");
     CHECK_FALSE(decode_render_plan(json));
@@ -386,7 +386,11 @@ TEST_CASE("inline mesh rejects missing, cross-typed, referenced, malformed, and 
     json["layers"][0]["animation"] = {{"tracks", Json::array({
         {{"property", "position_x"}, {"keyframes", Json::array({{{"frame", 0}, {"value", 3}}})}}
     })}};
-    CHECK_FALSE(decode_render_plan(json));
+    const auto transformed_mesh = decode_render_plan(json);
+    REQUIRE(transformed_mesh);
+    REQUIRE(transformed_mesh->layers[0].animation);
+    REQUIRE(transformed_mesh->layers[0].animation->tracks.size() == 1);
+    CHECK(transformed_mesh->layers[0].animation->tracks[0].property == "position_x");
 }
 
 TEST_CASE("inline mesh budget enforces aggregate bytes and typed structural invariants") {

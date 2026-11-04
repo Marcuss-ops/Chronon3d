@@ -183,7 +183,8 @@ void VulkanBackend::Impl::record_composite(
 
     void VulkanBackend::Impl::record_matte(VkCommandBuffer command, VkDescriptorSet descriptors,
                       const Image& destination, const Image& target,
-                      const Image& matte, bool luma, bool inverted) {
+                      const Image& matte, bool luma, bool inverted,
+                      int matte_origin_x, int matte_origin_y) {
         vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE,
                           reinterpret_cast<VkPipeline>(kernels.registry.resolve(GpuKernelId::Matte)));
         vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -191,7 +192,10 @@ void VulkanBackend::Impl::record_composite(
         struct PushConstants {
             std::int32_t luma;
             std::int32_t inverted;
-        } params{luma ? 1 : 0, inverted ? 1 : 0};
+            std::int32_t origin_x;
+            std::int32_t origin_y;
+        } params{luma ? 1 : 0, inverted ? 1 : 0,
+                 matte_origin_x, matte_origin_y};
         vkCmdPushConstants(command, kernels.general_layout, VK_SHADER_STAGE_COMPUTE_BIT,
                            0, sizeof(params), &params);
         vkCmdDispatch(command, (destination.width + 15) / 16,

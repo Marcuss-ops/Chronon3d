@@ -133,6 +133,8 @@ inline u64 mix_params_hash(u64 seed, u64 value) noexcept {
     hb.add(static_cast<std::uint8_t>(cam.optics_mode));
     hb.add(cam.zoom);
     hb.add(cam.fov_deg);
+    hb.add(cam.near_plane);
+    hb.add(cam.far_plane);
     hb.add(cam.lens.focal_length);
     hb.add(cam.lens.f_stop);
     hb.add(cam.lens.close_focus);

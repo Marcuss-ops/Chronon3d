@@ -1,0 +1,92 @@
+{
+  "plan_sha256": "c2467b44fed0f0d007af7b3e38a3dd57e13728295b506701d7d3c02306e376d6",
+  "comparison": "DoF ON RGBA8 raw Vulkan readback vs DoF OFF RGBA8 raw Vulkan readback",
+  "frames": {
+    "30": {
+      "expected_focus": "near",
+      "rois": {
+        "near": {
+          "dof_edge_energy": 112.87817615576293,
+          "sharp_edge_energy": 118.46525854675791,
+          "on_off_ratio": 0.9528377985281671,
+          "expected_focused": true,
+          "gate": "PASS"
+        },
+        "middle": {
+          "dof_edge_energy": 16.54722495396685,
+          "sharp_edge_energy": 133.2994209449136,
+          "on_off_ratio": 0.12413576020562792,
+          "expected_focused": false,
+          "gate": "PASS"
+        },
+        "far": {
+          "dof_edge_energy": 0.25335858913449766,
+          "sharp_edge_energy": 27.73710195755069,
+          "on_off_ratio": 0.009134284811810613,
+          "expected_focused": false,
+          "gate": "PASS"
+        }
+      }
+    },
+    "75": {
+      "expected_focus": "middle",
+      "rois": {
+        "near": {
+          "dof_edge_energy": 0.8990299719996725,
+          "sharp_edge_energy": 141.04240263946983,
+          "on_off_ratio": 0.006374182197517987,
+          "expected_focused": false,
+          "gate": "PASS"
+        },
+        "middle": {
+          "dof_edge_energy": 129.89568506050534,
+          "sharp_edge_energy": 145.8593205641514,
+          "on_off_ratio": 0.8905545738050727,
+          "expected_focused": true,
+          "gate": "PASS"
+        },
+        "far": {
+          "dof_edge_energy": 16.351816262186887,
+          "sharp_edge_energy": 53.83636023224131,
+          "on_off_ratio": 0.3037318308973305,
+          "expected_focused": false,
+          "gate": "PASS"
+        }
+      }
+    },
+    "149": {
+      "expected_focus": "far",
+      "rois": {
+        "near": {
+          "dof_edge_energy": 0.5817143850524764,
+          "sharp_edge_energy": 114.72989024784314,
+          "on_off_ratio": 0.0050702949666894875,
+          "expected_focused": false,
+          "gate": "PASS"
+        },
+        "middle": {
+          "dof_edge_energy": 0.6005672245805673,
+          "sharp_edge_energy": 122.65489449879735,
+          "on_off_ratio": 0.004896398362532985,
+          "expected_focused": false,
+          "gate": "PASS"
+        },
+        "far": {
+          "dof_edge_energy": 33.30642563681555,
+          "sharp_edge_energy": 33.32028568899854,
+          "on_off_ratio": 0.9995840356138492,
+          "expected_focused": true,
+          "gate": "PASS"
+        }
+      }
+    }
+  },
+  "thresholds": {
+    "focused_min_ratio": 0.7,
+    "defocused_max_ratio": 0.9,
+    "source": "/home/pierone/chronon2-p010-c6/measurement-contract.json"
+  },
+  "dof_raw_sha256": "472f37621c2a5fed356e29beb8644482480aa6dfec9d3b6efa4cfb6be8d46b03",
+  "sharp_raw_sha256": "70199e5995c00cb99a5c9c4569fe1ba5396dd2789e5be0b47fb57139244e6448",
+  "aggregate_gate": "PASS"
+}

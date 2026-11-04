@@ -1,0 +1,53 @@
+[Chronon3d]
+HEAD b1b21cbed1d8927de8929a33924c1f4d097955c4
+ M docs/CHRONON_PLAN.md
+ M docs/tickets/TICKET-CAMERA-DEFINITIVE-CLOSURE.md
+ M include/chronon3d/backends/vulkan/vulkan_backend.hpp
+ M include/chronon3d/cache/node_cache.hpp
+ M include/chronon3d/math/camera_2_5d_projection.hpp
+ M include/chronon3d/math/camera_projection_resolver.hpp
+ M include/chronon3d/math/projection_context.hpp
+ M include/chronon3d/math/projector_2_5d.hpp
+ M include/chronon3d/render_graph/render_backend_surface_api.hpp
+ M include/chronon3d/render_graph/render_graph_context.hpp
+ M include/chronon3d/scene/model/camera/camera_2_5d.hpp
+ M include/chronon3d/scene/model/camera/camera_projection_source.hpp
+ M src/backends/software/processors/software_mesh_processor.cpp
+ M src/backends/vulkan/shaders/matte.comp
+ M src/backends/vulkan/shaders/occlusion_tag.comp
+ M src/backends/vulkan/vulkan_backend_impl.hpp
+ M src/backends/vulkan/vulkan_backend_operations_color_private.cpp
+ M src/backends/vulkan/vulkan_backend_surface_api_effects_private.cpp
+ M src/backends/vulkan/vulkan_kernel_record_composite_private.cpp
+ M src/render_graph/nodes/composite_depth_mask.cpp
+ M src/render_graph/nodes/composite_depth_mask.hpp
+ M src/render_graph/nodes/composite_node.cpp
+ M src/render_graph/nodes/source_node_execute.cpp
+ M src/render_graph/nodes/source_node_native_image.cpp
+ M src/render_graph/nodes/source_node_native_mesh.cpp
+ M src/render_graph/render_backend.cpp
+ M src/render_plan/render_plan_camera_adapter.hpp
+ M src/scene/camera/camera_projection_source.cpp
+ M tests/registry/test_backend_registry_vulkan.cpp
+ M tests/registry/test_backend_registry_vulkan_transforms.cpp
+ M tests/renderer/camera/test_camera_motion.cpp
+ M tests/renderer/mesh/test_mesh_roughness_map.cpp
+?? docs/evidence/camera-mesh-yaw-isolation-20261103/
+?? docs/evidence/chronon-2.0-baseline-20261103/
+?? docs/evidence/image-mesh-occlusion-20261103/
+
+[ChrononMotion3d]
+HEAD b7137ee0094e7f750a287305ac30b0273c583b22
+ M src/chrononmotion/motion/RenderPlanEmissionValidationBounds.cpp
+ M src/chrononmotion/motion/RenderPlanLoweringCamera.cpp
+ M tests/motion_authoring_renderplan.cpp
+?? docs/evidence/camera-mesh-yaw-isolation-20261104/
+?? docs/evidence/showcase-animation-20261103/__pycache__/
+
+[ChrononTemplate]
+HEAD 80959bbcdcd4df8ea5c3705a04e9791ae18a151f
+?? assets/backgrounds/
+?? assets/fonts/LICENSE-Liberation.txt
+?? assets/fonts/LiberationMono-Bold.ttf
+?? tools/important_phrases/compose_text_25d.py
+?? tools/important_phrases/render_text_25d_depth.py

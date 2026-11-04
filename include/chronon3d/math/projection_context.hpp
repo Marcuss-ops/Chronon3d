@@ -27,6 +27,8 @@ struct ProjectionContext {
     f32 focal{1000.0f};
     f32 vp_cx{640.0f};
     f32 vp_cy{360.0f};
+    f32 near_plane{0.1f};
+    f32 far_plane{1000.0f};
 
     [[nodiscard]] Vec3 to_view(const Vec3& world) const {
         Vec4 v = view * Vec4(world, 1.0f);

@@ -85,9 +85,14 @@ TEST_CASE("NativeAvSink RGB conversion pixels agree with emitted BT709 metadata"
     const auto path = std::filesystem::path("native-av-bt709-red.mp4");
     VideoSinkConfig config;
     config.stream.width = 64; config.stream.height = 64;
+    config.stream.frame_rate_num = 24; config.stream.frame_rate_den = 1;
     config.stream.submitted_format = PixelFormat::RGB24;
-    config.encoder.codec = VideoCodec::H264; config.encoder.crf = 0;
+    config.encoder.codec = VideoCodec::H264;
+    config.encoder.encoded_pixel_format = PixelFormat::YUV420P;
+    config.encoder.crf = 0;
+    config.output.container = VideoContainer::Mp4;
     config.output.output_path = path;
+    config.output.overwrite = true;
     auto sink = create_video_sink(config);
     const bool opened = sink->open(config);
     INFO(sink->last_error_message());
