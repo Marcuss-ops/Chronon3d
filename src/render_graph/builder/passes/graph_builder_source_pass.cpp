@@ -292,6 +292,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         layer.name.c_str(), node.name.c_str());
                     return graph.add_node(std::make_unique<ClearNode>(), node_ctx);
                 }
+                // A TextRun with animated glyph state is frame-variant even
+                // when the surface layer itself is static.  `source_is_static`
+                // describes the layer, not the run: an animator stack and an
+                // animated document both rewrite `run_shape->glyphs` in the
+                // per-frame driver, so keying the node at Frame{0} reuses the
+                // first frame forever (screen-space overlays froze).
+                const bool text_run_animated =
+                    !run_shape->animators.empty() || run_shape->animated_doc != nullptr;
+                const bool run_is_static = source_is_static && !text_run_animated;
+
                 // Resolve the placement before finalizing the cache key. A
                 // tight projected TextRun is a local raster surface; camera
                 // pose and projected matrix belong to the downstream
@@ -307,7 +317,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     "layer.textrun:" + std::string(layer.name) + ":" +
                     std::string(node.name)
                 }
-                    .frame(source_is_static ? Frame{0} : ctx.frame_input.frame)
+                    .frame(run_is_static ? Frame{0} : ctx.frame_input.frame)
                     .output(ctx.frame_input.width, ctx.frame_input.height)
                     .params(content_hash)
                     .source(hash_combine(hash_string(node.name), placement_hash))
@@ -325,7 +335,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     run_key,
                     placement,
                     std::optional<f32>(resolved_opacity),
-                    source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
+                    run_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
                 ), node_ctx);
 
                 if (ctx.policy.diagnostics_enabled) {

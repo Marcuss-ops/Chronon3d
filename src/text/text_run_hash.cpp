@@ -275,6 +275,17 @@ u64 hash_text_run_shape(const TextRunShape& s, Frame frame) {
 
     u64 seed = hash_text_run_shape(s);
 
+    // An animator stack is a per-frame driver payload: it rewrites the glyph
+    // state on every frame, but it carries no layout bytes the frame overload
+    // could sample.  Fold the frame itself so a shape with animators can never
+    // answer two frames with the same cache entry (the pre-PR cache returned
+    // the same seed for every frame when `animated_doc` was null).  Static
+    // runs keep the frame-invariant hash.
+    if (!s.animators.empty()) {
+        seed = hash_combine(seed, hash_string("chronon.text-run.animator-frame.v1"));
+        seed = hash_combine(seed, hash_value(static_cast<u64>(frame.integral())));
+    }
+
     if (!s.animated_doc) {
         return seed;
     }

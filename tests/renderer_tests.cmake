@@ -102,6 +102,7 @@ chronon3d_add_test_suite(
         render_graph/executor/test_node_executor_cache_lifetime.cpp
         render_graph/nodes/test_mask_node_unit.cpp
         render_graph/nodes/test_multi_source_text_run.cpp
+        render_graph/nodes/test_screen_space_text_run_animation.cpp
         render_graph/nodes/test_gpu_text_run_placement.cpp
         render_graph/nodes/test_gpu_text_cached_policy.cpp
         render_graph/nodes/test_text_run_node_execute_error.cpp
