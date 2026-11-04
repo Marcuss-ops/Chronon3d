@@ -598,6 +598,118 @@ TEST_CASE("typed camera depth resolves crossing mesh and 2.5D plane independent 
     CHECK(differing_pixels == 0);
 }
 
+TEST_CASE("camera-space depth keeps image, plane, mesh and text stable in every authored order") {
+    using namespace chronon3d::render_plan;
+
+    constexpr int width = 128;
+    constexpr int height = 96;
+    const auto asset_root = std::filesystem::path("output/camera_motion/full_depth_order");
+    std::filesystem::create_directories(asset_root);
+    std::filesystem::create_directories(asset_root / "fonts");
+    std::filesystem::copy_file(
+        std::filesystem::path(CHRONON3D_SOURCE_DIR) / "assets/fonts/Inter-Bold.ttf",
+        asset_root / "fonts/Inter-Bold.ttf",
+        std::filesystem::copy_options::overwrite_existing);
+    Framebuffer image(width, height);
+    image.clear(Color{0.02f, 0.12f, 0.7f, 1.f});
+    for (int y = 0; y < height; ++y)
+        for (int x = 0; x < width / 2; ++x)
+            image.set_pixel(x, y, Color{0.05f, 0.48f, 0.16f, 1.f});
+    REQUIRE(save_png(image, (asset_root / "depth-background.png").string()));
+
+    LayerPlan image_layer;
+    image_layer.id = "depth-image-plane";
+    image_layer.type = LayerType::Image;
+    image_layer.asset = (asset_root / "depth-background.png").string();
+    image_layer.size = {1600.f, 1200.f};
+    image_layer.size_dimensions = 2;
+    image_layer.position = {0.f, 0.f, 120.f};
+    image_layer.position_dimensions = 3;
+    image_layer.enable_3d = true;
+
+    LayerPlan plane;
+    plane.id = "depth-solid-plane";
+    plane.type = LayerType::Color;
+    plane.color = {0.92f, 0.58f, 0.05f, 1.f};
+    plane.position = {0.f, 0.f, 35.f};
+    plane.position_dimensions = 3;
+    plane.size = {900.f, 700.f};
+    plane.size_dimensions = 2;
+    plane.enable_3d = true;
+
+    LayerPlan mesh_layer;
+    mesh_layer.id = "depth-crossing-mesh";
+    mesh_layer.type = LayerType::Mesh;
+    mesh_layer.color = {0.9f, 0.04f, 0.02f, 1.f};
+    InlineMeshPlan mesh;
+    mesh.vertices = {
+        {{{-580.f, -420.f, 0.f}}, {{0.f, 0.f, 1.f}}, {{0.f, 0.f}}},
+        {{{ 580.f, -420.f, 650.f}}, {{0.f, 0.f, 1.f}}, {{1.f, 0.f}}},
+        {{{   0.f,  550.f, 250.f}}, {{0.f, 0.f, 1.f}}, {{0.5f, 1.f}}},
+    };
+    mesh.indices = {0, 1, 2};
+    mesh_layer.inline_mesh = std::move(mesh);
+
+    LayerPlan text;
+    text.id = "depth-text";
+    text.type = LayerType::Text;
+    text.text = "Z 3D";
+    text.font = (asset_root / "fonts/Inter-Bold.ttf").string();
+    text.position = {0.f, 0.f, -200.f};
+    text.position_dimensions = 3;
+    text.enable_3d = true;
+    LayerStylePlan style;
+    style.font = text.font;
+    style.font_family = "Inter";
+    style.font_weight = 700;
+    style.font_size = 64.f;
+    style.fill = "#ffffff";
+    text.style = std::move(style);
+
+    const std::array<LayerPlan, 4> surfaces{
+        image_layer, plane, mesh_layer, text};
+    std::array<std::size_t, 4> order{0, 1, 2, 3};
+    assets::AssetResolver resolver;
+    resolver.mount(std::filesystem::current_path());
+    auto renderer = test::make_renderer();
+    std::optional<std::uint64_t> reference_hash;
+    std::size_t permutation_count = 0;
+    do {
+        RenderPlan plan;
+        plan.job_id = "camera-space-depth-order-permutation";
+        plan.canvas = {.width = width, .height = height, .fps = FrameRate{30, 1},
+                       .duration = Frame{1}};
+        CameraPlan camera;
+        camera.position = {0.f, 0.f, -1000.f};
+        camera.fov_deg = 50.f;
+        camera.far = 10000.f;
+        plan.camera = camera;
+        for (const auto index : order) plan.layers.push_back(surfaces[index]);
+
+        INFO("layer order=" << order[0] << order[1] << order[2] << order[3]);
+        const auto compiled = compiler::compile(plan, resolver);
+        const std::string error = compiled ? std::string{} : compiled.error().message;
+        REQUIRE_MESSAGE(compiled, error);
+        const auto rendered = renderer.render_program(*compiled, Frame{0});
+        REQUIRE(rendered);
+        std::size_t visible_pixels = 0;
+        std::size_t white_text_pixels = 0;
+        for (int y = 0; y < rendered->height(); ++y)
+            for (int x = 0; x < rendered->width(); ++x) {
+                const auto pixel = rendered->get_pixel(x, y);
+                visible_pixels += pixel.a > 0.01f;
+                white_text_pixels += pixel.r > 0.8f && pixel.g > 0.8f && pixel.b > 0.8f;
+            }
+        CHECK(visible_pixels > static_cast<std::size_t>(width * height / 2));
+        CHECK(white_text_pixels > 0);
+        const auto hash = test::framebuffer_hash(*rendered);
+        if (!reference_hash) reference_hash = hash;
+        CHECK(hash == *reference_hash);
+        ++permutation_count;
+    } while (std::next_permutation(order.begin(), order.end()));
+    CHECK(permutation_count == 24);
+}
+
 TEST_CASE("Prepared composition view matches typed program raw camera and shutter frames") {
     using namespace chronon3d::render_plan;
     RenderPlan plan;

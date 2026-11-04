@@ -25,10 +25,9 @@ The raw sink stores RGBA8 with premultiplied RGB quantized through sRGB
 bytes verbatim therefore produces a PNG with dark fringes around translucent
 text. By default this tool removes the premultiplication before writing;
 `--alpha straight` is only for artifacts that are already straight. The PNG is
-written with no further colour transform and filter type 0. The profile it
-prints are the same statistics the text-quality evidence uses (distinct levels,
-ink fraction, luma percentiles), which is what makes "contains text" and
-"uniform frame" distinguishable numbers rather than impressions.
+written with no further colour transform and filter type 0. Profiles are
+calculated on the original raw bytes, before conversion, so measurements stay
+tied to renderer output.
 
 Usage
 -----
@@ -293,9 +292,22 @@ def self_test() -> int:
             print(f"self-test FAILED: flat luma {level} was reported as content",
                   file=sys.stderr)
             return 1
-    print("self-test OK: PNG round-trip is byte-faithful; premultiplied RGBA8 "
-          "unpremultiplies without touching alpha; profile separates a varied "
-          "frame from a uniform one on any background")
+    # A half-covered linear white pixel is encoded by the raw sink as
+    # sRGB(0.5), not as half the sRGB white code. Recovering straight-alpha
+    # PNG must return opaque white RGB while preserving the 50% alpha.
+    half_white = bytes((188, 188, 188, 128))
+    converted = unpremultiply_rgba8(half_white)
+    if converted != bytes((255, 255, 255, 128)):
+        print(f"self-test FAILED: premultiplied conversion returned {converted}",
+              file=sys.stderr)
+        return 1
+    transparent = unpremultiply_rgba8(bytes((80, 40, 10, 0)))
+    if transparent != bytes((0, 0, 0, 0)):
+        print("self-test FAILED: transparent RGB was not canonicalized",
+              file=sys.stderr)
+        return 1
+    print("self-test OK: premultiplied raw RGBA converts to straight-alpha "
+          "sRGB PNG; raw profile separates varied and uniform frames")
     return 0
 
 
@@ -334,13 +346,14 @@ def main(argv: list[str]) -> int:
         print(f"raw_frame_to_png: {exc}", file=sys.stderr)
         return 2
 
+    raw_pixels = pixels
     if args.alpha == "premultiplied":
         pixels = unpremultiply_rgba8(pixels)
     png = encode_png_rgba8(args.width, args.height, pixels)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(png)
 
-    prof = profile_rgba8(pixels, args.width, args.height)
+    prof = profile_rgba8(raw_pixels, args.width, args.height)
     print(f"raw: {args.raw} frames={frames} frame_bytes={frame_bytes(args.width, args.height)}")
     print(f"png: {args.out} ({len(png)} bytes, straight RGBA8 from {args.alpha} raw)")
     print("profile: " + " ".join(f"{k}={v}" for k, v in prof.items()))
