@@ -391,7 +391,7 @@ TEST_CASE("TextRunDriver: animators preserved across layout swap") {
     doc.add_keyframe(kf60);
 
     auto state = doc.sample_at(Frame{30});
-    apply_active_state_to_text_run_shape(*shape, state, engine, layout);
+    (void)apply_active_state_to_text_run_shape(*shape, state, engine, layout);
 
     // Animators preserved across the layout swap (driver uses them next frame).
     CHECK(shape->animators.size() == saved_animators.size());
